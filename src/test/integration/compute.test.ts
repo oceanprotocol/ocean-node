@@ -1308,3 +1308,173 @@ describe('Compute', () => {
     indexer.stopAllThreads()
   })
 })
+
+describe('Compute Access Restrictions', () => {
+  let previousConfiguration: OverrideEnvConfig[]
+  let config: OceanNodeConfig
+  let dbconn: Database
+  let oceanNode: OceanNode
+  let provider: any
+  let publisherAccount: any
+  let consumerAccount: any
+  let computeEnvironments: any
+  let publishedComputeDataset: any
+  let publishedAlgoDataset: any
+  let paymentToken: any
+  let firstEnv: ComputeEnvironment
+
+  const wallet = new ethers.Wallet(
+    '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
+  )
+  const restrictedAddress = '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0'
+  const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
+  const computeJobDuration = 60 * 15
+
+  before(async () => {
+    const artifactsAddresses = getOceanArtifactsAdresses()
+    paymentToken = artifactsAddresses.development.Ocean
+    previousConfiguration = await setupEnvironment(
+      TEST_ENV_CONFIG_FILE,
+      buildEnvOverrideConfig(
+        [
+          ENVIRONMENT_VARIABLES.RPCS,
+          ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
+          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
+          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE,
+          ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS
+        ],
+        [
+          JSON.stringify(mockSupportedNetworks),
+          JSON.stringify([DEVELOPMENT_CHAIN_ID]),
+          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
+          '[{"socketPath":"/var/run/docker.sock","resources":[{"id":"disk","total":10}],"storageExpiry":604800,"maxJobDuration":3600,"access":{"addresses":["' +
+            restrictedAddress +
+            '"],"accessLists":[]},"fees":{"' +
+            DEVELOPMENT_CHAIN_ID +
+            '":[{"feeToken":"' +
+            paymentToken +
+            '","prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"maxJobs":3,"access":{"addresses":["' +
+            restrictedAddress +
+            '"],"accessLists":[]},"resources":[{"id":"cpu","max":1},{"id":"ram","max":1},{"id":"disk","max":1}]}}]'
+        ]
+      )
+    )
+    config = await getConfiguration(true)
+    dbconn = await Database.init(config.dbConfig)
+    oceanNode = await OceanNode.getInstance(config, dbconn, null, null, null, true)
+    const indexer = new OceanIndexer(dbconn, config.indexingNetworks)
+    oceanNode.addIndexer(indexer)
+    oceanNode.addC2DEngines()
+
+    provider = new JsonRpcProvider('http://127.0.0.1:8545')
+    publisherAccount = await provider.getSigner(0)
+    consumerAccount = await provider.getSigner(1)
+
+    publishedComputeDataset = await publishAsset(computeAsset, publisherAccount)
+    publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
+
+    await waitToIndex(
+      publishedComputeDataset.ddo.id,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
+    )
+    await waitToIndex(
+      publishedAlgoDataset.ddo.id,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
+    )
+  })
+
+  it('Get compute environments with access restrictions', async () => {
+    const getEnvironmentsTask = { command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS }
+    const response = await new ComputeGetEnvironmentsHandler(oceanNode).handle(
+      getEnvironmentsTask
+    )
+    computeEnvironments = await streamToObject(response.stream as Readable)
+    firstEnv = computeEnvironments[0]
+    assert(firstEnv.access, 'Access control should exist')
+    assert(
+      firstEnv.access.addresses.includes(restrictedAddress),
+      'Should have restricted address'
+    )
+  })
+
+  it('should deny access for paid compute when address not in allowed list', async () => {
+    const nonce = Date.now().toString()
+    const message = String(
+      (await consumerAccount.getAddress()) + publishedComputeDataset.ddo.id + nonce
+    )
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const signature = await wallet.signMessage(ethers.toBeArray(consumerMessage))
+
+    const startComputeTask: PaidComputeStartCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_START,
+      consumerAddress: await consumerAccount.getAddress(),
+      environment: firstEnv.id,
+      signature,
+      nonce,
+      datasets: [
+        {
+          documentId: publishedComputeDataset.ddo.id,
+          serviceId: publishedComputeDataset.ddo.services[0].id,
+          transferTxId: '0x123'
+        }
+      ],
+      algorithm: {
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        transferTxId: '0x123',
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      },
+      payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken },
+      maxJobDuration: computeJobDuration
+    }
+
+    const response = await new PaidComputeStartHandler(oceanNode).handle(startComputeTask)
+    assert(response.status.httpStatus === 403, 'Should get 403 access denied')
+  })
+
+  it('should deny access for free compute when address not in allowed list', async () => {
+    const nonce = Date.now().toString()
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(nonce))]
+    )
+    const signature = await wallet.signMessage(ethers.toBeArray(consumerMessage))
+
+    const startComputeTask: FreeComputeStartCommand = {
+      command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+      consumerAddress: await wallet.getAddress(),
+      signature,
+      nonce,
+      environment: firstEnv.id,
+      datasets: [
+        {
+          fileObject: computeAsset.services[0].files.files[0],
+          documentId: publishedComputeDataset.ddo.id,
+          serviceId: publishedComputeDataset.ddo.services[0].id
+        }
+      ],
+      algorithm: {
+        fileObject: algoAsset.services[0].files.files[0],
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      },
+      output: {}
+    }
+
+    const response = await new FreeComputeStartHandler(oceanNode).handle(startComputeTask)
+    assert(response.status.httpStatus === 403, 'Should get 403 access denied')
+  })
+
+  after(async () => {
+    await tearDownEnvironment(previousConfiguration)
+  })
+})
