@@ -107,6 +107,7 @@
             ],
             "storageExpiry": 604800,
             "maxJobDuration": 3600,
+            "environmentType": "standard",
             "fees": {
                 "11155111": [
                     {

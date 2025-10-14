@@ -9,10 +9,12 @@ export enum C2DClusterType {
   DOCKER = 2
 }
 
+/* eslint-disable no-unused-vars */
 export enum EnvironmentType {
-    STANDARD = 'standard',
-    BENCHMARK = 'benchmark'
+  STANDARD = 'standard',
+  BENCHMARK = 'benchmark'
 }
+/* eslint-enable no-unused-vars */
 
 export interface C2DClusterInfo {
   /** Type of cluster: K8, Node local, etc */
