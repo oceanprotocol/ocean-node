@@ -18,7 +18,7 @@
         "enableIPV4": true,
         "enableIPV6": true,
         "ipV4BindAddress": "0.0.0.0",
-        "ipV4BindTcpPort": 8000,
+        "ipV4BindTcpPort": 9000,
         "ipV4BindWsPort": 0,
         "ipV6BindAddress": "::1",
         "ipV6BindTcpPort": 0,
@@ -75,9 +75,6 @@
             "chunkSize": 100
         }
     },
-    "indexingNetworks": [
-        8996
-    ],
     "feeStrategy": {},
     "c2dClusters": [],
     "ipfsGateway": "https://ipfs.io/",
