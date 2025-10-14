@@ -151,16 +151,18 @@ export function buildC2DClusters(
     }
   }
 
-  for (const dockerC2d of dockerComputeEnvironments) {
-    if (dockerC2d.socketPath || dockerC2d.host) {
-      const hash = create256Hash(JSON.stringify(dockerC2d))
-      clusters.push({
-        connection: dockerC2d,
-        hash,
-        type: C2DClusterType.DOCKER,
-        tempFolder: './c2d_storage/' + hash,
-        environmentType: dockerC2d.environmentType
-      })
+  if (dockerComputeEnvironments) {
+    for (const dockerC2d of dockerComputeEnvironments) {
+      if (dockerC2d.socketPath || dockerC2d.host) {
+        const hash = create256Hash(JSON.stringify(dockerC2d))
+        clusters.push({
+          connection: dockerC2d,
+          hash,
+          type: C2DClusterType.DOCKER,
+          tempFolder: './c2d_storage/' + hash,
+          environmentType: dockerC2d.environmentType
+        })
+      }
     }
   }
 
@@ -242,6 +244,10 @@ export async function buildMergedConfig(): Promise<OceanNodeConfig> {
   const config = parsed.data as any
 
   // Post-processing transformations
+  if (!config.indexingNetworks) {
+    config.indexingNetworks = config.supportedNetworks
+  }
+
   if (Array.isArray(config.indexingNetworks) && config.supportedNetworks) {
     const filteredNetworks: RPCS = {}
     for (const chainId of config.indexingNetworks) {
