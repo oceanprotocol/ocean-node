@@ -18,11 +18,11 @@
         "enableIPV4": true,
         "enableIPV6": true,
         "ipV4BindAddress": "0.0.0.0",
-        "ipV4BindTcpPort": 8000,
-        "ipV4BindWsPort": 0,
+        "ipV4BindTcpPort": 9000,
+        "ipV4BindWsPort": 9001,
         "ipV6BindAddress": "::1",
-        "ipV6BindTcpPort": 0,
-        "ipV6BindWsPort": 0,
+        "ipV6BindTcpPort": 9002,
+        "ipV6BindWsPort": 9003,
         "announceAddresses": [],
         "pubsubPeerDiscoveryInterval": 10000,
         "dhtMaxInboundStreams": 500,
@@ -73,10 +73,18 @@
             "chainId": 8996,
             "network": "development",
             "chunkSize": 100
+        },
+        "11155111": {
+            "rpc": "https://sepolia.drpc.org",
+            "chainId": 11155111,
+            "network": "sepolia",
+            "chunkSize": 500,
+            "startBlock": 9408142
         }
     },
     "indexingNetworks": [
-        8996
+        8996,
+        11155111
     ],
     "feeStrategy": {},
     "c2dClusters": [],
