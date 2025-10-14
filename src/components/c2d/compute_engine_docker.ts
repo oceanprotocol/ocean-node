@@ -100,7 +100,8 @@ export class C2DEngineDocker extends C2DEngine {
   public override async start() {
     // let's build the env.   Swarm and k8 will build multiple envs, based on arhitecture
     const config = await getConfiguration()
-    const envConfig = await this.getC2DConfig().connection
+    const envConfig = this.getC2DConfig().connection
+    const { environmentType } = this.getC2DConfig()
     let sysinfo = null
     try {
       sysinfo = await this.docker.info()
@@ -167,7 +168,7 @@ export class C2DEngineDocker extends C2DEngine {
         architecture: sysinfo.Architecture,
         os: sysinfo.OSType
       },
-      environmentType: config.dockerComputeEnvironments[0].environmentType,
+      environmentType,
       fees
     })
     if (`storageExpiry` in envConfig) this.envs[0].storageExpiry = envConfig.storageExpiry

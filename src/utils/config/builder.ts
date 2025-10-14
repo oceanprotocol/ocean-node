@@ -158,7 +158,8 @@ export function buildC2DClusters(
         connection: dockerC2d,
         hash,
         type: C2DClusterType.DOCKER,
-        tempFolder: './c2d_storage/' + hash
+        tempFolder: './c2d_storage/' + hash,
+        environmentType: dockerC2d.environmentType
       })
     }
   }

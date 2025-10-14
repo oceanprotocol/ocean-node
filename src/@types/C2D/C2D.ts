@@ -9,6 +9,11 @@ export enum C2DClusterType {
   DOCKER = 2
 }
 
+export enum EnvironmentType {
+    STANDARD = 'standard',
+    BENCHMARK = 'benchmark'
+}
+
 export interface C2DClusterInfo {
   /** Type of cluster: K8, Node local, etc */
   type: C2DClusterType
@@ -18,6 +23,8 @@ export interface C2DClusterInfo {
   connection?: any
   /** Folder for storing data */
   tempFolder?: string
+  /** Cluster environmentType */
+  environmentType?: EnvironmentType
 }
 
 export type ComputeResourceType = 'cpu' | 'ram' | 'disk' | any
@@ -104,11 +111,6 @@ export interface ComputeRuntimes {
     path?: string
     runtimeArgs?: string[] // Optional runtime arguments
   }
-}
-
-export enum EnvironmentType {
-    STANDARD = 'standard',
-    BENCHMARK = 'benchmark'
 }
 
 export interface ComputeEnvironment extends ComputeEnvironmentBaseConfig {
