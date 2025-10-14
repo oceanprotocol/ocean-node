@@ -17,7 +17,7 @@ export const requestValidator = async function (req: Request, res: Response, nex
 
   const configuration = await getConfiguration()
 
-  const ipValidation = await checkIP(requestIP, configuration)
+  const ipValidation = checkIP(requestIP, configuration)
   if (!ipValidation.valid) {
     HTTP_LOGGER.logMessage(`IP denied: ${ipValidation.error}`)
     return res.status(403).send(ipValidation.error)

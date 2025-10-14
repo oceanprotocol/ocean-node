@@ -105,11 +105,18 @@ export interface ComputeRuntimes {
     runtimeArgs?: string[] // Optional runtime arguments
   }
 }
+
+export enum EnvironmentType {
+    STANDARD = 'standard',
+    BENCHMARK = 'benchmark'
+}
+
 export interface ComputeEnvironment extends ComputeEnvironmentBaseConfig {
   id: string // v1
   runningJobs: number
   runningfreeJobs?: number
   consumerAddress: string // v1
+  environmentType: EnvironmentType
 }
 
 export interface C2DDockerConfig {
@@ -126,6 +133,7 @@ export interface C2DDockerConfig {
   fees: ComputeEnvFeesStructure
   resources?: ComputeResource[] // optional, owner can overwrite
   free?: ComputeEnvironmentFreeOptions
+  environmentType: EnvironmentType
 }
 
 export type ComputeResultType =

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { getAddress } from 'ethers'
 import { dhtFilterMethod } from '../../@types/OceanNode.js'
-import { C2DClusterType } from '../../@types/C2D/C2D.js'
+import { C2DClusterType, EnvironmentType } from '../../@types/C2D/C2D.js'
 import { CONFIG_LOGGER } from '../logging/common.js'
 import { numberFromString, booleanFromString, jsonFromString } from './transforms.js'
 import {
@@ -116,7 +116,8 @@ export const C2DDockerConfigSchema = z.array(
       storageExpiry: z.number().int().optional().default(604800),
       maxJobDuration: z.number().int().optional().default(3600),
       fees: z.record(z.string(), z.array(ComputeEnvFeesSchema)),
-      free: ComputeEnvironmentFreeOptionsSchema.optional()
+      free: ComputeEnvironmentFreeOptionsSchema.optional(),
+      environmentType: z.nativeEnum(EnvironmentType)
     })
     .refine((data) => data.fees !== undefined && Object.keys(data.fees).length > 0, {
       message: 'There is no fees configuration!'

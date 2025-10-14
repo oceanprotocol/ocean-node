@@ -130,9 +130,7 @@ export abstract class C2DEngine {
   }
 
   protected async getJobEnvironment(job: DBComputeJob): Promise<ComputeEnvironment> {
-    const environments: ComputeEnvironment[] = await (
-      await this.getComputeEnvironments()
-    ).filter((env: ComputeEnvironment) => env.id === job.environment)
+    const environments: ComputeEnvironment[] = (await this.getComputeEnvironments()).filter((env: ComputeEnvironment) => env.id === job.environment)
     // found it
     if (environments.length === 1) {
       const environment = environments[0]

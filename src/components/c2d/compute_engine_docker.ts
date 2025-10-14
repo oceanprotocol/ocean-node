@@ -167,6 +167,7 @@ export class C2DEngineDocker extends C2DEngine {
         architecture: sysinfo.Architecture,
         os: sysinfo.OSType
       },
+      environmentType: config.dockerComputeEnvironments[0].environmentType,
       fees
     })
     if (`storageExpiry` in envConfig) this.envs[0].storageExpiry = envConfig.storageExpiry
