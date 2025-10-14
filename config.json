@@ -75,9 +75,6 @@
             "chunkSize": 100
         }
     },
-    "indexingNetworks": [
-        8996
-    ],
     "feeStrategy": {},
     "c2dClusters": [],
     "c2dNodeUri": "",
