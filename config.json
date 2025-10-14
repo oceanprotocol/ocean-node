@@ -73,18 +73,10 @@
             "chainId": 8996,
             "network": "development",
             "chunkSize": 100
-        },
-        "11155111": {
-            "rpc": "https://sepolia.drpc.org",
-            "chainId": 11155111,
-            "network": "sepolia",
-            "chunkSize": 500,
-            "startBlock": 9408142
         }
     },
     "indexingNetworks": [
-        8996,
-        11155111
+        8996
     ],
     "feeStrategy": {},
     "c2dClusters": [],
