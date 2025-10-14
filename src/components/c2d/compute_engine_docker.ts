@@ -167,8 +167,14 @@ export class C2DEngineDocker extends C2DEngine {
         architecture: sysinfo.Architecture,
         os: sysinfo.OSType
       },
+      access: {
+        addresses: [],
+        accessLists: []
+      },
       fees
     })
+    if (`access` in envConfig) this.envs[0].access = envConfig.access
+
     if (`storageExpiry` in envConfig) this.envs[0].storageExpiry = envConfig.storageExpiry
     if (`maxJobDuration` in envConfig)
       this.envs[0].maxJobDuration = envConfig.maxJobDuration
@@ -233,7 +239,13 @@ export class C2DEngineDocker extends C2DEngine {
       */
     // limits for free env
     if ('free' in envConfig) {
-      this.envs[0].free = {}
+      this.envs[0].free = {
+        access: {
+          addresses: [],
+          accessLists: []
+        }
+      }
+      if (`access` in envConfig.free) this.envs[0].free.access = envConfig.free.access
       if (`storageExpiry` in envConfig.free)
         this.envs[0].free.storageExpiry = envConfig.free.storageExpiry
       if (`maxJobDuration` in envConfig.free)

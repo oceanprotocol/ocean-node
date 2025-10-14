@@ -21,7 +21,10 @@ import {
   isERC20Template4Active
 } from '../../../utils/asset.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
-import { ComputeResourceRequestWithPrice } from '../../../@types/C2D/C2D.js'
+import {
+  ComputeAccessList,
+  ComputeResourceRequestWithPrice
+} from '../../../@types/C2D/C2D.js'
 import { decrypt } from '../../../utils/crypt.js'
 // import { verifyProviderFees } from '../utils/feesHandler.js'
 import { Blockchain } from '../../../utils/blockchain.js'
@@ -35,7 +38,6 @@ import { Credentials, DDOManager } from '@oceanprotocol/ddo-js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
 import { PolicyServer } from '../../policyServer/index.js'
 import { areKnownCredentialTypes, checkCredentials } from '../../../utils/credentials.js'
-
 export class PaidComputeStartHandler extends CommandHandler {
   validate(command: PaidComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
@@ -124,8 +126,18 @@ export class PaidComputeStartHandler extends CommandHandler {
           }
         }
       }
-      const { algorithm } = task
 
+      if (!validateAccess(task.consumerAddress, env.access)) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 403,
+            error: 'Access denied'
+          }
+        }
+      }
+
+      const { algorithm } = task
       const algoChecksums = await getAlgoChecksums(
         task.algorithm.documentId,
         task.algorithm.serviceId,
@@ -349,9 +361,8 @@ export class PaidComputeStartHandler extends CommandHandler {
                 stream: null,
                 status: {
                   httpStatus: 400,
-                  error: `Algorithm ${
-                    task.algorithm.documentId
-                  } not allowed to run on the dataset: ${ddoInstance.getDid()}`
+                  error: `Algorithm ${task.algorithm.documentId
+                    } not allowed to run on the dataset: ${ddoInstance.getDid()}`
                 }
               }
             }
@@ -708,6 +719,16 @@ export class FreeComputeStartHandler extends CommandHandler {
           }
         }
 
+        if (!validateAccess(task.consumerAddress, env.free.access)) {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 403,
+              error: 'Access denied'
+            }
+          }
+        }
+
         task.resources = await engine.checkAndFillMissingResources(
           task.resources,
           env,
@@ -783,4 +804,24 @@ export class FreeComputeStartHandler extends CommandHandler {
       }
     }
   }
+}
+
+function validateAccess(
+  consumerAddress: string,
+  access: ComputeAccessList | undefined
+): boolean {
+  console.log('-----> validateAccess', consumerAddress, access)
+  if (!access) {
+    return true
+  }
+
+  if (access.accessLists.length === 0 && access.addresses.length === 0) {
+    return true
+  }
+
+  if (access.addresses.includes(consumerAddress)) {
+    return true
+  }
+
+  return false
 }
