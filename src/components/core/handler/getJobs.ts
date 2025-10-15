@@ -27,7 +27,11 @@ export class GetJobsHandler extends CommandHandler {
         throw new Error('C2D database not initialized')
       }
 
-      const jobs = await c2d.getFinishedJobs(task.environments, task.fromTimestamp)
+      const jobs = await c2d.getFinishedJobs(
+        task.environments,
+        task.fromTimestamp,
+        task.consumerAddrs
+      )
       return {
         stream: Readable.from(JSON.stringify(jobs)),
         status: {

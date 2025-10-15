@@ -15,7 +15,8 @@ interface ComputeDatabaseProvider {
   deleteJob(jobId: string): Promise<boolean>
   getFinishedJobs(
     environments?: string[],
-    fromTimestamp?: string
+    fromTimestamp?: string,
+    consumerAddrs?: string[]
   ): Promise<DBComputeJob[]>
 }
 
@@ -312,7 +313,8 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
 
   getFinishedJobs(
     environments?: string[],
-    fromTimestamp?: string
+    fromTimestamp?: string,
+    consumerAddrs?: string[]
   ): Promise<DBComputeJob[]> {
     let selectSQL = `
     SELECT * FROM ${this.schema.name} WHERE (dateFinished IS NOT NULL OR results IS NOT NULL)
@@ -327,6 +329,12 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     if (fromTimestamp) {
       selectSQL += ` AND dateFinished >= ?`
       params.push(fromTimestamp)
+    }
+
+    if (consumerAddrs && consumerAddrs.length > 0) {
+      const placeholders = consumerAddrs.map(() => '?').join(',')
+      selectSQL += ` AND owner NOT IN (${placeholders})`
+      params.push(...consumerAddrs)
     }
 
     selectSQL += ` ORDER BY dateFinished DESC`

@@ -73,9 +73,10 @@ export class C2DDatabase extends AbstractDatabase {
 
   async getFinishedJobs(
     environments?: string[],
-    fromTimestamp?: string
+    fromTimestamp?: string,
+    consumerAddrs?: string[]
   ): Promise<DBComputeJob[]> {
-    return await this.provider.getFinishedJobs(environments, fromTimestamp)
+    return await this.provider.getFinishedJobs(environments, fromTimestamp, consumerAddrs)
   }
 
   /**
