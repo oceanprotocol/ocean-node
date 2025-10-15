@@ -37,7 +37,7 @@ import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { Credentials, DDOManager } from '@oceanprotocol/ddo-js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
 import { PolicyServer } from '../../policyServer/index.js'
-import { areKnownCredentialTypes, checkCredentials } from '../../../utils/credentials.js'
+import { areKnownCredentialTypes, checkCredentials, findAccessListCredentials } from '../../../utils/credentials.js'
 export class PaidComputeStartHandler extends CommandHandler {
   validate(command: PaidComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
@@ -127,7 +127,8 @@ export class PaidComputeStartHandler extends CommandHandler {
         }
       }
 
-      if (!validateAccess(task.consumerAddress, env.access)) {
+      const accessGranted = await validateAccess(task.consumerAddress, env.access)
+      if (!accessGranted) {
         return {
           stream: null,
           status: {
@@ -361,9 +362,8 @@ export class PaidComputeStartHandler extends CommandHandler {
                 stream: null,
                 status: {
                   httpStatus: 400,
-                  error: `Algorithm ${
-                    task.algorithm.documentId
-                  } not allowed to run on the dataset: ${ddoInstance.getDid()}`
+                  error: `Algorithm ${task.algorithm.documentId
+                    } not allowed to run on the dataset: ${ddoInstance.getDid()}`
                 }
               }
             }
@@ -720,7 +720,8 @@ export class FreeComputeStartHandler extends CommandHandler {
           }
         }
 
-        if (!validateAccess(task.consumerAddress, env.free.access)) {
+        const accessGranted = await validateAccess(task.consumerAddress, env.free.access)
+        if (!accessGranted) {
           return {
             stream: null,
             status: {
@@ -807,11 +808,10 @@ export class FreeComputeStartHandler extends CommandHandler {
   }
 }
 
-function validateAccess(
+async function validateAccess(
   consumerAddress: string,
   access: ComputeAccessList | undefined
-): boolean {
-  console.log('-----> validateAccess', consumerAddress, access)
+): Promise<boolean> {
   if (!access) {
     return true
   }
@@ -822,6 +822,35 @@ function validateAccess(
 
   if (access.addresses.includes(consumerAddress)) {
     return true
+  }
+
+  if (access.accessLists.length > 0) {
+    const config = await getConfiguration()
+    const supportedNetworks = config.supportedNetworks
+
+    for (const accessListAddress of access.accessLists) {
+      for (const chainIdStr of Object.keys(supportedNetworks)) {
+        const { rpc, network, chainId, fallbackRPCs } = supportedNetworks[chainIdStr]
+        try {
+          const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+          const signer = blockchain.getSigner()
+
+          const hasAccess = await findAccessListCredentials(
+            signer,
+            accessListAddress,
+            consumerAddress
+          )
+          if (hasAccess) {
+            return true
+          }
+        } catch (error) {
+          CORE_LOGGER.logMessage(
+            `Failed to check access list ${accessListAddress} on chain ${chainIdStr}: ${error.message}`,
+            true
+          )
+        }
+      }
+    }
   }
 
   return false
