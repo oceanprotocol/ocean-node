@@ -37,7 +37,11 @@ import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { Credentials, DDOManager } from '@oceanprotocol/ddo-js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
 import { PolicyServer } from '../../policyServer/index.js'
-import { areKnownCredentialTypes, checkCredentials, findAccessListCredentials } from '../../../utils/credentials.js'
+import {
+  areKnownCredentialTypes,
+  checkCredentials,
+  findAccessListCredentials
+} from '../../../utils/credentials.js'
 export class PaidComputeStartHandler extends CommandHandler {
   validate(command: PaidComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
@@ -362,8 +366,9 @@ export class PaidComputeStartHandler extends CommandHandler {
                 stream: null,
                 status: {
                   httpStatus: 400,
-                  error: `Algorithm ${task.algorithm.documentId
-                    } not allowed to run on the dataset: ${ddoInstance.getDid()}`
+                  error: `Algorithm ${
+                    task.algorithm.documentId
+                  } not allowed to run on the dataset: ${ddoInstance.getDid()}`
                 }
               }
             }
@@ -826,7 +831,7 @@ async function validateAccess(
 
   if (access.accessLists.length > 0) {
     const config = await getConfiguration()
-    const supportedNetworks = config.supportedNetworks
+    const { supportedNetworks } = config
 
     for (const accessListAddress of access.accessLists) {
       for (const chainIdStr of Object.keys(supportedNetworks)) {
