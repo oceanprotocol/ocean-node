@@ -46,7 +46,8 @@ async function calculateProviderFeeAmount(
   // it's a download provider fee
   // we should get asset file size, and do a proper fee management according to time
   // something like estimated 3 downloads per day
-  const providerFeeAmount = (await getConfiguration()).feeStrategy.feeAmount.amount
+  const config = await getConfiguration()
+  const providerFeeAmount = config?.feeStrategy?.feeAmount?.amount || 0
   return providerFeeAmount
 }
 
@@ -468,9 +469,9 @@ export async function getProviderKey(): Promise<string> {
  * @returns the token address
  */
 export async function getProviderFeeToken(chainId: number): Promise<string> {
-  const result = (await getConfiguration()).feeStrategy.feeTokens.filter(
-    (token: FeeTokens) => Number(token.chain) === chainId
-  )
+  const config = await getConfiguration()
+  const feeTokens = config?.feeStrategy?.feeTokens || []
+  const result = feeTokens.filter((token: FeeTokens) => Number(token.chain) === chainId)
   if (result.length === 0 && chainId === 8996) {
     const localOceanToken = getOceanArtifactsAdresses().development.Ocean
     return localOceanToken || ethers.ZeroAddress
@@ -483,7 +484,8 @@ export async function getProviderFeeToken(chainId: number): Promise<string> {
  * @returns amount
  */
 export async function getProviderFeeAmount(): Promise<number> {
-  return (await getConfiguration()).feeStrategy.feeAmount.amount
+  const config = await getConfiguration()
+  return config?.feeStrategy?.feeAmount?.amount || 0
 }
 // https://github.com/oceanprotocol/contracts/blob/main/contracts/templates/ERC20Template.sol#L65-L74
 // https://github.com/oceanprotocol/contracts/blob/main/contracts/templates/ERC20Template.sol#L447-L508
