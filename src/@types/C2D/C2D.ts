@@ -221,6 +221,7 @@ export interface DBComputeJobPayment {
   token: string
   lockTx: string
   claimTx: string
+  cost: number
 }
 
 // this is the internal structure

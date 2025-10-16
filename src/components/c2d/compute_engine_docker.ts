@@ -1124,9 +1124,10 @@ export class C2DEngineDocker extends C2DEngine {
         parseFloat(job.algoStopTimestamp) - parseFloat(job.algoStartTimestamp)
       if (algoRunnedTime < 0) minDuration += algoRunnedTime * -1
       else minDuration += algoRunnedTime
+      let cost = 0
       if (minDuration > 0) {
         // we need to claim
-        const cost = this.getTotalCostOfJob(job.resources, minDuration)
+        cost = this.getTotalCostOfJob(job.resources, minDuration)
         const proof = JSON.stringify(omitDBComputeFieldsFromComputeJob(job))
         try {
           txId = await this.escrow.claimLock(
@@ -1155,6 +1156,7 @@ export class C2DEngineDocker extends C2DEngine {
       }
       if (txId) {
         job.payment.claimTx = txId
+        job.payment.cost = cost
         await this.db.updateJob(job)
       }
     }
