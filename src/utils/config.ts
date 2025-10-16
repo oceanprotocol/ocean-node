@@ -60,6 +60,12 @@ const C2DDockerConfigSchema = z.array(
     ),
     storageExpiry: z.number().int().optional().default(604800),
     maxJobDuration: z.number().int().optional().default(3600),
+    access: z
+      .object({
+        addresses: z.array(z.string()),
+        accessLists: z.array(z.string())
+      })
+      .optional(),
     fees: z.record(
       z.string(),
       z.array(
@@ -76,6 +82,12 @@ const C2DDockerConfigSchema = z.array(
     free: z.object({
       maxJobDuration: z.number().int().optional().default(3600),
       maxJobs: z.number().int().optional().default(3),
+      access: z
+        .object({
+          addresses: z.array(z.string()),
+          accessLists: z.array(z.string())
+        })
+        .optional(),
       resources: z.array(
         z.object({
           id: z.string(),
