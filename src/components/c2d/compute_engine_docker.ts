@@ -1127,7 +1127,10 @@ export class C2DEngineDocker extends C2DEngine {
       let cost = 0
       if (minDuration > 0) {
         // we need to claim
-        cost = this.getTotalCostOfJob(job.resources, minDuration)
+        const fee = env.fees[job.payment.chainId].find(
+          (fee) => fee.feeToken === job.payment.token
+        )
+        cost = this.getTotalCostOfJob(job.resources, minDuration, fee)
         const proof = JSON.stringify(omitDBComputeFieldsFromComputeJob(job))
         try {
           txId = await this.escrow.claimLock(
