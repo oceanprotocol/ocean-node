@@ -130,6 +130,7 @@ export class PaidComputeStartHandler extends CommandHandler {
           }
         }
       }
+      const config = await getConfiguration()
 
       const accessGranted = await validateAccess(task.consumerAddress, env.access)
       if (!accessGranted) {
@@ -146,7 +147,8 @@ export class PaidComputeStartHandler extends CommandHandler {
       const algoChecksums = await getAlgoChecksums(
         task.algorithm.documentId,
         task.algorithm.serviceId,
-        node
+        node,
+        config
       )
 
       const isRawCodeAlgorithm = task.algorithm.meta?.rawcode

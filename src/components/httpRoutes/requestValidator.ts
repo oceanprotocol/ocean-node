@@ -46,10 +46,10 @@ function checkIP(
 ): CommonValidation {
   let onDenyList = false
   if (!Array.isArray(requestIP)) {
-    onDenyList = configuration.denyList?.ips.includes(requestIP)
+    onDenyList = configuration.denyList?.ips?.includes(requestIP)
   } else {
     for (const ip of requestIP) {
-      if (configuration.denyList?.ips.includes(ip)) {
+      if (configuration.denyList?.ips?.includes(ip)) {
         onDenyList = true
         break
       }
