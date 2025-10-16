@@ -48,7 +48,8 @@ export abstract class Storage {
     const response = await axios({
       method: 'get',
       url: input,
-      responseType: 'stream'
+      responseType: 'stream',
+      timeout: 30000
     })
 
     return {
@@ -272,7 +273,8 @@ export class UrlStorage extends Storage {
     const response = await axios({
       url: file.url,
       method: file.method || 'get',
-      headers: file.headers
+      headers: file.headers,
+      timeout: 30000
     })
     return await encryptData(response.data, encryptionType)
   }
