@@ -80,12 +80,18 @@ export interface RunningPlatform {
   os?: string
 }
 
+export interface ComputeAccessList {
+  addresses: string[]
+  accessLists: string[]
+}
+
 export interface ComputeEnvironmentFreeOptions {
   // only if a compute env exposes free jobs
   storageExpiry?: number
   maxJobDuration?: number
   maxJobs?: number // maximum number of simultaneous free jobs
   resources?: ComputeResource[]
+  access: ComputeAccessList
 }
 export interface ComputeEnvironmentBaseConfig {
   description?: string // v1
@@ -95,6 +101,7 @@ export interface ComputeEnvironmentBaseConfig {
   maxJobs?: number // maximum number of simultaneous paid jobs
   fees: ComputeEnvFeesStructure
   resources?: ComputeResource[]
+  access: ComputeAccessList
   free?: ComputeEnvironmentFreeOptions
   platform: RunningPlatform
 }
@@ -126,6 +133,7 @@ export interface C2DDockerConfig {
   fees: ComputeEnvFeesStructure
   resources?: ComputeResource[] // optional, owner can overwrite
   free?: ComputeEnvironmentFreeOptions
+  access: ComputeAccessList
 }
 
 export type ComputeResultType =

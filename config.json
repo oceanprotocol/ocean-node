@@ -105,6 +105,10 @@
             ],
             "storageExpiry": 604800,
             "maxJobDuration": 3600,
+            "access": {
+                "addresses": [],
+                "accessLists": []
+            },
             "fees": {
                 "8996": [
                     {
@@ -120,6 +124,10 @@
             "free": {
                 "maxJobDuration": 3600,
                 "maxJobs": 3,
+                "access": {
+                    "addresses": [],
+                    "accessLists": []
+                },
                 "resources": [
                     {
                         "id": "cpu",
