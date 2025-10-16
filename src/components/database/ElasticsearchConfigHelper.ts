@@ -22,7 +22,7 @@ export const DEFAULT_ELASTICSEARCH_CONFIG: Required<ElasticsearchRetryConfig> = 
     (process.env.ELASTICSEARCH_RESURRECT_STRATEGY as 'ping' | 'optimistic' | 'none') ||
     'ping',
   maxRetries: parseInt(process.env.ELASTICSEARCH_MAX_RETRIES || '5'),
-  sniffOnStart: process.env.ELASTICSEARCH_SNIFF_ON_START !== 'false',
+  sniffOnStart: false,
   sniffInterval:
     process.env.ELASTICSEARCH_SNIFF_INTERVAL === 'false'
       ? false
