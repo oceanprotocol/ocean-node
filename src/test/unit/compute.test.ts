@@ -91,7 +91,8 @@ describe('Compute Jobs Database', () => {
         token: '0x123',
         lockTx: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260fdc',
         claimTx: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260fdc',
-        chainId: 8996
+        chainId: 8996,
+        cost: 0
       },
       isFree: false,
       algoStartTimestamp: '0',
@@ -159,7 +160,8 @@ describe('Compute Jobs Database', () => {
         token: '0x123',
         lockTx: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260fdc',
         claimTx: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260fdc',
-        chainId: 8996
+        chainId: 8996,
+        cost: 0
       },
       isFree: false,
       algoStartTimestamp: '0',

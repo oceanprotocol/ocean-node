@@ -14,7 +14,8 @@ import type {
   DBComputeJobPayment,
   DBComputeJob,
   dockerDeviceRequest,
-  DBComputeJobMetadata
+  DBComputeJobMetadata,
+  ComputeEnvFees
 } from '../../@types/C2D/C2D.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
@@ -428,11 +429,15 @@ export abstract class C2DEngine {
 
   public getTotalCostOfJob(
     resources: ComputeResourceRequestWithPrice[],
-    duration: number
+    duration: number,
+    fee: ComputeEnvFees
   ) {
     let cost: number = 0
     for (const request of resources) {
-      if (request.price) cost += request.price * request.amount * Math.ceil(duration / 60)
+      const price = fee.prices.find((p) => p.id === request.id)?.price
+      if (price) {
+        cost += price * request.amount * Math.ceil(duration / 60)
+      }
     }
     return cost
   }

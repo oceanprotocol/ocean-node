@@ -502,7 +502,8 @@ export class PaidComputeStartHandler extends CommandHandler {
             chainId: task.payment.chainId,
             token: task.payment.token,
             lockTx: agreementId,
-            claimTx: null
+            claimTx: null,
+            cost: 0
           },
           jobId,
           task.metadata,
