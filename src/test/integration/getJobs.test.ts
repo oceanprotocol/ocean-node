@@ -3,7 +3,11 @@ import { Readable } from 'stream'
 import { Database } from '../../components/database/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { GetJobsHandler } from '../../components/core/handler/getJobs.js'
-import { C2DStatusNumber, C2DStatusText, type DBComputeJob } from '../../@types/C2D/C2D.js'
+import {
+  C2DStatusNumber,
+  C2DStatusText,
+  type DBComputeJob
+} from '../../@types/C2D/C2D.js'
 import { PROTOCOL_COMMANDS, getConfiguration } from '../../utils/index.js'
 import {
   DEFAULT_TEST_TIMEOUT,
