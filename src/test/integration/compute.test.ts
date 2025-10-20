@@ -219,10 +219,12 @@ describe('Compute', () => {
 
   it('should add the algorithm to the dataset trusted algorithm list', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 5)
+    const config = await getConfiguration()
     const algoChecksums = await getAlgoChecksums(
       publishedAlgoDataset.ddo.id,
       publishedAlgoDataset.ddo.services[0].id,
-      oceanNode
+      oceanNode,
+      config
     )
     publishedComputeDataset.ddo.services[0].compute = {
       allowRawAlgorithm: false,
@@ -1245,10 +1247,12 @@ describe('Compute', () => {
       )
       const algoDDOTest = ddo
       if (algoDDOTest) {
+        const config = await getConfiguration()
         const algoChecksums = await getAlgoChecksums(
           algoDDOTest.id,
           algoDDOTest.services[0].id,
-          oceanNode
+          oceanNode,
+          config
         )
         expect(algoChecksums.files).to.equal(
           'f6a7b95e4a2e3028957f69fdd2dac27bd5103986b2171bc8bfee68b52f874dcd'
@@ -1271,10 +1275,12 @@ describe('Compute', () => {
 
       const algoDDOTest = ddo
       if (algoDDOTest) {
+        const config = await getConfiguration()
         const algoChecksums = await getAlgoChecksums(
           algoDDOTest.id,
           algoDDOTest.services[0].id,
-          oceanNode
+          oceanNode,
+          config
         )
         const { ddo, wasTimeout } = await waitToIndex(
           datasetDDO.id,

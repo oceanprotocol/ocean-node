@@ -3,10 +3,8 @@ import { OceanNodeConfig } from '../@types/OceanNode.js'
 import { ValidateParams } from '../components/httpRoutes/validateCommands.js'
 import { RequestLimiter } from '../OceanNode.js'
 import { CORE_LOGGER } from './logging/common.js'
-import {
-  CONNECTIONS_RATE_INTERVAL,
-  DEFAULT_MAX_CONNECTIONS_PER_MINUTE
-} from './constants.js'
+import { CONNECTIONS_RATE_INTERVAL } from './constants.js'
+import { DEFAULT_MAX_CONNECTIONS_PER_MINUTE } from './index.js'
 
 // TODO we should group common stuff,
 // we have multiple similar validation interfaces

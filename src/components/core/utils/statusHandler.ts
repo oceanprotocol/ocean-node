@@ -7,8 +7,7 @@ import {
   StorageTypes,
   OceanNodeConfig
 } from '../../../@types/OceanNode.js'
-import { existsEnvironmentVariable, getConfiguration } from '../../../utils/index.js'
-import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
+import { getConfiguration } from '../../../utils/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { typesenseSchemas } from '../../database/TypesenseSchemas.js'
@@ -16,10 +15,12 @@ import { SupportedNetwork } from '../../../@types/blockchain.js'
 import { getAdminAddresses } from '../../../utils/auth.js'
 import HumanHasher from 'humanhash'
 
-const supportedStorageTypes: StorageTypes = {
-  url: true,
-  arwave: existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY),
-  ipfs: existsEnvironmentVariable(ENVIRONMENT_VARIABLES.IPFS_GATEWAY)
+function getSupportedStorageTypes(config: OceanNodeConfig): StorageTypes {
+  return {
+    url: true,
+    arwave: !!config.arweaveGateway,
+    ipfs: !!config.ipfsGateway
+  }
 }
 
 // platform information
@@ -118,7 +119,7 @@ export async function status(
       p2p: config.hasP2P,
       provider: [],
       indexer: [],
-      supportedStorage: supportedStorageTypes,
+      supportedStorage: getSupportedStorageTypes(config),
       // uptime: process.uptime(),
       platform: platformInfo,
       codeHash: config.codeHash,

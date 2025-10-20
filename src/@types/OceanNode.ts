@@ -98,13 +98,14 @@ export interface OceanNodeConfig {
   dbConfig?: OceanNodeDBConfig
   httpPort: number
   feeStrategy: FeeStrategy
+  ipfsGateway?: string | null
+  arweaveGateway?: string | null
   supportedNetworks?: RPCS
   claimDurationTimeout: number
   indexingNetworks?: RPCS
   c2dClusters: C2DClusterInfo[]
-  c2dNodeUri: string
-  accountPurgatoryUrl: string
-  assetPurgatoryUrl: string
+  accountPurgatoryUrl: string | null
+  assetPurgatoryUrl: string | null
   allowedAdmins?: string[]
   allowedAdminsList?: AccessListContract | null
   codeHash?: string
