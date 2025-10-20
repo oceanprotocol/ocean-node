@@ -241,7 +241,7 @@ jobs:
         run: |
           npm ci
           npm run build
-          npm run start &
+          npm run start > ocean-node.log 2>&1 &
         env:
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
           IPFS_GATEWAY: http://172.15.0.16:8080/
@@ -287,6 +287,21 @@ jobs:
         run: npm run test:system
         env:
           AVOID_LOOP_RUN: true
+      - name: Show Ocean Node logs on failure
+        if: failure()
+        working-directory: ${{ github.workspace }}/ocean-node
+        run: |
+          echo "=== Ocean Node Logs ==="
+          if [ -f ocean-node.log ]; then
+            cat ocean-node.log
+          else
+            echo "No ocean-node.log file found"
+          fi
+          echo "=== Docker Logs ==="
+          docker logs ocean-contracts-1 || echo "No ocean-contracts-1 container"
+          docker logs ocean-typesense-1 || echo "No ocean-typesense-1 container"
+          echo "=== System Processes ==="
+          ps aux | grep -E "(node|ocean)" || echo "No node/ocean processes found"
 
   control_panel_build:
     runs-on: ubuntu-latest

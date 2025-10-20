@@ -64,17 +64,33 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         metadata
       )
       const clonedDdo = structuredClone(ddo)
-      INDEXER_LOGGER.logMessage(`clonedDdo: ${JSON.stringify(clonedDdo)}`)
       const updatedDdo = deleteIndexedMetadataIfExists(clonedDdo)
       const ddoInstance = DDOManager.getDDOClass(updatedDdo)
       if (updatedDdo.id !== ddoInstance.makeDid(event.address, chainId.toString(10))) {
         INDEXER_LOGGER.error(
           `Decrypted DDO ID is not matching the generated hash for DID.`
         )
+        await ddoState.update(
+          this.networkId,
+          did,
+          event.address,
+          event.transactionHash,
+          false,
+          'Decrypted DDO ID does not match generated DID.'
+        )
         return
       }
       // for unencrypted DDOs
-      if (parseInt(flag) !== 2 && !this.checkDdoHash(updatedDdo, metadataHash)) {
+      if ((parseInt(flag) & 2) === 0 && !this.checkDdoHash(updatedDdo, metadataHash)) {
+        INDEXER_LOGGER.error('Unencrypted DDO hash does not match metadata hash.')
+        await ddoState.update(
+          this.networkId,
+          did,
+          event.address,
+          event.transactionHash,
+          false,
+          'Unencrypted DDO hash does not match metadata hash.'
+        )
         return
       }
 
@@ -90,6 +106,14 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           INDEXER_LOGGER.error(
             `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS.name} group.`
           )
+          await ddoState.update(
+            this.networkId,
+            did,
+            event.address,
+            event.transactionHash,
+            false,
+            `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS.name} group.`
+          )
           return
         }
       }
@@ -103,6 +127,14 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         )
         if (!isAuthorized) {
           INDEXER_LOGGER.error(
+            `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST.name} access group.`
+          )
+          await ddoState.update(
+            this.networkId,
+            did,
+            event.address,
+            event.transactionHash,
+            false,
             `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST.name} access group.`
           )
           return
@@ -137,8 +169,28 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           previousDdoInstance.getAssetFields().indexedMetadata.nft.state ===
             MetadataStates.ACTIVE
         ) {
+          const previousTxId =
+            previousDdoInstance.getAssetFields().indexedMetadata?.event?.txid
+          // If it's the same transaction being reprocessed, just skip (idempotent)
+          if (previousTxId === event.transactionHash) {
+            INDEXER_LOGGER.logMessage(
+              `DDO ${ddoInstance.getDid()} already indexed from same transaction ${
+                event.transactionHash
+              }. Skipping reprocessing.`,
+              true
+            )
+            await ddoState.update(
+              this.networkId,
+              did,
+              event.address,
+              event.transactionHash,
+              true,
+              ' '
+            )
+            return
+          }
           INDEXER_LOGGER.logMessage(
-            `DDO ${ddoInstance.getDid()} is already registered as active`,
+            `DDO ${ddoInstance.getDid()} is already registered as active from different transaction ${previousTxId}`,
             true
           )
           await ddoState.update(
@@ -147,7 +199,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
             event.address,
             event.transactionHash,
             false,
-            `DDO ${ddoInstance.getDid()} is already registered as active`
+            `DDO ${ddoInstance.getDid()} is already registered as active from transaction ${previousTxId}`
           )
           return
         }
@@ -287,7 +339,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       )
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
-        `Error processMetadataEvents: ${error}`,
+        `Error processMetadataEvents for did: ${did} and txHash: ${event.transactionHash} and error: ${error}`,
         true
       )
     }

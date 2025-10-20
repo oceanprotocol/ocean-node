@@ -17,6 +17,7 @@ import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pool
 import { createHash } from 'crypto'
 import { ServicePrice } from '../../@types/IndexedMetadata.js'
 import { VersionedDDO } from '@oceanprotocol/ddo-js'
+import FactoryRouter from '@oceanprotocol/contracts/artifacts/contracts/pools/FactoryRouter.sol/FactoryRouter.json' assert { type: 'json' }
 
 export const getContractAddress = (chainId: number, contractName: string): string => {
   const addressFile = getOceanArtifactsAdressesByChainId(chainId)
@@ -24,6 +25,34 @@ export const getContractAddress = (chainId: number, contractName: string): strin
     return getAddress(addressFile[contractName])
   }
   return ''
+}
+
+export const isValidFreContract = async (
+  address: string,
+  chainId: number,
+  signer: Signer
+) => {
+  const router = getContractAddress(chainId, 'Router')
+  const routerContract = new ethers.Contract(router, FactoryRouter.abi, signer)
+  try {
+    return await routerContract.isFixedRateContract(address)
+  } catch (e) {
+    INDEXER_LOGGER.error(`Could not fetch FRE contract status: ${e.message}`)
+  }
+}
+
+export const isValidDispenserContract = async (
+  address: string,
+  chainId: number,
+  signer: Signer
+) => {
+  const router = getContractAddress(chainId, 'Router')
+  const routerContract = new ethers.Contract(router, FactoryRouter.abi, signer)
+  try {
+    return await routerContract.isDispenserContract(address)
+  } catch (e) {
+    INDEXER_LOGGER.error(`Could not fetch dispenser contract status: ${e.message}`)
+  }
 }
 
 export const getDeployedContractBlock = (network: number) => {
@@ -401,4 +430,28 @@ export function getDid(nftAddress: string, chainId: number): string {
       .update(getAddress(nftAddress) + chainId.toString(10))
       .digest('hex')
   )
+}
+
+export async function withRetrial<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 5,
+  delay: number = 2000
+): Promise<T> {
+  let lastError: Error
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error
+
+      if (attempt === maxRetries - 1) {
+        throw lastError
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, delay))
+    }
+  }
+
+  throw lastError
 }
