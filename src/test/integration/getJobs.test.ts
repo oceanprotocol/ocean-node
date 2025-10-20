@@ -54,7 +54,8 @@ function buildJob(overrides: Partial<DBComputeJob> = {}): DBComputeJob {
     algoStopTimestamp: overrides.algoStopTimestamp || nowSec,
     resources: overrides.resources || [],
     payment: overrides.payment,
-    additionalViewers: overrides.additionalViewers || []
+    additionalViewers: overrides.additionalViewers || [],
+    duration: overrides.duration || 0
   }
 }
 
