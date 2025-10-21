@@ -21,7 +21,10 @@ import {
   isERC20Template4Active
 } from '../../../utils/asset.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
-import { ComputeResourceRequestWithPrice } from '../../../@types/C2D/C2D.js'
+import {
+  ComputeAccessList,
+  ComputeResourceRequestWithPrice
+} from '../../../@types/C2D/C2D.js'
 import { decrypt } from '../../../utils/crypt.js'
 // import { verifyProviderFees } from '../utils/feesHandler.js'
 import { Blockchain } from '../../../utils/blockchain.js'
@@ -34,8 +37,11 @@ import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { Credentials, DDOManager } from '@oceanprotocol/ddo-js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
 import { PolicyServer } from '../../policyServer/index.js'
-import { areKnownCredentialTypes, checkCredentials } from '../../../utils/credentials.js'
-
+import {
+  areKnownCredentialTypes,
+  checkCredentials,
+  findAccessListCredentials
+} from '../../../utils/credentials.js'
 export class PaidComputeStartHandler extends CommandHandler {
   validate(command: PaidComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
@@ -126,6 +132,17 @@ export class PaidComputeStartHandler extends CommandHandler {
       }
       const { algorithm } = task
       const config = await getConfiguration()
+
+      const accessGranted = await validateAccess(task.consumerAddress, env.access)
+      if (!accessGranted) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 403,
+            error: 'Access denied'
+          }
+        }
+      }
 
       const algoChecksums = await getAlgoChecksums(
         task.algorithm.documentId,
@@ -487,7 +504,8 @@ export class PaidComputeStartHandler extends CommandHandler {
             chainId: task.payment.chainId,
             token: task.payment.token,
             lockTx: agreementId,
-            claimTx: null
+            claimTx: null,
+            cost: 0
           },
           jobId,
           task.metadata,
@@ -710,6 +728,17 @@ export class FreeComputeStartHandler extends CommandHandler {
           }
         }
 
+        const accessGranted = await validateAccess(task.consumerAddress, env.free.access)
+        if (!accessGranted) {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 403,
+              error: 'Access denied'
+            }
+          }
+        }
+
         task.resources = await engine.checkAndFillMissingResources(
           task.resources,
           env,
@@ -785,4 +814,52 @@ export class FreeComputeStartHandler extends CommandHandler {
       }
     }
   }
+}
+
+async function validateAccess(
+  consumerAddress: string,
+  access: ComputeAccessList | undefined
+): Promise<boolean> {
+  if (!access) {
+    return true
+  }
+
+  if (access.accessLists.length === 0 && access.addresses.length === 0) {
+    return true
+  }
+
+  if (access.addresses.includes(consumerAddress)) {
+    return true
+  }
+
+  if (access.accessLists.length > 0) {
+    const config = await getConfiguration()
+    const { supportedNetworks } = config
+
+    for (const accessListAddress of access.accessLists) {
+      for (const chainIdStr of Object.keys(supportedNetworks)) {
+        const { rpc, network, chainId, fallbackRPCs } = supportedNetworks[chainIdStr]
+        try {
+          const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+          const signer = blockchain.getSigner()
+
+          const hasAccess = await findAccessListCredentials(
+            signer,
+            accessListAddress,
+            consumerAddress
+          )
+          if (hasAccess) {
+            return true
+          }
+        } catch (error) {
+          CORE_LOGGER.logMessage(
+            `Failed to check access list ${accessListAddress} on chain ${chainIdStr}: ${error.message}`,
+            true
+          )
+        }
+      }
+    }
+  }
+
+  return false
 }

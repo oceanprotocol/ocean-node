@@ -99,7 +99,13 @@ export const ComputeEnvFeesSchema = z.object({
 export const ComputeEnvironmentFreeOptionsSchema = z.object({
   maxJobDuration: z.number().int().optional().default(3600),
   maxJobs: z.number().int().optional().default(3),
-  resources: z.array(ComputeResourceSchema).optional()
+  resources: z.array(ComputeResourceSchema).optional(),
+  access: z
+    .object({
+      addresses: z.array(z.string()),
+      accessLists: z.array(z.string())
+    })
+    .optional()
 })
 
 export const C2DDockerConfigSchema = z.array(
@@ -115,6 +121,12 @@ export const C2DDockerConfigSchema = z.array(
       resources: z.array(ComputeResourceSchema).optional(),
       storageExpiry: z.number().int().optional().default(604800),
       maxJobDuration: z.number().int().optional().default(3600),
+      access: z
+        .object({
+          addresses: z.array(z.string()),
+          accessLists: z.array(z.string())
+        })
+        .optional(),
       fees: z.record(z.string(), z.array(ComputeEnvFeesSchema)),
       free: ComputeEnvironmentFreeOptionsSchema.optional()
     })

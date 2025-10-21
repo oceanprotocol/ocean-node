@@ -167,8 +167,14 @@ export class C2DEngineDocker extends C2DEngine {
         architecture: sysinfo.Architecture,
         os: sysinfo.OSType
       },
+      access: {
+        addresses: [],
+        accessLists: []
+      },
       fees
     })
+    if (`access` in envConfig) this.envs[0].access = envConfig.access
+
     if (`storageExpiry` in envConfig) this.envs[0].storageExpiry = envConfig.storageExpiry
     if (`maxJobDuration` in envConfig)
       this.envs[0].maxJobDuration = envConfig.maxJobDuration
@@ -233,7 +239,13 @@ export class C2DEngineDocker extends C2DEngine {
       */
     // limits for free env
     if ('free' in envConfig) {
-      this.envs[0].free = {}
+      this.envs[0].free = {
+        access: {
+          addresses: [],
+          accessLists: []
+        }
+      }
+      if (`access` in envConfig.free) this.envs[0].free.access = envConfig.free.access
       if (`storageExpiry` in envConfig.free)
         this.envs[0].free.storageExpiry = envConfig.free.storageExpiry
       if (`maxJobDuration` in envConfig.free)
@@ -1124,9 +1136,13 @@ export class C2DEngineDocker extends C2DEngine {
         parseFloat(job.algoStopTimestamp) - parseFloat(job.algoStartTimestamp)
       if (algoRunnedTime < 0) minDuration += algoRunnedTime * -1
       else minDuration += algoRunnedTime
+      let cost = 0
       if (minDuration > 0) {
         // we need to claim
-        const cost = this.getTotalCostOfJob(job.resources, minDuration)
+        const fee = env.fees[job.payment.chainId].find(
+          (fee) => fee.feeToken === job.payment.token
+        )
+        cost = this.getTotalCostOfJob(job.resources, minDuration, fee)
         const proof = JSON.stringify(omitDBComputeFieldsFromComputeJob(job))
         try {
           txId = await this.escrow.claimLock(
@@ -1155,6 +1171,7 @@ export class C2DEngineDocker extends C2DEngine {
       }
       if (txId) {
         job.payment.claimTx = txId
+        job.payment.cost = cost
         await this.db.updateJob(job)
       }
     }

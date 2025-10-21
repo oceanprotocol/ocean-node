@@ -151,22 +151,24 @@ export function buildC2DClusters(
     }
   }
 
-  for (const dockerC2d of dockerComputeEnvironments) {
-    if (dockerC2d.socketPath || dockerC2d.host) {
-      const hash = create256Hash(JSON.stringify(dockerC2d))
-      clusters.push({
-        connection: dockerC2d,
-        hash,
-        type: C2DClusterType.DOCKER,
-        tempFolder: './c2d_storage/' + hash
-      })
+  if (dockerComputeEnvironments) {
+    for (const dockerC2d of dockerComputeEnvironments) {
+      if (dockerC2d.socketPath || dockerC2d.host) {
+        const hash = create256Hash(JSON.stringify(dockerC2d))
+        clusters.push({
+          connection: dockerC2d,
+          hash,
+          type: C2DClusterType.DOCKER,
+          tempFolder: './c2d_storage/' + hash
+        })
+      }
     }
   }
 
   return clusters
 }
 
-export function getConfigFilePath(configPath?: string): string {
+export function loadConfigFromFile(configPath?: string): OceanNodeConfig {
   if (!configPath) {
     configPath = process.env.CONFIG_PATH || path.join(process.cwd(), 'config.json')
   }
@@ -187,12 +189,6 @@ export function getConfigFilePath(configPath?: string): string {
   ) {
     throw new Error(`Config path must be absolute. Got: ${configPath}`)
   }
-
-  return configPath
-}
-
-export function loadConfigFromFile(configPath?: string): OceanNodeConfig {
-  configPath = getConfigFilePath(configPath)
 
   if (!fs.existsSync(configPath)) {
     throw new Error(`Config file not found at path: ${configPath}`)
@@ -247,6 +243,10 @@ export async function buildMergedConfig(): Promise<OceanNodeConfig> {
   const config = parsed.data as any
 
   // Post-processing transformations
+  if (!config.indexingNetworks) {
+    config.indexingNetworks = config.supportedNetworks
+  }
+
   if (Array.isArray(config.indexingNetworks) && config.supportedNetworks) {
     const filteredNetworks: RPCS = {}
     for (const chainId of config.indexingNetworks) {

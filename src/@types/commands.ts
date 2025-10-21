@@ -293,3 +293,9 @@ export interface InvalidateAuthTokenCommand extends Command {
   signature: string
   token: string
 }
+
+export interface GetJobsCommand extends Command {
+  environments?: string[]
+  fromTimestamp?: string
+  consumerAddrs?: string[]
+}

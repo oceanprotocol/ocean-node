@@ -214,8 +214,18 @@ export class OceanIndexer {
   }
 
   private setupEventListeners(worker: Worker, chainId: number) {
-    worker.on('message', (event: any) => {
-      if (event.data) {
+    worker.on('message', async (event: any) => {
+      try {
+        if (!event.data) {
+          INDEXER_LOGGER.log(
+            LOG_LEVELS_STR.LEVEL_ERROR,
+            `Missing event data (ddo) on postMessage. Something is wrong! Event: ${JSON.stringify(
+              event
+            )}`,
+            true
+          )
+        }
+
         if (
           [
             EVENTS.METADATA_CREATED,
@@ -230,21 +240,21 @@ export class OceanIndexer {
             EVENTS.EXCHANGE_RATE_CHANGED
           ].includes(event.method)
         ) {
-          // will emit the metadata created/updated event and advertise it to the other peers (on create only)
           INDEXER_LOGGER.logMessage(
             `Emiting "${event.method}" for DDO : ${event.data.id} from network: ${chainId} `
           )
-          INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data.id)
-          // remove from indexing list
+          await Promise.resolve(
+            INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data.id)
+          )
         } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP) {
-          // remove this one from the queue (means we processed the reindex for this tx)
           INDEXING_QUEUE = INDEXING_QUEUE.filter(
             (task) => task.txId !== event.data.txId && task.chainId !== event.data.chainId
           )
-          // reindex tx successfully done
-          INDEXER_CRAWLING_EVENT_EMITTER.emit(
-            INDEXER_CRAWLING_EVENTS.REINDEX_TX, // explicitly set constant value for readability
-            event.data
+          await Promise.resolve(
+            INDEXER_CRAWLING_EVENT_EMITTER.emit(
+              INDEXER_CRAWLING_EVENTS.REINDEX_TX,
+              event.data
+            )
           )
           this.updateJobStatus(
             PROTOCOL_COMMANDS.REINDEX_TX,
@@ -252,10 +262,11 @@ export class OceanIndexer {
             CommandStatus.SUCCESS
           )
         } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN) {
-          // we should listen to this on the dashboard for instance
-          INDEXER_CRAWLING_EVENT_EMITTER.emit(
-            INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
-            event.data
+          await Promise.resolve(
+            INDEXER_CRAWLING_EVENT_EMITTER.emit(
+              INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
+              event.data
+            )
           )
           this.updateJobStatus(
             PROTOCOL_COMMANDS.REINDEX_CHAIN,
@@ -263,12 +274,14 @@ export class OceanIndexer {
             event.data.result ? CommandStatus.SUCCESS : CommandStatus.FAILURE
           )
         } else if (event.method === INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED) {
-          INDEXER_CRAWLING_EVENT_EMITTER.emit(event.method, event.data)
+          await Promise.resolve(
+            INDEXER_CRAWLING_EVENT_EMITTER.emit(event.method, event.data)
+          )
         }
-      } else {
+      } catch (err) {
         INDEXER_LOGGER.log(
           LOG_LEVELS_STR.LEVEL_ERROR,
-          'Missing event data (ddo) on postMessage. Something is wrong!',
+          `Worker handler failed after retries: ${err?.message ?? err}`,
           true
         )
       }

@@ -45,6 +45,7 @@ import {
   FindPeerHandler
 } from './p2p.js'
 import { CreateAuthTokenHandler, InvalidateAuthTokenHandler } from './authHandler.js'
+import { GetJobsHandler } from './getJobs.js'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler
@@ -163,6 +164,7 @@ export class CoreHandlersRegistry {
     )
     this.registerCoreHandler(PROTOCOL_COMMANDS.FETCH_CONFIG, new FetchConfigHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.PUSH_CONFIG, new PushConfigHandler(node))
+    this.registerCoreHandler(PROTOCOL_COMMANDS.JOBS, new GetJobsHandler(node))
   }
 
   public static getInstance(
