@@ -252,6 +252,7 @@ export interface DBComputeJob extends ComputeJob {
   payment?: DBComputeJobPayment
   metadata?: DBComputeJobMetadata
   additionalViewers?: string[] // addresses of additional addresses that can get results
+  algoDuration: number // duration of the job in seconds
 }
 
 // make sure we keep them both in sync
