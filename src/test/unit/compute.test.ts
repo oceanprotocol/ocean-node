@@ -97,7 +97,7 @@ describe('Compute Jobs Database', () => {
       isFree: false,
       algoStartTimestamp: '0',
       algoStopTimestamp: '0',
-      duration: 0
+      algoDuration: 0
     }
 
     jobId = await db.newJob(job)
@@ -167,7 +167,7 @@ describe('Compute Jobs Database', () => {
       isFree: false,
       algoStartTimestamp: '0',
       algoStopTimestamp: '0',
-      duration: 0
+      algoDuration: 0
     }
 
     const jobId = await db.newJob(job)

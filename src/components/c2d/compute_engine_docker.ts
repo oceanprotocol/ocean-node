@@ -439,7 +439,7 @@ export class C2DEngineDocker extends C2DEngine {
       metadata,
       additionalViewers,
       terminationDetails: { exitCode: null, OOMKilled: null },
-      duration: 0
+      algoDuration: 0
     }
 
     if (algorithm.meta.container && algorithm.meta.container.dockerfile) {
@@ -1126,11 +1126,10 @@ export class C2DEngineDocker extends C2DEngine {
     this.jobImageSizes.delete(job.jobId)
 
     // payments
-    const algoRunnedTime =
+    const algoDuration =
       parseFloat(job.algoStopTimestamp) - parseFloat(job.algoStartTimestamp)
 
-    console.log('this-algo', algoRunnedTime)
-    job.duration = algoRunnedTime
+    job.algoDuration = algoDuration
     await this.db.updateJob(job)
     if (!job.isFree && job.payment) {
       let txId = null
@@ -1140,8 +1139,8 @@ export class C2DEngineDocker extends C2DEngine {
         minDuration = env.minJobDuration
       }
 
-      if (algoRunnedTime < 0) minDuration += algoRunnedTime * -1
-      else minDuration += algoRunnedTime
+      if (algoDuration < 0) minDuration += algoDuration * -1
+      else minDuration += algoDuration
       let cost = 0
       if (minDuration > 0) {
         // we need to claim
