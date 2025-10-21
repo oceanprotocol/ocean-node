@@ -14,6 +14,7 @@ import { jobsRoutes } from './jobs.js'
 import { addMapping, allRoutesMapping, findPathName } from './routeUtils.js'
 import { PolicyServerPassthroughRoute } from './policyServer.js'
 import { authRoutes } from './auth.js'
+import { adminConfigRoutes } from './adminConfig.js'
 
 export * from './getOceanPeers.js'
 export * from './auth.js'
@@ -59,6 +60,8 @@ httpRoutes.use(jobsRoutes)
 httpRoutes.use(PolicyServerPassthroughRoute)
 // auth routes
 httpRoutes.use(authRoutes)
+// admin config routes
+httpRoutes.use(adminConfigRoutes)
 
 export function getAllServiceEndpoints() {
   httpRoutes.stack.forEach(addMapping.bind(null, []))

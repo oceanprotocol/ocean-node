@@ -3,7 +3,7 @@ import { getAddress } from 'ethers'
 import { dhtFilterMethod } from '../../@types/OceanNode.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
 import { CONFIG_LOGGER } from '../logging/common.js'
-import { numberFromString, booleanFromString, jsonFromString } from './transforms.js'
+import { booleanFromString, jsonFromString } from './transforms.js'
 import {
   DEFAULT_BOOTSTRAP_ADDRESSES,
   DEFAULT_RATE_LIMIT_PER_MINUTE,
@@ -41,10 +41,10 @@ export const AccessListContractSchema = z
   .nullable()
 
 export const OceanNodeKeysSchema = z.object({
-  peerId: z.any(),
-  publicKey: z.any(),
-  privateKey: z.any(),
-  ethAddress: z.string()
+  peerId: z.any().optional(),
+  publicKey: z.any().optional(),
+  privateKey: z.any().optional(),
+  ethAddress: z.string().optional()
 })
 
 export const DenyListSchema = z.object({
@@ -166,21 +166,21 @@ export const OceanNodeP2PConfigSchema = z.object({
   bootstrapNodes: jsonFromString(z.array(z.string())).default([
     ...DEFAULT_BOOTSTRAP_ADDRESSES
   ]),
-  bootstrapTimeout: numberFromString.optional().default(2000),
+  bootstrapTimeout: z.number().optional().default(2000),
   bootstrapTagName: z.string().optional().default('bootstrap'),
-  bootstrapTagValue: numberFromString.optional().default(50),
-  bootstrapTTL: numberFromString.optional(),
+  bootstrapTagValue: z.number().optional().default(50),
+  bootstrapTTL: z.number().optional(),
   enableIPV4: booleanFromString.optional().default(true),
   enableIPV6: booleanFromString.optional().default(true),
   ipV4BindAddress: z.string().nullable().optional().default('0.0.0.0'),
-  ipV4BindTcpPort: numberFromString.nullable().optional().default(0),
-  ipV4BindWsPort: numberFromString.nullable().optional().default(0),
+  ipV4BindTcpPort: z.number().nullable().optional().default(0),
+  ipV4BindWsPort: z.number().nullable().optional().default(0),
   ipV6BindAddress: z.string().nullable().optional().default('::1'),
-  ipV6BindTcpPort: numberFromString.nullable().optional().default(0),
-  ipV6BindWsPort: numberFromString.nullable().optional().default(0),
-  pubsubPeerDiscoveryInterval: numberFromString.optional().default(1000),
-  dhtMaxInboundStreams: numberFromString.optional().default(500),
-  dhtMaxOutboundStreams: numberFromString.optional().default(500),
+  ipV6BindTcpPort: z.number().nullable().optional().default(0),
+  ipV6BindWsPort: z.number().nullable().optional().default(0),
+  pubsubPeerDiscoveryInterval: z.number().optional().default(1000),
+  dhtMaxInboundStreams: z.number().optional().default(500),
+  dhtMaxOutboundStreams: z.number().optional().default(500),
   dhtFilter: z
     .union([z.nativeEnum(dhtFilterMethod), z.string(), z.number(), z.null()])
     .transform((v) => {
@@ -202,25 +202,25 @@ export const OceanNodeP2PConfigSchema = z.object({
     })
     .optional()
     .default(dhtFilterMethod.filterNone),
-  mDNSInterval: numberFromString.optional().default(20e3),
-  connectionsMaxParallelDials: numberFromString.optional().default(15),
-  connectionsDialTimeout: numberFromString.optional().default(30e3),
+  mDNSInterval: z.number().optional().default(20e3),
+  connectionsMaxParallelDials: z.number().optional().default(15),
+  connectionsDialTimeout: z.number().optional().default(30e3),
   upnp: booleanFromString.optional().default(true),
   autoNat: booleanFromString.optional().default(true),
   enableCircuitRelayServer: booleanFromString.optional().default(false),
   enableCircuitRelayClient: booleanFromString.optional().default(false),
-  circuitRelays: numberFromString.optional().default(0),
+  circuitRelays: z.number().optional().default(0),
   announcePrivateIp: booleanFromString.optional().default(false),
   announceAddresses: jsonFromString(z.array(z.string())).optional().default([]),
   filterAnnouncedAddresses: jsonFromString(z.array(z.string()))
     .optional()
     .default([...DEFAULT_FILTER_ANNOUNCED_ADDRESSES]),
-  minConnections: numberFromString.optional().default(1),
-  maxConnections: numberFromString.optional().default(300),
-  autoDialPeerRetryThreshold: numberFromString.optional().default(120000),
-  autoDialConcurrency: numberFromString.optional().default(5),
-  maxPeerAddrsToDial: numberFromString.optional().default(5),
-  autoDialInterval: numberFromString.optional().default(5000),
+  minConnections: z.number().optional().default(1),
+  maxConnections: z.number().optional().default(300),
+  autoDialPeerRetryThreshold: z.number().optional().default(120000),
+  autoDialConcurrency: z.number().optional().default(5),
+  maxPeerAddrsToDial: z.number().optional().default(5),
+  autoDialInterval: z.number().optional().default(5000),
   enableNetworkStats: booleanFromString.optional().default(false)
 })
 
@@ -251,7 +251,7 @@ export const OceanNodeConfigSchema = z
     authorizedPublishers: addressArrayFromString.optional().default([]),
     authorizedPublishersList: jsonFromString(AccessListContractSchema).optional(),
 
-    keys: OceanNodeKeysSchema,
+    keys: OceanNodeKeysSchema.optional(),
 
     INTERFACES: z.string().optional(),
     hasP2P: booleanFromString.optional().default(true),
@@ -271,17 +271,15 @@ export const OceanNodeConfigSchema = z
     FEE_TOKENS: z.string().optional(),
     feeStrategy: FeeStrategySchema.optional(),
 
-    httpPort: numberFromString.refine((port) => port >= 1 && port <= 65535, {
-      message: 'HTTP port must be between 1 and 65535'
-    }),
-    rateLimit: numberFromString.optional().default(DEFAULT_RATE_LIMIT_PER_MINUTE),
+    httpPort: z.coerce.number().optional().default(3000),
+    rateLimit: z.coerce.number().optional().default(DEFAULT_RATE_LIMIT_PER_MINUTE),
 
     ipfsGateway: z.string().nullable().optional(),
     arweaveGateway: z.string().nullable().optional(),
 
     supportedNetworks: jsonFromString(RPCSSchema).optional(),
 
-    claimDurationTimeout: numberFromString.default(600),
+    claimDurationTimeout: z.coerce.number().default(600),
     indexingNetworks: z
       .union([jsonFromString(RPCSSchema), z.array(z.union([z.string(), z.number()]))])
       .optional(),
@@ -303,7 +301,7 @@ export const OceanNodeConfigSchema = z
     allowedAdminsList: jsonFromString(AccessListContractSchema).optional(),
 
     codeHash: z.string().optional(),
-    maxConnections: numberFromString.optional(),
+    maxConnections: z.coerce.number().optional(),
     denyList: jsonFromString(DenyListSchema).optional().default({ peers: [], ips: [] }),
     unsafeURLs: jsonFromString(z.array(z.string()))
       .optional()
