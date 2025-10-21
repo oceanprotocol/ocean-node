@@ -168,10 +168,15 @@ export function buildC2DClusters(
   return clusters
 }
 
-export function loadConfigFromFile(configPath?: string): OceanNodeConfig {
+export function getConfigFilePath(configPath?: string): string {
   if (!configPath) {
     configPath = process.env.CONFIG_PATH || path.join(process.cwd(), 'config.json')
   }
+  return configPath
+}
+
+export function loadConfigFromFile(configPath?: string): OceanNodeConfig {
+  configPath = getConfigFilePath(configPath)
 
   if (configPath.startsWith('$HOME')) {
     const home = process.env.HOME || os.homedir()
