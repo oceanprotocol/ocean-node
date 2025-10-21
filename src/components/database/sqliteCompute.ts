@@ -42,7 +42,7 @@ function getInternalStructure(job: DBComputeJob): any {
     additionalViewers: job.additionalViewers,
     terminationDetails: job.terminationDetails,
     payment: job.payment,
-    duration: job.duration
+    algoDuration: job.algoDuration
   }
   return internalBlob
 }
