@@ -52,11 +52,11 @@ export class PushConfigHandler extends AdminCommandHandler {
 
     try {
       const configPath = getConfigFilePath()
-      const configContent = fs.readFileSync(configPath, 'utf-8')
+      const configContent = await fs.promises.readFile(configPath, 'utf-8')
       const currentConfig = JSON.parse(configContent)
 
       const mergedConfig = { ...currentConfig, ...task.config }
-      this.saveConfigToFile(mergedConfig)
+      await this.saveConfigToFile(mergedConfig)
 
       const newConfig = await getConfiguration(true, false)
       newConfig.keys.privateKey = '[*** HIDDEN CONTENT ***]'
@@ -79,10 +79,10 @@ export class PushConfigHandler extends AdminCommandHandler {
     }
   }
 
-  private saveConfigToFile(config: Record<string, any>): void {
+  private async saveConfigToFile(config: Record<string, any>): Promise<void> {
     const configPath = getConfigFilePath()
     const content = JSON.stringify(config, null, 4)
-    fs.writeFileSync(configPath, content, 'utf-8')
+    await fs.promises.writeFile(configPath, content, 'utf-8')
     CORE_LOGGER.logMessage(`Config saved to: ${configPath}`)
   }
 }
