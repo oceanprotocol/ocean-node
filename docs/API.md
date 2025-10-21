@@ -1198,6 +1198,91 @@ Forwards request to PolicyServer (if any)
 }
 ```
 
+---
+
+## Fetch Config
+
+### `HTTP` GET /api/admin/config
+
+#### Description
+
+returns current node configuration with sensitive data hidden (admin only)
+
+#### Parameters
+
+| name            | type   | required | description                                  |
+| --------------- | ------ | -------- | -------------------------------------------- |
+| expiryTimestamp | number | v        | expiry timestamp for the request             |
+| signature       | string | v        | signed message to authenticate admin request |
+
+#### Request
+
+```json
+{
+  "expiryTimestamp": 1234567890,
+  "signature": "0x123"
+}
+```
+
+#### Response
+
+```json
+{
+  "keys": {
+    "privateKey": "[*** HIDDEN CONTENT ***]"
+  },
+  "chainIds": [1],
+  "rpcs": { "1": "https://eth-mainnet.g.alchemy.com/v2/..." },
+  "...": "..."
+}
+```
+
+---
+
+## Update Config
+
+### `HTTP` POST /api/admin/config/update
+
+#### Description
+
+updates node configuration and reloads it gracefully (admin only)
+
+#### Parameters
+
+| name            | type   | required | description                                        |
+| --------------- | ------ | -------- | -------------------------------------------------- |
+| expiryTimestamp | number | v        | expiry timestamp for the request                   |
+| signature       | string | v        | signed message to authenticate admin request       |
+| config          | object | v        | partial configuration object with fields to update |
+
+#### Request
+
+```json
+{
+  "expiryTimestamp": 1234567890,
+  "signature": "0x123",
+  "config": {
+    "chainIds": [1],
+    "rpcs": { "1": "https://eth-mainnet.g.alchemy.com/v2/..." }
+  }
+}
+```
+
+#### Response
+
+```json
+{
+  "keys": {
+    "privateKey": "[*** HIDDEN CONTENT ***]"
+  },
+  "chainIds": [1],
+  "rpcs": { "1": "https://eth-mainnet.g.alchemy.com/v2/..." },
+  "...": "..."
+}
+```
+
+---
+
 # Compute
 
 For starters, you can find a list of algorithms in the [Ocean Algorithms repository](https://github.com/oceanprotocol/algo_dockers) and the docker images in the [Algo Dockerhub](https://hub.docker.com/r/oceanprotocol/algo_dockers/tags).
