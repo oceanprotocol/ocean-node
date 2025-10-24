@@ -311,16 +311,33 @@ export abstract class C2DEngine {
   public getDockerDeviceRequest(
     requests: ComputeResourceRequest[],
     resources: ComputeResource[]
-  ) {
+  ): dockerDeviceRequest[] | null {
     if (!resources) return null
-    const ret: dockerDeviceRequest[] = []
+
+    const grouped: Record<string, dockerDeviceRequest> = {}
+
     for (const resource of requests) {
       const res = this.getResource(resources, resource.id)
-      if (res.init && res.init.deviceRequests) {
-        ret.push(res.init.deviceRequests)
+      const init = res?.init?.deviceRequests
+      if (!init) continue
+
+      const key = `${init.Driver}-${JSON.stringify(init.Capabilities)}`
+      if (!grouped[key]) {
+        grouped[key] = {
+          Driver: init.Driver,
+          Capabilities: init.Capabilities,
+          DeviceIDs: [],
+          Options: init.Options ?? null,
+          Count: undefined
+        }
+      }
+
+      if (init.DeviceIDs?.length) {
+        grouped[key].DeviceIDs!.push(...init.DeviceIDs)
       }
     }
-    return ret
+
+    return Object.values(grouped)
   }
 
   public getDockerAdvancedConfig(
