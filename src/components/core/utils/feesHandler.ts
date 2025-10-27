@@ -69,7 +69,7 @@ export async function createProviderFee(
   const providerFeeAddress: string = providerWallet.address
   let providerFeeAmount: number
   let providerFeeAmountFormatted: BigNumberish
-  const providerFeeToken = await getProviderFeeToken(asset.chainId)
+  const providerFeeToken = await getProviderFeeToken(assetChainId)
   if (providerFeeToken?.toLowerCase() === ZeroAddress) {
     providerFeeAmount = 0
   } else {
