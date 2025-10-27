@@ -232,6 +232,8 @@ export class OceanP2P extends EventEmitter {
   async createNode(config: OceanNodeConfig): Promise<Libp2p | null> {
     try {
       this._publicAddress = config.keys.peerId.toString()
+      P2P_LOGGER.info(`Starting P2P Node with peerID: ${this._publicAddress}`)
+
       this._publicKey = config.keys.publicKey
       this._privateKey = config.keys.privateKey
       /** @type {import('libp2p').Libp2pOptions} */
