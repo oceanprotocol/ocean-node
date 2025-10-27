@@ -93,10 +93,10 @@ describe('Should validate P2P config from environment variables', () => {
   it('should override P2P config values from environment variables', () => {
     expect(config.p2pConfig).to.not.be.equal(null)
     expect(config.p2pConfig.ipV4BindAddress).to.be.equal('127.0.0.1')
-    expect(config.p2pConfig.ipV4BindTcpPort).to.be.equal('9999')
+    expect(config.p2pConfig.ipV4BindTcpPort).to.be.equal(9999)
     expect(config.p2pConfig.ipV6BindAddress).to.be.equal('::2')
-    expect(config.p2pConfig.minConnections).to.be.equal('5')
-    expect(config.p2pConfig.maxConnections).to.be.equal('500')
+    expect(config.p2pConfig.minConnections).to.be.equal(5)
+    expect(config.p2pConfig.maxConnections).to.be.equal(500)
   })
 
   it('should maintain non-overridden P2P config values from config.json', () => {

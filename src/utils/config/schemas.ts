@@ -166,21 +166,21 @@ export const OceanNodeP2PConfigSchema = z.object({
   bootstrapNodes: jsonFromString(z.array(z.string())).default([
     ...DEFAULT_BOOTSTRAP_ADDRESSES
   ]),
-  bootstrapTimeout: z.number().optional().default(2000),
+  bootstrapTimeout: z.coerce.number().optional().default(2000),
   bootstrapTagName: z.string().optional().default('bootstrap'),
-  bootstrapTagValue: z.number().optional().default(50),
-  bootstrapTTL: z.number().optional(),
+  bootstrapTagValue: z.coerce.number().optional().default(50),
+  bootstrapTTL: z.coerce.number().optional(),
   enableIPV4: booleanFromString.optional().default(true),
   enableIPV6: booleanFromString.optional().default(true),
   ipV4BindAddress: z.string().nullable().optional().default('0.0.0.0'),
-  ipV4BindTcpPort: z.number().nullable().optional().default(0),
-  ipV4BindWsPort: z.number().nullable().optional().default(0),
+  ipV4BindTcpPort: z.coerce.number().nullable().optional().default(0),
+  ipV4BindWsPort: z.coerce.number().nullable().optional().default(0),
   ipV6BindAddress: z.string().nullable().optional().default('::1'),
-  ipV6BindTcpPort: z.number().nullable().optional().default(0),
-  ipV6BindWsPort: z.number().nullable().optional().default(0),
-  pubsubPeerDiscoveryInterval: z.number().optional().default(1000),
-  dhtMaxInboundStreams: z.number().optional().default(500),
-  dhtMaxOutboundStreams: z.number().optional().default(500),
+  ipV6BindTcpPort: z.coerce.number().nullable().optional().default(0),
+  ipV6BindWsPort: z.coerce.number().nullable().optional().default(0),
+  pubsubPeerDiscoveryInterval: z.coerce.number().optional().default(1000),
+  dhtMaxInboundStreams: z.coerce.number().optional().default(500),
+  dhtMaxOutboundStreams: z.coerce.number().optional().default(500),
   dhtFilter: z
     .union([z.nativeEnum(dhtFilterMethod), z.string(), z.number(), z.null()])
     .transform((v) => {
@@ -202,25 +202,25 @@ export const OceanNodeP2PConfigSchema = z.object({
     })
     .optional()
     .default(dhtFilterMethod.filterNone),
-  mDNSInterval: z.number().optional().default(20e3),
-  connectionsMaxParallelDials: z.number().optional().default(15),
-  connectionsDialTimeout: z.number().optional().default(30e3),
+  mDNSInterval: z.coerce.number().optional().default(20e3),
+  connectionsMaxParallelDials: z.coerce.number().optional().default(15),
+  connectionsDialTimeout: z.coerce.number().optional().default(30e3),
   upnp: booleanFromString.optional().default(true),
   autoNat: booleanFromString.optional().default(true),
   enableCircuitRelayServer: booleanFromString.optional().default(false),
   enableCircuitRelayClient: booleanFromString.optional().default(false),
-  circuitRelays: z.number().optional().default(0),
+  circuitRelays: z.coerce.number().optional().default(0),
   announcePrivateIp: booleanFromString.optional().default(false),
   announceAddresses: jsonFromString(z.array(z.string())).optional().default([]),
   filterAnnouncedAddresses: jsonFromString(z.array(z.string()))
     .optional()
     .default([...DEFAULT_FILTER_ANNOUNCED_ADDRESSES]),
-  minConnections: z.number().optional().default(1),
-  maxConnections: z.number().optional().default(300),
-  autoDialPeerRetryThreshold: z.number().optional().default(120000),
-  autoDialConcurrency: z.number().optional().default(5),
-  maxPeerAddrsToDial: z.number().optional().default(5),
-  autoDialInterval: z.number().optional().default(5000),
+  minConnections: z.coerce.number().optional().default(1),
+  maxConnections: z.coerce.number().optional().default(300),
+  autoDialPeerRetryThreshold: z.coerce.number().optional().default(120000),
+  autoDialConcurrency: z.coerce.number().optional().default(5),
+  maxPeerAddrsToDial: z.coerce.number().optional().default(5),
+  autoDialInterval: z.coerce.number().optional().default(5000),
   enableNetworkStats: booleanFromString.optional().default(false)
 })
 
