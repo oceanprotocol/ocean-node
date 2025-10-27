@@ -459,6 +459,46 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'VALIDATE_UNSIGNED_DDO',
     value: process.env.VALIDATE_UNSIGNED_DDO,
     required: false
+  },
+  P2P_ipV4BindAddress: {
+    name: 'P2P_ipV4BindAddress',
+    value: process.env.P2P_ipV4BindAddress,
+    required: false
+  },
+  P2P_ipV4BindTcpPort: {
+    name: 'P2P_ipV4BindTcpPort',
+    value: process.env.P2P_ipV4BindTcpPort,
+    required: false
+  },
+  P2P_ipV4BindWsPort: {
+    name: 'P2P_ipV4BindWsPort',
+    value: process.env.P2P_ipV4BindWsPort,
+    required: false
+  },
+  P2P_ipV6BindAddress: {
+    name: 'P2P_ipV6BindAddress',
+    value: process.env.P2P_ipV6BindAddress,
+    required: false
+  },
+  P2P_ipV6BindTcpPort: {
+    name: 'P2P_ipV6BindTcpPort',
+    value: process.env.P2P_ipV6BindTcpPort,
+    required: false
+  },
+  P2P_ipV6BindWsPort: {
+    name: 'P2P_ipV6BindWsPort',
+    value: process.env.P2P_ipV6BindWsPort,
+    required: false
+  },
+  P2P_MIN_CONNECTIONS: {
+    name: 'P2P_MIN_CONNECTIONS',
+    value: process.env.P2P_MIN_CONNECTIONS,
+    required: false
+  },
+  P2P_MAX_CONNECTIONS: {
+    name: 'P2P_MAX_CONNECTIONS',
+    value: process.env.P2P_MAX_CONNECTIONS,
+    required: false
   }
 }
 export const CONNECTION_HISTORY_DELETE_THRESHOLD = 300
