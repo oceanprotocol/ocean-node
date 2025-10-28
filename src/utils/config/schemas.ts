@@ -215,7 +215,7 @@ export const OceanNodeP2PConfigSchema = z.object({
   filterAnnouncedAddresses: jsonFromString(z.array(z.string()))
     .optional()
     .default([...DEFAULT_FILTER_ANNOUNCED_ADDRESSES]),
-  minConnections: z.coerce.number().optional().default(5),
+  minConnections: z.coerce.number().optional().default(1),
   maxConnections: z.coerce.number().optional().default(300),
   autoDialPeerRetryThreshold: z.coerce.number().optional().default(120000),
   autoDialConcurrency: z.coerce.number().optional().default(5),
