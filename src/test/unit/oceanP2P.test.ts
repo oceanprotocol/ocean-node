@@ -51,6 +51,9 @@ describe('OceanP2P Test', () => {
     process.env.PRIVATE_KEY = process.env.NODE2_PRIVATE_KEY
     config2 = await getConfiguration(true)
     config2.p2pConfig.ipV4BindTcpPort = 0
+    config2.p2pConfig.ipV4BindWsPort = 0
+    config2.p2pConfig.ipV6BindTcpPort = 0
+    config2.p2pConfig.ipV6BindWsPort = 0
     // we don't need bootstrap nodes, we rely on Multicast DNS
     config2.p2pConfig.mDNSInterval = mDNSInterval * 1e3
     config2.p2pConfig.bootstrapNodes = []
