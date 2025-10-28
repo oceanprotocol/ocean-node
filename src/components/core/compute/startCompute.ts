@@ -483,6 +483,16 @@ export class PaidComputeStartHandler extends CommandHandler {
           task.maxJobDuration
         )
       } catch (e) {
+        if (e.message.includes('insufficient funds for intrinsic transaction cost')) {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error:
+                'Node insufficient gas funds. If you are the node owner, please add gas funds to the node.'
+            }
+          }
+        }
         return {
           stream: null,
           status: {
