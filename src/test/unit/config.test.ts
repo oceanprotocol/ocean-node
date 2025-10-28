@@ -60,3 +60,60 @@ describe('Should validate configuration from JSON', () => {
     delete process.env.PRIVATE_KEY
   })
 })
+
+describe('Should validate P2P config from environment variables', () => {
+  let config: OceanNodeConfig
+  let envOverrides: OverrideEnvConfig[]
+
+  before(async () => {
+    envOverrides = buildEnvOverrideConfig(
+      [
+        ENVIRONMENT_VARIABLES.DB_TYPE,
+        ENVIRONMENT_VARIABLES.DB_URL,
+        ENVIRONMENT_VARIABLES.P2P_ipV4BindAddress,
+        ENVIRONMENT_VARIABLES.P2P_ipV4BindTcpPort,
+        ENVIRONMENT_VARIABLES.P2P_ipV6BindAddress,
+        ENVIRONMENT_VARIABLES.P2P_MIN_CONNECTIONS,
+        ENVIRONMENT_VARIABLES.P2P_MAX_CONNECTIONS
+      ],
+      [
+        'typesense',
+        'http://localhost:8108/?apiKey=xyz',
+        '127.0.0.1',
+        '9999',
+        '::2',
+        '5',
+        '500'
+      ]
+    )
+    envOverrides = await setupEnvironment(TEST_ENV_CONFIG_PATH, envOverrides)
+    config = await getConfiguration(true)
+  })
+
+  it('should override P2P config values from environment variables', () => {
+    expect(config.p2pConfig).to.not.be.equal(null)
+    expect(config.p2pConfig.ipV4BindAddress).to.be.equal('127.0.0.1')
+    expect(config.p2pConfig.ipV4BindTcpPort).to.be.equal(9999)
+    expect(config.p2pConfig.ipV6BindAddress).to.be.equal('::2')
+    expect(config.p2pConfig.minConnections).to.be.equal(5)
+    expect(config.p2pConfig.maxConnections).to.be.equal(500)
+  })
+
+  it('should maintain non-overridden P2P config values from config.json', () => {
+    expect(config.p2pConfig.enableIPV4).to.be.equal(true)
+    expect(config.p2pConfig.enableIPV6).to.be.equal(true)
+    expect(config.p2pConfig.upnp).to.be.equal(true)
+    expect(config.p2pConfig.autoNat).to.be.equal(true)
+    expect(config.p2pConfig.bootstrapNodes).to.not.be.equal(null)
+  })
+
+  after(() => {
+    delete process.env.CONFIG_PATH
+    delete process.env.PRIVATE_KEY
+    delete process.env[ENVIRONMENT_VARIABLES.P2P_ipV4BindAddress.name]
+    delete process.env[ENVIRONMENT_VARIABLES.P2P_ipV4BindTcpPort.name]
+    delete process.env[ENVIRONMENT_VARIABLES.P2P_ipV6BindAddress.name]
+    delete process.env[ENVIRONMENT_VARIABLES.P2P_MIN_CONNECTIONS.name]
+    delete process.env[ENVIRONMENT_VARIABLES.P2P_MAX_CONNECTIONS.name]
+  })
+})
