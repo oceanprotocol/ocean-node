@@ -644,8 +644,7 @@ export class C2DEngineDocker extends C2DEngine {
     }
     if (
       jobs[0].owner !== consumerAddress &&
-      jobs[0].additionalViewers &&
-      !jobs[0].additionalViewers.includes(consumerAddress)
+      (!jobs[0].additionalViewers || !jobs[0].additionalViewers.includes(consumerAddress))
     ) {
       // consumerAddress is not the owner and not in additionalViewers
       throw new Error(
@@ -851,7 +850,7 @@ export class C2DEngineDocker extends C2DEngine {
     if (job.status === C2DStatusNumber.JobQueued) {
       // check if we can start the job now
       const now = String(Date.now() / 1000)
-      if (job.queueMaxWaitTime > parseFloat(now) - parseFloat(job.dateCreated)) {
+      if (job.queueMaxWaitTime < parseFloat(now) - parseFloat(job.dateCreated)) {
         job.status = C2DStatusNumber.JobQueuedExpired
         job.statusText = C2DStatusText.JobQueuedExpired
         job.isRunning = false
@@ -864,8 +863,8 @@ export class C2DEngineDocker extends C2DEngine {
       try {
         const env = await this.getComputeEnvironment(
           job.payment && job.payment.chainId ? job.payment.chainId : null,
-          null,
-          job.environment
+          job.environment,
+          null
         )
         await this.checkIfResourcesAreAvailable(job.resources, env, true)
       } catch (err) {
