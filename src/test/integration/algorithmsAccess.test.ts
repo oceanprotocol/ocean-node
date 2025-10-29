@@ -389,7 +389,7 @@ describe('Trusted algorithms Flow', () => {
         initializeResponse.payment.token,
         firstEnv.consumerAddress,
         balance,
-        computeJobDuration,
+        initializeResponse.payment.minLockSeconds,
         10
       )
     const locks = await oceanNode.escrow.getLocks(

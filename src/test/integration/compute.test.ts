@@ -17,10 +17,11 @@ import type {
   ComputeInitializeCommand,
   ComputeGetResultCommand
 } from '../../@types/commands.js'
-import type {
-  ComputeAsset,
-  ComputeAlgorithm,
-  ComputeEnvironment
+import {
+  type ComputeAsset,
+  type ComputeAlgorithm,
+  type ComputeEnvironment,
+  C2DStatusNumber
 } from '../../@types/C2D/C2D.js'
 import {
   // DB_TYPES,
@@ -77,6 +78,8 @@ import {
 import { freeComputeStartPayload } from '../data/commands.js'
 import { DDOManager } from '@oceanprotocol/ddo-js'
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
 describe('Compute', () => {
   let previousConfiguration: OverrideEnvConfig[]
   let config: OceanNodeConfig
@@ -89,6 +92,7 @@ describe('Compute', () => {
   let publishedComputeDataset: any
   let publishedAlgoDataset: any
   let jobId: string
+  let freeJobId: string
   let datasetOrderTxId: any
   let algoOrderTxId: any
   let paymentToken: any
@@ -325,7 +329,6 @@ describe('Compute', () => {
     )
     computeEnvironments = await streamToObject(response.stream as Readable)
     firstEnv = computeEnvironments[0]
-
     const initializeComputeTask: ComputeInitializeCommand = {
       datasets: [dataset],
       algorithm,
@@ -633,7 +636,7 @@ describe('Compute', () => {
     assert(!response.stream, 'We should not have a stream')
   })
 
-  it('should start a compute job', async () => {
+  it('should start a compute job with maxed resources', async () => {
     // first check escrow auth
 
     let balance = await paymentTokenContract.balanceOf(await consumerAccount.getAddress())
@@ -695,6 +698,10 @@ describe('Compute', () => {
     )
     const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await wallet.signMessage(messageHashBytes)
+    const re = []
+    for (const res of firstEnv.resources) {
+      re.push({ id: res.id, amount: res.total })
+    }
     const startComputeTask: PaidComputeStartCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_START,
       consumerAddress: await consumerAccount.getAddress(),
@@ -719,7 +726,12 @@ describe('Compute', () => {
         chainId: DEVELOPMENT_CHAIN_ID,
         token: paymentToken
       },
-      maxJobDuration: computeJobDuration
+      metadata: {
+        key: 'value'
+      },
+      additionalViewers: [await wallet2.getAddress()],
+      maxJobDuration: computeJobDuration,
+      resources: re
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
@@ -741,7 +753,7 @@ describe('Compute', () => {
         initializeResponse.payment.token,
         firstEnv.consumerAddress,
         balance,
-        computeJobDuration,
+        initializeResponse.payment.minLockSeconds,
         10
       )
     auth = await oceanNode.escrow.getAuthorizations(
@@ -782,6 +794,7 @@ describe('Compute', () => {
       nonce: nonce2,
       signature: signature2
     })
+    console.log(response)
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
@@ -790,6 +803,7 @@ describe('Compute', () => {
     const jobs = await streamToObject(response.stream as Readable)
     // eslint-disable-next-line prefer-destructuring
     jobId = jobs[0].jobId
+    console.log('**** Started compute job with id: ', jobId)
     // check escrow
     funds = await oceanNode.escrow.getUserAvailableFunds(
       DEVELOPMENT_CHAIN_ID,
@@ -817,9 +831,19 @@ describe('Compute', () => {
     )
   })
 
-  /* it('should start a free docker compute job', async () => {
+  it('should try start another compute job with maxed resources, but fail', async () => {
+    const getEnvironmentsTask = {
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS
+    }
+    const eresponse = await new ComputeGetEnvironmentsHandler(oceanNode).handle(
+      getEnvironmentsTask
+    )
+    computeEnvironments = await streamToObject(eresponse.stream as Readable)
+    console.log(computeEnvironments[0])
     const nonce = Date.now().toString()
-    const message = String(nonce)
+    const message = String(
+      (await consumerAccount.getAddress()) + publishedComputeDataset.ddo.id + nonce
+    )
     // sign message/nonce
     const consumerMessage = ethers.solidityPackedKeccak256(
       ['bytes'],
@@ -827,44 +851,47 @@ describe('Compute', () => {
     )
     const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await wallet.signMessage(messageHashBytes)
-    const startComputeTask: FreeComputeStartCommand = {
-      command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+    const re = []
+    for (const res of firstEnv.resources) {
+      re.push({ id: res.id, amount: res.total })
+    }
+    const startComputeTask: PaidComputeStartCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_START,
       consumerAddress: await consumerAccount.getAddress(),
       signature,
       nonce,
       environment: firstEnv.id,
       datasets: [
         {
-          fileObject: computeAsset.services[0].files.files[0],
           documentId: publishedComputeDataset.ddo.id,
           serviceId: publishedComputeDataset.ddo.services[0].id,
           transferTxId: datasetOrderTxId
         }
       ],
       algorithm: {
-        fileObject: algoAsset.services[0].files.files[0],
         documentId: publishedAlgoDataset.ddo.id,
         serviceId: publishedAlgoDataset.ddo.services[0].id,
         transferTxId: algoOrderTxId,
         meta: publishedAlgoDataset.ddo.metadata.algorithm
       },
-      output: {}
+      output: {},
+      payment: {
+        chainId: DEVELOPMENT_CHAIN_ID,
+        token: paymentToken
+      },
+      maxJobDuration: computeJobDuration,
+      resources: re
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
-    const response = await new FreeComputeStartHandler(oceanNode).handle(startComputeTask)
-    assert(response, 'Failed to get response')
-    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
-    assert(response.stream, 'Failed to get stream')
-    expect(response.stream).to.be.instanceOf(Readable)
+    // it should fail, because we don't have enough free resources
+    const response = await new PaidComputeStartHandler(oceanNode).handle(startComputeTask)
+    console.log(response)
+    assert(response.status.httpStatus === 400, 'Failed to get 400 response')
+    assert(!response.stream, 'We should not have a stream')
+  })
 
-    const jobs = await streamToObject(response.stream as Readable)
-    assert(jobs[0].jobId, 'failed to got job id')
-    // eslint-disable-next-line prefer-destructuring
-    jobId = jobs[0].jobId
-  }) */
-
-  it('should start a free docker compute job', async () => {
+  it('should start a queued free docker compute job', async () => {
     const nonce = Date.now().toString()
     const message = String(nonce)
     // sign message/nonce
@@ -896,10 +923,7 @@ describe('Compute', () => {
         meta: publishedAlgoDataset.ddo.metadata.algorithm
       },
       output: {},
-      metadata: {
-        key: 'value'
-      },
-      additionalViewers: [await wallet2.getAddress()]
+      queueMaxWaitTime: 300 // 5 minutes
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
@@ -912,8 +936,10 @@ describe('Compute', () => {
 
     const jobs = await streamToObject(response.stream as Readable)
     assert(jobs[0].jobId, 'failed to got job id')
+    console.log('**** Started FREE compute job with id: ', jobs[0].jobId)
+    console.log(jobs[0])
     // eslint-disable-next-line prefer-destructuring
-    jobId = jobs[0].jobId
+    freeJobId = jobs[0].jobId
   })
 
   it('should get job status by jobId', async () => {
@@ -1021,6 +1047,7 @@ describe('Compute', () => {
     const response = await new ComputeGetResultHandler(oceanNode).handle(
       resultComputeTask
     )
+    console.log(response)
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 500, 'Failed to get 500 response')
     console.log(response.status.error)
@@ -1048,6 +1075,29 @@ describe('Compute', () => {
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     expect(response.stream).to.be.instanceOf(Readable)
+    let tries = 0
+    do {
+      const statusComputeTask: ComputeGetStatusCommand = {
+        command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
+        consumerAddress: null,
+        agreementId: null,
+        jobId
+      }
+      const response = await new ComputeGetStatusHandler(oceanNode).handle(
+        statusComputeTask
+      )
+      assert(response, 'Failed to get response')
+      assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+      assert(response.stream, 'Failed to get stream')
+      expect(response.stream).to.be.instanceOf(Readable)
+      const jobs = await streamToObject(response.stream as Readable)
+      console.log('Checking job status after stop...')
+      console.log(jobs[0])
+      if (jobs[0].dateFinished) break
+      if (tries > 10) assert.fail('Job not stopped after multiple tries')
+      await sleep(2000)
+      tries++
+    } while (true)
   })
   it('should deny the Free job due to signature (directCommand payload)', async function () {
     freeComputeStartPayload.environment = firstEnv.id
@@ -1077,6 +1127,7 @@ describe('Compute', () => {
     assert(response.status.httpStatus === 500, 'Failed to get 500 response')
     assert(response.stream === null, 'Should not get stream')
   })
+
   // algo and checksums related
   describe('C2D algo and checksums related', () => {
     it('should publish AlgoDDO', async () => {
