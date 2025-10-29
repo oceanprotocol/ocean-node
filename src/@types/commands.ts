@@ -196,6 +196,7 @@ export interface ComputeInitializeCommand extends Command {
   signature?: string
   maxJobDuration: number
   policyServer?: any // object to pass to policy server
+  queueMaxWaitTime?: number // max time in seconds a job can wait in the queue before being started
 }
 
 export interface FreeComputeStartCommand extends Command {
@@ -211,6 +212,7 @@ export interface FreeComputeStartCommand extends Command {
   policyServer?: any // object to pass to policy server
   metadata?: DBComputeJobMetadata
   additionalViewers?: string[] // addresses of additional addresses that can get results
+  queueMaxWaitTime?: number // max time in seconds a job can wait in the queue before being started
 }
 export interface PaidComputeStartCommand extends FreeComputeStartCommand {
   payment: ComputePayment

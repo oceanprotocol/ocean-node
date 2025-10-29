@@ -65,7 +65,8 @@ export abstract class C2DEngine {
     payment: DBComputeJobPayment,
     jobId: string,
     metadata?: DBComputeJobMetadata,
-    additionalViewers?: string[]
+    additionalViewers?: string[],
+    queueMaxWaitTime?: number
   ): Promise<ComputeJob[]>
 
   public abstract stopComputeJob(
@@ -233,22 +234,45 @@ export abstract class C2DEngine {
     const jobs = await this.db.getRunningJobs(this.getC2DConfig().hash)
     let totalJobs = 0
     let totalFreeJobs = 0
+    let queuedJobs = 0
+    let queuedFreeJobs = 0
+    let maxWaitTime = 0
+    let maxWaitTimeFree = 0
     for (const job of jobs) {
       if (job.environment === env.id) {
-        totalJobs++
-        if (job.isFree) totalFreeJobs++
+        if (job.queueMaxWaitTime === 0) {
+          totalJobs++
+          if (job.isFree) totalFreeJobs++
 
-        for (const resource of job.resources) {
-          if (!(resource.id in usedResources)) usedResources[resource.id] = 0
-          usedResources[resource.id] += resource.amount
+          for (const resource of job.resources) {
+            if (!(resource.id in usedResources)) usedResources[resource.id] = 0
+            usedResources[resource.id] += resource.amount
+            if (job.isFree) {
+              if (!(resource.id in usedFreeResources)) usedFreeResources[resource.id] = 0
+              usedFreeResources[resource.id] += resource.amount
+            }
+          }
+        } else {
+          // queued job
+          queuedJobs++
+          maxWaitTime += job.maxJobDuration
           if (job.isFree) {
-            if (!(resource.id in usedFreeResources)) usedFreeResources[resource.id] = 0
-            usedFreeResources[resource.id] += resource.amount
+            queuedFreeJobs++
+            maxWaitTimeFree += job.maxJobDuration
           }
         }
       }
     }
-    return { totalJobs, totalFreeJobs, usedResources, usedFreeResources }
+    return {
+      totalJobs,
+      totalFreeJobs,
+      usedResources,
+      usedFreeResources,
+      queuedJobs,
+      queuedFreeJobs,
+      maxWaitTime,
+      maxWaitTimeFree
+    }
   }
 
   // overridden by each engine if required

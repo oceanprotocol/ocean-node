@@ -42,7 +42,8 @@ function getInternalStructure(job: DBComputeJob): any {
     additionalViewers: job.additionalViewers,
     terminationDetails: job.terminationDetails,
     payment: job.payment,
-    algoDuration: job.algoDuration
+    algoDuration: job.algoDuration,
+    queueMaxWaitTime: job.queueMaxWaitTime
   }
   return internalBlob
 }
