@@ -185,10 +185,10 @@ export interface ComputeGetEnvironmentsCommand extends Command {
 export interface ComputePayment {
   chainId: number
   token: string
-  resources?: ComputeResourceRequest[]
+  resources?: ComputeResourceRequest[] // only used in initializeCompute
 }
 export interface ComputeInitializeCommand extends Command {
-  datasets: [ComputeAsset]
+  datasets: ComputeAsset[]
   algorithm: ComputeAlgorithm
   environment: string
   payment: ComputePayment

@@ -117,8 +117,8 @@ export class PaidComputeStartHandler extends CommandHandler {
         if (!task.maxJobDuration || task.maxJobDuration > env.maxJobDuration) {
           task.maxJobDuration = env.maxJobDuration
         }
-        task.payment.resources = await engine.checkAndFillMissingResources(
-          task.payment.resources,
+        task.resources = await engine.checkAndFillMissingResources(
+          task.resources,
           env,
           false
         )
@@ -132,7 +132,7 @@ export class PaidComputeStartHandler extends CommandHandler {
         }
       }
       try {
-        await engine.checkIfResourcesAreAvailable(task.payment.resources, env, true)
+        await engine.checkIfResourcesAreAvailable(task.resources, env, true)
       } catch (e) {
         if (task.queueMaxWaitTime > 0) {
           CORE_LOGGER.verbose(
@@ -460,7 +460,7 @@ export class PaidComputeStartHandler extends CommandHandler {
       }
       const resources: ComputeResourceRequestWithPrice[] = []
 
-      for (const res of task.payment.resources) {
+      for (const res of task.resources) {
         const price = engine.getResourcePrice(prices, res.id)
         resources.push({
           id: res.id,
@@ -484,7 +484,7 @@ export class PaidComputeStartHandler extends CommandHandler {
       const jobId = generateUniqueID(s)
       // let's calculate payment needed based on resources request and maxJobDuration
       const cost = engine.calculateResourcesCost(
-        task.payment.resources,
+        task.resources,
         env,
         task.payment.chainId,
         task.payment.token,
@@ -517,7 +517,7 @@ export class PaidComputeStartHandler extends CommandHandler {
           env.id,
           task.consumerAddress,
           task.maxJobDuration,
-          task.payment.resources,
+          task.resources,
           {
             chainId: task.payment.chainId,
             token: task.payment.token,
