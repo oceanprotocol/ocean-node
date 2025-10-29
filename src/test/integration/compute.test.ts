@@ -20,8 +20,7 @@ import type {
 import {
   type ComputeAsset,
   type ComputeAlgorithm,
-  type ComputeEnvironment,
-  C2DStatusNumber
+  type ComputeEnvironment
 } from '../../@types/C2D/C2D.js'
 import {
   // DB_TYPES,
@@ -1127,7 +1126,25 @@ describe('Compute', () => {
     assert(response.status.httpStatus === 500, 'Failed to get 500 response')
     assert(response.stream === null, 'Should not get stream')
   })
-
+  // let's check our queued job
+  it('should get job status by jobId', async () => {
+    const statusComputeTask: ComputeGetStatusCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
+      consumerAddress: null,
+      agreementId: null,
+      jobId: freeJobId
+    }
+    const response = await new ComputeGetStatusHandler(oceanNode).handle(
+      statusComputeTask
+    )
+    assert(response, 'Failed to get response')
+    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response.stream, 'Failed to get stream')
+    expect(response.stream).to.be.instanceOf(Readable)
+    const jobs = await streamToObject(response.stream as Readable)
+    console.log('Checking FREE job status...')
+    console.log(jobs[0])
+  })
   // algo and checksums related
   describe('C2D algo and checksums related', () => {
     it('should publish AlgoDDO', async () => {
