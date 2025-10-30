@@ -176,7 +176,7 @@ export class Escrow {
       const locks = await this.getLocks(chain, token, payer, await signer.getAddress())
       for (const lock of locks) {
         if (BigInt(lock.jobId.toString()) === BigInt(jobId)) {
-          const gas = await contract.claimLock.estimateGas(
+          const gas = await contract.claimLockAndWithdraw.estimateGas(
             jobId,
             token,
             payer,
@@ -184,7 +184,7 @@ export class Escrow {
             ethers.toUtf8Bytes(proof)
           )
           const gasOptions = await blockchain.getGasOptions(gas, 1.2)
-          const tx = await contract.claimLock(
+          const tx = await contract.claimLockAndWithdraw(
             jobId,
             token,
             payer,
