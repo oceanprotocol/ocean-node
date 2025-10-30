@@ -52,7 +52,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 
 ## Payments
 
-- `ESCROW_CLAIM_TIMEOUT`: Amount of time reserved to claim a escrow payment, in seconds. Defaults to `600`. Example: `600`
+- `ESCROW_CLAIM_TIMEOUT`: Amount of time reserved to claim a escrow payment, in seconds. Defaults to `3600`. Example: `3600`
 
 ## Logs
 
