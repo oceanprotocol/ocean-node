@@ -279,7 +279,7 @@ export const OceanNodeConfigSchema = z
 
     supportedNetworks: jsonFromString(RPCSSchema).optional(),
 
-    claimDurationTimeout: z.coerce.number().default(600),
+    claimDurationTimeout: z.coerce.number().default(3600),
     indexingNetworks: z
       .union([jsonFromString(RPCSSchema), z.array(z.union([z.string(), z.number()]))])
       .optional(),
