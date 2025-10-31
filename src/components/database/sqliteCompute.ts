@@ -42,7 +42,8 @@ function getInternalStructure(job: DBComputeJob): any {
     additionalViewers: job.additionalViewers,
     terminationDetails: job.terminationDetails,
     payment: job.payment,
-    algoDuration: job.algoDuration
+    algoDuration: job.algoDuration,
+    queueMaxWaitTime: job.queueMaxWaitTime
   }
   return internalBlob
 }
@@ -271,7 +272,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
 
   getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]> {
     const selectSQL = `
-      SELECT * FROM ${this.schema.name} WHERE dateFinished IS NULL
+      SELECT * FROM ${this.schema.name} WHERE dateFinished IS NULL ORDER by dateCreated
     `
     return new Promise<DBComputeJob[]>((resolve, reject) => {
       this.db.all(selectSQL, (err, rows: any[] | undefined) => {

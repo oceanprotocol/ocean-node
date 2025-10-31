@@ -171,7 +171,11 @@ export class C2DEngineDocker extends C2DEngine {
         addresses: [],
         accessLists: []
       },
-      fees
+      fees,
+      queuedJobs: 0,
+      queuedFreeJobs: 0,
+      queMaxWaitTime: 0,
+      queMaxWaitTimeFree: 0
     })
     if (`access` in envConfig) this.envs[0].access = envConfig.access
 
@@ -287,10 +291,22 @@ export class C2DEngineDocker extends C2DEngine {
         // if (systemInfo.Runtimes) computeEnv.runtimes = systemInfo.Runtimes
         // if (systemInfo.DefaultRuntime)
         // computeEnv.defaultRuntime = systemInfo.DefaultRuntime
-        const { totalJobs, totalFreeJobs, usedResources, usedFreeResources } =
-          await this.getUsedResources(computeEnv)
+        const {
+          totalJobs,
+          totalFreeJobs,
+          usedResources,
+          usedFreeResources,
+          queuedJobs,
+          queuedFreeJobs,
+          maxWaitTime,
+          maxWaitTimeFree
+        } = await this.getUsedResources(computeEnv)
         computeEnv.runningJobs = totalJobs
         computeEnv.runningfreeJobs = totalFreeJobs
+        computeEnv.queuedJobs = queuedJobs
+        computeEnv.queuedFreeJobs = queuedFreeJobs
+        computeEnv.queMaxWaitTime = maxWaitTime
+        computeEnv.queMaxWaitTimeFree = maxWaitTimeFree
         for (let i = 0; i < computeEnv.resources.length; i++) {
           if (computeEnv.resources[i].id in usedResources)
             computeEnv.resources[i].inUse = usedResources[computeEnv.resources[i].id]
@@ -365,7 +381,8 @@ export class C2DEngineDocker extends C2DEngine {
     payment: DBComputeJobPayment,
     jobId: string,
     metadata?: DBComputeJobMetadata,
-    additionalViewers?: string[]
+    additionalViewers?: string[],
+    queueMaxWaitTime?: number
   ): Promise<ComputeJob[]> {
     if (!this.docker) return []
     // TO DO - iterate over resources and get default runtime
@@ -409,6 +426,9 @@ export class C2DEngineDocker extends C2DEngine {
       )
       // make sure that we don't keep them in the db structure
       algorithm.meta.container.additionalDockerFiles = null
+      if (queueMaxWaitTime && queueMaxWaitTime > 0) {
+        throw new Error(`additionalDockerFiles cannot be used with queued jobs`)
+      }
     }
     const job: DBComputeJob = {
       clusterHash: this.getC2DConfig().hash,
@@ -417,8 +437,14 @@ export class C2DEngineDocker extends C2DEngine {
       jobId,
       dateCreated: String(Date.now() / 1000),
       dateFinished: null,
-      status: C2DStatusNumber.JobStarted,
-      statusText: C2DStatusText.JobStarted,
+      status:
+        queueMaxWaitTime && queueMaxWaitTime > 0
+          ? C2DStatusNumber.JobQueued
+          : C2DStatusNumber.JobStarted,
+      statusText:
+        queueMaxWaitTime && queueMaxWaitTime > 0
+          ? C2DStatusText.JobQueued
+          : C2DStatusText.JobStarted,
       results: [],
       algorithm,
       assets,
@@ -439,13 +465,16 @@ export class C2DEngineDocker extends C2DEngine {
       metadata,
       additionalViewers,
       terminationDetails: { exitCode: null, OOMKilled: null },
-      algoDuration: 0
+      algoDuration: 0,
+      queueMaxWaitTime: queueMaxWaitTime || 0
     }
 
     if (algorithm.meta.container && algorithm.meta.container.dockerfile) {
-      // we need to build the image
-      job.status = C2DStatusNumber.BuildImage
-      job.statusText = C2DStatusText.BuildImage
+      // we need to build the image if job is not queued
+      if (queueMaxWaitTime === 0) {
+        job.status = C2DStatusNumber.BuildImage
+        job.statusText = C2DStatusText.BuildImage
+      }
     } else {
       // already built, we need to validate it
       const validation = await C2DEngineDocker.checkDockerImage(image, env.platform)
@@ -454,8 +483,10 @@ export class C2DEngineDocker extends C2DEngine {
         throw new Error(
           `Cannot find image ${image} for ${env.platform.architecture}. Maybe it does not exist or it's build for other arhitectures.`
         )
-      job.status = C2DStatusNumber.PullImage
-      job.statusText = C2DStatusText.PullImage
+      if (queueMaxWaitTime === 0) {
+        job.status = C2DStatusNumber.PullImage
+        job.statusText = C2DStatusText.PullImage
+      }
     }
 
     await this.makeJobFolders(job)
@@ -464,10 +495,12 @@ export class C2DEngineDocker extends C2DEngine {
     if (!addedId) {
       return []
     }
-    if (algorithm.meta.container && algorithm.meta.container.dockerfile) {
-      this.buildImage(job, additionalDockerFiles)
-    } else {
-      this.pullImage(job)
+    if (queueMaxWaitTime === 0) {
+      if (algorithm.meta.container && algorithm.meta.container.dockerfile) {
+        this.buildImage(job, additionalDockerFiles)
+      } else {
+        this.pullImage(job)
+      }
     }
     // only now set the timer
     if (!this.cronTimer) {
@@ -611,8 +644,7 @@ export class C2DEngineDocker extends C2DEngine {
     }
     if (
       jobs[0].owner !== consumerAddress &&
-      jobs[0].additionalViewers &&
-      !jobs[0].additionalViewers.includes(consumerAddress)
+      (!jobs[0].additionalViewers || !jobs[0].additionalViewers.includes(consumerAddress))
     ) {
       // consumerAddress is not the owner and not in additionalViewers
       throw new Error(
@@ -815,6 +847,44 @@ export class C2DEngineDocker extends C2DEngine {
        - delete the container
        - delete the volume
        */
+    if (job.status === C2DStatusNumber.JobQueued) {
+      // check if we can start the job now
+      const now = String(Date.now() / 1000)
+      if (job.queueMaxWaitTime < parseFloat(now) - parseFloat(job.dateCreated)) {
+        job.status = C2DStatusNumber.JobQueuedExpired
+        job.statusText = C2DStatusText.JobQueuedExpired
+        job.isRunning = false
+        job.dateFinished = now
+        await this.db.updateJob(job)
+        await this.cleanupJob(job)
+        return
+      }
+      // check if resources are available now
+      try {
+        const env = await this.getComputeEnvironment(
+          job.payment && job.payment.chainId ? job.payment.chainId : null,
+          job.environment,
+          null
+        )
+        await this.checkIfResourcesAreAvailable(job.resources, env, true)
+      } catch (err) {
+        // resources are still not available
+        return
+      }
+      // resources are now available, let's start the job
+      const { algorithm } = job
+      if (algorithm.meta.container && algorithm.meta.container.dockerfile) {
+        job.status = C2DStatusNumber.BuildImage
+        job.statusText = C2DStatusText.BuildImage
+        this.buildImage(job, null)
+      } else {
+        job.status = C2DStatusNumber.PullImage
+        job.statusText = C2DStatusText.PullImage
+        this.pullImage(job)
+      }
+      await this.db.updateJob(job)
+    }
+
     if (job.status === C2DStatusNumber.ConfiguringVolumes) {
       // create the volume & create container
       // TO DO C2D:  Choose driver & size

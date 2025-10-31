@@ -69,6 +69,9 @@ export class ComputeInitializeHandler extends CommandHandler {
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
+    if (!task.queueMaxWaitTime) {
+      task.queueMaxWaitTime = 0
+    }
     let engine
     let env
     let resourcesNeeded
@@ -193,7 +196,9 @@ export class ComputeInitializeHandler extends CommandHandler {
           escrowAddress,
           payee: env.consumerAddress,
           chainId: task.payment.chainId,
-          minLockSeconds: engine.escrow.getMinLockTime(task.maxJobDuration),
+          minLockSeconds: engine.escrow.getMinLockTime(
+            task.maxJobDuration + task.queueMaxWaitTime
+          ),
           token: task.payment.token,
           amount: await engine.escrow.getPaymentAmountInWei(
             cost,

@@ -117,6 +117,10 @@ export interface ComputeEnvironment extends ComputeEnvironmentBaseConfig {
   runningJobs: number
   runningfreeJobs?: number
   consumerAddress: string // v1
+  queuedJobs: number
+  queuedFreeJobs: number
+  queMaxWaitTime: number
+  queMaxWaitTimeFree: number
 }
 
 export interface C2DDockerConfig {
@@ -174,6 +178,7 @@ export interface ComputeJob {
   environment?: string
   metadata?: DBComputeJobMetadata
   terminationDetails?: ComputeJobTerminationDetails
+  queueMaxWaitTime: number // max time in seconds a job can wait in the queue before being started
 }
 
 export interface ComputeOutput {
@@ -260,6 +265,10 @@ export enum C2DStatusNumber {
   // eslint-disable-next-line no-unused-vars
   JobStarted = 0,
   // eslint-disable-next-line no-unused-vars
+  JobQueued = 1,
+  // eslint-disable-next-line no-unused-vars
+  JobQueuedExpired = 2,
+  // eslint-disable-next-line no-unused-vars
   PullImage = 10,
   // eslint-disable-next-line no-unused-vars
   PullImageFailed = 11,
@@ -301,6 +310,10 @@ export enum C2DStatusNumber {
 export enum C2DStatusText {
   // eslint-disable-next-line no-unused-vars
   JobStarted = 'Job started',
+  // eslint-disable-next-line no-unused-vars
+  JobQueued = 'Job queued',
+  // eslint-disable-next-line no-unused-vars
+  JobQueuedExpired = 'Job expired in queue',
   // eslint-disable-next-line no-unused-vars
   PullImage = 'Pulling algorithm image',
   // eslint-disable-next-line no-unused-vars

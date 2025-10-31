@@ -68,7 +68,9 @@ export class PaidComputeStartHandler extends CommandHandler {
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
-
+    if (!task.queueMaxWaitTime) {
+      task.queueMaxWaitTime = 0
+    }
     const authValidationResponse = await this.validateTokenOrSignature(
       task.authorization,
       task.consumerAddress,
@@ -115,18 +117,34 @@ export class PaidComputeStartHandler extends CommandHandler {
         if (!task.maxJobDuration || task.maxJobDuration > env.maxJobDuration) {
           task.maxJobDuration = env.maxJobDuration
         }
-        task.payment.resources = await engine.checkAndFillMissingResources(
-          task.payment.resources,
+        task.resources = await engine.checkAndFillMissingResources(
+          task.resources,
           env,
           false
         )
-        await engine.checkIfResourcesAreAvailable(task.payment.resources, env, true)
       } catch (e) {
         return {
           stream: null,
           status: {
             httpStatus: 400,
             error: e
+          }
+        }
+      }
+      try {
+        await engine.checkIfResourcesAreAvailable(task.resources, env, true)
+      } catch (e) {
+        if (task.queueMaxWaitTime > 0) {
+          CORE_LOGGER.verbose(
+            `Compute resources not available, queuing job for max ${task.queueMaxWaitTime} seconds`
+          )
+        } else {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: e
+            }
           }
         }
       }
@@ -442,7 +460,7 @@ export class PaidComputeStartHandler extends CommandHandler {
       }
       const resources: ComputeResourceRequestWithPrice[] = []
 
-      for (const res of task.payment.resources) {
+      for (const res of task.resources) {
         const price = engine.getResourcePrice(prices, res.id)
         resources.push({
           id: res.id,
@@ -466,7 +484,7 @@ export class PaidComputeStartHandler extends CommandHandler {
       const jobId = generateUniqueID(s)
       // let's calculate payment needed based on resources request and maxJobDuration
       const cost = engine.calculateResourcesCost(
-        task.payment.resources,
+        task.resources,
         env,
         task.payment.chainId,
         task.payment.token,
@@ -480,7 +498,7 @@ export class PaidComputeStartHandler extends CommandHandler {
           task.payment.token,
           task.consumerAddress,
           cost,
-          task.maxJobDuration
+          engine.escrow.getMinLockTime(task.maxJobDuration + task.queueMaxWaitTime)
         )
       } catch (e) {
         if (e.message.includes('insufficient funds for intrinsic transaction cost')) {
@@ -509,7 +527,7 @@ export class PaidComputeStartHandler extends CommandHandler {
           env.id,
           task.consumerAddress,
           task.maxJobDuration,
-          task.payment.resources,
+          task.resources,
           {
             chainId: task.payment.chainId,
             token: task.payment.token,
@@ -519,7 +537,8 @@ export class PaidComputeStartHandler extends CommandHandler {
           },
           jobId,
           task.metadata,
-          task.additionalViewers
+          task.additionalViewers,
+          task.queueMaxWaitTime
         )
         CORE_LOGGER.logMessage(
           'ComputeStartCommand Response: ' + JSON.stringify(response, null, 2),
@@ -587,7 +606,9 @@ export class FreeComputeStartHandler extends CommandHandler {
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
-
+    if (!task.queueMaxWaitTime) {
+      task.queueMaxWaitTime = 0
+    }
     const authValidationResponse = await this.validateTokenOrSignature(
       task.authorization,
       task.consumerAddress,
@@ -726,18 +747,17 @@ export class FreeComputeStartHandler extends CommandHandler {
           }
         }
       }
-      try {
-        const env = await engine.getComputeEnvironment(null, task.environment)
-        if (!env) {
-          return {
-            stream: null,
-            status: {
-              httpStatus: 500,
-              error: 'Invalid C2D Environment'
-            }
+      const env = await engine.getComputeEnvironment(null, task.environment)
+      if (!env) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500,
+            error: 'Invalid C2D Environment'
           }
         }
-
+      }
+      try {
         const accessGranted = await validateAccess(task.consumerAddress, env.free.access)
         if (!accessGranted) {
           return {
@@ -754,7 +774,7 @@ export class FreeComputeStartHandler extends CommandHandler {
           env,
           true
         )
-        await engine.checkIfResourcesAreAvailable(task.resources, env, true)
+
         if (!task.maxJobDuration || task.maxJobDuration > env.free.maxJobDuration) {
           task.maxJobDuration = env.free.maxJobDuration
         }
@@ -765,6 +785,23 @@ export class FreeComputeStartHandler extends CommandHandler {
           status: {
             httpStatus: 400,
             error: String(e)
+          }
+        }
+      }
+      try {
+        await engine.checkIfResourcesAreAvailable(task.resources, env, true)
+      } catch (e) {
+        if (task.queueMaxWaitTime > 0) {
+          CORE_LOGGER.verbose(
+            `Compute resources not available, queuing job for max ${task.queueMaxWaitTime} seconds`
+          )
+        } else {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: e
+            }
           }
         }
       }
@@ -799,7 +836,8 @@ export class FreeComputeStartHandler extends CommandHandler {
         null,
         jobId,
         task.metadata,
-        task.additionalViewers
+        task.additionalViewers,
+        task.queueMaxWaitTime
       )
 
       CORE_LOGGER.logMessage(
