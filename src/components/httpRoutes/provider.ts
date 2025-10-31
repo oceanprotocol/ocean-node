@@ -127,7 +127,14 @@ providerRoutes.post(`${SERVICES_API_BASE_PATH}/encryptFile`, async (req, res) =>
           data.push(chunk)
         })
         req.on('end', async function () {
-          result = await getEncryptedData(encryptMethod, Buffer.concat(data))
+          result = await getEncryptedData(
+            encryptMethod,
+            Buffer.concat(
+              data.map(
+                (buf) => new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength)
+              )
+            )
+          )
           return await writeResponse(result, encryptMethod)
         })
       }

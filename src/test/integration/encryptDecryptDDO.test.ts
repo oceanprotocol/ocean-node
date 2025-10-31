@@ -9,14 +9,14 @@ import {
 } from 'ethers'
 import { assert, expect } from 'chai'
 import { getEventFromTx, streamToString } from '../../utils/util.js'
-import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
+import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' with { type: 'json' }
 import { RPCS } from '../../@types/blockchain.js'
 import {
   DEVELOPMENT_CHAIN_ID,
   getOceanArtifactsAdresses,
   getOceanArtifactsAdressesByChainId
 } from '../../utils/address.js'
-import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
+import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
 import { genericDDO } from '../data/ddo.js'
 import { createHash } from 'crypto'
 import { encrypt } from '../../utils/crypt.js'
@@ -158,7 +158,10 @@ describe('Should encrypt and decrypt DDO', () => {
 
     const genericAssetData = Uint8Array.from(Buffer.from(JSON.stringify(genericAsset)))
     const encryptedData = await encrypt(genericAssetData, EncryptMethod.ECIES)
-    encryptedMetaData = hexlify(encryptedData)
+    encryptedMetaData = hexlify(
+        new Uint8Array(encryptedData.buffer, encryptedData.byteOffset, encryptedData.byteLength)
+    );
+
 
     const setMetaDataTx = await nftContract.setMetaData(
       0,

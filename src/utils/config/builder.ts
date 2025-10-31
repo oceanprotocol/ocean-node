@@ -4,7 +4,9 @@ import type { RPCS } from '../../@types/blockchain.js'
 import type { FeeTokens } from '../../@types/Fees.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
 import { keys } from '@libp2p/crypto'
-import { createFromPrivKey } from '@libp2p/peer-id-factory'
+import { peerIdFromPrivateKey } from '@libp2p/peer-id'
+// import type { PrivateKey } from '@libp2p/interface'
+// import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { Wallet } from 'ethers'
 import fs from 'fs'
 import os from 'os'
@@ -88,13 +90,21 @@ function preprocessConfigData(data: any): void {
 export async function getPeerIdFromPrivateKey(
   privateKey: string
 ): Promise<OceanNodeKeys> {
-  const key = new keys.supportedKeys.secp256k1.Secp256k1PrivateKey(
-    hexStringToByteArray(privateKey.slice(2))
-  )
+  const key = keys.privateKeyFromRaw(hexStringToByteArray(privateKey.slice(2)))
 
+  // const key = new keys.supportedKeys.secp256k1.Secp256k1PrivateKey(
+  // hexStringToByteArray(privateKey.slice(2))
+  // )
+  console.log('*****************************')
+  console.log({
+    peerId: await peerIdFromPrivateKey(key),
+    publicKey: key.publicKey.toString(),
+    privateKey: (key as any)._key,
+    ethAddress: new Wallet(privateKey.substring(2)).address
+  })
   return {
-    peerId: await createFromPrivKey(key),
-    publicKey: key.public.bytes,
+    peerId: await peerIdFromPrivateKey(key),
+    publicKey: key.publicKey.toString(),
     privateKey: (key as any)._key,
     ethAddress: new Wallet(privateKey.substring(2)).address
   }

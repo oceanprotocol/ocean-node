@@ -10,10 +10,10 @@ import {
   ZeroAddress,
   parseUnits
 } from 'ethers'
-import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
-import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
-import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
+import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' with { type: 'json' }
+import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
+import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' with { type: 'json' }
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
@@ -185,7 +185,10 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     genericAssetCloned.services[0].files = encryptedDataString
     const stringDDO = JSON.stringify(genericAssetCloned)
     const bytes = Buffer.from(stringDDO)
-    const metadata = hexlify(bytes)
+    const metadata = hexlify(
+      new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    );
+
     const hash = createHash('sha256').update(metadata).digest('hex')
 
     const setMetaDataTx = await nftContract.setMetaData(
@@ -321,7 +324,10 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     genericAssetCloned.services[1].files = encryptedDataString
     const stringDDO = JSON.stringify(genericAssetCloned)
     const bytes = Buffer.from(stringDDO)
-    const metadata = hexlify(bytes)
+    const metadata = hexlify(
+      new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    );
+
     const hash = createHash('sha256').update(metadata).digest('hex')
 
     const setMetaDataTx = await nftContract.setMetaData(

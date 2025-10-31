@@ -23,7 +23,7 @@ import { getConfiguration } from '../../../utils/config.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
 import { getOceanArtifactsAdresses } from '../../../utils/address.js'
-import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
 import { fetchEventFromTransaction } from '../../../utils/util.js'
 import { fetchTransactionReceipt } from './validateOrders.js'
 

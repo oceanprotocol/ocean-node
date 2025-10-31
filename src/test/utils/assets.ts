@@ -10,14 +10,14 @@ import {
 import { Readable } from 'stream'
 import { createHash } from 'crypto'
 import { EncryptMethod } from '../../@types/fileObject.js'
-import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
-import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
+import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' with { type: 'json' }
+import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
 import {
   DEVELOPMENT_CHAIN_ID,
   getOceanArtifactsAdresses,
   getOceanArtifactsAdressesByChainId
 } from '../../utils/address.js'
-import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
 import { getEventFromTx, streamToObject } from '../../utils/util.js'
 
 import { encrypt } from '../../utils/crypt.js'
@@ -106,7 +106,9 @@ export async function publishAsset(asset: any, publisherAccount: Signer) {
 
     const stringDDO = JSON.stringify(genericAsset)
     const bytes = Buffer.from(stringDDO)
-    const metadata = hexlify(bytes)
+    const metadata = hexlify(
+      new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    );
     const hash = createHash('sha256').update(metadata).digest('hex')
 
     const setMetaDataTx = await nftContract.setMetaData(

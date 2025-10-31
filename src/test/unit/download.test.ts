@@ -98,7 +98,7 @@ describe('Should validate files structure for download', () => {
 
     const decryptedUrlBytes = await decrypt(data, EncryptMethod.ECIES)
     // Convert the decrypted bytes back to a string
-    const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
+    const decryptedFilesString = decryptedUrlBytes.toString()
     // back to JSON representation
     const decryptedFileArray = JSON.parse(decryptedFilesString)
     return decryptedFileArray
@@ -142,7 +142,7 @@ describe('Should validate files structure for download', () => {
 
     const decryptedUrlBytes = await decrypt(data, EncryptMethod.ECIES)
     // Convert the decrypted bytes back to a string
-    const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
+    const decryptedFilesString = decryptedUrlBytes.toString()
     // back to JSON representation
     const decryptedFileData = JSON.parse(decryptedFilesString)
     assert(

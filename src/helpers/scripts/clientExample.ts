@@ -165,10 +165,10 @@ function decryptFileStream(
   initVect: string
 ): Promise<boolean> {
   const decipher = crypto
-    .createDecipheriv(
+    .createCipheriv(
       FILE_ENCRYPTION_ALGORITHM,
-      Buffer.from(privateKey, 'hex'),
-      Buffer.from(initVect, 'hex')
+      new Uint8Array(Buffer.from(privateKey, 'hex').buffer),
+      new Uint8Array(Buffer.from(initVect, 'hex').buffer)
     )
     .setAutoPadding(true)
 

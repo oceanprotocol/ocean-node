@@ -32,10 +32,11 @@ export async function streamToObject(stream: Readable): Promise<any> {
 }
 
 export async function streamToString(stream: Readable) {
-  const chunks = []
+  const chunks: Uint8Array[] = []
   for await (const chunk of stream) {
-    chunks.push(Buffer.from(chunk))
+    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk)
   }
+
   return Buffer.concat(chunks).toString()
 }
 

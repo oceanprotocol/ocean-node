@@ -17,7 +17,7 @@ export async function decryptFilesObject(
     )
 
     // 3. Convert the decrypted bytes back to a string
-    const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
+    const decryptedFilesString = decryptedUrlBytes.toString()
     const decryptedFileArray = JSON.parse(decryptedFilesString)
 
     console.log('decryptedFileArray: ', decryptedFileArray)

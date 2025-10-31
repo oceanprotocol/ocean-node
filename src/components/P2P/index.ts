@@ -17,7 +17,8 @@ import { pipe } from 'it-pipe'
 
 import { tcp } from '@libp2p/tcp'
 import { webSockets } from '@libp2p/websockets'
-import { circuitRelayTransport, circuitRelayServer } from '@libp2p/circuit-relay-v2'
+// import { circuitRelayTransport, circuitRelayServer } from '@libp2p/circuit-relay-v2'
+import { circuitRelayServer } from '@libp2p/circuit-relay-v2'
 import { createLibp2p, Libp2p } from 'libp2p'
 import { identify, identifyPush } from '@libp2p/identify'
 import { autoNAT } from '@libp2p/autonat'
@@ -107,7 +108,7 @@ export class OceanP2P extends EventEmitter {
   async start(options: any = null) {
     this._topic = 'oceanprotocol'
     this._libp2p = await this.createNode(this._config)
-
+    console.log(this._libp2p)
     this._libp2p.addEventListener('peer:connect', (evt: any) => {
       this.handlePeerConnect(evt)
     })
@@ -185,18 +186,26 @@ export class OceanP2P extends EventEmitter {
     P2P_LOGGER.debug('subscription-change:' + details.detail)
   }
 
+  getAddress(addr: Multiaddr): string {
+    const component = addr
+      .getComponents()
+      .find((c) => c.name === 'ip4' || c.name === 'ip6')
+    return component?.value || null
+  }
+
   shouldAnnounce(addr: any) {
     try {
       const maddr = multiaddr(addr)
       // always filter loopback
-      if (ip.isLoopback(maddr.nodeAddress().address)) {
+      maddr.getComponents().find((c) => c.name === 'ip4' || c.name === 'ip6')
+      if (ip.isLoopback(this.getAddress(maddr))) {
         // disabled logs because of flooding
         // P2P_LOGGER.debug('Deny announcement of loopback ' + maddr.nodeAddress().address)
         return false
       }
       // check filters
       for (const filter of this._config.p2pConfig.filterAnnouncedAddresses) {
-        if (ip.cidrSubnet(filter).contains(maddr.nodeAddress().address)) {
+        if (ip.cidrSubnet(filter).contains(this.getAddress(maddr))) {
           // disabled logs because of flooding
           // P2P_LOGGER.debug(
           //  'Deny announcement of filtered ' +
@@ -210,8 +219,7 @@ export class OceanP2P extends EventEmitter {
       }
       if (
         this._config.p2pConfig.announcePrivateIp === false &&
-        (is_ip_private(maddr.nodeAddress().address) ||
-          ip.isPrivate(maddr.nodeAddress().address))
+        (is_ip_private(this.getAddress(maddr)) || ip.isPrivate(this.getAddress(maddr)))
       ) {
         // disabled logs because of flooding
         // P2P_LOGGER.debug(
@@ -333,10 +341,10 @@ export class OceanP2P extends EventEmitter {
       P2P_LOGGER.info('Enabling P2P Transports: websockets, tcp, circuitRelay')
       transports = [
         webSockets(),
-        tcp(),
-        circuitRelayTransport({
+        tcp()
+        /* circuitRelayTransport({
           discoverRelays: config.p2pConfig.circuitRelays
-        })
+        }) */
       ]
 
       let options = {
@@ -344,7 +352,7 @@ export class OceanP2P extends EventEmitter {
         peerId: config.keys.peerId,
         transports,
         streamMuxers: [yamux()],
-        connectionEncryption: [
+        connectionEncrypters: [
           noise()
           // plaintext()
         ],
@@ -500,7 +508,7 @@ export class OceanP2P extends EventEmitter {
       // UPDATE: no need to slice 4 bytes here, actually we need those on client side to verify the node id and perform the encryption of the keys + iv
       // See config.ts => getPeerIdFromPrivateKey()
 
-      const pubKey = Buffer.from(peerId.publicKey).toString('hex') // no need to do .subarray(4).toString('hex')
+      const pubKey = Buffer.from(peerId.publicKey.raw).toString('hex') // no need to do .subarray(4).toString('hex')
       const peer = await this._libp2p.peerStore.get(peerId)
 
       // write the publicKey as well
@@ -526,17 +534,23 @@ export class OceanP2P extends EventEmitter {
   ): Promise<Multiaddr[]> {
     const multiaddrs: Multiaddr[] = []
     let peerId
+    console.log('Getting multiaddrs for peer: ' + peerName)
     try {
       peerId = peerIdFromString(peerName)
+      console.log('Parsed peerId: ')
+      console.log(peerId)
     } catch (e) {
       return []
     }
     if (searchPeerStore) {
       // search peerStore
+      console.log('Searching peerStore for peerId: ')
       try {
         const peerData = await this._libp2p.peerStore.get(peerId, {
           signal: AbortSignal.timeout(3000)
         })
+        console.log('PeerStore data: ')
+        console.log(peerData)
         if (peerData) {
           for (const x of peerData.addresses) {
             multiaddrs.push(x.multiaddr)
@@ -547,11 +561,15 @@ export class OceanP2P extends EventEmitter {
       }
     }
     if (searchDHT) {
+      console.log('Searching DHT for peerId: ')
       try {
         const peerData = await this._libp2p.peerRouting.findPeer(peerId, {
-          signal: AbortSignal.timeout(3000),
-          useCache: false
+          signal: AbortSignal.timeout(5000),
+          useCache: false,
+          useNetwork: true
         })
+        console.log('DHT data: ')
+        console.log(peerData)
         if (peerData) {
           for (const index in peerData.multiaddrs) {
             multiaddrs.push(peerData.multiaddrs[index])
@@ -596,7 +614,7 @@ export class OceanP2P extends EventEmitter {
           isNaN(timeout) || timeout === 0
             ? AbortSignal.timeout(5000)
             : AbortSignal.timeout(timeout),
-        useCache: true,
+        useCache: false,
         useNetwork: true
       })
       return data
@@ -611,7 +629,7 @@ export class OceanP2P extends EventEmitter {
     multiAddrs?: string[]
   ): Promise<P2PCommandResponse> {
     P2P_LOGGER.logMessage('SendTo() node ' + peerName + ' task: ' + message, true)
-
+    console.log('SendTo() node ' + peerName + ' task: ' + message)
     const response: P2PCommandResponse = {
       status: { httpStatus: 200, error: '' },
       stream: null
@@ -619,6 +637,8 @@ export class OceanP2P extends EventEmitter {
     let peerId: any
     try {
       peerId = peerIdFromString(peerName)
+      console.log('found peerId: ')
+      console.log(peerId)
     } catch (e) {
       P2P_LOGGER.logMessageWithEmoji(
         'Invalid peer (for id): ' + peerId,
@@ -631,32 +651,40 @@ export class OceanP2P extends EventEmitter {
       return response
     }
     let multiaddrs: Multiaddr[] = []
-
+    console.log('multiAddrs param: ')
+    console.log(multiAddrs)
     if (!multiAddrs || multiAddrs.length < 1) {
       // if they are no forced multiaddrs, try to find node multiaddr from peerStore/dht
       multiaddrs = await this.getPeerMultiaddrs(peerName)
     } else {
       // just used what we were instructed to use
       for (const addr of multiAddrs) {
-        multiaddrs.push(new Multiaddr(addr))
+        multiaddrs.push(multiaddr(addr))
       }
     }
+    console.log('Dialing to multiaddrs:   ')
+    console.log(multiaddrs)
     if (multiaddrs.length < 1) {
       response.status.httpStatus = 404
       response.status.error = `Cannot find any address to dial for peer: ${peerId}`
       P2P_LOGGER.error(response.status.error)
       return response
     }
-
+    console.log(
+      'Dialing multiaddrs: ',
+      multiaddrs.map((m) => m.toString())
+    )
     let stream
     // dial/connect to the target node
     try {
       const options = {
-        signal: AbortSignal.timeout(3000),
-        priority: 100,
-        runOnTransientConnection: true
+        signal: AbortSignal.timeout(5000),
+        priority: 100
       }
+      console.log(options)
       const connection = await this._libp2p.dial(multiaddrs, options)
+      console.log("Connected to peer's multiaddrs ")
+      console.log(connection)
       if (connection.remotePeer.toString() !== peerId.toString()) {
         response.status.httpStatus = 404
         response.status.error = `Invalid peer on the other side: ${connection.remotePeer.toString()}`
@@ -664,6 +692,8 @@ export class OceanP2P extends EventEmitter {
         return response
       }
       stream = await connection.newStream(this._protocol, options)
+      console.log('Opened stream to peer')
+      console.log(stream)
     } catch (e) {
       response.status.httpStatus = 404
       response.status.error = `Cannot connect to peer ${peerId}: ${e.message}`

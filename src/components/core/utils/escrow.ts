@@ -1,6 +1,6 @@
 import { Blockchain, getDatatokenDecimals } from '../../../utils/blockchain.js'
 import { ethers, parseUnits, formatUnits, BigNumberish } from 'ethers'
-import EscrowJson from '@oceanprotocol/contracts/artifacts/contracts/escrow/Escrow.sol/Escrow.json' assert { type: 'json' }
+import EscrowJson from '@oceanprotocol/contracts/artifacts/contracts/escrow/Escrow.sol/Escrow.json' with { type: 'json' }
 import { EscrowAuthorization, EscrowLock } from '../../../@types/Escrow.js'
 import { getOceanArtifactsAdressesByChainId } from '../../../utils/address.js'
 import { RPCS } from '../../../@types/blockchain.js'

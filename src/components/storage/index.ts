@@ -124,7 +124,11 @@ export abstract class Storage {
     for await (const chunk of readableStream.stream) {
       chunks.push(chunk)
     }
-    const buffer = Buffer.concat(chunks)
+    const buffer = Buffer.concat(
+      chunks.map(
+        (chunk) => new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength)
+      )
+    )
 
     // Encrypt the buffer using the encrypt function
     const encryptedBuffer = await encryptData(new Uint8Array(buffer), encryptionType)
@@ -154,7 +158,11 @@ export abstract class Storage {
     for await (const chunk of readableStream.stream) {
       chunks.push(chunk)
     }
-    const buffer = Buffer.concat(chunks)
+    const buffer = Buffer.concat(
+      chunks.map(
+        (chunk) => new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength)
+      )
+    )
 
     // Decrypt the buffer using your existing function
     const decryptedBuffer = await decryptData(new Uint8Array(buffer), encryptMethod)

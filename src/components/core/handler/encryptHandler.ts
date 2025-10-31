@@ -122,7 +122,14 @@ export class EncryptFileHandler extends CommandHandler {
         const storage = Storage.getStorageClass(task.files, config)
         encryptedContent = await storage.encryptContent(task.encryptionType)
       } else if (task.rawData !== null) {
-        encryptedContent = await encrypt(task.rawData, task.encryptionType)
+        encryptedContent = await encrypt(
+          new Uint8Array(
+            task.rawData.buffer,
+            task.rawData.byteOffset,
+            task.rawData.byteLength
+          ),
+          task.encryptionType
+        )
       }
       return {
         stream: Readable.from(encryptedContent),

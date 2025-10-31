@@ -46,7 +46,7 @@ export async function getFile(
     CORE_LOGGER.logMessage(`URL decrypted for Service ID: ${serviceId}`)
 
     // Convert the decrypted bytes back to a string
-    const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
+    const decryptedFilesString = decryptedUrlBytes.toString()
     const decryptedFileArray = JSON.parse(decryptedFilesString)
     return decryptedFileArray.files
   } catch (error) {

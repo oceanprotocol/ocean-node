@@ -21,8 +21,8 @@ import {
   ProcessorConstructor
 } from './processors/index.js'
 import { findEventByKey } from './utils.js'
-import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
-import AccessListContract from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
+import AccessListContract from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' with { type: 'json' }
 
 const EVENT_PROCESSOR_MAP: Record<string, ProcessorConstructor> = {
   [EVENTS.METADATA_CREATED]: MetadataEventProcessor,

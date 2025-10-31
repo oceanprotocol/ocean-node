@@ -26,13 +26,28 @@ describe('crypt', () => {
   it('should encrypt/decrypt AES', async () => {
     const data = Uint8Array.from(Buffer.from('ocean'))
     const encryptedData = await encrypt(data, EncryptMethod.AES)
-    const decryptedData = await decrypt(encryptedData, EncryptMethod.AES)
+    const decryptedData = await decrypt(
+      new Uint8Array(
+        encryptedData.buffer,
+        encryptedData.byteOffset,
+        encryptedData.byteLength
+      ),
+      EncryptMethod.AES
+    )
+
     expect(Uint8Array.from(decryptedData)).to.deep.equal(data)
   })
   it('should encrypt/decrypt ECIES', async () => {
     const data = Uint8Array.from(Buffer.from('ocean'))
     const encryptedData = await encrypt(data, EncryptMethod.ECIES)
-    const decryptedData = await decrypt(encryptedData, EncryptMethod.ECIES)
+    const decryptedData = await decrypt(
+      new Uint8Array(
+        encryptedData.buffer,
+        encryptedData.byteOffset,
+        encryptedData.byteLength
+      ),
+      EncryptMethod.ECIES
+    )
     expect(Uint8Array.from(decryptedData)).to.deep.equal(data)
   })
   after(async () => {

@@ -17,7 +17,7 @@ import {
   Blockchain
 } from '../../../utils/index.js'
 import { parseUnits, Contract, ZeroAddress, isAddress, Wallet } from 'ethers'
-import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template.sol/ERC20Template.json' assert { type: 'json' }
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template.sol/ERC20Template.json' with { type: 'json' }
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Readable } from 'stream'
 

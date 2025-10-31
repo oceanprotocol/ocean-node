@@ -1254,13 +1254,19 @@ export class C2DEngineDocker extends C2DEngine {
       const container = await this.docker.getContainer(job.jobId + '-algoritm')
       if (container) {
         if (job.status !== C2DStatusNumber.AlgorithmFailed) {
+          const logsBuffer = await container.logs({
+            stdout: true,
+            stderr: true,
+            follow: false
+          })
+
           writeFileSync(
             this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/logs/algorithm.log',
-            await container.logs({
-              stdout: true,
-              stderr: true,
-              follow: false
-            })
+            new Uint8Array(
+              logsBuffer.buffer,
+              logsBuffer.byteOffset,
+              logsBuffer.byteLength
+            )
           )
         }
         await container.remove()
@@ -1389,7 +1395,9 @@ export class C2DEngineDocker extends C2DEngine {
         chunks.push(chunk as Buffer)
       }
 
-      const output = Buffer.concat(chunks).toString()
+      const output = Buffer.concat(
+        chunks.map((buf) => new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength))
+      ).toString()
 
       const match = output.match(/(\d+)\s/)
       return match ? parseInt(match[1], 10) : 0

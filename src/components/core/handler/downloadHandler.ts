@@ -130,8 +130,8 @@ export async function handleDownloadUrlCommand(
       const cipher = crypto
         .createCipheriv(
           FILE_ENCRYPTION_ALGORITHM,
-          Buffer.from(secrets.key, 'hex'),
-          Buffer.from(secrets.iv, 'hex')
+          new Uint8Array(Buffer.from(secrets.key, 'hex').buffer),
+          new Uint8Array(Buffer.from(secrets.iv, 'hex').buffer)
         )
         .setAutoPadding(true)
 
@@ -505,7 +505,7 @@ export class DownloadHandler extends CommandHandler {
         )
         const decryptedUrlBytes = await decrypt(uint8ArrayHex, EncryptMethod.ECIES)
         // Convert the decrypted bytes back to a string
-        const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
+        const decryptedFilesString = decryptedUrlBytes.toString()
         decryptedFileData = JSON.parse(decryptedFilesString)
         decriptedFileObject = decryptedFileData.files[task.fileIndex]
       }

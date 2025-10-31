@@ -43,9 +43,9 @@ import {
 import { ProviderComputeInitializeResults } from '../../@types/Fees.js'
 import { homedir } from 'os'
 import { DEVELOPMENT_CHAIN_ID, getOceanArtifactsAdresses } from '../../utils/address.js'
-import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import OceanToken from '@oceanprotocol/contracts/artifacts/contracts/utils/OceanToken.sol/OceanToken.json' assert { type: 'json' }
-import EscrowJson from '@oceanprotocol/contracts/artifacts/contracts/escrow/Escrow.sol/Escrow.json' assert { type: 'json' }
+import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
+import OceanToken from '@oceanprotocol/contracts/artifacts/contracts/utils/OceanToken.sol/OceanToken.json' with { type: 'json' }
+import EscrowJson from '@oceanprotocol/contracts/artifacts/contracts/escrow/Escrow.sol/Escrow.json' with { type: 'json' }
 import { createHash } from 'crypto'
 import { getAlgoChecksums } from '../../components/core/compute/utils.js'
 
@@ -264,7 +264,8 @@ describe('Trusted algorithms Flow', () => {
         }
       ]
     }
-    const metadata = hexlify(Buffer.from(JSON.stringify(publishedComputeDataset.ddo)))
+    const buf = Buffer.from(JSON.stringify(publishedComputeDataset.ddo));
+    const metadata = hexlify(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
     const hash = createHash('sha256').update(metadata).digest('hex')
     const nftContract = new ethers.Contract(
       publishedComputeDataset.ddo.nftAddress,
