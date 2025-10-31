@@ -710,7 +710,9 @@ export class OceanP2P extends EventEmitter {
     if (stream) {
       response.stream = stream
       try {
-        await pipe(
+        stream.send(uint8ArrayFromString(message))
+        sink(stream)
+        /*await pipe(
           // Source data
           [uint8ArrayFromString(message)],
           // Write to the stream, and pass its output to the next function
@@ -720,6 +722,7 @@ export class OceanP2P extends EventEmitter {
           // Sink function
           sink
         )
+          */
       } catch (err) {
         P2P_LOGGER.error(`Unable to send P2P message: ${err.message}`)
         response.status.httpStatus = 404
