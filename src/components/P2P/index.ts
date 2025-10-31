@@ -682,6 +682,8 @@ export class OceanP2P extends EventEmitter {
         priority: 100
       }
       console.log(options)
+      stream = await this._libp2p.dialProtocol(multiaddrs, this._protocol, options)
+      /*
       const connection = await this._libp2p.dial(multiaddrs, options)
       console.log("Connected to peer's multiaddrs ")
       console.log(connection)
@@ -692,6 +694,7 @@ export class OceanP2P extends EventEmitter {
         return response
       }
       stream = await connection.newStream(this._protocol, options)
+      */
       console.log('Opened stream to peer')
       console.log(stream)
     } catch (e) {
@@ -700,7 +703,10 @@ export class OceanP2P extends EventEmitter {
       P2P_LOGGER.error(response.status.error)
       return response
     }
-
+    console.log('Got stream: ')
+    console.log(message)
+    console.log([uint8ArrayFromString(message)])
+    console.log(sink)
     if (stream) {
       response.stream = stream
       try {

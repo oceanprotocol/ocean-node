@@ -31,7 +31,14 @@ directCommandRoute.post(
       let isBinaryContent = false
       const sink = async function (source: any) {
         let first = true
+        console.log('Starting to send response stream...')
+        console.log(source)
         for await (const chunk of source) {
+          console.log('Received chunk to send...')
+          console.log(chunk)
+          console.log('Chunk length: ' + chunk.length)
+          console.log('Chunk content (as string): ' + uint8ArrayToString(chunk))
+          console.log(first)
           if (first) {
             first = false
             try {

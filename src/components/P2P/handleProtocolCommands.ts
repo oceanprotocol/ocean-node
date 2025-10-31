@@ -43,11 +43,11 @@ async function closeStreamConnection(connection: any, remotePeer: string) {
   }
 }
 
-export async function handleProtocolCommands(otherPeerConnection: any) {
-  const { remotePeer, remoteAddr } = otherPeerConnection.connection
+export async function handleProtocolCommands(stream: any, connection: any) {
+  const { remotePeer, remoteAddr } = connection
 
   // only write if stream is in 'open' status
-  const connectionStatus = otherPeerConnection.connection.status
+  const connectionStatus = connection.status
   P2P_LOGGER.logMessage('Incoming connection from peer ' + remotePeer, true)
   P2P_LOGGER.logMessage('Using ' + remoteAddr, true)
 
@@ -78,12 +78,12 @@ export async function handleProtocolCommands(otherPeerConnection: any) {
           JSON.stringify(buildWrongCommandStatus(403, 'Unauthorized request'))
         )
         try {
-          await pipe(statusStream, otherPeerConnection.stream.sink)
+          await pipe(statusStream, stream.sink)
         } catch (e) {
           P2P_LOGGER.error(e)
         }
       }
-      await closeStreamConnection(otherPeerConnection.connection, remotePeer)
+      await closeStreamConnection(connection, remotePeer)
       return
     }
   }
@@ -100,12 +100,12 @@ export async function handleProtocolCommands(otherPeerConnection: any) {
         JSON.stringify(buildWrongCommandStatus(403, 'Rate limit exceeded'))
       )
       try {
-        await pipe(statusStream, otherPeerConnection.stream.sink)
+        await pipe(statusStream, stream.sink)
       } catch (e) {
         P2P_LOGGER.error(e)
       }
     }
-    await closeStreamConnection(otherPeerConnection.connection, remotePeer)
+    await closeStreamConnection(connection, remotePeer)
     return
   }
 
@@ -120,18 +120,18 @@ export async function handleProtocolCommands(otherPeerConnection: any) {
         JSON.stringify(buildWrongCommandStatus(403, 'Rate limit exceeded'))
       )
       try {
-        await pipe(statusStream, otherPeerConnection.stream.sink)
+        await pipe(statusStream, stream.sink)
       } catch (e) {
         P2P_LOGGER.error(e)
       }
     }
-    await closeStreamConnection(otherPeerConnection.connection, remotePeer)
+    await closeStreamConnection(connection, remotePeer)
     return
   }
 
   try {
     // eslint-disable-next-line no-unreachable-loop
-    for await (const chunk of otherPeerConnection.stream.source) {
+    for await (const chunk of stream.source) {
       try {
         const str = uint8ArrayToString(chunk.subarray())
         task = JSON.parse(str) as Command
@@ -140,10 +140,10 @@ export async function handleProtocolCommands(otherPeerConnection: any) {
           statusStream = new ReadableString(
             JSON.stringify(buildWrongCommandStatus(400, 'Invalid command'))
           )
-          await pipe(statusStream, otherPeerConnection.stream.sink)
+          await pipe(statusStream, stream.sink)
         }
 
-        await closeStreamConnection(otherPeerConnection.connection, remotePeer)
+        await closeStreamConnection(connection, remotePeer)
         return
       }
     }
@@ -153,10 +153,10 @@ export async function handleProtocolCommands(otherPeerConnection: any) {
         statusStream = new ReadableString(
           JSON.stringify(buildWrongCommandStatus(400, 'Invalid command'))
         )
-        await pipe(statusStream, otherPeerConnection.stream.sink)
+        await pipe(statusStream, stream.sink)
       }
 
-      await closeStreamConnection(otherPeerConnection.connection, remotePeer)
+      await closeStreamConnection(connection, remotePeer)
       return
     }
   } catch (err) {
@@ -164,7 +164,7 @@ export async function handleProtocolCommands(otherPeerConnection: any) {
       LOG_LEVELS_STR.LEVEL_ERROR,
       `Unable to process P2P command: ${err.message}`
     )
-    await closeStreamConnection(otherPeerConnection.connection, remotePeer)
+    await closeStreamConnection(connection, remotePeer)
     return
   }
 
@@ -189,16 +189,16 @@ export async function handleProtocolCommands(otherPeerConnection: any) {
 
       if (connectionStatus === 'open') {
         if (sendStream == null) {
-          await pipe(statusStream, otherPeerConnection.stream.sink)
+          await pipe(statusStream, stream.sink)
         } else {
           const combinedStream = new StreamConcat([statusStream, sendStream], {
             highWaterMark: JSON.stringify(status).length // important for reading chunks correctly on sink!
           })
-          await pipe(combinedStream, otherPeerConnection.stream.sink)
+          await pipe(combinedStream, stream.sink)
         }
       }
 
-      await closeStreamConnection(otherPeerConnection.connection, remotePeer)
+      await closeStreamConnection(connection, remotePeer)
     } catch (err) {
       P2P_LOGGER.logMessageWithEmoji(
         'handleProtocolCommands Error: ' + err.message,
@@ -206,7 +206,7 @@ export async function handleProtocolCommands(otherPeerConnection: any) {
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
       )
-      await closeStreamConnection(otherPeerConnection.connection, remotePeer)
+      await closeStreamConnection(connection, remotePeer)
     }
   }
 }
