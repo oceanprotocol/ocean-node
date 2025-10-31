@@ -44,8 +44,12 @@ async function closeStreamConnection(connection: any, remotePeer: string) {
 }
 
 export async function handleProtocolCommands(stream: any, connection: any) {
+  console.log('handleProtocolCommands called')
+  console.log(stream)
+  console.log(connection)
   const { remotePeer, remoteAddr } = connection
-
+  console.log('remotePeer: ' + remotePeer)
+  console.log('remoteAddr: ' + remoteAddr)
   // only write if stream is in 'open' status
   const connectionStatus = connection.status
   P2P_LOGGER.logMessage('Incoming connection from peer ' + remotePeer, true)
@@ -74,11 +78,12 @@ export async function handleProtocolCommands(stream: any, connection: any) {
       )
 
       if (connectionStatus === 'open') {
-        statusStream = new ReadableString(
-          JSON.stringify(buildWrongCommandStatus(403, 'Unauthorized request'))
-        )
         try {
-          await pipe(statusStream, stream.sink)
+          stream.send(
+            new TextEncoder().encode(
+              JSON.stringify(buildWrongCommandStatus(403, 'Unauthorized request'))
+            )
+          )
         } catch (e) {
           P2P_LOGGER.error(e)
         }
@@ -96,11 +101,12 @@ export async function handleProtocolCommands(stream: any, connection: any) {
       `Incoming request denied to peer: ${remotePeer} (rate limit exceeded)`
     )
     if (connectionStatus === 'open') {
-      statusStream = new ReadableString(
-        JSON.stringify(buildWrongCommandStatus(403, 'Rate limit exceeded'))
-      )
       try {
-        await pipe(statusStream, stream.sink)
+        stream.send(
+          new TextEncoder().encode(
+            JSON.stringify(buildWrongCommandStatus(403, 'Rate limit exceeded'))
+          )
+        )
       } catch (e) {
         P2P_LOGGER.error(e)
       }
@@ -116,11 +122,12 @@ export async function handleProtocolCommands(stream: any, connection: any) {
       `Exceeded limit of connections per minute ${configuration.maxConnections}: ${connectionsRateValidation.error}`
     )
     if (connectionStatus === 'open') {
-      statusStream = new ReadableString(
-        JSON.stringify(buildWrongCommandStatus(403, 'Rate limit exceeded'))
-      )
       try {
-        await pipe(statusStream, stream.sink)
+        stream.send(
+          new TextEncoder().encode(
+            JSON.stringify(buildWrongCommandStatus(403, 'Rate limit exceeded'))
+          )
+        )
       } catch (e) {
         P2P_LOGGER.error(e)
       }
@@ -131,16 +138,25 @@ export async function handleProtocolCommands(stream: any, connection: any) {
 
   try {
     // eslint-disable-next-line no-unreachable-loop
-    for await (const chunk of stream.source) {
+    console.log('stream')
+    console.log(stream)
+    for await (const chunk of stream) {
+      console.log('chunk  received')
+      console.log(chunk)
       try {
         const str = uint8ArrayToString(chunk.subarray())
+        console.log('stringified chunk' + str)
         task = JSON.parse(str) as Command
+        console.log('parsed task')
+        console.log(task)
       } catch (e) {
+        console.log('error parsing chunk')
+        console.log(e)
         if (connectionStatus === 'open') {
           statusStream = new ReadableString(
             JSON.stringify(buildWrongCommandStatus(400, 'Invalid command'))
           )
-          await pipe(statusStream, stream.sink)
+          await pipe(statusStream, stream.send)
         }
 
         await closeStreamConnection(connection, remotePeer)
@@ -153,7 +169,7 @@ export async function handleProtocolCommands(stream: any, connection: any) {
         statusStream = new ReadableString(
           JSON.stringify(buildWrongCommandStatus(400, 'Invalid command'))
         )
-        await pipe(statusStream, stream.sink)
+        await pipe(statusStream, stream.send)
       }
 
       await closeStreamConnection(connection, remotePeer)
@@ -189,12 +205,12 @@ export async function handleProtocolCommands(stream: any, connection: any) {
 
       if (connectionStatus === 'open') {
         if (sendStream == null) {
-          await pipe(statusStream, stream.sink)
+          stream.send(new TextEncoder().encode(JSON.stringify(status)))
         } else {
           const combinedStream = new StreamConcat([statusStream, sendStream], {
             highWaterMark: JSON.stringify(status).length // important for reading chunks correctly on sink!
           })
-          await pipe(combinedStream, stream.sink)
+          await pipe(combinedStream, stream.semd)
         }
       }
 
