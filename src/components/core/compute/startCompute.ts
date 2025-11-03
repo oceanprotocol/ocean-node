@@ -127,7 +127,7 @@ export class PaidComputeStartHandler extends CommandHandler {
           stream: null,
           status: {
             httpStatus: 400,
-            error: e
+            error: e?.message || String(e)
           }
         }
       }
@@ -143,7 +143,7 @@ export class PaidComputeStartHandler extends CommandHandler {
             stream: null,
             status: {
               httpStatus: 400,
-              error: e
+              error: e?.message || String(e)
             }
           }
         }
@@ -515,7 +515,7 @@ export class PaidComputeStartHandler extends CommandHandler {
           stream: null,
           status: {
             httpStatus: 400,
-            error: e
+            error: e?.message || String(e)
           }
         }
       }
@@ -559,14 +559,14 @@ export class PaidComputeStartHandler extends CommandHandler {
             task.payment.token,
             task.consumerAddress
           )
-        } catch (e) {
+        } catch (cancelError) {
           // is fine if it fails
         }
         return {
           stream: null,
           status: {
             httpStatus: 400,
-            error: e
+            error: e?.message || String(e)
           }
         }
       }
@@ -800,7 +800,7 @@ export class FreeComputeStartHandler extends CommandHandler {
             stream: null,
             status: {
               httpStatus: 400,
-              error: e
+              error: e?.message || String(e)
             }
           }
         }
