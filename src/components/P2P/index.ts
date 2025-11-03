@@ -652,7 +652,7 @@ export class OceanP2P extends EventEmitter {
     // dial/connect to the target node
     try {
       const options = {
-        signal: AbortSignal.timeout(3000),
+        signal: AbortSignal.timeout(10000),
         priority: 100,
         runOnTransientConnection: true
       }
@@ -685,9 +685,12 @@ export class OceanP2P extends EventEmitter {
           sink
         )
       } catch (err) {
-        P2P_LOGGER.error(`Unable to send P2P message: ${err.message}`)
-        response.status.httpStatus = 404
-        response.status.error = err.message
+        P2P_LOGGER.error(
+          `Cannot connect to peer - Unable to send P2P message: ${err.message}`
+        )
+        response.status.httpStatus = 500
+        response.status.error = `Cannot connect to peer - Unable to send P2P message: ${err.message}`
+        response.stream = null
       }
     } else {
       response.status.httpStatus = 404
