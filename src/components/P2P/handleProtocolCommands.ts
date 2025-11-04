@@ -190,15 +190,15 @@ export async function handleProtocolCommands(otherPeerConnection: any) {
       if (connectionStatus === 'open') {
         if (sendStream == null) {
           await pipe(statusStream, otherPeerConnection.stream.sink)
+          await closeStreamConnection(otherPeerConnection.connection, remotePeer)
         } else {
           const combinedStream = new StreamConcat([statusStream, sendStream], {
             highWaterMark: JSON.stringify(status).length // important for reading chunks correctly on sink!
           })
           await pipe(combinedStream, otherPeerConnection.stream.sink)
+          // Don't close for data streams - sender closes when done reading
         }
       }
-
-      await closeStreamConnection(otherPeerConnection.connection, remotePeer)
     } catch (err) {
       P2P_LOGGER.logMessageWithEmoji(
         'handleProtocolCommands Error: ' + err.message,
