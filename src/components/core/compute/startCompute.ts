@@ -784,7 +784,7 @@ export class FreeComputeStartHandler extends CommandHandler {
           stream: null,
           status: {
             httpStatus: 400,
-            error: String(e)
+            error: e?.message || String(e)
           }
         }
       }
