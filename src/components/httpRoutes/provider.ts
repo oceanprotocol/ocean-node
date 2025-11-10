@@ -209,8 +209,19 @@ providerRoutes.get(
         transferTxId,
         nonce,
         consumerAddress,
-        signature
+        signature,
+        userdata
       } = req.query
+
+      let parsedUserData: any = null
+      if (userdata) {
+        try {
+          parsedUserData = JSON.parse(userdata as string)
+        } catch (e) {
+          HTTP_LOGGER.logMessage(`Invalid userdata JSON: ${userdata}`, true)
+          parsedUserData = null
+        }
+      }
 
       const downloadTask: DownloadCommand = {
         fileIndex: Number(fileIndex),
@@ -222,7 +233,8 @@ providerRoutes.get(
         signature: signature as string,
         command: PROTOCOL_COMMANDS.DOWNLOAD,
         policyServer: (req.query.policyServer as any) || null,
-        authorization: authorization as string
+        authorization: authorization as string,
+        userData: parsedUserData
       }
 
       const response = await new DownloadHandler(req.oceanNode).handle(downloadTask)
