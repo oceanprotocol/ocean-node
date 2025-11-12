@@ -1570,6 +1570,22 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
+  private addUserDataToFilesObject(
+    filesObject: any,
+    userData: { [key: string]: any }
+  ): any {
+    if (filesObject?.url && userData) {
+      const url = new URL(filesObject.url)
+      const userDataObj = typeof userData === 'string' ? JSON.parse(userData) : userData
+      for (const [key, value] of Object.entries(userDataObj)) {
+        url.searchParams.append(key, String(value))
+      }
+      filesObject.url = url.toString()
+      CORE_LOGGER.info('Appended userData to file url: ' + filesObject.url)
+    }
+    return filesObject
+  }
+
   private async uploadData(
     job: DBComputeJob
   ): Promise<{ status: C2DStatusNumber; statusText: C2DStatusText }> {
@@ -1734,7 +1750,8 @@ export class C2DEngineDocker extends C2DEngine {
           } else {
             CORE_LOGGER.info('asset file object seems to be encrypted, checking it...')
             // get the encrypted bytes
-            const filesObject: any = await decryptFilesObject(asset.fileObject)
+            let filesObject: any = await decryptFilesObject(asset.fileObject)
+            filesObject = await this.addUserDataToFilesObject(filesObject, asset.userdata)
             storage = Storage.getStorageClass(filesObject, config)
           }
 
@@ -1769,7 +1786,11 @@ export class C2DEngineDocker extends C2DEngine {
             // 2. Get the service
             const service: Service = AssetUtils.getServiceById(ddo, serviceId)
             // 3. Decrypt the url
-            const decryptedFileObject = await decryptFilesObject(service.files)
+            let decryptedFileObject = await decryptFilesObject(service.files)
+            decryptedFileObject = await this.addUserDataToFilesObject(
+              decryptedFileObject,
+              asset.userdata
+            )
             storage = Storage.getStorageClass(decryptedFileObject, config)
             fileInfo = await storage.getFileInfo({
               type: storage.getStorageType(decryptedFileObject)
