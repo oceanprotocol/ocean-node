@@ -1570,7 +1570,7 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
-    private addUserDataToFilesObject(
+  private addUserDataToFilesObject(
     filesObject: any,
     userData: { [key: string]: any }
   ): any {
