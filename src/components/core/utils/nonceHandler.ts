@@ -184,9 +184,12 @@ function validateNonceAndSignature(
   message: string = null
 ): NonceResponse {
   // check if is bigger than previous nonce
+  console.log('Existingnocne:' + existingNonce)
   if (nonce > existingNonce) {
     // nonce good
     // now validate signature
+    console.log('Message:' + message)
+    console.log('Nonce:' + nonce)
     if (!message) message = String(nonce)
     const consumerMessage = ethers.solidityPackedKeccak256(
       ['bytes'],
@@ -206,6 +209,8 @@ function validateNonceAndSignature(
         valid: true
       }
     }
+    console.log('addressFromHashSignature:' + addressFromHashSignature)
+    console.log('addressFromBytesSignature:' + addressFromBytesSignature)
     return {
       valid: false,
       error: 'consumer address and nonce signature mismatch'
