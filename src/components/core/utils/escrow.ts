@@ -32,7 +32,7 @@ export class Escrow {
     const decimalgBigNumber = await getDatatokenDecimals(token, provider)
     const decimals = parseInt(decimalgBigNumber.toString())
 
-    const roundedCost = Number(cost.toFixed(decimals)).toString();
+    const roundedCost = Number(cost.toFixed(decimals)).toString()
 
     return parseUnits(roundedCost, decimals).toString()
   }
