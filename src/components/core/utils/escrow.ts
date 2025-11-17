@@ -28,8 +28,13 @@ export class Escrow {
     const { rpc, network, chainId, fallbackRPCs } = this.networks[chain]
     const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
     const provider = blockchain.getProvider()
-    const decimals = await getDatatokenDecimals(token, provider)
-    return parseUnits(cost.toString(10), decimals).toString()
+
+    const decimalgBigNumber = await getDatatokenDecimals(token, provider)
+    const decimals = parseInt(decimalgBigNumber.toString())
+
+    const roundedCost = Number(cost.toFixed(decimals)).toString()
+
+    return parseUnits(roundedCost, decimals).toString()
   }
 
   async getNumberFromWei(wei: string, chain: number, token: string) {
