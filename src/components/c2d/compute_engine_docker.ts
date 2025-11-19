@@ -1205,12 +1205,17 @@ export class C2DEngineDocker extends C2DEngine {
       let txId = null
       const env = await this.getComputeEnvironment(job.payment.chainId, job.environment)
       let minDuration = 0
-      if (env && `minJobDuration` in env && env.minJobDuration) {
-        minDuration = env.minJobDuration
-      }
 
       if (algoDuration < 0) minDuration += algoDuration * -1
       else minDuration += algoDuration
+      if (
+        env &&
+        `minJobDuration` in env &&
+        env.minJobDuration &&
+        minDuration < env.minJobDuration
+      ) {
+        minDuration = env.minJobDuration
+      }
       let cost = 0
       if (minDuration > 0) {
         // we need to claim
