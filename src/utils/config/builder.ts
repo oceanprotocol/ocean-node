@@ -229,11 +229,13 @@ export async function buildMergedConfig(): Promise<OceanNodeConfig> {
   const keys = await getPeerIdFromPrivateKey(privateKey)
 
   const { env } = process
-  const envOverrides: Record<string, any> = { keys }
+  const envOverrides: Record<string, any> = {}
 
   Object.assign(envOverrides, mapEnvToConfig(env, ENV_TO_CONFIG_MAPPING))
 
   const merged = merge({}, baseConfig, envOverrides)
+
+  merged.keys = keys
 
   preprocessConfigData(merged)
 
