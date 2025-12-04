@@ -1,6 +1,7 @@
 // import diff from 'hyperdiff'
 import { P2PCommandResponse } from '../../@types/index'
 import EventEmitter from 'node:events'
+import clone from 'lodash.clonedeep'
 import { handleProtocolCommands } from './handlers.js'
 
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
@@ -44,8 +45,6 @@ import { P2P_LOGGER } from '../../utils/logging/common.js'
 import { CoreHandlersRegistry } from '../core/handler/coreHandlersRegistry'
 import { Multiaddr, multiaddr } from '@multiformats/multiaddr'
 import ipaddr from 'ipaddr.js'
-import lodash from 'lodash'
-const { clone } = lodash
 // import { getIPv4, getIPv6 } from '../../utils/ip.js'
 
 const DEFAULT_OPTIONS = {
