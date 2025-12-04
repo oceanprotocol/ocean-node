@@ -294,7 +294,6 @@ export class OceanP2P extends EventEmitter {
         identify: identify(),
         dht: kadDHT(dhtOptions),
         identifyPush: identifyPush(),
-        autoTLS: autoTLS(),
         keychain: keychain(),
         /*
         pubsub: gossipsub({
@@ -329,7 +328,10 @@ export class OceanP2P extends EventEmitter {
         P2P_LOGGER.info('Enabling AutoNat service')
         servicesConfig = {
           ...servicesConfig,
-          ...{ autoNAT: autoNAT({ maxInboundStreams: 20, maxOutboundStreams: 20 }) }
+          ...{
+            autoNAT: autoNAT({ maxInboundStreams: 20, maxOutboundStreams: 20 }),
+            autoTLS: autoTLS()
+          }
         }
       }
 
