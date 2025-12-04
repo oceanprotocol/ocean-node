@@ -20,7 +20,8 @@ import { LOG_LEVELS_STR, GENERIC_EMOJIS } from '../logging/Logger.js'
 import { OceanNodeConfigSchema } from './schemas.js'
 import { ENV_TO_CONFIG_MAPPING } from './constants.js'
 import { fileURLToPath } from 'url'
-import { set, merge } from 'lodash'
+import lodash from 'lodash'
+const { set, merge } = lodash
 
 let previousConfiguration: OceanNodeConfig = null
 
