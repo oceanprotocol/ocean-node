@@ -1,7 +1,7 @@
 // import diff from 'hyperdiff'
 import { P2PCommandResponse } from '../../@types/index'
 import EventEmitter from 'node:events'
-import clone from 'lodash.clonedeep'
+import { clone } from 'lodash'
 
 import { handleProtocolCommands } from './handlers.js'
 
