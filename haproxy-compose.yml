@@ -1,0 +1,11 @@
+services:
+  haproxy:
+    image: haproxy:3.1.10-alpine3.22@sha256:9eb6bcbb47c08364929ccb7e7f124e97bd2bdfe46f55f6728da678f708a0c8da
+    container_name: haproxy
+    user: root
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+      - ./certs:/etc/haproxy/certs
