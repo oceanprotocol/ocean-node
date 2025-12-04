@@ -38,14 +38,12 @@ import {
   FindDDOResponse,
   dhtFilterMethod
 } from '../../@types/OceanNode.js'
-// eslint-disable-next-line camelcase
-import is_ip_private from 'private-ip'
-import ip from 'ip'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
 import { P2P_LOGGER } from '../../utils/logging/common.js'
 import { CoreHandlersRegistry } from '../core/handler/coreHandlersRegistry'
 import { Multiaddr, multiaddr } from '@multiformats/multiaddr'
+import ipaddr from 'ipaddr.js'
 import lodash from 'lodash'
 const { clone } = lodash
 // import { getIPv4, getIPv6 } from '../../utils/ip.js'
@@ -107,6 +105,13 @@ export class OceanP2P extends EventEmitter {
   async start(options: any = null) {
     this._topic = 'oceanprotocol'
     this._libp2p = await this.createNode(this._config)
+
+    if (!this._libp2p) {
+      P2P_LOGGER.error(
+        'Critical Error: P2P Node could not be created. Check logs for "Unable to create node".'
+      )
+      return
+    }
 
     this._libp2p.addEventListener('peer:connect', (evt: any) => {
       this.handlePeerConnect(evt)
@@ -188,41 +193,38 @@ export class OceanP2P extends EventEmitter {
   shouldAnnounce(addr: any) {
     try {
       const maddr = multiaddr(addr)
-      // always filter loopback
-      if (ip.isLoopback(maddr.nodeAddress().address)) {
-        // disabled logs because of flooding
-        // P2P_LOGGER.debug('Deny announcement of loopback ' + maddr.nodeAddress().address)
+      const addressString = maddr.nodeAddress().address
+
+      if (!ipaddr.isValid(addressString)) {
         return false
       }
-      // check filters
+
+      const parsedAddr = ipaddr.parse(addressString)
+      const range = parsedAddr.range()
+
+      if (range === 'loopback') {
+        return false
+      }
+
       for (const filter of this._config.p2pConfig.filterAnnouncedAddresses) {
-        if (ip.cidrSubnet(filter).contains(maddr.nodeAddress().address)) {
-          // disabled logs because of flooding
-          // P2P_LOGGER.debug(
-          //  'Deny announcement of filtered ' +
-          //    maddr.nodeAddress().address +
-          //    '(belongs to ' +
-          //    filter +
-          //    ')'
-          // )
-          return false
+        try {
+          const parsedCIDR = ipaddr.parseCIDR(filter)
+          if ((parsedAddr as any).match(parsedCIDR as any)) {
+            return false
+          }
+        } catch (e) {
+          P2P_LOGGER.error(`Invalid CIDR filter in config: ${filter}`)
         }
       }
+
       if (
         this._config.p2pConfig.announcePrivateIp === false &&
-        (is_ip_private(maddr.nodeAddress().address) ||
-          ip.isPrivate(maddr.nodeAddress().address))
+        (range === 'private' || range === 'uniqueLocal')
       ) {
-        // disabled logs because of flooding
-        // P2P_LOGGER.debug(
-        //  'Deny announcement of private address ' + maddr.nodeAddress().address
-        // )
         return false
-      } else {
-        // disabled logs because of flooding
-        // P2P_LOGGER.debug('Allow announcement of ' + maddr.nodeAddress().address)
-        return true
       }
+
+      return true
     } catch (e) {
       // we reach this part when having circuit relay. this is fine
       return true
