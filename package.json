@@ -147,10 +147,7 @@
     "xml2js": "^0.5.0",
     "semver": "^7.5.2",
     "secp256k1": "^4.0.4",
-    "tmp": "^0.2.3",
-    "docker-registry-client": {
-      "jws": "^4.0.0"
-    }
+    "tmp": "^0.2.3"
   },
   "release-it": {
     "hooks": {
