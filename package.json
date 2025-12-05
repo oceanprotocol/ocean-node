@@ -145,8 +145,7 @@
     "tsx": "^4.19.3"
   },
   "overrides": {
-    "elliptic": "^6.6.1",
-    "lodash": "^4.17.21"
+    "elliptic": "^6.6.1"
   },
   "release-it": {
     "hooks": {
