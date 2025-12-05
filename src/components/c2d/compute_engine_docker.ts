@@ -337,8 +337,11 @@ export class C2DEngineDocker extends C2DEngine {
     platform?: RunningPlatform
   ): Promise<ValidateParams> {
     try {
+      CORE_LOGGER.info(`Checking docker image manifest for image ${image}...`)
       const info = drc.default.parseRepoAndRef(image)
+      CORE_LOGGER.info(`Parsed image info: ${JSON.stringify(info)}`)
       const client = drc.createClientV2({ name: info.localName })
+      CORE_LOGGER.info(`Created docker registry client for ${info.localName}`)
       const ref = info.tag || info.digest
 
       const manifest = await new Promise<any>((resolve, reject) => {
@@ -347,13 +350,21 @@ export class C2DEngineDocker extends C2DEngine {
           err ? reject(err) : resolve(result)
         })
       })
+      CORE_LOGGER.info(`Got manifest for image ${image}: ${JSON.stringify(manifest)}`)
 
       const platforms = Array.isArray(manifest.manifests)
         ? manifest.manifests.map((entry: any) => entry.platform)
         : [manifest.platform]
 
+      CORE_LOGGER.info(`Extracted platforms from manifest: ${JSON.stringify(platforms)}`)
+
       const isValidPlatform = platforms.some((entry: any) =>
         checkManifestPlatform(entry, platform)
+      )
+      CORE_LOGGER.info(
+        `Image ${image} is ${
+          isValidPlatform ? '' : 'not '
+        }valid for platform ${JSON.stringify(platform)}`
       )
 
       return { valid: isValidPlatform }
