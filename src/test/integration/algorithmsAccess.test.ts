@@ -465,7 +465,12 @@ describe('Trusted algorithms Flow', () => {
       ' Should have maxLockCounts in auth'
     )
     console.log('starting compute job in tests...')
-    const response = await new PaidComputeStartHandler(oceanNode).handle(startComputeTask)
+    let response
+    try {
+      response = await new PaidComputeStartHandler(oceanNode).handle(startComputeTask)
+    } catch (e) {
+      console.log('error starting compute job:', e)
+    }
     console.log('start compute response:', response)
     console.log(`response: ${response.status.httpStatus}`)
     console.log(`response: ${JSON.stringify(response)}`)
