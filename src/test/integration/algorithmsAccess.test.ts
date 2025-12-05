@@ -447,12 +447,14 @@ describe('Trusted algorithms Flow', () => {
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
+    console.log('startComputeTask in test:', startComputeTask)
     const auth = await oceanNode.escrow.getAuthorizations(
       DEVELOPMENT_CHAIN_ID,
       paymentToken,
       await consumerAccount.getAddress(),
       firstEnv.consumerAddress
     )
+    console.log('auth in test:', auth)
     assert(auth.length > 0, 'Should have authorization')
     assert(
       BigInt(auth[0].maxLockedAmount.toString()) > BigInt(0),
@@ -462,7 +464,9 @@ describe('Trusted algorithms Flow', () => {
       BigInt(auth[0].maxLockCounts.toString()) > BigInt(0),
       ' Should have maxLockCounts in auth'
     )
+    console.log('starting compute job in tests...')
     const response = await new PaidComputeStartHandler(oceanNode).handle(startComputeTask)
+    console.log('start compute response:', response)
     console.log(`response: ${response.status.httpStatus}`)
     console.log(`response: ${JSON.stringify(response)}`)
     assert(response, 'Failed to get response')
