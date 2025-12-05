@@ -143,6 +143,10 @@
     "sinon": "^19.0.2",
     "tsx": "^4.19.3"
   },
+  "overrides": {
+    "elliptic": "^6.6.1",
+    "lodash": "^4.17.21"
+  },
   "release-it": {
     "hooks": {
       "after:bump": "npm run changelog"
