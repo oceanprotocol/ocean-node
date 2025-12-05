@@ -487,12 +487,20 @@ export class C2DEngineDocker extends C2DEngine {
     } else {
       // already built, we need to validate it
       CORE_LOGGER.info('Validating existing docker image...')
-      const validation = await C2DEngineDocker.checkDockerImage(image, env.platform)
-      CORE_LOGGER.info(`Docker image validation result: ${JSON.stringify(validation)}`)
-      if (!validation.valid)
+      try {
+        const validation = await C2DEngineDocker.checkDockerImage(image, env.platform)
+        if (!validation.valid)
+          throw new Error(
+            `Cannot find image ${image} for ${env.platform.architecture}. Maybe it does not exist or it's build for other arhitectures.`
+          )
+        CORE_LOGGER.info(`Docker image validation result: ${JSON.stringify(validation)}`)
+      } catch (e) {
+        CORE_LOGGER.error(`Error validating docker image: ${e.message}`)
         throw new Error(
           `Cannot find image ${image} for ${env.platform.architecture}. Maybe it does not exist or it's build for other arhitectures.`
         )
+      }
+
       CORE_LOGGER.info('Docker image is valid.')
       if (queueMaxWaitTime === 0) {
         CORE_LOGGER.info('Job is not queued, pulling image now...')
