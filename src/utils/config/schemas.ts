@@ -35,7 +35,7 @@ export const RPCSSchema = z.record(z.string(), SupportedNetworkSchema)
 export const AccessListContractSchema = z
   .union([
     z.record(z.string(), z.array(z.string())),
-    z.array(z.any()).transform((): null => null),
+    z.array(z.any()).transform((): any => null),
     z.null()
   ])
   .nullable()
