@@ -384,6 +384,7 @@ export class C2DEngineDocker extends C2DEngine {
     additionalViewers?: string[],
     queueMaxWaitTime?: number
   ): Promise<ComputeJob[]> {
+    CORE_LOGGER.info(`Starting C2D compute job for owner ${owner} with jobId ${jobId}`)
     if (!this.docker) return []
     // TO DO - iterate over resources and get default runtime
     const isFree: boolean = !(payment && payment.lockTx)
@@ -401,12 +402,14 @@ export class C2DEngineDocker extends C2DEngine {
       envIdWithHash ? environment : null,
       environment
     )
+    CORE_LOGGER.info(`Using environment: ${JSON.stringify(env)}`)
     if (!env) {
       throw new Error(`Invalid environment ${environment}`)
     }
     // C2D - Check image, check arhitecture, etc
     const image = getAlgorithmImage(algorithm, jobId)
     // ex: node@sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36
+    CORE_LOGGER.info(`Using algorithm image: ${image}`)
     if (!image) {
       // send a 500 with the error message
       throw new Error(
@@ -468,6 +471,7 @@ export class C2DEngineDocker extends C2DEngine {
       algoDuration: 0,
       queueMaxWaitTime: queueMaxWaitTime || 0
     }
+    CORE_LOGGER.info(`Created job structure: ${JSON.stringify(job)}`)
 
     if (algorithm.meta.container && algorithm.meta.container.dockerfile) {
       // we need to build the image if job is not queued
@@ -488,10 +492,12 @@ export class C2DEngineDocker extends C2DEngine {
         job.statusText = C2DStatusText.PullImage
       }
     }
-
+    CORE_LOGGER.info(`Final job structure before DB insert: ${JSON.stringify(job)}`)
     await this.makeJobFolders(job)
     // make sure we actually were able to insert on DB
+    CORE_LOGGER.info('Inserting job in DB...')
     const addedId = await this.db.newJob(job)
+    CORE_LOGGER.info(`Job inserted in DB with id: ${addedId}`)
     if (!addedId) {
       return []
     }
@@ -506,9 +512,12 @@ export class C2DEngineDocker extends C2DEngine {
     if (!this.cronTimer) {
       this.setNewTimer()
     }
+    CORE_LOGGER.info('Preparing return structure for user...')
     const cjob: ComputeJob = omitDBComputeFieldsFromComputeJob(job)
+    CORE_LOGGER.info(`Compute job to be returned to user: ${JSON.stringify(cjob)}`)
     // we add cluster hash to user output
     cjob.jobId = this.getC2DConfig().hash + '-' + cjob.jobId
+    CORE_LOGGER.info(`Final compute jobId: ${cjob.jobId}`)
     // cjob.jobId = jobId
     return [cjob]
   }
