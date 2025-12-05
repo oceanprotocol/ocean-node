@@ -346,7 +346,9 @@ export class C2DEngineDocker extends C2DEngine {
 
       const manifest = await new Promise<any>((resolve, reject) => {
         client.getManifest({ ref, maxSchemaVersion: 2 }, (err: any, result: any) => {
+          CORE_LOGGER.info(`Got manifest for image ${image} from registry client`)
           client.close()
+          CORE_LOGGER.info(`err? ${err ? JSON.stringify(err) : 'no error'}`)
           err ? reject(err) : resolve(result)
         })
       })
