@@ -449,6 +449,7 @@ export class PaidComputeStartHandler extends CommandHandler {
         task.payment.chainId,
         task.payment.token
       )
+      CORE_LOGGER.info(`prices ${JSON.stringify(prices)}`)
       if (!prices) {
         return {
           stream: null,
@@ -482,6 +483,8 @@ export class PaidComputeStartHandler extends CommandHandler {
       }
       // job ID unicity
       const jobId = generateUniqueID(s)
+      CORE_LOGGER.info(`jobId ${jobId}`)
+
       // let's calculate payment needed based on resources request and maxJobDuration
       const cost = engine.calculateResourcesCost(
         task.resources,
@@ -490,6 +493,7 @@ export class PaidComputeStartHandler extends CommandHandler {
         task.payment.token,
         task.maxJobDuration
       )
+      CORE_LOGGER.info(`Total compute cost: ${cost.toString()}`)
       let agreementId
       try {
         agreementId = await engine.escrow.createLock(
@@ -502,6 +506,7 @@ export class PaidComputeStartHandler extends CommandHandler {
             Number(task.maxJobDuration) + Number(task.queueMaxWaitTime)
           )
         )
+        CORE_LOGGER.info(`Lock created with agreementId: ${agreementId}`)
       } catch (e) {
         if (e.message.includes('insufficient funds for intrinsic transaction cost')) {
           return {
@@ -522,6 +527,7 @@ export class PaidComputeStartHandler extends CommandHandler {
         }
       }
       try {
+        CORE_LOGGER.info('Starting compute job...')
         const response = await engine.startComputeJob(
           task.datasets,
           algorithm,
