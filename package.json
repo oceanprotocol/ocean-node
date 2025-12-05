@@ -98,7 +98,6 @@
     "lodash.clonedeep": "^4.5.0",
     "lodash.merge": "^4.6.2",
     "lodash.set": "^4.3.2",
-    "lodash": "^4.17.21",
     "lzma-purejs-requirejs": "^1.0.0",
     "node-cron": "^3.0.3",
     "private-ip": "^3.0.2",
