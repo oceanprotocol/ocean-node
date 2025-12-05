@@ -1,7 +1,6 @@
 // import diff from 'hyperdiff'
 import { P2PCommandResponse } from '../../@types/index'
 import EventEmitter from 'node:events'
-// import _ from 'lodash'
 import clone from 'lodash.clonedeep'
 
 import { handleProtocolCommands } from './handlers.js'
@@ -42,7 +41,8 @@ import {
   dhtFilterMethod
 } from '../../@types/OceanNode.js'
 // eslint-disable-next-line camelcase
-import ipaddr from 'ipaddr.js'
+import is_ip_private from 'private-ip'
+import ip from 'ip'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
 import { P2P_LOGGER } from '../../utils/logging/common.js'
@@ -107,7 +107,7 @@ export class OceanP2P extends EventEmitter {
   async start(options: any = null) {
     this._topic = 'oceanprotocol'
     this._libp2p = await this.createNode(this._config)
-    P2P_LOGGER.info(`P2P Node started successfully ${this._libp2p}`)
+
     this._libp2p.addEventListener('peer:connect', (evt: any) => {
       this.handlePeerConnect(evt)
     })
@@ -117,6 +117,7 @@ export class OceanP2P extends EventEmitter {
     this._libp2p.addEventListener('peer:discovery', (details: any) => {
       this.handlePeerDiscovery(details)
     })
+
     this._options = Object.assign({}, clone(DEFAULT_OPTIONS), clone(options))
     this._peers = []
     this._connections = {}
@@ -188,40 +189,40 @@ export class OceanP2P extends EventEmitter {
     try {
       const maddr = multiaddr(addr)
       // always filter loopback
-      const addressString = maddr.nodeAddress().address
-
-      if (!ipaddr.isValid(addressString)) {
-        return false
-      }
-
-      const parsedAddr = ipaddr.parse(addressString)
-      const range = parsedAddr.range()
-
-      if (range === 'loopback') {
+      if (ip.isLoopback(maddr.nodeAddress().address)) {
+        // disabled logs because of flooding
+        // P2P_LOGGER.debug('Deny announcement of loopback ' + maddr.nodeAddress().address)
         return false
       }
       // check filters
       for (const filter of this._config.p2pConfig.filterAnnouncedAddresses) {
-        try {
-          const parsedCIDR = ipaddr.parseCIDR(filter)
-          if ((parsedAddr as any).match(parsedCIDR as any)) {
-            return false
-          }
-        } catch (e) {
-          P2P_LOGGER.error(`Invalid CIDR filter in config: ${filter}`)
+        if (ip.cidrSubnet(filter).contains(maddr.nodeAddress().address)) {
+          // disabled logs because of flooding
+          // P2P_LOGGER.debug(
+          //  'Deny announcement of filtered ' +
+          //    maddr.nodeAddress().address +
+          //    '(belongs to ' +
+          //    filter +
+          //    ')'
+          // )
+          return false
         }
       }
       if (
         this._config.p2pConfig.announcePrivateIp === false &&
-        (range === 'private' || range === 'uniqueLocal')
+        (is_ip_private(maddr.nodeAddress().address) ||
+          ip.isPrivate(maddr.nodeAddress().address))
       ) {
         // disabled logs because of flooding
         // P2P_LOGGER.debug(
         //  'Deny announcement of private address ' + maddr.nodeAddress().address
         // )
         return false
+      } else {
+        // disabled logs because of flooding
+        // P2P_LOGGER.debug('Allow announcement of ' + maddr.nodeAddress().address)
+        return true
       }
-      return true
     } catch (e) {
       // we reach this part when having circuit relay. this is fine
       return true

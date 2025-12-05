@@ -95,6 +95,7 @@
     "lodash.clonedeep": "^4.5.0",
     "lzma-purejs-requirejs": "^1.0.0",
     "node-cron": "^3.0.3",
+    "private-ip": "^3.0.2",
     "sqlite3": "^5.1.7",
     "stream-concat": "^1.0.0",
     "tar": "^7.4.3",
