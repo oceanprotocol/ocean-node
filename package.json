@@ -87,7 +87,6 @@
     "express": "^4.21.1",
     "humanhash": "^1.0.4",
     "hyperdiff": "^2.0.16",
-    "ip": "^2.0.1",
     "ipaddr.js": "^2.3.0",
     "it-pipe": "^3.0.1",
     "jsonwebtoken": "^9.0.2",
@@ -139,7 +138,16 @@
     "tsx": "^4.19.3"
   },
   "overrides": {
-    "elliptic": "^6.6.1"
+    "elliptic": "^6.6.1",
+    "tough-cookie": "^4.1.3",
+    "base64url": "^3.0.1",
+    "xml2js": "^0.5.0",
+    "semver": "^7.5.2",
+    "secp256k1": "^4.0.4",
+    "tmp": "^0.2.3",
+    "docker-registry-client": {
+      "jws": "^4.0.0"
+    }
   },
   "release-it": {
     "hooks": {
