@@ -472,22 +472,30 @@ export class C2DEngineDocker extends C2DEngine {
       queueMaxWaitTime: queueMaxWaitTime || 0
     }
     CORE_LOGGER.info(`Created job structure: ${JSON.stringify(job)}`)
-
+    CORE_LOGGER.info('Checking docker image...')
+    CORE_LOGGER.info(
+      `ALGO meta: ${algorithm.meta ? JSON.stringify(algorithm.meta) : 'N/A'}`
+    )
     if (algorithm.meta.container && algorithm.meta.container.dockerfile) {
+      CORE_LOGGER.info('Image needs to be built from dockerfile...')
       // we need to build the image if job is not queued
       if (queueMaxWaitTime === 0) {
+        CORE_LOGGER.info('Job is not queued, building image now...')
         job.status = C2DStatusNumber.BuildImage
         job.statusText = C2DStatusText.BuildImage
       }
     } else {
       // already built, we need to validate it
+      CORE_LOGGER.info('Validating existing docker image...')
       const validation = await C2DEngineDocker.checkDockerImage(image, env.platform)
-      console.log('Validation: ', validation)
+      CORE_LOGGER.info(`Docker image validation result: ${JSON.stringify(validation)}`)
       if (!validation.valid)
         throw new Error(
           `Cannot find image ${image} for ${env.platform.architecture}. Maybe it does not exist or it's build for other arhitectures.`
         )
+      CORE_LOGGER.info('Docker image is valid.')
       if (queueMaxWaitTime === 0) {
+        CORE_LOGGER.info('Job is not queued, pulling image now...')
         job.status = C2DStatusNumber.PullImage
         job.statusText = C2DStatusText.PullImage
       }
