@@ -4,7 +4,7 @@ COPY .nvmrc /usr/src/app/
 RUN rm /bin/sh && ln -s /bin/bash /bin/sh
 ENV NVM_DIR /usr/local/nvm
 RUN mkdir $NVM_DIR
-ENV NODE_VERSION=v22.12.0 
+ENV NODE_VERSION=v20.19.0
 # Install nvm with node and npm
 RUN curl https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash \
     && source $NVM_DIR/nvm.sh \

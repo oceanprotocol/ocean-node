@@ -20,7 +20,8 @@ import { LOG_LEVELS_STR, GENERIC_EMOJIS } from '../logging/Logger.js'
 import { OceanNodeConfigSchema } from './schemas.js'
 import { ENV_TO_CONFIG_MAPPING } from './constants.js'
 import { fileURLToPath } from 'url'
-import _ from 'lodash'
+import merge from 'lodash.merge'
+import set from 'lodash.set'
 
 let previousConfiguration: OceanNodeConfig = null
 
@@ -32,7 +33,7 @@ function mapEnvToConfig(
   for (const [envKey, configKey] of Object.entries(mapping)) {
     const value = env[envKey]
     if (value !== undefined && value !== 'undefined') {
-      _.set(result, configKey, value)
+      set(result, configKey, value)
     }
   }
   return result
@@ -232,7 +233,7 @@ export async function buildMergedConfig(): Promise<OceanNodeConfig> {
 
   Object.assign(envOverrides, mapEnvToConfig(env, ENV_TO_CONFIG_MAPPING))
 
-  const merged = _.merge({}, baseConfig, envOverrides)
+  const merged = merge({}, baseConfig, envOverrides)
 
   preprocessConfigData(merged)
 
