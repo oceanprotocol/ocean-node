@@ -1,7 +1,8 @@
 // import diff from 'hyperdiff'
 import { P2PCommandResponse } from '../../@types/index'
 import EventEmitter from 'node:events'
-import _ from 'lodash'
+// import _ from 'lodash'
+import clone from 'lodash.clonedeep'
 
 import { handleProtocolCommands } from './handlers.js'
 
@@ -106,7 +107,7 @@ export class OceanP2P extends EventEmitter {
   async start(options: any = null) {
     this._topic = 'oceanprotocol'
     this._libp2p = await this.createNode(this._config)
-
+    P2P_LOGGER.info(`P2P Node started successfully ${this._libp2p}`)
     this._libp2p.addEventListener('peer:connect', (evt: any) => {
       this.handlePeerConnect(evt)
     })
@@ -116,7 +117,7 @@ export class OceanP2P extends EventEmitter {
     this._libp2p.addEventListener('peer:discovery', (details: any) => {
       this.handlePeerDiscovery(details)
     })
-    this._options = Object.assign({}, _.cloneDeep(DEFAULT_OPTIONS), _.cloneDeep(options))
+    this._options = Object.assign({}, clone(DEFAULT_OPTIONS), clone(options))
     this._peers = []
     this._connections = {}
     this._protocol = '/ocean/nodes/1.0.0'
