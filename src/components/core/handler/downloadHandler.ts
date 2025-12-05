@@ -102,8 +102,9 @@ export async function handleDownloadUrlCommand(
     headers['Content-Length'.toLowerCase()] = fileMetadata.contentLength
 
     if (!('Content-Disposition'?.toLowerCase() in objTemp))
-      headers['Content-Disposition'.toLowerCase()] =
-        `attachment;filename=${fileMetadata.name}`
+      headers[
+        'Content-Disposition'.toLowerCase()
+      ] = `attachment;filename=${fileMetadata.name}`
     if (encryptFile) {
       // we parse the string into the object again
       const encryptedObject = ethCrypto.cipher.parse(task.aes_encrypted_key)

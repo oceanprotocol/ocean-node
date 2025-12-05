@@ -200,24 +200,24 @@ export class Blockchain {
           Number(aggressiveFeePriorityFeePerGas) < MIN_GAS_FEE_POLYGON
             ? MIN_GAS_FEE_POLYGON
             : chainId === BigInt(SEPOLIA_NETWORK_ID) &&
-                Number(aggressiveFeePriorityFeePerGas) < MIN_GAS_FEE_SEPOLIA
-              ? MIN_GAS_FEE_SEPOLIA
-              : KNOWN_CONFIDENTIAL_EVMS.includes(chainId) &&
-                  Number(aggressiveFeePriorityFeePerGas) < MIN_GAS_FEE_SAPPHIRE
-                ? MIN_GAS_FEE_SAPPHIRE
-                : Number(aggressiveFeePriorityFeePerGas),
+              Number(aggressiveFeePriorityFeePerGas) < MIN_GAS_FEE_SEPOLIA
+            ? MIN_GAS_FEE_SEPOLIA
+            : KNOWN_CONFIDENTIAL_EVMS.includes(chainId) &&
+              Number(aggressiveFeePriorityFeePerGas) < MIN_GAS_FEE_SAPPHIRE
+            ? MIN_GAS_FEE_SAPPHIRE
+            : Number(aggressiveFeePriorityFeePerGas),
         maxFeePerGas:
           (chainId === BigInt(MUMBAI_NETWORK_ID) ||
             chainId === BigInt(POLYGON_NETWORK_ID)) &&
           Number(aggressiveFeePerGas) < MIN_GAS_FEE_POLYGON
             ? MIN_GAS_FEE_POLYGON
             : chainId === BigInt(SEPOLIA_NETWORK_ID) &&
-                Number(aggressiveFeePerGas) < MIN_GAS_FEE_SEPOLIA
-              ? MIN_GAS_FEE_SEPOLIA
-              : KNOWN_CONFIDENTIAL_EVMS.includes(chainId) &&
-                  Number(aggressiveFeePerGas) < MIN_GAS_FEE_SAPPHIRE
-                ? MIN_GAS_FEE_SAPPHIRE
-                : Number(aggressiveFeePerGas)
+              Number(aggressiveFeePerGas) < MIN_GAS_FEE_SEPOLIA
+            ? MIN_GAS_FEE_SEPOLIA
+            : KNOWN_CONFIDENTIAL_EVMS.includes(chainId) &&
+              Number(aggressiveFeePerGas) < MIN_GAS_FEE_SAPPHIRE
+            ? MIN_GAS_FEE_SAPPHIRE
+            : Number(aggressiveFeePerGas)
       }
       return overrides
     } else {
