@@ -140,7 +140,6 @@
   "overrides": {
     "elliptic": "^6.6.1",
     "tough-cookie": "^4.1.3",
-    "base64url": "^3.0.1",
     "docker-registry-client": {
       "jws": "^4.0.0"
     }
