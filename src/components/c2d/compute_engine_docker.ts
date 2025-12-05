@@ -488,6 +488,9 @@ export class C2DEngineDocker extends C2DEngine {
       // already built, we need to validate it
       CORE_LOGGER.info('Validating existing docker image...')
       try {
+        CORE_LOGGER.info(
+          `Checking image ${image} for PLATFORM ${JSON.stringify(env.platform)}`
+        )
         const validation = await C2DEngineDocker.checkDockerImage(image, env.platform)
         if (!validation.valid)
           throw new Error(
