@@ -91,6 +91,7 @@
     "humanhash": "^1.0.4",
     "hyperdiff": "^2.0.16",
     "ip": "^2.0.1",
+    "ipaddr.js": "^2.3.0",
     "it-pipe": "^3.0.1",
     "jsonwebtoken": "^9.0.2",
     "libp2p": "^1.8.0",
