@@ -19,6 +19,7 @@
     "ipV4BindAddress": "0.0.0.0",
     "ipV4BindTcpPort": 9000,
     "ipV4BindWsPort": 9001,
+    "ipV4BindWssPort": 9005,
     "ipV6BindAddress": "::",
     "ipV6BindTcpPort": 9002,
     "ipV6BindWsPort": 9003,

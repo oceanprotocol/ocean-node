@@ -475,6 +475,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.P2P_ipV4BindWsPort,
     required: false
   },
+  P2P_ipV4BindWssPort: {
+    name: 'P2P_ipV4BindWssPort',
+    value: process.env.P2P_ipV4BindWssPort,
+    required: false
+  },
   P2P_ipV6BindAddress: {
     name: 'P2P_ipV6BindAddress',
     value: process.env.P2P_ipV6BindAddress,
