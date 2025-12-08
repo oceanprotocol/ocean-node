@@ -180,6 +180,8 @@ export class C2DEngineDocker extends C2DEngine {
     if (`access` in envConfig) this.envs[0].access = envConfig.access
 
     if (`storageExpiry` in envConfig) this.envs[0].storageExpiry = envConfig.storageExpiry
+    if(`minJobDuration` in envConfig)
+      this.envs[0].minJobDuration = envConfig.minJobDuration
     if (`maxJobDuration` in envConfig)
       this.envs[0].maxJobDuration = envConfig.maxJobDuration
     if (`maxJobs` in envConfig) this.envs[0].maxJobs = envConfig.maxJobs
@@ -252,6 +254,8 @@ export class C2DEngineDocker extends C2DEngine {
       if (`access` in envConfig.free) this.envs[0].free.access = envConfig.free.access
       if (`storageExpiry` in envConfig.free)
         this.envs[0].free.storageExpiry = envConfig.free.storageExpiry
+      if (`minJobDuration` in envConfig.free)
+        this.envs[0].free.minJobDuration = envConfig.free.minJobDuration
       if (`maxJobDuration` in envConfig.free)
         this.envs[0].free.maxJobDuration = envConfig.free.maxJobDuration
       if (`maxJobs` in envConfig.free) this.envs[0].free.maxJobs = envConfig.free.maxJobs
