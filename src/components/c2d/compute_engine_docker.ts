@@ -180,7 +180,7 @@ export class C2DEngineDocker extends C2DEngine {
     if (`access` in envConfig) this.envs[0].access = envConfig.access
 
     if (`storageExpiry` in envConfig) this.envs[0].storageExpiry = envConfig.storageExpiry
-    if(`minJobDuration` in envConfig)
+    if (`minJobDuration` in envConfig)
       this.envs[0].minJobDuration = envConfig.minJobDuration
     if (`maxJobDuration` in envConfig)
       this.envs[0].maxJobDuration = envConfig.maxJobDuration
