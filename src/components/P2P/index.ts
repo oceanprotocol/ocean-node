@@ -1,7 +1,7 @@
 // import diff from 'hyperdiff'
 import { P2PCommandResponse } from '../../@types/index'
 import EventEmitter from 'node:events'
-import _ from 'lodash'
+import lodash from 'lodash'
 import { handleProtocolCommands } from './handlers.js'
 
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
@@ -114,7 +114,11 @@ export class OceanP2P extends EventEmitter {
     this._libp2p.addEventListener('peer:discovery', (details: any) => {
       this.handlePeerDiscovery(details)
     })
-    this._options = Object.assign({}, _.cloneDeep(DEFAULT_OPTIONS), _.cloneDeep(options))
+    this._options = Object.assign(
+      {},
+      lodash.cloneDeep(DEFAULT_OPTIONS),
+      lodash.cloneDeep(options)
+    )
     this._peers = []
     this._connections = {}
     this._protocol = '/ocean/nodes/1.0.0'
