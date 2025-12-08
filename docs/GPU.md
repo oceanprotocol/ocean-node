@@ -86,6 +86,7 @@ Here is the full definition of DOCKER_COMPUTE_ENVIRONMENTS:
     ],
     "storageExpiry": 604800,
     "maxJobDuration": 3600,
+    "minJobDuration": 60,
     "fees": {
       "1": [
         {
@@ -99,6 +100,7 @@ Here is the full definition of DOCKER_COMPUTE_ENVIRONMENTS:
     },
     "free": {
       "maxJobDuration": 60,
+      "minJobDuration": 10,
       "maxJobs": 3,
       "resources": [
         { "id": "cpu", "max": 1 },
@@ -137,6 +139,7 @@ root@gpu-1:/repos/ocean/ocean-node# curl http://localhost:8000/api/services/comp
     },
     "storageExpiry": 604800,
     "maxJobDuration": 3600,
+    "minJobDuration": 60,
     "resources": [
       { "id": "cpu", "total": 8, "max": 8, "min": 1, "inUse": 0 },
       {
@@ -166,6 +169,7 @@ root@gpu-1:/repos/ocean/ocean-node# curl http://localhost:8000/api/services/comp
     ],
     "free": {
       "maxJobDuration": 60,
+      "minJobDuration": 10,
       "maxJobs": 3,
       "resources": [
         { "id": "cpu", "max": 1, "inUse": 0 },
@@ -264,6 +268,7 @@ Then define DOCKER_COMPUTE_ENVIRONMENTS with
     ],
     "storageExpiry": 604800,
     "maxJobDuration": 3600,
+    "minJobDuration": 60,
     "fees": {
       "1": [
         {
@@ -283,6 +288,7 @@ Then define DOCKER_COMPUTE_ENVIRONMENTS with
     },
     "free": {
       "maxJobDuration": 60,
+      "minJobDuration": 10,
       "maxJobs": 3,
       "resources": [
         {
@@ -311,7 +317,7 @@ aka
 
 ```bash
 export DOCKER_COMPUTE_ENVIRONMENTS="[{\"socketPath\":\"/var/run/docker.sock\",\"resources\":[{\"id\":\"myGPU\",\"description\":\"AMD Radeon RX 9070 XT\",\"type\":\"gpu\",\"total\":1,\"init\":{\"advanced\":{
-\"IpcMode\":\"host\",\"CapAdd\":[\"CAP_SYS_PTRACE\"],\"Devices\":[\"/dev/dxg\",\"/dev/dri/card0\"],\"Binds\":[\"/usr/lib/wsl/lib/libdxcore.so:/usr/lib/libdxcore.so\",\"/opt/rocm/lib/libhsa-runtime64.so.1:/opt/rocm/lib/libhsa-runtime64.so.1\"],\"SecurityOpt\":{\"seccomp\":\"unconfined\"}}}},{\"id\":\"disk\",\"total\":10}],\"storageExpiry\":604800,\"maxJobDuration\":3600,\"fees\":{\"1\":[{\"feeToken\":\"0x123\",\"prices\":[{\"id\":\"cpu\",\"price\":1},{\"id\":\"nyGPU\",\"price\":3}]}]},\"free\":{\"maxJobDuration\":60,\"maxJobs\":3,\"resources\":[{\"id\":\"cpu\",\"max\":1},{\"id\":\"ram\",\"max\":1},{\"id\":\"disk\",\"max\":1},{\"id\":\"myGPU\",\"max\":1}]}}]"
+\"IpcMode\":\"host\",\"CapAdd\":[\"CAP_SYS_PTRACE\"],\"Devices\":[\"/dev/dxg\",\"/dev/dri/card0\"],\"Binds\":[\"/usr/lib/wsl/lib/libdxcore.so:/usr/lib/libdxcore.so\",\"/opt/rocm/lib/libhsa-runtime64.so.1:/opt/rocm/lib/libhsa-runtime64.so.1\"],\"SecurityOpt\":{\"seccomp\":\"unconfined\"}}}},{\"id\":\"disk\",\"total\":10}],\"storageExpiry\":604800,\"maxJobDuration\":3600,\"minJobDuration\":60,\"fees\":{\"1\":[{\"feeToken\":\"0x123\",\"prices\":[{\"id\":\"cpu\",\"price\":1},{\"id\":\"nyGPU\",\"price\":3}]}]},\"free\":{\"maxJobDuration\":60,\"minJobDuration\":10,\"maxJobs\":3,\"resources\":[{\"id\":\"cpu\",\"max\":1},{\"id\":\"ram\",\"max\":1},{\"id\":\"disk\",\"max\":1},{\"id\":\"myGPU\",\"max\":1}]}}]"
 ```
 
 you should have it in your compute envs:
@@ -349,6 +355,7 @@ root@gpu-1:/repos/ocean/ocean-node# curl http://localhost:8000/api/services/comp
     },
     "storageExpiry": 604800,
     "maxJobDuration": 3600,
+    "minJobDuration": 60,
     "resources": [
       {
         "id": "cpu",
@@ -397,6 +404,7 @@ root@gpu-1:/repos/ocean/ocean-node# curl http://localhost:8000/api/services/comp
     ],
     "free": {
       "maxJobDuration": 60,
+      "minJobDuration": 10,
       "maxJobs": 3,
       "resources": [
         {

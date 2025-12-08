@@ -1365,6 +1365,7 @@ fetch all compute environments
     "fees": { "1": [[{ "feeToken": "0x123", "prices": [{ "id": "cpu", "price": 1 }] }]] },
     "storageExpiry": 604800,
     "maxJobDuration": 3600,
+    "minJobDuration": 60,
     "resources": [
       { "id": "cpu", "total": 16, "max": 16, "min": 1, "inUse": 0 },
       {
@@ -1378,6 +1379,7 @@ fetch all compute environments
     ],
     "free": {
       "maxJobDuration": 60,
+      "minJobDuration": 10,
       "maxJobs": 3,
       "resources": [
         { "id": "cpu", "max": 1, "inUse": 0 },

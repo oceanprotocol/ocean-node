@@ -107,6 +107,7 @@
             ],
             "storageExpiry": 604800,
             "maxJobDuration": 3600,
+            "minJobDuration": 60,
             "fees": {
                 "11155111": [
                     {
@@ -151,6 +152,7 @@
             },
             "free": {
                 "maxJobDuration": 3600,
+                "minJobDuration": 60,
                 "maxJobs": 3,
                 "resources": [
                     {
