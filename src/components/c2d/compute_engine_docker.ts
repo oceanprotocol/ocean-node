@@ -47,7 +47,7 @@ import { AssetUtils } from '../../utils/asset.js'
 import { FindDdoHandler } from '../core/handler/ddoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { decryptFilesObject, omitDBComputeFieldsFromComputeJob } from './index.js'
-import * as drc from 'docker-registry-client'
+import axios from 'axios'
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
 import { Service } from '@oceanprotocol/ddo-js'
 import { getOceanTokenAddressForChain } from '../../utils/address.js'
@@ -337,26 +337,42 @@ export class C2DEngineDocker extends C2DEngine {
     platform?: RunningPlatform
   ): Promise<ValidateParams> {
     try {
-      const info = drc.default.parseRepoAndRef(image)
-      const client = drc.createClientV2({ name: info.localName })
-      const ref = info.tag || info.digest
+      const manifest = await fetchDockerManifest(image)
 
-      const manifest = await new Promise<any>((resolve, reject) => {
-        client.getManifest({ ref, maxSchemaVersion: 2 }, (err: any, result: any) => {
-          client.close()
-          err ? reject(err) : resolve(result)
-        })
-      })
+      if (!manifest) {
+        return {
+          valid: false,
+          status: 404,
+          reason: 'Manifest not found or invalid response'
+        }
+      }
 
-      const platforms = Array.isArray(manifest.manifests)
-        ? manifest.manifests.map((entry: any) => entry.platform)
-        : [manifest.platform]
+      let platforms: any[] = []
+      if (manifest.manifests && Array.isArray(manifest.manifests)) {
+        platforms = manifest.manifests.map((entry: any) => entry.platform)
+      } else if (manifest.platform) {
+        platforms = [manifest.platform]
+      } else if (manifest.architecture && manifest.os) {
+        // Fallback for older schema V1/V2 single image
+        platforms = [{ architecture: manifest.architecture, os: manifest.os }]
+      } else {
+        // If no platform info is available, we assume it's valid to avoid blocking
+        return { valid: true }
+      }
 
       const isValidPlatform = platforms.some((entry: any) =>
         checkManifestPlatform(entry, platform)
       )
 
-      return { valid: isValidPlatform }
+      if (!isValidPlatform) {
+        return {
+          valid: false,
+          status: 400,
+          reason: `Image exists but does not support platform ${platform?.os}/${platform?.architecture}`
+        }
+      }
+
+      return { valid: true }
     } catch (err: any) {
       CORE_LOGGER.error(`Unable to get Manifest for image ${image}: ${err.message}`)
       if (err.errors?.length) CORE_LOGGER.error(JSON.stringify(err.errors))
@@ -834,19 +850,19 @@ export class C2DEngineDocker extends C2DEngine {
     //  - monitor running containers and stop them if over limits
     //  - monitor disc space and clean up
     /* steps:
-       - wait until image is ready
-       - create volume
-       - after image is ready, create the container
-       - download assets & algo into temp folder
-       - download DDOS
-       - tar and upload assets & algo to container
-       - start the container
-       - check if container is exceeding validUntil
-       - if yes, stop it
-       - download /data/outputs and store it locally (or upload it somewhere)
-       - delete the container
-       - delete the volume
-       */
+     - wait until image is ready
+     - create volume
+     - after image is ready, create the container
+     - download assets & algo into temp folder
+     - download DDOS
+     - tar and upload assets & algo to container
+     - start the container
+     - check if container is exceeding validUntil
+     - if yes, stop it
+     - download /data/outputs and store it locally (or upload it somewhere)
+     - delete the container
+     - delete the volume
+     */
     if (job.status === C2DStatusNumber.JobQueued) {
       // check if we can start the job now
       const now = String(Date.now() / 1000)
@@ -895,13 +911,13 @@ export class C2DEngineDocker extends C2DEngine {
       }
       // volume
       /* const diskSize = this.getResourceRequest(job.resources, 'disk')
-       if (diskSize && diskSize > 0) {
-        volume.DriverOpts = {
-          o: 'size=' + String(diskSize),
-          device: 'local',
-          type: 'local'
-        }
-      } */
+     if (diskSize && diskSize > 0) {
+      volume.DriverOpts = {
+        o: 'size=' + String(diskSize),
+        device: 'local',
+        type: 'local'
+      }
+    } */
       const volumeCreated = await this.createDockerVolume(volume, true)
       if (!volumeCreated) {
         job.status = C2DStatusNumber.VolumeCreationFailed
@@ -1997,4 +2013,117 @@ export function checkManifestPlatform(
   )
     return false
   return true
+}
+
+async function fetchDockerManifest(image: string): Promise<any> {
+  const { registry, repo, tag, digest } = parseImageString(image)
+  // If a digest is present, it takes precedence over the tag
+  const reference = digest || tag
+  const manifestUrl = `https://${registry}/v2/${repo}/manifests/${reference}`
+
+  // Docker V2 API requires specific accept headers to return the correct manifest schema
+  // otherwise it might return errors or V1 manifests which are deprecated
+  const headers: any = {
+    Accept:
+      'application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json'
+  }
+
+  try {
+    // 1. Attempt to fetch manifest.
+    // This will likely fail with 401 Unauthorized if it's a private repo or Docker Hub
+    return await axios.get(manifestUrl, { headers }).then((res) => res.data)
+  } catch (err: any) {
+    // 2. Handle 401 Unauthorized by performing the Token Handshake
+    if (
+      err.response &&
+      err.response.status === 401 &&
+      err.response.headers['www-authenticate']
+    ) {
+      const authHeader = err.response.headers['www-authenticate']
+
+      // Parse the Www-Authenticate header
+      // Example header: Bearer realm="https://auth.docker.io/token",service="registry.docker.io",scope="..."
+      const realmMatch = authHeader.match(/realm="([^"]+)"/)
+      const serviceMatch = authHeader.match(/service="([^"]+)"/)
+      const scopeMatch = authHeader.match(/scope="([^"]+)"/)
+
+      if (realmMatch) {
+        const realm = realmMatch[1]
+        const service = serviceMatch ? serviceMatch[1] : null
+        // If the registry didn't return a scope, construct a default pull scope
+        const scope = scopeMatch ? scopeMatch[1] : `repository:${repo}:pull`
+
+        try {
+          // 3. Construct Token URL
+          let tokenUrl = `${realm}?scope=${scope}`
+          if (service) {
+            tokenUrl += `&service=${service}`
+          }
+
+          // 4. Request the Bearer Token
+          const tokenRes = await axios.get(tokenUrl)
+          const token = tokenRes.data.token || tokenRes.data.access_token
+
+          // 5. Retry the Manifest request with the Authorization Token
+          const retryRes = await axios.get(manifestUrl, {
+            headers: { ...headers, Authorization: `Bearer ${token}` }
+          })
+          return retryRes.data
+        } catch (tokenErr: any) {
+          throw new Error(`Failed to authenticate with registry: ${tokenErr.message}`)
+        }
+      }
+    }
+    // If not a 401 or auth parsing failed, rethrow the original error
+    throw err
+  }
+}
+
+function parseImageString(image: string) {
+  // Handles formats:
+  // "ubuntu" -> registry-1.docker.io/library/ubuntu:latest
+  // "user/repo:tag"
+  // "registry.example.com/user/repo@sha256:digest"
+
+  let registry = 'registry-1.docker.io' // Default Docker Hub Registry
+  let repo = ''
+  let tag = 'latest'
+  let digest = null
+
+  const parts = image.split('/')
+
+  // Check if first part is a URL/Registry (contains '.' or 'localhost' or port ':')
+  if (
+    parts[0].includes('.') ||
+    parts[0].includes('localhost') ||
+    parts[0].includes(':')
+  ) {
+    registry = parts.shift()
+  }
+
+  // Remainder is the repo path
+  const remainder = parts.join('/')
+
+  // Check for Digest (@sha256:...) which overrides tags
+  if (remainder.includes('@')) {
+    const splitDigest = remainder.split('@')
+    repo = splitDigest[0]
+    digest = splitDigest[1]
+    tag = null // If digest is provided, we don't use tag
+  }
+  // Check for Tag (:latest, :v1, etc)
+  else if (remainder.includes(':')) {
+    const splitTag = remainder.split(':')
+    repo = splitTag[0]
+    tag = splitTag[1]
+  } else {
+    repo = remainder
+  }
+
+  // Handle "library/" expansion for official images on Docker Hub (e.g. "node" -> "library/node")
+  if (registry === 'registry-1.docker.io' && !repo.includes('/')) {
+    repo = `library/${repo}`
+  }
+
+  return { registry, repo, tag, digest }
 }
