@@ -143,9 +143,11 @@
     "xml2js": "^0.5.0",
     "semver": "^7.5.2",
     "tmp": "^0.2.3",
-    "lodash": "^4.17.21",
     "docker-registry-client": {
-      "jws": "^4.0.0"
+      "jws": "^4.0.0",
+      "restify-errors": {
+        "lodash": "^4.17.21"
+      }
     }
   },
   "release-it": {
