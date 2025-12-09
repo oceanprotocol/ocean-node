@@ -126,14 +126,13 @@
     "chai": "^4.3.10",
     "concurrently": "^8.2.1",
     "eslint": "^8.51.0",
-    "eslint-config-oceanprotocol": "^2.0.4",
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-prettier": "^5.0.1",
     "eslint-plugin-promise": "^6.1.1",
     "mocha": "^11.1.0",
     "nyc": "^17.1.0",
     "prettier": "^3.0.3",
-    "release-it": "^17.6.0",
+    "release-it": "^19.0.6",
     "sinon": "^19.0.2",
     "tsx": "^4.19.3"
   },
@@ -143,8 +142,19 @@
     "xml2js": "^0.5.0",
     "semver": "^7.5.2",
     "tmp": "^0.2.3",
+    "base64url": "^3.0.1",
+    "lodash": "^4.17.21",
     "docker-registry-client": {
-      "jws": "^4.0.0"
+      "jws": "^4.0.0",
+      "base64url": "^3.0.1",
+      "restify-errors": "^8.0.2",
+      "restify-clients": "^2.6.9"
+    },
+    "eth-crypto": {
+      "secp256k1": "^5.0.0"
+    },
+    "eccrypto": {
+      "secp256k1": "^5.0.0"
     }
   },
   "release-it": {
