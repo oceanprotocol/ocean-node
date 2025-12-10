@@ -453,9 +453,8 @@ export const algoAsset = {
       container: {
         entrypoint: 'node $ALGO',
         image: 'node',
-        tag: 'latest',
-        checksum:
-          'sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36'
+        tag: 'slim',
+        checksum: ''
       }
     }
   },
