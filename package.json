@@ -144,7 +144,6 @@
     "semver": "^7.5.2",
     "tmp": "^0.2.3",
     "base64url": "^3.0.1",
-    "lodash": "^4.17.21",
     "docker-registry-client": {
       "jws": "^4.0.0",
       "base64url": "^3.0.1",

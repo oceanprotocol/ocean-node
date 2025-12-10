@@ -334,31 +334,17 @@ export class C2DEngineDocker extends C2DEngine {
    */
   public static async checkDockerImage(
     image: string,
-    platform?: RunningPlatform,
-    timeoutMs: number = 10000
+    platform?: RunningPlatform
   ): Promise<ValidateParams> {
     try {
       const info = drc.default.parseRepoAndRef(image)
-      const client = drc.default.createClientV2({ name: info.localName })
+      const client = drc.createClientV2({ name: info.localName })
       const ref = info.tag || info.digest
 
-      let settled = false
       const manifest = await new Promise<any>((resolve, reject) => {
-        const timer = setTimeout(() => {
-          if (!settled) {
-            settled = true
-            client.close()
-            reject(new Error(`Timeout: manifest request exceeded ${timeoutMs}ms`))
-          }
-        }, timeoutMs)
-
         client.getManifest({ ref, maxSchemaVersion: 2 }, (err: any, result: any) => {
-          if (!settled) {
-            settled = true
-            clearTimeout(timer)
-            client.close()
-            err ? reject(err) : resolve(result)
-          }
+          client.close()
+          err ? reject(err) : resolve(result)
         })
       })
 
