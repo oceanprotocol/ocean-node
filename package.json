@@ -78,7 +78,6 @@
     "base58-js": "^2.0.0",
     "cors": "^2.8.5",
     "delay": "^5.0.0",
-    "docker-registry-client": "^3.4.0",
     "dockerode": "^4.0.5",
     "dotenv": "^16.3.1",
     "eciesjs": "^0.4.5",
@@ -144,10 +143,6 @@
     "semver": "^7.5.2",
     "tmp": "^0.2.3",
     "base64url": "^3.0.1",
-    "docker-registry-client": {
-      "jws": "^4.0.0",
-      "base64url": "^3.0.1"
-    },
     "eth-crypto": {
       "secp256k1": "^5.0.0"
     },
