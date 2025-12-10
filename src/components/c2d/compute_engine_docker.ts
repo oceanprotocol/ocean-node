@@ -342,13 +342,25 @@ export class C2DEngineDocker extends C2DEngine {
       const client = drc.default.createClientV2({ name: info.localName })
       const ref = info.tag || info.digest
 
-      const manifestPromise = new Promise<any>((resolve, reject) => {
+      let settled = false
+      const manifest = await new Promise<any>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          if (!settled) {
+            settled = true
+            client.close()
+            reject(new Error(`Timeout: manifest request exceeded ${timeoutMs}ms`))
+          }
+        }, timeoutMs)
+
         client.getManifest({ ref, maxSchemaVersion: 2 }, (err: any, result: any) => {
-          client.close()
-          err ? reject(err) : resolve(result)
+          if (!settled) {
+            settled = true
+            clearTimeout(timer)
+            client.close()
+            err ? reject(err) : resolve(result)
+          }
         })
       })
-      const manifest = await manifestPromise
 
       const platforms = Array.isArray(manifest.manifests)
         ? manifest.manifests.map((entry: any) => entry.platform)
