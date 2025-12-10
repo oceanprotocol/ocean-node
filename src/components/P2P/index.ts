@@ -414,7 +414,7 @@ export class OceanP2P extends EventEmitter {
           }
         }
       }
-      const node = await createLibp2p(options as any)
+      const node = await createLibp2p(options)
       await node.start()
 
       const upnpService = (node.services as any).upnpNAT
