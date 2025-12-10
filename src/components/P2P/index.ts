@@ -24,8 +24,6 @@ import { autoNAT } from '@libp2p/autonat'
 import { uPnPNAT } from '@libp2p/upnp-nat'
 import { ping } from '@libp2p/ping'
 import { dcutr } from '@libp2p/dcutr'
-import { autoTLS } from '@libp2p/auto-tls'
-import { keychain } from '@libp2p/keychain'
 import {
   kadDHT,
   passthroughMapper,
@@ -297,7 +295,6 @@ export class OceanP2P extends EventEmitter {
         identify: identify(),
         dht: kadDHT(dhtOptions),
         identifyPush: identifyPush(),
-        keychain: keychain(),
         /*
         pubsub: gossipsub({
           fallbackToFloodsub: false,
@@ -332,8 +329,7 @@ export class OceanP2P extends EventEmitter {
         servicesConfig = {
           ...servicesConfig,
           ...{
-            autoNAT: autoNAT({ maxInboundStreams: 20, maxOutboundStreams: 20 }),
-            autoTLS: autoTLS()
+            autoNAT: autoNAT({ maxInboundStreams: 20, maxOutboundStreams: 20 })
           }
         }
       }
