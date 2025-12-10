@@ -339,7 +339,7 @@ export class C2DEngineDocker extends C2DEngine {
   ): Promise<ValidateParams> {
     try {
       const info = drc.default.parseRepoAndRef(image)
-      const client = drc.createClientV2({ name: info.localName })
+      const client = drc.default.createClientV2({ name: info.localName })
       const ref = info.tag || info.digest
 
       const manifestPromise = new Promise<any>((resolve, reject) => {
@@ -348,17 +348,7 @@ export class C2DEngineDocker extends C2DEngine {
           err ? reject(err) : resolve(result)
         })
       })
-
-      const timeoutPromise = new Promise<never>((_resolve, reject) => {
-        setTimeout(() => {
-          client.close()
-          reject(
-            new Error(`Timeout: Docker image manifest check exceeded ${timeoutMs}ms`)
-          )
-        }, timeoutMs)
-      })
-
-      const manifest = await Promise.race([manifestPromise, timeoutPromise])
+      const manifest = await manifestPromise
 
       const platforms = Array.isArray(manifest.manifests)
         ? manifest.manifests.map((entry: any) => entry.platform)
@@ -370,15 +360,6 @@ export class C2DEngineDocker extends C2DEngine {
 
       return { valid: isValidPlatform }
     } catch (err: any) {
-      // If it's a timeout, allow the job to proceed - the image will be validated during pull
-      const isTimeout = err.message?.includes('Timeout:')
-      if (isTimeout) {
-        CORE_LOGGER.warn(
-          `Timeout checking manifest for image ${image}, allowing job to proceed`
-        )
-        return { valid: true }
-      }
-
       CORE_LOGGER.error(`Unable to get Manifest for image ${image}: ${err.message}`)
       if (err.errors?.length) CORE_LOGGER.error(JSON.stringify(err.errors))
 

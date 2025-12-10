@@ -454,7 +454,8 @@ export const algoAsset = {
         entrypoint: 'node $ALGO',
         image: 'node',
         tag: 'slim',
-        checksum: ''
+        checksum:
+          'sha256:0931423df82136fe3b99881aa0167265cdd38d85e98df2185972dea86c8232e6'
       }
     }
   },
