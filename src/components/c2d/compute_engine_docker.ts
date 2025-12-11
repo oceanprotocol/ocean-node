@@ -47,7 +47,6 @@ import { AssetUtils } from '../../utils/asset.js'
 import { FindDdoHandler } from '../core/handler/ddoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { decryptFilesObject, omitDBComputeFieldsFromComputeJob } from './index.js'
-import * as drc from 'docker-registry-client'
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
 import { Service } from '@oceanprotocol/ddo-js'
 import { getOceanTokenAddressForChain } from '../../utils/address.js'
@@ -59,6 +58,8 @@ export class C2DEngineDocker extends C2DEngine {
   private cronTimer: any
   private cronTime: number = 2000
   private jobImageSizes: Map<string, number> = new Map()
+  private static DEFAULT_DOCKER_REGISTRY = 'https://registry-1.docker.io'
+
   public constructor(clusterConfig: C2DClusterInfo, db: C2DDatabase, escrow: Escrow) {
     super(clusterConfig, db, escrow)
 
@@ -327,6 +328,74 @@ export class C2DEngineDocker extends C2DEngine {
     return filteredEnvs
   }
 
+  private static parseImage(image: string) {
+    let registry = C2DEngineDocker.DEFAULT_DOCKER_REGISTRY
+    let name = image
+    let ref = 'latest'
+
+    const atIdx = name.indexOf('@')
+    const colonIdx = name.lastIndexOf(':')
+
+    if (atIdx !== -1) {
+      ref = name.slice(atIdx + 1)
+      name = name.slice(0, atIdx)
+    } else if (colonIdx !== -1 && !name.slice(colonIdx).includes('/')) {
+      ref = name.slice(colonIdx + 1)
+      name = name.slice(0, colonIdx)
+    }
+
+    const firstSlash = name.indexOf('/')
+    if (firstSlash !== -1) {
+      const potential = name.slice(0, firstSlash)
+      if (potential.includes('.') || potential.includes(':')) {
+        registry = potential.includes('localhost')
+          ? `http://${potential}`
+          : `https://${potential}`
+        name = name.slice(firstSlash + 1)
+      }
+    }
+
+    if (registry === C2DEngineDocker.DEFAULT_DOCKER_REGISTRY && !name.includes('/')) {
+      name = `library/${name}`
+    }
+
+    return { registry, name, ref }
+  }
+
+  public static async getDockerManifest(image: string): Promise<any> {
+    const { registry, name, ref } = C2DEngineDocker.parseImage(image)
+    const url = `${registry}/v2/${name}/manifests/${ref}`
+    let headers: Record<string, string> = {
+      Accept:
+        'application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.index.v1+json'
+    }
+    let response = await fetch(url, { headers })
+
+    if (response.status === 401) {
+      const match = (response.headers.get('www-authenticate') || '').match(
+        /Bearer realm="([^"]+)",service="([^"]+)"/
+      )
+      if (match) {
+        const tokenUrl = new URL(match[1])
+        tokenUrl.searchParams.set('service', match[2])
+        tokenUrl.searchParams.set('scope', `repository:${name}:pull`)
+        const { token } = (await fetch(tokenUrl.toString()).then((r) => r.json())) as {
+          token: string
+        }
+        headers = { ...headers, Authorization: `Bearer ${token}` }
+        response = await fetch(url, { headers })
+      }
+    }
+
+    if (!response.ok) {
+      const body = await response.text()
+      throw new Error(
+        `Failed to get manifest: ${response.status} ${response.statusText} - ${body}`
+      )
+    }
+    return await response.json()
+  }
+
   /**
    * Checks the docker image by looking at the manifest
    * @param image name or tag
@@ -337,16 +406,7 @@ export class C2DEngineDocker extends C2DEngine {
     platform?: RunningPlatform
   ): Promise<ValidateParams> {
     try {
-      const info = drc.default.parseRepoAndRef(image)
-      const client = drc.createClientV2({ name: info.localName })
-      const ref = info.tag || info.digest
-
-      const manifest = await new Promise<any>((resolve, reject) => {
-        client.getManifest({ ref, maxSchemaVersion: 2 }, (err: any, result: any) => {
-          client.close()
-          err ? reject(err) : resolve(result)
-        })
-      })
+      const manifest = await C2DEngineDocker.getDockerManifest(image)
 
       const platforms = Array.isArray(manifest.manifests)
         ? manifest.manifests.map((entry: any) => entry.platform)
