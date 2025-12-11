@@ -10,7 +10,7 @@ import {
   tearDownEnvironment
 } from '../utils/utils.js'
 
-describe('OceanP2P Test', () => {
+describe.only('OceanP2P Test', () => {
   let node1: OceanP2P
   let node2: OceanP2P
   let config1: any
