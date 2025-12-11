@@ -246,9 +246,11 @@ export class OceanP2P extends EventEmitter {
         bindInterfaces.push(
           `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindWsPort}/ws`
         )
-        bindInterfaces.push(
-          `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindWssPort}/wss`
-        )
+        if (config.p2pConfig.ipV4BindWssPort) {
+          bindInterfaces.push(
+            `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindWssPort}/wss`
+          )
+        }
       }
       if (config.p2pConfig.enableIPV6) {
         P2P_LOGGER.info('Binding P2P sockets to IPV6')
