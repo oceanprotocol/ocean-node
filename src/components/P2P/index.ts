@@ -29,7 +29,6 @@ import {
   removePrivateAddressesMapper,
   removePublicAddressesMapper
 } from '@libp2p/kad-dht'
-// import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 
 import { EVENTS, cidFromRawString } from '../../utils/index.js'
 import { Transform } from 'stream'

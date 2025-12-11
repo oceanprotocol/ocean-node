@@ -58,7 +58,8 @@ export class C2DEngineDocker extends C2DEngine {
   private cronTimer: any
   private cronTime: number = 2000
   private jobImageSizes: Map<string, number> = new Map()
-  private static DEFAULT_REGISTRY_STATIC = 'https://registry-1.docker.io'
+  private static DEFAULT_DOCKER_REGISTRY = 'https://registry-1.docker.io'
+
   public constructor(clusterConfig: C2DClusterInfo, db: C2DDatabase, escrow: Escrow) {
     super(clusterConfig, db, escrow)
 
@@ -327,8 +328,8 @@ export class C2DEngineDocker extends C2DEngine {
     return filteredEnvs
   }
 
-  private static parseImageStatic(image: string) {
-    let registry = C2DEngineDocker.DEFAULT_REGISTRY_STATIC
+  private static parseImage(image: string) {
+    let registry = C2DEngineDocker.DEFAULT_DOCKER_REGISTRY
     let name = image
     let ref = 'latest'
 
@@ -354,7 +355,7 @@ export class C2DEngineDocker extends C2DEngine {
       }
     }
 
-    if (registry === C2DEngineDocker.DEFAULT_REGISTRY_STATIC && !name.includes('/')) {
+    if (registry === C2DEngineDocker.DEFAULT_DOCKER_REGISTRY && !name.includes('/')) {
       name = `library/${name}`
     }
 
@@ -362,7 +363,7 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   public static async getDockerManifest(image: string): Promise<any> {
-    const { registry, name, ref } = C2DEngineDocker.parseImageStatic(image)
+    const { registry, name, ref } = C2DEngineDocker.parseImage(image)
     const url = `${registry}/v2/${name}/manifests/${ref}`
     let headers: Record<string, string> = {
       Accept:
