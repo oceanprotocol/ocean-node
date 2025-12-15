@@ -796,36 +796,47 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
-  private async setNewTimer() {
+  private setNewTimer() {
+    // Prevent multiple timers from being created
+    if (this.cronTimer) {
+      return
+    }
     // don't set the cron if we don't have compute environments
-    if ((await this.getComputeEnvironments()).length > 0)
-      this.cronTimer = setInterval(this.InternalLoop.bind(this), this.cronTime)
+    if (this.envs.length > 0) {
+      this.cronTimer = setTimeout(this.InternalLoop.bind(this), this.cronTime)
+    }
   }
 
   private async InternalLoop() {
     // this is the internal loop of docker engine
     // gets list of all running jobs and process them one by one
-    clearInterval(this.cronTimer)
-    this.cronTimer = null
-    // get all running jobs
-    const jobs = await this.db.getRunningJobs(this.getC2DConfig().hash)
 
-    if (jobs.length === 0) {
-      CORE_LOGGER.info('No C2D jobs found for engine ' + this.getC2DConfig().hash)
+    if (this.cronTimer) {
+      clearTimeout(this.cronTimer)
+      this.cronTimer = null
+    }
+
+    try {
+      // get all running jobs
+      const jobs = await this.db.getRunningJobs(this.getC2DConfig().hash)
+
+      if (jobs.length === 0) {
+        CORE_LOGGER.info('No C2D jobs found for engine ' + this.getC2DConfig().hash)
+      } else {
+        CORE_LOGGER.info(`Got ${jobs.length} jobs for engine ${this.getC2DConfig().hash}`)
+        CORE_LOGGER.debug(JSON.stringify(jobs))
+
+        const promises: any = []
+        for (const job of jobs) {
+          promises.push(this.processJob(job))
+        }
+        await Promise.all(promises)
+      }
+    } catch (err) {
+      CORE_LOGGER.error(`Error in C2D InternalLoop: ${err.message}`)
+    } finally {
       this.setNewTimer()
-      return
-    } else {
-      CORE_LOGGER.info(`Got ${jobs.length} jobs for engine ${this.getC2DConfig().hash}`)
-      CORE_LOGGER.debug(JSON.stringify(jobs))
     }
-    const promises: any = []
-    for (const job of jobs) {
-      promises.push(this.processJob(job))
-    }
-    // wait for all promises, there is no return
-    await Promise.all(promises)
-    // set the cron again
-    this.setNewTimer()
   }
 
   private async createDockerContainer(
