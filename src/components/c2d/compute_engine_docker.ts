@@ -940,13 +940,16 @@ export class C2DEngineDocker extends C2DEngine {
       if (algorithm.meta.container && algorithm.meta.container.dockerfile) {
         job.status = C2DStatusNumber.BuildImage
         job.statusText = C2DStatusText.BuildImage
-        this.buildImage(job, null)
+        await this.db.updateJob(job)
+        await this.buildImage(job, null)
       } else {
         job.status = C2DStatusNumber.PullImage
         job.statusText = C2DStatusText.PullImage
-        this.pullImage(job)
+        await this.db.updateJob(job)
+        await this.pullImage(job)
       }
-      await this.db.updateJob(job)
+      // Return here - the next iteration will pick up the job with updated status from DB
+      return
     }
 
     if (job.status === C2DStatusNumber.ConfiguringVolumes) {
@@ -1558,7 +1561,7 @@ export class C2DEngineDocker extends C2DEngine {
       })
       job.status = C2DStatusNumber.ConfiguringVolumes
       job.statusText = C2DStatusText.ConfiguringVolumes
-      this.db.updateJob(job)
+      await this.db.updateJob(job)
     } catch (err) {
       const logText = `Unable to pull docker image: ${job.containerImage}: ${err.message}`
       CORE_LOGGER.error(logText)
@@ -1624,7 +1627,7 @@ export class C2DEngineDocker extends C2DEngine {
       })
       job.status = C2DStatusNumber.ConfiguringVolumes
       job.statusText = C2DStatusText.ConfiguringVolumes
-      this.db.updateJob(job)
+      await this.db.updateJob(job)
     } catch (err) {
       CORE_LOGGER.error(
         `Unable to build docker image: ${job.containerImage}: ${err.message}`
