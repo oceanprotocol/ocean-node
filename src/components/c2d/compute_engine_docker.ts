@@ -543,10 +543,10 @@ export class C2DEngineDocker extends C2DEngine {
       // already built, we need to validate it
       const validation = await C2DEngineDocker.checkDockerImage(image, env.platform)
       console.log('Validation: ', validation)
-      if (!validation.valid)
-        throw new Error(
-          `Cannot find image ${image} for ${env.platform.architecture}. Maybe it does not exist or it's build for other arhitectures.`
-        )
+      // if (!validation.valid)
+      //   throw new Error(
+      //     `Cannot find image ${image} for ${env.platform.architecture}. Maybe it does not exist or it's build for other arhitectures.`
+      //   )
       if (queueMaxWaitTime === 0) {
         job.status = C2DStatusNumber.PullImage
         job.statusText = C2DStatusText.PullImage
