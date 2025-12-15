@@ -176,6 +176,7 @@ export const OceanNodeP2PConfigSchema = z.object({
   ipV4BindAddress: z.string().nullable().optional().default('0.0.0.0'),
   ipV4BindTcpPort: z.coerce.number().nullable().optional().default(9000),
   ipV4BindWsPort: z.coerce.number().nullable().optional().default(9001),
+  ipV4BindWssPort: z.coerce.number().nullable().optional().default(9005),
   ipV6BindAddress: z.string().nullable().optional().default('::'),
   ipV6BindTcpPort: z.coerce.number().nullable().optional().default(9002),
   ipV6BindWsPort: z.coerce.number().nullable().optional().default(9003),

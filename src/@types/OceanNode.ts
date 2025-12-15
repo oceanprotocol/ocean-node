@@ -40,6 +40,7 @@ export interface OceanNodeP2PConfig {
   ipV4BindAddress: string | null
   ipV4BindTcpPort: number | null
   ipV4BindWsPort: number | null
+  ipV4BindWssPort: number | null
   ipV6BindAddress: string | null
   ipV6BindTcpPort: number | null
   ipV6BindWsPort: number | null
