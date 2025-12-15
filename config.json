@@ -104,6 +104,7 @@
       ],
       "storageExpiry": 604800,
       "maxJobDuration": 3600,
+      "minJobDuration": 60,
       "access": {
         "addresses": [],
         "accessLists": []
@@ -122,6 +123,7 @@
       },
       "free": {
         "maxJobDuration": 3600,
+        "minJobDuration": 60,
         "maxJobs": 3,
         "access": {
           "addresses": [],

@@ -138,6 +138,7 @@ The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of
     ],
     "storageExpiry": 604800,
     "maxJobDuration": 3600,
+    "minJobDuration": 60,
     "access": {
       "addresses": ["0x123", "0x456"],
       "accessLists": []
@@ -157,6 +158,7 @@ The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of
     },
     "free": {
       "maxJobDuration": 60,
+      "minJobDuration": 10,
       "maxJobs": 3,
       "access": {
         "addresses": [],
@@ -186,6 +188,7 @@ The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of
 - **socketPath**: Path to the Docker socket (e.g., docker.sock).
 - **storageExpiry**: Amount of seconds for storage expiry.(Mandatory)
 - **maxJobDuration**: Maximum duration in seconds for a job.(Mandatory)
+- **minJobDuration**: Minimum duration in seconds for a job.(Mandatory)
 - **access**: Access control configuration for paid compute jobs. If both `addresses` and `accessLists` are empty, all addresses are allowed.
   - **addresses**: Array of Ethereum addresses allowed to run compute jobs. If empty and no access lists are configured, all addresses are allowed.
   - **accessLists**: Array of AccessList contract addresses. Users holding NFTs from these contracts can run compute jobs. Checked across all supported networks.
@@ -202,6 +205,7 @@ The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of
 - **free**: Optional configuration for free jobs.
   - **storageExpiry**: Amount of seconds for storage expiry for free jobs.
   - **maxJobDuration**: Maximum duration in seconds for a free job.
+  - **minJobDuration**: Minimum duration in seconds for a free job.
   - **maxJobs**: Maximum number of simultaneous free jobs.
   - **access**: Access control configuration for free compute jobs. Works the same as the main `access` field.
     - **addresses**: Array of Ethereum addresses allowed to run free compute jobs.

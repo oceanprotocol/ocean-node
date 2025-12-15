@@ -121,6 +121,7 @@ export const C2DDockerConfigSchema = z.array(
       resources: z.array(ComputeResourceSchema).optional(),
       storageExpiry: z.number().int().optional().default(604800),
       maxJobDuration: z.number().int().optional().default(3600),
+      minJobDuration: z.number().int().optional().default(60),
       access: z
         .object({
           addresses: z.array(z.string()),
