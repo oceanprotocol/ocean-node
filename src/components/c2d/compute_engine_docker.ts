@@ -16,7 +16,6 @@ import type {
   DBComputeJob,
   DBComputeJobPayment,
   ComputeResult,
-  RunningPlatform,
   ComputeEnvFeesStructure,
   ComputeResourceRequest,
   ComputeEnvFees
@@ -47,7 +46,6 @@ import { AssetUtils } from '../../utils/asset.js'
 import { FindDdoHandler } from '../core/handler/ddoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { decryptFilesObject, omitDBComputeFieldsFromComputeJob } from './index.js'
-import { ValidateParams } from '../httpRoutes/validateCommands.js'
 import { Service } from '@oceanprotocol/ddo-js'
 import { getOceanTokenAddressForChain } from '../../utils/address.js'
 
@@ -58,7 +56,6 @@ export class C2DEngineDocker extends C2DEngine {
   private cronTimer: any
   private cronTime: number = 2000
   private jobImageSizes: Map<string, number> = new Map()
-  private static DEFAULT_DOCKER_REGISTRY = 'https://registry-1.docker.io'
 
   public constructor(clusterConfig: C2DClusterInfo, db: C2DDatabase, escrow: Escrow) {
     super(clusterConfig, db, escrow)
@@ -332,107 +329,6 @@ export class C2DEngineDocker extends C2DEngine {
     return filteredEnvs
   }
 
-  private static parseImage(image: string) {
-    let registry = C2DEngineDocker.DEFAULT_DOCKER_REGISTRY
-    let name = image
-    let ref = 'latest'
-
-    const atIdx = name.indexOf('@')
-    const colonIdx = name.lastIndexOf(':')
-
-    if (atIdx !== -1) {
-      ref = name.slice(atIdx + 1)
-      name = name.slice(0, atIdx)
-    } else if (colonIdx !== -1 && !name.slice(colonIdx).includes('/')) {
-      ref = name.slice(colonIdx + 1)
-      name = name.slice(0, colonIdx)
-    }
-
-    const firstSlash = name.indexOf('/')
-    if (firstSlash !== -1) {
-      const potential = name.slice(0, firstSlash)
-      if (potential.includes('.') || potential.includes(':')) {
-        registry = potential.includes('localhost')
-          ? `http://${potential}`
-          : `https://${potential}`
-        name = name.slice(firstSlash + 1)
-      }
-    }
-
-    if (registry === C2DEngineDocker.DEFAULT_DOCKER_REGISTRY && !name.includes('/')) {
-      name = `library/${name}`
-    }
-
-    return { registry, name, ref }
-  }
-
-  public static async getDockerManifest(image: string): Promise<any> {
-    const { registry, name, ref } = C2DEngineDocker.parseImage(image)
-    const url = `${registry}/v2/${name}/manifests/${ref}`
-    let headers: Record<string, string> = {
-      Accept:
-        'application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.index.v1+json'
-    }
-    let response = await fetch(url, { headers })
-
-    if (response.status === 401) {
-      const match = (response.headers.get('www-authenticate') || '').match(
-        /Bearer realm="([^"]+)",service="([^"]+)"/
-      )
-      if (match) {
-        const tokenUrl = new URL(match[1])
-        tokenUrl.searchParams.set('service', match[2])
-        tokenUrl.searchParams.set('scope', `repository:${name}:pull`)
-        const { token } = (await fetch(tokenUrl.toString()).then((r) => r.json())) as {
-          token: string
-        }
-        headers = { ...headers, Authorization: `Bearer ${token}` }
-        response = await fetch(url, { headers })
-      }
-    }
-
-    if (!response.ok) {
-      const body = await response.text()
-      throw new Error(
-        `Failed to get manifest: ${response.status} ${response.statusText} - ${body}`
-      )
-    }
-    return await response.json()
-  }
-
-  /**
-   * Checks the docker image by looking at the manifest
-   * @param image name or tag
-   * @returns boolean
-   */
-  public static async checkDockerImage(
-    image: string,
-    platform?: RunningPlatform
-  ): Promise<ValidateParams> {
-    try {
-      const manifest = await C2DEngineDocker.getDockerManifest(image)
-
-      const platforms = Array.isArray(manifest.manifests)
-        ? manifest.manifests.map((entry: any) => entry.platform)
-        : [manifest.platform]
-
-      const isValidPlatform = platforms.some((entry: any) =>
-        checkManifestPlatform(entry, platform)
-      )
-
-      return { valid: isValidPlatform }
-    } catch (err: any) {
-      CORE_LOGGER.error(`Unable to get Manifest for image ${image}: ${err.message}`)
-      if (err.errors?.length) CORE_LOGGER.error(JSON.stringify(err.errors))
-
-      return {
-        valid: false,
-        status: 404,
-        reason: err.errors?.length ? JSON.stringify(err.errors) : err.message
-      }
-    }
-  }
-
   // eslint-disable-next-line require-await
   public override async startComputeJob(
     assets: ComputeAsset[],
@@ -540,13 +436,6 @@ export class C2DEngineDocker extends C2DEngine {
         job.statusText = C2DStatusText.BuildImage
       }
     } else {
-      // already built, we need to validate it
-      const validation = await C2DEngineDocker.checkDockerImage(image, env.platform)
-      console.log('Validation: ', validation)
-      // if (!validation.valid)
-      //   throw new Error(
-      //     `Cannot find image ${image} for ${env.platform.architecture}. Maybe it does not exist or it's build for other arhitectures.`
-      //   )
       if (queueMaxWaitTime === 0) {
         job.status = C2DStatusNumber.PullImage
         job.statusText = C2DStatusText.PullImage
@@ -561,9 +450,15 @@ export class C2DEngineDocker extends C2DEngine {
     }
     if (queueMaxWaitTime === 0) {
       if (algorithm.meta.container && algorithm.meta.container.dockerfile) {
-        this.buildImage(job, additionalDockerFiles)
+        const buildResult = await this.buildImage(job, additionalDockerFiles)
+        if (!buildResult.success) {
+          throw new Error(buildResult.error)
+        }
       } else {
-        this.pullImage(job)
+        const pullResult = await this.pullImage(job)
+        if (!pullResult.success) {
+          throw new Error(pullResult.error)
+        }
       }
     }
     // only now set the timer
@@ -1533,7 +1428,9 @@ export class C2DEngineDocker extends C2DEngine {
     return true
   }
 
-  private async pullImage(originaljob: DBComputeJob) {
+  private async pullImage(
+    originaljob: DBComputeJob
+  ): Promise<{ success: boolean; error?: string }> {
     const job = JSON.parse(JSON.stringify(originaljob)) as DBComputeJob
     const imageLogFile =
       this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/logs/image.log'
@@ -1573,6 +1470,7 @@ export class C2DEngineDocker extends C2DEngine {
       job.status = C2DStatusNumber.ConfiguringVolumes
       job.statusText = C2DStatusText.ConfiguringVolumes
       await this.db.updateJob(job)
+      return { success: true }
     } catch (err) {
       const logText = `Unable to pull docker image: ${job.containerImage}: ${err.message}`
       CORE_LOGGER.error(logText)
@@ -1583,13 +1481,14 @@ export class C2DEngineDocker extends C2DEngine {
       job.dateFinished = String(Date.now() / 1000)
       await this.db.updateJob(job)
       await this.cleanupJob(job)
+      return { success: false, error: logText }
     }
   }
 
   private async buildImage(
     originaljob: DBComputeJob,
     additionalDockerFiles: { [key: string]: any }
-  ) {
+  ): Promise<{ success: boolean; error?: string }> {
     const job = JSON.parse(JSON.stringify(originaljob)) as DBComputeJob
     const imageLogFile =
       this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/logs/image.log'
@@ -1639,10 +1538,10 @@ export class C2DEngineDocker extends C2DEngine {
       job.status = C2DStatusNumber.ConfiguringVolumes
       job.statusText = C2DStatusText.ConfiguringVolumes
       await this.db.updateJob(job)
+      return { success: true }
     } catch (err) {
-      CORE_LOGGER.error(
-        `Unable to build docker image: ${job.containerImage}: ${err.message}`
-      )
+      const logText = `Unable to build docker image: ${job.containerImage}: ${err.message}`
+      CORE_LOGGER.error(logText)
       appendFileSync(imageLogFile, String(err.message))
       job.status = C2DStatusNumber.BuildImageFailed
       job.statusText = C2DStatusText.BuildImageFailed
@@ -1650,6 +1549,7 @@ export class C2DEngineDocker extends C2DEngine {
       job.dateFinished = String(Date.now() / 1000)
       await this.db.updateJob(job)
       await this.cleanupJob(job)
+      return { success: false, error: logText }
     }
   }
 
@@ -2059,20 +1959,4 @@ export function getAlgorithmImage(algorithm: ComputeAlgorithm, jobId: string): s
   else image = image + ':latest'
   // console.log('Using image: ' + image)
   return image
-}
-
-export function checkManifestPlatform(
-  manifestPlatform: any,
-  envPlatform?: RunningPlatform
-): boolean {
-  if (!manifestPlatform || !envPlatform) return true // skips if not present
-  if (envPlatform.architecture === 'amd64') envPlatform.architecture = 'x86_64' // x86_64 is compatible with amd64
-  if (manifestPlatform.architecture === 'amd64') manifestPlatform.architecture = 'x86_64' // x86_64 is compatible with amd64
-
-  if (
-    envPlatform.architecture !== manifestPlatform.architecture ||
-    envPlatform.os !== manifestPlatform.os
-  )
-    return false
-  return true
 }

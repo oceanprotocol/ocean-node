@@ -1,6 +1,5 @@
 import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
-import { C2DClusterType } from '../../../@types/C2D/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { CommandHandler } from '../handler/handler.js'
 import { ComputeInitializeCommand } from '../../../@types/commands.js'
@@ -29,11 +28,10 @@ import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
-import { C2DEngineDocker, getAlgorithmImage } from '../../c2d/compute_engine_docker.js'
 import { Credentials, DDOManager } from '@oceanprotocol/ddo-js'
 import { areKnownCredentialTypes, checkCredentials } from '../../../utils/credentials.js'
 import { PolicyServer } from '../../policyServer/index.js'
-import { generateUniqueID, getAlgoChecksums, validateAlgoForDataset } from './utils.js'
+import { getAlgoChecksums, validateAlgoForDataset } from './utils.js'
 
 export class ComputeInitializeHandler extends CommandHandler {
   validate(command: ComputeInitializeCommand): ValidateParams {
@@ -359,34 +357,6 @@ export class ComputeInitializeHandler extends CommandHandler {
               status: {
                 httpStatus: 400,
                 error: `Initialize Compute: ${error}`
-              }
-            }
-          }
-
-          // docker images?
-          const clusters = config.c2dClusters
-          let hasDockerImages = false
-          for (const cluster of clusters) {
-            if (cluster.type === C2DClusterType.DOCKER) {
-              hasDockerImages = true
-              break
-            }
-          }
-          if (hasDockerImages) {
-            const algoImage = getAlgorithmImage(task.algorithm, generateUniqueID(task))
-            if (algoImage) {
-              const validation: ValidateParams = await C2DEngineDocker.checkDockerImage(
-                algoImage,
-                env.platform
-              )
-              if (!validation.valid) {
-                return {
-                  stream: null,
-                  status: {
-                    httpStatus: validation.status,
-                    error: `Initialize Compute failed for image ${algoImage} :${validation.reason}`
-                  }
-                }
               }
             }
           }

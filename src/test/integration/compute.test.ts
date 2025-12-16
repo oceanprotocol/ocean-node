@@ -1123,7 +1123,7 @@ describe('Compute', () => {
     const command: FreeComputeStartCommand = freeComputeStartPayload
     const handler = new FreeComputeStartHandler(oceanNode)
     const response = await handler.handle(command)
-    assert(response.status.httpStatus === 500, 'Failed to get 500 response')
+    assert(response.status.httpStatus === 400, 'Failed to get 400 response for bad image')
     assert(response.stream === null, 'Should not get stream')
   })
   // let's check our queued job

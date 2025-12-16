@@ -9,8 +9,7 @@ import {
   ComputeAsset,
   // ComputeEnvironment,
   ComputeJob,
-  DBComputeJob,
-  RunningPlatform
+  DBComputeJob
 } from '../../@types/C2D/C2D.js'
 // import { computeAsset } from '../data/assets'
 import { assert, expect } from 'chai'
@@ -19,7 +18,6 @@ import {
   convertStringToArray,
   STRING_SEPARATOR
 } from '../../components/database/sqliteCompute.js'
-import os from 'os'
 import {
   buildEnvOverrideConfig,
   OverrideEnvConfig,
@@ -29,9 +27,8 @@ import {
 } from '../utils/utils.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
-import { completeDBComputeJob, dockerImageManifest } from '../data/assets.js'
+import { completeDBComputeJob } from '../data/assets.js'
 import { omitDBComputeFieldsFromComputeJob } from '../../components/c2d/index.js'
-import { checkManifestPlatform } from '../../components/c2d/compute_engine_docker.js'
 
 describe('Compute Jobs Database', () => {
   let envOverrides: OverrideEnvConfig[]
@@ -223,29 +220,6 @@ describe('Compute Jobs Database', () => {
     expect(Object.prototype.hasOwnProperty.call(output, 'containerImage')).to.be.equal(
       false
     )
-  })
-
-  it('should check manifest platform against local platform env', () => {
-    const arch = os.machine() // ex: arm
-    const platform = os.platform() // ex: linux
-    const env: RunningPlatform = {
-      architecture: arch,
-      os: platform
-    }
-    const result: boolean = checkManifestPlatform(dockerImageManifest.platform, env)
-    // if all defined and a match its OK
-    if (
-      dockerImageManifest.platform.os === env.os &&
-      dockerImageManifest.platform.architecture === env.architecture
-    ) {
-      expect(result).to.be.equal(true)
-    } else {
-      // oterwise its NOT
-      expect(result).to.be.equal(false)
-    }
-
-    // all good anyway, nothing on the manifest
-    expect(checkManifestPlatform(null, env)).to.be.equal(true)
   })
 
   it('testing checkAndFillMissingResources', async function () {
