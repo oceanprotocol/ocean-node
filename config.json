@@ -57,7 +57,7 @@
     "autoDialConcurrency": 5,
     "maxPeerAddrsToDial": 5,
     "autoDialInterval": 5000,
-    "enableNetworkStats": false
+    "enableNetworkStats": true
   },
   "hasControlPanel": true,
   "httpPort": 8001,

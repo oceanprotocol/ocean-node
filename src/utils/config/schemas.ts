@@ -223,7 +223,7 @@ export const OceanNodeP2PConfigSchema = z.object({
   autoDialConcurrency: z.coerce.number().optional().default(5),
   maxPeerAddrsToDial: z.coerce.number().optional().default(5),
   autoDialInterval: z.coerce.number().optional().default(5000),
-  enableNetworkStats: booleanFromString.optional().default(false)
+  enableNetworkStats: booleanFromString.optional().default(true)
 })
 
 const addressArrayFromString = jsonFromString(z.array(z.string())).transform(
