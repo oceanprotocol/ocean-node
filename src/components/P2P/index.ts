@@ -45,6 +45,8 @@ import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
 import { P2P_LOGGER } from '../../utils/logging/common.js'
 import { CoreHandlersRegistry } from '../core/handler/coreHandlersRegistry'
 import { Multiaddr, multiaddr } from '@multiformats/multiaddr'
+import { autoTLS } from '@libp2p/auto-tls'
+import { keychain } from '@libp2p/keychain'
 // import { getIPv4, getIPv6 } from '../../utils/ip.js'
 
 const DEFAULT_OPTIONS = {
@@ -246,11 +248,6 @@ export class OceanP2P extends EventEmitter {
         bindInterfaces.push(
           `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindWsPort}/ws`
         )
-        if (config.p2pConfig.ipV4BindWssPort) {
-          bindInterfaces.push(
-            `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindWssPort}/wss`
-          )
-        }
       }
       if (config.p2pConfig.enableIPV6) {
         P2P_LOGGER.info('Binding P2P sockets to IPV6')
@@ -330,7 +327,11 @@ export class OceanP2P extends EventEmitter {
         servicesConfig = {
           ...servicesConfig,
           ...{
-            autoNAT: autoNAT({ maxInboundStreams: 20, maxOutboundStreams: 20 })
+            autoNAT: autoNAT({ maxInboundStreams: 20, maxOutboundStreams: 20 }),
+            autoTLS: autoTLS({
+              autoConfirmAddress: true
+            }),
+            keychain: keychain()
           }
         }
       }
