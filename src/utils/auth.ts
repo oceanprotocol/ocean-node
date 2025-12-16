@@ -18,28 +18,32 @@ export async function validateAdminSignature(
   const message = expiryTimestamp.toString()
   let signerAddress
 
-  if (address) {
-    const config = await getConfiguration()
-    const firstChainId = Object.keys(config?.supportedNetworks || {})[0]
-    if (firstChainId) {
-      const provider = new ethers.JsonRpcProvider(
-        config.supportedNetworks[firstChainId].rpc
-      )
-
-      if (!(await isERC1271Valid(address, message, signature, provider))) {
-        return { valid: false, error: 'Invalid ERC1271 signature' }
-      }
-      signerAddress = address
-    } else {
-      return { valid: false, error: 'No network configured in node config' }
-    }
-  } else {
-    signerAddress = ethers.verifyMessage(message, signature)?.toLowerCase()
-    CORE_LOGGER.logMessage(`Resolved signer address: ${signerAddress}`)
-  }
-
   try {
-    const allowedAdmins: string[] = await getAdminAddresses()
+    const config = await getConfiguration()
+    if (address) {
+      const firstChainId = Object.keys(config?.supportedNetworks || {})[0]
+      if (firstChainId) {
+        console.log({
+          chainId: firstChainId,
+          rpc: config.supportedNetworks[firstChainId].rpc
+        })
+        const provider = new ethers.JsonRpcProvider(
+          config.supportedNetworks[firstChainId].rpc
+        )
+
+        if (!(await isERC1271Valid(address, message, signature, provider))) {
+          return { valid: false, error: 'Invalid ERC1271 signature' }
+        }
+        signerAddress = address
+      } else {
+        return { valid: false, error: 'No network configured in node config' }
+      }
+    } else {
+      signerAddress = ethers.verifyMessage(message, signature)?.toLowerCase()
+      CORE_LOGGER.logMessage(`Resolved signer address: ${signerAddress}`)
+    }
+
+    const allowedAdmins: string[] = await getAdminAddresses(config)
     console.log(`Allowed admins: ${allowedAdmins}`)
 
     if (allowedAdmins.length === 0) {
@@ -71,8 +75,16 @@ export async function validateAdminSignature(
   }
 }
 
-export async function getAdminAddresses(): Promise<string[]> {
-  const config: OceanNodeConfig = await getConfiguration()
+export async function getAdminAddresses(
+  existingConfig?: OceanNodeConfig
+): Promise<string[]> {
+  let config: OceanNodeConfig
+  if (!existingConfig) {
+    config = await getConfiguration()
+  } else {
+    config = existingConfig
+  }
+
   const validAddresses: string[] = []
   if (config.allowedAdmins && config.allowedAdmins.length > 0) {
     for (const admin of config.allowedAdmins) {
