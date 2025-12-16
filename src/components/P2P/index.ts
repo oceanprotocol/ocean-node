@@ -47,7 +47,6 @@ import { CoreHandlersRegistry } from '../core/handler/coreHandlersRegistry'
 import { Multiaddr, multiaddr } from '@multiformats/multiaddr'
 import { autoTLS } from '@ipshipyard/libp2p-auto-tls'
 import { keychain } from '@libp2p/keychain'
-import { WebSocketsSecure } from '@multiformats/multiaddr-matcher'
 
 // import { getIPv4, getIPv6 } from '../../utils/ip.js'
 
