@@ -295,7 +295,7 @@ export class OceanP2P extends EventEmitter {
         identify: identify(),
         dht: kadDHT(dhtOptions),
         identifyPush: identifyPush(),
-        
+
         /*
         pubsub: gossipsub({
           fallbackToFloodsub: false,
