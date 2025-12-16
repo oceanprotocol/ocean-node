@@ -51,6 +51,7 @@
     "@chainsafe/libp2p-noise": "^15.1.0",
     "@chainsafe/libp2p-yamux": "^6.0.2",
     "@elastic/elasticsearch": "^8.14.0",
+    "@ipshipyard/libp2p-auto-tls": "^2.0.1",
     "@libp2p/auto-tls": "^1.0.6",
     "@libp2p/autonat": "^2.0.0",
     "@libp2p/bootstrap": "^10.1.1",

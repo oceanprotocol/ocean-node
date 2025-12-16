@@ -45,8 +45,10 @@ import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
 import { P2P_LOGGER } from '../../utils/logging/common.js'
 import { CoreHandlersRegistry } from '../core/handler/coreHandlersRegistry'
 import { Multiaddr, multiaddr } from '@multiformats/multiaddr'
-import { autoTLS } from '@libp2p/auto-tls'
+import { autoTLS } from '@ipshipyard/libp2p-auto-tls'
 import { keychain } from '@libp2p/keychain'
+import { WebSocketsSecure } from '@multiformats/multiaddr-matcher'
+
 // import { getIPv4, getIPv6 } from '../../utils/ip.js'
 
 const DEFAULT_OPTIONS = {
@@ -293,6 +295,7 @@ export class OceanP2P extends EventEmitter {
         identify: identify(),
         dht: kadDHT(dhtOptions),
         identifyPush: identifyPush(),
+        
         /*
         pubsub: gossipsub({
           fallbackToFloodsub: false,
@@ -417,6 +420,24 @@ export class OceanP2P extends EventEmitter {
         }
       }
       const node = await createLibp2p(options)
+      // node.addEventListener('certificate:provision', () => {
+      //   console.info('A TLS certificate was provisioned')
+
+      //   const interval = setInterval(() => {
+      //     const mas = node
+      //       .getMultiaddrs()
+      //       .filter(
+      //         (ma) => WebSocketsSecure.exactMatch(ma) && ma.toString().includes('/sni/')
+      //       )
+      //       .map((ma) => ma.toString())
+
+      //     if (mas.length > 0) {
+      //       console.info('addresses:')
+      //       console.info(mas.join('\n'))
+      //       clearInterval(interval)
+      //     }
+      //   }, 1_000)
+      // })
       await node.start()
 
       const upnpService = (node.services as any).upnpNAT
