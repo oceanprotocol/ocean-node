@@ -245,7 +245,7 @@ async function validateNonceAndSignature(
 }
 
 // Smart account validation
-async function isERC1271Valid(
+export async function isERC1271Valid(
   address: string,
   hash: string | Uint8Array,
   signature: string,

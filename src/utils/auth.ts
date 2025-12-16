@@ -8,13 +8,36 @@ import { getAccountsFromAccessList } from '../utils/credentials.js'
 import { OceanNodeConfig } from '../@types/OceanNode.js'
 import { LOG_LEVELS_STR } from './logging/Logger.js'
 import { CommonValidation } from './validators.js'
+import { isERC1271Valid } from '../components/core/utils/nonceHandler.js'
+
 export async function validateAdminSignature(
   expiryTimestamp: number,
-  signature: string
+  signature: string,
+  address?: string
 ): Promise<CommonValidation> {
   const message = expiryTimestamp.toString()
-  const signerAddress = ethers.verifyMessage(message, signature)?.toLowerCase()
-  CORE_LOGGER.logMessage(`Resolved signer address: ${signerAddress}`)
+  let signerAddress
+
+  if (address) {
+    const config = await getConfiguration()
+    const firstChainId = Object.keys(config?.supportedNetworks || {})[0]
+    if (firstChainId) {
+      const provider = new ethers.JsonRpcProvider(
+        config.supportedNetworks[firstChainId].rpc
+      )
+
+      if (!(await isERC1271Valid(address, message, signature, provider))) {
+        return { valid: false, error: 'Invalid ERC1271 signature' }
+      }
+      signerAddress = address
+    } else {
+      return { valid: false, error: 'No network configured in node config' }
+    }
+  } else {
+    signerAddress = ethers.verifyMessage(message, signature)?.toLowerCase()
+    CORE_LOGGER.logMessage(`Resolved signer address: ${signerAddress}`)
+  }
+
   try {
     const allowedAdmins: string[] = await getAdminAddresses()
     console.log(`Allowed admins: ${allowedAdmins}`)
