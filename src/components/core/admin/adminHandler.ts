@@ -43,7 +43,8 @@ export abstract class AdminCommandHandler
     }
     const signatureValidation: CommonValidation = await validateAdminSignature(
       command.expiryTimestamp,
-      command.signature
+      command.signature,
+      command.address
     )
     if (!signatureValidation.valid) {
       return buildInvalidRequestMessage(
