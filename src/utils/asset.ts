@@ -6,8 +6,8 @@ import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './logging/Logger.js'
 import { createHash } from 'crypto'
 import { ethers, getAddress, Signer } from 'ethers'
 import { KNOWN_CONFIDENTIAL_EVMS } from './address.js'
-import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/interfaces/IERC20Template.sol/IERC20Template.json' assert { type: 'json' }
-import ERC20Template4 from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template4.sol/ERC20Template4.json' assert { type: 'json' }
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/interfaces/IERC20Template.sol/IERC20Template.json' with { type: 'json' }
+import ERC20Template4 from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template4.sol/ERC20Template4.json' with { type: 'json' }
 import { getContractAddress, getNFTFactory } from '../components/Indexer/utils.js'
 
 // Notes:
