@@ -22,7 +22,7 @@ export async function validateAdminSignature(
     const config = await getConfiguration()
     if (address) {
       const hexMessage = ethers.hashMessage(message)
-      const firstChainId = Object.keys(config?.supportedNetworks || {})[1]
+      const firstChainId = Object.keys(config?.supportedNetworks || {})[0]
       if (firstChainId) {
         const provider = new ethers.JsonRpcProvider(
           config.supportedNetworks[firstChainId].rpc
