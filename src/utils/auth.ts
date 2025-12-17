@@ -21,6 +21,10 @@ export async function validateAdminSignature(
   try {
     const config = await getConfiguration()
     if (address) {
+      const hexMessage = ethers.solidityPackedKeccak256(
+        ['bytes'],
+        [ethers.hexlify(ethers.toUtf8Bytes(message))]
+      )
       const firstChainId = Object.keys(config?.supportedNetworks || {})[0]
       if (firstChainId) {
         console.log({
@@ -31,7 +35,7 @@ export async function validateAdminSignature(
           config.supportedNetworks[firstChainId].rpc
         )
 
-        if (!(await isERC1271Valid(address, message, signature, provider))) {
+        if (!(await isERC1271Valid(address, hexMessage, signature, provider))) {
           return { valid: false, error: 'Invalid ERC1271 signature' }
         }
         signerAddress = address
