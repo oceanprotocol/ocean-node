@@ -14,9 +14,7 @@ export class FetchConfigHandler extends AdminCommandHandler {
   }
 
   async handle(task: AdminFetchConfigCommand): Promise<P2PCommandResponse> {
-    console.log({ task, message: 'FETCH_CONFIG_P2P_COMMAND' })
     const validation = await this.validate(task)
-    console.log({ validation, message: 'FETCH_CONFIG_P2P_COMMAND' })
     if (!validation.valid) {
       return new Promise<P2PCommandResponse>((resolve) => {
         resolve(buildInvalidParametersResponse(validation))
@@ -27,10 +25,6 @@ export class FetchConfigHandler extends AdminCommandHandler {
       const config = loadConfigFromFile()
       config.keys.privateKey = '[*** HIDDEN CONTENT ***]'
 
-      console.log({
-        responseConfig: JSON.stringify(config),
-        message: 'FETCH_CONFIG_P2P_COMMAND'
-      })
       return new Promise<P2PCommandResponse>((resolve) => {
         resolve({
           status: { httpStatus: 200 },

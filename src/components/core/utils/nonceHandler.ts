@@ -258,9 +258,7 @@ export async function isERC1271Valid(
       provider
     )
     const hashToUse = typeof hash === 'string' ? hash : ethers.hexlify(hash)
-    console.log({ hashToUse })
     const result = await contract.isValidSignature(hashToUse, signature)
-    console.log({ result })
     return result === '0x1626ba7e' // ERC-1271 magic value
   } catch {
     return false

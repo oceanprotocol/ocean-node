@@ -43,14 +43,12 @@ export class PushConfigHandler extends AdminCommandHandler {
   }
 
   async handle(task: AdminPushConfigCommand): Promise<P2PCommandResponse> {
-    console.log({ task, message: 'PUSH_CONFIG_P2P_COMMAND' })
     const validation = await this.validate(task)
     if (!validation.valid) {
       return new Promise<P2PCommandResponse>((resolve) => {
         resolve(buildInvalidParametersResponse(validation))
       })
     }
-    console.log({ validation, message: 'PUSH_CONFIG_P2P_COMMAND' })
 
     try {
       const configPath = getConfigFilePath()
@@ -64,10 +62,6 @@ export class PushConfigHandler extends AdminCommandHandler {
       newConfig.keys.privateKey = '[*** HIDDEN CONTENT ***]'
       CORE_LOGGER.logMessage('Configuration reloaded successfully')
 
-      console.log({
-        responseConfig: JSON.stringify(newConfig),
-        message: 'PUSH_CONFIG_P2P_COMMAND'
-      })
       return new Promise<P2PCommandResponse>((resolve) => {
         resolve({
           status: { httpStatus: 200 },
