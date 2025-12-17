@@ -234,7 +234,7 @@ export class OceanP2P extends EventEmitter {
       P2P_LOGGER.info(`Starting P2P Node with peerID: ${this._publicAddress}`)
 
       this._publicKey = config.keys.publicKey
-      this._privateKey = config.keys.privateKey
+      this._privateKey = config.keys.privateKey.raw
       /** @type {import('libp2p').Libp2pOptions} */
       // start with some default, overwrite based on config later
       const bindInterfaces = []
@@ -341,7 +341,7 @@ export class OceanP2P extends EventEmitter {
 
       let options = {
         addresses,
-        peerId: config.keys.peerId,
+        privateKey: config.keys.privateKey,
         transports,
         streamMuxers: [yamux()],
         connectionEncryption: [

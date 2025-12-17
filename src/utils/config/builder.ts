@@ -90,7 +90,7 @@ export function getPeerIdFromPrivateKey(privateKey: string): OceanNodeKeys {
   return {
     peerId: peerIdFromPrivateKey(key),
     publicKey: key.publicKey.raw,
-    privateKey: key.raw,
+    privateKey: key,
     ethAddress: new Wallet(privateKey.substring(2)).address
   }
 }
