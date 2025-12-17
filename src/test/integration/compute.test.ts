@@ -1589,7 +1589,7 @@ describe('Compute Access Restrictions', () => {
 
       const AccessListFactory = await import(
         '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessListFactory.sol/AccessListFactory.json',
-        { assert: { type: 'json' } }
+        { with: { type: 'json' } }
       )
 
       const factoryContract = new ethers.Contract(
@@ -1614,7 +1614,7 @@ describe('Compute Access Restrictions', () => {
 
       const AccessListAbi = await import(
         '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json',
-        { assert: { type: 'json' } }
+        { with: { type: 'json' } }
       )
       const accessListContract = new ethers.Contract(
         accessListAddress,
