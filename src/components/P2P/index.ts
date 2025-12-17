@@ -419,24 +419,9 @@ export class OceanP2P extends EventEmitter {
         }
       }
       const node = await createLibp2p(options)
-      // node.addEventListener('certificate:provision', () => {
-      //   console.info('A TLS certificate was provisioned')
-
-      //   const interval = setInterval(() => {
-      //     const mas = node
-      //       .getMultiaddrs()
-      //       .filter(
-      //         (ma) => WebSocketsSecure.exactMatch(ma) && ma.toString().includes('/sni/')
-      //       )
-      //       .map((ma) => ma.toString())
-
-      //     if (mas.length > 0) {
-      //       console.info('addresses:')
-      //       console.info(mas.join('\n'))
-      //       clearInterval(interval)
-      //     }
-      //   }, 1_000)
-      // })
+      node.addEventListener('self:peer:update', () => {
+        console.log('My addresses: ', node.getMultiaddrs())
+      })
       await node.start()
 
       const upnpService = (node.services as any).upnpNAT
