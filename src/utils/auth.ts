@@ -21,16 +21,9 @@ export async function validateAdminSignature(
   try {
     const config = await getConfiguration()
     if (address) {
-      const hexMessage = ethers.solidityPackedKeccak256(
-        ['bytes'],
-        [ethers.hexlify(ethers.toUtf8Bytes(message))]
-      )
-      const firstChainId = Object.keys(config?.supportedNetworks || {})[0]
+      const hexMessage = ethers.hashMessage(message)
+      const firstChainId = Object.keys(config?.supportedNetworks || {})[1]
       if (firstChainId) {
-        console.log({
-          chainId: firstChainId,
-          rpc: config.supportedNetworks[firstChainId].rpc
-        })
         const provider = new ethers.JsonRpcProvider(
           config.supportedNetworks[firstChainId].rpc
         )
@@ -48,7 +41,6 @@ export async function validateAdminSignature(
     }
 
     const allowedAdmins: string[] = await getAdminAddresses(config)
-    console.log(`Allowed admins: ${allowedAdmins}`)
 
     if (allowedAdmins.length === 0) {
       const errorMsg = "Allowed admins list is empty. Please add admins' addresses."
