@@ -536,10 +536,13 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
     const nonAuthorizedAccount = (await provider.getSigner(4)) as Signer
     const authorizedAccount = await publisherAccount.getAddress()
 
+    // Reload config to ensure we have the latest values
+    const currentConfig = await getConfiguration(true)
     printCurrentConfig()
     expect(
-      config.authorizedPublishers.length === 1 &&
-        config.authorizedPublishers[0] === authorizedAccount,
+      currentConfig.authorizedPublishers.length === 1 &&
+        currentConfig.authorizedPublishers[0].toLowerCase() ===
+          authorizedAccount.toLowerCase(),
       'Unable to set AUTHORIZED_PUBLISHERS'
     )
 

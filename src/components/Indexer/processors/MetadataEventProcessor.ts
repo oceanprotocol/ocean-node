@@ -95,7 +95,8 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       }
 
       // check authorized publishers
-      const { authorizedPublishers, authorizedPublishersList } = await getConfiguration()
+      const { authorizedPublishers, authorizedPublishersList } =
+        await getConfiguration(true)
       console.log('-----> authorizedPublishers', authorizedPublishers)
       if (authorizedPublishers.length > 0) {
         // if is not there, do not index
