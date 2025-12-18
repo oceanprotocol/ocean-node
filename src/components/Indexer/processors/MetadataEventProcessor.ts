@@ -96,12 +96,14 @@ export class MetadataEventProcessor extends BaseEventProcessor {
 
       // check authorized publishers
       const { authorizedPublishers, authorizedPublishersList } = await getConfiguration()
+      console.log('-----> authorizedPublishers', authorizedPublishers)
       if (authorizedPublishers.length > 0) {
         // if is not there, do not index
         const authorized: string[] = authorizedPublishers.filter((address) =>
           // do a case insensitive search
           address.toLowerCase().includes(owner.toLowerCase())
         )
+        console.log('-----> authorized', authorized)
         if (!authorized.length) {
           INDEXER_LOGGER.error(
             `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS.name} group.`
@@ -125,6 +127,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           owner,
           signer
         )
+        console.log('-----> isAuthorized', isAuthorized)
         if (!isAuthorized) {
           INDEXER_LOGGER.error(
             `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST.name} access group.`
@@ -151,8 +154,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       })
 
       INDEXER_LOGGER.logMessage(
-        `Processed new DDO data ${ddoInstance.getDid()} with txHash ${
-          event.transactionHash
+        `Processed new DDO data ${ddoInstance.getDid()} with txHash ${event.transactionHash
         } from block ${event.blockNumber}`,
         true
       )
@@ -167,15 +169,14 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         if (
           previousDdoInstance &&
           previousDdoInstance.getAssetFields().indexedMetadata.nft.state ===
-            MetadataStates.ACTIVE
+          MetadataStates.ACTIVE
         ) {
           const previousTxId =
             previousDdoInstance.getAssetFields().indexedMetadata?.event?.txid
           // If it's the same transaction being reprocessed, just skip (idempotent)
           if (previousTxId === event.transactionHash) {
             INDEXER_LOGGER.logMessage(
-              `DDO ${ddoInstance.getDid()} already indexed from same transaction ${
-                event.transactionHash
+              `DDO ${ddoInstance.getDid()} already indexed from same transaction ${event.transactionHash
               }. Skipping reprocessing.`,
               true
             )
