@@ -531,33 +531,38 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
   })
 
   it('should NOT allow to index the asset because address is not on AUTHORIZED_PUBLISHERS', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
-    // this is not authorized
-    const nonAuthorizedAccount = (await provider.getSigner(4)) as Signer
-    const authorizedAccount = await publisherAccount.getAddress()
+    try {
+      this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+      // this is not authorized
+      const nonAuthorizedAccount = (await provider.getSigner(4)) as Signer
+      const authorizedAccount = await publisherAccount.getAddress()
 
-    printCurrentConfig()
-    expect(
-      config.authorizedPublishers.length === 1 &&
-        config.authorizedPublishers[0] === authorizedAccount,
-      'Unable to set AUTHORIZED_PUBLISHERS'
-    )
+      printCurrentConfig()
+      expect(
+        config.authorizedPublishers.length === 1 &&
+          config.authorizedPublishers[0] === authorizedAccount,
+        'Unable to set AUTHORIZED_PUBLISHERS'
+      )
 
-    const publishedDataset = await publishAsset(
-      downloadAssetWithCredentials,
-      nonAuthorizedAccount
-    )
+      const publishedDataset = await publishAsset(
+        downloadAssetWithCredentials,
+        nonAuthorizedAccount
+      )
 
-    // will timeout
-    const { ddo, wasTimeout } = await waitToIndex(
-      publishedDataset?.ddo.id,
-      EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT
-    )
+      // will timeout
+      const { ddo, wasTimeout } = await waitToIndex(
+        publishedDataset?.ddo.id,
+        EVENTS.METADATA_CREATED,
+        DEFAULT_TEST_TIMEOUT
+      )
 
-    console.log('ddo', ddo)
-    console.log('wasTimeout', wasTimeout)
-    assert(ddo === null && wasTimeout === true, 'DDO should NOT have been indexed')
+      console.log('-----> ddo', ddo)
+      console.log('-----> wasTimeout', wasTimeout)
+      assert(ddo === null && wasTimeout === true, 'DDO should NOT have been indexed')
+    } catch (error) {
+      console.error('-----> Error in test:', error)
+      throw error
+    }
   })
 
   after(async () => {
