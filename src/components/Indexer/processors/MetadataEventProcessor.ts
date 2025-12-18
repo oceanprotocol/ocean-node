@@ -99,8 +99,8 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       if (authorizedPublishers.length > 0) {
         // if is not there, do not index
         const authorized: string[] = authorizedPublishers.filter((address) =>
-          // do a case insensitive search
-          address.toLowerCase().includes(owner.toLowerCase())
+          // do a case insensitive exact match
+          address.toLowerCase() === owner.toLowerCase()
         )
         if (!authorized.length) {
           INDEXER_LOGGER.error(
