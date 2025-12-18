@@ -126,10 +126,10 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
           ]),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
           '[{"socketPath":"/var/run/docker.sock","resources":[{"id":"disk","total":10}],"storageExpiry":604800,"maxJobDuration":3600,"minJobDuration":60,"fees":{"' +
-          DEVELOPMENT_CHAIN_ID +
-          '":[{"feeToken":"' +
-          paymentToken +
-          '","prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"minJobDuration":10,"maxJobs":3,"resources":[{"id":"cpu","max":1},{"id":"ram","max":1},{"id":"disk","max":1}]}}]'
+            DEVELOPMENT_CHAIN_ID +
+            '":[{"feeToken":"' +
+            paymentToken +
+            '","prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"minJobDuration":10,"maxJobs":3,"resources":[{"id":"cpu","max":1},{"id":"ram","max":1},{"id":"disk","max":1}]}}]'
         ]
       )
     )
@@ -531,38 +531,33 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
   })
 
   it('should NOT allow to index the asset because address is not on AUTHORIZED_PUBLISHERS', async function () {
-    try {
-      this.timeout(DEFAULT_TEST_TIMEOUT * 2)
-      // this is not authorized
-      const nonAuthorizedAccount = (await provider.getSigner(5)) as Signer
-      const authorizedAccount = await publisherAccount.getAddress()
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    // this is not authorized
+    const nonAuthorizedAccount = (await provider.getSigner(4)) as Signer
+    const authorizedAccount = await publisherAccount.getAddress()
 
-      printCurrentConfig()
-      expect(
-        config.authorizedPublishers.length === 1 &&
+    printCurrentConfig()
+    expect(
+      config.authorizedPublishers.length === 1 &&
         config.authorizedPublishers[0] === authorizedAccount,
-        'Unable to set AUTHORIZED_PUBLISHERS'
-      )
+      'Unable to set AUTHORIZED_PUBLISHERS'
+    )
 
-      const publishedDataset = await publishAsset(
-        downloadAssetWithCredentials,
-        nonAuthorizedAccount
-      )
+    const publishedDataset = await publishAsset(
+      downloadAssetWithCredentials,
+      nonAuthorizedAccount
+    )
 
-      // will timeout
-      const { ddo, wasTimeout } = await waitToIndex(
-        publishedDataset?.ddo.id,
-        EVENTS.METADATA_CREATED,
-        DEFAULT_TEST_TIMEOUT
-      )
+    // will timeout
+    const { ddo, wasTimeout } = await waitToIndex(
+      publishedDataset?.ddo.id,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
+    )
 
-      console.log('-----> ddo', ddo)
-      console.log('-----> wasTimeout', wasTimeout)
-      assert(ddo === null && wasTimeout === true, 'DDO should NOT have been indexed')
-    } catch (error) {
-      console.error('-----> Error in test:', error)
-      throw error
-    }
+    console.log('-----> ddo', ddo)
+    console.log('-----> wasTimeout', wasTimeout)
+    assert(ddo === null && wasTimeout === true, 'DDO should NOT have been indexed')
   })
 
   after(async () => {
