@@ -94,6 +94,8 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         return
       }
 
+      did = ddoInstance.getDid()
+
       // check authorized publishers
       const { authorizedPublishers, authorizedPublishersList } = await getConfiguration()
       console.log('-----> authorizedPublishers', authorizedPublishers)
@@ -145,7 +147,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       }
 
       // stuff that we overwrite
-      did = ddoInstance.getDid()
       const { services } = ddoInstance.getDDOFields()
       ddoInstance.updateFields({
         chainId,
