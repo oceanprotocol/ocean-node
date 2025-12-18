@@ -554,6 +554,9 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT
     )
+
+    console.log('ddo', ddo)
+    console.log('wasTimeout', wasTimeout)
     assert(ddo === null && wasTimeout === true, 'DDO should NOT have been indexed')
   })
 
