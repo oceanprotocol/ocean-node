@@ -59,13 +59,17 @@ export class PushConfigHandler extends AdminCommandHandler {
       await this.saveConfigToFile(mergedConfig)
 
       const newConfig = await getConfiguration(true, false)
-      newConfig.keys.privateKey = '[*** HIDDEN CONTENT ***]'
+      this.getOceanNode().setConfig(newConfig)
+      await this.getOceanNode().addC2DEngines()
+
+      const responseConfig = structuredClone(newConfig)
+      responseConfig.keys.privateKey = '[*** HIDDEN CONTENT ***]'
       CORE_LOGGER.logMessage('Configuration reloaded successfully')
 
       return new Promise<P2PCommandResponse>((resolve) => {
         resolve({
           status: { httpStatus: 200 },
-          stream: new ReadableString(JSON.stringify(newConfig))
+          stream: new ReadableString(JSON.stringify(responseConfig))
         })
       })
     } catch (error) {
