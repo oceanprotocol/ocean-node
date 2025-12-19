@@ -51,6 +51,12 @@ export class PushConfigHandler extends AdminCommandHandler {
     }
 
     try {
+      const hasRunningJobs =
+        (await this.getOceanNode().getDatabase().c2d.getRunningJobs()).length > 0
+      if (hasRunningJobs) {
+        throw new Error('Node has running jobs')
+      }
+
       const configPath = getConfigFilePath()
       const configContent = await fs.promises.readFile(configPath, 'utf-8')
       const currentConfig = JSON.parse(configContent)
@@ -59,13 +65,17 @@ export class PushConfigHandler extends AdminCommandHandler {
       await this.saveConfigToFile(mergedConfig)
 
       const newConfig = await getConfiguration(true, false)
-      newConfig.keys.privateKey = '[*** HIDDEN CONTENT ***]'
+      this.getOceanNode().setConfig(newConfig)
+      await this.getOceanNode().addC2DEngines()
+
+      const responseConfig = structuredClone(newConfig)
+      responseConfig.keys.privateKey = '[*** HIDDEN CONTENT ***]'
       CORE_LOGGER.logMessage('Configuration reloaded successfully')
 
       return new Promise<P2PCommandResponse>((resolve) => {
         resolve({
           status: { httpStatus: 200 },
-          stream: new ReadableString(JSON.stringify(newConfig))
+          stream: new ReadableString(JSON.stringify(responseConfig))
         })
       })
     } catch (error) {
