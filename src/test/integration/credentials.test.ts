@@ -19,7 +19,7 @@ import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
-import { streamToObject } from '../../utils/util.js'
+import { sleep, streamToObject } from '../../utils/util.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 
 import {
@@ -58,8 +58,8 @@ import {
 } from '../data/assets.js'
 import { ganachePrivateKeys } from '../utils/addresses.js'
 import { homedir } from 'os'
-import AccessListFactory from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessListFactory.sol/AccessListFactory.json' assert { type: 'json' }
-import AccessList from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
+import AccessListFactory from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessListFactory.sol/AccessListFactory.json' with { type: 'json' }
+import AccessList from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' with { type: 'json' }
 import { deployAccessListContract, getContract } from '../utils/contracts.js'
 import { ComputeInitializeHandler } from '../../components/core/compute/initialize.js'
 import { ComputeAlgorithm, ComputeAsset } from '../../@types/index.js'
@@ -101,6 +101,8 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
     artifactsAddresses = getOceanArtifactsAdresses()
     paymentToken = artifactsAddresses.development.Ocean
 
+    await sleep(5000)
+
     // override and save configuration (always before calling getConfig())
     previousConfiguration = await setupEnvironment(
       TEST_ENV_CONFIG_FILE,
@@ -136,7 +138,7 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
 
     config = await getConfiguration(true) // Force reload the configuration
     const database = await Database.init(config.dbConfig)
-    oceanNode = await OceanNode.getInstance(config, database)
+    oceanNode = await OceanNode.getInstance(config, database, null, null, null, true)
     const indexer = new OceanIndexer(database, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
     await oceanNode.addC2DEngines()
@@ -536,10 +538,13 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
     const nonAuthorizedAccount = (await provider.getSigner(4)) as Signer
     const authorizedAccount = await publisherAccount.getAddress()
 
+    // Reload config to ensure we have the latest values
+    const currentConfig = await getConfiguration(true)
     printCurrentConfig()
     expect(
-      config.authorizedPublishers.length === 1 &&
-        config.authorizedPublishers[0] === authorizedAccount,
+      currentConfig.authorizedPublishers.length === 1 &&
+        currentConfig.authorizedPublishers[0].toLowerCase() ===
+          authorizedAccount.toLowerCase(),
       'Unable to set AUTHORIZED_PUBLISHERS'
     )
 
@@ -554,6 +559,7 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT
     )
+
     assert(ddo === null && wasTimeout === true, 'DDO should NOT have been indexed')
   })
 

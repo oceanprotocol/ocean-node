@@ -23,7 +23,7 @@ import { getConfiguration } from '../../../utils/config.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
 import { getOceanArtifactsAdresses } from '../../../utils/address.js'
-import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
 import { fetchEventFromTransaction } from '../../../utils/util.js'
 import { fetchTransactionReceipt } from './validateOrders.js'
 
@@ -452,7 +452,7 @@ export async function checkFee(
  */
 export async function getProviderWallet(chainId?: string): Promise<ethers.Wallet> {
   return new ethers.Wallet(
-    Buffer.from((await getConfiguration()).keys.privateKey).toString('hex')
+    Buffer.from((await getConfiguration()).keys.privateKey.raw).toString('hex')
   )
 }
 export async function getProviderWalletAddress(): Promise<string> {
@@ -460,7 +460,7 @@ export async function getProviderWalletAddress(): Promise<string> {
 }
 
 export async function getProviderKey(): Promise<string> {
-  return Buffer.from((await getConfiguration()).keys.privateKey).toString('hex')
+  return Buffer.from((await getConfiguration()).keys.privateKey.raw).toString('hex')
 }
 
 /**

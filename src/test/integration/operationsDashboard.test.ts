@@ -25,7 +25,7 @@ import {
   INDEXER_CRAWLING_EVENTS
 } from '../../utils/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
-import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template.sol/ERC20Template.json' assert { type: 'json' }
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template.sol/ERC20Template.json' with { type: 'json' }
 import { DEVELOPMENT_CHAIN_ID, getOceanArtifactsAdresses } from '../../utils/address.js'
 import {
   AdminReindexChainCommand,

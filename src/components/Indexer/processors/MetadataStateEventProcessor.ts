@@ -5,7 +5,7 @@ import { getDatabase } from '../../../utils/database.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
-import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
+import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
 import { getDid } from '../utils.js'
 
 export class MetadataStateEventProcessor extends BaseEventProcessor {

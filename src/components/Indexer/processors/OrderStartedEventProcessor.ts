@@ -6,7 +6,7 @@ import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { getDtContract, getDid, getPricesByDt } from '../utils.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
-import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
 
 export class OrderStartedEventProcessor extends BaseEventProcessor {
   async processEvent(

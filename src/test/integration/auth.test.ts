@@ -239,4 +239,8 @@ describe('Auth Token Integration Tests', () => {
       })
     })
   })
+
+  after(async () => {
+    await tearDownEnvironment(previousConfiguration)
+  })
 })

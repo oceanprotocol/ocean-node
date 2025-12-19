@@ -28,10 +28,10 @@ async function formatMetadata(
     file.type === 'url'
       ? (file as UrlFileObject).url
       : file.type === 'arweave'
-      ? urlJoin(config.arweaveGateway, (file as ArweaveFileObject).transactionId)
-      : file.type === 'ipfs'
-      ? urlJoin(config.ipfsGateway, (file as IpfsFileObject).hash)
-      : null
+        ? urlJoin(config.arweaveGateway, (file as ArweaveFileObject).transactionId)
+        : file.type === 'ipfs'
+          ? urlJoin(config.ipfsGateway, (file as IpfsFileObject).hash)
+          : null
 
   const { contentLength, contentType, contentChecksum } = await fetchFileMetadata(
     url,

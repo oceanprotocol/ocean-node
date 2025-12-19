@@ -11,7 +11,7 @@ import {
   getPricesByDt
 } from '../utils.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
-import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
 
 export class OrderReusedEventProcessor extends BaseEventProcessor {
   async processEvent(

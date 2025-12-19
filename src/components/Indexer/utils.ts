@@ -1,19 +1,19 @@
 import { JsonRpcApiProvider, Signer, ethers, getAddress } from 'ethers'
-import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
-import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
+import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' with { type: 'json' }
+import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
 import { EVENT_HASHES, isDefined } from '../../utils/index.js'
 import { NetworkEvent } from '../../@types/blockchain.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
-import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
 import { getOceanArtifactsAdressesByChainId } from '../../utils/address.js'
 import { CommandStatus, JobStatus } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
-import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
-import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
+import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' with { type: 'json' }
+import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' with { type: 'json' }
 import { createHash } from 'crypto'
 import { ServicePrice } from '../../@types/IndexedMetadata.js'
 import { VersionedDDO } from '@oceanprotocol/ddo-js'
-import FactoryRouter from '@oceanprotocol/contracts/artifacts/contracts/pools/FactoryRouter.sol/FactoryRouter.json' assert { type: 'json' }
+import FactoryRouter from '@oceanprotocol/contracts/artifacts/contracts/pools/FactoryRouter.sol/FactoryRouter.json' with { type: 'json' }
 
 export const getContractAddress = (chainId: number, contractName: string): string => {
   const addressFile = getOceanArtifactsAdressesByChainId(chainId)

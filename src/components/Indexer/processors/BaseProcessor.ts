@@ -23,9 +23,9 @@ import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { URLUtils } from '../../../utils/url.js'
 import { streamToString } from '../../../utils/util.js'
-import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
+import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
-import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
 import { fetchTransactionReceipt } from '../../core/utils/validateOrders.js'
 import { withRetrial } from '../utils.js'
 

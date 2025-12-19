@@ -9,12 +9,13 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
+import { OceanNodeConfig } from '../../@types/OceanNode.js'
 
 describe('OceanP2P Test', () => {
   let node1: OceanP2P
   let node2: OceanP2P
-  let config1: any
-  let config2: any
+  let config1: OceanNodeConfig
+  let config2: OceanNodeConfig
   const mDNSInterval: number = 1
 
   const envOverrides = buildEnvOverrideConfig(
@@ -67,6 +68,10 @@ describe('OceanP2P Test', () => {
     assert(node2, 'Failed to create P2P Node instance')
   })
   it('Start check peerID of each node', () => {
+    console.log(config1.keys.peerId.toString())
+    console.log(node1._libp2p.peerId.toString())
+    console.log(config2.keys.peerId.toString())
+    console.log(node2._libp2p.peerId.toString())
     assert(
       config1.keys.peerId.toString() === node1._libp2p.peerId.toString(),
       'Peer missmatch for node1'

@@ -70,8 +70,9 @@ export interface TypesenseCollectionDropFieldSchema {
   drop: true
 }
 
-export interface TypesenseCollectionUpdateSchema
-  extends Partial<Omit<TypesenseCollectionCreateSchema, 'name' | 'fields'>> {
+export interface TypesenseCollectionUpdateSchema extends Partial<
+  Omit<TypesenseCollectionCreateSchema, 'name' | 'fields'>
+> {
   fields?: (TypesenseCollectionFieldSchema | TypesenseCollectionDropFieldSchema)[]
 }
 
