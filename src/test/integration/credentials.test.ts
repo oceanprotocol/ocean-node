@@ -19,7 +19,7 @@ import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
-import { streamToObject } from '../../utils/util.js'
+import { sleep, streamToObject } from '../../utils/util.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 
 import {
@@ -100,6 +100,8 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
     publisherAccount = (await provider.getSigner(0)) as Signer
     artifactsAddresses = getOceanArtifactsAdresses()
     paymentToken = artifactsAddresses.development.Ocean
+
+    await sleep(5000)
 
     // override and save configuration (always before calling getConfig())
     previousConfiguration = await setupEnvironment(
@@ -558,8 +560,6 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
       DEFAULT_TEST_TIMEOUT
     )
 
-    console.log('-----> ddo', ddo)
-    console.log('-----> wasTimeout', wasTimeout)
     assert(ddo === null && wasTimeout === true, 'DDO should NOT have been indexed')
   })
 
