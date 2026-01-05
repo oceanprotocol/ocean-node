@@ -449,7 +449,7 @@ export class C2DEngineDocker extends C2DEngine {
     queueMaxWaitTime?: number
   ): Promise<ComputeJob[]> {
     if (!this.docker) return []
-    CORE_LOGGER.logMessage(`payment:  `)
+    CORE_LOGGER.logMessage(`payment:   `)
     const isFree: boolean = !(payment && payment.lockTx)
 
     if (metadata && Object.keys(metadata).length > 0) {
