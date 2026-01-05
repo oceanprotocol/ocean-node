@@ -23,7 +23,7 @@ const emptyDBConfig: OceanNodeDBConfig = {
   dbType: null
 }
 
-describe.skip('Config Database', () => {
+describe('Config Database', () => {
   let database: Database
   let oceanIndexer: OceanIndexer
   let initialVersionNull: any
