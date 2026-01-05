@@ -1,6 +1,6 @@
 import express, { Response } from 'express'
 import { p2pRoutes } from './getOceanPeers.js'
-import { advertiseDidRoute, getProvidersForDidRoute } from './dids.js'
+import { getProvidersForStringRoute, getProvidersForStringsRoute } from './dids.js'
 import { directCommandRoute } from './commands.js'
 import { logRoutes } from './logs.js'
 import { providerRoutes } from './provider.js'
@@ -13,8 +13,11 @@ import { queueRoutes } from './queue.js'
 import { jobsRoutes } from './jobs.js'
 import { addMapping, allRoutesMapping, findPathName } from './routeUtils.js'
 import { PolicyServerPassthroughRoute } from './policyServer.js'
+import { authRoutes } from './auth.js'
+import { adminConfigRoutes } from './adminConfig.js'
 
 export * from './getOceanPeers.js'
+export * from './auth.js'
 
 export const httpRoutes = express.Router()
 
@@ -24,10 +27,9 @@ export function sendMissingP2PResponse(res: Response) {
 
 // /p2pRoutes
 httpRoutes.use(p2pRoutes)
-// /advertiseDid
-httpRoutes.use(advertiseDidRoute)
 // /getProvidersForDid
-httpRoutes.use(getProvidersForDidRoute)
+httpRoutes.use(getProvidersForStringRoute)
+httpRoutes.use(getProvidersForStringsRoute)
 // /directCommand
 httpRoutes.use(directCommandRoute)
 // /logs
@@ -56,6 +58,11 @@ httpRoutes.use(queueRoutes)
 httpRoutes.use(jobsRoutes)
 // policy server passthrough
 httpRoutes.use(PolicyServerPassthroughRoute)
+// auth routes
+httpRoutes.use(authRoutes)
+// admin config routes
+httpRoutes.use(adminConfigRoutes)
+
 export function getAllServiceEndpoints() {
   httpRoutes.stack.forEach(addMapping.bind(null, []))
   const data: any = {}

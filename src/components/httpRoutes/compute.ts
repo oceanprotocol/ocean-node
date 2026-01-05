@@ -76,7 +76,12 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       algorithm: (req.body.algorithm as ComputeAlgorithm) || null,
       datasets: (req.body.datasets as unknown as ComputeAsset[]) || null,
       payment: (req.body.payment as unknown as ComputePayment) || null,
-      resources: (req.body.resources as unknown as ComputeResourceRequest[]) || null
+      resources: (req.body.resources as unknown as ComputeResourceRequest[]) || null,
+      policyServer: (req.body.policyServer as any) || null,
+      metadata: req.body.metadata || null,
+      authorization: req.headers?.authorization,
+      additionalViewers: (req.body.additionalViewers as unknown as string[]) || null,
+      queueMaxWaitTime: req.body.queueMaxWaitTime || 0
     }
     if (req.body.output) {
       startComputeTask.output = req.body.output as ComputeOutput
@@ -107,7 +112,6 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/freeCompute`, async (req, res) => 
       )}`,
       true
     )
-
     const startComputeTask: FreeComputeStartCommand = {
       command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
       node: (req.body.node as string) || null,
@@ -118,7 +122,12 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/freeCompute`, async (req, res) => 
       algorithm: (req.body.algorithm as ComputeAlgorithm) || null,
       datasets: (req.body.datasets as unknown as ComputeAsset[]) || null,
       resources: (req.body.resources as unknown as ComputeResourceRequest[]) || null,
-      maxJobDuration: req.body.maxJobDuration || null
+      maxJobDuration: req.body.maxJobDuration || null,
+      policyServer: (req.body.policyServer as any) || null,
+      metadata: req.body.metadata || null,
+      authorization: req.headers?.authorization,
+      additionalViewers: (req.body.additionalViewers as unknown as string[]) || null,
+      queueMaxWaitTime: req.body.queueMaxWaitTime || 0
     }
     if (req.body.output) {
       startComputeTask.output = req.body.output as ComputeOutput
@@ -157,7 +166,8 @@ computeRoutes.put(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       signature: (req.query.signature as string) || null,
       nonce: (req.query.nonce as string) || null,
       jobId: (req.query.jobId as string) || null,
-      agreementId: (req.query.agreementId as string) || null
+      agreementId: (req.query.agreementId as string) || null,
+      authorization: req.headers?.authorization || null
     }
     const response = await new ComputeStopHandler(req.oceanNode).handle(stopComputeTask)
     const jobs = await streamToObject(response.stream as Readable)
@@ -207,7 +217,8 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeResult`, async (req, res) =>
       index: req.query.index ? Number(req.query.index) : null, // can't be parseInt() because that excludes index 0
       jobId: (req.query.jobId as string) || null,
       signature: (req.query.signature as string) || null,
-      nonce: (req.query.nonce as string) || null
+      nonce: (req.query.nonce as string) || null,
+      authorization: req.headers?.authorization
     }
 
     const response = await new ComputeGetResultHandler(req.oceanNode).handle(
@@ -235,13 +246,15 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeStreamableLogs`, async (req,
       )}`,
       true
     )
+
     const resultComputeTask: ComputeGetStreamableLogsCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_STREAMABLE_LOGS,
       node: (req.query.node as string) || null,
       consumerAddress: (req.query.consumerAddress as string) || null,
       jobId: (req.query.jobId as string) || null,
       signature: (req.query.signature as string) || null,
-      nonce: (req.query.nonce as string) || null
+      nonce: (req.query.nonce as string) || null,
+      authorization: req.headers?.authorization
     }
 
     const response = await new ComputeGetStreamableLogsHandler(req.oceanNode).handle(
@@ -280,10 +293,6 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/initializeCompute`, async (req, re
         res.status(400).send('Missing dataset did')
         return
       }
-    }
-    if (!body.algorithm.documentId) {
-      res.status(400).send('Missing algorithm did')
-      return
     }
     body.command = PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
     const result = await new ComputeInitializeHandler(req.oceanNode).handle(body)

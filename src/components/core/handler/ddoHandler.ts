@@ -316,7 +316,7 @@ export class DecryptDdoHandler extends CommandHandler {
 
       let decryptedDocument: Buffer
       // check if DDO is ECIES encrypted
-      if (flags & 2) {
+      if ((flags & 2) !== 0) {
         try {
           decryptedDocument = await decrypt(encryptedDocument, EncryptMethod.ECIES)
         } catch (error) {
@@ -329,9 +329,7 @@ export class DecryptDdoHandler extends CommandHandler {
             }
           }
         }
-      }
-
-      if (flags & 1) {
+      } else {
         try {
           decryptedDocument = lzmajs.decompressFile(decryptedDocument)
           /*
@@ -389,15 +387,17 @@ export class DecryptDdoHandler extends CommandHandler {
 
       // check signature
       try {
+        const useTxIdOrContractAddress = transactionId || dataNftAddress
+
         const message = String(
-          transactionId + dataNftAddress + decrypterAddress + chainId + nonce
+          useTxIdOrContractAddress + decrypterAddress + chainId + nonce
         )
         const messageHash = ethers.solidityPackedKeccak256(
           ['bytes'],
           [ethers.hexlify(ethers.toUtf8Bytes(message))]
         )
+        const messageHashBytes = ethers.getBytes(messageHash)
         const addressFromHashSignature = ethers.verifyMessage(messageHash, task.signature)
-        const messageHashBytes = ethers.toBeArray(messageHash)
         const addressFromBytesSignature = ethers.verifyMessage(
           messageHashBytes,
           task.signature
@@ -562,7 +562,7 @@ export class FindDdoHandler extends CommandHandler {
             if (isResponseLegit) {
               const ddoInfo: FindDDOResponse = {
                 id: ddo.id,
-                lastUpdateTx: ddo.indexedMetadata.event.tx,
+                lastUpdateTx: ddo.indexedMetadata.event.txid,
                 lastUpdateTime: ddo.metadata.updated,
                 provider: peer
               }
@@ -624,7 +624,7 @@ export class FindDdoHandler extends CommandHandler {
       }, 1000 * MAX_RESPONSE_WAIT_TIME_SECONDS)
 
       // check other providers for this ddo
-      const providers = await p2pNode.getProvidersForDid(task.id)
+      const providers = await p2pNode.getProvidersForString(task.id)
       // check if includes self and exclude from check list
       if (providers.length > 0) {
         // exclude this node from the providers list if present
@@ -798,6 +798,11 @@ export class FindDdoHandler extends CommandHandler {
   }
 }
 
+export async function skipValidation(): Promise<boolean> {
+  const configuration = await getConfiguration()
+  return configuration.validateUnsignedDDO
+}
+
 export class ValidateDDOHandler extends CommandHandler {
   validate(command: ValidateDDOCommand): ValidateParams {
     let validation = validateCommandParameters(command, ['ddo'])
@@ -810,9 +815,24 @@ export class ValidateDDOHandler extends CommandHandler {
 
   async handle(task: ValidateDDOCommand): Promise<P2PCommandResponse> {
     const validationResponse = await this.verifyParamsAndRateLimits(task)
+    const shouldSkipValidation = await skipValidation()
+    if (!shouldSkipValidation) {
+      const validationResponse = await this.validateTokenOrSignature(
+        task.authorization,
+        task.publisherAddress,
+        task.nonce,
+        task.signature,
+        String(task.publisherAddress + task.nonce)
+      )
+      if (validationResponse.status.httpStatus !== 200) {
+        return validationResponse
+      }
+    }
+
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
+
     try {
       const ddoInstance = DDOManager.getDDOClass(task.ddo)
       const validation = await ddoInstance.validate()
@@ -846,6 +866,32 @@ export class ValidateDDOHandler extends CommandHandler {
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
       }
     }
+  }
+}
+
+export function validateDdoSignedByPublisher(
+  ddo: DDO,
+  nonce: string,
+  signature: string,
+  publisherAddress: string
+): boolean {
+  try {
+    const message = ddo.id + nonce
+    const messageHash = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.getBytes(messageHash)
+    // Try both verification methods for backward compatibility
+    const addressFromHashSignature = ethers.verifyMessage(messageHash, signature)
+    const addressFromBytesSignature = ethers.verifyMessage(messageHashBytes, signature)
+    return (
+      addressFromHashSignature?.toLowerCase() === publisherAddress?.toLowerCase() ||
+      addressFromBytesSignature?.toLowerCase() === publisherAddress?.toLowerCase()
+    )
+  } catch (error) {
+    CORE_LOGGER.logMessage(`Error: ${error}`, true)
+    return false
   }
 }
 
@@ -928,7 +974,7 @@ async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
   }
 
   // check events on logs
-  const txId: string = indexedMetadata.event.tx // NOTE: DDO is txid, Asset is tx
+  const txId: string = indexedMetadata.event.tx || indexedMetadata.event.txid // NOTE: DDO is txid, Asset is tx
   if (!txId) {
     CORE_LOGGER.error(`DDO event missing tx data, cannot confirm transaction`)
     return false

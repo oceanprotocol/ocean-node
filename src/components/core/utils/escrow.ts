@@ -28,8 +28,13 @@ export class Escrow {
     const { rpc, network, chainId, fallbackRPCs } = this.networks[chain]
     const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
     const provider = blockchain.getProvider()
-    const decimals = await getDatatokenDecimals(token, provider)
-    return parseUnits(cost.toString(10), decimals).toString()
+
+    const decimalgBigNumber = await getDatatokenDecimals(token, provider)
+    const decimals = parseInt(decimalgBigNumber.toString())
+
+    const roundedCost = Number(cost.toFixed(decimals)).toString()
+
+    return parseUnits(roundedCost, decimals).toString()
   }
 
   async getNumberFromWei(wei: string, chain: number, token: string) {
@@ -176,7 +181,7 @@ export class Escrow {
       const locks = await this.getLocks(chain, token, payer, await signer.getAddress())
       for (const lock of locks) {
         if (BigInt(lock.jobId.toString()) === BigInt(jobId)) {
-          const gas = await contract.claimLock.estimateGas(
+          const gas = await contract.claimLockAndWithdraw.estimateGas(
             jobId,
             token,
             payer,
@@ -184,7 +189,7 @@ export class Escrow {
             ethers.toUtf8Bytes(proof)
           )
           const gasOptions = await blockchain.getGasOptions(gas, 1.2)
-          const tx = await contract.claimLock(
+          const tx = await contract.claimLockAndWithdraw(
             jobId,
             token,
             payer,

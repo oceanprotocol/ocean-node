@@ -5,7 +5,8 @@ import type {
   ComputeAsset,
   ComputeAlgorithm,
   ComputeOutput,
-  ComputeResourceRequest
+  ComputeResourceRequest,
+  DBComputeJobMetadata
 } from './C2D/C2D.js'
 import {
   ArweaveFileObject,
@@ -19,6 +20,7 @@ import {
 export interface Command {
   command: string // command name
   node?: string // if not present it means current node
+  authorization?: string
 }
 
 export interface GetP2PPeerCommand extends Command {
@@ -35,6 +37,7 @@ export interface GetP2PNetworkStatsCommand extends Command {}
 export interface AdminCommand extends Command {
   expiryTimestamp: number
   signature: string
+  address?: string
 }
 
 export interface AdminCollectFeesHandlerResponse {
@@ -57,6 +60,7 @@ export interface DownloadCommand extends Command {
   signature: string
   aes_encrypted_key?: string // if not present it means download without encryption
   policyServer?: any // object to pass to policy server
+  userData?: Record<string, any>
 }
 
 export interface FileInfoCommand extends Command {
@@ -79,6 +83,10 @@ export interface FindDDOCommand extends DDOCommand {
 // https://github.com/oceanprotocol/ocean-node/issues/47
 export interface ValidateDDOCommand extends Command {
   ddo: DDO
+  publisherAddress?: string
+  nonce?: string
+  signature?: string
+  message?: string
 }
 
 export interface StatusCommand extends Command {
@@ -153,6 +161,12 @@ export interface AdminReindexChainCommand extends AdminCommand {
   block?: number
 }
 
+export interface AdminFetchConfigCommand extends AdminCommand {}
+
+export interface AdminPushConfigCommand extends AdminCommand {
+  config: Record<string, any>
+}
+
 export interface ICommandHandler {
   handle(command: Command): Promise<P2PCommandResponse>
   verifyParamsAndRateLimits(task: Command): Promise<P2PCommandResponse>
@@ -173,16 +187,18 @@ export interface ComputeGetEnvironmentsCommand extends Command {
 export interface ComputePayment {
   chainId: number
   token: string
-  resources?: ComputeResourceRequest[]
+  resources?: ComputeResourceRequest[] // only used in initializeCompute
 }
 export interface ComputeInitializeCommand extends Command {
-  datasets: [ComputeAsset]
+  datasets: ComputeAsset[]
   algorithm: ComputeAlgorithm
   environment: string
   payment: ComputePayment
   consumerAddress: string
   signature?: string
   maxJobDuration: number
+  policyServer?: any // object to pass to policy server
+  queueMaxWaitTime?: number // max time in seconds a job can wait in the queue before being started
 }
 
 export interface FreeComputeStartCommand extends Command {
@@ -195,6 +211,10 @@ export interface FreeComputeStartCommand extends Command {
   output?: ComputeOutput
   resources?: ComputeResourceRequest[]
   maxJobDuration?: number
+  policyServer?: any // object to pass to policy server
+  metadata?: DBComputeJobMetadata
+  additionalViewers?: string[] // addresses of additional addresses that can get results
+  queueMaxWaitTime?: number // max time in seconds a job can wait in the queue before being started
 }
 export interface PaidComputeStartCommand extends FreeComputeStartCommand {
   payment: ComputePayment
@@ -257,4 +277,29 @@ export interface StartStopIndexingCommand extends AdminCommand {
 
 export interface PolicyServerPassthroughCommand extends Command {
   policyServerPassthrough?: any
+}
+
+export interface PolicyServerInitializeCommand extends Command {
+  documentId?: string
+  serviceId?: string
+  consumerAddress?: string
+  policyServer?: any
+}
+
+export interface CreateAuthTokenCommand extends Command {
+  address: string
+  signature: string
+  validUntil?: number | null
+}
+
+export interface InvalidateAuthTokenCommand extends Command {
+  address: string
+  signature: string
+  token: string
+}
+
+export interface GetJobsCommand extends Command {
+  environments?: string[]
+  fromTimestamp?: string
+  consumerAddrs?: string[]
 }

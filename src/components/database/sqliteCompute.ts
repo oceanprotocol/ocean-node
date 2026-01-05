@@ -2,12 +2,10 @@ import { typesenseSchemas, TypesenseSchema } from './TypesenseSchemas.js'
 import {
   C2DStatusNumber,
   C2DStatusText,
-  ComputeEnvironment,
   type DBComputeJob
 } from '../../@types/C2D/C2D.js'
 import sqlite3, { RunResult } from 'sqlite3'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
-import { v4 as uuidv4 } from 'uuid'
 
 interface ComputeDatabaseProvider {
   newJob(job: DBComputeJob): Promise<string>
@@ -15,11 +13,12 @@ interface ComputeDatabaseProvider {
   updateJob(job: DBComputeJob): Promise<number>
   getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]>
   deleteJob(jobId: string): Promise<boolean>
-  getFinishedJobs(): Promise<DBComputeJob[]>
-}
-
-export function generateUniqueID(): string {
-  return uuidv4()
+  getFinishedJobs(environments?: string[]): Promise<DBComputeJob[]>
+  getJobs(
+    environments?: string[],
+    fromTimestamp?: string,
+    consumerAddrs?: string[]
+  ): Promise<DBComputeJob[]>
 }
 
 function getInternalStructure(job: DBComputeJob): any {
@@ -38,7 +37,13 @@ function getInternalStructure(job: DBComputeJob): any {
     resources: job.resources,
     isFree: job.isFree,
     algoStartTimestamp: job.algoStartTimestamp,
-    algoStopTimestamp: job.algoStopTimestamp
+    algoStopTimestamp: job.algoStopTimestamp,
+    metadata: job.metadata,
+    additionalViewers: job.additionalViewers,
+    terminationDetails: job.terminationDetails,
+    payment: job.payment,
+    algoDuration: job.algoDuration,
+    queueMaxWaitTime: job.queueMaxWaitTime
   }
   return internalBlob
 }
@@ -138,15 +143,14 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     `
-    const jobId = job.jobId || generateUniqueID()
-    job.jobId = jobId
+
     return new Promise<string>((resolve, reject) => {
       this.db.run(
         insertSQL,
         [
           job.owner,
           job.did,
-          jobId,
+          job.jobId,
           job.dateCreated || String(Date.now() / 1000), // seconds from epoch,
           job.status || C2DStatusNumber.JobStarted,
           job.statusText || C2DStatusText.JobStarted,
@@ -162,8 +166,8 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
             DATABASE_LOGGER.error('Could not insert C2D job on DB: ' + err.message)
             reject(err)
           } else {
-            DATABASE_LOGGER.info('Successfully inserted job with id:' + jobId)
-            resolve(jobId)
+            DATABASE_LOGGER.info('Successfully inserted job with id:' + job.jobId)
+            resolve(job.jobId)
           }
         }
       )
@@ -268,7 +272,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
 
   getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]> {
     const selectSQL = `
-      SELECT * FROM ${this.schema.name} WHERE dateFinished IS NULL
+      SELECT * FROM ${this.schema.name} WHERE dateFinished IS NULL ORDER by dateCreated
     `
     return new Promise<DBComputeJob[]>((resolve, reject) => {
       this.db.all(selectSQL, (err, rows: any[] | undefined) => {
@@ -311,13 +315,21 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     })
   }
 
-  getFinishedJobs(environment?: ComputeEnvironment): Promise<DBComputeJob[]> {
-    // get jobs that already finished (have results), for this environment, and clear storage + job if expired
-    const selectSQL = `
-    SELECT * FROM ${this.schema.name} WHERE environment = ? AND dateFinished IS NOT NULL OR results IS NOT NULL
+  getFinishedJobs(environments?: string[]): Promise<DBComputeJob[]> {
+    let selectSQL = `
+    SELECT * FROM ${this.schema.name} WHERE (dateFinished IS NOT NULL OR results IS NOT NULL)
   `
+    const params: string[] = []
+    if (environments && environments.length > 0) {
+      const placeholders = environments.map(() => '?').join(',')
+      selectSQL += ` AND environment IN (${placeholders})`
+      params.push(...environments)
+    }
+
+    selectSQL += ` ORDER BY dateFinished DESC`
+
     return new Promise<DBComputeJob[]>((resolve, reject) => {
-      this.db.all(selectSQL, [environment.id], (err, rows: any[] | undefined) => {
+      this.db.all(selectSQL, params, (err, rows: any[] | undefined) => {
         if (err) {
           DATABASE_LOGGER.error(err.message)
           reject(err)
@@ -333,18 +345,76 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
               const job: DBComputeJob = { ...row, ...body, maxJobDuration }
               return job
             })
-            if (!environment) {
-              resolve(all)
-            }
-            // filter them out
-            const filtered = all.filter((job) => {
-              return environment && environment.id === job.environment
-            })
-            resolve(filtered)
+            resolve(all)
           } else {
-            DATABASE_LOGGER.info(
-              'Could not find any jobs for the specified enviroment: ' + environment.id
-            )
+            environments
+              ? DATABASE_LOGGER.info(
+                  'No jobs found for the specified enviroments: ' + environments.join(',')
+                )
+              : DATABASE_LOGGER.info('No jobs found')
+            resolve([])
+          }
+        }
+      })
+    })
+  }
+
+  getJobs(
+    environments?: string[],
+    fromTimestamp?: string,
+    consumerAddrs?: string[]
+  ): Promise<DBComputeJob[]> {
+    let selectSQL = `SELECT * FROM ${this.schema.name}`
+
+    const params: string[] = []
+    const conditions: string[] = []
+
+    if (environments && environments.length > 0) {
+      const placeholders = environments.map(() => '?').join(',')
+      conditions.push(`environment IN (${placeholders})`)
+      params.push(...environments)
+    }
+
+    if (fromTimestamp) {
+      conditions.push(`dateFinished >= ?`)
+      params.push(fromTimestamp)
+    }
+
+    if (consumerAddrs && consumerAddrs.length > 0) {
+      const placeholders = consumerAddrs.map(() => '?').join(',')
+      conditions.push(`owner NOT IN (${placeholders})`)
+      params.push(...consumerAddrs)
+    }
+
+    if (conditions.length > 0) {
+      selectSQL += ` WHERE ${conditions.join(' AND ')}`
+    }
+    selectSQL += ` ORDER BY dateCreated DESC`
+
+    return new Promise<DBComputeJob[]>((resolve, reject) => {
+      this.db.all(selectSQL, params, (err, rows: any[] | undefined) => {
+        if (err) {
+          DATABASE_LOGGER.error(err.message)
+          reject(err)
+        } else {
+          // also decode the internal data into job data
+          // get them all running
+          if (rows && rows.length > 0) {
+            const all: DBComputeJob[] = rows.map((row) => {
+              const body = generateJSONFromBlob(row.body)
+              delete row.body
+              const maxJobDuration = row.expireTimestamp
+              delete row.expireTimestamp
+              const job: DBComputeJob = { ...row, ...body, maxJobDuration }
+              return job
+            })
+            resolve(all)
+          } else {
+            environments
+              ? DATABASE_LOGGER.info(
+                  'No jobs found for the specified enviroments: ' + environments.join(',')
+                )
+              : DATABASE_LOGGER.info('No jobs found')
             resolve([])
           }
         }

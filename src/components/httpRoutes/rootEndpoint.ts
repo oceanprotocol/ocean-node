@@ -10,6 +10,7 @@ rootEndpointRoutes.get('/', async (req, res) => {
     HTTP_LOGGER.warn(`Supported networks not defined`)
   }
   res.json({
+    nodeId: config.keys.peerId,
     chainIds: config.supportedNetworks ? Object.keys(config.supportedNetworks) : [],
     providerAddress: config.keys.ethAddress,
     serviceEndpoints: getAllServiceEndpoints(),

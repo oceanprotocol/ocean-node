@@ -15,6 +15,7 @@ import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Fa
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { Database } from '../../components/database/index.js'
+import { DatabaseFactory } from '../../components/database/DatabaseFactory.js'
 import {
   INDEXER_CRAWLING_EVENT_EMITTER,
   OceanIndexer
@@ -110,7 +111,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     )
 
     const config = await getConfiguration(true)
-    database = await new Database(config.dbConfig)
+    database = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance(config, database)
     indexer = new OceanIndexer(database, mockSupportedNetworks)
     oceanNode.addIndexer(indexer)
@@ -268,12 +269,10 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   it('should find the state of the ddo using query ddo state handler', async function () {
     const queryDdoStateHandler = new QueryDdoStateHandler(oceanNode)
-    // query using the did
+    const config = await getConfiguration(true)
+    const queryStrategy = await DatabaseFactory.createDdoStateQuery(config.dbConfig)
     const queryDdoState: QueryCommand = {
-      query: {
-        q: resolvedDDO.id,
-        query_by: 'did'
-      },
+      query: queryStrategy.buildQuery(resolvedDDO.id),
       command: PROTOCOL_COMMANDS.QUERY
     }
     const response = await queryDdoStateHandler.handle(queryDdoState)
@@ -281,13 +280,23 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     const result = await streamToObject(response.stream as Readable)
-    if (result) {
-      // Elastic Search returns Array type
-      const ddoState = Array.isArray(result) ? result[0] : result.hits[0].document
-      expect(resolvedDDO.id).to.equal(ddoState.did)
-      expect(ddoState.valid).to.equal(true)
-      expect(ddoState.error).to.equal(' ')
+    assert(result, 'Failed to get result from stream')
+
+    let ddoState
+    if (Array.isArray(result)) {
+      assert(result.length > 0, 'No ddo state found in results array')
+      ddoState = result[0]
+    } else if (result.hits && Array.isArray(result.hits)) {
+      assert(result.hits.length > 0, 'No ddo state found in results hits')
+      ddoState = result.hits[0].document
+    } else {
+      assert.fail('Unexpected result format from database')
     }
+
+    assert(ddoState, 'ddoState is undefined')
+    expect(resolvedDDO.id).to.equal(ddoState.did)
+    expect(ddoState.valid).to.equal(true)
+    expect(ddoState.error).to.equal(' ')
 
     // add txId check once we have that as change merged and the event will be indexed
   })
@@ -692,7 +701,7 @@ describe('OceanIndexer - crawler threads', () => {
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
-    db = await new Database(config.dbConfig)
+    db = await Database.init(config.dbConfig)
   })
 
   it('should start a worker thread and handle RPCS "startBlock"', async () => {

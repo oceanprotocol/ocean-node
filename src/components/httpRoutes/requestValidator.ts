@@ -2,74 +2,42 @@ import { Request, Response } from 'express'
 import { getConfiguration } from '../../utils/config.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
-import { RequestLimiter } from '../../OceanNode.js'
 import {
-  CONNECTIONS_RATE_INTERVAL,
-  DEFAULT_MAX_CONNECTIONS_PER_MINUTE
-} from '../../utils/constants.js'
+  checkGlobalConnectionsRateLimit,
+  checkRequestsRateLimit,
+  CommonValidation
+} from '../../utils/validators.js'
 
-// TODO we should group common stuff,
-// we have multiple similar validation interfaces
-export interface CommonValidation {
-  valid: boolean
-  error?: string
-}
-
-// hold data about last request made
-const connectionsData: RequestLimiter = {
-  lastRequestTime: Date.now(),
-  requester: '',
-  numRequests: 0
-}
-
-// midleware to validate client addresses against a denylist
-// it also checks the global rate limit
+// Middleware to validate IP and apply rate limiting
 export const requestValidator = async function (req: Request, res: Response, next: any) {
-  // Perform the validations.
-  const requestIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress
-
-  // grab request time
-  const requestTime = Date.now()
-  if (requestTime - connectionsData.lastRequestTime > CONNECTIONS_RATE_INTERVAL) {
-    // last one was more than 1 minute ago? reset counter
-    connectionsData.numRequests = 0
-  }
-  // always increment counter
-  connectionsData.numRequests += 1
-  // update time and requester information
-  connectionsData.lastRequestTime = requestTime
-  connectionsData.requester = requestIP
+  const now = Date.now()
+  const requestIP = (req.headers['x-forwarded-for'] ||
+    req.socket.remoteAddress ||
+    '') as string
 
   const configuration = await getConfiguration()
 
-  // check if IP is allowed or denied
   const ipValidation = await checkIP(requestIP, configuration)
-  // Validation failed, or an error occurred during the external request.
   if (!ipValidation.valid) {
-    res.status(403).send(ipValidation.error)
-    return
+    HTTP_LOGGER.logMessage(`IP denied: ${ipValidation.error}`)
+    return res.status(403).send(ipValidation.error)
   }
-  // check global rate limits (not ip related)
-  const requestRateValidation = checkConnectionsRateLimit(configuration, connectionsData)
-  if (!requestRateValidation.valid) {
-    res.status(403).send(requestRateValidation.error)
-    return
-  }
-  // Validation passed.
-  next()
-}
 
-export function checkConnectionsRateLimit(
-  configuration: OceanNodeConfig,
-  connectionsData: RequestLimiter
-): CommonValidation {
-  const connectionLimits =
-    configuration.maxConnections || DEFAULT_MAX_CONNECTIONS_PER_MINUTE
-  const ok = connectionsData.numRequests <= connectionLimits
-  return {
-    valid: ok,
-    error: ok ? '' : 'Unauthorized request. Rate limit exceeded!'
+  const rateLimitCheck = checkRequestsRateLimit(requestIP, configuration, now)
+  if (!rateLimitCheck.valid) {
+    HTTP_LOGGER.logMessage(
+      `Exceeded limit of requests per minute ${configuration.rateLimit}: ${rateLimitCheck.error}`
+    )
+    return res.status(429).send(rateLimitCheck.error)
   }
+
+  const connectionsRateValidation = checkGlobalConnectionsRateLimit(configuration, now)
+  if (!connectionsRateValidation.valid) {
+    res.status(403).send(connectionsRateValidation.error)
+    return
+  }
+
+  next()
 }
 
 function checkIP(
@@ -78,10 +46,10 @@ function checkIP(
 ): CommonValidation {
   let onDenyList = false
   if (!Array.isArray(requestIP)) {
-    onDenyList = configuration.denyList?.ips.includes(requestIP)
+    onDenyList = configuration.denyList?.ips?.includes(requestIP)
   } else {
     for (const ip of requestIP) {
-      if (configuration.denyList?.ips.includes(ip)) {
+      if (configuration.denyList?.ips?.includes(ip)) {
         onDenyList = true
         break
       }

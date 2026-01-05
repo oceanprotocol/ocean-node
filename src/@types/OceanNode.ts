@@ -1,6 +1,6 @@
 import { Stream } from 'stream'
 import { RPCS } from './blockchain'
-import { C2DClusterInfo } from './C2D/C2D'
+import { C2DClusterInfo, C2DDockerConfig } from './C2D/C2D'
 import { FeeStrategy } from './Fees'
 import { Schema } from '../components/database'
 
@@ -40,6 +40,7 @@ export interface OceanNodeP2PConfig {
   ipV4BindAddress: string | null
   ipV4BindTcpPort: number | null
   ipV4BindWsPort: number | null
+  ipV4BindWssPort: number | null
   ipV6BindAddress: string | null
   ipV6BindTcpPort: number | null
   ipV6BindWsPort: number | null
@@ -82,6 +83,7 @@ export interface AccessListContract {
 }
 
 export interface OceanNodeConfig {
+  dockerComputeEnvironments: C2DDockerConfig[]
   authorizedDecrypters: string[]
   authorizedDecryptersList: AccessListContract | null
   allowedValidators: string[]
@@ -97,13 +99,14 @@ export interface OceanNodeConfig {
   dbConfig?: OceanNodeDBConfig
   httpPort: number
   feeStrategy: FeeStrategy
+  ipfsGateway?: string | null
+  arweaveGateway?: string | null
   supportedNetworks?: RPCS
   claimDurationTimeout: number
   indexingNetworks?: RPCS
   c2dClusters: C2DClusterInfo[]
-  c2dNodeUri: string
-  accountPurgatoryUrl: string
-  assetPurgatoryUrl: string
+  accountPurgatoryUrl: string | null
+  assetPurgatoryUrl: string | null
   allowedAdmins?: string[]
   allowedAdminsList?: AccessListContract | null
   codeHash?: string
@@ -112,6 +115,8 @@ export interface OceanNodeConfig {
   denyList?: DenyList
   unsafeURLs?: string[]
   isBootstrap?: boolean
+  validateUnsignedDDO?: boolean
+  jwtSecret?: string
 }
 
 export interface P2PStatusResponse {
@@ -144,6 +149,7 @@ export interface StorageTypes {
 export interface OceanNodeStatus {
   id: string
   publicKey: string
+  friendlyName: string
   address: string
   version: string
   http: boolean

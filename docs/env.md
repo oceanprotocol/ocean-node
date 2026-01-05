@@ -5,6 +5,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 ## Core
 
 - `PRIVATE_KEY` (Required): The private key for the node, required for node operations. Example: `"0x1d751ded5a32226054cd2e71261039b65afb9ee1c746d055dd699b1150a5befc"`
+- `CONFIG_PATH`: Absolute path to JSON config file
 - `RPCS`: JSON object defining RPC endpoints for various networks. Example: `"{ \"11155420\":{ \"rpc\":\"https://sepolia.optimism.io\", \"fallbackRPCs\": [\"https://public.stackup.sh/api/v1/node/optimism-sepolia\"], \"chainId\": 11155420, \"network\": \"optimism-sepolia\", \"chunkSize\": 1000 }}"`
 - `DB_URL`: URL for connecting to the database. Required for running a database with the node. Example: `"http://localhost:8108/?apiKey=xyz"`
 - `IPFS_GATEWAY`: The gateway URL for IPFS, used for downloading files from IPFS. Example: `"https://ipfs.io/"`
@@ -32,10 +33,26 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `IS_BOOTSTRAP`: Is this node to be used as bootstrap node or not. Default is `false`.
 - `AUTHORIZED_PUBLISHERS`: Authorized list of publishers. If present, Node will only index assets published by the accounts in the list. Example: `"[\"0x967da4048cD07aB37855c090aAF366e4ce1b9F48\",\"0x388C818CA8B9251b393131C08a736A67ccB19297\"]"`
 - `AUTHORIZED_PUBLISHERS_LIST`: AccessList contract addresses (per chain). If present, Node will only index assets published by the accounts present on the given access lists. Example: `"{ \"8996\": [\"0x967da4048cD07aB37855c090aAF366e4ce1b9F48\",\"0x388C818CA8B9251b393131C08a736A67ccB19297\"] }"`
+- `VALIDATE_UNSIGNED_DDO`: If set to `false`, the node will not validate unsigned DDOs and will request a signed message with the publisher address, nonce and signature. Default is `true`. Example: `false`
+- `JWT_SECRET`: Secret used to sign JWT tokens. Default is `ocean-node-secret`. Example: `"my-secret-jwt-token"`
+
+## Database
+
+- `DB_URL`: URL for connecting to the database. Required for running a database with the node. Example: `"http://localhost:8108/?apiKey=xyz"`
+- `DB_USERNAME`: Username for database authentication. Optional if not using authentication. Example: `"elastic"`
+- `DB_PASSWORD`: Password for database authentication. Optional if not using authentication. Example: `"password123"`
+- `ELASTICSEARCH_REQUEST_TIMEOUT`: Request timeout in milliseconds for Elasticsearch operations. Default is `60000`. Example: `60000`
+- `ELASTICSEARCH_PING_TIMEOUT`: Ping timeout in milliseconds for Elasticsearch health checks. Default is `5000`. Example: `5000`
+- `ELASTICSEARCH_RESURRECT_STRATEGY`: Strategy for bringing failed Elasticsearch nodes back online. Options are 'ping', 'optimistic', or 'none'. Default is `ping`. Example: `"ping"`
+- `ELASTICSEARCH_MAX_RETRIES`: Maximum number of retry attempts for failed Elasticsearch operations. Default is `5`. Example: `5`
+- `ELASTICSEARCH_SNIFF_ON_START`: Enable cluster node discovery on Elasticsearch client startup. Default is `true`. Example: `true`
+- `ELASTICSEARCH_SNIFF_INTERVAL`: Interval in milliseconds for periodic cluster health monitoring and node discovery. Set to 'false' to disable. Default is `30000`. Example: `30000`
+- `ELASTICSEARCH_SNIFF_ON_CONNECTION_FAULT`: Enable automatic cluster node discovery when connection faults occur. Default is `true`. Example: `true`
+- `ELASTICSEARCH_HEALTH_CHECK_INTERVAL`: Interval in milliseconds for proactive connection health monitoring. Default is `60000`. Example: `60000`
 
 ## Payments
 
-- `ESCROW_CLAIM_TIMEOUT`: Amount of time reserved to claim a escrow payment, in seconds. Defaults to `600`. Example: `600`
+- `ESCROW_CLAIM_TIMEOUT`: Amount of time reserved to claim a escrow payment, in seconds. Defaults to `3600`. Example: `3600`
 
 ## Logs
 
@@ -107,6 +124,8 @@ The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable is used to configure Dock
 Example Configuration
 The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of objects, where each object represents a Docker compute environment configuration. Below is an example configuration:
 
+`Disk` and `Ram` resources are always expressed in GB.
+
 ```json
 [
   {
@@ -114,11 +133,16 @@ The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of
     "resources": [
       {
         "id": "disk",
-        "total": 1000000000
+        "total": 10
       }
     ],
     "storageExpiry": 604800,
     "maxJobDuration": 3600,
+    "minJobDuration": 60,
+    "access": {
+      "addresses": ["0x123", "0x456"],
+      "accessLists": []
+    },
     "fees": {
       "1": [
         {
@@ -134,7 +158,12 @@ The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of
     },
     "free": {
       "maxJobDuration": 60,
+      "minJobDuration": 10,
       "maxJobs": 3,
+      "access": {
+        "addresses": [],
+        "accessLists": ["0x789"]
+      },
       "resources": [
         {
           "id": "cpu",
@@ -142,11 +171,11 @@ The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of
         },
         {
           "id": "ram",
-          "max": 1000000000
+          "max": 1
         },
         {
           "id": "disk",
-          "max": 1000000000
+          "max": 1
         }
       ]
     }
@@ -159,6 +188,10 @@ The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of
 - **socketPath**: Path to the Docker socket (e.g., docker.sock).
 - **storageExpiry**: Amount of seconds for storage expiry.(Mandatory)
 - **maxJobDuration**: Maximum duration in seconds for a job.(Mandatory)
+- **minJobDuration**: Minimum duration in seconds for a job.(Mandatory)
+- **access**: Access control configuration for paid compute jobs. If both `addresses` and `accessLists` are empty, all addresses are allowed.
+  - **addresses**: Array of Ethereum addresses allowed to run compute jobs. If empty and no access lists are configured, all addresses are allowed.
+  - **accessLists**: Array of AccessList contract addresses. Users holding NFTs from these contracts can run compute jobs. Checked across all supported networks.
 - **fees**: Fee structure for the compute environment.
   - **feeToken**: Token address for the fee.
   - **prices**: Array of resource pricing information.
@@ -172,7 +205,11 @@ The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of
 - **free**: Optional configuration for free jobs.
   - **storageExpiry**: Amount of seconds for storage expiry for free jobs.
   - **maxJobDuration**: Maximum duration in seconds for a free job.
+  - **minJobDuration**: Minimum duration in seconds for a free job.
   - **maxJobs**: Maximum number of simultaneous free jobs.
+  - **access**: Access control configuration for free compute jobs. Works the same as the main `access` field.
+    - **addresses**: Array of Ethereum addresses allowed to run free compute jobs.
+    - **accessLists**: Array of AccessList contract addresses for free compute access control.
   - **resources**: Array of resources available for free jobs.
     - **id**: Resource type (e.g., `cpu`, `ram`, `disk`).
     - **total**: Total number of the resource available.

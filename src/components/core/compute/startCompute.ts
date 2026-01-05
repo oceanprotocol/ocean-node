@@ -6,7 +6,7 @@ import {
   PaidComputeStartCommand
 } from '../../../@types/commands.js'
 import { CommandHandler } from '../handler/handler.js'
-import { getAlgoChecksums, validateAlgoForDataset } from './utils.js'
+import { generateUniqueID, getAlgoChecksums, validateAlgoForDataset } from './utils.js'
 import {
   ValidateParams,
   buildInvalidRequestMessage,
@@ -21,26 +21,30 @@ import {
   isERC20Template4Active
 } from '../../../utils/asset.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
-import { ComputeResourceRequestWithPrice } from '../../../@types/C2D/C2D.js'
+import {
+  ComputeAccessList,
+  ComputeResourceRequestWithPrice
+} from '../../../@types/C2D/C2D.js'
 import { decrypt } from '../../../utils/crypt.js'
 // import { verifyProviderFees } from '../utils/feesHandler.js'
 import { Blockchain } from '../../../utils/blockchain.js'
 import { validateOrderTransaction } from '../utils/validateOrders.js'
-import { getConfiguration } from '../../../utils/index.js'
+import { getConfiguration, isPolicyServerConfigured } from '../../../utils/index.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 // import { ProviderFeeValidation } from '../../../@types/Fees.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
-import { DDOManager } from '@oceanprotocol/ddo-js'
-import { getNonceAsNumber, checkNonce, NonceResponse } from '../utils/nonceHandler.js'
-import { createHash } from 'crypto'
-
+import { Credentials, DDOManager } from '@oceanprotocol/ddo-js'
+import { getNonceAsNumber } from '../utils/nonceHandler.js'
+import { PolicyServer } from '../../policyServer/index.js'
+import {
+  areKnownCredentialTypes,
+  checkCredentials,
+  findAccessListCredentials
+} from '../../../utils/credentials.js'
 export class PaidComputeStartHandler extends CommandHandler {
   validate(command: PaidComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
-      'consumerAddress',
-      'signature',
-      'nonce',
       'environment',
       'algorithm',
       'datasets',
@@ -64,6 +68,21 @@ export class PaidComputeStartHandler extends CommandHandler {
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
+    if (!task.queueMaxWaitTime) {
+      task.queueMaxWaitTime = 0
+    }
+    const authValidationResponse = await this.validateTokenOrSignature(
+      task.authorization,
+      task.consumerAddress,
+      task.nonce,
+      task.signature,
+      String(task.consumerAddress + task.datasets[0]?.documentId + task.nonce)
+    )
+
+    if (authValidationResponse.status.httpStatus !== 200) {
+      return authValidationResponse
+    }
+
     try {
       const node = this.getOceanNode()
       // split compute env (which is already in hash-envId format) and get the hash
@@ -98,45 +117,81 @@ export class PaidComputeStartHandler extends CommandHandler {
         if (!task.maxJobDuration || task.maxJobDuration > env.maxJobDuration) {
           task.maxJobDuration = env.maxJobDuration
         }
-        task.payment.resources = await engine.checkAndFillMissingResources(
-          task.payment.resources,
+        task.resources = await engine.checkAndFillMissingResources(
+          task.resources,
           env,
           false
         )
-        await engine.checkIfResourcesAreAvailable(task.payment.resources, env, true)
       } catch (e) {
         return {
           stream: null,
           status: {
             httpStatus: 400,
-            error: e
+            error: e?.message || String(e)
+          }
+        }
+      }
+      try {
+        await engine.checkIfResourcesAreAvailable(task.resources, env, true)
+      } catch (e) {
+        if (task.queueMaxWaitTime > 0) {
+          CORE_LOGGER.verbose(
+            `Compute resources not available, queuing job for max ${task.queueMaxWaitTime} seconds`
+          )
+        } else {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: e?.message || String(e)
+            }
           }
         }
       }
       const { algorithm } = task
+      const config = await getConfiguration()
+
+      const accessGranted = await validateAccess(task.consumerAddress, env.access)
+      if (!accessGranted) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 403,
+            error: 'Access denied'
+          }
+        }
+      }
 
       const algoChecksums = await getAlgoChecksums(
         task.algorithm.documentId,
         task.algorithm.serviceId,
-        node
+        node,
+        config
       )
-      if (!algoChecksums.container || !algoChecksums.files) {
-        CORE_LOGGER.error(`Error retrieveing algorithm checksums!`)
+
+      const isRawCodeAlgorithm = task.algorithm.meta?.rawcode
+      const hasValidChecksums = algoChecksums.container && algoChecksums.files
+
+      if (!isRawCodeAlgorithm && !hasValidChecksums) {
+        const errorMessage =
+          'Failed to retrieve algorithm checksums. Both container and files checksums are required.'
+        CORE_LOGGER.error(errorMessage)
         return {
           stream: null,
           status: {
             httpStatus: 500,
-            error: `Error retrieveing algorithm checksums!`
+            error: errorMessage
           }
         }
       }
+      const policyServer = new PolicyServer()
       // check algo
       for (const elem of [...[task.algorithm], ...task.datasets]) {
         console.log(elem)
         const result: any = { validOrder: false }
         if ('documentId' in elem && elem.documentId) {
           result.did = elem.documentId
-          result.serviceId = elem.documentId
+          result.serviceId = elem.serviceId
           const ddo = await new FindDdoHandler(node).findAndFormatDdo(elem.documentId)
           if (!ddo) {
             const error = `DDO ${elem.documentId} not found`
@@ -148,6 +203,13 @@ export class PaidComputeStartHandler extends CommandHandler {
               }
             }
           }
+          const ddoInstance = DDOManager.getDDOClass(ddo)
+          const {
+            chainId: ddoChainId,
+            metadata,
+            nftAddress,
+            credentials
+          } = ddoInstance.getDDOFields()
           const isOrdable = isOrderingAllowedForAsset(ddo)
           if (!isOrdable.isOrdable) {
             CORE_LOGGER.error(isOrdable.reason)
@@ -156,6 +218,39 @@ export class PaidComputeStartHandler extends CommandHandler {
               status: {
                 httpStatus: 500,
                 error: isOrdable.reason
+              }
+            }
+          }
+          // check credentials (DDO level)
+          let accessGrantedDDOLevel: boolean
+          if (credentials) {
+            // if POLICY_SERVER_URL exists, then ocean-node will NOT perform any checks.
+            // It will just use the existing code and let PolicyServer decide.
+            if (isPolicyServerConfigured()) {
+              const response = await policyServer.checkStartCompute(
+                ddo.id,
+                ddo,
+                elem.serviceId,
+                task.consumerAddress,
+                task.policyServer
+              )
+              accessGrantedDDOLevel = response.success
+            } else {
+              accessGrantedDDOLevel = areKnownCredentialTypes(credentials as Credentials)
+                ? checkCredentials(credentials as Credentials, task.consumerAddress)
+                : true
+            }
+            if (!accessGrantedDDOLevel) {
+              CORE_LOGGER.logMessage(
+                `Error: Access to asset ${ddoInstance.getDid()} was denied`,
+                true
+              )
+              return {
+                stream: null,
+                status: {
+                  httpStatus: 403,
+                  error: `Error: Access to asset ${ddoInstance.getDid()} was denied`
+                }
               }
             }
           }
@@ -170,15 +265,43 @@ export class PaidComputeStartHandler extends CommandHandler {
               }
             }
           }
+          // check credentials on service level
+          // if using a policy server and we are here it means that access was granted (they are merged/assessed together)
+          if (service.credentials) {
+            let accessGrantedServiceLevel: boolean
+            if (isPolicyServerConfigured()) {
+              // we use the previous check or we do it again
+              // (in case there is no DDO level credentials and we only have Service level ones)
+              const response = await policyServer.checkStartCompute(
+                ddoInstance.getDid(),
+                ddo,
+                elem.serviceId,
+                task.consumerAddress,
+                task.policyServer
+              )
+              accessGrantedServiceLevel = accessGrantedDDOLevel || response.success
+            } else {
+              accessGrantedServiceLevel = areKnownCredentialTypes(service.credentials)
+                ? checkCredentials(service.credentials, task.consumerAddress)
+                : true
+            }
+
+            if (!accessGrantedServiceLevel) {
+              CORE_LOGGER.logMessage(
+                `Error: Access to service with id ${service.id} was denied`,
+                true
+              )
+              return {
+                stream: null,
+                status: {
+                  httpStatus: 403,
+                  error: `Error: Access to service with id ${service.id} was denied`
+                }
+              }
+            }
+          }
 
           const config = await getConfiguration()
-          const ddoInstance = DDOManager.getDDOClass(ddo)
-          const {
-            chainId: ddoChainId,
-            services,
-            metadata,
-            nftAddress
-          } = ddoInstance.getDDOFields()
           const { rpc, network, chainId, fallbackRPCs } =
             config.supportedNetworks[ddoChainId]
           const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
@@ -247,11 +370,15 @@ export class PaidComputeStartHandler extends CommandHandler {
             }
           }
           if (metadata.type !== 'algorithm') {
+            const index = task.datasets.findIndex(
+              (d) => d.documentId === ddoInstance.getDid()
+            )
+            const safeIndex = index === -1 ? 0 : index
             const validAlgoForDataset = await validateAlgoForDataset(
               task.algorithm.documentId,
               algoChecksums,
               ddoInstance,
-              services[0].id,
+              task.datasets[safeIndex].serviceId,
               node
             )
             if (!validAlgoForDataset) {
@@ -333,7 +460,7 @@ export class PaidComputeStartHandler extends CommandHandler {
       }
       const resources: ComputeResourceRequestWithPrice[] = []
 
-      for (const res of task.payment.resources) {
+      for (const res of task.resources) {
         const price = engine.getResourcePrice(prices, res.id)
         resources.push({
           id: res.id,
@@ -350,12 +477,14 @@ export class PaidComputeStartHandler extends CommandHandler {
         maxJobDuration: task.maxJobDuration,
         chainId: task.payment.chainId,
         agreementId: '',
-        resources
+        resources,
+        metadata: task.metadata
       }
-      const jobId = createHash('sha256').update(JSON.stringify(s)).digest('hex')
+      // job ID unicity
+      const jobId = generateUniqueID(s)
       // let's calculate payment needed based on resources request and maxJobDuration
       const cost = engine.calculateResourcesCost(
-        task.payment.resources,
+        task.resources,
         env,
         task.payment.chainId,
         task.payment.token,
@@ -369,14 +498,26 @@ export class PaidComputeStartHandler extends CommandHandler {
           task.payment.token,
           task.consumerAddress,
           cost,
-          task.maxJobDuration
+          engine.escrow.getMinLockTime(
+            Number(task.maxJobDuration) + Number(task.queueMaxWaitTime)
+          )
         )
       } catch (e) {
+        if (e.message.includes('insufficient funds for intrinsic transaction cost')) {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error:
+                'Node insufficient gas funds. If you are the node owner, please add gas funds to the node.'
+            }
+          }
+        }
         return {
           stream: null,
           status: {
             httpStatus: 400,
-            error: e
+            error: e?.message || String(e)
           }
         }
       }
@@ -388,13 +529,18 @@ export class PaidComputeStartHandler extends CommandHandler {
           env.id,
           task.consumerAddress,
           task.maxJobDuration,
-          task.payment.resources,
+          task.resources,
           {
             chainId: task.payment.chainId,
             token: task.payment.token,
             lockTx: agreementId,
-            claimTx: null
-          }
+            claimTx: null,
+            cost: 0
+          },
+          jobId,
+          task.metadata,
+          task.additionalViewers,
+          task.queueMaxWaitTime
         )
         CORE_LOGGER.logMessage(
           'ComputeStartCommand Response: ' + JSON.stringify(response, null, 2),
@@ -415,14 +561,14 @@ export class PaidComputeStartHandler extends CommandHandler {
             task.payment.token,
             task.consumerAddress
           )
-        } catch (e) {
+        } catch (cancelError) {
           // is fine if it fails
         }
         return {
           stream: null,
           status: {
             httpStatus: 400,
-            error: e
+            error: e?.message || String(e)
           }
         }
       }
@@ -444,9 +590,6 @@ export class FreeComputeStartHandler extends CommandHandler {
     const commandValidation = validateCommandParameters(command, [
       'algorithm',
       'datasets',
-      'consumerAddress',
-      'signature',
-      'nonce',
       'environment'
     ])
     if (commandValidation.valid) {
@@ -460,34 +603,25 @@ export class FreeComputeStartHandler extends CommandHandler {
   }
 
   async handle(task: FreeComputeStartCommand): Promise<P2PCommandResponse> {
+    const thisNode = this.getOceanNode()
     const validationResponse = await this.verifyParamsAndRateLimits(task)
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
-    const thisNode = this.getOceanNode()
-    // Validate nonce and signature
-    const nonceCheckResult: NonceResponse = await checkNonce(
-      thisNode.getDatabase().nonce,
+    if (!task.queueMaxWaitTime) {
+      task.queueMaxWaitTime = 0
+    }
+    const authValidationResponse = await this.validateTokenOrSignature(
+      task.authorization,
       task.consumerAddress,
-      parseInt(task.nonce),
+      task.nonce,
       task.signature,
       String(task.nonce)
     )
-
-    if (!nonceCheckResult.valid) {
-      CORE_LOGGER.logMessage(
-        'Invalid nonce or signature, unable to proceed: ' + nonceCheckResult.error,
-        true
-      )
-      return {
-        stream: null,
-        status: {
-          httpStatus: 500,
-          error:
-            'Invalid nonce or signature, unable to proceed: ' + nonceCheckResult.error
-        }
-      }
+    if (authValidationResponse.status.httpStatus !== 200) {
+      return authValidationResponse
     }
+
     let engine = null
     try {
       // split compute env (which is already in hash-envId format) and get the hash
@@ -515,14 +649,124 @@ export class FreeComputeStartHandler extends CommandHandler {
           }
         }
       }
-      try {
-        const env = await engine.getComputeEnvironment(null, task.environment)
-        if (!env) {
+      const policyServer = new PolicyServer()
+      for (const elem of [...[task.algorithm], ...task.datasets]) {
+        if (!('documentId' in elem)) {
+          continue
+        }
+        const ddo = await new FindDdoHandler(this.getOceanNode()).findAndFormatDdo(
+          elem.documentId
+        )
+        if (!ddo) {
+          const error = `DDO ${elem.documentId} not found`
           return {
             stream: null,
             status: {
               httpStatus: 500,
-              error: 'Invalid C2D Environment'
+              error
+            }
+          }
+        }
+        const ddoInstance = DDOManager.getDDOClass(ddo)
+        const { credentials } = ddoInstance.getDDOFields()
+        // check credentials (DDO level)
+        let accessGrantedDDOLevel: boolean
+        if (credentials) {
+          // if POLICY_SERVER_URL exists, then ocean-node will NOT perform any checks.
+          // It will just use the existing code and let PolicyServer decide.
+          if (isPolicyServerConfigured()) {
+            const response = await policyServer.checkStartCompute(
+              ddoInstance.getDid(),
+              ddo,
+              elem.serviceId,
+              task.consumerAddress,
+              task.policyServer
+            )
+            accessGrantedDDOLevel = response.success
+          } else {
+            accessGrantedDDOLevel = areKnownCredentialTypes(credentials as Credentials)
+              ? checkCredentials(credentials as Credentials, task.consumerAddress)
+              : true
+          }
+          if (!accessGrantedDDOLevel) {
+            CORE_LOGGER.logMessage(
+              `Error: Access to asset ${ddoInstance.getDid()} was denied`,
+              true
+            )
+            return {
+              stream: null,
+              status: {
+                httpStatus: 403,
+                error: `Error: Access to asset ${ddoInstance.getDid()} was denied`
+              }
+            }
+          }
+        }
+        const service = AssetUtils.getServiceById(ddo, elem.serviceId)
+        if (!service) {
+          const error = `Cannot find service ${elem.serviceId} in DDO ${elem.documentId}`
+          return {
+            stream: null,
+            status: {
+              httpStatus: 500,
+              error
+            }
+          }
+        }
+        // check credentials on service level
+        // if using a policy server and we are here it means that access was granted (they are merged/assessed together)
+        if (service.credentials) {
+          let accessGrantedServiceLevel: boolean
+          if (isPolicyServerConfigured()) {
+            // we use the previous check or we do it again
+            // (in case there is no DDO level credentials and we only have Service level ones)
+            const response = await policyServer.checkStartCompute(
+              ddo.id,
+              ddo,
+              service.id,
+              task.consumerAddress,
+              task.policyServer
+            )
+            accessGrantedServiceLevel = accessGrantedDDOLevel || response.success
+          } else {
+            accessGrantedServiceLevel = areKnownCredentialTypes(service.credentials)
+              ? checkCredentials(service.credentials, task.consumerAddress)
+              : true
+          }
+
+          if (!accessGrantedServiceLevel) {
+            CORE_LOGGER.logMessage(
+              `Error: Access to service with id ${service.id} was denied`,
+              true
+            )
+            return {
+              stream: null,
+              status: {
+                httpStatus: 403,
+                error: `Error: Access to service with id ${service.id} was denied`
+              }
+            }
+          }
+        }
+      }
+      const env = await engine.getComputeEnvironment(null, task.environment)
+      if (!env) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500,
+            error: 'Invalid C2D Environment'
+          }
+        }
+      }
+      try {
+        const accessGranted = await validateAccess(task.consumerAddress, env.free.access)
+        if (!accessGranted) {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 403,
+              error: 'Access denied'
             }
           }
         }
@@ -532,7 +776,7 @@ export class FreeComputeStartHandler extends CommandHandler {
           env,
           true
         )
-        await engine.checkIfResourcesAreAvailable(task.resources, env, true)
+
         if (!task.maxJobDuration || task.maxJobDuration > env.free.maxJobDuration) {
           task.maxJobDuration = env.free.maxJobDuration
         }
@@ -546,6 +790,23 @@ export class FreeComputeStartHandler extends CommandHandler {
           }
         }
       }
+      try {
+        await engine.checkIfResourcesAreAvailable(task.resources, env, true)
+      } catch (e) {
+        if (task.queueMaxWaitTime > 0) {
+          CORE_LOGGER.verbose(
+            `Compute resources not available, queuing job for max ${task.queueMaxWaitTime} seconds`
+          )
+        } else {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: e?.message || String(e)
+            }
+          }
+        }
+      }
       // console.log(task.resources)
       /*
       return {
@@ -555,6 +816,17 @@ export class FreeComputeStartHandler extends CommandHandler {
           error: null
         }
       } */
+      const s = {
+        assets: task.datasets,
+        algorithm: task.algorithm,
+        output: task.output,
+        environment: task.environment,
+        owner: task.consumerAddress,
+        maxJobDuration: task.maxJobDuration,
+        resources: task.resources,
+        metadata: task.metadata
+      }
+      const jobId = generateUniqueID(s)
       const response = await engine.startComputeJob(
         task.datasets,
         task.algorithm,
@@ -563,7 +835,11 @@ export class FreeComputeStartHandler extends CommandHandler {
         task.consumerAddress,
         task.maxJobDuration,
         task.resources,
-        null
+        null,
+        jobId,
+        task.metadata,
+        task.additionalViewers,
+        task.queueMaxWaitTime
       )
 
       CORE_LOGGER.logMessage(
@@ -588,4 +864,52 @@ export class FreeComputeStartHandler extends CommandHandler {
       }
     }
   }
+}
+
+async function validateAccess(
+  consumerAddress: string,
+  access: ComputeAccessList | undefined
+): Promise<boolean> {
+  if (!access) {
+    return true
+  }
+
+  if (access.accessLists.length === 0 && access.addresses.length === 0) {
+    return true
+  }
+
+  if (access.addresses.includes(consumerAddress)) {
+    return true
+  }
+
+  if (access.accessLists.length > 0) {
+    const config = await getConfiguration()
+    const { supportedNetworks } = config
+
+    for (const accessListAddress of access.accessLists) {
+      for (const chainIdStr of Object.keys(supportedNetworks)) {
+        const { rpc, network, chainId, fallbackRPCs } = supportedNetworks[chainIdStr]
+        try {
+          const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+          const signer = blockchain.getSigner()
+
+          const hasAccess = await findAccessListCredentials(
+            signer,
+            accessListAddress,
+            consumerAddress
+          )
+          if (hasAccess) {
+            return true
+          }
+        } catch (error) {
+          CORE_LOGGER.logMessage(
+            `Failed to check access list ${accessListAddress} on chain ${chainIdStr}: ${error.message}`,
+            true
+          )
+        }
+      }
+    }
+  }
+
+  return false
 }

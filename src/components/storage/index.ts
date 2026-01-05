@@ -48,7 +48,8 @@ export abstract class Storage {
     const response = await axios({
       method: 'get',
       url: input,
-      responseType: 'stream'
+      responseType: 'stream',
+      timeout: 30000
     })
 
     return {
@@ -62,18 +63,26 @@ export abstract class Storage {
     file: any,
     config: OceanNodeConfig
   ): UrlStorage | IpfsStorage | ArweaveStorage {
-    const { type } = file
-    switch (
-      type?.toLowerCase() // case insensitive
-    ) {
-      case FileObjectType.URL:
-        return new UrlStorage(file, config)
-      case FileObjectType.IPFS:
-        return new IpfsStorage(file, config)
-      case FileObjectType.ARWEAVE:
-        return new ArweaveStorage(file, config)
-      default:
-        throw new Error(`Invalid storage type: ${type}`)
+    if (!file) {
+      throw new Error('Empty file object')
+    }
+    try {
+      const { type } = file
+      switch (
+        type?.toLowerCase() // case insensitive
+      ) {
+        case FileObjectType.URL:
+          return new UrlStorage(file, config)
+        case FileObjectType.IPFS:
+          return new IpfsStorage(file, config)
+        case FileObjectType.ARWEAVE:
+          return new ArweaveStorage(file, config)
+        default:
+          throw new Error(`Invalid storage type: ${type}`)
+      }
+    } catch (err) {
+      console.error('Error in getStorageClass: ', err)
+      throw err
     }
   }
 
@@ -264,7 +273,8 @@ export class UrlStorage extends Storage {
     const response = await axios({
       url: file.url,
       method: file.method || 'get',
-      headers: file.headers
+      headers: file.headers,
+      timeout: 30000
     })
     return await encryptData(response.data, encryptionType)
   }
@@ -281,8 +291,8 @@ export class ArweaveStorage extends Storage {
   }
 
   validate(): [boolean, string] {
-    if (!process.env.ARWEAVE_GATEWAY) {
-      return [false, 'Arweave gateway is not provided!']
+    if (!this.config.arweaveGateway) {
+      return [false, 'Arweave gateway is not configured!']
     }
     const file: ArweaveFileObject = this.getFile() as ArweaveFileObject
     if (!file.transactionId) {
@@ -311,14 +321,14 @@ export class ArweaveStorage extends Storage {
   }
 
   getDownloadUrl(): string {
-    return urlJoin(process.env.ARWEAVE_GATEWAY, this.getFile().transactionId)
+    return urlJoin(this.config.arweaveGateway, this.getFile().transactionId)
   }
 
   async fetchSpecificFileMetadata(
     fileObject: ArweaveFileObject,
     forceChecksum: boolean
   ): Promise<FileInfoResponse> {
-    const url = urlJoin(process.env.ARWEAVE_GATEWAY, fileObject.transactionId)
+    const url = urlJoin(this.config.arweaveGateway, fileObject.transactionId)
     const { contentLength, contentType, contentChecksum } = await fetchFileMetadata(
       url,
       'get',
@@ -341,7 +351,7 @@ export class ArweaveStorage extends Storage {
   ): Promise<Buffer> {
     const file = this.getFile()
     const response = await axios({
-      url: urlJoin(process.env.ARWEAVE_GATEWAY, file.transactionId),
+      url: urlJoin(this.config.arweaveGateway, file.transactionId),
       method: 'get'
     })
     return await encryptData(response.data, encryptionType)
@@ -359,8 +369,8 @@ export class IpfsStorage extends Storage {
   }
 
   validate(): [boolean, string] {
-    if (!process.env.IPFS_GATEWAY) {
-      return [false, 'IPFS gateway is not provided!']
+    if (!this.config.ipfsGateway) {
+      return [false, 'IPFS gateway is not configured!']
     }
     const file: IpfsFileObject = this.getFile() as IpfsFileObject
     if (!file.hash) {
@@ -383,14 +393,14 @@ export class IpfsStorage extends Storage {
   }
 
   getDownloadUrl(): string {
-    return urlJoin(process.env.IPFS_GATEWAY, urlJoin('/ipfs', this.getFile().hash))
+    return urlJoin(this.config.ipfsGateway, urlJoin('/ipfs', this.getFile().hash))
   }
 
   async fetchSpecificFileMetadata(
     fileObject: IpfsFileObject,
     forceChecksum: boolean
   ): Promise<FileInfoResponse> {
-    const url = urlJoin(process.env.IPFS_GATEWAY, urlJoin('/ipfs', fileObject.hash))
+    const url = urlJoin(this.config.ipfsGateway, urlJoin('/ipfs', fileObject.hash))
     const { contentLength, contentType, contentChecksum } = await fetchFileMetadata(
       url,
       'get',

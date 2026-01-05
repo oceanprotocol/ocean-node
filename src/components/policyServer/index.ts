@@ -69,7 +69,7 @@ export class PolicyServer {
     return await this.askServer(command)
   }
 
-  async checkInitialize(
+  async checkDownload(
     documentId: string,
     ddo: DDO,
     serviceId: string,
@@ -77,7 +77,7 @@ export class PolicyServer {
     policyServer: any
   ): Promise<PolicyServerResult> {
     const command = {
-      action: 'initialize',
+      action: 'download',
       documentId,
       ddo,
       serviceId,
@@ -87,22 +87,36 @@ export class PolicyServer {
     return await this.askServer(command)
   }
 
-  async checkDownload(
+  async checkStartCompute(
     documentId: string,
     ddo: DDO,
     serviceId: string,
-    fileIndex: number,
-    transferTxId: string,
     consumerAddress: string,
     policyServer: any
   ): Promise<PolicyServerResult> {
     const command = {
-      action: 'download',
+      action: 'startCompute',
       documentId,
       ddo,
       serviceId,
-      fileIndex,
-      transferTxId,
+      consumerAddress,
+      policyServer
+    }
+    return await this.askServer(command)
+  }
+
+  async initializePSVerification(
+    documentId: string,
+    ddo: DDO,
+    serviceId: string,
+    consumerAddress: string,
+    policyServer: any
+  ): Promise<PolicyServerResult> {
+    const command = {
+      action: 'initiate',
+      documentId,
+      serviceId,
+      ddo,
       consumerAddress,
       policyServer
     }

@@ -33,7 +33,12 @@ export const PROTOCOL_COMMANDS = {
   GET_P2P_PEER: 'getP2PPeer',
   GET_P2P_PEERS: 'getP2PPeers',
   GET_P2P_NETWORK_STATS: 'getP2PNetworkStats',
-  FIND_PEER: 'findPeer'
+  FIND_PEER: 'findPeer',
+  CREATE_AUTH_TOKEN: 'createAuthToken',
+  INVALIDATE_AUTH_TOKEN: 'invalidateAuthToken',
+  FETCH_CONFIG: 'fetchConfig',
+  PUSH_CONFIG: 'pushConfig',
+  JOBS: 'jobs'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -67,7 +72,12 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.GET_P2P_PEER,
   PROTOCOL_COMMANDS.GET_P2P_PEERS,
   PROTOCOL_COMMANDS.GET_P2P_NETWORK_STATS,
-  PROTOCOL_COMMANDS.FIND_PEER
+  PROTOCOL_COMMANDS.FIND_PEER,
+  PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
+  PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
+  PROTOCOL_COMMANDS.FETCH_CONFIG,
+  PROTOCOL_COMMANDS.PUSH_CONFIG,
+  PROTOCOL_COMMANDS.JOBS
 ]
 
 export const MetadataStates = {
@@ -184,6 +194,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   HTTP_API_PORT: {
     name: 'HTTP_API_PORT',
     value: process.env.HTTP_API_PORT,
+    required: false
+  },
+  CONFIG_PATH: {
+    name: 'CONFIG_PATH',
+    value: process.env.CONFIG_PATH,
     required: false
   },
   PRIVATE_KEY: { name: 'PRIVATE_KEY', value: process.env.PRIVATE_KEY, required: true },
@@ -439,13 +454,59 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'POLICY_SERVER_URL',
     value: process.env.POLICY_SERVER_URL,
     required: false
+  },
+  VALIDATE_UNSIGNED_DDO: {
+    name: 'VALIDATE_UNSIGNED_DDO',
+    value: process.env.VALIDATE_UNSIGNED_DDO,
+    required: false
+  },
+  P2P_ipV4BindAddress: {
+    name: 'P2P_ipV4BindAddress',
+    value: process.env.P2P_ipV4BindAddress,
+    required: false
+  },
+  P2P_ipV4BindTcpPort: {
+    name: 'P2P_ipV4BindTcpPort',
+    value: process.env.P2P_ipV4BindTcpPort,
+    required: false
+  },
+  P2P_ipV4BindWsPort: {
+    name: 'P2P_ipV4BindWsPort',
+    value: process.env.P2P_ipV4BindWsPort,
+    required: false
+  },
+  P2P_ipV4BindWssPort: {
+    name: 'P2P_ipV4BindWssPort',
+    value: process.env.P2P_ipV4BindWssPort,
+    required: false
+  },
+  P2P_ipV6BindAddress: {
+    name: 'P2P_ipV6BindAddress',
+    value: process.env.P2P_ipV6BindAddress,
+    required: false
+  },
+  P2P_ipV6BindTcpPort: {
+    name: 'P2P_ipV6BindTcpPort',
+    value: process.env.P2P_ipV6BindTcpPort,
+    required: false
+  },
+  P2P_ipV6BindWsPort: {
+    name: 'P2P_ipV6BindWsPort',
+    value: process.env.P2P_ipV6BindWsPort,
+    required: false
+  },
+  P2P_MIN_CONNECTIONS: {
+    name: 'P2P_MIN_CONNECTIONS',
+    value: process.env.P2P_MIN_CONNECTIONS,
+    required: false
+  },
+  P2P_MAX_CONNECTIONS: {
+    name: 'P2P_MAX_CONNECTIONS',
+    value: process.env.P2P_MAX_CONNECTIONS,
+    required: false
   }
 }
 export const CONNECTION_HISTORY_DELETE_THRESHOLD = 300
-// default to 30 requests per minute (configurable), per ip/peer
-export const DEFAULT_RATE_LIMIT_PER_MINUTE = 30
-// max connections per minute (configurable), all connections
-export const DEFAULT_MAX_CONNECTIONS_PER_MINUTE = 60 * 2 // 120 requests per minute
 // 1 minute
 export const CONNECTIONS_RATE_INTERVAL = 60 * 1000
 // Typesense's maximum limit to send 250 hits at a time
@@ -453,47 +514,3 @@ export const TYPESENSE_HITS_CAP = 250
 export const DDO_IDENTIFIER_PREFIX = 'did:op:'
 // global ocean node API services path
 export const SERVICES_API_BASE_PATH = '/api/services'
-
-export const defaultBootstrapAddresses = [
-  // Public IPFS bootstraps
-  // '/ip4/104.131.131.82/tcp/4001/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ',
-  // '/dnsaddr/bootstrap.libp2p.io/ipfs/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN',
-  // '/dnsaddr/bootstrap.libp2p.io/ipfs/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa',
-  // OPF nodes
-  //  node1
-  '/dns4/node1.oceanprotocol.com/tcp/9000/p2p/16Uiu2HAmLhRDqfufZiQnxvQs2XHhd6hwkLSPfjAQg1gH8wgRixiP',
-  '/dns4/node1.oceanprotocol.com/tcp/9001/ws/p2p/16Uiu2HAmLhRDqfufZiQnxvQs2XHhd6hwkLSPfjAQg1gH8wgRixiP',
-  '/dns6/node1.oceanprotocol.com/tcp/9002/p2p/16Uiu2HAmLhRDqfufZiQnxvQs2XHhd6hwkLSPfjAQg1gH8wgRixiP',
-  '/dns6/node1.oceanprotocol.com/tcp/9003/ws/p2p/16Uiu2HAmLhRDqfufZiQnxvQs2XHhd6hwkLSPfjAQg1gH8wgRixiP',
-  // node 2
-  '/dns4/node2.oceanprotocol.com/tcp/9000/p2p/16Uiu2HAmHwzeVw7RpGopjZe6qNBJbzDDBdqtrSk7Gcx1emYsfgL4',
-  '/dns4/node2.oceanprotocol.com/tcp/9001/ws/p2p/16Uiu2HAmHwzeVw7RpGopjZe6qNBJbzDDBdqtrSk7Gcx1emYsfgL4',
-  '/dns6/node2.oceanprotocol.com/tcp/9002/p2p/16Uiu2HAmHwzeVw7RpGopjZe6qNBJbzDDBdqtrSk7Gcx1emYsfgL4',
-  '/dns6/node2.oceanprotocol.com/tcp/9003/ws/p2p/16Uiu2HAmHwzeVw7RpGopjZe6qNBJbzDDBdqtrSk7Gcx1emYsfgL4',
-  // node 3
-  '/dns4/node3.oceanprotocol.com/tcp/9000/p2p/16Uiu2HAmBKSeEP3v4tYEPsZsZv9VELinyMCsrVTJW9BvQeFXx28U',
-  '/dns4/node3.oceanprotocol.com/tcp/9001/ws/p2p/16Uiu2HAmBKSeEP3v4tYEPsZsZv9VELinyMCsrVTJW9BvQeFXx28U',
-  '/dns6/node3.oceanprotocol.com/tcp/9002/p2p/16Uiu2HAmBKSeEP3v4tYEPsZsZv9VELinyMCsrVTJW9BvQeFXx28U',
-  '/dns6/node3.oceanprotocol.com/tcp/9003/ws/p2p/16Uiu2HAmBKSeEP3v4tYEPsZsZv9VELinyMCsrVTJW9BvQeFXx28U',
-  // node 4
-  '/dns4/node4.oceanprotocol.com/tcp/9000/p2p/16Uiu2HAmSTVTArioKm2wVcyeASHYEsnx2ZNq467Z4GMDU4ErEPom',
-  '/dns4/node4.oceanprotocol.com/tcp/9001/ws/p2p/16Uiu2HAmSTVTArioKm2wVcyeASHYEsnx2ZNq467Z4GMDU4ErEPom',
-  '/dns6/node4.oceanprotocol.com/tcp/9002/p2p/16Uiu2HAmSTVTArioKm2wVcyeASHYEsnx2ZNq467Z4GMDU4ErEPom',
-  '/dns6/node4.oceanprotocol.com/tcp/9003/ws/p2p/16Uiu2HAmSTVTArioKm2wVcyeASHYEsnx2ZNq467Z4GMDU4ErEPom'
-]
-
-export const knownUnsafeURLs: string[] = [
-  // AWS and GCP
-  '^.*(169.254.169.254).*',
-  // GCP
-  '^.*(metadata.google.internal).*',
-  '^.*(http://metadata).*',
-  // Azure
-  '^.*(http://169.254.169.254).*',
-  // Oracle Cloud
-  '^.*(http://192.0.0.192).*',
-  // Alibaba Cloud
-  '^.*(http://100.100.100.200).*',
-  // k8s ETCD
-  '^.*(127.0.0.1).*'
-]

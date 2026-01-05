@@ -104,7 +104,7 @@ describe('Should encrypt and decrypt DDO', () => {
       publisherAccount
     )
     const config = await getConfiguration()
-    database = await new Database(config.dbConfig)
+    database = await Database.init(config.dbConfig)
     oceanNode = OceanNode.getInstance(config, database)
     // will be used later
     indexer = new OceanIndexer(database, mockSupportedNetworks)
@@ -335,13 +335,7 @@ describe('Should encrypt and decrypt DDO', () => {
   it('should decrypt ddo with transactionId and return it', async () => {
     const nonce = Date.now().toString()
     const wallet = new ethers.Wallet(process.env.PRIVATE_KEY)
-    const message = String(
-      txReceiptEncryptDDO.hash +
-        dataNftAddress +
-        publisherAddress +
-        chainId.toString() +
-        nonce
-    )
+    const message = String(txReceiptEncryptDDO.hash + publisherAddress + chainId + nonce)
     const messageHash = ethers.solidityPackedKeccak256(
       ['bytes'],
       [ethers.hexlify(ethers.toUtf8Bytes(message))]
@@ -367,7 +361,7 @@ describe('Should encrypt and decrypt DDO', () => {
   it('should decrypt ddo with encryptedDocument, flags, documentHash and return it', async () => {
     const nonce = Date.now().toString()
     const wallet = new ethers.Wallet(process.env.PRIVATE_KEY)
-    const message = String(dataNftAddress + publisherAddress + chainId.toString() + nonce)
+    const message = String(dataNftAddress + publisherAddress + chainId + nonce)
     const messageHash = ethers.solidityPackedKeccak256(
       ['bytes'],
       [ethers.hexlify(ethers.toUtf8Bytes(message))]

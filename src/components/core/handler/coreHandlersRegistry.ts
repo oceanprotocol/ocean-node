@@ -35,6 +35,8 @@ import { ReindexTxHandler } from '../admin/reindexTxHandler.js'
 import { ReindexChainHandler } from '../admin/reindexChainHandler.js'
 import { IndexingThreadHandler } from '../admin/IndexingThreadHandler.js'
 import { CollectFeesHandler } from '../admin/collectFeesHandler.js'
+import { FetchConfigHandler } from '../admin/fetchConfigHandler.js'
+import { PushConfigHandler } from '../admin/pushConfigHandler.js'
 import { AdminCommandHandler } from '../admin/adminHandler.js'
 import {
   GetP2PPeerHandler,
@@ -42,6 +44,9 @@ import {
   GetP2PNetworkStatsHandler,
   FindPeerHandler
 } from './p2p.js'
+import { CreateAuthTokenHandler, InvalidateAuthTokenHandler } from './authHandler.js'
+import { GetJobsHandler } from './getJobs.js'
+
 export type HandlerRegistry = {
   handlerName: string // name of the handler
   handlerImpl: BaseHandler // class that implements it
@@ -149,10 +154,24 @@ export class CoreHandlersRegistry {
       new GetP2PNetworkStatsHandler(node)
     )
     this.registerCoreHandler(PROTOCOL_COMMANDS.FIND_PEER, new FindPeerHandler(node))
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
+      new CreateAuthTokenHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
+      new InvalidateAuthTokenHandler(node)
+    )
+    this.registerCoreHandler(PROTOCOL_COMMANDS.FETCH_CONFIG, new FetchConfigHandler(node))
+    this.registerCoreHandler(PROTOCOL_COMMANDS.PUSH_CONFIG, new PushConfigHandler(node))
+    this.registerCoreHandler(PROTOCOL_COMMANDS.JOBS, new GetJobsHandler(node))
   }
 
-  public static getInstance(node: OceanNode): CoreHandlersRegistry {
-    if (!CoreHandlersRegistry.instance) {
+  public static getInstance(
+    node: OceanNode,
+    newInstance: boolean = false
+  ): CoreHandlersRegistry {
+    if (!CoreHandlersRegistry.instance || newInstance) {
       this.instance = new CoreHandlersRegistry(node)
     }
     return this.instance

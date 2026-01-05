@@ -189,6 +189,21 @@ routesNames.set('PolicyServerPassthrough', {
   method: 'post'
 })
 
+routesNames.set('initializePSVerification', {
+  path: `${SERVICES_API_BASE_PATH}/initializePSVerification`,
+  method: 'post'
+})
+
+routesNames.set('generateAuthToken', {
+  path: `${SERVICES_API_BASE_PATH}/auth/token`,
+  method: 'post'
+})
+
+routesNames.set('invalidateAuthToken', {
+  path: `${SERVICES_API_BASE_PATH}/auth/token/invalidate`,
+  method: 'post'
+})
+
 export function addMapping(path: any, layer: any) {
   if (layer.route) {
     layer.route.stack.forEach(addMapping.bind(null, path.concat(split(layer.route.path))))

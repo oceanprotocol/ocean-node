@@ -153,7 +153,7 @@ providerRoutes.get(`${SERVICES_API_BASE_PATH}/initialize`, async (req, res) => {
       serviceId: (req.query.serviceId as string) || null,
       consumerAddress: (req.query.consumerAddress as string) || null,
       validUntil: parseInt(req.query.validUntil as string) || null,
-      policyServer: req.query.policyServer || null
+      policyServer: (req.query.policyServer as any) || null
     })
     if (result.stream) {
       const initializeREsponse = await streamToObject(result.stream as Readable)
@@ -200,6 +200,7 @@ providerRoutes.get(
       `Download request received: ${JSON.stringify(req.query)}`,
       true
     )
+    const authorization = req.headers?.authorization
     try {
       const {
         fileIndex,
@@ -208,8 +209,19 @@ providerRoutes.get(
         transferTxId,
         nonce,
         consumerAddress,
-        signature
+        signature,
+        userdata
       } = req.query
+
+      let parsedUserData: any = null
+      if (userdata) {
+        try {
+          parsedUserData = JSON.parse(userdata as string)
+        } catch (e) {
+          HTTP_LOGGER.logMessage(`Invalid userdata JSON: ${userdata}`, true)
+          parsedUserData = null
+        }
+      }
 
       const downloadTask: DownloadCommand = {
         fileIndex: Number(fileIndex),
@@ -220,7 +232,9 @@ providerRoutes.get(
         consumerAddress: consumerAddress as string,
         signature: signature as string,
         command: PROTOCOL_COMMANDS.DOWNLOAD,
-        policyServer: req.query.policyServer || null
+        policyServer: (req.query.policyServer as any) || null,
+        authorization: authorization as string,
+        userData: parsedUserData
       }
 
       const response = await new DownloadHandler(req.oceanNode).handle(downloadTask)

@@ -1,6 +1,20 @@
 import { ConsumerParameter } from '../@types/DDO/ConsumerParameter.js'
+import { OceanNodeConfig } from '../@types/OceanNode.js'
 import { ValidateParams } from '../components/httpRoutes/validateCommands.js'
+import { RequestLimiter } from '../OceanNode.js'
 import { CORE_LOGGER } from './logging/common.js'
+import { CONNECTIONS_RATE_INTERVAL } from './constants.js'
+import { DEFAULT_MAX_CONNECTIONS_PER_MINUTE } from './index.js'
+
+// TODO we should group common stuff,
+// we have multiple similar validation interfaces
+export interface CommonValidation {
+  valid: boolean
+  error?: string
+}
+
+// hold data about last request made
+const connectionsData = new Map<string, RequestLimiter>()
 
 function checkString(value: any) {
   return typeof value === 'string' || value instanceof String
@@ -16,6 +30,68 @@ function checkNumber(value: any) {
 
 function checkObject(value: any) {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+export function checkRequestsRateLimit(
+  requestIP: string,
+  configuration: OceanNodeConfig,
+  now: number
+): CommonValidation {
+  const limit = configuration.rateLimit
+  let clientData = connectionsData.get(requestIP)
+
+  if (!clientData || clientData === undefined) {
+    clientData = {
+      lastRequestTime: now,
+      requester: requestIP,
+      numRequests: 1
+    }
+    connectionsData.set(requestIP, clientData)
+    return { valid: true, error: '' }
+  }
+
+  const timeSinceLastRequest = now - clientData.lastRequestTime
+  const windowExpired = timeSinceLastRequest > CONNECTIONS_RATE_INTERVAL
+
+  if (clientData.numRequests >= limit && !windowExpired) {
+    const waitTime = Math.ceil((CONNECTIONS_RATE_INTERVAL - timeSinceLastRequest) / 1000)
+    return {
+      valid: false,
+      error: `Rate limit exceeded. Try again in ${waitTime} seconds.`
+    }
+  }
+
+  if (windowExpired) {
+    clientData.numRequests = 1
+    clientData.lastRequestTime = now
+    return { valid: true, error: '' }
+  }
+
+  clientData.numRequests += 1
+  return { valid: true, error: '' }
+}
+
+export function checkGlobalConnectionsRateLimit(
+  configuration: OceanNodeConfig,
+  now: number
+): CommonValidation {
+  const maxConnections =
+    configuration.maxConnections || DEFAULT_MAX_CONNECTIONS_PER_MINUTE
+  let activeRequesters = 0
+
+  for (const [, clientData] of connectionsData.entries()) {
+    if (now - clientData.lastRequestTime <= CONNECTIONS_RATE_INTERVAL) {
+      activeRequesters += 1
+    }
+  }
+  const valid = activeRequesters <= maxConnections
+
+  return {
+    valid,
+    error: valid
+      ? ''
+      : `Too many active connections (${activeRequesters}/${maxConnections}) in the last minute.`
+  }
 }
 
 export function validateConsumerParameters(

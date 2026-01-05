@@ -9,7 +9,7 @@ import { AbstractDatabase } from './BaseDatabase.js'
 import { OceanNode } from '../../OceanNode.js'
 import { getDatabase } from '../../utils/database.js'
 import { getConfiguration } from '../../utils/index.js'
-
+import { generateUniqueID } from '../core/compute/utils.js'
 export class C2DDatabase extends AbstractDatabase {
   private provider: SQLiteCompute
 
@@ -32,6 +32,7 @@ export class C2DDatabase extends AbstractDatabase {
   }
 
   async newJob(job: DBComputeJob): Promise<string> {
+    if (!job.jobId) job.jobId = generateUniqueID(job)
     const jobId = await this.provider.newJob(job)
     return jobId
   }
@@ -70,6 +71,18 @@ export class C2DDatabase extends AbstractDatabase {
     return await this.provider.deleteJob(jobId)
   }
 
+  async getFinishedJobs(environments?: string[]): Promise<DBComputeJob[]> {
+    return await this.provider.getFinishedJobs(environments)
+  }
+
+  async getJobs(
+    environments?: string[],
+    fromTimestamp?: string,
+    consumerAddrs?: string[]
+  ): Promise<DBComputeJob[]> {
+    return await this.provider.getJobs(environments, fromTimestamp, consumerAddrs)
+  }
+
   /**
    *
    * @param environment compute environment to check for
@@ -92,8 +105,9 @@ export class C2DDatabase extends AbstractDatabase {
     for (const engine of allEngines) {
       const allEnvironments = await engine.getComputeEnvironments()
       for (const computeEnvironment of allEnvironments) {
-        const finishedOrExpired: DBComputeJob[] =
-          await this.provider.getFinishedJobs(computeEnvironment)
+        const finishedOrExpired: DBComputeJob[] = await this.provider.getFinishedJobs([
+          computeEnvironment.id
+        ])
         for (const job of finishedOrExpired) {
           if (
             computeEnvironment &&
@@ -117,18 +131,23 @@ export class C2DDatabase extends AbstractDatabase {
    */
   async cleanOrphanJobs(existingEnvironments: ComputeEnvironment[]) {
     const c2dDatabase = await (await getDatabase()).c2d
-    const finishedOrExpired: DBComputeJob[] = await this.provider.getFinishedJobs()
-    const envIds: string[] = existingEnvironments.map((env) => {
-      return env.id
-    })
     let cleaned = 0
-    for (const job of finishedOrExpired) {
-      if (job.environment && !envIds.includes(job.environment)) {
+
+    const envIds: string[] = existingEnvironments
+      .filter((env: any) => env && typeof env.id === 'string')
+      .map((env: any) => env.id)
+
+    // Get all finished jobs from DB, not just from known environments
+    const allJobs: DBComputeJob[] = await c2dDatabase.getFinishedJobs()
+
+    for (const job of allJobs) {
+      if (!job.environment || !envIds.includes(job.environment)) {
         if (await c2dDatabase.deleteJob(job.jobId)) {
           cleaned++
         }
       }
     }
+
     DATABASE_LOGGER.info('Cleaned ' + cleaned + ' orphan C2D jobs')
     return cleaned
   }

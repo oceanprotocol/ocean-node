@@ -1,4 +1,4 @@
-import { MetadataAlgorithm } from '@oceanprotocol/ddo-js'
+import { MetadataAlgorithm, ConsumerParameter } from '@oceanprotocol/ddo-js'
 import type { BaseFileObject } from '../fileObject.js'
 export enum C2DClusterType {
   // eslint-disable-next-line no-unused-vars
@@ -27,14 +27,36 @@ export interface ComputeResourcesPricingInfo {
   price: number // price per unit per minute
 }
 
+export interface ArgumentValues {
+  [key: string]: string | number | boolean | any[] // Supports multiple value types
+}
+
+export interface dockerDeviceRequest {
+  Driver: string
+  Count?: number
+  DeviceIDs: string[]
+  Capabilities?: any
+  Options?: any
+}
+
+// docker hw can be defined with either deviceRequests (simpler, if you have a driver), or in advanced way
+// advanced way means you have to defined different params like devices, cggroups, caps, etc
+export interface dockerHwInit {
+  deviceRequests?: dockerDeviceRequest
+  advanced?: ArgumentValues
+  runtime?: string
+}
+
 export interface ComputeResource {
   id: ComputeResourceType
+  description?: string
   type?: string
-  kind?: string
+  kind?: string // discreet, named, etc
   total: number // total number of specific resource
   min: number // min number of resource needed for a job
   max: number // max number of resource for a job
   inUse?: number // for display purposes
+  init?: dockerHwInit
 }
 export interface ComputeResourceRequest {
   id: string
@@ -58,12 +80,19 @@ export interface RunningPlatform {
   os?: string
 }
 
+export interface ComputeAccessList {
+  addresses: string[]
+  accessLists: string[]
+}
+
 export interface ComputeEnvironmentFreeOptions {
   // only if a compute env exposes free jobs
   storageExpiry?: number
   maxJobDuration?: number
+  minJobDuration?: number
   maxJobs?: number // maximum number of simultaneous free jobs
   resources?: ComputeResource[]
+  access: ComputeAccessList
 }
 export interface ComputeEnvironmentBaseConfig {
   description?: string // v1
@@ -73,15 +102,26 @@ export interface ComputeEnvironmentBaseConfig {
   maxJobs?: number // maximum number of simultaneous paid jobs
   fees: ComputeEnvFeesStructure
   resources?: ComputeResource[]
+  access: ComputeAccessList
   free?: ComputeEnvironmentFreeOptions
   platform: RunningPlatform
 }
 
+export interface ComputeRuntimes {
+  [key: string]: {
+    path?: string
+    runtimeArgs?: string[] // Optional runtime arguments
+  }
+}
 export interface ComputeEnvironment extends ComputeEnvironmentBaseConfig {
   id: string // v1
   runningJobs: number
   runningfreeJobs?: number
   consumerAddress: string // v1
+  queuedJobs: number
+  queuedFreeJobs: number
+  queMaxWaitTime: number
+  queMaxWaitTimeFree: number
 }
 
 export interface C2DDockerConfig {
@@ -94,13 +134,16 @@ export interface C2DDockerConfig {
   keyPath: string
   storageExpiry?: number
   maxJobDuration?: number
+  minJobDuration?: number
   maxJobs?: number
   fees: ComputeEnvFeesStructure
   resources?: ComputeResource[] // optional, owner can overwrite
   free?: ComputeEnvironmentFreeOptions
+  access: ComputeAccessList
 }
 
 export type ComputeResultType =
+  | 'imageLog'
   | 'algorithmLog'
   | 'output'
   | 'configurationLog'
@@ -113,6 +156,14 @@ export interface ComputeResult {
   index?: number
 }
 
+export type DBComputeJobMetadata = {
+  [key: string]: string | number | boolean
+}
+
+export interface ComputeJobTerminationDetails {
+  OOMKilled: boolean
+  exitCode: number
+}
 export interface ComputeJob {
   owner: string
   did?: string
@@ -127,6 +178,9 @@ export interface ComputeJob {
   maxJobDuration?: number
   agreementId?: string
   environment?: string
+  metadata?: DBComputeJobMetadata
+  terminationDetails?: ComputeJobTerminationDetails
+  queueMaxWaitTime: number // max time in seconds a job can wait in the queue before being started
 }
 
 export interface ComputeOutput {
@@ -148,20 +202,33 @@ export interface ComputeAsset {
   transferTxId?: string
   userdata?: { [key: string]: any }
 }
-
+export interface ExtendedMetadataAlgorithm extends MetadataAlgorithm {
+  container: {
+    // retain existing properties
+    entrypoint: string
+    image: string
+    tag: string
+    checksum: string
+    dockerfile?: string // optional
+    additionalDockerFiles?: { [key: string]: any }
+    consumerParameters?: ConsumerParameter[]
+  }
+}
 export interface ComputeAlgorithm {
   documentId?: string
   serviceId?: string
   fileObject?: BaseFileObject
-  meta?: MetadataAlgorithm
+  meta?: ExtendedMetadataAlgorithm
   transferTxId?: string
   algocustomdata?: { [key: string]: any }
   userdata?: { [key: string]: any }
+  envs?: { [key: string]: any }
 }
 
 export interface AlgoChecksums {
   files: string
   container: string
+  serviceId?: string
 }
 
 export interface DBComputeJobPayment {
@@ -169,7 +236,9 @@ export interface DBComputeJobPayment {
   token: string
   lockTx: string
   claimTx: string
+  cost: number
 }
+
 // this is the internal structure
 export interface DBComputeJob extends ComputeJob {
   clusterHash: string
@@ -188,6 +257,9 @@ export interface DBComputeJob extends ComputeJob {
   algoStopTimestamp: string
   resources: ComputeResourceRequestWithPrice[]
   payment?: DBComputeJobPayment
+  metadata?: DBComputeJobMetadata
+  additionalViewers?: string[] // addresses of additional addresses that can get results
+  algoDuration: number // duration of the job in seconds
 }
 
 // make sure we keep them both in sync
@@ -195,9 +267,17 @@ export enum C2DStatusNumber {
   // eslint-disable-next-line no-unused-vars
   JobStarted = 0,
   // eslint-disable-next-line no-unused-vars
+  JobQueued = 1,
+  // eslint-disable-next-line no-unused-vars
+  JobQueuedExpired = 2,
+  // eslint-disable-next-line no-unused-vars
   PullImage = 10,
   // eslint-disable-next-line no-unused-vars
   PullImageFailed = 11,
+  // eslint-disable-next-line no-unused-vars
+  BuildImage = 12,
+  // eslint-disable-next-line no-unused-vars
+  BuildImageFailed = 13,
   // eslint-disable-next-line no-unused-vars
   ConfiguringVolumes = 20,
   // eslint-disable-next-line no-unused-vars
@@ -217,6 +297,8 @@ export enum C2DStatusNumber {
   // eslint-disable-next-line no-unused-vars
   AlgorithmFailed = 41,
   // eslint-disable-next-line no-unused-vars
+  DiskQuotaExceeded = 42,
+  // eslint-disable-next-line no-unused-vars
   FilteringResults = 50,
   // eslint-disable-next-line no-unused-vars
   PublishingResults = 60,
@@ -231,9 +313,17 @@ export enum C2DStatusText {
   // eslint-disable-next-line no-unused-vars
   JobStarted = 'Job started',
   // eslint-disable-next-line no-unused-vars
+  JobQueued = 'Job queued',
+  // eslint-disable-next-line no-unused-vars
+  JobQueuedExpired = 'Job expired in queue',
+  // eslint-disable-next-line no-unused-vars
   PullImage = 'Pulling algorithm image',
   // eslint-disable-next-line no-unused-vars
   PullImageFailed = 'Pulling algorithm image failed',
+  // eslint-disable-next-line no-unused-vars
+  BuildImage = 'Building algorithm image',
+  // eslint-disable-next-line no-unused-vars
+  BuildImageFailed = 'Building algorithm image failed',
   // eslint-disable-next-line no-unused-vars
   ConfiguringVolumes = 'Configuring volumes',
   // eslint-disable-next-line no-unused-vars
@@ -252,6 +342,8 @@ export enum C2DStatusText {
   RunningAlgorithm = 'Running algorithm ',
   // eslint-disable-next-line no-unused-vars
   AlgorithmFailed = 'Failed to run algorithm',
+  // eslint-disable-next-line no-unused-vars
+  DiskQuotaExceeded = 'Error: disk quota exceeded',
   // eslint-disable-next-line no-unused-vars
   FilteringResults = 'Filtering results',
   // eslint-disable-next-line no-unused-vars

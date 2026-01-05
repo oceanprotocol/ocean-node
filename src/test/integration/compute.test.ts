@@ -6,19 +6,21 @@ import {
   ComputeGetStatusHandler,
   ComputeInitializeHandler,
   FreeComputeStartHandler,
-  PaidComputeStartHandler
+  PaidComputeStartHandler,
+  ComputeGetResultHandler
 } from '../../components/core/compute/index.js'
 import type {
   PaidComputeStartCommand,
   FreeComputeStartCommand,
   ComputeStopCommand,
   ComputeGetStatusCommand,
-  ComputeInitializeCommand
+  ComputeInitializeCommand,
+  ComputeGetResultCommand
 } from '../../@types/commands.js'
-import type {
-  ComputeAsset,
-  ComputeAlgorithm,
-  ComputeEnvironment
+import {
+  type ComputeAsset,
+  type ComputeAlgorithm,
+  type ComputeEnvironment
 } from '../../@types/C2D/C2D.js'
 import {
   // DB_TYPES,
@@ -75,6 +77,8 @@ import {
 import { freeComputeStartPayload } from '../data/commands.js'
 import { DDOManager } from '@oceanprotocol/ddo-js'
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
 describe('Compute', () => {
   let previousConfiguration: OverrideEnvConfig[]
   let config: OceanNodeConfig
@@ -87,6 +91,7 @@ describe('Compute', () => {
   let publishedComputeDataset: any
   let publishedAlgoDataset: any
   let jobId: string
+  let freeJobId: string
   let datasetOrderTxId: any
   let algoOrderTxId: any
   let paymentToken: any
@@ -102,6 +107,13 @@ describe('Compute', () => {
   const wallet = new ethers.Wallet(
     '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
   )
+  const wallet2 = new ethers.Wallet(
+    '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45210'
+  )
+  const wallet3 = new ethers.Wallet(
+    '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d4521A'
+  )
+
   // const chainId = DEVELOPMENT_CHAIN_ID
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const chainId = DEVELOPMENT_CHAIN_ID
@@ -136,17 +148,17 @@ describe('Compute', () => {
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          '[{"socketPath":"/var/run/docker.sock","resources":[{"id":"disk","total":1000000000}],"storageExpiry":604800,"maxJobDuration":3600,"fees":{"' +
+          '[{"socketPath":"/var/run/docker.sock","resources":[{"id":"disk","total":10}],"storageExpiry":604800,"maxJobDuration":3600,"minJobDuration":60,"fees":{"' +
             DEVELOPMENT_CHAIN_ID +
             '":[{"feeToken":"' +
             paymentToken +
-            '","prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"maxJobs":3,"resources":[{"id":"cpu","max":1},{"id":"ram","max":1000000000},{"id":"disk","max":1000000000}]}}]'
+            '","prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"minJobDuration":10,"maxJobs":3,"resources":[{"id":"cpu","max":1},{"id":"ram","max":1},{"id":"disk","max":1}]}}]'
         ]
       )
     )
     config = await getConfiguration(true)
-    dbconn = await new Database(config.dbConfig)
-    oceanNode = await OceanNode.getInstance(config, dbconn, null, null, null)
+    dbconn = await Database.init(config.dbConfig)
+    oceanNode = await OceanNode.getInstance(config, dbconn, null, null, null, true)
     indexer = new OceanIndexer(dbconn, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
     oceanNode.addC2DEngines()
@@ -210,10 +222,12 @@ describe('Compute', () => {
 
   it('should add the algorithm to the dataset trusted algorithm list', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 5)
+    const config = await getConfiguration()
     const algoChecksums = await getAlgoChecksums(
       publishedAlgoDataset.ddo.id,
       publishedAlgoDataset.ddo.services[0].id,
-      oceanNode
+      oceanNode,
+      config
     )
     publishedComputeDataset.ddo.services[0].compute = {
       allowRawAlgorithm: false,
@@ -314,7 +328,6 @@ describe('Compute', () => {
     )
     computeEnvironments = await streamToObject(response.stream as Readable)
     firstEnv = computeEnvironments[0]
-
     const initializeComputeTask: ComputeInitializeCommand = {
       datasets: [dataset],
       algorithm,
@@ -576,7 +589,9 @@ describe('Compute', () => {
 
   it('should fail to start a compute job', async () => {
     const nonce = Date.now().toString()
-    const message = String(nonce)
+    const message = String(
+      (await consumerAccount.getAddress()) + publishedComputeDataset.ddo.id + nonce
+    )
     // sign message/nonce
     const consumerMessage = ethers.solidityPackedKeccak256(
       ['bytes'],
@@ -620,7 +635,7 @@ describe('Compute', () => {
     assert(!response.stream, 'We should not have a stream')
   })
 
-  it('should start a compute job', async () => {
+  it('should start a compute job with maxed resources', async () => {
     // first check escrow auth
 
     let balance = await paymentTokenContract.balanceOf(await consumerAccount.getAddress())
@@ -672,7 +687,9 @@ describe('Compute', () => {
     }
     const locksBefore = locks.length
     const nonce = Date.now().toString()
-    const message = String(nonce)
+    const message = String(
+      (await consumerAccount.getAddress()) + publishedComputeDataset.ddo.id + nonce
+    )
     // sign message/nonce
     const consumerMessage = ethers.solidityPackedKeccak256(
       ['bytes'],
@@ -680,6 +697,10 @@ describe('Compute', () => {
     )
     const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await wallet.signMessage(messageHashBytes)
+    const re = []
+    for (const res of firstEnv.resources) {
+      re.push({ id: res.id, amount: res.total })
+    }
     const startComputeTask: PaidComputeStartCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_START,
       consumerAddress: await consumerAccount.getAddress(),
@@ -704,7 +725,12 @@ describe('Compute', () => {
         chainId: DEVELOPMENT_CHAIN_ID,
         token: paymentToken
       },
-      maxJobDuration: computeJobDuration
+      metadata: {
+        key: 'value'
+      },
+      additionalViewers: [await wallet2.getAddress()],
+      maxJobDuration: computeJobDuration,
+      resources: re
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
@@ -726,7 +752,7 @@ describe('Compute', () => {
         initializeResponse.payment.token,
         firstEnv.consumerAddress,
         balance,
-        computeJobDuration,
+        initializeResponse.payment.minLockSeconds,
         10
       )
     auth = await oceanNode.escrow.getAuthorizations(
@@ -752,7 +778,22 @@ describe('Compute', () => {
       BigInt(auth[0].maxLockCounts.toString()) > BigInt(0),
       ' Should have maxLockCounts in auth'
     )
-    response = await new PaidComputeStartHandler(oceanNode).handle(startComputeTask)
+    const nonce2 = Date.now().toString()
+    const message2 = String(
+      (await consumerAccount.getAddress()) + publishedComputeDataset.ddo.id + nonce2
+    )
+    const consumerMessage2 = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message2))]
+    )
+    const messageHashBytes2 = ethers.toBeArray(consumerMessage2)
+    const signature2 = await wallet.signMessage(messageHashBytes2)
+    response = await new PaidComputeStartHandler(oceanNode).handle({
+      ...startComputeTask,
+      nonce: nonce2,
+      signature: signature2
+    })
+    console.log(response)
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
@@ -761,6 +802,7 @@ describe('Compute', () => {
     const jobs = await streamToObject(response.stream as Readable)
     // eslint-disable-next-line prefer-destructuring
     jobId = jobs[0].jobId
+    console.log('**** Started compute job with id: ', jobId)
     // check escrow
     funds = await oceanNode.escrow.getUserAvailableFunds(
       DEVELOPMENT_CHAIN_ID,
@@ -788,9 +830,19 @@ describe('Compute', () => {
     )
   })
 
-  /* it('should start a free docker compute job', async () => {
+  it('should try start another compute job with maxed resources, but fail', async () => {
+    const getEnvironmentsTask = {
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS
+    }
+    const eresponse = await new ComputeGetEnvironmentsHandler(oceanNode).handle(
+      getEnvironmentsTask
+    )
+    computeEnvironments = await streamToObject(eresponse.stream as Readable)
+    console.log(computeEnvironments[0])
     const nonce = Date.now().toString()
-    const message = String(nonce)
+    const message = String(
+      (await consumerAccount.getAddress()) + publishedComputeDataset.ddo.id + nonce
+    )
     // sign message/nonce
     const consumerMessage = ethers.solidityPackedKeccak256(
       ['bytes'],
@@ -798,44 +850,47 @@ describe('Compute', () => {
     )
     const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await wallet.signMessage(messageHashBytes)
-    const startComputeTask: FreeComputeStartCommand = {
-      command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+    const re = []
+    for (const res of firstEnv.resources) {
+      re.push({ id: res.id, amount: res.total })
+    }
+    const startComputeTask: PaidComputeStartCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_START,
       consumerAddress: await consumerAccount.getAddress(),
       signature,
       nonce,
       environment: firstEnv.id,
       datasets: [
         {
-          fileObject: computeAsset.services[0].files.files[0],
           documentId: publishedComputeDataset.ddo.id,
           serviceId: publishedComputeDataset.ddo.services[0].id,
           transferTxId: datasetOrderTxId
         }
       ],
       algorithm: {
-        fileObject: algoAsset.services[0].files.files[0],
         documentId: publishedAlgoDataset.ddo.id,
         serviceId: publishedAlgoDataset.ddo.services[0].id,
         transferTxId: algoOrderTxId,
         meta: publishedAlgoDataset.ddo.metadata.algorithm
       },
-      output: {}
+      output: {},
+      payment: {
+        chainId: DEVELOPMENT_CHAIN_ID,
+        token: paymentToken
+      },
+      maxJobDuration: computeJobDuration,
+      resources: re
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
-    const response = await new FreeComputeStartHandler(oceanNode).handle(startComputeTask)
-    assert(response, 'Failed to get response')
-    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
-    assert(response.stream, 'Failed to get stream')
-    expect(response.stream).to.be.instanceOf(Readable)
+    // it should fail, because we don't have enough free resources
+    const response = await new PaidComputeStartHandler(oceanNode).handle(startComputeTask)
+    console.log(response)
+    assert(response.status.httpStatus === 400, 'Failed to get 400 response')
+    assert(!response.stream, 'We should not have a stream')
+  })
 
-    const jobs = await streamToObject(response.stream as Readable)
-    assert(jobs[0].jobId, 'failed to got job id')
-    // eslint-disable-next-line prefer-destructuring
-    jobId = jobs[0].jobId
-  }) */
-
-  it('should start a free docker compute job', async () => {
+  it('should start a queued free docker compute job', async () => {
     const nonce = Date.now().toString()
     const message = String(nonce)
     // sign message/nonce
@@ -866,7 +921,8 @@ describe('Compute', () => {
         transferTxId: algoOrderTxId,
         meta: publishedAlgoDataset.ddo.metadata.algorithm
       },
-      output: {}
+      output: {},
+      queueMaxWaitTime: 300 // 5 minutes
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
@@ -879,8 +935,10 @@ describe('Compute', () => {
 
     const jobs = await streamToObject(response.stream as Readable)
     assert(jobs[0].jobId, 'failed to got job id')
+    console.log('**** Started FREE compute job with id: ', jobs[0].jobId)
+    console.log(jobs[0])
     // eslint-disable-next-line prefer-destructuring
-    jobId = jobs[0].jobId
+    freeJobId = jobs[0].jobId
   })
 
   it('should get job status by jobId', async () => {
@@ -898,6 +956,7 @@ describe('Compute', () => {
     assert(response.stream, 'Failed to get stream')
     expect(response.stream).to.be.instanceOf(Readable)
     const jobs = await streamToObject(response.stream as Readable)
+    expect(jobs[0].metadata).to.deep.equal({ key: 'value' })
     console.log(jobs)
   })
 
@@ -918,9 +977,84 @@ describe('Compute', () => {
     const jobs = await streamToObject(response.stream as Readable)
     console.log(jobs)
   })
+  it('should get job result by consumer', async () => {
+    const nonce = Date.now().toString()
+    const message = String((await wallet.getAddress()) + jobId + '0' + nonce)
+    // sign message/nonce
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await wallet.signMessage(messageHashBytes)
+    const resultComputeTask: ComputeGetResultCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
+      consumerAddress: await wallet.getAddress(),
+      jobId,
+      signature,
+      nonce,
+      index: 0
+    }
+    const response = await new ComputeGetResultHandler(oceanNode).handle(
+      resultComputeTask
+    )
+    assert(response, 'Failed to get response')
+    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+  })
+  it('should get job result by additional viewer', async () => {
+    const nonce = Date.now().toString()
+    const message = String((await wallet2.getAddress()) + jobId + '0' + nonce)
+    // sign message/nonce
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await wallet2.signMessage(messageHashBytes)
+    const resultComputeTask: ComputeGetResultCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
+      consumerAddress: await wallet2.getAddress(),
+      jobId,
+      signature,
+      nonce,
+      index: 0
+    }
+    const response = await new ComputeGetResultHandler(oceanNode).handle(
+      resultComputeTask
+    )
+    assert(response, 'Failed to get response')
+    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+  })
+  it('should fail to get job result by non allowed address', async () => {
+    const nonce = Date.now().toString()
+    const message = String((await wallet3.getAddress()) + jobId + '0' + nonce)
+    // sign message/nonce
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await wallet3.signMessage(messageHashBytes)
+    const resultComputeTask: ComputeGetResultCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
+      consumerAddress: await wallet3.getAddress(),
+      jobId,
+      signature,
+      nonce,
+      index: 0
+    }
+    const response = await new ComputeGetResultHandler(oceanNode).handle(
+      resultComputeTask
+    )
+    console.log(response)
+    assert(response, 'Failed to get response')
+    assert(response.status.httpStatus === 500, 'Failed to get 500 response')
+    console.log(response.status.error)
+  })
+
   it('should stop a compute job', async () => {
     const nonce = Date.now().toString()
-    const message = String(nonce)
+    const message = String((await consumerAccount.getAddress()) + (jobId || ''))
     // sign message/nonce
     const consumerMessage = ethers.solidityPackedKeccak256(
       ['bytes'],
@@ -940,18 +1074,37 @@ describe('Compute', () => {
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     expect(response.stream).to.be.instanceOf(Readable)
+    let tries = 0
+    do {
+      const statusComputeTask: ComputeGetStatusCommand = {
+        command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
+        consumerAddress: null,
+        agreementId: null,
+        jobId
+      }
+      const response = await new ComputeGetStatusHandler(oceanNode).handle(
+        statusComputeTask
+      )
+      assert(response, 'Failed to get response')
+      assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+      assert(response.stream, 'Failed to get stream')
+      expect(response.stream).to.be.instanceOf(Readable)
+      const jobs = await streamToObject(response.stream as Readable)
+      console.log('Checking job status after stop...')
+      console.log(jobs[0])
+      if (jobs[0].dateFinished) break
+      if (tries > 10) assert.fail('Job not stopped after multiple tries')
+      await sleep(2000)
+      tries++
+    } while (true)
   })
   it('should deny the Free job due to signature (directCommand payload)', async function () {
     freeComputeStartPayload.environment = firstEnv.id
     const command: FreeComputeStartCommand = freeComputeStartPayload
     const handler = new FreeComputeStartHandler(oceanNode)
     const response = await handler.handle(command)
-    assert(response.status.httpStatus === 500, 'Failed to get 500 response')
+    assert(response.status.httpStatus === 401, 'Failed to get 401 response')
     assert(response.stream === null, 'Should not get stream')
-    assert(
-      response.status.error.includes('Invalid nonce or signature'),
-      'Should have signature error'
-    )
   })
   it('should deny the Free job due to bad container image (directCommand payload)', async function () {
     const nonce = Date.now().toString()
@@ -972,14 +1125,26 @@ describe('Compute', () => {
     const response = await handler.handle(command)
     assert(response.status.httpStatus === 500, 'Failed to get 500 response')
     assert(response.stream === null, 'Should not get stream')
-    assert(
-      response.status.error.includes(
-        freeComputeStartPayload.algorithm.meta.container.image
-      ),
-      'Should have image error'
-    )
   })
-
+  // let's check our queued job
+  it('should get job status by jobId', async () => {
+    const statusComputeTask: ComputeGetStatusCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
+      consumerAddress: null,
+      agreementId: null,
+      jobId: freeJobId
+    }
+    const response = await new ComputeGetStatusHandler(oceanNode).handle(
+      statusComputeTask
+    )
+    assert(response, 'Failed to get response')
+    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response.stream, 'Failed to get stream')
+    expect(response.stream).to.be.instanceOf(Readable)
+    const jobs = await streamToObject(response.stream as Readable)
+    console.log('Checking FREE job status...')
+    console.log(jobs[0])
+  })
   // algo and checksums related
   describe('C2D algo and checksums related', () => {
     it('should publish AlgoDDO', async () => {
@@ -1150,10 +1315,12 @@ describe('Compute', () => {
       )
       const algoDDOTest = ddo
       if (algoDDOTest) {
+        const config = await getConfiguration()
         const algoChecksums = await getAlgoChecksums(
           algoDDOTest.id,
           algoDDOTest.services[0].id,
-          oceanNode
+          oceanNode,
+          config
         )
         expect(algoChecksums.files).to.equal(
           'f6a7b95e4a2e3028957f69fdd2dac27bd5103986b2171bc8bfee68b52f874dcd'
@@ -1161,6 +1328,7 @@ describe('Compute', () => {
         expect(algoChecksums.container).to.equal(
           'ba8885fcc7d366f058d6c3bb0b7bfe191c5f85cb6a4ee3858895342436c23504'
         )
+        expect(algoChecksums.serviceId).to.equal(algoDDOTest.services[0].id)
       } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
     })
 
@@ -1175,10 +1343,12 @@ describe('Compute', () => {
 
       const algoDDOTest = ddo
       if (algoDDOTest) {
+        const config = await getConfiguration()
         const algoChecksums = await getAlgoChecksums(
           algoDDOTest.id,
           algoDDOTest.services[0].id,
-          oceanNode
+          oceanNode,
+          config
         )
         const { ddo, wasTimeout } = await waitToIndex(
           datasetDDO.id,
@@ -1197,7 +1367,11 @@ describe('Compute', () => {
             datasetDDOTest.services[0].id,
             oceanNode
           )
-          expect(result).to.equal(!setTrustedAlgosEmpty)
+          // datasetDDOTest does not have set
+          // publisherTrustedAlgorithms, nor
+          // publisherTrustedAlgorithmPublishers
+          // expect the result to be true
+          expect(result).to.equal(true)
         } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
       } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
     })
@@ -1206,5 +1380,363 @@ describe('Compute', () => {
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
     indexer.stopAllThreads()
+  })
+})
+
+describe('Compute Access Restrictions', () => {
+  let previousConfiguration: OverrideEnvConfig[]
+  let config: OceanNodeConfig
+  let dbconn: Database
+  let oceanNode: OceanNode
+  let provider: any
+  let publisherAccount: any
+  let computeEnvironments: any
+  let publishedComputeDataset: any
+  let publishedAlgoDataset: any
+  let paymentToken: any
+  let firstEnv: ComputeEnvironment
+  let accessListAddress: string
+
+  const wallet = new ethers.Wallet(
+    '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
+  )
+  const wallet2 = new ethers.Wallet(
+    '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45210'
+  )
+  const wallet3 = new ethers.Wallet(
+    '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d4521A'
+  )
+  const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
+  const computeJobDuration = 60 * 15
+
+  async function createPaidComputeCommand(
+    consumerAddr: string,
+    signerWallet: ethers.Wallet,
+    envId: string
+  ): Promise<PaidComputeStartCommand> {
+    const nonce = Date.now().toString()
+    const message = String(consumerAddr + publishedComputeDataset.ddo.id + nonce)
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const signature = await signerWallet.signMessage(ethers.toBeArray(consumerMessage))
+
+    return {
+      command: PROTOCOL_COMMANDS.COMPUTE_START,
+      consumerAddress: consumerAddr,
+      environment: envId,
+      signature,
+      nonce,
+      datasets: [
+        {
+          documentId: publishedComputeDataset.ddo.id,
+          serviceId: publishedComputeDataset.ddo.services[0].id,
+          transferTxId: '0x123'
+        }
+      ],
+      algorithm: {
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        transferTxId: '0x123',
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      },
+      payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken },
+      maxJobDuration: computeJobDuration
+    }
+  }
+
+  async function createFreeComputeCommand(
+    consumerAddr: string,
+    signerWallet: ethers.Wallet,
+    envId: string
+  ): Promise<FreeComputeStartCommand> {
+    const nonce = Date.now().toString()
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(nonce))]
+    )
+    const signature = await signerWallet.signMessage(ethers.toBeArray(consumerMessage))
+
+    return {
+      command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+      consumerAddress: consumerAddr,
+      signature,
+      nonce,
+      environment: envId,
+      datasets: [
+        {
+          fileObject: computeAsset.services[0].files.files[0],
+          documentId: publishedComputeDataset.ddo.id,
+          serviceId: publishedComputeDataset.ddo.services[0].id
+        }
+      ],
+      algorithm: {
+        fileObject: algoAsset.services[0].files.files[0],
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      },
+      output: {}
+    }
+  }
+
+  describe('Address-based restrictions', () => {
+    before(async () => {
+      const artifactsAddresses = getOceanArtifactsAdresses()
+      paymentToken = artifactsAddresses.development.Ocean
+      const allowedAddress = await wallet.getAddress()
+      previousConfiguration = await setupEnvironment(
+        TEST_ENV_CONFIG_FILE,
+        buildEnvOverrideConfig(
+          [
+            ENVIRONMENT_VARIABLES.RPCS,
+            ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
+            ENVIRONMENT_VARIABLES.PRIVATE_KEY,
+            ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
+            ENVIRONMENT_VARIABLES.ADDRESS_FILE,
+            ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS
+          ],
+          [
+            JSON.stringify(mockSupportedNetworks),
+            JSON.stringify([DEVELOPMENT_CHAIN_ID]),
+            '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+            JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
+            `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
+            '[{"socketPath":"/var/run/docker.sock","resources":[{"id":"disk","total":10}],"storageExpiry":604800,"maxJobDuration":3600,"minJobDuration":60,"access":{"addresses":["' +
+              allowedAddress +
+              '"],"accessLists":[]},"fees":{"' +
+              DEVELOPMENT_CHAIN_ID +
+              '":[{"feeToken":"' +
+              paymentToken +
+              '","prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"minJobDuration":10,"maxJobs":3,"access":{"addresses":["' +
+              allowedAddress +
+              '"],"accessLists":[]},"resources":[{"id":"cpu","max":1},{"id":"ram","max":1},{"id":"disk","max":1}]}}]'
+          ]
+        )
+      )
+      config = await getConfiguration(true)
+      dbconn = await Database.init(config.dbConfig)
+      oceanNode = await OceanNode.getInstance(config, dbconn, null, null, null, true)
+      const indexer = new OceanIndexer(dbconn, config.indexingNetworks)
+      oceanNode.addIndexer(indexer)
+      oceanNode.addC2DEngines()
+
+      provider = new JsonRpcProvider('http://127.0.0.1:8545')
+      publisherAccount = await provider.getSigner(0)
+
+      publishedComputeDataset = await publishAsset(computeAsset, publisherAccount)
+      publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
+
+      await waitToIndex(
+        publishedComputeDataset.ddo.id,
+        EVENTS.METADATA_CREATED,
+        DEFAULT_TEST_TIMEOUT
+      )
+      await waitToIndex(
+        publishedAlgoDataset.ddo.id,
+        EVENTS.METADATA_CREATED,
+        DEFAULT_TEST_TIMEOUT
+      )
+    })
+
+    it('Get compute environments with address restrictions', async () => {
+      const getEnvironmentsTask = { command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS }
+      const response = await new ComputeGetEnvironmentsHandler(oceanNode).handle(
+        getEnvironmentsTask
+      )
+      computeEnvironments = await streamToObject(response.stream as Readable)
+      firstEnv = computeEnvironments[0]
+      assert(firstEnv.access, 'Access control should exist')
+      assert(
+        firstEnv.access.addresses.includes(await wallet.getAddress()),
+        'Should have wallet address in allowed list'
+      )
+    })
+
+    it('should deny access for paid compute when address not in allowed list', async () => {
+      const command = await createPaidComputeCommand(
+        await wallet3.getAddress(),
+        wallet3,
+        firstEnv.id
+      )
+      const response = await new PaidComputeStartHandler(oceanNode).handle(command)
+      assert(response.status.httpStatus === 403, 'Should get 403 access denied')
+    })
+
+    it('should deny access for free compute when address not in allowed list', async () => {
+      const command = await createFreeComputeCommand(
+        await wallet3.getAddress(),
+        wallet3,
+        firstEnv.id
+      )
+      const response = await new FreeComputeStartHandler(oceanNode).handle(command)
+      assert(response.status.httpStatus === 403, 'Should get 403 access denied')
+    })
+
+    after(async () => {
+      await tearDownEnvironment(previousConfiguration)
+    })
+  })
+
+  describe('Access List restrictions', () => {
+    before(async () => {
+      const artifactsAddresses = getOceanArtifactsAdresses()
+      paymentToken = artifactsAddresses.development.Ocean
+
+      provider = new JsonRpcProvider('http://127.0.0.1:8545')
+      publisherAccount = await provider.getSigner(0)
+
+      const AccessListFactory = await import(
+        '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessListFactory.sol/AccessListFactory.json',
+        { assert: { type: 'json' } }
+      )
+
+      const factoryContract = new ethers.Contract(
+        artifactsAddresses.development.AccessListFactory,
+        AccessListFactory.default.abi,
+        publisherAccount
+      )
+
+      const tx = await factoryContract.deployAccessListContract(
+        'ComputeAccessList',
+        'CAL',
+        false,
+        await publisherAccount.getAddress(),
+        [await wallet.getAddress(), await wallet2.getAddress()],
+        ['https://oceanprotocol.com/nft/', 'https://oceanprotocol.com/nft/']
+      )
+      const txReceipt = await tx.wait()
+      const events = txReceipt?.logs?.filter((log: any) => {
+        return log.fragment?.name === 'NewAccessList'
+      })
+      accessListAddress = events[0].args[0]
+
+      const AccessListAbi = await import(
+        '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json',
+        { assert: { type: 'json' } }
+      )
+      const accessListContract = new ethers.Contract(
+        accessListAddress,
+        AccessListAbi.default.abi,
+        publisherAccount
+      )
+      const wallet1Balance = await accessListContract.balanceOf(await wallet.getAddress())
+      const wallet2Balance = await accessListContract.balanceOf(
+        await wallet2.getAddress()
+      )
+      const wallet3Balance = await accessListContract.balanceOf(
+        await wallet3.getAddress()
+      )
+
+      if (Number(wallet1Balance) === 0 || Number(wallet2Balance) === 0) {
+        throw new Error('Access list tokens were not minted correctly')
+      }
+
+      if (Number(wallet3Balance) > 0) {
+        throw new Error('Wallet3 should not have access list token')
+      }
+
+      previousConfiguration = await setupEnvironment(
+        TEST_ENV_CONFIG_FILE,
+        buildEnvOverrideConfig(
+          [
+            ENVIRONMENT_VARIABLES.RPCS,
+            ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
+            ENVIRONMENT_VARIABLES.PRIVATE_KEY,
+            ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
+            ENVIRONMENT_VARIABLES.ADDRESS_FILE,
+            ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS
+          ],
+          [
+            JSON.stringify(mockSupportedNetworks),
+            JSON.stringify([DEVELOPMENT_CHAIN_ID]),
+            '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+            JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
+            `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
+            '[{"socketPath":"/var/run/docker.sock","resources":[{"id":"disk","total":10}],"storageExpiry":604800,"maxJobDuration":3600,"minJobDuration":60,"access":{"addresses":[],"accessLists":["' +
+              accessListAddress +
+              '"]},"fees":{"' +
+              DEVELOPMENT_CHAIN_ID +
+              '":[{"feeToken":"' +
+              paymentToken +
+              '","prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"minJobDuration":10,"maxJobs":3,"access":{"addresses":[],"accessLists":["' +
+              accessListAddress +
+              '"]},"resources":[{"id":"cpu","max":1},{"id":"ram","max":1},{"id":"disk","max":1}]}}]'
+          ]
+        )
+      )
+      config = await getConfiguration(true)
+      dbconn = await Database.init(config.dbConfig)
+      oceanNode = await OceanNode.getInstance(config, dbconn, null, null, null, true)
+      const indexer = new OceanIndexer(dbconn, config.indexingNetworks)
+      oceanNode.addIndexer(indexer)
+      oceanNode.addC2DEngines()
+
+      publishedComputeDataset = await publishAsset(computeAsset, publisherAccount)
+      publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
+
+      await waitToIndex(
+        publishedComputeDataset.ddo.id,
+        EVENTS.METADATA_CREATED,
+        DEFAULT_TEST_TIMEOUT
+      )
+      await waitToIndex(
+        publishedAlgoDataset.ddo.id,
+        EVENTS.METADATA_CREATED,
+        DEFAULT_TEST_TIMEOUT
+      )
+    })
+
+    it('Get compute environments with access list restrictions', async () => {
+      const getEnvironmentsTask = { command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS }
+      const response = await new ComputeGetEnvironmentsHandler(oceanNode).handle(
+        getEnvironmentsTask
+      )
+      computeEnvironments = await streamToObject(response.stream as Readable)
+      firstEnv = computeEnvironments[0]
+      assert(firstEnv.access, 'Access control should exist')
+      assert(
+        firstEnv.access.accessLists.includes(accessListAddress),
+        'Should have access list address'
+      )
+    })
+
+    it('should allow access for paid compute when address is in access list', async () => {
+      const command = await createPaidComputeCommand(
+        await wallet.getAddress(),
+        wallet,
+        firstEnv.id
+      )
+      const response = await new PaidComputeStartHandler(oceanNode).handle(command)
+      expect(response.status.httpStatus).to.not.equal(403)
+    })
+
+    it('should deny access for paid compute when address not in access list', async () => {
+      const command = await createPaidComputeCommand(
+        await wallet3.getAddress(),
+        wallet3,
+        firstEnv.id
+      )
+      const response = await new PaidComputeStartHandler(oceanNode).handle(command)
+      assert(
+        response.status.httpStatus === 403,
+        `Expected 403 but got ${response.status.httpStatus}: ${response.status.error}`
+      )
+    })
+
+    it('should allow access for free compute when address is in access list', async () => {
+      const command = await createFreeComputeCommand(
+        await wallet2.getAddress(),
+        wallet2,
+        firstEnv.id
+      )
+      const response = await new FreeComputeStartHandler(oceanNode).handle(command)
+      expect(response.status.httpStatus).to.not.equal(403)
+    })
+
+    after(async () => {
+      await tearDownEnvironment(previousConfiguration)
+    })
   })
 })

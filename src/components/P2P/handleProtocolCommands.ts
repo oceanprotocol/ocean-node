@@ -9,16 +9,10 @@ import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import StreamConcat from 'stream-concat'
 import { BaseHandler } from '../core/handler/handler.js'
 import { getConfiguration } from '../../utils/index.js'
-import { checkConnectionsRateLimit } from '../httpRoutes/requestValidator.js'
-import { CONNECTIONS_RATE_INTERVAL } from '../../utils/constants.js'
-import { RequestLimiter } from '../../OceanNode.js'
-
-// hold data about last request made
-const connectionsData: RequestLimiter = {
-  lastRequestTime: Date.now(),
-  requester: '',
-  numRequests: 0
-}
+import {
+  checkGlobalConnectionsRateLimit,
+  checkRequestsRateLimit
+} from '../../utils/validators.js'
 
 export class ReadableString extends Readable {
   private sent = false
@@ -94,22 +88,32 @@ export async function handleProtocolCommands(otherPeerConnection: any) {
     }
   }
   // check connections rate limit
-  const requestTime = Date.now()
-  if (requestTime - connectionsData.lastRequestTime > CONNECTIONS_RATE_INTERVAL) {
-    // last one was more than 1 minute ago? reset counter
-    connectionsData.numRequests = 0
-  }
-  // always increment counter
-  connectionsData.numRequests += 1
-  // update time and requester information
-  connectionsData.lastRequestTime = requestTime
-  connectionsData.requester = remoteAddr
+  const now = Date.now()
 
-  // check global rate limits (not ip related)
-  const requestRateValidation = checkConnectionsRateLimit(configuration, connectionsData)
-  if (!requestRateValidation.valid) {
+  const rateLimitCheck = checkRequestsRateLimit(remoteAddr, configuration, now)
+  if (!rateLimitCheck.valid) {
     P2P_LOGGER.warn(
       `Incoming request denied to peer: ${remotePeer} (rate limit exceeded)`
+    )
+    if (connectionStatus === 'open') {
+      statusStream = new ReadableString(
+        JSON.stringify(buildWrongCommandStatus(403, 'Rate limit exceeded'))
+      )
+      try {
+        await pipe(statusStream, otherPeerConnection.stream.sink)
+      } catch (e) {
+        P2P_LOGGER.error(e)
+      }
+    }
+    await closeStreamConnection(otherPeerConnection.connection, remotePeer)
+    return
+  }
+
+  // check global rate limits (not ip related)
+  const connectionsRateValidation = checkGlobalConnectionsRateLimit(configuration, now)
+  if (!connectionsRateValidation.valid) {
+    P2P_LOGGER.warn(
+      `Exceeded limit of connections per minute ${configuration.maxConnections}: ${connectionsRateValidation.error}`
     )
     if (connectionStatus === 'open') {
       statusStream = new ReadableString(
@@ -186,15 +190,15 @@ export async function handleProtocolCommands(otherPeerConnection: any) {
       if (connectionStatus === 'open') {
         if (sendStream == null) {
           await pipe(statusStream, otherPeerConnection.stream.sink)
+          await closeStreamConnection(otherPeerConnection.connection, remotePeer)
         } else {
           const combinedStream = new StreamConcat([statusStream, sendStream], {
             highWaterMark: JSON.stringify(status).length // important for reading chunks correctly on sink!
           })
           await pipe(combinedStream, otherPeerConnection.stream.sink)
+          // Don't close for data streams - sender closes when done reading
         }
       }
-
-      await closeStreamConnection(otherPeerConnection.connection, remotePeer)
     } catch (err) {
       P2P_LOGGER.logMessageWithEmoji(
         'handleProtocolCommands Error: ' + err.message,

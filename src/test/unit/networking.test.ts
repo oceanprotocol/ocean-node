@@ -10,6 +10,7 @@ import { expect } from 'chai'
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
+  TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
   setupEnvironment,
   tearDownEnvironment
@@ -71,7 +72,7 @@ describe('Test available network interfaces', () => {
       null,
       buildEnvOverrideConfig(
         [ENVIRONMENT_VARIABLES.INTERFACES],
-        [JSON.stringify(['p2p'])]
+        [JSON.stringify(['P2P'])]
       )
     )
     const interfaces = JSON.parse(process.env.INTERFACES) as string[]
@@ -87,7 +88,7 @@ describe('Test available network interfaces', () => {
       null,
       buildEnvOverrideConfig(
         [ENVIRONMENT_VARIABLES.INTERFACES],
-        [JSON.stringify(['http'])]
+        [JSON.stringify(['HTTP'])]
       )
     )
     const interfaces = JSON.parse(process.env.INTERFACES) as string[]
@@ -146,7 +147,7 @@ describe('Test rate limitations and deny list settings', () => {
         3
       ]
     )
-    await setupEnvironment(null, envOverrides)
+    await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
   })
 
   it('should read deny list of other peers and ips', async () => {

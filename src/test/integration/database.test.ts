@@ -27,7 +27,7 @@ describe('Database', () => {
   let database: Database
 
   before(async () => {
-    database = await new Database(typesenseConfig)
+    database = await Database.init(typesenseConfig)
   })
 
   it('instance Database', () => {
@@ -62,7 +62,7 @@ describe('DdoDatabase CRUD', () => {
   }
 
   before(async () => {
-    database = await new Database(typesenseConfig)
+    database = await Database.init(typesenseConfig)
   })
 
   it('creates ddo schema as an array', () => {
@@ -89,7 +89,7 @@ describe('NonceDatabase CRUD - SQL lite (With typesense DB config)', () => {
   let database: Database
 
   before(async () => {
-    database = await new Database(typesenseConfig)
+    database = await Database.init(typesenseConfig)
   })
 
   it('check nonce DB instance of SQL Lite', () => {
@@ -125,7 +125,7 @@ describe('NonceDatabase CRUD (without Elastic or Typesense config)', () => {
   let database: Database
 
   before(async () => {
-    database = await new Database(emptyDBConfig)
+    database = await Database.init(emptyDBConfig)
   })
 
   it('check nonce DB instance of SQL Lite', () => {
@@ -162,7 +162,7 @@ describe('IndexerDatabase CRUD', () => {
   let existsPrevious: any = {}
 
   before(async () => {
-    database = await new Database(typesenseConfig)
+    database = await Database.init(typesenseConfig)
   })
 
   it('create indexer', async () => {
@@ -205,7 +205,7 @@ describe('OrderDatabase CRUD', () => {
   let database: Database
 
   before(async () => {
-    database = await new Database(typesenseConfig)
+    database = await Database.init(typesenseConfig)
   })
 
   it('create order', async () => {
@@ -386,7 +386,7 @@ describe('DdoStateQuery', () => {
     const query = (await DatabaseFactory.createDdoStateQuery(elasticConfig)).buildQuery(
       'did:op:abc123'
     )
-    expect(query.match.did).to.equal('did:op:abc123')
+    expect(query.term.did).to.equal('did:op:abc123')
   })
 
   it('should build Elasticsearch query for nft', async () => {
@@ -394,7 +394,7 @@ describe('DdoStateQuery', () => {
       undefined,
       'nft:op:abc123'
     )
-    expect(query.match.nft).to.equal('nft:op:abc123')
+    expect(query.term.nft).to.equal('nft:op:abc123')
   })
 
   it('should build Elasticsearch query for txId', async () => {
@@ -403,7 +403,7 @@ describe('DdoStateQuery', () => {
       undefined,
       'txId123'
     )
-    expect(query.match.txId).to.equal('txId123')
+    expect(query.term.txId).to.equal('txId123')
   })
 })
 

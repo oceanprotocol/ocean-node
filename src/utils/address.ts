@@ -1,7 +1,7 @@
 import fs from 'fs'
 import addresses from '@oceanprotocol/contracts/addresses/address.json' assert { type: 'json' }
 import { CORE_LOGGER } from './logging/common.js'
-import { ENVIRONMENT_VARIABLES, existsEnvironmentVariable } from './index.js'
+import { isDefined } from './index.js'
 
 /**
  * Get the artifacts address from the address.json file
@@ -10,9 +10,9 @@ import { ENVIRONMENT_VARIABLES, existsEnvironmentVariable } from './index.js'
  */
 export function getOceanArtifactsAdresses(): any {
   try {
-    if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ADDRESS_FILE)) {
+    if (isDefined(process.env.ADDRESS_FILE)) {
       // eslint-disable-next-line security/detect-non-literal-fs-filename
-      const data = fs.readFileSync(ENVIRONMENT_VARIABLES.ADDRESS_FILE.value, 'utf8')
+      const data = fs.readFileSync(process.env.ADDRESS_FILE, 'utf8')
       return JSON.parse(data)
     }
     return addresses
@@ -41,10 +41,7 @@ export function getOceanArtifactsAdressesByChainId(chain: number): any {
       }
     }
     // just warn about this missing configuration if running locally
-    if (
-      chain === DEVELOPMENT_CHAIN_ID &&
-      !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ADDRESS_FILE, true)
-    ) {
+    if (chain === DEVELOPMENT_CHAIN_ID && !isDefined(process.env.ADDRESS_FILE)) {
       CORE_LOGGER.warn(
         'Cannot find contract artifacts addresses for "development" chain. Please set the "ADDRESS_FILE" environmental variable!'
       )
@@ -52,6 +49,13 @@ export function getOceanArtifactsAdressesByChainId(chain: number): any {
   } catch (error) {
     CORE_LOGGER.error(error)
   }
+  return null
+}
+
+// eslint-disable-next-line require-await
+export function getOceanTokenAddressForChain(chainId: number): Promise<string | null> {
+  const addresses = getOceanArtifactsAdressesByChainId(chainId)
+  if (addresses && addresses.Ocean) return addresses.Ocean
   return null
 }
 

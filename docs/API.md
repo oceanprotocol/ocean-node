@@ -404,19 +404,58 @@ returns list of logs
 
 ---
 
-## Advertise Did
+## Get providers for a string
 
-### `HTTP` GET /advertiseDid/?did=did:op:123"
+### `HTTP` GET /getProvidersForString/?input=did:op:123"
 
 #### Description
 
-returns empty if advertising did around peers was successful
+returns list of nodes providing the specific element(s) (dids, c2d resources, etc)
 
 #### Query Parameters
 
-| name | type   | required | description        |
-| ---- | ------ | -------- | ------------------ |
-| did  | string | v        | document id or did |
+| name  | type   | required | description            |
+| ----- | ------ | -------- | ---------------------- |
+| input | string | v        | did, c2d resource, etc |
+
+## Get providers for a list of strings
+
+### `HTTP` POST /getProvidersForStrings?timeout=10"
+
+#### Description
+
+returns list of nodes providing all specific elements.
+
+#### Query Parameters
+
+| name    | type   | required | description            |
+| ------- | ------ | -------- | ---------------------- |
+| timeout | string | optional | timeout in miliseconds |
+
+#### Request
+
+```json
+["{\"c2d\":{\"free\":false,\"disk\":1}}", "{\"c2d\":{\"free\":false,\"cpu\":1}}"]
+```
+
+#### Response
+
+```json
+[
+  {
+    "id": "16Uiu2HAmENNgCY1QAdQrPxipgUCQjyookUgpnbgXua4ZMju4Rkou",
+    "multiaddrs": [
+      "/ip4/10.255.255.254/tcp/41015/ws",
+      "/ip4/10.255.255.254/tcp/41347",
+      "/ip4/127.0.0.1/tcp/41015/ws",
+      "/ip4/127.0.0.1/tcp/41347",
+      "/ip4/172.27.58.101/tcp/41015/ws",
+      "/ip4/172.27.58.101/tcp/41347",
+      "/ip6/::1/tcp/37527"
+    ]
+  }
+]
+```
 
 ---
 
@@ -1159,6 +1198,91 @@ Forwards request to PolicyServer (if any)
 }
 ```
 
+---
+
+## Fetch Config
+
+### `HTTP` GET /api/admin/config
+
+#### Description
+
+returns current node configuration with sensitive data hidden (admin only)
+
+#### Parameters
+
+| name            | type   | required | description                                  |
+| --------------- | ------ | -------- | -------------------------------------------- |
+| expiryTimestamp | number | v        | expiry timestamp for the request             |
+| signature       | string | v        | signed message to authenticate admin request |
+
+#### Request
+
+```json
+{
+  "expiryTimestamp": 1234567890,
+  "signature": "0x123"
+}
+```
+
+#### Response
+
+```json
+{
+  "keys": {
+    "privateKey": "[*** HIDDEN CONTENT ***]"
+  },
+  "chainIds": [1],
+  "rpcs": { "1": "https://eth-mainnet.g.alchemy.com/v2/..." },
+  "...": "..."
+}
+```
+
+---
+
+## Update Config
+
+### `HTTP` POST /api/admin/config/update
+
+#### Description
+
+updates node configuration and reloads it gracefully (admin only)
+
+#### Parameters
+
+| name            | type   | required | description                                        |
+| --------------- | ------ | -------- | -------------------------------------------------- |
+| expiryTimestamp | number | v        | expiry timestamp for the request                   |
+| signature       | string | v        | signed message to authenticate admin request       |
+| config          | object | v        | partial configuration object with fields to update |
+
+#### Request
+
+```json
+{
+  "expiryTimestamp": 1234567890,
+  "signature": "0x123",
+  "config": {
+    "chainIds": [1],
+    "rpcs": { "1": "https://eth-mainnet.g.alchemy.com/v2/..." }
+  }
+}
+```
+
+#### Response
+
+```json
+{
+  "keys": {
+    "privateKey": "[*** HIDDEN CONTENT ***]"
+  },
+  "chainIds": [1],
+  "rpcs": { "1": "https://eth-mainnet.g.alchemy.com/v2/..." },
+  "...": "..."
+}
+```
+
+---
+
 # Compute
 
 For starters, you can find a list of algorithms in the [Ocean Algorithms repository](https://github.com/oceanprotocol/algo_dockers) and the docker images in the [Algo Dockerhub](https://hub.docker.com/r/oceanprotocol/algo_dockers/tags).
@@ -1203,6 +1327,7 @@ It can include information about the file object, document ID, service ID, trans
 - **transferTxId**: Optional. A string representing the transaction ID for the transfer of the compute algorithm.
 - **algocustomdata**: Optional. An object containing additional custom data related to the compute algorithm.
 - **userdata**: Optional. An object containing additional user-defined data related to the compute algorithm.
+- **envs**: Optional. Array of keys:values to be used as environment variables for algo.
 
 ```typescript
 export interface ComputeAlgorithm {
@@ -1240,6 +1365,7 @@ fetch all compute environments
     "fees": { "1": [[{ "feeToken": "0x123", "prices": [{ "id": "cpu", "price": 1 }] }]] },
     "storageExpiry": 604800,
     "maxJobDuration": 3600,
+    "minJobDuration": 60,
     "resources": [
       { "id": "cpu", "total": 16, "max": 16, "min": 1, "inUse": 0 },
       {
@@ -1253,6 +1379,7 @@ fetch all compute environments
     ],
     "free": {
       "maxJobDuration": 60,
+      "minJobDuration": 10,
       "maxJobs": 3,
       "resources": [
         { "id": "cpu", "max": 1, "inUse": 0 },
@@ -1275,17 +1402,20 @@ starts a free compute job and returns jobId if succesfull
 
 #### Parameters
 
-| name            | type   | required | description                               |
-| --------------- | ------ | -------- | ----------------------------------------- |
-| command         | string | v        | command name                              |
-| node            | string |          | if not present it means current node      |
-| consumerAddress | string | v        | consumer address                          |
-| signature       | string | v        | signature (msg=String(nonce) )            |
-| nonce           | string | v        | nonce for the request                     |
-| datasets        | object |          | list of ComputeAsset to be used as inputs |
-| algorithm       | object |          | ComputeAlgorithm definition               |
-| environment     | string | v        | compute environment to use                |
-| resources       | object |          | optional list of required resources       |
+| name              | type   | required | description                                                                   |
+| ----------------- | ------ | -------- | ----------------------------------------------------------------------------- |
+| command           | string | v        | command name                                                                  |
+| node              | string |          | if not present it means current node                                          |
+| consumerAddress   | string | v        | consumer address                                                              |
+| signature         | string | v        | signature (msg=String(nonce) )                                                |
+| nonce             | string | v        | nonce for the request                                                         |
+| datasets          | object |          | list of ComputeAsset to be used as inputs                                     |
+| algorithm         | object |          | ComputeAlgorithm definition                                                   |
+| environment       | string | v        | compute environment to use                                                    |
+| resources         | object |          | optional list of required resources                                           |
+| metadata          | object |          | optional metadata for the job, data provided by the user                      |
+| additionalViewers | object |          | optional array of addresses that are allowed to fetch the result              |
+| queueMaxWaitTime  | number |          | optional max time in seconds a job can wait in the queue before being started |
 
 #### Request
 
@@ -1296,11 +1426,12 @@ starts a free compute job and returns jobId if succesfull
   "algorithm": {
     "meta": { "container": { "image": "ubuntu", "entrypoint": "/bin/bash'" } }
   },
-  "consumerAddress": "0xC7EC1970B09224B317c52d92f37F5e1E4fF6B687",
+  "consumerAddress": "0x00",
   "signature": "123",
   "nonce": 1,
   "environment": "0x7d187e4c751367be694497ead35e2937ece3c7f3b325dcb4f7571e5972d092bd-0xbeaf12703d708f39ef98c3d8939ce458553254176dbb69fe83d535883c4cee38",
-  "resources": [{ "id": "cpu", "amount": 1 }]
+  "resources": [{ "id": "cpu", "amount": 1 }],
+  "metadata": { "key": "value" }
 }
 ```
 
@@ -1309,7 +1440,7 @@ starts a free compute job and returns jobId if succesfull
 ```json
 [
   {
-    "owner": "0xC7EC1970B09224B317c52d92f37F5e1E4fF6B687",
+    "owner": "0x00",
     "jobId": "0x7d187e4c751367be694497ead35e2937ece3c7f3b325dcb4f7571e5972d092bd-a4ad237d-dfd8-404c-a5d6-b8fc3a1f66d3",
     "dateCreated": "1742291065.119",
     "dateFinished": null,
@@ -1324,7 +1455,8 @@ starts a free compute job and returns jobId if succesfull
       { "id": "ram", "amount": 1000000000 },
       { "id": "disk", "amount": 0 }
     ],
-    "isFree": true
+    "isFree": true,
+    "metadata": { "key": "value" }
   }
 ]
 ```
@@ -1338,6 +1470,7 @@ starts a free compute job and returns jobId if succesfull
 returns job status
 
 #### Parameters
+
 Required at least one of the following parameters:
 
 | name            | type   | required | description                          |
@@ -1351,7 +1484,7 @@ Required at least one of the following parameters:
 ```json
 [
   {
-    "owner": "0xC7EC1970B09224B317c52d92f37F5e1E4fF6B687",
+    "owner": "0x00",
     "did": null,
     "jobId": "a4ad237d-dfd8-404c-a5d6-b8fc3a1f66d3",
     "dateCreated": "1742291065.119",
@@ -1378,7 +1511,8 @@ Required at least one of the following parameters:
         "amount": 1000000000
       }
     ],
-    "isFree": true
+    "isFree": true,
+    "metadata": { "key": "value" }
   }
 ]
 ```
@@ -1399,7 +1533,7 @@ returns job result
 | jobId           | string | v        | jobId address to use as filter                                 |
 | signature       | string | v        | signature (consumerAddress + jobId + index.toString() + nonce) |
 | nonce           | string | v        | nonce for the request                                          |
-| index           | number | v        | index of result  (0 for main result, 1 for logs)               |
+| index           | number | v        | index of result (0 for main result, 1 for logs)                |
 
 #### Response
 

@@ -12,7 +12,10 @@ import type {
   ComputeResource,
   ComputeResourcesPricingInfo,
   DBComputeJobPayment,
-  DBComputeJob
+  DBComputeJob,
+  dockerDeviceRequest,
+  DBComputeJobMetadata,
+  ComputeEnvFees
 } from '../../@types/C2D/C2D.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
@@ -59,7 +62,11 @@ export abstract class C2DEngine {
     owner: string,
     maxJobDuration: number,
     resources: ComputeResourceRequest[],
-    payment: DBComputeJobPayment
+    payment: DBComputeJobPayment,
+    jobId: string,
+    metadata?: DBComputeJobMetadata,
+    additionalViewers?: string[],
+    queueMaxWaitTime?: number
   ): Promise<ComputeJob[]>
 
   public abstract stopComputeJob(
@@ -144,6 +151,14 @@ export abstract class C2DEngine {
     isFree: boolean
   ): ComputeResource {
     const paid = this.getResource(env.resources, id)
+    if (!paid) {
+      return {
+        id,
+        total: 0,
+        max: 0,
+        min: 0
+      }
+    }
     let free = null
     if (isFree && 'free' in env && 'resources' in env.free) {
       free = this.getResource(env.free.resources, id)
@@ -191,7 +206,7 @@ export abstract class C2DEngine {
     for (const device of elements) {
       let desired = this.getResourceRequest(resources, device)
       const minMax = this.getMaxMinResource(device, env, isFree)
-      if (!desired && minMax.min > 0) {
+      if (!desired && minMax.min >= 0) {
         // it's required
         desired = minMax.min
       } else {
@@ -207,7 +222,7 @@ export abstract class C2DEngine {
           )
         }
       }
-      properResources.push({ id: device, amount: minMax.min })
+      properResources.push({ id: device, amount: desired })
     }
 
     return properResources
@@ -219,22 +234,45 @@ export abstract class C2DEngine {
     const jobs = await this.db.getRunningJobs(this.getC2DConfig().hash)
     let totalJobs = 0
     let totalFreeJobs = 0
+    let queuedJobs = 0
+    let queuedFreeJobs = 0
+    let maxWaitTime = 0
+    let maxWaitTimeFree = 0
     for (const job of jobs) {
       if (job.environment === env.id) {
-        totalJobs++
-        if (job.isFree) totalFreeJobs++
+        if (job.queueMaxWaitTime === 0) {
+          totalJobs++
+          if (job.isFree) totalFreeJobs++
 
-        for (const resource of job.resources) {
-          if (!(resource.id in usedResources)) usedResources[resource.id] = 0
-          usedResources[resource.id] += resource.amount
+          for (const resource of job.resources) {
+            if (!(resource.id in usedResources)) usedResources[resource.id] = 0
+            usedResources[resource.id] += resource.amount
+            if (job.isFree) {
+              if (!(resource.id in usedFreeResources)) usedFreeResources[resource.id] = 0
+              usedFreeResources[resource.id] += resource.amount
+            }
+          }
+        } else {
+          // queued job
+          queuedJobs++
+          maxWaitTime += job.maxJobDuration
           if (job.isFree) {
-            if (!(resource.id in usedFreeResources)) usedFreeResources[resource.id] = 0
-            usedFreeResources[resource.id] += resource.amount
+            queuedFreeJobs++
+            maxWaitTimeFree += job.maxJobDuration
           }
         }
       }
     }
-    return { totalJobs, totalFreeJobs, usedResources, usedFreeResources }
+    return {
+      totalJobs,
+      totalFreeJobs,
+      usedResources,
+      usedFreeResources,
+      queuedJobs,
+      queuedFreeJobs,
+      maxWaitTime,
+      maxWaitTimeFree
+    }
   }
 
   // overridden by each engine if required
@@ -294,6 +332,105 @@ export abstract class C2DEngine {
     return null
   }
 
+  public getDockerDeviceRequest(
+    requests: ComputeResourceRequest[],
+    resources: ComputeResource[]
+  ): dockerDeviceRequest[] | null {
+    if (!resources) return null
+
+    const grouped: Record<string, dockerDeviceRequest> = {}
+
+    for (const resource of requests) {
+      const res = this.getResource(resources, resource.id)
+      const init = res?.init?.deviceRequests
+      if (!init) continue
+
+      const key = `${init.Driver}-${JSON.stringify(init.Capabilities)}`
+      if (!grouped[key]) {
+        grouped[key] = {
+          Driver: init.Driver,
+          Capabilities: init.Capabilities,
+          DeviceIDs: [],
+          Options: init.Options ?? null,
+          Count: undefined
+        }
+      }
+
+      if (init.DeviceIDs?.length) {
+        grouped[key].DeviceIDs!.push(...init.DeviceIDs)
+      }
+    }
+
+    return Object.values(grouped)
+  }
+
+  public getDockerAdvancedConfig(
+    requests: ComputeResourceRequest[],
+    resources: ComputeResource[]
+  ) {
+    const ret = {
+      Devices: [] as any[],
+      GroupAdd: [] as string[],
+      SecurityOpt: [] as string[],
+      Binds: [] as string[],
+      CapAdd: [] as string[],
+      CapDrop: [] as string[],
+      IpcMode: null as string,
+      ShmSize: 0 as number
+    }
+    for (const resource of requests) {
+      const res = this.getResource(resources, resource.id)
+      if (res.init && res.init.advanced) {
+        for (const [key, value] of Object.entries(res.init.advanced)) {
+          switch (key) {
+            case 'IpcMode':
+              ret.IpcMode = value as string
+              break
+            case 'ShmSize':
+              ret.ShmSize = value as number
+              break
+            case 'GroupAdd':
+              for (const grp of value as string[]) {
+                if (!ret.GroupAdd.includes(grp)) ret.GroupAdd.push(grp)
+              }
+              break
+            case 'CapAdd':
+              for (const grp of value as string[]) {
+                if (!ret.CapAdd.includes(grp)) ret.CapAdd.push(grp)
+              }
+              break
+            case 'CapDrop':
+              for (const grp of value as string[]) {
+                if (!ret.CapDrop.includes(grp)) ret.CapDrop.push(grp)
+              }
+              break
+            case 'Devices':
+              for (const device of value as string[]) {
+                if (!ret.Devices.find((d) => d.PathOnHost === device))
+                  ret.Devices.push({
+                    PathOnHost: device,
+                    PathInContainer: device,
+                    CgroupPermissions: 'rwm'
+                  })
+              }
+              break
+            case 'SecurityOpt':
+              for (const [secKeys, secValues] of Object.entries(value))
+                if (!ret.SecurityOpt.includes(secKeys + '=' + secValues))
+                  ret.SecurityOpt.push(secKeys + '=' + secValues)
+              break
+            case 'Binds':
+              for (const grp of value as string[]) {
+                if (!ret.Binds.includes(grp)) ret.Binds.push(grp)
+              }
+              break
+          }
+        }
+      }
+    }
+    return ret
+  }
+
   public getEnvPricesForToken(
     env: ComputeEnvironment,
     chainId: number,
@@ -333,11 +470,15 @@ export abstract class C2DEngine {
 
   public getTotalCostOfJob(
     resources: ComputeResourceRequestWithPrice[],
-    duration: number
+    duration: number,
+    fee: ComputeEnvFees
   ) {
     let cost: number = 0
     for (const request of resources) {
-      if (request.price) cost += request.price * request.amount * Math.ceil(duration / 60)
+      const price = fee.prices.find((p) => p.id === request.id)?.price
+      if (price) {
+        cost += price * request.amount * Math.ceil(duration / 60)
+      }
     }
     return cost
   }

@@ -8,9 +8,9 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { validateAdminSignature } from '../../../utils/auth.js'
 import { BaseHandler } from '../handler/handler.js'
-import { CommonValidation } from '../../httpRoutes/requestValidator.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
+import { CommonValidation } from '../../../utils/validators.js'
 
 export abstract class AdminCommandHandler
   extends BaseHandler
@@ -43,7 +43,8 @@ export abstract class AdminCommandHandler
     }
     const signatureValidation: CommonValidation = await validateAdminSignature(
       command.expiryTimestamp,
-      command.signature
+      command.signature,
+      command.address
     )
     if (!signatureValidation.valid) {
       return buildInvalidRequestMessage(

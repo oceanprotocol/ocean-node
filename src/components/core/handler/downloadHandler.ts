@@ -1,10 +1,5 @@
 import { CommandHandler } from './handler.js'
-import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
-import {
-  ENVIRONMENT_VARIABLES,
-  MetadataStates,
-  PROTOCOL_COMMANDS
-} from '../../../utils/constants.js'
+import { MetadataStates, PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { verifyProviderFees } from '../utils/feesHandler.js'
 import { decrypt } from '../../../utils/crypt.js'
@@ -20,10 +15,9 @@ import {
   isDataTokenTemplate4,
   isERC20Template4Active
 } from '../../../utils/asset.js'
-import { ArweaveStorage, IpfsStorage, Storage } from '../../storage/index.js'
+import { Storage } from '../../storage/index.js'
 import {
   Blockchain,
-  existsEnvironmentVariable,
   getConfiguration,
   isPolicyServerConfigured
 } from '../../../utils/index.js'
@@ -40,7 +34,7 @@ import {
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { OrdableAssetResponse } from '../../../@types/Asset.js'
 import { PolicyServer } from '../../policyServer/index.js'
-import { Asset, DDO, Service } from '@oceanprotocol/ddo-js'
+import { Asset, Credentials, DDO, DDOManager, Service } from '@oceanprotocol/ddo-js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export function isOrderingAllowedForAsset(asset: Asset): OrdableAssetResponse {
@@ -76,12 +70,12 @@ export async function handleDownloadUrlCommand(
   try {
     // Determine the type of storage and get a readable stream
     const storage = Storage.getStorageClass(task.fileObject, config)
-    if (
-      storage instanceof ArweaveStorage &&
-      !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY)
-    ) {
+
+    // Validate storage configuration (checks if gateways are configured)
+    const [isValid, validationError] = storage.validate()
+    if (!isValid) {
       CORE_LOGGER.logMessageWithEmoji(
-        'Failure executing downloadURL task: Oean-node does not support arweave storage type files! ',
+        `Failure executing downloadURL task: ${validationError}`,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
@@ -90,24 +84,7 @@ export async function handleDownloadUrlCommand(
         stream: null,
         status: {
           httpStatus: 501,
-          error: 'Error: Oean-node does not support arweave storage type files!'
-        }
-      }
-    } else if (
-      storage instanceof IpfsStorage &&
-      !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.IPFS_GATEWAY)
-    ) {
-      CORE_LOGGER.logMessageWithEmoji(
-        'Failure executing downloadURL task: Oean-node does not support ipfs storage type files! ',
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
-      return {
-        stream: null,
-        status: {
-          httpStatus: 501,
-          error: 'Error: Oean-node does not support ipfs storage type files!'
+          error: `Error: ${validationError}`
         }
       }
     }
@@ -212,16 +189,24 @@ export class DownloadHandler extends CommandHandler {
       'fileIndex',
       'documentId',
       'serviceId',
-      'transferTxId',
-      'nonce',
-      'consumerAddress',
-      'signature'
+      'transferTxId'
     ])
   }
   // No encryption here yet
 
   async handle(task: DownloadCommand): Promise<P2PCommandResponse> {
     const validationResponse = await this.verifyParamsAndRateLimits(task)
+    const isAuthRequestValid = await this.validateTokenOrSignature(
+      task.authorization,
+      task.consumerAddress,
+      task.nonce,
+      task.signature,
+      String(task.documentId + task.nonce)
+    )
+    if (isAuthRequestValid.status.httpStatus !== 200) {
+      return isAuthRequestValid
+    }
+
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
@@ -247,6 +232,14 @@ export class DownloadHandler extends CommandHandler {
         }
       }
     }
+    const ddoInstance = DDOManager.getDDOClass(ddo)
+    const {
+      chainId: ddoChainId,
+      nftAddress,
+      metadata,
+      credentials
+    } = ddoInstance.getDDOFields()
+    const policyServer = new PolicyServer()
 
     const isOrdable = isOrderingAllowedForAsset(ddo)
     if (!isOrdable.isOrdable) {
@@ -261,7 +254,7 @@ export class DownloadHandler extends CommandHandler {
     }
 
     // 2. Validate ddo and credentials
-    if (!ddo.chainId || !ddo.nftAddress || !ddo.metadata) {
+    if (!ddoChainId || !nftAddress || !metadata) {
       CORE_LOGGER.logMessage('Error: DDO malformed or disabled', true)
       return {
         stream: null,
@@ -274,64 +267,41 @@ export class DownloadHandler extends CommandHandler {
 
     // check credentials (DDO level)
     let accessGrantedDDOLevel: boolean
-    if (ddo.credentials) {
+    if (credentials) {
       // if POLICY_SERVER_URL exists, then ocean-node will NOT perform any checks.
       // It will just use the existing code and let PolicyServer decide.
       if (isPolicyServerConfigured()) {
-        accessGrantedDDOLevel = await (
-          await new PolicyServer().checkDownload(
-            ddo.id,
-            ddo,
-            task.serviceId,
-            task.fileIndex,
-            task.transferTxId,
-            task.consumerAddress,
-            task.policyServer
-          )
-        ).success
+        const response = await policyServer.checkDownload(
+          ddoInstance.getDid(),
+          ddo,
+          task.serviceId,
+          task.consumerAddress,
+          task.policyServer
+        )
+        accessGrantedDDOLevel = response.success
       } else {
-        accessGrantedDDOLevel = areKnownCredentialTypes(ddo.credentials)
-          ? checkCredentials(ddo.credentials, task.consumerAddress)
+        accessGrantedDDOLevel = areKnownCredentialTypes(credentials as Credentials)
+          ? checkCredentials(credentials as Credentials, task.consumerAddress)
           : true
       }
       if (!accessGrantedDDOLevel) {
-        CORE_LOGGER.logMessage(`Error: Access to asset ${ddo.id} was denied`, true)
+        CORE_LOGGER.logMessage(
+          `Error: Access to asset ${ddoInstance.getDid()} was denied`,
+          true
+        )
         return {
           stream: null,
           status: {
             httpStatus: 403,
-            error: `Error: Access to asset ${ddo.id} was denied`
+            error: `Error: Access to asset ${ddoInstance.getDid()} was denied`
           }
         }
       }
     }
 
-    // 3. Validate nonce and signature
-    const nonceCheckResult: NonceResponse = await checkNonce(
-      this.getOceanNode().getDatabase().nonce,
-      task.consumerAddress,
-      parseInt(task.nonce),
-      task.signature,
-      String(ddo.id + task.nonce)
-    )
-
-    if (!nonceCheckResult.valid) {
-      CORE_LOGGER.logMessage(
-        'Invalid nonce or signature, unable to proceed with download: ' +
-          nonceCheckResult.error,
-        true
-      )
-      return {
-        stream: null,
-        status: {
-          httpStatus: 500,
-          error: nonceCheckResult.error
-        }
-      }
-    }
     // from now on, we need blockchain checks
     const config = await getConfiguration()
-    const { rpc, network, chainId, fallbackRPCs } = config.supportedNetworks[ddo.chainId]
+    const { rpc, network, chainId, fallbackRPCs } = config.supportedNetworks[ddoChainId]
     let provider
     let blockchain
     try {
@@ -381,19 +351,14 @@ export class DownloadHandler extends CommandHandler {
       if (isPolicyServerConfigured()) {
         // we use the previous check or we do it again
         // (in case there is no DDO level credentials and we only have Service level ones)
-        accessGrantedServiceLevel =
-          accessGrantedDDOLevel ||
-          (await (
-            await new PolicyServer().checkDownload(
-              ddo.id,
-              ddo,
-              task.serviceId,
-              task.fileIndex,
-              task.transferTxId,
-              task.consumerAddress,
-              task.policyServer
-            )
-          ).success)
+        const response = await policyServer.checkDownload(
+          ddoInstance.getDid(),
+          ddo,
+          service.id,
+          task.consumerAddress,
+          task.policyServer
+        )
+        accessGrantedServiceLevel = accessGrantedDDOLevel || response.success
       } else {
         accessGrantedServiceLevel = areKnownCredentialTypes(service.credentials)
           ? checkCredentials(service.credentials, task.consumerAddress)
@@ -487,26 +452,6 @@ export class DownloadHandler extends CommandHandler {
         }
       }
     }
-    // policyServer check
-    const policyServer = new PolicyServer()
-    const policyStatus = await policyServer.checkDownload(
-      ddo.id,
-      ddo,
-      service.id,
-      task.fileIndex,
-      task.transferTxId,
-      task.consumerAddress,
-      task.policyServer
-    )
-    if (!policyStatus.success) {
-      return {
-        stream: null,
-        status: {
-          httpStatus: 405,
-          error: policyStatus.message
-        }
-      }
-    }
 
     try {
       // 7. Decrypt the url
@@ -563,6 +508,17 @@ export class DownloadHandler extends CommandHandler {
         const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
         decryptedFileData = JSON.parse(decryptedFilesString)
         decriptedFileObject = decryptedFileData.files[task.fileIndex]
+      }
+
+      if (decriptedFileObject?.url && task.userData) {
+        const url = new URL(decriptedFileObject.url)
+        const userDataObj =
+          typeof task.userData === 'string' ? JSON.parse(task.userData) : task.userData
+        for (const [key, value] of Object.entries(userDataObj)) {
+          url.searchParams.append(key, String(value))
+        }
+        decriptedFileObject.url = url.toString()
+        CORE_LOGGER.info('Appended userData to file url: ' + decriptedFileObject.url)
       }
 
       if (!validateFilesStructure(ddo, service, decryptedFileData)) {

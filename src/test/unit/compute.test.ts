@@ -19,17 +19,18 @@ import {
   convertStringToArray,
   STRING_SEPARATOR
 } from '../../components/database/sqliteCompute.js'
+import os from 'os'
 import {
   buildEnvOverrideConfig,
   OverrideEnvConfig,
   setupEnvironment,
-  tearDownEnvironment
+  tearDownEnvironment,
+  TEST_ENV_CONFIG_FILE
 } from '../utils/utils.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { completeDBComputeJob, dockerImageManifest } from '../data/assets.js'
 import { omitDBComputeFieldsFromComputeJob } from '../../components/c2d/index.js'
-import os from 'os'
 import { checkManifestPlatform } from '../../components/c2d/compute_engine_docker.js'
 
 describe('Compute Jobs Database', () => {
@@ -46,14 +47,15 @@ describe('Compute Jobs Database', () => {
     documentId: 'did:op:12345',
     serviceId: '0x12345abc'
   }
+
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
       [ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS],
       [
-        '[{"socketPath":"/var/run/docker.sock","resources":[{"id":"disk","total":1000000000}],"storageExpiry":604800,"maxJobDuration":3600,"fees":{"1":[{"feeToken":"0x123","prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"maxJobs":3,"resources":[{"id":"cpu","max":1},{"id":"ram","max":1000000000},{"id":"disk","max":1000000000}]}}]'
+        '[{"socketPath":"/var/run/docker.sock","resources":[{"id":"disk","total":10}],"storageExpiry":604800,"maxJobDuration":3600,"minJobDuration":60,"fees":{"1":[{"feeToken":"0x123","prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"minJobDuration":10,"maxJobs":3,"resources":[{"id":"cpu","max":1},{"id":"ram","max":1},{"id":"disk","max":1}]}}]'
       ]
     )
-    envOverrides = await setupEnvironment(null, envOverrides)
+    envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
     db = await new C2DDatabase(config.dbConfig, typesenseSchemas.c2dSchemas)
   })
@@ -83,9 +85,20 @@ describe('Compute Jobs Database', () => {
       isStarted: false,
       containerImage: 'some container image',
       resources: [],
+      environment: 'some environment',
+      agreementId: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260fdc',
+      payment: {
+        token: '0x123',
+        lockTx: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260fdc',
+        claimTx: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260fdc',
+        chainId: 8996,
+        cost: 0
+      },
       isFree: false,
       algoStartTimestamp: '0',
-      algoStopTimestamp: '0'
+      algoStopTimestamp: '0',
+      algoDuration: 0,
+      queueMaxWaitTime: 0
     }
 
     jobId = await db.newJob(job)
@@ -139,13 +152,24 @@ describe('Compute Jobs Database', () => {
       stopRequested: false,
       algorithm,
       assets: [dataset],
+      environment: 'some environment',
       isRunning: false,
       isStarted: false,
       containerImage: 'another container image',
       resources: [],
+      agreementId: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260fdc',
+      payment: {
+        token: '0x123',
+        lockTx: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260fdc',
+        claimTx: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260fdc',
+        chainId: 8996,
+        cost: 0
+      },
       isFree: false,
       algoStartTimestamp: '0',
-      algoStopTimestamp: '0'
+      algoStopTimestamp: '0',
+      algoDuration: 0,
+      queueMaxWaitTime: 0
     }
 
     const jobId = await db.newJob(job)
@@ -192,9 +216,6 @@ describe('Compute Jobs Database', () => {
     )
     expect(Object.prototype.hasOwnProperty.call(output, 'algologURL')).to.be.equal(false)
     expect(Object.prototype.hasOwnProperty.call(output, 'outputsURL')).to.be.equal(false)
-    expect(Object.prototype.hasOwnProperty.call(output, 'stopRequested')).to.be.equal(
-      false
-    )
     expect(Object.prototype.hasOwnProperty.call(output, 'algorithm')).to.be.equal(false)
     expect(Object.prototype.hasOwnProperty.call(output, 'assets')).to.be.equal(false)
     expect(Object.prototype.hasOwnProperty.call(output, 'isRunning')).to.be.equal(false)

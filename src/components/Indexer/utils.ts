@@ -1,11 +1,7 @@
 import { JsonRpcApiProvider, Signer, ethers, getAddress } from 'ethers'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import {
-  ENVIRONMENT_VARIABLES,
-  EVENT_HASHES,
-  existsEnvironmentVariable
-} from '../../utils/index.js'
+import { EVENT_HASHES, isDefined } from '../../utils/index.js'
 import { NetworkEvent } from '../../@types/blockchain.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
@@ -17,6 +13,7 @@ import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pool
 import { createHash } from 'crypto'
 import { ServicePrice } from '../../@types/IndexedMetadata.js'
 import { VersionedDDO } from '@oceanprotocol/ddo-js'
+import FactoryRouter from '@oceanprotocol/contracts/artifacts/contracts/pools/FactoryRouter.sol/FactoryRouter.json' assert { type: 'json' }
 
 export const getContractAddress = (chainId: number, contractName: string): string => {
   const addressFile = getOceanArtifactsAdressesByChainId(chainId)
@@ -24,6 +21,34 @@ export const getContractAddress = (chainId: number, contractName: string): strin
     return getAddress(addressFile[contractName])
   }
   return ''
+}
+
+export const isValidFreContract = async (
+  address: string,
+  chainId: number,
+  signer: Signer
+) => {
+  const router = getContractAddress(chainId, 'Router')
+  const routerContract = new ethers.Contract(router, FactoryRouter.abi, signer)
+  try {
+    return await routerContract.isFixedRateContract(address)
+  } catch (e) {
+    INDEXER_LOGGER.error(`Could not fetch FRE contract status: ${e.message}`)
+  }
+}
+
+export const isValidDispenserContract = async (
+  address: string,
+  chainId: number,
+  signer: Signer
+) => {
+  const router = getContractAddress(chainId, 'Router')
+  const routerContract = new ethers.Contract(router, FactoryRouter.abi, signer)
+  try {
+    return await routerContract.isDispenserContract(address)
+  } catch (e) {
+    INDEXER_LOGGER.error(`Could not fetch dispenser contract status: ${e.message}`)
+  }
 }
 
 export const getDeployedContractBlock = (network: number) => {
@@ -52,13 +77,23 @@ export const retrieveChunkEvents = async (
   try {
     const eventHashes = Object.keys(EVENT_HASHES)
     const startIndex = lastIndexedBlock + 1
-    const blockLogs = await provider.getLogs({
+    const details = {
       fromBlock: startIndex,
       toBlock: lastIndexedBlock + count,
       topics: [eventHashes]
-    })
+    }
+    INDEXER_LOGGER.debug(
+      `Retrieving events from block ${startIndex} to ${lastIndexedBlock + count}`
+    )
+    const blockLogs = await provider.getLogs(details)
     return blockLogs
   } catch (error) {
+    INDEXER_LOGGER.error(
+      `Error retrieving events from block ${lastIndexedBlock + 1} to ${
+        lastIndexedBlock + count
+      }:`
+    )
+    INDEXER_LOGGER.error(error)
     throw new Error(` Error processing chunk of blocks events ${error.message}`)
   }
 }
@@ -134,7 +169,7 @@ export async function wasNFTDeployedByOurFactory(
 // default in seconds
 const DEFAULT_INDEXER_CRAWLING_INTERVAL = 1000 * 30 // 30 seconds
 export const getCrawlingInterval = (): number => {
-  if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.INDEXER_INTERVAL)) {
+  if (isDefined(process.env.INDEXER_INTERVAL)) {
     const number: any = process.env.INDEXER_INTERVAL
     if (!isNaN(number) && number > 0) {
       return number
@@ -391,4 +426,28 @@ export function getDid(nftAddress: string, chainId: number): string {
       .update(getAddress(nftAddress) + chainId.toString(10))
       .digest('hex')
   )
+}
+
+export async function withRetrial<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 5,
+  delay: number = 2000
+): Promise<T> {
+  let lastError: Error
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error
+
+      if (attempt === maxRetries - 1) {
+        throw lastError
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, delay))
+    }
+  }
+
+  throw lastError
 }
