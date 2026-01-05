@@ -19,7 +19,7 @@ import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
-import { sleep, streamToObject } from '../../utils/util.js'
+import { streamToObject, sleep } from '../../utils/util.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 
 import {
@@ -100,8 +100,6 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
     publisherAccount = (await provider.getSigner(0)) as Signer
     artifactsAddresses = getOceanArtifactsAdresses()
     paymentToken = artifactsAddresses.development.Ocean
-
-    await sleep(5000)
 
     // override and save configuration (always before calling getConfig())
     previousConfiguration = await setupEnvironment(
@@ -534,6 +532,10 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
 
   it('should NOT allow to index the asset because address is not on AUTHORIZED_PUBLISHERS', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+
+    oceanNode.getIndexer().stopAllThreads()
+    await sleep(2000)
+
     // this is not authorized
     const nonAuthorizedAccount = (await provider.getSigner(4)) as Signer
     const authorizedAccount = await publisherAccount.getAddress()
@@ -542,11 +544,14 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
     const currentConfig = await getConfiguration(true)
     printCurrentConfig()
     expect(
-      currentConfig.authorizedPublishers.length === 1 &&
-        currentConfig.authorizedPublishers[0].toLowerCase() ===
-          authorizedAccount.toLowerCase(),
+      config.authorizedPublishers.length === 1 &&
+        config.authorizedPublishers[0] === authorizedAccount,
       'Unable to set AUTHORIZED_PUBLISHERS'
     )
+
+    // Restart the indexer
+    await oceanNode.getIndexer().startThreads()
+    await sleep(1000)
 
     const publishedDataset = await publishAsset(
       downloadAssetWithCredentials,
