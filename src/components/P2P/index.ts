@@ -234,7 +234,7 @@ export class OceanP2P extends EventEmitter {
       P2P_LOGGER.info(`Starting P2P Node with peerID: ${this._publicAddress}`)
 
       this._publicKey = config.keys.publicKey
-      this._privateKey = config.keys.privateKey.raw
+      this._privateKey = config.keys.privateKey
       /** @type {import('libp2p').Libp2pOptions} */
       // start with some default, overwrite based on config later
       const bindInterfaces = []
@@ -337,11 +337,17 @@ export class OceanP2P extends EventEmitter {
 
       let transports = []
       P2P_LOGGER.info('Enabling P2P Transports: websockets, tcp, circuitRelay')
-      transports = [webSockets(), tcp(), circuitRelayTransport()]
+      transports = [
+        webSockets(),
+        tcp(),
+        circuitRelayTransport({
+          discoverRelays: config.p2pConfig.circuitRelays
+        })
+      ]
 
       let options = {
         addresses,
-        privateKey: config.keys.privateKey,
+        peerId: config.keys.peerId,
         transports,
         streamMuxers: [yamux()],
         connectionEncryption: [
@@ -500,7 +506,7 @@ export class OceanP2P extends EventEmitter {
       // UPDATE: no need to slice 4 bytes here, actually we need those on client side to verify the node id and perform the encryption of the keys + iv
       // See config.ts => getPeerIdFromPrivateKey()
 
-      const pubKey = Buffer.from(peerId.publicKey.raw).toString('hex') // no need to do .subarray(4).toString('hex')
+      const pubKey = Buffer.from(peerId.publicKey).toString('hex') // no need to do .subarray(4).toString('hex')
       const peer = await this._libp2p.peerStore.get(peerId)
 
       // write the publicKey as well
