@@ -136,7 +136,7 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
 
     config = await getConfiguration(true) // Force reload the configuration
     const database = await Database.init(config.dbConfig)
-    oceanNode = await OceanNode.getInstance(config, database, null, null, null, true)
+    oceanNode = await OceanNode.getInstance(config, database)
     const indexer = new OceanIndexer(database, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
     await oceanNode.addC2DEngines()
@@ -537,8 +537,6 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
     const nonAuthorizedAccount = (await provider.getSigner(4)) as Signer
     const authorizedAccount = await publisherAccount.getAddress()
 
-    // Reload config to ensure we have the latest values
-    await getConfiguration(true)
     printCurrentConfig()
     expect(
       config.authorizedPublishers.length === 1 &&
