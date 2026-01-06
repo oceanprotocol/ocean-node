@@ -37,6 +37,7 @@ export interface GetP2PNetworkStatsCommand extends Command {}
 export interface AdminCommand extends Command {
   expiryTimestamp: number
   signature: string
+  address?: string
 }
 
 export interface AdminCollectFeesHandlerResponse {
