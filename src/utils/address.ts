@@ -1,5 +1,5 @@
 import fs from 'fs'
-import addresses from '@oceanprotocol/contracts/addresses/address.json' assert { type: 'json' }
+import addresses from '@oceanprotocol/contracts/addresses/address.json' with { type: 'json' }
 import { CORE_LOGGER } from './logging/common.js'
 import { isDefined } from './index.js'
 

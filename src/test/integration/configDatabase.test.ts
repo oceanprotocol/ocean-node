@@ -1,7 +1,14 @@
 import { Database } from '../../components/database/index.js'
 import { expect, assert } from 'chai'
 import { OceanIndexer } from '../../components/Indexer/index.js'
-import { getMockSupportedNetworks } from '../utils/utils.js'
+import {
+  buildEnvOverrideConfig,
+  getMockSupportedNetworks,
+  OverrideEnvConfig,
+  setupEnvironment,
+  tearDownEnvironment,
+  TEST_ENV_CONFIG_FILE
+} from '../utils/utils.js'
 import { SQLLiteConfigDatabase } from '../../components/database/SQLLiteConfigDatabase.js'
 import { DB_TYPES } from '../../utils/constants.js'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
@@ -20,9 +27,15 @@ describe('Config Database', () => {
   let database: Database
   let oceanIndexer: OceanIndexer
   let initialVersionNull: any
+  let previousConfiguration: OverrideEnvConfig[]
 
   before(async () => {
     database = await Database.init(versionConfig)
+
+    previousConfiguration = await setupEnvironment(
+      TEST_ENV_CONFIG_FILE,
+      buildEnvOverrideConfig([], [])
+    )
 
     it('should have null version initially', async () => {
       initialVersionNull = await oceanIndexer.getDatabase().sqliteConfig.retrieveValue()
@@ -66,8 +79,9 @@ describe('Config Database', () => {
     version = await oceanIndexer.getDatabase().sqliteConfig.retrieveValue()
     assert(version.value === updatedVersion, `Version should be ${updatedVersion}`)
   })
-  after(() => {
+  after(async () => {
     oceanIndexer.stopAllThreads()
+    await tearDownEnvironment(previousConfiguration)
   })
 })
 

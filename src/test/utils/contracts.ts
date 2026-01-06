@@ -5,8 +5,8 @@ import {
   DEVELOPMENT_CHAIN_ID,
   getOceanArtifactsAdresses
 } from '../../utils/address.js'
-import AccessListFactory from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessListFactory.sol/AccessListFactory.json' assert { type: 'json' }
-import AccessList from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
+import AccessListFactory from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessListFactory.sol/AccessListFactory.json' with { type: 'json' }
+import AccessList from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' with { type: 'json' }
 
 export const EXISTING_ACCESSLISTS: Map<string, AccessListContract> = new Map<
   string,

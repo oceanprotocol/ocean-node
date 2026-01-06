@@ -1,5 +1,5 @@
 import { Contract, ethers, EventLog, Signer } from 'ethers'
-import AccessList from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
+import AccessList from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' with { type: 'json' }
 import { AccessListContract } from '../@types/OceanNode.js'
 import { CORE_LOGGER } from './logging/common.js'
 

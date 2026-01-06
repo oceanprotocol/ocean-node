@@ -31,6 +31,7 @@ const MAX_CRAWL_RETRIES = 10
 let numCrawlAttempts = 0
 
 const runningThreads: Map<number, boolean> = new Map<number, boolean>()
+const globalWorkers: Map<number, Worker> = new Map<number, Worker>()
 export class OceanIndexer {
   private db: Database
   private networks: RPCS
@@ -85,10 +86,11 @@ export class OceanIndexer {
 
   // stops crawling for a specific chain
   public stopThread(chainID: number): boolean {
-    const worker = this.workers[chainID]
+    const worker = this.workers[chainID] || globalWorkers.get(chainID)
     if (worker) {
       worker.postMessage({ method: 'stop-crawling' })
       runningThreads.set(chainID, false)
+      globalWorkers.delete(chainID)
       return true
     }
     INDEXER_LOGGER.error('Unable to find running worker thread for chain ' + chainID)
@@ -153,6 +155,20 @@ export class OceanIndexer {
 
   // starts crawling for a specific chain
   public async startThread(chainID: number): Promise<Worker | null> {
+    // If a thread is already running globally, stop it first
+    if (runningThreads.get(chainID)) {
+      const existingWorker = globalWorkers.get(chainID)
+      if (existingWorker) {
+        INDEXER_LOGGER.logMessage(
+          `Stopping existing worker for chain ${chainID} before starting new one...`
+        )
+        existingWorker.postMessage({ method: 'stop-crawling' })
+        runningThreads.set(chainID, false)
+        globalWorkers.delete(chainID)
+        await sleep(1000) // Give the worker time to stop
+      }
+    }
+
     const rpcDetails: SupportedNetwork = this.getSupportedNetwork(chainID)
     if (!rpcDetails) {
       INDEXER_LOGGER.error(
@@ -193,6 +209,7 @@ export class OceanIndexer {
       true
     )
     runningThreads.set(chainID, true)
+    globalWorkers.set(chainID, worker)
     return worker
   }
 

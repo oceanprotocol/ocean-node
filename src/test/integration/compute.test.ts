@@ -62,10 +62,10 @@ import { ProviderFees, ProviderComputeInitializeResults } from '../../@types/Fee
 import { homedir } from 'os'
 import { publishAlgoDDO, publishDatasetDDO } from '../data/ddo.js'
 import { DEVELOPMENT_CHAIN_ID, getOceanArtifactsAdresses } from '../../utils/address.js'
-import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
-import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import OceanToken from '@oceanprotocol/contracts/artifacts/contracts/utils/OceanToken.sol/OceanToken.json' assert { type: 'json' }
-import EscrowJson from '@oceanprotocol/contracts/artifacts/contracts/escrow/Escrow.sol/Escrow.json' assert { type: 'json' }
+import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' with { type: 'json' }
+import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
+import OceanToken from '@oceanprotocol/contracts/artifacts/contracts/utils/OceanToken.sol/OceanToken.json' with { type: 'json' }
+import EscrowJson from '@oceanprotocol/contracts/artifacts/contracts/escrow/Escrow.sol/Escrow.json' with { type: 'json' }
 import { createHash } from 'crypto'
 import { encrypt } from '../../utils/crypt.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
@@ -1589,7 +1589,7 @@ describe('Compute Access Restrictions', () => {
 
       const AccessListFactory = await import(
         '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessListFactory.sol/AccessListFactory.json',
-        { assert: { type: 'json' } }
+        { with: { type: 'json' } }
       )
 
       const factoryContract = new ethers.Contract(
@@ -1614,7 +1614,7 @@ describe('Compute Access Restrictions', () => {
 
       const AccessListAbi = await import(
         '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json',
-        { assert: { type: 'json' } }
+        { with: { type: 'json' } }
       )
       const accessListContract = new ethers.Contract(
         accessListAddress,
