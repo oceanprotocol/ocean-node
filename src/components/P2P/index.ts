@@ -162,6 +162,22 @@ export class OceanP2P extends EventEmitter {
     try {
       const peerInfo = details.detail
       P2P_LOGGER.debug('Discovered new peer:' + peerInfo.id.toString())
+
+      // v2/v3: autodialer was removed - we implement custom dial logic
+      const currentConnections = this._libp2p.getConnections().length
+      const { minConnections, maxConnections } = this._config.p2pConfig
+
+      // Only dial if we're below minConnections or have room for more
+      if (currentConnections < minConnections || currentConnections < maxConnections) {
+        const existingConnections = this._libp2p.getConnections(peerInfo.id)
+        if (existingConnections.length === 0) {
+          this._libp2p.dial(peerInfo.id).catch((err: Error) => {
+            P2P_LOGGER.debug(
+              `Failed to dial discovered peer ${peerInfo.id}: ${err.message}`
+            )
+          })
+        }
+      }
     } catch (e) {
       // no panic if it failed
       // console.error(e)
@@ -337,6 +353,7 @@ export class OceanP2P extends EventEmitter {
 
       let transports = []
       P2P_LOGGER.info('Enabling P2P Transports: websockets, tcp, circuitRelay')
+      // relay discovery is now automatic through the network's RandomWalk component
       transports = [webSockets(), tcp(), circuitRelayTransport()]
 
       let options = {
@@ -344,20 +361,16 @@ export class OceanP2P extends EventEmitter {
         privateKey: config.keys.privateKey,
         transports,
         streamMuxers: [yamux()],
-        connectionEncryption: [
+        connectionEncrypters: [
           noise()
           // plaintext()
         ],
         services: servicesConfig,
         connectionManager: {
-          maxParallelDials: config.p2pConfig.connectionsMaxParallelDials, // 150 total parallel multiaddr dials
-          dialTimeout: config.p2pConfig.connectionsDialTimeout, // 10 second dial timeout per peer dial
-          minConnections: config.p2pConfig.minConnections,
+          maxParallelDials: config.p2pConfig.connectionsMaxParallelDials,
+          dialTimeout: config.p2pConfig.connectionsDialTimeout,
           maxConnections: config.p2pConfig.maxConnections,
-          autoDialPeerRetryThreshold: config.p2pConfig.autoDialPeerRetryThreshold,
-          autoDialConcurrency: config.p2pConfig.autoDialConcurrency,
-          maxPeerAddrsToDial: config.p2pConfig.maxPeerAddrsToDial,
-          autoDialInterval: config.p2pConfig.autoDialInterval
+          maxPeerAddrsToDial: config.p2pConfig.maxPeerAddrsToDial
         }
       }
       if (config.p2pConfig.bootstrapNodes && config.p2pConfig.bootstrapNodes.length > 0) {
@@ -654,7 +667,7 @@ export class OceanP2P extends EventEmitter {
       const options = {
         signal: AbortSignal.timeout(10000),
         priority: 100,
-        runOnTransientConnection: true
+        runOnLimitedConnection: true
       }
       const connection = await this._libp2p.dial(multiaddrs, options)
       if (connection.remotePeer.toString() !== peerId.toString()) {
