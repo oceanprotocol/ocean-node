@@ -67,7 +67,7 @@
     "@libp2p/tcp": "^11.0.9",
     "@libp2p/upnp-nat": "^4.0.9",
     "@libp2p/websockets": "^10.1.2",
-    "@multiformats/multiaddr": "^10.2.0",
+    "@multiformats/multiaddr": "^12.2.3",
     "@oceanprotocol/contracts": "^2.5.0",
     "@oceanprotocol/ddo-js": "^0.1.4",
     "axios": "^1.12.0",
