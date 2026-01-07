@@ -16,9 +16,9 @@ import { RPCS } from '../../@types/blockchain.js'
 import { OceanNode } from '../../OceanNode.js'
 import { FetchConfigHandler } from '../../components/core/admin/fetchConfigHandler.js'
 import { PushConfigHandler } from '../../components/core/admin/pushConfigHandler.js'
-import { streamToObject } from '../../utils/util.js'
+import { sleep, streamToObject } from '../../utils/util.js'
 import { Readable } from 'stream'
-import { expect } from 'chai'
+import { expect, assert } from 'chai'
 
 describe('Config Admin Endpoints Integration Tests', () => {
   let config: OceanNodeConfig
@@ -167,7 +167,23 @@ describe('Config Admin Endpoints Integration Tests', () => {
     })
 
     it('should push config changes and reload node', async function () {
-      this.timeout(DEFAULT_TEST_TIMEOUT)
+      const runningJobs = await oceanNode.getDatabase().c2d.getRunningJobs()
+      const engine = oceanNode.getC2DEngines().engines[0]
+      for (const runningJob of runningJobs) {
+        await engine.stopComputeJob(runningJob.jobId, runningJob.owner)
+      }
+
+      let retries = 0
+      const MAX_RETRIES = 10
+      do {
+        const latestRunningJobs = await oceanNode.getDatabase().c2d.getRunningJobs()
+        if (latestRunningJobs.length === 0) {
+          break
+        }
+        if (retries > MAX_RETRIES) assert.fail('Node still has running jobs')
+        retries++
+        await sleep(2000)
+      } while (true)
 
       const expiryTimestamp = Date.now() + 60000
       const signature = await getAdminSignature(expiryTimestamp)
