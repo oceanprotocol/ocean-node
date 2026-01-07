@@ -187,7 +187,7 @@ export class OceanNode {
 
       return {
         status: response.status,
-        stream: Readable.from(data)
+        stream: Readable.from([data])
       }
     } catch (err) {
       OCEAN_NODE_LOGGER.logMessageWithEmoji(

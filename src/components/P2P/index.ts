@@ -172,11 +172,15 @@ export class OceanP2P extends EventEmitter {
       if (currentConnections < minConnections || currentConnections < maxConnections) {
         const existingConnections = this._libp2p.getConnections(peerInfo.id)
         if (existingConnections.length === 0) {
-          this._libp2p.dial(peerInfo.id).catch((err: Error) => {
-            P2P_LOGGER.debug(
-              `Failed to dial discovered peer ${peerInfo.id}: ${err.message}`
-            )
-          })
+          this._libp2p
+            .dial(peerInfo.id, {
+              signal: AbortSignal.timeout(10000)
+            })
+            .catch((err: Error) => {
+              P2P_LOGGER.debug(
+                `Failed to dial discovered peer ${peerInfo.id}: ${err.message}`
+              )
+            })
         }
       }
     } catch (e) {
