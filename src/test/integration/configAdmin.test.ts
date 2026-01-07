@@ -169,11 +169,11 @@ describe('Config Admin Endpoints Integration Tests', () => {
     it('should push config changes and reload node', async function () {
       this.timeout(DEFAULT_TEST_TIMEOUT)
 
-      const beforeJobs = await oceanNode.getDatabase().c2d.getRunningJobs()
-      console.log({ beforeJobs, msg: 'before restarting c2d engines' })
-      await oceanNode.addC2DEngines() // make sure there are no running jobs
-      const afterJobs = await oceanNode.getDatabase().c2d.getRunningJobs()
-      console.log({ afterJobs, msg: 'after restarting c2d engines' })
+      const runningJobs = await oceanNode.getDatabase().c2d.getRunningJobs()
+      const engine = oceanNode.getC2DEngines().engines[0]
+      for (const runningJob of runningJobs) {
+        await engine.stopComputeJob(runningJob.jobId, runningJob.owner)
+      }
       const expiryTimestamp = Date.now() + 60000
       const signature = await getAdminSignature(expiryTimestamp)
 
