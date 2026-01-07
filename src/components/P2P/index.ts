@@ -548,6 +548,34 @@ export class OceanP2P extends EventEmitter {
     }
   }
 
+  // we should have peer multiaddrs
+  // but there is a catch
+  // when dialing multiaddrs, either all of them have peerId, or none..
+  // so decide which one to use
+  normalizeMultiaddrs(peerName: string, multiaddrs: Multiaddr[]): Multiaddr[] {
+    let finalmultiaddrs: Multiaddr[] = []
+    const finalmultiaddrsWithAddress: Multiaddr[] = []
+    const finalmultiaddrsWithoutAddress: Multiaddr[] = []
+    for (const x of multiaddrs) {
+      if (x.toString().includes(peerName)) finalmultiaddrsWithAddress.push(x)
+      else {
+        let sd = x.toString()
+        if (x.toString().includes('p2p-circuit')) {
+          // because a p2p-circuit should always include peerId, if it's missing we will add it
+          sd = sd + '/p2p/' + peerName
+          finalmultiaddrsWithAddress.push(multiaddr(sd))
+        } else {
+          finalmultiaddrsWithoutAddress.push(multiaddr(sd))
+        }
+      }
+    }
+    if (finalmultiaddrsWithAddress.length > finalmultiaddrsWithoutAddress.length)
+      finalmultiaddrs = finalmultiaddrsWithAddress
+    else finalmultiaddrs = finalmultiaddrsWithoutAddress
+
+    return finalmultiaddrs
+  }
+
   async getPeerMultiaddrs(
     peerName: string,
     searchPeerStore: boolean = true,
@@ -572,6 +600,15 @@ export class OceanP2P extends EventEmitter {
             multiaddrs.push(multiaddr(x.multiaddr.toString()))
           }
         }
+
+        // If we have a connection, multiaddrs from peerStore are valid
+        const connection = await this._libp2p.dial(multiaddrs)
+        if (
+          connection.remotePeer.toString() === peerId.toString() &&
+          connection.status === 'open'
+        ) {
+          return this.normalizeMultiaddrs(peerName, multiaddrs)
+        }
       } catch (e) {
         // console.log(e)
       }
@@ -593,30 +630,7 @@ export class OceanP2P extends EventEmitter {
       }
     }
 
-    // now we should have peer multiaddrs
-    // but there is a catch
-    // when dialing multiaddrs, either all of them have peerId, or none..
-    // so decide which one to use
-    let finalmultiaddrs: Multiaddr[] = []
-    const finalmultiaddrsWithAddress: Multiaddr[] = []
-    const finalmultiaddrsWithoutAddress: Multiaddr[] = []
-    for (const x of multiaddrs) {
-      if (x.toString().includes(peerName)) finalmultiaddrsWithAddress.push(x)
-      else {
-        let sd = x.toString()
-        if (x.toString().includes('p2p-circuit')) {
-          // because a p2p-circuit should always include peerId, if it's missing we will add it
-          sd = sd + '/p2p/' + peerName
-          finalmultiaddrsWithAddress.push(multiaddr(sd))
-        } else {
-          finalmultiaddrsWithoutAddress.push(multiaddr(sd))
-        }
-      }
-    }
-    if (finalmultiaddrsWithAddress.length > finalmultiaddrsWithoutAddress.length)
-      finalmultiaddrs = finalmultiaddrsWithAddress
-    else finalmultiaddrs = finalmultiaddrsWithoutAddress
-    return finalmultiaddrs
+    return this.normalizeMultiaddrs(peerName, multiaddrs)
   }
 
   async findPeerInDht(peerName: string, timeout?: number) {
