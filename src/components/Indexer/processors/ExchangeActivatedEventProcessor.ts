@@ -13,7 +13,7 @@ import {
   isValidFreContract
 } from '../utils.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
-import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
+import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' with { type: 'json' }
 
 export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
   async processEvent(

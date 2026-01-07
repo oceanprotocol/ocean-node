@@ -9,12 +9,13 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
+import { OceanNodeConfig } from '../../@types/OceanNode.js'
 
 describe('OceanP2P Test', () => {
   let node1: OceanP2P
   let node2: OceanP2P
-  let config1: any
-  let config2: any
+  let config1: OceanNodeConfig
+  let config2: OceanNodeConfig
   const mDNSInterval: number = 1
 
   const envOverrides = buildEnvOverrideConfig(

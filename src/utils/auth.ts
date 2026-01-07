@@ -3,7 +3,7 @@ import { CORE_LOGGER } from './logging/common.js'
 import { Blockchain, getConfiguration } from './index.js'
 import { RPCS } from '../@types/blockchain.js'
 import { isDefined } from '../utils/util.js'
-import AccessListContract from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
+import AccessListContract from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' with { type: 'json' }
 import { getAccountsFromAccessList } from '../utils/credentials.js'
 import { OceanNodeConfig } from '../@types/OceanNode.js'
 import { LOG_LEVELS_STR } from './logging/Logger.js'

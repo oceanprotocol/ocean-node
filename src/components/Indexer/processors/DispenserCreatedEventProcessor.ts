@@ -13,7 +13,7 @@ import {
   isValidDispenserContract
 } from '../utils.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
-import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
+import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' with { type: 'json' }
 
 export class DispenserCreatedEventProcessor extends BaseEventProcessor {
   async processEvent(

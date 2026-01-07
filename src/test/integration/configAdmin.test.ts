@@ -367,5 +367,9 @@ describe('Config Admin Endpoints Integration Tests', () => {
         config: { rateLimit: configBefore.rateLimit }
       })
     })
+
+    after(async () => {
+      await tearDownEnvironment(previousConfiguration)
+    })
   })
 })

@@ -108,7 +108,7 @@
     "@types/jsonwebtoken": "^9.0.9",
     "@types/lodash": "^4.17.21",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^20.14.2",
+    "@types/node": "^25.0.3",
     "@types/node-cron": "^3.0.11",
     "@types/sinon": "^17.0.4",
     "@types/tar-stream": "^3.1.4",
@@ -124,10 +124,11 @@
     "eslint-plugin-promise": "^6.1.1",
     "mocha": "^11.1.0",
     "nyc": "^17.1.0",
-    "prettier": "^3.0.3",
+    "prettier": "^3.7.4",
     "release-it": "^19.0.6",
     "sinon": "^19.0.2",
-    "tsx": "^4.19.3"
+    "tsx": "^4.19.3",
+    "typescript": "^5.9.3"
   },
   "overrides": {
     "elliptic": "^6.6.1",
