@@ -644,7 +644,7 @@ export class OceanP2P extends EventEmitter {
     } else {
       // just used what we were instructed to use
       for (const addr of multiAddrs) {
-        multiaddrs.push(new Multiaddr(addr))
+        multiaddrs.push(multiaddr(addr))
       }
     }
     if (multiaddrs.length < 1) {
