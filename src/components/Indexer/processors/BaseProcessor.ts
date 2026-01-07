@@ -359,42 +359,7 @@ export abstract class BaseEventProcessor {
         } else {
           try {
             const p2pNode = await node.getP2PNode()
-            let isBinaryContent = false
-            const sink = async function (source: any) {
-              let first = true
-              for await (const chunk of source) {
-                if (first) {
-                  first = false
-                  try {
-                    const str = uint8ArrayToString(chunk.subarray()) // Obs: we need to specify the length of the subarrays
-                    const decoded = JSON.parse(str)
-                    if ('headers' in decoded) {
-                      if (str?.toLowerCase().includes('application/octet-stream')) {
-                        isBinaryContent = true
-                      }
-                    }
-                    if (decoded.httpStatus !== 200) {
-                      INDEXER_LOGGER.logMessage(
-                        `Error in sink method  : ${decoded.httpStatus} errro: ${decoded.error}`
-                      )
-                      throw new Error('Error in sink method', decoded.error)
-                    }
-                  } catch (e) {
-                    INDEXER_LOGGER.logMessage(
-                      `Error in sink method  } error: ${e.message}`
-                    )
-                    throw new Error(`Error in sink method ${e.message}`)
-                  }
-                } else {
-                  if (isBinaryContent) {
-                    return chunk.subarray()
-                  } else {
-                    const str = uint8ArrayToString(chunk.subarray())
-                    return str
-                  }
-                }
-              }
-            }
+
             const message = {
               command: PROTOCOL_COMMANDS.DECRYPT_DDO,
               transactionId: txId,
@@ -406,12 +371,18 @@ export abstract class BaseEventProcessor {
               signature,
               nonce
             }
-            const response = await p2pNode.sendTo(
-              decryptorURL,
-              JSON.stringify(message),
-              sink
-            )
-            ddo = JSON.parse(await streamToString(response.stream as Readable))
+
+            const response = await p2pNode.sendTo(decryptorURL, JSON.stringify(message))
+
+            if (response.status.httpStatus !== 200) {
+              throw new Error(`Decrypt failed: ${response.status.error}`)
+            }
+
+            if (!response.data) {
+              throw new Error('No data received from decrypt')
+            }
+
+            ddo = JSON.parse(uint8ArrayToString(response.data))
           } catch (error) {
             const message = `Node exception on decrypt DDO. Status: ${error.message}`
             INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)

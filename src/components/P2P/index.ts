@@ -1,10 +1,11 @@
 // import diff from 'hyperdiff'
-import { P2PCommandResponse } from '../../@types/index'
 import EventEmitter from 'node:events'
 import lodash from 'lodash'
 import { handleProtocolCommands } from './handlers.js'
 
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
+import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
+import type { Stream } from '@libp2p/interface'
 
 import { bootstrap } from '@libp2p/bootstrap'
 import { noise } from '@chainsafe/libp2p-noise'
@@ -633,49 +634,39 @@ export class OceanP2P extends EventEmitter {
   async sendTo(
     peerName: string,
     message: string,
-    sink: any,
     multiAddrs?: string[]
-  ): Promise<P2PCommandResponse> {
+  ): Promise<{ status: any; data?: Uint8Array }> {
     P2P_LOGGER.logMessage('SendTo() node ' + peerName + ' task: ' + message, true)
 
-    const response: P2PCommandResponse = {
-      status: { httpStatus: 200, error: '' },
-      stream: null
-    }
     let peerId
     try {
       peerId = peerIdFromString(peerName)
     } catch (e) {
       P2P_LOGGER.logMessageWithEmoji(
-        'Invalid peer (for id): ' + peerId,
+        'Invalid peer (for id): ' + peerName,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
       )
-      response.status.httpStatus = 404
-      response.status.error = 'Invalid peer'
-      return response
+      return { status: { httpStatus: 404, error: 'Invalid peer' } }
     }
-    let multiaddrs: Multiaddr[] = []
 
+    let multiaddrs: Multiaddr[] = []
     if (!multiAddrs || multiAddrs.length < 1) {
-      // if they are no forced multiaddrs, try to find node multiaddr from peerStore/dht
       multiaddrs = await this.getPeerMultiaddrs(peerName)
     } else {
-      // just used what we were instructed to use
       for (const addr of multiAddrs) {
         multiaddrs.push(multiaddr(addr))
       }
     }
+
     if (multiaddrs.length < 1) {
-      response.status.httpStatus = 404
-      response.status.error = `Cannot find any address to dial for peer: ${peerId}`
-      P2P_LOGGER.error(response.status.error)
-      return response
+      const error = `Cannot find any address to dial for peer: ${peerId}`
+      P2P_LOGGER.error(error)
+      return { status: { httpStatus: 404, error } }
     }
 
-    let stream
-    // dial/connect to the target node
+    let stream: Stream
     try {
       const options = {
         signal: AbortSignal.timeout(10000),
@@ -684,48 +675,67 @@ export class OceanP2P extends EventEmitter {
       }
       const connection = await this._libp2p.dial(peerId, options)
       if (connection.remotePeer.toString() !== peerId.toString()) {
-        response.status.httpStatus = 404
-        response.status.error = `Invalid peer on the other side: ${connection.remotePeer.toString()}`
-        P2P_LOGGER.error(response.status.error)
-        return response
+        const error = `Invalid peer on the other side: ${connection.remotePeer.toString()}`
+        P2P_LOGGER.error(error)
+        return { status: { httpStatus: 404, error } }
       }
       stream = await connection.newStream(this._protocol, options)
     } catch (e) {
-      response.status.httpStatus = 404
-      response.status.error = `Cannot connect to peer ${peerId}: ${e.message}`
-      P2P_LOGGER.error(response.status.error)
-      return response
+      const error = `Cannot connect to peer ${peerId}: ${e.message}`
+      P2P_LOGGER.error(error)
+      return { status: { httpStatus: 404, error } }
     }
 
-    if (stream) {
-      // @ts-ignore libp2p v3 Stream type differs from Node.js Stream
-      response.stream = stream
-      try {
-        // v3: Use EventTarget stream API
-        // Send the message
-        stream.send(uint8ArrayFromString(message))
-        // Close write side to signal end of message (v1 receivers wait for stream to end)
-        // v3 close() closes writes but keeps readable until remote also closes
-        await stream.close()
+    if (!stream) {
+      return { status: { httpStatus: 404, error: 'Unable to get remote P2P stream' } }
+    }
 
-        // Pass stream data to sink function (for response handling)
-        // v3 streams are still AsyncIterable
-        await sink(stream)
-      } catch (err) {
-        P2P_LOGGER.error(
-          `Cannot connect to peer - Unable to send P2P message: ${err.message}`
-        )
-        response.status.httpStatus = 500
-        response.status.error = `Cannot connect to peer - Unable to send P2P message: ${err.message}`
-        response.stream = null
+    try {
+      // v3: send() writes a chunk, for await...of reads chunks
+      stream.send(uint8ArrayFromString(message))
+      await stream.close()
+
+      // first chunk is status, rest is data
+      let status: any
+      const dataChunks: Uint8Array[] = []
+      let isFirstChunk = true
+
+      for await (const chunk of stream) {
+        const bytes = chunk.subarray()
+        if (isFirstChunk) {
+          // First chunk is always status JSON
+          status = JSON.parse(uint8ArrayToString(bytes))
+          isFirstChunk = false
+        } else {
+          // Subsequent chunks are data
+          dataChunks.push(bytes)
+        }
       }
-    } else {
-      response.status.httpStatus = 404
-      response.status.error = 'Unable to get remote P2P stream (null)'
-      P2P_LOGGER.error(response.status.error)
-    }
 
-    return response
+      if (!status) {
+        return { status: { httpStatus: 500, error: 'No response from peer' } }
+      }
+
+      // Combine data chunks
+      let data: Uint8Array | undefined
+      if (dataChunks.length > 0) {
+        const totalLength = dataChunks.reduce((sum, chunk) => sum + chunk.length, 0)
+        data = new Uint8Array(totalLength)
+        let offset = 0
+        for (const chunk of dataChunks) {
+          data.set(chunk, offset)
+          offset += chunk.length
+        }
+      }
+
+      return { status, data }
+    } catch (err) {
+      P2P_LOGGER.error(`P2P communication error: ${err.message}`)
+      try {
+        stream.abort(err as Error)
+      } catch {}
+      return { status: { httpStatus: 500, error: `P2P error: ${err.message}` } }
+    }
   }
 
   // when the target is this node
