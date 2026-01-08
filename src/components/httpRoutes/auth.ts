@@ -50,7 +50,7 @@ authRoutes.post(
   express.json(),
   async (req, res) => {
     try {
-      const { signature, address, nonce, token } = req.body
+      const { signature, address, nonce, token, chainId } = req.body
 
       if (!signature || !address || !token) {
         return res.status(400).json({ error: 'Missing required parameters' })
@@ -61,7 +61,8 @@ authRoutes.post(
         signature,
         address,
         nonce,
-        token
+        token,
+        chainId
       })
 
       if (response.status.error) {

@@ -22,6 +22,7 @@ export interface CreateAuthTokenCommand extends AuthMessage, Command {
 
 export interface InvalidateAuthTokenCommand extends AuthMessage, Command {
   token: string
+  chainId?: string | null
 }
 
 export class CreateAuthTokenHandler extends CommandHandler {
@@ -95,7 +96,8 @@ export class InvalidateAuthTokenHandler extends CommandHandler {
         address,
         parseInt(nonce),
         signature,
-        String(address + nonce)
+        String(address + nonce),
+        task.chainId
       )
       if (!isValid) {
         return {
