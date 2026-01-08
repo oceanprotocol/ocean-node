@@ -7,6 +7,22 @@ import { hasP2PInterface } from '../../utils/config.js'
 import { validateCommandParameters } from './validateCommands.js'
 import { Readable } from 'stream'
 
+async function mapChunkToBuffer(chunk: any): Promise<Buffer | Uint8Array> {
+  if (typeof chunk === 'string') {
+    return Buffer.from(chunk)
+  }
+
+  if (Buffer.isBuffer(chunk)) {
+    return chunk
+  }
+
+  if (typeof chunk === 'object' && 'subarray' in chunk) {
+    return chunk.subarray()
+  }
+
+  return Buffer.from(JSON.stringify(chunk))
+}
+
 async function streamToResponse(
   res: Response,
   stream: any,
@@ -23,13 +39,10 @@ async function streamToResponse(
         continue
       }
 
-      // Handle different chunk types (Uint8Array from libp2p or Buffer from Node.js)
-      const bytes = 'subarray' in chunk ? chunk.subarray() : chunk
-
+      const data = await mapChunkToBuffer(chunk)
       if (isBinaryContent) {
-        res.write(bytes)
+        res.write(data)
       } else {
-        const data = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes)
         res.write(uint8ArrayToString(data))
       }
     }
