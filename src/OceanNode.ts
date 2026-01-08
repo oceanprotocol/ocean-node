@@ -11,6 +11,7 @@ import { BaseHandler } from './components/core/handler/handler.js'
 import { C2DEngines } from './components/c2d/compute_engines.js'
 import { Auth } from './components/Auth/index.js'
 import { Readable } from 'stream'
+import { streamToUint8Array } from './utils/util.js'
 
 export interface RequestLimiter {
   requester: string | string[] // IP address or peer ID
@@ -171,11 +172,7 @@ export class OceanNode {
 
       let data: Uint8Array | undefined
       if (response.stream) {
-        const chunks: Buffer[] = []
-        for await (const chunk of response.stream as Readable) {
-          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
-        }
-        data = new Uint8Array(Buffer.concat(chunks))
+        data = await streamToUint8Array(response.stream as Readable)
       }
 
       if (!data) {
