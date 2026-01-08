@@ -243,7 +243,6 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
       assert(wasTimeout === true, 'published failed due to timeout!')
     }
     ddoWithMatchAll = resolvedDdoWithMatchAll.ddo
-    
 
     computeDid = publishedComputeDataset.ddo.id
     const resolvedComputeDdo = await waitToIndex(
@@ -360,7 +359,6 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
       const response = await new DownloadHandler(oceanNode).handle(downloadTask)
       assert(response)
       assert(response.status.httpStatus === 403, 'http status not 403')
-      
     }
 
     setTimeout(() => {
