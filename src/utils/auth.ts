@@ -93,18 +93,11 @@ export async function getAdminAddresses(
     config = existingConfig
   }
 
-  const validAddresses: string[] = []
   if (config.allowedAdmins && config.allowedAdmins.length > 0) {
     for (const admin of config.allowedAdmins) {
       if (isAddress(admin) === true) {
         ret.addresses.push(admin)
       }
-    }
-    if (validAddresses.length === 0) {
-      CORE_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `Invalid format for ETH address from ALLOWED ADMINS.`
-      )
     }
   }
   ret.accessLists = config.allowedAdminsList
