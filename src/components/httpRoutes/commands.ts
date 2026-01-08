@@ -39,7 +39,7 @@ async function streamToResponse(
         continue
       }
 
-      const data = await mapChunkToBuffer(chunk)
+      const data = mapChunkToBuffer(chunk)
       if (isBinaryContent) {
         res.write(data)
       } else {
