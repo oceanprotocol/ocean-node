@@ -1,4 +1,5 @@
-import { Credentials, CREDENTIALS_TYPES } from '@oceanprotocol/ddo-js'
+import { Credentials } from '@oceanprotocol/ddo-js'
+import { CREDENTIALS_TYPES } from '../../@types/DDO/Credentials.js'
 
 export const downloadAsset = {
   '@context': ['https://w3id.org/did/v1'],
@@ -15,9 +16,7 @@ export const downloadAsset = {
     tags: ['test'],
     author: 'oceanprotocol',
     license: 'https://market.oceanprotocol.com/terms',
-    additionalInformation: {
-      termsAndConditions: true
-    }
+    additionalInformation: { termsAndConditions: true }
   },
   services: [
     {
@@ -47,15 +46,8 @@ export const downloadAsset = {
     owner: '',
     created: ''
   },
-  stats: {
-    orders: 0,
-    price: {
-      value: '0'
-    }
-  },
-  purgatory: {
-    state: false
-  },
+  stats: { orders: 0, price: { value: '0' } },
+  purgatory: { state: false },
   datatokens: [] as any
 }
 
@@ -103,9 +95,7 @@ export const downloadAssetWithCredentials = {
     tags: ['test'],
     author: 'oceanprotocol',
     license: 'https://market.oceanprotocol.com/terms',
-    additionalInformation: {
-      termsAndConditions: true
-    }
+    additionalInformation: { termsAndConditions: true }
   },
   credentials: nftLevelCredentials,
   services: [
@@ -137,17 +127,9 @@ export const downloadAssetWithCredentials = {
     owner: '',
     created: ''
   },
-  purgatory: {
-    state: false
-  },
+  purgatory: { state: false },
   datatokens: [] as any,
-  stats: {
-    allocated: 0,
-    orders: 0,
-    price: {
-      value: '0'
-    }
-  }
+  stats: { allocated: 0, orders: 0, price: { value: '0' } }
 }
 
 export const computeAssetWithCredentials = {
@@ -165,9 +147,7 @@ export const computeAssetWithCredentials = {
     tags: ['test'],
     author: 'oceanprotocol',
     license: 'https://market.oceanprotocol.com/terms',
-    additionalInformation: {
-      termsAndConditions: true
-    }
+    additionalInformation: { termsAndConditions: true }
   },
   credentials: nftLevelCredentials,
   services: [
@@ -192,11 +172,7 @@ export const computeAssetWithCredentials = {
         allowNetworkAccess: true,
         publisherTrustedAlgorithmPublishers: ['*'] as any,
         publisherTrustedAlgorithms: [
-          {
-            did: '*',
-            filesChecksum: '*',
-            containerSectionChecksum: '*'
-          }
+          { did: '*', filesChecksum: '*', containerSectionChecksum: '*' }
         ] as any
       }
     }
@@ -211,17 +187,9 @@ export const computeAssetWithCredentials = {
     owner: '',
     created: ''
   },
-  purgatory: {
-    state: false
-  },
+  purgatory: { state: false },
   datatokens: [] as any,
-  stats: {
-    allocated: 0,
-    orders: 0,
-    price: {
-      value: '0'
-    }
-  }
+  stats: { allocated: 0, orders: 0, price: { value: '0' } }
 }
 
 export const algoAssetWithCredentials = {
@@ -238,9 +206,7 @@ export const algoAssetWithCredentials = {
     description: 'Cli algo',
     author: 'OPF',
     license: 'https://market.oceanprotocol.com/terms',
-    additionalInformation: {
-      termsAndConditions: true
-    },
+    additionalInformation: { termsAndConditions: true },
     algorithm: {
       language: '',
       version: '0.1',
@@ -274,13 +240,7 @@ export const algoAssetWithCredentials = {
       serviceEndpoint: 'https://v4.provider.oceanprotocol.com'
     }
   ],
-  stats: {
-    allocated: 0,
-    orders: 0,
-    price: {
-      value: '0'
-    }
-  },
+  stats: { allocated: 0, orders: 0, price: { value: '0' } },
   nft: {
     address: '',
     name: 'Ocean Data NFT',
@@ -307,9 +267,7 @@ export const computeAsset = {
     tags: ['test'],
     author: 'oceanprotocol',
     license: 'https://market.oceanprotocol.com/terms',
-    additionalInformation: {
-      termsAndConditions: true
-    }
+    additionalInformation: { termsAndConditions: true }
   },
   services: [
     {
@@ -332,11 +290,7 @@ export const computeAsset = {
         allowNetworkAccess: true,
         publisherTrustedAlgorithmPublishers: ['*'] as any,
         publisherTrustedAlgorithms: [
-          {
-            did: '*',
-            filesChecksum: '*',
-            containerSectionChecksum: '*'
-          }
+          { did: '*', filesChecksum: '*', containerSectionChecksum: '*' }
         ] as any
       }
     }
@@ -351,17 +305,9 @@ export const computeAsset = {
     owner: '',
     created: ''
   },
-  purgatory: {
-    state: false
-  },
+  purgatory: { state: false },
   datatokens: [] as any,
-  stats: {
-    allocated: 0,
-    orders: 0,
-    price: {
-      value: '0'
-    }
-  }
+  stats: { allocated: 0, orders: 0, price: { value: '0' } }
 }
 
 export const computeAssetWithNoAccess = {
@@ -379,9 +325,7 @@ export const computeAssetWithNoAccess = {
     tags: ['test'],
     author: 'oceanprotocol',
     license: 'https://market.oceanprotocol.com/terms',
-    additionalInformation: {
-      termsAndConditions: true
-    }
+    additionalInformation: { termsAndConditions: true }
   },
   services: [
     {
@@ -417,17 +361,9 @@ export const computeAssetWithNoAccess = {
     owner: '',
     created: ''
   },
-  purgatory: {
-    state: false
-  },
+  purgatory: { state: false },
   datatokens: [] as any,
-  stats: {
-    allocated: 0,
-    orders: 0,
-    price: {
-      value: '0'
-    }
-  }
+  stats: { allocated: 0, orders: 0, price: { value: '0' } }
 }
 
 export const algoAsset = {
@@ -444,9 +380,7 @@ export const algoAsset = {
     description: 'Cli algo',
     author: 'OPF',
     license: 'https://market.oceanprotocol.com/terms',
-    additionalInformation: {
-      termsAndConditions: true
-    },
+    additionalInformation: { termsAndConditions: true },
     algorithm: {
       language: '',
       version: '0.1',
@@ -478,13 +412,7 @@ export const algoAsset = {
       serviceEndpoint: 'https://v4.provider.oceanprotocol.com'
     }
   ],
-  stats: {
-    allocated: 0,
-    orders: 0,
-    price: {
-      value: '0'
-    }
-  },
+  stats: { allocated: 0, orders: 0, price: { value: '0' } },
   nft: {
     address: '',
     name: 'Ocean Data NFT',
@@ -544,10 +472,7 @@ export const dockerImageManifest = {
     size: 7286,
     digest: 'sha256:386e0be86bde5eff9f85ea9eda02727dd4641664d746688b4049f79ef0cdb1c9'
   },
-  platform: {
-    architecture: 'amd64',
-    os: 'linux'
-  },
+  platform: { architecture: 'amd64', os: 'linux' },
   layers: [
     {
       mediaType: 'application/vnd.docker.image.rootfs.diff.tar.gzip',

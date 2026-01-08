@@ -1,10 +1,10 @@
 {
   "authorizedDecrypters": [],
-  "authorizedDecryptersList": [],
+  "authorizedDecryptersList": null,
   "allowedValidators": [],
-  "allowedValidatorsList": [],
+  "allowedValidatorsList": null,
   "authorizedPublishers": [],
-  "authorizedPublishersList": [],
+  "authorizedPublishersList": null,
   "keys": {},
   "hasIndexer": true,
   "hasHttp": true,
@@ -82,13 +82,10 @@
   "accountPurgatoryUrl": null,
   "assetPurgatoryUrl": null,
   "allowedAdmins": [],
-  "allowedAdminsList": [],
+  "allowedAdminsList": null,
   "rateLimit": 30,
   "maxConnections": 30,
-  "denyList": {
-    "peers": [],
-    "ips": []
-  },
+  "denyList": { "peers": [], "ips": [] },
   "unsafeURLs": [],
   "isBootstrap": false,
   "claimDurationTimeout": 3600,
@@ -97,52 +94,21 @@
   "dockerComputeEnvironments": [
     {
       "socketPath": "/var/run/docker.sock",
-      "resources": [
-        {
-          "id": "disk",
-          "total": 1
-        }
-      ],
+      "resources": [{ "id": "disk", "total": 1 }],
       "storageExpiry": 604800,
       "maxJobDuration": 3600,
       "minJobDuration": 60,
-      "access": {
-        "addresses": [],
-        "accessLists": []
-      },
-      "fees": {
-        "8996": [
-          {
-            "prices": [
-              {
-                "id": "cpu",
-                "price": 1
-              }
-            ]
-          }
-        ]
-      },
+      "access": { "addresses": [], "accessLists": [] },
+      "fees": { "8996": [{ "prices": [{ "id": "cpu", "price": 1 }] }] },
       "free": {
         "maxJobDuration": 3600,
         "minJobDuration": 60,
         "maxJobs": 3,
-        "access": {
-          "addresses": [],
-          "accessLists": []
-        },
+        "access": { "addresses": [], "accessLists": [] },
         "resources": [
-          {
-            "id": "cpu",
-            "max": 1
-          },
-          {
-            "id": "ram",
-            "max": 1
-          },
-          {
-            "id": "disk",
-            "max": 1
-          }
+          { "id": "cpu", "max": 1 },
+          { "id": "ram", "max": 1 },
+          { "id": "disk", "max": 1 }
         ]
       }
     }

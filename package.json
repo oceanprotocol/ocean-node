@@ -69,7 +69,7 @@
     "@libp2p/websockets": "^8.1.1",
     "@multiformats/multiaddr": "^10.2.0",
     "@oceanprotocol/contracts": "^2.5.0",
-    "@oceanprotocol/ddo-js": "^0.1.4",
+    "@oceanprotocol/ddo-js": "^0.2.0",
     "axios": "^1.12.0",
     "base58-js": "^2.0.0",
     "cors": "^2.8.5",

@@ -235,7 +235,6 @@ export async function buildMergedConfig(): Promise<OceanNodeConfig> {
   const merged = lodash.merge({}, baseConfig, envOverrides)
 
   preprocessConfigData(merged)
-
   const parsed = OceanNodeConfigSchema.safeParse(merged)
 
   if (!parsed.success) {

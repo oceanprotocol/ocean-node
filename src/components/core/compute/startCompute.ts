@@ -37,11 +37,9 @@ import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { Credentials, DDOManager } from '@oceanprotocol/ddo-js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
 import { PolicyServer } from '../../policyServer/index.js'
-import {
-  areKnownCredentialTypes,
-  checkCredentials,
-  findAccessListCredentials
-} from '../../../utils/credentials.js'
+import { checkCredentials } from '../../../utils/credentials.js'
+import { checkAddressOnAccessList } from '../../../utils/accessList.js'
+
 export class PaidComputeStartHandler extends CommandHandler {
   validate(command: PaidComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
@@ -221,6 +219,22 @@ export class PaidComputeStartHandler extends CommandHandler {
               }
             }
           }
+          const config = await getConfiguration()
+          const { rpc, network, chainId, fallbackRPCs } =
+            config.supportedNetworks[ddoChainId]
+          const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+          const { ready, error } = await blockchain.isNetworkReady()
+          if (!ready) {
+            return {
+              stream: null,
+              status: {
+                httpStatus: 400,
+                error: `Start Compute : ${error}`
+              }
+            }
+          }
+
+          const signer = blockchain.getSigner()
           // check credentials (DDO level)
           let accessGrantedDDOLevel: boolean
           if (credentials) {
@@ -236,9 +250,11 @@ export class PaidComputeStartHandler extends CommandHandler {
               )
               accessGrantedDDOLevel = response.success
             } else {
-              accessGrantedDDOLevel = areKnownCredentialTypes(credentials as Credentials)
-                ? checkCredentials(credentials as Credentials, task.consumerAddress)
-                : true
+              accessGrantedDDOLevel = await checkCredentials(
+                task.consumerAddress,
+                credentials as Credentials,
+                blockchain.getSigner()
+              )
             }
             if (!accessGrantedDDOLevel) {
               CORE_LOGGER.logMessage(
@@ -281,9 +297,11 @@ export class PaidComputeStartHandler extends CommandHandler {
               )
               accessGrantedServiceLevel = accessGrantedDDOLevel || response.success
             } else {
-              accessGrantedServiceLevel = areKnownCredentialTypes(service.credentials)
-                ? checkCredentials(service.credentials, task.consumerAddress)
-                : true
+              accessGrantedServiceLevel = await checkCredentials(
+                task.consumerAddress,
+                service.credentials,
+                blockchain.getSigner()
+              )
             }
 
             if (!accessGrantedServiceLevel) {
@@ -301,22 +319,6 @@ export class PaidComputeStartHandler extends CommandHandler {
             }
           }
 
-          const config = await getConfiguration()
-          const { rpc, network, chainId, fallbackRPCs } =
-            config.supportedNetworks[ddoChainId]
-          const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
-          const { ready, error } = await blockchain.isNetworkReady()
-          if (!ready) {
-            return {
-              stream: null,
-              status: {
-                httpStatus: 400,
-                error: `Start Compute : ${error}`
-              }
-            }
-          }
-
-          const signer = blockchain.getSigner()
           // let's see if we can access this asset
           // check if oasis evm or similar
           const confidentialEVM = isConfidentialChainDDO(BigInt(ddo.chainId), service)
@@ -668,7 +670,33 @@ export class FreeComputeStartHandler extends CommandHandler {
           }
         }
         const ddoInstance = DDOManager.getDDOClass(ddo)
-        const { credentials } = ddoInstance.getDDOFields()
+        const { chainId: ddoChainId, credentials } = ddoInstance.getDDOFields()
+        const isOrdable = isOrderingAllowedForAsset(ddo)
+        if (!isOrdable.isOrdable) {
+          CORE_LOGGER.error(isOrdable.reason)
+          return {
+            stream: null,
+            status: {
+              httpStatus: 500,
+              error: isOrdable.reason
+            }
+          }
+        }
+        const config = await getConfiguration()
+        const { rpc, network, chainId, fallbackRPCs } =
+          config.supportedNetworks[ddoChainId]
+        const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+        const { ready, error } = await blockchain.isNetworkReady()
+        if (!ready) {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: `Start Compute : ${error}`
+            }
+          }
+        }
+
         // check credentials (DDO level)
         let accessGrantedDDOLevel: boolean
         if (credentials) {
@@ -684,9 +712,11 @@ export class FreeComputeStartHandler extends CommandHandler {
             )
             accessGrantedDDOLevel = response.success
           } else {
-            accessGrantedDDOLevel = areKnownCredentialTypes(credentials as Credentials)
-              ? checkCredentials(credentials as Credentials, task.consumerAddress)
-              : true
+            accessGrantedDDOLevel = await checkCredentials(
+              task.consumerAddress,
+              credentials as Credentials,
+              blockchain.getSigner()
+            )
           }
           if (!accessGrantedDDOLevel) {
             CORE_LOGGER.logMessage(
@@ -729,9 +759,11 @@ export class FreeComputeStartHandler extends CommandHandler {
             )
             accessGrantedServiceLevel = accessGrantedDDOLevel || response.success
           } else {
-            accessGrantedServiceLevel = areKnownCredentialTypes(service.credentials)
-              ? checkCredentials(service.credentials, task.consumerAddress)
-              : true
+            accessGrantedServiceLevel = await checkCredentials(
+              task.consumerAddress,
+              service.credentials,
+              blockchain.getSigner()
+            )
           }
 
           if (!accessGrantedServiceLevel) {
@@ -893,10 +925,10 @@ async function validateAccess(
           const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
           const signer = blockchain.getSigner()
 
-          const hasAccess = await findAccessListCredentials(
-            signer,
+          const hasAccess = await checkAddressOnAccessList(
+            consumerAddress,
             accessListAddress,
-            consumerAddress
+            signer
           )
           if (hasAccess) {
             return true
