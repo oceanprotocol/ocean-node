@@ -1,24 +1,41 @@
 /* eslint-disable no-unreachable */
 import express, { Request, Response } from 'express'
-import { Readable } from 'stream'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { hasP2PInterface } from '../../utils/config.js'
 import { validateCommandParameters } from './validateCommands.js'
-import { streamToUint8Array } from '../../utils/util.js'
+import { Readable } from 'stream'
 
-function writeResponsePayload(
+async function streamToResponse(
   res: Response,
-  payload: Uint8Array | undefined,
+  stream: any,
   isBinaryContent: boolean
-): void {
-  if (!payload) return
+): Promise<void> {
+  if (!stream) {
+    HTTP_LOGGER.error('streamToResponse called with null/undefined stream')
+    throw new Error('Stream is null or undefined')
+  }
 
-  if (isBinaryContent) {
-    res.write(payload)
-  } else {
-    res.write(uint8ArrayToString(payload))
+  try {
+    for await (const chunk of stream) {
+      if (!chunk) {
+        continue
+      }
+
+      // Handle different chunk types (Uint8Array from libp2p or Buffer from Node.js)
+      const bytes = 'subarray' in chunk ? chunk.subarray() : chunk
+
+      if (isBinaryContent) {
+        res.write(bytes)
+      } else {
+        const data = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes)
+        res.write(uint8ArrayToString(data))
+      }
+    }
+  } catch (err) {
+    HTTP_LOGGER.error(`Stream error: ${err.message}`)
+    throw err
   }
 }
 
@@ -27,6 +44,8 @@ directCommandRoute.post(
   '/directCommand',
   express.json(),
   async (req: Request, res: Response): Promise<void> => {
+    let closedResponse = false
+
     try {
       const validate = validateCommandParameters(req.body, [])
       if (!validate.valid) {
@@ -34,7 +53,6 @@ directCommandRoute.post(
         return
       }
 
-      let closedResponse = false
       res.on('close', () => {
         if (!closedResponse) {
           HTTP_LOGGER.error('TCP connection was closed before we could send a response!')
@@ -66,8 +84,7 @@ directCommandRoute.post(
             .includes('application/octet-stream') || false
 
         if (response.stream) {
-          const payload = await streamToUint8Array(response.stream as Readable)
-          writeResponsePayload(res, payload, isBinaryContent)
+          await streamToResponse(res, response.stream as Readable, isBinaryContent)
         } else if (response.status.error) {
           res.write(response.status.error)
         }
@@ -90,8 +107,8 @@ directCommandRoute.post(
             ?.toLowerCase()
             .includes('application/octet-stream') || false
 
-        if (response.data) {
-          writeResponsePayload(res, response.data, isBinaryContent)
+        if (response.stream) {
+          await streamToResponse(res, response.stream as Readable, isBinaryContent)
         } else if (response.status.error) {
           res.write(response.status.error)
         }

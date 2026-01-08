@@ -11,7 +11,7 @@ import {
 } from '../utils/findDdoHandler.js'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
-import { sleep, readStream } from '../../../utils/util.js'
+import { sleep, readStream, streamToUint8Array } from '../../../utils/util.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Blockchain } from '../../../utils/blockchain.js'
 import { ethers, isAddress } from 'ethers'
@@ -625,8 +625,10 @@ export class FindDdoHandler extends CommandHandler {
               try {
                 const response = await p2pNode.sendTo(peer, JSON.stringify(getCommand))
 
-                if (response.status.httpStatus === 200 && response.data) {
-                  await processDDOResponse(peer, response.data)
+                if (response.status.httpStatus === 200 && response.stream) {
+                  // Convert stream to Uint8Array for processing
+                  const data = await streamToUint8Array(response.stream as Readable)
+                  await processDDOResponse(peer, data)
                 } else {
                   processed++
                 }

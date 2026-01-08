@@ -653,7 +653,7 @@ export class OceanP2P extends EventEmitter {
     peerName: string,
     message: string,
     multiAddrs?: string[]
-  ): Promise<{ status: any; data?: Uint8Array }> {
+  ): Promise<{ status: any; stream?: AsyncIterable<any> }> {
     P2P_LOGGER.logMessage('SendTo() node ' + peerName + ' task: ' + message, true)
 
     let peerId
@@ -709,44 +709,22 @@ export class OceanP2P extends EventEmitter {
     }
 
     try {
-      // v3: send() writes a chunk, for await...of reads chunks
+      // Send message and close write side
       stream.send(uint8ArrayFromString(message))
       await stream.close()
 
-      // first chunk is status, rest is data
-      let status: any
-      const dataChunks: Uint8Array[] = []
-      let isFirstChunk = true
+      // Read and parse status from first chunk
+      const iterator = stream[Symbol.asyncIterator]()
+      const { done, value } = await iterator.next()
 
-      for await (const chunk of stream) {
-        const bytes = chunk.subarray()
-        if (isFirstChunk) {
-          // First chunk is always status JSON
-          status = JSON.parse(uint8ArrayToString(bytes))
-          isFirstChunk = false
-        } else {
-          // Subsequent chunks are data
-          dataChunks.push(bytes)
-        }
-      }
-
-      if (!status) {
+      if (done || !value) {
         return { status: { httpStatus: 500, error: 'No response from peer' } }
       }
 
-      // Combine data chunks
-      let data: Uint8Array | undefined
-      if (dataChunks.length > 0) {
-        const totalLength = dataChunks.reduce((sum, chunk) => sum + chunk.length, 0)
-        data = new Uint8Array(totalLength)
-        let offset = 0
-        for (const chunk of dataChunks) {
-          data.set(chunk, offset)
-          offset += chunk.length
-        }
-      }
+      const status = JSON.parse(uint8ArrayToString(value.subarray()))
 
-      return { status, data }
+      // Return status and remaining stream
+      return { status, stream: { [Symbol.asyncIterator]: () => iterator } }
     } catch (err) {
       P2P_LOGGER.error(`P2P communication error: ${err.message}`)
       try {

@@ -13,7 +13,6 @@ import {
   checkRequestsRateLimit
 } from '../../utils/validators.js'
 import type { Stream } from '@libp2p/interface'
-import { streamToUint8Array } from '../../utils/util.js'
 
 export class ReadableString extends Readable {
   private sent = false
@@ -120,11 +119,21 @@ export async function handleProtocolCommands(stream: Stream, connection: any) {
     handler.getOceanNode().setRemoteCaller(remotePeer.toString())
     const response: P2PCommandResponse = await handler.handle(task)
 
+    // Send status first
     stream.send(uint8ArrayFromString(JSON.stringify(response.status)))
 
+    // Stream data chunks without buffering, with backpressure support
     if (response.stream) {
-      const dataBytes = await streamToUint8Array(response.stream as Readable)
-      stream.send(dataBytes)
+      for await (const chunk of response.stream as Readable) {
+        const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+
+        // Handle backpressure - if send returns false, wait for drain
+        if (!stream.send(bytes)) {
+          await stream.onDrain({
+            signal: AbortSignal.timeout(30000) // 30 second timeout for drain
+          })
+        }
+      }
     }
 
     await stream.close()

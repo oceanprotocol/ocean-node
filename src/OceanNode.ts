@@ -10,8 +10,6 @@ import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import { BaseHandler } from './components/core/handler/handler.js'
 import { C2DEngines } from './components/c2d/compute_engines.js'
 import { Auth } from './components/Auth/index.js'
-import { Readable } from 'stream'
-import { streamToUint8Array } from './utils/util.js'
 
 export interface RequestLimiter {
   requester: string | string[] // IP address or peer ID
@@ -147,7 +145,7 @@ export class OceanNode {
 
   /**
    * v3: Direct protocol command handler - no P2P, just call handler directly
-   * Returns a clean {status, data} response
+   * Returns {status, stream} without buffering
    * @param message - JSON command string
    */
   async handleDirectProtocolCommand(message: string): Promise<P2PCommandResponse> {
@@ -168,24 +166,8 @@ export class OceanNode {
         }
       }
 
-      const response: P2PCommandResponse = await handler.handle(task)
-
-      let data: Uint8Array | undefined
-      if (response.stream) {
-        data = await streamToUint8Array(response.stream as Readable)
-      }
-
-      if (!data) {
-        return {
-          stream: null,
-          status: { httpStatus: 500, error: 'No data received' }
-        }
-      }
-
-      return {
-        status: response.status,
-        stream: Readable.from([data])
-      }
+      // Return response directly without buffering
+      return await handler.handle(task)
     } catch (err) {
       OCEAN_NODE_LOGGER.logMessageWithEmoji(
         'handleDirectProtocolCommands Error: ' + err.message,
