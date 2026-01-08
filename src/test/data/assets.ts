@@ -52,6 +52,25 @@ export const downloadAsset = {
 }
 
 const nftLevelCredentials: Credentials = {
+  match_allow: 'any',
+  allow: [
+    {
+      type: CREDENTIALS_TYPES.ADDRESS,
+      values: ['0xBE5449a6A97aD46c8558A3356267Ee5D2731ab5e']
+    },
+    {
+      type: CREDENTIALS_TYPES.ADDRESS,
+      values: ['0xA78deb2Fa79463945C247991075E2a0e98Ba7A09']
+    }
+  ],
+  deny: [
+    {
+      type: CREDENTIALS_TYPES.ADDRESS,
+      values: ['0x02354A1F160A3fd7ac8b02ee91F04104440B28E7']
+    }
+  ]
+}
+const nftLevelCredentialsWithMatchAll: Credentials = {
   allow: [
     {
       type: CREDENTIALS_TYPES.ADDRESS,
@@ -91,13 +110,65 @@ export const downloadAssetWithCredentials = {
     updated: '2021-12-20T14:35:20Z',
     type: 'dataset',
     name: 'cli fixed asset',
-    description: 'asset published using ocean.js cli tool',
+    description: 'asset with credentials match any',
     tags: ['test'],
     author: 'oceanprotocol',
     license: 'https://market.oceanprotocol.com/terms',
     additionalInformation: { termsAndConditions: true }
   },
   credentials: nftLevelCredentials,
+  services: [
+    {
+      id: 'ccb398c50d6abd5b456e8d7242bd856a1767a890b537c2f8c10ba8b8a10e6025',
+      type: 'access',
+      files: {
+        files: [
+          {
+            type: 'url',
+            url: 'https://raw.githubusercontent.com/oceanprotocol/testdatasets/main/shs_dataset_test.txt',
+            method: 'GET'
+          }
+        ]
+      },
+      credentials: serviceLevelCredentials,
+      datatokenAddress: '',
+      serviceEndpoint: 'https://v4.provider.oceanprotocol.com',
+      timeout: 86400
+    }
+  ],
+  event: {},
+  nft: {
+    address: '',
+    name: 'Ocean Data NFT',
+    symbol: 'OCEAN-NFT',
+    state: 5,
+    tokenURI: '',
+    owner: '',
+    created: ''
+  },
+  purgatory: { state: false },
+  datatokens: [] as any,
+  stats: { allocated: 0, orders: 0, price: { value: '0' } }
+}
+
+export const downloadAssetWithCredentialsWithMatchAll = {
+  '@context': ['https://w3id.org/did/v1'],
+  id: '',
+  nftAddress: '',
+  version: '4.1.0',
+  chainId: 8996,
+  metadata: {
+    created: '2021-12-20T14:35:20Z',
+    updated: '2021-12-20T14:35:20Z',
+    type: 'dataset',
+    name: 'cli fixed asset',
+    description: 'asset with credentials match all',
+    tags: ['test'],
+    author: 'oceanprotocol',
+    license: 'https://market.oceanprotocol.com/terms',
+    additionalInformation: { termsAndConditions: true }
+  },
+  credentials: nftLevelCredentialsWithMatchAll,
   services: [
     {
       id: 'ccb398c50d6abd5b456e8d7242bd856a1767a890b537c2f8c10ba8b8a10e6025',
@@ -143,7 +214,7 @@ export const computeAssetWithCredentials = {
     updated: '2021-12-20T14:35:20Z',
     type: 'dataset',
     name: 'cli fixed asset',
-    description: 'asset published using ocean.js cli tool',
+    description: 'compute asset with credentials match any',
     tags: ['test'],
     author: 'oceanprotocol',
     license: 'https://market.oceanprotocol.com/terms',
@@ -263,7 +334,7 @@ export const computeAsset = {
     updated: '2021-12-20T14:35:20Z',
     type: 'dataset',
     name: 'cli fixed asset',
-    description: 'asset published using ocean.js cli tool',
+    description: 'compute asset with no credentials',
     tags: ['test'],
     author: 'oceanprotocol',
     license: 'https://market.oceanprotocol.com/terms',
