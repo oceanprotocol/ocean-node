@@ -11,162 +11,162 @@ on:
       - '**'
 
 jobs:
-  #lint:
-  #  runs-on: ubuntu-latest
-  #  steps:
-  #    - uses: actions/checkout@v4
-  #    - uses: actions/setup-node@v4
-  #      with:
-  #        node-version: "v22.15.0"
-  #    - name: Cache node_modules
-  #      uses: actions/cache@v3
-  #      env:
-  #        cache-name: cache-node-modules
-  #      with:
-  #        path: ~/.npm
-  #        key: ${{ runner.os }}-lint-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
-  #        restore-keys: ${{ runner.os }}-lint-${{ env.cache-name }}-
-  #    - run: npm ci
-  #    - run: npm run lint
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "v22.15.0"
+      - name: Cache node_modules
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-node-modules
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-lint-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-lint-${{ env.cache-name }}-
+      - run: npm ci
+      - run: npm run lint
 
-  #dockertest:
-  #  runs-on: ubuntu-latest
-  #  steps:
-  #    - uses: actions/checkout@v4
-  #    - run: docker build -t 'ocean-node:mybuild' .
+  dockertest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t 'ocean-node:mybuild' .
 
-  #build:
-  #  runs-on: ${{ matrix.os }}
+  build:
+    runs-on: ${{ matrix.os }}
 
-  #  strategy:
-  #    fail-fast: false
-  #    matrix:
-  #      os: [ubuntu-latest]
-  #      node: ["18.20.4", "v20.19.0", "v22.15.0"]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        node: ["18.20.4", "v20.19.0", "v22.15.0"]
 
-  #  steps:
-  #    - uses: actions/checkout@v4
-  #    - uses: actions/setup-node@v4
-  #      with:
-  #        node-version: ${{ matrix.node }}
-  #    - name: Cache node_modules
-  #      uses: actions/cache@v3
-  #      env:
-  #        cache-name: cache-node-modules
-  #      with:
-  #        path: ~/.npm
-  #        key: ${{ runner.os }}-${{ matrix.node }}-build-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
-  #        restore-keys: ${{ runner.os }}-${{ matrix.node }}-build-${{ env.cache-name }}-
-  #    - run: npm ci
-  #    - run: npm run build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Cache node_modules
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-node-modules
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-${{ matrix.node }}-build-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.node }}-build-${{ env.cache-name }}-
+      - run: npm ci
+      - run: npm run build
 
-  #test_unit:
-  #  runs-on: ubuntu-latest
-  #  steps:
-  #    - uses: actions/checkout@v4
-  #    - uses: actions/setup-node@v4
-  #      with:
-  #        node-version: "v22.15.0"
-  #    - name: Cache node_modules
-  #      uses: actions/cache@v3
-  #      env:
-  #        cache-name: cache-node-modules
-  #      with:
-  #        path: ~/.npm
-  #        key: ${{ runner.os }}-test-unit-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
-  #        restore-keys: ${{ runner.os }}-test-unit-${{ env.cache-name }}-
-  #    - run: npm ci
-  #    - run: npm run test:unit:cover
-  #      env:
-  #        PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
-  #        NODE1_PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
-  #        NODE2_PRIVATE_KEY: ${{ secrets.NODE2_PRIVATE_KEY }}
-  #        NODE3_PRIVATE_KEY: ${{ secrets.NODE3_PRIVATE_KEY }}
-  #        IPFS_GATEWAY: http://172.15.0.16:8080/
-  #        ARWEAVE_GATEWAY: https://arweave.net/
-  #        RPCS: '{ "1": {"rpc": "https://rpc.eth.gateway.fm", "chainId": 1, "network": "mainet", "chunkSize": 100}, "137": {"rpc": "https://polygon.meowrpc.com", "chainId": 137, "network": "polygon", "chunkSize": 100 }, "80001": {"rpc": "https://rpc-mumbai.maticvigil.com","chainId": 80001, "network": "polygon-mumbai", "chunkSize": 100 } }'
-  #        DB_URL: 'http://localhost:8108/?apiKey=xyz'
-  #        DB_TYPE: 'typesense'
-  #        FEE_TOKENS: '{ "1": "0x967da4048cD07aB37855c090aAF366e4ce1b9F48", "137": "0x282d8efCe846A88B159800bd4130ad77443Fa1A1", "80001": "0xd8992Ed72C445c35Cb4A2be468568Ed1079357c8", "56": "0xDCe07662CA8EbC241316a15B611c89711414Dd1a" }'
-  #        FEE_AMOUNT: '{ "amount": 1, "unit": "MB" }'
-  #    - uses: actions/upload-artifact@v4
-  #      with:
-  #        name: coverage
-  #        path: coverage/
+  test_unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "v22.15.0"
+      - name: Cache node_modules
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-node-modules
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-test-unit-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-test-unit-${{ env.cache-name }}-
+      - run: npm ci
+      - run: npm run test:unit:cover
+        env:
+          PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
+          NODE1_PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
+          NODE2_PRIVATE_KEY: ${{ secrets.NODE2_PRIVATE_KEY }}
+          NODE3_PRIVATE_KEY: ${{ secrets.NODE3_PRIVATE_KEY }}
+          IPFS_GATEWAY: http://172.15.0.16:8080/
+          ARWEAVE_GATEWAY: https://arweave.net/
+          RPCS: '{ "1": {"rpc": "https://rpc.eth.gateway.fm", "chainId": 1, "network": "mainet", "chunkSize": 100}, "137": {"rpc": "https://polygon.meowrpc.com", "chainId": 137, "network": "polygon", "chunkSize": 100 }, "80001": {"rpc": "https://rpc-mumbai.maticvigil.com","chainId": 80001, "network": "polygon-mumbai", "chunkSize": 100 } }'
+          DB_URL: 'http://localhost:8108/?apiKey=xyz'
+          DB_TYPE: 'typesense'
+          FEE_TOKENS: '{ "1": "0x967da4048cD07aB37855c090aAF366e4ce1b9F48", "137": "0x282d8efCe846A88B159800bd4130ad77443Fa1A1", "80001": "0xd8992Ed72C445c35Cb4A2be468568Ed1079357c8", "56": "0xDCe07662CA8EbC241316a15B611c89711414Dd1a" }'
+          FEE_AMOUNT: '{ "amount": 1, "unit": "MB" }'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
 
-  #test_integration:
-  #  runs-on: ubuntu-latest
-  #  steps:
-  #    - uses: actions/checkout@v4
-  #    - uses: actions/setup-node@v4
-  #      with:
-  #        node-version: "v22.15.0"
-  #    - name: Cache node_modules
-  #      uses: actions/cache@v3
-  #      env:
-  #        cache-name: cache-node-modules
-  #      with:
-  #        path: ~/.npm
-  #        key: ${{ runner.os }}-test-integration-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
-  #        restore-keys: ${{ runner.os }}-test-integration-${{ env.cache-name }}-
-  #    - name: Set ADDRESS_FILE
-  #      run: echo "ADDRESS_FILE=${HOME}/.ocean/ocean-contracts/artifacts/address.json" >> $GITHUB_ENV
-  #    - name: Checkout Barge
-  #      uses: actions/checkout@v4
-  #      with:
-  #        repository: 'oceanprotocol/barge'
-  #        path: 'barge'
-  #    - name: Login to Docker Hub
-  #      if: ${{ env.DOCKERHUB_PASSWORD && env.DOCKERHUB_USERNAME }}
-  #      run: |
-  #        echo "Login to Docker Hub";echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
-  #        env:
-  #            DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-  #            DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
-  #    - name: Run Barge
-  #      working-directory: ${{ github.workspace }}/barge
-  #      run: |
-  #        bash -x start_ocean.sh --no-node --with-typesense 2>&1 > start_ocean.log &
-  #    - run: npm ci
-  #    - run: npm run build
-  #    - run: docker image ls
-  #    - name: Delete default runner images
-  #      run: |
-  #        rm -rf /usr/share/swift/
-  #    - name: Wait for contracts deployment
-  #      working-directory: ${{ github.workspace }}/barge
-  #      run: |
-  #        for i in $(seq 1 250); do
-  #          sleep 5
-  #          [ -f "$HOME/.ocean/ocean-contracts/artifacts/ready" ] && break
-  #          done
-  #    - name: docker logs
-  #      run: docker logs ocean-ocean-contracts-1 && docker logs ocean-typesense-1
-  #      if: ${{ failure() }}
-  #    - name: integration tests
-  #      run: npm run test:integration:cover
-  #      env:
-  #        # OPERATOR_SERVICE_URL: '["http://172.15.0.13:31000"]'
-  #        PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
-  #        NODE1_PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
-  #        NODE2_PRIVATE_KEY: ${{ secrets.NODE2_PRIVATE_KEY }}
-  #        NODE3_PRIVATE_KEY: ${{ secrets.NODE3_PRIVATE_KEY }}
-  #        IPFS_GATEWAY: http://172.15.0.16:8080/
-  #        ARWEAVE_GATEWAY: https://arweave.net/
-  #        RPCS: '{ "8996": {"rpc": "http://127.0.0.1:8545", "chainId": 8996, "network": "development", "chunkSize": 100}}'
-  #        DB_URL: 'http://localhost:9200'
-  #        DB_TYPE: 'elasticsearch'
-  #        FEE_TOKENS: '{ "1": "0x967da4048cD07aB37855c090aAF366e4ce1b9F48", "137": "0x282d8efCe846A88B159800bd4130ad77443Fa1A1", "80001": "0xd8992Ed72C445c35Cb4A2be468568Ed1079357c8", "56": "0xDCe07662CA8EbC241316a15B611c89711414Dd1a" }'
-  #        FEE_AMOUNT: '{ "amount": 1, "unit": "MB" }'
-  #        ASSET_PURGATORY_URL: 'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json'
-  #        ACCOUNT_PURGATORY_URL: 'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-accounts.json'
-  #    - name: docker logs
-  #      run: docker logs ocean-ocean-contracts-1 && docker logs ocean-typesense-1
-  #      if: ${{ failure() }}
-  #    - uses: actions/upload-artifact@v4
-  #      with:
-  #        name: coverage
-  #        path: coverage/
+  test_integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "v22.15.0"
+      - name: Cache node_modules
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-node-modules
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-test-integration-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-test-integration-${{ env.cache-name }}-
+      - name: Set ADDRESS_FILE
+        run: echo "ADDRESS_FILE=${HOME}/.ocean/ocean-contracts/artifacts/address.json" >> $GITHUB_ENV
+      - name: Checkout Barge
+        uses: actions/checkout@v4
+        with:
+          repository: 'oceanprotocol/barge'
+          path: 'barge'
+      - name: Login to Docker Hub
+        if: ${{ env.DOCKERHUB_PASSWORD && env.DOCKERHUB_USERNAME }}
+        run: |
+          echo "Login to Docker Hub";echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+          env:
+              DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+              DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - name: Run Barge
+        working-directory: ${{ github.workspace }}/barge
+        run: |
+          bash -x start_ocean.sh --no-node --with-typesense 2>&1 > start_ocean.log &
+      - run: npm ci
+      - run: npm run build
+      - run: docker image ls
+      - name: Delete default runner images
+        run: |
+          rm -rf /usr/share/swift/
+      - name: Wait for contracts deployment
+        working-directory: ${{ github.workspace }}/barge
+        run: |
+          for i in $(seq 1 250); do
+            sleep 5
+            [ -f "$HOME/.ocean/ocean-contracts/artifacts/ready" ] && break
+            done
+      - name: docker logs
+        run: docker logs ocean-ocean-contracts-1 && docker logs ocean-typesense-1
+        if: ${{ failure() }}
+      - name: integration tests
+        run: npm run test:integration:cover
+        env:
+          # OPERATOR_SERVICE_URL: '["http://172.15.0.13:31000"]'
+          PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
+          NODE1_PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
+          NODE2_PRIVATE_KEY: ${{ secrets.NODE2_PRIVATE_KEY }}
+          NODE3_PRIVATE_KEY: ${{ secrets.NODE3_PRIVATE_KEY }}
+          IPFS_GATEWAY: http://172.15.0.16:8080/
+          ARWEAVE_GATEWAY: https://arweave.net/
+          RPCS: '{ "8996": {"rpc": "http://127.0.0.1:8545", "chainId": 8996, "network": "development", "chunkSize": 100}}'
+          DB_URL: 'http://localhost:9200'
+          DB_TYPE: 'elasticsearch'
+          FEE_TOKENS: '{ "1": "0x967da4048cD07aB37855c090aAF366e4ce1b9F48", "137": "0x282d8efCe846A88B159800bd4130ad77443Fa1A1", "80001": "0xd8992Ed72C445c35Cb4A2be468568Ed1079357c8", "56": "0xDCe07662CA8EbC241316a15B611c89711414Dd1a" }'
+          FEE_AMOUNT: '{ "amount": 1, "unit": "MB" }'
+          ASSET_PURGATORY_URL: 'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json'
+          ACCOUNT_PURGATORY_URL: 'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-accounts.json'
+      - name: docker logs
+        run: docker logs ocean-ocean-contracts-1 && docker logs ocean-typesense-1
+        if: ${{ failure() }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
 
   test_system:
     runs-on: ubuntu-latest
@@ -303,21 +303,21 @@ jobs:
           echo "=== System Processes ==="
           ps aux | grep -E "(node|ocean)" || echo "No node/ocean processes found"
 
-  #control_panel_build:
-  #  runs-on: ubuntu-latest
-  #  steps:
-  #    - uses: actions/checkout@v4
-  #    - uses: actions/setup-node@v4
-  #      with:
-  #        node-version: "v22.15.0"
-  #    - name: Cache node_modules
-  #      uses: actions/cache@v3
-  #      env:
-  #        cache-name: cache-node-modules
-  #      with:
-  #        path: ~/.npm
-  #        key: ${{ runner.os }}-control-panel-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
-  #        restore-keys: ${{ runner.os }}-control-panel-${{ env.cache-name }}-
-  #    - run: npm ci
-  #    - name: Build control panel
-  #      run: npm run build:controlpanel
+  control_panel_build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "v22.15.0"
+      - name: Cache node_modules
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-node-modules
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-control-panel-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-control-panel-${{ env.cache-name }}-
+      - run: npm ci
+      - name: Build control panel
+        run: npm run build:controlpanel
