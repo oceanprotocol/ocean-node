@@ -7,7 +7,7 @@ import { hasP2PInterface } from '../../utils/config.js'
 import { validateCommandParameters } from './validateCommands.js'
 import { Readable } from 'stream'
 
-async function mapChunkToBuffer(chunk: any): Promise<Buffer | Uint8Array> {
+function mapChunkToBuffer(chunk: any): Buffer | Uint8Array {
   if (typeof chunk === 'string') {
     return Buffer.from(chunk)
   }
