@@ -37,7 +37,7 @@ export const AccessListContractSchema = z.preprocess(
     // If it's not a plain object, normalize to null
     if (val === null) return null
     // If it's a JSON string, try to parse it
-    if (typeof val === "string") {
+    if (typeof val === 'string') {
       try {
         val = JSON.parse(val)
       } catch {
