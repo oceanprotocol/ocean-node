@@ -143,29 +143,6 @@ describe('Config Admin Endpoints Integration Tests', () => {
   })
 
   describe('Push Config Tests', () => {
-    it('should reject push config when node has running jobs', async function () {
-      this.timeout(DEFAULT_TEST_TIMEOUT)
-      const runningJobs = await oceanNode.getDatabase().c2d.getRunningJobs()
-
-      if (runningJobs.length > 0) {
-        const expiryTimestamp = Date.now() + 60000
-        const signature = await getAdminSignature(expiryTimestamp)
-
-        const newConfig = {
-          rateLimit: 100,
-          maxConnections: 200
-        }
-        const handlerResponse = await new PushConfigHandler(oceanNode).handle({
-          command: PROTOCOL_COMMANDS.PUSH_CONFIG,
-          expiryTimestamp,
-          signature,
-          config: newConfig
-        })
-
-        expect(handlerResponse.status.httpStatus).to.equal(400)
-      }
-    })
-
     it('should push config changes and reload node', async function () {
       this.timeout(DEFAULT_TEST_TIMEOUT)
 

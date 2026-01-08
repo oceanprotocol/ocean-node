@@ -51,20 +51,6 @@ export class PushConfigHandler extends AdminCommandHandler {
     }
 
     try {
-      const hasRunningJobs =
-        (await this.getOceanNode().getDatabase().c2d.getRunningJobs()).length > 0
-      if (hasRunningJobs) {
-        return new Promise<P2PCommandResponse>((resolve) => {
-          resolve({
-            status: {
-              httpStatus: 400,
-              error: 'Error pushing config: Node has running jobs'
-            },
-            stream: null
-          })
-        })
-      }
-
       const configPath = getConfigFilePath()
       const configContent = await fs.promises.readFile(configPath, 'utf-8')
       const currentConfig = JSON.parse(configContent)
