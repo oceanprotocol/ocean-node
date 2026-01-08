@@ -906,7 +906,10 @@ async function validateAccess(
     return true
   }
 
-  if (access.accessLists.length === 0 && access.addresses.length === 0) {
+  if (
+    !access.accessLists ||
+    (Object.keys(access.accessLists).length === 0 && access.addresses.length === 0)
+  ) {
     return true
   }
 
@@ -914,32 +917,28 @@ async function validateAccess(
     return true
   }
 
-  if (access.accessLists.length > 0) {
-    const config = await getConfiguration()
-    const { supportedNetworks } = config
-
-    for (const accessListAddress of access.accessLists) {
-      for (const chainIdStr of Object.keys(supportedNetworks)) {
-        const { rpc, network, chainId, fallbackRPCs } = supportedNetworks[chainIdStr]
-        try {
-          const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
-          const signer = blockchain.getSigner()
-
-          const hasAccess = await checkAddressOnAccessList(
-            consumerAddress,
-            accessListAddress,
-            signer
-          )
-          if (hasAccess) {
-            return true
-          }
-        } catch (error) {
-          CORE_LOGGER.logMessage(
-            `Failed to check access list ${accessListAddress} on chain ${chainIdStr}: ${error.message}`,
-            true
-          )
+  const config = await getConfiguration()
+  const { supportedNetworks } = config
+  for (const chain of Object.keys(access.accessLists)) {
+    const { rpc, network, chainId, fallbackRPCs } = supportedNetworks[chain]
+    try {
+      const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+      const signer = blockchain.getSigner()
+      for (const accessListAddress of access.accessLists[chain]) {
+        const hasAccess = await checkAddressOnAccessList(
+          accessListAddress,
+          consumerAddress,
+          signer
+        )
+        if (hasAccess) {
+          return true
         }
       }
+    } catch (error) {
+      CORE_LOGGER.logMessage(
+        `Failed to check access lists on chain ${chain}: ${error.message}`,
+        true
+      )
     }
   }
 

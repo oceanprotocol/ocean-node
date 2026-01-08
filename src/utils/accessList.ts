@@ -22,13 +22,20 @@ export async function checkAddressOnAccessList(
     AccessListJson.abi,
     signer
   )
-  // if has at least 1 token than is is authorized
-  const balance = await accessListContract.balanceOf(addressToCheck)
-  if (Number(balance) > 0) {
-    return true
-  } else {
+  try {
+    // if has at least 1 token than is is authorized
+    const balance = await accessListContract.balanceOf(addressToCheck)
+    if (Number(balance) > 0) {
+      return true
+    } else {
+      CORE_LOGGER.error(
+        `Account ${addressToCheck} is NOT part of the given access list group.`
+      )
+      return false
+    }
+  } catch (error) {
     CORE_LOGGER.error(
-      `Account ${addressToCheck} is NOT part of the given access list group.`
+      `Failed to check access list ${accessListContractAddress}: ${error.message}`
     )
     return false
   }

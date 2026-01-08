@@ -82,7 +82,7 @@ export interface RunningPlatform {
 
 export interface ComputeAccessList {
   addresses: string[]
-  accessLists: string[]
+  accessLists: { [chainId: string]: string[] }
 }
 
 export interface ComputeEnvironmentFreeOptions {
