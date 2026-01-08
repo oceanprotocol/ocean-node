@@ -7,7 +7,8 @@ interface AuthTokenDatabaseProvider {
     token: string,
     address: string,
     createdAt: number,
-    validUntil: number | null
+    validUntil: number | null,
+    chainId?: string | null
   ): Promise<void>
   validateTokenEntry(token: string): Promise<AuthToken | null>
   invalidateTokenEntry(token: string): Promise<void>
@@ -27,22 +28,32 @@ export class SQLiteAuthToken implements AuthTokenDatabaseProvider {
         address TEXT NOT NULL,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
         validUntil DATETIME,
-        isValid BOOLEAN DEFAULT TRUE
+        isValid BOOLEAN DEFAULT TRUE,
+        chainId TEXT
       )
     `)
+
+    // Migration: Add chainId column if it doesn't exist
+    return new Promise<void>((resolve) => {
+      this.db.run(`ALTER TABLE authTokens ADD COLUMN chainId TEXT`, (_err) => {
+        // Ignore error if column already exists
+        resolve()
+      })
+    })
   }
 
   createToken(
     token: string,
     address: string,
     createdAt: number,
-    validUntil: number | null = null
+    validUntil: number | null = null,
+    chainId?: string | null
   ): Promise<void> {
     const insertSQL = `
-          INSERT INTO authTokens (token, address, createdAt, validUntil) VALUES (?, ?, ?, ?)
+          INSERT INTO authTokens (token, address, createdAt, validUntil, chainId) VALUES (?, ?, ?, ?, ?)
         `
     return new Promise<void>((resolve, reject) => {
-      this.db.run(insertSQL, [token, address, createdAt, validUntil], (err) => {
+      this.db.run(insertSQL, [token, address, createdAt, validUntil, chainId], (err) => {
         if (err) {
           DATABASE_LOGGER.error(`Error creating auth token: ${err}`)
           reject(err)
