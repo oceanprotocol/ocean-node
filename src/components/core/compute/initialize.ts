@@ -31,7 +31,7 @@ import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
 import { C2DEngineDocker, getAlgorithmImage } from '../../c2d/compute_engine_docker.js'
 import { Credentials, DDOManager } from '@oceanprotocol/ddo-js'
-import { areKnownCredentialTypes, checkCredentials } from '../../../utils/credentials.js'
+import { checkCredentials } from '../../../utils/credentials.js'
 import { PolicyServer } from '../../policyServer/index.js'
 import { generateUniqueID, getAlgoChecksums, validateAlgoForDataset } from './utils.js'
 
@@ -269,6 +269,20 @@ export class ComputeInitializeHandler extends CommandHandler {
               }
             }
           }
+          const config = await getConfiguration()
+          const { rpc, network, chainId, fallbackRPCs } =
+            config.supportedNetworks[ddoChainId]
+          const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+          const { ready, error } = await blockchain.isNetworkReady()
+          if (!ready) {
+            return {
+              stream: null,
+              status: {
+                httpStatus: 400,
+                error: `Initialize Compute: ${error}`
+              }
+            }
+          }
           // check credentials (DDO level)
           let accessGrantedDDOLevel: boolean
           if (credentials) {
@@ -284,9 +298,11 @@ export class ComputeInitializeHandler extends CommandHandler {
               )
               accessGrantedDDOLevel = response.success
             } else {
-              accessGrantedDDOLevel = areKnownCredentialTypes(credentials as Credentials)
-                ? checkCredentials(credentials as Credentials, task.consumerAddress)
-                : true
+              accessGrantedDDOLevel = await checkCredentials(
+                task.consumerAddress,
+                credentials as Credentials,
+                blockchain.getSigner()
+              )
             }
             if (!accessGrantedDDOLevel) {
               CORE_LOGGER.logMessage(
@@ -329,9 +345,11 @@ export class ComputeInitializeHandler extends CommandHandler {
               )
               accessGrantedServiceLevel = accessGrantedDDOLevel || response.success
             } else {
-              accessGrantedServiceLevel = areKnownCredentialTypes(service.credentials)
-                ? checkCredentials(service.credentials, task.consumerAddress)
-                : true
+              accessGrantedServiceLevel = await checkCredentials(
+                task.consumerAddress,
+                service.credentials,
+                blockchain.getSigner()
+              )
             }
 
             if (!accessGrantedServiceLevel) {
@@ -345,20 +363,6 @@ export class ComputeInitializeHandler extends CommandHandler {
                   httpStatus: 403,
                   error: `Error: Access to service with id ${service.id} was denied`
                 }
-              }
-            }
-          }
-          const config = await getConfiguration()
-          const { rpc, network, chainId, fallbackRPCs } =
-            config.supportedNetworks[ddoChainId]
-          const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
-          const { ready, error } = await blockchain.isNetworkReady()
-          if (!ready) {
-            return {
-              stream: null,
-              status: {
-                httpStatus: 400,
-                error: `Initialize Compute: ${error}`
               }
             }
           }

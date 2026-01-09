@@ -1,150 +1,150 @@
 {
-  "authorizedDecrypters": [],
-  "authorizedDecryptersList": [],
-  "allowedValidators": [],
-  "allowedValidatorsList": [],
-  "authorizedPublishers": [],
-  "authorizedPublishersList": [],
-  "keys": {},
-  "hasIndexer": true,
-  "hasHttp": true,
-  "hasP2P": true,
-  "p2pConfig": {
-    "bootstrapTimeout": 20000,
-    "bootstrapTagName": "bootstrap",
-    "bootstrapTagValue": 50,
-    "bootstrapTTL": 0,
-    "enableIPV4": true,
-    "enableIPV6": true,
-    "ipV4BindAddress": "0.0.0.0",
-    "ipV4BindTcpPort": 9000,
-    "ipV4BindWsPort": 9001,
-    "ipV4BindWssPort": 9005,
-    "ipV6BindAddress": "::",
-    "ipV6BindTcpPort": 9002,
-    "ipV6BindWsPort": 9003,
-    "announceAddresses": [],
-    "pubsubPeerDiscoveryInterval": 10000,
-    "dhtMaxInboundStreams": 500,
-    "dhtMaxOutboundStreams": 500,
-    "dhtFilter": null,
-    "mDNSInterval": 20000,
-    "connectionsMaxParallelDials": 15,
-    "connectionsDialTimeout": 30000,
-    "upnp": true,
-    "autoNat": true,
-    "enableCircuitRelayServer": false,
-    "enableCircuitRelayClient": false,
-    "circuitRelays": 0,
-    "announcePrivateIp": false,
-    "filterAnnouncedAddresses": [
-      "127.0.0.0/8",
-      "10.0.0.0/8",
-      "172.16.0.0/12",
-      "192.168.0.0/16",
-      "100.64.0.0/10",
-      "169.254.0.0/16",
-      "192.0.0.0/24",
-      "192.0.2.0/24",
-      "198.51.100.0/24",
-      "203.0.113.0/24",
-      "224.0.0.0/4",
-      "240.0.0.0/4"
-    ],
-    "minConnections": 1,
-    "maxConnections": 300,
-    "autoDialPeerRetryThreshold": 7200000,
-    "autoDialConcurrency": 5,
-    "maxPeerAddrsToDial": 5,
-    "autoDialInterval": 5000,
-    "enableNetworkStats": false
-  },
-  "hasControlPanel": true,
-  "httpPort": 8001,
-  "dbConfig": {
-    "url": "http://localhost:8108/?apiKey=xyz",
-    "username": "",
-    "password": "",
-    "dbType": "typesense"
-  },
-  "supportedNetworks": {
-    "8996": {
-      "rpc": "http://127.0.0.1:8545",
-      "chainId": 8996,
-      "network": "development",
-      "chunkSize": 100
-    }
-  },
-  "feeStrategy": {},
-  "c2dClusters": [],
-  "ipfsGateway": "https://ipfs.io/",
-  "arweaveGateway": "https://arweave.net/",
-  "accountPurgatoryUrl": null,
-  "assetPurgatoryUrl": null,
-  "allowedAdmins": [],
-  "allowedAdminsList": [],
-  "rateLimit": 30,
-  "maxConnections": 30,
-  "denyList": {
-    "peers": [],
-    "ips": []
-  },
-  "unsafeURLs": [],
-  "isBootstrap": false,
-  "claimDurationTimeout": 3600,
-  "validateUnsignedDDO": true,
-  "jwtSecret": "ocean-node-secret",
-  "dockerComputeEnvironments": [
-    {
-      "socketPath": "/var/run/docker.sock",
-      "resources": [
-        {
-          "id": "disk",
-          "total": 1
+    "authorizedDecrypters": [],
+    "authorizedDecryptersList": null,
+    "allowedValidators": [],
+    "allowedValidatorsList": null,
+    "authorizedPublishers": [],
+    "authorizedPublishersList": null,
+    "keys": {},
+    "hasIndexer": true,
+    "hasHttp": true,
+    "hasP2P": true,
+    "p2pConfig": {
+        "bootstrapTimeout": 20000,
+        "bootstrapTagName": "bootstrap",
+        "bootstrapTagValue": 50,
+        "bootstrapTTL": 0,
+        "enableIPV4": true,
+        "enableIPV6": true,
+        "ipV4BindAddress": "0.0.0.0",
+        "ipV4BindTcpPort": 9000,
+        "ipV4BindWsPort": 9001,
+        "ipV4BindWssPort": 9005,
+        "ipV6BindAddress": "::",
+        "ipV6BindTcpPort": 9002,
+        "ipV6BindWsPort": 9003,
+        "announceAddresses": [],
+        "pubsubPeerDiscoveryInterval": 10000,
+        "dhtMaxInboundStreams": 500,
+        "dhtMaxOutboundStreams": 500,
+        "dhtFilter": null,
+        "mDNSInterval": 20000,
+        "connectionsMaxParallelDials": 15,
+        "connectionsDialTimeout": 30000,
+        "upnp": true,
+        "autoNat": true,
+        "enableCircuitRelayServer": false,
+        "enableCircuitRelayClient": false,
+        "circuitRelays": 0,
+        "announcePrivateIp": false,
+        "filterAnnouncedAddresses": [
+            "127.0.0.0/8",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16",
+            "100.64.0.0/10",
+            "169.254.0.0/16",
+            "192.0.0.0/24",
+            "192.0.2.0/24",
+            "198.51.100.0/24",
+            "203.0.113.0/24",
+            "224.0.0.0/4",
+            "240.0.0.0/4"
+        ],
+        "minConnections": 1,
+        "maxConnections": 300,
+        "autoDialPeerRetryThreshold": 7200000,
+        "autoDialConcurrency": 5,
+        "maxPeerAddrsToDial": 5,
+        "autoDialInterval": 5000,
+        "enableNetworkStats": false
+    },
+    "hasControlPanel": true,
+    "httpPort": 8001,
+    "dbConfig": {
+        "url": "http://localhost:8108/?apiKey=xyz",
+        "username": "",
+        "password": "",
+        "dbType": "typesense"
+    },
+    "supportedNetworks": {
+        "8996": {
+            "rpc": "http://127.0.0.1:8545",
+            "chainId": 8996,
+            "network": "development",
+            "chunkSize": 100
         }
-      ],
-      "storageExpiry": 604800,
-      "maxJobDuration": 3600,
-      "minJobDuration": 60,
-      "access": {
-        "addresses": [],
-        "accessLists": []
-      },
-      "fees": {
-        "8996": [
-          {
-            "prices": [
-              {
-                "id": "cpu",
-                "price": 1
-              }
-            ]
-          }
-        ]
-      },
-      "free": {
-        "maxJobDuration": 3600,
-        "minJobDuration": 60,
-        "maxJobs": 3,
-        "access": {
-          "addresses": [],
-          "accessLists": []
-        },
-        "resources": [
-          {
-            "id": "cpu",
-            "max": 1
-          },
-          {
-            "id": "ram",
-            "max": 1
-          },
-          {
-            "id": "disk",
-            "max": 1
-          }
-        ]
-      }
-    }
-  ]
+    },
+    "feeStrategy": {},
+    "c2dClusters": [],
+    "ipfsGateway": "https://ipfs.io/",
+    "arweaveGateway": "https://arweave.net/",
+    "accountPurgatoryUrl": null,
+    "assetPurgatoryUrl": null,
+    "allowedAdmins": [],
+    "allowedAdminsList": null,
+    "rateLimit": 30,
+    "maxConnections": 30,
+    "denyList": {
+        "peers": [],
+        "ips": []
+    },
+    "unsafeURLs": [],
+    "isBootstrap": false,
+    "claimDurationTimeout": 3600,
+    "validateUnsignedDDO": true,
+    "jwtSecret": "ocean-node-secret",
+    "dockerComputeEnvironments": [
+        {
+            "socketPath": "/var/run/docker.sock",
+            "resources": [
+                {
+                    "id": "disk",
+                    "total": 1
+                }
+            ],
+            "storageExpiry": 604800,
+            "maxJobDuration": 3600,
+            "minJobDuration": 60,
+            "access": {
+                "addresses": [],
+                "accessLists": []
+            },
+            "fees": {
+                "8996": [
+                    {
+                        "prices": [
+                            {
+                                "id": "cpu",
+                                "price": 1
+                            }
+                        ]
+                    }
+                ]
+            },
+            "free": {
+                "maxJobDuration": 3600,
+                "minJobDuration": 60,
+                "maxJobs": 3,
+                "access": {
+                    "addresses": [],
+                    "accessLists": []
+                },
+                "resources": [
+                    {
+                        "id": "cpu",
+                        "max": 1
+                    },
+                    {
+                        "id": "ram",
+                        "max": 1
+                    },
+                    {
+                        "id": "disk",
+                        "max": 1
+                    }
+                ]
+            }
+        }
+    ]
 }

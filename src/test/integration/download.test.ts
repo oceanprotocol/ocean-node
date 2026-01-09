@@ -121,12 +121,10 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
     const resp = await streamToString(response.stream as Readable)
     const status = JSON.parse(resp)
     assert(status.id === oceanNodeConfig.keys.peerId.toString(), 'peer id not matching ')
-    // test allowedAdmins
-    assert(status.allowedAdmins.length === 1, 'incorrect length')
     assert(
-      status.allowedAdmins[0]?.toLowerCase() ===
+      status.allowedAdmins?.addresses[0]?.toLowerCase() ===
         '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'?.toLowerCase(),
-      'incorrect allowed admin publisherAddress'
+      'incorrect admin address'
     )
     assert(status.c2dClusters === undefined, 'clusters info should be undefined')
     assert(status.supportedSchemas === undefined, 'schemas info should be undefined')

@@ -1654,15 +1654,45 @@ describe('Compute Access Restrictions', () => {
             '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
             JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
             `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-            '[{"socketPath":"/var/run/docker.sock","resources":[{"id":"disk","total":10}],"storageExpiry":604800,"maxJobDuration":3600,"minJobDuration":60,"access":{"addresses":[],"accessLists":["' +
-              accessListAddress +
-              '"]},"fees":{"' +
-              DEVELOPMENT_CHAIN_ID +
-              '":[{"feeToken":"' +
-              paymentToken +
-              '","prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"minJobDuration":10,"maxJobs":3,"access":{"addresses":[],"accessLists":["' +
-              accessListAddress +
-              '"]},"resources":[{"id":"cpu","max":1},{"id":"ram","max":1},{"id":"disk","max":1}]}}]'
+            JSON.stringify([
+              {
+                socketPath: '/var/run/docker.sock',
+                resources: [{ id: 'disk', total: 10 }],
+                storageExpiry: 604800,
+                maxJobDuration: 3600,
+                minJobDuration: 60,
+                access: {
+                  addresses: [],
+                  accessLists: {
+                    [DEVELOPMENT_CHAIN_ID]: [accessListAddress]
+                  }
+                },
+                fees: {
+                  [DEVELOPMENT_CHAIN_ID]: [
+                    {
+                      feeToken: paymentToken,
+                      prices: [{ id: 'cpu', price: 1 }]
+                    }
+                  ]
+                },
+                free: {
+                  maxJobDuration: 60,
+                  minJobDuration: 10,
+                  maxJobs: 3,
+                  access: {
+                    addresses: [],
+                    accessLists: {
+                      DEVELOPMENT_CHAIN_ID: [accessListAddress]
+                    }
+                  },
+                  resources: [
+                    { id: 'cpu', max: 1 },
+                    { id: 'ram', max: 1 },
+                    { id: 'disk', max: 1 }
+                  ]
+                }
+              }
+            ])
           ]
         )
       )
@@ -1697,7 +1727,7 @@ describe('Compute Access Restrictions', () => {
       firstEnv = computeEnvironments[0]
       assert(firstEnv.access, 'Access control should exist')
       assert(
-        firstEnv.access.accessLists.includes(accessListAddress),
+        firstEnv.access.accessLists[DEVELOPMENT_CHAIN_ID].includes(accessListAddress),
         'Should have access list address'
       )
     })
@@ -1709,6 +1739,7 @@ describe('Compute Access Restrictions', () => {
         firstEnv.id
       )
       const response = await new PaidComputeStartHandler(oceanNode).handle(command)
+      console.log(response)
       expect(response.status.httpStatus).to.not.equal(403)
     })
 
@@ -1719,6 +1750,7 @@ describe('Compute Access Restrictions', () => {
         firstEnv.id
       )
       const response = await new PaidComputeStartHandler(oceanNode).handle(command)
+      console.log(response)
       assert(
         response.status.httpStatus === 403,
         `Expected 403 but got ${response.status.httpStatus}: ${response.status.error}`
@@ -1732,6 +1764,7 @@ describe('Compute Access Restrictions', () => {
         firstEnv.id
       )
       const response = await new FreeComputeStartHandler(oceanNode).handle(command)
+      console.log(response)
       expect(response.status.httpStatus).to.not.equal(403)
     })
 

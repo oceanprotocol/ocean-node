@@ -1,15 +1,11 @@
 import { ethers, isAddress } from 'ethers'
 import { CORE_LOGGER } from './logging/common.js'
-import { Blockchain, getConfiguration } from './index.js'
-import { RPCS } from '../@types/blockchain.js'
-import { isDefined } from '../utils/util.js'
-import AccessListContract from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' with { type: 'json' }
-import { getAccountsFromAccessList } from '../utils/credentials.js'
-import { OceanNodeConfig } from '../@types/OceanNode.js'
-import { LOG_LEVELS_STR } from './logging/Logger.js'
+import { getConfiguration } from './index.js'
+import { AccessListContract, OceanNodeConfig } from '../@types/OceanNode.js'
 import { CommonValidation } from './validators.js'
 import { isERC1271Valid } from '../components/core/utils/nonceHandler.js'
-
+import { checkSingleCredential } from './credentials.js'
+import { CREDENTIALS_TYPES } from '../@types/DDO/Credentials.js'
 export async function validateAdminSignature(
   expiryTimestamp: number,
   signature: string,
@@ -40,27 +36,38 @@ export async function validateAdminSignature(
       CORE_LOGGER.logMessage(`Resolved signer address: ${signerAddress}`)
     }
 
-    const allowedAdmins: string[] = await getAdminAddresses(config)
-
-    if (allowedAdmins.length === 0) {
-      const errorMsg = "Allowed admins list is empty. Please add admins' addresses."
-      CORE_LOGGER.logMessage(errorMsg)
-      return { valid: false, error: errorMsg }
-    }
     const currentTimestamp = new Date().getTime()
     if (currentTimestamp > expiryTimestamp) {
       const errorMsg = `The expiryTimestamp ${expiryTimestamp} sent for validation is in the past. Therefore signature ${signature} is rejected`
       CORE_LOGGER.logMessage(errorMsg)
       return { valid: false, error: errorMsg }
     }
-    for (const address of allowedAdmins) {
-      if (
-        ethers.getAddress(address)?.toLowerCase() ===
-        ethers.getAddress(signerAddress)?.toLowerCase()
-      ) {
+    const allowedAdmins = await getAdminAddresses(config)
+
+    const { addresses, accessLists } = allowedAdmins
+    let allowed = await checkSingleCredential(
+      { type: CREDENTIALS_TYPES.ADDRESS, values: addresses },
+      signerAddress,
+      null
+    )
+    if (allowed) {
+      return { valid: true, error: '' }
+    }
+    for (const chainId of Object.keys(accessLists)) {
+      allowed = await checkSingleCredential(
+        {
+          type: CREDENTIALS_TYPES.ACCESS_LIST,
+          chainId: parseInt(chainId),
+          accessList: accessLists[chainId]
+        },
+        signerAddress,
+        null
+      )
+      if (allowed) {
         return { valid: true, error: '' }
       }
     }
+
     const errorMsg = `The address which signed the message is not on the allowed admins list. Therefore signature ${signature} is rejected`
     CORE_LOGGER.logMessage(errorMsg)
     return { valid: false, error: errorMsg }
@@ -73,60 +80,25 @@ export async function validateAdminSignature(
 
 export async function getAdminAddresses(
   existingConfig?: OceanNodeConfig
-): Promise<string[]> {
+): Promise<{ addresses: string[]; accessLists: any }> {
   let config: OceanNodeConfig
+  const ret = {
+    addresses: [] as string[],
+    accessLists: undefined as AccessListContract | undefined
+  }
   if (!existingConfig) {
     config = await getConfiguration()
   } else {
     config = existingConfig
   }
 
-  const validAddresses: string[] = []
   if (config.allowedAdmins && config.allowedAdmins.length > 0) {
     for (const admin of config.allowedAdmins) {
       if (isAddress(admin) === true) {
-        validAddresses.push(admin)
-      }
-    }
-    if (validAddresses.length === 0) {
-      CORE_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `Invalid format for ETH address from ALLOWED ADMINS.`
-      )
-    }
-  }
-  if (
-    config.allowedAdminsList &&
-    isDefined(config.supportedNetworks) &&
-    Object.keys(config.allowedAdminsList).length > 0
-  ) {
-    const RPCS: RPCS = config.supportedNetworks
-    const supportedChains: string[] = Object.keys(config.supportedNetworks)
-    const accessListsChainsListed = Object.keys(config.allowedAdminsList)
-    for (const chain of supportedChains) {
-      const { chainId, network, rpc, fallbackRPCs } = RPCS[chain]
-      const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
-
-      // check the access lists for this chain
-      if (accessListsChainsListed.length > 0 && accessListsChainsListed.includes(chain)) {
-        for (const accessListAddress of config.allowedAdminsList[chainId]) {
-          // instantiate contract and check addresses present + balanceOf()
-          const accessListContract = new ethers.Contract(
-            accessListAddress,
-            AccessListContract.abi,
-            blockchain.getSigner()
-          )
-
-          const adminsFromAccessList: string[] = await getAccountsFromAccessList(
-            accessListContract,
-            chainId
-          )
-          if (adminsFromAccessList.length > 0) {
-            return validAddresses.concat(adminsFromAccessList)
-          }
-        }
+        ret.addresses.push(admin)
       }
     }
   }
-  return validAddresses
+  ret.accessLists = config.allowedAdminsList
+  return ret
 }
