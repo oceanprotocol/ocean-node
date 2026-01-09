@@ -11,6 +11,7 @@ export interface AuthToken {
   created: Date
   validUntil: Date | null
   isValid: boolean
+  chainId?: string | null
 }
 
 export class AuthTokenDatabase extends AbstractDatabase {
@@ -36,9 +37,10 @@ export class AuthTokenDatabase extends AbstractDatabase {
     token: string,
     address: string,
     validUntil: number | null = null,
-    createdAt: number
+    createdAt: number,
+    chainId?: string | null
   ): Promise<string> {
-    await this.provider.createToken(token, address, createdAt, validUntil)
+    await this.provider.createToken(token, address, createdAt, validUntil, chainId)
     return token
   }
 
