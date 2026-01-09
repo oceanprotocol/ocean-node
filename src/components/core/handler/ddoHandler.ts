@@ -817,9 +817,9 @@ export class ValidateDDOHandler extends CommandHandler {
     }
     let shouldSign = false
     const configuration = await getConfiguration()
-   if(configuration.validateUnsignedDDO){
-    shouldSign = true
-   }
+    if (configuration.validateUnsignedDDO) {
+      shouldSign = true
+    }
     if (task.authorization || task.signature || task.nonce || task.publisherAddress) {
       const validationResponse = await this.validateTokenOrSignature(
         task.authorization,

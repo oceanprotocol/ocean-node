@@ -25,6 +25,8 @@ export function hasValidDBConfiguration(configuration: OceanNodeDBConfig): boole
   }
   return (
     configuration.url &&
+    configuration.username &&
+    configuration.password &&
     URLUtils.isValidUrl(configuration.url) &&
     [DB_TYPES.ELASTIC_SEARCH, DB_TYPES.TYPESENSE].includes(configuration.dbType)
   )

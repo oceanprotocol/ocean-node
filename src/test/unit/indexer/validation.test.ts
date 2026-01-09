@@ -17,7 +17,7 @@ import { PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { RPCS } from '../../../@types/blockchain.js'
 import { Database } from '../../../components/database/index.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
-import sinon, { SinonSandbox } from 'sinon'
+// import sinon, { SinonSandbox } from 'sinon'
 import { ethers } from 'ethers'
 import { Readable } from 'stream'
 
@@ -28,7 +28,7 @@ describe('Schema validation tests', () => {
   let mockDatabase: Database
   let config: OceanNodeConfig
   let oceanNode: OceanNode
-  let sandbox: SinonSandbox
+  // let sandbox: SinonSandbox
 
   // For token validation, please check integration test cases
   before(async () => {
@@ -50,7 +50,7 @@ describe('Schema validation tests', () => {
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
-    sandbox = sinon.createSandbox()
+    /* sandbox = sinon.createSandbox()
     sandbox.stub(Database, 'init').resolves({
       nonce: {},
       c2d: {},
@@ -62,6 +62,7 @@ describe('Schema validation tests', () => {
       order: {},
       ddoState: {}
     } as any)
+     */
     mockDatabase = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance(
       config,
