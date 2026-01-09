@@ -798,8 +798,6 @@ export class FindDdoHandler extends CommandHandler {
   }
 }
 
-
-
 export class ValidateDDOHandler extends CommandHandler {
   validate(command: ValidateDDOCommand): ValidateParams {
     let validation = validateCommandParameters(command, ['ddo'])
