@@ -574,10 +574,15 @@ export class PaidComputeStartHandler extends CommandHandler {
       }
     } catch (error) {
       CORE_LOGGER.error(error.message)
+
+      const isImageError =
+        error.message?.includes('Unable to pull docker image') ||
+        error.message?.includes('Unable to build docker image')
+
       return {
         stream: null,
         status: {
-          httpStatus: 500,
+          httpStatus: isImageError ? 400 : 500,
           error: error.message
         }
       }
@@ -855,10 +860,15 @@ export class FreeComputeStartHandler extends CommandHandler {
       }
     } catch (error) {
       CORE_LOGGER.error(error.message)
+
+      const isImageError =
+        error.message?.includes('Unable to pull docker image') ||
+        error.message?.includes('Unable to build docker image')
+
       return {
         stream: null,
         status: {
-          httpStatus: 500,
+          httpStatus: isImageError ? 400 : 500,
           error: error.message
         }
       }
