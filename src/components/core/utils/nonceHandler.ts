@@ -120,7 +120,8 @@ export async function checkNonce(
   consumer: string,
   nonce: number,
   signature: string,
-  message: string
+  message: string,
+  chainId?: string | null
 ): Promise<NonceResponse> {
   try {
     // get nonce from db
@@ -135,7 +136,8 @@ export async function checkNonce(
       previousNonce, // will return 0 if none exists
       consumer,
       signature,
-      message // String(ddoId + nonce)
+      message, // String(ddoId + nonce)
+      chainId
     )
     if (validate.valid) {
       const updateStatus = await updateNonce(db, consumer, nonce)
@@ -182,7 +184,8 @@ async function validateNonceAndSignature(
   existingNonce: number,
   consumer: string,
   signature: string,
-  message: string = null
+  message: string = null,
+  chainId?: string | null
 ): Promise<NonceResponse> {
   if (nonce <= existingNonce) {
     return {
@@ -217,10 +220,10 @@ async function validateNonceAndSignature(
   // Try ERC-1271 (smart account) validation
   try {
     const config = await getConfiguration()
-    const firstChainId = Object.keys(config?.supportedNetworks || {})[0]
-    if (firstChainId) {
+    const targetChainId = chainId || Object.keys(config?.supportedNetworks || {})[0]
+    if (targetChainId && config?.supportedNetworks?.[targetChainId]) {
       const provider = new ethers.JsonRpcProvider(
-        config.supportedNetworks[firstChainId].rpc
+        config.supportedNetworks[targetChainId].rpc
       )
 
       // Try custom hash format (for backward compatibility)
