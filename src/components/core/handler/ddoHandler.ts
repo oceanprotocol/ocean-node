@@ -798,10 +798,7 @@ export class FindDdoHandler extends CommandHandler {
   }
 }
 
-export async function skipValidation(): Promise<boolean> {
-  const configuration = await getConfiguration()
-  return configuration.validateUnsignedDDO
-}
+
 
 export class ValidateDDOHandler extends CommandHandler {
   validate(command: ValidateDDOCommand): ValidateParams {
@@ -815,8 +812,15 @@ export class ValidateDDOHandler extends CommandHandler {
 
   async handle(task: ValidateDDOCommand): Promise<P2PCommandResponse> {
     const validationResponse = await this.verifyParamsAndRateLimits(task)
-    const shouldSkipValidation = await skipValidation()
-    if (!shouldSkipValidation) {
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
+    }
+    let shouldSign = false
+    const configuration = await getConfiguration()
+   if(configuration.validateUnsignedDDO){
+    shouldSign = true
+   }
+    if (task.authorization || task.signature || task.nonce || task.publisherAddress) {
       const validationResponse = await this.validateTokenOrSignature(
         task.authorization,
         task.publisherAddress,
@@ -827,10 +831,7 @@ export class ValidateDDOHandler extends CommandHandler {
       if (validationResponse.status.httpStatus !== 200) {
         return validationResponse
       }
-    }
-
-    if (this.shouldDenyTaskHandling(validationResponse)) {
-      return validationResponse
+      shouldSign = true
     }
 
     try {
@@ -851,7 +852,7 @@ export class ValidateDDOHandler extends CommandHandler {
       }
       const signature = await getValidationSignature(JSON.stringify(task.ddo))
       return {
-        stream: Readable.from(JSON.stringify(signature)),
+        stream: shouldSign ? Readable.from(JSON.stringify(signature)) : null,
         status: { httpStatus: 200 }
       }
     } catch (error) {

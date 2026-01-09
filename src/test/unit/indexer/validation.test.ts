@@ -18,6 +18,8 @@ import { RPCS } from '../../../@types/blockchain.js'
 import { Database } from '../../../components/database/index.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
 import sinon, { SinonSandbox } from 'sinon'
+import { ethers } from 'ethers'
+import { Readable } from 'stream'
 
 describe('Schema validation tests', () => {
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
@@ -165,5 +167,36 @@ describe('Schema validation tests', () => {
     const result = await handler.handle(task)
 
     expect(result.status.httpStatus).to.equal(401)
+  })
+
+  it('should have node signature for valid user', async () => {
+    const handler = new ValidateDDOHandler(oceanNode)
+    const ddoInstance = DDOManager.getDDOClass(DDOExample)
+    const ddo: DDO = {
+      ...(ddoInstance.getDDOData() as DDO)
+    }
+    const wallet = new ethers.Wallet(
+      '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
+    )
+    const nonce = Date.now().toString()
+    const message = String((await wallet.getAddress()) + nonce)
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await wallet.signMessage(messageHashBytes)
+    const task = {
+      ddo,
+      publisherAddress: await wallet.getAddress(),
+      nonce,
+      signature,
+      command: PROTOCOL_COMMANDS.VALIDATE_DDO
+    }
+
+    const result = await handler.handle(task)
+
+    expect(result.status.httpStatus).to.equal(200)
+    expect(result.stream).to.be.instanceOf(Readable)
   })
 })
