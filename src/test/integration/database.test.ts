@@ -15,7 +15,9 @@ const typesenseConfig: OceanNodeDBConfig = {
 
 const elasticConfig: OceanNodeDBConfig = {
   url: 'http://localhost:9200',
-  dbType: DB_TYPES.ELASTIC_SEARCH
+  dbType: DB_TYPES.ELASTIC_SEARCH,
+  username: 'elastic',
+  password: 'changeme'
 }
 
 const emptyDBConfig: OceanNodeDBConfig = {
