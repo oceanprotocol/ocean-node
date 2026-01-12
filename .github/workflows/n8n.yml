@@ -13,6 +13,11 @@ jobs:
         id: payload
         run: |
           echo "Building payload.json"
+          # Ensure overrides is always valid JSON
+          OVERRIDES='${{ github.event.inputs.overrides }}'
+          if [ -z "$OVERRIDES" ]; then
+            OVERRIDES="{}"
+          fi
 
           cat <<EOF > payload.json
           {
@@ -33,7 +38,8 @@ jobs:
 
             "cloneUrl": "${{ github.event.repository.clone_url || '' }}",
 
-            "overrides": ${{ github.event.inputs.overrides }}
+            "overrides": $OVERRIDES
+
           }
           EOF
 
