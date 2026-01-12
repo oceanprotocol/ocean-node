@@ -21,6 +21,7 @@ jobs:
 
           cat <<EOF > payload.json
           {
+            "htmlUrl": "${{ github.event.issue.html_url }}",
             "repo": "${{ github.repository }}",
             "owner": "${{ github.repository_owner }}",
             "branch": "${{ github.ref_name }}",
