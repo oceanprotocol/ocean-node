@@ -1,17 +1,13 @@
 name: Trigger N8N Security Scan
 
 on:
-  workflow_dispatch:
-    inputs:
-      overrides:
-        description: 'Optional JSON overrides for the n8n workflow'
-        required: false
-        default: '{}'
+  issue_comment:
+    types: [created]
 
 jobs:
   trigger-n8n:
+    if: github.event.issue.pull_request && contains(github.event.comment.body, '/run-security-scan')
     runs-on: ubuntu-latest
-
     steps:
       - name: Prepare hybrid payload
         id: payload
