@@ -31,6 +31,8 @@ jobs:
             "after": "${{ github.event.after || '' }}",
 
             "pr": ${{ github.event.pull_request.number || 'null' }},
+            "prIssue": ${{ github.event.issue.pull_request.number || 'null' }},
+            
             "headSha": "${{ github.event.pull_request.head.sha || '' }}",
             "headRef": "${{ github.event.pull_request.head.ref || '' }}",
             "baseSha": "${{ github.event.pull_request.base.sha || '' }}",
