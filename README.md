@@ -1,5 +1,6 @@
 # Ocean Nodes
 
+Add more info
 Ocean Nodes run everything you need in the Ocean stack, they replace three previous components: [Provider](https://github.com/oceanprotocol/provider), [Aquarius](https://github.com/oceanprotocol/aquarius) and [subgraph](https://github.com/oceanprotocol/ocean-subgraph).
 
 This is a minimal guide to quickly start and run an Ocean Node. See the [docs](/docs/) directory for more detailed information on Ocean Nodes and how to customise your setup.
