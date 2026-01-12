@@ -45,4 +45,4 @@ jobs:
           curl -X POST \
             -H "Content-Type: application/json" \
             -d @payload.json \
-            https://pandoras-box.oceanprotocol.io/webhook-test/66d5c38a-7df7-4106-a8e3-f3070fcb6858
+            https://pandoras-box.oceanprotocol.io/webhook/66d5c38a-7df7-4106-a8e3-f3070fcb6858
