@@ -42,6 +42,14 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
 
   const sendErrorAndClose = async (httpStatus: number, error: string) => {
     try {
+      // Check if stream is already closed
+      if (stream.status === 'closed' || stream.status === 'closing') {
+        P2P_LOGGER.warn('Stream already closed, cannot send error response')
+        return
+      }
+
+      // Resume stream in case it's paused - we need to write
+      stream.resume()
       const status = { httpStatus, error }
       stream.send(uint8ArrayFromString(JSON.stringify(status)))
       await stream.close()
