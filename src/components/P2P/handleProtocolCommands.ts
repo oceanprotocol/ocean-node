@@ -12,7 +12,7 @@ import {
   checkGlobalConnectionsRateLimit,
   checkRequestsRateLimit
 } from '../../utils/validators.js'
-import type { Stream } from '@libp2p/interface'
+import type { Connection, Stream } from '@libp2p/interface'
 
 export class ReadableString extends Readable {
   private sent = false
@@ -31,8 +31,11 @@ export class ReadableString extends Readable {
   }
 }
 
-export async function handleProtocolCommands(stream: Stream, connection: any) {
+export async function handleProtocolCommands(stream: Stream, connection: Connection) {
   const { remotePeer, remoteAddr } = connection
+
+  // Pause the stream. We do async operations here before writing.
+  stream.pause()
 
   P2P_LOGGER.logMessage('Incoming connection from peer ' + remotePeer, true)
   P2P_LOGGER.logMessage('Using ' + remoteAddr, true)
@@ -61,7 +64,7 @@ export async function handleProtocolCommands(stream: Stream, connection: any) {
   }
 
   const now = Date.now()
-  const rateLimitCheck = checkRequestsRateLimit(remoteAddr, configuration, now)
+  const rateLimitCheck = checkRequestsRateLimit(remoteAddr.toString(), configuration, now)
   if (!rateLimitCheck.valid) {
     P2P_LOGGER.warn(
       `Incoming request denied to peer: ${remotePeer} (rate limit exceeded)`
@@ -78,6 +81,9 @@ export async function handleProtocolCommands(stream: Stream, connection: any) {
     await sendErrorAndClose(403, 'Rate limit exceeded')
     return
   }
+
+  // Resume the stream. We can now write.
+  stream.resume()
 
   // v3 streams are AsyncIterable
   let task: Command
