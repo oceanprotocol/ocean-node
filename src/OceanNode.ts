@@ -143,6 +143,16 @@ export class OceanNode {
     return this.auth
   }
 
+  public setConfig(config: OceanNodeConfig) {
+    this.config = config
+    if (this.config) {
+      this.escrow = new Escrow(
+        this.config.supportedNetworks,
+        this.config.claimDurationTimeout
+      )
+    }
+  }
+
   /**
    * v3: Direct protocol command handler - no P2P, just call handler directly
    * Returns {status, stream} without buffering
