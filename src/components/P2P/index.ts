@@ -120,6 +120,9 @@ export class OceanP2P extends EventEmitter {
     this._libp2p.addEventListener('certificate:provision', (details: any) => {
       this.handleCertificateProvision(details)
     })
+    this._libp2p.addEventListener('certificate:renew', (details: any) => {
+      this.handleCertificateProvision(details)
+    })
     this._options = Object.assign(
       {},
       lodash.cloneDeep(DEFAULT_OPTIONS),
@@ -196,16 +199,16 @@ export class OceanP2P extends EventEmitter {
   }
 
   handleCertificateProvision(details: any) {
-    console.info('A TLS certificate was provisioned')
-    console.info('Details: ' + JSON.stringify(details))
+    console.log('A TLS certificate was provisioned')
+    console.log('Details: ' + JSON.stringify(details))
     const interval = setInterval(() => {
       const mas = this._libp2p
         .getMultiaddrs()
         .filter((ma: any) => ma.toString().includes('/sni/'))
         .map((ma: any) => ma.toString())
       if (mas.length > 0) {
-        console.info('addresses:')
-        console.info(mas.join('\n'))
+        console.log('addresses:')
+        console.log(mas.join('\n'))
       }
       clearInterval(interval)
     }, 1_000)
@@ -357,11 +360,7 @@ export class OceanP2P extends EventEmitter {
         dcutr: dcutr(),
         keychain: keychain(),
         http: http(),
-        autoTLS: autoTLS({
-          // we trust that it will configure the DNS records to answer the ACME DNS-01 challenge correctly.
-          autoConfirmAddress: true,
-          acmeDirectory: 'https://acme-staging-v02.api.letsencrypt.org/directory'
-        })
+        autoTLS: autoTLS()
       }
 
       // eslint-disable-next-line no-constant-condition, no-self-compare
@@ -374,7 +373,7 @@ export class OceanP2P extends EventEmitter {
         P2P_LOGGER.info('Enabling UPnp discovery')
         servicesConfig = {
           ...servicesConfig,
-          ...{ upnpNAT: uPnPNAT({ autoConfirmAddress: true }) }
+          ...{ upnpNAT: uPnPNAT() }
         }
       }
       // eslint-disable-next-line no-constant-condition, no-self-compare
