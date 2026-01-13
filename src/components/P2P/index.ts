@@ -489,8 +489,10 @@ export class OceanP2P extends EventEmitter {
 
   getNetworkingStats() {
     const ret: any = {}
-    ret.announce = this._libp2p.getMultiaddrs()
-    ret.connections = this._libp2p.getConnections()
+    ret.announce = this._libp2p.getMultiaddrs().map((ma) => ma.toString())
+    ret.connections = this._libp2p
+      .getConnections()
+      .map((conn) => conn.remoteAddr.toString())
 
     const libp2pInternal = this._libp2p as Libp2p & {
       components: {
@@ -499,9 +501,15 @@ export class OceanP2P extends EventEmitter {
       }
     }
     if (libp2pInternal.components) {
-      ret.binds = libp2pInternal.components.addressManager.getListenAddrs()
-      ret.listen = libp2pInternal.components.transportManager.getAddrs()
-      ret.observing = libp2pInternal.components.addressManager.getObservedAddrs()
+      ret.binds = libp2pInternal.components.addressManager
+        .getListenAddrs()
+        .map((ma) => ma.toString())
+      ret.listen = libp2pInternal.components.transportManager
+        .getAddrs()
+        .map((ma) => ma.toString())
+      ret.observing = libp2pInternal.components.addressManager
+        .getObservedAddrs()
+        .map((ma) => ma.toString())
     }
 
     return ret
