@@ -360,10 +360,7 @@ export class OceanP2P extends EventEmitter {
         dcutr: dcutr(),
         keychain: keychain(),
         http: http(),
-        autoTLS: autoTLS({
-          autoConfirmAddress: true,
-          acmeDirectory: 'https://acme-staging-v02.api.letsencrypt.org/directory'
-        })
+        autoTLS: autoTLS()
       }
 
       // eslint-disable-next-line no-constant-condition, no-self-compare
