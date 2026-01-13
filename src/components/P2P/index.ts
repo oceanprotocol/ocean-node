@@ -47,6 +47,9 @@ import { P2P_LOGGER } from '../../utils/logging/common.js'
 import { CoreHandlersRegistry } from '../core/handler/coreHandlersRegistry'
 import { Multiaddr, multiaddr } from '@multiformats/multiaddr'
 // import { getIPv4, getIPv6 } from '../../utils/ip.js'
+import { autoTLS } from '@ipshipyard/libp2p-auto-tls'
+import { keychain } from '@libp2p/keychain'
+import { http } from '@libp2p/http'
 
 const DEFAULT_OPTIONS = {
   pollInterval: 1000
@@ -332,7 +335,14 @@ export class OceanP2P extends EventEmitter {
           allowedTopics: ['oceanprotocol._peer-discovery._p2p._pubsub', 'oceanprotocol']
         }), */
         ping: ping(),
-        dcutr: dcutr()
+        dcutr: dcutr(),
+        keychain: keychain(),
+        http: http(),
+        autoTLS: autoTLS({
+          // we trust that it will configure the DNS records to answer the ACME DNS-01 challenge correctly.
+          autoConfirmAddress: true,
+          acmeDirectory: 'https://acme-staging-v02.api.letsencrypt.org/directory'
+        })
       }
 
       // eslint-disable-next-line no-constant-condition, no-self-compare
