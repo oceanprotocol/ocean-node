@@ -53,7 +53,7 @@ describe('Config Admin Endpoints Integration Tests', () => {
 
     config = await getConfiguration(true)
     database = await Database.init(config.dbConfig)
-    oceanNode = await OceanNode.getInstance(config, database)
+    oceanNode = OceanNode.getInstance(config, database)
   })
 
   after(async () => {

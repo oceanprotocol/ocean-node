@@ -146,6 +146,16 @@ export class OceanNode {
     return this.auth
   }
 
+  public setConfig(config: OceanNodeConfig) {
+    this.config = config
+    if (this.config) {
+      this.escrow = new Escrow(
+        this.config.supportedNetworks,
+        this.config.claimDurationTimeout
+      )
+    }
+  }
+
   /**
    * Use this method to direct calls to the node as node cannot dial into itself
    * @param message command message
