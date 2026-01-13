@@ -361,7 +361,8 @@ export class OceanP2P extends EventEmitter {
         keychain: keychain(),
         http: http(),
         autoTLS: autoTLS({
-          autoConfirmAddress: true
+          autoConfirmAddress: true,
+          acmeDirectory: 'https://acme-staging-v02.api.letsencrypt.org/directory'
         })
       }
 
