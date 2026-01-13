@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 #
-# Copyright (c) 2024 Ocean Protocol contributors
+# Copyright (c) 2026 Ocean Protocol contributors
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -100,6 +100,13 @@ read P2P_ipV6BindWsPort
 P2P_ipV6BindWsPort=${P2P_ipV6BindWsPort:-9003}
 validate_port "$P2P_ipV6BindWsPort"
 
+P2P_ENABLE_UPNP='false'
+read -p "Enable UPnP (useful in case you can no set up port forwarding)? [ y/n ]: " enable_upnp
+if [ "$enable_upnp" == "y" ]; then
+    P2P_ENABLE_UPNP='true'
+fi
+
+
 read -p "Provide the public IPv4 address or FQDN where this node will be accessible: " P2P_ANNOUNCE_ADDRESS
 
 if [ -n "$P2P_ANNOUNCE_ADDRESS" ]; then
@@ -142,8 +149,82 @@ fi
 # Set default compute environments if not already defined
 if [ -z "$DOCKER_COMPUTE_ENVIRONMENTS" ]; then
   echo "Setting default DOCKER_COMPUTE_ENVIRONMENTS configuration"
-  export DOCKER_COMPUTE_ENVIRONMENTS="[{\"socketPath\":\"/var/run/docker.sock\",\"resources\":[{\"id\":\"disk\",\"total\":10}],\"storageExpiry\":604800,\"maxJobDuration\":36000,\"minJobDuration\":60,\"fees\":{\"1\":[{\"feeToken\":\"0x123\",\"prices\":[{\"id\":\"cpu\",\"price\":1}]}]},\"free\":{\"maxJobDuration\":360000,\"minJobDuration\":60,\"maxJobs\":3,\"resources\":[{\"id\":\"cpu\",\"max\":1},{\"id\":\"ram\",\"max\":1},{\"id\":\"disk\",\"max\":1}]}}]"
+  export DOCKER_COMPUTE_ENVIRONMENTS='[
+    {
+      "socketPath": "/var/run/docker.sock",
+      "resources": [
+        {
+          "id": "disk",
+          "total": 10
+        }
+      ],
+      "storageExpiry": 604800,
+      "maxJobDuration": 36000,
+      "minJobDuration": 60,
+      "fees": {
+        "1": [
+          {
+            "feeToken": "0x123",
+            "prices": [
+              {
+                "id": "cpu",
+                "price": 1
+              }
+            ]
+          }
+        ]
+      },
+      "free": {
+        "maxJobDuration": 360000,
+        "minJobDuration": 60,
+        "maxJobs": 3,
+        "resources": [
+          {
+            "id": "cpu",
+            "max": 1
+          },
+          {
+            "id": "ram",
+            "max": 1
+          },
+          {
+            "id": "disk",
+            "max": 1
+          }
+        ]
+      }
+    }
+  ]'
 fi
+
+# GPU Detection and Integration
+LIST_GPUS_SCRIPT="$(dirname "$0")/list_gpus.sh"
+if [ -f "$LIST_GPUS_SCRIPT" ] && command -v jq &> /dev/null; then
+  echo "Checking for GPUs..."
+  source "$LIST_GPUS_SCRIPT"
+  DETECTED_GPUS=$(get_all_gpus_json)
+  
+  # Check if we got any GPUs (array not empty)
+  GPU_COUNT=$(echo "$DETECTED_GPUS" | jq 'length')
+  
+  if [ "$GPU_COUNT" -gt 0 ]; then
+    echo "Detected $GPU_COUNT GPU type(s). Updating configuration..."
+    
+    # Merge detected GPUs into the resources array of the first environment
+    # We use jq to append the detected GPU objects to existing resources
+    DOCKER_COMPUTE_ENVIRONMENTS=$(echo "$DOCKER_COMPUTE_ENVIRONMENTS" | jq --argjson gpus "$DETECTED_GPUS" '.[0].resources += $gpus')
+    
+    # Also update free resources to include GPUs if desired, or at least the pricing?
+    # For now, let's just ensure they are in the available resources list.
+    echo "GPUs added to Compute Environment resources."
+  else
+    echo "No GPUs detected."
+  fi
+else
+  echo "Skipping GPU detection (script not found or jq missing)."
+fi
+
+echo $DOCKER_COMPUTE_ENVIRONMENTS
 
 cat <<EOF > docker-compose.yml
 services:
@@ -205,7 +286,7 @@ services:
 #      P2P_mDNSInterval: ''
 #      P2P_connectionsMaxParallelDials: ''
 #      P2P_connectionsDialTimeout: ''
-#      P2P_ENABLE_UPNP: ''
+       P2P_ENABLE_UPNP: '$P2P_ENABLE_UPNP'
 #      P2P_ENABLE_AUTONAT: ''
 #      P2P_ENABLE_CIRCUIT_RELAY_SERVER: ''
 #      P2P_ENABLE_CIRCUIT_RELAY_CLIENT: ''
