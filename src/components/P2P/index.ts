@@ -117,6 +117,9 @@ export class OceanP2P extends EventEmitter {
     this._libp2p.addEventListener('peer:discovery', (details: any) => {
       this.handlePeerDiscovery(details)
     })
+    this._libp2p.addEventListener('certificate:provision', (details: any) => {
+      this.handleCertificateProvision(details)
+    })
     this._options = Object.assign(
       {},
       lodash.cloneDeep(DEFAULT_OPTIONS),
@@ -190,6 +193,22 @@ export class OceanP2P extends EventEmitter {
       // no panic if it failed
       // console.error(e)
     }
+  }
+
+  handleCertificateProvision(details: any) {
+    console.info('A TLS certificate was provisioned')
+    console.info('Details: ' + JSON.stringify(details))
+    const interval = setInterval(() => {
+      const mas = this._libp2p
+        .getMultiaddrs()
+        .filter((ma: any) => ma.toString().includes('/sni/'))
+        .map((ma: any) => ma.toString())
+      if (mas.length > 0) {
+        console.info('addresses:')
+        console.info(mas.join('\n'))
+      }
+      clearInterval(interval)
+    }, 1_000)
   }
 
   handlePeerJoined(details: any) {
@@ -353,7 +372,10 @@ export class OceanP2P extends EventEmitter {
       // eslint-disable-next-line no-constant-condition, no-self-compare
       if (config.p2pConfig.upnp) {
         P2P_LOGGER.info('Enabling UPnp discovery')
-        servicesConfig = { ...servicesConfig, ...{ upnpNAT: uPnPNAT() } }
+        servicesConfig = {
+          ...servicesConfig,
+          ...{ upnpNAT: uPnPNAT({ autoConfirmAddress: true }) }
+        }
       }
       // eslint-disable-next-line no-constant-condition, no-self-compare
       if (config.p2pConfig.autoNat) {
