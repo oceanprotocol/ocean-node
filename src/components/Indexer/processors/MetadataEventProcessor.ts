@@ -58,9 +58,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       const metadataHash = decodedEventData.args[5]
       const flag = decodedEventData.args[3]
       const owner = decodedEventData.args[0]
-<<<<<<< Updated upstream
-      // TODO: Decrypt DDO only for the case where REVOKED is updated to ACTIVE
-=======
 
       const dataNftAddress = ethers.getAddress(event.address)
 
@@ -81,7 +78,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         return
       }
 
->>>>>>> Stashed changes
       const ddo = await this.decryptDDO(
         decodedEventData.args[2],
         flag,
