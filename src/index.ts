@@ -183,3 +183,7 @@ if (config.hasHttp) {
   // Call the function to schedule the cron job to delete old logs
   scheduleCronJobs(oceanNode)
 }
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.log(reason)
+})
