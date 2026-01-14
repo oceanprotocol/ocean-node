@@ -14,7 +14,7 @@ export class Escrow {
   }
 
   // eslint-disable-next-line require-await
-  async getEscrowContractAddressForChain(chainId: number): Promise<string | null> {
+  getEscrowContractAddressForChain(chainId: number): string | null {
     const addresses = getOceanArtifactsAdressesByChainId(chainId)
     if (addresses && addresses.Escrow) return addresses.Escrow
     return null
@@ -46,11 +46,8 @@ export class Escrow {
   }
 
   // eslint-disable-next-line require-await
-  async getContract(
-    chainId: number,
-    signer: ethers.Signer
-  ): Promise<ethers.Contract | null> {
-    const address = await this.getEscrowContractAddressForChain(chainId)
+  getContract(chainId: number, signer: ethers.Signer): ethers.Contract | null {
+    const address = this.getEscrowContractAddressForChain(chainId)
     if (!address) return null
     return new ethers.Contract(address, EscrowJson.abi, signer)
   }
@@ -63,7 +60,7 @@ export class Escrow {
     const { rpc, network, chainId, fallbackRPCs } = this.networks[chain]
     const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
     const signer = blockchain.getSigner()
-    const contract = await this.getContract(chainId, signer)
+    const contract = this.getContract(chainId, signer)
     try {
       const funds = await contract.getUserFunds(payer, token)
       return funds.available
@@ -81,7 +78,7 @@ export class Escrow {
     const { rpc, network, chainId, fallbackRPCs } = this.networks[chain]
     const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
     const signer = blockchain.getSigner()
-    const contract = await this.getContract(chainId, signer)
+    const contract = this.getContract(chainId, signer)
     try {
       return await contract.getLocks(token, payer, payee)
     } catch (e) {
@@ -98,7 +95,7 @@ export class Escrow {
     const { rpc, network, chainId, fallbackRPCs } = this.networks[chain]
     const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
     const signer = blockchain.getSigner()
-    const contract = await this.getContract(chainId, signer)
+    const contract = this.getContract(chainId, signer)
     try {
       return await contract.getAuthorizations(token, payer, payee)
     } catch (e) {
@@ -118,7 +115,7 @@ export class Escrow {
     const { rpc, network, chainId, fallbackRPCs } = this.networks[chain]
     const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
     const signer = blockchain.getSigner()
-    const contract = await this.getContract(chainId, signer)
+    const contract = this.getContract(chainId, signer)
     if (!contract) throw new Error(`Failed to initialize escrow contract`)
     const wei = await this.getPaymentAmountInWei(amount, chain, token)
     const userBalance = await this.getUserAvailableFunds(chain, payer, token)
@@ -127,15 +124,11 @@ export class Escrow {
       throw new Error(`User ${payer} does not have enough funds`)
     }
 
-    const auths = await this.getAuthorizations(
-      chain,
-      token,
-      payer,
-      await signer.getAddress()
-    )
+    const signerAddress = await signer.getAddress()
+    const auths = await this.getAuthorizations(chain, token, payer, signerAddress)
     if (!auths || auths.length !== 1) {
       throw new Error(
-        `No escrow auths found for: chain=${chain}, token=${token}, payer=${payer}, nodeAddress=${await signer.getAddress()}. Found ${
+        `No escrow auths found for: chain=${chain}, token=${token}, payer=${payer}, nodeAddress=${signerAddress}. Found ${
           auths?.length || 0
         } authorizations.`
       )
