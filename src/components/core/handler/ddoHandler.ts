@@ -294,6 +294,7 @@ export class DecryptDdoHandler extends CommandHandler {
       if (
         ![
           MetadataStates.ACTIVE,
+          MetadataStates.END_OF_LIFE,
           MetadataStates.ORDERING_DISABLED,
           MetadataStates.UNLISTED
         ].includes(metaDataState)

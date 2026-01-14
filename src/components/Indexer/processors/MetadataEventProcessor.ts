@@ -13,7 +13,7 @@ import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { asyncCallWithTimeout } from '../../../utils/util.js'
 import { PolicyServer } from '../../policyServer/index.js'
-import { wasNFTDeployedByOurFactory, getPricingStatsForDddo } from '../utils.js'
+import { wasNFTDeployedByOurFactory, getPricingStatsForDddo, getDid } from '../utils.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
 import { Purgatory } from '../purgatory.js'
@@ -51,15 +51,13 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       )
 
       const metadata = decodedEventData.args[4]
-      INDEXER_LOGGER.logMessage(
-        `Decoded metadata event ${JSON.stringify(metadata)}...`,
-        true
-      )
       const metadataHash = decodedEventData.args[5]
       const flag = decodedEventData.args[3]
       const owner = decodedEventData.args[0]
 
       const dataNftAddress = ethers.getAddress(event.address)
+
+      did = getDid(event.address, chainId)
 
       const templateContract = new ethers.Contract(
         dataNftAddress,
@@ -71,9 +69,10 @@ export class MetadataEventProcessor extends BaseEventProcessor {
 
       if ([MetadataStates.DEPRECATED, MetadataStates.REVOKED].includes(metaDataState)) {
         INDEXER_LOGGER.logMessage(
-          `Metadata state is ${metaDataState}, DDO is deleted`,
+          `Delete DDO because Metadata state is ${metaDataState}`,
           true
         )
+        await ddoDatabase.delete(did)
         await ddoState.delete(did)
         return
       }
@@ -236,7 +235,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
             `Previous DDO with did ${ddoInstance.getDid()} was not found the database`,
             true
           )
-          // Consider make the UPDATE flow to work as an upsert
           return
         }
         const [isUpdateable, error] = this.isUpdateable(
