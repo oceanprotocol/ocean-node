@@ -17,10 +17,12 @@ export interface AuthMessage {
 
 export interface CreateAuthTokenCommand extends AuthMessage, Command {
   validUntil?: number | null
+  chainId?: string | null
 }
 
 export interface InvalidateAuthTokenCommand extends AuthMessage, Command {
   token: string
+  chainId?: string | null
 }
 
 export class CreateAuthTokenHandler extends CommandHandler {
@@ -42,7 +44,8 @@ export class CreateAuthTokenHandler extends CommandHandler {
         address,
         parseInt(nonce),
         signature,
-        String(address + nonce)
+        String(address + nonce),
+        task.chainId
       )
 
       if (!nonceCheckResult.valid) {
@@ -59,7 +62,7 @@ export class CreateAuthTokenHandler extends CommandHandler {
 
       await this.getOceanNode()
         .getAuth()
-        .insertToken(task.address, jwtToken, task.validUntil, createdAt)
+        .insertToken(task.address, jwtToken, task.validUntil, createdAt, task.chainId)
 
       return {
         stream: Readable.from(JSON.stringify({ token: jwtToken })),
@@ -93,7 +96,8 @@ export class InvalidateAuthTokenHandler extends CommandHandler {
         address,
         parseInt(nonce),
         signature,
-        String(address + nonce)
+        String(address + nonce),
+        task.chainId
       )
       if (!isValid) {
         return {

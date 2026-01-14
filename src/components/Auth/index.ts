@@ -11,6 +11,7 @@ export interface AuthValidation {
   nonce?: string
   signature?: string
   message?: string
+  chainId?: string | null
 }
 
 export class Auth {
@@ -42,9 +43,16 @@ export class Auth {
     address: string,
     jwtToken: string,
     validUntil: number,
-    createdAt: number
+    createdAt: number,
+    chainId?: string | null
   ): Promise<void> {
-    await this.authTokenDatabase.createToken(jwtToken, address, validUntil, createdAt)
+    await this.authTokenDatabase.createToken(
+      jwtToken,
+      address,
+      validUntil,
+      createdAt,
+      chainId
+    )
   }
 
   async invalidateToken(jwtToken: string): Promise<void> {
@@ -71,7 +79,7 @@ export class Auth {
   async validateAuthenticationOrToken(
     authValidation: AuthValidation
   ): Promise<CommonValidation> {
-    const { token, address, nonce, signature, message } = authValidation
+    const { token, address, nonce, signature, message, chainId } = authValidation
     try {
       if (signature && address && nonce) {
         const oceanNode = OceanNode.getInstance()
@@ -80,7 +88,8 @@ export class Auth {
           address,
           parseInt(nonce),
           signature,
-          message
+          message,
+          chainId
         )
 
         if (!nonceCheckResult.valid) {

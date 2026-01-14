@@ -32,13 +32,25 @@ export const SupportedNetworkSchema = z.object({
 
 export const RPCSSchema = z.record(z.string(), SupportedNetworkSchema)
 
-export const AccessListContractSchema = z
-  .union([
-    z.record(z.string(), z.array(z.string())),
-    z.array(z.any()).transform((): null => null),
-    z.null()
-  ])
-  .nullable()
+export const AccessListContractSchema = z.preprocess(
+  (val) => {
+    // If it's not a plain object, normalize to null
+    if (val === null) return null
+    // If it's a JSON string, try to parse it
+    if (typeof val === 'string') {
+      try {
+        val = JSON.parse(val)
+      } catch {
+        return null
+      }
+    }
+
+    if (typeof val !== 'object' || Array.isArray(val)) return null
+
+    return val
+  },
+  z.record(z.string(), z.array(z.string())).nullable()
+)
 
 export const OceanNodeKeysSchema = z.object({
   peerId: z.any().optional(),

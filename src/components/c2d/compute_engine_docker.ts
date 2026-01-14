@@ -170,7 +170,7 @@ export class C2DEngineDocker extends C2DEngine {
       },
       access: {
         addresses: [],
-        accessLists: []
+        accessLists: null
       },
       fees,
       queuedJobs: 0,
@@ -249,7 +249,7 @@ export class C2DEngineDocker extends C2DEngine {
       this.envs[0].free = {
         access: {
           addresses: [],
-          accessLists: []
+          accessLists: null
         }
       }
       if (`access` in envConfig.free) this.envs[0].free.access = envConfig.free.access
