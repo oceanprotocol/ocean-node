@@ -49,10 +49,16 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         ERC721Template.abi,
         eventName
       )
+
       const metadata = decodedEventData.args[4]
+      INDEXER_LOGGER.logMessage(
+        `Decoded metadata event ${JSON.stringify(metadata)}...`,
+        true
+      )
       const metadataHash = decodedEventData.args[5]
       const flag = decodedEventData.args[3]
       const owner = decodedEventData.args[0]
+      // TODO: Decrypt DDO only for the case where REVOKED is updated to ACTIVE
       const ddo = await this.decryptDDO(
         decodedEventData.args[2],
         flag,
@@ -208,17 +214,10 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       if (eventName === EVENTS.METADATA_UPDATED) {
         if (!previousDdoInstance) {
           INDEXER_LOGGER.logMessage(
-            `Previous DDO with did ${ddoInstance.getDid()} was not found the database. Maybe it was deleted/hidden to some violation issues`,
+            `Previous DDO with did ${ddoInstance.getDid()} was not found the database`,
             true
           )
-          await ddoState.update(
-            this.networkId,
-            did,
-            event.address,
-            event.transactionHash,
-            false,
-            `Previous DDO with did ${ddoInstance.getDid()} was not found the database. Maybe it was deleted/hidden to some violation issues`
-          )
+          // Consider make the UPDATE flow to work as an upsert
           return
         }
         const [isUpdateable, error] = this.isUpdateable(
