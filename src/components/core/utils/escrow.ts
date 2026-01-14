@@ -192,8 +192,8 @@ export class Escrow {
     const { rpc, network, chainId, fallbackRPCs } = this.networks[chain]
     const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
     const signer = blockchain.getSigner()
-    const contract = await this.getContract(chainId, signer)
-    const wei = await this.getPaymentAmountInWei(amount, chain, token)
+    const contract = this.getContract(chainId, signer)
+    const wei = await this.getPaymentAmountInWei(amount, chain, token, blockchain)
     const jobId = create256Hash(job)
     if (!contract) return null
     try {
@@ -235,7 +235,7 @@ export class Escrow {
     const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
     const signer = blockchain.getSigner()
     const jobId = create256Hash(job)
-    const contract = await this.getContract(chainId, signer)
+    const contract = this.getContract(chainId, signer)
 
     if (!contract) return null
     try {
