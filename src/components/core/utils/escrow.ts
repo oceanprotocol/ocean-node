@@ -134,7 +134,11 @@ export class Escrow {
       await signer.getAddress()
     )
     if (!auths || auths.length !== 1) {
-      throw new Error(`No escrow auths found`)
+      throw new Error(
+        `No escrow auths found for: chain=${chain}, token=${token}, payer=${payer}, nodeAddress=${await signer.getAddress()}. Found ${
+          auths?.length || 0
+        } authorizations.`
+      )
     }
     if (
       BigInt(auths[0].currentLockedAmount.toString()) + BigInt(wei) >

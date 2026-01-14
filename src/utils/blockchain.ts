@@ -26,6 +26,8 @@ const MUMBAI_NETWORK_ID = 80001
 const SEPOLIA_NETWORK_ID = 11155111
 
 export class Blockchain {
+  private static signers: Map<string, Signer> = new Map()
+  private static providers: Map<string, JsonRpcApiProvider> = new Map()
   private signer: Signer
   private provider: JsonRpcApiProvider
   private chainId: number
@@ -46,12 +48,30 @@ export class Blockchain {
     }
     this.network = new ethers.Network(chainName, chainId)
     // this.provider = new ethers.JsonRpcProvider(rpc, this.network)
-    this.provider = new ethers.JsonRpcProvider(rpc, null, {
-      staticNetwork: ethers.Network.from(chainId)
-    })
+    const providerKey = `${chainId}-${rpc}`
+    if (Blockchain.providers.has(providerKey)) {
+      this.provider = Blockchain.providers.get(providerKey)
+    } else {
+      this.provider = new ethers.JsonRpcProvider(rpc, null, {
+        staticNetwork: ethers.Network.from(chainId)
+      })
+      Blockchain.providers.set(providerKey, this.provider)
+    }
+
     this.registerForNetworkEvents()
     // always use this signer, not simply provider.getSigner(0) for instance (as we do on many tests)
-    this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
+    const signerKey = `${chainId}-${process.env.PRIVATE_KEY}`
+    if (Blockchain.signers.has(signerKey)) {
+      let cachedSigner = Blockchain.signers.get(signerKey)
+      if (cachedSigner.provider !== this.provider) {
+        cachedSigner = (cachedSigner as ethers.Wallet).connect(this.provider)
+        Blockchain.signers.set(signerKey, cachedSigner)
+      }
+      this.signer = cachedSigner
+    } else {
+      this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
+      Blockchain.signers.set(signerKey, this.signer)
+    }
   }
 
   public getSigner(): Signer {
