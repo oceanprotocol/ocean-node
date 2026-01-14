@@ -24,9 +24,17 @@ export class Escrow {
     return maxJobDuration + this.claimDurationTimeout
   }
 
-  async getPaymentAmountInWei(cost: number, chain: number, token: string) {
+  async getPaymentAmountInWei(
+    cost: number,
+    chain: number,
+    token: string,
+    existingChain?: Blockchain
+  ) {
     const { rpc, network, chainId, fallbackRPCs } = this.networks[chain]
-    const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+    let blockchain: Blockchain = existingChain
+    if (!blockchain) {
+      blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+    }
     const provider = blockchain.getProvider()
 
     const decimalgBigNumber = await getDatatokenDecimals(token, provider)
@@ -55,10 +63,14 @@ export class Escrow {
   async getUserAvailableFunds(
     chain: number,
     payer: string,
-    token: string
+    token: string,
+    existingChain?: Blockchain
   ): Promise<BigInt> {
     const { rpc, network, chainId, fallbackRPCs } = this.networks[chain]
-    const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+    let blockchain: Blockchain = existingChain
+    if (!blockchain) {
+      blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+    }
     const signer = blockchain.getSigner()
     const contract = this.getContract(chainId, signer)
     try {
@@ -90,10 +102,14 @@ export class Escrow {
     chain: number,
     token: string,
     payer: string,
-    payee: string
+    payee: string,
+    existingChain?: Blockchain
   ): Promise<EscrowAuthorization[]> {
     const { rpc, network, chainId, fallbackRPCs } = this.networks[chain]
-    const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+    let blockchain: Blockchain = existingChain
+    if (!blockchain) {
+      blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+    }
     const signer = blockchain.getSigner()
     const contract = this.getContract(chainId, signer)
     try {
@@ -117,15 +133,21 @@ export class Escrow {
     const signer = blockchain.getSigner()
     const contract = this.getContract(chainId, signer)
     if (!contract) throw new Error(`Failed to initialize escrow contract`)
-    const wei = await this.getPaymentAmountInWei(amount, chain, token)
-    const userBalance = await this.getUserAvailableFunds(chain, payer, token)
+    const wei = await this.getPaymentAmountInWei(amount, chain, token, blockchain)
+    const userBalance = await this.getUserAvailableFunds(chain, payer, token, blockchain)
     if (BigInt(userBalance.toString()) < BigInt(wei)) {
       // not enough funds
       throw new Error(`User ${payer} does not have enough funds`)
     }
 
     const signerAddress = await signer.getAddress()
-    const auths = await this.getAuthorizations(chain, token, payer, signerAddress)
+    const auths = await this.getAuthorizations(
+      chain,
+      token,
+      payer,
+      signerAddress,
+      blockchain
+    )
     if (!auths || auths.length !== 1) {
       throw new Error(
         `No escrow auths found for: chain=${chain}, token=${token}, payer=${payer}, nodeAddress=${signerAddress}. Found ${
