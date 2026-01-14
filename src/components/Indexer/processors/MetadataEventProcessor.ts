@@ -58,7 +58,30 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       const metadataHash = decodedEventData.args[5]
       const flag = decodedEventData.args[3]
       const owner = decodedEventData.args[0]
+<<<<<<< Updated upstream
       // TODO: Decrypt DDO only for the case where REVOKED is updated to ACTIVE
+=======
+
+      const dataNftAddress = ethers.getAddress(event.address)
+
+      const templateContract = new ethers.Contract(
+        dataNftAddress,
+        ERC721Template.abi,
+        signer
+      )
+      const metaData = await templateContract.getMetaData()
+      const metaDataState = Number(metaData[2])
+
+      if ([MetadataStates.DEPRECATED, MetadataStates.REVOKED].includes(metaDataState)) {
+        INDEXER_LOGGER.logMessage(
+          `Metadata state is ${metaDataState}, DDO is deleted`,
+          true
+        )
+        await ddoState.delete(did)
+        return
+      }
+
+>>>>>>> Stashed changes
       const ddo = await this.decryptDDO(
         decodedEventData.args[2],
         flag,

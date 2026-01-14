@@ -280,13 +280,7 @@ export class DecryptDdoHandler extends CommandHandler {
       )
       const metaData = await templateContract.getMetaData()
       const metaDataState = Number(metaData[2])
-      if (
-        [
-          MetadataStates.END_OF_LIFE,
-          MetadataStates.DEPRECATED,
-          MetadataStates.REVOKED
-        ].includes(metaDataState)
-      ) {
+      if ([MetadataStates.DEPRECATED, MetadataStates.REVOKED].includes(metaDataState)) {
         CORE_LOGGER.logMessage(`Decrypt DDO: error metadata state ${metaDataState}`, true)
         return {
           stream: null,
