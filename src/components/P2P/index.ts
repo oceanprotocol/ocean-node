@@ -47,6 +47,9 @@ import { P2P_LOGGER } from '../../utils/logging/common.js'
 import { CoreHandlersRegistry } from '../core/handler/coreHandlersRegistry'
 import { Multiaddr, multiaddr } from '@multiformats/multiaddr'
 // import { getIPv4, getIPv6 } from '../../utils/ip.js'
+import { autoTLS } from '@ipshipyard/libp2p-auto-tls'
+import { keychain } from '@libp2p/keychain'
+import { http } from '@libp2p/http'
 
 const DEFAULT_OPTIONS = {
   pollInterval: 1000
@@ -113,6 +116,12 @@ export class OceanP2P extends EventEmitter {
     })
     this._libp2p.addEventListener('peer:discovery', (details: any) => {
       this.handlePeerDiscovery(details)
+    })
+    this._libp2p.addEventListener('certificate:provision', () => {
+      this.handleCertificateProvision()
+    })
+    this._libp2p.addEventListener('certificate:renew', () => {
+      this.handleCertificateRenew()
     })
     this._options = Object.assign(
       {},
@@ -187,6 +196,26 @@ export class OceanP2P extends EventEmitter {
       // no panic if it failed
       // console.error(e)
     }
+  }
+
+  handleCertificateProvision() {
+    P2P_LOGGER.info('----- A TLS certificate was provisioned -----')
+    const interval = setInterval(() => {
+      const mas = this._libp2p
+        .getMultiaddrs()
+        .filter((ma: any) => ma.toString().includes('/sni/'))
+        .map((ma: any) => ma.toString())
+      if (mas.length > 0) {
+        P2P_LOGGER.info('----- TLS addresses: -----')
+        P2P_LOGGER.info(mas.join('\n'))
+        P2P_LOGGER.info('----- End of TLS addresses -----')
+      }
+      clearInterval(interval)
+    }, 1_000)
+  }
+
+  handleCertificateRenew() {
+    P2P_LOGGER.info('----- A TLS certificate was renewed -----')
   }
 
   handlePeerJoined(details: any) {
@@ -291,7 +320,7 @@ export class OceanP2P extends EventEmitter {
           listen: bindInterfaces,
           announceFilter: (multiaddrs: any[]) =>
             multiaddrs.filter((m) => this.shouldAnnounce(m)),
-          announce: config.p2pConfig.announceAddresses
+          appendAnnounce: config.p2pConfig.announceAddresses
         }
       } else {
         addresses = {
@@ -332,7 +361,12 @@ export class OceanP2P extends EventEmitter {
           allowedTopics: ['oceanprotocol._peer-discovery._p2p._pubsub', 'oceanprotocol']
         }), */
         ping: ping(),
-        dcutr: dcutr()
+        dcutr: dcutr(),
+        keychain: keychain(),
+        http: http(),
+        autoTLS: autoTLS({
+          autoConfirmAddress: true
+        })
       }
 
       // eslint-disable-next-line no-constant-condition, no-self-compare
@@ -343,7 +377,10 @@ export class OceanP2P extends EventEmitter {
       // eslint-disable-next-line no-constant-condition, no-self-compare
       if (config.p2pConfig.upnp) {
         P2P_LOGGER.info('Enabling UPnp discovery')
-        servicesConfig = { ...servicesConfig, ...{ upnpNAT: uPnPNAT() } }
+        servicesConfig = {
+          ...servicesConfig,
+          ...{ upnpNAT: uPnPNAT() }
+        }
       }
       // eslint-disable-next-line no-constant-condition, no-self-compare
       if (config.p2pConfig.autoNat) {
@@ -457,8 +494,10 @@ export class OceanP2P extends EventEmitter {
 
   getNetworkingStats() {
     const ret: any = {}
-    ret.announce = this._libp2p.getMultiaddrs()
-    ret.connections = this._libp2p.getConnections()
+    ret.announce = this._libp2p.getMultiaddrs().map((ma) => ma.toString())
+    ret.connections = this._libp2p
+      .getConnections()
+      .map((conn) => conn.remoteAddr.toString())
 
     const libp2pInternal = this._libp2p as Libp2p & {
       components: {
@@ -467,9 +506,15 @@ export class OceanP2P extends EventEmitter {
       }
     }
     if (libp2pInternal.components) {
-      ret.binds = libp2pInternal.components.addressManager.getListenAddrs()
-      ret.listen = libp2pInternal.components.transportManager.getAddrs()
-      ret.observing = libp2pInternal.components.addressManager.getObservedAddrs()
+      ret.binds = libp2pInternal.components.addressManager
+        .getListenAddrs()
+        .map((ma) => ma.toString())
+      ret.listen = libp2pInternal.components.transportManager
+        .getAddrs()
+        .map((ma) => ma.toString())
+      ret.observing = libp2pInternal.components.addressManager
+        .getObservedAddrs()
+        .map((ma) => ma.toString())
     }
 
     return ret

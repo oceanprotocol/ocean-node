@@ -18,6 +18,7 @@ ENV ARWEAVE_GATEWAY='https://arweave.net/'
 
 FROM base AS builder
 COPY package*.json /usr/src/app/
+COPY scripts/ /usr/src/app/scripts/
 WORKDIR /usr/src/app/
 RUN npm ci --maxsockets 1
 
