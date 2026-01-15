@@ -186,7 +186,7 @@ export async function checkSingleCredential(
 
     // Check if address is in the list
     const normalizedValues = addressCredential.values.map((v: string) => v.toLowerCase())
-    return normalizedValues.includes(consumerAddress)
+    return normalizedValues.includes(consumerAddress.toLowerCase())
   }
 
   // ========================================
