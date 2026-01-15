@@ -153,6 +153,8 @@ export class Escrow {
             auths?.length || 0
           } authorizations. ${retries > 0 ? 'Retrying..' : ''}`
         )
+      } else if (auths && auths.length === 1) {
+        break
       }
       if (retries > 1) {
         await sleep(1000)
