@@ -5,6 +5,7 @@ import { EscrowAuthorization, EscrowLock } from '../../../@types/Escrow.js'
 import { getOceanArtifactsAdressesByChainId } from '../../../utils/address.js'
 import { RPCS } from '../../../@types/blockchain.js'
 import { create256Hash } from '../../../utils/crypt.js'
+import { sleep } from '../../../utils/util.js'
 export class Escrow {
   private networks: RPCS
   private claimDurationTimeout: number
@@ -141,20 +142,24 @@ export class Escrow {
     }
 
     const signerAddress = await signer.getAddress()
-    const auths = await this.getAuthorizations(
-      chain,
-      token,
-      payer,
-      signerAddress,
-      blockchain
-    )
-    if (!auths || auths.length !== 1) {
-      throw new Error(
-        `No escrow auths found for: chain=${chain}, token=${token}, payer=${payer}, nodeAddress=${signerAddress}. Found ${
-          auths?.length || 0
-        } authorizations.`
-      )
+
+    let retries = 2
+    let auths: EscrowAuthorization[] = []
+    while (retries > 0) {
+      auths = await this.getAuthorizations(chain, token, payer, signerAddress, blockchain)
+      if (!auths || auths.length !== 1) {
+        throw new Error(
+          `No escrow auths found for: chain=${chain}, token=${token}, payer=${payer}, nodeAddress=${signerAddress}. Found ${
+            auths?.length || 0
+          } authorizations. ${retries > 0 ? 'Retrying..' : ''}`
+        )
+      }
+      if (retries > 1) {
+        await sleep(1000)
+      }
+      retries--
     }
+
     if (
       BigInt(auths[0].currentLockedAmount.toString()) + BigInt(wei) >
       BigInt(auths[0].maxLockedAmount.toString())
