@@ -1,0 +1,26 @@
+diff --git a/node_modules/@libp2p/http-utils/dist/src/index.js b/node_modules/@libp2p/http-utils/dist/src/index.js
+index f1f98d5..2ad6be6 100644
+--- a/node_modules/@libp2p/http-utils/dist/src/index.js
++++ b/node_modules/@libp2p/http-utils/dist/src/index.js
+@@ -213,7 +213,7 @@ export function getHost(addresses, headers) {
+     let protocol = 'http:';
+     if (addresses instanceof URL) {
+         host = addresses.hostname;
+-        port = parseInt(addresses.port, 10);
++        port = parseInt(addresses.port === '' ? (addresses.protocol === 'https:' ? '443' : '80') : addresses.port, 10);
+         protocol = addresses.protocol;
+     }
+     if (!isValidHost(host)) {
+diff --git a/node_modules/@libp2p/http-utils/src/index.ts b/node_modules/@libp2p/http-utils/src/index.ts
+index 5a73139..a5e0dc5 100644
+--- a/node_modules/@libp2p/http-utils/src/index.ts
++++ b/node_modules/@libp2p/http-utils/src/index.ts
+@@ -301,7 +301,7 @@ export function getHost (addresses: URL | Multiaddr[], headers: Headers): string
+ 
+   if (addresses instanceof URL) {
+     host = addresses.hostname
+-    port = parseInt(addresses.port, 10)
++    port = parseInt(addresses.port === '' ? (addresses.protocol === 'https:' ? '443' : '80') : addresses.port, 10)
+     protocol = addresses.protocol
+   }
+ 

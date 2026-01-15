@@ -45,7 +45,8 @@
     "test:stress": "npm run test:k6-common k6 run -e TEST_TYPE=stress \"./dist/test/performance/perf_test.js\"",
     "test:request:rate": "npm run test:k6-common && k6 run -e RATE=true \"./dist/test/performance/perf_test.js\"",
     "release": "release-it --non-interactive",
-    "changelog": "auto-changelog -p"
+    "changelog": "auto-changelog -p",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@chainsafe/libp2p-noise": "^17.0.0",
@@ -126,6 +127,8 @@
     "eslint-plugin-promise": "^6.1.1",
     "mocha": "^11.1.0",
     "nyc": "^17.1.0",
+    "patch-package": "^8.0.1",
+    "postinstall-postinstall": "^2.1.0",
     "prettier": "^3.7.4",
     "release-it": "^19.0.6",
     "sinon": "^19.0.2",

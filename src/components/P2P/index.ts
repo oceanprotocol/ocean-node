@@ -117,11 +117,11 @@ export class OceanP2P extends EventEmitter {
     this._libp2p.addEventListener('peer:discovery', (details: any) => {
       this.handlePeerDiscovery(details)
     })
-    this._libp2p.addEventListener('certificate:provision', (details: any) => {
-      this.handleCertificateProvision(details)
+    this._libp2p.addEventListener('certificate:provision', () => {
+      this.handleCertificateProvision()
     })
-    this._libp2p.addEventListener('certificate:renew', (details: any) => {
-      this.handleCertificateProvision(details)
+    this._libp2p.addEventListener('certificate:renew', () => {
+      this.handleCertificateRenew()
     })
     this._options = Object.assign(
       {},
@@ -198,20 +198,24 @@ export class OceanP2P extends EventEmitter {
     }
   }
 
-  handleCertificateProvision(details: any) {
-    console.log('A TLS certificate was provisioned')
-    console.log('Details: ' + JSON.stringify(details))
+  handleCertificateProvision() {
+    console.log('----- A TLS certificate was provisioned -----')
     const interval = setInterval(() => {
       const mas = this._libp2p
         .getMultiaddrs()
         .filter((ma: any) => ma.toString().includes('/sni/'))
         .map((ma: any) => ma.toString())
       if (mas.length > 0) {
-        console.log('addresses:')
+        console.log('----- TLS addresses: -----')
         console.log(mas.join('\n'))
+        console.log('----- End of TLS addresses -----')
       }
       clearInterval(interval)
     }, 1_000)
+  }
+
+  handleCertificateRenew() {
+    console.log('----- A TLS certificate was renewed -----')
   }
 
   handlePeerJoined(details: any) {
@@ -316,7 +320,7 @@ export class OceanP2P extends EventEmitter {
           listen: bindInterfaces,
           announceFilter: (multiaddrs: any[]) =>
             multiaddrs.filter((m) => this.shouldAnnounce(m)),
-          appendAnnounce: config.p2pConfig.announceAddresses
+          announce: config.p2pConfig.announceAddresses
         }
       } else {
         addresses = {
