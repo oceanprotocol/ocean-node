@@ -199,23 +199,23 @@ export class OceanP2P extends EventEmitter {
   }
 
   handleCertificateProvision() {
-    console.log('----- A TLS certificate was provisioned -----')
+    P2P_LOGGER.info('----- A TLS certificate was provisioned -----')
     const interval = setInterval(() => {
       const mas = this._libp2p
         .getMultiaddrs()
         .filter((ma: any) => ma.toString().includes('/sni/'))
         .map((ma: any) => ma.toString())
       if (mas.length > 0) {
-        console.log('----- TLS addresses: -----')
-        console.log(mas.join('\n'))
-        console.log('----- End of TLS addresses -----')
+        P2P_LOGGER.info('----- TLS addresses: -----')
+        P2P_LOGGER.info(mas.join('\n'))
+        P2P_LOGGER.info('----- End of TLS addresses -----')
       }
       clearInterval(interval)
     }, 1_000)
   }
 
   handleCertificateRenew() {
-    console.log('----- A TLS certificate was renewed -----')
+    P2P_LOGGER.info('----- A TLS certificate was renewed -----')
   }
 
   handlePeerJoined(details: any) {
