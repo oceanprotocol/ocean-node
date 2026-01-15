@@ -46,7 +46,7 @@
     "test:request:rate": "npm run test:k6-common && k6 run -e RATE=true \"./dist/test/performance/perf_test.js\"",
     "release": "release-it --non-interactive",
     "changelog": "auto-changelog -p",
-    "postinstall": "python3 scripts/fix-libp2p-http-utils.py"
+    "postinstall": "node scripts/fix-libp2p-http-utils.js"
   },
   "dependencies": {
     "@chainsafe/libp2p-noise": "^17.0.0",
