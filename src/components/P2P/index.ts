@@ -320,7 +320,7 @@ export class OceanP2P extends EventEmitter {
           listen: bindInterfaces,
           announceFilter: (multiaddrs: any[]) =>
             multiaddrs.filter((m) => this.shouldAnnounce(m)),
-          announce: config.p2pConfig.announceAddresses
+          appendAnnounce: config.p2pConfig.announceAddresses
         }
       } else {
         addresses = {
@@ -364,7 +364,9 @@ export class OceanP2P extends EventEmitter {
         dcutr: dcutr(),
         keychain: keychain(),
         http: http(),
-        autoTLS: autoTLS()
+        autoTLS: autoTLS({
+          autoConfirmAddress: true
+        })
       }
 
       // eslint-disable-next-line no-constant-condition, no-self-compare
