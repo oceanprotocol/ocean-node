@@ -148,7 +148,7 @@ export class Escrow {
     while (retries > 0) {
       auths = await this.getAuthorizations(chain, token, payer, signerAddress, blockchain)
       if (!auths || auths.length !== 1) {
-        throw new Error(
+        console.log(
           `No escrow auths found for: chain=${chain}, token=${token}, payer=${payer}, nodeAddress=${signerAddress}. Found ${
             auths?.length || 0
           } authorizations. ${retries > 0 ? 'Retrying..' : ''}`
@@ -160,6 +160,13 @@ export class Escrow {
         await sleep(1000)
       }
       retries--
+    }
+    if (!auths || auths.length !== 1) {
+      throw new Error(
+        `No escrow auths found for: chain=${chain}, token=${token}, payer=${payer}, nodeAddress=${signerAddress}. Found ${
+          auths?.length || 0
+        } authorizations.`
+      )
     }
 
     if (
