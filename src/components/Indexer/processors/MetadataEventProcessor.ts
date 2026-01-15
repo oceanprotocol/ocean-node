@@ -65,16 +65,47 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         signer
       )
       const metaData = await templateContract.getMetaData()
-      const metaDataState = Number(metaData[2])
+      const metadataState = Number(metaData[2])
 
-      if ([MetadataStates.DEPRECATED, MetadataStates.REVOKED].includes(metaDataState)) {
+      if ([MetadataStates.DEPRECATED, MetadataStates.REVOKED].includes(metadataState)) {
         INDEXER_LOGGER.logMessage(
-          `Delete DDO because Metadata state is ${metaDataState}`,
+          `Delete DDO because Metadata state is ${metadataState}`,
           true
         )
-        await ddoDatabase.delete(did)
-        await ddoState.delete(did)
-        return
+        const { ddo: ddoDatabase } = await getDatabase()
+        const ddo = await ddoDatabase.retrieve(did)
+        if (!ddo) {
+          INDEXER_LOGGER.logMessage(
+            `Detected MetadataState changed for ${did}, but it does not exists.`
+          )
+          return
+        }
+
+        const ddoInstance = DDOManager.getDDOClass(ddo)
+
+        INDEXER_LOGGER.logMessage(
+          `DDO became non-visible from ${
+            ddoInstance.getAssetFields().indexedMetadata.nft.state
+          } to ${metadataState}`
+        )
+
+        const shortDdoInstance = DDOManager.getDDOClass({
+          id: ddo.id,
+          version: 'deprecated',
+          chainId,
+          nftAddress: ddo.nftAddress,
+          indexedMetadata: {
+            nft: {
+              state: metadataState
+            }
+          }
+        })
+
+        const savedDDO = await this.createOrUpdateDDO(
+          shortDdoInstance,
+          EVENTS.METADATA_STATE
+        )
+        return savedDDO
       }
 
       const ddo = await this.decryptDDO(
