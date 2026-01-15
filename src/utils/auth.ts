@@ -53,18 +53,20 @@ export async function validateAdminSignature(
     if (allowed) {
       return { valid: true, error: '' }
     }
-    for (const chainId of Object.keys(accessLists)) {
-      allowed = await checkSingleCredential(
-        {
-          type: CREDENTIALS_TYPES.ACCESS_LIST,
-          chainId: parseInt(chainId),
-          accessList: accessLists[chainId]
-        },
-        signerAddress,
-        null
-      )
-      if (allowed) {
-        return { valid: true, error: '' }
+    if (accessLists) {
+      for (const chainId of Object.keys(accessLists)) {
+        allowed = await checkSingleCredential(
+          {
+            type: CREDENTIALS_TYPES.ACCESS_LIST,
+            chainId: parseInt(chainId),
+            accessList: accessLists[chainId]
+          },
+          signerAddress,
+          null
+        )
+        if (allowed) {
+          return { valid: true, error: '' }
+        }
       }
     }
 
