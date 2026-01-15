@@ -450,7 +450,15 @@ export class GetDdoHandler extends CommandHandler {
       return validationResponse
     }
     try {
-      const ddo = await this.getOceanNode().getDatabase().ddo.retrieve(task.id)
+      const database = this.getOceanNode().getDatabase()
+      if (!database || !database.ddo) {
+        CORE_LOGGER.error('DDO database is not available')
+        return {
+          stream: null,
+          status: { httpStatus: 503, error: 'DDO database is not available' }
+        }
+      }
+      const ddo = await database.ddo.retrieve(task.id)
       if (!ddo) {
         return {
           stream: null,
@@ -590,9 +598,12 @@ export class FindDdoHandler extends CommandHandler {
               updatedCache = true
               // also store it locally on db
               if (configuration.hasIndexer) {
-                const ddoExistsLocally = await node.getDatabase().ddo.retrieve(ddo.id)
-                if (!ddoExistsLocally) {
-                  p2pNode.storeAndAdvertiseDDOS([ddo])
+                const database = node.getDatabase()
+                if (database && database.ddo) {
+                  const ddoExistsLocally = await database.ddo.retrieve(ddo.id)
+                  if (!ddoExistsLocally) {
+                    p2pNode.storeAndAdvertiseDDOS([ddo])
+                  }
                 }
               }
             } else {
@@ -736,8 +747,16 @@ export class FindDdoHandler extends CommandHandler {
     // First try to find the DDO Locally if findDDO is not enforced
     if (!force) {
       try {
-        const ddo = await node.getDatabase().ddo.retrieve(ddoId)
-        return ddo as DDO
+        const database = node.getDatabase()
+        if (database && database.ddo) {
+          const ddo = await database.ddo.retrieve(ddoId)
+          return ddo as DDO
+        } else {
+          CORE_LOGGER.logMessage(
+            `DDO database is not available. Proceeding to call findDDO`,
+            true
+          )
+        }
       } catch (error) {
         CORE_LOGGER.logMessage(
           `Unable to find DDO locally. Proceeding to call findDDO`,
