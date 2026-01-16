@@ -32,6 +32,11 @@ npm run quickstart
 
 This command will run you through the process of setting up the environmental variables for your node.
 
+> [!NOTE]
+> The quickstart script attempts to automatically detect GPUs (NVIDIA via `nvidia-smi`, others via `lspci`) and appends them to your `DOCKER_COMPUTE_ENVIRONMENTS`.
+> If you choose to manually configure `DOCKER_COMPUTE_ENVIRONMENTS` before running the script (e.g. via environment variable), be aware that auto-detected GPUs will be **merged** into your configuration, which could lead to duplication if you already manually defined them.
+> For most users, it is recommended to let the script handle GPU detection automatically.
+
 ## Option 3: Running Ocean Nodes with PM2
 
 PM2 is a process manager that makes it easy to manage and monitor your Node.js applications.
