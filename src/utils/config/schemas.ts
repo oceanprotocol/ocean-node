@@ -322,7 +322,9 @@ export const OceanNodeConfigSchema = z
       .default([...DEFAULT_UNSAFE_URLS]),
     isBootstrap: booleanFromString.optional().default(false),
     validateUnsignedDDO: booleanFromString.optional().default(true),
-    jwtSecret: z.string()
+    jwtSecret: z.string(),
+    httpCertPath: z.string().optional(),
+    httpKeyPath: z.string().optional()
   })
   .passthrough()
   .superRefine((data, ctx) => {

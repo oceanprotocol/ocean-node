@@ -63,8 +63,9 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `UNSAFE_URLS`: Array or regular expression URLs to be excluded from access.Example: ["^.*(169.254.169.254).*","^.*(127.0.0.1).*"]
 
 ## HTTP
-
 - `HTTP_API_PORT`: Port number for the HTTP API. Example: `8000`
+- `HTTP_CERT_PATH`: Absolute path to the TLS certificate file. If provided along with `HTTP_KEY_PATH`, the node will start an HTTPS server. Example: `"/etc/letsencrypt/live/example.com/fullchain.pem"`
+- `HTTP_KEY_PATH`: Absolute path to the TLS private key file. If provided along with `HTTP_CERT_PATH`, the node will start an HTTPS server. Example: `"/etc/letsencrypt/live/example.com/privkey.pem"`
 
 ## P2P
 

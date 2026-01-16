@@ -117,6 +117,8 @@ export interface OceanNodeConfig {
   isBootstrap?: boolean
   validateUnsignedDDO?: boolean
   jwtSecret?: string
+  httpCertPath?: string
+  httpKeyPath?: string
 }
 
 export interface P2PStatusResponse {

@@ -65,7 +65,9 @@ export const ENV_TO_CONFIG_MAPPING = {
   P2P_AUTODIALCONCURRENCY: 'p2pConfig.autoDialConcurrency',
   P2P_MAXPEERADDRSTODIAL: 'p2pConfig.maxPeerAddrsToDial',
   P2P_AUTODIALINTERVAL: 'p2pConfig.autoDialInterval',
-  P2P_ENABLE_NETWORK_STATS: 'p2pConfig.enableNetworkStats'
+  P2P_ENABLE_NETWORK_STATS: 'p2pConfig.enableNetworkStats',
+  HTTP_CERT_PATH: 'httpCertPath',
+  HTTP_KEY_PATH: 'httpKeyPath'
 } as const
 
 // Configuration defaults
