@@ -13,7 +13,7 @@ import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { asyncCallWithTimeout } from '../../../utils/util.js'
 import { PolicyServer } from '../../policyServer/index.js'
-import { wasNFTDeployedByOurFactory, getPricingStatsForDddo } from '../utils.js'
+import { wasNFTDeployedByOurFactory, getPricingStatsForDddo, getDid } from '../utils.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
 import { Purgatory } from '../purgatory.js'
@@ -49,10 +49,65 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         ERC721Template.abi,
         eventName
       )
+
       const metadata = decodedEventData.args[4]
       const metadataHash = decodedEventData.args[5]
       const flag = decodedEventData.args[3]
       const owner = decodedEventData.args[0]
+
+      const dataNftAddress = ethers.getAddress(event.address)
+
+      did = getDid(event.address, chainId)
+
+      const templateContract = new ethers.Contract(
+        dataNftAddress,
+        ERC721Template.abi,
+        signer
+      )
+      const metaData = await templateContract.getMetaData()
+      const metadataState = Number(metaData[2])
+
+      if ([MetadataStates.DEPRECATED, MetadataStates.REVOKED].includes(metadataState)) {
+        INDEXER_LOGGER.logMessage(
+          `Delete DDO because Metadata state is ${metadataState}`,
+          true
+        )
+        const { ddo: ddoDatabase } = await getDatabase()
+        const ddo = await ddoDatabase.retrieve(did)
+        if (!ddo) {
+          INDEXER_LOGGER.logMessage(
+            `Detected MetadataState changed for ${did}, but it does not exists.`
+          )
+          return
+        }
+
+        const ddoInstance = DDOManager.getDDOClass(ddo)
+
+        INDEXER_LOGGER.logMessage(
+          `DDO became non-visible from ${
+            ddoInstance.getAssetFields().indexedMetadata.nft.state
+          } to ${metadataState}`
+        )
+
+        const shortDdoInstance = DDOManager.getDDOClass({
+          id: ddo.id,
+          version: 'deprecated',
+          chainId,
+          nftAddress: ddo.nftAddress,
+          indexedMetadata: {
+            nft: {
+              state: metadataState
+            }
+          }
+        })
+
+        const savedDDO = await this.createOrUpdateDDO(
+          shortDdoInstance,
+          EVENTS.METADATA_STATE
+        )
+        return savedDDO
+      }
+
       const ddo = await this.decryptDDO(
         decodedEventData.args[2],
         flag,
@@ -208,16 +263,8 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       if (eventName === EVENTS.METADATA_UPDATED) {
         if (!previousDdoInstance) {
           INDEXER_LOGGER.logMessage(
-            `Previous DDO with did ${ddoInstance.getDid()} was not found the database. Maybe it was deleted/hidden to some violation issues`,
+            `Previous DDO with did ${ddoInstance.getDid()} was not found the database`,
             true
-          )
-          await ddoState.update(
-            this.networkId,
-            did,
-            event.address,
-            event.transactionHash,
-            false,
-            `Previous DDO with did ${ddoInstance.getDid()} was not found the database. Maybe it was deleted/hidden to some violation issues`
           )
           return
         }
