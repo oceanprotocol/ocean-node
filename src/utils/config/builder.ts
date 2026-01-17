@@ -3,8 +3,8 @@ import type { C2DClusterInfo, C2DDockerConfig } from '../../@types/C2D/C2D.js'
 import type { RPCS } from '../../@types/blockchain.js'
 import type { FeeTokens } from '../../@types/Fees.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
-import { keys } from '@libp2p/crypto'
-import { createFromPrivKey } from '@libp2p/peer-id-factory'
+import { privateKeyFromRaw } from '@libp2p/crypto/keys'
+import { peerIdFromPrivateKey } from '@libp2p/peer-id'
 import { Wallet } from 'ethers'
 import fs from 'fs'
 import os from 'os'
@@ -84,17 +84,13 @@ function preprocessConfigData(data: any): void {
   }
 }
 
-export async function getPeerIdFromPrivateKey(
-  privateKey: string
-): Promise<OceanNodeKeys> {
-  const key = new keys.supportedKeys.secp256k1.Secp256k1PrivateKey(
-    hexStringToByteArray(privateKey.slice(2))
-  )
+export function getPeerIdFromPrivateKey(privateKey: string): OceanNodeKeys {
+  const key = privateKeyFromRaw(hexStringToByteArray(privateKey.slice(2)))
 
   return {
-    peerId: await createFromPrivKey(key),
-    publicKey: key.public.bytes,
-    privateKey: (key as any)._key,
+    peerId: peerIdFromPrivateKey(key),
+    publicKey: key.publicKey.raw,
+    privateKey: key,
     ethAddress: new Wallet(privateKey.substring(2)).address
   }
 }
@@ -212,7 +208,7 @@ export function loadConfigFromFile(configPath?: string): OceanNodeConfig {
   return config
 }
 
-export async function buildMergedConfig(): Promise<OceanNodeConfig> {
+export function buildMergedConfig(): OceanNodeConfig {
   const baseConfig = loadConfigFromFile()
   const privateKey = process.env.PRIVATE_KEY
   if (!privateKey || privateKey.length !== 66) {
@@ -225,7 +221,7 @@ export async function buildMergedConfig(): Promise<OceanNodeConfig> {
     throw new Error('Invalid PRIVATE_KEY')
   }
 
-  const keys = await getPeerIdFromPrivateKey(privateKey)
+  const keys = getPeerIdFromPrivateKey(privateKey)
 
   const { env } = process
   const envOverrides: Record<string, any> = { keys }
@@ -282,7 +278,7 @@ export async function getConfiguration(
   isStartup: boolean = false
 ): Promise<OceanNodeConfig> {
   if (!previousConfiguration || forceReload) {
-    previousConfiguration = await buildMergedConfig()
+    previousConfiguration = buildMergedConfig()
   }
 
   if (!previousConfiguration.codeHash) {

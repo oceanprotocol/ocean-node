@@ -22,7 +22,7 @@ import { getDatabase } from '../../../utils/database.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { URLUtils } from '../../../utils/url.js'
-import { streamToString } from '../../../utils/util.js'
+import { streamToString, streamToUint8Array } from '../../../utils/util.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
@@ -359,42 +359,7 @@ export abstract class BaseEventProcessor {
         } else {
           try {
             const p2pNode = await node.getP2PNode()
-            let isBinaryContent = false
-            const sink = async function (source: any) {
-              let first = true
-              for await (const chunk of source) {
-                if (first) {
-                  first = false
-                  try {
-                    const str = uint8ArrayToString(chunk.subarray()) // Obs: we need to specify the length of the subarrays
-                    const decoded = JSON.parse(str)
-                    if ('headers' in decoded) {
-                      if (str?.toLowerCase().includes('application/octet-stream')) {
-                        isBinaryContent = true
-                      }
-                    }
-                    if (decoded.httpStatus !== 200) {
-                      INDEXER_LOGGER.logMessage(
-                        `Error in sink method  : ${decoded.httpStatus} errro: ${decoded.error}`
-                      )
-                      throw new Error('Error in sink method', decoded.error)
-                    }
-                  } catch (e) {
-                    INDEXER_LOGGER.logMessage(
-                      `Error in sink method  } error: ${e.message}`
-                    )
-                    throw new Error(`Error in sink method ${e.message}`)
-                  }
-                } else {
-                  if (isBinaryContent) {
-                    return chunk.subarray()
-                  } else {
-                    const str = uint8ArrayToString(chunk.subarray())
-                    return str
-                  }
-                }
-              }
-            }
+
             const message = {
               command: PROTOCOL_COMMANDS.DECRYPT_DDO,
               transactionId: txId,
@@ -406,12 +371,20 @@ export abstract class BaseEventProcessor {
               signature,
               nonce
             }
-            const response = await p2pNode.sendTo(
-              decryptorURL,
-              JSON.stringify(message),
-              sink
-            )
-            ddo = JSON.parse(await streamToString(response.stream as Readable))
+
+            const response = await p2pNode.sendTo(decryptorURL, JSON.stringify(message))
+
+            if (response.status.httpStatus !== 200) {
+              throw new Error(`Decrypt failed: ${response.status.error}`)
+            }
+
+            if (!response.stream) {
+              throw new Error('No data received from decrypt')
+            }
+
+            // Convert stream to Uint8Array
+            const data = await streamToUint8Array(response.stream as Readable)
+            ddo = JSON.parse(uint8ArrayToString(data))
           } catch (error) {
             const message = `Node exception on decrypt DDO. Status: ${error.message}`
             INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)

@@ -132,7 +132,7 @@ export class GetP2PNetworkStatsHandler extends CommandHandler {
     try {
       const config = await getConfiguration()
       if (config.p2pConfig.enableNetworkStats) {
-        const stats = await this.getOceanNode().getP2PNode().getNetworkingStats()
+        const stats = this.getOceanNode().getP2PNode().getNetworkingStats()
         return {
           stream: Readable.from(JSON.stringify(stats, null, 4)),
           status: { httpStatus: 200 }
