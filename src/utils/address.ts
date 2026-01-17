@@ -30,7 +30,6 @@ export function getOceanArtifactsAdresses(): any {
  */
 export function getOceanArtifactsAdressesByChainId(chain: number): any {
   try {
-    // eslint-disable-next-line security/detect-non-literal-fs-filename
     const data = getOceanArtifactsAdresses()
     if (data) {
       const networks = Object.keys(data)
@@ -53,7 +52,7 @@ export function getOceanArtifactsAdressesByChainId(chain: number): any {
 }
 
 // eslint-disable-next-line require-await
-export function getOceanTokenAddressForChain(chainId: number): Promise<string | null> {
+export function getOceanTokenAddressForChain(chainId: number): string | null {
   const addresses = getOceanArtifactsAdressesByChainId(chainId)
   if (addresses && addresses.Ocean) return addresses.Ocean
   return null
