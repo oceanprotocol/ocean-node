@@ -74,7 +74,12 @@ logRoutes.post('/logs', express.json(), validateRequest, async (req, res) => {
 logRoutes.post('/log/:id', express.json(), validateRequest, async (req, res) => {
   try {
     const logId = req.params.id
-    const log = await req.oceanNode.getDatabase().logs.retrieveLog(logId)
+    const database = req.oceanNode.getDatabase()
+    if (!database || !database.logs) {
+      res.status(503).send('Logs database is not available')
+      return
+    }
+    const log = await database.logs.retrieveLog(logId)
     if (log) {
       res.json(log)
     } else {
