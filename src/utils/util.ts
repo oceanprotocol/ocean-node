@@ -81,6 +81,14 @@ export function fetchEventFromTransaction(
   }
 }
 
+export async function streamToUint8Array(stream: Readable): Promise<Uint8Array> {
+  const chunks: Buffer[] = []
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+  }
+  return new Uint8Array(Buffer.concat(chunks))
+}
+
 // Helper function to read from a stream
 export function readStream(stream: Stream): Promise<string> {
   return new Promise((resolve, reject) => {
