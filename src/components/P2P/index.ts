@@ -53,6 +53,7 @@ const store = new LevelDatastore('./databases/p2p-store')
 import { autoTLS } from '@ipshipyard/libp2p-auto-tls'
 import { keychain } from '@libp2p/keychain'
 import { http } from '@libp2p/http'
+import { tls } from '@libp2p/tls'
 
 const DEFAULT_OPTIONS = {
   pollInterval: 1000
@@ -408,7 +409,8 @@ export class OceanP2P extends EventEmitter {
         transports,
         streamMuxers: [yamux()],
         connectionEncrypters: [
-          noise()
+          noise(),
+          tls()
           // plaintext()
         ],
         services: servicesConfig,

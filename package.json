@@ -68,6 +68,7 @@
     "@libp2p/pubsub": "^10.1.18",
     "@libp2p/pubsub-peer-discovery": "^12.0.0",
     "@libp2p/tcp": "^11.0.9",
+    "@libp2p/tls": "^3.0.10",
     "@libp2p/upnp-nat": "^4.0.9",
     "@libp2p/websockets": "^10.1.2",
     "@multiformats/multiaddr": "^12.2.3",
