@@ -490,3 +490,226 @@ Name: /physical_device:GPU:0   Type: GPU
 Warning: Resource leak detected by SharedSignalPool, 385 Signals leaked.
 pid:1 tid:0x7f4476ac1740 [~VaMgr] frag_map_ size is not 1.
 ```
+
+## Intel Arc GPU Example
+
+First, install Intel GPU drivers (https://dgpu-docs.intel.com/driver/installation.html), then install Intel container toolkit (https://github.com/intel/intel-device-plugins-for-kubernetes/tree/main/cmd/gpu_plugin)
+
+Once that is done, check if you can get gpu details by running `clinfo`:
+
+```bash
+root@gpu-1:/repos/ocean/ocean-node# clinfo
+Number of platforms: 1
+  Platform #0: Intel(R) OpenCL Graphics
+    Number of devices: 1
+      Device #0: Intel(R) Arc(TM) A770M Graphics
+        Board name: Intel Arc Graphics
+        Vendor ID: 0x8086
+        Device ID: 0x56a0
+        Device Topology (NV12): PCI[ B#3 D#0 F#0 ]
+        Max compute units: 32
+        Max clock frequency: 2400 MHz
+        Device extensions: cl_khr_fp64 cl_khr_fp16 cl_intel_subgroups ...
+```
+
+Now, get the device UUID:
+
+```bash
+root@gpu-1:/repos/ocean/ocean-node# lspci -D | grep VGA
+0000:03:00.0 VGA compatible controller: Intel Corporation Arc Graphics
+```
+
+For container runtime, Intel Arc GPUs use `/dev/dri/renderD128` or similar:
+
+```bash
+root@gpu-1:/repos/ocean/ocean-node# ls -la /dev/dri/
+crw-rw---- 1 root render 226,   0 Apr 25 10:00 card0
+crw-rw---- 1 root render 226, 128 Apr 25 10:00 renderD128
+```
+
+Now, we can define the GPU for the node:
+
+```json
+{
+  "id": "intelGPU",
+  "description": "Intel Arc A770M Graphics",
+  "type": "gpu",
+  "total": 1,
+  "init": {
+    "advanced": {
+      "Devices": ["/dev/dri/renderD128", "/dev/dri/card0"],
+      "GroupAdd": ["video", "render"],
+      "CapAdd": ["SYS_ADMIN"]
+    }
+  }
+}
+```
+
+Here is the full definition of DOCKER_COMPUTE_ENVIRONMENTS with Intel GPU:
+
+```json
+[
+  {
+    "socketPath": "/var/run/docker.sock",
+    "resources": [
+      {
+        "id": "intelGPU",
+        "description": "Intel Arc A770M Graphics",
+        "type": "gpu",
+        "total": 1,
+        "init": {
+          "advanced": {
+            "Devices": ["/dev/dri/renderD128", "/dev/dri/card0"],
+            "GroupAdd": ["video", "render"],
+            "CapAdd": ["SYS_ADMIN"]
+          }
+        }
+      },
+      { "id": "disk", "total": 1 }
+    ],
+    "storageExpiry": 604800,
+    "maxJobDuration": 3600,
+    "minJobDuration": 60,
+    "fees": {
+      "1": [
+        {
+          "feeToken": "0x123",
+          "prices": [
+            { "id": "cpu", "price": 1 },
+            { "id": "intelGPU", "price": 2 }
+          ]
+        }
+      ]
+    },
+    "free": {
+      "maxJobDuration": 60,
+      "minJobDuration": 10,
+      "maxJobs": 3,
+      "resources": [
+        { "id": "cpu", "max": 1 },
+        { "id": "ram", "max": 1 },
+        { "id": "disk", "max": 1 },
+        { "id": "intelGPU", "max": 1 }
+      ]
+    }
+  }
+]
+```
+
+Verify you have it in your compute environments:
+
+```bash
+root@gpu-1:/repos/ocean/ocean-node# curl http://localhost:8000/api/services/computeEnvironments
+```
+
+```json
+[
+  {
+    "id": "0xaa1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab-0xbb0987654321fedcba0987654321fedcba0987654321fedcba0987654321fed",
+    "runningJobs": 0,
+    "consumerAddress": "0x00",
+    "platform": { "architecture": "x86_64", "os": "Ubuntu 22.04.3 LTS" },
+    "fees": {
+      "1": [
+        {
+          "feeToken": "0x123",
+          "prices": [
+            { "id": "cpu", "price": 1 },
+            { "id": "intelGPU", "price": 2 }
+          ]
+        }
+      ]
+    },
+    "storageExpiry": 604800,
+    "maxJobDuration": 3600,
+    "minJobDuration": 60,
+    "resources": [
+      { "id": "cpu", "total": 16, "max": 16, "min": 1, "inUse": 0 },
+      {
+        "id": "ram",
+        "total": 32,
+        "max": 32,
+        "min": 1,
+        "inUse": 0
+      },
+      {
+        "id": "intelGPU",
+        "description": "Intel Arc A770M Graphics",
+        "type": "gpu",
+        "total": 1,
+        "init": {
+          "advanced": {
+            "Devices": ["/dev/dri/renderD128", "/dev/dri/card0"],
+            "GroupAdd": ["video", "render"],
+            "CapAdd": ["SYS_ADMIN"]
+          }
+        },
+        "max": 1,
+        "min": 0,
+        "inUse": 0
+      },
+      { "id": "disk", "total": 1, "max": 1, "min": 0, "inUse": 0 }
+    ],
+    "free": {
+      "maxJobDuration": 60,
+      "minJobDuration": 10,
+      "maxJobs": 3,
+      "resources": [
+        { "id": "cpu", "max": 1, "inUse": 0 },
+        { "id": "ram", "max": 1, "inUse": 0 },
+        { "id": "disk", "max": 1, "inUse": 0 },
+        { "id": "intelGPU", "max": 1, "inUse": 0 }
+      ]
+    },
+    "runningfreeJobs": 0
+  }
+]
+```
+
+Start a free job using Intel GPU with:
+
+```json
+{
+  "command": "freeStartCompute",
+  "algorithm": {
+    "meta": {
+      "container": {
+        "image": "intel/oneapi-runtime",
+        "tag": "2024.0-devel-ubuntu22.04",
+        "entrypoint": "python $ALGO"
+      },
+      "rawcode": "import os\nprint('GPU device available:')\nos.system('clinfo')"
+    }
+  },
+  "consumerAddress": "0x00",
+  "signature": "123",
+  "nonce": 1,
+  "environment": "0xaa1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab-0xbb0987654321fedcba0987654321fedcba0987654321fedcba0987654321fed",
+  "resources": [
+    {
+      "id": "cpu",
+      "amount": 1
+    },
+    {
+      "id": "intelGPU",
+      "amount": 1
+    }
+  ]
+}
+```
+
+And the output of `getComputeResult` should look like:
+
+```bash
+Number of platforms: 1
+  Platform #0: Intel(R) OpenCL Graphics
+    Number of devices: 1
+      Device #0: Intel(R) Arc(TM) A770M Graphics
+        Board name: Intel Arc Graphics
+        Vendor ID: 0x8086
+        Device ID: 0x56a0
+        Device Topology (NV12): PCI[ B#3 D#0 F#0 ]
+        Max compute units: 32
+        Max clock frequency: 2400 MHz
+        Device extensions: cl_khr_fp64 cl_khr_fp16 cl_intel_subgroups ...
+```
