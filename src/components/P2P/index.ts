@@ -46,6 +46,9 @@ import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
 import { P2P_LOGGER } from '../../utils/logging/common.js'
 import { CoreHandlersRegistry } from '../core/handler/coreHandlersRegistry'
 import { Multiaddr, multiaddr } from '@multiformats/multiaddr'
+import { LevelDatastore } from 'datastore-level'
+const store = new LevelDatastore('./databases/p2p-store')
+
 // import { getIPv4, getIPv6 } from '../../utils/ip.js'
 import { autoTLS } from '@ipshipyard/libp2p-auto-tls'
 import { keychain } from '@libp2p/keychain'
@@ -400,6 +403,7 @@ export class OceanP2P extends EventEmitter {
 
       let options = {
         addresses,
+        datastore: store,
         privateKey: config.keys.privateKey,
         transports,
         streamMuxers: [yamux()],
