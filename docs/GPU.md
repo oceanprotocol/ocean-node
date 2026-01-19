@@ -559,8 +559,8 @@ Here is the full definition of DOCKER_COMPUTE_ENVIRONMENTS with Intel GPU:
         "total": 1,
         "init": {
           "advanced": {
-            "Devices": ["/dev/dri/renderD128"],
-            "GroupAdd": ["video"],
+            "Devices": ["/dev/dri/renderD128", "/dev/dri/card0"],
+            "GroupAdd": ["video", "render"],
             "CapAdd": ["SYS_ADMIN"]
           }
         }
@@ -639,8 +639,8 @@ root@gpu-1:/repos/ocean/ocean-node# curl http://localhost:8000/api/services/comp
         "total": 1,
         "init": {
           "advanced": {
-            "Devices": ["/dev/dri/renderD128"],
-            "GroupAdd": ["video"],
+            "Devices": ["/dev/dri/renderD128", "/dev/dri/card0"],
+            "GroupAdd": ["video", "render"],
             "CapAdd": ["SYS_ADMIN"]
           }
         },
