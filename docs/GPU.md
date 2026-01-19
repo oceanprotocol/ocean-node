@@ -537,7 +537,7 @@ Now, we can define the GPU for the node:
   "total": 1,
   "init": {
     "advanced": {
-      "Devices": ["/dev/dri/renderD128"],
+      "Devices": ["/dev/dri/renderD128", "/dev/dri/card0"],
       "GroupAdd": ["video", "render"],
       "CapAdd": ["SYS_ADMIN"]
     }
