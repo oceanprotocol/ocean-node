@@ -52,6 +52,69 @@ validate_ip_or_fqdn() {
   return 0
 }
 
+ensure_jq() {
+
+    if command -v jq >/dev/null 2>&1; then
+        echo "jq is already installed."
+        return 0
+    fi
+
+    echo "jq not found. Attempting to install..."
+
+    if [ "$(id -u)" -ne 0 ]; then
+        SUDO="sudo"
+    else
+        SUDO=""
+    fi
+
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        case "$ID" in
+            debian|ubuntu|linuxmint|pop|kali)
+                $SUDO apt-get update && $SUDO apt-get install -y jq
+                ;;
+            fedora)
+                $SUDO dnf install -y jq
+                ;;
+            centos|rhel|almalinux|rocky)
+                if command -v dnf >/dev/null; then
+                    $SUDO dnf install -y epel-release
+                    $SUDO dnf install -y jq
+                else
+                    $SUDO yum install -y epel-release
+                    $SUDO yum install -y jq
+                fi
+                ;;
+            alpine)
+                $SUDO apk add jq
+                ;;
+            arch|manjaro)
+                $SUDO pacman -Sy --noconfirm jq
+                ;;
+            opensuse*|sles)
+                $SUDO zypper install -y jq
+                ;;
+            *)
+                echo "Error: Unsupported distribution '$ID'. Please install jq manually."
+                return 1
+                ;;
+        esac
+    else
+        echo "Error: Cannot detect OS distribution. Please install jq manually."
+        return 1
+    fi
+
+    if command -v jq >/dev/null 2>&1; then
+        echo "jq installed successfully."
+        return 0
+    else
+        echo "Error: Failed to install jq."
+        return 1
+    fi
+}
+
+echo "Checking prerequisites (jq) are installed.."
+ensure_jq
 
 read -p "Do you have your private key for running the Ocean Node [ y/n ]: " has_key
 
@@ -68,6 +131,7 @@ else
   echo "Generating Private Key, please wait..."
   output=$(head -c 32 /dev/urandom | xxd -p | tr -d '\n' | awk '{print "0x" $0}')
   PRIVATE_KEY=$(echo "$output")
+
   echo -e "Generated Private Key: \e[1;31m$PRIVATE_KEY\e[0m" 
   validate_hex "$PRIVATE_KEY"
 fi
