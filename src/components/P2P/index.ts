@@ -287,7 +287,10 @@ export class OceanP2P extends EventEmitter {
       this._privateKey = config.keys.privateKey.raw
       /** @type {import('libp2p').Libp2pOptions} */
       // start with some default, overwrite based on config later
-      const bindInterfaces = []
+      const bindInterfaces = [
+        '/ip4/0.0.0.0/tcp/0/ws',
+        '/ip6/::/tcp/0/ws'
+      ]
       if (config.p2pConfig.enableIPV4) {
         P2P_LOGGER.info('Binding P2P sockets to IPV4')
         bindInterfaces.push(
@@ -690,7 +693,7 @@ export class OceanP2P extends EventEmitter {
         useNetwork: true
       })
       return data
-    } catch (e) {}
+    } catch (e) { }
     return null
   }
 
@@ -774,7 +777,7 @@ export class OceanP2P extends EventEmitter {
       P2P_LOGGER.error(`P2P communication error: ${err.message}`)
       try {
         stream.abort(err as Error)
-      } catch {}
+      } catch { }
       return { status: { httpStatus: 500, error: `P2P error: ${err.message}` } }
     }
   }
