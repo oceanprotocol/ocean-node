@@ -284,10 +284,14 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/initializeCompute`, async (req, re
       res.status(400).send('Missing required body')
       return
     }
-    if (!body.datasets && !body.algorithm) {
-      res.status(400).send('Missing datasets and algorithm')
+
+    body.datasets = body.datasets || []
+
+    if (!body.algorithm) {
+      res.status(400).send('Missing algorithm')
       return
     }
+
     for (const dataset of body.datasets) {
       if (!dataset.documentId) {
         res.status(400).send('Missing dataset did')
