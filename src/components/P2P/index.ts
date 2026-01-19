@@ -318,15 +318,15 @@ export class OceanP2P extends EventEmitter {
       ) {
         addresses = {
           listen: bindInterfaces,
-          announceFilter: (multiaddrs: any[]) =>
-            multiaddrs.filter((m) => this.shouldAnnounce(m)),
+          // announceFilter: (multiaddrs: any[]) =>
+          //   multiaddrs.filter((m) => this.shouldAnnounce(m)),
           appendAnnounce: config.p2pConfig.announceAddresses
         }
       } else {
         addresses = {
           listen: bindInterfaces,
-          announceFilter: (multiaddrs: any[]) =>
-            multiaddrs.filter((m) => this.shouldAnnounce(m))
+          // announceFilter: (multiaddrs: any[]) =>
+          //   multiaddrs.filter((m) => this.shouldAnnounce(m))
         }
       }
       const dhtOptions = {
