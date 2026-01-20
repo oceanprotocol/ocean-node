@@ -92,6 +92,8 @@ export class PaidComputeStartHandler extends CommandHandler {
       try {
         engine = await node.getC2DEngines().getC2DByHash(hash)
       } catch (e) {
+        const errMsg = e?.message || String(e)
+        CORE_LOGGER.error(`Invalid C2D Environment: ${errMsg}`)
         return {
           stream: null,
           status: {
@@ -121,11 +123,13 @@ export class PaidComputeStartHandler extends CommandHandler {
           false
         )
       } catch (e) {
+        const errMsg = e?.message || String(e)
+        CORE_LOGGER.error(`Error checking and filling missing resources: ${errMsg}`)
         return {
           stream: null,
           status: {
             httpStatus: 400,
-            error: e?.message || String(e)
+            error: errMsg
           }
         }
       }
@@ -137,6 +141,8 @@ export class PaidComputeStartHandler extends CommandHandler {
             `Compute resources not available, queuing job for max ${task.queueMaxWaitTime} seconds`
           )
         } else {
+          const errMsg = e?.message || String(e)
+          CORE_LOGGER.error(`Error checking if resources are available: ${errMsg}`)
           return {
             stream: null,
             status: {
@@ -505,6 +511,8 @@ export class PaidComputeStartHandler extends CommandHandler {
           )
         )
       } catch (e) {
+        const errMsg = e?.message || String(e)
+        CORE_LOGGER.error(`Error creating lock: ${errMsg}`)
         if (e.message.includes('insufficient funds for intrinsic transaction cost')) {
           return {
             stream: null,
@@ -556,6 +564,8 @@ export class PaidComputeStartHandler extends CommandHandler {
           }
         }
       } catch (e) {
+        const errMsg = e?.message || String(e)
+        CORE_LOGGER.error(`Error starting compute job: ${errMsg}`)
         try {
           await engine.escrow.cancelExpiredLocks(
             task.payment.chainId,
@@ -564,6 +574,8 @@ export class PaidComputeStartHandler extends CommandHandler {
             task.consumerAddress
           )
         } catch (cancelError) {
+          const cancelErrMsg = cancelError?.message || String(cancelError)
+          CORE_LOGGER.error(`Error canceling expired locks: ${cancelErrMsg}`)
           // is fine if it fails
         }
         return {
@@ -575,7 +587,8 @@ export class PaidComputeStartHandler extends CommandHandler {
         }
       }
     } catch (error) {
-      CORE_LOGGER.error(error.message)
+      const errMsg = error?.message || String(error)
+      CORE_LOGGER.error(`Error starting compute job: ${errMsg}`)
       return {
         stream: null,
         status: {
