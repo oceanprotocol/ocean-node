@@ -134,7 +134,7 @@ export class PaidComputeStartHandler extends CommandHandler {
         }
       }
       try {
-        await engine.checkIfResourcesAreAvailable(task.resources, env, true)
+        await engine.checkIfResourcesAreAvailable(task.resources, env, false)
       } catch (e) {
         if (task.queueMaxWaitTime > 0) {
           CORE_LOGGER.verbose(
