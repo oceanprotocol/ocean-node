@@ -368,6 +368,9 @@ export class OceanP2P extends EventEmitter {
         dcutr: dcutr(),
         keychain: keychain(),
         http: http(),
+        // Always announe the public address and tls in P2P_ANNOUNCE_ADDRESSES / p2pConfig.announceAddresses.
+        // Ex. /ip4/<ip-address>/tcp/<port>/tls/ws
+        // Ex. /ip4/<ip-address>/tcp/<port>/tls/wss
         autoTLS: autoTLS({
           autoConfirmAddress: true
         })
