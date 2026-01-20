@@ -131,7 +131,7 @@ export class C2DEngineDocker extends C2DEngine {
             envConfig.fees[feeChain][i].prices.length > 0
           ) {
             if (!envConfig.fees[feeChain][i].feeToken) {
-              const tokenAddress = await getOceanTokenAddressForChain(parseInt(feeChain))
+              const tokenAddress = getOceanTokenAddressForChain(parseInt(feeChain))
               if (tokenAddress) {
                 envConfig.fees[feeChain][i].feeToken = tokenAddress
                 tmpFees.push(envConfig.fees[feeChain][i])
@@ -947,7 +947,7 @@ export class C2DEngineDocker extends C2DEngine {
       }
       // resources are now available, let's start the job
       const { algorithm } = job
-      if (algorithm.meta.container && algorithm.meta.container.dockerfile) {
+      if (algorithm?.meta.container && algorithm?.meta.container.dockerfile) {
         job.status = C2DStatusNumber.BuildImage
         job.statusText = C2DStatusText.BuildImage
         this.buildImage(job, null)
@@ -1050,7 +1050,7 @@ export class C2DEngineDocker extends C2DEngine {
         containerInfo.HostConfig.IpcMode = advancedConfig.IpcMode
       if (advancedConfig.ShmSize)
         containerInfo.HostConfig.ShmSize = advancedConfig.ShmSize
-      if (job.algorithm.meta.container.entrypoint) {
+      if (job.algorithm?.meta.container.entrypoint) {
         const newEntrypoint = job.algorithm.meta.container.entrypoint.replace(
           '$ALGO',
           'data/transformations/algorithm'
@@ -1348,7 +1348,7 @@ export class C2DEngineDocker extends C2DEngine {
       // console.error('Container not found! ' + e.message)
     }
     try {
-      const volume = await this.docker.getVolume(job.jobId + '-volume')
+      const volume = this.docker.getVolume(job.jobId + '-volume')
       if (volume) {
         try {
           await volume.remove()
@@ -1359,7 +1359,7 @@ export class C2DEngineDocker extends C2DEngine {
     } catch (e) {
       // console.error('Container volume not found! ' + e.message)
     }
-    if (job.algorithm.meta.container && job.algorithm.meta.container.dockerfile) {
+    if (job.algorithm?.meta.container && job.algorithm?.meta.container.dockerfile) {
       const image = getAlgorithmImage(job.algorithm, job.jobId)
       if (image) {
         try {
