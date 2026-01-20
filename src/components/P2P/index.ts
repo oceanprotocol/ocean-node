@@ -47,13 +47,13 @@ import { P2P_LOGGER } from '../../utils/logging/common.js'
 import { CoreHandlersRegistry } from '../core/handler/coreHandlersRegistry'
 import { Multiaddr, multiaddr } from '@multiformats/multiaddr'
 import { LevelDatastore } from 'datastore-level'
-const store = new LevelDatastore('./databases/p2p-store')
 
 // import { getIPv4, getIPv6 } from '../../utils/ip.js'
 import { autoTLS } from '@ipshipyard/libp2p-auto-tls'
 import { keychain } from '@libp2p/keychain'
 import { http } from '@libp2p/http'
 import { tls } from '@libp2p/tls'
+const store = new LevelDatastore('./databases/p2p-store')
 
 const DEFAULT_OPTIONS = {
   pollInterval: 1000
@@ -322,15 +322,15 @@ export class OceanP2P extends EventEmitter {
       ) {
         addresses = {
           listen: bindInterfaces,
-          // announceFilter: (multiaddrs: any[]) =>
-          //   multiaddrs.filter((m) => this.shouldAnnounce(m)),
+          announceFilter: (multiaddrs: any[]) =>
+            multiaddrs.filter((m) => this.shouldAnnounce(m)),
           appendAnnounce: config.p2pConfig.announceAddresses
         }
       } else {
         addresses = {
           listen: bindInterfaces,
-          // announceFilter: (multiaddrs: any[]) =>
-          //   multiaddrs.filter((m) => this.shouldAnnounce(m))
+          announceFilter: (multiaddrs: any[]) =>
+            multiaddrs.filter((m) => this.shouldAnnounce(m))
         }
       }
       const dhtOptions = {
