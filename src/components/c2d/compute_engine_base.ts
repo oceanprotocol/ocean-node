@@ -238,11 +238,17 @@ export abstract class C2DEngine {
     let queuedFreeJobs = 0
     let maxWaitTime = 0
     let maxWaitTimeFree = 0
+    let maxRunningTime = 0
+    let maxRunningTimeFree = 0
     for (const job of jobs) {
       if (job.environment === env.id) {
         if (job.queueMaxWaitTime === 0) {
           totalJobs++
-          if (job.isFree) totalFreeJobs++
+          maxRunningTime += job.maxJobDuration
+          if (job.isFree) {
+            totalFreeJobs++
+            maxRunningTimeFree += job.maxJobDuration
+          }
 
           for (const resource of job.resources) {
             if (!(resource.id in usedResources)) usedResources[resource.id] = 0
@@ -271,7 +277,9 @@ export abstract class C2DEngine {
       queuedJobs,
       queuedFreeJobs,
       maxWaitTime,
-      maxWaitTimeFree
+      maxWaitTimeFree,
+      maxRunningTime,
+      maxRunningTimeFree
     }
   }
 
