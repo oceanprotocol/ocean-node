@@ -176,6 +176,10 @@ export class Escrow {
       throw new Error(`No valid escrow auths found(will go over limit)`)
     }
     if (BigInt(auths[0].maxLockSeconds.toString()) < BigInt(expiry)) {
+      console.log({contract: contract.getAddress()})
+      console.log({ auths })
+      console.log({authbigint: BigInt(auths[0].maxLockSeconds.toString())})
+      console.log({ expirybigint: BigInt(expiry) })
       throw new Error(`No valid escrow auths found(maxLockSeconds too low)`)
     }
     if (
