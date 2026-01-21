@@ -500,7 +500,10 @@ export class PaidComputeStartHandler extends CommandHandler {
       )
       let agreementId
       try {
-        agreementId = await engine.escrow.createLock(
+        console.log({ taskmaxjobduration: task.maxJobDuration })
+        console.log({maxjobduration: Number(task.maxJobDuration) + Number(task.queueMaxWaitTime)})
+        console.log({ taskqueueMaxWaitTime: task.queueMaxWaitTime })
+          agreementId = await engine.escrow.createLock(
           task.payment.chainId,
           jobId,
           task.payment.token,
