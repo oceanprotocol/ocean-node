@@ -153,8 +153,8 @@ export class DecryptDdoHandler extends CommandHandler {
 
       const blockchain = new Blockchain(
         supportedNetwork.rpc,
-        supportedNetwork.network,
         supportedNetwork.chainId,
+        config,
         supportedNetwork.fallbackRPCs
       )
       const { ready, error } = await blockchain.isNetworkReady()
@@ -943,12 +943,7 @@ async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
     return false
   }
   // 4) check if was deployed by our factory
-  const blockchain = new Blockchain(
-    network.rpc,
-    network.network,
-    chainId,
-    network.fallbackRPCs
-  )
+  const blockchain = new Blockchain(network.rpc, chainId, config, network.fallbackRPCs)
   const signer = blockchain.getSigner()
 
   const wasDeployedByUs = await wasNFTDeployedByOurFactory(

@@ -169,7 +169,7 @@ export class ComputeInitializeHandler extends CommandHandler {
         }
       }
 
-      const escrowAddress = await engine.escrow.getEscrowContractAddressForChain(
+      const escrowAddress = engine.escrow.getEscrowContractAddressForChain(
         task.payment.chainId
       )
       if (!escrowAddress) {
@@ -270,9 +270,8 @@ export class ComputeInitializeHandler extends CommandHandler {
             }
           }
           const config = await getConfiguration()
-          const { rpc, network, chainId, fallbackRPCs } =
-            config.supportedNetworks[ddoChainId]
-          const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+          const { rpc, chainId, fallbackRPCs } = config.supportedNetworks[ddoChainId]
+          const blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
           const { ready, error } = await blockchain.isNetworkReady()
           if (!ready) {
             return {

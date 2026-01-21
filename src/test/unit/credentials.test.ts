@@ -13,6 +13,7 @@ import { Credentials } from '@oceanprotocol/ddo-js'
 import { CREDENTIALS_TYPES } from '../../@types/DDO/Credentials.js'
 import { Blockchain } from '../../utils/blockchain.js'
 import { Signer } from 'ethers'
+import { getConfiguration } from '../../utils/index.js'
 
 let envOverrides: OverrideEnvConfig[]
 let blockchain: Blockchain
@@ -28,8 +29,9 @@ describe('credentials', () => {
       ]
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
+    const config = await getConfiguration()
     // Initialize blockchain for tests
-    blockchain = new Blockchain('http://172.0.0.1:8545', 'development', 8996, [])
+    blockchain = new Blockchain('http://172.0.0.1:8545', 8996, config, [])
     signer = blockchain.getSigner()
   })
 
