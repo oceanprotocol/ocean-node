@@ -6,9 +6,6 @@ import { Database } from './components/database/index.js'
 import { Escrow } from './components/core/utils/escrow.js'
 import { CoreHandlersRegistry } from './components/core/handler/coreHandlersRegistry.js'
 import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
-import { ReadableString } from './components/P2P/handleProtocolCommands.js'
-import StreamConcat from 'stream-concat'
-import { pipe } from 'it-pipe'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import { BaseHandler } from './components/core/handler/handler.js'
 import { C2DEngines } from './components/c2d/compute_engines.js'
@@ -157,57 +154,30 @@ export class OceanNode {
   }
 
   /**
-   * Use this method to direct calls to the node as node cannot dial into itself
-   * @param message command message
-   * @param sink transform function
+   * v3: Direct protocol command handler - no P2P, just call handler directly
+   * Returns {status, stream} without buffering
+   * @param message - JSON command string
    */
-  async handleDirectProtocolCommand(
-    message: string,
-    sink: any
-  ): Promise<P2PCommandResponse> {
+  async handleDirectProtocolCommand(message: string): Promise<P2PCommandResponse> {
     OCEAN_NODE_LOGGER.logMessage('Incoming direct command for ocean peer', true)
-    let status = null
-    // let statusStream
-    let sendStream = null
-    let response: P2PCommandResponse = null
-
     OCEAN_NODE_LOGGER.logMessage('Performing task: ' + message, true)
 
     try {
       const task = JSON.parse(message)
       const handler: BaseHandler = this.coreHandlers.getHandler(task.command)
-      if (handler === null) {
-        status = {
-          httpStatus: 501,
-          error: 'Unknown command or unexisting handler for command: ' + task.command
+
+      if (!handler) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 501,
+            error: 'Unknown command or missing handler for: ' + task.command
+          }
         }
-      } else {
-        response = await handler.handle(task)
       }
 
-      if (response) {
-        // eslint-disable-next-line prefer-destructuring
-        status = response.status
-        sendStream = response.stream
-      }
-
-      const statusStream = new ReadableString(JSON.stringify(status))
-      if (sendStream == null) {
-        pipe(statusStream, sink)
-      } else {
-        const combinedStream = new StreamConcat([statusStream, sendStream], {
-          highWaterMark: JSON.stringify(status).length
-          // the size of the buffer is important!
-        })
-        pipe(combinedStream, sink)
-      }
-
-      return (
-        response || {
-          status,
-          stream: null
-        }
-      )
+      // Return response directly without buffering
+      return await handler.handle(task)
     } catch (err) {
       OCEAN_NODE_LOGGER.logMessageWithEmoji(
         'handleDirectProtocolCommands Error: ' + err.message,
@@ -217,8 +187,8 @@ export class OceanNode {
       )
 
       return {
-        status: { httpStatus: 500, error: err.message },
-        stream: null
+        stream: null,
+        status: { httpStatus: 500, error: err.message }
       }
     }
   }
