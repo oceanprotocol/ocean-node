@@ -176,7 +176,9 @@ export class C2DEngineDocker extends C2DEngine {
       queuedJobs: 0,
       queuedFreeJobs: 0,
       queMaxWaitTime: 0,
-      queMaxWaitTimeFree: 0
+      queMaxWaitTimeFree: 0,
+      runMaxWaitTime: 0,
+      runMaxWaitTimeFree: 0
     })
     if (`access` in envConfig) this.envs[0].access = envConfig.access
 
@@ -304,7 +306,9 @@ export class C2DEngineDocker extends C2DEngine {
           queuedJobs,
           queuedFreeJobs,
           maxWaitTime,
-          maxWaitTimeFree
+          maxWaitTimeFree,
+          maxRunningTime,
+          maxRunningTimeFree
         } = await this.getUsedResources(computeEnv)
         computeEnv.runningJobs = totalJobs
         computeEnv.runningfreeJobs = totalFreeJobs
@@ -312,6 +316,8 @@ export class C2DEngineDocker extends C2DEngine {
         computeEnv.queuedFreeJobs = queuedFreeJobs
         computeEnv.queMaxWaitTime = maxWaitTime
         computeEnv.queMaxWaitTimeFree = maxWaitTimeFree
+        computeEnv.runMaxWaitTime = maxRunningTime
+        computeEnv.runMaxWaitTimeFree = maxRunningTimeFree
         for (let i = 0; i < computeEnv.resources.length; i++) {
           if (computeEnv.resources[i].id in usedResources)
             computeEnv.resources[i].inUse = usedResources[computeEnv.resources[i].id]
