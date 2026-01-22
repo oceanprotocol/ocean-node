@@ -946,7 +946,7 @@ export class C2DEngineDocker extends C2DEngine {
           job.environment,
           null
         )
-        await this.checkIfResourcesAreAvailable(job.resources, env, true)
+        await this.checkIfResourcesAreAvailable(job.resources, env, job.isFree)
       } catch (err) {
         // resources are still not available
         return
