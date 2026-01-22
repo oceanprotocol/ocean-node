@@ -69,7 +69,7 @@ describe('OceanIndexer', () => {
     }
 
     // there are no worker threads available
-    expect(oceanIndexer.stopAllThreads()).to.be.equal(false)
+    expect(await oceanIndexer.stopAllThreads()).to.be.equal(false)
   })
   after(async () => {
     await tearDownEnvironment(envOverrides)
