@@ -86,7 +86,7 @@
     "it-pipe": "^3.0.1",
     "jsonwebtoken": "^9.0.2",
     "libp2p": "^1.8.0",
-    "lodash": "^4.17.21",
+    "lodash": "^4.17.23",
     "lzma-purejs-requirejs": "^1.0.0",
     "node-cron": "^3.0.3",
     "sqlite3": "^5.1.7",
