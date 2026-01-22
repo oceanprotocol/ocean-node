@@ -37,11 +37,9 @@ import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { Credentials, DDOManager } from '@oceanprotocol/ddo-js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
 import { PolicyServer } from '../../policyServer/index.js'
-import {
-  areKnownCredentialTypes,
-  checkCredentials,
-  findAccessListCredentials
-} from '../../../utils/credentials.js'
+import { checkCredentials } from '../../../utils/credentials.js'
+import { checkAddressOnAccessList } from '../../../utils/accessList.js'
+
 export class PaidComputeStartHandler extends CommandHandler {
   validate(command: PaidComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
@@ -94,6 +92,8 @@ export class PaidComputeStartHandler extends CommandHandler {
       try {
         engine = await node.getC2DEngines().getC2DByHash(hash)
       } catch (e) {
+        const errMsg = e?.message || String(e)
+        CORE_LOGGER.error(`Invalid C2D Environment: ${errMsg}`)
         return {
           stream: null,
           status: {
@@ -123,22 +123,26 @@ export class PaidComputeStartHandler extends CommandHandler {
           false
         )
       } catch (e) {
+        const errMsg = e?.message || String(e)
+        CORE_LOGGER.error(`Error checking and filling missing resources: ${errMsg}`)
         return {
           stream: null,
           status: {
             httpStatus: 400,
-            error: e?.message || String(e)
+            error: errMsg
           }
         }
       }
       try {
-        await engine.checkIfResourcesAreAvailable(task.resources, env, true)
+        await engine.checkIfResourcesAreAvailable(task.resources, env, false)
       } catch (e) {
         if (task.queueMaxWaitTime > 0) {
           CORE_LOGGER.verbose(
             `Compute resources not available, queuing job for max ${task.queueMaxWaitTime} seconds`
           )
         } else {
+          const errMsg = e?.message || String(e)
+          CORE_LOGGER.error(`Error checking if resources are available: ${errMsg}`)
           return {
             stream: null,
             status: {
@@ -221,6 +225,21 @@ export class PaidComputeStartHandler extends CommandHandler {
               }
             }
           }
+          const config = await getConfiguration()
+          const { rpc, chainId, fallbackRPCs } = config.supportedNetworks[ddoChainId]
+          const blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
+          const { ready, error } = await blockchain.isNetworkReady()
+          if (!ready) {
+            return {
+              stream: null,
+              status: {
+                httpStatus: 400,
+                error: `Start Compute : ${error}`
+              }
+            }
+          }
+
+          const signer = blockchain.getSigner()
           // check credentials (DDO level)
           let accessGrantedDDOLevel: boolean
           if (credentials) {
@@ -236,9 +255,11 @@ export class PaidComputeStartHandler extends CommandHandler {
               )
               accessGrantedDDOLevel = response.success
             } else {
-              accessGrantedDDOLevel = areKnownCredentialTypes(credentials as Credentials)
-                ? checkCredentials(credentials as Credentials, task.consumerAddress)
-                : true
+              accessGrantedDDOLevel = await checkCredentials(
+                task.consumerAddress,
+                credentials as Credentials,
+                blockchain.getSigner()
+              )
             }
             if (!accessGrantedDDOLevel) {
               CORE_LOGGER.logMessage(
@@ -281,9 +302,11 @@ export class PaidComputeStartHandler extends CommandHandler {
               )
               accessGrantedServiceLevel = accessGrantedDDOLevel || response.success
             } else {
-              accessGrantedServiceLevel = areKnownCredentialTypes(service.credentials)
-                ? checkCredentials(service.credentials, task.consumerAddress)
-                : true
+              accessGrantedServiceLevel = await checkCredentials(
+                task.consumerAddress,
+                service.credentials,
+                blockchain.getSigner()
+              )
             }
 
             if (!accessGrantedServiceLevel) {
@@ -301,22 +324,6 @@ export class PaidComputeStartHandler extends CommandHandler {
             }
           }
 
-          const config = await getConfiguration()
-          const { rpc, network, chainId, fallbackRPCs } =
-            config.supportedNetworks[ddoChainId]
-          const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
-          const { ready, error } = await blockchain.isNetworkReady()
-          if (!ready) {
-            return {
-              stream: null,
-              status: {
-                httpStatus: 400,
-                error: `Start Compute : ${error}`
-              }
-            }
-          }
-
-          const signer = blockchain.getSigner()
           // let's see if we can access this asset
           // check if oasis evm or similar
           const confidentialEVM = isConfidentialChainDDO(BigInt(ddo.chainId), service)
@@ -503,6 +510,8 @@ export class PaidComputeStartHandler extends CommandHandler {
           )
         )
       } catch (e) {
+        const errMsg = e?.message || String(e)
+        CORE_LOGGER.error(`Error creating lock: ${errMsg}`)
         if (e.message.includes('insufficient funds for intrinsic transaction cost')) {
           return {
             stream: null,
@@ -554,6 +563,8 @@ export class PaidComputeStartHandler extends CommandHandler {
           }
         }
       } catch (e) {
+        const errMsg = e?.message || String(e)
+        CORE_LOGGER.error(`Error starting compute job: ${errMsg}`)
         try {
           await engine.escrow.cancelExpiredLocks(
             task.payment.chainId,
@@ -562,6 +573,8 @@ export class PaidComputeStartHandler extends CommandHandler {
             task.consumerAddress
           )
         } catch (cancelError) {
+          const cancelErrMsg = cancelError?.message || String(cancelError)
+          CORE_LOGGER.error(`Error canceling expired locks: ${cancelErrMsg}`)
           // is fine if it fails
         }
         return {
@@ -573,7 +586,8 @@ export class PaidComputeStartHandler extends CommandHandler {
         }
       }
     } catch (error) {
-      CORE_LOGGER.error(error.message)
+      const errMsg = error?.message || String(error)
+      CORE_LOGGER.error(`Error starting compute job: ${errMsg}`)
       return {
         stream: null,
         status: {
@@ -668,7 +682,32 @@ export class FreeComputeStartHandler extends CommandHandler {
           }
         }
         const ddoInstance = DDOManager.getDDOClass(ddo)
-        const { credentials } = ddoInstance.getDDOFields()
+        const { chainId: ddoChainId, credentials } = ddoInstance.getDDOFields()
+        const isOrdable = isOrderingAllowedForAsset(ddo)
+        if (!isOrdable.isOrdable) {
+          CORE_LOGGER.error(isOrdable.reason)
+          return {
+            stream: null,
+            status: {
+              httpStatus: 500,
+              error: isOrdable.reason
+            }
+          }
+        }
+        const config = await getConfiguration()
+        const { rpc, chainId, fallbackRPCs } = config.supportedNetworks[ddoChainId]
+        const blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
+        const { ready, error } = await blockchain.isNetworkReady()
+        if (!ready) {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: `Start Compute : ${error}`
+            }
+          }
+        }
+
         // check credentials (DDO level)
         let accessGrantedDDOLevel: boolean
         if (credentials) {
@@ -684,9 +723,11 @@ export class FreeComputeStartHandler extends CommandHandler {
             )
             accessGrantedDDOLevel = response.success
           } else {
-            accessGrantedDDOLevel = areKnownCredentialTypes(credentials as Credentials)
-              ? checkCredentials(credentials as Credentials, task.consumerAddress)
-              : true
+            accessGrantedDDOLevel = await checkCredentials(
+              task.consumerAddress,
+              credentials as Credentials,
+              blockchain.getSigner()
+            )
           }
           if (!accessGrantedDDOLevel) {
             CORE_LOGGER.logMessage(
@@ -729,9 +770,11 @@ export class FreeComputeStartHandler extends CommandHandler {
             )
             accessGrantedServiceLevel = accessGrantedDDOLevel || response.success
           } else {
-            accessGrantedServiceLevel = areKnownCredentialTypes(service.credentials)
-              ? checkCredentials(service.credentials, task.consumerAddress)
-              : true
+            accessGrantedServiceLevel = await checkCredentials(
+              task.consumerAddress,
+              service.credentials,
+              blockchain.getSigner()
+            )
           }
 
           if (!accessGrantedServiceLevel) {
@@ -874,7 +917,10 @@ async function validateAccess(
     return true
   }
 
-  if (access.accessLists.length === 0 && access.addresses.length === 0) {
+  if (
+    !access.accessLists ||
+    (Object.keys(access.accessLists).length === 0 && access.addresses.length === 0)
+  ) {
     return true
   }
 
@@ -882,32 +928,28 @@ async function validateAccess(
     return true
   }
 
-  if (access.accessLists.length > 0) {
-    const config = await getConfiguration()
-    const { supportedNetworks } = config
-
-    for (const accessListAddress of access.accessLists) {
-      for (const chainIdStr of Object.keys(supportedNetworks)) {
-        const { rpc, network, chainId, fallbackRPCs } = supportedNetworks[chainIdStr]
-        try {
-          const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
-          const signer = blockchain.getSigner()
-
-          const hasAccess = await findAccessListCredentials(
-            signer,
-            accessListAddress,
-            consumerAddress
-          )
-          if (hasAccess) {
-            return true
-          }
-        } catch (error) {
-          CORE_LOGGER.logMessage(
-            `Failed to check access list ${accessListAddress} on chain ${chainIdStr}: ${error.message}`,
-            true
-          )
+  const config = await getConfiguration()
+  const { supportedNetworks } = config
+  for (const chain of Object.keys(access.accessLists)) {
+    const { rpc, chainId, fallbackRPCs } = supportedNetworks[chain]
+    try {
+      const blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
+      const signer = blockchain.getSigner()
+      for (const accessListAddress of access.accessLists[chain]) {
+        const hasAccess = await checkAddressOnAccessList(
+          accessListAddress,
+          consumerAddress,
+          signer
+        )
+        if (hasAccess) {
+          return true
         }
       }
+    } catch (error) {
+      CORE_LOGGER.logMessage(
+        `Failed to check access lists on chain ${chain}: ${error.message}`,
+        true
+      )
     }
   }
 

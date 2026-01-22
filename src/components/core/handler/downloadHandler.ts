@@ -21,7 +21,7 @@ import {
   getConfiguration,
   isPolicyServerConfigured
 } from '../../../utils/index.js'
-import { areKnownCredentialTypes, checkCredentials } from '../../../utils/credentials.js'
+import { checkCredentials } from '../../../utils/credentials.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { DownloadCommand, DownloadURLCommand } from '../../../@types/commands.js'
@@ -264,47 +264,13 @@ export class DownloadHandler extends CommandHandler {
       }
     }
 
-    // check credentials (DDO level)
-    let accessGrantedDDOLevel: boolean
-    if (credentials) {
-      // if POLICY_SERVER_URL exists, then ocean-node will NOT perform any checks.
-      // It will just use the existing code and let PolicyServer decide.
-      if (isPolicyServerConfigured()) {
-        const response = await policyServer.checkDownload(
-          ddoInstance.getDid(),
-          ddo,
-          task.serviceId,
-          task.consumerAddress,
-          task.policyServer
-        )
-        accessGrantedDDOLevel = response.success
-      } else {
-        accessGrantedDDOLevel = areKnownCredentialTypes(credentials as Credentials)
-          ? checkCredentials(credentials as Credentials, task.consumerAddress)
-          : true
-      }
-      if (!accessGrantedDDOLevel) {
-        CORE_LOGGER.logMessage(
-          `Error: Access to asset ${ddoInstance.getDid()} was denied`,
-          true
-        )
-        return {
-          stream: null,
-          status: {
-            httpStatus: 403,
-            error: `Error: Access to asset ${ddoInstance.getDid()} was denied`
-          }
-        }
-      }
-    }
-
-    // from now on, we need blockchain checks
+    // Initialize blockchain early (needed for credential checks with accessList)
     const config = await getConfiguration()
-    const { rpc, network, chainId, fallbackRPCs } = config.supportedNetworks[ddoChainId]
+    const { rpc, chainId, fallbackRPCs } = config.supportedNetworks[ddoChainId]
     let provider
     let blockchain
     try {
-      blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+      blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
       const { ready, error } = await blockchain.isNetworkReady()
       if (!ready) {
         return {
@@ -339,6 +305,43 @@ export class DownloadHandler extends CommandHandler {
         }
       }
     }
+
+    // check credentials (DDO level)
+    let accessGrantedDDOLevel: boolean
+    if (credentials) {
+      // if POLICY_SERVER_URL exists, then ocean-node will NOT perform any checks.
+      // It will just use the existing code and let PolicyServer decide.
+      if (isPolicyServerConfigured()) {
+        const response = await policyServer.checkDownload(
+          ddoInstance.getDid(),
+          ddo,
+          task.serviceId,
+          task.consumerAddress,
+          task.policyServer
+        )
+        accessGrantedDDOLevel = response.success
+      } else {
+        accessGrantedDDOLevel = await checkCredentials(
+          task.consumerAddress,
+          credentials as Credentials,
+          blockchain.getSigner()
+        )
+      }
+      if (!accessGrantedDDOLevel) {
+        CORE_LOGGER.logMessage(
+          `Error: Access to asset ${ddoInstance.getDid()} was denied`,
+          true
+        )
+        return {
+          stream: null,
+          status: {
+            httpStatus: 403,
+            error: `Error: Access to asset ${ddoInstance.getDid()} was denied`
+          }
+        }
+      }
+    }
+
     let service = AssetUtils.getServiceById(ddo, task.serviceId)
     if (!service) service = AssetUtils.getServiceByIndex(ddo, Number(task.serviceId))
     if (!service) throw new Error('Cannot find service')
@@ -359,9 +362,11 @@ export class DownloadHandler extends CommandHandler {
         )
         accessGrantedServiceLevel = accessGrantedDDOLevel || response.success
       } else {
-        accessGrantedServiceLevel = areKnownCredentialTypes(service.credentials)
-          ? checkCredentials(service.credentials, task.consumerAddress)
-          : true
+        accessGrantedServiceLevel = await checkCredentials(
+          task.consumerAddress,
+          service.credentials,
+          blockchain.getSigner()
+        )
       }
 
       if (!accessGrantedServiceLevel) {

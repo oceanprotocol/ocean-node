@@ -59,13 +59,21 @@ export async function deployAccessListContract(
   const contract = getContract(contractFactoryAddress, contractFactoryAbi, signer)
 
   try {
+    // Get the current nonce to ensure we're using the correct one
+    const signerAddress = await signer.getAddress()
+    const currentNonce = await signer.provider.getTransactionCount(
+      signerAddress,
+      'pending'
+    )
+
     const tx = await contract.deployAccessListContract(
       nameAccessList,
       symbolAccessList,
       transferable,
       owner,
       user,
-      tokenURI
+      tokenURI,
+      { nonce: currentNonce }
     )
 
     if (!tx) {
@@ -99,6 +107,10 @@ export async function deployAndGetAccessListConfig(
     (await provider.getSigner(2)) as Signer,
     (await provider.getSigner(3)) as Signer
   ]
+
+  // Add small delay to ensure previous transactions are settled
+  await new Promise((resolve) => setTimeout(resolve, 100))
+
   const txAddress = await deployAccessListContract(
     owner, // owner is first account
     networkArtifacts.AccessListFactory,
@@ -115,10 +127,15 @@ export async function deployAndGetAccessListConfig(
     ],
     ['https://oceanprotocol.com/nft/']
   )
+
+  if (!txAddress) {
+    console.error('Failed to deploy AccessList - no address returned')
+    return null
+  }
+
   console.log('Successfully deployed AccessList at address: ', txAddress)
 
   const contractAcessList = getContract(txAddress, AccessList.abi, owner)
-  // console.log('contractAcessList:', contractAcessList)
   if (contractAcessList) {
     const result: AccessListContract = {
       '8996': [txAddress]

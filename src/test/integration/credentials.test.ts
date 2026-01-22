@@ -54,7 +54,8 @@ import { publishAsset, orderAsset } from '../utils/assets.js'
 import {
   algoAsset,
   computeAssetWithCredentials,
-  downloadAssetWithCredentials
+  downloadAssetWithCredentials,
+  downloadAssetWithCredentialsWithMatchAll
 } from '../data/assets.js'
 import { ganachePrivateKeys } from '../utils/addresses.js'
 import { homedir } from 'os'
@@ -78,13 +79,15 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
   let consumerAddresses: string[]
 
   let ddo: any
+  let ddoWithMatchAll: any
   let computeDdo: any
   let algoDdo: any
   let did: string
+  let didWithMatchAll: string
   let computeDid: string
   let algoDid: string
   const orderTxIds: string[] = []
-
+  const orderTxIdsWithMatchAll: string[] = []
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
 
   let previousConfiguration: OverrideEnvConfig[]
@@ -136,19 +139,14 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
 
     config = await getConfiguration(true) // Force reload the configuration
     const database = await Database.init(config.dbConfig)
-    oceanNode = await OceanNode.getInstance(config, database)
+    oceanNode = OceanNode.getInstance(config, database)
     const indexer = new OceanIndexer(database, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
     await oceanNode.addC2DEngines()
 
     const rpcs: RPCS = config.supportedNetworks
     const chain: SupportedNetwork = rpcs[String(DEVELOPMENT_CHAIN_ID)]
-    blockchain = new Blockchain(
-      chain.rpc,
-      chain.network,
-      chain.chainId,
-      chain.fallbackRPCs
-    )
+    blockchain = new Blockchain(chain.rpc, chain.chainId, config, chain.fallbackRPCs)
 
     consumerAccounts = [
       (await provider.getSigner(1)) as Signer,
@@ -209,6 +207,10 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
       downloadAssetWithCredentials,
       publisherAccount
     )
+    const publishedDatasetWithMatchAll = await publishAsset(
+      downloadAssetWithCredentialsWithMatchAll,
+      publisherAccount
+    )
 
     const publishedComputeDataset = await publishAsset(
       computeAssetWithCredentials,
@@ -226,6 +228,16 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
     if (!ddo) {
       assert(wasTimeout === true, 'published failed due to timeout!')
     }
+    didWithMatchAll = publishedDatasetWithMatchAll.ddo.id
+    const resolvedDdoWithMatchAll = await waitToIndex(
+      didWithMatchAll,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT * 3
+    )
+    if (!resolvedDdoWithMatchAll.ddo) {
+      assert(wasTimeout === true, 'published failed due to timeout!')
+    }
+    ddoWithMatchAll = resolvedDdoWithMatchAll.ddo
 
     computeDid = publishedComputeDataset.ddo.id
     const resolvedComputeDdo = await waitToIndex(
@@ -295,9 +307,62 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
       assert(txHash, `transaction id not found for consumer ${i}`)
       orderTxIds.push(txHash)
     }
+    for (let i = 0; i < 3; i++) {
+      const orderTxReceipt = await orderAsset(
+        ddoWithMatchAll,
+        0,
+        consumerAccounts[i],
+        consumerAddresses[i],
+        publisherAccount,
+        oceanNode
+      )
+      assert(orderTxReceipt, `order transaction for consumer ${i} failed`)
+      const txHash = orderTxReceipt.hash
+      assert(txHash, `transaction id not found for consumer ${i}`)
+      orderTxIdsWithMatchAll.push(txHash)
+    }
   })
 
-  it('should download file for first consumer', async function () {
+  it('should fail to download file for first consumer for credentials with match all', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+
+    const doCheck = async () => {
+      const consumerAddress = consumerAddresses[0]
+      const consumerPrivateKey = ganachePrivateKeys[consumerAddress]
+      const transferTxId = orderTxIdsWithMatchAll[0]
+
+      const wallet = new ethers.Wallet(consumerPrivateKey)
+      const nonce = Date.now().toString()
+      const message = String(ddoWithMatchAll.id + nonce)
+      const consumerMessage = ethers.solidityPackedKeccak256(
+        ['bytes'],
+        [ethers.hexlify(ethers.toUtf8Bytes(message))]
+      )
+      const messageHashBytes = ethers.toBeArray(consumerMessage)
+      const signature = await wallet.signMessage(messageHashBytes)
+
+      const downloadTask = {
+        fileIndex: 0,
+        documentId: didWithMatchAll,
+        serviceId: ddoWithMatchAll.services[0].id,
+        transferTxId,
+        nonce,
+        consumerAddress,
+        signature,
+        command: PROTOCOL_COMMANDS.DOWNLOAD
+      }
+      const response = await new DownloadHandler(oceanNode).handle(downloadTask)
+      assert(response)
+      assert(response.status.httpStatus === 403, 'http status not 403')
+    }
+
+    setTimeout(() => {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(true)
+    }, DEFAULT_TEST_TIMEOUT * 3)
+
+    await doCheck()
+  })
+  it('should download file for first consumer for credentials with match any', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
 
     const doCheck = async () => {
