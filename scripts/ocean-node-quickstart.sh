@@ -139,6 +139,17 @@ else
   echo "Running node without docker C2D capabilities!"
 fi
 
+read -p "Do you want to enable TLS (HTTPS) for your Ocean Node [ y/n ]: " enable_tls
+if [ "$enable_tls" == "y" ]; then
+  read -p "Enter the absolute path to your TLS certificate file: " HTTP_CERT_PATH
+  read -p "Enter the absolute path to your TLS private key file: " HTTP_KEY_PATH
+  
+  if [ -z "$HTTP_CERT_PATH" ] || [ -z "$HTTP_KEY_PATH" ]; then
+    echo "Certificate and key paths are mandatory for TLS. Disabling TLS."
+    enable_tls="n"
+  fi
+fi
+
 # Set default compute environments if not already defined
 if [ -z "$DOCKER_COMPUTE_ENVIRONMENTS" ]; then
   echo "Setting default DOCKER_COMPUTE_ENVIRONMENTS configuration"
@@ -212,12 +223,24 @@ services:
 #      P2P_BOOTSTRAP_NODES: ''
 #      P2P_FILTER_ANNOUNCED_ADDRESSES: ''
       DOCKER_COMPUTE_ENVIRONMENTS: '$DOCKER_COMPUTE_ENVIRONMENTS'
+$(
+  if [ "$enable_tls" == "y" ]; then
+    echo "      HTTP_CERT_PATH: '/usr/src/app/certs/cert.pem'"
+    echo "      HTTP_KEY_PATH: '/usr/src/app/certs/key.pem'"
+  fi
+)
 
     networks:
       - ocean_network
     volumes:
       - node-sqlite:/usr/src/app/databases
       - /var/run/docker.sock:/var/run/docker.sock
+$(
+  if [ "$enable_tls" == "y" ]; then
+    echo "      - $HTTP_CERT_PATH:/usr/src/app/certs/cert.pem:ro"
+    echo "      - $HTTP_KEY_PATH:/usr/src/app/certs/key.pem:ro"
+  fi
+)
     depends_on:
       - typesense
 
@@ -260,3 +283,5 @@ echo -e "\e[1;32mP2P IPv4 TCP Port: $P2P_ipV4BindTcpPort\e[0m"
 echo -e "\e[1;32mP2P IPv4 WebSocket Port: $P2P_ipV4BindWsPort\e[0m"
 echo -e "\e[1;32mP2P IPv6 TCP Port: $P2P_ipV6BindTcpPort\e[0m"
 echo -e "\e[1;32mP2P IPv6 WebSocket Port: $P2P_ipV6BindWsPort\e[0m"
+echo ""
+echo -e "\e[1;32m4)\e[0m If using SSL/TLS with a custom domain name, make sure to listen on host port 443 for the HTTP API, or use a reverse proxy with TLS offloading"

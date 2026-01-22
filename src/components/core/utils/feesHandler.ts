@@ -439,7 +439,7 @@ export async function checkFee(
   const message = ethers.toBeArray(signableHash) // await wallet.signMessage()
 
   // and also check that we signed this message
-  return await verifyMessage(message, nodeAddress, txId)
+  return verifyMessage(message, nodeAddress, txId)
   // before was only return await verifyMessage(message, nodeAddress, txId)
 }
 

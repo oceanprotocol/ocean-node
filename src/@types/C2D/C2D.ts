@@ -82,7 +82,7 @@ export interface RunningPlatform {
 
 export interface ComputeAccessList {
   addresses: string[]
-  accessLists: string[]
+  accessLists: { [chainId: string]: string[] }
 }
 
 export interface ComputeEnvironmentFreeOptions {
@@ -122,6 +122,8 @@ export interface ComputeEnvironment extends ComputeEnvironmentBaseConfig {
   queuedFreeJobs: number
   queMaxWaitTime: number
   queMaxWaitTimeFree: number
+  runMaxWaitTime: number
+  runMaxWaitTimeFree: number
 }
 
 export interface C2DDockerConfig {

@@ -16,7 +16,7 @@ import { AccessListContract, OceanNodeConfig } from '../../@types/OceanNode.js'
 import { homedir } from 'os'
 import { getConfiguration } from '../../utils/config.js'
 import { assert, expect } from 'chai'
-import { findAccessListCredentials } from '../../utils/credentials.js'
+import { checkAddressOnAccessList } from '../../utils/accessList.js'
 
 describe('Should deploy some accessLists before all other tests.', () => {
   let config: OceanNodeConfig
@@ -46,12 +46,7 @@ describe('Should deploy some accessLists before all other tests.', () => {
 
     const rpcs: RPCS = config.supportedNetworks
     const chain: SupportedNetwork = rpcs[String(DEVELOPMENT_CHAIN_ID)]
-    blockchain = new Blockchain(
-      chain.rpc,
-      chain.network,
-      chain.chainId,
-      chain.fallbackRPCs
-    )
+    blockchain = new Blockchain(chain.rpc, chain.chainId, config, chain.fallbackRPCs)
 
     owner = blockchain.getSigner()
 
@@ -175,7 +170,7 @@ describe('Should deploy some accessLists before all other tests.', () => {
       for (let i = 0; i < wallets.length; i++) {
         const account = await wallets[i].getAddress()
         expect(
-          (await findAccessListCredentials(owner, account, accessListAddress)) === true,
+          (await checkAddressOnAccessList(accessListAddress, account, owner)) === true,
           `Address ${account} has no balance on Access List ${accessListAddress}, so its not Authorized`
         )
       }
@@ -188,7 +183,7 @@ describe('Should deploy some accessLists before all other tests.', () => {
       for (let i = wallets.length; i < 4; i++) {
         const account = await (await provider.getSigner(i)).getAddress()
         expect(
-          (await findAccessListCredentials(owner, account, accessListAddress)) === false,
+          (await checkAddressOnAccessList(accessListAddress, account, owner)) === false,
           `Address ${account} should not be part Access List ${accessListAddress}, therefore its not Authorized`
         )
       }

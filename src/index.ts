@@ -13,6 +13,7 @@ import {
 
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import fs from 'fs'
+import https from 'https'
 import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -176,9 +177,27 @@ if (config.hasHttp) {
   app.use(removeExtraSlashes)
   app.use('/', httpRoutes)
 
-  app.listen(config.httpPort, () => {
-    OCEAN_NODE_LOGGER.logMessage(`HTTP port: ${config.httpPort}`, true)
-  })
+  if (config.httpCertPath && config.httpKeyPath) {
+    try {
+      const options = {
+        cert: fs.readFileSync(config.httpCertPath),
+        key: fs.readFileSync(config.httpKeyPath)
+      }
+      https.createServer(options, app).listen(config.httpPort, () => {
+        OCEAN_NODE_LOGGER.logMessage(`HTTPS port: ${config.httpPort}`, true)
+      })
+    } catch (err) {
+      OCEAN_NODE_LOGGER.error(`Error starting HTTPS server: ${err.message}`)
+      OCEAN_NODE_LOGGER.logMessage(`Falling back to HTTP`, true)
+      app.listen(config.httpPort, () => {
+        OCEAN_NODE_LOGGER.logMessage(`HTTP port: ${config.httpPort}`, true)
+      })
+    }
+  } else {
+    app.listen(config.httpPort, () => {
+      OCEAN_NODE_LOGGER.logMessage(`HTTP port: ${config.httpPort}`, true)
+    })
+  }
 
   // Call the function to schedule the cron job to delete old logs
   scheduleCronJobs(oceanNode)

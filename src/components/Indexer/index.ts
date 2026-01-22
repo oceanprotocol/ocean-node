@@ -8,6 +8,7 @@ import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import {
   Blockchain,
   EVENTS,
+  getConfiguration,
   INDEXER_CRAWLING_EVENTS,
   INDEXER_MESSAGES,
   PROTOCOL_COMMANDS
@@ -177,13 +178,14 @@ export class OceanIndexer {
       return null
     }
 
+    const config = await getConfiguration()
     // check the network before starting crawling
     // having this code inside the thread itself is problematic because
     // the worker thread can exit and we keep processing code inside, leading to segfaults
     const blockchain = new Blockchain(
       rpcDetails.rpc,
-      rpcDetails.network,
       rpcDetails.chainId,
+      config,
       rpcDetails.fallbackRPCs
     )
     const canStartWorker = await this.retryCrawlerWithDelay(blockchain)

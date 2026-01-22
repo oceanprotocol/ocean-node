@@ -153,8 +153,8 @@ export class DecryptDdoHandler extends CommandHandler {
 
       const blockchain = new Blockchain(
         supportedNetwork.rpc,
-        supportedNetwork.network,
         supportedNetwork.chainId,
+        config,
         supportedNetwork.fallbackRPCs
       )
       const { ready, error } = await blockchain.isNetworkReady()
@@ -280,13 +280,7 @@ export class DecryptDdoHandler extends CommandHandler {
       )
       const metaData = await templateContract.getMetaData()
       const metaDataState = Number(metaData[2])
-      if (
-        [
-          MetadataStates.END_OF_LIFE,
-          MetadataStates.DEPRECATED,
-          MetadataStates.REVOKED
-        ].includes(metaDataState)
-      ) {
+      if ([MetadataStates.DEPRECATED, MetadataStates.REVOKED].includes(metaDataState)) {
         CORE_LOGGER.logMessage(`Decrypt DDO: error metadata state ${metaDataState}`, true)
         return {
           stream: null,
@@ -300,6 +294,7 @@ export class DecryptDdoHandler extends CommandHandler {
       if (
         ![
           MetadataStates.ACTIVE,
+          MetadataStates.END_OF_LIFE,
           MetadataStates.ORDERING_DISABLED,
           MetadataStates.UNLISTED
         ].includes(metaDataState)
@@ -763,11 +758,6 @@ export class FindDdoHandler extends CommandHandler {
   }
 }
 
-export async function skipValidation(): Promise<boolean> {
-  const configuration = await getConfiguration()
-  return configuration.validateUnsignedDDO
-}
-
 export class ValidateDDOHandler extends CommandHandler {
   validate(command: ValidateDDOCommand): ValidateParams {
     let validation = validateCommandParameters(command, ['ddo'])
@@ -780,8 +770,15 @@ export class ValidateDDOHandler extends CommandHandler {
 
   async handle(task: ValidateDDOCommand): Promise<P2PCommandResponse> {
     const validationResponse = await this.verifyParamsAndRateLimits(task)
-    const shouldSkipValidation = await skipValidation()
-    if (!shouldSkipValidation) {
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
+    }
+    let shouldSign = false
+    const configuration = await getConfiguration()
+    if (configuration.validateUnsignedDDO) {
+      shouldSign = true
+    }
+    if (task.authorization || task.signature || task.nonce || task.publisherAddress) {
       const validationResponse = await this.validateTokenOrSignature(
         task.authorization,
         task.publisherAddress,
@@ -792,10 +789,7 @@ export class ValidateDDOHandler extends CommandHandler {
       if (validationResponse.status.httpStatus !== 200) {
         return validationResponse
       }
-    }
-
-    if (this.shouldDenyTaskHandling(validationResponse)) {
-      return validationResponse
+      shouldSign = true
     }
 
     try {
@@ -814,9 +808,12 @@ export class ValidateDDOHandler extends CommandHandler {
           status: { httpStatus: 400, error: `Validation error: ${validation[1]}` }
         }
       }
-      const signature = await getValidationSignature(JSON.stringify(task.ddo))
       return {
-        stream: Readable.from(JSON.stringify(signature)),
+        stream: shouldSign
+          ? Readable.from(
+              JSON.stringify(await getValidationSignature(JSON.stringify(task.ddo)))
+            )
+          : null,
         status: { httpStatus: 200 }
       }
     } catch (error) {
@@ -906,12 +903,7 @@ async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
     return false
   }
   // 4) check if was deployed by our factory
-  const blockchain = new Blockchain(
-    network.rpc,
-    network.network,
-    chainId,
-    network.fallbackRPCs
-  )
+  const blockchain = new Blockchain(network.rpc, chainId, config, network.fallbackRPCs)
   const signer = blockchain.getSigner()
 
   const wasDeployedByUs = await wasNFTDeployedByOurFactory(

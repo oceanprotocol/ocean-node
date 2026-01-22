@@ -64,9 +64,8 @@ export class CollectFeesHandler extends AdminCommandHandler {
     }
 
     try {
-      const { rpc, network, chainId, fallbackRPCs } =
-        config.supportedNetworks[task.chainId]
-      const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+      const { rpc, chainId, fallbackRPCs } = config.supportedNetworks[task.chainId]
+      const blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
       const provider = blockchain.getProvider()
       const providerWallet = blockchain.getSigner() as Wallet
       const providerWalletAddress = await providerWallet.getAddress()
