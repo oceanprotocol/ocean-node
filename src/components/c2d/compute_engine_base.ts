@@ -282,6 +282,8 @@ export abstract class C2DEngine {
     env: ComputeEnvironment,
     isFree: boolean
   ) {
+    console.log({ resourcesRequest })
+    console.log({ isFree })
     for (const request of resourcesRequest) {
       let envResource = this.getResource(env.resources, request.id)
       if (!envResource) throw new Error(`No such resource ${request.id}`)
