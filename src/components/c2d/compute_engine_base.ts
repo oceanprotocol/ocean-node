@@ -346,6 +346,9 @@ export abstract class C2DEngine {
     const grouped: Record<string, dockerDeviceRequest> = {}
 
     for (const resource of requests) {
+      // Skip resources with amount 0 as they're not actually being requested
+      if (resource.amount === 0) continue
+      
       const res = this.getResource(resources, resource.id)
       const init = res?.init?.deviceRequests
       if (!init) continue
@@ -384,6 +387,9 @@ export abstract class C2DEngine {
       ShmSize: 0 as number
     }
     for (const resource of requests) {
+      // Skip resources with amount 0 as they're not actually being requested
+      if (resource.amount === 0) continue
+      
       const res = this.getResource(resources, resource.id)
       if (res.init && res.init.advanced) {
         for (const [key, value] of Object.entries(res.init.advanced)) {
