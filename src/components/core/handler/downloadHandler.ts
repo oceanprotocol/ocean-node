@@ -266,11 +266,11 @@ export class DownloadHandler extends CommandHandler {
 
     // Initialize blockchain early (needed for credential checks with accessList)
     const config = await getConfiguration()
-    const { rpc, network, chainId, fallbackRPCs } = config.supportedNetworks[ddoChainId]
+    const { rpc, chainId, fallbackRPCs } = config.supportedNetworks[ddoChainId]
     let provider
     let blockchain
     try {
-      blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+      blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
       const { ready, error } = await blockchain.isNetworkReady()
       if (!ready) {
         return {

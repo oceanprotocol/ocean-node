@@ -28,6 +28,7 @@ import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import {
   Blockchain,
   EVENTS,
+  getConfiguration,
   INDEXER_CRAWLING_EVENTS,
   PROTOCOL_COMMANDS
 } from '../../utils/index.js'
@@ -217,11 +218,11 @@ export class OceanIndexer {
       return null
     }
 
-    // check the network before starting indexing
+    const config = await getConfiguration()
     const blockchain = new Blockchain(
       rpcDetails.rpc,
-      rpcDetails.network,
       rpcDetails.chainId,
+      config,
       rpcDetails.fallbackRPCs
     )
     const canStartIndexer = await this.retryCrawlerWithDelay(blockchain)

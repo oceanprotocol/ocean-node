@@ -122,6 +122,8 @@ export interface ComputeEnvironment extends ComputeEnvironmentBaseConfig {
   queuedFreeJobs: number
   queMaxWaitTime: number
   queMaxWaitTimeFree: number
+  runMaxWaitTime: number
+  runMaxWaitTimeFree: number
 }
 
 export interface C2DDockerConfig {

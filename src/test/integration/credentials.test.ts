@@ -139,19 +139,14 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
 
     config = await getConfiguration(true) // Force reload the configuration
     const database = await Database.init(config.dbConfig)
-    oceanNode = await OceanNode.getInstance(config, database)
+    oceanNode = OceanNode.getInstance(config, database)
     const indexer = new OceanIndexer(database, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
     await oceanNode.addC2DEngines()
 
     const rpcs: RPCS = config.supportedNetworks
     const chain: SupportedNetwork = rpcs[String(DEVELOPMENT_CHAIN_ID)]
-    blockchain = new Blockchain(
-      chain.rpc,
-      chain.network,
-      chain.chainId,
-      chain.fallbackRPCs
-    )
+    blockchain = new Blockchain(chain.rpc, chain.chainId, config, chain.fallbackRPCs)
 
     consumerAccounts = [
       (await provider.getSigner(1)) as Signer,

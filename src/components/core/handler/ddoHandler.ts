@@ -153,8 +153,8 @@ export class DecryptDdoHandler extends CommandHandler {
 
       const blockchain = new Blockchain(
         supportedNetwork.rpc,
-        supportedNetwork.network,
         supportedNetwork.chainId,
+        config,
         supportedNetwork.fallbackRPCs
       )
       const { ready, error } = await blockchain.isNetworkReady()
@@ -280,13 +280,7 @@ export class DecryptDdoHandler extends CommandHandler {
       )
       const metaData = await templateContract.getMetaData()
       const metaDataState = Number(metaData[2])
-      if (
-        [
-          MetadataStates.END_OF_LIFE,
-          MetadataStates.DEPRECATED,
-          MetadataStates.REVOKED
-        ].includes(metaDataState)
-      ) {
+      if ([MetadataStates.DEPRECATED, MetadataStates.REVOKED].includes(metaDataState)) {
         CORE_LOGGER.logMessage(`Decrypt DDO: error metadata state ${metaDataState}`, true)
         return {
           stream: null,
@@ -300,6 +294,7 @@ export class DecryptDdoHandler extends CommandHandler {
       if (
         ![
           MetadataStates.ACTIVE,
+          MetadataStates.END_OF_LIFE,
           MetadataStates.ORDERING_DISABLED,
           MetadataStates.UNLISTED
         ].includes(metaDataState)
@@ -943,12 +938,7 @@ async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
     return false
   }
   // 4) check if was deployed by our factory
-  const blockchain = new Blockchain(
-    network.rpc,
-    network.network,
-    chainId,
-    network.fallbackRPCs
-  )
+  const blockchain = new Blockchain(network.rpc, chainId, config, network.fallbackRPCs)
   const signer = blockchain.getSigner()
 
   const wasDeployedByUs = await wasNFTDeployedByOurFactory(
