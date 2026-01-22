@@ -284,10 +284,10 @@ export abstract class C2DEngine {
   ) {
     console.log({ resourcesRequest })
     console.log({ isFree })
-    for (const request of resourcesRequest) {
-      // Skip resources with amount 0 as they're not actually being requested
-      if (request.amount === 0) continue
-      
+    // Filter out resources with amount 0 as they're not actually being requested
+    const activeResources = resourcesRequest.filter((r) => r.amount > 0)
+    
+    for (const request of activeResources) {
       let envResource = this.getResource(env.resources, request.id)
       if (!envResource) throw new Error(`No such resource ${request.id}`)
       if (envResource.total - envResource.inUse < request.amount)
@@ -343,12 +343,11 @@ export abstract class C2DEngine {
   ): dockerDeviceRequest[] | null {
     if (!resources) return null
 
+    // Filter out resources with amount 0 as they're not actually being requested
+    const activeResources = requests.filter((r) => r.amount > 0)
     const grouped: Record<string, dockerDeviceRequest> = {}
 
-    for (const resource of requests) {
-      // Skip resources with amount 0 as they're not actually being requested
-      if (resource.amount === 0) continue
-      
+    for (const resource of activeResources) {
       const res = this.getResource(resources, resource.id)
       const init = res?.init?.deviceRequests
       if (!init) continue
@@ -386,10 +385,10 @@ export abstract class C2DEngine {
       IpcMode: null as string,
       ShmSize: 0 as number
     }
-    for (const resource of requests) {
-      // Skip resources with amount 0 as they're not actually being requested
-      if (resource.amount === 0) continue
-      
+    // Filter out resources with amount 0 as they're not actually being requested
+    const activeResources = requests.filter((r) => r.amount > 0)
+    
+    for (const resource of activeResources) {
       const res = this.getResource(resources, resource.id)
       if (res.init && res.init.advanced) {
         for (const [key, value] of Object.entries(res.init.advanced)) {
