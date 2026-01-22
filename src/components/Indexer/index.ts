@@ -232,7 +232,11 @@ export class OceanIndexer {
     }
 
     // Create new ChainIndexer instance
-    const indexer = new ChainIndexer(rpcDetails, INDEXER_CRAWLING_EVENT_EMITTER)
+    const indexer = new ChainIndexer(
+      blockchain,
+      rpcDetails,
+      INDEXER_CRAWLING_EVENT_EMITTER
+    )
 
     INDEXER_LOGGER.log(
       LOG_LEVELS_STR.LEVEL_INFO,

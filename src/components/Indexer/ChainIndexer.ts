@@ -15,6 +15,7 @@ import {
   getNetworkHeight,
   retrieveChunkEvents
 } from './utils.js'
+import { OceanNodeConfig } from '../../@types/OceanNode.js'
 
 export interface ReindexTask {
   txId: string
@@ -27,15 +28,21 @@ export interface ReindexTask {
  * Runs in the main thread using async/await for non-blocking concurrent execution
  */
 export class ChainIndexer {
+  private config: OceanNodeConfig
   private rpcDetails: SupportedNetwork
   private stopSignal: boolean = false
   private isRunning: boolean = false
   private reindexBlock: number | null = null
   private reindexQueue: ReindexTask[] = []
   private eventEmitter: EventEmitter
+  private blockchain: Blockchain
 
-  constructor(rpcDetails: SupportedNetwork, eventEmitter: EventEmitter) {
-    this.rpcDetails = rpcDetails
+  constructor(
+    blockchain: Blockchain,
+    rpcDetails: SupportedNetwork,
+    eventEmitter: EventEmitter
+  ) {
+    this.blockchain = blockchain
     this.eventEmitter = eventEmitter
   }
 
@@ -44,7 +51,9 @@ export class ChainIndexer {
    */
   async start(): Promise<void> {
     if (this.isRunning) {
-      INDEXER_LOGGER.warn(`Chain ${this.rpcDetails.chainId} is already running`)
+      INDEXER_LOGGER.warn(
+        `Chain ${this.blockchain.getSupportedChain()} is already running`
+      )
       return
     }
 
@@ -54,7 +63,7 @@ export class ChainIndexer {
     // Start crawling but DON'T await - let it run in background
     this.indexLoop().catch((err) => {
       INDEXER_LOGGER.error(
-        `Indexer error for chain ${this.rpcDetails.chainId}: ${err?.message ?? err}`
+        `Indexer error for chain ${this.blockchain.getSupportedChain()}: ${err?.message ?? err}`
       )
       this.isRunning = false
     })
@@ -66,7 +75,7 @@ export class ChainIndexer {
   async stop(): Promise<void> {
     this.stopSignal = true
     INDEXER_LOGGER.warn(
-      `Stopping indexer for chain ${this.rpcDetails.chainId}, waiting for graceful shutdown...`
+      `Stopping indexer for chain ${this.blockchain.getSupportedChain()}, waiting for graceful shutdown...`
     )
 
     // Wait for graceful shutdown
@@ -74,7 +83,9 @@ export class ChainIndexer {
       await sleep(100)
     }
 
-    INDEXER_LOGGER.logMessage(`Chain ${this.rpcDetails.chainId} indexer stopped`)
+    INDEXER_LOGGER.logMessage(
+      `Chain ${this.blockchain.getSupportedChain()} indexer stopped`
+    )
   }
 
   /**
@@ -98,7 +109,7 @@ export class ChainIndexer {
    * Trigger a full chain reindex from a specific block
    */
   triggerReindexChain(blockNumber?: number): void {
-    const deployBlock = getDeployedContractBlock(this.rpcDetails.chainId)
+    const deployBlock = getDeployedContractBlock(this.blockchain.getSupportedChain())
     let targetBlock =
       this.rpcDetails.startBlock && this.rpcDetails.startBlock >= deployBlock
         ? this.rpcDetails.startBlock
@@ -111,7 +122,7 @@ export class ChainIndexer {
 
     this.reindexBlock = targetBlock
     INDEXER_LOGGER.logMessage(
-      `Triggered reindex for chain ${this.rpcDetails.chainId} from block ${targetBlock}`
+      `Triggered reindex for chain ${this.blockchain.getSupportedChain()} from block ${targetBlock}`
     )
   }
 
@@ -119,8 +130,10 @@ export class ChainIndexer {
    * Main indexing loop - runs continuously until stopped
    */
   private async indexLoop(): Promise<void> {
-    let contractDeploymentBlock = getDeployedContractBlock(this.rpcDetails.chainId)
-    const isLocalChain = this.rpcDetails.chainId === DEVELOPMENT_CHAIN_ID
+    let contractDeploymentBlock = getDeployedContractBlock(
+      this.blockchain.getSupportedChain()
+    )
+    const isLocalChain = this.blockchain.getSupportedChain() === DEVELOPMENT_CHAIN_ID
 
     if (isLocalChain && !isDefined(contractDeploymentBlock)) {
       this.rpcDetails.startBlock = contractDeploymentBlock = 0
@@ -133,7 +146,7 @@ export class ChainIndexer {
       !isDefined(await this.getLastIndexedBlock())
     ) {
       INDEXER_LOGGER.error(
-        `Chain ${this.rpcDetails.chainId}: Both deployed block and last indexed block are null/undefined. Cannot proceed.`
+        `Chain ${this.blockchain.getSupportedChain()}: Both deployed block and last indexed block are null/undefined. Cannot proceed.`
       )
       this.isRunning = false
       return
@@ -145,18 +158,11 @@ export class ChainIndexer {
         : contractDeploymentBlock
 
     INDEXER_LOGGER.info(
-      `Initial details for chain ${this.rpcDetails.chainId}: RPCS start block: ${this.rpcDetails.startBlock}, Contract deployment block: ${contractDeploymentBlock}, Crawling start block: ${crawlingStartBlock}`
+      `Initial details for chain ${this.blockchain.getSupportedChain()}: RPCS start block: ${this.rpcDetails.startBlock}, Contract deployment block: ${contractDeploymentBlock}, Crawling start block: ${crawlingStartBlock}`
     )
 
-    const blockchain = new Blockchain(
-      this.rpcDetails.rpc,
-      this.rpcDetails.network,
-      this.rpcDetails.chainId,
-      this.rpcDetails.fallbackRPCs
-    )
-
-    const provider = blockchain.getProvider()
-    const signer = blockchain.getSigner()
+    const provider = this.blockchain.getProvider()
+    const signer = this.blockchain.getSigner()
     const interval = getCrawlingInterval()
     let chunkSize = this.rpcDetails.chunkSize || 1
     let successfulRetrievalCount = 0
@@ -185,7 +191,7 @@ export class ChainIndexer {
             if (!startedCrawling) {
               startedCrawling = true
               this.eventEmitter.emit(INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED, {
-                chainId: this.rpcDetails.chainId,
+                chainId: this.blockchain.getSupportedChain(),
                 startBlock,
                 networkHeight,
                 contractDeploymentBlock
@@ -203,7 +209,7 @@ export class ChainIndexer {
               chunkEvents = await retrieveChunkEvents(
                 signer,
                 provider,
-                this.rpcDetails.chainId,
+                this.blockchain.getSupportedChain(),
                 startBlock,
                 blocksToProcess
               )
@@ -227,7 +233,7 @@ export class ChainIndexer {
                 chunkEvents,
                 signer,
                 provider,
-                this.rpcDetails.chainId,
+                this.blockchain.getSupportedChain(),
                 startBlock,
                 blocksToProcess
               )
@@ -283,12 +289,12 @@ export class ChainIndexer {
 
             this.eventEmitter.emit(INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN, {
               result,
-              chainId: this.rpcDetails.chainId
+              chainId: this.blockchain.getSupportedChain()
             })
           }
         } catch (error) {
           INDEXER_LOGGER.error(
-            `Error in indexing loop for chain ${this.rpcDetails.chainId}: ${error.message}`
+            `Error in indexing loop for chain ${this.blockchain.getSupportedChain()}: ${error.message}`
           )
           await sleep(interval)
         } finally {
@@ -303,7 +309,9 @@ export class ChainIndexer {
     }
 
     this.isRunning = false
-    INDEXER_LOGGER.logMessage(`Exiting indexer loop for chain ${this.rpcDetails.chainId}`)
+    INDEXER_LOGGER.logMessage(
+      `Exiting indexer loop for chain ${this.blockchain.getSupportedChain()}`
+    )
   }
 
   /**
@@ -312,16 +320,16 @@ export class ChainIndexer {
   private async getLastIndexedBlock(): Promise<number | null> {
     const { indexer } = await getDatabase()
     try {
-      const networkDetails = await indexer.retrieve(this.rpcDetails.chainId)
+      const networkDetails = await indexer.retrieve(this.blockchain.getSupportedChain())
       if (networkDetails && networkDetails.lastIndexedBlock) {
         return networkDetails.lastIndexedBlock
       }
       INDEXER_LOGGER.error(
-        `Unable to get last indexed block from DB for chain ${this.rpcDetails.chainId}`
+        `Unable to get last indexed block from DB for chain ${this.blockchain.getSupportedChain()}`
       )
     } catch (err) {
       INDEXER_LOGGER.error(
-        `Error retrieving last indexed block for chain ${this.rpcDetails.chainId}: ${err}`
+        `Error retrieving last indexed block for chain ${this.blockchain.getSupportedChain()}: ${err}`
       )
     }
     return null
@@ -337,29 +345,32 @@ export class ChainIndexer {
     try {
       if (isDefined(lastKnownBlock) && lastKnownBlock > block) {
         INDEXER_LOGGER.error(
-          `Chain ${this.rpcDetails.chainId}: Newest block number is lower than last known block, something is wrong`
+          `Chain ${this.blockchain.getSupportedChain()}: Newest block number is lower than last known block, something is wrong`
         )
         return -1
       }
 
       const { indexer } = await getDatabase()
-      const updatedIndex = await indexer.update(this.rpcDetails.chainId, block)
+      const updatedIndex = await indexer.update(
+        this.blockchain.getSupportedChain(),
+        block
+      )
 
       if (updatedIndex) {
         INDEXER_LOGGER.logMessage(
-          `Chain ${this.rpcDetails.chainId} - New last indexed block: ${updatedIndex.lastIndexedBlock}`,
+          `Chain ${this.blockchain.getSupportedChain()} - New last indexed block: ${updatedIndex.lastIndexedBlock}`,
           true
         )
         return updatedIndex.lastIndexedBlock
       } else {
         INDEXER_LOGGER.error(
-          `Unable to update last indexed block to ${block} for chain ${this.rpcDetails.chainId}`
+          `Unable to update last indexed block to ${block} for chain ${this.blockchain.getSupportedChain()}`
         )
       }
     } catch (err) {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
-        `Error updating last indexed block for chain ${this.rpcDetails.chainId}: ${err.message}`,
+        `Error updating last indexed block for chain ${this.blockchain.getSupportedChain()}: ${err.message}`,
         true
       )
     }
@@ -372,14 +383,16 @@ export class ChainIndexer {
   private async deleteAllAssetsFromChain(): Promise<number> {
     const { ddo } = await getDatabase()
     try {
-      const numDeleted = await ddo.deleteAllAssetsFromChain(this.rpcDetails.chainId)
+      const numDeleted = await ddo.deleteAllAssetsFromChain(
+        this.blockchain.getSupportedChain()
+      )
       INDEXER_LOGGER.logMessage(
-        `${numDeleted} assets were successfully deleted from chain ${this.rpcDetails.chainId}`
+        `${numDeleted} assets were successfully deleted from chain ${this.blockchain.getSupportedChain()}`
       )
       return numDeleted
     } catch (err) {
       INDEXER_LOGGER.error(
-        `Error deleting all assets from chain ${this.rpcDetails.chainId}: ${err}`
+        `Error deleting all assets from chain ${this.blockchain.getSupportedChain()}: ${err}`
       )
       return -1
     }
@@ -429,7 +442,12 @@ export class ChainIndexer {
         if (receipt) {
           const log = receipt.logs[reindexTask.eventIndex]
           const logs = log ? [log] : receipt.logs
-          await processChunkLogs(logs, signer, provider, this.rpcDetails.chainId)
+          await processChunkLogs(
+            logs,
+            signer,
+            provider,
+            this.blockchain.getSupportedChain()
+          )
 
           // Emit event to clear from parent queue
           this.eventEmitter.emit(INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP, {
@@ -471,7 +489,7 @@ export class ChainIndexer {
         ].includes(eventType)
       ) {
         this.eventEmitter.emit(eventType, {
-          chainId: this.rpcDetails.chainId,
+          chainId: this.blockchain.getSupportedChain(),
           data: events[eventType]
         })
       }
