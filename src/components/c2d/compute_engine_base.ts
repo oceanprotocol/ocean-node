@@ -285,6 +285,9 @@ export abstract class C2DEngine {
     console.log({ resourcesRequest })
     console.log({ isFree })
     for (const request of resourcesRequest) {
+      // Skip resources with amount 0 as they're not actually being requested
+      if (request.amount === 0) continue
+      
       let envResource = this.getResource(env.resources, request.id)
       if (!envResource) throw new Error(`No such resource ${request.id}`)
       if (envResource.total - envResource.inUse < request.amount)
