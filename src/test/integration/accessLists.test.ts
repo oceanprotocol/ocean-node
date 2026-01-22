@@ -46,12 +46,7 @@ describe('Should deploy some accessLists before all other tests.', () => {
 
     const rpcs: RPCS = config.supportedNetworks
     const chain: SupportedNetwork = rpcs[String(DEVELOPMENT_CHAIN_ID)]
-    blockchain = new Blockchain(
-      chain.rpc,
-      chain.network,
-      chain.chainId,
-      chain.fallbackRPCs
-    )
+    blockchain = new Blockchain(chain.rpc, chain.chainId, config, chain.fallbackRPCs)
 
     owner = blockchain.getSigner()
 

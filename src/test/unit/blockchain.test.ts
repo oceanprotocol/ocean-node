@@ -36,8 +36,8 @@ describe('Should validate blockchain network connections', () => {
     network = rpcs['8996']
     blockchain = new Blockchain(
       network.rpc,
-      network.network,
       network.chainId,
+      config,
       network.fallbackRPCs
     )
   })

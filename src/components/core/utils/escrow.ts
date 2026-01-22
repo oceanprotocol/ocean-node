@@ -6,6 +6,7 @@ import { getOceanArtifactsAdressesByChainId } from '../../../utils/address.js'
 import { RPCS } from '../../../@types/blockchain.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { sleep } from '../../../utils/util.js'
+import { getConfiguration } from '../../../utils/index.js'
 export class Escrow {
   private networks: RPCS
   private claimDurationTimeout: number
@@ -31,10 +32,11 @@ export class Escrow {
     token: string,
     existingChain?: Blockchain
   ) {
-    const { rpc, network, chainId, fallbackRPCs } = this.networks[chain]
+    const { rpc, chainId, fallbackRPCs } = this.networks[chain]
     let blockchain: Blockchain = existingChain
     if (!blockchain) {
-      blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+      const config = await getConfiguration()
+      blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
     }
     const provider = blockchain.getProvider()
 
@@ -47,8 +49,9 @@ export class Escrow {
   }
 
   async getNumberFromWei(wei: string, chain: number, token: string) {
-    const { rpc, network, chainId, fallbackRPCs } = this.networks[chain]
-    const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+    const { rpc, chainId, fallbackRPCs } = this.networks[chain]
+    const config = await getConfiguration()
+    const blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
     const provider = blockchain.getProvider()
     const decimals = await getDatatokenDecimals(token, provider)
     return parseFloat(formatUnits(wei, decimals))
@@ -67,10 +70,11 @@ export class Escrow {
     token: string,
     existingChain?: Blockchain
   ): Promise<BigInt> {
-    const { rpc, network, chainId, fallbackRPCs } = this.networks[chain]
+    const { rpc, chainId, fallbackRPCs } = this.networks[chain]
     let blockchain: Blockchain = existingChain
     if (!blockchain) {
-      blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+      const config = await getConfiguration()
+      blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
     }
     const signer = blockchain.getSigner()
     const contract = this.getContract(chainId, signer)
@@ -88,8 +92,9 @@ export class Escrow {
     payer: string,
     payee: string
   ): Promise<EscrowLock[]> {
-    const { rpc, network, chainId, fallbackRPCs } = this.networks[chain]
-    const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+    const { rpc, chainId, fallbackRPCs } = this.networks[chain]
+    const config = await getConfiguration()
+    const blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
     const signer = blockchain.getSigner()
     const contract = this.getContract(chainId, signer)
     try {
@@ -106,10 +111,11 @@ export class Escrow {
     payee: string,
     existingChain?: Blockchain
   ): Promise<EscrowAuthorization[]> {
-    const { rpc, network, chainId, fallbackRPCs } = this.networks[chain]
+    const { rpc, chainId, fallbackRPCs } = this.networks[chain]
     let blockchain: Blockchain = existingChain
     if (!blockchain) {
-      blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+      const config = await getConfiguration()
+      blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
     }
     const signer = blockchain.getSigner()
     const contract = this.getContract(chainId, signer)
@@ -129,8 +135,9 @@ export class Escrow {
     expiry: BigNumberish
   ): Promise<string | null> {
     const jobId = create256Hash(job)
-    const { rpc, network, chainId, fallbackRPCs } = this.networks[chain]
-    const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+    const { rpc, chainId, fallbackRPCs } = this.networks[chain]
+    const config = await getConfiguration()
+    const blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
     const signer = blockchain.getSigner()
     const contract = this.getContract(chainId, signer)
     if (!contract) throw new Error(`Failed to initialize escrow contract`)
@@ -203,8 +210,9 @@ export class Escrow {
     amount: number,
     proof: string
   ): Promise<string | null> {
-    const { rpc, network, chainId, fallbackRPCs } = this.networks[chain]
-    const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+    const { rpc, chainId, fallbackRPCs } = this.networks[chain]
+    const config = await getConfiguration()
+    const blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
     const signer = blockchain.getSigner()
     const contract = this.getContract(chainId, signer)
     const wei = await this.getPaymentAmountInWei(amount, chain, token, blockchain)
@@ -245,8 +253,9 @@ export class Escrow {
     token: string,
     payer: string
   ): Promise<string | null> {
-    const { rpc, network, chainId, fallbackRPCs } = this.networks[chain]
-    const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+    const { rpc, chainId, fallbackRPCs } = this.networks[chain]
+    const config = await getConfiguration()
+    const blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
     const signer = blockchain.getSigner()
     const jobId = create256Hash(job)
     const contract = this.getContract(chainId, signer)

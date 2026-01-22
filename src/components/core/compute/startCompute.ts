@@ -220,9 +220,8 @@ export class PaidComputeStartHandler extends CommandHandler {
             }
           }
           const config = await getConfiguration()
-          const { rpc, network, chainId, fallbackRPCs } =
-            config.supportedNetworks[ddoChainId]
-          const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+          const { rpc, chainId, fallbackRPCs } = config.supportedNetworks[ddoChainId]
+          const blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
           const { ready, error } = await blockchain.isNetworkReady()
           if (!ready) {
             return {
@@ -683,9 +682,8 @@ export class FreeComputeStartHandler extends CommandHandler {
           }
         }
         const config = await getConfiguration()
-        const { rpc, network, chainId, fallbackRPCs } =
-          config.supportedNetworks[ddoChainId]
-        const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+        const { rpc, chainId, fallbackRPCs } = config.supportedNetworks[ddoChainId]
+        const blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
         const { ready, error } = await blockchain.isNetworkReady()
         if (!ready) {
           return {
@@ -920,9 +918,9 @@ async function validateAccess(
   const config = await getConfiguration()
   const { supportedNetworks } = config
   for (const chain of Object.keys(access.accessLists)) {
-    const { rpc, network, chainId, fallbackRPCs } = supportedNetworks[chain]
+    const { rpc, chainId, fallbackRPCs } = supportedNetworks[chain]
     try {
-      const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+      const blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
       const signer = blockchain.getSigner()
       for (const accessListAddress of access.accessLists[chain]) {
         const hasAccess = await checkAddressOnAccessList(

@@ -9,7 +9,12 @@ import { Blockchain } from '../../utils/blockchain.js'
 import { BlocksEvents, SupportedNetwork } from '../../@types/blockchain.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { isDefined, sleep } from '../../utils/util.js'
-import { EVENTS, INDEXER_CRAWLING_EVENTS, INDEXER_MESSAGES } from '../../utils/index.js'
+import {
+  EVENTS,
+  getConfiguration,
+  INDEXER_CRAWLING_EVENTS,
+  INDEXER_MESSAGES
+} from '../../utils/index.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { getDatabase } from '../../utils/database.js'
 import { JsonRpcApiProvider, Log, Signer } from 'ethers'
@@ -204,7 +209,7 @@ export async function processNetworkData(
           checkNewlyIndexedAssets(processedBlocks.foundEvents)
           // Revert to original chunk size after 3 successful retrieveChunkEvents calls
           if (successfulRetrievalCount >= 3 && chunkSize < rpcDetails.chunkSize) {
-            chunkSize = rpcDetails.chunkSize
+            ;({ chunkSize } = rpcDetails)
             successfulRetrievalCount = 0
             INDEXER_LOGGER.logMessage(
               `network: ${rpcDetails.network} Reverting chunk size back to original ${chunkSize} after 3 successful calls`,
@@ -336,13 +341,14 @@ export function checkNewlyIndexedAssets(events: BlocksEvents): void {
   })
 }
 
-parentPort.on('message', (message) => {
+parentPort.on('message', async (message) => {
   if (message.method === INDEXER_MESSAGES.START_CRAWLING) {
+    const config = await getConfiguration()
     // start indexing the chain
     const blockchain = new Blockchain(
       rpcDetails.rpc,
-      rpcDetails.network,
       rpcDetails.chainId,
+      config,
       rpcDetails.fallbackRPCs
     )
     // return retryCrawlerWithDelay(blockchain)
