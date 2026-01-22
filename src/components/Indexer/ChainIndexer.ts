@@ -44,11 +44,13 @@ export class ChainIndexer {
   ) {
     this.blockchain = blockchain
     this.eventEmitter = eventEmitter
+    this.rpcDetails = rpcDetails
   }
 
   /**
    * Start indexing - returns immediately, runs in background
    */
+  // eslint-disable-next-line require-await
   async start(): Promise<void> {
     if (this.isRunning) {
       INDEXER_LOGGER.warn(
