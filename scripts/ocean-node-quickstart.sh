@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 #
-# Copyright (c) 2024 Ocean Protocol contributors
+# Copyright (c) 2026 Ocean Protocol contributors
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -52,6 +52,69 @@ validate_ip_or_fqdn() {
   return 0
 }
 
+ensure_jq() {
+
+    if command -v jq >/dev/null 2>&1; then
+        echo "jq is already installed."
+        return 0
+    fi
+
+    echo "jq not found. Attempting to install..."
+
+    if [ "$(id -u)" -ne 0 ]; then
+        SUDO="sudo"
+    else
+        SUDO=""
+    fi
+
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        case "$ID" in
+            debian|ubuntu|linuxmint|pop|kali)
+                $SUDO apt-get update && $SUDO apt-get install -y jq
+                ;;
+            fedora)
+                $SUDO dnf install -y jq
+                ;;
+            centos|rhel|almalinux|rocky)
+                if command -v dnf >/dev/null; then
+                    $SUDO dnf install -y epel-release
+                    $SUDO dnf install -y jq
+                else
+                    $SUDO yum install -y epel-release
+                    $SUDO yum install -y jq
+                fi
+                ;;
+            alpine)
+                $SUDO apk add jq
+                ;;
+            arch|manjaro)
+                $SUDO pacman -Sy --noconfirm jq
+                ;;
+            opensuse*|sles)
+                $SUDO zypper install -y jq
+                ;;
+            *)
+                echo "Error: Unsupported distribution '$ID'. Please install jq manually."
+                return 1
+                ;;
+        esac
+    else
+        echo "Error: Cannot detect OS distribution. Please install jq manually."
+        return 1
+    fi
+
+    if command -v jq >/dev/null 2>&1; then
+        echo "jq installed successfully."
+        return 0
+    else
+        echo "Error: Failed to install jq."
+        return 1
+    fi
+}
+
+echo "Checking prerequisites (jq) are installed.."
+ensure_jq
 
 read -p "Do you have your private key for running the Ocean Node [ y/n ]: " has_key
 
@@ -68,6 +131,7 @@ else
   echo "Generating Private Key, please wait..."
   output=$(head -c 32 /dev/urandom | xxd -p | tr -d '\n' | awk '{print "0x" $0}')
   PRIVATE_KEY=$(echo "$output")
+
   echo -e "Generated Private Key: \e[1;31m$PRIVATE_KEY\e[0m" 
   validate_hex "$PRIVATE_KEY"
 fi
@@ -99,6 +163,13 @@ echo -ne "Provide the P2P_ipV6BindWsPort or accept the default (press Enter) [\e
 read P2P_ipV6BindWsPort
 P2P_ipV6BindWsPort=${P2P_ipV6BindWsPort:-9003}
 validate_port "$P2P_ipV6BindWsPort"
+
+P2P_ENABLE_UPNP='false'
+read -p "Enable UPnP (useful in case you can no set up port forwarding)? [ y/n ]: " enable_upnp
+if [ "$enable_upnp" == "y" ]; then
+    P2P_ENABLE_UPNP='true'
+fi
+
 
 read -p "Provide the public IPv4 address or FQDN where this node will be accessible: " P2P_ANNOUNCE_ADDRESS
 
@@ -153,8 +224,82 @@ fi
 # Set default compute environments if not already defined
 if [ -z "$DOCKER_COMPUTE_ENVIRONMENTS" ]; then
   echo "Setting default DOCKER_COMPUTE_ENVIRONMENTS configuration"
-  export DOCKER_COMPUTE_ENVIRONMENTS="[{\"socketPath\":\"/var/run/docker.sock\",\"resources\":[{\"id\":\"disk\",\"total\":10}],\"storageExpiry\":604800,\"maxJobDuration\":36000,\"minJobDuration\":60,\"fees\":{\"1\":[{\"feeToken\":\"0x123\",\"prices\":[{\"id\":\"cpu\",\"price\":1}]}]},\"free\":{\"maxJobDuration\":360000,\"minJobDuration\":60,\"maxJobs\":3,\"resources\":[{\"id\":\"cpu\",\"max\":1},{\"id\":\"ram\",\"max\":1},{\"id\":\"disk\",\"max\":1}]}}]"
+  export DOCKER_COMPUTE_ENVIRONMENTS='[
+    {
+      "socketPath": "/var/run/docker.sock",
+      "resources": [
+        {
+          "id": "disk",
+          "total": 10
+        }
+      ],
+      "storageExpiry": 604800,
+      "maxJobDuration": 36000,
+      "minJobDuration": 60,
+      "fees": {
+        "1": [
+          {
+            "feeToken": "0x123",
+            "prices": [
+              {
+                "id": "cpu",
+                "price": 1
+              }
+            ]
+          }
+        ]
+      },
+      "free": {
+        "maxJobDuration": 360000,
+        "minJobDuration": 60,
+        "maxJobs": 3,
+        "resources": [
+          {
+            "id": "cpu",
+            "max": 1
+          },
+          {
+            "id": "ram",
+            "max": 1
+          },
+          {
+            "id": "disk",
+            "max": 1
+          }
+        ]
+      }
+    }
+  ]'
 fi
+
+# GPU Detection and Integration
+LIST_GPUS_SCRIPT="$(dirname "$0")/list_gpus.sh"
+if [ -f "$LIST_GPUS_SCRIPT" ] && command -v jq &> /dev/null; then
+  echo "Checking for GPUs..."
+  source "$LIST_GPUS_SCRIPT"
+  DETECTED_GPUS=$(get_all_gpus_json)
+  
+  # Check if we got any GPUs (array not empty)
+  GPU_COUNT=$(echo "$DETECTED_GPUS" | jq 'length')
+  
+  if [ "$GPU_COUNT" -gt 0 ]; then
+    echo "Detected $GPU_COUNT GPU type(s). Updating configuration..."
+    
+    # Merge detected GPUs into the resources array of the first environment
+    # We use jq to append the detected GPU objects to existing resources
+    DOCKER_COMPUTE_ENVIRONMENTS=$(echo "$DOCKER_COMPUTE_ENVIRONMENTS" | jq --argjson gpus "$DETECTED_GPUS" '.[0].resources += $gpus')
+    
+    # Also update free resources to include GPUs if desired, or at least the pricing?
+    # For now, let's just ensure they are in the available resources list.
+    echo "GPUs added to Compute Environment resources."
+  else
+    echo "No GPUs detected."
+  fi
+else
+  echo "Skipping GPU detection (script not found or jq missing)."
+fi
+
+echo $DOCKER_COMPUTE_ENVIRONMENTS
 
 cat <<EOF > docker-compose.yml
 services:
@@ -216,7 +361,7 @@ services:
 #      P2P_mDNSInterval: ''
 #      P2P_connectionsMaxParallelDials: ''
 #      P2P_connectionsDialTimeout: ''
-#      P2P_ENABLE_UPNP: ''
+       P2P_ENABLE_UPNP: '$P2P_ENABLE_UPNP'
 #      P2P_ENABLE_AUTONAT: ''
 #      P2P_ENABLE_CIRCUIT_RELAY_SERVER: ''
 #      P2P_ENABLE_CIRCUIT_RELAY_CLIENT: ''
