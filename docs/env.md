@@ -63,6 +63,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `UNSAFE_URLS`: Array or regular expression URLs to be excluded from access.Example: ["^.*(169.254.169.254).*","^.*(127.0.0.1).*"]
 
 ## HTTP
+
 - `HTTP_API_PORT`: Port number for the HTTP API. Example: `8000`
 - `HTTP_CERT_PATH`: Absolute path to the TLS certificate file. If provided along with `HTTP_KEY_PATH`, the node will start an HTTPS server. Example: `"/etc/letsencrypt/live/example.com/fullchain.pem"`
 - `HTTP_KEY_PATH`: Absolute path to the TLS private key file. If provided along with `HTTP_CERT_PATH`, the node will start an HTTPS server. Example: `"/etc/letsencrypt/live/example.com/privkey.pem"`
@@ -78,6 +79,11 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `P2P_ipV6BindTcpPort`: Port used on IPv6 TCP connections. Defaults to `0` (Use whatever port is free. When running as docker, please set it explicitly). Example: `0`
 - `P2P_ipV6BindWsPort`: Port used on IPv6 WS connections. Defaults to `0` (Use whatever port is free. When running as docker, please set it explicitly). Example: `0`
 - `P2P_ANNOUNCE_ADDRESSES`: List of addresses to announce to the network. Example: `"[\"/ip4/1.2.3.4/tcp/8000\"]"`
+
+  To enable SNI (Server Name Indication) with autoTLS, include `/tls/ws` or `/tls/wss` addresses:
+  - `"["/ip4/<your-ip-addr>/tcp/9001/tls/ws"]"` - TLS WebSocket
+  - `"["/ip4/<your-ip-addr>/tcp/9005/tls/wss"]"` - TLS WebSocket Secure
+
 - `P2P_ANNOUNCE_PRIVATE`: Announce private IPs. Default: `True`
 - `P2P_pubsubPeerDiscoveryInterval`: Interval (in ms) for discovery using pubsub. Defaults to `10000` (three seconds). Example: `10000`
 - `P2P_dhtMaxInboundStreams`: Maximum number of DHT inbound streams. Defaults to `500`. Example: `500`

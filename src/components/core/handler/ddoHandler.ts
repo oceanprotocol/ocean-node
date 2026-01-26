@@ -11,7 +11,7 @@ import {
 } from '../utils/findDdoHandler.js'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
-import { sleep, readStream } from '../../../utils/util.js'
+import { sleep, readStream, streamToUint8Array } from '../../../utils/util.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Blockchain } from '../../../utils/blockchain.js'
 import { ethers, isAddress } from 'ethers'
@@ -519,7 +519,6 @@ export class FindDdoHandler extends CommandHandler {
       }
       // otherwise we need to contact other providers and get DDO from them
       // ids of available providers
-      const providerIds: string[] = []
       let processed = 0
       let toProcess = 0
 
@@ -535,79 +534,56 @@ export class FindDdoHandler extends CommandHandler {
         updatedCache = true
       }
 
-      // sink fn
-      const sink = async function (source: any) {
-        const chunks: string[] = []
-        let first = true
+      const processDDOResponse = async (peer: string, data: Uint8Array) => {
         try {
-          for await (const chunk of source) {
-            if (first) {
-              first = false
-              const str = uint8ArrayToString(chunk.subarray()) // Obs: we need to specify the length of the subarrays
-              const decoded = JSON.parse(str)
-              if (decoded.httpStatus !== 200) {
-                processed++
-                break
-              }
-            } else {
-              const str = uint8ArrayToString(chunk.subarray())
-              chunks.push(str)
+          const ddo: any = JSON.parse(uint8ArrayToString(data))
+          const isResponseLegit = await checkIfDDOResponseIsLegit(ddo)
+
+          if (isResponseLegit) {
+            const ddoInfo: FindDDOResponse = {
+              id: ddo.id,
+              lastUpdateTx: ddo.indexedMetadata.event.txid,
+              lastUpdateTime: ddo.metadata.updated,
+              provider: peer
             }
-          } // end for chunk
+            resultList.push(ddoInfo)
 
-          const ddo: any = JSON.parse(chunks.toString())
+            CORE_LOGGER.logMessage(
+              `Successfully processed DDO info, id: ${ddo.id} from remote peer: ${peer}`,
+              true
+            )
 
-          chunks.length = 0
-          // process it
-          if (providerIds.length > 0) {
-            const peer = providerIds.pop()
-            const isResponseLegit = await checkIfDDOResponseIsLegit(ddo)
-            if (isResponseLegit) {
-              const ddoInfo: FindDDOResponse = {
-                id: ddo.id,
-                lastUpdateTx: ddo.indexedMetadata.event.txid,
-                lastUpdateTime: ddo.metadata.updated,
-                provider: peer
-              }
-              resultList.push(ddoInfo)
-
-              CORE_LOGGER.logMessage(
-                `Succesfully processed DDO info, id: ${ddo.id} from remote peer: ${peer}`,
-                true
-              )
-
-              // is it cached?
-              const ddoCache = p2pNode.getDDOCache()
-              if (ddoCache.dht.has(ddo.id)) {
-                const localValue: FindDDOResponse = ddoCache.dht.get(ddo.id)
-                if (
-                  new Date(ddoInfo.lastUpdateTime) > new Date(localValue.lastUpdateTime)
-                ) {
-                  // update cached version
-                  ddoCache.dht.set(ddo.id, ddoInfo)
-                }
-              } else {
-                // just add it to the list
+            // Update cache
+            const ddoCache = p2pNode.getDDOCache()
+            if (ddoCache.dht.has(ddo.id)) {
+              const localValue: FindDDOResponse = ddoCache.dht.get(ddo.id)
+              if (
+                new Date(ddoInfo.lastUpdateTime) > new Date(localValue.lastUpdateTime)
+              ) {
+                // update cached version
                 ddoCache.dht.set(ddo.id, ddoInfo)
               }
-              updatedCache = true
-              // also store it locally on db
-              if (configuration.hasIndexer) {
-                const database = node.getDatabase()
-                if (database && database.ddo) {
-                  const ddoExistsLocally = await database.ddo.retrieve(ddo.id)
-                  if (!ddoExistsLocally) {
-                    p2pNode.storeAndAdvertiseDDOS([ddo])
-                  }
+            } else {
+              // just add it to the list
+              ddoCache.dht.set(ddo.id, ddoInfo)
+            }
+            updatedCache = true
+
+            // Store locally if indexer is enabled
+            if (configuration.hasIndexer) {
+              const database = node.getDatabase()
+              if (database && database.ddo) {
+                const ddoExistsLocally = await database.ddo.retrieve(ddo.id)
+                if (!ddoExistsLocally) {
+                  p2pNode.storeAndAdvertiseDDOS([ddo])
                 }
               }
-            } else {
-              CORE_LOGGER.warn(
-                `Cannot confirm validity of ${ddo.id} fetch from remote node, skipping it...`
-              )
             }
+          } else {
+            CORE_LOGGER.warn(
+              `Cannot confirm validity of ${ddo.id} from remote node, skipping it...`
+            )
           }
-          processed++
         } catch (err) {
           CORE_LOGGER.logMessageWithEmoji(
             'FindDDO: Error on sink function: ' + err.message,
@@ -615,10 +591,9 @@ export class FindDdoHandler extends CommandHandler {
             GENERIC_EMOJIS.EMOJI_CROSS_MARK,
             LOG_LEVELS_STR.LEVEL_ERROR
           )
-          processed++
         }
+        processed++
       }
-      // end sink
 
       // if something goes really bad then exit after 60 secs
       const fnTimeout = setTimeout(() => {
@@ -657,27 +632,22 @@ export class FindDdoHandler extends CommandHandler {
                 id: task.id,
                 command: PROTOCOL_COMMANDS.GET_DDO
               }
-              // NOTE: do not push to response until we verify that it is legitimate
-              providerIds.push(peer)
 
               try {
-                // problem here is that even if we get the P2PCommandResponse right after await(), we still don't know
-                // exactly when the chunks are written/processed/received on the sink function
-                // so, better to wait/sleep some small amount of time before proceeding to the next one
-                const response: P2PCommandResponse = await p2pNode.sendTo(
-                  peer,
-                  JSON.stringify(getCommand),
-                  sink
-                )
-                if (response.status.httpStatus !== 200) {
-                  providerIds.pop() // move to the next one
+                const response = await p2pNode.sendTo(peer, JSON.stringify(getCommand))
+
+                if (response.status.httpStatus === 200 && response.stream) {
+                  // Convert stream to Uint8Array for processing
+                  const data = await streamToUint8Array(response.stream as Readable)
+                  await processDDOResponse(peer, data)
+                } else {
                   processed++
                 }
               } catch (innerException) {
-                providerIds.pop() // ignore this one
                 processed++
               }
               // 'sleep 5 seconds...'
+
               CORE_LOGGER.logMessage(
                 `Sleeping for: ${MAX_WAIT_TIME_SECONDS_GET_DDO} seconds, while getting DDO info remote peer...`,
                 true

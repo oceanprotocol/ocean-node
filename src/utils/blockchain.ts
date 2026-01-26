@@ -64,7 +64,7 @@ export class Blockchain {
 
     // always use this signer, not simply provider.getSigner(0) for instance (as we do on many tests)
     // get cached signer if it exists
-    const privateKeyHash = sha512(Buffer.from(this.config.keys.privateKey))
+    const privateKeyHash = sha512(Buffer.from(this.config.keys.privateKey.raw))
     const signerKey = `${chainId}-${privateKeyHash}`
     if (Blockchain.signers.has(signerKey)) {
       let cachedSigner = Blockchain.signers.get(signerKey)
@@ -75,7 +75,7 @@ export class Blockchain {
       this.signer = cachedSigner
     } else {
       this.signer = new ethers.Wallet(
-        Buffer.from(this.config.keys.privateKey).toString('hex'),
+        Buffer.from(this.config.keys.privateKey.raw).toString('hex'),
         this.provider
       )
       Blockchain.signers.set(signerKey, this.signer)
@@ -170,7 +170,7 @@ export class Blockchain {
       CORE_LOGGER.warn(`Retrying new provider connection with RPC: ${this.knownRPCs[i]}`)
       this.provider = new JsonRpcProvider(this.knownRPCs[i])
       this.signer = new ethers.Wallet(
-        Buffer.from(this.config.keys.privateKey).toString('hex'),
+        Buffer.from(this.config.keys.privateKey.raw).toString('hex'),
         this.provider
       )
       // try them 1 by 1 and wait a couple of secs for network detection
