@@ -432,13 +432,14 @@ export class ChainIndexer {
 
   /**
    * Process the reindex queue for specific transactions
+   * Uses FIFO (First-In, First-Out) order via shift()
    */
   private async processReindexQueue(
     provider: JsonRpcApiProvider,
     signer: Signer
   ): Promise<void> {
     while (this.reindexQueue.length > 0) {
-      const reindexTask = this.reindexQueue.pop()
+      const reindexTask = this.reindexQueue.shift()
       try {
         const receipt = await provider.getTransactionReceipt(reindexTask.txId)
         if (receipt) {
@@ -456,9 +457,6 @@ export class ChainIndexer {
             txId: reindexTask.txId,
             chainId: reindexTask.chainId
           })
-        } else {
-          // Put it back as it failed
-          this.reindexQueue.push(reindexTask)
         }
       } catch (error) {
         INDEXER_LOGGER.log(
