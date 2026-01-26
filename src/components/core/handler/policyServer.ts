@@ -82,7 +82,14 @@ export class PolicyServerInitializeHandler extends CommandHandler {
     }
     // resolve DDO first
     try {
-      const ddo = await this.getOceanNode().getDatabase().ddo.retrieve(task.documentId)
+      const database = this.getOceanNode().getDatabase()
+      if (!database || !database.ddo) {
+        return {
+          stream: null,
+          status: { httpStatus: 503, error: 'DDO database is not available' }
+        }
+      }
+      const ddo = await database.ddo.retrieve(task.documentId)
       if (!ddo) {
         return {
           stream: null,
