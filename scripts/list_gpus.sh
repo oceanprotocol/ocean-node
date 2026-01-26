@@ -136,8 +136,6 @@ process_pci_line() {
                 devices+=("$device_id") # /dev/dri/cardX
 
                 # Binds
-                [ -e "/usr/lib/wsl/lib/libdxcore.so" ] && \
-                    binds+=("/usr/lib/wsl/lib/libdxcore.so:/usr/lib/libdxcore.so")
                 [ -e "/opt/rocm/lib/libhsa-runtime64.so.1" ] && \
                      binds+=("/opt/rocm/lib/libhsa-runtime64.so.1:/opt/rocm/lib/libhsa-runtime64.so.1")
 
