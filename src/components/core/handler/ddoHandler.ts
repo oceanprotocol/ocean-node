@@ -445,7 +445,15 @@ export class GetDdoHandler extends CommandHandler {
       return validationResponse
     }
     try {
-      const ddo = await this.getOceanNode().getDatabase().ddo.retrieve(task.id)
+      const database = this.getOceanNode().getDatabase()
+      if (!database || !database.ddo) {
+        CORE_LOGGER.error('DDO database is not available')
+        return {
+          stream: null,
+          status: { httpStatus: 503, error: 'DDO database is not available' }
+        }
+      }
+      const ddo = await database.ddo.retrieve(task.id)
       if (!ddo) {
         return {
           stream: null,
@@ -547,25 +555,33 @@ export class FindDdoHandler extends CommandHandler {
 
             // Update cache
             const ddoCache = p2pNode.getDDOCache()
-            const localValue = ddoCache.dht.get(ddo.id)
-            if (
-              !localValue ||
-              new Date(ddoInfo.lastUpdateTime) > new Date(localValue.lastUpdateTime)
-            ) {
+            if (ddoCache.dht.has(ddo.id)) {
+              const localValue: FindDDOResponse = ddoCache.dht.get(ddo.id)
+              if (
+                new Date(ddoInfo.lastUpdateTime) > new Date(localValue.lastUpdateTime)
+              ) {
+                // update cached version
+                ddoCache.dht.set(ddo.id, ddoInfo)
+              }
+            } else {
+              // just add it to the list
               ddoCache.dht.set(ddo.id, ddoInfo)
             }
             updatedCache = true
 
             // Store locally if indexer is enabled
             if (configuration.hasIndexer) {
-              const ddoExistsLocally = await node.getDatabase().ddo.retrieve(ddo.id)
-              if (!ddoExistsLocally) {
-                p2pNode.storeAndAdvertiseDDOS([ddo])
+              const database = node.getDatabase()
+              if (database && database.ddo) {
+                const ddoExistsLocally = await database.ddo.retrieve(ddo.id)
+                if (!ddoExistsLocally) {
+                  p2pNode.storeAndAdvertiseDDOS([ddo])
+                }
               }
             }
           } else {
             CORE_LOGGER.warn(
-              `Cannot confirm validity of ${ddo.id} from remote node, skipping...`
+              `Cannot confirm validity of ${ddo.id} from remote node, skipping it...`
             )
           }
         } catch (err) {
@@ -696,8 +712,16 @@ export class FindDdoHandler extends CommandHandler {
     // First try to find the DDO Locally if findDDO is not enforced
     if (!force) {
       try {
-        const ddo = await node.getDatabase().ddo.retrieve(ddoId)
-        return ddo as DDO
+        const database = node.getDatabase()
+        if (database && database.ddo) {
+          const ddo = await database.ddo.retrieve(ddoId)
+          return ddo as DDO
+        } else {
+          CORE_LOGGER.logMessage(
+            `DDO database is not available. Proceeding to call findDDO`,
+            true
+          )
+        }
       } catch (error) {
         CORE_LOGGER.logMessage(
           `Unable to find DDO locally. Proceeding to call findDDO`,
