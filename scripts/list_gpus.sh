@@ -132,7 +132,12 @@ process_pci_line() {
         case "$vendor_id_hex" in
             "1002") # AMD (0x1002)
                 # Devices
-                [ -e "/dev/dxg" ] && devices+=("/dev/dxg")
+                if [ -e "/dev/dxg" ]; then
+                    devices+=("/dev/dxg")
+                else
+                    devices+=("/dev/kfd")
+                fi
+                [ -n "$render_name" ] && devices+=("/dev/dri/$render_name")
                 devices+=("$device_id") # /dev/dri/cardX
 
                 # Binds
