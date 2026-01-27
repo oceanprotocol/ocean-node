@@ -1,11 +1,5 @@
 # Ocean Node Indexer - Event Monitoring & Error Handling
 
-**Created:** January 2026  
-**Purpose:** Event monitoring mechanisms and error handling for refactoring discussion  
-**Status:** Pre-Meeting Preparation Document
-
----
-
 ## Table of Contents
 
 1. [Overview](#overview)
