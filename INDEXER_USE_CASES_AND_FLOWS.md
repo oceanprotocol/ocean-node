@@ -191,16 +191,19 @@ Raw Blockchain Logs
 
 ## Detailed Event Handling
 
-### A. METADATA_CREATED Event
+### 1. METADATA_CREATED Event
 
 **Trigger:** New data asset published on-chain
+
+**Processor:** `MetadataEventProcessor.ts`
 
 **On-Chain Data:**
 
 - `owner` - Publisher address
-- `flags` - Encryption/compression flags
+- `flags` - Encryption/compression flags (bit 2 = encrypted)
 - `metadata` - Encrypted/compressed DDO
 - `metadataHash` - SHA256 hash of DDO
+- `validateTime` - Timestamp
 
 **Processing Steps:**
 
@@ -286,41 +289,128 @@ Raw Blockchain Logs
     └─> eventEmitter.emit(METADATA_CREATED, { chainId, data: ddo })
 ```
 
-**RPC Calls Per Event:**
-
-- 1 call: transaction receipt
-- 1+ calls: factory validation
-- 1+ calls: NFT info (name, symbol, state, etc.)
-- 1+ calls per datatoken: token info
-- Multiple calls: pricing info (dispensers, exchanges)
-- Optional: access list checks (1+ per validator)
-
-**Total:** ~10-20 RPC calls per metadata event
+**RPC Calls:** ~10-20 (receipt, factory, NFT info, token info, pricing)
 
 ---
 
-### B. ORDER_STARTED Event
+### 2. METADATA_UPDATED Event
 
-**Trigger:** Someone purchases access to a data asset
+**Trigger:** Asset metadata is updated on-chain
+
+**Processor:** `MetadataEventProcessor.ts` (same as METADATA_CREATED)
+
+**Processing:** **Similar to METADATA_CREATED** with these differences:
+
+```
+1-10. Same validation and processing as METADATA_CREATED
+
+11. RETRIEVE EXISTING DDO
+    └─> existingDdo = ddoDatabase.retrieve(did)
+
+12. MERGE DDO DATA
+    └─> Merge new metadata with existing:
+        ├─> Update: metadata, services, credentials
+        ├─> Preserve: existing order counts, pricing
+        ├─> Merge: pricing arrays (add new, keep existing)
+        └─> Update: indexedMetadata.event (new tx, block, datetime)
+
+13. UPDATE DATABASE
+    └─> ddoDatabase.update(mergedDdo)
+        ddoState.update(chainId, did, nftAddress, txId, valid=true)
+
+14. EMIT EVENT
+    └─> eventEmitter.emit(METADATA_UPDATED, { chainId, data: ddo })
+```
+
+**Key Difference:** Uses `update()` instead of `create()`, merges with existing data
+
+**RPC Calls:** ~10-20
+
+---
+
+### 3. METADATA_STATE Event
+
+**Trigger:** Asset state changes (Active → Revoked/Deprecated or vice versa)
+
+**Processor:** `MetadataStateEventProcessor.ts`
+
+**On-Chain Data:**
+
+- `metadataState` - New state value (0=Active, 1=End of Life, 2=Deprecated, 3=Revoked, etc.)
 
 **Processing Steps:**
 
 ```
 1. DECODE EVENT DATA
-   └─> Extract: consumer, payer, datatoken, amount, timestamp
+   └─> Extract: metadataState (integer)
+
+2. BUILD DID
+   └─> did = makeDid(nftAddress, chainId)
+
+3. RETRIEVE EXISTING DDO
+   └─> ddo = ddoDatabase.retrieve(did)
+       └─> If not found → log and skip
+
+4. CHECK STATE CHANGE
+   └─> Compare old state vs new state
+
+       IF old=Active AND new=Revoked/Deprecated:
+       ├─> DDO becomes non-visible
+       ├─> Create short DDO (minimal version):
+       │   └─> { id, version: 'deprecated', chainId, nftAddress,
+       │         indexedMetadata: { nft: { state } } }
+       └─> Store short DDO
+
+       ELSE:
+       └─> Update nft.state in existing DDO
+
+5. UPDATE DATABASE
+   └─> ddoDatabase.update(ddo)
+
+6. EMIT EVENT
+   └─> eventEmitter.emit(METADATA_STATE, { chainId, data: ddo })
+```
+
+**Special Behavior:** When asset is revoked/deprecated, stores minimal DDO for potential future restoration
+
+**RPC Calls:** 1-2 (receipt, decode)
+
+---
+
+### 4. ORDER_STARTED Event
+
+**Trigger:** Someone purchases/starts access to a data asset
+
+**Processor:** `OrderStartedEventProcessor.ts`
+
+**On-Chain Data:**
+
+- `consumer` - Buyer address
+- `payer` - Payment source address
+- `amount` - Amount paid
+- `serviceId` - Service index
+- `timestamp` - Order time
+
+**Processing Steps:**
+
+```
+1. DECODE EVENT DATA
+   └─> Extract: consumer, payer, amount, serviceIndex, timestamp
 
 2. FIND NFT ADDRESS
-   └─> datatokenContract.getERC721Address()
+   └─> datatokenContract = getDtContract(signer, event.address)
+       nftAddress = datatokenContract.getERC721Address()
 
 3. BUILD DID
    └─> did = makeDid(nftAddress, chainId)
 
-4. RETRIEVE EXISTING DDO
-   └─> ddoDatabase.retrieve(did)
+4. RETRIEVE DDO
+   └─> ddo = ddoDatabase.retrieve(did)
+       └─> If not found → log error, skip
 
 5. UPDATE ORDER COUNT
-   └─> Find service by datatokenAddress
-       └─> Increment orders count
+   └─> Find service in ddo.indexedMetadata.stats by datatokenAddress
+       └─> Increment stat.orders += 1
 
 6. CREATE ORDER RECORD
    └─> orderDatabase.create({
@@ -328,7 +418,7 @@ Raw Blockchain Logs
          timestamp,
          consumer,
          payer,
-         datatokenAddress,
+         datatokenAddress: event.address,
          nftAddress,
          did,
          startOrderId: txHash
@@ -338,41 +428,349 @@ Raw Blockchain Logs
    └─> ddoDatabase.update(ddo)
 
 8. EMIT EVENT
-   └─> eventEmitter.emit(ORDER_STARTED, { chainId, data })
+   └─> eventEmitter.emit(ORDER_STARTED, { chainId, data: ddo })
 ```
 
-**RPC Calls:** 1-2 (get NFT address, possibly receipt)
+**RPC Calls:** 1-2 (get NFT address, receipt)
 
 ---
 
-### C. PRICING EVENTS (Dispenser/Exchange)
+### 5. ORDER_REUSED Event
 
-**Events:** DISPENSER_ACTIVATED, EXCHANGE_RATE_CHANGED, etc.
+**Trigger:** Someone reuses an existing order for repeated access
+
+**Processor:** `OrderReusedEventProcessor.ts`
+
+**On-Chain Data:**
+
+- `startOrderId` - Reference to original order
+- `payer` - Payment source (may differ from original)
+- `timestamp` - Reuse time
+
+**Processing:** **Similar to ORDER_STARTED** with these differences:
+
+```
+1. DECODE EVENT DATA
+   └─> Extract: startOrderId, payer, timestamp
+
+2-5. Same as ORDER_STARTED (find NFT, get DDO, update count)
+
+6. RETRIEVE START ORDER
+   └─> startOrder = orderDatabase.retrieve(startOrderId)
+       └─> Need original order for consumer address
+
+7. CREATE REUSE ORDER RECORD
+   └─> orderDatabase.create({
+         type: 'reuseOrder',
+         timestamp,
+         consumer: startOrder.consumer,  // From original order
+         payer,  // May be different
+         datatokenAddress: event.address,
+         nftAddress,
+         did,
+         startOrderId  // Reference to original order
+       })
+
+8-9. Same as ORDER_STARTED (update DDO, emit event)
+```
+
+**Key Difference:** Links to original order, may have different payer
+
+**RPC Calls:** 1-2
+
+---
+
+### 6. DISPENSER_CREATED Event
+
+**Trigger:** New dispenser (free token distribution) is created
+
+**Processor:** `DispenserCreatedEventProcessor.ts`
+
+**On-Chain Data:**
+
+- `datatokenAddress` - Datatoken being dispensed
+- `owner` - Dispenser owner
+- `maxBalance` - Max tokens per user
+- `maxTokens` - Max total tokens
 
 **Processing Steps:**
 
 ```
 1. DECODE EVENT DATA
-   └─> Extract event-specific data
+   └─> Extract: datatokenAddress, owner, maxBalance, maxTokens
 
-2. FIND NFT ADDRESS
-   └─> Query datatoken contract
+2. VALIDATE DISPENSER CONTRACT
+   └─> isValidDispenserContract(event.address, chainId)
+       └─> Check if dispenser is approved by Router
+       └─> If not → log warning, skip
 
-3. RETRIEVE DDO
-   └─> ddoDatabase.retrieve(did)
+3. FIND NFT ADDRESS
+   └─> datatokenContract.getERC721Address()
 
-4. UPDATE PRICING ARRAY
+4. RETRIEVE DDO
+   └─> ddo = ddoDatabase.retrieve(did)
+
+5. ADD DISPENSER TO PRICING
    └─> Find service by datatokenAddress
-       └─> Add/update price entry
+       └─> If dispenser doesn't exist in prices:
+           └─> prices.push({
+                 type: 'dispenser',
+                 price: '0',  // Free
+                 contract: event.address,
+                 token: datatokenAddress
+               })
+
+6. UPDATE DDO
+   └─> ddoDatabase.update(ddo)
+
+7. EMIT EVENT
+   └─> eventEmitter.emit(DISPENSER_CREATED, { chainId, data: ddo })
+```
+
+**RPC Calls:** 2-3 (receipt, validation, NFT address)
+
+---
+
+### 7. DISPENSER_ACTIVATED Event
+
+**Trigger:** Dispenser is activated (enables token distribution)
+
+**Processor:** `DispenserActivatedEventProcessor.ts`
+
+**Processing:** **Similar to DISPENSER_CREATED**
+
+```
+1-5. Same validation and processing as DISPENSER_CREATED
+
+Key Addition:
+- Checks if dispenser already exists before adding
+- If already exists → skip (no duplicate entries)
+```
+
+**RPC Calls:** 2-3
+
+---
+
+### 8. DISPENSER_DEACTIVATED Event
+
+**Trigger:** Dispenser is deactivated (disables token distribution)
+
+**Processor:** `DispenserDeactivatedEventProcessor.ts`
+
+**On-Chain Data:**
+
+- `datatokenAddress` - Datatoken address
+
+**Processing:**
+
+```
+1. DECODE EVENT DATA
+   └─> Extract: datatokenAddress
+
+2. VALIDATE & RETRIEVE DDO
+   └─> Same as DISPENSER_CREATED
+
+3. REMOVE DISPENSER FROM PRICING
+   └─> Find service by datatokenAddress
+       └─> Find dispenser entry by contract address
+           └─> prices = prices.filter(p => p.contract !== event.address)
+
+4. UPDATE DDO
+   └─> ddoDatabase.update(ddo)
+
+5. EMIT EVENT
+   └─> eventEmitter.emit(DISPENSER_DEACTIVATED, { chainId, data: ddo })
+```
+
+**Key Difference:** Removes dispenser entry instead of adding
+
+**RPC Calls:** 2-3
+
+---
+
+### 9. EXCHANGE_CREATED Event
+
+**Trigger:** New fixed-rate exchange is created for a datatoken
+
+**Processor:** `ExchangeCreatedEventProcessor.ts`
+
+**On-Chain Data:**
+
+- `exchangeId` - Unique exchange identifier
+- `datatokenAddress` - Datatoken being sold
+- `baseToken` - Payment token (e.g., USDC, DAI)
+- `rate` - Exchange rate
+
+**Processing Steps:**
+
+```
+1. DECODE EVENT DATA
+   └─> Extract: exchangeId, datatokenAddress, baseToken, rate
+
+2. VALIDATE EXCHANGE CONTRACT
+   └─> isValidFreContract(event.address, chainId)
+       └─> Check if exchange is approved by Router
+       └─> If not → log error, skip
+
+3. FIND NFT ADDRESS
+   └─> datatokenContract.getERC721Address()
+
+4. RETRIEVE DDO
+   └─> ddo = ddoDatabase.retrieve(did)
+
+5. ADD EXCHANGE TO PRICING
+   └─> Find service by datatokenAddress
+       └─> If exchange doesn't exist in prices:
+           └─> prices.push({
+                 type: 'exchange',
+                 price: rate,
+                 contract: event.address,
+                 token: baseToken,
+                 exchangeId
+               })
+
+6. UPDATE DDO
+   └─> ddoDatabase.update(ddo)
+
+7. EMIT EVENT
+   └─> eventEmitter.emit(EXCHANGE_CREATED, { chainId, data: ddo })
+```
+
+**RPC Calls:** 2-3
+
+---
+
+### 10. EXCHANGE_ACTIVATED Event
+
+**Trigger:** Fixed-rate exchange is activated
+
+**Processor:** `ExchangeActivatedEventProcessor.ts`
+
+**Processing:** **Similar to EXCHANGE_CREATED**
+
+```
+1-5. Same validation and processing as EXCHANGE_CREATED
+
+Key Addition:
+- Checks if exchange already exists before adding
+- If already exists → skip (no duplicate entries)
+```
+
+**RPC Calls:** 2-3
+
+---
+
+### 11. EXCHANGE_DEACTIVATED Event
+
+**Trigger:** Fixed-rate exchange is deactivated
+
+**Processor:** `ExchangeDeactivatedEventProcessor.ts`
+
+**On-Chain Data:**
+
+- `exchangeId` - Exchange identifier
+
+**Processing:**
+
+```
+1. DECODE EVENT DATA
+   └─> Extract: exchangeId
+
+2. GET EXCHANGE DETAILS
+   └─> freContract.getExchange(exchangeId)
+       └─> Extract: datatokenAddress
+
+3. VALIDATE & RETRIEVE DDO
+   └─> Same as EXCHANGE_CREATED
+
+4. REMOVE EXCHANGE FROM PRICING
+   └─> Find service by datatokenAddress
+       └─> Find exchange entry by exchangeId
+           └─> prices = prices.filter(p => p.exchangeId !== exchangeId)
 
 5. UPDATE DDO
    └─> ddoDatabase.update(ddo)
 
 6. EMIT EVENT
-   └─> eventEmitter.emit(eventType, { chainId, data })
+   └─> eventEmitter.emit(EXCHANGE_DEACTIVATED, { chainId, data: ddo })
 ```
 
-**RPC Calls:** 1-2
+**Key Difference:** Removes exchange entry instead of adding
+
+**RPC Calls:** 2-3
+
+---
+
+### 12. EXCHANGE_RATE_CHANGED Event
+
+**Trigger:** Exchange rate is updated for a fixed-rate exchange
+
+**Processor:** `ExchangeRateChangedEventProcessor.ts`
+
+**On-Chain Data:**
+
+- `exchangeId` - Exchange identifier
+- `newRate` - Updated exchange rate
+
+**Processing Steps:**
+
+```
+1. VALIDATE EXCHANGE CONTRACT
+   └─> isValidFreContract(event.address, chainId)
+
+2. DECODE EVENT DATA
+   └─> Extract: exchangeId, newRate
+
+3. GET EXCHANGE DETAILS
+   └─> freContract.getExchange(exchangeId)
+       └─> Extract: datatokenAddress
+
+4. RETRIEVE DDO
+   └─> ddo = ddoDatabase.retrieve(did)
+
+5. UPDATE EXCHANGE RATE
+   └─> Find service by datatokenAddress
+       └─> Find exchange entry by exchangeId
+           └─> price.price = newRate  // Update in-place
+
+6. UPDATE DDO
+   └─> ddoDatabase.update(ddo)
+
+7. EMIT EVENT
+   └─> eventEmitter.emit(EXCHANGE_RATE_CHANGED, { chainId, data: ddo })
+```
+
+**Key Difference:** Updates existing price instead of add/remove
+
+**RPC Calls:** 2-3
+
+---
+
+### Event Processing Summary
+
+**Metadata Events (3):**
+
+- METADATA_CREATED: Full validation + decryption + enrichment (~10-20 RPC calls)
+- METADATA_UPDATED: Same as CREATED but merges with existing (~10-20 RPC calls)
+- METADATA_STATE: Lightweight state update (~1-2 RPC calls)
+
+**Order Events (2):**
+
+- ORDER_STARTED: Update order count + create record (~1-2 RPC calls)
+- ORDER_REUSED: Similar to STARTED, links to original order (~1-2 RPC calls)
+
+**Dispenser Events (3):**
+
+- DISPENSER_CREATED: Add pricing entry (~2-3 RPC calls)
+- DISPENSER_ACTIVATED: Similar to CREATED (~2-3 RPC calls)
+- DISPENSER_DEACTIVATED: Remove pricing entry (~2-3 RPC calls)
+
+**Exchange Events (4):**
+
+- EXCHANGE_CREATED: Add pricing entry (~2-3 RPC calls)
+- EXCHANGE_ACTIVATED: Similar to CREATED (~2-3 RPC calls)
+- EXCHANGE_DEACTIVATED: Remove pricing entry (~2-3 RPC calls)
+- EXCHANGE_RATE_CHANGED: Update existing price (~2-3 RPC calls)
 
 ---
 
