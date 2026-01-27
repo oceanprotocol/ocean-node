@@ -49,7 +49,7 @@ import {
   OceanIndexer
 } from '../../components/Indexer/index.js'
 import { getCrawlingInterval } from '../../components/Indexer/utils.js'
-import { ReindexTask } from '../../components/Indexer/crawlerThread.js'
+import { ReindexTask } from '../../components/Indexer/ChainIndexer.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { CollectFeesHandler } from '../../components/core/admin/collectFeesHandler.js'
 import { getProviderFeeToken } from '../../components/core/utils/feesHandler.js'
@@ -241,7 +241,7 @@ describe('Should test admin operations', () => {
       INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP, // triggered when tx completes and removed from queue
       (data) => {
         // {ReindexTask}
-        reindexResult = data.result as ReindexTask
+        reindexResult = data as ReindexTask
         expect(reindexResult.txId).to.be.equal(publishedDataset.trxReceipt.hash)
         expect(reindexResult.chainId).to.be.equal(DEVELOPMENT_CHAIN_ID)
       }
@@ -270,11 +270,16 @@ describe('Should test admin operations', () => {
       'wrong job hash'
     )
     // wait a bit
-    await sleep(getCrawlingInterval() * 2)
-    if (reindexResult !== null) {
-      assert('chainId' in reindexResult, 'expected a chainId')
-      assert('txId' in reindexResult, 'expected a txId')
-    }
+    let loopCount = 0
+    do {
+      if (reindexResult !== null || loopCount > 10) {
+        break
+      }
+      await sleep(getCrawlingInterval())
+      loopCount++
+    } while (true)
+    assert('chainId' in reindexResult, 'expected a chainId')
+    assert('txId' in reindexResult, 'expected a txId')
 
     const response = await new FindDdoHandler(oceanNode).handle(findDDOTask)
     const actualDDO = await streamToObject(response.stream as Readable)

@@ -26,7 +26,7 @@ describe('Should validate blockchain network connections', () => {
     envOverrides = buildEnvOverrideConfig(
       [ENVIRONMENT_VARIABLES.RPCS],
       [
-        '{ "8996":{ "rpc":"http://127.0.0.1:8545", "fallbackRPCs": ["http://127.0.0.3:8545","http://127.0.0.1:8545"], "chainId": 8996, "network": "development", "chunkSize": 100 }}'
+        '{ "8996":{ "rpc":"http://127.0.0.254:8545", "fallbackRPCs": ["http://127.0.0.3:8545","http://127.0.0.1:8545"], "chainId": 8996, "network": "development", "chunkSize": 100 }}'
       ]
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)

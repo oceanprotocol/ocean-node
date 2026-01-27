@@ -69,12 +69,19 @@ Nodes lip2p implementation:
 ## 4.1 Indexer
 An off-chain, multi-chain metadata & chain events cache. It continually monitors the chains for well known events and caches them.  (V4 equivalence: Aquarius)
 
-Features:
+**Architecture:**
+  - **Single-threaded, non-blocking design**: Uses Node.js async/await for concurrent execution across multiple chains
+  - **ChainIndexer instances**: Each blockchain network is monitored by a dedicated ChainIndexer instance running concurrently via the event loop
+  - **Event-driven communication**: Components communicate through EventEmitter for clean separation of concerns
+  - **Efficient I/O handling**: All RPC calls, database operations, and network requests are non-blocking, allowing high concurrency without worker threads
+
+**Features:**
   - monitors MetadataCreated & MetadataUpdated and stores DDO
   - validates DDO, according to multiple SHACL schemas
   - provides proof for valid DDOs
   - monitors datatokens contracts & stores orders
   - allows querys for all the above
+  - supports graceful shutdown and chain-specific reindexing
 
 ## 4.2 Provider
 - Performs checks on chain for buyer permissions and payments
