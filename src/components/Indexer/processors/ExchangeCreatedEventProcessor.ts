@@ -1,5 +1,5 @@
 import { DDOManager } from '@oceanprotocol/ddo-js'
-import { ethers, Signer, JsonRpcApiProvider, ZeroAddress } from 'ethers'
+import { ethers, Signer, FallbackProvider, ZeroAddress } from 'ethers'
 import { EVENTS } from '../../../utils/constants.js'
 import { getDatabase } from '../../../utils/database.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
@@ -20,7 +20,7 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
     event: ethers.Log,
     chainId: number,
     signer: Signer,
-    provider: JsonRpcApiProvider
+    provider: FallbackProvider
   ): Promise<any> {
     try {
       if (!(await isValidFreContract(event.address, chainId, signer))) {

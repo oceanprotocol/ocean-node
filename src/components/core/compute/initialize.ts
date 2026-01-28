@@ -13,11 +13,10 @@ import {
   isERC20Template4Active
 } from '../../../utils/asset.js'
 import { verifyProviderFees, createProviderFee } from '../utils/feesHandler.js'
-import { Blockchain } from '../../../utils/blockchain.js'
 
 import { validateOrderTransaction } from '../utils/validateOrders.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
-import { decrypt } from '../../../utils/crypt.js'
+
 import {
   ValidateParams,
   buildInvalidRequestMessage,
@@ -270,8 +269,18 @@ export class ComputeInitializeHandler extends CommandHandler {
             }
           }
           const config = await getConfiguration()
-          const { rpc, chainId, fallbackRPCs } = config.supportedNetworks[ddoChainId]
-          const blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
+          const { chainId } = config.supportedNetworks[ddoChainId]
+          const oceanNode = this.getOceanNode()
+          const blockchain = oceanNode.getBlockchain(chainId)
+          if (!blockchain) {
+            return {
+              stream: null,
+              status: {
+                httpStatus: 400,
+                error: `Initialize Compute: Blockchain instance not available for chain ${chainId}`
+              }
+            }
+          }
           const { ready, error } = await blockchain.isNetworkReady()
           if (!ready) {
             return {
@@ -300,7 +309,7 @@ export class ComputeInitializeHandler extends CommandHandler {
               accessGrantedDDOLevel = await checkCredentials(
                 task.consumerAddress,
                 credentials as Credentials,
-                blockchain.getSigner()
+                await blockchain.getSigner()
               )
             }
             if (!accessGrantedDDOLevel) {
@@ -347,7 +356,7 @@ export class ComputeInitializeHandler extends CommandHandler {
               accessGrantedServiceLevel = await checkCredentials(
                 task.consumerAddress,
                 service.credentials,
-                blockchain.getSigner()
+                await blockchain.getSigner()
               )
             }
 
@@ -394,7 +403,7 @@ export class ComputeInitializeHandler extends CommandHandler {
             }
           }
 
-          const signer = blockchain.getSigner()
+          const signer = await blockchain.getSigner()
 
           // check if oasis evm or similar
           const confidentialEVM = isConfidentialChainDDO(BigInt(ddo.chainId), service)
@@ -402,10 +411,14 @@ export class ComputeInitializeHandler extends CommandHandler {
           let canDecrypt = false
           try {
             if (!confidentialEVM) {
-              await decrypt(
-                Uint8Array.from(Buffer.from(sanitizeServiceFiles(service.files), 'hex')),
-                EncryptMethod.ECIES
-              )
+              await node
+                .getKeyManager()
+                .decrypt(
+                  Uint8Array.from(
+                    Buffer.from(sanitizeServiceFiles(service.files), 'hex')
+                  ),
+                  EncryptMethod.ECIES
+                )
               canDecrypt = true
             } else {
               // TODO 'Initialize compute on confidential EVM!
@@ -459,7 +472,7 @@ export class ComputeInitializeHandler extends CommandHandler {
             }
           }
 
-          const provider = blockchain.getProvider()
+          const provider = await blockchain.getProvider()
           result.datatoken = service.datatokenAddress
           result.chainId = ddoChainId
           // start with assumption than we need new providerfees
@@ -478,7 +491,7 @@ export class ComputeInitializeHandler extends CommandHandler {
               service.datatokenAddress,
               AssetUtils.getServiceIndexById(ddo, service.id),
               service.timeout,
-              blockchain.getSigner()
+              await blockchain.getSigner()
             )
             if (paymentValidation.isValid === true) {
               // order is valid, so let's check providerFees

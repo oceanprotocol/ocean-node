@@ -1,6 +1,7 @@
 import { assert } from 'chai'
 import { getConfiguration } from '../../utils/config.js'
 import { OceanP2P } from '../../components/P2P/index.js'
+import { KeyManager } from '../../components/KeyManager/index.js'
 import { delay } from '../integration/testUtils.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import {
@@ -117,7 +118,8 @@ describe('OceanP2P Test without DB_URL set', () => {
     config.dbConfig.url = ''
     config.dbConfig.dbType = null
     // assert(config.dbConfig.url === '', 'DB URL should not be set')
-    const p2pNode = new OceanP2P(config)
+    const keyManager = new KeyManager(config)
+    const p2pNode = new OceanP2P(config, keyManager)
     assert(p2pNode, 'Failed to create P2P Node instance')
     assert(config.p2pConfig, 'Failed to get P2P Node config')
     // This is not testing P2P Node at all, just checking configuration

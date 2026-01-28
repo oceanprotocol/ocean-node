@@ -221,10 +221,15 @@ export function buildMergedConfig(): OceanNodeConfig {
     throw new Error('Invalid PRIVATE_KEY')
   }
 
-  const keys = getPeerIdFromPrivateKey(privateKey)
+  // const keys = getPeerIdFromPrivateKey(privateKey)
+  // Set key provider type and raw private key for KeyManager
+  // Type will be validated by KeyManager when initializing
+  const over = {
+    privateKey
+  }
 
   const { env } = process
-  const envOverrides: Record<string, any> = { keys }
+  const envOverrides: Record<string, any> = { over }
 
   Object.assign(envOverrides, mapEnvToConfig(env, ENV_TO_CONFIG_MAPPING))
 

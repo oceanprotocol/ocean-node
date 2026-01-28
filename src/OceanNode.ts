@@ -10,6 +10,9 @@ import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import { BaseHandler } from './components/core/handler/handler.js'
 import { C2DEngines } from './components/c2d/compute_engines.js'
 import { Auth } from './components/Auth/index.js'
+import { KeyManager } from './components/KeyManager/index.js'
+import { BlockchainRegistry } from './components/BlockchainRegistry/index.js'
+import { Blockchain } from './utils/blockchain.js'
 
 export interface RequestLimiter {
   requester: string | string[] // IP address or peer ID
@@ -41,8 +44,20 @@ export class OceanNode {
     private db?: Database,
     private node?: OceanP2P,
     private provider?: OceanProvider,
-    private indexer?: OceanIndexer
+    private indexer?: OceanIndexer,
+    public keyManager?: KeyManager,
+    public blockchainRegistry?: BlockchainRegistry
   ) {
+    if (keyManager) {
+      this.keyManager = keyManager
+    } else {
+      this.keyManager = new KeyManager(config)
+    }
+    if (blockchainRegistry) {
+      this.blockchainRegistry = blockchainRegistry
+    } else {
+      this.blockchainRegistry = new BlockchainRegistry(this.keyManager, config)
+    }
     this.coreHandlers = CoreHandlersRegistry.getInstance(this)
     this.requestMap = new Map<string, RequestLimiter>()
     this.config = config
@@ -55,7 +70,8 @@ export class OceanNode {
     if (this.config) {
       this.escrow = new Escrow(
         this.config.supportedNetworks,
-        this.config.claimDurationTimeout
+        this.config.claimDurationTimeout,
+        this.blockchainRegistry
       )
     }
   }
@@ -67,11 +83,28 @@ export class OceanNode {
     node?: OceanP2P,
     provider?: OceanProvider,
     indexer?: OceanIndexer,
+    keyManager?: KeyManager,
+    blockchainRegistry?: BlockchainRegistry,
     newInstance: boolean = false
   ): OceanNode {
     if (!OceanNode.instance || newInstance) {
+      if (!keyManager || !blockchainRegistry) {
+        if (!config) {
+          throw new Error('KeyManager and BlockchainRegistry are required')
+        }
+        keyManager = new KeyManager(config)
+        blockchainRegistry = new BlockchainRegistry(keyManager, config)
+      }
       // prepare compute engines
-      this.instance = new OceanNode(config, db, node, provider, indexer)
+      this.instance = new OceanNode(
+        config,
+        db,
+        node,
+        provider,
+        indexer,
+        keyManager,
+        blockchainRegistry
+      )
     }
     return this.instance
   }
@@ -143,12 +176,29 @@ export class OceanNode {
     return this.auth
   }
 
+  public getKeyManager(): KeyManager {
+    return this.keyManager
+  }
+
+  public getBlockchainRegistry(): BlockchainRegistry {
+    return this.blockchainRegistry
+  }
+
+  /**
+   * Get a Blockchain instance for the given chainId.
+   * Delegates to BlockchainRegistry.
+   */
+  public getBlockchain(chainId: number): Blockchain | null {
+    return this.blockchainRegistry.getBlockchain(chainId)
+  }
+
   public setConfig(config: OceanNodeConfig) {
     this.config = config
     if (this.config) {
       this.escrow = new Escrow(
         this.config.supportedNetworks,
-        this.config.claimDurationTimeout
+        this.config.claimDurationTimeout,
+        this.blockchainRegistry
       )
     }
   }

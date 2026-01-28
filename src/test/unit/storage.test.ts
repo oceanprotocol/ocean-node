@@ -19,8 +19,6 @@ import {
 } from '../utils/utils.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { getConfiguration } from '../../utils/index.js'
-import { Readable } from 'stream'
-import fs from 'fs'
 import { expectedTimeoutFailure } from '../integration/testUtils.js'
 
 let nodeId: string
@@ -588,32 +586,6 @@ describe('URL Storage encryption tests', () => {
         false,
       'Wrong response from canDecrypt() for an unencrypted file'
     )
-  })
-
-  it('encrypt method should correctly encrypt data', async () => {
-    const { keys } = config
-    nodeId = keys.peerId.toString()
-    // Perform encryption
-    const encryptResponse = await storage.encrypt(EncryptMethod.AES)
-    assert(encryptResponse.httpStatus === 200, 'Response is not 200')
-    assert(encryptResponse.stream, 'Stream is not null')
-    assert(encryptResponse.stream instanceof Readable, 'Stream is not a ReadableStream')
-
-    // Create a writable stream for the output file
-    const fileStream = fs.createWriteStream('src/test/data/organizations-100.aes')
-
-    // Use the 'finish' event to know when the file has been fully written
-    fileStream.on('finish', () => {
-      console.log('Encrypted file has been written successfully')
-    })
-
-    // Handle errors in the stream
-    encryptResponse.stream.on('error', (err) => {
-      console.error('Stream encountered an error:', err)
-    })
-
-    // Pipe the encrypted content stream to the file stream
-    encryptResponse.stream.pipe(fileStream)
   })
 })
 

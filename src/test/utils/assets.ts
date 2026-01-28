@@ -20,7 +20,6 @@ import {
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
 import { getEventFromTx, streamToObject } from '../../utils/util.js'
 
-import { encrypt } from '../../utils/crypt.js'
 import { AssetUtils } from '../../utils/asset.js'
 
 import {
@@ -34,6 +33,7 @@ import { ProviderFees } from '../../@types/Fees.js'
 
 export async function publishAsset(asset: any, publisherAccount: Signer) {
   const genericAsset = JSON.parse(JSON.stringify(asset))
+  const oceanNode = OceanNode.getInstance()
   try {
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!network) {
@@ -85,7 +85,9 @@ export async function publishAsset(asset: any, publisherAccount: Signer) {
     const data = Uint8Array.from(
       Buffer.from(JSON.stringify(genericAsset.services[0].files))
     )
-    const encryptedData = await encrypt(data, EncryptMethod.ECIES)
+    const encryptedData = await oceanNode
+      .getKeyManager()
+      .encrypt(data, EncryptMethod.ECIES)
     const encryptedDataString = encryptedData.toString('hex')
 
     const nftContract = new ethers.Contract(

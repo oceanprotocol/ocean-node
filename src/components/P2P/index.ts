@@ -39,6 +39,7 @@ import {
   FindDDOResponse,
   dhtFilterMethod
 } from '../../@types/OceanNode.js'
+import { KeyManager } from '../KeyManager/index.js'
 // eslint-disable-next-line camelcase
 import ipaddr from 'ipaddr.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
@@ -76,8 +77,6 @@ export class OceanP2P extends EventEmitter {
   _connections: {}
   _protocol: string
   _publicAddress: string
-  _publicKey: Uint8Array
-  _privateKey: Uint8Array
   _analyzeRemoteResponse: Transform
   _pendingAdvertise: string[] = []
   private _ddoDHT: DDOCache
@@ -88,10 +87,12 @@ export class OceanP2P extends EventEmitter {
   private _idx: number
   private readonly db: Database
   private readonly _config: OceanNodeConfig
+  private readonly keyManager: KeyManager
   private coreHandlers: CoreHandlersRegistry
-  constructor(config: OceanNodeConfig, db?: Database) {
+  constructor(config: OceanNodeConfig, keyManager: KeyManager, db?: Database) {
     super()
     this._config = config
+    this.keyManager = keyManager
     this.db = db
     this._ddoDHT = {
       updated: new Date().getTime(),
@@ -284,11 +285,9 @@ export class OceanP2P extends EventEmitter {
 
   async createNode(config: OceanNodeConfig): Promise<Libp2p | null> {
     try {
-      this._publicAddress = config.keys.peerId.toString()
+      this._publicAddress = this.keyManager.getPeerIdString()
       P2P_LOGGER.info(`Starting P2P Node with peerID: ${this._publicAddress}`)
 
-      this._publicKey = config.keys.publicKey
-      this._privateKey = config.keys.privateKey.raw
       /** @type {import('libp2p').Libp2pOptions} */
       // start with some default, overwrite based on config later
       const bindInterfaces = []
@@ -408,7 +407,7 @@ export class OceanP2P extends EventEmitter {
       let options = {
         addresses,
         datastore: store,
-        privateKey: config.keys.privateKey,
+        privateKey: this.keyManager.getLibp2pPrivateKey(),
         transports,
         streamMuxers: [yamux()],
         connectionEncrypters: [
@@ -952,7 +951,7 @@ export class OceanP2P extends EventEmitter {
   }
 
   getPeerId(): string {
-    return this._config.keys.peerId.toString()
+    return this.keyManager.getPeerIdString()
   }
 
   getDDOCache(): DDOCache {

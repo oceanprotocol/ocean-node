@@ -6,6 +6,7 @@ import {
   PaidComputeStartCommand
 } from '../../../@types/commands.js'
 import { CommandHandler } from '../handler/handler.js'
+import { OceanNode } from '../../../OceanNode.js'
 import { generateUniqueID, getAlgoChecksums, validateAlgoForDataset } from './utils.js'
 import {
   ValidateParams,
@@ -25,9 +26,7 @@ import {
   ComputeAccessList,
   ComputeResourceRequestWithPrice
 } from '../../../@types/C2D/C2D.js'
-import { decrypt } from '../../../utils/crypt.js'
 // import { verifyProviderFees } from '../utils/feesHandler.js'
-import { Blockchain } from '../../../utils/blockchain.js'
 import { validateOrderTransaction } from '../utils/validateOrders.js'
 import { getConfiguration, isPolicyServerConfigured } from '../../../utils/index.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
@@ -155,7 +154,11 @@ export class PaidComputeStartHandler extends CommandHandler {
       const { algorithm } = task
       const config = await getConfiguration()
 
-      const accessGranted = await validateAccess(task.consumerAddress, env.access)
+      const accessGranted = await validateAccess(
+        task.consumerAddress,
+        env.access,
+        this.getOceanNode()
+      )
       if (!accessGranted) {
         return {
           stream: null,
@@ -226,8 +229,18 @@ export class PaidComputeStartHandler extends CommandHandler {
             }
           }
           const config = await getConfiguration()
-          const { rpc, chainId, fallbackRPCs } = config.supportedNetworks[ddoChainId]
-          const blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
+          const { chainId } = config.supportedNetworks[ddoChainId]
+          const oceanNode = this.getOceanNode()
+          const blockchain = oceanNode.getBlockchain(chainId)
+          if (!blockchain) {
+            return {
+              stream: null,
+              status: {
+                httpStatus: 400,
+                error: `Start Compute: Blockchain instance not available for chain ${chainId}`
+              }
+            }
+          }
           const { ready, error } = await blockchain.isNetworkReady()
           if (!ready) {
             return {
@@ -239,7 +252,7 @@ export class PaidComputeStartHandler extends CommandHandler {
             }
           }
 
-          const signer = blockchain.getSigner()
+          const signer = await blockchain.getSigner()
           // check credentials (DDO level)
           let accessGrantedDDOLevel: boolean
           if (credentials) {
@@ -258,7 +271,7 @@ export class PaidComputeStartHandler extends CommandHandler {
               accessGrantedDDOLevel = await checkCredentials(
                 task.consumerAddress,
                 credentials as Credentials,
-                blockchain.getSigner()
+                await blockchain.getSigner()
               )
             }
             if (!accessGrantedDDOLevel) {
@@ -305,7 +318,7 @@ export class PaidComputeStartHandler extends CommandHandler {
               accessGrantedServiceLevel = await checkCredentials(
                 task.consumerAddress,
                 service.credentials,
-                blockchain.getSigner()
+                await blockchain.getSigner()
               )
             }
 
@@ -330,10 +343,14 @@ export class PaidComputeStartHandler extends CommandHandler {
           let canDecrypt = false
           try {
             if (!confidentialEVM) {
-              await decrypt(
-                Uint8Array.from(Buffer.from(sanitizeServiceFiles(service.files), 'hex')),
-                EncryptMethod.ECIES
-              )
+              await node
+                .getKeyManager()
+                .decrypt(
+                  Uint8Array.from(
+                    Buffer.from(sanitizeServiceFiles(service.files), 'hex')
+                  ),
+                  EncryptMethod.ECIES
+                )
               canDecrypt = true
             } else {
               // TODO 'Start compute on confidential EVM!'
@@ -401,7 +418,7 @@ export class PaidComputeStartHandler extends CommandHandler {
             }
           }
 
-          const provider = blockchain.getProvider()
+          const provider = await blockchain.getProvider()
           result.datatoken = service.datatokenAddress
           result.chainId = ddoChainId
 
@@ -425,7 +442,7 @@ export class PaidComputeStartHandler extends CommandHandler {
             service.datatokenAddress,
             AssetUtils.getServiceIndexById(ddo, service.id),
             service.timeout,
-            blockchain.getSigner()
+            await blockchain.getSigner()
           )
           if (paymentValidation.isValid === false) {
             const error = `TxId Service ${elem.transferTxId} is not valid for DDO ${elem.documentId} and service ${service.id}`
@@ -695,8 +712,18 @@ export class FreeComputeStartHandler extends CommandHandler {
           }
         }
         const config = await getConfiguration()
-        const { rpc, chainId, fallbackRPCs } = config.supportedNetworks[ddoChainId]
-        const blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
+        const { chainId } = config.supportedNetworks[ddoChainId]
+        const oceanNode = this.getOceanNode()
+        const blockchain = oceanNode.getBlockchain(chainId)
+        if (!blockchain) {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: `Start Compute: Blockchain instance not available for chain ${chainId}`
+            }
+          }
+        }
         const { ready, error } = await blockchain.isNetworkReady()
         if (!ready) {
           return {
@@ -726,7 +753,7 @@ export class FreeComputeStartHandler extends CommandHandler {
             accessGrantedDDOLevel = await checkCredentials(
               task.consumerAddress,
               credentials as Credentials,
-              blockchain.getSigner()
+              await blockchain.getSigner()
             )
           }
           if (!accessGrantedDDOLevel) {
@@ -773,7 +800,7 @@ export class FreeComputeStartHandler extends CommandHandler {
             accessGrantedServiceLevel = await checkCredentials(
               task.consumerAddress,
               service.credentials,
-              blockchain.getSigner()
+              await blockchain.getSigner()
             )
           }
 
@@ -803,7 +830,11 @@ export class FreeComputeStartHandler extends CommandHandler {
         }
       }
       try {
-        const accessGranted = await validateAccess(task.consumerAddress, env.free.access)
+        const accessGranted = await validateAccess(
+          task.consumerAddress,
+          env.free.access,
+          this.getOceanNode()
+        )
         if (!accessGranted) {
           return {
             stream: null,
@@ -911,7 +942,8 @@ export class FreeComputeStartHandler extends CommandHandler {
 
 async function validateAccess(
   consumerAddress: string,
-  access: ComputeAccessList | undefined
+  access: ComputeAccessList | undefined,
+  oceanNode: OceanNode
 ): Promise<boolean> {
   if (!access) {
     return true
@@ -931,10 +963,17 @@ async function validateAccess(
   const config = await getConfiguration()
   const { supportedNetworks } = config
   for (const chain of Object.keys(access.accessLists)) {
-    const { rpc, chainId, fallbackRPCs } = supportedNetworks[chain]
+    const { chainId } = supportedNetworks[chain]
     try {
-      const blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
-      const signer = blockchain.getSigner()
+      const blockchain = oceanNode.getBlockchain(chainId)
+      if (!blockchain) {
+        CORE_LOGGER.logMessage(
+          `Blockchain instance not available for chain ${chainId}, skipping access list check`,
+          true
+        )
+        continue
+      }
+      const signer = await blockchain.getSigner()
       for (const accessListAddress of access.accessLists[chain]) {
         const hasAccess = await checkAddressOnAccessList(
           accessListAddress,

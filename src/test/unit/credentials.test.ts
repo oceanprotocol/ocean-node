@@ -7,6 +7,8 @@ import {
   tearDownEnvironment,
   TEST_ENV_CONFIG_FILE
 } from '../utils/utils.js'
+import { KeyManager } from '../../components/KeyManager/index.js'
+import { BlockchainRegistry } from '../../components/BlockchainRegistry/index.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { homedir } from 'os'
 import { Credentials } from '@oceanprotocol/ddo-js'
@@ -14,6 +16,7 @@ import { CREDENTIALS_TYPES } from '../../@types/DDO/Credentials.js'
 import { Blockchain } from '../../utils/blockchain.js'
 import { Signer } from 'ethers'
 import { getConfiguration } from '../../utils/index.js'
+import { DEVELOPMENT_CHAIN_ID } from '../../utils/address.js'
 
 let envOverrides: OverrideEnvConfig[]
 let blockchain: Blockchain
@@ -24,15 +27,19 @@ describe('credentials', () => {
     envOverrides = buildEnvOverrideConfig(
       [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.ADDRESS_FILE],
       [
-        '{ "8996":{ "rpc":"http://172.0.0.1:8545", "chainId": 8996, "network": "development", "chunkSize": 100 }}',
+        '{ "8996":{ "rpc":"http://127.0.0.1:8545", "chainId": 8996, "network": "development", "chunkSize": 100 }}',
         `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
       ]
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     const config = await getConfiguration()
     // Initialize blockchain for tests
-    blockchain = new Blockchain('http://172.0.0.1:8545', 8996, config, [])
-    signer = blockchain.getSigner()
+    const keyManager = new KeyManager(config)
+    const blockchains = new BlockchainRegistry(keyManager, config)
+    blockchain = blockchains.getBlockchain(DEVELOPMENT_CHAIN_ID)
+    console.log('blockchain', blockchain)
+    signer = await blockchain.getSigner()
+    console.log('signer', signer)
   })
 
   it('should allow access with undefined or empty credentials', async () => {

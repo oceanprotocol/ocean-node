@@ -2,7 +2,6 @@ import { CommandHandler } from './handler.js'
 import { MetadataStates, PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { verifyProviderFees } from '../utils/feesHandler.js'
-import { decrypt } from '../../../utils/crypt.js'
 import { FindDdoHandler } from './ddoHandler.js'
 import crypto from 'crypto'
 import * as ethCrypto from 'eth-crypto'
@@ -16,11 +15,7 @@ import {
   isERC20Template4Active
 } from '../../../utils/asset.js'
 import { Storage } from '../../storage/index.js'
-import {
-  Blockchain,
-  getConfiguration,
-  isPolicyServerConfigured
-} from '../../../utils/index.js'
+import { getConfiguration, isPolicyServerConfigured } from '../../../utils/index.js'
 import { checkCredentials } from '../../../utils/credentials.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
@@ -266,11 +261,22 @@ export class DownloadHandler extends CommandHandler {
 
     // Initialize blockchain early (needed for credential checks with accessList)
     const config = await getConfiguration()
-    const { rpc, chainId, fallbackRPCs } = config.supportedNetworks[ddoChainId]
+    const { chainId } = config.supportedNetworks[ddoChainId]
     let provider
     let blockchain
+    let oceanNode: OceanNode
     try {
-      blockchain = new Blockchain(rpc, chainId, config, fallbackRPCs)
+      oceanNode = this.getOceanNode()
+      blockchain = oceanNode.getBlockchain(chainId)
+      if (!blockchain) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: `Download handler: Blockchain instance not available for chain ${chainId}`
+          }
+        }
+      }
       const { ready, error } = await blockchain.isNetworkReady()
       if (!ready) {
         return {
@@ -281,7 +287,7 @@ export class DownloadHandler extends CommandHandler {
           }
         }
       }
-      provider = blockchain.getProvider()
+      provider = await blockchain.getProvider()
     } catch (e) {
       CORE_LOGGER.error('Download JsonRpcProvider ERROR: ' + e.message)
       return {
@@ -289,19 +295,6 @@ export class DownloadHandler extends CommandHandler {
         status: {
           httpStatus: 500,
           error: 'JsonRpcProvider ERROR'
-        }
-      }
-    }
-    if (!rpc) {
-      CORE_LOGGER.logMessage(
-        `Cannot proceed with download. RPC not configured for this chain ${ddo.chainId}`,
-        true
-      )
-      return {
-        stream: null,
-        status: {
-          httpStatus: 500,
-          error: `Cannot proceed with download. RPC not configured for this chain ${ddo.chainId}`
         }
       }
     }
@@ -324,7 +317,7 @@ export class DownloadHandler extends CommandHandler {
         accessGrantedDDOLevel = await checkCredentials(
           task.consumerAddress,
           credentials as Credentials,
-          blockchain.getSigner()
+          await blockchain.getSigner()
         )
       }
       if (!accessGrantedDDOLevel) {
@@ -365,7 +358,7 @@ export class DownloadHandler extends CommandHandler {
         accessGrantedServiceLevel = await checkCredentials(
           task.consumerAddress,
           service.credentials,
-          blockchain.getSigner()
+          await blockchain.getSigner()
         )
       }
 
@@ -391,9 +384,7 @@ export class DownloadHandler extends CommandHandler {
       // get all compute envs
       const computeAddrs: string[] = []
 
-      const environments = await this.getOceanNode()
-        .getC2DEngines()
-        .fetchEnvironments(ddo.chainId)
+      const environments = await oceanNode.getC2DEngines().fetchEnvironments(ddo.chainId)
       for (const env of environments)
         computeAddrs.push(env.consumerAddress?.toLowerCase())
 
@@ -435,7 +426,7 @@ export class DownloadHandler extends CommandHandler {
       service.datatokenAddress,
       AssetUtils.getServiceIndexById(ddo, task.serviceId),
       service.timeout,
-      blockchain.getSigner()
+      await blockchain.getSigner()
     )
 
     if (paymentValidation.isValid) {
@@ -467,7 +458,7 @@ export class DownloadHandler extends CommandHandler {
       const confidentialEVM = isConfidentialChainDDO(BigInt(ddo.chainId), service)
       // check that files is missing and template 4 is active on the chain
       if (confidentialEVM) {
-        const signer = blockchain.getSigner()
+        const signer = await blockchain.getSigner()
         const isTemplate4 = await isDataTokenTemplate4(service.datatokenAddress, signer)
 
         if (!isTemplate4 || !(await isERC20Template4Active(ddo.chainId, signer))) {
@@ -507,7 +498,9 @@ export class DownloadHandler extends CommandHandler {
         const uint8ArrayHex = Uint8Array.from(
           Buffer.from(sanitizeServiceFiles(filesObject), 'hex')
         )
-        const decryptedUrlBytes = await decrypt(uint8ArrayHex, EncryptMethod.ECIES)
+        const decryptedUrlBytes = await oceanNode
+          .getKeyManager()
+          .decrypt(uint8ArrayHex, EncryptMethod.ECIES)
         // Convert the decrypted bytes back to a string
         const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
         decryptedFileData = JSON.parse(decryptedFilesString)

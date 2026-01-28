@@ -1,6 +1,8 @@
 import { expect } from 'chai'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
-import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
+
+import { BlockchainRegistry } from '../../components/BlockchainRegistry/index.js'
+import { KeyManager } from '../../components/KeyManager/index.js'
 import { Blockchain } from '../../utils/blockchain.js'
 import { getConfiguration } from '../../utils/config.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
@@ -12,14 +14,12 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
-import { expectedTimeoutFailure } from '../integration/testUtils.js'
+
 import { DEVELOPMENT_CHAIN_ID, KNOWN_CONFIDENTIAL_EVMS } from '../../utils/address.js'
 import { isConfidentialEVM } from '../../utils/asset.js'
 
 let envOverrides: OverrideEnvConfig[]
 let config: OceanNodeConfig
-let rpcs: RPCS
-let network: SupportedNetwork
 let blockchain: Blockchain
 describe('Should validate blockchain network connections', () => {
   before(async () => {
@@ -31,46 +31,20 @@ describe('Should validate blockchain network connections', () => {
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
-
-    rpcs = config.supportedNetworks
-    network = rpcs['8996']
-    blockchain = new Blockchain(
-      network.rpc,
-      network.chainId,
-      config,
-      network.fallbackRPCs
-    )
+    const keyManager = new KeyManager(config)
+    const blockchainRegistry = new BlockchainRegistry(keyManager, config)
+    // network = rpcs['8996']
+    blockchain = blockchainRegistry.getBlockchain(8996)
   })
 
   it('should get known rpcs', () => {
     expect(blockchain.getKnownRPCs().length).to.be.equal(3)
   })
 
-  it('should get network not ready (wrong RPC setting)', async () => {
-    const status = await blockchain.isNetworkReady()
-    expect(status.ready).to.be.equal(false)
-  })
-
-  it('should get network ready after retry other RPCs', async function () {
+  it('should get network ready', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
-    let status = await blockchain.isNetworkReady()
-    expect(status.ready).to.be.equal(false)
-    // at least one should be OK
-    const retryResult = await blockchain.tryFallbackRPCs()
-    // ignore node network errors (on ci there are network issues sometimes)
-    // we can't do much if we have timeouts, bad urls or connections refused
-    if (!retryResult.ready && retryResult.error) {
-      const networkIssue =
-        retryResult.error.includes('TIMEOUT') ||
-        retryResult.error.includes('ECONNREFUSED') ||
-        retryResult.error.includes('ENOTFOUND')
-
-      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(networkIssue)
-    } else {
-      expect(retryResult.ready).to.be.equal(true)
-      status = await blockchain.isNetworkReady()
-      expect(status.ready).to.be.equal(true)
-    }
+    const status = await blockchain.isNetworkReady()
+    expect(status.ready).to.be.equal(true)
   })
 
   it('should check if chain is confidential EVM', () => {

@@ -1,5 +1,5 @@
 import { DDOManager } from '@oceanprotocol/ddo-js'
-import { ethers, Signer, JsonRpcApiProvider } from 'ethers'
+import { ethers, Signer, FallbackProvider } from 'ethers'
 import { EVENTS, MetadataStates } from '../../../utils/constants.js'
 import { getDatabase } from '../../../utils/database.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
@@ -13,7 +13,7 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
     event: ethers.Log,
     chainId: number,
     _signer: Signer,
-    provider: JsonRpcApiProvider
+    provider: FallbackProvider
   ): Promise<any> {
     INDEXER_LOGGER.logMessage(`Processing metadata state event...`, true)
     const decodedEventData = await this.getEventData(

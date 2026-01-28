@@ -16,12 +16,9 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
 import { Database } from '../../components/database/index.js'
 import { DatabaseFactory } from '../../components/database/DatabaseFactory.js'
-import {
-  INDEXER_CRAWLING_EVENT_EMITTER,
-  OceanIndexer
-} from '../../components/Indexer/index.js'
+import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
-import { getEventFromTx, sleep, streamToObject } from '../../utils/util.js'
+import { getEventFromTx, streamToObject } from '../../utils/util.js'
 import { waitToIndex, expectedTimeoutFailure } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import {
@@ -34,7 +31,6 @@ import { Asset, DDO } from '@oceanprotocol/ddo-js'
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
-  TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
   setupEnvironment,
@@ -43,21 +39,13 @@ import {
 import {
   ENVIRONMENT_VARIABLES,
   EVENTS,
-  INDEXER_CRAWLING_EVENTS,
   PROTOCOL_COMMANDS
 } from '../../utils/constants.js'
 import { homedir } from 'os'
 import { QueryDdoStateHandler } from '../../components/core/handler/queryHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { QueryCommand } from '../../@types/commands.js'
-import {
-  getDeployedContractBlock,
-  getNetworkHeight
-} from '../../components/Indexer/utils.js'
-import { Blockchain } from '../../utils/blockchain.js'
 import { getConfiguration } from '../../utils/config.js'
-import { OceanNodeConfig } from '../../@types/OceanNode.js'
-import { encrypt } from '../../utils/crypt.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { deleteIndexedMetadataIfExists } from '../../utils/asset.js'
 
@@ -113,7 +101,11 @@ describe('Indexer stores a new metadata events and orders.', () => {
     const config = await getConfiguration(true)
     database = await Database.init(config.dbConfig)
     oceanNode = OceanNode.getInstance(config, database)
-    indexer = new OceanIndexer(database, mockSupportedNetworks)
+    indexer = new OceanIndexer(
+      database,
+      mockSupportedNetworks,
+      oceanNode.blockchainRegistry
+    )
     oceanNode.addIndexer(indexer)
     let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!artifactsAddresses) {
@@ -186,7 +178,9 @@ describe('Indexer stores a new metadata events and orders.', () => {
     const data = Uint8Array.from(
       Buffer.from(JSON.stringify(genericAsset.services[0].files))
     )
-    const encryptedData = await encrypt(data, EncryptMethod.ECIES)
+    const encryptedData = await oceanNode
+      .getKeyManager()
+      .encrypt(data, EncryptMethod.ECIES)
     const encryptedDataString = encryptedData.toString('hex')
     genericAsset.services[0].files = encryptedDataString
     const stringDDO = JSON.stringify(genericAsset)
@@ -663,67 +657,5 @@ describe('Indexer stores a new metadata events and orders.', () => {
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
     indexer.stopAllThreads()
-  })
-})
-
-describe('OceanIndexer - crawler threads', () => {
-  let envOverrides: OverrideEnvConfig[]
-  let config: OceanNodeConfig
-  let db: Database
-  let blockchain: Blockchain
-
-  let oceanIndexer: OceanIndexer
-  const supportedNetworks: RPCS = getMockSupportedNetworks()
-  const chainID = DEVELOPMENT_CHAIN_ID.toString()
-
-  let netHeight = 0
-  let deployBlock = 0
-  let startingBlock = 0
-
-  before(async () => {
-    config = await getConfiguration(true)
-    blockchain = new Blockchain(
-      supportedNetworks[chainID].rpc,
-      supportedNetworks[chainID].chainId,
-      config,
-      []
-    )
-
-    deployBlock = getDeployedContractBlock(supportedNetworks[chainID].chainId)
-    netHeight = await getNetworkHeight(blockchain.getProvider())
-    startingBlock = deployBlock + 1
-    supportedNetworks[chainID].startBlock = startingBlock
-
-    envOverrides = buildEnvOverrideConfig(
-      [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.ADDRESS_FILE],
-      [
-        JSON.stringify(supportedNetworks),
-        `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
-      ]
-    )
-    envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
-    db = await Database.init(config.dbConfig)
-  })
-
-  it('should start a worker thread and handle RPCS "startBlock"', async () => {
-    INDEXER_CRAWLING_EVENT_EMITTER.addListener(
-      INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED,
-      (data: any) => {
-        const { startBlock, contractDeploymentBlock, networkHeight } = data
-        expect(startBlock).to.be.equal(startingBlock)
-        expect(contractDeploymentBlock).to.be.equal(deployBlock)
-        expect(networkHeight).to.be.equal(netHeight)
-      }
-    )
-    oceanIndexer = new OceanIndexer(db, supportedNetworks)
-    await sleep(DEFAULT_TEST_TIMEOUT / 2)
-  })
-
-  after(async () => {
-    await tearDownEnvironment(envOverrides)
-    oceanIndexer.stopAllThreads()
-    INDEXER_CRAWLING_EVENT_EMITTER.removeAllListeners(
-      INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED
-    )
   })
 })

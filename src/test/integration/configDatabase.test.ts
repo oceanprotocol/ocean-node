@@ -1,4 +1,5 @@
 import { Database } from '../../components/database/index.js'
+import { OceanNode } from '../../OceanNode.js'
 import { expect, assert } from 'chai'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import {
@@ -9,9 +10,11 @@ import {
   tearDownEnvironment,
   TEST_ENV_CONFIG_FILE
 } from '../utils/utils.js'
+import { ENVIRONMENT_VARIABLES, getConfiguration } from '../../utils/index.js'
 import { SQLLiteConfigDatabase } from '../../components/database/SQLLiteConfigDatabase.js'
 import { DB_TYPES } from '../../utils/constants.js'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
+import { homedir } from 'os'
 
 const versionConfig: OceanNodeDBConfig = {
   url: 'http://localhost:8108/test-version?apiKey=xyz',
@@ -31,10 +34,27 @@ describe('Config Database', () => {
 
   before(async () => {
     database = await Database.init(versionConfig)
-
+    // override and save configuration (always before calling getConfig())
     previousConfiguration = await setupEnvironment(
       TEST_ENV_CONFIG_FILE,
-      buildEnvOverrideConfig([], [])
+      buildEnvOverrideConfig(
+        [
+          ENVIRONMENT_VARIABLES.RPCS,
+          ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
+          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
+          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
+          ENVIRONMENT_VARIABLES.ALLOWED_ADMINS,
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE
+        ],
+        [
+          JSON.stringify(getMockSupportedNetworks()),
+          JSON.stringify([8996]),
+          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
+          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
+        ]
+      )
     )
 
     it('should have null version initially', async () => {
@@ -42,7 +62,13 @@ describe('Config Database', () => {
       assert(initialVersionNull.value === null, 'Initial version should be null')
     })
 
-    oceanIndexer = new OceanIndexer(database, getMockSupportedNetworks())
+    const oceanNode = await OceanNode.getInstance(await getConfiguration(true), database)
+    oceanIndexer = new OceanIndexer(
+      database,
+      getMockSupportedNetworks(),
+      oceanNode.blockchainRegistry
+    )
+    oceanNode.addIndexer(oceanIndexer)
   })
 
   it('check version DB instance of SQL Lite', () => {

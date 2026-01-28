@@ -4,12 +4,12 @@ import {
   ZeroAddress,
   Signer,
   ethers,
-  JsonRpcApiProvider,
   Interface,
   toUtf8Bytes,
   hexlify,
   getBytes,
-  toUtf8String
+  toUtf8String,
+  FallbackProvider
 } from 'ethers'
 import { Readable } from 'winston-transport'
 import { DecryptDDOCommand } from '../../../@types/commands.js'
@@ -85,7 +85,7 @@ export abstract class BaseEventProcessor {
   }
 
   protected async getEventData(
-    provider: JsonRpcApiProvider,
+    provider: FallbackProvider,
     transactionHash: string,
     abi: any,
     eventType: string
@@ -446,7 +446,7 @@ export abstract class BaseEventProcessor {
     event: ethers.Log,
     chainId: number,
     signer: Signer,
-    provider: JsonRpcApiProvider,
+    provider: FallbackProvider,
     eventName?: string
   ): Promise<any>
 }

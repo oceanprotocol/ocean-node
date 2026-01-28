@@ -4,6 +4,8 @@ import { OceanIndexer } from './components/Indexer/index.js'
 import { Database } from './components/database/index.js'
 import express, { Express } from 'express'
 import { OceanNode } from './OceanNode.js'
+import { KeyManager } from './components/KeyManager/index.js'
+import { BlockchainRegistry } from './components/BlockchainRegistry/index.js'
 import { httpRoutes } from './components/httpRoutes/index.js'
 import {
   getConfiguration,
@@ -102,16 +104,21 @@ if (!hasValidDBConfiguration(config.dbConfig)) {
   )
 }
 
+// Create KeyManager and BlockchainRegistry
+// KeyManager will determine provider type from config.keys.type and initialize in constructor
+const keyManager = new KeyManager(config)
+const blockchainRegistry = new BlockchainRegistry(keyManager, config)
+
 if (config.hasP2P) {
   if (dbconn) {
-    node = new OceanP2P(config, dbconn)
+    node = new OceanP2P(config, keyManager, dbconn)
   } else {
-    node = new OceanP2P(config)
+    node = new OceanP2P(config, keyManager)
   }
   await node.start()
 }
 if (config.hasIndexer && dbconn) {
-  indexer = new OceanIndexer(dbconn, config.indexingNetworks)
+  indexer = new OceanIndexer(dbconn, config.indexingNetworks, blockchainRegistry)
   // if we set this var
   // it also loads initial data (useful for testing, or we might actually want to have a bootstrap list)
   // store and advertise DDOs
@@ -130,7 +137,16 @@ if (dbconn) {
 }
 
 // Singleton instance across application
-const oceanNode = OceanNode.getInstance(config, dbconn, node, provider, indexer)
+const oceanNode = OceanNode.getInstance(
+  config,
+
+  dbconn,
+  node,
+  provider,
+  indexer,
+  keyManager,
+  blockchainRegistry
+)
 oceanNode.addC2DEngines()
 
 function removeExtraSlashes(req: any, res: any, next: any) {

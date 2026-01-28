@@ -5,20 +5,19 @@ import {
   Contract,
   JsonRpcApiProvider,
   JsonRpcProvider,
+  FallbackProvider,
   isAddress,
-  Network,
   parseUnits,
   Wallet,
-  TransactionReceipt,
-  sha512
+  TransactionReceipt
 } from 'ethers'
 import { getConfiguration } from './config.js'
 import { CORE_LOGGER } from './logging/common.js'
-import { sleep } from './util.js'
 import { ConnectionStatus } from '../@types/blockchain.js'
 import { ValidateChainId } from '../@types/commands.js'
 import { KNOWN_CONFIDENTIAL_EVMS } from '../utils/address.js'
 import { OceanNodeConfig } from '../@types/OceanNode.js'
+import { KeyManager } from '../components/KeyManager/index.js'
 
 const MIN_GAS_FEE_POLYGON = 30000000000 // minimum recommended 30 gwei polygon main and mumbai fees
 const MIN_GAS_FEE_SEPOLIA = 4000000000 // minimum 4 gwei for eth sepolia testnet
@@ -28,80 +27,79 @@ const MUMBAI_NETWORK_ID = 80001
 const SEPOLIA_NETWORK_ID = 11155111
 
 export class Blockchain {
-  private config: OceanNodeConfig
+  private config?: OceanNodeConfig // Optional for new constructor
   private static signers: Map<string, Signer> = new Map()
   private static providers: Map<string, JsonRpcApiProvider> = new Map()
+  private keyManager: KeyManager
   private signer: Signer
-  private provider: JsonRpcApiProvider
+  private provider: FallbackProvider
+  private providers: JsonRpcProvider[] = []
   private chainId: number
   private knownRPCs: string[] = []
-  private networkAvailable: boolean = false
 
+  /**
+   * Constructor overloads:
+   * 1. New pattern: (rpc, chainId, signer, fallbackRPCs?) - signer provided by KeyManager
+   * 2. Old pattern: (rpc, chainId, config, fallbackRPCs?) - for backward compatibility
+   */
   public constructor(
+    keyManager: KeyManager,
     rpc: string,
     chainId: number,
-    config: OceanNodeConfig,
     fallbackRPCs?: string[]
   ) {
-    this.config = config
     this.chainId = chainId
+    this.keyManager = keyManager
     this.knownRPCs.push(rpc)
     if (fallbackRPCs && fallbackRPCs.length > 0) {
       this.knownRPCs.push(...fallbackRPCs)
     }
-
-    // get cached provider if it exists
-    const providerKey = `${chainId}-${rpc}`
-    if (Blockchain.providers.has(providerKey)) {
-      this.provider = Blockchain.providers.get(providerKey)
-    } else {
-      this.provider = new ethers.JsonRpcProvider(rpc, null, {
-        staticNetwork: ethers.Network.from(chainId)
-      })
-      Blockchain.providers.set(providerKey, this.provider)
-    }
-    this.registerForNetworkEvents()
-
-    // always use this signer, not simply provider.getSigner(0) for instance (as we do on many tests)
-    // get cached signer if it exists
-    const privateKeyHash = sha512(Buffer.from(this.config.keys.privateKey.raw))
-    const signerKey = `${chainId}-${privateKeyHash}`
-    if (Blockchain.signers.has(signerKey)) {
-      let cachedSigner = Blockchain.signers.get(signerKey)
-      if (cachedSigner.provider !== this.provider) {
-        cachedSigner = (cachedSigner as ethers.Wallet).connect(this.provider)
-        Blockchain.signers.set(signerKey, cachedSigner)
-      }
-      this.signer = cachedSigner
-    } else {
-      this.signer = new ethers.Wallet(
-        Buffer.from(this.config.keys.privateKey.raw).toString('hex'),
-        this.provider
-      )
-      Blockchain.signers.set(signerKey, this.signer)
-    }
-  }
-
-  public getSigner(): Signer {
-    return this.signer
-  }
-
-  public getProvider(): JsonRpcApiProvider {
-    return this.provider
+    this.provider = undefined as undefined as FallbackProvider
+    this.signer = undefined as unknown as Signer
   }
 
   public getSupportedChain(): number {
     return this.chainId
   }
 
+  public getWallet(): Wallet {
+    return this.keyManager.getEthWallet()
+  }
+
   public async getWalletAddress(): Promise<string> {
     return await this.signer.getAddress()
   }
 
-  public async isNetworkReady(): Promise<ConnectionStatus> {
-    if (this.networkAvailable && this.provider.ready) {
-      return { ready: true }
+  public async getProvider(): Promise<FallbackProvider> {
+    if (!this.provider) {
+      for (const rpc of this.knownRPCs) {
+        const rpcProvider = new JsonRpcProvider(rpc)
+        // filter wrong chains or broken RPCs
+        try {
+          const { chainId } = await rpcProvider.getNetwork()
+          if (chainId.toString() === this.chainId.toString()) {
+            this.providers.push(rpcProvider)
+            break
+          }
+        } catch (error) {
+          CORE_LOGGER.error(`Error getting network for RPC ${rpc}: ${error}`)
+        }
+        this.providers.push(new JsonRpcProvider(rpc))
+      }
+      this.provider = new FallbackProvider(this.providers)
     }
+    return this.provider
+  }
+
+  public async getSigner(): Promise<Signer> {
+    if (!this.signer) {
+      const provider = await this.getProvider()
+      this.signer = await this.keyManager.getEvmSigner(provider)
+    }
+    return this.signer
+  }
+
+  public async isNetworkReady(): Promise<ConnectionStatus> {
     return await this.detectNetwork()
   }
 
@@ -110,7 +108,7 @@ export class Blockchain {
   }
 
   public async calculateGasCost(to: string, amount: bigint): Promise<bigint> {
-    const provider = this.getProvider()
+    const provider = await this.getProvider()
     const estimatedGas = await provider.estimateGas({
       to,
       value: amount
@@ -139,17 +137,18 @@ export class Blockchain {
     return receipt
   }
 
-  private detectNetwork(): Promise<ConnectionStatus> {
+  private async detectNetwork(): Promise<ConnectionStatus> {
+    const provider = await this.getProvider()
     return new Promise((resolve) => {
       const timeout = setTimeout(() => {
         // timeout, hanging or invalid connection
         CORE_LOGGER.error(`Unable to detect provider network: (TIMEOUT)`)
         resolve({ ready: false, error: 'TIMEOUT' })
       }, 3000)
-
-      this.provider
+      provider
         .getBlock('latest')
         .then((block) => {
+          console.log('detectNetwork block', block)
           clearTimeout(timeout)
           resolve({ ready: block.hash !== null })
         })
@@ -161,31 +160,7 @@ export class Blockchain {
     })
   }
 
-  // try other rpc options, if available
-  public async tryFallbackRPCs(): Promise<ConnectionStatus> {
-    let response: ConnectionStatus = { ready: false, error: '' }
-    // we also retry the original one again after all the fallbacks
-    for (let i = this.knownRPCs.length - 1; i >= 0; i--) {
-      this.provider.off('network')
-      CORE_LOGGER.warn(`Retrying new provider connection with RPC: ${this.knownRPCs[i]}`)
-      this.provider = new JsonRpcProvider(this.knownRPCs[i])
-      this.signer = new ethers.Wallet(
-        Buffer.from(this.config.keys.privateKey.raw).toString('hex'),
-        this.provider
-      )
-      // try them 1 by 1 and wait a couple of secs for network detection
-      this.registerForNetworkEvents()
-      await sleep(2000)
-      response = await this.isNetworkReady()
-      // return as soon as we have a valid one
-      if (response.ready) {
-        return response
-      }
-    }
-    return response
-  }
-
-  private registerForNetworkEvents() {
+  /* private registerForNetworkEvents() {
     this.provider.on('network', this.networkChanged)
   }
 
@@ -194,10 +169,11 @@ export class Blockchain {
     // event with a null oldNetwork along with the newNetwork. So, if the
     // oldNetwork exists, it represents a changing network
     this.networkAvailable = newNetwork instanceof Network
-  }
+  } */
 
   public async getFairGasPrice(gasFeeMultiplier: number): Promise<string> {
-    const price = (await this.signer.provider.getFeeData()).gasPrice
+    const signer = await this.getSigner()
+    const price = (await signer.provider.getFeeData()).gasPrice
     const x = BigInt(price.toString())
     if (gasFeeMultiplier) {
       const res = BigInt(price.toString()) * BigInt(gasFeeMultiplier)

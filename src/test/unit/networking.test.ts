@@ -129,8 +129,7 @@ describe('Test rate limitations and deny list defaults', () => {
 })
 
 describe('Test rate limitations and deny list settings', () => {
-  const node: OceanNode = OceanNode.getInstance()
-
+  let node: OceanNode
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
       [
@@ -147,7 +146,9 @@ describe('Test rate limitations and deny list settings', () => {
         3
       ]
     )
-    await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
+    envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
+    const config = await getConfiguration(true)
+    node = OceanNode.getInstance(config)
   })
 
   it('should read deny list of other peers and ips', async () => {
@@ -185,7 +186,6 @@ describe('Test rate limitations and deny list settings', () => {
     // need to set it here, on a running node is done at request/middleware level
     // none will be blocked, since its always another caller
     const ips = ['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5']
-
     const rateLimitResponses = []
     const statusHandler: StatusHandler = CoreHandlersRegistry.getInstance(
       node

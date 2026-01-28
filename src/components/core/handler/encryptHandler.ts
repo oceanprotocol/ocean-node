@@ -3,7 +3,6 @@ import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { EncryptCommand, EncryptFileCommand } from '../../../@types/commands.js'
 import * as base58 from 'base58-js'
 import { Readable } from 'stream'
-import { encrypt } from '../../../utils/crypt.js'
 import { Storage } from '../../storage/index.js'
 import { getConfiguration } from '../../../utils/index.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
@@ -54,6 +53,7 @@ export class EncryptHandler extends CommandHandler {
       return validationResponse
     }
     try {
+      const oceanNode = this.getOceanNode()
       // prepare an empty array in case if
       let blobData: Uint8Array = new Uint8Array()
       if (task.encoding?.toLowerCase() === 'string') {
@@ -65,7 +65,9 @@ export class EncryptHandler extends CommandHandler {
         blobData = base58.base58_to_binary(task.blob)
       }
       // do encrypt magic
-      const encryptedData = await encrypt(blobData, task.encryptionType)
+      const encryptedData = await oceanNode
+        .getKeyManager()
+        .encrypt(blobData, task.encryptionType)
       return {
         stream: Readable.from('0x' + encryptedData.toString('hex')),
         status: { httpStatus: 200 }
@@ -111,21 +113,35 @@ export class EncryptFileHandler extends CommandHandler {
       return validationResponse
     }
     try {
+      const oceanNode = this.getOceanNode()
       const config = await getConfiguration()
       const headers = {
         'Content-Type': 'application/octet-stream',
         'X-Encrypted-By': config.keys.peerId.toString(),
         'X-Encrypted-Method': task.encryptionType
       }
-      let encryptedContent: Buffer
+      let encryptedContent: Readable
       if (task.files) {
         const storage = Storage.getStorageClass(task.files, config)
-        encryptedContent = await storage.encryptContent(task.encryptionType)
+        const stream = await storage.getReadableStream()
+        if (stream.stream) {
+          encryptedContent = await oceanNode
+            .getKeyManager()
+            .encryptStream(stream.stream, task.encryptionType)
+        } else {
+          return {
+            stream: null,
+            status: { httpStatus: 500, error: 'Cannot fetch files' }
+          }
+        }
       } else if (task.rawData !== null) {
-        encryptedContent = await encrypt(task.rawData, task.encryptionType)
+        const cont = await oceanNode
+          .getKeyManager()
+          .encrypt(task.rawData, task.encryptionType)
+        encryptedContent = Readable.from(cont)
       }
       return {
-        stream: Readable.from(encryptedContent),
+        stream: encryptedContent,
         status: {
           httpStatus: 200,
           headers
