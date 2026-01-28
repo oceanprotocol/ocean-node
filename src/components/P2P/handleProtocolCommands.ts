@@ -34,9 +34,6 @@ export class ReadableString extends Readable {
 export async function handleProtocolCommands(stream: Stream, connection: Connection) {
   const { remotePeer, remoteAddr } = connection
 
-  // Pause the stream. We do async operations here before writing.
-  stream.pause()
-
   P2P_LOGGER.logMessage('Incoming connection from peer ' + remotePeer, true)
   P2P_LOGGER.logMessage('Using ' + remoteAddr, true)
 
@@ -58,21 +55,13 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
         return
       }
 
-      // Resume stream in case it's paused - but don't crash if the peer already closed
-      try {
-        stream.resume()
-      } catch {
-        return
-      }
       const status = { httpStatus, error }
       try {
         stream.send(uint8ArrayFromString(JSON.stringify(status)))
       } catch {
         return
       }
-      try {
-        await stream.close()
-      } catch {}
+      await stream.close()
     } catch (e) {
       P2P_LOGGER.error(`Error sending error response: ${getErrorMessage(e)}`)
       try {
@@ -109,9 +98,6 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
     await sendErrorAndClose(403, 'Rate limit exceeded')
     return
   }
-
-  // Resume the stream. We can now write.
-  stream.resume()
 
   // v3 streams are AsyncIterable
   let task: Command
