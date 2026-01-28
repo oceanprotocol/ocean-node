@@ -40,6 +40,16 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
   P2P_LOGGER.logMessage('Incoming connection from peer ' + remotePeer, true)
   P2P_LOGGER.logMessage('Using ' + remoteAddr, true)
 
+  const getErrorMessage = (err: unknown): string => {
+    if (err instanceof Error) return err.message || err.name || 'Unknown error'
+    if (typeof err === 'string') return err
+    try {
+      return JSON.stringify(err)
+    } catch {
+      return String(err)
+    }
+  }
+
   const sendErrorAndClose = async (httpStatus: number, error: string) => {
     try {
       // Check if stream is already closed
@@ -48,13 +58,23 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
         return
       }
 
-      // Resume stream in case it's paused - we need to write
-      stream.resume()
+      // Resume stream in case it's paused - but don't crash if the peer already closed
+      try {
+        stream.resume()
+      } catch {
+        return
+      }
       const status = { httpStatus, error }
-      stream.send(uint8ArrayFromString(JSON.stringify(status)))
-      await stream.close()
+      try {
+        stream.send(uint8ArrayFromString(JSON.stringify(status)))
+      } catch {
+        return
+      }
+      try {
+        await stream.close()
+      } catch {}
     } catch (e) {
-      P2P_LOGGER.error(`Error sending error response: ${e.message}`)
+      P2P_LOGGER.error(`Error sending error response: ${getErrorMessage(e)}`)
       try {
         stream.abort(e as Error)
       } catch {}
@@ -108,7 +128,7 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
   } catch (err) {
     P2P_LOGGER.log(
       LOG_LEVELS_STR.LEVEL_ERROR,
-      `Unable to process P2P command: ${err.message}`
+      `Unable to process P2P command: ${getErrorMessage(err)}`
     )
     await sendErrorAndClose(400, 'Invalid command')
     return
@@ -138,40 +158,22 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
     stream.send(uint8ArrayFromString(JSON.stringify(response.status)))
 
     // Stream data chunks without buffering, with backpressure support
-    const MAX_PART_SIZE = 64 * 1024 // 64KB
-    const STREAM_DRAIN_TIMEOUT_MS = 300000 // 5 minutes
     if (response.stream) {
       for await (const chunk of response.stream as Readable) {
-        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
-        for (let off = 0; off < buf.length; off += MAX_PART_SIZE) {
-          if (stream.status === 'closed' || stream.status === 'closing') {
-            console.log('P2P stream closed while sending response')
-            throw new Error('P2P stream closed while sending response')
-          }
+        const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
 
-          const part = buf.subarray(off, Math.min(off + MAX_PART_SIZE, buf.length))
-
-          if (!stream.send(part)) {
-            try {
-              await stream.onDrain({
-                signal: AbortSignal.timeout(STREAM_DRAIN_TIMEOUT_MS)
-              })
-            } catch (e) {
-              // Most commonly: AbortError if peer is too slow to read / never drains.
-              console.log('Timed out waiting for peer to drain', e)
-              throw new Error(
-                `Timed out waiting for peer to drain (${STREAM_DRAIN_TIMEOUT_MS}ms)`
-              )
-            }
-          }
+        // Handle backpressure - if send returns false, wait for drain
+        if (!stream.send(bytes)) {
+          await stream.onDrain()
         }
       }
     }
 
     await stream.close()
   } catch (err) {
+    const errMsg = getErrorMessage(err)
     P2P_LOGGER.logMessageWithEmoji(
-      'handleProtocolCommands Error: ' + err.message,
+      'handleProtocolCommands Error: ' + errMsg,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
@@ -179,6 +181,9 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
     try {
       ;(response?.stream as any)?.destroy?.(err as Error)
     } catch {}
-    await sendErrorAndClose(500, err.message)
+    // Avoid a second error if the peer already closed the stream.
+    if (stream.status !== 'closed' && stream.status !== 'closing') {
+      await sendErrorAndClose(500, errMsg)
+    }
   }
 }
