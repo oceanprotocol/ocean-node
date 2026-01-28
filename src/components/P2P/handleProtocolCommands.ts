@@ -129,22 +129,41 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
     return
   }
 
+  let response: P2PCommandResponse | undefined
   try {
     handler.getOceanNode().setRemoteCaller(remotePeer.toString())
-    const response: P2PCommandResponse = await handler.handle(task)
+    response = await handler.handle(task)
 
     // Send status first
     stream.send(uint8ArrayFromString(JSON.stringify(response.status)))
 
     // Stream data chunks without buffering, with backpressure support
-    const MAX = 64 * 1024 // 64KB
+    const MAX_PART_SIZE = 64 * 1024 // 64KB
+    const STREAM_DRAIN_TIMEOUT_MS = 300000 // 5 minutes
     if (response.stream) {
       for await (const chunk of response.stream as Readable) {
         const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
-        for (let off = 0; off < buf.length; off += MAX) {
-          const part = buf.subarray(off, Math.min(off + MAX, buf.length))
-          console.log('Sending chunk of size', part.length)
-          if (!stream.send(part)) await stream.onDrain()
+        for (let off = 0; off < buf.length; off += MAX_PART_SIZE) {
+          if (stream.status === 'closed' || stream.status === 'closing') {
+            console.log('P2P stream closed while sending response')
+            throw new Error('P2P stream closed while sending response')
+          }
+
+          const part = buf.subarray(off, Math.min(off + MAX_PART_SIZE, buf.length))
+
+          if (!stream.send(part)) {
+            try {
+              await stream.onDrain({
+                signal: AbortSignal.timeout(STREAM_DRAIN_TIMEOUT_MS)
+              })
+            } catch (e) {
+              // Most commonly: AbortError if peer is too slow to read / never drains.
+              console.log('Timed out waiting for peer to drain', e)
+              throw new Error(
+                `Timed out waiting for peer to drain (${STREAM_DRAIN_TIMEOUT_MS}ms)`
+              )
+            }
+          }
         }
       }
     }
@@ -157,6 +176,9 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
     )
+    try {
+      ;(response?.stream as any)?.destroy?.(err as Error)
+    } catch {}
     await sendErrorAndClose(500, err.message)
   }
 }
