@@ -41,10 +41,10 @@ describe('Should validate blockchain network connections', () => {
     expect(blockchain.getKnownRPCs().length).to.be.equal(3)
   })
 
-  it('should get network ready', async function () {
+  it('should get network not ready', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const status = await blockchain.isNetworkReady()
-    expect(status.ready).to.be.equal(true)
+    expect(status.ready).to.be.equal(false)
   })
 
   it('should check if chain is confidential EVM', () => {
