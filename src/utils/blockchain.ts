@@ -70,21 +70,24 @@ export class Blockchain {
     return await this.signer.getAddress()
   }
 
-  public async getProvider(): Promise<FallbackProvider> {
+  public async getProvider(force: boolean = false): Promise<FallbackProvider> {
     if (!this.provider) {
       for (const rpc of this.knownRPCs) {
         const rpcProvider = new JsonRpcProvider(rpc)
         // filter wrong chains or broken RPCs
-        try {
-          const { chainId } = await rpcProvider.getNetwork()
-          if (chainId.toString() === this.chainId.toString()) {
-            this.providers.push(rpcProvider)
-            break
+        if (!force) {
+          try {
+            const { chainId } = await rpcProvider.getNetwork()
+            if (chainId.toString() === this.chainId.toString()) {
+              this.providers.push(rpcProvider)
+              break
+            }
+          } catch (error) {
+            CORE_LOGGER.error(`Error getting network for RPC ${rpc}: ${error}`)
           }
-        } catch (error) {
-          CORE_LOGGER.error(`Error getting network for RPC ${rpc}: ${error}`)
+        } else {
+          this.providers.push(new JsonRpcProvider(rpc))
         }
-        this.providers.push(new JsonRpcProvider(rpc))
       }
       this.provider = new FallbackProvider(this.providers)
     }
@@ -93,8 +96,10 @@ export class Blockchain {
 
   public async getSigner(): Promise<Signer> {
     if (!this.signer) {
-      const provider = await this.getProvider()
-      this.signer = await this.keyManager.getEvmSigner(provider)
+      if (!this.provider) {
+        await this.getProvider()
+      }
+      this.signer = await this.keyManager.getEvmSigner(this.provider, this.chainId)
     }
     return this.signer
   }

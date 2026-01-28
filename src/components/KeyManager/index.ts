@@ -95,10 +95,13 @@ export class KeyManager {
    * @param provider - The JSON-RPC provider to connect the signer to
    * @returns An ethers Signer instance
    */
-  async getEvmSigner(provider: FallbackProvider): Promise<Signer> {
+  async getEvmSigner(provider: FallbackProvider, chainId?: number): Promise<Signer> {
     // Create a cache key based on chainId and provider URL
     // TO DO
-    const { chainId } = await provider.getNetwork()
+    if (!chainId) {
+      const { chainId: networkChainId } = await provider.getNetwork()
+      chainId = Number(networkChainId)
+    }
 
     const cacheKey = `${chainId}`
 

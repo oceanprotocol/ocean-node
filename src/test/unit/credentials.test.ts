@@ -37,9 +37,9 @@ describe('credentials', () => {
     const keyManager = new KeyManager(config)
     const blockchains = new BlockchainRegistry(keyManager, config)
     blockchain = blockchains.getBlockchain(DEVELOPMENT_CHAIN_ID)
-    console.log('blockchain', blockchain)
+    // force usage of known bad provider
+    await blockchain.getProvider(true)
     signer = await blockchain.getSigner()
-    console.log('signer', signer)
   })
 
   it('should allow access with undefined or empty credentials', async () => {

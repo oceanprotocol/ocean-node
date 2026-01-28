@@ -143,7 +143,7 @@ describe('Test rate limitations and deny list settings', () => {
           peers: ['16Uiu2HAm7YHuXeBpoFoKHyAieKDAsdg3RNmCUEVgNxffByRS7Hdt'], // node 2
           ips: ['127.0.0.1']
         }),
-        3
+        1
       ]
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
@@ -160,7 +160,7 @@ describe('Test rate limitations and deny list settings', () => {
     ) // node 2 id
     expect(config1.denyList.ips.length).to.be.equal(1)
     expect(config1.denyList.ips[0]).to.be.equal('127.0.0.1') // node 2 id
-    expect(config1.rateLimit).to.be.equal(3)
+    expect(config1.rateLimit).to.be.equal(1)
   })
 
   it('Test rate limit per IP, on handler', async () => {
