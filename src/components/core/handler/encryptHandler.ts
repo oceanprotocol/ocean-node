@@ -117,7 +117,7 @@ export class EncryptFileHandler extends CommandHandler {
       const config = await getConfiguration()
       const headers = {
         'Content-Type': 'application/octet-stream',
-        'X-Encrypted-By': config.keys.peerId.toString(),
+        'X-Encrypted-By': oceanNode.getKeyManager().getPeerId().toString(),
         'X-Encrypted-Method': task.encryptionType
       }
       let encryptedContent: Readable
