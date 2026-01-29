@@ -24,7 +24,6 @@ export async function decryptFilesObject(
     const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
     const decryptedFileArray = JSON.parse(decryptedFilesString)
 
-    console.log('decryptedFileArray: ', decryptedFileArray)
     return decryptedFileArray.files[0]
   } catch (err) {
     CORE_LOGGER.error('Error decrypting files object: ' + err.message)

@@ -116,7 +116,6 @@ export class C2DEngineDocker extends C2DEngine {
       // since we cannot connect to docker, we cannot start the engine -> no envs
       return
     }
-    // console.log(sysinfo)
     let fees: ComputeEnvFeesStructure = null
     const supportedChains: number[] = []
     if (config.supportedNetworks) {
@@ -126,7 +125,6 @@ export class C2DEngineDocker extends C2DEngine {
     }
     for (const feeChain of Object.keys(envConfig.fees)) {
       // for (const feeConfig of envConfig.fees) {
-      // console.log(feeChain)
       if (supportedChains.includes(parseInt(feeChain))) {
         if (fees === null) fees = {}
         if (!(feeChain in fees)) fees[feeChain] = []
@@ -554,7 +552,6 @@ export class C2DEngineDocker extends C2DEngine {
     } else {
       // already built, we need to validate it
       const validation = await C2DEngineDocker.checkDockerImage(image, env.platform)
-      console.log('Validation: ', validation)
       if (!validation.valid)
         throw new Error(
           `Cannot find image ${image} for ${env.platform.architecture}. Maybe it does not exist or it's build for other arhitectures.`
@@ -914,8 +911,10 @@ export class C2DEngineDocker extends C2DEngine {
 
   // eslint-disable-next-line require-await
   private async processJob(job: DBComputeJob) {
-    console.log(`Process job started: [STATUS: ${job.status}: ${job.statusText}]`)
-    console.log(job)
+    CORE_LOGGER.info(
+      `Process job ${job.jobId} started: [STATUS: ${job.status}: ${job.statusText}]`
+    )
+
     // has to :
     //  - monitor running containers and stop them if over limits
     //  - monitor disc space and clean up
@@ -1078,7 +1077,6 @@ export class C2DEngineDocker extends C2DEngine {
       }
       const container = await this.createDockerContainer(containerInfo, true)
       if (container) {
-        console.log('Container created: ', container)
         job.status = C2DStatusNumber.Provisioning
         job.statusText = C2DStatusText.Provisioning
         await this.db.updateJob(job)
@@ -1096,8 +1094,6 @@ export class C2DEngineDocker extends C2DEngine {
     if (job.status === C2DStatusNumber.Provisioning) {
       // download algo & assets
       const ret = await this.uploadData(job)
-      console.log('Upload data')
-      console.log(ret)
       job.status = ret.status
       job.statusText = ret.statusText
       if (job.status !== C2DStatusNumber.RunningAlgorithm) {
@@ -1115,10 +1111,7 @@ export class C2DEngineDocker extends C2DEngine {
       let details
       try {
         container = await this.docker.getContainer(job.jobId + '-algoritm')
-        console.log(`Container retrieved: ${JSON.stringify(container)}`)
         details = await container.inspect()
-        console.log('Container inspect')
-        console.log(details)
       } catch (e) {
         console.error(
           'Could not retrieve container: ' +
@@ -1157,11 +1150,9 @@ export class C2DEngineDocker extends C2DEngine {
                 '/data/logs/algorithm.log'
               writeFileSync(algoLogFile, String(e.message))
             } catch (e) {
-              console.log('Failed to write')
-              console.log(e)
+              CORE_LOGGER.error('Failed to write algorithm log file: ' + e.message)
             }
-            console.error('could not start container: ' + e.message)
-            console.log(e)
+            CORE_LOGGER.error('Could not start container: ' + e.message)
             job.status = C2DStatusNumber.AlgorithmFailed
             job.statusText = C2DStatusText.AlgorithmFailed
 
@@ -1179,24 +1170,22 @@ export class C2DEngineDocker extends C2DEngine {
           return
         }
 
-        console.log('running, need to stop it?')
         const timeNow = Date.now() / 1000
         const expiry = parseFloat(job.algoStartTimestamp) + job.maxJobDuration
-        console.log('timeNow: ' + timeNow + ' , Expiry: ' + expiry)
+        CORE_LOGGER.debug(
+          'container running since timeNow: ' + timeNow + ' , Expiry: ' + expiry
+        )
         if (timeNow > expiry || job.stopRequested) {
           // we need to stop the container
           // make sure is running
-          console.log('We need to stop')
-          console.log(details.State.Running)
           if (details.State.Running === true) {
             try {
               await container.stop()
             } catch (e) {
               // we should never reach this, unless the container is already stopped or deleted by someone else
-              console.log(e)
+              CORE_LOGGER.debug('Could not stop container: ' + e.message)
             }
           }
-          console.log('Stopped')
           job.isStarted = false
           job.status = C2DStatusNumber.PublishingResults
           job.statusText = C2DStatusText.PublishingResults
@@ -1224,9 +1213,8 @@ export class C2DEngineDocker extends C2DEngine {
       let container
       try {
         container = await this.docker.getContainer(job.jobId + '-algoritm')
-        console.log(`Container retrieved: ${JSON.stringify(container)}`)
       } catch (e) {
-        console.error('Could not retrieve container: ' + e.message)
+        CORE_LOGGER.debug('Could not retrieve container: ' + e.message)
         job.isRunning = false
         job.dateFinished = String(Date.now() / 1000)
         try {
@@ -1234,8 +1222,7 @@ export class C2DEngineDocker extends C2DEngine {
             this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/logs/algorithm.log'
           writeFileSync(algoLogFile, String(e.message))
         } catch (e) {
-          console.log('Failed to write')
-          console.log(e)
+          CORE_LOGGER.error('Failed to write algorithm log file: ' + e.message)
         }
         await this.db.updateJob(job)
         await this.cleanupJob(job)
@@ -1260,7 +1247,7 @@ export class C2DEngineDocker extends C2DEngine {
           )
         }
       } catch (e) {
-        console.log(e)
+        CORE_LOGGER.error('Failed to get outputs archive: ' + e.message)
         job.status = C2DStatusNumber.ResultsUploadFailed
         job.statusText = C2DStatusText.ResultsUploadFailed
       }
@@ -1320,7 +1307,7 @@ export class C2DEngineDocker extends C2DEngine {
             proof
           )
         } catch (e) {
-          console.log(e)
+          CORE_LOGGER.error('Failed to claim lock: ' + e.message)
         }
       } else {
         // release the lock, we are not getting paid
@@ -1332,7 +1319,7 @@ export class C2DEngineDocker extends C2DEngine {
             job.owner
           )
         } catch (e) {
-          console.log(e)
+          CORE_LOGGER.error('Failed to release lock: ' + e.message)
         }
       }
       if (txId) {
@@ -1365,7 +1352,7 @@ export class C2DEngineDocker extends C2DEngine {
         try {
           await volume.remove()
         } catch (e) {
-          console.log(e)
+          CORE_LOGGER.error('Failed to remove volume: ' + e.message)
         }
       }
     } catch (e) {
@@ -1377,7 +1364,7 @@ export class C2DEngineDocker extends C2DEngine {
         try {
           await this.docker.getImage(image).remove({ force: true })
         } catch (e) {
-          console.log('Could not delete image: ' + image + ' : ' + e.message)
+          CORE_LOGGER.error('Could not delete image: ' + image + ' : ' + e.message)
         }
       }
     }
@@ -1573,7 +1560,6 @@ export class C2DEngineDocker extends C2DEngine {
             if (progress.id) logText += progress.id + ' : ' + progress.status
             else logText = progress.status
             CORE_LOGGER.debug("Pulling image for jobId '" + job.jobId + "': " + logText)
-            console.log(progress)
             appendFileSync(imageLogFile, logText + '\n')
           }
         )
@@ -1831,7 +1817,6 @@ export class C2DEngineDocker extends C2DEngine {
       const asset = job.assets[i]
       let storage = null
       let fileInfo = null
-      console.log('checking now asset: ', i)
       appendFileSync(configLogPath, `Downloading asset ${i} to /data/inputs/\n`)
       // without this check it would break if no fileObject is present
       if (asset.fileObject) {
@@ -1957,13 +1942,9 @@ export class C2DEngineDocker extends C2DEngine {
 
         try {
           // await container2.putArchive(destination, {
-          const stream = await container.putArchive(destination, {
+          await container.putArchive(destination, {
             path: '/data'
           })
-          console.log('PutArchive')
-          console.log(stream)
-
-          console.log('Done uploading')
         } catch (e) {
           appendFileSync(
             configLogPath,
@@ -2006,7 +1987,6 @@ export class C2DEngineDocker extends C2DEngine {
   private async makeJobFolders(job: DBComputeJob) {
     try {
       const baseFolder = this.getC2DConfig().tempFolder + '/' + job.jobId
-      console.log('BASE FOLDER: ' + baseFolder)
       if (!existsSync(baseFolder)) mkdirSync(baseFolder)
       if (!existsSync(baseFolder + '/data')) mkdirSync(baseFolder + '/data')
       if (!existsSync(baseFolder + '/data/inputs')) mkdirSync(baseFolder + '/data/inputs')

@@ -153,7 +153,6 @@ export class Blockchain {
       provider
         .getBlock('latest')
         .then((block) => {
-          console.log('detectNetwork block', block)
           clearTimeout(timeout)
           resolve({ ready: block.hash !== null })
         })

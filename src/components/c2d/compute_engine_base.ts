@@ -466,21 +466,14 @@ export abstract class C2DEngine {
     chainId: number,
     token: string
   ): ComputeResourcesPricingInfo[] {
-    console.log('getEnvPricesForToken')
-    console.log(env)
     if (!env.fees || !(chainId in env.fees) || !env.fees[chainId]) {
       return null
     }
-    console.log(env.fees)
     for (const fee of env.fees[chainId]) {
-      console.log(fee)
-      console.log(fee.feeToken)
-      console.log(token)
       // eslint-disable-next-line security/detect-possible-timing-attacks
       if (fee.feeToken === token) {
-        console.log('Found')
         return fee.prices
-      } else console.log('NOT Found')
+      }
     }
 
     return null

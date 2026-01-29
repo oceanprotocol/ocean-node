@@ -69,7 +69,6 @@ const isStartup: boolean = true
 // this is to avoid too much verbose logging, cause we're calling getConfig() from many parts
 // and we are always running though the same process.env checks
 // (we must start accessing the config from the OceanNode class only once we refactor)
-console.log('\n\n\n\n')
 OCEAN_NODE_LOGGER.logMessageWithEmoji(
   '[ Starting Ocean Node ]',
   true,

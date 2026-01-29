@@ -194,7 +194,6 @@ export class PaidComputeStartHandler extends CommandHandler {
       const policyServer = new PolicyServer()
       // check algo
       for (const elem of [...[task.algorithm], ...task.datasets]) {
-        console.log(elem)
         const result: any = { validOrder: false }
         if ('documentId' in elem && elem.documentId) {
           result.did = elem.documentId
@@ -881,7 +880,6 @@ export class FreeComputeStartHandler extends CommandHandler {
           }
         }
       }
-      // console.log(task.resources)
       /*
       return {
         stream: null,
