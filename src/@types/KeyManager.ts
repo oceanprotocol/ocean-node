@@ -6,7 +6,7 @@ import { Readable } from 'stream'
  * Key provider types supported by KeyManager
  */
 
-export type KeyProviderType = 'raw' | 'gcp-kms'
+export type KeyProviderType = 'raw' //  'gcp-kms' | 'aws-kms' in future
 /**
  * Base interface for key providers.
  * Each key provider implementation must implement this interface.
