@@ -21,8 +21,9 @@ import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { getConfiguration } from '../../utils/index.js'
 import { expectedTimeoutFailure } from '../integration/testUtils.js'
 
-let nodeId: string
-
+// let nodeId: string
+const nodeId = '16Uiu2HAmUWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq72'
+const nodeId2 = '16Uiu2HAmQWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq73'
 describe('URL Storage tests', () => {
   let file: any = {
     type: 'url',
@@ -34,7 +35,7 @@ describe('URL Storage tests', () => {
         Authorization: 'Bearer auth_token_X'
       }
     ],
-    encryptedBy: '16Uiu2HAmUWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq72',
+    encryptedBy: nodeId,
     encryptMethod: EncryptMethod.AES
   }
   let storage: Storage
@@ -56,11 +57,7 @@ describe('URL Storage tests', () => {
   })
 
   it('canDecrypt should return true for the correct nodeId', () => {
-    assert(
-      storage.canDecrypt('16Uiu2HAmUWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq72') ===
-        true,
-      "can't decrypt with the correct nodeId"
-    )
+    assert(storage.canDecrypt(nodeId) === true, "can't decrypt with the correct nodeId")
   })
 
   it('canDecrypt should return false for an incorrect nodeId', () => {
@@ -582,8 +579,7 @@ describe('URL Storage encryption tests', () => {
 
   it('canDecrypt should return false when the file is not encrypted', () => {
     assert(
-      storage.canDecrypt('16Uiu2HAmUWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq72') ===
-        false,
+      storage.canDecrypt(nodeId) === false,
       'Wrong response from canDecrypt() for an unencrypted file'
     )
   })
@@ -649,8 +645,11 @@ describe('URL Storage encryption tests', function () {
 
   it('canDecrypt should return false when called from an unauthorised node', () => {
     assert(
-      storage.canDecrypt('16Uiu2HAmUWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq72') ===
-        false,
+      storage.canDecrypt(nodeId) === true,
+      'Wrong response from canDecrypt() for an unencrypted file'
+    )
+    assert(
+      storage.canDecrypt(nodeId2) === false,
       'Wrong response from canDecrypt() for an unencrypted file'
     )
   })
