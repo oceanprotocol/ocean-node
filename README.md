@@ -153,6 +153,7 @@ Your node is now running, the control panel will be available at `http://localho
 - [Control Panel: Local development](controlpanel/README.md)
 - [Docker Deployment Guide](docs/dockerDeployment.md)
 - [C2D GPU Guide](docs/GPU.md)
+- [Compute pricing](docs/compute-pricing.md)
 
 ## Control Panel
 

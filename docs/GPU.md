@@ -2,7 +2,7 @@ Supporting GPUs for c2d jobs comes down to:
 
 - define gpu list for each c2d env
 - pass docker args for each gpu
-- set a price for each gpu
+- set a price for each gpu (see [Compute pricing](compute-pricing.md) for pricing units and examples)
 
 ## Nvidia GPU Example
 

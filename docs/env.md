@@ -126,7 +126,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 
 ## Compute
 
-The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable is used to configure Docker-based compute environments in Ocean Node. This guide will walk you through the options available for defining `DOCKER_COMPUTE_ENVIRONMENTS` and how to set it up correctly.
+The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable is used to configure Docker-based compute environments in Ocean Node. This guide will walk you through the options available for defining `DOCKER_COMPUTE_ENVIRONMENTS` and how to set it up correctly. For configuring compute environments and setting prices for each resource (including pricing units and examples), see [Compute pricing](compute-pricing.md).
 
 Example Configuration
 The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of objects, where each object represents a Docker compute environment configuration. Below is an example configuration:
