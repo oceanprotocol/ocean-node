@@ -45,7 +45,8 @@ export class CollectFeesHandler extends AdminCommandHandler {
       return buildInvalidParametersResponse(validation)
     }
     const config = await getConfiguration()
-    if (task.node && task.node !== config.keys.peerId.toString()) {
+    const keyManager = this.nodeInstance.getKeyManager()
+    if (task.node && task.node !== keyManager.getPeerIdString()) {
       const msg: string = `Cannot run this command ${JSON.stringify(
         task
       )} on a different node.`

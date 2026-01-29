@@ -76,6 +76,12 @@ export interface IKeyProvider {
    */
   decryptStream(inputStream: Readable, algorithm: EncryptMethod): Readable
   /**
+   * Decrypts using ethCrypto.decryptWithPrivateKey
+   * @param encryptedObject
+   * @returns Decrypted data
+   */
+  ethCryptoDecryptWithPrivateKey(encryptedObject: any): Promise<any>
+  /**
    * Cleanup resources if needed (e.g., close connections)
    */
   cleanup?(): Promise<void>

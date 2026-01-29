@@ -218,10 +218,9 @@ describe('Should encrypt and decrypt DDO', () => {
   })
 
   it('should authorize decrypter since is this node', async () => {
-    const config = await getConfiguration()
     const decryptDDOTask: DecryptDDOCommand = {
       command: PROTOCOL_COMMANDS.DECRYPT_DDO,
-      decrypterAddress: await config.keys.ethAddress,
+      decrypterAddress: oceanNode.getKeyManager().getEthAddress(),
       chainId,
       nonce: Date.now().toString(),
       signature: '0x123'

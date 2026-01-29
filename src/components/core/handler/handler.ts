@@ -17,7 +17,7 @@ import { ReadableString } from '../../P2P/handlers.js'
 import { CONNECTION_HISTORY_DELETE_THRESHOLD } from '../../../utils/constants.js'
 
 export abstract class BaseHandler implements ICommandHandler {
-  private nodeInstance: OceanNode
+  public nodeInstance: OceanNode
   public constructor(oceanNode: OceanNode) {
     this.nodeInstance = oceanNode
   }

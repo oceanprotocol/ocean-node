@@ -22,11 +22,7 @@ import { getEventFromTx, streamToObject } from '../../utils/util.js'
 
 import { AssetUtils } from '../../utils/asset.js'
 
-import {
-  DDO_IDENTIFIER_PREFIX,
-  PROTOCOL_COMMANDS,
-  getConfiguration
-} from '../../utils/index.js'
+import { DDO_IDENTIFIER_PREFIX, PROTOCOL_COMMANDS } from '../../utils/index.js'
 import { FeesHandler } from '../../components/core/handler/feesHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { ProviderFees } from '../../@types/Fees.js'
@@ -155,13 +151,12 @@ export async function orderAsset(
   )
 
   if (!providerFees) {
-    const oceanNodeConfig = await getConfiguration(true)
     const getFeesCommand = {
       command: PROTOCOL_COMMANDS.GET_FEES,
       ddoId: genericAsset.id,
       serviceId: service.id,
       consumerAddress,
-      node: oceanNodeConfig.keys.peerId.toString()
+      node: oceanNode.getKeyManager().getPeerId().toString()
     }
     const response = await new FeesHandler(oceanNode).handle(getFeesCommand)
     const fees = await streamToObject(response.stream as Readable)
@@ -241,13 +236,12 @@ export async function reOrderAsset(
   )
 
   if (!providerFees) {
-    const oceanNodeConfig = await getConfiguration(true)
     const statusCommand = {
       command: PROTOCOL_COMMANDS.GET_FEES,
       ddoId: genericAsset.id,
       serviceId: service.id,
       consumerAddress,
-      node: oceanNodeConfig.keys.peerId.toString()
+      node: oceanNode.getKeyManager().getPeerId().toString()
     }
     const response = await new FeesHandler(oceanNode).handle(statusCommand)
     const fees = await streamToObject(response.stream as Readable)

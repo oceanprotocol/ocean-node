@@ -127,7 +127,12 @@ export class OceanNode {
         OCEAN_NODE_LOGGER.error('C2DDatabase is mandatory for compute engines!')
         return
       }
-      this.c2dEngines = new C2DEngines(this.config, this.db.c2d, this.escrow)
+      this.c2dEngines = new C2DEngines(
+        this.config,
+        this.db.c2d,
+        this.escrow,
+        this.keyManager
+      )
       await this.c2dEngines.startAllEngines()
     }
   }

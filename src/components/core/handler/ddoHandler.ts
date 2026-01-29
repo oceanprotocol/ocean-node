@@ -131,14 +131,14 @@ export class DecryptDdoHandler extends CommandHandler {
           }
         }
       }
-
+      const ourEthAddress = this.getOceanNode().getKeyManager().getEthAddress()
       if (config.authorizedDecrypters.length > 0) {
         // allow if on authorized list or it is own node
         if (
           !config.authorizedDecrypters
             .map((address) => address?.toLowerCase())
             .includes(decrypterAddress?.toLowerCase()) &&
-          decrypterAddress?.toLowerCase() !== config.keys.ethAddress?.toLowerCase()
+          decrypterAddress?.toLowerCase() !== ourEthAddress.toLowerCase()
         ) {
           CORE_LOGGER.logMessage('Decrypt DDO: Decrypter not authorized', true)
           return {

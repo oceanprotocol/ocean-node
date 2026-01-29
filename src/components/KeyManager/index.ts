@@ -179,7 +179,17 @@ export class KeyManager {
    * @returns Readable stream with decrypted data
    */
   decryptStream(inputStream: Readable, algorithm: EncryptMethod): Readable {
-    return this.decryptStream(inputStream, algorithm)
+    return this.keyProvider.decryptStream(inputStream, algorithm)
+  }
+
+  /**
+   * Decrypts using ethCrypto.decryptWithPrivateKey
+   * @param key
+   * @param encryptedObject
+   * @returns Decrypted data
+   */
+  async ethCryptoDecryptWithPrivateKey(encryptedObject: any): Promise<any> {
+    return await this.keyProvider.ethCryptoDecryptWithPrivateKey(encryptedObject)
   }
 
   /**

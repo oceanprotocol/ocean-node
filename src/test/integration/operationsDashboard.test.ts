@@ -124,7 +124,7 @@ describe('Should test admin operations', () => {
 
     const stopNodeCommand: AdminStopNodeCommand = {
       command: PROTOCOL_COMMANDS.STOP_NODE,
-      node: config.keys.peerId.toString(),
+      node: oceanNode.getKeyManager().getPeerId().toString(),
       expiryTimestamp,
       signature
     }
@@ -229,7 +229,7 @@ describe('Should test admin operations', () => {
 
     const reindexTxCommand: AdminReindexTxCommand = {
       command: PROTOCOL_COMMANDS.REINDEX_TX,
-      node: config.keys.peerId.toString(),
+      node: oceanNode.getKeyManager().getPeerId().toString(),
       txId: publishedDataset.trxReceipt.hash,
       chainId: DEVELOPMENT_CHAIN_ID,
       expiryTimestamp,
@@ -304,7 +304,7 @@ describe('Should test admin operations', () => {
     } else {
       const reindexChainCommand: AdminReindexChainCommand = {
         command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
-        node: config.keys.peerId.toString(),
+        node: oceanNode.getKeyManager().getPeerId().toString(),
         chainId: DEVELOPMENT_CHAIN_ID,
         expiryTimestamp,
         signature

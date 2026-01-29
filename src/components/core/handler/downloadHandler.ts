@@ -4,7 +4,6 @@ import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { verifyProviderFees } from '../utils/feesHandler.js'
 import { FindDdoHandler } from './ddoHandler.js'
 import crypto from 'crypto'
-import * as ethCrypto from 'eth-crypto'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { validateOrderTransaction } from '../utils/validateOrders.js'
 import {
@@ -101,13 +100,10 @@ export async function handleDownloadUrlCommand(
         `attachment;filename=${fileMetadata.name}`
     if (encryptFile) {
       // we parse the string into the object again
-      const encryptedObject = ethCrypto.cipher.parse(task.aes_encrypted_key)
-      // get the key from configuration
-      const nodePrivateKey = Buffer.from(config.keys.privateKey.raw).toString('hex')
-      const decrypted = await ethCrypto.decryptWithPrivateKey(
-        nodePrivateKey,
-        encryptedObject
-      )
+
+      const decrypted = await node
+        .getKeyManager()
+        .ethCryptoDecryptWithPrivateKey(task.aes_encrypted_key)
       const decryptedPayload = JSON.parse(decrypted)
       // check signature
       // const senderAddress = ethCrypto.recover(

@@ -7,7 +7,7 @@ import { hexStringToByteArray } from '../../../utils/index.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import { Readable, Transform } from 'stream'
-
+import * as ethCrypto from 'eth-crypto'
 import eciesjs from 'eciesjs'
 import crypto from 'crypto'
 
@@ -221,5 +221,20 @@ export class RawPrivateKeyProvider implements IKeyProvider {
     } else {
       throw new Error(`Unsupported decryption algorithm: ${algorithm}`)
     }
+  }
+
+  /**
+   * Decrypts using ethCrypto.decryptWithPrivateKey
+   * @param key
+   * @param encryptedObject
+   * @returns Decrypted data
+   */
+  async ethCryptoDecryptWithPrivateKey(encryptedObject: any): Promise<any> {
+    const { privateKey } = this
+    const encrypted = ethCrypto.cipher.parse(encryptedObject)
+    // get the key from configuration
+    const nodePrivateKey = Buffer.from(privateKey.raw).toString('hex')
+    const decrypted = await ethCrypto.decryptWithPrivateKey(nodePrivateKey, encrypted)
+    return decrypted
   }
 }
