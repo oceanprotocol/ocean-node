@@ -17,7 +17,8 @@ import {
 } from '../utils/utils.js'
 import { OceanNode } from '../../OceanNode.js'
 import { StatusHandler } from '../../components/core/handler/statusHandler.js'
-import { CoreHandlersRegistry } from '../../components/core/handler/coreHandlersRegistry.js'
+import { KeyManager } from '../../components/KeyManager/index.js'
+import { OceanP2P } from '../../components/P2P/index.js'
 
 let envOverrides: OverrideEnvConfig[]
 
@@ -129,8 +130,7 @@ describe('Test rate limitations and deny list defaults', () => {
 })
 
 describe('Test rate limitations and deny list settings', () => {
-  const node: OceanNode = OceanNode.getInstance()
-
+  let node: OceanNode
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
       [
@@ -147,7 +147,12 @@ describe('Test rate limitations and deny list settings', () => {
         3
       ]
     )
-    await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
+    envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
+    const config = await getConfiguration(true)
+    const keyManager = new KeyManager(config)
+    const p2pNode = new OceanP2P(config, keyManager)
+    await p2pNode.start()
+    node = OceanNode.getInstance(config, null, p2pNode, null, null, null, null, true)
   })
 
   it('should read deny list of other peers and ips', async () => {
@@ -164,17 +169,17 @@ describe('Test rate limitations and deny list settings', () => {
 
   it('Test rate limit per IP, on handler', async () => {
     // need to set it here, on a running node is done at request/middleware level
-    node.setRemoteCaller('127.0.0.1')
-    const statusHandler: StatusHandler = CoreHandlersRegistry.getInstance(
-      node
-    ).getHandler(PROTOCOL_COMMANDS.STATUS)
+    const statusHandler: StatusHandler = node
+      .getP2PNode()
+      .getCoreHandlers()
+      .getHandler(PROTOCOL_COMMANDS.STATUS)
 
-    const rate = await statusHandler.checkRateLimit()
+    const rate = await statusHandler.checkRateLimit('127.0.0.2')
     const rateLimitResponses = []
     expect(rate).to.be.equal(true)
     for (let i = 0; i < 4; i++) {
       // 4 responses, at least one should be blocked
-      const rateResp = await statusHandler.checkRateLimit()
+      const rateResp = await statusHandler.checkRateLimit('127.0.0.2')
       rateLimitResponses.push(rateResp)
     }
     const filtered = rateLimitResponses.filter((r) => r === false)
@@ -184,16 +189,15 @@ describe('Test rate limitations and deny list settings', () => {
   it('Test rate limit per IP, on handler, different IPs', async () => {
     // need to set it here, on a running node is done at request/middleware level
     // none will be blocked, since its always another caller
-    const ips = ['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5']
-
+    const ips = ['127.0.0.3', '127.0.0.4', '127.0.0.5', '127.0.0.6']
     const rateLimitResponses = []
-    const statusHandler: StatusHandler = CoreHandlersRegistry.getInstance(
-      node
-    ).getHandler(PROTOCOL_COMMANDS.STATUS)
+    const statusHandler: StatusHandler = node
+      .getP2PNode()
+      .getCoreHandlers()
+      .getHandler(PROTOCOL_COMMANDS.STATUS)
 
     for (let i = 0; i < ips.length; i++) {
-      node.setRemoteCaller(ips[i])
-      const rateResp = await statusHandler.checkRateLimit()
+      const rateResp = await statusHandler.checkRateLimit(ips[i])
       rateLimitResponses.push(rateResp)
     }
     const filtered = rateLimitResponses.filter((r) => r === true)
@@ -208,15 +212,15 @@ describe('Test rate limitations and deny list settings', () => {
 
     const rateLimitResponses = []
 
-    const statusHandler: StatusHandler = CoreHandlersRegistry.getInstance(
-      node
-    ).getHandler(PROTOCOL_COMMANDS.STATUS)
+    const statusHandler: StatusHandler = node
+      .getP2PNode()
+      .getCoreHandlers()
+      .getHandler(PROTOCOL_COMMANDS.STATUS)
 
     const aboveLimit = 20
     for (let i = 0, x = 0; i < CONNECTION_HISTORY_DELETE_THRESHOLD + aboveLimit; i++) {
       const ip = originalIPPiece + x // start at 127.0.0.2
-      node.setRemoteCaller(ip)
-      const rateResp = await statusHandler.checkRateLimit()
+      const rateResp = await statusHandler.checkRateLimit(ip)
       rateLimitResponses.push(rateResp)
       x++
       // start back

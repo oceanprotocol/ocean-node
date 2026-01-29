@@ -107,7 +107,11 @@ describe('Should test admin operations', () => {
     config = await getConfiguration(true) // Force reload the configuration
     dbconn = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance(config, dbconn)
-    indexer = new OceanIndexer(dbconn, config.indexingNetworks)
+    indexer = new OceanIndexer(
+      dbconn,
+      config.indexingNetworks,
+      oceanNode.blockchainRegistry
+    )
     oceanNode.addIndexer(indexer)
   })
 
@@ -120,7 +124,7 @@ describe('Should test admin operations', () => {
 
     const stopNodeCommand: AdminStopNodeCommand = {
       command: PROTOCOL_COMMANDS.STOP_NODE,
-      node: config.keys.peerId.toString(),
+      node: oceanNode.getKeyManager().getPeerId().toString(),
       expiryTimestamp,
       signature
     }
@@ -225,7 +229,7 @@ describe('Should test admin operations', () => {
 
     const reindexTxCommand: AdminReindexTxCommand = {
       command: PROTOCOL_COMMANDS.REINDEX_TX,
-      node: config.keys.peerId.toString(),
+      node: oceanNode.getKeyManager().getPeerId().toString(),
       txId: publishedDataset.trxReceipt.hash,
       chainId: DEVELOPMENT_CHAIN_ID,
       expiryTimestamp,
@@ -300,7 +304,7 @@ describe('Should test admin operations', () => {
     } else {
       const reindexChainCommand: AdminReindexChainCommand = {
         command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
-        node: config.keys.peerId.toString(),
+        node: oceanNode.getKeyManager().getPeerId().toString(),
         chainId: DEVELOPMENT_CHAIN_ID,
         expiryTimestamp,
         signature

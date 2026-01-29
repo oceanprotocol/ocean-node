@@ -20,7 +20,8 @@ PolicyServerPassthroughRoute.post(
     try {
       const response = await new PolicyServerPassthroughHandler(req.oceanNode).handle({
         command: PROTOCOL_COMMANDS.POLICY_SERVER_PASSTHROUGH,
-        policyServerPassthrough: req.body.policyServerPassthrough
+        policyServerPassthrough: req.body.policyServerPassthrough,
+        caller: req.caller
       })
       if (response.stream) {
         res.status(response.status.httpStatus)
@@ -52,7 +53,8 @@ PolicyServerPassthroughRoute.post(
         documentId: req.body.documentId,
         serviceId: req.body.serviceId,
         consumerAddress: req.body.consumerAddress,
-        policyServer: req.body.policyServer
+        policyServer: req.body.policyServer,
+        caller: req.caller
       })
       if (response.stream) {
         res.status(response.status.httpStatus)

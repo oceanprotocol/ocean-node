@@ -201,7 +201,7 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.CONFIG_PATH,
     required: false
   },
-  PRIVATE_KEY: { name: 'PRIVATE_KEY', value: process.env.PRIVATE_KEY, required: true },
+  PRIVATE_KEY: { name: 'PRIVATE_KEY', value: process.env.PRIVATE_KEY, required: false },
   // used on test environments (ci)
   NODE1_PRIVATE_KEY: {
     name: 'NODE1_PRIVATE_KEY',

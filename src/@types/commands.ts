@@ -21,6 +21,7 @@ export interface Command {
   command: string // command name
   node?: string // if not present it means current node
   authorization?: string
+  caller?: string | string[] // added by our node for rate limiting
 }
 
 export interface GetP2PPeerCommand extends Command {

@@ -20,20 +20,16 @@ import {
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
 import { getEventFromTx, streamToObject } from '../../utils/util.js'
 
-import { encrypt } from '../../utils/crypt.js'
 import { AssetUtils } from '../../utils/asset.js'
 
-import {
-  DDO_IDENTIFIER_PREFIX,
-  PROTOCOL_COMMANDS,
-  getConfiguration
-} from '../../utils/index.js'
+import { DDO_IDENTIFIER_PREFIX, PROTOCOL_COMMANDS } from '../../utils/index.js'
 import { FeesHandler } from '../../components/core/handler/feesHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { ProviderFees } from '../../@types/Fees.js'
 
 export async function publishAsset(asset: any, publisherAccount: Signer) {
   const genericAsset = JSON.parse(JSON.stringify(asset))
+  const oceanNode = OceanNode.getInstance()
   try {
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!network) {
@@ -85,7 +81,9 @@ export async function publishAsset(asset: any, publisherAccount: Signer) {
     const data = Uint8Array.from(
       Buffer.from(JSON.stringify(genericAsset.services[0].files))
     )
-    const encryptedData = await encrypt(data, EncryptMethod.ECIES)
+    const encryptedData = await oceanNode
+      .getKeyManager()
+      .encrypt(data, EncryptMethod.ECIES)
     const encryptedDataString = encryptedData.toString('hex')
 
     const nftContract = new ethers.Contract(
@@ -153,13 +151,12 @@ export async function orderAsset(
   )
 
   if (!providerFees) {
-    const oceanNodeConfig = await getConfiguration(true)
     const getFeesCommand = {
       command: PROTOCOL_COMMANDS.GET_FEES,
       ddoId: genericAsset.id,
       serviceId: service.id,
       consumerAddress,
-      node: oceanNodeConfig.keys.peerId.toString()
+      node: oceanNode.getKeyManager().getPeerId().toString()
     }
     const response = await new FeesHandler(oceanNode).handle(getFeesCommand)
     const fees = await streamToObject(response.stream as Readable)
@@ -239,13 +236,12 @@ export async function reOrderAsset(
   )
 
   if (!providerFees) {
-    const oceanNodeConfig = await getConfiguration(true)
     const statusCommand = {
       command: PROTOCOL_COMMANDS.GET_FEES,
       ddoId: genericAsset.id,
       serviceId: service.id,
       consumerAddress,
-      node: oceanNodeConfig.keys.peerId.toString()
+      node: oceanNode.getKeyManager().getPeerId().toString()
     }
     const response = await new FeesHandler(oceanNode).handle(statusCommand)
     const fees = await streamToObject(response.stream as Readable)

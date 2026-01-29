@@ -77,7 +77,8 @@ aquariusRoutes.post(
 
       const result = await new QueryHandler(req.oceanNode).handle({
         query: transformedQuery,
-        command: PROTOCOL_COMMANDS.QUERY
+        command: PROTOCOL_COMMANDS.QUERY,
+        caller: req.caller
       })
       if (result.stream) {
         const queryResult = JSON.parse(await streamToString(result.stream as Readable))
@@ -103,7 +104,8 @@ aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
 
     const queryDdoState: QueryCommand = {
       query: queryStrategy.buildQuery(did, nft, txId),
-      command: PROTOCOL_COMMANDS.QUERY
+      command: PROTOCOL_COMMANDS.QUERY,
+      caller: req.caller
     }
 
     if (!Object.keys(queryDdoState.query).length) {
@@ -179,7 +181,8 @@ aquariusRoutes.post(`${AQUARIUS_API_BASE_PATH}/assets/ddo/validate`, async (req,
       nonce,
       signature,
       message: ddo.id + nonce,
-      command: PROTOCOL_COMMANDS.VALIDATE_DDO
+      command: PROTOCOL_COMMANDS.VALIDATE_DDO,
+      caller: req.caller
     })
 
     if (result.stream) {

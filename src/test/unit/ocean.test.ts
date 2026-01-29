@@ -1,6 +1,8 @@
 import { OceanNode } from '../../OceanNode.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanP2P } from '../../components/P2P/index.js'
+import { KeyManager } from '../../components/KeyManager/index.js'
+import { BlockchainRegistry } from '../../components/BlockchainRegistry/index.js'
 import { OceanProvider } from '../../components/Provider/index.js'
 import { Database } from '../../components/database/index.js'
 import { ENVIRONMENT_VARIABLES, getConfiguration } from '../../utils/index.js'
@@ -38,8 +40,10 @@ describe('Status command tests', async () => {
   // because of this
   const config = await getConfiguration(true)
   const db = await Database.init(config.dbConfig)
-  const oceanP2P = new OceanP2P(config, db)
-  const oceanIndexer = new OceanIndexer(db, config.indexingNetworks)
+  const keyManager = new KeyManager(config)
+  const blockchainRegistry = new BlockchainRegistry(keyManager, config)
+  const oceanP2P = new OceanP2P(config, keyManager, db)
+  const oceanIndexer = new OceanIndexer(db, config.indexingNetworks, blockchainRegistry)
   const oceanProvider = new OceanProvider(db)
   const oceanNode = OceanNode.getInstance(config, db, oceanP2P)
 

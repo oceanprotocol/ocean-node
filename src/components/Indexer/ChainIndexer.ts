@@ -1,5 +1,5 @@
 import EventEmitter from 'node:events'
-import { JsonRpcApiProvider, Log, Signer } from 'ethers'
+import { FallbackProvider, Log, Signer } from 'ethers'
 import { SupportedNetwork } from '../../@types/blockchain.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { isDefined, sleep } from '../../utils/util.js'
@@ -163,8 +163,8 @@ export class ChainIndexer {
       `Initial details for chain ${this.blockchain.getSupportedChain()}: RPCS start block: ${this.rpcDetails.startBlock}, Contract deployment block: ${contractDeploymentBlock}, Crawling start block: ${crawlingStartBlock}`
     )
 
-    const provider = this.blockchain.getProvider()
-    const signer = this.blockchain.getSigner()
+    const provider = await this.blockchain.getProvider()
+    const signer = await this.blockchain.getSigner()
     const interval = getCrawlingInterval()
     let chunkSize = this.rpcDetails.chunkSize || 1
     let successfulRetrievalCount = 0
@@ -435,7 +435,7 @@ export class ChainIndexer {
    * Uses FIFO (First-In, First-Out) order via shift()
    */
   private async processReindexQueue(
-    provider: JsonRpcApiProvider,
+    provider: FallbackProvider,
     signer: Signer
   ): Promise<void> {
     while (this.reindexQueue.length > 0) {

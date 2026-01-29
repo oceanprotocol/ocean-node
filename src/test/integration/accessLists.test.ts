@@ -7,6 +7,7 @@ import {
   TEST_ENV_CONFIG_FILE
 } from '../utils/utils.js'
 import { JsonRpcProvider, Signer } from 'ethers'
+import { BlockchainRegistry } from '../../components/BlockchainRegistry/index.js'
 import { Blockchain } from '../../utils/blockchain.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
 import { DEVELOPMENT_CHAIN_ID } from '../../utils/address.js'
@@ -17,6 +18,7 @@ import { homedir } from 'os'
 import { getConfiguration } from '../../utils/config.js'
 import { assert, expect } from 'chai'
 import { checkAddressOnAccessList } from '../../utils/accessList.js'
+import { KeyManager } from '../../components/KeyManager/index.js'
 
 describe('Should deploy some accessLists before all other tests.', () => {
   let config: OceanNodeConfig
@@ -46,9 +48,11 @@ describe('Should deploy some accessLists before all other tests.', () => {
 
     const rpcs: RPCS = config.supportedNetworks
     const chain: SupportedNetwork = rpcs[String(DEVELOPMENT_CHAIN_ID)]
-    blockchain = new Blockchain(chain.rpc, chain.chainId, config, chain.fallbackRPCs)
+    const keyManager = new KeyManager(config)
+    const blockchains = new BlockchainRegistry(keyManager, config)
+    blockchain = blockchains.getBlockchain(chain.chainId)
 
-    owner = blockchain.getSigner()
+    owner = await blockchain.getSigner()
 
     // ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST
     const accessListPublishers = await deployAndGetAccessListConfig(

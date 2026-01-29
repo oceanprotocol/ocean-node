@@ -1,12 +1,13 @@
 import type { ComputeResourcesPricingInfo } from '../../../@types/C2D/C2D.js'
 import {
-  JsonRpcApiProvider,
+  FallbackProvider,
   ethers,
   Interface,
   BigNumberish,
   parseUnits,
   ZeroAddress
 } from 'ethers'
+import { OceanNode } from '../../../OceanNode.js'
 import {
   FeeTokens,
   ProviderFeeData,
@@ -133,7 +134,7 @@ export async function createProviderFee(
 export async function verifyProviderFees(
   txId: string,
   userAddress: string,
-  provider: JsonRpcApiProvider,
+  provider: FallbackProvider,
   service: Service
 ): Promise<ProviderFeeValidation> {
   /* given a transaction, check if there is a valid provider fee event
@@ -450,17 +451,14 @@ export async function checkFee(
  * @param chainId the chain id (not used now)
  * @returns the wallet
  */
+// eslint-disable-next-line require-await
 export async function getProviderWallet(chainId?: string): Promise<ethers.Wallet> {
-  return new ethers.Wallet(
-    Buffer.from((await getConfiguration()).keys.privateKey.raw).toString('hex')
-  )
+  const oceanNode = OceanNode.getInstance()
+  const keyManager = oceanNode.getKeyManager()
+  return keyManager.getEthWallet()
 }
 export async function getProviderWalletAddress(): Promise<string> {
-  return (await getProviderWallet()).address
-}
-
-export async function getProviderKey(): Promise<string> {
-  return Buffer.from((await getConfiguration()).keys.privateKey.raw).toString('hex')
+  return (await this.getProviderWallet()).address
 }
 
 /**

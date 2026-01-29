@@ -51,7 +51,8 @@ fileInfoRoute.post(
         fileInfoTask = {
           command: PROTOCOL_COMMANDS.FILE_INFO,
           did: fileInfoReq.did,
-          serviceId: fileInfoReq.serviceId
+          serviceId: fileInfoReq.serviceId,
+          caller: req.caller
         }
       } else if (fileInfoReq.type === 'url' && fileInfoReq.url) {
         fileObject = {
@@ -62,7 +63,8 @@ fileInfoRoute.post(
         fileInfoTask = {
           command: PROTOCOL_COMMANDS.FILE_INFO,
           file: fileObject,
-          type: fileObject.type as FileObjectType
+          type: fileObject.type as FileObjectType,
+          caller: req.caller
         }
       } else if (fileInfoReq.type === 'ipfs' && fileInfoReq.hash) {
         fileObject = {
@@ -73,7 +75,8 @@ fileInfoRoute.post(
         fileInfoTask = {
           command: PROTOCOL_COMMANDS.FILE_INFO,
           file: fileObject,
-          type: fileObject.type as FileObjectType
+          type: fileObject.type as FileObjectType,
+          caller: req.caller
         }
       } else if (fileInfoReq.type === 'arweave' && fileInfoReq.transactionId) {
         fileObject = {
@@ -84,7 +87,8 @@ fileInfoRoute.post(
         fileInfoTask = {
           command: PROTOCOL_COMMANDS.FILE_INFO,
           file: fileObject,
-          type: fileObject.type as FileObjectType
+          type: fileObject.type as FileObjectType,
+          caller: req.caller
         }
       }
       const response = await new FileInfoHandler(req.oceanNode).handle(fileInfoTask)

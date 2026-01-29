@@ -1,4 +1,5 @@
 export const ENV_TO_CONFIG_MAPPING = {
+  PRIVATE_KEY: 'keys.privateKey',
   INTERFACES: 'INTERFACES',
   DB_URL: 'DB_URL',
   DB_USERNAME: 'DB_USERNAME',

@@ -46,6 +46,7 @@ import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { AssetUtils } from '../../utils/asset.js'
 import { FindDdoHandler } from '../core/handler/ddoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
+import { KeyManager } from '../KeyManager/index.js'
 import { decryptFilesObject, omitDBComputeFieldsFromComputeJob } from './index.js'
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
 import { Service } from '@oceanprotocol/ddo-js'
@@ -60,8 +61,13 @@ export class C2DEngineDocker extends C2DEngine {
   private jobImageSizes: Map<string, number> = new Map()
   private static DEFAULT_DOCKER_REGISTRY = 'https://registry-1.docker.io'
 
-  public constructor(clusterConfig: C2DClusterInfo, db: C2DDatabase, escrow: Escrow) {
-    super(clusterConfig, db, escrow)
+  public constructor(
+    clusterConfig: C2DClusterInfo,
+    db: C2DDatabase,
+    escrow: Escrow,
+    keyManager: KeyManager
+  ) {
+    super(clusterConfig, db, escrow, keyManager)
 
     this.docker = null
     if (clusterConfig.connection.socketPath) {
@@ -163,7 +169,7 @@ export class C2DEngineDocker extends C2DEngine {
     this.envs.push({
       id: '', // this.getC2DConfig().hash + '-' + create256Hash(JSON.stringify(this.envs[i])),
       runningJobs: 0,
-      consumerAddress: config.keys.ethAddress,
+      consumerAddress: this.getKeyManager().getEthAddress(),
       platform: {
         architecture: sysinfo.Architecture,
         os: sysinfo.OSType

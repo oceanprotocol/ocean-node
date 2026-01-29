@@ -130,7 +130,7 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
   }
 
   try {
-    handler.getOceanNode().setRemoteCaller(remotePeer.toString())
+    task.caller = remotePeer.toString()
     const response: P2PCommandResponse = await handler.handle(task)
 
     // Send status first
