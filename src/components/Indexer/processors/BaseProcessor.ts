@@ -16,7 +16,6 @@ import { DecryptDDOCommand } from '../../../@types/commands.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { EVENT_HASHES, PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { timestampToDateTime } from '../../../utils/conversions.js'
-import { getConfiguration } from '../../../utils/config.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { getDatabase } from '../../../utils/database.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
@@ -28,7 +27,6 @@ import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
 import { fetchTransactionReceipt } from '../../core/utils/validateOrders.js'
 import { withRetrial } from '../utils.js'
-import { OceanNodeKeys } from '../../../@types/OceanNode.js'
 
 export abstract class BaseEventProcessor {
   protected networkId: number
@@ -206,14 +204,14 @@ export abstract class BaseEventProcessor {
     return true
   }
 
-  private async getNonce(decryptorURL: string, keys: OceanNodeKeys) {
+  private async getNonce(decryptorURL: string, address: string) {
     try {
       if (URLUtils.isValidUrl(decryptorURL)) {
         INDEXER_LOGGER.logMessage(
           `decryptDDO: Making HTTP request for nonce. DecryptorURL: ${decryptorURL}`
         )
         const nonceResponse = await axios.get(
-          `${decryptorURL}/api/services/nonce?userAddress=${keys.ethAddress}`,
+          `${decryptorURL}/api/services/nonce?userAddress=${address}`,
           { timeout: 20000 }
         )
         return nonceResponse.status === 200 && nonceResponse.data
@@ -248,20 +246,23 @@ export abstract class BaseEventProcessor {
       INDEXER_LOGGER.logMessage(
         `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} encrypted by: ${decryptorURL}`
       )
-      const config = await getConfiguration()
-      const { keys } = config
-      const nodeId = keys.peerId.toString()
-      const wallet: ethers.Wallet = new ethers.Wallet(process.env.PRIVATE_KEY as string)
+
+      const oceanNode = OceanNode.getInstance()
+      const keyManager = oceanNode.getKeyManager()
+      const nodeId = keyManager.getPeerId().toString()
+      const wallet = keyManager.getEthWallet()
+      const ethAddress = wallet.address
+
       const useTxIdOrContractAddress = txId || contractAddress
 
       const createSignature = async () => {
-        const nonce: string = await this.getNonce(decryptorURL, keys)
+        const nonce: string = await this.getNonce(decryptorURL, ethAddress)
         INDEXER_LOGGER.logMessage(
           `decryptDDO: Fetched fresh nonce ${nonce} for decrypt attempt`
         )
 
         const message = String(
-          useTxIdOrContractAddress + keys.ethAddress + chainId.toString() + nonce
+          useTxIdOrContractAddress + ethAddress + chainId.toString() + nonce
         )
         const messageHash = ethers.solidityPackedKeccak256(
           ['bytes'],
@@ -272,7 +273,7 @@ export abstract class BaseEventProcessor {
 
         const recoveredAddress = ethers.verifyMessage(messageHashBytes, signature)
         INDEXER_LOGGER.logMessage(
-          `decryptDDO: recovered address: ${recoveredAddress}, expected: ${keys.ethAddress}`
+          `decryptDDO: recovered address: ${recoveredAddress}, expected: ${ethAddress}`
         )
 
         return { nonce, signature }
@@ -286,7 +287,7 @@ export abstract class BaseEventProcessor {
             const payload = {
               transactionId: txId,
               chainId,
-              decrypterAddress: keys.ethAddress,
+              decrypterAddress: ethAddress,
               dataNftAddress: contractAddress,
               signature,
               nonce
@@ -365,7 +366,7 @@ export abstract class BaseEventProcessor {
           throw new Error(message)
         }
       } else {
-        const node = OceanNode.getInstance(config, await getDatabase())
+        // const node = OceanNode.getInstance(config, await getDatabase())
         if (nodeId === decryptorURL) {
           // Fetch nonce and signature for local node path
           const { nonce, signature } = await createSignature()
@@ -373,7 +374,7 @@ export abstract class BaseEventProcessor {
           const decryptDDOTask: DecryptDDOCommand = {
             command: PROTOCOL_COMMANDS.DECRYPT_DDO,
             transactionId: txId,
-            decrypterAddress: keys.ethAddress,
+            decrypterAddress: ethAddress,
             chainId,
             encryptedDocument: metadata,
             documentHash: metadataHash,
@@ -382,7 +383,7 @@ export abstract class BaseEventProcessor {
             nonce
           }
           try {
-            const response = await node
+            const response = await oceanNode
               .getCoreHandlers()
               .getHandler(PROTOCOL_COMMANDS.DECRYPT_DDO)
               .handle(decryptDDOTask)
@@ -396,12 +397,12 @@ export abstract class BaseEventProcessor {
           try {
             const { nonce, signature } = await createSignature()
 
-            const p2pNode = await node.getP2PNode()
+            const p2pNode = await oceanNode.getP2PNode()
 
             const message = {
               command: PROTOCOL_COMMANDS.DECRYPT_DDO,
               transactionId: txId,
-              decrypterAddress: keys.ethAddress,
+              decrypterAddress: ethAddress,
               chainId,
               encryptedDocument: metadata,
               documentHash: metadataHash,
