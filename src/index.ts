@@ -36,6 +36,7 @@ declare global {
     // eslint-disable-next-line no-unused-vars
     interface Request {
       oceanNode: OceanNode
+      caller?: string | string[]
     }
   }
 }
@@ -184,7 +185,7 @@ if (config.hasHttp) {
   }
 
   app.use(requestValidator, (req, res, next) => {
-    oceanNode.setRemoteCaller(req.headers['x-forwarded-for'] || req.socket.remoteAddress)
+    req.caller = req.headers['x-forwarded-for'] || req.socket.remoteAddress
     req.oceanNode = oceanNode
     next()
   })

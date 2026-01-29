@@ -45,7 +45,7 @@ import ipaddr from 'ipaddr.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
 import { P2P_LOGGER } from '../../utils/logging/common.js'
-import { CoreHandlersRegistry } from '../core/handler/coreHandlersRegistry'
+import { CoreHandlersRegistry } from '../core/handler/coreHandlersRegistry.js'
 import { Multiaddr, multiaddr } from '@multiformats/multiaddr'
 import { LevelDatastore } from 'datastore-level'
 

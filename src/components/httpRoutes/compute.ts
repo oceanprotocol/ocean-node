@@ -42,7 +42,8 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeEnvironments`, async (req, r
     const getEnvironmentsTask = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS,
       chainId: parseInt(req.query.chainId as string) || null,
-      node: (req.query.node as string) || null
+      node: (req.query.node as string) || null,
+      caller: req.caller
     }
     const response = await new ComputeGetEnvironmentsHandler(req.oceanNode).handle(
       getEnvironmentsTask
@@ -81,7 +82,8 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       metadata: req.body.metadata || null,
       authorization: req.headers?.authorization,
       additionalViewers: (req.body.additionalViewers as unknown as string[]) || null,
-      queueMaxWaitTime: req.body.queueMaxWaitTime || 0
+      queueMaxWaitTime: req.body.queueMaxWaitTime || 0,
+      caller: req.caller
     }
     if (req.body.output) {
       startComputeTask.output = req.body.output as ComputeOutput
@@ -127,7 +129,8 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/freeCompute`, async (req, res) => 
       metadata: req.body.metadata || null,
       authorization: req.headers?.authorization,
       additionalViewers: (req.body.additionalViewers as unknown as string[]) || null,
-      queueMaxWaitTime: req.body.queueMaxWaitTime || 0
+      queueMaxWaitTime: req.body.queueMaxWaitTime || 0,
+      caller: req.caller
     }
     if (req.body.output) {
       startComputeTask.output = req.body.output as ComputeOutput
@@ -167,7 +170,8 @@ computeRoutes.put(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       nonce: (req.query.nonce as string) || null,
       jobId: (req.query.jobId as string) || null,
       agreementId: (req.query.agreementId as string) || null,
-      authorization: req.headers?.authorization || null
+      authorization: req.headers?.authorization || null,
+      caller: req.caller
     }
     const response = await new ComputeStopHandler(req.oceanNode).handle(stopComputeTask)
     const jobs = await streamToObject(response.stream as Readable)
@@ -190,7 +194,8 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       node: (req.query.node as string) || null,
       consumerAddress: (req.query.consumerAddress as string) || null,
       jobId: (req.query.jobId as string) || null,
-      agreementId: (req.query.agreementId as string) || null
+      agreementId: (req.query.agreementId as string) || null,
+      caller: req.caller
     }
     const response = await new ComputeGetStatusHandler(req.oceanNode).handle(
       statusComputeTask
@@ -218,7 +223,8 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeResult`, async (req, res) =>
       jobId: (req.query.jobId as string) || null,
       signature: (req.query.signature as string) || null,
       nonce: (req.query.nonce as string) || null,
-      authorization: req.headers?.authorization
+      authorization: req.headers?.authorization,
+      caller: req.caller
     }
 
     const response = await new ComputeGetResultHandler(req.oceanNode).handle(
@@ -254,7 +260,8 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeStreamableLogs`, async (req,
       jobId: (req.query.jobId as string) || null,
       signature: (req.query.signature as string) || null,
       nonce: (req.query.nonce as string) || null,
-      authorization: req.headers?.authorization
+      authorization: req.headers?.authorization,
+      caller: req.caller
     }
 
     const response = await new ComputeGetStreamableLogsHandler(req.oceanNode).handle(

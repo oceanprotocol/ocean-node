@@ -156,14 +156,6 @@ export class OceanNode {
     return this.coreHandlers
   }
 
-  public setRemoteCaller(client: string | string[]) {
-    this.remoteCaller = client
-  }
-
-  public getRemoteCaller(): string | string[] {
-    return this.remoteCaller
-  }
-
   public getRequestMapSize(): number {
     return this.requestMap.size
   }

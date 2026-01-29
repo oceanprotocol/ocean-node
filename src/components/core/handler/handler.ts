@@ -32,12 +32,17 @@ export abstract class BaseHandler implements ICommandHandler {
   }
 
   // TODO LOG, implement all handlers
-  async checkRateLimit(): Promise<boolean> {
+  async checkRateLimit(caller: string | string[]): Promise<boolean> {
     const requestMap = this.getOceanNode().getRequestMap()
     const ratePerMinute = (await getConfiguration()).rateLimit
-    const caller: string | string[] = this.getOceanNode().getRemoteCaller()
     const requestTime = new Date().getTime()
     let isOK = true
+
+    // If caller is not set, we cannot rate limit - allow the request
+    if (!caller) {
+      CORE_LOGGER.debug('No remote caller set, allowing request without rate limiting')
+      return true
+    }
 
     // we have to clear this from time to time, so it does not grow forever
     if (requestMap.size > CONNECTION_HISTORY_DELETE_THRESHOLD) {
@@ -152,7 +157,7 @@ export abstract class CommandHandler
   abstract validate(command: Command): ValidateParams
   async verifyParamsAndRateLimits(task: Command): Promise<P2PCommandResponse> {
     // first check rate limits, if any
-    if (!(await this.checkRateLimit())) {
+    if (!(await this.checkRateLimit(task.caller))) {
       return buildRateLimitReachedResponse()
     }
     // then validate the command arguments

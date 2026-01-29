@@ -15,7 +15,8 @@ p2pRoutes.get(
   async (req: Request, res: Response): Promise<void> => {
     const node = req.oceanNode
     const result = await new GetP2PNetworkStatsHandler(node).handle({
-      command: PROTOCOL_COMMANDS.GET_P2P_NETWORK_STATS
+      command: PROTOCOL_COMMANDS.GET_P2P_NETWORK_STATS,
+      caller: req.caller
     })
     if (result.stream) {
       const validationResult = JSON.parse(await streamToString(result.stream as Readable))
@@ -38,7 +39,8 @@ p2pRoutes.get(
     const result = await new FindPeerHandler(node).handle({
       command: PROTOCOL_COMMANDS.FIND_PEER,
       peerId: req.query.peerId as string,
-      timeout: req.query.timeout as string
+      timeout: req.query.timeout as string,
+      caller: req.caller
     })
     if (result.stream) {
       const validationResult = JSON.parse(await streamToString(result.stream as Readable))
@@ -53,7 +55,8 @@ export const getP2PPeersRoute = express.Router()
 p2pRoutes.get('/getP2PPeers', async (req: Request, res: Response): Promise<void> => {
   const node = req.oceanNode
   const result = await new GetP2PPeersHandler(node).handle({
-    command: PROTOCOL_COMMANDS.GET_P2P_PEERS
+    command: PROTOCOL_COMMANDS.GET_P2P_PEERS,
+    caller: req.caller
   })
   if (result.stream) {
     const validationResult = JSON.parse(await streamToString(result.stream as Readable))
@@ -75,7 +78,8 @@ p2pRoutes.get(
     const node = req.oceanNode
     const result = await new GetP2PPeerHandler(node).handle({
       command: PROTOCOL_COMMANDS.GET_P2P_PEER,
-      peerId: req.query.peerId as string
+      peerId: req.query.peerId as string,
+      caller: req.caller
     })
     if (result.stream) {
       const validationResult = JSON.parse(await streamToString(result.stream as Readable))
