@@ -129,11 +129,11 @@ export class Blockchain {
   }
 
   public async sendTransaction(
-    wallet: Wallet,
+    signer: Signer,
     to: string,
     amount: bigint
   ): Promise<TransactionReceipt> {
-    const tx = await wallet.sendTransaction({
+    const tx = await signer.sendTransaction({
       to,
       value: amount
     })

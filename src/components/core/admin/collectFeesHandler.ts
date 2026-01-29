@@ -93,7 +93,7 @@ export class CollectFeesHandler extends AdminCommandHandler {
         }
 
         receipt = await blockchain.sendTransaction(
-          providerWallet,
+          await blockchain.getSigner(),
           task.destinationAddress.toLowerCase(),
           ammountInEther
         )
@@ -101,7 +101,7 @@ export class CollectFeesHandler extends AdminCommandHandler {
         const token = new Contract(
           task.tokenAddress.toLowerCase(),
           ERC20Template.abi,
-          providerWallet
+          await blockchain.getSigner()
         )
         const tokenAmount = task.tokenAmount
           ? parseUnits(task.tokenAmount.toString(), 'ether')

@@ -53,6 +53,8 @@ import { ReindexTask } from '../../components/Indexer/ChainIndexer.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { CollectFeesHandler } from '../../components/core/admin/collectFeesHandler.js'
 import { getProviderFeeToken } from '../../components/core/utils/feesHandler.js'
+import { KeyManager } from '../../components/KeyManager/index.js'
+import { BlockchainRegistry } from '../../components/BlockchainRegistry/index.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -106,7 +108,17 @@ describe('Should test admin operations', () => {
 
     config = await getConfiguration(true) // Force reload the configuration
     dbconn = await Database.init(config.dbConfig)
-    oceanNode = await OceanNode.getInstance(config, dbconn)
+    const keyManager = new KeyManager(config)
+    const blockchainRegistry = new BlockchainRegistry(keyManager, config)
+    oceanNode = await OceanNode.getInstance(
+      config,
+      dbconn,
+      null,
+      null,
+      null,
+      keyManager,
+      blockchainRegistry
+    )
     indexer = new OceanIndexer(
       dbconn,
       config.indexingNetworks,
