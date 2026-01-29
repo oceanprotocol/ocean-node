@@ -92,8 +92,6 @@ export class RawPrivateKeyProvider implements IKeyProvider {
   async encrypt(data: Uint8Array, algorithm: EncryptMethod): Promise<Buffer> {
     let encryptedData: Buffer
     const { privateKey, publicKey } = this
-    console.log('privateKey', privateKey.raw.toString('hex'))
-    console.log('publicKey', publicKey.toString())
     if (algorithm === EncryptMethod.AES) {
       // use first 16 bytes of public key as an initialisation vector
       const initVector = publicKey.subarray(0, 16)
@@ -106,7 +104,6 @@ export class RawPrivateKeyProvider implements IKeyProvider {
       // get public key from Elliptic curve
       encryptedData = eciesjs.encrypt(sk.publicKey.toHex(), data)
     }
-    console.log('encryptedData', encryptedData.toString('hex'))
     return encryptedData
   }
 
@@ -119,8 +116,6 @@ export class RawPrivateKeyProvider implements IKeyProvider {
   async decrypt(data: Uint8Array, algorithm: EncryptMethod): Promise<Buffer> {
     let decryptedData: Buffer
     const { privateKey, publicKey } = this
-    console.log('privateKey', privateKey.raw.toString('hex'))
-    console.log('publicKey', publicKey.toString())
     if (algorithm === EncryptMethod.AES) {
       // use first 16 bytes of public key as an initialisation vector
       const initVector = publicKey.subarray(0, 16)
