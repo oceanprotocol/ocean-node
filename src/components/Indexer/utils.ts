@@ -1,4 +1,4 @@
-import { JsonRpcApiProvider, Signer, ethers, getAddress } from 'ethers'
+import { Signer, ethers, getAddress, FallbackProvider } from 'ethers'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' with { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
 import { EVENT_HASHES, isDefined } from '../../utils/index.js'
@@ -61,7 +61,7 @@ export const getDeployedContractBlock = (network: number) => {
   return deployedBlock
 }
 
-export const getNetworkHeight = async (provider: JsonRpcApiProvider) => {
+export const getNetworkHeight = async (provider: FallbackProvider) => {
   const networkHeight = await provider.getBlockNumber()
 
   return networkHeight
@@ -69,7 +69,7 @@ export const getNetworkHeight = async (provider: JsonRpcApiProvider) => {
 
 export const retrieveChunkEvents = async (
   signer: Signer,
-  provider: JsonRpcApiProvider,
+  provider: FallbackProvider,
   network: number,
   lastIndexedBlock: number,
   count: number

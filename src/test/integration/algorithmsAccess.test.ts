@@ -110,7 +110,11 @@ describe('Trusted algorithms Flow', () => {
     config = await getConfiguration(true)
     dbconn = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance(config, dbconn, null, null, null)
-    indexer = new OceanIndexer(dbconn, config.indexingNetworks)
+    indexer = new OceanIndexer(
+      dbconn,
+      config.indexingNetworks,
+      oceanNode.blockchainRegistry
+    )
     oceanNode.addIndexer(indexer)
     oceanNode.addC2DEngines()
 

@@ -1,4 +1,4 @@
-import { ethers, Signer, JsonRpcApiProvider, Interface, getAddress } from 'ethers'
+import { ethers, Signer, FallbackProvider, Interface, getAddress } from 'ethers'
 import { BlocksEvents, ProcessingEvents } from '../../@types/blockchain.js'
 import { EVENTS } from '../../utils/constants.js'
 import { getConfiguration } from '../../utils/config.js'
@@ -58,7 +58,7 @@ function getEventProcessor(eventType: string, chainId: number): BaseEventProcess
 export const processChunkLogs = async (
   logs: readonly ethers.Log[],
   signer: Signer,
-  provider: JsonRpcApiProvider,
+  provider: FallbackProvider,
   chainId: number
 ): Promise<BlocksEvents> => {
   const storeEvents: BlocksEvents = {}
@@ -185,7 +185,7 @@ export const processChunkLogs = async (
 export const processBlocks = async (
   blockLogs: ethers.Log[],
   signer: Signer,
-  provider: JsonRpcApiProvider,
+  provider: FallbackProvider,
   network: number,
   lastIndexedBlock: number,
   count: number

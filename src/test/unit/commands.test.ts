@@ -2,7 +2,9 @@ import { expect } from 'chai'
 import { PROTOCOL_COMMANDS, SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/index.js'
 import { CoreHandlersRegistry } from '../../components/core/handler/coreHandlersRegistry.js'
 import { BaseHandler } from '../../components/core/handler/handler.js'
+import { getConfiguration } from '../../utils/config.js'
 import { OceanNode } from '../../OceanNode.js'
+import { KeyManager } from '../../components/KeyManager/index.js'
 import {
   ComputeGetEnvironmentsCommand,
   ComputeGetResultCommand,
@@ -52,9 +54,17 @@ import { CollectFeesHandler } from '../../components/core/admin/collectFeesHandl
 import { GetJobsHandler } from '../../components/core/handler/getJobs.js'
 
 describe('Commands and handlers', () => {
+  let node: OceanNode
+  before(async () => {
+    const config = await getConfiguration()
+    const keyManager = new KeyManager(config)
+
+    node = OceanNode.getInstance(config, null, null, null, null, keyManager, null, true)
+  })
+
   it('Check that all supported commands have registered handlers', () => {
     // To make sure we do not forget to register handlers
-    const node: OceanNode = OceanNode.getInstance()
+
     for (const command of SUPPORTED_PROTOCOL_COMMANDS) {
       expect(CoreHandlersRegistry.getInstance(node).getHandler(command)).to.be.instanceof(
         BaseHandler
@@ -64,14 +74,12 @@ describe('Commands and handlers', () => {
 
   it('Check that supported commands and handlers match', () => {
     // To make sure we do not forget to register anything on supported commands
-    const node: OceanNode = OceanNode.getInstance()
     const handlers: string[] = node.getCoreHandlers().getRegisteredCommands()
     expect(SUPPORTED_PROTOCOL_COMMANDS.length).to.be.equal(handlers.length)
   })
 
   it('Check that all commands are validating required parameters', () => {
     // To make sure we do not forget to register anything on supported commands
-    const node: OceanNode = OceanNode.getInstance()
 
     // downloadHandler
     const downloadHandler: DownloadHandler = CoreHandlersRegistry.getInstance(

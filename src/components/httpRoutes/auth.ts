@@ -27,7 +27,8 @@ authRoutes.post(
         address,
         nonce,
         validUntil,
-        chainId
+        chainId,
+        caller: req.caller
       })
 
       if (response.status.error) {
@@ -62,7 +63,8 @@ authRoutes.post(
         address,
         nonce,
         token,
-        chainId
+        chainId,
+        caller: req.caller
       })
 
       if (response.status.error) {

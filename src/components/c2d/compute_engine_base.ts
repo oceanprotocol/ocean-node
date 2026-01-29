@@ -20,15 +20,27 @@ import type {
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
+import { KeyManager } from '../KeyManager/index.js'
 
 export abstract class C2DEngine {
   private clusterConfig: C2DClusterInfo
   public db: C2DDatabase
   public escrow: Escrow
-  public constructor(cluster: C2DClusterInfo, db: C2DDatabase, escrow: Escrow) {
+  public keyManager: KeyManager
+  public constructor(
+    cluster: C2DClusterInfo,
+    db: C2DDatabase,
+    escrow: Escrow,
+    keyManager: KeyManager
+  ) {
     this.clusterConfig = cluster
     this.db = db
     this.escrow = escrow
+    this.keyManager = keyManager
+  }
+
+  getKeyManager(): KeyManager {
+    return this.keyManager
   }
 
   getC2DConfig(): C2DClusterInfo {
@@ -454,21 +466,14 @@ export abstract class C2DEngine {
     chainId: number,
     token: string
   ): ComputeResourcesPricingInfo[] {
-    console.log('getEnvPricesForToken')
-    console.log(env)
     if (!env.fees || !(chainId in env.fees) || !env.fees[chainId]) {
       return null
     }
-    console.log(env.fees)
     for (const fee of env.fees[chainId]) {
-      console.log(fee)
-      console.log(fee.feeToken)
-      console.log(token)
       // eslint-disable-next-line security/detect-possible-timing-attacks
       if (fee.feeToken === token) {
-        console.log('Found')
         return fee.prices
-      } else console.log('NOT Found')
+      }
     }
 
     return null

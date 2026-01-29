@@ -7,7 +7,6 @@ import {
 import { OceanNode } from '../OceanNode.js'
 import { FindDdoHandler } from '../components/core/handler/ddoHandler.js'
 import { AssetUtils } from './asset.js'
-import { decrypt } from './crypt.js'
 import { CORE_LOGGER } from './logging/common.js'
 import { sanitizeServiceFiles } from './util.js'
 import { isOrderingAllowedForAsset } from '../components/core/handler/downloadHandler.js'
@@ -39,10 +38,12 @@ export async function getFile(
       throw new Error(msg)
     }
     // 3. Decrypt the url
-    const decryptedUrlBytes = await decrypt(
-      Uint8Array.from(Buffer.from(sanitizeServiceFiles(service.files), 'hex')),
-      EncryptMethod.ECIES
-    )
+    const decryptedUrlBytes = await node
+      .getKeyManager()
+      .decrypt(
+        Uint8Array.from(Buffer.from(sanitizeServiceFiles(service.files), 'hex')),
+        EncryptMethod.ECIES
+      )
     CORE_LOGGER.logMessage(`URL decrypted for Service ID: ${serviceId}`)
 
     // Convert the decrypted bytes back to a string

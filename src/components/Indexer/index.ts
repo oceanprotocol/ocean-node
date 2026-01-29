@@ -28,10 +28,10 @@ import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import {
   Blockchain,
   EVENTS,
-  getConfiguration,
   INDEXER_CRAWLING_EVENTS,
   PROTOCOL_COMMANDS
 } from '../../utils/index.js'
+import { BlockchainRegistry } from '../BlockchainRegistry/index.js'
 import { CommandStatus, JobStatus } from '../../@types/commands.js'
 import { buildJobIdentifier, getDeployedContractBlock } from './utils.js'
 import { create256Hash } from '../../utils/crypt.js'
@@ -78,13 +78,19 @@ let numCrawlAttempts = 0
 export class OceanIndexer {
   private db: Database
   private networks: RPCS
+  private blockchainRegistry?: BlockchainRegistry
   private supportedChains: string[]
   private indexers: Map<number, ChainIndexer> = new Map()
   private MIN_REQUIRED_VERSION = '0.2.2'
 
-  constructor(db: Database, supportedNetworks: RPCS) {
+  constructor(
+    db: Database,
+    supportedNetworks: RPCS,
+    blockchainRegistry: BlockchainRegistry
+  ) {
     this.db = db
     this.networks = supportedNetworks
+    this.blockchainRegistry = blockchainRegistry
     this.supportedChains = Object.keys(supportedNetworks)
     INDEXING_QUEUE = []
     this.startThreads()
@@ -145,12 +151,6 @@ export class OceanIndexer {
   async startCrawler(blockchain: Blockchain): Promise<boolean> {
     if ((await blockchain.isNetworkReady()).ready) {
       return true
-    } else {
-      // try other RPCS if any available (otherwise will just retry the same RPC)
-      const connectionStatus = await blockchain.tryFallbackRPCs()
-      if (connectionStatus.ready || (await blockchain.isNetworkReady()).ready) {
-        return true
-      }
     }
     return false
   }
@@ -218,13 +218,12 @@ export class OceanIndexer {
       return null
     }
 
-    const config = await getConfiguration()
-    const blockchain = new Blockchain(
-      rpcDetails.rpc,
-      rpcDetails.chainId,
-      config,
-      rpcDetails.fallbackRPCs
-    )
+    // Use BlockchainRegistry if available, otherwise fall back to old pattern
+    const blockchain: Blockchain = this.blockchainRegistry.getBlockchain(chainID)
+    if (!blockchain) {
+      INDEXER_LOGGER.error(`Unable to get Blockchain instance for chain: ${chainID}`)
+      return null
+    }
     const canStartIndexer = await this.retryCrawlerWithDelay(blockchain)
     if (!canStartIndexer) {
       INDEXER_LOGGER.error(`Cannot start indexer. Check DB and RPC connections!`)

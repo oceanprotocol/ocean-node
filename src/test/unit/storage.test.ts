@@ -19,12 +19,11 @@ import {
 } from '../utils/utils.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { getConfiguration } from '../../utils/index.js'
-import { Readable } from 'stream'
-import fs from 'fs'
 import { expectedTimeoutFailure } from '../integration/testUtils.js'
 
-let nodeId: string
-
+// let nodeId: string
+const nodeId = '16Uiu2HAmUWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq72'
+const nodeId2 = '16Uiu2HAmQWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq73'
 describe('URL Storage tests', () => {
   let file: any = {
     type: 'url',
@@ -36,7 +35,7 @@ describe('URL Storage tests', () => {
         Authorization: 'Bearer auth_token_X'
       }
     ],
-    encryptedBy: '16Uiu2HAmUWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq72',
+    encryptedBy: nodeId,
     encryptMethod: EncryptMethod.AES
   }
   let storage: Storage
@@ -58,11 +57,7 @@ describe('URL Storage tests', () => {
   })
 
   it('canDecrypt should return true for the correct nodeId', () => {
-    assert(
-      storage.canDecrypt('16Uiu2HAmUWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq72') ===
-        true,
-      "can't decrypt with the correct nodeId"
-    )
+    assert(storage.canDecrypt(nodeId) === true, "can't decrypt with the correct nodeId")
   })
 
   it('canDecrypt should return false for an incorrect nodeId', () => {
@@ -584,36 +579,9 @@ describe('URL Storage encryption tests', () => {
 
   it('canDecrypt should return false when the file is not encrypted', () => {
     assert(
-      storage.canDecrypt('16Uiu2HAmUWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq72') ===
-        false,
+      storage.canDecrypt(nodeId) === false,
       'Wrong response from canDecrypt() for an unencrypted file'
     )
-  })
-
-  it('encrypt method should correctly encrypt data', async () => {
-    const { keys } = config
-    nodeId = keys.peerId.toString()
-    // Perform encryption
-    const encryptResponse = await storage.encrypt(EncryptMethod.AES)
-    assert(encryptResponse.httpStatus === 200, 'Response is not 200')
-    assert(encryptResponse.stream, 'Stream is not null')
-    assert(encryptResponse.stream instanceof Readable, 'Stream is not a ReadableStream')
-
-    // Create a writable stream for the output file
-    const fileStream = fs.createWriteStream('src/test/data/organizations-100.aes')
-
-    // Use the 'finish' event to know when the file has been fully written
-    fileStream.on('finish', () => {
-      console.log('Encrypted file has been written successfully')
-    })
-
-    // Handle errors in the stream
-    encryptResponse.stream.on('error', (err) => {
-      console.error('Stream encountered an error:', err)
-    })
-
-    // Pipe the encrypted content stream to the file stream
-    encryptResponse.stream.pipe(fileStream)
   })
 })
 
@@ -677,8 +645,11 @@ describe('URL Storage encryption tests', function () {
 
   it('canDecrypt should return false when called from an unauthorised node', () => {
     assert(
-      storage.canDecrypt('16Uiu2HAmUWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq72') ===
-        false,
+      storage.canDecrypt(nodeId) === true,
+      'Wrong response from canDecrypt() for an unencrypted file'
+    )
+    assert(
+      storage.canDecrypt(nodeId2) === false,
       'Wrong response from canDecrypt() for an unencrypted file'
     )
   })

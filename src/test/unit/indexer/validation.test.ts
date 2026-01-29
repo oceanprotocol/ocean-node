@@ -70,6 +70,8 @@ describe('Schema validation tests', () => {
       undefined,
       undefined,
       undefined,
+      undefined,
+      undefined,
       true
     )
   })

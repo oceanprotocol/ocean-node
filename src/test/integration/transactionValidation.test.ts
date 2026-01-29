@@ -1,5 +1,5 @@
 import { expect, assert } from 'chai'
-import { JsonRpcProvider, Signer } from 'ethers'
+import { JsonRpcProvider, Signer, FallbackProvider } from 'ethers'
 import { validateOrderTransaction } from '../../components/core/utils/validateOrders.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
@@ -29,6 +29,7 @@ describe('validateOrderTransaction Function with Orders', () => {
   let database: Database
   let oceanNode: OceanNode
   let provider: JsonRpcProvider
+  let fallbackProvider: FallbackProvider
   let publisherAccount: Signer
   let consumerAccount: Signer
   let consumerAddress: string
@@ -69,7 +70,11 @@ describe('validateOrderTransaction Function with Orders', () => {
     config = await getConfiguration(true) // Force reload the configuration
     const dbconn = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance(config, dbconn)
-    indexer = new OceanIndexer(dbconn, config.indexingNetworks)
+    indexer = new OceanIndexer(
+      dbconn,
+      config.indexingNetworks,
+      oceanNode.blockchainRegistry
+    )
     oceanNode.addIndexer(indexer)
 
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
@@ -78,6 +83,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     }
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
+    fallbackProvider = new FallbackProvider([provider])
 
     publisherAccount = (await provider.getSigner(0)) as Signer
     consumerAccount = (await provider.getSigner(1)) as Signer
@@ -149,7 +155,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     const validationResult = await validateOrderTransaction(
       orderTxId,
       consumerAddress,
-      provider,
+      fallbackProvider,
       dataNftAddress,
       datatokenAddress,
       parseInt(serviceId),
@@ -179,7 +185,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     const validationResult = await validateOrderTransaction(
       reOrderTxId,
       consumerAddress,
-      provider,
+      fallbackProvider,
       dataNftAddress,
       datatokenAddress,
       parseInt(serviceId),
@@ -198,7 +204,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     const validationResult = await validateOrderTransaction(
       reOrderTxId,
       consumerAddress,
-      provider,
+      fallbackProvider,
       dataNftAddress,
       datatokenAddress,
       parseInt('999'),
@@ -217,7 +223,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     const validationResult = await validateOrderTransaction(
       reOrderTxId,
       '0x0',
-      provider,
+      fallbackProvider,
       dataNftAddress,
       datatokenAddress,
       parseInt(serviceId),

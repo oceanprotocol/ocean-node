@@ -22,6 +22,16 @@ export interface OceanNodeKeys {
   publicKey: any
   privateKey: any
   ethAddress: string
+  type?: string | 'raw' | 'gcp-kms' // Key provider type (raw, gcp-kms, etc.)
+  // Raw private key config (when type is 'raw')
+  // GCP KMS config (when type is 'gcp-kms')
+  gcpKmsConfig?: {
+    projectId: string
+    location: string
+    keyRing: string
+    keyName: string
+    keyVersion?: string
+  }
 }
 /* eslint-disable no-unused-vars */
 export enum dhtFilterMethod {

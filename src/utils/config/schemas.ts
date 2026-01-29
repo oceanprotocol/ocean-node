@@ -52,11 +52,9 @@ export const AccessListContractSchema = z.preprocess(
   z.record(z.string(), z.array(z.string())).nullable()
 )
 
-export const OceanNodeKeysSchema = z.object({
-  peerId: z.any().optional(),
-  publicKey: z.any().optional(),
-  privateKey: z.any().optional(),
-  ethAddress: z.string().optional()
+export const OceanNodeConfigKeysSchema = z.object({
+  privateKey: z.any().optional().nullable(),
+  type: z.string().optional().default('raw')
 })
 
 export const DenyListSchema = z.object({
@@ -265,7 +263,7 @@ export const OceanNodeConfigSchema = z
     authorizedPublishers: addressArrayFromString.optional().default([]),
     authorizedPublishersList: jsonFromString(AccessListContractSchema).optional(),
 
-    keys: OceanNodeKeysSchema.optional(),
+    keys: OceanNodeConfigKeysSchema.optional(),
 
     INTERFACES: z.string().optional(),
     hasP2P: booleanFromString.optional().default(true),
