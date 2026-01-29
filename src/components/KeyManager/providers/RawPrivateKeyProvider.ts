@@ -1,7 +1,7 @@
 import type { PeerId } from '@libp2p/interface'
 import { privateKeyFromRaw } from '@libp2p/crypto/keys'
 import { peerIdFromPrivateKey } from '@libp2p/peer-id'
-import { Wallet } from 'ethers'
+import { Wallet, ethers } from 'ethers'
 import { IKeyProvider } from '../../../@types/KeyManager.js'
 import { hexStringToByteArray } from '../../../utils/index.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
@@ -231,5 +231,22 @@ export class RawPrivateKeyProvider implements IKeyProvider {
     const nodePrivateKey = Buffer.from(privateKey.raw).toString('hex')
     const decrypted = await ethCrypto.decryptWithPrivateKey(nodePrivateKey, encrypted)
     return decrypted
+  }
+
+  /**
+   * Signs message using ethers wallet.signMessage
+   * @param message - Message to sign
+   * @returns Signature
+   */
+  async signMessage(message: string): Promise<string> {
+    const wallet = this.ethWallet
+    const messageHash = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.getBytes(messageHash)
+    const signature = await wallet.signMessage(messageHashBytes)
+
+    return signature
   }
 }

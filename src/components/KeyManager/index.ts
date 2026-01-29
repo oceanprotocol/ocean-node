@@ -193,6 +193,15 @@ export class KeyManager {
   }
 
   /**
+   * Signs message using ethers wallet.signMessage
+   * @param message - Message to sign
+   * @returns Signature
+   */
+  async signMessage(message: string): Promise<string> {
+    return await this.keyProvider.signMessage(message)
+  }
+
+  /**
    * Cleanup resources (delegates to key provider if it has cleanup method)
    */
   async cleanup(): Promise<void> {

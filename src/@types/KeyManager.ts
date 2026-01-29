@@ -82,6 +82,12 @@ export interface IKeyProvider {
    */
   ethCryptoDecryptWithPrivateKey(encryptedObject: any): Promise<any>
   /**
+   * Signs message using ethers wallet.signMessage
+   * @param message - Message to sign
+   * @returns Signature
+   */
+  signMessage(message: string): Promise<string>
+  /**
    * Cleanup resources if needed (e.g., close connections)
    */
   cleanup?(): Promise<void>
