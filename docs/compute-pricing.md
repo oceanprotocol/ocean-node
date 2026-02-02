@@ -10,17 +10,17 @@ This guide explains how to configure your node’s Docker compute environments a
 
 ## Pricing Units
 
-| Resource | Unit of `amount` | Price meaning | Cost formula |
-|----------|------------------|---------------|--------------|
-| **CPU**  | Number of CPUs   | Per CPU per minute | `price × cpus × ceil(duration/60)` |
-| **RAM**  | Gigabytes (GB)   | Per GB per minute | `price × ramGB × ceil(duration/60)` |
-| **Disk** | Gigabytes (GB)   | Per GB per minute | `price × diskGB × ceil(duration/60)` |
-| **GPU**  | Number of GPUs   | Per GPU per minute | `price × gpus × ceil(duration/60)` |
+| Resource | Unit of `amount` | Price meaning      | Cost formula                         |
+| -------- | ---------------- | ------------------ | ------------------------------------ |
+| **CPU**  | Number of CPUs   | Per CPU per minute | `price × cpus × ceil(duration/60)`   |
+| **RAM**  | Gigabytes (GB)   | Per GB per minute  | `price × ramGB × ceil(duration/60)`  |
+| **Disk** | Gigabytes (GB)   | Per GB per minute  | `price × diskGB × ceil(duration/60)` |
+| **GPU**  | Number of GPUs   | Per GPU per minute | `price × gpus × ceil(duration/60)`   |
 
 So:
 
-- **CPU and GPU**: price is **per resource per minute** (e.g. 2 CPUs at price 1 for 90 minutes → 2 × 1 × 2 = 4).
-- **Memory (RAM) and storage (disk)**: price is **per minute per gigabyte** (e.g. 4 GB RAM at price 0.5 for 60 minutes → 0.5 × 4 × 1 = 2).
+- **CPU and GPU**: price is **per resource per minute** (e.g. 2 CPUs at price 1 for 90 minutes → 2 × 1 × 90 = 180).
+- **Memory (RAM) and storage (disk)**: price is **per minute per gigabyte** (e.g. 4 GB RAM at price 0.5 for 60 minutes → 0.5 × 4 × 60 = 120).
 
 Duration is always in seconds; it is converted to minutes with **ceil(duration / 60)** (e.g. 61 seconds → 2 minutes).
 
@@ -102,7 +102,7 @@ Job: 2 CPUs, 4 GB RAM, 10 GB disk, 1 GPU, duration **125 seconds** (ceil = 3 min
 - RAM: 0.5 × 4 × 3 = **6**
 - Disk: 0.2 × 10 × 3 = **6**
 - GPU: 3 × 1 × 3 = **9**  
-**Total cost = 27** (in the smallest unit of the fee token).
+  **Total cost = 27** (in the smallest unit of the fee token).
 
 ---
 
@@ -112,9 +112,7 @@ Job: 2 CPUs, 4 GB RAM, 10 GB disk, 1 GPU, duration **125 seconds** (ceil = 3 min
 [
   {
     "socketPath": "/var/run/docker.sock",
-    "resources": [
-      { "id": "disk", "total": 10 }
-    ],
+    "resources": [{ "id": "disk", "total": 10 }],
     "storageExpiry": 604800,
     "maxJobDuration": 3600,
     "minJobDuration": 60,
