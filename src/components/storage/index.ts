@@ -12,8 +12,7 @@ import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { fetchFileMetadata } from '../../utils/asset.js'
 import axios from 'axios'
 import urlJoin from 'url-join'
-import { encrypt as encryptData, decrypt as decryptData } from '../../utils/crypt.js'
-import { Readable } from 'stream'
+
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 
 export abstract class Storage {
@@ -35,7 +34,6 @@ export abstract class Storage {
     forceChecksum: boolean
   ): Promise<FileInfoResponse>
 
-  abstract encryptContent(encryptionType: 'AES' | 'ECIES'): Promise<Buffer>
   abstract isFilePath(): boolean
 
   getFile(): any {
@@ -114,58 +112,6 @@ export abstract class Storage {
       CORE_LOGGER.error(error)
     }
     return response
-  }
-
-  async encrypt(encryptionType: EncryptMethod = EncryptMethod.AES) {
-    const readableStream = await this.getReadableStream()
-
-    // Convert the readable stream to a buffer
-    const chunks: Buffer[] = []
-    for await (const chunk of readableStream.stream) {
-      chunks.push(chunk)
-    }
-    const buffer = Buffer.concat(chunks)
-
-    // Encrypt the buffer using the encrypt function
-    const encryptedBuffer = await encryptData(new Uint8Array(buffer), encryptionType)
-
-    // Convert the encrypted buffer back into a stream
-    const encryptedStream = Readable.from(encryptedBuffer)
-
-    return {
-      ...readableStream,
-      stream: encryptedStream
-    }
-  }
-
-  async decrypt() {
-    const { keys } = this.config
-    const nodeId = keys.peerId.toString()
-
-    if (!this.canDecrypt(nodeId)) {
-      throw new Error('Node is not authorized to decrypt this file')
-    }
-
-    const { encryptMethod } = this.file
-    const readableStream = await this.getReadableStream()
-
-    // Convert the readable stream to a buffer
-    const chunks: Buffer[] = []
-    for await (const chunk of readableStream.stream) {
-      chunks.push(chunk)
-    }
-    const buffer = Buffer.concat(chunks)
-
-    // Decrypt the buffer using your existing function
-    const decryptedBuffer = await decryptData(new Uint8Array(buffer), encryptMethod)
-
-    // Convert the decrypted buffer back into a stream
-    const decryptedStream = Readable.from(decryptedBuffer)
-
-    return {
-      ...readableStream,
-      stream: decryptedStream
-    }
   }
 
   isEncrypted(): boolean {
@@ -265,19 +211,6 @@ export class UrlStorage extends Storage {
       encryptMethod: fileObject.encryptMethod
     }
   }
-
-  async encryptContent(
-    encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
-  ): Promise<Buffer> {
-    const file = this.getFile()
-    const response = await axios({
-      url: file.url,
-      method: file.method || 'get',
-      headers: file.headers,
-      timeout: 30000
-    })
-    return await encryptData(response.data, encryptionType)
-  }
 }
 
 export class ArweaveStorage extends Storage {
@@ -345,17 +278,6 @@ export class ArweaveStorage extends Storage {
       encryptMethod: fileObject.encryptMethod
     }
   }
-
-  async encryptContent(
-    encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
-  ): Promise<Buffer> {
-    const file = this.getFile()
-    const response = await axios({
-      url: urlJoin(this.config.arweaveGateway, file.transactionId),
-      method: 'get'
-    })
-    return await encryptData(response.data, encryptionType)
-  }
 }
 
 export class IpfsStorage extends Storage {
@@ -416,16 +338,5 @@ export class IpfsStorage extends Storage {
       encryptedBy: fileObject.encryptedBy,
       encryptMethod: fileObject.encryptMethod
     }
-  }
-
-  async encryptContent(
-    encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
-  ): Promise<Buffer> {
-    const file = this.getFile()
-    const response = await axios({
-      url: file.hash,
-      method: 'get'
-    })
-    return await encryptData(response.data, encryptionType)
   }
 }

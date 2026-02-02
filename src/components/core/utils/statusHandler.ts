@@ -115,12 +115,17 @@ export async function status(
 
   // no previous status?
   if (!nodeStatus) {
-    const publicKeyHex = Buffer.from(config.keys.publicKey).toString('hex')
+    const publicKey = oceanNode.getKeyManager().getPublicKey()
+    const publicKeyHex = Buffer.from(publicKey).toString('hex')
+
     nodeStatus = {
-      id: nodeId && nodeId !== undefined ? nodeId : config.keys.peerId.toString(), // get current node ID
+      id:
+        nodeId && nodeId !== undefined
+          ? nodeId
+          : oceanNode.getKeyManager().getPeerId().toString(), // get current node ID
       publicKey: publicKeyHex,
       friendlyName: new HumanHasher().humanize(publicKeyHex),
-      address: config.keys.ethAddress,
+      address: oceanNode.getKeyManager().getEthAddress(),
       version: process.env.npm_package_version,
       http: config.hasHttp,
       p2p: config.hasP2P,

@@ -3,6 +3,7 @@ import { RPCS } from './blockchain'
 import { C2DClusterInfo, C2DDockerConfig } from './C2D/C2D'
 import { FeeStrategy } from './Fees'
 import { Schema } from '../components/database'
+import { KeyProviderType } from './KeyManager'
 
 export interface OceanNodeDBConfig {
   url: string | null
@@ -22,6 +23,16 @@ export interface OceanNodeKeys {
   publicKey: any
   privateKey: any
   ethAddress: string
+  type?: KeyProviderType
+  // Raw private key config (when type is 'raw')
+  // GCP KMS config (when type is 'gcp-kms')
+  gcpKmsConfig?: {
+    projectId: string
+    location: string
+    keyRing: string
+    keyName: string
+    keyVersion?: string
+  }
 }
 /* eslint-disable no-unused-vars */
 export enum dhtFilterMethod {

@@ -53,6 +53,8 @@ import { ReindexTask } from '../../components/Indexer/ChainIndexer.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { CollectFeesHandler } from '../../components/core/admin/collectFeesHandler.js'
 import { getProviderFeeToken } from '../../components/core/utils/feesHandler.js'
+import { KeyManager } from '../../components/KeyManager/index.js'
+import { BlockchainRegistry } from '../../components/BlockchainRegistry/index.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -106,8 +108,22 @@ describe('Should test admin operations', () => {
 
     config = await getConfiguration(true) // Force reload the configuration
     dbconn = await Database.init(config.dbConfig)
-    oceanNode = await OceanNode.getInstance(config, dbconn)
-    indexer = new OceanIndexer(dbconn, config.indexingNetworks)
+    const keyManager = new KeyManager(config)
+    const blockchainRegistry = new BlockchainRegistry(keyManager, config)
+    oceanNode = await OceanNode.getInstance(
+      config,
+      dbconn,
+      null,
+      null,
+      null,
+      keyManager,
+      blockchainRegistry
+    )
+    indexer = new OceanIndexer(
+      dbconn,
+      config.indexingNetworks,
+      oceanNode.blockchainRegistry
+    )
     oceanNode.addIndexer(indexer)
   })
 
@@ -120,7 +136,7 @@ describe('Should test admin operations', () => {
 
     const stopNodeCommand: AdminStopNodeCommand = {
       command: PROTOCOL_COMMANDS.STOP_NODE,
-      node: config.keys.peerId.toString(),
+      node: oceanNode.getKeyManager().getPeerId().toString(),
       expiryTimestamp,
       signature
     }
@@ -225,7 +241,7 @@ describe('Should test admin operations', () => {
 
     const reindexTxCommand: AdminReindexTxCommand = {
       command: PROTOCOL_COMMANDS.REINDEX_TX,
-      node: config.keys.peerId.toString(),
+      node: oceanNode.getKeyManager().getPeerId().toString(),
       txId: publishedDataset.trxReceipt.hash,
       chainId: DEVELOPMENT_CHAIN_ID,
       expiryTimestamp,
@@ -300,7 +316,7 @@ describe('Should test admin operations', () => {
     } else {
       const reindexChainCommand: AdminReindexChainCommand = {
         command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
-        node: config.keys.peerId.toString(),
+        node: oceanNode.getKeyManager().getPeerId().toString(),
         chainId: DEVELOPMENT_CHAIN_ID,
         expiryTimestamp,
         signature
@@ -401,6 +417,6 @@ describe('Should test admin operations', () => {
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
     INDEXER_CRAWLING_EVENT_EMITTER.removeAllListeners()
-    indexer.stopAllThreads()
+    indexer.stopAllChainIndexers()
   })
 })

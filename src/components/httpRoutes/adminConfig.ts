@@ -16,7 +16,8 @@ adminConfigRoutes.get('/api/admin/config', express.json(), async (req, res) => {
       command: PROTOCOL_COMMANDS.FETCH_CONFIG,
       expiryTimestamp,
       signature,
-      address
+      address,
+      caller: req.caller
     })
 
     if (response.status.httpStatus === 200) {
@@ -41,7 +42,8 @@ adminConfigRoutes.post('/api/admin/config/update', express.json(), async (req, r
       expiryTimestamp,
       signature,
       config,
-      address
+      address,
+      caller: req.caller
     })
 
     if (response.status.httpStatus === 200) {

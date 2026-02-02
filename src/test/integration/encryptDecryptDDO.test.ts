@@ -19,7 +19,6 @@ import {
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
 import { genericDDO } from '../data/ddo.js'
 import { createHash } from 'crypto'
-import { encrypt } from '../../utils/crypt.js'
 import { Database } from '../../components/database/index.js'
 import { DecryptDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import {
@@ -107,7 +106,11 @@ describe('Should encrypt and decrypt DDO', () => {
     database = await Database.init(config.dbConfig)
     oceanNode = OceanNode.getInstance(config, database)
     // will be used later
-    indexer = new OceanIndexer(database, mockSupportedNetworks)
+    indexer = new OceanIndexer(
+      database,
+      mockSupportedNetworks,
+      oceanNode.blockchainRegistry
+    )
     oceanNode.addIndexer(indexer)
   })
 
@@ -157,7 +160,9 @@ describe('Should encrypt and decrypt DDO', () => {
       '0x' + createHash('sha256').update(JSON.stringify(genericAsset)).digest('hex')
 
     const genericAssetData = Uint8Array.from(Buffer.from(JSON.stringify(genericAsset)))
-    const encryptedData = await encrypt(genericAssetData, EncryptMethod.ECIES)
+    const encryptedData = await oceanNode
+      .getKeyManager()
+      .encrypt(genericAssetData, EncryptMethod.ECIES)
     encryptedMetaData = hexlify(encryptedData)
 
     const setMetaDataTx = await nftContract.setMetaData(
@@ -213,10 +218,9 @@ describe('Should encrypt and decrypt DDO', () => {
   })
 
   it('should authorize decrypter since is this node', async () => {
-    const config = await getConfiguration()
     const decryptDDOTask: DecryptDDOCommand = {
       command: PROTOCOL_COMMANDS.DECRYPT_DDO,
-      decrypterAddress: await config.keys.ethAddress,
+      decrypterAddress: oceanNode.getKeyManager().getEthAddress(),
       chainId,
       nonce: Date.now().toString(),
       signature: '0x123'
@@ -388,6 +392,6 @@ describe('Should encrypt and decrypt DDO', () => {
 
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
-    indexer.stopAllThreads()
+    indexer.stopAllChainIndexers()
   })
 })

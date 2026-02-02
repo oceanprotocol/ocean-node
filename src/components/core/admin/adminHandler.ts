@@ -17,7 +17,7 @@ export abstract class AdminCommandHandler
   implements IValidateAdminCommandHandler
 {
   async verifyParamsAndRateLimits(task: AdminCommand): Promise<P2PCommandResponse> {
-    if (!(await this.checkRateLimit())) {
+    if (!(await this.checkRateLimit(task.caller))) {
       return buildRateLimitReachedResponse()
     }
     // then validate the command arguments

@@ -54,7 +54,7 @@ describe('Encrypt File', () => {
 
     const expectedHeaders = {
       'Content-Type': 'application/octet-stream',
-      'X-Encrypted-By': config.keys.peerId.toString(),
+      'X-Encrypted-By': oceanNode.getKeyManager().getPeerId().toString(),
       'X-Encrypted-Method': EncryptMethod.AES
     }
     expect(response.status.headers).to.deep.equal(expectedHeaders)
@@ -76,7 +76,7 @@ describe('Encrypt File', () => {
     expect(response.stream).to.be.instanceOf(Readable)
     const expectedHeaders = {
       'Content-Type': 'application/octet-stream',
-      'X-Encrypted-By': config.keys.peerId.toString(),
+      'X-Encrypted-By': oceanNode.getKeyManager().getPeerId().toString(),
       'X-Encrypted-Method': EncryptMethod.AES
     }
     expect(response.status.headers).to.deep.equal(expectedHeaders)
@@ -98,7 +98,7 @@ describe('Encrypt File', () => {
     expect(response.stream).to.be.instanceOf(Readable)
     const expectedHeaders = {
       'Content-Type': 'application/octet-stream',
-      'X-Encrypted-By': config.keys.peerId.toString(),
+      'X-Encrypted-By': oceanNode.getKeyManager().getPeerId().toString(),
       'X-Encrypted-Method': EncryptMethod.ECIES
     }
     expect(response.status.headers).to.deep.equal(expectedHeaders)

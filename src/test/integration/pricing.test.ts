@@ -37,7 +37,6 @@ import { ENVIRONMENT_VARIABLES, EVENTS } from '../../utils/constants.js'
 import { homedir } from 'os'
 import { OceanNode } from '../../OceanNode.js'
 import { getConfiguration } from '../../utils/config.js'
-import { encrypt } from '../../utils/crypt.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { Asset } from '@oceanprotocol/ddo-js'
 
@@ -86,7 +85,11 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     const config = await getConfiguration(true)
     database = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance()
-    indexer = new OceanIndexer(database, mockSupportedNetworks)
+    indexer = new OceanIndexer(
+      database,
+      mockSupportedNetworks,
+      oceanNode.blockchainRegistry
+    )
     oceanNode.addIndexer(indexer)
     artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!artifactsAddresses) {
@@ -180,7 +183,9 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     const data = Uint8Array.from(
       Buffer.from(JSON.stringify(genericAssetCloned.services[0].files))
     )
-    const encryptedData = await encrypt(data, EncryptMethod.ECIES)
+    const encryptedData = await oceanNode
+      .getKeyManager()
+      .encrypt(data, EncryptMethod.ECIES)
     const encryptedDataString = encryptedData.toString('hex')
     genericAssetCloned.services[0].files = encryptedDataString
     const stringDDO = JSON.stringify(genericAssetCloned)
@@ -316,7 +321,9 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     const data = Uint8Array.from(
       Buffer.from(JSON.stringify(genericAssetCloned.services[1].files))
     )
-    const encryptedData = await encrypt(data, EncryptMethod.ECIES)
+    const encryptedData = await oceanNode
+      .getKeyManager()
+      .encrypt(data, EncryptMethod.ECIES)
     const encryptedDataString = encryptedData.toString('hex')
     genericAssetCloned.services[1].files = encryptedDataString
     const stringDDO = JSON.stringify(genericAssetCloned)
@@ -369,6 +376,6 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
   })
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
-    indexer.stopAllThreads()
+    indexer.stopAllChainIndexers()
   })
 })

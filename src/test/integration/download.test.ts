@@ -90,7 +90,11 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
     config = await getConfiguration(true) // Force reload the configuration
     database = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance(config, database)
-    indexer = new OceanIndexer(database, config.indexingNetworks)
+    indexer = new OceanIndexer(
+      database,
+      config.indexingNetworks,
+      oceanNode.blockchainRegistry
+    )
     oceanNode.addIndexer(indexer)
 
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
@@ -110,17 +114,18 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
   })
 
   it('should get node status', async () => {
-    const oceanNodeConfig = await getConfiguration(true)
-
     const statusCommand = {
       command: PROTOCOL_COMMANDS.STATUS,
-      node: oceanNodeConfig.keys.peerId.toString()
+      node: oceanNode.getKeyManager().getPeerId().toString()
     }
     const response = await new StatusHandler(oceanNode).handle(statusCommand)
     assert(response.status.httpStatus === 200, 'http status not 200')
     const resp = await streamToString(response.stream as Readable)
     const status = JSON.parse(resp)
-    assert(status.id === oceanNodeConfig.keys.peerId.toString(), 'peer id not matching ')
+    assert(
+      status.id === oceanNode.getKeyManager().getPeerId().toString(),
+      'peer id not matching '
+    )
     assert(
       status.allowedAdmins?.addresses[0]?.toLowerCase() ===
         '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'?.toLowerCase(),
@@ -131,11 +136,9 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
   })
 
   it('should get node detailed status', async () => {
-    const oceanNodeConfig = await getConfiguration(true)
-
     const statusCommand = {
       command: PROTOCOL_COMMANDS.DETAILED_STATUS,
-      node: oceanNodeConfig.keys.peerId.toString()
+      node: oceanNode.getKeyManager().getPeerId().toString()
     }
     const response = await new DetailedStatusHandler(oceanNode).handle(statusCommand)
     assert(response.status.httpStatus === 200, 'http status not 200')
@@ -324,6 +327,6 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
   })
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
-    indexer.stopAllThreads()
+    indexer.stopAllChainIndexers()
   })
 })

@@ -1,8 +1,9 @@
 import { CommandHandler } from './handler.js'
+import { OceanNode } from '../../../OceanNode.js'
 import { EVENTS, MetadataStates, PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { P2PCommandResponse, FindDDOResponse } from '../../../@types/index.js'
 import { Readable } from 'stream'
-import { decrypt, create256Hash } from '../../../utils/crypt.js'
+import { create256Hash } from '../../../utils/crypt.js'
 import {
   hasCachedDDO,
   sortFindDDOResults,
@@ -13,7 +14,6 @@ import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { sleep, readStream, streamToUint8Array } from '../../../utils/util.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { Blockchain } from '../../../utils/blockchain.js'
 import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
 // import lzma from 'lzma-native'
@@ -131,14 +131,14 @@ export class DecryptDdoHandler extends CommandHandler {
           }
         }
       }
-
+      const ourEthAddress = this.getOceanNode().getKeyManager().getEthAddress()
       if (config.authorizedDecrypters.length > 0) {
         // allow if on authorized list or it is own node
         if (
           !config.authorizedDecrypters
             .map((address) => address?.toLowerCase())
             .includes(decrypterAddress?.toLowerCase()) &&
-          decrypterAddress?.toLowerCase() !== config.keys.ethAddress?.toLowerCase()
+          decrypterAddress?.toLowerCase() !== ourEthAddress.toLowerCase()
         ) {
           CORE_LOGGER.logMessage('Decrypt DDO: Decrypter not authorized', true)
           return {
@@ -151,12 +151,17 @@ export class DecryptDdoHandler extends CommandHandler {
         }
       }
 
-      const blockchain = new Blockchain(
-        supportedNetwork.rpc,
-        supportedNetwork.chainId,
-        config,
-        supportedNetwork.fallbackRPCs
-      )
+      const oceanNode = this.getOceanNode()
+      const blockchain = oceanNode.getBlockchain(supportedNetwork.chainId)
+      if (!blockchain) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: `Decrypt DDO: Blockchain instance not available for chain ${supportedNetwork.chainId}`
+          }
+        }
+      }
       const { ready, error } = await blockchain.isNetworkReady()
       if (!ready) {
         return {
@@ -168,8 +173,8 @@ export class DecryptDdoHandler extends CommandHandler {
         }
       }
 
-      const provider = blockchain.getProvider()
-      const signer = blockchain.getSigner()
+      const provider = await blockchain.getProvider()
+      const signer = await blockchain.getSigner()
       // note: "getOceanArtifactsAdresses()"" is broken for at least optimism sepolia
       // if we do: artifactsAddresses[supportedNetwork.network]
       // because on the contracts we have "optimism_sepolia" instead of "optimism-sepolia"
@@ -313,7 +318,9 @@ export class DecryptDdoHandler extends CommandHandler {
       // check if DDO is ECIES encrypted
       if ((flags & 2) !== 0) {
         try {
-          decryptedDocument = await decrypt(encryptedDocument, EncryptMethod.ECIES)
+          decryptedDocument = await oceanNode
+            .getKeyManager()
+            .decrypt(encryptedDocument, EncryptMethod.ECIES)
         } catch (error) {
           CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
           return {
@@ -537,7 +544,7 @@ export class FindDdoHandler extends CommandHandler {
       const processDDOResponse = async (peer: string, data: Uint8Array) => {
         try {
           const ddo: any = JSON.parse(uint8ArrayToString(data))
-          const isResponseLegit = await checkIfDDOResponseIsLegit(ddo)
+          const isResponseLegit = await checkIfDDOResponseIsLegit(ddo, node)
 
           if (isResponseLegit) {
             const ddoInfo: FindDDOResponse = {
@@ -898,9 +905,13 @@ export function validateDDOIdentifier(identifier: string): ValidateParams {
 /**
  * Checks if the response is legit
  * @param ddo the DDO
+ * @param oceanNode the OceanNode instance
  * @returns validation result
  */
-async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
+async function checkIfDDOResponseIsLegit(
+  ddo: any,
+  oceanNode: OceanNode
+): Promise<boolean> {
   const clonedDdo = structuredClone(ddo)
   const { indexedMetadata } = clonedDdo
   const updatedDdo = deleteIndexedMetadataIfExists(ddo)
@@ -927,8 +938,14 @@ async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
     return false
   }
   // 4) check if was deployed by our factory
-  const blockchain = new Blockchain(network.rpc, chainId, config, network.fallbackRPCs)
-  const signer = blockchain.getSigner()
+  const blockchain = oceanNode.getBlockchain(chainId as number)
+  if (!blockchain) {
+    CORE_LOGGER.error(
+      `Blockchain instance not available for chain ${chainId}, cannot confirm validation.`
+    )
+    return false
+  }
+  const signer = await blockchain.getSigner()
 
   const wasDeployedByUs = await wasNFTDeployedByOurFactory(
     chainId as number,
@@ -942,7 +959,7 @@ async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
   }
 
   // 5) check block & events
-  const networkBlock = await getNetworkHeight(blockchain.getProvider())
+  const networkBlock = await getNetworkHeight(await blockchain.getProvider())
   if (
     !indexedMetadata.event.block ||
     indexedMetadata.event.block < 0 ||
@@ -960,7 +977,8 @@ async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
     CORE_LOGGER.error(`DDO event missing tx data, cannot confirm transaction`)
     return false
   }
-  const receipt = await blockchain.getProvider().getTransactionReceipt(txId)
+  const provider = await blockchain.getProvider()
+  const receipt = await provider.getTransactionReceipt(txId)
   let foundEvents = false
   if (receipt) {
     const { logs } = receipt
