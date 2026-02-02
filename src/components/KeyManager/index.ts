@@ -5,6 +5,7 @@ import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { RawPrivateKeyProvider } from './providers/RawPrivateKeyProvider.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { Readable } from 'stream'
+import { PrivateKey } from '@libp2p/interface'
 /**
  * Factory function to create the appropriate key provider based on configuration.
  * Provider is initialized in its constructor.
@@ -56,7 +57,7 @@ export class KeyManager {
   /**
    * Get the libp2p private key
    */
-  getLibp2pPrivateKey(): any {
+  getLibp2pPrivateKey(): PrivateKey {
     return this.keyProvider.getLibp2pPrivateKey()
   }
 

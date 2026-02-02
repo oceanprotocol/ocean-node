@@ -3,6 +3,7 @@ import { RPCS } from './blockchain'
 import { C2DClusterInfo, C2DDockerConfig } from './C2D/C2D'
 import { FeeStrategy } from './Fees'
 import { Schema } from '../components/database'
+import { KeyProviderType } from './KeyManager'
 
 export interface OceanNodeDBConfig {
   url: string | null
@@ -22,7 +23,7 @@ export interface OceanNodeKeys {
   publicKey: any
   privateKey: any
   ethAddress: string
-  type?: string | 'raw' | 'gcp-kms' // Key provider type (raw, gcp-kms, etc.)
+  type?: KeyProviderType
   // Raw private key config (when type is 'raw')
   // GCP KMS config (when type is 'gcp-kms')
   gcpKmsConfig?: {

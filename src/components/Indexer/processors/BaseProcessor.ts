@@ -350,7 +350,6 @@ export abstract class BaseEventProcessor {
           throw new Error(message)
         }
       } else {
-        // const node = OceanNode.getInstance(config, await getDatabase())
         if (nodeId === decryptorURL) {
           // Fetch nonce and signature from local node
           let nonceP2p: string

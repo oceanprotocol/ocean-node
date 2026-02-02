@@ -1,6 +1,7 @@
 import type { PeerId } from '@libp2p/interface'
 import { privateKeyFromRaw } from '@libp2p/crypto/keys'
 import { peerIdFromPrivateKey } from '@libp2p/peer-id'
+import { PrivateKey } from '@libp2p/interface'
 import { Wallet, ethers } from 'ethers'
 import { IKeyProvider } from '../../../@types/KeyManager.js'
 import { hexStringToByteArray } from '../../../utils/index.js'
@@ -63,7 +64,7 @@ export class RawPrivateKeyProvider implements IKeyProvider {
     return this.peerId
   }
 
-  getLibp2pPrivateKey(): any {
+  getLibp2pPrivateKey(): PrivateKey {
     return this.privateKey
   }
 
@@ -139,9 +140,21 @@ export class RawPrivateKeyProvider implements IKeyProvider {
    * @returns Readable stream with encrypted data
    */
   encryptStream(inputStream: Readable, algorithm: EncryptMethod): Readable {
+    if (!inputStream || typeof inputStream.pipe !== 'function') {
+      throw new Error('encryptStream: inputStream must be a readable stream')
+    }
+
     const { privateKey, publicKey } = this
 
     if (algorithm === EncryptMethod.AES) {
+      if (publicKey.length < 16) {
+        throw new Error(
+          'encryptStream: publicKey must be at least 16 bytes for AES initialization vector'
+        )
+      }
+      if (privateKey.raw.length !== 32) {
+        throw new Error('encryptStream: privateKey must be 32 bytes for AES-256')
+      }
       // Use first 16 bytes of public key as an initialization vector
       const initVector = publicKey.subarray(0, 16)
       // Create cipher transform stream
@@ -154,18 +167,37 @@ export class RawPrivateKeyProvider implements IKeyProvider {
       const chunks: Buffer[] = []
       const collector = new Transform({
         transform(chunk, encoding, callback) {
-          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding))
-          callback()
+          try {
+            if (chunk == null) {
+              return callback(new Error('encryptStream: received null/undefined chunk'))
+            }
+            chunks.push(
+              Buffer.isBuffer(chunk)
+                ? chunk
+                : typeof chunk === 'string'
+                  ? Buffer.from(chunk, encoding)
+                  : Buffer.from(chunk)
+            )
+            callback()
+          } catch (err) {
+            callback(err instanceof Error ? err : new Error(String(err)))
+          }
         },
         flush(callback) {
-          // Collect all chunks
-          const data = Buffer.concat(chunks)
-          // Encrypt using ECIES
-          const sk = new eciesjs.PrivateKey(privateKey.raw)
-          const encryptedData = eciesjs.encrypt(sk.publicKey.toHex(), data)
-          // Push encrypted data as a single chunk
-          this.push(Buffer.from(encryptedData))
-          callback()
+          try {
+            const data = Buffer.concat(chunks)
+            if (data.length === 0) {
+              return callback(
+                new Error('encryptStream: no data to encrypt (empty stream)')
+              )
+            }
+            const sk = new eciesjs.PrivateKey(privateKey.raw)
+            const encryptedData = eciesjs.encrypt(sk.publicKey.toHex(), data)
+            this.push(Buffer.from(encryptedData))
+            callback()
+          } catch (err) {
+            callback(err instanceof Error ? err : new Error(String(err)))
+          }
         }
       })
 
@@ -182,9 +214,21 @@ export class RawPrivateKeyProvider implements IKeyProvider {
    * @returns Readable stream with decrypted data
    */
   decryptStream(inputStream: Readable, algorithm: EncryptMethod): Readable {
+    if (!inputStream || typeof inputStream.pipe !== 'function') {
+      throw new Error('decryptStream: inputStream must be a readable stream')
+    }
+
     const { privateKey, publicKey } = this
 
     if (algorithm === EncryptMethod.AES) {
+      if (publicKey.length < 16) {
+        throw new Error(
+          'decryptStream: publicKey must be at least 16 bytes for AES initialization vector'
+        )
+      }
+      if (privateKey.raw.length !== 32) {
+        throw new Error('decryptStream: privateKey must be 32 bytes for AES-256')
+      }
       // Use first 16 bytes of public key as an initialization vector
       const initVector = publicKey.subarray(0, 16)
       // Create decipher transform stream
@@ -197,18 +241,37 @@ export class RawPrivateKeyProvider implements IKeyProvider {
       const chunks: Buffer[] = []
       const collector = new Transform({
         transform(chunk, encoding, callback) {
-          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding))
-          callback()
+          try {
+            if (chunk == null) {
+              return callback(new Error('decryptStream: received null/undefined chunk'))
+            }
+            chunks.push(
+              Buffer.isBuffer(chunk)
+                ? chunk
+                : typeof chunk === 'string'
+                  ? Buffer.from(chunk, encoding)
+                  : Buffer.from(chunk)
+            )
+            callback()
+          } catch (err) {
+            callback(err instanceof Error ? err : new Error(String(err)))
+          }
         },
         flush(callback) {
-          // Collect all chunks
-          const data = Buffer.concat(chunks)
-          // Decrypt using ECIES
-          const sk = new eciesjs.PrivateKey(privateKey.raw)
-          const decryptedData = eciesjs.decrypt(sk.secret, data)
-          // Push decrypted data as a single chunk
-          this.push(Buffer.from(decryptedData))
-          callback()
+          try {
+            const data = Buffer.concat(chunks)
+            if (data.length === 0) {
+              return callback(
+                new Error('decryptStream: no data to decrypt (empty stream)')
+              )
+            }
+            const sk = new eciesjs.PrivateKey(privateKey.raw)
+            const decryptedData = eciesjs.decrypt(sk.secret, data)
+            this.push(Buffer.from(decryptedData))
+            callback()
+          } catch (err) {
+            callback(err instanceof Error ? err : new Error(String(err)))
+          }
         }
       })
 
