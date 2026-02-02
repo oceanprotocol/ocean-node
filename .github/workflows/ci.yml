@@ -156,8 +156,10 @@ jobs:
           IPFS_GATEWAY: http://172.15.0.16:8080/
           ARWEAVE_GATEWAY: https://arweave.net/
           RPCS: '{ "8996": {"rpc": "http://127.0.0.1:8545", "chainId": 8996, "network": "development", "chunkSize": 100}}'
-          DB_URL: 'http://localhost:9200'
-          DB_TYPE: 'elasticsearch'
+          DB_URL: 'http://localhost:8108/?apiKey=xyz'
+          DB_TYPE: 'typesense'
+          DB_USERNAME: 'elastic'
+          DB_PASSWORD: 'changeme'
           FEE_TOKENS: '{ "1": "0x967da4048cD07aB37855c090aAF366e4ce1b9F48", "137": "0x282d8efCe846A88B159800bd4130ad77443Fa1A1", "80001": "0xd8992Ed72C445c35Cb4A2be468568Ed1079357c8", "56": "0xDCe07662CA8EbC241316a15B611c89711414Dd1a" }'
           FEE_AMOUNT: '{ "amount": 1, "unit": "MB" }'
           ASSET_PURGATORY_URL: 'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json'
@@ -228,7 +230,7 @@ jobs:
           done
 
       - name: docker logs
-        run: docker logs ocean-contracts-1 && docker logs ocean-typesense-1
+        run: docker logs ocean-ocean-contracts-1 && docker logs ocean-typesense-1
         if: ${{ failure() }}
 
       - name: Checkout Ocean Node
@@ -281,6 +283,8 @@ jobs:
         with:
           repository: 'oceanprotocol/ocean-cli'
           path: 'ocean-cli'
+          ref: 'fix/test-system'
+
       - name: Setup Ocean CLI
         working-directory: ${{ github.workspace }}/ocean-cli
         run: |
@@ -302,7 +306,7 @@ jobs:
             echo "No ocean-node.log file found"
           fi
           echo "=== Docker Logs ==="
-          docker logs ocean-contracts-1 || echo "No ocean-contracts-1 container"
+          docker logs ocean-ocean-contracts-1 || echo "No ocean-contracts-1 container"
           docker logs ocean-typesense-1 || echo "No ocean-typesense-1 container"
           echo "=== System Processes ==="
           ps aux | grep -E "(node|ocean)" || echo "No node/ocean processes found"
