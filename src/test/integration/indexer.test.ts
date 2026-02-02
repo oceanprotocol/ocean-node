@@ -656,6 +656,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
-    indexer.stopAllThreads()
+    indexer.stopAllChainIndexers()
   })
 })

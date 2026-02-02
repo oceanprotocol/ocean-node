@@ -93,7 +93,7 @@ export class OceanIndexer {
     this.blockchainRegistry = blockchainRegistry
     this.supportedChains = Object.keys(supportedNetworks)
     INDEXING_QUEUE = []
-    this.startThreads()
+    this.startAllChainIndexers()
   }
 
   public getSupportedNetworks(): RPCS {
@@ -123,10 +123,10 @@ export class OceanIndexer {
   }
 
   // stops all indexers
-  public async stopAllThreads(): Promise<boolean> {
+  public async stopAllChainIndexers(): Promise<boolean> {
     const stopPromises: Promise<void>[] = []
     for (const chainID of this.supportedChains) {
-      const promise = this.stopThread(Number(chainID))
+      const promise = this.stopChainIndexer(Number(chainID))
       if (promise) {
         stopPromises.push(promise)
       }
@@ -136,7 +136,7 @@ export class OceanIndexer {
   }
 
   // stops indexing for a specific chain
-  public async stopThread(chainID: number): Promise<void> {
+  public async stopChainIndexer(chainID: number): Promise<void> {
     const indexer = this.indexers.get(chainID)
     if (indexer) {
       await indexer.stop()
@@ -198,7 +198,7 @@ export class OceanIndexer {
   }
 
   // starts indexing for a specific chain
-  public async startThread(chainID: number): Promise<ChainIndexer | null> {
+  public async startChainIndexer(chainID: number): Promise<ChainIndexer | null> {
     // If an indexer is already running, stop it first
     const existingIndexer = this.indexers.get(chainID)
     if (existingIndexer && existingIndexer.isIndexing()) {
@@ -251,7 +251,7 @@ export class OceanIndexer {
   }
 
   // Start all chain indexers
-  public async startThreads(): Promise<boolean> {
+  public async startAllChainIndexers(): Promise<boolean> {
     await this.checkAndTriggerReindexing()
 
     // Setup event listeners for all chains (they all use the same event emitter)
@@ -261,7 +261,7 @@ export class OceanIndexer {
     let count = 0
     for (const network of this.supportedChains) {
       const chainId = parseInt(network)
-      const indexer = await this.startThread(chainId)
+      const indexer = await this.startChainIndexer(chainId)
       if (indexer) {
         count++
       }
@@ -392,7 +392,7 @@ export class OceanIndexer {
       INDEXER_LOGGER.warn(
         'Indexer for chain: ' + chainId + ' is not running, starting first...'
       )
-      indexer = await this.startThread(chainId)
+      indexer = await this.startChainIndexer(chainId)
       if (!indexer) {
         INDEXER_LOGGER.error('Could not start indexer, aborting...')
         return null

@@ -39,8 +39,8 @@ export class IndexingThreadHandler extends AdminCommandHandler {
     }
     if (task.action === IndexingCommand.START_THREAD) {
       const output = task.chainId
-        ? indexer.startThread(task.chainId)
-        : indexer.startThreads()
+        ? indexer.startChainIndexer(task.chainId)
+        : indexer.startAllChainIndexers()
       return {
         status: {
           httpStatus: output ? 200 : 400,
@@ -50,8 +50,8 @@ export class IndexingThreadHandler extends AdminCommandHandler {
       }
     } else if (task.action === IndexingCommand.STOP_THREAD) {
       const output = task.chainId
-        ? indexer.stopThread(task.chainId)
-        : indexer.stopAllThreads()
+        ? indexer.stopChainIndexer(task.chainId)
+        : indexer.stopAllChainIndexers()
       return {
         status: {
           httpStatus: output ? 200 : 400,

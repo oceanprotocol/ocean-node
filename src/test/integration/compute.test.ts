@@ -1395,7 +1395,7 @@ describe('Compute', () => {
 
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
-    indexer.stopAllThreads()
+    indexer.stopAllChainIndexers()
   })
 })
 

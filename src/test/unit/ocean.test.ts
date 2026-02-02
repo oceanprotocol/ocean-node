@@ -50,7 +50,7 @@ describe('Status command tests', async () => {
   after(async () => {
     // Restore original local setup / env variables after test
     await tearDownEnvironment(envOverrides)
-    await oceanIndexer.stopAllThreads()
+    await oceanIndexer.stopAllChainIndexers()
   })
 
   it('Ocean Node instance', () => {

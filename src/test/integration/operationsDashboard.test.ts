@@ -417,6 +417,6 @@ describe('Should test admin operations', () => {
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
     INDEXER_CRAWLING_EVENT_EMITTER.removeAllListeners()
-    indexer.stopAllThreads()
+    indexer.stopAllChainIndexers()
   })
 })
