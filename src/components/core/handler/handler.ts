@@ -182,17 +182,19 @@ export abstract class CommandHandler
   ): Promise<P2PCommandResponse> {
     const oceanNode = this.getOceanNode()
     const auth = oceanNode.getAuth()
-    const isAuthRequestValid = await auth.validateAuthenticationOrToken({
-      token: authToken,
-      address,
-      nonce,
-      signature,
-      message
-    })
-    if (!isAuthRequestValid.valid) {
-      return {
-        stream: null,
-        status: { httpStatus: 401, error: isAuthRequestValid.error }
+    if (auth) {
+      const isAuthRequestValid = await auth.validateAuthenticationOrToken({
+        token: authToken,
+        address,
+        nonce,
+        signature,
+        message
+      })
+      if (!isAuthRequestValid.valid) {
+        return {
+          stream: null,
+          status: { httpStatus: 401, error: isAuthRequestValid.error }
+        }
       }
     }
 
