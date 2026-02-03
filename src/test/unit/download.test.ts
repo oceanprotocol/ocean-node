@@ -19,6 +19,7 @@ import { validateFilesStructure } from '../../components/core/handler/downloadHa
 import { AssetUtils, isConfidentialChainDDO } from '../../utils/asset.js'
 import { DEVELOPMENT_CHAIN_ID, KNOWN_CONFIDENTIAL_EVMS } from '../../utils/address.js'
 import { DDO } from '@oceanprotocol/ddo-js'
+import { Wallet, ethers } from 'ethers'
 
 let envOverrides: OverrideEnvConfig[]
 let config: OceanNodeConfig
@@ -26,6 +27,7 @@ let db: Database
 let oceanNode: OceanNode
 
 describe('Should validate files structure for download', () => {
+  let consumerAccount: Wallet
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
       [ENVIRONMENT_VARIABLES.PRIVATE_KEY],
@@ -35,6 +37,7 @@ describe('Should validate files structure for download', () => {
     config = await getConfiguration(true)
     db = await Database.init(config.dbConfig)
     oceanNode = OceanNode.getInstance(config, db)
+    consumerAccount = new Wallet(process.env.PRIVATE_KEY)
   })
 
   const ddoObj: DDO = {
@@ -81,11 +84,22 @@ describe('Should validate files structure for download', () => {
   // encrypts the assetURL using the encrypt handler (what goes into services files at publish time),
   // and decrypts the data back to the original format
   const getDecryptedData = async function () {
+    const nonce = Date.now().toString()
+    const message = String(nonce)
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await consumerAccount.signMessage(messageHashBytes)
     const result = await new EncryptHandler(oceanNode).handle({
       blob: JSON.stringify(assetURL),
       encoding: 'string',
       encryptionType: EncryptMethod.ECIES,
-      command: PROTOCOL_COMMANDS.ENCRYPT
+      command: PROTOCOL_COMMANDS.ENCRYPT,
+      nonce,
+      consumerAddress: await consumerAccount.getAddress(),
+      signature
     })
 
     const encryptedData: string = await streamToString(result.stream as Readable)
@@ -134,11 +148,22 @@ describe('Should validate files structure for download', () => {
     const newAssetURL = structuredClone(assetURL)
     newAssetURL.nftAddress = otherNFTAddress
     newAssetURL.datatokenAddress = otherDatatokenAddress
+    const nonce = Date.now().toString()
+    const message = String(nonce)
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await consumerAccount.signMessage(messageHashBytes)
     const result = await new EncryptHandler(oceanNode).handle({
       blob: JSON.stringify(newAssetURL),
       encoding: 'string',
       encryptionType: EncryptMethod.ECIES,
-      command: PROTOCOL_COMMANDS.ENCRYPT
+      command: PROTOCOL_COMMANDS.ENCRYPT,
+      nonce,
+      consumerAddress: await consumerAccount.getAddress(),
+      signature
     })
 
     const encryptedFilesData: string = await streamToString(result.stream as Readable)

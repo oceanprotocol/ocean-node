@@ -7,6 +7,7 @@ import { Readable } from 'stream'
 import { EncryptFileHandler } from '../../components/core/handler/encryptHandler.js'
 import { EncryptFileCommand } from '../../@types/commands'
 import { EncryptMethod, FileObjectType, UrlFileObject } from '../../@types/fileObject.js'
+import { JsonRpcProvider, Signer, ethers } from 'ethers'
 import fs from 'fs'
 import {
   OverrideEnvConfig,
@@ -21,6 +22,8 @@ describe('Encrypt File', () => {
   let config: OceanNodeConfig
   let oceanNode: OceanNode
   let previousConfiguration: OverrideEnvConfig[]
+  let provider: JsonRpcProvider
+  let consumerAccount: Signer
 
   before(async () => {
     previousConfiguration = await setupEnvironment(
@@ -30,14 +33,27 @@ describe('Encrypt File', () => {
         ['0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58']
       )
     )
+    provider = new JsonRpcProvider('http://127.0.0.1:8545')
+    consumerAccount = (await provider.getSigner(1)) as Signer
     config = await getConfiguration(true) // Force reload the configuration
     const dbconn = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance(config, dbconn)
   })
 
   it('should encrypt files', async () => {
+    const nonce = Date.now().toString()
+    const message = String(nonce)
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await consumerAccount.signMessage(messageHashBytes)
     const encryptFileTask: EncryptFileCommand = {
       command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
+      nonce,
+      consumerAddress: await consumerAccount.getAddress(),
+      signature,
       encryptionType: EncryptMethod.AES,
       files: {
         type: FileObjectType.URL,
@@ -63,10 +79,21 @@ describe('Encrypt File', () => {
   it('should encrypt raw data file on body (AES)', async () => {
     // should return a buffer
     const file: Buffer = fs.readFileSync('src/test/data/organizations-100.aes')
+    const nonce = Date.now().toString()
+    const message = String(nonce)
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await consumerAccount.signMessage(messageHashBytes)
     const encryptFileTask: EncryptFileCommand = {
       command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
       encryptionType: EncryptMethod.AES,
-      rawData: file
+      rawData: file,
+      nonce,
+      consumerAddress: await consumerAccount.getAddress(),
+      signature
     }
     const response = await new EncryptFileHandler(oceanNode).handle(encryptFileTask)
 
@@ -85,10 +112,21 @@ describe('Encrypt File', () => {
   it('should encrypt raw data file on body (ECIES)', async () => {
     // should return a buffer
     const file: Buffer = fs.readFileSync('src/test/data/organizations-100.aes')
+    const nonce = Date.now().toString()
+    const message = String(nonce)
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await consumerAccount.signMessage(messageHashBytes)
     const encryptFileTask: EncryptFileCommand = {
       command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
       encryptionType: EncryptMethod.ECIES,
-      rawData: file
+      rawData: file,
+      nonce,
+      consumerAddress: await consumerAccount.getAddress(),
+      signature
     }
     const response = await new EncryptFileHandler(oceanNode).handle(encryptFileTask)
 
@@ -105,6 +143,14 @@ describe('Encrypt File', () => {
   })
 
   it('should return unknown file type', async () => {
+    const nonce = Date.now().toString()
+    const message = String(nonce)
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await consumerAccount.signMessage(messageHashBytes)
     const encryptFileTask: EncryptFileCommand = {
       command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
       encryptionType: EncryptMethod.AES,
@@ -112,7 +158,10 @@ describe('Encrypt File', () => {
         type: 'Unknown',
         url: 'Unknown',
         method: 'Unknown'
-      } as UrlFileObject
+      } as UrlFileObject,
+      nonce,
+      consumerAddress: await consumerAccount.getAddress(),
+      signature
     }
     const response = await new EncryptFileHandler(oceanNode).handle(encryptFileTask)
 

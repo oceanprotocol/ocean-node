@@ -52,14 +52,18 @@ import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.j
 import { ReindexChainHandler } from '../../components/core/admin/reindexChainHandler.js'
 import { CollectFeesHandler } from '../../components/core/admin/collectFeesHandler.js'
 import { GetJobsHandler } from '../../components/core/handler/getJobs.js'
-
+import { Wallet, ethers } from 'ethers'
 describe('Commands and handlers', () => {
   let node: OceanNode
+  let consumerAccount: Wallet
+  let consumerAddress: string
   before(async () => {
     const config = await getConfiguration()
     const keyManager = new KeyManager(config)
 
     node = OceanNode.getInstance(config, null, null, null, null, keyManager, null, true)
+    consumerAccount = new Wallet(process.env.PRIVATE_KEY)
+    consumerAddress = await consumerAccount.getAddress()
   })
 
   it('Check that all supported commands have registered handlers', () => {
@@ -78,7 +82,7 @@ describe('Commands and handlers', () => {
     expect(SUPPORTED_PROTOCOL_COMMANDS.length).to.be.equal(handlers.length)
   })
 
-  it('Check that all commands are validating required parameters', () => {
+  it('Check that all commands are validating required parameters', async () => {
     // To make sure we do not forget to register anything on supported commands
 
     // downloadHandler
@@ -132,9 +136,20 @@ describe('Commands and handlers', () => {
     const encryptHandler: EncryptHandler = CoreHandlersRegistry.getInstance(
       node
     ).getHandler(PROTOCOL_COMMANDS.ENCRYPT)
+    let nonce = Date.now().toString()
+    let message = String(nonce)
+    let consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    let messageHashBytes = ethers.toBeArray(consumerMessage)
+    let signature = await consumerAccount.signMessage(messageHashBytes)
     const encryptCommand: EncryptCommand = {
       blob: '1425252525',
-      command: PROTOCOL_COMMANDS.ENCRYPT
+      command: PROTOCOL_COMMANDS.ENCRYPT,
+      nonce,
+      consumerAddress,
+      signature
     }
     expect(encryptHandler.validate(encryptCommand).valid).to.be.equal(true)
     delete encryptCommand.blob
@@ -144,9 +159,20 @@ describe('Commands and handlers', () => {
     const encryptFileHandler: EncryptFileHandler = CoreHandlersRegistry.getInstance(
       node
     ).getHandler(PROTOCOL_COMMANDS.ENCRYPT_FILE)
+    nonce = (parseFloat(nonce) + 1).toString()
+    message = String(nonce)
+    consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    messageHashBytes = ethers.toBeArray(consumerMessage)
+    signature = await consumerAccount.signMessage(messageHashBytes)
     const encryptFileCommand: EncryptFileCommand = {
       rawData: Buffer.from('12345'),
-      command: PROTOCOL_COMMANDS.ENCRYPT_FILE
+      command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
+      nonce,
+      consumerAddress,
+      signature
     }
     expect(encryptFileHandler.validate(encryptFileCommand).valid).to.be.equal(true)
     delete encryptFileCommand.rawData

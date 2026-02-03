@@ -4,7 +4,8 @@ import { EncryptCommand, EncryptFileCommand } from '../../../@types/commands.js'
 import * as base58 from 'base58-js'
 import { Readable } from 'stream'
 import { Storage } from '../../storage/index.js'
-import { getConfiguration } from '../../../utils/index.js'
+import { getConfiguration, isPolicyServerConfigured } from '../../../utils/index.js'
+import { PolicyServer } from '../../policyServer/index.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import {
   ValidateParams,
@@ -49,8 +50,40 @@ export class EncryptHandler extends CommandHandler {
 
   async handle(task: EncryptCommand): Promise<P2PCommandResponse> {
     const validationResponse = await this.verifyParamsAndRateLimits(task)
+
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
+    }
+    const isAuthRequestValid = await this.validateTokenOrSignature(
+      task.authorization,
+      task.consumerAddress,
+      task.nonce,
+      task.signature,
+      String(task.nonce)
+    )
+    if (isAuthRequestValid.status.httpStatus !== 200) {
+      return isAuthRequestValid
+    }
+
+    if (isPolicyServerConfigured()) {
+      const policyServer = new PolicyServer()
+      const response = await policyServer.checkEncrypt(
+        task.consumerAddress,
+        task.policyServer
+      )
+      if (!response) {
+        CORE_LOGGER.logMessage(
+          `Error: Encrypt for ${task.consumerAddress} was denied`,
+          true
+        )
+        return {
+          stream: null,
+          status: {
+            httpStatus: 403,
+            error: `Error: Encrypt for ${task.consumerAddress} was denied`
+          }
+        }
+      }
     }
     try {
       const oceanNode = this.getOceanNode()
@@ -112,6 +145,39 @@ export class EncryptFileHandler extends CommandHandler {
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
+    const isAuthRequestValid = await this.validateTokenOrSignature(
+      task.authorization,
+      task.consumerAddress,
+      task.nonce,
+      task.signature,
+      String(task.nonce)
+    )
+    if (isAuthRequestValid.status.httpStatus !== 200) {
+      return isAuthRequestValid
+    }
+
+    if (isPolicyServerConfigured()) {
+      const policyServer = new PolicyServer()
+      const response = await policyServer.checkEncryptFile(
+        task.consumerAddress,
+        task.policyServer,
+        task.files
+      )
+      if (!response) {
+        CORE_LOGGER.logMessage(
+          `Error: EncryptFile for ${task.consumerAddress} was denied`,
+          true
+        )
+        return {
+          stream: null,
+          status: {
+            httpStatus: 403,
+            error: `Error: EncryptFile for ${task.consumerAddress} was denied`
+          }
+        }
+      }
+    }
+
     try {
       const oceanNode = this.getOceanNode()
       const config = await getConfiguration()
