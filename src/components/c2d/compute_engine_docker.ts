@@ -62,8 +62,8 @@ export class C2DEngineDocker extends C2DEngine {
   private isInternalLoopRunning: boolean = false
   private imageCleanupTimer: NodeJS.Timeout | null = null
   private static DEFAULT_DOCKER_REGISTRY = 'https://registry-1.docker.io'
-  private retentionDays: number = 7
-  private cleanupInterval: number = 86400000 // 24 hours
+  private retentionDays: number
+  private cleanupInterval: number
 
   public constructor(
     clusterConfig: C2DClusterInfo,
