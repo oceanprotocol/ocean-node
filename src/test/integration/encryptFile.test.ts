@@ -7,7 +7,7 @@ import { Readable } from 'stream'
 import { EncryptFileHandler } from '../../components/core/handler/encryptHandler.js'
 import { EncryptFileCommand } from '../../@types/commands'
 import { EncryptMethod, FileObjectType, UrlFileObject } from '../../@types/fileObject.js'
-import { JsonRpcProvider, Signer, ethers } from 'ethers'
+import { Wallet, ethers } from 'ethers'
 import fs from 'fs'
 import {
   OverrideEnvConfig,
@@ -22,8 +22,6 @@ describe('Encrypt File', () => {
   let config: OceanNodeConfig
   let oceanNode: OceanNode
   let previousConfiguration: OverrideEnvConfig[]
-  let provider: JsonRpcProvider
-  let consumerAccount: Signer
   let anotherConsumerWallet: Wallet
 
   before(async () => {
@@ -34,12 +32,10 @@ describe('Encrypt File', () => {
         ['0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58']
       )
     )
-    provider = new JsonRpcProvider('http://127.0.0.1:8545')
-    consumerAccount = (await provider.getSigner(1)) as Signer
     config = await getConfiguration(true) // Force reload the configuration
     const dbconn = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance(config, dbconn)
-    const anotherConsumerWallet = new ethers.Wallet(
+    anotherConsumerWallet = new ethers.Wallet(
       '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
     )
   })
