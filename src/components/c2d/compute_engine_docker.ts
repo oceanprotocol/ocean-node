@@ -59,7 +59,11 @@ export class C2DEngineDocker extends C2DEngine {
   private cronTimer: any
   private cronTime: number = 2000
   private jobImageSizes: Map<string, number> = new Map()
+  private isInternalLoopRunning: boolean = false
+  private imageCleanupTimer: NodeJS.Timeout | null = null
   private static DEFAULT_DOCKER_REGISTRY = 'https://registry-1.docker.io'
+  private retentionDays: number = 7
+  private cleanupInterval: number = 86400000 // 24 hours
 
   public constructor(
     clusterConfig: C2DClusterInfo,
@@ -77,6 +81,8 @@ export class C2DEngineDocker extends C2DEngine {
         CORE_LOGGER.error('Could not create Docker container: ' + e.message)
       }
     }
+    this.retentionDays = clusterConfig.connection.imageRetentionDays || 7
+    this.cleanupInterval = clusterConfig.connection.imageCleanupInterval || 86400 // 24 hours
     if (
       clusterConfig.connection.protocol &&
       clusterConfig.connection.host &&
@@ -278,6 +284,96 @@ export class C2DEngineDocker extends C2DEngine {
     if (!this.cronTimer) {
       this.setNewTimer()
     }
+    // Start image cleanup timer
+    this.startImageCleanupTimer()
+  }
+
+  public override stop(): Promise<void> {
+    // Clear the timer and reset the flag
+    if (this.cronTimer) {
+      clearTimeout(this.cronTimer)
+      this.cronTimer = null
+    }
+    this.isInternalLoopRunning = false
+    // Stop image cleanup timer
+    if (this.imageCleanupTimer) {
+      clearInterval(this.imageCleanupTimer)
+      this.imageCleanupTimer = null
+      CORE_LOGGER.debug('Image cleanup timer stopped')
+    }
+    return Promise.resolve()
+  }
+
+  public async updateImageUsage(image: string): Promise<void> {
+    try {
+      await this.db.updateImage(image)
+    } catch (e) {
+      CORE_LOGGER.error(`Failed to update image usage for ${image}: ${e.message}`)
+    }
+  }
+
+  private async cleanupOldImages(): Promise<void> {
+    if (!this.docker) return
+
+    try {
+      const oldImages = await this.db.getOldImages(this.retentionDays)
+      if (oldImages.length === 0) {
+        CORE_LOGGER.debug('No old images to clean up')
+        return
+      }
+
+      CORE_LOGGER.info(`Starting cleanup of ${oldImages.length} old Docker images`)
+      let cleaned = 0
+      let failed = 0
+
+      for (const image of oldImages) {
+        try {
+          const dockerImage = this.docker.getImage(image)
+          await dockerImage.remove({ force: true })
+          cleaned++
+          CORE_LOGGER.info(`Successfully removed old image: ${image}`)
+        } catch (e) {
+          failed++
+          // Image might be in use or already deleted - log but don't throw
+          CORE_LOGGER.debug(`Could not remove image ${image}: ${e.message}`)
+        }
+      }
+
+      CORE_LOGGER.info(
+        `Image cleanup completed: ${cleaned} removed, ${failed} failed (may be in use)`
+      )
+    } catch (e) {
+      CORE_LOGGER.error(`Error during image cleanup: ${e.message}`)
+    }
+  }
+
+  private startImageCleanupTimer(): void {
+    if (this.imageCleanupTimer) {
+      return // Already running
+    }
+
+    if (!this.docker) {
+      CORE_LOGGER.debug('Docker not available, skipping image cleanup timer')
+      return
+    }
+
+    // Run initial cleanup after a short delay
+    setTimeout(() => {
+      this.cleanupOldImages().catch((e) => {
+        CORE_LOGGER.error(`Initial image cleanup failed: ${e.message}`)
+      })
+    }, 60000) // Wait 1 minute after start
+
+    // Set up periodic cleanup
+    this.imageCleanupTimer = setInterval(() => {
+      this.cleanupOldImages().catch((e) => {
+        CORE_LOGGER.error(`Periodic image cleanup failed: ${e.message}`)
+      })
+    }, this.cleanupInterval * 1000)
+
+    CORE_LOGGER.info(
+      `Image cleanup timer started (interval: ${this.cleanupInterval / 60} minutes)`
+    )
   }
 
   // eslint-disable-next-line require-await
@@ -817,6 +913,17 @@ export class C2DEngineDocker extends C2DEngine {
   private async InternalLoop() {
     // this is the internal loop of docker engine
     // gets list of all running jobs and process them one by one
+
+    // Prevent concurrent execution
+    if (this.isInternalLoopRunning) {
+      CORE_LOGGER.debug(
+        `InternalLoop already running for engine ${this.getC2DConfig().hash}, skipping this execution`
+      )
+      return
+    }
+
+    this.isInternalLoopRunning = true
+
     if (this.cronTimer) {
       clearTimeout(this.cronTimer)
       this.cronTimer = null
@@ -826,22 +933,26 @@ export class C2DEngineDocker extends C2DEngine {
       const jobs = await this.db.getRunningJobs(this.getC2DConfig().hash)
 
       if (jobs.length === 0) {
-        CORE_LOGGER.info('No C2D jobs found for engine ' + this.getC2DConfig().hash)
-        this.setNewTimer()
-        return
+        CORE_LOGGER.debug('No C2D jobs found for engine ' + this.getC2DConfig().hash)
       } else {
-        CORE_LOGGER.info(`Got ${jobs.length} jobs for engine ${this.getC2DConfig().hash}`)
-        CORE_LOGGER.debug(JSON.stringify(jobs))
+        CORE_LOGGER.debug(
+          `Got ${jobs.length} jobs for engine ${this.getC2DConfig().hash}`
+        )
       }
-      const promises: any = []
-      for (const job of jobs) {
-        promises.push(this.processJob(job))
+
+      if (jobs.length > 0) {
+        const promises: any = []
+        for (const job of jobs) {
+          promises.push(this.processJob(job))
+        }
+        // wait for all promises, there is no return
+        await Promise.all(promises)
       }
-      // wait for all promises, there is no return
-      await Promise.all(promises)
     } catch (e) {
       CORE_LOGGER.error(`Error in C2D InternalLoop: ${e.message}`)
     } finally {
+      // Reset the flag before setting the timer
+      this.isInternalLoopRunning = false
       // set the cron again
       this.setNewTimer()
     }
@@ -1356,7 +1467,7 @@ export class C2DEngineDocker extends C2DEngine {
         }
       }
     } catch (e) {
-      // console.error('Container volume not found! ' + e.message)
+      CORE_LOGGER.error('Container volume not found! ' + e.message)
     }
     if (job.algorithm?.meta.container && job.algorithm?.meta.container.dockerfile) {
       const image = getAlgorithmImage(job.algorithm, job.jobId)
@@ -1547,6 +1658,10 @@ export class C2DEngineDocker extends C2DEngine {
             const logText = `Successfully pulled image: ${job.containerImage}`
             CORE_LOGGER.debug(logText)
             appendFileSync(imageLogFile, logText + '\n')
+            // Track image usage
+            this.updateImageUsage(job.containerImage).catch((e) => {
+              CORE_LOGGER.debug(`Failed to track image usage: ${e.message}`)
+            })
             resolve(res)
           },
           (progress: any) => {
@@ -1621,7 +1736,6 @@ export class C2DEngineDocker extends C2DEngine {
       await new Promise<void>((resolve, reject) => {
         buildStream.on('end', () => {
           CORE_LOGGER.debug(`Image '${job.containerImage}' built successfully.`)
-
           resolve()
         })
         buildStream.on('error', (err) => {

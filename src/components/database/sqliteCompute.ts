@@ -19,6 +19,8 @@ interface ComputeDatabaseProvider {
     fromTimestamp?: string,
     consumerAddrs?: string[]
   ): Promise<DBComputeJob[]>
+  updateImage(image: string): Promise<void>
+  getOldImages(retentionDays: number): Promise<string[]>
 }
 
 function getInternalStructure(job: DBComputeJob): any {
@@ -119,6 +121,66 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       this.db.run(createTableSQL, (err) => {
         if (err) reject(err)
         else resolve()
+      })
+    })
+  }
+
+  createImageTable(): Promise<void> {
+    const createTableSQL = `
+      CREATE TABLE IF NOT EXISTS docker_images (
+        image TEXT PRIMARY KEY,
+        lastUsedTimestamp INTEGER NOT NULL
+      );
+    `
+    return new Promise<void>((resolve, reject) => {
+      this.db.run(createTableSQL, (err) => {
+        if (err) {
+          DATABASE_LOGGER.error('Could not create docker_images table: ' + err.message)
+          reject(err)
+        } else {
+          resolve()
+        }
+      })
+    })
+  }
+
+  updateImage(image: string): Promise<void> {
+    const timestamp = Math.floor(Date.now() / 1000) // Unix timestamp in seconds
+    const insertSQL = `
+      INSERT OR REPLACE INTO docker_images (image, lastUsedTimestamp)
+      VALUES (?, ?);
+    `
+    return new Promise<void>((resolve, reject) => {
+      this.db.run(insertSQL, [image, timestamp], (err) => {
+        if (err) {
+          DATABASE_LOGGER.error(
+            `Could not update image usage for ${image}: ${err.message}`
+          )
+          reject(err)
+        } else {
+          DATABASE_LOGGER.debug(`Updated image usage timestamp for ${image}`)
+          resolve()
+        }
+      })
+    })
+  }
+
+  getOldImages(retentionDays: number = 7): Promise<string[]> {
+    const cutoffTimestamp = Math.floor(Date.now() / 1000) - retentionDays * 24 * 60 * 60
+    const selectSQL = `
+      SELECT image FROM docker_images
+      WHERE lastUsedTimestamp < ?
+      ORDER BY lastUsedTimestamp ASC;
+    `
+    return new Promise<string[]>((resolve, reject) => {
+      this.db.all(selectSQL, [cutoffTimestamp], (err, rows: any[] | undefined) => {
+        if (err) {
+          DATABASE_LOGGER.error(`Could not get old images: ${err.message}`)
+          reject(err)
+        } else {
+          const images = rows ? rows.map((row) => row.image) : []
+          resolve(images)
+        }
       })
     })
   }
@@ -307,7 +369,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
             })
             resolve(filtered)
           } else {
-            DATABASE_LOGGER.info('Could not find any running C2D jobs!')
+            // DATABASE_LOGGER.info('Could not find any running C2D jobs!')
             resolve([])
           }
         }
