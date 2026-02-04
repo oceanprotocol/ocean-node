@@ -913,8 +913,8 @@ export class OceanP2P extends EventEmitter {
     const cid = await cidFromRawString(input)
     const peersFound = []
     try {
-      // @ts-ignore ignore the type mismatch
-      const f = await this._libp2p.contentRouting.findProviders(cid, {
+      const f = this._libp2p.contentRouting.findProviders(cid, {
+        // @ts-ignore ignore the type mismatch
         queryFuncTimeout: timeout || 20000 // 20 seconds
         // on timeout the query ends with an abort signal => CodeError: Query aborted
       })

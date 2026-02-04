@@ -214,8 +214,6 @@ export class UrlStorage extends Storage {
       encryptMethod: fileObject.encryptMethod
     }
   }
-
-
 }
 
 export class ArweaveStorage extends Storage {
