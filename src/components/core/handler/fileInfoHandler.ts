@@ -20,6 +20,7 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { getFile } from '../../../utils/file.js'
 import { getConfiguration } from '../../../utils/index.js'
+
 async function formatMetadata(
   file: ArweaveFileObject | IpfsFileObject | UrlFileObject,
   config: OceanNodeConfig
@@ -32,11 +33,13 @@ async function formatMetadata(
         : file.type === 'ipfs'
           ? urlJoin(config.ipfsGateway, (file as IpfsFileObject).hash)
           : null
+  const headers = file.type === 'url' ? (file as UrlFileObject).headers : undefined
 
   const { contentLength, contentType, contentChecksum } = await fetchFileMetadata(
     url,
     'get',
-    false
+    false,
+    headers ? headers[0] : undefined
   )
   CORE_LOGGER.logMessage(`Metadata for file: ${contentLength} ${contentType}`)
 

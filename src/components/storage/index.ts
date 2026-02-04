@@ -43,9 +43,11 @@ export abstract class Storage {
   // similar to all subclasses
   async getReadableStream(): Promise<StorageReadable> {
     const input = this.getDownloadUrl()
+    const file = this.getFile() as UrlFileObject
     const response = await axios({
       method: 'get',
       url: input,
+      headers: file.headers ? file.headers[0] : undefined,
       responseType: 'stream',
       timeout: 30000
     })
@@ -194,11 +196,12 @@ export class UrlStorage extends Storage {
     fileObject: UrlFileObject,
     forceChecksum: boolean
   ): Promise<FileInfoResponse> {
-    const { url, method } = fileObject
+    const { url, method, headers } = fileObject
     const { contentLength, contentType, contentChecksum } = await fetchFileMetadata(
       url,
       method,
-      forceChecksum
+      forceChecksum,
+      headers ? headers[0] : undefined
     )
     return {
       valid: true,
@@ -211,6 +214,8 @@ export class UrlStorage extends Storage {
       encryptMethod: fileObject.encryptMethod
     }
   }
+
+
 }
 
 export class ArweaveStorage extends Storage {

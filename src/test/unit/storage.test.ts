@@ -171,6 +171,18 @@ describe('URL Storage tests', () => {
     const stream = await storage.getReadableStream()
     expect(stream).not.to.eql(null)
   })
+
+  it('Gets readable stream with headers', async () => {
+    file = {
+      type: 'url',
+      url: 'https://stock-api.oceanprotocol.com/stock/stock.json',
+      method: 'get',
+      headers: [{ 'X-Test-Header': 'test' }]
+    }
+    const storage = Storage.getStorageClass(file, config)
+    const stream = await storage.getReadableStream()
+    expect(stream).not.to.eql(null)
+  })
 })
 
 describe('Unsafe URL tests', () => {
