@@ -54,7 +54,12 @@ export async function getAlgoChecksums(
               : null
       const headers = file.type === 'url' ? (file as UrlFileObject).headers : undefined
 
-      const { contentChecksum } = await fetchFileMetadata(url, 'get', false, headers ? headers[0] : undefined)
+      const { contentChecksum } = await fetchFileMetadata(
+        url,
+        'get',
+        false,
+        headers ? headers[0] : undefined
+      )
       checksums.files = checksums.files.concat(contentChecksum)
     }
 
