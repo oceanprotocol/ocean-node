@@ -29,12 +29,10 @@ describe('URL Storage tests', () => {
     type: 'url',
     url: 'http://someUrl.com/file.json',
     method: 'get',
-    headers: [
-      {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer auth_token_X'
-      }
-    ],
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer auth_token_X'
+    },
     encryptedBy: nodeId,
     encryptMethod: EncryptMethod.AES
   }
@@ -70,12 +68,10 @@ describe('URL Storage tests', () => {
     file = {
       type: 'url',
       method: 'get',
-      headers: [
-        {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer auth_token_X'
-        }
-      ]
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer auth_token_X'
+      }
     }
     try {
       Storage.getStorageClass(file, config)
@@ -88,12 +84,10 @@ describe('URL Storage tests', () => {
     file = {
       type: 'url',
       url: 'http://someUrl.com/file.json',
-      headers: [
-        {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer auth_token_X'
-        }
-      ]
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer auth_token_X'
+      }
     }
     try {
       Storage.getStorageClass(file, config)
@@ -109,12 +103,10 @@ describe('URL Storage tests', () => {
       type: 'url',
       url: 'http://someUrl.com/file.json',
       method: 'put',
-      headers: [
-        {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer auth_token_X'
-        }
-      ]
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer auth_token_X'
+      }
     }
     try {
       Storage.getStorageClass(file, config)
@@ -129,12 +121,10 @@ describe('URL Storage tests', () => {
       type: 'url',
       url: './../dir/file.json',
       method: 'get',
-      headers: [
-        {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer auth_token_X'
-        }
-      ]
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer auth_token_X'
+      }
     }
     try {
       Storage.getStorageClass(file, config)
@@ -150,12 +140,10 @@ describe('URL Storage tests', () => {
       type: 'url',
       url: 'http://someUrl.com/file.json',
       method: 'get',
-      headers: [
-        {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer auth_token_X'
-        }
-      ]
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer auth_token_X'
+      }
     }
     storage = Storage.getStorageClass(file, config)
     expect(storage.getDownloadUrl()).to.eql('http://someUrl.com/file.json')
@@ -172,12 +160,12 @@ describe('URL Storage tests', () => {
     expect(stream).not.to.eql(null)
   })
 
-  it('Gets readable stream with headers', async () => {
+  it('Gets readable stream with headers as plain object', async () => {
     file = {
       type: 'url',
       url: 'https://stock-api.oceanprotocol.com/stock/stock.json',
       method: 'get',
-      headers: [{ 'X-Test-Header': 'test' }]
+      headers: { 'X-Test-Header': 'test' }
     }
     const storage = Storage.getStorageClass(file, config)
     const stream = await storage.getReadableStream()

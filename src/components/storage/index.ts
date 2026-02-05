@@ -151,10 +151,11 @@ export class UrlStorage extends Storage {
   async getReadableStream(): Promise<StorageReadable> {
     const input = this.getDownloadUrl()
     const file = this.getFile()
+    const { headers } = file
     const response = await axios({
       method: 'get',
       url: input,
-      headers: file.headers ? file.headers[0] : undefined,
+      headers,
       responseType: 'stream',
       timeout: 30000
     })
@@ -215,9 +216,9 @@ export class UrlStorage extends Storage {
     const { url, method, headers } = fileObject
     const { contentLength, contentType, contentChecksum } = await fetchFileMetadata(
       url,
-      method,
+      method || 'get',
       forceChecksum,
-      headers ? headers[0] : undefined
+      headers
     )
     return {
       valid: true,
