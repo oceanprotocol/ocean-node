@@ -9,6 +9,7 @@ import { KNOWN_CONFIDENTIAL_EVMS } from './address.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/interfaces/IERC20Template.sol/IERC20Template.json' with { type: 'json' }
 import ERC20Template4 from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template4.sol/ERC20Template4.json' with { type: 'json' }
 import { getContractAddress, getNFTFactory } from '../components/Indexer/utils.js'
+import { HeadersObject } from '../@types/fileObject.js'
 
 // Notes:
 // Asset as per asset.py on provider, is a class there, while on ocean.Js we only have a type
@@ -44,7 +45,8 @@ export const AssetUtils = {
 export async function fetchFileMetadata(
   url: string,
   method: string,
-  forceChecksum: boolean
+  forceChecksum: boolean,
+  headers?: HeadersObject
 ): Promise<{ contentLength: string; contentType: string; contentChecksum: string }> {
   let contentType: string = ''
   let contentLength: number = 0
@@ -56,6 +58,7 @@ export async function fetchFileMetadata(
     const response = await axios({
       url,
       method: method || 'get',
+      headers,
       responseType: 'stream',
       timeout: 30000
     })
@@ -143,7 +146,7 @@ export async function isERC20Template4Active(
 ): Promise<boolean> {
   try {
     const nftFactoryAddress = getContractAddress(network, 'ERC721Factory')
-    const factoryERC721 = await getNFTFactory(owner, nftFactoryAddress)
+    const factoryERC721 = getNFTFactory(owner, nftFactoryAddress)
     const currentTokenCount = await factoryERC721.getCurrentTemplateCount()
 
     for (let i = 1; i <= currentTokenCount; i++) {

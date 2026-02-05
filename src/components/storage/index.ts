@@ -148,6 +148,24 @@ export class UrlStorage extends Storage {
     }
   }
 
+  async getReadableStream(): Promise<StorageReadable> {
+    const input = this.getDownloadUrl()
+    const file = this.getFile()
+    const response = await axios({
+      method: 'get',
+      url: input,
+      headers: file.headers ? file.headers[0] : undefined,
+      responseType: 'stream',
+      timeout: 30000
+    })
+
+    return {
+      httpStatus: response.status,
+      stream: response.data,
+      headers: response.headers as any
+    }
+  }
+
   validate(): [boolean, string] {
     const file: UrlFileObject = this.getFile() as UrlFileObject
     if (!file.url || !file.method) {
@@ -194,11 +212,12 @@ export class UrlStorage extends Storage {
     fileObject: UrlFileObject,
     forceChecksum: boolean
   ): Promise<FileInfoResponse> {
-    const { url, method } = fileObject
+    const { url, method, headers } = fileObject
     const { contentLength, contentType, contentChecksum } = await fetchFileMetadata(
       url,
       method,
-      forceChecksum
+      forceChecksum,
+      headers ? headers[0] : undefined
     )
     return {
       valid: true,

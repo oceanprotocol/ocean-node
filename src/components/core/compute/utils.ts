@@ -52,8 +52,14 @@ export async function getAlgoChecksums(
             : file.type === 'ipfs'
               ? urlJoin(config.ipfsGateway, (file as IpfsFileObject).hash)
               : null
+      const headers = file.type === 'url' ? (file as UrlFileObject).headers : undefined
 
-      const { contentChecksum } = await fetchFileMetadata(url, 'get', false)
+      const { contentChecksum } = await fetchFileMetadata(
+        url,
+        'get',
+        false,
+        headers ? headers[0] : undefined
+      )
       checksums.files = checksums.files.concat(contentChecksum)
     }
 
