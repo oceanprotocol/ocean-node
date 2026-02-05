@@ -4,6 +4,7 @@ import { CoreHandlersRegistry } from '../../components/core/handler/coreHandlers
 import { BaseHandler } from '../../components/core/handler/handler.js'
 import { getConfiguration } from '../../utils/config.js'
 import { OceanNode } from '../../OceanNode.js'
+import { Database } from '../../components/database/index.js'
 import { KeyManager } from '../../components/KeyManager/index.js'
 import {
   ComputeGetEnvironmentsCommand,
@@ -60,8 +61,8 @@ describe('Commands and handlers', () => {
   before(async () => {
     const config = await getConfiguration()
     const keyManager = new KeyManager(config)
-
-    node = OceanNode.getInstance(config, null, null, null, null, keyManager, null, true)
+    const db = await Database.init(config.dbConfig)
+    node = OceanNode.getInstance(config, db, null, null, null, keyManager, null, true)
     consumerAccount = new Wallet(process.env.PRIVATE_KEY)
     consumerAddress = await consumerAccount.getAddress()
   })
