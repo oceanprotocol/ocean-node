@@ -43,11 +43,9 @@ export abstract class Storage {
   // similar to all subclasses
   async getReadableStream(): Promise<StorageReadable> {
     const input = this.getDownloadUrl()
-    const file = this.getFile() as UrlFileObject
     const response = await axios({
       method: 'get',
       url: input,
-      headers: file.headers ? file.headers[0] : undefined,
       responseType: 'stream',
       timeout: 30000
     })
@@ -147,6 +145,24 @@ export class UrlStorage extends Storage {
     const [isValid, message] = this.validate()
     if (isValid === false) {
       throw new Error(`Error validating the URL file: ${message}`)
+    }
+  }
+
+  async getReadableStream(): Promise<StorageReadable> {
+    const input = this.getDownloadUrl()
+    const file = this.getFile()
+    const response = await axios({
+      method: 'get',
+      url: input,
+      headers: file.headers ? file.headers[0] : undefined,
+      responseType: 'stream',
+      timeout: 30000
+    })
+
+    return {
+      httpStatus: response.status,
+      stream: response.data,
+      headers: response.headers as any
     }
   }
 
