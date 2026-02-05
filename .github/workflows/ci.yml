@@ -122,9 +122,9 @@ jobs:
         if: ${{ env.DOCKERHUB_PASSWORD && env.DOCKERHUB_USERNAME }}
         run: |
           echo "Login to Docker Hub";echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
-          env:
-              DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-              DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
       - name: Run Barge
         working-directory: ${{ github.workspace }}/barge
         run: |
