@@ -1,6 +1,7 @@
 import { DDO } from '@oceanprotocol/ddo-js'
 import { PolicyServerResult } from '../../@types/policyServer.js'
 import { isDefined } from '../../utils/util.js'
+import { BaseFileObject } from '../../@types/fileObject.js'
 
 export class PolicyServer {
   serverUrl: string
@@ -65,6 +66,32 @@ export class PolicyServer {
       chainId,
       txId,
       eventRaw
+    }
+    return await this.askServer(command)
+  }
+
+  async checkEncrypt(
+    consumerAddress: string,
+    policyServer: any
+  ): Promise<PolicyServerResult> {
+    const command = {
+      action: 'encrypt',
+      consumerAddress,
+      policyServer
+    }
+    return await this.askServer(command)
+  }
+
+  async checkEncryptFile(
+    consumerAddress: string,
+    policyServer: any,
+    files?: BaseFileObject
+  ): Promise<PolicyServerResult> {
+    const command = {
+      action: 'encryptFile',
+      consumerAddress,
+      policyServer,
+      files
     }
     return await this.askServer(command)
   }

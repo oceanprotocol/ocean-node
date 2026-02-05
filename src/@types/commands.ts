@@ -120,16 +120,23 @@ export interface DecryptDDOCommand extends Command {
 }
 
 export interface EncryptCommand extends Command {
+  nonce: string
+  consumerAddress: string
+  signature: string
   blob: string
   encoding?: string
   encryptionType?: EncryptMethod.AES | EncryptMethod.ECIES
+  policyServer?: any // object to pass to policy server
 }
 
 export interface EncryptFileCommand extends Command {
+  nonce: string
+  consumerAddress: string
+  signature: string
   encryptionType?: EncryptMethod.AES | EncryptMethod.ECIES
   files?: BaseFileObject
   rawData?: Buffer
-  // UrlFileObject | ArweaveFileObject | IpfsFileObject
+  policyServer?: any // object to pass to policy server
 }
 
 export interface NonceCommand extends Command {

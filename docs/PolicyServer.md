@@ -95,6 +95,18 @@ Called whenever a new encrypt command is received by Ocean Node
 }
 ```
 
+### encryptFile
+
+Called whenever a new encryptFile command is received by Ocean Node
+
+```json
+{
+  "action": "encrypt",
+  "policyServer": {},
+  "file"?: object
+}
+```
+
 ### decrypt
 
 Called whenever a new decrypt command is received by Ocean Node
