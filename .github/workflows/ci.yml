@@ -122,9 +122,9 @@ jobs:
         if: ${{ env.DOCKERHUB_PASSWORD && env.DOCKERHUB_USERNAME }}
         run: |
           echo "Login to Docker Hub";echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
-          env:
-              DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-              DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
       - name: Run Barge
         working-directory: ${{ github.workspace }}/barge
         run: |
@@ -145,6 +145,19 @@ jobs:
       - name: docker logs
         run: docker logs ocean-ocean-contracts-1 && docker logs ocean-typesense-1
         if: ${{ failure() }}
+      - name: Set DOCKER_REGISTRY_AUTHS from Docker Hub secrets
+        if: env.DOCKERHUB_USERNAME && env.DOCKERHUB_PASSWORD
+        run: |
+          DOCKER_REGISTRY_AUTHS=$(jq -n \
+            --arg username "$DOCKERHUB_USERNAME" \
+            --arg password "$DOCKERHUB_PASSWORD" \
+            '{ "https://registry-1.docker.io": { "username": $username, "password": $password } }')
+          echo "DOCKER_REGISTRY_AUTHS<<EOF" >> $GITHUB_ENV
+          echo "$DOCKER_REGISTRY_AUTHS" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
       - name: integration tests
         run: npm run test:integration:cover
         env:
@@ -162,6 +175,7 @@ jobs:
           FEE_AMOUNT: '{ "amount": 1, "unit": "MB" }'
           ASSET_PURGATORY_URL: 'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json'
           ACCOUNT_PURGATORY_URL: 'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-accounts.json'
+          DOCKER_REGISTRY_AUTHS: ${{ env.DOCKER_REGISTRY_AUTHS }}
       - name: docker logs
         run: docker logs ocean-ocean-contracts-1 && docker logs ocean-typesense-1
         if: ${{ failure() }}
@@ -237,7 +251,19 @@ jobs:
           repository: 'oceanprotocol/ocean-node'
           path: 'ocean-node'
           ref: ${{ github.event_name == 'pull_request' && github.head_ref || 'main' }}
-
+      - name: Set DOCKER_REGISTRY_AUTHS from Docker Hub secrets
+        if: env.DOCKERHUB_USERNAME && env.DOCKERHUB_PASSWORD
+        run: |
+          DOCKER_REGISTRY_AUTHS=$(jq -n \
+            --arg username "$DOCKERHUB_USERNAME" \
+            --arg password "$DOCKERHUB_PASSWORD" \
+            '{ "https://registry-1.docker.io": { "username": $username, "password": $password } }')
+          echo "DOCKER_REGISTRY_AUTHS<<EOF" >> $GITHUB_ENV
+          echo "$DOCKER_REGISTRY_AUTHS" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
       - name: Start Ocean Node
         working-directory: ${{ github.workspace }}/ocean-node
         run: |
@@ -265,6 +291,7 @@ jobs:
           MAX_REQ_PER_MINUTE: 320
           MAX_CONNECTIONS_PER_MINUTE: 320
           DOCKER_COMPUTE_ENVIRONMENTS: '[{"socketPath":"/var/run/docker.sock","resources":[{"id":"disk","total":10}],"storageExpiry":604800,"maxJobDuration":3600,"minJobDuration": 60,"fees":{"8996":[{"prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"minJobDuration": 10,"maxJobs":3,"resources":[{"id":"cpu","max":1},{"id":"ram","max":1},{"id":"disk","max":1}]}}]'
+          DOCKER_REGISTRY_AUTHS: ${{ env.DOCKER_REGISTRY_AUTHS }}
       - name: Check Ocean Node is running
         run: |
           for i in $(seq 1 90); do
