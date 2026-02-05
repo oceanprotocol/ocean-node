@@ -31,7 +31,7 @@ export const ENV_TO_CONFIG_MAPPING = {
   ALLOWED_ADMINS: 'allowedAdmins',
   ALLOWED_ADMINS_LIST: 'allowedAdminsList',
   DOCKER_COMPUTE_ENVIRONMENTS: 'dockerComputeEnvironments',
-  DOCKER_REGISTRY_AUTHS: 'dockerRegistryAuth',
+  DOCKER_REGISTRY_AUTHS: 'dockerRegistrysAuth',
   P2P_BOOTSTRAP_NODES: 'p2pConfig.bootstrapNodes',
   P2P_BOOTSTRAP_TIMEOUT: 'p2pConfig.bootstrapTimeout',
   P2P_BOOTSTRAP_TAGNAME: 'p2pConfig.bootstrapTagName',

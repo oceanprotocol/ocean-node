@@ -495,7 +495,9 @@ export class C2DEngineDocker extends C2DEngine {
             `${dockerRegistryAuth.username}:${dockerRegistryAuth.password}`
           ).toString('base64')
       headers.Authorization = `Basic ${authString}`
-      CORE_LOGGER.debug(`Using docker registry auth for ${registry}`)
+      CORE_LOGGER.debug(
+        `Using docker registry auth for ${registry} to get manifest for image ${image}`
+      )
     }
 
     let response = await fetch(url, { headers })
@@ -1706,7 +1708,9 @@ export class C2DEngineDocker extends C2DEngine {
                 password: dockerRegistryAuth.password
               })
         }
-        CORE_LOGGER.debug(`Using docker registry auth for ${registry}`)
+        CORE_LOGGER.debug(
+          `Using docker registry auth for ${registry} to pull image ${job.containerImage}`
+        )
       }
 
       const pullStream = await this.docker.pull(job.containerImage, pullOptions)
