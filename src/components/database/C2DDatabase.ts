@@ -26,6 +26,7 @@ export class C2DDatabase extends AbstractDatabase {
       }
       this.provider = new SQLiteCompute('databases/c2dDatabase.sqlite')
       await this.provider.createTable()
+      await this.provider.createImageTable()
 
       return this
     })() as unknown as C2DDatabase
@@ -81,6 +82,14 @@ export class C2DDatabase extends AbstractDatabase {
     consumerAddrs?: string[]
   ): Promise<DBComputeJob[]> {
     return await this.provider.getJobs(environments, fromTimestamp, consumerAddrs)
+  }
+
+  async updateImage(image: string): Promise<void> {
+    return await this.provider.updateImage(image)
+  }
+
+  async getOldImages(retentionDays: number): Promise<string[]> {
+    return await this.provider.getOldImages(retentionDays)
   }
 
   /**

@@ -137,6 +137,8 @@ The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of
 [
   {
     "socketPath": "/var/run/docker.sock",
+    "imageRetentionDays": 7,
+    "imageCleanupInterval": 86400,
     "resources": [
       {
         "id": "disk",
@@ -193,6 +195,8 @@ The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of
 #### Configuration Options
 
 - **socketPath**: Path to the Docker socket (e.g., docker.sock).
+- **imageRetentionDays** - how long docker images are kept, in days. Default: 7
+- **imageCleanupInterval** - how often to run cleanup for docker images, in seconds. Min: 3600 (1hour), Default: 86400 (24 hours)
 - **storageExpiry**: Amount of seconds for storage expiry.(Mandatory)
 - **maxJobDuration**: Maximum duration in seconds for a job.(Mandatory)
 - **minJobDuration**: Minimum duration in seconds for a job.(Mandatory)

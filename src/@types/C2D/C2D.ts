@@ -142,6 +142,8 @@ export interface C2DDockerConfig {
   resources?: ComputeResource[] // optional, owner can overwrite
   free?: ComputeEnvironmentFreeOptions
   access: ComputeAccessList
+  imageRetentionDays?: number // Default: 7 days
+  imageCleanupInterval?: number // Default: 86400 seconds (24 hours)
 }
 
 export type ComputeResultType =
