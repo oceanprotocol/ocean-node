@@ -58,7 +58,7 @@ export async function getAlgoChecksums(
         url,
         'get',
         false,
-        headers ? headers[0] : undefined
+        headers
       )
       checksums.files = checksums.files.concat(contentChecksum)
     }

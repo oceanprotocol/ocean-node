@@ -19,7 +19,7 @@ export interface BaseFileObject {
 export interface UrlFileObject extends BaseFileObject {
   url: string
   method: string
-  headers?: [HeadersObject]
+  headers?: HeadersObject
 }
 
 export interface IpfsFileObject extends BaseFileObject {

@@ -39,7 +39,7 @@ async function formatMetadata(
     url,
     'get',
     false,
-    headers ? headers[0] : undefined
+    headers
   )
   CORE_LOGGER.logMessage(`Metadata for file: ${contentLength} ${contentType}`)
 
