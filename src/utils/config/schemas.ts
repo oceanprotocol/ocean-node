@@ -84,11 +84,28 @@ export const OceanNodeDBConfigSchema = z.object({
   dbType: z.string().nullable()
 })
 
-export const DockerRegistryAuthSchema = z.object({
-  username: z.string(),
-  password: z.string(),
-  auth: z.string()
-})
+export const DockerRegistryAuthSchema = z
+  .object({
+    username: z.string().optional(),
+    password: z.string().optional(),
+    auth: z.string().optional()
+  })
+  .refine(
+    (data) => {
+      // Either 'auth' is provided, OR both 'username' and 'password' are provided
+      return (
+        (data.auth !== undefined && data.auth !== '') ||
+        (data.username !== undefined &&
+          data.username !== '' &&
+          data.password !== undefined &&
+          data.password !== '')
+      )
+    },
+    {
+      message:
+        "Either 'auth' must be provided, or both 'username' and 'password' must be provided"
+    }
+  )
 
 export const DockerRegistrysSchema = z.record(z.string(), DockerRegistryAuthSchema)
 

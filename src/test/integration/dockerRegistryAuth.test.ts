@@ -11,6 +11,7 @@ import { expect, assert } from 'chai'
 import { C2DEngineDocker } from '../../components/c2d/compute_engine_docker.js'
 import { C2DClusterInfo, C2DClusterType } from '../../@types/C2D/C2D.js'
 import { dockerRegistrysAuth } from '../../@types/OceanNode.js'
+import { DockerRegistryAuthSchema } from '../../utils/config/schemas.js'
 
 describe('Docker Registry Authentication Integration Tests', () => {
   describe('Public registry access (no credentials)', () => {
@@ -239,5 +240,159 @@ describe('Docker Registry Authentication Integration Tests', () => {
         expect(error.message).to.include('Failed to get manifest')
       }
     }).timeout(10000)
+  })
+
+  describe('DockerRegistryAuthSchema validation', () => {
+    it('should validate schema with only auth string', () => {
+      const authData = {
+        auth: Buffer.from('testuser:testpass').toString('base64')
+      }
+
+      const result = DockerRegistryAuthSchema.safeParse(authData)
+      expect(result.success).to.be.true
+      if (result.success) {
+        expect(result.data.auth).to.equal(authData.auth)
+        expect(result.data.username).to.be.undefined
+        expect(result.data.password).to.be.undefined
+      }
+    })
+
+    it('should validate schema with only username and password', () => {
+      const authData = {
+        username: 'testuser',
+        password: 'testpass'
+      }
+
+      const result = DockerRegistryAuthSchema.safeParse(authData)
+      expect(result.success).to.be.true
+      if (result.success) {
+        expect(result.data.username).to.equal('testuser')
+        expect(result.data.password).to.equal('testpass')
+        expect(result.data.auth).to.be.undefined
+      }
+    })
+
+    it('should validate schema with all three fields (auth, username, password)', () => {
+      const authData = {
+        username: 'testuser',
+        password: 'testpass',
+        auth: Buffer.from('testuser:testpass').toString('base64')
+      }
+
+      const result = DockerRegistryAuthSchema.safeParse(authData)
+      expect(result.success).to.be.true
+      if (result.success) {
+        expect(result.data.username).to.equal('testuser')
+        expect(result.data.password).to.equal('testpass')
+        expect(result.data.auth).to.equal(authData.auth)
+      }
+    })
+
+    it('should reject schema with only username (missing password)', () => {
+      const authData = {
+        username: 'testuser'
+      }
+
+      const result = DockerRegistryAuthSchema.safeParse(authData)
+      expect(result.success).to.be.false
+      if (!result.success) {
+        expect(result.error.errors).to.exist
+        expect(result.error.errors[0].message).to.include(
+          "Either 'auth' must be provided, or both 'username' and 'password' must be provided"
+        )
+      }
+    })
+
+    it('should reject schema with only password (missing username)', () => {
+      const authData = {
+        password: 'testpass'
+      }
+
+      const result = DockerRegistryAuthSchema.safeParse(authData)
+      expect(result.success).to.be.false
+      if (!result.success) {
+        expect(result.error.errors).to.exist
+        expect(result.error.errors[0].message).to.include(
+          "Either 'auth' must be provided, or both 'username' and 'password' must be provided"
+        )
+      }
+    })
+
+    it('should reject empty object', () => {
+      const authData = {}
+
+      const result = DockerRegistryAuthSchema.safeParse(authData)
+      expect(result.success).to.be.false
+      if (!result.success) {
+        expect(result.error.errors).to.exist
+        expect(result.error.errors[0].message).to.include(
+          "Either 'auth' must be provided, or both 'username' and 'password' must be provided"
+        )
+      }
+    })
+
+    it('should reject empty auth string with no username/password', () => {
+      const authData = {
+        auth: ''
+      }
+
+      const result = DockerRegistryAuthSchema.safeParse(authData)
+      expect(result.success).to.be.false
+      if (!result.success) {
+        expect(result.error.errors).to.exist
+        expect(result.error.errors[0].message).to.include(
+          "Either 'auth' must be provided, or both 'username' and 'password' must be provided"
+        )
+      }
+    })
+
+    it('should reject empty username with password provided', () => {
+      const authData = {
+        username: '',
+        password: 'testpass'
+      }
+
+      const result = DockerRegistryAuthSchema.safeParse(authData)
+      expect(result.success).to.be.false
+      if (!result.success) {
+        expect(result.error.errors).to.exist
+        expect(result.error.errors[0].message).to.include(
+          "Either 'auth' must be provided, or both 'username' and 'password' must be provided"
+        )
+      }
+    })
+
+    it('should reject empty password with username provided', () => {
+      const authData = {
+        username: 'testuser',
+        password: ''
+      }
+
+      const result = DockerRegistryAuthSchema.safeParse(authData)
+      expect(result.success).to.be.false
+      if (!result.success) {
+        expect(result.error.errors).to.exist
+        expect(result.error.errors[0].message).to.include(
+          "Either 'auth' must be provided, or both 'username' and 'password' must be provided"
+        )
+      }
+    })
+
+    it('should reject all empty strings', () => {
+      const authData = {
+        username: '',
+        password: '',
+        auth: ''
+      }
+
+      const result = DockerRegistryAuthSchema.safeParse(authData)
+      expect(result.success).to.be.false
+      if (!result.success) {
+        expect(result.error.errors).to.exist
+        expect(result.error.errors[0].message).to.include(
+          "Either 'auth' must be provided, or both 'username' and 'password' must be provided"
+        )
+      }
+    })
   })
 })

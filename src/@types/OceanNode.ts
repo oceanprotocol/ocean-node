@@ -94,9 +94,9 @@ export interface AccessListContract {
 }
 
 export interface dockerRegistryAuth {
-  username: string
-  password: string
-  auth: string
+  username?: string
+  password?: string
+  auth?: string
 }
 export interface dockerRegistrysAuth {
   [registry: string]: dockerRegistryAuth
