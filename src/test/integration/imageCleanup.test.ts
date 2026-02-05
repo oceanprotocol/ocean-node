@@ -188,7 +188,7 @@ describe('Docker Image Cleanup Integration Tests', () => {
       escrow = {} as Escrow
       keyManager = {} as KeyManager
 
-      dockerEngine = new C2DEngineDocker(clusterConfig, db, escrow, keyManager)
+      dockerEngine = new C2DEngineDocker(clusterConfig, db, escrow, keyManager, null)
     })
 
     it('should track image usage when image is pulled', async () => {

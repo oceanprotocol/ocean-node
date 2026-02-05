@@ -93,8 +93,18 @@ export interface AccessListContract {
   [chainId: string]: string[]
 }
 
+export interface dockerRegistryAuth {
+  username: string
+  password: string
+  auth: string
+}
+export interface dockerRegistrysAuth {
+  [registry: string]: dockerRegistryAuth
+}
+
 export interface OceanNodeConfig {
   dockerComputeEnvironments: C2DDockerConfig[]
+  dockerRegistrysAuth: dockerRegistrysAuth
   authorizedDecrypters: string[]
   authorizedDecryptersList: AccessListContract | null
   allowedValidators: string[]

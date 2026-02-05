@@ -400,6 +400,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.DOCKER_COMPUTE_ENVIRONMENTS,
     required: false
   },
+  DOCKER_REGISTRY_AUTHS: {
+    name: 'DOCKER_REGISTRY_AUTHS',
+    value: process.env.DOCKER_REGISTRY_AUTHS,
+    required: false
+  },
   DOCKER_SOCKET_PATH: {
     name: 'DOCKER_SOCKET_PATH',
     value: process.env.DOCKER_SOCKET_PATH,

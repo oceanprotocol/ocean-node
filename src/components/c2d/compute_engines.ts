@@ -1,13 +1,14 @@
 import { C2DClusterType, ComputeEnvironment } from '../../@types/C2D/C2D.js'
 import { C2DEngine } from './compute_engine_base.js'
 import { C2DEngineDocker } from './compute_engine_docker.js'
-import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { OceanNodeConfig, dockerRegistrysAuth } from '../../@types/OceanNode.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
 import { KeyManager } from '../KeyManager/index.js'
+
 export class C2DEngines {
   public engines: C2DEngine[]
-
+  private dockerRegistryAuths: dockerRegistrysAuth
   public constructor(
     config: OceanNodeConfig,
     db: C2DDatabase,
@@ -23,7 +24,15 @@ export class C2DEngines {
       this.engines = []
       for (const cluster of config.c2dClusters) {
         if (cluster.type === C2DClusterType.DOCKER) {
-          this.engines.push(new C2DEngineDocker(cluster, db, escrow, keyManager))
+          this.engines.push(
+            new C2DEngineDocker(
+              cluster,
+              db,
+              escrow,
+              keyManager,
+              config.dockerRegistrysAuth
+            )
+          )
         }
       }
     }

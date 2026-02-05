@@ -226,3 +226,38 @@ The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of
     - **total**: Total number of the resource available.
     - **min**: Minimum number of the resource needed for a job.
     - **max**: Maximum number of the resource for a job.
+
+### Docker Registry Authentication
+
+- `DOCKER_REGISTRY_AUTHS`: JSON object mapping Docker registry URLs to authentication credentials. Used for accessing private Docker/OCI registries when validating and pulling Docker images. Each registry entry must provide either `username`+`password` or `auth`. Example:
+
+```json
+{
+  "https://registry-1.docker.io": {
+    "username": "myuser",
+    "password": "mypassword"
+  },
+  "https://ghcr.io": {
+    "username": "myuser",
+    "password": "ghp_..."
+  },
+  "https://registry.gitlab.com": {
+    "auth": "glpat-..."
+  }
+}
+```
+
+**Configuration Options:**
+
+- **Registry URL** (key): The full registry URL including protocol (e.g., `https://registry-1.docker.io`, `https://ghcr.io`, `https://registry.gitlab.com`)
+- **username** (optional): Username for registry authentication. Required if using password-based auth.
+- **password** (optional): Password or personal access token for registry authentication. Required if using username-based auth.
+- **auth** (optional): Authentication token (alternative to username+password). Required if not using username+password.
+
+**Notes:**
+
+- For Docker Hub (`registry-1.docker.io`), you can use your Docker Hub username and password, or a personal access token (PAT) as the password.
+- For GitHub Container Registry (GHCR), use your GitHub username with a personal access token (PAT) as the password, or use a token directly.
+- For GitLab Container Registry, use a personal access token (PAT) or deploy token.
+- The registry URL must match exactly (including protocol) with the registry used in the Docker image reference.
+- If no credentials are configured for a registry, the node will attempt unauthenticated access (works for public images only).

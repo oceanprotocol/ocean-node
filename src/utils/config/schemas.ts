@@ -84,6 +84,14 @@ export const OceanNodeDBConfigSchema = z.object({
   dbType: z.string().nullable()
 })
 
+export const DockerRegistryAuthSchema = z.object({
+  username: z.string(),
+  password: z.string(),
+  auth: z.string()
+})
+
+export const DockerRegistrysSchema = z.record(z.string(), DockerRegistryAuthSchema)
+
 export const ComputeResourceSchema = z.object({
   id: z.string(),
   total: z.number().optional(),
@@ -255,6 +263,8 @@ export const OceanNodeConfigSchema = z
     dockerComputeEnvironments: jsonFromString(C2DDockerConfigSchema)
       .optional()
       .default([]),
+
+    dockerRegistrysAuth: jsonFromString(DockerRegistrysSchema).optional().default({}),
 
     authorizedDecrypters: addressArrayFromString.optional().default([]),
     authorizedDecryptersList: jsonFromString(AccessListContractSchema).optional(),

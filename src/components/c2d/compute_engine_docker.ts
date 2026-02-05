@@ -51,6 +51,7 @@ import { decryptFilesObject, omitDBComputeFieldsFromComputeJob } from './index.j
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
 import { Service } from '@oceanprotocol/ddo-js'
 import { getOceanTokenAddressForChain } from '../../utils/address.js'
+import { dockerRegistrysAuth } from '../../@types/OceanNode.js'
 
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
@@ -69,9 +70,10 @@ export class C2DEngineDocker extends C2DEngine {
     clusterConfig: C2DClusterInfo,
     db: C2DDatabase,
     escrow: Escrow,
-    keyManager: KeyManager
+    keyManager: KeyManager,
+    dockerRegistryAuths: dockerRegistrysAuth
   ) {
-    super(clusterConfig, db, escrow, keyManager)
+    super(clusterConfig, db, escrow, keyManager, dockerRegistryAuths)
 
     this.docker = null
     if (clusterConfig.connection.socketPath) {
@@ -438,7 +440,7 @@ export class C2DEngineDocker extends C2DEngine {
     return filteredEnvs
   }
 
-  private static parseImage(image: string) {
+  private parseImage(image: string) {
     let registry = C2DEngineDocker.DEFAULT_DOCKER_REGISTRY
     let name = image
     let ref = 'latest'
@@ -472,13 +474,29 @@ export class C2DEngineDocker extends C2DEngine {
     return { registry, name, ref }
   }
 
-  public static async getDockerManifest(image: string): Promise<any> {
-    const { registry, name, ref } = C2DEngineDocker.parseImage(image)
+  public async getDockerManifest(image: string): Promise<any> {
+    const { registry, name, ref } = this.parseImage(image)
     const url = `${registry}/v2/${name}/manifests/${ref}`
+
+    // Get registry auth from parent class
+    const dockerRegistryAuth = this.getDockerRegistryAuth(registry)
+
     let headers: Record<string, string> = {
       Accept:
         'application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.index.v1+json'
     }
+
+    // If we have auth credentials, add Basic auth header to initial request
+    if (dockerRegistryAuth) {
+      // Use auth string if available, otherwise encode username:password
+      const authString = dockerRegistryAuth.auth
+        ? dockerRegistryAuth.auth
+        : Buffer.from(
+            `${dockerRegistryAuth.username}:${dockerRegistryAuth.password}`
+          ).toString('base64')
+      headers.Authorization = `Basic ${authString}`
+    }
+
     let response = await fetch(url, { headers })
 
     if (response.status === 401) {
@@ -489,7 +507,22 @@ export class C2DEngineDocker extends C2DEngine {
         const tokenUrl = new URL(match[1])
         tokenUrl.searchParams.set('service', match[2])
         tokenUrl.searchParams.set('scope', `repository:${name}:pull`)
-        const { token } = (await fetch(tokenUrl.toString()).then((r) => r.json())) as {
+
+        // Add Basic auth to token request if we have credentials
+        const tokenHeaders: Record<string, string> = {}
+        if (dockerRegistryAuth) {
+          // Use auth string if available, otherwise encode username:password
+          const authString = dockerRegistryAuth.auth
+            ? dockerRegistryAuth.auth
+            : Buffer.from(
+                `${dockerRegistryAuth.username}:${dockerRegistryAuth.password}`
+              ).toString('base64')
+          tokenHeaders.Authorization = `Basic ${authString}`
+        }
+
+        const { token } = (await fetch(tokenUrl.toString(), {
+          headers: tokenHeaders
+        }).then((r) => r.json())) as {
           token: string
         }
         headers = { ...headers, Authorization: `Bearer ${token}` }
@@ -511,12 +544,12 @@ export class C2DEngineDocker extends C2DEngine {
    * @param image name or tag
    * @returns boolean
    */
-  public static async checkDockerImage(
+  public async checkDockerImage(
     image: string,
     platform?: RunningPlatform
   ): Promise<ValidateParams> {
     try {
-      const manifest = await C2DEngineDocker.getDockerManifest(image)
+      const manifest = await this.getDockerManifest(image)
 
       const platforms = Array.isArray(manifest.manifests)
         ? manifest.manifests.map((entry: any) => entry.platform)
@@ -647,7 +680,7 @@ export class C2DEngineDocker extends C2DEngine {
       }
     } else {
       // already built, we need to validate it
-      const validation = await C2DEngineDocker.checkDockerImage(image, env.platform)
+      const validation = await this.checkDockerImage(image, env.platform)
       if (!validation.valid)
         throw new Error(
           `Cannot find image ${image} for ${env.platform.architecture}. Maybe it does not exist or it's build for other arhitectures.`
@@ -1644,7 +1677,34 @@ export class C2DEngineDocker extends C2DEngine {
     const imageLogFile =
       this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/logs/image.log'
     try {
-      const pullStream = await this.docker.pull(job.containerImage)
+      // Get registry auth for the image
+      const { registry } = this.parseImage(job.containerImage)
+      const dockerRegistryAuth = this.getDockerRegistryAuth(registry)
+
+      // Prepare authconfig for Dockerode if credentials are available
+      const pullOptions: any = {}
+      if (dockerRegistryAuth) {
+        // Extract hostname from registry URL (remove protocol)
+        const registryUrl = new URL(registry)
+        const serveraddress =
+          registryUrl.hostname + (registryUrl.port ? `:${registryUrl.port}` : '')
+
+        // Use auth string if available, otherwise encode username:password
+        const authString = dockerRegistryAuth.auth
+          ? dockerRegistryAuth.auth
+          : Buffer.from(
+              `${dockerRegistryAuth.username}:${dockerRegistryAuth.password}`
+            ).toString('base64')
+
+        pullOptions.authconfig = {
+          username: dockerRegistryAuth.username,
+          password: dockerRegistryAuth.password,
+          auth: authString,
+          serveraddress
+        }
+      }
+
+      const pullStream = await this.docker.pull(job.containerImage, pullOptions)
       await new Promise((resolve, reject) => {
         let wroteStatusBanner = false
         this.docker.modem.followProgress(
