@@ -203,10 +203,56 @@ returns amount of tokens to transfer to the provider account
 
 returns encrypted blob
 
-#### Request
+#### Query Parameters
+
+| name            | type   | required | description                                             |
+| --------------- | ------ | -------- | ------------------------------------------------------- |
+| nonce           | string | v        | is required to verify a request paired with a signature |
+| consumerAddress | string | v        | consumer address                                        |
+| signature       | string | v        | signed message based on ` nonce`                        |
+
+#### Request body
 
 ```
 string
+```
+
+#### Response
+
+```
+0x123
+```
+
+---
+
+## EncryptFile
+
+### `HTTP` POST /api/services/encryptFile
+
+#### Description
+
+returns encrypted file
+
+#### Query Parameters
+
+| name            | type   | required | description                                             |
+| --------------- | ------ | -------- | ------------------------------------------------------- |
+| nonce           | string | v        | is required to verify a request paired with a signature |
+| consumerAddress | string | v        | consumer address                                        |
+| signature       | string | v        | signed message based on ` nonce`                        |
+
+#### Request body
+
+if Content-Type = 'application/json'
+
+```
+BaseFileObject
+```
+
+if Content-Type = 'application/octet-stream' || 'multipart/form-data'
+
+```
+FileContent(bytes)
 ```
 
 #### Response

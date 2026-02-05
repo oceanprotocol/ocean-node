@@ -48,7 +48,10 @@ providerRoutes.post(`${SERVICES_API_BASE_PATH}/encrypt`, async (req, res) => {
       encoding: 'string',
       encryptionType: EncryptMethod.ECIES,
       command: PROTOCOL_COMMANDS.ENCRYPT,
-      caller: req.caller
+      caller: req.caller,
+      nonce: req.query.nonce as string,
+      consumerAddress: req.query.consumerAddress as string,
+      signature: req.query.signature as string
     })
     if (result.stream) {
       const encryptedData = await streamToString(result.stream as Readable)
@@ -100,7 +103,10 @@ providerRoutes.post(`${SERVICES_API_BASE_PATH}/encryptFile`, async (req, res) =>
       rawData: input,
       encryptionType: encryptMethod,
       command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
-      caller: req.caller
+      caller: req.caller,
+      nonce: req.query.nonce as string,
+      consumerAddress: req.query.consumerAddress as string,
+      signature: req.query.signature as string
     })
     return result
   }
@@ -116,7 +122,10 @@ providerRoutes.post(`${SERVICES_API_BASE_PATH}/encryptFile`, async (req, res) =>
         files: req.body as BaseFileObject,
         encryptionType: encryptMethod,
         command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
-        caller: req.caller
+        caller: req.caller,
+        nonce: req.query.nonce as string,
+        consumerAddress: req.query.consumerAddress as string,
+        signature: req.query.signature as string
       })
       return await writeResponse(result, encryptMethod)
       // raw data on body
