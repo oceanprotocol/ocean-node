@@ -412,9 +412,15 @@ export class ComputeInitializeHandler extends CommandHandler {
                     decryptedDockerRegistryAuthString
                   )
                 } catch (error: any) {
-                  throw new Error(
-                    `Invalid encryptedDockerRegistryAuth: failed to parse JSON - ${error?.message || String(error)}`
-                  )
+                  const errorMessage = `Invalid encryptedDockerRegistryAuth: failed to parse JSON - ${error?.message || String(error)}`
+                  CORE_LOGGER.error(errorMessage)
+                  return {
+                    stream: null,
+                    status: {
+                      httpStatus: 400,
+                      error: errorMessage
+                    }
+                  }
                 }
 
                 // Validate using schema - ensures either auth or username+password are provided
@@ -422,10 +428,18 @@ export class ComputeInitializeHandler extends CommandHandler {
                   decryptedDockerRegistryAuth
                 )
                 if (!validationResult.success) {
-                  const errorMessage = validationResult.error.errors
+                  const errorMessageValidation = validationResult.error.errors
                     .map((err) => err.message)
                     .join('; ')
-                  throw new Error(`Invalid encryptedDockerRegistryAuth: ${errorMessage}`)
+                  const errorMessage = `Invalid encryptedDockerRegistryAuth: ${errorMessageValidation}`
+                  CORE_LOGGER.error(errorMessage)
+                  return {
+                    stream: null,
+                    status: {
+                      httpStatus: 400,
+                      error: errorMessage
+                    }
+                  }
                 }
               }
               const validation: ValidateParams = await engine.checkDockerImage(

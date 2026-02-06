@@ -28,7 +28,11 @@ import {
 } from '../../../@types/C2D/C2D.js'
 // import { verifyProviderFees } from '../utils/feesHandler.js'
 import { validateOrderTransaction } from '../utils/validateOrders.js'
-import { getConfiguration, isPolicyServerConfigured } from '../../../utils/index.js'
+import {
+  getConfiguration,
+  isPolicyServerConfigured,
+  DockerRegistryAuthSchema
+} from '../../../utils/index.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 // import { ProviderFeeValidation } from '../../../@types/Fees.js'
@@ -38,6 +42,7 @@ import { getNonceAsNumber } from '../utils/nonceHandler.js'
 import { PolicyServer } from '../../policyServer/index.js'
 import { checkCredentials } from '../../../utils/credentials.js'
 import { checkAddressOnAccessList } from '../../../utils/accessList.js'
+import { dockerRegistryAuth } from '../../../@types/OceanNode.js'
 
 export class PaidComputeStartHandler extends CommandHandler {
   validate(command: PaidComputeStartCommand): ValidateParams {
@@ -147,6 +152,51 @@ export class PaidComputeStartHandler extends CommandHandler {
             status: {
               httpStatus: 400,
               error: e?.message || String(e)
+            }
+          }
+        }
+      }
+      // validate encrypteddockerRegistryAuth
+      if (task.encryptedDockerRegistryAuth) {
+        let decryptedDockerRegistryAuth: dockerRegistryAuth
+        try {
+          const decryptedDockerRegistryAuthBuffer = await engine.keyManager.decrypt(
+            Uint8Array.from(Buffer.from(task.encryptedDockerRegistryAuth, 'hex')),
+            EncryptMethod.ECIES
+          )
+
+          // Convert decrypted buffer to string and parse as JSON
+          const decryptedDockerRegistryAuthString =
+            decryptedDockerRegistryAuthBuffer.toString()
+
+          decryptedDockerRegistryAuth = JSON.parse(decryptedDockerRegistryAuthString)
+        } catch (error: any) {
+          const errorMessage = `Invalid encryptedDockerRegistryAuth: failed to parse JSON - ${error?.message || String(error)}`
+          CORE_LOGGER.error(errorMessage)
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: errorMessage
+            }
+          }
+        }
+
+        // Validate using schema - ensures either auth or username+password are provided
+        const validationResult = DockerRegistryAuthSchema.safeParse(
+          decryptedDockerRegistryAuth
+        )
+        if (!validationResult.success) {
+          const errorMessageValidation = validationResult.error.errors
+            .map((err) => err.message)
+            .join('; ')
+          const errorMessage = `Invalid encryptedDockerRegistryAuth: ${errorMessageValidation}`
+          CORE_LOGGER.error(errorMessage)
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: errorMessage
             }
           }
         }
@@ -677,6 +727,51 @@ export class FreeComputeStartHandler extends CommandHandler {
           status: {
             httpStatus: 500,
             error: 'Invalid C2D Environment'
+          }
+        }
+      }
+      // validate encrypteddockerRegistryAuth
+      if (task.encryptedDockerRegistryAuth) {
+        let decryptedDockerRegistryAuth: dockerRegistryAuth
+        try {
+          const decryptedDockerRegistryAuthBuffer = await engine.keyManager.decrypt(
+            Uint8Array.from(Buffer.from(task.encryptedDockerRegistryAuth, 'hex')),
+            EncryptMethod.ECIES
+          )
+
+          // Convert decrypted buffer to string and parse as JSON
+          const decryptedDockerRegistryAuthString =
+            decryptedDockerRegistryAuthBuffer.toString()
+
+          decryptedDockerRegistryAuth = JSON.parse(decryptedDockerRegistryAuthString)
+        } catch (error: any) {
+          const errorMessage = `Invalid encryptedDockerRegistryAuth: failed to parse JSON - ${error?.message || String(error)}`
+          CORE_LOGGER.error(errorMessage)
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: errorMessage
+            }
+          }
+        }
+
+        // Validate using schema - ensures either auth or username+password are provided
+        const validationResult = DockerRegistryAuthSchema.safeParse(
+          decryptedDockerRegistryAuth
+        )
+        if (!validationResult.success) {
+          const errorMessageValidation = validationResult.error.errors
+            .map((err) => err.message)
+            .join('; ')
+          const errorMessage = `Invalid encryptedDockerRegistryAuth: ${errorMessageValidation}`
+          CORE_LOGGER.error(errorMessage)
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: errorMessage
+            }
           }
         }
       }

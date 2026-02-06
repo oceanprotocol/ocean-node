@@ -1393,6 +1393,468 @@ describe('Compute', () => {
     })
   })
 
+  describe('encryptedDockerRegistryAuth integration tests', () => {
+    /**
+     * Helper function to encrypt docker registry auth using ECIES
+     */
+    async function encryptDockerRegistryAuth(auth: {
+      username?: string
+      password?: string
+      auth?: string
+    }): Promise<string> {
+      const authJson = JSON.stringify(auth)
+      const authData = Uint8Array.from(Buffer.from(authJson))
+      const encrypted = await oceanNode
+        .getKeyManager()
+        .encrypt(authData, EncryptMethod.ECIES)
+      return Buffer.from(encrypted).toString('hex')
+    }
+
+    it('should initialize compute with valid encryptedDockerRegistryAuth (username/password)', async () => {
+      const validAuth = {
+        username: 'testuser',
+        password: 'testpass'
+      }
+      const encryptedAuth = await encryptDockerRegistryAuth(validAuth)
+
+      const dataset: ComputeAsset = {
+        documentId: publishedComputeDataset.ddo.id,
+        serviceId: publishedComputeDataset.ddo.services[0].id,
+        transferTxId: String(datasetOrderTxId)
+      }
+      const algorithm: ComputeAlgorithm = {
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        transferTxId: String(algoOrderTxId),
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      }
+      const initializeComputeTask: ComputeInitializeCommand = {
+        datasets: [dataset],
+        algorithm,
+        environment: firstEnv.id,
+        payment: {
+          chainId: DEVELOPMENT_CHAIN_ID,
+          token: paymentToken
+        },
+        maxJobDuration: computeJobDuration,
+        consumerAddress: firstEnv.consumerAddress,
+        command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
+        encryptedDockerRegistryAuth: encryptedAuth
+      }
+
+      const resp = await new ComputeInitializeHandler(oceanNode).handle(
+        initializeComputeTask
+      )
+      assert(resp, 'Failed to get response')
+      // Should succeed (200) or fail for other reasons, but not due to auth validation
+      // Check that error is not a validation error (format validation), even if Docker auth fails
+      if (resp.status.httpStatus !== 200) {
+        expect(resp.status.error).to.not.include('Invalid encryptedDockerRegistryAuth')
+      }
+      if (resp.status.httpStatus === 200) {
+        assert(resp.stream, 'Failed to get stream')
+        expect(resp.stream).to.be.instanceOf(Readable)
+      }
+    })
+
+    it('should initialize compute with valid encryptedDockerRegistryAuth (auth string)', async () => {
+      const validAuth = {
+        auth: Buffer.from('testuser:testpass').toString('base64')
+      }
+      const encryptedAuth = await encryptDockerRegistryAuth(validAuth)
+
+      const dataset: ComputeAsset = {
+        documentId: publishedComputeDataset.ddo.id,
+        serviceId: publishedComputeDataset.ddo.services[0].id,
+        transferTxId: String(datasetOrderTxId)
+      }
+      const algorithm: ComputeAlgorithm = {
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        transferTxId: String(algoOrderTxId),
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      }
+      const initializeComputeTask: ComputeInitializeCommand = {
+        datasets: [dataset],
+        algorithm,
+        environment: firstEnv.id,
+        payment: {
+          chainId: DEVELOPMENT_CHAIN_ID,
+          token: paymentToken
+        },
+        maxJobDuration: computeJobDuration,
+        consumerAddress: firstEnv.consumerAddress,
+        command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
+        encryptedDockerRegistryAuth: encryptedAuth
+      }
+
+      const resp = await new ComputeInitializeHandler(oceanNode).handle(
+        initializeComputeTask
+      )
+      assert(resp, 'Failed to get response')
+      // Should succeed (200) or fail for other reasons, but not due to auth validation
+      // Check that error is not a validation error (format validation), even if Docker auth fails
+      if (resp.status.httpStatus !== 200) {
+        expect(resp.status.error).to.not.include('Invalid encryptedDockerRegistryAuth')
+      }
+      if (resp.status.httpStatus === 200) {
+        assert(resp.stream, 'Failed to get stream')
+        expect(resp.stream).to.be.instanceOf(Readable)
+      }
+    })
+
+    it('should fail initialize compute with invalid encryptedDockerRegistryAuth (missing password)', async () => {
+      const invalidAuth = {
+        username: 'testuser'
+        // missing password
+      }
+      const encryptedAuth = await encryptDockerRegistryAuth(invalidAuth)
+
+      const dataset: ComputeAsset = {
+        documentId: publishedComputeDataset.ddo.id,
+        serviceId: publishedComputeDataset.ddo.services[0].id,
+        transferTxId: String(datasetOrderTxId)
+      }
+      const algorithm: ComputeAlgorithm = {
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        transferTxId: String(algoOrderTxId),
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      }
+      const initializeComputeTask: ComputeInitializeCommand = {
+        datasets: [dataset],
+        algorithm,
+        environment: firstEnv.id,
+        payment: {
+          chainId: DEVELOPMENT_CHAIN_ID,
+          token: paymentToken
+        },
+        maxJobDuration: computeJobDuration,
+        consumerAddress: firstEnv.consumerAddress,
+        command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
+        encryptedDockerRegistryAuth: encryptedAuth
+      }
+
+      const resp = await new ComputeInitializeHandler(oceanNode).handle(
+        initializeComputeTask
+      )
+      assert(resp, 'Failed to get response')
+      // Should fail with 400 due to validation error
+      assert(
+        resp.status.httpStatus === 400,
+        `Expected 400 but got ${resp.status.httpStatus}: ${resp.status.error}`
+      )
+      expect(resp.status.error).to.include('Invalid encryptedDockerRegistryAuth')
+      expect(resp.status.error).to.include(
+        "Either 'auth' must be provided, or both 'username' and 'password' must be provided"
+      )
+    })
+
+    it('should fail initialize compute with invalid encryptedDockerRegistryAuth (empty object)', async () => {
+      const invalidAuth = {}
+      const encryptedAuth = await encryptDockerRegistryAuth(invalidAuth)
+
+      const dataset: ComputeAsset = {
+        documentId: publishedComputeDataset.ddo.id,
+        serviceId: publishedComputeDataset.ddo.services[0].id,
+        transferTxId: String(datasetOrderTxId)
+      }
+      const algorithm: ComputeAlgorithm = {
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        transferTxId: String(algoOrderTxId),
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      }
+      const initializeComputeTask: ComputeInitializeCommand = {
+        datasets: [dataset],
+        algorithm,
+        environment: firstEnv.id,
+        payment: {
+          chainId: DEVELOPMENT_CHAIN_ID,
+          token: paymentToken
+        },
+        maxJobDuration: computeJobDuration,
+        consumerAddress: firstEnv.consumerAddress,
+        command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
+        encryptedDockerRegistryAuth: encryptedAuth
+      }
+
+      const resp = await new ComputeInitializeHandler(oceanNode).handle(
+        initializeComputeTask
+      )
+      assert(resp, 'Failed to get response')
+      assert(
+        resp.status.httpStatus === 400,
+        `Expected 400 but got ${resp.status.httpStatus}: ${resp.status.error}`
+      )
+      expect(resp.status.error).to.include('Invalid encryptedDockerRegistryAuth')
+    })
+
+    it('should start paid compute job with valid encryptedDockerRegistryAuth', async () => {
+      const validAuth = {
+        username: 'testuser',
+        password: 'testpass'
+      }
+      const encryptedAuth = await encryptDockerRegistryAuth(validAuth)
+
+      const nonce = Date.now().toString()
+      const message = String(
+        (await consumerAccount.getAddress()) + publishedComputeDataset.ddo.id + nonce
+      )
+      const consumerMessage = ethers.solidityPackedKeccak256(
+        ['bytes'],
+        [ethers.hexlify(ethers.toUtf8Bytes(message))]
+      )
+      const messageHashBytes = ethers.toBeArray(consumerMessage)
+      const signature = await wallet.signMessage(messageHashBytes)
+
+      const startComputeTask: PaidComputeStartCommand = {
+        command: PROTOCOL_COMMANDS.COMPUTE_START,
+        consumerAddress: await consumerAccount.getAddress(),
+        environment: firstEnv.id,
+        signature,
+        nonce,
+        datasets: [
+          {
+            documentId: publishedComputeDataset.ddo.id,
+            serviceId: publishedComputeDataset.ddo.services[0].id,
+            transferTxId: String(datasetOrderTxId)
+          }
+        ],
+        algorithm: {
+          documentId: publishedAlgoDataset.ddo.id,
+          serviceId: publishedAlgoDataset.ddo.services[0].id,
+          transferTxId: String(algoOrderTxId),
+          meta: publishedAlgoDataset.ddo.metadata.algorithm
+        },
+        payment: {
+          chainId: DEVELOPMENT_CHAIN_ID,
+          token: paymentToken
+        },
+        maxJobDuration: computeJobDuration,
+        encryptedDockerRegistryAuth: encryptedAuth
+      }
+
+      const response = await new PaidComputeStartHandler(oceanNode).handle(
+        startComputeTask
+      )
+      assert(response, 'Failed to get response')
+      // Should succeed (200) or fail for other reasons, but not due to auth validation
+      // Check that error is not a validation error (format validation), even if Docker auth fails
+      if (response.status.httpStatus !== 200) {
+        expect(response.status.error).to.not.include(
+          'Invalid encryptedDockerRegistryAuth'
+        )
+      }
+      if (response.status.httpStatus === 200) {
+        assert(response.stream, 'Failed to get stream')
+        expect(response.stream).to.be.instanceOf(Readable)
+      }
+    })
+
+    it('should fail paid compute start with invalid encryptedDockerRegistryAuth', async () => {
+      const invalidAuth = {
+        username: 'testuser'
+        // missing password
+      }
+      const encryptedAuth = await encryptDockerRegistryAuth(invalidAuth)
+
+      const nonce = Date.now().toString()
+      const message = String(
+        (await consumerAccount.getAddress()) + publishedComputeDataset.ddo.id + nonce
+      )
+      const consumerMessage = ethers.solidityPackedKeccak256(
+        ['bytes'],
+        [ethers.hexlify(ethers.toUtf8Bytes(message))]
+      )
+      const messageHashBytes = ethers.toBeArray(consumerMessage)
+      const signature = await wallet.signMessage(messageHashBytes)
+
+      const startComputeTask: PaidComputeStartCommand = {
+        command: PROTOCOL_COMMANDS.COMPUTE_START,
+        consumerAddress: await consumerAccount.getAddress(),
+        environment: firstEnv.id,
+        signature,
+        nonce,
+        datasets: [
+          {
+            documentId: publishedComputeDataset.ddo.id,
+            serviceId: publishedComputeDataset.ddo.services[0].id,
+            transferTxId: String(datasetOrderTxId)
+          }
+        ],
+        algorithm: {
+          documentId: publishedAlgoDataset.ddo.id,
+          serviceId: publishedAlgoDataset.ddo.services[0].id,
+          transferTxId: String(algoOrderTxId),
+          meta: publishedAlgoDataset.ddo.metadata.algorithm
+        },
+        payment: {
+          chainId: DEVELOPMENT_CHAIN_ID,
+          token: paymentToken
+        },
+        maxJobDuration: computeJobDuration,
+        encryptedDockerRegistryAuth: encryptedAuth
+      }
+
+      const response = await new PaidComputeStartHandler(oceanNode).handle(
+        startComputeTask
+      )
+      assert(response, 'Failed to get response')
+      assert(
+        response.status.httpStatus === 400,
+        `Expected 400 but got ${response.status.httpStatus}: ${response.status.error}`
+      )
+      expect(response.status.error).to.include('Invalid encryptedDockerRegistryAuth')
+    })
+
+    it('should start free compute job with valid encryptedDockerRegistryAuth', async () => {
+      const validAuth = {
+        username: 'testuser',
+        password: 'testpass'
+      }
+      const encryptedAuth = await encryptDockerRegistryAuth(validAuth)
+
+      const nonce = Date.now().toString()
+      const consumerMessage = ethers.solidityPackedKeccak256(
+        ['bytes'],
+        [ethers.hexlify(ethers.toUtf8Bytes(nonce))]
+      )
+      const signature = await wallet.signMessage(ethers.toBeArray(consumerMessage))
+
+      const startComputeTask: FreeComputeStartCommand = {
+        command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+        consumerAddress: await wallet.getAddress(),
+        signature,
+        nonce,
+        environment: firstEnv.id,
+        datasets: [
+          {
+            fileObject: computeAsset.services[0].files.files[0],
+            documentId: publishedComputeDataset.ddo.id,
+            serviceId: publishedComputeDataset.ddo.services[0].id,
+            transferTxId: datasetOrderTxId
+          }
+        ],
+        algorithm: {
+          fileObject: algoAsset.services[0].files.files[0],
+          documentId: publishedAlgoDataset.ddo.id,
+          serviceId: publishedAlgoDataset.ddo.services[0].id,
+          transferTxId: algoOrderTxId,
+          meta: publishedAlgoDataset.ddo.metadata.algorithm
+        },
+        output: {},
+        encryptedDockerRegistryAuth: encryptedAuth
+      }
+
+      const response = await new FreeComputeStartHandler(oceanNode).handle(
+        startComputeTask
+      )
+      assert(response, 'Failed to get response')
+      // Should succeed (200) or fail for other reasons, but not due to auth validation
+      // Check that error is not a validation error (format validation), even if Docker auth fails
+      if (response.status.httpStatus !== 200) {
+        expect(response.status.error).to.not.include(
+          'Invalid encryptedDockerRegistryAuth'
+        )
+      }
+      if (response.status.httpStatus === 200) {
+        assert(response.stream, 'Failed to get stream')
+        expect(response.stream).to.be.instanceOf(Readable)
+      }
+    })
+
+    it('should fail free compute start with invalid encryptedDockerRegistryAuth', async () => {
+      const invalidAuth = {
+        password: 'testpass'
+        // missing username
+      }
+      const encryptedAuth = await encryptDockerRegistryAuth(invalidAuth)
+
+      const nonce = Date.now().toString()
+      const consumerMessage = ethers.solidityPackedKeccak256(
+        ['bytes'],
+        [ethers.hexlify(ethers.toUtf8Bytes(nonce))]
+      )
+      const signature = await wallet.signMessage(ethers.toBeArray(consumerMessage))
+
+      const startComputeTask: FreeComputeStartCommand = {
+        command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+        consumerAddress: await wallet.getAddress(),
+        signature,
+        nonce,
+        environment: firstEnv.id,
+        datasets: [
+          {
+            fileObject: computeAsset.services[0].files.files[0],
+            documentId: publishedComputeDataset.ddo.id,
+            serviceId: publishedComputeDataset.ddo.services[0].id,
+            transferTxId: datasetOrderTxId
+          }
+        ],
+        algorithm: {
+          fileObject: algoAsset.services[0].files.files[0],
+          documentId: publishedAlgoDataset.ddo.id,
+          serviceId: publishedAlgoDataset.ddo.services[0].id,
+          transferTxId: algoOrderTxId,
+          meta: publishedAlgoDataset.ddo.metadata.algorithm
+        },
+        output: {},
+        encryptedDockerRegistryAuth: encryptedAuth
+      }
+
+      const response = await new FreeComputeStartHandler(oceanNode).handle(
+        startComputeTask
+      )
+      assert(response, 'Failed to get response')
+      assert(
+        response.status.httpStatus === 400,
+        `Expected 400 but got ${response.status.httpStatus}: ${response.status.error}`
+      )
+      expect(response.status.error).to.include('Invalid encryptedDockerRegistryAuth')
+    })
+
+    it('should handle invalid hex-encoded encryptedDockerRegistryAuth gracefully', async () => {
+      const invalidHex = 'not-a-valid-hex-string'
+
+      const dataset: ComputeAsset = {
+        documentId: publishedComputeDataset.ddo.id,
+        serviceId: publishedComputeDataset.ddo.services[0].id,
+        transferTxId: String(datasetOrderTxId)
+      }
+      const algorithm: ComputeAlgorithm = {
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        transferTxId: String(algoOrderTxId),
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      }
+      const initializeComputeTask: ComputeInitializeCommand = {
+        datasets: [dataset],
+        algorithm,
+        environment: firstEnv.id,
+        payment: {
+          chainId: DEVELOPMENT_CHAIN_ID,
+          token: paymentToken
+        },
+        maxJobDuration: computeJobDuration,
+        consumerAddress: firstEnv.consumerAddress,
+        command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
+        encryptedDockerRegistryAuth: invalidHex
+      }
+
+      const resp = await new ComputeInitializeHandler(oceanNode).handle(
+        initializeComputeTask
+      )
+      assert(resp, 'Failed to get response')
+      // Should fail with 500 due to decryption/parsing error
+      assert(
+        resp.status.httpStatus === 400,
+        `Expected 400 but got ${resp.status.httpStatus}: ${resp.status.error}`
+      )
+      expect(resp.status.error).to.include('Invalid encryptedDockerRegistryAuth')
+    })
+  })
+
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
     indexer.stopAllChainIndexers()

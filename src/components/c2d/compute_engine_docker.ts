@@ -53,7 +53,6 @@ import { Service } from '@oceanprotocol/ddo-js'
 import { getOceanTokenAddressForChain } from '../../utils/address.js'
 import { dockerRegistrysAuth, dockerRegistryAuth } from '../../@types/OceanNode.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
-import { DockerRegistryAuthSchema } from '../../utils/config/schemas.js'
 
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
@@ -652,37 +651,7 @@ export class C2DEngineDocker extends C2DEngine {
         throw new Error(`additionalDockerFiles cannot be used with queued jobs`)
       }
     }
-    // validate encrypteddockerRegistryAuth
-    if (encryptedDockerRegistryAuth) {
-      let decryptedDockerRegistryAuth: dockerRegistryAuth
-      try {
-        const decryptedDockerRegistryAuthBuffer = await this.keyManager.decrypt(
-          Uint8Array.from(Buffer.from(encryptedDockerRegistryAuth, 'hex')),
-          EncryptMethod.ECIES
-        )
 
-        // Convert decrypted buffer to string and parse as JSON
-        const decryptedDockerRegistryAuthString =
-          decryptedDockerRegistryAuthBuffer.toString()
-
-        decryptedDockerRegistryAuth = JSON.parse(decryptedDockerRegistryAuthString)
-      } catch (error: any) {
-        throw new Error(
-          `Invalid encryptedDockerRegistryAuth: failed to parse JSON - ${error?.message || String(error)}`
-        )
-      }
-
-      // Validate using schema - ensures either auth or username+password are provided
-      const validationResult = DockerRegistryAuthSchema.safeParse(
-        decryptedDockerRegistryAuth
-      )
-      if (!validationResult.success) {
-        const errorMessage = validationResult.error.errors
-          .map((err) => err.message)
-          .join('; ')
-        throw new Error(`Invalid encryptedDockerRegistryAuth: ${errorMessage}`)
-      }
-    }
     const job: DBComputeJob = {
       clusterHash: this.getC2DConfig().hash,
       containerImage: image,
