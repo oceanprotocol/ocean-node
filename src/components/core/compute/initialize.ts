@@ -393,56 +393,22 @@ export class ComputeInitializeHandler extends CommandHandler {
             const algoImage = getAlgorithmImage(task.algorithm, generateUniqueID(task))
             if (algoImage) {
               // validate encrypteddockerRegistryAuth
+              let validation: ValidateParams
               if (task.encryptedDockerRegistryAuth) {
-                let decryptedDockerRegistryAuth: dockerRegistryAuth
-                try {
-                  const decryptedDockerRegistryAuthBuffer =
-                    await engine.keyManager.decrypt(
-                      Uint8Array.from(
-                        Buffer.from(task.encryptedDockerRegistryAuth, 'hex')
-                      ),
-                      EncryptMethod.ECIES
-                    )
-
-                  // Convert decrypted buffer to string and parse as JSON
-                  const decryptedDockerRegistryAuthString =
-                    decryptedDockerRegistryAuthBuffer.toString()
-
-                  decryptedDockerRegistryAuth = JSON.parse(
-                    decryptedDockerRegistryAuthString
-                  )
-                } catch (error: any) {
-                  const errorMessage = `Invalid encryptedDockerRegistryAuth: failed to parse JSON - ${error?.message || String(error)}`
-                  CORE_LOGGER.error(errorMessage)
-                  return {
-                    stream: null,
-                    status: {
-                      httpStatus: 400,
-                      error: errorMessage
-                    }
-                  }
-                }
-
-                // Validate using schema - ensures either auth or username+password are provided
-                const validationResult = DockerRegistryAuthSchema.safeParse(
-                  decryptedDockerRegistryAuth
+                validation = await engine.checkEncryptedDockerRegistryAuth(
+                  task.encryptedDockerRegistryAuth
                 )
-                if (!validationResult.success) {
-                  const errorMessageValidation = validationResult.error.errors
-                    .map((err) => err.message)
-                    .join('; ')
-                  const errorMessage = `Invalid encryptedDockerRegistryAuth: ${errorMessageValidation}`
-                  CORE_LOGGER.error(errorMessage)
+                if (!validation.valid) {
                   return {
                     stream: null,
                     status: {
-                      httpStatus: 400,
-                      error: errorMessage
+                      httpStatus: validation.status,
+                      error: `Invalid encryptedDockerRegistryAuth :${validation.reason}`
                     }
                   }
                 }
               }
-              const validation: ValidateParams = await engine.checkDockerImage(
+              validation = await engine.checkDockerImage(
                 algoImage,
                 task.encryptedDockerRegistryAuth,
                 env.platform
