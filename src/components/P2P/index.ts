@@ -242,8 +242,24 @@ export class OceanP2P extends EventEmitter {
   shouldAnnounce(addr: any) {
     try {
       const maddr = multiaddr(addr)
-      // always filter loopback
+
+      const protos = maddr.getComponents()
       const addressString = maddr.nodeAddress().address
+      if (
+        protos.some(
+          (entry) =>
+            entry.name === 'dns' ||
+            entry.name === 'dns4' ||
+            entry.name === 'dns6' ||
+            entry.name === 'dnsaddr'
+        )
+      ) {
+        if (addressString === 'localhost' || addressString === '127.0.0.1') {
+          return false
+        }
+
+        return true
+      }
 
       if (!ipaddr.isValid(addressString)) {
         return false
