@@ -72,7 +72,11 @@ export abstract class C2DEngine {
   }
 
   // eslint-disable-next-line require-await
-  public abstract checkDockerImage(image: string, platform?: any): Promise<ValidateParams>
+  public abstract checkDockerImage(
+    image: string,
+    encryptedDockerRegistryAuth?: string,
+    platform?: any
+  ): Promise<ValidateParams>
 
   public abstract startComputeJob(
     assets: ComputeAsset[],
@@ -86,7 +90,8 @@ export abstract class C2DEngine {
     jobId: string,
     metadata?: DBComputeJobMetadata,
     additionalViewers?: string[],
-    queueMaxWaitTime?: number
+    queueMaxWaitTime?: number,
+    encryptedDockerRegistryAuth?: string
   ): Promise<ComputeJob[]>
 
   public abstract stopComputeJob(

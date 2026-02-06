@@ -565,7 +565,8 @@ export class PaidComputeStartHandler extends CommandHandler {
           jobId,
           task.metadata,
           task.additionalViewers,
-          task.queueMaxWaitTime
+          task.queueMaxWaitTime,
+          task.encryptedDockerRegistryAuth
         )
         CORE_LOGGER.logMessage(
           'ComputeStartCommand Response: ' + JSON.stringify(response, null, 2),
@@ -911,7 +912,8 @@ export class FreeComputeStartHandler extends CommandHandler {
         jobId,
         task.metadata,
         task.additionalViewers,
-        task.queueMaxWaitTime
+        task.queueMaxWaitTime,
+        task.encryptedDockerRegistryAuth
       )
 
       CORE_LOGGER.logMessage(

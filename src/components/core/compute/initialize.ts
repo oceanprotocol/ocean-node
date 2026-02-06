@@ -1,5 +1,5 @@
 import { Readable } from 'stream'
-import { P2PCommandResponse } from '../../../@types/OceanNode.js'
+import { P2PCommandResponse, dockerRegistryAuth } from '../../../@types/OceanNode.js'
 import { C2DClusterType } from '../../../@types/C2D/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { CommandHandler } from '../handler/handler.js'
@@ -23,7 +23,11 @@ import {
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 import { isAddress } from 'ethers'
-import { getConfiguration, isPolicyServerConfigured } from '../../../utils/index.js'
+import {
+  DockerRegistryAuthSchema,
+  getConfiguration,
+  isPolicyServerConfigured
+} from '../../../utils/index.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
@@ -388,8 +392,45 @@ export class ComputeInitializeHandler extends CommandHandler {
           if (hasDockerImages) {
             const algoImage = getAlgorithmImage(task.algorithm, generateUniqueID(task))
             if (algoImage) {
+              // validate encrypteddockerRegistryAuth
+              if (task.encryptedDockerRegistryAuth) {
+                let decryptedDockerRegistryAuth: dockerRegistryAuth
+                try {
+                  const decryptedDockerRegistryAuthBuffer =
+                    await engine.keyManager.decrypt(
+                      Uint8Array.from(
+                        Buffer.from(task.encryptedDockerRegistryAuth, 'hex')
+                      ),
+                      EncryptMethod.ECIES
+                    )
+
+                  // Convert decrypted buffer to string and parse as JSON
+                  const decryptedDockerRegistryAuthString =
+                    decryptedDockerRegistryAuthBuffer.toString()
+
+                  decryptedDockerRegistryAuth = JSON.parse(
+                    decryptedDockerRegistryAuthString
+                  )
+                } catch (error: any) {
+                  throw new Error(
+                    `Invalid encryptedDockerRegistryAuth: failed to parse JSON - ${error?.message || String(error)}`
+                  )
+                }
+
+                // Validate using schema - ensures either auth or username+password are provided
+                const validationResult = DockerRegistryAuthSchema.safeParse(
+                  decryptedDockerRegistryAuth
+                )
+                if (!validationResult.success) {
+                  const errorMessage = validationResult.error.errors
+                    .map((err) => err.message)
+                    .join('; ')
+                  throw new Error(`Invalid encryptedDockerRegistryAuth: ${errorMessage}`)
+                }
+              }
               const validation: ValidateParams = await engine.checkDockerImage(
                 algoImage,
+                task.encryptedDockerRegistryAuth,
                 env.platform
               )
               if (!validation.valid) {

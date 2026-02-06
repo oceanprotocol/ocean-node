@@ -1402,20 +1402,21 @@ starts a free compute job and returns jobId if succesfull
 
 #### Parameters
 
-| name              | type   | required | description                                                                   |
-| ----------------- | ------ | -------- | ----------------------------------------------------------------------------- |
-| command           | string | v        | command name                                                                  |
-| node              | string |          | if not present it means current node                                          |
-| consumerAddress   | string | v        | consumer address                                                              |
-| signature         | string | v        | signature (msg=String(nonce) )                                                |
-| nonce             | string | v        | nonce for the request                                                         |
-| datasets          | object |          | list of ComputeAsset to be used as inputs                                     |
-| algorithm         | object |          | ComputeAlgorithm definition                                                   |
-| environment       | string | v        | compute environment to use                                                    |
-| resources         | object |          | optional list of required resources                                           |
-| metadata          | object |          | optional metadata for the job, data provided by the user                      |
-| additionalViewers | object |          | optional array of addresses that are allowed to fetch the result              |
-| queueMaxWaitTime  | number |          | optional max time in seconds a job can wait in the queue before being started |
+| name                        | type   | required                                     | description                                                                   |
+| --------------------------- | ------ | -------------------------------------------- | ----------------------------------------------------------------------------- |
+| command                     | string | v                                            | command name                                                                  |
+| node                        | string |                                              | if not present it means current node                                          |
+| consumerAddress             | string | v                                            | consumer address                                                              |
+| signature                   | string | v                                            | signature (msg=String(nonce) )                                                |
+| nonce                       | string | v                                            | nonce for the request                                                         |
+| datasets                    | object |                                              | list of ComputeAsset to be used as inputs                                     |
+| algorithm                   | object |                                              | ComputeAlgorithm definition                                                   |
+| environment                 | string | v                                            | compute environment to use                                                    |
+| resources                   | object |                                              | optional list of required resources                                           |
+| metadata                    | object |                                              | optional metadata for the job, data provided by the user                      |
+| additionalViewers           | object |                                              | optional array of addresses that are allowed to fetch the result              |
+| queueMaxWaitTime            | number |                                              | optional max time in seconds a job can wait in the queue before being started |
+| encryptedDockerRegistryAuth | string | Ecies encrypted docker auth schema for image |
 
 #### Request
 
