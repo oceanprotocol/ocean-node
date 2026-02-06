@@ -75,6 +75,8 @@ import {
 
 import { freeComputeStartPayload } from '../data/commands.js'
 import { DDOManager } from '@oceanprotocol/ddo-js'
+import Dockerode from 'dockerode'
+import { C2DEngineDocker } from '../../components/c2d/compute_engine_docker.js'
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -1852,6 +1854,208 @@ describe('Compute', () => {
         `Expected 400 but got ${resp.status.httpStatus}: ${resp.status.error}`
       )
       expect(resp.status.error).to.include('Invalid encryptedDockerRegistryAuth')
+    })
+  })
+
+  describe('Local Docker image checking', () => {
+    let docker: Dockerode
+    let dockerEngine: C2DEngineDocker
+
+    before(async function () {
+      // Skip if Docker not available
+      try {
+        docker = new Dockerode()
+        await docker.info()
+      } catch (e) {
+        this.skip()
+      }
+
+      // Get the Docker engine from oceanNode
+      const c2dEngines = oceanNode.getC2DEngines()
+      const engines = (c2dEngines as any).engines as C2DEngineDocker[]
+      dockerEngine = engines.find((e) => e instanceof C2DEngineDocker)
+      if (!dockerEngine) {
+        this.skip()
+      }
+    })
+
+    it('should check local image when it exists locally', async function () {
+      // Skip if Docker not available
+      try {
+        await docker.info()
+      } catch (e) {
+        this.skip()
+      }
+
+      const testImage = 'alpine:3.18'
+
+      // Ensure image exists locally
+      try {
+        await docker.pull(testImage)
+      } catch (e) {
+        // If pull fails, skip test
+        this.skip()
+      }
+
+      // Check the image - should find it locally
+      const result = await dockerEngine.checkDockerImage(testImage)
+
+      assert(result, 'Result should exist')
+      assert(result.valid === true, 'Image should be valid')
+    }).timeout(30000)
+
+    it('should validate platform for local images', async function () {
+      // Skip if Docker not available
+      try {
+        await docker.info()
+      } catch (e) {
+        this.skip()
+      }
+
+      const testImage = 'alpine:3.18'
+
+      // Ensure image exists locally
+      try {
+        await docker.pull(testImage)
+      } catch (e) {
+        this.skip()
+      }
+
+      // Get the platform from the local image
+      const imageInfo = await docker.getImage(testImage).inspect()
+      const localArch = imageInfo.Architecture || 'amd64'
+      const localOs = imageInfo.Os || 'linux'
+
+      // Check with matching platform
+      const matchingPlatform = {
+        architecture: localArch === 'amd64' ? 'x86_64' : localArch,
+        os: localOs
+      }
+      const resultMatching = await dockerEngine.checkDockerImage(
+        testImage,
+        undefined,
+        matchingPlatform
+      )
+
+      assert(resultMatching, 'Result should exist')
+      assert(
+        resultMatching.valid === true,
+        'Image should be valid with matching platform'
+      )
+    }).timeout(30000)
+
+    it('should detect platform mismatch for local images', async function () {
+      // Skip if Docker not available
+      try {
+        await docker.info()
+      } catch (e) {
+        this.skip()
+      }
+
+      const testImage = 'alpine:3.18'
+
+      // Ensure image exists locally
+      try {
+        await docker.pull(testImage)
+      } catch (e) {
+        this.skip()
+      }
+
+      // Check with mismatched platform (assuming local is linux/amd64 or linux/x86_64)
+      const mismatchedPlatform = {
+        architecture: 'arm64', // Different architecture
+        os: 'linux'
+      }
+      const resultMismatch = await dockerEngine.checkDockerImage(
+        testImage,
+        undefined,
+        mismatchedPlatform
+      )
+
+      assert(resultMismatch, 'Result should exist')
+      assert(
+        resultMismatch.valid === false,
+        'Image should be invalid with mismatched platform'
+      )
+      assert(resultMismatch.status === 400, 'Status should be 400 for platform mismatch')
+      assert(
+        resultMismatch.reason.includes('Platform mismatch'),
+        'Reason should include platform mismatch message'
+      )
+    }).timeout(30000)
+
+    it('should fall back to remote registry when local image not found', async function () {
+      // Skip if Docker not available
+      try {
+        await docker.info()
+      } catch (e) {
+        this.skip()
+      }
+
+      const nonExistentLocalImage = 'nonexistent-local-image:latest'
+
+      // Ensure image doesn't exist locally
+      try {
+        const image = docker.getImage(nonExistentLocalImage)
+        await image.inspect()
+        // If we get here, image exists - remove it for test
+        await image.remove({ force: true })
+      } catch (e) {
+        // Image doesn't exist locally, which is what we want
+      }
+
+      // Check the image - should fall back to remote check
+      // This will likely fail with 404, but we're testing the fallback behavior
+      const result = await dockerEngine.checkDockerImage(nonExistentLocalImage)
+
+      assert(result, 'Result should exist')
+      // Should have attempted remote check (will fail, but that's expected)
+      assert(result.valid === false, 'Image should be invalid (not found)')
+      assert(result.status === 404, 'Status should be 404 for not found')
+    }).timeout(30000)
+
+    it('should work without platform validation when platform not specified', async function () {
+      // Skip if Docker not available
+      try {
+        await docker.info()
+      } catch (e) {
+        this.skip()
+      }
+
+      const testImage = 'alpine:3.18'
+
+      // Ensure image exists locally
+      try {
+        await docker.pull(testImage)
+      } catch (e) {
+        this.skip()
+      }
+
+      // Check without platform - should succeed if image exists
+      const result = await dockerEngine.checkDockerImage(testImage)
+
+      assert(result, 'Result should exist')
+      assert(result.valid === true, 'Image should be valid without platform check')
+    }).timeout(30000)
+
+    after(async function () {
+      // Clean up test images if needed
+      try {
+        await docker.info()
+      } catch (e) {
+        // Docker not available, skip cleanup
+      }
+
+      // Optionally remove test images to save space
+      // (commented out to avoid breaking other tests that might use these images)
+      /*
+      try {
+        const image = docker.getImage('alpine:3.18')
+        await image.remove({ force: true })
+      } catch (e) {
+        // Ignore errors during cleanup
+      }
+      */
     })
   })
 

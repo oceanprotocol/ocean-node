@@ -556,15 +556,65 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   /**
-   * Checks the docker image by looking at the manifest
+   * Checks the docker image by looking at local images first, then remote manifest
    * @param image name or tag
-   * @returns boolean
+   * @param encryptedDockerRegistryAuth optional encrypted auth for remote registry
+   * @param platform optional platform to validate against
+   * @returns ValidateParams with valid flag and platform validation result
    */
   public async checkDockerImage(
     image: string,
     encryptedDockerRegistryAuth?: string,
     platform?: RunningPlatform
   ): Promise<ValidateParams> {
+    // Step 1: Try to check local image first
+    if (this.docker) {
+      try {
+        const dockerImage = this.docker.getImage(image)
+        const imageInfo = await dockerImage.inspect()
+
+        // Extract platform information from local image
+        const localPlatform = {
+          architecture: imageInfo.Architecture || 'amd64',
+          os: imageInfo.Os || 'linux'
+        }
+
+        // Normalize architecture (amd64 -> x86_64 for compatibility)
+        if (localPlatform.architecture === 'amd64') {
+          localPlatform.architecture = 'x86_64'
+        }
+
+        // Validate platform if required
+        const isValidPlatform = platform
+          ? checkManifestPlatform(localPlatform, platform)
+          : true
+
+        if (isValidPlatform) {
+          CORE_LOGGER.debug(`Image ${image} found locally and platform is valid`)
+          return { valid: true }
+        } else {
+          CORE_LOGGER.warn(
+            `Image ${image} found locally but platform mismatch: ` +
+              `local=${localPlatform.architecture}/${localPlatform.os}, ` +
+              `required=${platform.architecture}/${platform.os}`
+          )
+          return {
+            valid: false,
+            status: 400,
+            reason:
+              `Platform mismatch: image is ${localPlatform.architecture}/${localPlatform.os}, ` +
+              `but environment requires ${platform.architecture}/${platform.os}`
+          }
+        }
+      } catch (localErr: any) {
+        // Image not found locally or error inspecting - fall through to remote check
+        CORE_LOGGER.debug(
+          `Image ${image} not found locally (${localErr.message}), checking remote registry`
+        )
+      }
+    }
+
+    // Step 2: Fall back to remote registry check (existing behavior)
     try {
       const manifest = await this.getDockerManifest(image, encryptedDockerRegistryAuth)
 
