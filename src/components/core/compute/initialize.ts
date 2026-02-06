@@ -1,5 +1,5 @@
 import { Readable } from 'stream'
-import { P2PCommandResponse, dockerRegistryAuth } from '../../../@types/OceanNode.js'
+import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { C2DClusterType } from '../../../@types/C2D/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { CommandHandler } from '../handler/handler.js'
@@ -23,11 +23,7 @@ import {
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 import { isAddress } from 'ethers'
-import {
-  DockerRegistryAuthSchema,
-  getConfiguration,
-  isPolicyServerConfigured
-} from '../../../utils/index.js'
+import { getConfiguration, isPolicyServerConfigured } from '../../../utils/index.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
