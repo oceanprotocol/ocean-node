@@ -1860,12 +1860,40 @@ describe('Compute', () => {
   describe('Local Docker image checking', () => {
     let docker: Dockerode
     let dockerEngine: C2DEngineDocker
-
+    const testImage = 'alpine:3.18'
     before(async function () {
       // Skip if Docker not available
       try {
         docker = new Dockerode()
         await docker.info()
+        const pullStream = await docker.pull(testImage)
+        await new Promise((resolve, reject) => {
+          let wroteStatusBanner = false
+          docker.modem.followProgress(
+            pullStream,
+            (err: any, res: any) => {
+              // onFinished
+              if (err) {
+                console.log(err)
+                return reject(err)
+              }
+              console.log(`Successfully pulled image: ${testImage}`)
+              resolve(res)
+            },
+            (progress: any) => {
+              // onProgress
+              if (!wroteStatusBanner) {
+                wroteStatusBanner = true
+                console.log('############# Pull docker image status: ##############')
+              }
+              // only write the status banner once, its cleaner
+              let logText = ''
+              if (progress.id) logText += progress.id + ' : ' + progress.status
+              else logText = progress.status
+              console.log('Pulling image : ' + logText)
+            }
+          )
+        })
       } catch (e) {
         this.skip()
       }
@@ -1880,23 +1908,6 @@ describe('Compute', () => {
     })
 
     it('should check local image when it exists locally', async function () {
-      // Skip if Docker not available
-      try {
-        await docker.info()
-      } catch (e) {
-        this.skip()
-      }
-
-      const testImage = 'alpine:3.18'
-
-      // Ensure image exists locally
-      try {
-        await docker.pull(testImage)
-      } catch (e) {
-        // If pull fails, skip test
-        this.skip()
-      }
-
       // Check the image - should find it locally
       const result = await dockerEngine.checkDockerImage(testImage)
 
@@ -1905,22 +1916,6 @@ describe('Compute', () => {
     }).timeout(30000)
 
     it('should validate platform for local images', async function () {
-      // Skip if Docker not available
-      try {
-        await docker.info()
-      } catch (e) {
-        this.skip()
-      }
-
-      const testImage = 'alpine:3.18'
-
-      // Ensure image exists locally
-      try {
-        await docker.pull(testImage)
-      } catch (e) {
-        this.skip()
-      }
-
       // Get the platform from the local image
       const imageInfo = await docker.getImage(testImage).inspect()
       const localArch = imageInfo.Architecture || 'amd64'
@@ -1945,22 +1940,6 @@ describe('Compute', () => {
     }).timeout(30000)
 
     it('should detect platform mismatch for local images', async function () {
-      // Skip if Docker not available
-      try {
-        await docker.info()
-      } catch (e) {
-        this.skip()
-      }
-
-      const testImage = 'alpine:3.18'
-
-      // Ensure image exists locally
-      try {
-        await docker.pull(testImage)
-      } catch (e) {
-        this.skip()
-      }
-
       // Check with mismatched platform (assuming local is linux/amd64 or linux/x86_64)
       const mismatchedPlatform = {
         architecture: 'arm64', // Different architecture
@@ -1985,13 +1964,6 @@ describe('Compute', () => {
     }).timeout(30000)
 
     it('should fall back to remote registry when local image not found', async function () {
-      // Skip if Docker not available
-      try {
-        await docker.info()
-      } catch (e) {
-        this.skip()
-      }
-
       const nonExistentLocalImage = 'nonexistent-local-image:latest'
 
       // Ensure image doesn't exist locally
@@ -2015,22 +1987,6 @@ describe('Compute', () => {
     }).timeout(30000)
 
     it('should work without platform validation when platform not specified', async function () {
-      // Skip if Docker not available
-      try {
-        await docker.info()
-      } catch (e) {
-        this.skip()
-      }
-
-      const testImage = 'alpine:3.18'
-
-      // Ensure image exists locally
-      try {
-        await docker.pull(testImage)
-      } catch (e) {
-        this.skip()
-      }
-
       // Check without platform - should succeed if image exists
       const result = await dockerEngine.checkDockerImage(testImage)
 
