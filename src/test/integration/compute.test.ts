@@ -75,6 +75,8 @@ import {
 
 import { freeComputeStartPayload } from '../data/commands.js'
 import { DDOManager } from '@oceanprotocol/ddo-js'
+import Dockerode from 'dockerode'
+import { C2DEngineDocker } from '../../components/c2d/compute_engine_docker.js'
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -1390,6 +1392,626 @@ describe('Compute', () => {
           expect(result).to.equal(true)
         } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
       } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    })
+  })
+
+  describe('encryptedDockerRegistryAuth integration tests', () => {
+    /**
+     * Helper function to encrypt docker registry auth using ECIES
+     */
+    async function encryptDockerRegistryAuth(auth: {
+      username?: string
+      password?: string
+      auth?: string
+    }): Promise<string> {
+      const authJson = JSON.stringify(auth)
+      const authData = Uint8Array.from(Buffer.from(authJson))
+      const encrypted = await oceanNode
+        .getKeyManager()
+        .encrypt(authData, EncryptMethod.ECIES)
+      return Buffer.from(encrypted).toString('hex')
+    }
+
+    it('should initialize compute with valid encryptedDockerRegistryAuth (username/password)', async () => {
+      const validAuth = {
+        username: 'testuser',
+        password: 'testpass'
+      }
+      const encryptedAuth = await encryptDockerRegistryAuth(validAuth)
+
+      const dataset: ComputeAsset = {
+        documentId: publishedComputeDataset.ddo.id,
+        serviceId: publishedComputeDataset.ddo.services[0].id,
+        transferTxId: String(datasetOrderTxId)
+      }
+      const algorithm: ComputeAlgorithm = {
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        transferTxId: String(algoOrderTxId),
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      }
+      const initializeComputeTask: ComputeInitializeCommand = {
+        datasets: [dataset],
+        algorithm,
+        environment: firstEnv.id,
+        payment: {
+          chainId: DEVELOPMENT_CHAIN_ID,
+          token: paymentToken
+        },
+        maxJobDuration: computeJobDuration,
+        consumerAddress: firstEnv.consumerAddress,
+        command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
+        encryptedDockerRegistryAuth: encryptedAuth
+      }
+
+      const resp = await new ComputeInitializeHandler(oceanNode).handle(
+        initializeComputeTask
+      )
+      assert(resp, 'Failed to get response')
+      // Should succeed (200) or fail for other reasons, but not due to auth validation
+      // Check that error is not a validation error (format validation), even if Docker auth fails
+      if (resp.status.httpStatus !== 200) {
+        expect(resp.status.error).to.not.include('Invalid encryptedDockerRegistryAuth')
+      }
+      if (resp.status.httpStatus === 200) {
+        assert(resp.stream, 'Failed to get stream')
+        expect(resp.stream).to.be.instanceOf(Readable)
+      }
+    })
+
+    it('should initialize compute with valid encryptedDockerRegistryAuth (auth string)', async () => {
+      const validAuth = {
+        auth: Buffer.from('testuser:testpass').toString('base64')
+      }
+      const encryptedAuth = await encryptDockerRegistryAuth(validAuth)
+
+      const dataset: ComputeAsset = {
+        documentId: publishedComputeDataset.ddo.id,
+        serviceId: publishedComputeDataset.ddo.services[0].id,
+        transferTxId: String(datasetOrderTxId)
+      }
+      const algorithm: ComputeAlgorithm = {
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        transferTxId: String(algoOrderTxId),
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      }
+      const initializeComputeTask: ComputeInitializeCommand = {
+        datasets: [dataset],
+        algorithm,
+        environment: firstEnv.id,
+        payment: {
+          chainId: DEVELOPMENT_CHAIN_ID,
+          token: paymentToken
+        },
+        maxJobDuration: computeJobDuration,
+        consumerAddress: firstEnv.consumerAddress,
+        command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
+        encryptedDockerRegistryAuth: encryptedAuth
+      }
+
+      const resp = await new ComputeInitializeHandler(oceanNode).handle(
+        initializeComputeTask
+      )
+      assert(resp, 'Failed to get response')
+      // Should succeed (200) or fail for other reasons, but not due to auth validation
+      // Check that error is not a validation error (format validation), even if Docker auth fails
+      if (resp.status.httpStatus !== 200) {
+        expect(resp.status.error).to.not.include('Invalid encryptedDockerRegistryAuth')
+      }
+      if (resp.status.httpStatus === 200) {
+        assert(resp.stream, 'Failed to get stream')
+        expect(resp.stream).to.be.instanceOf(Readable)
+      }
+    })
+
+    it('should fail initialize compute with invalid encryptedDockerRegistryAuth (missing password)', async () => {
+      const invalidAuth = {
+        username: 'testuser'
+        // missing password
+      }
+      const encryptedAuth = await encryptDockerRegistryAuth(invalidAuth)
+
+      const dataset: ComputeAsset = {
+        documentId: publishedComputeDataset.ddo.id,
+        serviceId: publishedComputeDataset.ddo.services[0].id,
+        transferTxId: String(datasetOrderTxId)
+      }
+      const algorithm: ComputeAlgorithm = {
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        transferTxId: String(algoOrderTxId),
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      }
+      const initializeComputeTask: ComputeInitializeCommand = {
+        datasets: [dataset],
+        algorithm,
+        environment: firstEnv.id,
+        payment: {
+          chainId: DEVELOPMENT_CHAIN_ID,
+          token: paymentToken
+        },
+        maxJobDuration: computeJobDuration,
+        consumerAddress: firstEnv.consumerAddress,
+        command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
+        encryptedDockerRegistryAuth: encryptedAuth
+      }
+
+      const resp = await new ComputeInitializeHandler(oceanNode).handle(
+        initializeComputeTask
+      )
+      assert(resp, 'Failed to get response')
+      // Should fail with 400 due to validation error
+      assert(
+        resp.status.httpStatus === 400,
+        `Expected 400 but got ${resp.status.httpStatus}: ${resp.status.error}`
+      )
+      expect(resp.status.error).to.include('Invalid encryptedDockerRegistryAuth')
+      expect(resp.status.error).to.include(
+        "Either 'auth' must be provided, or both 'username' and 'password' must be provided"
+      )
+    })
+
+    it('should fail initialize compute with invalid encryptedDockerRegistryAuth (empty object)', async () => {
+      const invalidAuth = {}
+      const encryptedAuth = await encryptDockerRegistryAuth(invalidAuth)
+
+      const dataset: ComputeAsset = {
+        documentId: publishedComputeDataset.ddo.id,
+        serviceId: publishedComputeDataset.ddo.services[0].id,
+        transferTxId: String(datasetOrderTxId)
+      }
+      const algorithm: ComputeAlgorithm = {
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        transferTxId: String(algoOrderTxId),
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      }
+      const initializeComputeTask: ComputeInitializeCommand = {
+        datasets: [dataset],
+        algorithm,
+        environment: firstEnv.id,
+        payment: {
+          chainId: DEVELOPMENT_CHAIN_ID,
+          token: paymentToken
+        },
+        maxJobDuration: computeJobDuration,
+        consumerAddress: firstEnv.consumerAddress,
+        command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
+        encryptedDockerRegistryAuth: encryptedAuth
+      }
+
+      const resp = await new ComputeInitializeHandler(oceanNode).handle(
+        initializeComputeTask
+      )
+      assert(resp, 'Failed to get response')
+      assert(
+        resp.status.httpStatus === 400,
+        `Expected 400 but got ${resp.status.httpStatus}: ${resp.status.error}`
+      )
+      expect(resp.status.error).to.include('Invalid encryptedDockerRegistryAuth')
+    })
+
+    it('should start paid compute job with valid encryptedDockerRegistryAuth', async () => {
+      const validAuth = {
+        username: 'testuser',
+        password: 'testpass'
+      }
+      const encryptedAuth = await encryptDockerRegistryAuth(validAuth)
+
+      const nonce = Date.now().toString()
+      const message = String(
+        (await consumerAccount.getAddress()) + publishedComputeDataset.ddo.id + nonce
+      )
+      const consumerMessage = ethers.solidityPackedKeccak256(
+        ['bytes'],
+        [ethers.hexlify(ethers.toUtf8Bytes(message))]
+      )
+      const messageHashBytes = ethers.toBeArray(consumerMessage)
+      const signature = await wallet.signMessage(messageHashBytes)
+
+      const startComputeTask: PaidComputeStartCommand = {
+        command: PROTOCOL_COMMANDS.COMPUTE_START,
+        consumerAddress: await consumerAccount.getAddress(),
+        environment: firstEnv.id,
+        signature,
+        nonce,
+        datasets: [
+          {
+            documentId: publishedComputeDataset.ddo.id,
+            serviceId: publishedComputeDataset.ddo.services[0].id,
+            transferTxId: String(datasetOrderTxId)
+          }
+        ],
+        algorithm: {
+          documentId: publishedAlgoDataset.ddo.id,
+          serviceId: publishedAlgoDataset.ddo.services[0].id,
+          transferTxId: String(algoOrderTxId),
+          meta: publishedAlgoDataset.ddo.metadata.algorithm
+        },
+        payment: {
+          chainId: DEVELOPMENT_CHAIN_ID,
+          token: paymentToken
+        },
+        maxJobDuration: computeJobDuration,
+        encryptedDockerRegistryAuth: encryptedAuth
+      }
+
+      const response = await new PaidComputeStartHandler(oceanNode).handle(
+        startComputeTask
+      )
+      assert(response, 'Failed to get response')
+      // Should succeed (200) or fail for other reasons, but not due to auth validation
+      // Check that error is not a validation error (format validation), even if Docker auth fails
+      if (response.status.httpStatus !== 200) {
+        expect(response.status.error).to.not.include(
+          'Invalid encryptedDockerRegistryAuth'
+        )
+      }
+      if (response.status.httpStatus === 200) {
+        assert(response.stream, 'Failed to get stream')
+        expect(response.stream).to.be.instanceOf(Readable)
+      }
+    })
+
+    it('should fail paid compute start with invalid encryptedDockerRegistryAuth', async () => {
+      const invalidAuth = {
+        username: 'testuser'
+        // missing password
+      }
+      const encryptedAuth = await encryptDockerRegistryAuth(invalidAuth)
+
+      const nonce = Date.now().toString()
+      const message = String(
+        (await consumerAccount.getAddress()) + publishedComputeDataset.ddo.id + nonce
+      )
+      const consumerMessage = ethers.solidityPackedKeccak256(
+        ['bytes'],
+        [ethers.hexlify(ethers.toUtf8Bytes(message))]
+      )
+      const messageHashBytes = ethers.toBeArray(consumerMessage)
+      const signature = await wallet.signMessage(messageHashBytes)
+
+      const startComputeTask: PaidComputeStartCommand = {
+        command: PROTOCOL_COMMANDS.COMPUTE_START,
+        consumerAddress: await consumerAccount.getAddress(),
+        environment: firstEnv.id,
+        signature,
+        nonce,
+        datasets: [
+          {
+            documentId: publishedComputeDataset.ddo.id,
+            serviceId: publishedComputeDataset.ddo.services[0].id,
+            transferTxId: String(datasetOrderTxId)
+          }
+        ],
+        algorithm: {
+          documentId: publishedAlgoDataset.ddo.id,
+          serviceId: publishedAlgoDataset.ddo.services[0].id,
+          transferTxId: String(algoOrderTxId),
+          meta: publishedAlgoDataset.ddo.metadata.algorithm
+        },
+        payment: {
+          chainId: DEVELOPMENT_CHAIN_ID,
+          token: paymentToken
+        },
+        maxJobDuration: computeJobDuration,
+        encryptedDockerRegistryAuth: encryptedAuth
+      }
+
+      const response = await new PaidComputeStartHandler(oceanNode).handle(
+        startComputeTask
+      )
+      assert(response, 'Failed to get response')
+      assert(
+        response.status.httpStatus === 400,
+        `Expected 400 but got ${response.status.httpStatus}: ${response.status.error}`
+      )
+      expect(response.status.error).to.include('Invalid encryptedDockerRegistryAuth')
+    })
+
+    it('should start free compute job with valid encryptedDockerRegistryAuth', async () => {
+      const validAuth = {
+        username: 'testuser',
+        password: 'testpass'
+      }
+      const encryptedAuth = await encryptDockerRegistryAuth(validAuth)
+
+      const nonce = Date.now().toString()
+      const consumerMessage = ethers.solidityPackedKeccak256(
+        ['bytes'],
+        [ethers.hexlify(ethers.toUtf8Bytes(nonce))]
+      )
+      const signature = await wallet.signMessage(ethers.toBeArray(consumerMessage))
+
+      const startComputeTask: FreeComputeStartCommand = {
+        command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+        consumerAddress: await wallet.getAddress(),
+        signature,
+        nonce,
+        environment: firstEnv.id,
+        datasets: [
+          {
+            fileObject: computeAsset.services[0].files.files[0],
+            documentId: publishedComputeDataset.ddo.id,
+            serviceId: publishedComputeDataset.ddo.services[0].id,
+            transferTxId: datasetOrderTxId
+          }
+        ],
+        algorithm: {
+          fileObject: algoAsset.services[0].files.files[0],
+          documentId: publishedAlgoDataset.ddo.id,
+          serviceId: publishedAlgoDataset.ddo.services[0].id,
+          transferTxId: algoOrderTxId,
+          meta: publishedAlgoDataset.ddo.metadata.algorithm
+        },
+        output: {},
+        encryptedDockerRegistryAuth: encryptedAuth
+      }
+
+      const response = await new FreeComputeStartHandler(oceanNode).handle(
+        startComputeTask
+      )
+      assert(response, 'Failed to get response')
+      // Should succeed (200) or fail for other reasons, but not due to auth validation
+      // Check that error is not a validation error (format validation), even if Docker auth fails
+      if (response.status.httpStatus !== 200) {
+        expect(response.status.error).to.not.include(
+          'Invalid encryptedDockerRegistryAuth'
+        )
+      }
+      if (response.status.httpStatus === 200) {
+        assert(response.stream, 'Failed to get stream')
+        expect(response.stream).to.be.instanceOf(Readable)
+      }
+    })
+
+    it('should fail free compute start with invalid encryptedDockerRegistryAuth', async () => {
+      const invalidAuth = {
+        password: 'testpass'
+        // missing username
+      }
+      const encryptedAuth = await encryptDockerRegistryAuth(invalidAuth)
+
+      const nonce = Date.now().toString()
+      const consumerMessage = ethers.solidityPackedKeccak256(
+        ['bytes'],
+        [ethers.hexlify(ethers.toUtf8Bytes(nonce))]
+      )
+      const signature = await wallet.signMessage(ethers.toBeArray(consumerMessage))
+
+      const startComputeTask: FreeComputeStartCommand = {
+        command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+        consumerAddress: await wallet.getAddress(),
+        signature,
+        nonce,
+        environment: firstEnv.id,
+        datasets: [
+          {
+            fileObject: computeAsset.services[0].files.files[0],
+            documentId: publishedComputeDataset.ddo.id,
+            serviceId: publishedComputeDataset.ddo.services[0].id,
+            transferTxId: datasetOrderTxId
+          }
+        ],
+        algorithm: {
+          fileObject: algoAsset.services[0].files.files[0],
+          documentId: publishedAlgoDataset.ddo.id,
+          serviceId: publishedAlgoDataset.ddo.services[0].id,
+          transferTxId: algoOrderTxId,
+          meta: publishedAlgoDataset.ddo.metadata.algorithm
+        },
+        output: {},
+        encryptedDockerRegistryAuth: encryptedAuth
+      }
+
+      const response = await new FreeComputeStartHandler(oceanNode).handle(
+        startComputeTask
+      )
+      assert(response, 'Failed to get response')
+      assert(
+        response.status.httpStatus === 400,
+        `Expected 400 but got ${response.status.httpStatus}: ${response.status.error}`
+      )
+      expect(response.status.error).to.include('Invalid encryptedDockerRegistryAuth')
+    })
+
+    it('should handle invalid hex-encoded encryptedDockerRegistryAuth gracefully', async () => {
+      const invalidHex = 'not-a-valid-hex-string'
+
+      const dataset: ComputeAsset = {
+        documentId: publishedComputeDataset.ddo.id,
+        serviceId: publishedComputeDataset.ddo.services[0].id,
+        transferTxId: String(datasetOrderTxId)
+      }
+      const algorithm: ComputeAlgorithm = {
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        transferTxId: String(algoOrderTxId),
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      }
+      const initializeComputeTask: ComputeInitializeCommand = {
+        datasets: [dataset],
+        algorithm,
+        environment: firstEnv.id,
+        payment: {
+          chainId: DEVELOPMENT_CHAIN_ID,
+          token: paymentToken
+        },
+        maxJobDuration: computeJobDuration,
+        consumerAddress: firstEnv.consumerAddress,
+        command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
+        encryptedDockerRegistryAuth: invalidHex
+      }
+
+      const resp = await new ComputeInitializeHandler(oceanNode).handle(
+        initializeComputeTask
+      )
+      assert(resp, 'Failed to get response')
+      // Should fail with 500 due to decryption/parsing error
+      assert(
+        resp.status.httpStatus === 400,
+        `Expected 400 but got ${resp.status.httpStatus}: ${resp.status.error}`
+      )
+      expect(resp.status.error).to.include('Invalid encryptedDockerRegistryAuth')
+    })
+  })
+
+  describe('Local Docker image checking', () => {
+    let docker: Dockerode
+    let dockerEngine: C2DEngineDocker
+    const testImage = 'alpine:3.18'
+    before(async function () {
+      // Skip if Docker not available
+      try {
+        docker = new Dockerode()
+        await docker.info()
+        const pullStream = await docker.pull(testImage)
+        await new Promise((resolve, reject) => {
+          let wroteStatusBanner = false
+          docker.modem.followProgress(
+            pullStream,
+            (err: any, res: any) => {
+              // onFinished
+              if (err) {
+                console.log(err)
+                return reject(err)
+              }
+              console.log(`Successfully pulled image: ${testImage}`)
+              resolve(res)
+            },
+            (progress: any) => {
+              // onProgress
+              if (!wroteStatusBanner) {
+                wroteStatusBanner = true
+                console.log('############# Pull docker image status: ##############')
+              }
+              // only write the status banner once, its cleaner
+              let logText = ''
+              if (progress.id) logText += progress.id + ' : ' + progress.status
+              else logText = progress.status
+              console.log('Pulling image : ' + logText)
+            }
+          )
+        })
+      } catch (e) {
+        this.skip()
+      }
+
+      // Get the Docker engine from oceanNode
+      const c2dEngines = oceanNode.getC2DEngines()
+      const engines = (c2dEngines as any).engines as C2DEngineDocker[]
+      dockerEngine = engines.find((e) => e instanceof C2DEngineDocker)
+      if (!dockerEngine) {
+        this.skip()
+      }
+    })
+
+    it('should check local image when it exists locally', async function () {
+      // Check the image - should find it locally
+      const result = await dockerEngine.checkDockerImage(testImage)
+
+      assert(result, 'Result should exist')
+      assert(result.valid === true, 'Image should be valid')
+    }).timeout(30000)
+
+    it('should validate platform for local images', async function () {
+      // Get the platform from the local image
+      const imageInfo = await docker.getImage(testImage).inspect()
+      const localArch = imageInfo.Architecture || 'amd64'
+      const localOs = imageInfo.Os || 'linux'
+
+      // Check with matching platform
+      const matchingPlatform = {
+        architecture: localArch === 'amd64' ? 'x86_64' : localArch,
+        os: localOs
+      }
+      const resultMatching = await dockerEngine.checkDockerImage(
+        testImage,
+        undefined,
+        matchingPlatform
+      )
+
+      assert(resultMatching, 'Result should exist')
+      assert(
+        resultMatching.valid === true,
+        'Image should be valid with matching platform'
+      )
+    }).timeout(30000)
+
+    it('should detect platform mismatch for local images', async function () {
+      // Check with mismatched platform (assuming local is linux/amd64 or linux/x86_64)
+      const mismatchedPlatform = {
+        architecture: 'arm64', // Different architecture
+        os: 'linux'
+      }
+      const resultMismatch = await dockerEngine.checkDockerImage(
+        testImage,
+        undefined,
+        mismatchedPlatform
+      )
+
+      assert(resultMismatch, 'Result should exist')
+      assert(
+        resultMismatch.valid === false,
+        'Image should be invalid with mismatched platform'
+      )
+      assert(resultMismatch.status === 400, 'Status should be 400 for platform mismatch')
+      assert(
+        resultMismatch.reason.includes('Platform mismatch'),
+        'Reason should include platform mismatch message'
+      )
+    }).timeout(30000)
+
+    it('should fall back to remote registry when local image not found', async function () {
+      const nonExistentLocalImage = 'nonexistent-local-image:latest'
+
+      // Ensure image doesn't exist locally
+      try {
+        const image = docker.getImage(nonExistentLocalImage)
+        await image.inspect()
+        // If we get here, image exists - remove it for test
+        await image.remove({ force: true })
+      } catch (e) {
+        // Image doesn't exist locally, which is what we want
+      }
+
+      // Check the image - should fall back to remote check
+      // This will likely fail with 404, but we're testing the fallback behavior
+      const result = await dockerEngine.checkDockerImage(nonExistentLocalImage)
+
+      assert(result, 'Result should exist')
+      // Should have attempted remote check (will fail, but that's expected)
+      assert(result.valid === false, 'Image should be invalid (not found)')
+      assert(result.status === 404, 'Status should be 404 for not found')
+    }).timeout(30000)
+
+    it('should work without platform validation when platform not specified', async function () {
+      // Check without platform - should succeed if image exists
+      const result = await dockerEngine.checkDockerImage(testImage)
+
+      assert(result, 'Result should exist')
+      assert(result.valid === true, 'Image should be valid without platform check')
+    }).timeout(30000)
+
+    after(async function () {
+      // Clean up test images if needed
+      try {
+        await docker.info()
+      } catch (e) {
+        // Docker not available, skip cleanup
+      }
+
+      // Optionally remove test images to save space
+      // (commented out to avoid breaking other tests that might use these images)
+      /*
+      try {
+        const image = docker.getImage('alpine:3.18')
+        await image.remove({ force: true })
+      } catch (e) {
+        // Ignore errors during cleanup
+      }
+      */
     })
   })
 

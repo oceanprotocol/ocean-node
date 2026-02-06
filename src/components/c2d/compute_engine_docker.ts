@@ -51,7 +51,8 @@ import { decryptFilesObject, omitDBComputeFieldsFromComputeJob } from './index.j
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
 import { Service } from '@oceanprotocol/ddo-js'
 import { getOceanTokenAddressForChain } from '../../utils/address.js'
-import { dockerRegistrysAuth } from '../../@types/OceanNode.js'
+import { dockerRegistrysAuth, dockerRegistryAuth } from '../../@types/OceanNode.js'
+import { EncryptMethod } from '../../@types/fileObject.js'
 
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
@@ -474,12 +475,24 @@ export class C2DEngineDocker extends C2DEngine {
     return { registry, name, ref }
   }
 
-  public async getDockerManifest(image: string): Promise<any> {
+  public async getDockerManifest(
+    image: string,
+    encryptedDockerRegistryAuth?: string
+  ): Promise<any> {
     const { registry, name, ref } = this.parseImage(image)
     const url = `${registry}/v2/${name}/manifests/${ref}`
 
-    // Get registry auth from parent class
-    const dockerRegistryAuth = this.getDockerRegistryAuth(registry)
+    // Use user provided registry auth or get it from the config
+    let dockerRegistryAuth: dockerRegistryAuth | null = null
+    if (encryptedDockerRegistryAuth) {
+      const decryptedDockerRegistryAuth = await this.keyManager.decrypt(
+        Uint8Array.from(Buffer.from(encryptedDockerRegistryAuth, 'hex')),
+        EncryptMethod.ECIES
+      )
+      dockerRegistryAuth = JSON.parse(decryptedDockerRegistryAuth.toString())
+    } else {
+      dockerRegistryAuth = this.getDockerRegistryAuth(registry)
+    }
 
     let headers: Record<string, string> = {
       Accept:
@@ -543,16 +556,67 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   /**
-   * Checks the docker image by looking at the manifest
+   * Checks the docker image by looking at local images first, then remote manifest
    * @param image name or tag
-   * @returns boolean
+   * @param encryptedDockerRegistryAuth optional encrypted auth for remote registry
+   * @param platform optional platform to validate against
+   * @returns ValidateParams with valid flag and platform validation result
    */
   public async checkDockerImage(
     image: string,
+    encryptedDockerRegistryAuth?: string,
     platform?: RunningPlatform
   ): Promise<ValidateParams> {
+    // Step 1: Try to check local image first
+    if (this.docker) {
+      try {
+        const dockerImage = this.docker.getImage(image)
+        const imageInfo = await dockerImage.inspect()
+
+        // Extract platform information from local image
+        const localPlatform = {
+          architecture: imageInfo.Architecture || 'amd64',
+          os: imageInfo.Os || 'linux'
+        }
+
+        // Normalize architecture (amd64 -> x86_64 for compatibility)
+        if (localPlatform.architecture === 'amd64') {
+          localPlatform.architecture = 'x86_64'
+        }
+
+        // Validate platform if required
+        const isValidPlatform = platform
+          ? checkManifestPlatform(localPlatform, platform)
+          : true
+
+        if (isValidPlatform) {
+          CORE_LOGGER.debug(`Image ${image} found locally and platform is valid`)
+          return { valid: true }
+        } else {
+          CORE_LOGGER.warn(
+            `Image ${image} found locally but platform mismatch: ` +
+              `local=${localPlatform.architecture}/${localPlatform.os}, ` +
+              `required=${platform.architecture}/${platform.os}`
+          )
+          return {
+            valid: false,
+            status: 400,
+            reason:
+              `Platform mismatch: image is ${localPlatform.architecture}/${localPlatform.os}, ` +
+              `but environment requires ${platform.architecture}/${platform.os}`
+          }
+        }
+      } catch (localErr: any) {
+        // Image not found locally or error inspecting - fall through to remote check
+        CORE_LOGGER.debug(
+          `Image ${image} not found locally (${localErr.message}), checking remote registry`
+        )
+      }
+    }
+
+    // Step 2: Fall back to remote registry check (existing behavior)
     try {
-      const manifest = await this.getDockerManifest(image)
+      const manifest = await this.getDockerManifest(image, encryptedDockerRegistryAuth)
 
       const platforms = Array.isArray(manifest.manifests)
         ? manifest.manifests.map((entry: any) => entry.platform)
@@ -588,7 +652,8 @@ export class C2DEngineDocker extends C2DEngine {
     jobId: string,
     metadata?: DBComputeJobMetadata,
     additionalViewers?: string[],
-    queueMaxWaitTime?: number
+    queueMaxWaitTime?: number,
+    encryptedDockerRegistryAuth?: string
   ): Promise<ComputeJob[]> {
     if (!this.docker) return []
     // TO DO - iterate over resources and get default runtime
@@ -636,6 +701,7 @@ export class C2DEngineDocker extends C2DEngine {
         throw new Error(`additionalDockerFiles cannot be used with queued jobs`)
       }
     }
+
     const job: DBComputeJob = {
       clusterHash: this.getC2DConfig().hash,
       containerImage: image,
@@ -672,7 +738,8 @@ export class C2DEngineDocker extends C2DEngine {
       additionalViewers,
       terminationDetails: { exitCode: null, OOMKilled: null },
       algoDuration: 0,
-      queueMaxWaitTime: queueMaxWaitTime || 0
+      queueMaxWaitTime: queueMaxWaitTime || 0,
+      encryptedDockerRegistryAuth // we store the encrypted docker registry auth in the job
     }
 
     if (algorithm.meta.container && algorithm.meta.container.dockerfile) {
@@ -683,7 +750,11 @@ export class C2DEngineDocker extends C2DEngine {
       }
     } else {
       // already built, we need to validate it
-      const validation = await this.checkDockerImage(image, env.platform)
+      const validation = await this.checkDockerImage(
+        image,
+        job.encryptedDockerRegistryAuth,
+        env.platform
+      )
       if (!validation.valid)
         throw new Error(
           `Cannot find image ${image} for ${env.platform.architecture}. Maybe it does not exist or it's build for other arhitectures.`
@@ -1682,30 +1753,40 @@ export class C2DEngineDocker extends C2DEngine {
     try {
       // Get registry auth for the image
       const { registry } = this.parseImage(job.containerImage)
-      const dockerRegistryAuth = this.getDockerRegistryAuth(registry)
+      // Use user provided registry auth or get it from the config
+      let dockerRegistryAuthForPull: any
+      if (originaljob.encryptedDockerRegistryAuth) {
+        const decryptedDockerRegistryAuth = await this.keyManager.decrypt(
+          Uint8Array.from(Buffer.from(originaljob.encryptedDockerRegistryAuth, 'hex')),
+          EncryptMethod.ECIES
+        )
+        dockerRegistryAuthForPull = JSON.parse(decryptedDockerRegistryAuth.toString())
+      } else {
+        dockerRegistryAuthForPull = this.getDockerRegistryAuth(registry)
+      }
 
       // Prepare authconfig for Dockerode if credentials are available
       const pullOptions: any = {}
-      if (dockerRegistryAuth) {
+      if (dockerRegistryAuthForPull) {
         // Extract hostname from registry URL (remove protocol)
         const registryUrl = new URL(registry)
         const serveraddress =
           registryUrl.hostname + (registryUrl.port ? `:${registryUrl.port}` : '')
 
         // Use auth string if available, otherwise encode username:password
-        const authString = dockerRegistryAuth.auth
-          ? dockerRegistryAuth.auth
+        const authString = dockerRegistryAuthForPull.auth
+          ? dockerRegistryAuthForPull.auth
           : Buffer.from(
-              `${dockerRegistryAuth.username}:${dockerRegistryAuth.password}`
+              `${dockerRegistryAuthForPull.username}:${dockerRegistryAuthForPull.password}`
             ).toString('base64')
 
         pullOptions.authconfig = {
           serveraddress,
-          ...(dockerRegistryAuth.auth
+          ...(dockerRegistryAuthForPull.auth
             ? { auth: authString }
             : {
-                username: dockerRegistryAuth.username,
-                password: dockerRegistryAuth.password
+                username: dockerRegistryAuthForPull.username,
+                password: dockerRegistryAuthForPull.password
               })
         }
         CORE_LOGGER.debug(

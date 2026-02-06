@@ -37,7 +37,7 @@ describe('Docker Registry Authentication Integration Tests', () => {
 
       // Test with a well-known public image
       const image = 'library/alpine:latest'
-      const manifest = await dockerEngine.getDockerManifest(image)
+      const manifest = await dockerEngine.getDockerManifest(image, null)
 
       expect(manifest).to.exist
       expect(manifest).to.have.property('schemaVersion')
@@ -64,7 +64,7 @@ describe('Docker Registry Authentication Integration Tests', () => {
 
       // Use a simple image reference that will default to Docker Hub
       const image = 'hello-world:latest'
-      const manifest = await dockerEngine.getDockerManifest(image)
+      const manifest = await dockerEngine.getDockerManifest(image, null)
 
       expect(manifest).to.exist
       expect(manifest).to.have.property('schemaVersion')
@@ -233,7 +233,7 @@ describe('Docker Registry Authentication Integration Tests', () => {
       )
 
       try {
-        await dockerEngine.getDockerManifest('invalid-image-reference')
+        await dockerEngine.getDockerManifest('invalid-image-reference', null)
         assert.fail('Should have thrown an error for invalid image')
       } catch (error: any) {
         expect(error).to.exist
