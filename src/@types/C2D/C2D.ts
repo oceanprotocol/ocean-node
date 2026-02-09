@@ -264,6 +264,7 @@ export interface DBComputeJob extends ComputeJob {
   metadata?: DBComputeJobMetadata
   additionalViewers?: string[] // addresses of additional addresses that can get results
   algoDuration: number // duration of the job in seconds
+  encryptedDockerRegistryAuth?: string
 }
 
 // make sure we keep them both in sync

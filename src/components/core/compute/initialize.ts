@@ -28,7 +28,8 @@ import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
-import { C2DEngineDocker, getAlgorithmImage } from '../../c2d/compute_engine_docker.js'
+import { getAlgorithmImage } from '../../c2d/compute_engine_docker.js'
+
 import { Credentials, DDOManager } from '@oceanprotocol/ddo-js'
 import { checkCredentials } from '../../../utils/credentials.js'
 import { PolicyServer } from '../../policyServer/index.js'
@@ -387,8 +388,25 @@ export class ComputeInitializeHandler extends CommandHandler {
           if (hasDockerImages) {
             const algoImage = getAlgorithmImage(task.algorithm, generateUniqueID(task))
             if (algoImage) {
-              const validation: ValidateParams = await C2DEngineDocker.checkDockerImage(
+              // validate encrypteddockerRegistryAuth
+              let validation: ValidateParams
+              if (task.encryptedDockerRegistryAuth) {
+                validation = await engine.checkEncryptedDockerRegistryAuth(
+                  task.encryptedDockerRegistryAuth
+                )
+                if (!validation.valid) {
+                  return {
+                    stream: null,
+                    status: {
+                      httpStatus: validation.status,
+                      error: `Invalid encryptedDockerRegistryAuth :${validation.reason}`
+                    }
+                  }
+                }
+              }
+              validation = await engine.checkDockerImage(
                 algoImage,
+                task.encryptedDockerRegistryAuth,
                 env.platform
               )
               if (!validation.valid) {

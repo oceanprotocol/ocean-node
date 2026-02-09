@@ -21,22 +21,30 @@ import { C2DClusterType } from '../../@types/C2D/C2D.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
 import { KeyManager } from '../KeyManager/index.js'
-
+import { dockerRegistryAuth, dockerRegistrysAuth } from '../../@types/OceanNode.js'
+import { ValidateParams } from '../httpRoutes/validateCommands.js'
+import { EncryptMethod } from '../../@types/fileObject.js'
+import { CORE_LOGGER } from '../../utils/logging/common.js'
+import { DockerRegistryAuthSchema } from '../../utils/config/schemas.js'
 export abstract class C2DEngine {
   private clusterConfig: C2DClusterInfo
   public db: C2DDatabase
   public escrow: Escrow
   public keyManager: KeyManager
+  public dockerRegistryAuths: dockerRegistrysAuth
+
   public constructor(
     cluster: C2DClusterInfo,
     db: C2DDatabase,
     escrow: Escrow,
-    keyManager: KeyManager
+    keyManager: KeyManager,
+    dockerRegistryAuths: dockerRegistrysAuth
   ) {
     this.clusterConfig = cluster
     this.db = db
     this.escrow = escrow
     this.keyManager = keyManager
+    this.dockerRegistryAuths = dockerRegistryAuths
   }
 
   getKeyManager(): KeyManager {
@@ -66,6 +74,13 @@ export abstract class C2DEngine {
     return null
   }
 
+  // eslint-disable-next-line require-await
+  public abstract checkDockerImage(
+    image: string,
+    encryptedDockerRegistryAuth?: string,
+    platform?: any
+  ): Promise<ValidateParams>
+
   public abstract startComputeJob(
     assets: ComputeAsset[],
     algorithm: ComputeAlgorithm,
@@ -78,7 +93,8 @@ export abstract class C2DEngine {
     jobId: string,
     metadata?: DBComputeJobMetadata,
     additionalViewers?: string[],
-    queueMaxWaitTime?: number
+    queueMaxWaitTime?: number,
+    encryptedDockerRegistryAuth?: string
   ): Promise<ComputeJob[]>
 
   public abstract stopComputeJob(
@@ -522,5 +538,61 @@ export abstract class C2DEngine {
       cost += resourcePrice * request.amount * Math.ceil(maxJobDuration / 60)
     }
     return cost
+  }
+
+  public getDockerRegistryAuth(registry: string): dockerRegistryAuth | null {
+    if (!this.dockerRegistryAuths) return null
+    if (this.dockerRegistryAuths[registry]) {
+      return this.dockerRegistryAuths[registry]
+    }
+    return null
+  }
+
+  public async checkEncryptedDockerRegistryAuth(
+    encryptedDockerRegistryAuth: string
+  ): Promise<ValidateParams> {
+    let decryptedDockerRegistryAuth: dockerRegistryAuth
+    try {
+      const decryptedDockerRegistryAuthBuffer = await this.keyManager.decrypt(
+        Uint8Array.from(Buffer.from(encryptedDockerRegistryAuth, 'hex')),
+        EncryptMethod.ECIES
+      )
+
+      // Convert decrypted buffer to string and parse as JSON
+      const decryptedDockerRegistryAuthString =
+        decryptedDockerRegistryAuthBuffer.toString()
+
+      decryptedDockerRegistryAuth = JSON.parse(decryptedDockerRegistryAuthString)
+    } catch (error: any) {
+      const errorMessage = `Invalid encryptedDockerRegistryAuth: failed to parse JSON - ${error?.message || String(error)}`
+      CORE_LOGGER.error(errorMessage)
+      return {
+        valid: false,
+        reason: errorMessage,
+        status: 400
+      }
+    }
+
+    // Validate using schema - ensures either auth or username+password are provided
+    const validationResult = DockerRegistryAuthSchema.safeParse(
+      decryptedDockerRegistryAuth
+    )
+    if (!validationResult.success) {
+      const errorMessageValidation = validationResult.error.errors
+        .map((err) => err.message)
+        .join('; ')
+      const errorMessage = `Invalid encryptedDockerRegistryAuth: ${errorMessageValidation}`
+      CORE_LOGGER.error(errorMessage)
+      return {
+        valid: false,
+        reason: errorMessage,
+        status: 400
+      }
+    }
+    return {
+      valid: true,
+      reason: null,
+      status: 200
+    }
   }
 }

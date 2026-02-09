@@ -5,9 +5,9 @@ import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
 import { KeyManager } from '../KeyManager/index.js'
+
 export class C2DEngines {
   public engines: C2DEngine[]
-
   public constructor(
     config: OceanNodeConfig,
     db: C2DDatabase,
@@ -23,7 +23,15 @@ export class C2DEngines {
       this.engines = []
       for (const cluster of config.c2dClusters) {
         if (cluster.type === C2DClusterType.DOCKER) {
-          this.engines.push(new C2DEngineDocker(cluster, db, escrow, keyManager))
+          this.engines.push(
+            new C2DEngineDocker(
+              cluster,
+              db,
+              escrow,
+              keyManager,
+              config.dockerRegistrysAuth
+            )
+          )
         }
       }
     }
