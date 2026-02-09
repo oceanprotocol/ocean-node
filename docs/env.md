@@ -261,3 +261,170 @@ The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of
 - For GitLab Container Registry, use a personal access token (PAT) or deploy token.
 - The registry URL must match exactly (including protocol) with the registry used in the Docker image reference.
 - If no credentials are configured for a registry, the node will attempt unauthenticated access (works for public images only).
+
+---
+
+## Private Docker Registries with Per-Job Authentication
+
+In addition to node-level registry authentication via `DOCKER_REGISTRY_AUTHS`, you can provide encrypted Docker registry authentication credentials on a per-job basis. This allows different users to use different private registries or credentials for their compute jobs.
+
+### Overview
+
+The `encryptedDockerRegistryAuth` parameter allows you to securely provide Docker registry credentials that are:
+
+- Encrypted using ECIES (Elliptic Curve Integrated Encryption Scheme) with the node's public key
+- Validated to ensure proper format (either `auth` string OR `username`+`password`)
+- Used only for the specific compute job, overriding node-level configuration if provided
+
+### Encryption Format
+
+The `encryptedDockerRegistryAuth` must be:
+
+1. A JSON object matching the Docker registry auth schema (see below)
+2. Encrypted using ECIES with the node's public key
+3. Hex-encoded as a string
+
+**Auth Schema Format:**
+
+The decrypted JSON must follow this structure:
+
+```json
+{
+  "username": "myuser",
+  "password": "mypassword"
+}
+```
+
+OR
+
+```json
+{
+  "auth": "base64-encoded-username:password"
+}
+```
+
+OR (all fields present)
+
+```json
+{
+  "username": "myuser",
+  "password": "mypassword",
+  "auth": "base64-encoded-username:password"
+}
+```
+
+**Validation Rules:**
+
+- Either `auth` string must be provided (non-empty), OR
+- Both `username` AND `password` must be provided (both non-empty)
+- Empty strings are not accepted
+
+### Usage Examples
+
+#### 1. Paid Compute Start (`POST /api/services/compute`)
+
+```json
+{
+  "command": "startCompute",
+  "consumerAddress": "0x...",
+  "signature": "...",
+  "nonce": "123",
+  "environment": "0x...",
+  "algorithm": {
+    "meta": {
+      "container": {
+        "image": "registry.example.com/myorg/myimage:latest"
+      }
+    }
+  },
+  "datasets": [],
+  "payment": { ... },
+  "encryptedDockerRegistryAuth": "0xdeadbeef..." // ECIES encrypted hex string
+}
+```
+
+#### 2. Free Compute Start (`POST /api/services/freeCompute`)
+
+```json
+{
+  "command": "freeStartCompute",
+  "consumerAddress": "0x...",
+  "signature": "...",
+  "nonce": "123",
+  "environment": "0x...",
+  "algorithm": {
+    "meta": {
+      "container": {
+        "image": "ghcr.io/myorg/myimage:latest"
+      }
+    }
+  },
+  "datasets": [],
+  "encryptedDockerRegistryAuth": "0xdeadbeef..." // ECIES encrypted hex string
+}
+```
+
+#### 3. Initialize Compute
+
+The `initialize` command accepts `encryptedDockerRegistryAuth` as part of the command payload, as it validates the image
+
+```json
+{
+  "command": "initialize",
+  "datasets": [...],
+  "algorithm": {
+    "meta": {
+      "container": {
+        "image": "registry.gitlab.com/myorg/myimage:latest"
+      }
+    }
+  },
+  "environment": "0x...",
+  "payment": { ... },
+  "consumerAddress": "0x...",
+  "maxJobDuration": 3600,
+  "encryptedDockerRegistryAuth": "0xdeadbeef..." // ECIES encrypted hex string
+}
+```
+
+### Encryption Process
+
+To create `encryptedDockerRegistryAuth`, you need to:
+
+1. **Prepare the auth JSON object:**
+
+   ```json
+   {
+     "username": "myuser",
+     "password": "mypassword"
+   }
+   ```
+
+2. **Get the node's public key** (available via the node's API or P2P interface)
+
+3. **Encrypt the JSON string** using ECIES with the node's public key
+
+4. **Hex-encode the encrypted result**
+
+### Behavior
+
+- **Priority**: If `encryptedDockerRegistryAuth` is provided, it takes precedence over node-level `DOCKER_REGISTRY_AUTHS` configuration for that specific job
+- **Validation**: The encrypted auth is decrypted and validated before the job starts. Invalid formats will result in an error
+- **Scope**: The credentials are used for:
+  - Validating the Docker image exists (during initialize)
+  - Pulling the Docker image (during job execution)
+- **Security**: Credentials are encrypted and only decrypted by the node using its private key
+
+### Error Handling
+
+If `encryptedDockerRegistryAuth` is invalid, you'll receive an error:
+
+- **Decryption failure**: `Invalid encryptedDockerRegistryAuth: failed to parse JSON - [error message]`
+- **Schema validation failure**: `Invalid encryptedDockerRegistryAuth: Either 'auth' must be provided, or both 'username' and 'password' must be provided`
+
+### Notes
+
+- The `encryptedDockerRegistryAuth` parameter is optional. If not provided, the node will use `DOCKER_REGISTRY_AUTHS` configuration or attempt unauthenticated access
+- The registry URL in the Docker image reference must match the registry you're authenticating to
+- For Docker Hub, use `registry-1.docker.io` as the registry URL
+- Credentials are stored encrypted in the job record and decrypted only when needed for image operations

@@ -388,8 +388,25 @@ export class ComputeInitializeHandler extends CommandHandler {
           if (hasDockerImages) {
             const algoImage = getAlgorithmImage(task.algorithm, generateUniqueID(task))
             if (algoImage) {
-              const validation: ValidateParams = await engine.checkDockerImage(
+              // validate encrypteddockerRegistryAuth
+              let validation: ValidateParams
+              if (task.encryptedDockerRegistryAuth) {
+                validation = await engine.checkEncryptedDockerRegistryAuth(
+                  task.encryptedDockerRegistryAuth
+                )
+                if (!validation.valid) {
+                  return {
+                    stream: null,
+                    status: {
+                      httpStatus: validation.status,
+                      error: `Invalid encryptedDockerRegistryAuth :${validation.reason}`
+                    }
+                  }
+                }
+              }
+              validation = await engine.checkDockerImage(
                 algoImage,
+                task.encryptedDockerRegistryAuth,
                 env.platform
               )
               if (!validation.valid) {
