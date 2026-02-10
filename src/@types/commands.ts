@@ -175,6 +175,14 @@ export interface AdminPushConfigCommand extends AdminCommand {
   config: Record<string, any>
 }
 
+export interface AdminGetLogsCommand extends AdminCommand {
+  startTime?: string
+  endTime?: string
+  maxLogs?: number
+  moduleName?: string
+  level?: string
+}
+
 export interface ICommandHandler {
   handle(command: Command): Promise<P2PCommandResponse>
   verifyParamsAndRateLimits(task: Command): Promise<P2PCommandResponse>

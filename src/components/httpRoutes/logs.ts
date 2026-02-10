@@ -11,7 +11,7 @@ const validateRequest = async (
   res: express.Response,
   next: express.NextFunction
 ) => {
-  const { signature } = req.body
+  const { signature, address } = req.body
   let { expiryTimestamp } = req.body
 
   if (!signature) {
@@ -29,7 +29,8 @@ const validateRequest = async (
 
   const isValid: CommonValidation = await validateAdminSignature(
     expiryTimestamp,
-    signature
+    signature,
+    address
   )
   if (!isValid.valid) {
     return res.status(403).send(`Invalid signature: ${isValid.error}`)

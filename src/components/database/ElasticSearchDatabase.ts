@@ -866,10 +866,10 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
 
       const numLogs = await this.getLogsCount()
       const from = (page || 0) * Math.min(maxLogs, 250)
-      const size = Math.min(maxLogs, 250)
+      const size = Math.min(maxLogs, 250, numLogs > 0 ? numLogs : 250)
       // not checking this limits will throw:
       // illegal_argument_exception: Result window is too large, from + size must be less than or equal to: [10000] but was [XYZ]
-      if (from > 10000 || size > 10000 || size > numLogs) {
+      if (from + size > 10000) {
         DATABASE_LOGGER.logMessageWithEmoji(
           `Result window is too large, from + size must be less than or equal to: [10000]. "from": ${from}", "size": ${size}, "num": ${numLogs}`,
           true,
