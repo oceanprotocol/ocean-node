@@ -68,6 +68,20 @@ export class PaidComputeStartHandler extends CommandHandler {
     if (!task.queueMaxWaitTime) {
       task.queueMaxWaitTime = 0
     }
+    // DEBUG: Log the message construction
+    const debugMessage = String(
+      task.consumerAddress + task.datasets[0]?.documentId + task.nonce
+    )
+    CORE_LOGGER.logMessage(
+      `[DEBUG] Signature validation message:\n` +
+        `  datasets: ${JSON.stringify(task.datasets)}\n` +
+        `  datasets[0]?.documentId: ${task.datasets[0]?.documentId}\n` +
+        `  consumerAddress: ${task.consumerAddress}\n` +
+        `  nonce: ${task.nonce}\n` +
+        `  Message: "${debugMessage}"`,
+      true
+    )
+
     const authValidationResponse = await this.validateTokenOrSignature(
       task.authorization,
       task.consumerAddress,
