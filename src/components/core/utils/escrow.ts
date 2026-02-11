@@ -383,7 +383,7 @@ export class Escrow {
         payersAddresses
       )
       const gasOptions = await blockchain.getGasOptions(gas, 1.2)
-      const tx = await contract.cancelExpiredLock(
+      const tx = await contract.cancelExpiredLocks(
         jobIds,
         tokens,
         payers,
