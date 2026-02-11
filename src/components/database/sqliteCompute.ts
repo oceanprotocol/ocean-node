@@ -424,7 +424,8 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
   getJobs(
     environments?: string[],
     fromTimestamp?: string,
-    consumerAddrs?: string[]
+    consumerAddrs?: string[],
+    status?: C2DStatusNumber
   ): Promise<DBComputeJob[]> {
     let selectSQL = `SELECT * FROM ${this.schema.name}`
 
@@ -446,6 +447,11 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       const placeholders = consumerAddrs.map(() => '?').join(',')
       conditions.push(`owner NOT IN (${placeholders})`)
       params.push(...consumerAddrs)
+    }
+
+    if (status) {
+      conditions.push(`status = ?`)
+      params.push(status.toString())
     }
 
     if (conditions.length > 0) {

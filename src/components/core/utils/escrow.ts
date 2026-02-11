@@ -9,10 +9,16 @@ import { sleep } from '../../../utils/util.js'
 import { BlockchainRegistry } from '../../BlockchainRegistry/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
+/** Cache key for token decimals: "chainId:tokenAddress" (token lowercased) */
+const DECIMALS_CACHE_KEY = (chainId: number, token: string) =>
+  `${chainId}:${token.toLowerCase()}`
+
 export class Escrow {
   private networks: RPCS
   private claimDurationTimeout: number
   private blockchainRegistry: BlockchainRegistry
+  /** Cache for token decimals to avoid repeated blockchain calls */
+  private decimalsCache: Map<string, number> = new Map()
 
   constructor(
     supportedNetworks: RPCS,
@@ -50,22 +56,31 @@ export class Escrow {
     return blockchain
   }
 
-  async getPaymentAmountInWei(cost: number, chain: number, token: string) {
+  /**
+   * Get token decimals with cache to avoid repeated blockchain calls.
+   */
+  private async getDecimals(chain: number, token: string): Promise<number> {
+    const key = DECIMALS_CACHE_KEY(chain, token)
+    const cached = this.decimalsCache.get(key)
+    if (cached !== undefined) {
+      return cached
+    }
     const blockchain = this.getBlockchain(chain)
     const provider = await blockchain.getProvider()
+    const decimalBigNumber = await getDatatokenDecimals(token, provider)
+    const decimals = parseInt(decimalBigNumber.toString())
+    this.decimalsCache.set(key, decimals)
+    return decimals
+  }
 
-    const decimalgBigNumber = await getDatatokenDecimals(token, provider)
-    const decimals = parseInt(decimalgBigNumber.toString())
-
+  async getPaymentAmountInWei(cost: number, chain: number, token: string) {
+    const decimals = await this.getDecimals(chain, token)
     const roundedCost = Number(cost.toFixed(decimals)).toString()
-
     return parseUnits(roundedCost, decimals).toString()
   }
 
   async getNumberFromWei(wei: string, chain: number, token: string) {
-    const blockchain = this.getBlockchain(chain)
-    const provider = await blockchain.getProvider()
-    const decimals = await getDatatokenDecimals(token, provider)
+    const decimals = await this.getDecimals(chain, token)
     return parseFloat(formatUnits(wei, decimals))
   }
 
@@ -174,7 +189,6 @@ export class Escrow {
         } authorizations.`
       )
     }
-
     if (
       BigInt(auths[0].currentLockedAmount.toString()) + BigInt(wei) >
       BigInt(auths[0].maxLockedAmount.toString())
@@ -245,7 +259,7 @@ export class Escrow {
     }
   }
 
-  async cancelExpiredLocks(
+  async cancelExpiredLock(
     chain: number,
     job: string,
     token: string,
@@ -261,14 +275,14 @@ export class Escrow {
       const locks = await this.getLocks(chain, token, payer, await signer.getAddress())
       for (const lock of locks) {
         if (BigInt(lock.jobId.toString()) === BigInt(jobId)) {
-          const gas = await contract.cancelExpiredLocks.estimateGas(
+          const gas = await contract.cancelExpiredLock.estimateGas(
             jobId,
             token,
             payer,
             await signer.getAddress()
           )
           const gasOptions = await blockchain.getGasOptions(gas, 1.2)
-          const tx = await contract.cancelExpiredLocks(
+          const tx = await contract.cancelExpiredLock(
             jobId,
             token,
             payer,
@@ -280,6 +294,104 @@ export class Escrow {
         }
       }
       return null
+    } catch (e) {
+      CORE_LOGGER.error('Failed to cancel expired locks: ' + e.message)
+      throw new Error(String(e.message))
+    }
+  }
+
+  async claimLocks(
+    chain: number,
+    jobs: string[],
+    tokens: string[],
+    payers: string[],
+    amounts: number[],
+    proofs: string[]
+  ): Promise<string | null> {
+    const blockchain = this.getBlockchain(chain)
+    const signer = await blockchain.getSigner()
+    const contract = this.getContract(chain, signer)
+    if (!contract) return null
+    const weis: string[] = []
+    const jobIds: string[] = []
+    const ethProofs: Uint8Array[] = []
+    if (
+      jobs.length !== tokens.length ||
+      jobs.length !== payers.length ||
+      jobs.length !== amounts.length ||
+      jobs.length !== proofs.length
+    ) {
+      throw new Error('Invalid input: all arrays must have the same length')
+    }
+    for (let i = 0; i < jobs.length; i++) {
+      const wei = await this.getPaymentAmountInWei(amounts[i], chain, tokens[i])
+      weis.push(wei)
+      const jobId = create256Hash(jobs[i])
+      jobIds.push(jobId)
+      ethProofs.push(ethers.toUtf8Bytes(proofs[i]))
+    }
+    try {
+      const gas = await contract.claimLocksAndWithdraw.estimateGas(
+        jobIds,
+        tokens,
+        payers,
+        weis,
+        ethProofs
+      )
+      const gasOptions = await blockchain.getGasOptions(gas, 1.2)
+      const tx = await contract.claimLocksAndWithdraw(
+        jobIds,
+        tokens,
+        payers,
+        weis,
+        ethProofs,
+        gasOptions
+      )
+      return tx.hash
+    } catch (e) {
+      CORE_LOGGER.error('Failed to claim lock: ' + e.message)
+      throw new Error(String(e.message))
+    }
+  }
+
+  async cancelExpiredLocks(
+    chain: number,
+    jobs: string[],
+    tokens: string[],
+    payers: string[]
+  ): Promise<string | null> {
+    const blockchain = this.getBlockchain(chain)
+    const signer = await blockchain.getSigner()
+    if (jobs.length !== tokens.length || jobs.length !== payers.length) {
+      throw new Error('Invalid input: all arrays must have the same length')
+    }
+    const jobIds: string[] = []
+    const payersAddresses: string[] = []
+    for (let i = 0; i < jobs.length; i++) {
+      const jobId = create256Hash(jobs[i])
+      jobIds.push(jobId)
+      payersAddresses.push(await signer.getAddress())
+    }
+    const contract = this.getContract(chain, signer)
+
+    if (!contract) return null
+    try {
+      const gas = await contract.cancelExpiredLocks.estimateGas(
+        jobIds,
+        tokens,
+        payers,
+        payersAddresses
+      )
+      const gasOptions = await blockchain.getGasOptions(gas, 1.2)
+      const tx = await contract.cancelExpiredLock(
+        jobIds,
+        tokens,
+        payers,
+        payersAddresses,
+        gasOptions
+      )
+
+      return tx.hash
     } catch (e) {
       CORE_LOGGER.error('Failed to cancel expired locks: ' + e.message)
       throw new Error(String(e.message))

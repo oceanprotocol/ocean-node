@@ -144,6 +144,7 @@ export interface C2DDockerConfig {
   access: ComputeAccessList
   imageRetentionDays?: number // Default: 7 days
   imageCleanupInterval?: number // Default: 86400 seconds (24 hours)
+  paymentClaimInterval?: number // Default: 3600 seconds (1 hours)
 }
 
 export type ComputeResultType =
@@ -312,7 +313,9 @@ export enum C2DStatusNumber {
   // eslint-disable-next-line no-unused-vars
   ResultsUploadFailed = 62,
   // eslint-disable-next-line no-unused-vars
-  JobFinished = 70
+  JobFinished = 70,
+  // eslint-disable-next-line no-unused-vars
+  JobSettle = 71
 }
 export enum C2DStatusText {
   // eslint-disable-next-line no-unused-vars
@@ -358,5 +361,7 @@ export enum C2DStatusText {
   // eslint-disable-next-line no-unused-vars
   ResultsUploadFailed = 'Failed to upload results to storage',
   // eslint-disable-next-line no-unused-vars
-  JobFinished = 'Job finished'
+  JobFinished = 'Job finished',
+  // eslint-disable-next-line no-unused-vars
+  JobSettle = 'Job settling'
 }

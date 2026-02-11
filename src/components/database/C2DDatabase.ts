@@ -1,6 +1,10 @@
 import path from 'path'
 import fs from 'fs'
-import { ComputeEnvironment, DBComputeJob } from '../../@types/C2D/C2D.js'
+import {
+  ComputeEnvironment,
+  DBComputeJob,
+  C2DStatusNumber
+} from '../../@types/C2D/C2D.js'
 import { SQLiteCompute } from './sqliteCompute.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
@@ -79,9 +83,10 @@ export class C2DDatabase extends AbstractDatabase {
   async getJobs(
     environments?: string[],
     fromTimestamp?: string,
-    consumerAddrs?: string[]
+    consumerAddrs?: string[],
+    status?: C2DStatusNumber
   ): Promise<DBComputeJob[]> {
-    return await this.provider.getJobs(environments, fromTimestamp, consumerAddrs)
+    return await this.provider.getJobs(environments, fromTimestamp, consumerAddrs, status)
   }
 
   async updateImage(image: string): Promise<void> {

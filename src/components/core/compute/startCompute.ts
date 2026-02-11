@@ -599,7 +599,7 @@ export class PaidComputeStartHandler extends CommandHandler {
         const errMsg = e?.message || String(e)
         CORE_LOGGER.error(`Error starting compute job: ${errMsg}`)
         try {
-          await engine.escrow.cancelExpiredLocks(
+          await engine.escrow.cancelExpiredLock(
             task.payment.chainId,
             jobId,
             task.payment.token,
