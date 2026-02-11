@@ -797,34 +797,42 @@ export class TypesenseLogDatabase extends AbstractLogDatabase {
         filterConditions += ` && level:${level}`
       }
 
-      const logsLimit = Math.min(maxLogs, TYPESENSE_HITS_CAP)
-      if (maxLogs > TYPESENSE_HITS_CAP) {
-        DATABASE_LOGGER.logMessageWithEmoji(
-          `Max logs is capped at 250 as Typesense is unable to return more results per page.`,
-          true,
-          GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
-          LOG_LEVELS_STR.LEVEL_INFO
+      if (page !== undefined && page !== null) {
+        return await this.fetchLogPage(
+          filterConditions,
+          page,
+          Math.min(maxLogs, TYPESENSE_HITS_CAP)
         )
       }
 
-      // Define search parameters
-      const searchParameters = {
-        q: '*',
-        query_by: 'message,level,meta',
-        filter_by: filterConditions,
-        sort_by: 'timestamp:desc',
-        per_page: logsLimit,
-        page: page || 1 // Default to the first page if page number is not provided
+      const allLogs: Record<string, any>[] = []
+      let currentPage = 1 // Typesense pages are 1-based
+
+      while (allLogs.length < maxLogs) {
+        const perPage = Math.min(TYPESENSE_HITS_CAP, maxLogs - allLogs.length)
+
+        const searchParameters = {
+          q: '*',
+          query_by: 'message,level,meta',
+          filter_by: filterConditions,
+          sort_by: 'timestamp:desc',
+          per_page: perPage,
+          page: currentPage
+        }
+
+        const result = await this.provider
+          .collections(this.schema.name)
+          .documents()
+          .search(searchParameters)
+
+        const hits = result.hits.map((hit) => hit.document)
+        allLogs.push(...hits)
+
+        if (hits.length < perPage) break
+        currentPage++
       }
 
-      // Execute search query
-      const result = await this.provider
-        .collections(this.schema.name)
-        .documents()
-        .search(searchParameters)
-
-      // Map and return the search hits as log entries
-      return result.hits.map((hit) => hit.document)
+      return allLogs.slice(0, maxLogs)
     } catch (error) {
       const errorMsg = `Error when retrieving multiple log entries: ${error.message}`
       DATABASE_LOGGER.logMessageWithEmoji(
@@ -835,6 +843,26 @@ export class TypesenseLogDatabase extends AbstractLogDatabase {
       )
       return []
     }
+  }
+
+  private async fetchLogPage(
+    filterConditions: string,
+    page: number,
+    perPage: number
+  ): Promise<Record<string, any>[]> {
+    const searchParameters = {
+      q: '*',
+      query_by: 'message,level,meta',
+      filter_by: filterConditions,
+      sort_by: 'timestamp:desc',
+      per_page: perPage,
+      page
+    }
+    const result = await this.provider
+      .collections(this.schema.name)
+      .documents()
+      .search(searchParameters)
+    return result.hits.map((hit) => hit.document)
   }
 
   async delete(logId: string): Promise<void> {

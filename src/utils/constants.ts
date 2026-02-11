@@ -38,6 +38,7 @@ export const PROTOCOL_COMMANDS = {
   INVALIDATE_AUTH_TOKEN: 'invalidateAuthToken',
   FETCH_CONFIG: 'fetchConfig',
   PUSH_CONFIG: 'pushConfig',
+  GET_LOGS: 'getLogs',
   JOBS: 'jobs'
 }
 // more visible, keep then close to make sure we always update both
@@ -77,6 +78,7 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
   PROTOCOL_COMMANDS.FETCH_CONFIG,
   PROTOCOL_COMMANDS.PUSH_CONFIG,
+  PROTOCOL_COMMANDS.GET_LOGS,
   PROTOCOL_COMMANDS.JOBS
 ]
 
