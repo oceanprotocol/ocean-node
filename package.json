@@ -74,7 +74,7 @@
     "@multiformats/multiaddr": "^12.2.3",
     "@oceanprotocol/contracts": "^2.5.0",
     "@oceanprotocol/ddo-js": "^0.2.0",
-    "axios": "^1.12.0",
+    "axios": "^1.13.5",
     "base58-js": "^2.0.0",
     "cors": "^2.8.5",
     "datastore-level": "^12.0.2",
