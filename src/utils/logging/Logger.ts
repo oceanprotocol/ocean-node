@@ -94,6 +94,7 @@ interface CustomOceanNodesTransportOptions extends Transport.TransportStreamOpti
 
 export class CustomOceanNodesTransport extends Transport {
   private dbInstance: Database
+  private isLogging = false
 
   constructor(options: CustomOceanNodesTransportOptions) {
     super(options)
@@ -104,6 +105,13 @@ export class CustomOceanNodesTransport extends Transport {
     setImmediate(() => {
       this.emit('logged', info)
     })
+
+    // Prevent feedback loop: writing a log to the DB triggers Typesense API calls,
+    // which generate debug logs, which would trigger more DB writes, and so on.
+    if (this.isLogging) {
+      callback()
+      return
+    }
 
     // Prepare the document to be logged
     const document = {
@@ -116,18 +124,16 @@ export class CustomOceanNodesTransport extends Transport {
 
     try {
       // Use the insertLog method of the LogDatabase instance
-      if (
-        this.dbInstance &&
-        this.dbInstance.logs // &&
-        // !isTypesenseIgnoreLogMessage(document.moduleName, document.message)
-      ) {
-        // double check before writing
+      if (this.dbInstance && this.dbInstance.logs) {
+        this.isLogging = true
         await this.dbInstance.logs.insertLog(document)
       }
     } catch (error) {
       // Handle the error according to your needs
       console.error('Error writing to Typesense:', error)
       // Implement retry logic or other error handling as needed
+    } finally {
+      this.isLogging = false
     }
 
     callback()

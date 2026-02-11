@@ -864,33 +864,49 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
         filterConditions.bool.must.push({ match: { level } })
       }
 
-      const numLogs = await this.getLogsCount()
-      const from = (page || 0) * Math.min(maxLogs, 250)
-      const size = Math.min(maxLogs, 250, numLogs > 0 ? numLogs : 250)
-      // not checking this limits will throw:
-      // illegal_argument_exception: Result window is too large, from + size must be less than or equal to: [10000] but was [XYZ]
-      if (from + size > 10000) {
-        DATABASE_LOGGER.logMessageWithEmoji(
-          `Result window is too large, from + size must be less than or equal to: [10000]. "from": ${from}", "size": ${size}, "num": ${numLogs}`,
-          true,
-          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-          LOG_LEVELS_STR.LEVEL_ERROR
-        )
-        return []
+      if (page !== undefined && page !== null) {
+        return await this.fetchLogPage(filterConditions, page, Math.min(maxLogs, 250))
       }
-      const result = await this.client.search({
-        index: this.index,
-        body: {
-          query: filterConditions,
-          sort: [{ timestamp: { order: 'desc' } }]
-        },
-        size,
-        from
-      })
 
-      return result.hits.hits.map((hit: any) => {
-        return normalizeDocumentId(hit._source, hit._id)
-      })
+      const allLogs: Record<string, any>[] = []
+      let currentPage = 0
+      const pageSize = 250
+
+      while (allLogs.length < maxLogs) {
+        const from = currentPage * pageSize
+        const size = Math.min(pageSize, maxLogs - allLogs.length)
+
+        // Elasticsearch result window limit
+        if (from + size > 10000) {
+          DATABASE_LOGGER.logMessageWithEmoji(
+            `Reached Elasticsearch result window limit (10000). Returning ${allLogs.length} logs.`,
+            true,
+            GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
+            LOG_LEVELS_STR.LEVEL_INFO
+          )
+          break
+        }
+
+        const result = await this.client.search({
+          index: this.index,
+          body: {
+            query: filterConditions,
+            sort: [{ timestamp: { order: 'desc' } }]
+          },
+          size,
+          from
+        })
+
+        const hits = result.hits.hits.map((hit: any) =>
+          normalizeDocumentId(hit._source, hit._id)
+        )
+        allLogs.push(...hits)
+
+        if (hits.length < size) break
+        currentPage++
+      }
+
+      return allLogs.slice(0, maxLogs)
     } catch (error) {
       const errorMsg = `Error when retrieving multiple log entries: ${error.message}`
       DATABASE_LOGGER.logMessageWithEmoji(
@@ -901,6 +917,33 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
       )
       return []
     }
+  }
+
+  private async fetchLogPage(
+    filterConditions: any,
+    page: number,
+    size: number
+  ): Promise<Record<string, any>[]> {
+    const from = page * size
+    if (from + size > 10000) {
+      DATABASE_LOGGER.logMessageWithEmoji(
+        `Result window is too large, from + size must be less than or equal to: [10000]. "from": ${from}, "size": ${size}`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return []
+    }
+    const result = await this.client.search({
+      index: this.index,
+      body: {
+        query: filterConditions,
+        sort: [{ timestamp: { order: 'desc' } }]
+      },
+      size,
+      from
+    })
+    return result.hits.hits.map((hit: any) => normalizeDocumentId(hit._source, hit._id))
   }
 
   async delete(logId: string): Promise<void> {

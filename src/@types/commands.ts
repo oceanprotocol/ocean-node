@@ -181,6 +181,7 @@ export interface AdminGetLogsCommand extends AdminCommand {
   maxLogs?: number
   moduleName?: string
   level?: string
+  page?: number
 }
 
 export interface ICommandHandler {
