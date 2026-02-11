@@ -197,6 +197,7 @@ The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of
 - **socketPath**: Path to the Docker socket (e.g., docker.sock).
 - **imageRetentionDays** - how long docker images are kept, in days. Default: 7
 - **imageCleanupInterval** - how often to run cleanup for docker images, in seconds. Min: 3600 (1hour), Default: 86400 (24 hours)
+- **paymentClaimInterval** - how often to run payment claiming, in seconds. Default: 3600 (1 hour)
 - **storageExpiry**: Amount of seconds for storage expiry.(Mandatory)
 - **maxJobDuration**: Maximum duration in seconds for a job.(Mandatory)
 - **minJobDuration**: Minimum duration in seconds for a job.(Mandatory)

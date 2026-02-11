@@ -10,7 +10,6 @@ export interface EscrowAuthorization {
 export interface EscrowLock {
   jobId: BigInt
   payer: string
-  payee: string
   amount: BigInt
   expiry: BigInt
   token: string

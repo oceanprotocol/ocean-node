@@ -422,7 +422,12 @@ describe('Trusted algorithms Flow', () => {
         try {
           await escrowContract
             .connect(consumerAccount)
-            .cancelExpiredLocks(lock.jobId, lock.token, lock.payer, lock.payee)
+            .cancelExpiredLock(
+              lock.jobId,
+              lock.token,
+              lock.payer,
+              firstEnv.consumerAddress
+            )
         } catch (e) {}
       }
     }

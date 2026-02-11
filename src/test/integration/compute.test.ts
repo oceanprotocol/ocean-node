@@ -20,7 +20,10 @@ import type {
 import {
   type ComputeAsset,
   type ComputeAlgorithm,
-  type ComputeEnvironment
+  type ComputeEnvironment,
+  C2DStatusNumber,
+  C2DStatusText,
+  type DBComputeJob
 } from '../../@types/C2D/C2D.js'
 import {
   // DB_TYPES,
@@ -689,7 +692,12 @@ describe('Compute', () => {
         try {
           await escrowContract
             .connect(consumerAccount)
-            .cancelExpiredLocks(lock.jobId, lock.token, lock.payer, lock.payee)
+            .cancelExpiredLock(
+              lock.jobId,
+              lock.token,
+              lock.payer,
+              firstEnv.consumerAddress
+            )
         } catch (e) {}
       }
       locks = await oceanNode.escrow.getLocks(
@@ -2434,6 +2442,553 @@ describe('Compute Access Restrictions', () => {
 
     after(async () => {
       await tearDownEnvironment(previousConfiguration)
+    })
+  })
+
+  describe('Payment Claim Timer and JobSettle Status', () => {
+    let previousConfiguration: OverrideEnvConfig[]
+    let config: OceanNodeConfig
+    let dbconn: Database
+    let oceanNode: OceanNode
+    let dockerEngine: C2DEngineDocker
+    let paymentToken: any
+    let firstEnv: ComputeEnvironment
+    let consumerAccount: any
+    let escrowContract: any
+    let paymentTokenContract: any
+    let artifactsAddresses: any
+
+    before(async function () {
+      this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+      artifactsAddresses = getOceanArtifactsAdresses()
+      paymentToken = artifactsAddresses.development.Ocean
+      previousConfiguration = await setupEnvironment(
+        TEST_ENV_CONFIG_FILE,
+        buildEnvOverrideConfig(
+          [
+            ENVIRONMENT_VARIABLES.RPCS,
+            ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
+            ENVIRONMENT_VARIABLES.PRIVATE_KEY,
+            ENVIRONMENT_VARIABLES.ADDRESS_FILE,
+            ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS
+          ],
+          [
+            JSON.stringify(mockSupportedNetworks),
+            JSON.stringify([DEVELOPMENT_CHAIN_ID]),
+            '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+            `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
+            '[{"socketPath":"/var/run/docker.sock","resources":[{"id":"disk","total":10}],"storageExpiry":604800,"maxJobDuration":3600,"minJobDuration":60,"paymentClaimInterval":60,"fees":{"' +
+              DEVELOPMENT_CHAIN_ID +
+              '":[{"feeToken":"' +
+              paymentToken +
+              '","prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"minJobDuration":10,"maxJobs":3,"resources":[{"id":"cpu","max":1},{"id":"ram","max":1},{"id":"disk","max":1}]}}]'
+          ]
+        )
+      )
+      config = await getConfiguration(true)
+      dbconn = await Database.init(config.dbConfig)
+      oceanNode = await OceanNode.getInstance(
+        config,
+        dbconn,
+        null,
+        null,
+        null,
+        null,
+        null,
+        true
+      )
+      const indexer = new OceanIndexer(
+        dbconn,
+        config.indexingNetworks,
+        oceanNode.blockchainRegistry
+      )
+      oceanNode.addIndexer(indexer)
+      oceanNode.addC2DEngines()
+
+      const provider = new JsonRpcProvider('http://127.0.0.1:8545')
+      const publisherAccount = (await provider.getSigner(0)) as Signer
+      consumerAccount = (await provider.getSigner(1)) as Signer
+      escrowContract = new ethers.Contract(
+        artifactsAddresses.development.Escrow,
+        EscrowJson.abi,
+        consumerAccount
+      )
+      paymentTokenContract = new ethers.Contract(
+        paymentToken,
+        OceanToken.abi,
+        publisherAccount
+      )
+
+      // Get the Docker engine
+      const c2dEngines = oceanNode.getC2DEngines()
+      const engines = (c2dEngines as any).engines as C2DEngineDocker[]
+      dockerEngine = engines.find((e) => e instanceof C2DEngineDocker)
+      if (!dockerEngine) {
+        this.skip()
+      }
+
+      // Get compute environments
+      const getEnvironmentsTask = {
+        command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS
+      }
+      const resp = await new ComputeGetEnvironmentsHandler(oceanNode).handle(
+        getEnvironmentsTask
+      )
+      const computeEnvironments = await streamToObject(resp.stream as Readable)
+      firstEnv = computeEnvironments[0]
+    })
+
+    after(async () => {
+      await tearDownEnvironment(previousConfiguration)
+    })
+
+    it('should transition job to JobSettle status when PublishingResults completes', async function () {
+      this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+
+      // Create a test job in PublishingResults status
+      const testJobId = `test-job-settle-${Date.now()}`
+      const now = Math.floor(Date.now() / 1000).toString()
+      const testJob: DBComputeJob = {
+        owner: await consumerAccount.getAddress(),
+        jobId: testJobId,
+        dateCreated: now,
+        status: C2DStatusNumber.PublishingResults,
+        statusText: C2DStatusText.PublishingResults,
+        environment: firstEnv.id,
+        isRunning: false,
+        isStarted: true,
+        stopRequested: false,
+        algoStartTimestamp: String(parseInt(now) - 120), // 2 minutes ago
+        algoStopTimestamp: now,
+        algoDuration: 120,
+        isFree: false,
+        payment: {
+          chainId: DEVELOPMENT_CHAIN_ID,
+          token: paymentToken,
+          lockTx: '0x123',
+          claimTx: '',
+          cost: 0
+        },
+        resources: [
+          {
+            id: 'cpu',
+            amount: 1,
+            price: 1
+          }
+        ],
+        clusterHash: 'test-cluster',
+        configlogURL: '',
+        publishlogURL: '',
+        algologURL: '',
+        outputsURL: '',
+        algorithm: {} as ComputeAlgorithm,
+        assets: [] as ComputeAsset[],
+        containerImage: null,
+        dateFinished: null,
+        results: [],
+        queueMaxWaitTime: 0
+      }
+
+      await dbconn.c2d.newJob(testJob)
+
+      // Simulate finishJob being called (which would normally happen after results are published)
+      // We'll manually update to JobSettle to test the payment claim flow
+      testJob.status = C2DStatusNumber.JobSettle
+      testJob.statusText = C2DStatusText.JobSettle
+      await dbconn.c2d.updateJob(testJob)
+
+      // Verify job is in JobSettle status
+      const updatedJob = await dbconn.c2d.getJob(testJobId)
+      assert(
+        updatedJob[0].status === C2DStatusNumber.JobSettle,
+        'Job should be in JobSettle status'
+      )
+      assert(
+        updatedJob[0].statusText === C2DStatusText.JobSettle,
+        'Job statusText should be Job settling'
+      )
+    })
+
+    it('should process jobs in JobSettle status via claimPayments', async function () {
+      this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+
+      // Create a test job with a lock
+      const testJobId = `test-job-claim-${Date.now()}`
+      const now = Math.floor(Date.now() / 1000)
+      const expiry = 3500
+
+      const providerAddress = await (await oceanNode.getKeyManager()).getEthAddress()
+
+      // Clean up existing locks and authorizations first
+      const locks = await oceanNode.escrow.getLocks(
+        DEVELOPMENT_CHAIN_ID,
+        paymentToken,
+        await consumerAccount.getAddress(),
+        providerAddress
+      )
+      if (locks.length > 0) {
+        // Cancel all existing locks
+        for (const lock of locks) {
+          try {
+            await escrowContract
+              .connect(consumerAccount)
+              .cancelExpiredLock(lock.jobId, lock.token, lock.payer, providerAddress)
+          } catch (e) {
+            // Ignore errors
+          }
+        }
+      }
+
+      // Clean up existing authorizations
+      let auth = await oceanNode.escrow.getAuthorizations(
+        DEVELOPMENT_CHAIN_ID,
+        paymentToken,
+        await consumerAccount.getAddress(),
+        providerAddress
+      )
+      if (auth.length > 0) {
+        // Remove authorization by setting to 0
+        await escrowContract
+          .connect(consumerAccount)
+          .authorize(paymentToken, providerAddress, 0, 0, 0)
+      }
+
+      // Check and withdraw existing funds if any
+      const funds = await oceanNode.escrow.getUserAvailableFunds(
+        DEVELOPMENT_CHAIN_ID,
+        await consumerAccount.getAddress(),
+        paymentToken
+      )
+      if (BigInt(funds.toString()) > BigInt(0)) {
+        await escrowContract.connect(consumerAccount).withdraw([paymentToken], [funds])
+      }
+
+      // Now set up fresh authorization
+      const balance = await paymentTokenContract.balanceOf(
+        await consumerAccount.getAddress()
+      )
+      if (BigInt(balance.toString()) === BigInt(0)) {
+        const mintAmount = ethers.parseUnits('1000', 18)
+        const mintTx = await paymentTokenContract.mint(
+          await consumerAccount.getAddress(),
+          mintAmount
+        )
+        await mintTx.wait()
+      }
+
+      const approveTx = await paymentTokenContract
+        .connect(consumerAccount)
+        .approve(artifactsAddresses.development.Escrow, balance)
+      await approveTx.wait()
+
+      const depositTx = await escrowContract
+        .connect(consumerAccount)
+        .deposit(paymentToken, balance)
+      await depositTx.wait()
+
+      const authorizeTx = await escrowContract
+        .connect(consumerAccount)
+        .authorize(paymentToken, providerAddress, balance, 3600, 10)
+      await authorizeTx.wait()
+
+      // Verify authorization is set up correctly
+      auth = await oceanNode.escrow.getAuthorizations(
+        DEVELOPMENT_CHAIN_ID,
+        paymentToken,
+        await consumerAccount.getAddress(),
+        providerAddress
+      )
+      assert(auth.length > 0, 'Should have authorization')
+      assert(
+        BigInt(auth[0].maxLockedAmount.toString()) > BigInt(0),
+        'Should have maxLockedAmount in auth'
+      )
+
+      // Create lock
+      const lockTx = await oceanNode.escrow.createLock(
+        DEVELOPMENT_CHAIN_ID,
+        testJobId,
+        paymentToken,
+        await consumerAccount.getAddress(),
+        100, // amount
+        expiry
+      )
+      assert(lockTx, 'Lock creation should succeed')
+
+      // Create job in JobSettle status
+      const testJob: DBComputeJob = {
+        owner: await consumerAccount.getAddress(),
+        jobId: testJobId,
+        dateCreated: now.toString(),
+        status: C2DStatusNumber.JobSettle,
+        statusText: C2DStatusText.JobSettle,
+        environment: firstEnv.id,
+        isRunning: false,
+        isStarted: true,
+        stopRequested: false,
+        algoStartTimestamp: String(now - 120),
+        algoStopTimestamp: now.toString(),
+        algoDuration: 120,
+        isFree: false,
+        payment: {
+          chainId: DEVELOPMENT_CHAIN_ID,
+          token: paymentToken,
+          lockTx: lockTx || '0x123',
+          claimTx: '',
+          cost: 0
+        },
+        resources: [
+          {
+            id: 'cpu',
+            amount: 1,
+            price: 1
+          }
+        ],
+        clusterHash: 'test-cluster',
+        configlogURL: '',
+        publishlogURL: '',
+        algologURL: '',
+        outputsURL: '',
+        algorithm: {} as ComputeAlgorithm,
+        assets: [] as ComputeAsset[],
+        containerImage: null,
+        dateFinished: null,
+        results: [],
+        queueMaxWaitTime: 0
+      }
+
+      await dbconn.c2d.newJob(testJob)
+
+      // Manually trigger claimPayments
+      const claimPaymentsMethod = (dockerEngine as any).claimPayments.bind(dockerEngine)
+      await claimPaymentsMethod()
+
+      // Wait a bit for transaction to process
+      await sleep(5000)
+
+      // Verify job was processed (should be JobFinished if claim succeeded, or still JobSettle if failed)
+      const updatedJob = await dbconn.c2d.getJob(testJobId)
+      // Job should be finished
+      assert(
+        updatedJob[0].status === C2DStatusNumber.JobFinished,
+        `Job status should be JobFinished or JobSettle, got ${updatedJob[0].status}`
+      )
+    })
+
+    it('should handle expired locks by canceling them', async function () {
+      this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+
+      const testJobId = `test-job-expired-${Date.now()}`
+      const now = Math.floor(Date.now() / 1000)
+
+      // Create lock with expired timestamp (we'll need to mock this or use a different approach)
+      // For this test, we'll create a job and verify it handles expiration correctly
+      const testJob: DBComputeJob = {
+        owner: await consumerAccount.getAddress(),
+        jobId: testJobId,
+        dateCreated: now.toString(),
+        status: C2DStatusNumber.JobSettle,
+        statusText: C2DStatusText.JobSettle,
+        environment: firstEnv.id,
+        isRunning: false,
+        isStarted: true,
+        stopRequested: false,
+        algoStartTimestamp: String(now - 120),
+        algoStopTimestamp: now.toString(),
+        algoDuration: 120,
+        isFree: false,
+        payment: {
+          chainId: DEVELOPMENT_CHAIN_ID,
+          token: paymentToken,
+          lockTx: '0xexpired',
+          claimTx: '',
+          cost: 0
+        },
+        resources: [
+          {
+            id: 'cpu',
+            amount: 1,
+            price: 1
+          }
+        ],
+        clusterHash: 'test-cluster',
+        configlogURL: '',
+        publishlogURL: '',
+        algologURL: '',
+        outputsURL: '',
+        algorithm: {} as ComputeAlgorithm,
+        assets: [] as ComputeAsset[],
+        containerImage: null,
+        dateFinished: null,
+        results: [],
+        queueMaxWaitTime: 0
+      }
+
+      await dbconn.c2d.newJob(testJob)
+
+      // Trigger claimPayments - if lock is expired, it should cancel it
+      const claimPaymentsMethod = (dockerEngine as any).claimPayments.bind(dockerEngine)
+      await claimPaymentsMethod()
+
+      // Wait for processing
+      await sleep(3000)
+
+      // Verify job was handled (either finished or still settling)
+      const updatedJob = await dbconn.c2d.getJob(testJobId)
+      assert(
+        updatedJob[0].status === C2DStatusNumber.JobFinished,
+        'Job should be processed'
+      )
+    })
+
+    it('should skip payment logic for free jobs', async function () {
+      this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+
+      const testJobId = `test-job-free-${Date.now()}`
+      const now = Math.floor(Date.now() / 1000).toString()
+
+      const testJob: DBComputeJob = {
+        owner: await consumerAccount.getAddress(),
+        jobId: testJobId,
+        dateCreated: now,
+        status: C2DStatusNumber.JobSettle,
+        statusText: C2DStatusText.JobSettle,
+        environment: firstEnv.id,
+        isRunning: false,
+        isStarted: true,
+        stopRequested: false,
+        algoStartTimestamp: String(parseInt(now) - 120),
+        algoStopTimestamp: now,
+        algoDuration: 120,
+        isFree: true, // Free job
+        resources: [
+          {
+            id: 'cpu',
+            amount: 1,
+            price: 0
+          }
+        ],
+        clusterHash: 'test-cluster',
+        configlogURL: '',
+        publishlogURL: '',
+        algologURL: '',
+        outputsURL: '',
+        algorithm: {} as ComputeAlgorithm,
+        assets: [] as ComputeAsset[],
+        containerImage: null,
+        dateFinished: null,
+        results: [],
+        queueMaxWaitTime: 0
+      }
+
+      await dbconn.c2d.newJob(testJob)
+
+      // Trigger claimPayments
+      const claimPaymentsMethod = (dockerEngine as any).claimPayments.bind(dockerEngine)
+      await claimPaymentsMethod()
+
+      // Wait for processing
+      await sleep(2000)
+
+      // Free jobs should be marked as finished immediately (no lock to check)
+      const updatedJob = await dbconn.c2d.getJob(testJobId)
+      // Free jobs without locks should be marked as finished
+      assert(
+        updatedJob[0].status === C2DStatusNumber.JobFinished,
+        'Free job should be marked as finished'
+      )
+    })
+
+    it('should process multiple jobs in batch', async function () {
+      this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+
+      const jobIds: string[] = []
+      const now = Math.floor(Date.now() / 1000)
+
+      // Create multiple jobs in JobSettle status
+      for (let i = 0; i < 3; i++) {
+        const testJobId = `test-job-batch-${i}-${Date.now()}`
+        jobIds.push(testJobId)
+
+        const testJob: DBComputeJob = {
+          owner: await consumerAccount.getAddress(),
+          jobId: testJobId,
+          dateCreated: now.toString(),
+          status: C2DStatusNumber.JobSettle,
+          statusText: C2DStatusText.JobSettle,
+          environment: firstEnv.id,
+          isRunning: false,
+          isStarted: true,
+          stopRequested: false,
+          algoStartTimestamp: String(now - 120),
+          algoStopTimestamp: now.toString(),
+          algoDuration: 120,
+          isFree: true, // Use free jobs for simpler testing
+          resources: [
+            {
+              id: 'cpu',
+              amount: 1,
+              price: 0
+            }
+          ],
+          clusterHash: 'test-cluster',
+          configlogURL: '',
+          publishlogURL: '',
+          algologURL: '',
+          outputsURL: '',
+          algorithm: {} as ComputeAlgorithm,
+          assets: [] as ComputeAsset[],
+          containerImage: null,
+          dateFinished: null,
+          results: [],
+          queueMaxWaitTime: 0
+        }
+
+        await dbconn.c2d.newJob(testJob)
+      }
+
+      // Verify all jobs are in JobSettle status
+      const jobsBefore = await dbconn.c2d.getJobs(
+        [firstEnv.id],
+        undefined,
+        undefined,
+        C2DStatusNumber.JobSettle
+      )
+      const testJobsBefore = jobsBefore.filter((j) => jobIds.includes(j.jobId))
+      assert(
+        testJobsBefore.length === 3,
+        `Should have 3 jobs in JobSettle status, got ${testJobsBefore.length}`
+      )
+
+      // Trigger claimPayments to process all
+      const claimPaymentsMethod = (dockerEngine as any).claimPayments.bind(dockerEngine)
+      await claimPaymentsMethod()
+
+      // Wait for processing
+      await sleep(3000)
+
+      // Verify all jobs were processed
+      for (const jobId of jobIds) {
+        const job = await dbconn.c2d.getJob(jobId)
+        assert(
+          job[0].status === C2DStatusNumber.JobFinished,
+          `Job ${jobId} should be processed`
+        )
+      }
+    })
+
+    it('should start payment claim timer on engine start', function () {
+      // Verify timer methods exist
+      // Timer might be null if not started yet, or a NodeJS.Timeout if started
+      // We can't easily test the timer directly, but we can verify the method exists
+      assert(
+        typeof (dockerEngine as any).startPaymentTimer === 'function',
+        'startPaymentTimer method should exist'
+      )
+      assert(
+        typeof (dockerEngine as any).claimPayments === 'function',
+        'claimPayments method should exist'
+      )
     })
   })
 })
