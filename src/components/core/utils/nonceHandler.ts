@@ -201,32 +201,10 @@ async function validateNonceAndSignature(
   )
   const messageHashBytes = ethers.toBeArray(consumerMessage)
 
-  // DEBUG: Log validation details
-  CORE_LOGGER.logMessage(
-    `[DEBUG] Signature validation:\n` +
-      `  nonce: ${nonce}\n` +
-      `  existingNonce: ${existingNonce}\n` +
-      `  consumer: ${consumer}\n` +
-      `  message: "${message}"\n` +
-      `  messageHash: ${consumerMessage}\n` +
-      `  signature: ${signature}`,
-    true
-  )
-
   // Try EOA signature validation
   try {
     const addressFromHashSignature = ethers.verifyMessage(consumerMessage, signature)
     const addressFromBytesSignature = ethers.verifyMessage(messageHashBytes, signature)
-
-    CORE_LOGGER.logMessage(
-      `[DEBUG] Recovered addresses:\n` +
-        `  From hash: ${addressFromHashSignature}\n` +
-        `  From bytes: ${addressFromBytesSignature}\n` +
-        `  Expected: ${consumer}\n` +
-        `  Hash match: ${ethers.getAddress(addressFromHashSignature)?.toLowerCase() === ethers.getAddress(consumer)?.toLowerCase()}\n` +
-        `  Bytes match: ${ethers.getAddress(addressFromBytesSignature)?.toLowerCase() === ethers.getAddress(consumer)?.toLowerCase()}`,
-      true
-    )
 
     if (
       ethers.getAddress(addressFromHashSignature)?.toLowerCase() ===

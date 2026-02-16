@@ -157,6 +157,11 @@ export class Escrow {
     if (!contract) throw new Error(`Failed to initialize escrow contract`)
     const wei = await this.getPaymentAmountInWei(amount, chain, token)
     const userBalance = await this.getUserAvailableFunds(chain, payer, token)
+
+    CORE_LOGGER.logMessage(
+      `User balance ${BigInt(userBalance.toString())} and payment amount in wei ${BigInt(wei)}`
+    )
+
     if (BigInt(userBalance.toString()) < BigInt(wei)) {
       // not enough funds
       throw new Error(`User ${payer} does not have enough funds`)
