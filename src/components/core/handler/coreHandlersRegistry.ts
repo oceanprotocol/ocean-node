@@ -37,6 +37,7 @@ import { IndexingThreadHandler } from '../admin/IndexingThreadHandler.js'
 import { CollectFeesHandler } from '../admin/collectFeesHandler.js'
 import { FetchConfigHandler } from '../admin/fetchConfigHandler.js'
 import { PushConfigHandler } from '../admin/pushConfigHandler.js'
+import { GetLogsHandler } from '../admin/getLogsHandler.js'
 import { AdminCommandHandler } from '../admin/adminHandler.js'
 import {
   GetP2PPeerHandler,
@@ -164,6 +165,7 @@ export class CoreHandlersRegistry {
     )
     this.registerCoreHandler(PROTOCOL_COMMANDS.FETCH_CONFIG, new FetchConfigHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.PUSH_CONFIG, new PushConfigHandler(node))
+    this.registerCoreHandler(PROTOCOL_COMMANDS.GET_LOGS, new GetLogsHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.JOBS, new GetJobsHandler(node))
   }
 
