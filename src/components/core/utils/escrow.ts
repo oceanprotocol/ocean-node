@@ -155,6 +155,7 @@ export class Escrow {
     const signer = await blockchain.getSigner()
     const contract = this.getContract(chain, signer)
     if (!contract) throw new Error(`Failed to initialize escrow contract`)
+    CORE_LOGGER.logMessage(`Cost ${BigInt(amount.toString())}`)
     const wei = await this.getPaymentAmountInWei(amount, chain, token)
     const userBalance = await this.getUserAvailableFunds(chain, payer, token)
 

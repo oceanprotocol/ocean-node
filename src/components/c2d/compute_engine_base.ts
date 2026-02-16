@@ -529,6 +529,8 @@ export abstract class C2DEngine {
     token: string,
     maxJobDuration: number
   ): number | null {
+    CORE_LOGGER.logMessage(`Env minJobDuration ${BigInt(env.minJobDuration.toString())}`)
+
     if (maxJobDuration < env.minJobDuration) maxJobDuration = env.minJobDuration
     const prices = this.getEnvPricesForToken(env, chainId, token)
     if (!prices) return null
