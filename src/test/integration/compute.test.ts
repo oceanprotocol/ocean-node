@@ -2042,7 +2042,7 @@ describe('Compute Access Restrictions', () => {
       nonce,
       PROTOCOL_COMMANDS.COMPUTE_START
     )
-    const signature = await signerWallet.signMessage(messageHashBytes)
+    const signature = await safeSign(signerWallet, messageHashBytes)
 
     return {
       command: PROTOCOL_COMMANDS.COMPUTE_START,
@@ -2079,7 +2079,7 @@ describe('Compute Access Restrictions', () => {
       nonce,
       PROTOCOL_COMMANDS.FREE_COMPUTE_START
     )
-    const signature = await signerWallet.signMessage(messageHashBytes)
+    const signature = await safeSign(signerWallet, messageHashBytes)
 
     return {
       command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
