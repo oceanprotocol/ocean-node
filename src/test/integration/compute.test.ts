@@ -1007,7 +1007,7 @@ describe('Compute', () => {
   it('should get job result by additional viewer', async () => {
     const nonce = Date.now().toString()
     const messageHashBytes = createHashForSignature(
-      await consumerAccount.getAddress(),
+      await wallet2.getAddress(),
       nonce,
       PROTOCOL_COMMANDS.COMPUTE_GET_RESULT
     )
@@ -1029,7 +1029,7 @@ describe('Compute', () => {
   it('should fail to get job result by non allowed address', async () => {
     const nonce = Date.now().toString()
     const messageHashBytes = createHashForSignature(
-      await wallet3.address,
+      await wallet3.getAddress(),
       nonce,
       PROTOCOL_COMMANDS.COMPUTE_GET_RESULT
     )
