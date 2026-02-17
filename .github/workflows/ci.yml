@@ -311,7 +311,7 @@ jobs:
       - name: Setup Ocean CLI
         working-directory: ${{ github.workspace }}/ocean-cli
         run: |
-          npm ci
+          npm install  --override "@oceanprotocol/lib=github:oceanprotocol/ocean.js#feature/refactor_signatures"
           npm run build
       - name: Run system tests
         working-directory: ${{ github.workspace }}/ocean-cli
