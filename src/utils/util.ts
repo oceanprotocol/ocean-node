@@ -32,6 +32,9 @@ export async function streamToObject(stream: Readable): Promise<any> {
 }
 
 export async function streamToString(stream: Readable) {
+  if (!stream) {
+    throw new Error('streamToString: stream is null or undefined')
+  }
   const chunks = []
   for await (const chunk of stream) {
     chunks.push(Buffer.from(chunk))

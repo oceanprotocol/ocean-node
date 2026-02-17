@@ -102,6 +102,12 @@ describe('Should validate files structure for download', () => {
       signature
     })
 
+    if (!result.stream) {
+      throw new Error(
+        `Encryption failed: ${result.status.error || 'Unknown error'} (HTTP ${result.status.httpStatus})`
+      )
+    }
+
     const encryptedData: string = await streamToString(result.stream as Readable)
     const serviceData = {
       files: encryptedData
@@ -164,6 +170,12 @@ describe('Should validate files structure for download', () => {
       consumerAddress: await consumerAccount.getAddress(),
       signature
     })
+
+    if (!result.stream) {
+      throw new Error(
+        `Encryption failed: ${result.status.error || 'Unknown error'} (HTTP ${result.status.httpStatus})`
+      )
+    }
 
     const encryptedFilesData: string = await streamToString(result.stream as Readable)
     const sameDDOOtherFiles = ddoObj
