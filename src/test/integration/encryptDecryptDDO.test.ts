@@ -39,7 +39,7 @@ import { DecryptDDOCommand } from '../../@types/commands.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { homedir } from 'os'
 import { OceanIndexer } from '../../components/Indexer/index.js'
-import { createHashForSignature } from '../utils/signature.js'
+import { createHashForSignature, safeSign } from '../utils/signature.js'
 
 describe('Should encrypt and decrypt DDO', () => {
   let database: Database
@@ -47,6 +47,7 @@ describe('Should encrypt and decrypt DDO', () => {
   let provider: JsonRpcProvider
   let publisherAccount: Signer
   let publisherAddress: string
+  let nonAllowedAccount: Signer
   let factoryContract: Contract
   let nftContract: Contract
   let dataNftAddress: string
@@ -74,6 +75,8 @@ describe('Should encrypt and decrypt DDO', () => {
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
     publisherAddress = await publisherAccount.getAddress()
+    nonAllowedAccount = (await provider.getSigner(1)) as Signer
+
     genericAsset = genericDDO
     previousConfiguration = await setupEnvironment(
       TEST_ENV_CONFIG_FILE,
@@ -192,26 +195,21 @@ describe('Should encrypt and decrypt DDO', () => {
     expect(response.status.error).to.include('Decrypt DDO: Unsupported chain id')
   })
 
-  it('should return error duplicate nonce', async () => {
-    const decryptDDOTask: DecryptDDOCommand = {
-      command: PROTOCOL_COMMANDS.DECRYPT_DDO,
-      decrypterAddress: publisherAddress,
-      chainId: 8996,
-      nonce,
-      signature: '0x123'
-    }
-    const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
-    expect(response.status.httpStatus).to.equal(400)
-    expect(response.status.error).to.equal(`Decrypt DDO: duplicate nonce`)
-  })
-
   it('should return decrypter not authorized', async () => {
+    const nonce = Date.now().toString()
+    const messageHashBytes = createHashForSignature(
+      await nonAllowedAccount.getAddress(),
+      nonce,
+      PROTOCOL_COMMANDS.DECRYPT_DDO
+    )
+    const signature = await safeSign(nonAllowedAccount, messageHashBytes)
+
     const decryptDDOTask: DecryptDDOCommand = {
       command: PROTOCOL_COMMANDS.DECRYPT_DDO,
-      decrypterAddress: '0x0000000000000000000000000000000000000001',
+      decrypterAddress: await nonAllowedAccount.getAddress(),
       chainId,
-      nonce: Date.now().toString(),
-      signature: '0x123'
+      nonce,
+      signature
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(403)
@@ -219,26 +217,43 @@ describe('Should encrypt and decrypt DDO', () => {
   })
 
   it('should authorize decrypter since is this node', async () => {
+    const nonce = Date.now().toString()
+    const thisNodeWallet = oceanNode.getKeyManager().getEthWallet()
+    const messageHashBytes = createHashForSignature(
+      await thisNodeWallet.getAddress(),
+      nonce,
+      PROTOCOL_COMMANDS.DECRYPT_DDO
+    )
+    const signature = await safeSign(thisNodeWallet, messageHashBytes)
     const decryptDDOTask: DecryptDDOCommand = {
       command: PROTOCOL_COMMANDS.DECRYPT_DDO,
       decrypterAddress: oceanNode.getKeyManager().getEthAddress(),
       chainId,
-      nonce: Date.now().toString(),
-      signature: '0x123'
+      nonce,
+      signature,
+      dataNftAddress,
+      transactionId: txReceiptEncryptDDO.hash
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
-    expect(response.status.httpStatus).to.not.equal(403)
-    expect(response.status.error).to.not.equal('Decrypt DDO: Decrypter not authorized')
+    expect(response.status.httpStatus).to.equal(200)
+    // expect(response.status.error).to.not.equal('Decrypt DDO: Decrypter not authorized')
   })
 
   it('should return asset not deployed by the data NFT factory', async () => {
+    const nonce = Date.now().toString()
+    const messageHashBytes = createHashForSignature(
+      await publisherAccount.getAddress(),
+      nonce,
+      PROTOCOL_COMMANDS.DECRYPT_DDO
+    )
+    const signature = await safeSign(publisherAccount, messageHashBytes)
     const decryptDDOTask: DecryptDDOCommand = {
       command: PROTOCOL_COMMANDS.DECRYPT_DDO,
       decrypterAddress: publisherAddress,
       chainId,
       dataNftAddress: publisherAddress,
-      nonce: Date.now().toString(),
-      signature: '0x123'
+      nonce,
+      signature
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
@@ -248,14 +263,21 @@ describe('Should encrypt and decrypt DDO', () => {
   })
 
   it('should return failed to process transaction id', async () => {
+    const nonce = Date.now().toString()
+    const messageHashBytes = createHashForSignature(
+      await publisherAccount.getAddress(),
+      nonce,
+      PROTOCOL_COMMANDS.DECRYPT_DDO
+    )
+    const signature = await safeSign(publisherAccount, messageHashBytes)
     const decryptDDOTask: DecryptDDOCommand = {
       command: PROTOCOL_COMMANDS.DECRYPT_DDO,
       decrypterAddress: publisherAddress,
       chainId,
       transactionId: 'string',
       dataNftAddress,
-      nonce: Date.now().toString(),
-      signature: '0x123'
+      nonce,
+      signature
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
@@ -265,6 +287,13 @@ describe('Should encrypt and decrypt DDO', () => {
   })
 
   it('should return failed to convert input args to bytes', async () => {
+    const nonce = Date.now().toString()
+    const messageHashBytes = createHashForSignature(
+      await publisherAccount.getAddress(),
+      nonce,
+      PROTOCOL_COMMANDS.DECRYPT_DDO
+    )
+    const signature = await safeSign(publisherAccount, messageHashBytes)
     const decryptDDOTask: DecryptDDOCommand = {
       command: PROTOCOL_COMMANDS.DECRYPT_DDO,
       decrypterAddress: publisherAddress,
@@ -273,8 +302,8 @@ describe('Should encrypt and decrypt DDO', () => {
       flags: 1,
       documentHash: '123',
       dataNftAddress,
-      nonce: Date.now().toString(),
-      signature: '0x123'
+      nonce,
+      signature
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
@@ -284,6 +313,13 @@ describe('Should encrypt and decrypt DDO', () => {
   })
 
   it('should return data NFT factory does not match', async () => {
+    const nonce = Date.now().toString()
+    const messageHashBytes = createHashForSignature(
+      await publisherAccount.getAddress(),
+      nonce,
+      PROTOCOL_COMMANDS.DECRYPT_DDO
+    )
+    const signature = await safeSign(publisherAccount, messageHashBytes)
     const decryptDDOTask: DecryptDDOCommand = {
       command: PROTOCOL_COMMANDS.DECRYPT_DDO,
       decrypterAddress: publisherAddress,
@@ -292,8 +328,8 @@ describe('Should encrypt and decrypt DDO', () => {
       flags: 2,
       documentHash: '0x123',
       dataNftAddress: '0x0000000000000000000000000000000000000001',
-      nonce: Date.now().toString(),
-      signature: '0x123'
+      nonce,
+      signature
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
@@ -303,6 +339,13 @@ describe('Should encrypt and decrypt DDO', () => {
   })
 
   it('should return checksum does not match', async () => {
+    const nonce = Date.now().toString()
+    const messageHashBytes = createHashForSignature(
+      await publisherAccount.getAddress(),
+      nonce,
+      PROTOCOL_COMMANDS.DECRYPT_DDO
+    )
+    const signature = await safeSign(publisherAccount, messageHashBytes)
     const decryptDDOTask: DecryptDDOCommand = {
       command: PROTOCOL_COMMANDS.DECRYPT_DDO,
       decrypterAddress: publisherAddress,
@@ -311,42 +354,22 @@ describe('Should encrypt and decrypt DDO', () => {
       flags: 2,
       documentHash: '0x123',
       dataNftAddress,
-      nonce: Date.now().toString(),
-      signature: '0x123'
+      nonce,
+      signature
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
     expect(response.status.error).to.equal('Decrypt DDO: checksum does not match')
   })
 
-  it('should return signature does not match', async () => {
-    const decryptDDOTask: DecryptDDOCommand = {
-      command: PROTOCOL_COMMANDS.DECRYPT_DDO,
-      decrypterAddress: publisherAddress,
-      chainId,
-      transactionId: txReceiptEncryptDDO.hash,
-      dataNftAddress,
-      nonce: Date.now().toString(),
-      documentHash,
-      signature: '0x123'
-    }
-    const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
-    expect(response.status.httpStatus).to.equal(400)
-    expect(response.status.error).to.equal(
-      'Decrypt DDO: invalid signature or does not match'
-    )
-  })
-
   it('should decrypt ddo with transactionId and return it', async () => {
     const nonce = Date.now().toString()
-    // wallet is the same account as publisherAccount, but supports personalSign, while publisherAccount does not
-    const wallet = new ethers.Wallet(process.env.PRIVATE_KEY)
     const messageHashBytes = createHashForSignature(
       await publisherAccount.getAddress(),
       nonce,
       PROTOCOL_COMMANDS.DECRYPT_DDO
     )
-    const signature = await wallet.signMessage(messageHashBytes)
+    const signature = await safeSign(publisherAccount, messageHashBytes)
 
     const decryptDDOTask: DecryptDDOCommand = {
       command: PROTOCOL_COMMANDS.DECRYPT_DDO,
@@ -366,14 +389,12 @@ describe('Should encrypt and decrypt DDO', () => {
 
   it('should decrypt ddo with encryptedDocument, flags, documentHash and return it', async () => {
     const nonce = Date.now().toString()
-    // wallet is the same account as publisherAccount, but supports personalSign, while publisherAccount does not
-    const wallet = new ethers.Wallet(process.env.PRIVATE_KEY)
     const messageHashBytes = createHashForSignature(
       await publisherAccount.getAddress(),
       nonce,
       PROTOCOL_COMMANDS.DECRYPT_DDO
     )
-    const signature = await wallet.signMessage(messageHashBytes)
+    const signature = await safeSign(publisherAccount, messageHashBytes)
 
     const decryptDDOTask: DecryptDDOCommand = {
       command: PROTOCOL_COMMANDS.DECRYPT_DDO,

@@ -80,7 +80,7 @@ import { freeComputeStartPayload } from '../data/commands.js'
 import { DDOManager } from '@oceanprotocol/ddo-js'
 import Dockerode from 'dockerode'
 import { C2DEngineDocker } from '../../components/c2d/compute_engine_docker.js'
-import { createHashForSignature } from '../utils/signature.js'
+import { createHashForSignature, safeSign } from '../utils/signature.js'
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -92,6 +92,8 @@ describe('Compute', () => {
   let provider: any
   let publisherAccount: any
   let consumerAccount: any
+  let additionalViewerAccount: any
+  let nonAllowedAccount: any
   let computeEnvironments: any
   let publishedComputeDataset: any
   let publishedAlgoDataset: any
@@ -109,7 +111,7 @@ describe('Compute', () => {
   const computeJobDuration = 60 * 15 // 15 minutes from now should be enough
   let firstEnv: ComputeEnvironment
 
-  const wallet = new ethers.Wallet(
+  /* const wallet = new ethers.Wallet(
     '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
   )
   const wallet2 = new ethers.Wallet(
@@ -117,7 +119,7 @@ describe('Compute', () => {
   )
   const wallet3 = new ethers.Wallet(
     '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d4521A'
-  )
+  ) */
 
   // const chainId = DEVELOPMENT_CHAIN_ID
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
@@ -184,6 +186,8 @@ describe('Compute', () => {
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
     consumerAccount = (await provider.getSigner(1)) as Signer
+    additionalViewerAccount = (await provider.getSigner(2)) as Signer
+    nonAllowedAccount = (await provider.getSigner(3)) as Signer
 
     publisherAddress = await publisherAccount.getAddress()
     algoDDO = { ...publishAlgoDDO }
@@ -613,7 +617,7 @@ describe('Compute', () => {
       PROTOCOL_COMMANDS.COMPUTE_START
     )
     // since ganache does not supports personal_sign, we use wallet account
-    const signature = await wallet.signMessage(messageHashBytes)
+    const signature = await safeSign(consumerAccount, messageHashBytes)
     const startComputeTask: PaidComputeStartCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_START,
       consumerAddress: await consumerAccount.getAddress(),
@@ -710,7 +714,7 @@ describe('Compute', () => {
       nonce,
       PROTOCOL_COMMANDS.COMPUTE_START
     )
-    const signature = await wallet.signMessage(messageHashBytes)
+    const signature = await safeSign(consumerAccount, messageHashBytes)
     const re = []
     for (const res of firstEnv.resources) {
       re.push({ id: res.id, amount: res.total })
@@ -742,7 +746,7 @@ describe('Compute', () => {
       metadata: {
         key: 'value'
       },
-      additionalViewers: [await wallet2.getAddress()],
+      additionalViewers: [await additionalViewerAccount.getAddress()],
       maxJobDuration: computeJobDuration,
       resources: re
       // additionalDatasets?: ComputeAsset[]
@@ -798,7 +802,7 @@ describe('Compute', () => {
       nonce2,
       PROTOCOL_COMMANDS.COMPUTE_START
     )
-    const signature2 = await wallet.signMessage(messageHashBytes2)
+    const signature2 = await safeSign(consumerAccount, messageHashBytes2)
     response = await new PaidComputeStartHandler(oceanNode).handle({
       ...startComputeTask,
       nonce: nonce2,
@@ -856,7 +860,7 @@ describe('Compute', () => {
       nonce,
       PROTOCOL_COMMANDS.COMPUTE_START
     )
-    const signature = await wallet.signMessage(messageHashBytes)
+    const signature = await safeSign(consumerAccount, messageHashBytes)
     const re = []
     for (const res of firstEnv.resources) {
       re.push({ id: res.id, amount: res.total })
@@ -904,10 +908,10 @@ describe('Compute', () => {
       nonce,
       PROTOCOL_COMMANDS.FREE_COMPUTE_START
     )
-    const signature = await wallet.signMessage(messageHashBytes)
+    const signature = await safeSign(consumerAccount, messageHashBytes)
     const startComputeTask: FreeComputeStartCommand = {
       command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
-      consumerAddress: await wallet.getAddress(),
+      consumerAddress: await consumerAccount.getAddress(),
       signature,
       nonce,
       environment: firstEnv.id,
@@ -989,10 +993,10 @@ describe('Compute', () => {
       nonce,
       PROTOCOL_COMMANDS.COMPUTE_GET_RESULT
     )
-    const signature = await wallet.signMessage(messageHashBytes)
+    const signature = await safeSign(consumerAccount, messageHashBytes)
     const resultComputeTask: ComputeGetResultCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
-      consumerAddress: await wallet.getAddress(),
+      consumerAddress: await consumerAccount.getAddress(),
       jobId,
       signature,
       nonce,
@@ -1007,14 +1011,14 @@ describe('Compute', () => {
   it('should get job result by additional viewer', async () => {
     const nonce = Date.now().toString()
     const messageHashBytes = createHashForSignature(
-      await wallet2.getAddress(),
+      await additionalViewerAccount.getAddress(),
       nonce,
       PROTOCOL_COMMANDS.COMPUTE_GET_RESULT
     )
-    const signature = await wallet2.signMessage(messageHashBytes)
+    const signature = await safeSign(additionalViewerAccount, messageHashBytes)
     const resultComputeTask: ComputeGetResultCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
-      consumerAddress: await wallet2.getAddress(),
+      consumerAddress: await additionalViewerAccount.getAddress(),
       jobId,
       signature,
       nonce,
@@ -1029,14 +1033,14 @@ describe('Compute', () => {
   it('should fail to get job result by non allowed address', async () => {
     const nonce = Date.now().toString()
     const messageHashBytes = createHashForSignature(
-      await wallet3.getAddress(),
+      await nonAllowedAccount.getAddress(),
       nonce,
       PROTOCOL_COMMANDS.COMPUTE_GET_RESULT
     )
-    const signature = await wallet3.signMessage(messageHashBytes)
+    const signature = await safeSign(nonAllowedAccount, messageHashBytes)
     const resultComputeTask: ComputeGetResultCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
-      consumerAddress: await wallet3.getAddress(),
+      consumerAddress: await nonAllowedAccount.getAddress(),
       jobId,
       signature,
       nonce,
@@ -1058,7 +1062,7 @@ describe('Compute', () => {
       nonce,
       PROTOCOL_COMMANDS.COMPUTE_STOP
     )
-    const signature = await wallet.signMessage(messageHashBytes)
+    const signature = await safeSign(consumerAccount, messageHashBytes)
     const stopComputeTask: ComputeStopCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_STOP,
       consumerAddress: await consumerAccount.getAddress(),
@@ -1106,16 +1110,16 @@ describe('Compute', () => {
   it('should deny the Free job due to bad container image (directCommand payload)', async function () {
     const nonce = Date.now().toString()
     const messageHashBytes = createHashForSignature(
-      await wallet.address,
+      await consumerAccount.address,
       nonce,
       PROTOCOL_COMMANDS.FREE_COMPUTE_START
     )
-    const signature = await wallet.signMessage(messageHashBytes)
+    const signature = await safeSign(consumerAccount, messageHashBytes)
     freeComputeStartPayload.command = PROTOCOL_COMMANDS.FREE_COMPUTE_START
     freeComputeStartPayload.signature = signature
     freeComputeStartPayload.nonce = nonce
     freeComputeStartPayload.environment = firstEnv.id
-    freeComputeStartPayload.consumerAddress = await wallet.getAddress()
+    freeComputeStartPayload.consumerAddress = await consumerAccount.getAddress()
     const command: FreeComputeStartCommand = freeComputeStartPayload
     const handler = new FreeComputeStartHandler(oceanNode)
     const response = await handler.handle(command)
@@ -1587,8 +1591,7 @@ describe('Compute', () => {
         nonce,
         PROTOCOL_COMMANDS.COMPUTE_START
       )
-      const signature = await wallet.signMessage(messageHashBytes)
-
+      const signature = await safeSign(consumerAccount, messageHashBytes)
       const startComputeTask: PaidComputeStartCommand = {
         command: PROTOCOL_COMMANDS.COMPUTE_START,
         consumerAddress: await consumerAccount.getAddress(),
@@ -1646,7 +1649,7 @@ describe('Compute', () => {
         nonce,
         PROTOCOL_COMMANDS.COMPUTE_START
       )
-      const signature = await wallet.signMessage(messageHashBytes)
+      const signature = await safeSign(consumerAccount, messageHashBytes)
 
       const startComputeTask: PaidComputeStartCommand = {
         command: PROTOCOL_COMMANDS.COMPUTE_START,
@@ -1695,15 +1698,15 @@ describe('Compute', () => {
 
       const nonce = Date.now().toString()
       const messageHashBytes = createHashForSignature(
-        await wallet.address,
+        await consumerAccount.address,
         nonce,
         PROTOCOL_COMMANDS.FREE_COMPUTE_START
       )
-      const signature = await wallet.signMessage(messageHashBytes)
+      const signature = await safeSign(consumerAccount, messageHashBytes)
 
       const startComputeTask: FreeComputeStartCommand = {
         command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
-        consumerAddress: await wallet.getAddress(),
+        consumerAddress: await consumerAccount.getAddress(),
         signature,
         nonce,
         environment: firstEnv.id,
@@ -1756,11 +1759,11 @@ describe('Compute', () => {
         nonce,
         PROTOCOL_COMMANDS.FREE_COMPUTE_START
       )
-      const signature = await wallet.signMessage(messageHashBytes)
+      const signature = await safeSign(consumerAccount, messageHashBytes)
 
       const startComputeTask: FreeComputeStartCommand = {
         command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
-        consumerAddress: await wallet.getAddress(),
+        consumerAddress: await consumerAccount.getAddress(),
         signature,
         nonce,
         environment: firstEnv.id,
@@ -2012,8 +2015,10 @@ describe('Compute Access Restrictions', () => {
   let paymentToken: any
   let firstEnv: ComputeEnvironment
   let accessListAddress: string
-
-  const wallet = new ethers.Wallet(
+  let wallet: any
+  let wallet2: any
+  let wallet3: any
+  /* const wallet = new ethers.Wallet(
     '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
   )
   const wallet2 = new ethers.Wallet(
@@ -2022,6 +2027,7 @@ describe('Compute Access Restrictions', () => {
   const wallet3 = new ethers.Wallet(
     '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d4521A'
   )
+    */
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const computeJobDuration = 60 * 15
 
@@ -2154,6 +2160,9 @@ describe('Compute Access Restrictions', () => {
 
       provider = new JsonRpcProvider('http://127.0.0.1:8545')
       publisherAccount = await provider.getSigner(0)
+      wallet = await provider.getSigner(1)
+      wallet2 = await provider.getSigner(2)
+      wallet3 = await provider.getSigner(3)
 
       publishedComputeDataset = await publishAsset(computeAsset, publisherAccount)
       publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)

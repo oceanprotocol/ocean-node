@@ -186,6 +186,9 @@ export class DownloadHandler extends CommandHandler {
 
   async handle(task: DownloadCommand): Promise<P2PCommandResponse> {
     const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
+    }
     const isAuthRequestValid = await this.validateTokenOrSignature(
       task.authorization,
       task.consumerAddress,
@@ -197,9 +200,6 @@ export class DownloadHandler extends CommandHandler {
       return isAuthRequestValid
     }
 
-    if (this.shouldDenyTaskHandling(validationResponse)) {
-      return validationResponse
-    }
     const node = this.getOceanNode()
     // 1. Get the DDO
     const handler: FindDdoHandler = node

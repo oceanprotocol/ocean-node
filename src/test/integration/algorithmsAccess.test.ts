@@ -48,7 +48,7 @@ import OceanToken from '@oceanprotocol/contracts/artifacts/contracts/utils/Ocean
 import EscrowJson from '@oceanprotocol/contracts/artifacts/contracts/escrow/Escrow.sol/Escrow.json' with { type: 'json' }
 import { createHash } from 'crypto'
 import { getAlgoChecksums } from '../../components/core/compute/utils.js'
-import { createHashForSignature } from '../utils/signature.js'
+import { createHashForSignature, safeSign } from '../utils/signature.js'
 
 describe('Trusted algorithms Flow', () => {
   let previousConfiguration: OverrideEnvConfig[]
@@ -72,9 +72,6 @@ describe('Trusted algorithms Flow', () => {
   const computeJobDuration = 60 * 15 // 15 minutes from now should be enough
   let firstEnv: ComputeEnvironment
 
-  const wallet = new ethers.Wallet(
-    '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
-  )
   // const chainId = DEVELOPMENT_CHAIN_ID
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   let artifactsAddresses: any
@@ -435,11 +432,11 @@ describe('Trusted algorithms Flow', () => {
     const nonce = Date.now().toString()
 
     const messageHashBytes = createHashForSignature(
-      wallet.address,
+      await consumerAccount.getAddress(),
       nonce,
       PROTOCOL_COMMANDS.COMPUTE_START
     )
-    const signature = await wallet.signMessage(messageHashBytes)
+    const signature = await safeSign(consumerAccount, messageHashBytes)
     const startComputeTask: PaidComputeStartCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_START,
       consumerAddress: await consumerAccount.getAddress(),
