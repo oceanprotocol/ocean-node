@@ -19,7 +19,7 @@ import { validateFilesStructure } from '../../components/core/handler/downloadHa
 import { AssetUtils, isConfidentialChainDDO } from '../../utils/asset.js'
 import { DEVELOPMENT_CHAIN_ID, KNOWN_CONFIDENTIAL_EVMS } from '../../utils/address.js'
 import { DDO } from '@oceanprotocol/ddo-js'
-import { Signer, JsonRpcProvider } from 'ethers'
+import { Wallet } from 'ethers'
 import { createHashForSignature, safeSign } from '../utils/signature.js'
 
 let envOverrides: OverrideEnvConfig[]
@@ -28,7 +28,7 @@ let db: Database
 let oceanNode: OceanNode
 
 describe('Should validate files structure for download', () => {
-  let consumerAccount: Signer
+  let consumerAccount: Wallet
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
       [ENVIRONMENT_VARIABLES.PRIVATE_KEY],
@@ -39,8 +39,7 @@ describe('Should validate files structure for download', () => {
     config = await getConfiguration(true)
     db = await Database.init(config.dbConfig)
     oceanNode = OceanNode.getInstance(config, db)
-    const provider = new JsonRpcProvider('http://127.0.0.1:8545')
-    consumerAccount = (await provider.getSigner(0)) as Signer
+    consumerAccount = new Wallet(process.env.PRIVATE_KEY)
   })
 
   const ddoObj: DDO = {

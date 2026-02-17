@@ -53,19 +53,18 @@ import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.j
 import { ReindexChainHandler } from '../../components/core/admin/reindexChainHandler.js'
 import { CollectFeesHandler } from '../../components/core/admin/collectFeesHandler.js'
 import { GetJobsHandler } from '../../components/core/handler/getJobs.js'
-import { Signer, JsonRpcProvider } from 'ethers'
+import { Wallet } from 'ethers'
 import { createHashForSignature, safeSign } from '../utils/signature.js'
 describe('Commands and handlers', () => {
   let node: OceanNode
-  let consumerAccount: Signer
+  let consumerAccount: Wallet
   let consumerAddress: string
   before(async () => {
     const config = await getConfiguration()
     const keyManager = new KeyManager(config)
     const db = await Database.init(config.dbConfig)
     node = OceanNode.getInstance(config, db, null, null, null, keyManager, null, true)
-    const provider = new JsonRpcProvider('http://127.0.0.1:8545')
-    consumerAccount = (await provider.getSigner(0)) as Signer
+    consumerAccount = new Wallet(process.env.PRIVATE_KEY)
     consumerAddress = await consumerAccount.getAddress()
   })
 

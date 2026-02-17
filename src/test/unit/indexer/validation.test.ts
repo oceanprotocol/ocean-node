@@ -18,7 +18,7 @@ import { RPCS } from '../../../@types/blockchain.js'
 import { Database } from '../../../components/database/index.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
 // import sinon, { SinonSandbox } from 'sinon'
-import { Signer, JsonRpcProvider } from 'ethers'
+import { Wallet } from 'ethers'
 import { Readable } from 'stream'
 import { createHashForSignature, safeSign } from '../../utils/signature.js'
 
@@ -29,7 +29,7 @@ describe('Schema validation tests', () => {
   let mockDatabase: Database
   let config: OceanNodeConfig
   let oceanNode: OceanNode
-  let consumerAccount: Signer
+  let consumerAccount: Wallet
   // let sandbox: SinonSandbox
 
   // For token validation, please check integration test cases
@@ -52,8 +52,7 @@ describe('Schema validation tests', () => {
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
-    const provider = new JsonRpcProvider('http://127.0.0.1:8545')
-    consumerAccount = (await provider.getSigner(1)) as Signer
+    consumerAccount = new Wallet(process.env.PRIVATE_KEY)
     /* sandbox = sinon.createSandbox()
     sandbox.stub(Database, 'init').resolves({
       nonce: {},
