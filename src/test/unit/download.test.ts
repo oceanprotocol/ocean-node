@@ -19,8 +19,8 @@ import { validateFilesStructure } from '../../components/core/handler/downloadHa
 import { AssetUtils, isConfidentialChainDDO } from '../../utils/asset.js'
 import { DEVELOPMENT_CHAIN_ID, KNOWN_CONFIDENTIAL_EVMS } from '../../utils/address.js'
 import { DDO } from '@oceanprotocol/ddo-js'
-import { Wallet } from 'ethers'
-import { createHashForSignature } from '../utils/signature.js'
+import { Signer, JsonRpcProvider } from 'ethers'
+import { createHashForSignature, safeSign } from '../utils/signature.js'
 
 let envOverrides: OverrideEnvConfig[]
 let config: OceanNodeConfig
@@ -28,17 +28,19 @@ let db: Database
 let oceanNode: OceanNode
 
 describe('Should validate files structure for download', () => {
-  let consumerAccount: Wallet
+  let consumerAccount: Signer
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
       [ENVIRONMENT_VARIABLES.PRIVATE_KEY],
       ['0x3634cc4a3d2694a1186a7ce545f149e022eea103cc254d18d08675104bb4b5ac']
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
+
     config = await getConfiguration(true)
     db = await Database.init(config.dbConfig)
     oceanNode = OceanNode.getInstance(config, db)
-    consumerAccount = new Wallet(process.env.PRIVATE_KEY)
+    const provider = new JsonRpcProvider('http://127.0.0.1:8545')
+    consumerAccount = (await provider.getSigner(0)) as Signer
   })
 
   const ddoObj: DDO = {
@@ -87,11 +89,11 @@ describe('Should validate files structure for download', () => {
   const getDecryptedData = async function () {
     const nonce = Date.now().toString()
     const messageHashBytes = createHashForSignature(
-      consumerAccount.address,
+      await consumerAccount.getAddress(),
       nonce,
       PROTOCOL_COMMANDS.ENCRYPT
     )
-    const signature = await consumerAccount.signMessage(messageHashBytes)
+    const signature = await safeSign(consumerAccount, messageHashBytes)
     const result = await new EncryptHandler(oceanNode).handle({
       blob: JSON.stringify(assetURL),
       encoding: 'string',
@@ -160,7 +162,7 @@ describe('Should validate files structure for download', () => {
       nonce,
       PROTOCOL_COMMANDS.ENCRYPT
     )
-    const signature = await consumerAccount.signMessage(messageHashBytes)
+    const signature = await safeSign(consumerAccount, messageHashBytes)
     const result = await new EncryptHandler(oceanNode).handle({
       blob: JSON.stringify(newAssetURL),
       encoding: 'string',

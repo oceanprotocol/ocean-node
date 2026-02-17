@@ -53,18 +53,19 @@ import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.j
 import { ReindexChainHandler } from '../../components/core/admin/reindexChainHandler.js'
 import { CollectFeesHandler } from '../../components/core/admin/collectFeesHandler.js'
 import { GetJobsHandler } from '../../components/core/handler/getJobs.js'
-import { Wallet } from 'ethers'
-import { createHashForSignature } from '../utils/signature.js'
+import { Signer, JsonRpcProvider } from 'ethers'
+import { createHashForSignature, safeSign } from '../utils/signature.js'
 describe('Commands and handlers', () => {
   let node: OceanNode
-  let consumerAccount: Wallet
+  let consumerAccount: Signer
   let consumerAddress: string
   before(async () => {
     const config = await getConfiguration()
     const keyManager = new KeyManager(config)
     const db = await Database.init(config.dbConfig)
     node = OceanNode.getInstance(config, db, null, null, null, keyManager, null, true)
-    consumerAccount = new Wallet(process.env.PRIVATE_KEY)
+    const provider = new JsonRpcProvider('http://127.0.0.1:8545')
+    consumerAccount = (await provider.getSigner(0)) as Signer
     consumerAddress = await consumerAccount.getAddress()
   })
 
@@ -144,7 +145,7 @@ describe('Commands and handlers', () => {
       nonce,
       PROTOCOL_COMMANDS.ENCRYPT
     )
-    let signature = await consumerAccount.signMessage(messageHashBytes)
+    let signature = await safeSign(consumerAccount, messageHashBytes)
     const encryptCommand: EncryptCommand = {
       blob: '1425252525',
       command: PROTOCOL_COMMANDS.ENCRYPT,
@@ -166,7 +167,7 @@ describe('Commands and handlers', () => {
       nonce,
       PROTOCOL_COMMANDS.ENCRYPT_FILE
     )
-    signature = await consumerAccount.signMessage(messageHashBytes2)
+    signature = await safeSign(consumerAccount, messageHashBytes2)
     const encryptFileCommand: EncryptFileCommand = {
       rawData: Buffer.from('12345'),
       command: PROTOCOL_COMMANDS.ENCRYPT_FILE,

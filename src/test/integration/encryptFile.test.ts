@@ -7,7 +7,7 @@ import { Readable } from 'stream'
 import { EncryptFileHandler } from '../../components/core/handler/encryptHandler.js'
 import { EncryptFileCommand } from '../../@types/commands'
 import { EncryptMethod, FileObjectType, UrlFileObject } from '../../@types/fileObject.js'
-import { Wallet, ethers } from 'ethers'
+import { Signer, JsonRpcProvider } from 'ethers'
 import fs from 'fs'
 import {
   OverrideEnvConfig,
@@ -17,13 +17,13 @@ import {
   tearDownEnvironment
 } from '../utils/utils.js'
 import { Database } from '../../components/database/index.js'
-import { createHashForSignature } from '../utils/signature.js'
+import { createHashForSignature, safeSign } from '../utils/signature.js'
 
 describe('Encrypt File', () => {
   let config: OceanNodeConfig
   let oceanNode: OceanNode
   let previousConfiguration: OverrideEnvConfig[]
-  let anotherConsumerWallet: Wallet
+  let anotherConsumerWallet: Signer
 
   before(async () => {
     previousConfiguration = await setupEnvironment(
@@ -36,26 +36,22 @@ describe('Encrypt File', () => {
     config = await getConfiguration(true) // Force reload the configuration
     const dbconn = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance(config, dbconn)
-    anotherConsumerWallet = new ethers.Wallet(
-      '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
-    )
+    const provider = new JsonRpcProvider('http://127.0.0.1:8545')
+    anotherConsumerWallet = (await provider.getSigner(1)) as Signer
   })
 
   it('should encrypt files', async () => {
-    const wallet = new ethers.Wallet(
-      '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
-    )
     const nonce = Date.now().toString()
     const messageHashBytes = createHashForSignature(
-      wallet.address,
+      await anotherConsumerWallet.getAddress(),
       nonce,
       PROTOCOL_COMMANDS.ENCRYPT_FILE
     )
-    const signature = await wallet.signMessage(messageHashBytes)
+    const signature = await safeSign(anotherConsumerWallet, messageHashBytes)
     const encryptFileTask: EncryptFileCommand = {
       command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
       nonce,
-      consumerAddress: await wallet.getAddress(),
+      consumerAddress: await anotherConsumerWallet.getAddress(),
       signature,
       encryptionType: EncryptMethod.AES,
       files: {
@@ -88,7 +84,7 @@ describe('Encrypt File', () => {
       nonce,
       PROTOCOL_COMMANDS.ENCRYPT_FILE
     )
-    const signature = await anotherConsumerWallet.signMessage(messageHashBytes)
+    const signature = await safeSign(anotherConsumerWallet, messageHashBytes)
     const encryptFileTask: EncryptFileCommand = {
       command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
       encryptionType: EncryptMethod.AES,
@@ -120,7 +116,7 @@ describe('Encrypt File', () => {
       nonce,
       PROTOCOL_COMMANDS.ENCRYPT_FILE
     )
-    const signature = await anotherConsumerWallet.signMessage(messageHashBytes)
+    const signature = await safeSign(anotherConsumerWallet, messageHashBytes)
     const encryptFileTask: EncryptFileCommand = {
       command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
       encryptionType: EncryptMethod.ECIES,
@@ -150,7 +146,7 @@ describe('Encrypt File', () => {
       nonce,
       PROTOCOL_COMMANDS.ENCRYPT_FILE
     )
-    const signature = await anotherConsumerWallet.signMessage(messageHashBytes)
+    const signature = await safeSign(anotherConsumerWallet, messageHashBytes)
     const encryptFileTask: EncryptFileCommand = {
       command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
       encryptionType: EncryptMethod.AES,

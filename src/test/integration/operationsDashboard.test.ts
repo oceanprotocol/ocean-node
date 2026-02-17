@@ -1,6 +1,6 @@
 import { assert, expect } from 'chai'
 import { Readable } from 'stream'
-import { Signer, JsonRpcProvider, ethers, Contract, parseUnits } from 'ethers'
+import { Signer, JsonRpcProvider, Contract, parseUnits } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { RPCS } from '../../@types/blockchain.js'
@@ -55,7 +55,7 @@ import { CollectFeesHandler } from '../../components/core/admin/collectFeesHandl
 import { getProviderFeeToken } from '../../components/core/utils/feesHandler.js'
 import { KeyManager } from '../../components/KeyManager/index.js'
 import { BlockchainRegistry } from '../../components/BlockchainRegistry/index.js'
-import { createHashForSignature } from '../utils/signature.js'
+import { createHashForSignature, safeSign } from '../utils/signature.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -63,22 +63,18 @@ describe('Should test admin operations', () => {
   let publishedDataset: any
   let dbconn: Database
   let indexer: OceanIndexer
-  const provider = new JsonRpcProvider('http://127.0.0.1:8545')
-  const wallet = new ethers.Wallet(
-    '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-    provider
-  )
-  const destinationWallet = new ethers.Wallet(
-    '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209',
-    provider
-  )
-
+  let adminWallet: Signer
+  let destinationWallet: Signer
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
 
   let previousConfiguration: OverrideEnvConfig[]
 
   before(async () => {
     // override and save configuration (always before calling getConfig())
+    const provider = new JsonRpcProvider('http://127.0.0.1:8545')
+    adminWallet = (await provider.getSigner(0)) as Signer
+    destinationWallet = (await provider.getSigner(1)) as Signer
+
     previousConfiguration = await setupEnvironment(
       TEST_ENV_CONFIG_FILE,
       buildEnvOverrideConfig(
@@ -95,7 +91,7 @@ describe('Should test admin operations', () => {
           JSON.stringify([8996]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
-          JSON.stringify([await wallet.getAddress()]),
+          JSON.stringify([await adminWallet.getAddress()]),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
@@ -125,16 +121,16 @@ describe('Should test admin operations', () => {
   it('validation should pass for stop node command', async () => {
     const nonce = Date.now().toString()
     const messageHashBytes = createHashForSignature(
-      wallet.address,
+      await adminWallet.getAddress(),
       nonce,
       PROTOCOL_COMMANDS.STOP_NODE
     )
-    const signature = await wallet.signMessage(messageHashBytes)
+    const signature = await safeSign(adminWallet, messageHashBytes)
     const stopNodeCommand: AdminStopNodeCommand = {
       command: PROTOCOL_COMMANDS.STOP_NODE,
       node: oceanNode.getKeyManager().getPeerId().toString(),
       nonce,
-      address: wallet.address,
+      address: await adminWallet.getAddress(),
       signature
     }
     const validationResponse = await new StopNodeHandler(oceanNode).validate(
@@ -154,26 +150,25 @@ describe('Should test admin operations', () => {
     await sleep(200)
     let nonce = Date.now().toString()
     let messageHashBytes = createHashForSignature(
-      wallet.address,
+      await adminWallet.getAddress(),
       nonce,
       PROTOCOL_COMMANDS.COLLECT_FEES
     )
-    let signature = await wallet.signMessage(messageHashBytes)
+    let signature = await safeSign(adminWallet, messageHashBytes)
     const collectFeesCommand: AdminCollectFeesCommand = {
       command: PROTOCOL_COMMANDS.COLLECT_FEES,
       tokenAddress: await getProviderFeeToken(DEVELOPMENT_CHAIN_ID),
       chainId: DEVELOPMENT_CHAIN_ID,
       tokenAmount: 0.01,
       destinationAddress: await destinationWallet.getAddress(),
-      address: wallet.address,
+      address: await adminWallet.getAddress(),
       nonce,
       signature
     }
-    const providerWallet = wallet
     const token = new Contract(
       collectFeesCommand.tokenAddress.toLowerCase(),
       ERC20Template.abi,
-      providerWallet
+      adminWallet
     )
     const balanceBefore = await token.balanceOf(await destinationWallet.getAddress())
     const result = await collectFeesHandler.handle(collectFeesCommand)
@@ -190,19 +185,19 @@ describe('Should test admin operations', () => {
     await sleep(100)
     nonce = Date.now().toString()
     messageHashBytes = createHashForSignature(
-      wallet.address,
+      await adminWallet.getAddress(),
       nonce,
       PROTOCOL_COMMANDS.COLLECT_FEES
     )
-    signature = await wallet.signMessage(messageHashBytes)
+    signature = await safeSign(adminWallet, messageHashBytes)
     const collectFeesCommandWrongNode: AdminCollectFeesCommand = {
       command: PROTOCOL_COMMANDS.COLLECT_FEES,
       node: 'My peerID', // dummy peer ID
       tokenAddress: getOceanArtifactsAdresses().development.Ocean,
       chainId: DEVELOPMENT_CHAIN_ID,
       tokenAmount: 0.01,
-      destinationAddress: await wallet.getAddress(),
-      address: wallet.address,
+      destinationAddress: await adminWallet.getAddress(),
+      address: await adminWallet.getAddress(),
       nonce,
       signature
     }
@@ -212,18 +207,18 @@ describe('Should test admin operations', () => {
     await sleep(100)
     nonce = Date.now().toString()
     messageHashBytes = createHashForSignature(
-      wallet.address,
+      await adminWallet.getAddress(),
       nonce,
       PROTOCOL_COMMANDS.COLLECT_FEES
     )
-    signature = await wallet.signMessage(messageHashBytes)
+    signature = await safeSign(adminWallet, messageHashBytes)
     const collectFeesCommandWrongAmount: AdminCollectFeesCommand = {
       command: PROTOCOL_COMMANDS.COLLECT_FEES,
       tokenAddress: getOceanArtifactsAdresses().development.Ocean,
       chainId: DEVELOPMENT_CHAIN_ID,
       tokenAmount: 366666666666, // big amount
-      destinationAddress: await wallet.getAddress(),
-      address: wallet.address,
+      destinationAddress: await adminWallet.getAddress(),
+      address: await adminWallet.getAddress(),
       nonce,
       signature
     }
@@ -234,7 +229,7 @@ describe('Should test admin operations', () => {
 
   it('should publish dataset', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
-    publishedDataset = await publishAsset(downloadAsset, wallet as Signer)
+    publishedDataset = await publishAsset(downloadAsset, adminWallet)
     const { ddo, wasTimeout } = await waitToIndex(
       publishedDataset.ddo.id,
       EVENTS.METADATA_CREATED,
@@ -250,18 +245,18 @@ describe('Should test admin operations', () => {
     await waitToIndex(publishedDataset.ddo.did, EVENTS.METADATA_CREATED)
     const nonce = Date.now().toString()
     const messageHashBytes = createHashForSignature(
-      wallet.address,
+      await adminWallet.getAddress(),
       nonce,
       PROTOCOL_COMMANDS.REINDEX_TX
     )
-    const signature = await wallet.signMessage(messageHashBytes)
+    const signature = await safeSign(adminWallet, messageHashBytes)
 
     const reindexTxCommand: AdminReindexTxCommand = {
       command: PROTOCOL_COMMANDS.REINDEX_TX,
       node: oceanNode.getKeyManager().getPeerId().toString(),
       txId: publishedDataset.trxReceipt.hash,
       chainId: DEVELOPMENT_CHAIN_ID,
-      address: wallet.address,
+      address: await adminWallet.getAddress(),
       nonce,
       signature
     }
@@ -329,16 +324,16 @@ describe('Should test admin operations', () => {
     } else {
       const nonce = Date.now().toString()
       const messageHashBytes = createHashForSignature(
-        wallet.address,
+        await adminWallet.getAddress(),
         nonce,
         PROTOCOL_COMMANDS.REINDEX_CHAIN
       )
-      const signature = await wallet.signMessage(messageHashBytes)
+      const signature = await safeSign(adminWallet, messageHashBytes)
       const reindexChainCommand: AdminReindexChainCommand = {
         command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
         node: oceanNode.getKeyManager().getPeerId().toString(),
         chainId: DEVELOPMENT_CHAIN_ID,
-        address: wallet.address,
+        address: await adminWallet.getAddress(),
         nonce,
         signature
       }
@@ -400,16 +395,16 @@ describe('Should test admin operations', () => {
     await sleep(100)
     let nonce = Date.now().toString()
     let messageHashBytes = createHashForSignature(
-      wallet.address,
+      await adminWallet.getAddress(),
       nonce,
       PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD
     )
-    let signature = await wallet.signMessage(messageHashBytes)
+    let signature = await safeSign(adminWallet, messageHashBytes)
 
     const indexingStartCommand: StartStopIndexingCommand = {
       command: PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
       action: IndexingCommand.START_THREAD,
-      address: wallet.address,
+      address: await adminWallet.getAddress(),
       nonce,
       signature
     }
@@ -417,15 +412,15 @@ describe('Should test admin operations', () => {
     await sleep(100)
     nonce = Date.now().toString()
     messageHashBytes = createHashForSignature(
-      wallet.address,
+      await adminWallet.getAddress(),
       nonce,
       PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD
     )
-    signature = await wallet.signMessage(messageHashBytes)
+    signature = await safeSign(adminWallet, messageHashBytes)
     const indexingStopCommand: StartStopIndexingCommand = {
       command: PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
       action: IndexingCommand.STOP_THREAD,
-      address: wallet.address,
+      address: await adminWallet.getAddress(),
       nonce,
       signature
     }
@@ -433,11 +428,11 @@ describe('Should test admin operations', () => {
     await sleep(100)
     nonce = Date.now().toString()
     messageHashBytes = createHashForSignature(
-      wallet.address,
+      await adminWallet.getAddress(),
       nonce,
       PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD
     )
-    signature = await wallet.signMessage(messageHashBytes)
+    signature = await safeSign(adminWallet, messageHashBytes)
     indexingStopCommand.signature = signature
     indexingStopCommand.nonce = nonce
     // should exist a running thread for this network atm
@@ -452,15 +447,14 @@ describe('Should test admin operations', () => {
     indexingStartCommand.chainId = 8996
     nonce = Date.now().toString()
     messageHashBytes = createHashForSignature(
-      wallet.address,
+      await adminWallet.getAddress(),
       nonce,
       PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD
     )
-    signature = await wallet.signMessage(messageHashBytes)
+    signature = await safeSign(adminWallet, messageHashBytes)
     indexingStartCommand.signature = signature
     indexingStartCommand.nonce = nonce
     const responseStart = await indexingHandler.handle(indexingStartCommand)
-    console.log(responseStart)
     assert(responseStart.stream, 'Failed to get stream when starting thread')
     expect(responseStart.status.httpStatus).to.be.equal(200)
   })

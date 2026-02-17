@@ -1,5 +1,5 @@
 import { expect, assert } from 'chai'
-import { JsonRpcProvider, Signer, ethers } from 'ethers'
+import { JsonRpcProvider, Signer } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
@@ -43,7 +43,7 @@ import { publishAsset, orderAsset } from '../utils/assets.js'
 import { downloadAsset } from '../data/assets.js'
 import { genericDDO } from '../data/ddo.js'
 import { homedir } from 'os'
-import { createHashForSignature } from '../utils/signature.js'
+import { createHashForSignature, safeSign } from '../utils/signature.js'
 
 describe('[Download Flow] - Should run a complete node flow.', () => {
   let config: OceanNodeConfig
@@ -52,12 +52,11 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
   let provider: JsonRpcProvider
   let publisherAccount: Signer
   let consumerAccount: Signer
-  let consumerAddress: string
   let orderTxId: string
   let publishedDataset: any
   let actualDDO: any
   let indexer: OceanIndexer
-  let anotherConsumer: ethers.Wallet
+  let anotherConsumer: Signer
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const serviceId = '0'
@@ -104,14 +103,10 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
     }
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
-    anotherConsumer = new ethers.Wallet(
-      ENVIRONMENT_VARIABLES.NODE2_PRIVATE_KEY.value,
-      provider
-    )
 
     publisherAccount = (await provider.getSigner(0)) as Signer
     consumerAccount = (await provider.getSigner(1)) as Signer
-    consumerAddress = await consumerAccount.getAddress()
+    anotherConsumer = (await provider.getSigner(2)) as Signer
   })
 
   it('should get node status', async () => {
@@ -244,23 +239,21 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
 
     const doCheck = async () => {
-      const wallet = new ethers.Wallet(
-        '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
-      )
       const nonce = Date.now().toString()
+
       const messageHashBytes = createHashForSignature(
-        wallet.address,
+        await consumerAccount.getAddress(),
         nonce,
         PROTOCOL_COMMANDS.DOWNLOAD
       )
-      const signature = await wallet.signMessage(messageHashBytes)
+      const signature = await safeSign(consumerAccount, messageHashBytes)
       const downloadTask = {
         fileIndex: 0,
         documentId: publishedDataset.ddo.id,
         serviceId: publishedDataset.ddo.services[0].id,
         transferTxId: orderTxId,
         nonce,
-        consumerAddress,
+        consumerAddress: await consumerAccount.getAddress(),
         signature,
         command: PROTOCOL_COMMANDS.DOWNLOAD
       }
@@ -299,7 +292,7 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
       nonce,
       PROTOCOL_COMMANDS.DOWNLOAD
     )
-    const signature = await anotherConsumer.signMessage(messageHashBytes)
+    const signature = await safeSign(anotherConsumer, messageHashBytes)
 
     const doCheck = async () => {
       const downloadTask = {

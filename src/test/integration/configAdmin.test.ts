@@ -1,4 +1,4 @@
-import { Wallet } from 'ethers'
+import { Signer, JsonRpcProvider } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { getConfiguration, loadConfigFromFile } from '../../utils/index.js'
 import {
@@ -19,21 +19,22 @@ import { PushConfigHandler } from '../../components/core/admin/pushConfigHandler
 import { streamToObject } from '../../utils/util.js'
 import { Readable } from 'stream'
 import { expect } from 'chai'
-import { createHashForSignature } from '../utils/signature.js'
+import { createHashForSignature, safeSign } from '../utils/signature.js'
 
 describe('Config Admin Endpoints Integration Tests', () => {
   let config: OceanNodeConfig
   let database: Database
-  let adminAccount: Wallet
+  let adminAccount: Signer
+  let nonAdminAccount: Signer
   let previousConfiguration: OverrideEnvConfig[]
   let oceanNode: OceanNode
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
 
   before(async () => {
-    const adminPrivateKey =
-      '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
-    adminAccount = new Wallet(adminPrivateKey)
+    const provider = new JsonRpcProvider('http://127.0.0.1:8545')
+    adminAccount = (await provider.getSigner(0)) as Signer
+    nonAdminAccount = (await provider.getSigner(1)) as Signer
     const adminAddress = await adminAccount.getAddress()
 
     previousConfiguration = await setupEnvironment(
@@ -70,7 +71,7 @@ describe('Config Admin Endpoints Integration Tests', () => {
       nonce,
       command
     )
-    const signature = await adminAccount.signMessage(messageHashBytes)
+    const signature = await safeSign(adminAccount, messageHashBytes)
     return signature
   }
 
@@ -120,13 +121,13 @@ describe('Config Admin Endpoints Integration Tests', () => {
     it('should reject fetch config with signature from non-admin', async function () {
       this.timeout(DEFAULT_TEST_TIMEOUT)
 
-      const nonAdminPrivateKey =
-        '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
-      const nonAdminAccount = new Wallet(nonAdminPrivateKey)
-
       const expiryTimestamp = Date.now() + 60000
-      const message = expiryTimestamp.toString()
-      const invalidSignature = await nonAdminAccount.signMessage(message)
+      const messageHashBytes = createHashForSignature(
+        await nonAdminAccount.getAddress(),
+        expiryTimestamp.toString(),
+        PROTOCOL_COMMANDS.FETCH_CONFIG
+      )
+      const invalidSignature = await safeSign(nonAdminAccount, messageHashBytes)
 
       const handlerResponse = await new FetchConfigHandler(oceanNode).handle({
         command: PROTOCOL_COMMANDS.FETCH_CONFIG,
@@ -280,13 +281,13 @@ describe('Config Admin Endpoints Integration Tests', () => {
     it('should reject push config with signature from non-admin', async function () {
       this.timeout(DEFAULT_TEST_TIMEOUT)
 
-      const nonAdminPrivateKey =
-        '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
-      const nonAdminAccount = new Wallet(nonAdminPrivateKey)
-
       const expiryTimestamp = Date.now() + 60000
-      const message = expiryTimestamp.toString()
-      const invalidSignature = await nonAdminAccount.signMessage(message)
+      const messageHashBytes = createHashForSignature(
+        await nonAdminAccount.getAddress(),
+        expiryTimestamp.toString(),
+        PROTOCOL_COMMANDS.FETCH_CONFIG
+      )
+      const invalidSignature = await safeSign(nonAdminAccount, messageHashBytes)
 
       const handlerResponse = await new PushConfigHandler(oceanNode).handle({
         command: PROTOCOL_COMMANDS.PUSH_CONFIG,

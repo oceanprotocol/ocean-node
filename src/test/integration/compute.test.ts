@@ -110,17 +110,6 @@ describe('Compute', () => {
   // const now = new Date().getTime() / 1000
   const computeJobDuration = 60 * 15 // 15 minutes from now should be enough
   let firstEnv: ComputeEnvironment
-
-  /* const wallet = new ethers.Wallet(
-    '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
-  )
-  const wallet2 = new ethers.Wallet(
-    '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45210'
-  )
-  const wallet3 = new ethers.Wallet(
-    '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d4521A'
-  ) */
-
   // const chainId = DEVELOPMENT_CHAIN_ID
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const chainId = DEVELOPMENT_CHAIN_ID
@@ -2018,16 +2007,6 @@ describe('Compute Access Restrictions', () => {
   let wallet: any
   let wallet2: any
   let wallet3: any
-  /* const wallet = new ethers.Wallet(
-    '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
-  )
-  const wallet2 = new ethers.Wallet(
-    '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45210'
-  )
-  const wallet3 = new ethers.Wallet(
-    '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d4521A'
-  )
-    */
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const computeJobDuration = 60 * 15
 

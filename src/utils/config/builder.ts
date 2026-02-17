@@ -1,15 +1,17 @@
-import type { OceanNodeConfig, OceanNodeKeys } from '../../@types/OceanNode.js'
+import type { OceanNodeConfig } from '../../@types/OceanNode.js'
 import type { C2DClusterInfo, C2DDockerConfig } from '../../@types/C2D/C2D.js'
 import type { RPCS } from '../../@types/blockchain.js'
 import type { FeeTokens } from '../../@types/Fees.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
-import { privateKeyFromRaw } from '@libp2p/crypto/keys'
-import { peerIdFromPrivateKey } from '@libp2p/peer-id'
-import { Wallet } from 'ethers'
+// import { privateKeyFromRaw } from '@libp2p/crypto/keys'
+// import { peerIdFromPrivateKey } from '@libp2p/peer-id'
+// import { Wallet } from 'ethers'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { hexStringToByteArray, computeCodebaseHash } from '../index.js'
+// import { hexStringToByteArray, computeCodebaseHash } from '../index.js'
+import { computeCodebaseHash } from '../index.js'
+
 import {
   getOceanArtifactsAdresses,
   OCEAN_ARTIFACTS_ADDRESSES_PER_CHAIN
@@ -81,17 +83,6 @@ function preprocessConfigData(data: any): void {
     }
     delete data.FEE_AMOUNT
     delete data.FEE_TOKENS
-  }
-}
-
-export function getPeerIdFromPrivateKey(privateKey: string): OceanNodeKeys {
-  const key = privateKeyFromRaw(hexStringToByteArray(privateKey.slice(2)))
-
-  return {
-    peerId: peerIdFromPrivateKey(key),
-    publicKey: key.publicKey.raw,
-    privateKey: key,
-    ethAddress: new Wallet(privateKey.substring(2)).address
   }
 }
 
