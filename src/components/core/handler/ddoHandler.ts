@@ -747,6 +747,12 @@ export class ValidateDDOHandler extends CommandHandler {
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
+    if (!task.ddo || !task.ddo.version) {
+      return {
+        stream: null,
+        status: { httpStatus: 400, error: 'Missing DDO version' }
+      }
+    }
     let shouldSign = false
     const configuration = await getConfiguration()
     if (configuration.validateUnsignedDDO) {

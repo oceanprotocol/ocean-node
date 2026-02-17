@@ -215,7 +215,7 @@ export abstract class BaseEventProcessor {
           { timeout: 20000 }
         )
         return nonceResponse.status === 200 && nonceResponse.data
-          ? String(parseInt(nonceResponse.data.nonce) + 1)
+          ? String(parseFloat(nonceResponse.data.nonce) + 1)
           : Date.now().toString()
       } else {
         return Date.now().toString()
@@ -241,7 +241,7 @@ export abstract class BaseEventProcessor {
   ): Promise<any> {
     let ddo
     // Log the flag value
-    INDEXER_LOGGER.logMessage(`decryptDDO: flag=${flag}`)
+    INDEXER_LOGGER.debug(`decryptDDO: flag=${flag}`)
     if ((parseInt(flag) & 2) !== 0) {
       INDEXER_LOGGER.logMessage(
         `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} encrypted by: ${decryptorURL}`
