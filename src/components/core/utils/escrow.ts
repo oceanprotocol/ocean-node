@@ -38,6 +38,9 @@ export class Escrow {
   }
 
   getMinLockTime(maxJobDuration: number) {
+    console.log(
+      `maxJobDuration ${maxJobDuration} and claimDurationTimeout ${this.claimDurationTimeout}`
+    )
     return maxJobDuration + this.claimDurationTimeout
   }
 
@@ -201,9 +204,12 @@ export class Escrow {
     ) {
       throw new Error(`No valid escrow auths found(will go over limit)`)
     }
+    console.log('--> Before maxLockSeconds check')
+
     if (BigInt(auths[0].maxLockSeconds.toString()) < BigInt(expiry)) {
       throw new Error(`No valid escrow auths found(maxLockSeconds too low)`)
     }
+    console.log('--> After maxLockSeconds check')
     if (
       BigInt(auths[0].currentLocks.toString()) + BigInt(1) >
       BigInt(auths[0].maxLockCounts.toString())
