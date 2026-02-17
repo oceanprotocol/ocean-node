@@ -151,7 +151,7 @@ describe('Should test admin operations', () => {
     const collectFeesHandler: CollectFeesHandler = CoreHandlersRegistry.getInstance(
       oceanNode
     ).getHandler(PROTOCOL_COMMANDS.COLLECT_FEES) as CollectFeesHandler
-
+    await sleep(200)
     const nonce = Date.now().toString()
     const messageHashBytes = createHashForSignature(
       wallet.address,
