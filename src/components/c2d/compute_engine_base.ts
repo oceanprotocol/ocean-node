@@ -529,6 +529,8 @@ export abstract class C2DEngine {
     token: string,
     maxJobDuration: number
   ): number | null {
+    CORE_LOGGER.logMessage(`minJobDuration ${env?.minJobDuration}`)
+
     if (maxJobDuration < env.minJobDuration) maxJobDuration = env.minJobDuration
     CORE_LOGGER.logMessage(`Env maxJobDuration ${maxJobDuration}`)
 

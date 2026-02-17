@@ -523,6 +523,7 @@ export class PaidComputeStartHandler extends CommandHandler {
       // job ID unicity
       const jobId = generateUniqueID(s)
       // let's calculate payment needed based on resources request and maxJobDuration
+      CORE_LOGGER.logMessage(`MaxJobDuration received ${task.maxJobDuration}`)
       const cost = engine.calculateResourcesCost(
         task.resources,
         env,
