@@ -30,6 +30,10 @@ describe('handle nonce', () => {
   })
 
   it('should get nonce (1)', async () => {
+    await typesense.collections(nonceSchema.name).documents().create({
+      id: '0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1',
+      nonce: 1
+    })
     const document = await typesense
       .collections(nonceSchema.name)
       .documents()
