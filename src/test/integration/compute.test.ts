@@ -2108,6 +2108,8 @@ describe('Compute Access Restrictions', () => {
     before(async () => {
       const artifactsAddresses = getOceanArtifactsAdresses()
       paymentToken = artifactsAddresses.development.Ocean
+      provider = new JsonRpcProvider('http://127.0.0.1:8545')
+      publisherAccount = await provider.getSigner(0)
       wallet = await provider.getSigner(1)
       wallet2 = await provider.getSigner(2)
       wallet3 = await provider.getSigner(3)
@@ -2160,9 +2162,6 @@ describe('Compute Access Restrictions', () => {
       )
       oceanNode.addIndexer(indexer)
       oceanNode.addC2DEngines()
-
-      provider = new JsonRpcProvider('http://127.0.0.1:8545')
-      publisherAccount = await provider.getSigner(0)
 
       publishedComputeDataset = await publishAsset(computeAsset, publisherAccount)
       publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
