@@ -38,7 +38,7 @@ export class Escrow {
   }
 
   getMinLockTime(maxJobDuration: number) {
-    return maxJobDuration + this.claimDurationTimeout
+    return Math.ceil(maxJobDuration + this.claimDurationTimeout)
   }
 
   /**
@@ -75,7 +75,7 @@ export class Escrow {
 
   async getPaymentAmountInWei(cost: number, chain: number, token: string) {
     const decimals = await this.getDecimals(chain, token)
-    const roundedCost = Number(cost.toFixed(decimals)).toString()
+    const roundedCost = cost.toFixed(decimals)
     return parseUnits(roundedCost, decimals).toString()
   }
 
