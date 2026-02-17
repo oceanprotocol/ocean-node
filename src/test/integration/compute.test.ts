@@ -902,7 +902,7 @@ describe('Compute', () => {
     const messageHashBytes = createHashForSignature(
       await consumerAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.COMPUTE_START
+      PROTOCOL_COMMANDS.FREE_COMPUTE_START
     )
     const signature = await wallet.signMessage(messageHashBytes)
     const startComputeTask: FreeComputeStartCommand = {
