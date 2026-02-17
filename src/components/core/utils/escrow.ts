@@ -153,6 +153,7 @@ export class Escrow {
     amount: number,
     expiry: BigNumberish
   ): Promise<string | null> {
+    console.log(`--> createLock expiry ${expiry}`)
     const jobId = create256Hash(job)
     const blockchain = this.getBlockchain(chain)
     const signer = await blockchain.getSigner()
@@ -161,11 +162,13 @@ export class Escrow {
     CORE_LOGGER.logMessage(`Cost ${BigInt(amount.toString())}`)
     const wei = await this.getPaymentAmountInWei(amount, chain, token)
     const userBalance = await this.getUserAvailableFunds(chain, payer, token)
-
+    console.log(`--> createLock userBalance ${userBalance}`)
+    console.log(`--> createLock userBalance ${BigInt(userBalance.toString())}`)
     CORE_LOGGER.logMessage(
       `User balance ${BigInt(userBalance.toString())} and payment amount in wei ${BigInt(wei)}`
     )
-
+    console.log(`--> createLock wei ${wei}`)
+    console.log(`--> createLock wei ${BigInt(wei)}`)
     if (BigInt(userBalance.toString()) < BigInt(wei)) {
       // not enough funds
       throw new Error(`User ${payer} does not have enough funds`)
@@ -198,6 +201,14 @@ export class Escrow {
         } authorizations.`
       )
     }
+    console.log(
+      `--> createLock auths[0].currentLockedAmount ${auths[0].currentLockedAmount}`
+    )
+    console.log(`--> createLock auths[0].maxLockedAmount ${auths[0].maxLockedAmount}`)
+
+    console.log(
+      `--> createLock BigInt(auths[0].currentLockedAmount.toString()) + BigInt(wei) ${BigInt(auths[0].currentLockedAmount.toString()) + BigInt(wei)}`
+    )
     if (
       BigInt(auths[0].currentLockedAmount.toString()) + BigInt(wei) >
       BigInt(auths[0].maxLockedAmount.toString())
