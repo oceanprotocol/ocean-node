@@ -194,7 +194,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 'v20.19.0'
+          node-version: 'v22.15.0'
 
       - name: Cache node_modules
         uses: actions/cache@v3
@@ -308,18 +308,27 @@ jobs:
         with:
           repository: 'oceanprotocol/ocean-cli'
           path: 'ocean-cli'
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'v20.19.0'
       - name: Checkout Ocean-js
         uses: actions/checkout@v4
         with:
           repository: 'oceanprotocol/ocean.js'
           path: 'ocean.js'
           ref: feature/refactor_signatures
-      - run: npm ci
+      - name: Build ocean-js
         working-directory: ${{ github.workspace }}/ocean.js
-      - run: npm run build
-        working-directory: ${{ github.workspace }}/ocean.js
-      - run: npm link
-        working-directory: ${{ github.workspace }}/ocean.js
+        run: |
+          npm ci
+          npm run build
+          npm link
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'v22.15.0'
+
       - name: Setup Ocean CLI
         working-directory: ${{ github.workspace }}/ocean-cli
         run: |
