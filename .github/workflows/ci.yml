@@ -308,10 +308,23 @@ jobs:
         with:
           repository: 'oceanprotocol/ocean-cli'
           path: 'ocean-cli'
+      - name: Checkout Ocean-js
+        uses: actions/checkout@v4
+        with:
+          repository: 'oceanprotocol/ocean.js'
+          path: 'ocean.js'
+          ref: feature/refactor_signatures
+      - run: npm ci
+        working-directory: ${{ github.workspace }}/ocean.js
+      - run: npm run build
+        working-directory: ${{ github.workspace }}/ocean.js
+      - run: npm link
+        working-directory: ${{ github.workspace }}/ocean.js
       - name: Setup Ocean CLI
         working-directory: ${{ github.workspace }}/ocean-cli
         run: |
-          npm install  --override "@oceanprotocol/lib=github:oceanprotocol/ocean.js#feature/refactor_signatures"
+          npm ci
+          npm link @oceanprotocol/lib
           npm run build
       - name: Run system tests
         working-directory: ${{ github.workspace }}/ocean-cli
