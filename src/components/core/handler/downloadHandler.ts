@@ -531,7 +531,7 @@ export class DownloadHandler extends CommandHandler {
       return await handleDownloadUrlCommand(node, {
         fileObject: decriptedFileObject,
         aes_encrypted_key: task.aes_encrypted_key,
-        command: PROTOCOL_COMMANDS.DOWNLOAD_URL
+        command: PROTOCOL_COMMANDS.DOWNLOAD
       })
     } catch (e) {
       CORE_LOGGER.logMessage('Decryption error: ' + e, true)
