@@ -2108,6 +2108,9 @@ describe('Compute Access Restrictions', () => {
     before(async () => {
       const artifactsAddresses = getOceanArtifactsAdresses()
       paymentToken = artifactsAddresses.development.Ocean
+      wallet = await provider.getSigner(1)
+      wallet2 = await provider.getSigner(2)
+      wallet3 = await provider.getSigner(3)
       const allowedAddress = await wallet.getAddress()
       previousConfiguration = await setupEnvironment(
         TEST_ENV_CONFIG_FILE,
@@ -2160,9 +2163,6 @@ describe('Compute Access Restrictions', () => {
 
       provider = new JsonRpcProvider('http://127.0.0.1:8545')
       publisherAccount = await provider.getSigner(0)
-      wallet = await provider.getSigner(1)
-      wallet2 = await provider.getSigner(2)
-      wallet3 = await provider.getSigner(3)
 
       publishedComputeDataset = await publishAsset(computeAsset, publisherAccount)
       publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
