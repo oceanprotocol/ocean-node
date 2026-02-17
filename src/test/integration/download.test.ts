@@ -54,6 +54,7 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
   let consumerAccount: Signer
   let orderTxId: string
   let publishedDataset: any
+  let publishedDatasetWithCredentials: any
   let actualDDO: any
   let indexer: OceanIndexer
   let anotherConsumer: Signer
@@ -174,16 +175,27 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
     }
   })
   it('should publish compute datasets & algos', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 4)
     publishedDataset = await publishAsset(downloadAsset, publisherAccount)
+    publishedDatasetWithCredentials = await publishAsset(genericDDO, publisherAccount)
     const { ddo, wasTimeout } = await waitToIndex(
       publishedDataset.ddo.id,
       EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT * 2
+      DEFAULT_TEST_TIMEOUT * 3
     )
 
     if (!ddo) {
       assert(wasTimeout === true, 'published failed due to timeout!')
+    }
+    const { ddo: ddoWithCredentials, wasTimeout: wasTimeoutCredentials } =
+      await waitToIndex(
+        publishedDataset.ddo.id,
+        EVENTS.METADATA_CREATED,
+        DEFAULT_TEST_TIMEOUT * 3
+      )
+
+    if (!ddoWithCredentials) {
+      assert(wasTimeoutCredentials === true, 'published failed due to timeout!')
     }
   })
 
@@ -271,21 +283,8 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
     await doCheck()
   })
 
-  // for use on the test bellow
-  it('should publish ddo with access credentials', async function () {
-    publishedDataset = await publishAsset(genericDDO, publisherAccount)
-    const { ddo, wasTimeout } = await waitToIndex(
-      publishedDataset.ddo.id,
-      EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT
-    )
-
-    if (!ddo) {
-      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
-    }
-  })
   it('should not allow to download the asset with different consumer address', async function () {
-    const assetDID = publishedDataset.ddo.id
+    const assetDID = publishedDatasetWithCredentials.ddo.id
     const nonce = Date.now().toString()
     const messageHashBytes = createHashForSignature(
       await anotherConsumer.getAddress(),
