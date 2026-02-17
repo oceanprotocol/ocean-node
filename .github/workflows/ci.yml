@@ -324,11 +324,6 @@ jobs:
           npm ci
           npm run build
           npm link
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 'v22.15.0'
-
       - name: Setup Ocean CLI
         working-directory: ${{ github.workspace }}/ocean-cli
         run: |
