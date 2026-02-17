@@ -339,13 +339,14 @@ describe('Should encrypt and decrypt DDO', () => {
 
   it('should decrypt ddo with transactionId and return it', async () => {
     const nonce = Date.now().toString()
-    // const wallet = new ethers.Wallet(process.env.PRIVATE_KEY)
+    // wallet is the same account as publisherAccount, but supports personalSign, while publisherAccount does not
+    const wallet = new ethers.Wallet(process.env.PRIVATE_KEY)
     const messageHashBytes = createHashForSignature(
       await publisherAccount.getAddress(),
       nonce,
       PROTOCOL_COMMANDS.DECRYPT_DDO
     )
-    const signature = await publisherAccount.signMessage(messageHashBytes)
+    const signature = await wallet.signMessage(messageHashBytes)
 
     const decryptDDOTask: DecryptDDOCommand = {
       command: PROTOCOL_COMMANDS.DECRYPT_DDO,
@@ -365,13 +366,14 @@ describe('Should encrypt and decrypt DDO', () => {
 
   it('should decrypt ddo with encryptedDocument, flags, documentHash and return it', async () => {
     const nonce = Date.now().toString()
-    // const wallet = new ethers.Wallet(process.env.PRIVATE_KEY)
+    // wallet is the same account as publisherAccount, but supports personalSign, while publisherAccount does not
+    const wallet = new ethers.Wallet(process.env.PRIVATE_KEY)
     const messageHashBytes = createHashForSignature(
       await publisherAccount.getAddress(),
       nonce,
       PROTOCOL_COMMANDS.DECRYPT_DDO
     )
-    const signature = await publisherAccount.signMessage(messageHashBytes)
+    const signature = await wallet.signMessage(messageHashBytes)
 
     const decryptDDOTask: DecryptDDOCommand = {
       command: PROTOCOL_COMMANDS.DECRYPT_DDO,
