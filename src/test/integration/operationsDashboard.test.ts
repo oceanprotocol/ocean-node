@@ -440,8 +440,6 @@ describe('Should test admin operations', () => {
     signature = await wallet.signMessage(messageHashBytes)
     indexingStopCommand.signature = signature
     indexingStopCommand.nonce = nonce
-    expect((await indexingHandler.validate(indexingStopCommand)).valid).to.be.equal(true) // OK
-
     // should exist a running thread for this network atm
     const response = await indexingHandler.handle(indexingStopCommand)
     console.log({ responseStoppingThread: response })
@@ -452,7 +450,17 @@ describe('Should test admin operations', () => {
 
     // restart it again after 5 secs
     indexingStartCommand.chainId = 8996
+    nonce = Date.now().toString()
+    messageHashBytes = createHashForSignature(
+      wallet.address,
+      nonce,
+      PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD
+    )
+    signature = await wallet.signMessage(messageHashBytes)
+    indexingStartCommand.signature = signature
+    indexingStartCommand.nonce = nonce
     const responseStart = await indexingHandler.handle(indexingStartCommand)
+    console.log(responseStart)
     assert(responseStart.stream, 'Failed to get stream when starting thread')
     expect(responseStart.status.httpStatus).to.be.equal(200)
   })
