@@ -68,7 +68,7 @@ describe('Config Admin Endpoints Integration Tests', () => {
     const messageHashBytes = createHashForSignature(
       await adminAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.STOP_NODE
+      command
     )
     const signature = await adminAccount.signMessage(messageHashBytes)
     return signature

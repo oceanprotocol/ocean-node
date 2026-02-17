@@ -108,7 +108,8 @@ export abstract class AdminCommandHandler
 
   async validate(command: SignedCommand): Promise<ValidateParams> {
     const commandValidation = validateCommandParameters(command, [
-      'expiryTimestamp',
+      'nonce',
+      'address',
       'signature'
     ])
     if (!commandValidation.valid) {
