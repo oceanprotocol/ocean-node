@@ -191,7 +191,7 @@ export class DownloadHandler extends CommandHandler {
       task.consumerAddress,
       task.nonce,
       task.signature,
-      String(task.documentId + task.nonce)
+      task.command
     )
     if (isAuthRequestValid.status.httpStatus !== 200) {
       return isAuthRequestValid

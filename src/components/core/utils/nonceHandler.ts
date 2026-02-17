@@ -120,7 +120,7 @@ export async function checkNonce(
   consumer: string,
   nonce: number,
   signature: string,
-  message: string,
+  command: string,
   chainId?: string | null
 ): Promise<NonceResponse> {
   try {
@@ -136,7 +136,7 @@ export async function checkNonce(
       previousNonce, // will return 0 if none exists
       consumer,
       signature,
-      message, // String(ddoId + nonce)
+      command,
       chainId
     )
     if (validate.valid) {
@@ -184,7 +184,7 @@ async function validateNonceAndSignature(
   existingNonce: number,
   consumer: string,
   signature: string,
-  message: string = null,
+  command: string = null,
   chainId?: string | null
 ): Promise<NonceResponse> {
   if (nonce <= existingNonce) {
@@ -193,8 +193,7 @@ async function validateNonceAndSignature(
       error: 'nonce: ' + nonce + ' is not a valid nonce'
     }
   }
-
-  if (!message) message = String(nonce)
+  const message = String(String(consumer) + String(nonce) + String(command))
   const consumerMessage = ethers.solidityPackedKeccak256(
     ['bytes'],
     [ethers.hexlify(ethers.toUtf8Bytes(message))]

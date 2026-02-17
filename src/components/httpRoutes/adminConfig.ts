@@ -10,11 +10,11 @@ export const adminConfigRoutes = express.Router()
 
 adminConfigRoutes.get('/api/admin/config', express.json(), async (req, res) => {
   try {
-    const { expiryTimestamp, signature, address } = req.body
+    const { nonce, signature, address } = req.body
 
     const response = await new FetchConfigHandler(req.oceanNode).handle({
       command: PROTOCOL_COMMANDS.FETCH_CONFIG,
-      expiryTimestamp,
+      nonce,
       signature,
       address,
       caller: req.caller
@@ -35,11 +35,11 @@ adminConfigRoutes.get('/api/admin/config', express.json(), async (req, res) => {
 
 adminConfigRoutes.post('/api/admin/config/update', express.json(), async (req, res) => {
   try {
-    const { expiryTimestamp, signature, config, address } = req.body
+    const { nonce, signature, config, address } = req.body
 
     const response = await new PushConfigHandler(req.oceanNode).handle({
       command: PROTOCOL_COMMANDS.PUSH_CONFIG,
-      expiryTimestamp,
+      nonce,
       signature,
       config,
       address,

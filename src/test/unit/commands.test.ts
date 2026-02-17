@@ -53,7 +53,8 @@ import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.j
 import { ReindexChainHandler } from '../../components/core/admin/reindexChainHandler.js'
 import { CollectFeesHandler } from '../../components/core/admin/collectFeesHandler.js'
 import { GetJobsHandler } from '../../components/core/handler/getJobs.js'
-import { Wallet, ethers } from 'ethers'
+import { Wallet } from 'ethers'
+import { createHashForSignature } from '../utils/signature.js'
 describe('Commands and handlers', () => {
   let node: OceanNode
   let consumerAccount: Wallet
@@ -138,12 +139,11 @@ describe('Commands and handlers', () => {
       node
     ).getHandler(PROTOCOL_COMMANDS.ENCRYPT)
     let nonce = Date.now().toString()
-    let message = String(nonce)
-    let consumerMessage = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    const messageHashBytes = createHashForSignature(
+      await consumerAccount.getAddress(),
+      nonce,
+      PROTOCOL_COMMANDS.ENCRYPT
     )
-    let messageHashBytes = ethers.toBeArray(consumerMessage)
     let signature = await consumerAccount.signMessage(messageHashBytes)
     const encryptCommand: EncryptCommand = {
       blob: '1425252525',
@@ -161,13 +161,12 @@ describe('Commands and handlers', () => {
       node
     ).getHandler(PROTOCOL_COMMANDS.ENCRYPT_FILE)
     nonce = (parseFloat(nonce) + 1).toString()
-    message = String(nonce)
-    consumerMessage = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    const messageHashBytes2 = createHashForSignature(
+      await consumerAccount.getAddress(),
+      nonce,
+      PROTOCOL_COMMANDS.ENCRYPT_FILE
     )
-    messageHashBytes = ethers.toBeArray(consumerMessage)
-    signature = await consumerAccount.signMessage(messageHashBytes)
+    signature = await consumerAccount.signMessage(messageHashBytes2)
     const encryptFileCommand: EncryptFileCommand = {
       rawData: Buffer.from('12345'),
       command: PROTOCOL_COMMANDS.ENCRYPT_FILE,

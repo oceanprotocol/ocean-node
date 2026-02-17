@@ -815,7 +815,7 @@ export class ValidateDDOHandler extends CommandHandler {
         task.publisherAddress,
         task.nonce,
         task.signature,
-        String(task.publisherAddress + task.nonce)
+        task.command
       )
       if (validationResponse.status.httpStatus !== 200) {
         return validationResponse

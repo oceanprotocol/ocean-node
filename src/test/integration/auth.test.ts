@@ -1,6 +1,6 @@
 import { JsonRpcProvider, Signer, Wallet } from 'ethers'
 import { Database } from '../../components/database/index.js'
-import { getConfiguration, getMessageHash } from '../../utils/index.js'
+import { getConfiguration } from '../../utils/index.js'
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
@@ -22,6 +22,7 @@ import { streamToObject } from '../../utils/util.js'
 import { Readable } from 'stream'
 import { expect } from 'chai'
 import { ValidateDDOHandler } from '../../components/core/handler/ddoHandler.js'
+import { createHashForSignature } from '../utils/signature.js'
 
 describe('Auth Token Integration Tests', () => {
   let config: OceanNodeConfig
@@ -116,8 +117,11 @@ describe('Auth Token Integration Tests', () => {
 
       const consumerAddress = await consumerAccount.getAddress()
       const nonce = getRandomNonce()
-      const message = String(consumerAddress + nonce)
-      const messageHash = getMessageHash(message)
+      const messageHash = createHashForSignature(
+        await consumerAccount.getAddress(),
+        nonce,
+        PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN
+      )
       const signature = await consumerAccount.signMessage(messageHash)
 
       const handlerResponse = await new CreateAuthTokenHandler(oceanNode).handle({
@@ -137,8 +141,11 @@ describe('Auth Token Integration Tests', () => {
 
       const consumerAddress = await consumerAccount.getAddress()
       const nonce = getRandomNonce()
-      const message = String(consumerAddress + nonce)
-      const messageHash = getMessageHash(message)
+      const messageHash = createHashForSignature(
+        await consumerAccount.getAddress(),
+        nonce,
+        PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN
+      )
       const signature = await consumerAccount.signMessage(messageHash)
 
       const validUntil = Date.now() + 1000
@@ -163,8 +170,11 @@ describe('Auth Token Integration Tests', () => {
 
       const consumerAddress = await consumerAccount.getAddress()
       const nonce = getRandomNonce()
-      const message = String(consumerAddress + nonce)
-      const messageHash = getMessageHash(message)
+      const messageHash = createHashForSignature(
+        await consumerAccount.getAddress(),
+        nonce,
+        PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN
+      )
       const signature = await consumerAccount.signMessage(messageHash)
 
       const handlerResponse = await new CreateAuthTokenHandler(oceanNode).handle({
@@ -225,8 +235,11 @@ describe('Auth Token Integration Tests', () => {
 
         // Missing address
         const nonce = getRandomNonce()
-        const message = String((await consumerAccount.getAddress()) + nonce)
-        const messageHash = getMessageHash(message)
+        const messageHash = createHashForSignature(
+          await consumerAccount.getAddress(),
+          nonce,
+          PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN
+        )
         const signature = await consumerAccount.signMessage(messageHash)
 
         const response2 = await new CreateAuthTokenHandler(oceanNode).handle({

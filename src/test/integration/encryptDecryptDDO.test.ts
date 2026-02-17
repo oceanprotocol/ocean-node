@@ -39,6 +39,7 @@ import { DecryptDDOCommand } from '../../@types/commands.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { homedir } from 'os'
 import { OceanIndexer } from '../../components/Indexer/index.js'
+import { createHashForSignature } from '../utils/signature.js'
 
 describe('Should encrypt and decrypt DDO', () => {
   let database: Database
@@ -339,12 +340,12 @@ describe('Should encrypt and decrypt DDO', () => {
   it('should decrypt ddo with transactionId and return it', async () => {
     const nonce = Date.now().toString()
     const wallet = new ethers.Wallet(process.env.PRIVATE_KEY)
-    const message = String(txReceiptEncryptDDO.hash + publisherAddress + chainId + nonce)
-    const messageHash = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    const messageHashBytes = createHashForSignature(
+      wallet.address,
+      nonce,
+      PROTOCOL_COMMANDS.DECRYPT_DDO
     )
-    const signature = await wallet.signMessage(messageHash)
+    const signature = await wallet.signMessage(messageHashBytes)
 
     const decryptDDOTask: DecryptDDOCommand = {
       command: PROTOCOL_COMMANDS.DECRYPT_DDO,
@@ -365,12 +366,12 @@ describe('Should encrypt and decrypt DDO', () => {
   it('should decrypt ddo with encryptedDocument, flags, documentHash and return it', async () => {
     const nonce = Date.now().toString()
     const wallet = new ethers.Wallet(process.env.PRIVATE_KEY)
-    const message = String(dataNftAddress + publisherAddress + chainId + nonce)
-    const messageHash = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    const messageHashBytes = createHashForSignature(
+      wallet.address,
+      nonce,
+      PROTOCOL_COMMANDS.DECRYPT_DDO
     )
-    const signature = await wallet.signMessage(messageHash)
+    const signature = await wallet.signMessage(messageHashBytes)
 
     const decryptDDOTask: DecryptDDOCommand = {
       command: PROTOCOL_COMMANDS.DECRYPT_DDO,

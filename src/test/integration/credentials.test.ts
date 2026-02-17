@@ -66,6 +66,7 @@ import { ComputeInitializeHandler } from '../../components/core/compute/initiali
 import { ComputeAlgorithm, ComputeAsset } from '../../@types/index.js'
 import { ComputeGetEnvironmentsHandler } from '../../components/core/compute/environments.js'
 import { ComputeInitializeCommand } from '../../@types/commands.js'
+import { createHashForSignature } from '../utils/signature.js'
 
 describe('[Credentials Flow] - Should run a complete node flow.', () => {
   let config: OceanNodeConfig
@@ -337,12 +338,11 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
 
       const wallet = new ethers.Wallet(consumerPrivateKey)
       const nonce = Date.now().toString()
-      const message = String(ddoWithMatchAll.id + nonce)
-      const consumerMessage = ethers.solidityPackedKeccak256(
-        ['bytes'],
-        [ethers.hexlify(ethers.toUtf8Bytes(message))]
+      const messageHashBytes = createHashForSignature(
+        wallet.address,
+        nonce,
+        PROTOCOL_COMMANDS.DOWNLOAD
       )
-      const messageHashBytes = ethers.toBeArray(consumerMessage)
       const signature = await wallet.signMessage(messageHashBytes)
 
       const downloadTask = {
@@ -376,12 +376,11 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
 
       const wallet = new ethers.Wallet(consumerPrivateKey)
       const nonce = Date.now().toString()
-      const message = String(ddo.id + nonce)
-      const consumerMessage = ethers.solidityPackedKeccak256(
-        ['bytes'],
-        [ethers.hexlify(ethers.toUtf8Bytes(message))]
+      const messageHashBytes = createHashForSignature(
+        wallet.address,
+        nonce,
+        PROTOCOL_COMMANDS.DOWNLOAD
       )
-      const messageHashBytes = ethers.toBeArray(consumerMessage)
       const signature = await wallet.signMessage(messageHashBytes)
 
       const downloadTask = {
@@ -527,12 +526,11 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
 
       const wallet = new ethers.Wallet(consumerPrivateKey)
       const nonce = Date.now().toString()
-      const message = String(ddo.id + nonce)
-      const consumerMessage = ethers.solidityPackedKeccak256(
-        ['bytes'],
-        [ethers.hexlify(ethers.toUtf8Bytes(message))]
+      const messageHashBytes = createHashForSignature(
+        wallet.address,
+        nonce,
+        PROTOCOL_COMMANDS.DOWNLOAD
       )
-      const messageHashBytes = ethers.toBeArray(consumerMessage)
       const signature = await wallet.signMessage(messageHashBytes)
 
       const downloadTask = {
@@ -568,12 +566,11 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
 
       const wallet = new ethers.Wallet(consumerPrivateKey)
       const nonce = Date.now().toString()
-      const message = String(ddo.id + nonce)
-      const consumerMessage = ethers.solidityPackedKeccak256(
-        ['bytes'],
-        [ethers.hexlify(ethers.toUtf8Bytes(message))]
+      const messageHashBytes = createHashForSignature(
+        wallet.address,
+        nonce,
+        PROTOCOL_COMMANDS.DOWNLOAD
       )
-      const messageHashBytes = ethers.toBeArray(consumerMessage)
       const signature = await wallet.signMessage(messageHashBytes)
 
       const downloadTask = {

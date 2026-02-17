@@ -20,6 +20,7 @@ import { OceanNodeConfig } from '../../../@types/OceanNode.js'
 // import sinon, { SinonSandbox } from 'sinon'
 import { ethers } from 'ethers'
 import { Readable } from 'stream'
+import { createHashForSignature } from '../../utils/signature.js'
 
 describe('Schema validation tests', () => {
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
@@ -182,12 +183,11 @@ describe('Schema validation tests', () => {
       '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
     )
     const nonce = Date.now().toString()
-    const message = String((await wallet.getAddress()) + nonce)
-    const consumerMessage = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    const messageHashBytes = createHashForSignature(
+      await wallet.address,
+      nonce,
+      PROTOCOL_COMMANDS.VALIDATE_DDO
     )
-    const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await wallet.signMessage(messageHashBytes)
     const task = {
       ddo,

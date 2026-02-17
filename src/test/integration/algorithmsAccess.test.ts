@@ -48,6 +48,7 @@ import OceanToken from '@oceanprotocol/contracts/artifacts/contracts/utils/Ocean
 import EscrowJson from '@oceanprotocol/contracts/artifacts/contracts/escrow/Escrow.sol/Escrow.json' with { type: 'json' }
 import { createHash } from 'crypto'
 import { getAlgoChecksums } from '../../components/core/compute/utils.js'
+import { createHashForSignature } from '../utils/signature.js'
 
 describe('Trusted algorithms Flow', () => {
   let previousConfiguration: OverrideEnvConfig[]
@@ -432,14 +433,12 @@ describe('Trusted algorithms Flow', () => {
       }
     }
     const nonce = Date.now().toString()
-    const message = String(
-      (await consumerAccount.getAddress()) + publishedComputeDataset.ddo.id + nonce
+
+    const messageHashBytes = createHashForSignature(
+      wallet.address,
+      nonce,
+      PROTOCOL_COMMANDS.COMPUTE_START
     )
-    const consumerMessage = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
-    )
-    const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await wallet.signMessage(messageHashBytes)
     const startComputeTask: PaidComputeStartCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_START,

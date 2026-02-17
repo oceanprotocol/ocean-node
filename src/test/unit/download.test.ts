@@ -19,7 +19,8 @@ import { validateFilesStructure } from '../../components/core/handler/downloadHa
 import { AssetUtils, isConfidentialChainDDO } from '../../utils/asset.js'
 import { DEVELOPMENT_CHAIN_ID, KNOWN_CONFIDENTIAL_EVMS } from '../../utils/address.js'
 import { DDO } from '@oceanprotocol/ddo-js'
-import { Wallet, ethers } from 'ethers'
+import { Wallet } from 'ethers'
+import { createHashForSignature } from '../utils/signature.js'
 
 let envOverrides: OverrideEnvConfig[]
 let config: OceanNodeConfig
@@ -85,12 +86,11 @@ describe('Should validate files structure for download', () => {
   // and decrypts the data back to the original format
   const getDecryptedData = async function () {
     const nonce = Date.now().toString()
-    const message = String(nonce)
-    const consumerMessage = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    const messageHashBytes = createHashForSignature(
+      consumerAccount.address,
+      nonce,
+      PROTOCOL_COMMANDS.ENCRYPT
     )
-    const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await consumerAccount.signMessage(messageHashBytes)
     const result = await new EncryptHandler(oceanNode).handle({
       blob: JSON.stringify(assetURL),
@@ -149,12 +149,11 @@ describe('Should validate files structure for download', () => {
     newAssetURL.nftAddress = otherNFTAddress
     newAssetURL.datatokenAddress = otherDatatokenAddress
     const nonce = Date.now().toString()
-    const message = String(nonce)
-    const consumerMessage = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    const messageHashBytes = createHashForSignature(
+      await consumerAccount.getAddress(),
+      nonce,
+      PROTOCOL_COMMANDS.ENCRYPT
     )
-    const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await consumerAccount.signMessage(messageHashBytes)
     const result = await new EncryptHandler(oceanNode).handle({
       blob: JSON.stringify(newAssetURL),

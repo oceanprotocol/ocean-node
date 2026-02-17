@@ -43,6 +43,7 @@ import { publishAsset, orderAsset } from '../utils/assets.js'
 import { downloadAsset } from '../data/assets.js'
 import { genericDDO } from '../data/ddo.js'
 import { homedir } from 'os'
+import { createHashForSignature } from '../utils/signature.js'
 
 describe('[Download Flow] - Should run a complete node flow.', () => {
   let config: OceanNodeConfig
@@ -247,12 +248,11 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
         '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
       )
       const nonce = Date.now().toString()
-      const message = String(publishedDataset.ddo.id + nonce)
-      const consumerMessage = ethers.solidityPackedKeccak256(
-        ['bytes'],
-        [ethers.hexlify(ethers.toUtf8Bytes(message))]
+      const messageHashBytes = createHashForSignature(
+        wallet.address,
+        nonce,
+        PROTOCOL_COMMANDS.DOWNLOAD
       )
-      const messageHashBytes = ethers.toBeArray(consumerMessage)
       const signature = await wallet.signMessage(messageHashBytes)
       const downloadTask = {
         fileIndex: 0,
@@ -294,12 +294,11 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
   it('should not allow to download the asset with different consumer address', async function () {
     const assetDID = publishedDataset.ddo.id
     const nonce = Date.now().toString()
-    const message = String(assetDID + nonce)
-    const consumerMessage = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    const messageHashBytes = createHashForSignature(
+      await anotherConsumer.getAddress(),
+      nonce,
+      PROTOCOL_COMMANDS.DOWNLOAD
     )
-    const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await anotherConsumer.signMessage(messageHashBytes)
 
     const doCheck = async () => {

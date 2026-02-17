@@ -17,6 +17,7 @@ import {
   tearDownEnvironment
 } from '../utils/utils.js'
 import { Database } from '../../components/database/index.js'
+import { createHashForSignature } from '../utils/signature.js'
 
 describe('Encrypt File', () => {
   let config: OceanNodeConfig
@@ -45,12 +46,11 @@ describe('Encrypt File', () => {
       '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
     )
     const nonce = Date.now().toString()
-    const message = String(nonce)
-    const consumerMessage = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    const messageHashBytes = createHashForSignature(
+      wallet.address,
+      nonce,
+      PROTOCOL_COMMANDS.ENCRYPT_FILE
     )
-    const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await wallet.signMessage(messageHashBytes)
     const encryptFileTask: EncryptFileCommand = {
       command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
@@ -83,12 +83,11 @@ describe('Encrypt File', () => {
     // should return a buffer
     const file: Buffer = fs.readFileSync('src/test/data/organizations-100.aes')
     const nonce = Date.now().toString()
-    const message = String(nonce)
-    const consumerMessage = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    const messageHashBytes = createHashForSignature(
+      await anotherConsumerWallet.getAddress(),
+      nonce,
+      PROTOCOL_COMMANDS.ENCRYPT_FILE
     )
-    const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await anotherConsumerWallet.signMessage(messageHashBytes)
     const encryptFileTask: EncryptFileCommand = {
       command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
@@ -116,12 +115,11 @@ describe('Encrypt File', () => {
     // should return a buffer
     const file: Buffer = fs.readFileSync('src/test/data/organizations-100.aes')
     const nonce = Date.now().toString()
-    const message = String(nonce)
-    const consumerMessage = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    const messageHashBytes = createHashForSignature(
+      await anotherConsumerWallet.getAddress(),
+      nonce,
+      PROTOCOL_COMMANDS.ENCRYPT_FILE
     )
-    const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await anotherConsumerWallet.signMessage(messageHashBytes)
     const encryptFileTask: EncryptFileCommand = {
       command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
@@ -147,12 +145,11 @@ describe('Encrypt File', () => {
 
   it('should return unknown file type', async () => {
     const nonce = Date.now().toString()
-    const message = String(nonce)
-    const consumerMessage = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    const messageHashBytes = createHashForSignature(
+      await anotherConsumerWallet.getAddress(),
+      nonce,
+      PROTOCOL_COMMANDS.ENCRYPT_FILE
     )
-    const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await anotherConsumerWallet.signMessage(messageHashBytes)
     const encryptFileTask: EncryptFileCommand = {
       command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
