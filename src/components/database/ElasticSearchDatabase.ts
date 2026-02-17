@@ -237,7 +237,9 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
     try {
       const result = await this.client.search({
         index: this.index,
-        query
+        body: {
+          query
+        }
       })
       console.log('Query result: ', result)
       return result.hits.hits.map((hit: any) => {
