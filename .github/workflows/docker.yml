@@ -11,6 +11,10 @@ on:
     branches:
       - 'main'
 
+env:
+  DOCKERHUB_IMAGE: ${{ 'oceanprotocol/ocean-node' }}
+  GHCR_IMAGE: ${{ 'ghcr.io/oceanprotocol/ocean-node' }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -62,8 +66,8 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            oceanprotocol/ocean-node
-            ghcr.io/oceanprotocol/ocean-node
+            ${{ env.DOCKERHUB_IMAGE }}
+            ${{ env.GHCR_IMAGE }}
           # generate Docker tags based on the following events/attributes
           tags: |
             type=ref,event=branch
@@ -83,7 +87,7 @@ jobs:
           push: true
           # tags: ${{ steps.ocean_node_meta.outputs.tags }}
           labels: ${{ steps.ocean_node_meta.outputs.labels }}
-          outputs: type=image,name=oceanprotocol/ocean-node,push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=${{ env.DOCKERHUB_IMAGE }},push-by-digest=true,name-canonical=true,push=true
       - name: Build and push to GHCR
         if: steps.ghcr_login.outcome == 'success'
         id: build_ghcr
@@ -94,7 +98,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           push: true
           labels: ${{ steps.ocean_node_meta.outputs.labels }}
-          outputs: type=image,name=ghcr.io/oceanprotocol/ocean-node,push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
       - name: Export digests
         run: |
           mkdir -p /tmp/digests
@@ -164,8 +168,8 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            oceanprotocol/ocean-node
-            ghcr.io/oceanprotocol/ocean-node
+            ${{ env.DOCKERHUB_IMAGE }}
+            ${{ env.GHCR_IMAGE }}
           # generate Docker tags based on the following events/attributes
           tags: |
             type=ref,event=branch
@@ -185,7 +189,7 @@ jobs:
           push: true
           # tags: ${{ steps.ocean_node_meta.outputs.tags }}
           labels: ${{ steps.ocean_node_meta.outputs.labels }}
-          outputs: type=image,name=oceanprotocol/ocean-node,push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=${{ env.DOCKERHUB_IMAGE }},push-by-digest=true,name-canonical=true,push=true
       - name: Build and push to GHCR
         if: steps.ghcr_login.outcome == 'success'
         id: build_ghcr
@@ -196,7 +200,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           push: true
           labels: ${{ steps.ocean_node_meta.outputs.labels }}
-          outputs: type=image,name=ghcr.io/oceanprotocol/ocean-node,push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
       - name: Export digests
         run: |
           mkdir -p /tmp/digests
@@ -236,8 +240,8 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            oceanprotocol/ocean-node
-            ghcr.io/oceanprotocol/ocean-node
+            ${{ env.DOCKERHUB_IMAGE }}
+            ${{ env.GHCR_IMAGE }}
           # generate Docker tags based on the following events/attributes
           tags: |
             type=ref,event=branch
@@ -269,26 +273,30 @@ jobs:
       - name: Create manifest list and push to Docker Hub
         if: steps.dockerhub_login.outcome == 'success'
         working-directory: /tmp/digests
+        env:
+          DOCKERHUB_IMAGE: ${{ env.DOCKERHUB_IMAGE }}
         run: |
           if ls dockerhub-* 1> /dev/null 2>&1; then
-            TAGS=$(echo "${{ steps.ocean_node_meta.outputs.tags }}" | grep -E '^oceanprotocol/ocean-node' | sed 's/^/-t /' | tr '\n' ' ')
+            TAGS=$(echo "${{ steps.ocean_node_meta.outputs.tags }}" | grep -E "^${DOCKERHUB_IMAGE}" | sed 's|^|-t |' | tr '\n' ' ')
             # Strip dockerhub-arm64- and dockerhub- so digest is always just the sha256 hex
-            DIGESTS=$(ls dockerhub-* | sed -e 's/dockerhub-arm64-/oceanprotocol\/ocean-node@sha256:/' -e 's/dockerhub-/oceanprotocol\/ocean-node@sha256:/' | tr '\n' ' ')
+            DIGESTS=$(ls dockerhub-* | sed -e "s|dockerhub-arm64-|${DOCKERHUB_IMAGE}@sha256:|" -e "s|dockerhub-|${DOCKERHUB_IMAGE}@sha256:|" | tr '\n' ' ')
             docker buildx imagetools create $TAGS $DIGESTS
           fi
       - name: Create manifest list and push to GHCR
         if: steps.ghcr_login.outcome == 'success'
         working-directory: /tmp/digests
+        env:
+          GHCR_IMAGE: ${{ env.GHCR_IMAGE }}
         run: |
-          TAGS=$(echo "${{ steps.ocean_node_meta.outputs.tags }}" | grep -E '^ghcr.io/oceanprotocol/ocean-node' | sed 's/^/-t /' | tr '\n' ' ')
+          TAGS=$(echo "${{ steps.ocean_node_meta.outputs.tags }}" | grep -E "^${GHCR_IMAGE}" | sed 's|^|-t |' | tr '\n' ' ')
           # Strip ghcr-arm64- and ghcr- so digest is always just the sha256 hex
-          DIGESTS=$(ls ghcr-* | sed -e 's/ghcr-arm64-/ghcr.io\/oceanprotocol\/ocean-node@sha256:/' -e 's/ghcr-/ghcr.io\/oceanprotocol\/ocean-node@sha256:/' | tr '\n' ' ')
+          DIGESTS=$(ls ghcr-* | sed -e "s|ghcr-arm64-|${GHCR_IMAGE}@sha256:|" -e "s|ghcr-|${GHCR_IMAGE}@sha256:|" | tr '\n' ' ')
           docker buildx imagetools create $TAGS $DIGESTS
       - name: Inspect Docker Hub image
         if: steps.dockerhub_login.outcome == 'success'
         run: |
-          docker buildx imagetools inspect oceanprotocol/ocean-node:${{ steps.ocean_node_meta.outputs.version }}
+          docker buildx imagetools inspect ${{ env.DOCKERHUB_IMAGE }}:${{ steps.ocean_node_meta.outputs.version }}
       - name: Inspect GHCR image
         if: steps.ghcr_login.outcome == 'success'
         run: |
-          docker buildx imagetools inspect ghcr.io/oceanprotocol/ocean-node:${{ steps.ocean_node_meta.outputs.version }}
+          docker buildx imagetools inspect ${{ env.GHCR_IMAGE }}:${{ steps.ocean_node_meta.outputs.version }}
