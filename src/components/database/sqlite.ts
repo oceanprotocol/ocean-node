@@ -24,7 +24,7 @@ export class SQLiteProvider implements DatabaseProvider {
     const createTableSQL = `
       CREATE TABLE IF NOT EXISTS ${this.schemaNonce.name} (
         id TEXT PRIMARY KEY,
-        nonce REAL
+        nonce INTEGER
       );
     `
     return new Promise<void>((resolve, reject) => {

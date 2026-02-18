@@ -86,7 +86,7 @@ export class Auth {
         const nonceCheckResult: NonceResponse = await checkNonce(
           oceanNode.getDatabase().nonce,
           address,
-          parseFloat(nonce),
+          parseInt(nonce),
           signature,
           command,
           chainId

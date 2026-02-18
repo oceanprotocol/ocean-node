@@ -160,7 +160,7 @@ describe('Commands and handlers', () => {
     const encryptFileHandler: EncryptFileHandler = CoreHandlersRegistry.getInstance(
       node
     ).getHandler(PROTOCOL_COMMANDS.ENCRYPT_FILE)
-    nonce = (parseFloat(nonce) + 1).toString()
+    nonce = (parseInt(nonce) + 1).toString()
     const messageHashBytes2 = createHashForSignature(
       await consumerAccount.getAddress(),
       nonce,
