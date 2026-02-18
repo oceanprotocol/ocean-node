@@ -231,13 +231,15 @@ jobs:
         working-directory: /tmp/digests
         run: |
           TAGS=$(echo "${{ steps.ocean_node_meta.outputs.tags }}" | grep -E '^oceanprotocol/ocean-node' | sed 's/^/-t /' | tr '\n' ' ')
-          DIGESTS=$(ls dockerhub-* | sed 's/dockerhub-/oceanprotocol\/ocean-node@sha256:/' | tr '\n' ' ')
+          # Strip dockerhub-arm64- and dockerhub- so digest is always just the sha256 hex
+          DIGESTS=$(ls dockerhub-* | sed -e 's/dockerhub-arm64-/oceanprotocol\/ocean-node@sha256:/' -e 's/dockerhub-/oceanprotocol\/ocean-node@sha256:/' | tr '\n' ' ')
           docker buildx imagetools create $TAGS $DIGESTS
       - name: Create manifest list and push to GHCR
         working-directory: /tmp/digests
         run: |
           TAGS=$(echo "${{ steps.ocean_node_meta.outputs.tags }}" | grep -E '^ghcr.io/oceanprotocol/ocean-node' | sed 's/^/-t /' | tr '\n' ' ')
-          DIGESTS=$(ls ghcr-* | sed 's/ghcr-/ghcr.io\/oceanprotocol\/ocean-node@sha256:/' | tr '\n' ' ')
+          # Strip ghcr-arm64- and ghcr- so digest is always just the sha256 hex
+          DIGESTS=$(ls ghcr-* | sed -e 's/ghcr-arm64-/ghcr.io\/oceanprotocol\/ocean-node@sha256:/' -e 's/ghcr-/ghcr.io\/oceanprotocol\/ocean-node@sha256:/' | tr '\n' ' ')
           docker buildx imagetools create $TAGS $DIGESTS
       - name: Inspect Docker Hub image
         run: |
