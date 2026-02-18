@@ -38,11 +38,20 @@ jobs:
         with:
           platforms: ${{ matrix.platform }}
       - name: Login to Docker Hub
+        id: dockerhub_login
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_PUSH_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKER_PUSH_TOKEN }}
+        if: env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != ''
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_PUSH_USERNAME }}
           password: ${{ secrets.DOCKER_PUSH_TOKEN }}
       - name: Login to GitHub Container Registry
+        id: ghcr_login
+        env:
+          GHCR_PUSH_TOKEN: ${{ secrets.GHCR_PUSH_TOKEN }}
+        if: env.GHCR_PUSH_TOKEN != ''
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -64,6 +73,7 @@ jobs:
           # type=semver,pattern={{major}}
           # type=sha
       - name: Build and push to Docker Hub
+        if: steps.dockerhub_login.outcome == 'success'
         id: build_dockerhub
         uses: docker/build-push-action@v5
         with:
@@ -75,6 +85,7 @@ jobs:
           labels: ${{ steps.ocean_node_meta.outputs.labels }}
           outputs: type=image,name=oceanprotocol/ocean-node,push-by-digest=true,name-canonical=true,push=true
       - name: Build and push to GHCR
+        if: steps.ghcr_login.outcome == 'success'
         id: build_ghcr
         uses: docker/build-push-action@v5
         with:
@@ -87,10 +98,14 @@ jobs:
       - name: Export digests
         run: |
           mkdir -p /tmp/digests
-          dockerhub_digest="${{ steps.build_dockerhub.outputs.digest }}"
-          ghcr_digest="${{ steps.build_ghcr.outputs.digest }}"
-          touch "/tmp/digests/dockerhub-${dockerhub_digest#sha256:}"
-          touch "/tmp/digests/ghcr-${ghcr_digest#sha256:}"
+          if [ -n "${{ steps.build_dockerhub.outputs.digest }}" ]; then
+            dockerhub_digest="${{ steps.build_dockerhub.outputs.digest }}"
+            touch "/tmp/digests/dockerhub-${dockerhub_digest#sha256:}"
+          fi
+          if [ -n "${{ steps.build_ghcr.outputs.digest }}" ]; then
+            ghcr_digest="${{ steps.build_ghcr.outputs.digest }}"
+            touch "/tmp/digests/ghcr-${ghcr_digest#sha256:}"
+          fi
       - name: Upload digest
         uses: actions/upload-artifact@v4
         with:
@@ -125,11 +140,20 @@ jobs:
         with:
           platforms: ${{ matrix.platform }}
       - name: Login to Docker Hub
+        id: dockerhub_login
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_PUSH_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKER_PUSH_TOKEN }}
+        if: env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != ''
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_PUSH_USERNAME }}
           password: ${{ secrets.DOCKER_PUSH_TOKEN }}
       - name: Login to GitHub Container Registry
+        id: ghcr_login
+        env:
+          GHCR_PUSH_TOKEN: ${{ secrets.GHCR_PUSH_TOKEN }}
+        if: env.GHCR_PUSH_TOKEN != ''
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -151,6 +175,7 @@ jobs:
           # type=semver,pattern={{major}}
           # type=sha
       - name: Build and push to Docker Hub
+        if: steps.dockerhub_login.outcome == 'success'
         id: build_dockerhub
         uses: docker/build-push-action@v5
         with:
@@ -162,6 +187,7 @@ jobs:
           labels: ${{ steps.ocean_node_meta.outputs.labels }}
           outputs: type=image,name=oceanprotocol/ocean-node,push-by-digest=true,name-canonical=true,push=true
       - name: Build and push to GHCR
+        if: steps.ghcr_login.outcome == 'success'
         id: build_ghcr
         uses: docker/build-push-action@v5
         with:
@@ -174,10 +200,14 @@ jobs:
       - name: Export digests
         run: |
           mkdir -p /tmp/digests
-          dockerhub_digest="${{ steps.build_dockerhub.outputs.digest }}"
-          ghcr_digest="${{ steps.build_ghcr.outputs.digest }}"
-          touch "/tmp/digests/dockerhub-arm64-${dockerhub_digest#sha256:}"
-          touch "/tmp/digests/ghcr-arm64-${ghcr_digest#sha256:}"
+          if [ -n "${{ steps.build_dockerhub.outputs.digest }}" ]; then
+            dockerhub_digest="${{ steps.build_dockerhub.outputs.digest }}"
+            touch "/tmp/digests/dockerhub-arm64-${dockerhub_digest#sha256:}"
+          fi
+          if [ -n "${{ steps.build_ghcr.outputs.digest }}" ]; then
+            ghcr_digest="${{ steps.build_ghcr.outputs.digest }}"
+            touch "/tmp/digests/ghcr-arm64-${ghcr_digest#sha256:}"
+          fi
       - name: Upload digest
         uses: actions/upload-artifact@v4
         with:
@@ -217,24 +247,37 @@ jobs:
           # type=semver,pattern={{major}}
           # type=sha
       - name: Login to Docker Hub
+        id: dockerhub_login
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_PUSH_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKER_PUSH_TOKEN }}
+        if: env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != ''
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_PUSH_USERNAME }}
           password: ${{ secrets.DOCKER_PUSH_TOKEN }}
       - name: Login to GitHub Container Registry
+        id: ghcr_login
+        env:
+          GHCR_PUSH_TOKEN: ${{ secrets.GHCR_PUSH_TOKEN }}
+        if: env.GHCR_PUSH_TOKEN != ''
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GHCR_PUSH_TOKEN }}
       - name: Create manifest list and push to Docker Hub
+        if: steps.dockerhub_login.outcome == 'success'
         working-directory: /tmp/digests
         run: |
-          TAGS=$(echo "${{ steps.ocean_node_meta.outputs.tags }}" | grep -E '^oceanprotocol/ocean-node' | sed 's/^/-t /' | tr '\n' ' ')
-          # Strip dockerhub-arm64- and dockerhub- so digest is always just the sha256 hex
-          DIGESTS=$(ls dockerhub-* | sed -e 's/dockerhub-arm64-/oceanprotocol\/ocean-node@sha256:/' -e 's/dockerhub-/oceanprotocol\/ocean-node@sha256:/' | tr '\n' ' ')
-          docker buildx imagetools create $TAGS $DIGESTS
+          if ls dockerhub-* 1> /dev/null 2>&1; then
+            TAGS=$(echo "${{ steps.ocean_node_meta.outputs.tags }}" | grep -E '^oceanprotocol/ocean-node' | sed 's/^/-t /' | tr '\n' ' ')
+            # Strip dockerhub-arm64- and dockerhub- so digest is always just the sha256 hex
+            DIGESTS=$(ls dockerhub-* | sed -e 's/dockerhub-arm64-/oceanprotocol\/ocean-node@sha256:/' -e 's/dockerhub-/oceanprotocol\/ocean-node@sha256:/' | tr '\n' ' ')
+            docker buildx imagetools create $TAGS $DIGESTS
+          fi
       - name: Create manifest list and push to GHCR
+        if: steps.ghcr_login.outcome == 'success'
         working-directory: /tmp/digests
         run: |
           TAGS=$(echo "${{ steps.ocean_node_meta.outputs.tags }}" | grep -E '^ghcr.io/oceanprotocol/ocean-node' | sed 's/^/-t /' | tr '\n' ' ')
@@ -242,8 +285,10 @@ jobs:
           DIGESTS=$(ls ghcr-* | sed -e 's/ghcr-arm64-/ghcr.io\/oceanprotocol\/ocean-node@sha256:/' -e 's/ghcr-/ghcr.io\/oceanprotocol\/ocean-node@sha256:/' | tr '\n' ' ')
           docker buildx imagetools create $TAGS $DIGESTS
       - name: Inspect Docker Hub image
+        if: steps.dockerhub_login.outcome == 'success'
         run: |
           docker buildx imagetools inspect oceanprotocol/ocean-node:${{ steps.ocean_node_meta.outputs.version }}
       - name: Inspect GHCR image
+        if: steps.ghcr_login.outcome == 'success'
         run: |
           docker buildx imagetools inspect ghcr.io/oceanprotocol/ocean-node:${{ steps.ocean_node_meta.outputs.version }}
