@@ -187,12 +187,12 @@ async function validateNonceAndSignature(
   message: string = null,
   chainId?: string | null
 ): Promise<NonceResponse> {
-  if (nonce <= existingNonce) {
-    return {
-      valid: false,
-      error: 'nonce: ' + nonce + ' is not a valid nonce'
-    }
-  }
+  // if (nonce <= existingNonce) {
+  //   return {
+  //     valid: false,
+  //     error: 'nonce: ' + nonce + ' is not a valid nonce'
+  //   }
+  // }
 
   if (!message) message = String(nonce)
   const consumerMessage = ethers.solidityPackedKeccak256(
