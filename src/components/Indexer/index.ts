@@ -35,9 +35,10 @@ import { BlockchainRegistry } from '../BlockchainRegistry/index.js'
 import { CommandStatus, JobStatus } from '../../@types/commands.js'
 import { buildJobIdentifier, getDeployedContractBlock } from './utils.js'
 import { create256Hash } from '../../utils/crypt.js'
-import { isReachableConnection } from '../../utils/database.js'
+import { getDatabase, isReachableConnection } from '../../utils/database.js'
 import { sleep } from '../../utils/util.js'
 import { isReindexingNeeded } from './version.js'
+import { DB_EVENTS, ES_CONNECTION_EVENTS } from '../database/ElasticsearchConfigHelper.js'
 
 /**
  * Event emitter for DDO (Data Descriptor Object) events
@@ -82,6 +83,8 @@ export class OceanIndexer {
   private supportedChains: string[]
   private indexers: Map<number, ChainIndexer> = new Map()
   private MIN_REQUIRED_VERSION = '0.2.2'
+  private isDbConnected: boolean = true
+  private reconnectTimer: NodeJS.Timeout | null = null
 
   constructor(
     db: Database,
@@ -93,7 +96,62 @@ export class OceanIndexer {
     this.blockchainRegistry = blockchainRegistry
     this.supportedChains = Object.keys(supportedNetworks)
     INDEXING_QUEUE = []
+    this.setupDbConnectionListeners()
     this.startAllChainIndexers()
+  }
+
+  /**
+   * Listen for Elasticsearch connection events.
+   *
+   * CONNECTION_LOST  → cancel any pending restart, stop all indexers once.
+   * CONNECTION_RESTORED → debounce restart by 5 s so rapid LOST/RESTORED cycles are a single restart.
+   */
+  private setupDbConnectionListeners(): void {
+    ES_CONNECTION_EVENTS.on(DB_EVENTS.CONNECTION_LOST, async () => {
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer)
+        this.reconnectTimer = null
+      }
+
+      if (!this.isDbConnected) {
+        return
+      }
+
+      this.isDbConnected = false
+      INDEXER_LOGGER.error(
+        'Database connection lost - stopping all chain indexers until DB is back'
+      )
+      await this.stopAllChainIndexers()
+    })
+
+    ES_CONNECTION_EVENTS.on(DB_EVENTS.CONNECTION_RESTORED, () => {
+      if (this.isDbConnected) {
+        return
+      }
+
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer)
+      }
+
+      this.reconnectTimer = setTimeout(async () => {
+        this.reconnectTimer = null
+        if (this.isDbConnected) {
+          return
+        }
+
+        this.isDbConnected = true
+        numCrawlAttempts = 0
+        INDEXER_LOGGER.info(
+          'Database connection stable - reinitialising DB and restarting all chain indexers'
+        )
+        const freshDb = await getDatabase(true)
+        if (freshDb) {
+          this.db = freshDb
+        }
+
+        await this.startAllChainIndexers()
+      }, 5000)
+    })
   }
 
   public getSupportedNetworks(): RPCS {
