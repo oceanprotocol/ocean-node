@@ -178,7 +178,7 @@ export abstract class CommandHandler
     address: string,
     nonce: string,
     signature: string,
-    message: string
+    command: string
   ): Promise<P2PCommandResponse> {
     const oceanNode = this.getOceanNode()
     const auth = oceanNode.getAuth()
@@ -193,7 +193,7 @@ export abstract class CommandHandler
       address,
       nonce,
       signature,
-      message
+      command
     })
     if (!isAuthRequestValid.valid) {
       return {

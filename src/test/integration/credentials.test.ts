@@ -14,7 +14,7 @@
  * 5. Try to Download the asset by all consumers.
  */
 import { expect, assert } from 'chai'
-import { JsonRpcProvider, Signer, ethers, Contract, EventLog } from 'ethers'
+import { JsonRpcProvider, Signer, Contract, EventLog } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
@@ -57,7 +57,6 @@ import {
   downloadAssetWithCredentials,
   downloadAssetWithCredentialsWithMatchAll
 } from '../data/assets.js'
-import { ganachePrivateKeys } from '../utils/addresses.js'
 import { homedir } from 'os'
 import AccessListFactory from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessListFactory.sol/AccessListFactory.json' with { type: 'json' }
 import AccessList from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' with { type: 'json' }
@@ -66,6 +65,7 @@ import { ComputeInitializeHandler } from '../../components/core/compute/initiali
 import { ComputeAlgorithm, ComputeAsset } from '../../@types/index.js'
 import { ComputeGetEnvironmentsHandler } from '../../components/core/compute/environments.js'
 import { ComputeInitializeCommand } from '../../@types/commands.js'
+import { createHashForSignature, safeSign } from '../utils/signature.js'
 
 describe('[Credentials Flow] - Should run a complete node flow.', () => {
   let config: OceanNodeConfig
@@ -122,11 +122,9 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
           JSON.stringify(mockSupportedNetworks),
           JSON.stringify([8996]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
-          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
-          JSON.stringify([
-            await publisherAccount.getAddress() // signer 0
-          ]),
+          JSON.stringify([await publisherAccount.getAddress()]),
+          JSON.stringify([await publisherAccount.getAddress()]),
+          JSON.stringify([await publisherAccount.getAddress()]),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
           '[{"socketPath":"/var/run/docker.sock","resources":[{"id":"disk","total":10}],"storageExpiry":604800,"maxJobDuration":3600,"minJobDuration":60,"fees":{"' +
             DEVELOPMENT_CHAIN_ID +
@@ -331,19 +329,15 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
 
     const doCheck = async () => {
-      const consumerAddress = consumerAddresses[0]
-      const consumerPrivateKey = ganachePrivateKeys[consumerAddress]
       const transferTxId = orderTxIdsWithMatchAll[0]
 
-      const wallet = new ethers.Wallet(consumerPrivateKey)
       const nonce = Date.now().toString()
-      const message = String(ddoWithMatchAll.id + nonce)
-      const consumerMessage = ethers.solidityPackedKeccak256(
-        ['bytes'],
-        [ethers.hexlify(ethers.toUtf8Bytes(message))]
+      const messageHashBytes = createHashForSignature(
+        await consumerAccounts[0].getAddress(),
+        nonce,
+        PROTOCOL_COMMANDS.DOWNLOAD
       )
-      const messageHashBytes = ethers.toBeArray(consumerMessage)
-      const signature = await wallet.signMessage(messageHashBytes)
+      const signature = await safeSign(consumerAccounts[0], messageHashBytes)
 
       const downloadTask = {
         fileIndex: 0,
@@ -351,7 +345,7 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
         serviceId: ddoWithMatchAll.services[0].id,
         transferTxId,
         nonce,
-        consumerAddress,
+        consumerAddress: await consumerAccounts[0].getAddress(),
         signature,
         command: PROTOCOL_COMMANDS.DOWNLOAD
       }
@@ -370,19 +364,14 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
 
     const doCheck = async () => {
-      const consumerAddress = consumerAddresses[0]
-      const consumerPrivateKey = ganachePrivateKeys[consumerAddress]
       const transferTxId = orderTxIds[0]
-
-      const wallet = new ethers.Wallet(consumerPrivateKey)
       const nonce = Date.now().toString()
-      const message = String(ddo.id + nonce)
-      const consumerMessage = ethers.solidityPackedKeccak256(
-        ['bytes'],
-        [ethers.hexlify(ethers.toUtf8Bytes(message))]
+      const messageHashBytes = createHashForSignature(
+        await consumerAccounts[0].getAddress(),
+        nonce,
+        PROTOCOL_COMMANDS.DOWNLOAD
       )
-      const messageHashBytes = ethers.toBeArray(consumerMessage)
-      const signature = await wallet.signMessage(messageHashBytes)
+      const signature = await safeSign(consumerAccounts[0], messageHashBytes)
 
       const downloadTask = {
         fileIndex: 0,
@@ -390,7 +379,7 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
         serviceId: ddo.services[0].id,
         transferTxId,
         nonce,
-        consumerAddress,
+        consumerAddress: await consumerAccounts[0].getAddress(),
         signature,
         command: PROTOCOL_COMMANDS.DOWNLOAD
       }
@@ -521,19 +510,15 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
 
     const doCheck = async () => {
-      const consumerAddress = consumerAddresses[1]
-      const consumerPrivateKey = ganachePrivateKeys[consumerAddress]
       const transferTxId = orderTxIds[1]
 
-      const wallet = new ethers.Wallet(consumerPrivateKey)
       const nonce = Date.now().toString()
-      const message = String(ddo.id + nonce)
-      const consumerMessage = ethers.solidityPackedKeccak256(
-        ['bytes'],
-        [ethers.hexlify(ethers.toUtf8Bytes(message))]
+      const messageHashBytes = createHashForSignature(
+        await consumerAccounts[1].getAddress(),
+        nonce,
+        PROTOCOL_COMMANDS.DOWNLOAD
       )
-      const messageHashBytes = ethers.toBeArray(consumerMessage)
-      const signature = await wallet.signMessage(messageHashBytes)
+      const signature = await safeSign(consumerAccounts[1], messageHashBytes)
 
       const downloadTask = {
         fileIndex: 0,
@@ -541,7 +526,7 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
         serviceId: ddo.services[0].id,
         transferTxId,
         nonce,
-        consumerAddress,
+        consumerAddress: await consumerAccounts[1].getAddress(),
         signature,
         command: PROTOCOL_COMMANDS.DOWNLOAD
       }
@@ -562,19 +547,15 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
 
     const doCheck = async () => {
-      const consumerAddress = consumerAddresses[2]
-      const consumerPrivateKey = ganachePrivateKeys[consumerAddress]
       const transferTxId = orderTxIds[1]
 
-      const wallet = new ethers.Wallet(consumerPrivateKey)
       const nonce = Date.now().toString()
-      const message = String(ddo.id + nonce)
-      const consumerMessage = ethers.solidityPackedKeccak256(
-        ['bytes'],
-        [ethers.hexlify(ethers.toUtf8Bytes(message))]
+      const messageHashBytes = createHashForSignature(
+        await consumerAccounts[2].getAddress(),
+        nonce,
+        PROTOCOL_COMMANDS.DOWNLOAD
       )
-      const messageHashBytes = ethers.toBeArray(consumerMessage)
-      const signature = await wallet.signMessage(messageHashBytes)
+      const signature = await safeSign(consumerAccounts[2], messageHashBytes)
 
       const downloadTask = {
         fileIndex: 0,
@@ -582,7 +563,7 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
         serviceId: ddo.services[0].id,
         transferTxId,
         nonce,
-        consumerAddress,
+        consumerAddress: await consumerAccounts[2].getAddress(),
         signature,
         command: PROTOCOL_COMMANDS.DOWNLOAD
       }

@@ -18,8 +18,9 @@ import { RPCS } from '../../../@types/blockchain.js'
 import { Database } from '../../../components/database/index.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
 // import sinon, { SinonSandbox } from 'sinon'
-import { ethers } from 'ethers'
+import { Wallet } from 'ethers'
 import { Readable } from 'stream'
+import { createHashForSignature, safeSign } from '../../utils/signature.js'
 
 describe('Schema validation tests', () => {
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
@@ -28,6 +29,7 @@ describe('Schema validation tests', () => {
   let mockDatabase: Database
   let config: OceanNodeConfig
   let oceanNode: OceanNode
+  let consumerAccount: Wallet
   // let sandbox: SinonSandbox
 
   // For token validation, please check integration test cases
@@ -50,6 +52,7 @@ describe('Schema validation tests', () => {
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
+    consumerAccount = new Wallet(process.env.PRIVATE_KEY)
     /* sandbox = sinon.createSandbox()
     sandbox.stub(Database, 'init').resolves({
       nonce: {},
@@ -178,20 +181,16 @@ describe('Schema validation tests', () => {
     const ddo: DDO = {
       ...(ddoInstance.getDDOData() as DDO)
     }
-    const wallet = new ethers.Wallet(
-      '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
-    )
     const nonce = Date.now().toString()
-    const message = String((await wallet.getAddress()) + nonce)
-    const consumerMessage = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    const messageHashBytes = createHashForSignature(
+      await consumerAccount.getAddress(),
+      nonce,
+      PROTOCOL_COMMANDS.VALIDATE_DDO
     )
-    const messageHashBytes = ethers.toBeArray(consumerMessage)
-    const signature = await wallet.signMessage(messageHashBytes)
+    const signature = await safeSign(consumerAccount, messageHashBytes)
     const task = {
       ddo,
-      publisherAddress: await wallet.getAddress(),
+      publisherAddress: await consumerAccount.getAddress(),
       nonce,
       signature,
       command: PROTOCOL_COMMANDS.VALIDATE_DDO

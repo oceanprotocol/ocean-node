@@ -34,7 +34,7 @@ export class ComputeStopHandler extends CommandHandler {
       task.consumerAddress,
       task.nonce,
       task.signature,
-      String(task.consumerAddress + (task.jobId || ''))
+      task.command
     )
     if (authValidationResponse.status.httpStatus !== 200) {
       return authValidationResponse

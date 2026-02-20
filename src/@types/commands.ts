@@ -35,10 +35,10 @@ export interface FindPeerCommand extends Command {
 export interface GetP2PPeersCommand extends Command {}
 export interface GetP2PNetworkStatsCommand extends Command {}
 
-export interface AdminCommand extends Command {
-  expiryTimestamp: number
+export interface SignedCommand extends Command {
+  nonce: string
   signature: string
-  address?: string
+  address: string
 }
 
 export interface AdminCollectFeesHandlerResponse {
@@ -87,7 +87,6 @@ export interface ValidateDDOCommand extends Command {
   publisherAddress?: string
   nonce?: string
   signature?: string
-  message?: string
 }
 
 export interface StatusCommand extends Command {
@@ -151,37 +150,47 @@ export interface GetFeesCommand extends Command {
   policyServer?: any // object to pass to policyServer
 }
 // admin commands
-export interface AdminStopNodeCommand extends AdminCommand {}
-export interface AdminReindexTxCommand extends AdminCommand {
+export interface AdminStopNodeCommand extends SignedCommand {}
+export interface AdminReindexTxCommand extends SignedCommand {
   chainId: number
   txId: string
 }
 
-export interface AdminCollectFeesCommand extends AdminCommand {
+export interface AdminCollectFeesCommand extends SignedCommand {
   tokenAddress: string
   chainId: number
   tokenAmount?: number
   destinationAddress: string
 }
 
-export interface AdminReindexChainCommand extends AdminCommand {
+export interface AdminReindexChainCommand extends SignedCommand {
   chainId: number
   block?: number
 }
 
-export interface AdminFetchConfigCommand extends AdminCommand {}
+export interface AdminFetchConfigCommand extends SignedCommand {}
 
-export interface AdminPushConfigCommand extends AdminCommand {
+export interface AdminPushConfigCommand extends SignedCommand {
   config: Record<string, any>
 }
 
-export interface AdminGetLogsCommand extends AdminCommand {
+export interface AdminGetLogsCommand extends SignedCommand {
+  logId?: string
   startTime?: string
   endTime?: string
   maxLogs?: number
   moduleName?: string
   level?: string
   page?: number
+}
+/* eslint-disable no-unused-vars */
+export enum IndexingCommand {
+  STOP_THREAD = 'STOP_THREAD',
+  START_THREAD = 'START_THREAD'
+}
+export interface StartStopIndexingCommand extends SignedCommand {
+  chainId?: number
+  action: IndexingCommand
 }
 
 export interface ICommandHandler {
@@ -194,7 +203,7 @@ export interface IValidateCommandHandler extends ICommandHandler {
 }
 
 export interface IValidateAdminCommandHandler extends ICommandHandler {
-  validate(command: AdminCommand): Promise<ValidateParams>
+  validate(command: SignedCommand): Promise<ValidateParams>
 }
 
 export interface ComputeGetEnvironmentsCommand extends Command {
@@ -284,14 +293,6 @@ export interface JobStatus {
   jobId: string
   status: CommandStatus
   hash: string
-}
-export enum IndexingCommand {
-  STOP_THREAD = 'start',
-  START_THREAD = 'stop'
-}
-export interface StartStopIndexingCommand extends AdminCommand {
-  chainId?: number
-  action: IndexingCommand
 }
 
 export interface PolicyServerPassthroughCommand extends Command {

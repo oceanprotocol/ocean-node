@@ -18,36 +18,50 @@ export class GetLogsHandler extends AdminCommandHandler {
     if (!validation.valid) {
       return buildInvalidParametersResponse(validation)
     }
-
     try {
-      const startTime = task.startTime
-        ? new Date(task.startTime)
-        : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Default to 7 days ago
-      const endTime = task.endTime ? new Date(task.endTime) : new Date() // Default to now
-      const maxLogs = Math.min(task.maxLogs ?? 100, 1000)
-      const { moduleName, level, page } = task
+      if (task.logId) {
+        const logs = await this.getOceanNode().getDatabase().logs.retrieveLog(task.logId)
+        if (logs) {
+          return {
+            status: { httpStatus: 200 },
+            stream: new ReadableString(JSON.stringify(logs))
+          }
+        } else {
+          return {
+            status: { httpStatus: 404 },
+            stream: new ReadableString('Log not found')
+          }
+        }
+      } else {
+        const startTime = task.startTime
+          ? new Date(task.startTime)
+          : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Default to 7 days ago
+        const endTime = task.endTime ? new Date(task.endTime) : new Date() // Default to now
+        const maxLogs = Math.min(task.maxLogs ?? 100, 1000)
+        const { moduleName, level, page } = task
 
-      const logs = await this.getOceanNode()
-        .getDatabase()
-        .logs.retrieveMultipleLogs(startTime, endTime, maxLogs, moduleName, level, page)
+        const logs = await this.getOceanNode()
+          .getDatabase()
+          .logs.retrieveMultipleLogs(startTime, endTime, maxLogs, moduleName, level, page)
 
-      if (!logs || logs.length === 0) {
-        const fileLogs = await readExceptionLogFiles(
-          startTime,
-          endTime,
-          maxLogs,
-          moduleName,
-          level
-        )
+        if (!logs || logs.length === 0) {
+          const fileLogs = await readExceptionLogFiles(
+            startTime,
+            endTime,
+            maxLogs,
+            moduleName,
+            level
+          )
+          return {
+            status: { httpStatus: 200 },
+            stream: new ReadableString(JSON.stringify(fileLogs))
+          }
+        }
+
         return {
           status: { httpStatus: 200 },
-          stream: new ReadableString(JSON.stringify(fileLogs))
+          stream: new ReadableString(JSON.stringify(logs))
         }
-      }
-
-      return {
-        status: { httpStatus: 200 },
-        stream: new ReadableString(JSON.stringify(logs))
       }
     } catch (error) {
       return {

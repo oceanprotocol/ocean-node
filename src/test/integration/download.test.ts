@@ -1,5 +1,5 @@
 import { expect, assert } from 'chai'
-import { JsonRpcProvider, Signer, ethers } from 'ethers'
+import { JsonRpcProvider, Signer } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
@@ -43,6 +43,7 @@ import { publishAsset, orderAsset } from '../utils/assets.js'
 import { downloadAsset } from '../data/assets.js'
 import { genericDDO } from '../data/ddo.js'
 import { homedir } from 'os'
+import { createHashForSignature, safeSign } from '../utils/signature.js'
 
 describe('[Download Flow] - Should run a complete node flow.', () => {
   let config: OceanNodeConfig
@@ -51,12 +52,12 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
   let provider: JsonRpcProvider
   let publisherAccount: Signer
   let consumerAccount: Signer
-  let consumerAddress: string
   let orderTxId: string
   let publishedDataset: any
+  let publishedDatasetWithCredentials: any
   let actualDDO: any
   let indexer: OceanIndexer
-  let anotherConsumer: ethers.Wallet
+  let anotherConsumer: Signer
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const serviceId = '0'
@@ -103,14 +104,10 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
     }
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
-    anotherConsumer = new ethers.Wallet(
-      ENVIRONMENT_VARIABLES.NODE2_PRIVATE_KEY.value,
-      provider
-    )
 
     publisherAccount = (await provider.getSigner(0)) as Signer
     consumerAccount = (await provider.getSigner(1)) as Signer
-    consumerAddress = await consumerAccount.getAddress()
+    anotherConsumer = (await provider.getSigner(2)) as Signer
   })
 
   it('should get node status', async () => {
@@ -178,16 +175,27 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
     }
   })
   it('should publish compute datasets & algos', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 4)
     publishedDataset = await publishAsset(downloadAsset, publisherAccount)
+    publishedDatasetWithCredentials = await publishAsset(genericDDO, publisherAccount)
     const { ddo, wasTimeout } = await waitToIndex(
       publishedDataset.ddo.id,
       EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT * 2
+      DEFAULT_TEST_TIMEOUT * 3
     )
 
     if (!ddo) {
       assert(wasTimeout === true, 'published failed due to timeout!')
+    }
+    const { ddo: ddoWithCredentials, wasTimeout: wasTimeoutCredentials } =
+      await waitToIndex(
+        publishedDataset.ddo.id,
+        EVENTS.METADATA_CREATED,
+        DEFAULT_TEST_TIMEOUT * 3
+      )
+
+    if (!ddoWithCredentials) {
+      assert(wasTimeoutCredentials === true, 'published failed due to timeout!')
     }
   })
 
@@ -243,24 +251,21 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
 
     const doCheck = async () => {
-      const wallet = new ethers.Wallet(
-        '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
-      )
       const nonce = Date.now().toString()
-      const message = String(publishedDataset.ddo.id + nonce)
-      const consumerMessage = ethers.solidityPackedKeccak256(
-        ['bytes'],
-        [ethers.hexlify(ethers.toUtf8Bytes(message))]
+
+      const messageHashBytes = createHashForSignature(
+        await consumerAccount.getAddress(),
+        nonce,
+        PROTOCOL_COMMANDS.DOWNLOAD
       )
-      const messageHashBytes = ethers.toBeArray(consumerMessage)
-      const signature = await wallet.signMessage(messageHashBytes)
+      const signature = await safeSign(consumerAccount, messageHashBytes)
       const downloadTask = {
         fileIndex: 0,
         documentId: publishedDataset.ddo.id,
         serviceId: publishedDataset.ddo.services[0].id,
         transferTxId: orderTxId,
         nonce,
-        consumerAddress,
+        consumerAddress: await consumerAccount.getAddress(),
         signature,
         command: PROTOCOL_COMMANDS.DOWNLOAD
       }
@@ -278,29 +283,15 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
     await doCheck()
   })
 
-  // for use on the test bellow
-  it('should publish ddo with access credentials', async function () {
-    publishedDataset = await publishAsset(genericDDO, publisherAccount)
-    const { ddo, wasTimeout } = await waitToIndex(
-      publishedDataset.ddo.id,
-      EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT
-    )
-
-    if (!ddo) {
-      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
-    }
-  })
   it('should not allow to download the asset with different consumer address', async function () {
-    const assetDID = publishedDataset.ddo.id
+    const assetDID = publishedDatasetWithCredentials.ddo.id
     const nonce = Date.now().toString()
-    const message = String(assetDID + nonce)
-    const consumerMessage = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    const messageHashBytes = createHashForSignature(
+      await anotherConsumer.getAddress(),
+      nonce,
+      PROTOCOL_COMMANDS.DOWNLOAD
     )
-    const messageHashBytes = ethers.toBeArray(consumerMessage)
-    const signature = await anotherConsumer.signMessage(messageHashBytes)
+    const signature = await safeSign(anotherConsumer, messageHashBytes)
 
     const doCheck = async () => {
       const downloadTask = {
