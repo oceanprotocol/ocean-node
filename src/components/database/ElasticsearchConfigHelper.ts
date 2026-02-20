@@ -29,8 +29,11 @@ export const DEFAULT_ELASTICSEARCH_CONFIG: Required<ElasticsearchRetryConfig> = 
     (process.env.ELASTICSEARCH_RESURRECT_STRATEGY as 'ping' | 'optimistic' | 'none') ||
     'ping',
   maxRetries: parseInt(process.env.ELASTICSEARCH_MAX_RETRIES || '3'),
-  sniffOnStart: process.env.ELASTICSEARCH_SNIFF_ON_START === 'false',
-  sniffInterval: process.env.ELASTICSEARCH_SNIFF_INTERVAL === 'true' ? 30000 : false,
+  sniffOnStart: process.env.ELASTICSEARCH_SNIFF_ON_START !== 'false',
+  sniffInterval:
+    process.env.ELASTICSEARCH_SNIFF_INTERVAL === 'false'
+      ? false
+      : parseInt(process.env.ELASTICSEARCH_SNIFF_INTERVAL || '30000', 10) || 30000,
   sniffOnConnectionFault: process.env.ELASTICSEARCH_SNIFF_ON_CONNECTION_FAULT !== 'false',
   healthCheckInterval: parseInt(
     process.env.ELASTICSEARCH_HEALTH_CHECK_INTERVAL || '15000'
@@ -136,7 +139,14 @@ class ElasticsearchClientSingleton {
         if (this.client) {
           try {
             this.client.close()
-          } catch {}
+          } catch (err) {
+            DATABASE_LOGGER.logMessageWithEmoji(
+              `Error closing Elasticsearch client during health check: ${err instanceof Error ? err.message : String(err)}`,
+              true,
+              GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+              LOG_LEVELS_STR.LEVEL_DEBUG
+            )
+          }
           this.client = null
           this.config = null
         }
