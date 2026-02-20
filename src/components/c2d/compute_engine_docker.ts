@@ -619,6 +619,7 @@ export class C2DEngineDocker extends C2DEngine {
         try {
           const dockerImage = this.docker.getImage(image)
           await dockerImage.remove({ force: true })
+          await this.db.deleteImage(image)
           cleaned++
           CORE_LOGGER.info(`Successfully removed old image: ${image}`)
         } catch (e) {
@@ -1826,16 +1827,6 @@ export class C2DEngineDocker extends C2DEngine {
     } catch (e) {
       CORE_LOGGER.error('Container volume not found! ' + e.message)
     }
-    if (job.algorithm?.meta.container && job.algorithm?.meta.container.dockerfile) {
-      const image = getAlgorithmImage(job.algorithm, job.jobId)
-      if (image) {
-        try {
-          await this.docker.getImage(image).remove({ force: true })
-        } catch (e) {
-          CORE_LOGGER.error('Could not delete image: ' + image + ' : ' + e.message)
-        }
-      }
-    }
     try {
       // remove folders
       rmSync(this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/inputs', {
@@ -2136,6 +2127,9 @@ export class C2DEngineDocker extends C2DEngine {
       await new Promise<void>((resolve, reject) => {
         buildStream.on('end', () => {
           CORE_LOGGER.debug(`Image '${job.containerImage}' built successfully.`)
+          this.updateImageUsage(job.containerImage).catch((e) => {
+            CORE_LOGGER.debug(`Failed to track image usage: ${e.message}`)
+          })
           resolve()
         })
         buildStream.on('error', (err) => {
