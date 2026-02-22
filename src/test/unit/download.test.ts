@@ -20,6 +20,7 @@ import { AssetUtils, isConfidentialChainDDO } from '../../utils/asset.js'
 import { DEVELOPMENT_CHAIN_ID, KNOWN_CONFIDENTIAL_EVMS } from '../../utils/address.js'
 import { DDO } from '@oceanprotocol/ddo-js'
 import { Wallet, ethers } from 'ethers'
+import { KeyManager } from '../../components/KeyManager/index.js'
 
 let envOverrides: OverrideEnvConfig[]
 let config: OceanNodeConfig
@@ -35,8 +36,18 @@ describe('Should validate files structure for download', () => {
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
+    const keyManager = new KeyManager(config)
     db = await Database.init(config.dbConfig)
-    oceanNode = OceanNode.getInstance(config, db)
+    oceanNode = OceanNode.getInstance(
+      config,
+      db,
+      null,
+      null,
+      null,
+      keyManager,
+      null,
+      true
+    )
     consumerAccount = new Wallet(process.env.PRIVATE_KEY)
   })
 
