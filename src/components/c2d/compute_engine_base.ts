@@ -529,13 +529,23 @@ export abstract class C2DEngine {
     token: string,
     maxJobDuration: number
   ): number | null {
+    CORE_LOGGER.logMessage(`minJobDuration ${env?.minJobDuration}`)
+
     if (maxJobDuration < env.minJobDuration) maxJobDuration = env.minJobDuration
+    CORE_LOGGER.logMessage(`Env maxJobDuration ${maxJobDuration}`)
+
     const prices = this.getEnvPricesForToken(env, chainId, token)
     if (!prices) return null
     let cost: number = 0
     for (const request of resourcesRequest) {
+      CORE_LOGGER.logMessage(`Resource ${request.id} with amount ${request.amount}`)
+
       const resourcePrice = this.getResourcePrice(prices, request.id)
-      cost += resourcePrice * request.amount * Math.ceil(maxJobDuration / 60)
+      CORE_LOGGER.logMessage(`Resource price ${resourcePrice}`)
+      const resourceCost = resourcePrice * request.amount * Math.ceil(maxJobDuration / 60)
+      CORE_LOGGER.logMessage(`Resource cost ${resourceCost}`)
+
+      cost += resourceCost
     }
     return cost
   }

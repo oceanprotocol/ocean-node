@@ -205,15 +205,19 @@ async function validateNonceAndSignature(
   try {
     const addressFromHashSignature = ethers.verifyMessage(consumerMessage, signature)
     const addressFromBytesSignature = ethers.verifyMessage(messageHashBytes, signature)
+
     if (
       ethers.getAddress(addressFromHashSignature)?.toLowerCase() ===
         ethers.getAddress(consumer)?.toLowerCase() ||
       ethers.getAddress(addressFromBytesSignature)?.toLowerCase() ===
         ethers.getAddress(consumer)?.toLowerCase()
     ) {
+      CORE_LOGGER.logMessage('[DEBUG] ✅ EOA signature validation PASSED', true)
       return { valid: true }
     }
+    CORE_LOGGER.logMessage('[DEBUG] ❌ EOA signature validation FAILED', true)
   } catch (error) {
+    CORE_LOGGER.logMessage(`[DEBUG] EOA validation exception: ${error.message}`, true)
     // Continue to smart account check
   }
 

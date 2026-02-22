@@ -68,6 +68,7 @@ export class PaidComputeStartHandler extends CommandHandler {
     if (!task.queueMaxWaitTime) {
       task.queueMaxWaitTime = 0
     }
+
     const authValidationResponse = await this.validateTokenOrSignature(
       task.authorization,
       task.consumerAddress,
@@ -522,6 +523,7 @@ export class PaidComputeStartHandler extends CommandHandler {
       // job ID unicity
       const jobId = generateUniqueID(s)
       // let's calculate payment needed based on resources request and maxJobDuration
+      CORE_LOGGER.logMessage(`MaxJobDuration received ${task.maxJobDuration}`)
       const cost = engine.calculateResourcesCost(
         task.resources,
         env,
