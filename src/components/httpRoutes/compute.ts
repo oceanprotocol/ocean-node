@@ -276,7 +276,9 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeStreamableLogs`, async (req,
       res.set(response.status.headers)
       response.stream.pipe(res)
     } else {
-      const body = response.status.error ?? (response.status.httpStatus === 404 ? 'Job not found or not running' : 'Error')
+      const body =
+        response.status.error ??
+        (response.status.httpStatus === 404 ? 'Job not found or not running' : 'Error')
       res.status(response.status.httpStatus).send(body)
     }
   } catch (error) {
