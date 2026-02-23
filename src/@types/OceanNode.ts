@@ -169,6 +169,10 @@ export interface StorageTypes {
   url: boolean
 }
 
+export interface AddressPerChain {
+  [chainId: string]: string
+}
+
 export interface OceanNodeStatus {
   id: string
   publicKey: string
@@ -179,6 +183,7 @@ export interface OceanNodeStatus {
   p2p: boolean
   provider: OceanNodeProvider[]
   indexer: OceanNodeIndexer[]
+  escrowAddress: AddressPerChain
   supportedStorage: StorageTypes
   platform: any
   uptime?: number // seconds since start
