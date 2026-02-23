@@ -1,15 +1,7 @@
-name: Docker Multi Platform Builds
+name: GHCR cleanup
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - 'main'
-    tags:
-      - 'v*.*.*'
-  pull_request:
-    branches:
-      - 'main'
 
 env:
   DOCKERHUB_IMAGE: ${{ 'oceanprotocol/ocean-node' }}
@@ -34,8 +26,7 @@ jobs:
         uses: dataaxiom/ghcr-cleanup-action@v1
         with:
           token: ${{ secrets.GHCR_PUSH_TOKEN }}
-          dry-run: true
           exclude-tags: latest,main,v*
-          older-than: 1 day
+          older-than: 1 month
           delete-untagged: true
           delete-partial-images: true
