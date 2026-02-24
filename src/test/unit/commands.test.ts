@@ -10,6 +10,7 @@ import {
   ComputeGetEnvironmentsCommand,
   ComputeGetResultCommand,
   ComputeGetStatusCommand,
+  ComputeGetStreamableLogsCommand,
   ComputeInitializeCommand,
   PaidComputeStartCommand,
   ComputeStopCommand,
@@ -47,6 +48,7 @@ import { PaidComputeStartHandler } from '../../components/core/compute/startComp
 import { ComputeStopHandler } from '../../components/core/compute/stopCompute.js'
 import { ComputeGetStatusHandler } from '../../components/core/compute/getStatus.js'
 import { ComputeGetResultHandler } from '../../components/core/compute/getResults.js'
+import { ComputeGetStreamableLogsHandler } from '../../components/core/compute/getStreamableLogs.js'
 import { ComputeInitializeHandler } from '../../components/core/compute/initialize.js'
 import { StopNodeHandler } from '../../components/core/admin/stopNodeHandler.js'
 import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.js'
@@ -357,6 +359,24 @@ describe('Commands and handlers', () => {
       index: -1
     }
     expect(resultEnvHandler.validate(resultEnvCommand).valid).to.be.equal(false)
+
+    // -----------------------------------------
+    // ComputeGetStreamableLogsHandler
+    const streamableLogsHandler: ComputeGetStreamableLogsHandler =
+      CoreHandlersRegistry.getInstance(node).getHandler(
+        PROTOCOL_COMMANDS.COMPUTE_GET_STREAMABLE_LOGS
+      )
+    const streamableLogsCommand: ComputeGetStreamableLogsCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_STREAMABLE_LOGS,
+      consumerAddress: 'abcdef',
+      jobId: 'hash-jobid',
+      signature: '',
+      nonce: ''
+    }
+    expect(streamableLogsHandler.validate(streamableLogsCommand).valid).to.be.equal(false)
+    streamableLogsCommand.consumerAddress = '0x8F292046bb73595A978F4e7A131b4EBd03A15e8a'
+    streamableLogsCommand.jobId = undefined
+    expect(streamableLogsHandler.validate(streamableLogsCommand).valid).to.be.equal(false)
 
     // -----------------------------------------
     // ComputeInitializeHandler

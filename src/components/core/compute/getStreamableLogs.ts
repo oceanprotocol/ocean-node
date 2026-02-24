@@ -67,7 +67,8 @@ export class ComputeGetStreamableLogsHandler extends CommandHandler {
         return {
           stream: null,
           status: {
-            httpStatus: 404
+            httpStatus: 404,
+            error: 'Job not found or not running'
           }
         }
       }
@@ -80,12 +81,13 @@ export class ComputeGetStreamableLogsHandler extends CommandHandler {
 
       return response
     } catch (error) {
-      CORE_LOGGER.error(error.message)
+      const message = (error as Error)?.message ?? String(error)
+      CORE_LOGGER.error(message)
       return {
         stream: null,
         status: {
           httpStatus: 500,
-          error: error.message
+          error: message
         }
       }
     }

@@ -1315,6 +1315,7 @@ export class C2DEngineDocker extends C2DEngine {
         follow: true
       })
     } catch (e) {
+      CORE_LOGGER.error(`getStreamableLogs failed for job ${jobId}: ${e?.message ?? e}`)
       return null
     }
   }
