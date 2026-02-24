@@ -26,6 +26,16 @@ const POLYGON_NETWORK_ID = 137
 const MUMBAI_NETWORK_ID = 80001
 const SEPOLIA_NETWORK_ID = 11155111
 
+/** Max time to wait for RPC network check so we don't block the event loop when RPC is unreachable */
+const RPC_NETWORK_CHECK_TIMEOUT_MS = 5000
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), ms))
+  ])
+}
+
 export class Blockchain {
   private config?: OceanNodeConfig // Optional for new constructor
   private static signers: Map<string, Signer> = new Map()
@@ -77,7 +87,11 @@ export class Blockchain {
         // filter wrong chains or broken RPCs
         if (!force) {
           try {
-            const { chainId } = await rpcProvider.getNetwork()
+            const { chainId } = await withTimeout(
+              rpcProvider.getNetwork(),
+              RPC_NETWORK_CHECK_TIMEOUT_MS,
+              'RPC network check timeout'
+            )
             if (chainId.toString() === this.chainId.toString()) {
               this.providers.push(rpcProvider)
               break

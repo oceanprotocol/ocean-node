@@ -220,11 +220,10 @@ export class OceanIndexer {
 
   async retryCrawlerWithDelay(
     blockchain: Blockchain,
-    interval: number = 5000 // in milliseconds, default 5 secs
+    interval: number = 2000 // in milliseconds, default 2 secs
   ): Promise<boolean> {
     try {
-      const retryInterval = Math.max(blockchain.getKnownRPCs().length * 3000, interval) // give 2 secs per each one
-      // try
+      const retryInterval = Math.max(blockchain.getKnownRPCs().length * 1500, interval)
       const result = await this.startCrawler(blockchain)
       const dbActive = this.getDatabase()
       if (!dbActive || !(await isReachableConnection(dbActive.getConfig().url))) {
