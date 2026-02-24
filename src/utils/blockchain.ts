@@ -144,12 +144,12 @@ export class Blockchain {
 
   private async detectNetwork(): Promise<ConnectionStatus> {
     const provider = await this.getProvider()
+    const timeoutMs = 10000 // 10s for slow RPCs
     return new Promise((resolve) => {
       const timeout = setTimeout(() => {
-        // timeout, hanging or invalid connection
-        CORE_LOGGER.error(`Unable to detect provider network: (TIMEOUT)`)
+        CORE_LOGGER.warn(`Unable to detect provider network: RPC timeout (${timeoutMs}ms)`)
         resolve({ ready: false, error: 'TIMEOUT' })
-      }, 3000)
+      }, timeoutMs)
       provider
         .getBlock('latest')
         .then((block) => {
