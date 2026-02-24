@@ -97,12 +97,7 @@ export class OceanIndexer {
     this.supportedChains = Object.keys(supportedNetworks)
     INDEXING_QUEUE = []
     this.setupDbConnectionListeners()
-  }
-
-  public start(): void {
-    void this.startAllChainIndexers().catch((err) => {
-      INDEXER_LOGGER.error(`startAllChainIndexers failed: ${err?.message ?? err}`)
-    })
+    this.startAllChainIndexers()
   }
 
   /**
@@ -220,10 +215,10 @@ export class OceanIndexer {
 
   async retryCrawlerWithDelay(
     blockchain: Blockchain,
-    interval: number = 2000 // in milliseconds, default 2 secs
+    interval: number = 5000 // in milliseconds, default 2 secs
   ): Promise<boolean> {
     try {
-      const retryInterval = Math.max(blockchain.getKnownRPCs().length * 1500, interval)
+      const retryInterval = Math.max(blockchain.getKnownRPCs().length * 3000, interval) // give 2 secs per each one
       const result = await this.startCrawler(blockchain)
       const dbActive = this.getDatabase()
       if (!dbActive || !(await isReachableConnection(dbActive.getConfig().url))) {
@@ -312,22 +307,24 @@ export class OceanIndexer {
     return indexer
   }
 
-  // Start all chain indexers (fire-and-forget: returns once starts are kicked off, does not wait for each chain)
-  public async startAllChainIndexers(): Promise<void> {
+  // Start all chain indexers
+  public async startAllChainIndexers(): Promise<boolean> {
     await this.checkAndTriggerReindexing()
 
     // Setup event listeners for all chains (they all use the same event emitter)
     this.setupEventListeners()
 
-    // Kick off all indexers in background; do not await so callers are not blocked
+    // Start all indexers - they will run concurrently via async/await
+    let count = 0
     for (const network of this.supportedChains) {
       const chainId = parseInt(network)
-      this.startChainIndexer(chainId).catch((err) => {
-        INDEXER_LOGGER.error(
-          `Failed to start indexer for chain ${chainId}: ${err?.message ?? err}`
-        )
-      })
+      const indexer = await this.startChainIndexer(chainId)
+      if (indexer) {
+        count++
+      }
     }
+
+    return count === this.supportedChains.length
   }
 
   private setupEventListeners() {

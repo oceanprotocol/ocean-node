@@ -62,17 +62,9 @@ export const getDeployedContractBlock = (network: number) => {
 }
 
 export const getNetworkHeight = async (provider: FallbackProvider) => {
-  try {
-    const result = await withRetrial(() => provider.getBlockNumber(), 3, 2000)
-    console.log(`----------> RPC NETWORK HEIGHT: ${result}`)
-    return result
-  } catch (error: unknown) {
-    const msg = (error as Error)?.message ?? String(error)
-    if (msg.includes('invalid numeric value') || msg.includes('timeout')) {
-      throw new Error(`RPC timeout fetching block number: ${msg}`)
-    }
-    throw error
-  }
+  const networkHeight = await provider.getBlockNumber()
+
+  return networkHeight
 }
 
 export const retrieveChunkEvents = async (
