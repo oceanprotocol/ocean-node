@@ -185,58 +185,34 @@ export class Blockchain {
     } else return x.toString()
   }
 
-  public async getGasOptions(estGas: bigint, gasFeeMultiplier: number): Promise<{}> {
+  public async getGasOptions(estGas: bigint, gasFeeMultiplier: number) {
     const { chainId } = await this.signer.provider.getNetwork()
-    const feeHistory = await this.signer.provider.getFeeData()
-    const gasLimit = estGas + BigInt(20000)
+    const feeData = await this.signer.provider.getFeeData()
+    const gasLimit = estGas + 20_000n
 
-    if (feeHistory.maxPriorityFeePerGas) {
-      let aggressiveFeePriorityFeePerGas = feeHistory.maxPriorityFeePerGas.toString()
-      let aggressiveFeePerGas = feeHistory.maxFeePerGas.toString()
-      if (gasFeeMultiplier > 1) {
-        aggressiveFeePriorityFeePerGas = (
-          (feeHistory.maxPriorityFeePerGas * BigInt(gasFeeMultiplier * 100)) /
-          BigInt(100)
-        ).toString()
-        aggressiveFeePerGas = (
-          (feeHistory.maxFeePerGas * BigInt(gasFeeMultiplier * 100)) /
-          BigInt(100)
-        ).toString()
-      }
-      const overrides = {
+    if (feeData.maxPriorityFeePerGas) {
+      const multiplier = BigInt(Math.round(gasFeeMultiplier * 100))
+
+      const priority = (feeData.maxPriorityFeePerGas * multiplier) / 100n
+      const maxFee = (feeData.maxFeePerGas * multiplier) / 100n
+
+      const minFee =
+        chainId === BigInt(POLYGON_NETWORK_ID) || chainId === BigInt(MUMBAI_NETWORK_ID)
+          ? MIN_GAS_FEE_POLYGON
+          : KNOWN_CONFIDENTIAL_EVMS.includes(chainId)
+            ? MIN_GAS_FEE_SAPPHIRE
+            : 0n
+
+      return {
         gasLimit,
-        maxPriorityFeePerGas:
-          (chainId === BigInt(MUMBAI_NETWORK_ID) ||
-            chainId === BigInt(POLYGON_NETWORK_ID)) &&
-          Number(aggressiveFeePriorityFeePerGas) < MIN_GAS_FEE_POLYGON
-            ? MIN_GAS_FEE_POLYGON
-            : chainId === BigInt(SEPOLIA_NETWORK_ID) &&
-                Number(aggressiveFeePriorityFeePerGas) < MIN_GAS_FEE_SEPOLIA
-              ? MIN_GAS_FEE_SEPOLIA
-              : KNOWN_CONFIDENTIAL_EVMS.includes(chainId) &&
-                  Number(aggressiveFeePriorityFeePerGas) < MIN_GAS_FEE_SAPPHIRE
-                ? MIN_GAS_FEE_SAPPHIRE
-                : Number(aggressiveFeePriorityFeePerGas),
-        maxFeePerGas:
-          (chainId === BigInt(MUMBAI_NETWORK_ID) ||
-            chainId === BigInt(POLYGON_NETWORK_ID)) &&
-          Number(aggressiveFeePerGas) < MIN_GAS_FEE_POLYGON
-            ? MIN_GAS_FEE_POLYGON
-            : chainId === BigInt(SEPOLIA_NETWORK_ID) &&
-                Number(aggressiveFeePerGas) < MIN_GAS_FEE_SEPOLIA
-              ? MIN_GAS_FEE_SEPOLIA
-              : KNOWN_CONFIDENTIAL_EVMS.includes(chainId) &&
-                  Number(aggressiveFeePerGas) < MIN_GAS_FEE_SAPPHIRE
-                ? MIN_GAS_FEE_SAPPHIRE
-                : Number(aggressiveFeePerGas)
+        maxPriorityFeePerGas: priority < minFee ? minFee : priority,
+        maxFeePerGas: maxFee < minFee ? minFee : maxFee
       }
-      return overrides
-    } else {
-      const overrides = {
-        gasLimit,
-        gasPrice: feeHistory.gasPrice
-      }
-      return overrides
+    }
+
+    return {
+      gasLimit,
+      gasPrice: feeData.gasPrice
     }
   }
 }
