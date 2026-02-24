@@ -41,7 +41,8 @@ export async function p2pAnnounceC2D(node: OceanNode) {
           break
       }
     }
-    for (const resource of env.free.resources) {
+    if (env.free?.resources) {
+      for (const resource of env.free.resources) {
       let min = 0
       let kind = null
       let type = null
@@ -89,8 +90,8 @@ export async function p2pAnnounceC2D(node: OceanNode) {
           break
       }
     }
+    }
   }
-  // now announce all resources to p2p network
   for (const obj of announce) {
     const res = {
       c2d: obj

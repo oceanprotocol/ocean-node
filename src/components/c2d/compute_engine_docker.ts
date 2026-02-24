@@ -135,7 +135,8 @@ export class C2DEngineDocker extends C2DEngine {
         supportedChains.push(parseInt(chain))
       }
     }
-    for (const feeChain of Object.keys(envConfig.fees)) {
+    if (envConfig.fees && Object.keys(envConfig.fees).length > 0) {
+      for (const feeChain of Object.keys(envConfig.fees)) {
       // for (const feeConfig of envConfig.fees) {
       if (supportedChains.includes(parseInt(feeChain))) {
         if (fees === null) fees = {}
@@ -169,6 +170,7 @@ export class C2DEngineDocker extends C2DEngine {
         }
         fees[feeChain] = tmpFees
       }
+    }
 
       /* for (const chain of Object.keys(config.supportedNetworks)) {
         const chainId = parseInt(chain)
@@ -436,7 +438,7 @@ export class C2DEngineDocker extends C2DEngine {
 
       if (minDuration > 0) {
         // We need to claim payment
-        const fee = env.fees[job.payment.chainId]?.find(
+        const fee = env.fees?.[job.payment.chainId]?.find(
           (fee) => fee.feeToken === job.payment.token
         )
 
