@@ -143,13 +143,7 @@ export class Blockchain {
   }
 
   private async detectNetwork(): Promise<ConnectionStatus> {
-    let provider: FallbackProvider
-    try {
-      provider = await this.getProvider()
-    } catch (err) {
-      CORE_LOGGER.error(`Unable to detect provider network: ${err.message}`)
-      return { ready: false, error: err.message }
-    }
+    const provider = await this.getProvider()
     return new Promise((resolve) => {
       const timeout = setTimeout(() => {
         // timeout, hanging or invalid connection
