@@ -24,6 +24,17 @@ import { scheduleCronJobs } from './utils/cronjobs/scheduleCronJobs.js'
 import { requestValidator } from './components/httpRoutes/requestValidator.js'
 import { hasValidDBConfiguration } from './utils/database.js'
 
+process.on('uncaughtException', (err) => {
+  OCEAN_NODE_LOGGER.error(`Uncaught exception: ${err.message}`)
+  process.exit(1)
+})
+process.on('unhandledRejection', (err) => {
+  OCEAN_NODE_LOGGER.error(
+    `Unhandled rejection: ${err instanceof Error ? err.message : String(err)}`
+  )
+  process.exit(1)
+})
+
 const app: Express = express()
 
 // const port = getRandomInt(6000,6500)
