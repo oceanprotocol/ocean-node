@@ -312,24 +312,22 @@ export class OceanIndexer {
     return indexer
   }
 
-  // Start all chain indexers
-  public async startAllChainIndexers(): Promise<boolean> {
+  // Start all chain indexers (fire-and-forget: returns once starts are kicked off, does not wait for each chain)
+  public async startAllChainIndexers(): Promise<void> {
     await this.checkAndTriggerReindexing()
 
     // Setup event listeners for all chains (they all use the same event emitter)
     this.setupEventListeners()
 
-    // Start all indexers - they will run concurrently via async/await
-    let count = 0
+    // Kick off all indexers in background; do not await so callers are not blocked
     for (const network of this.supportedChains) {
       const chainId = parseInt(network)
-      const indexer = await this.startChainIndexer(chainId)
-      if (indexer) {
-        count++
-      }
+      this.startChainIndexer(chainId).catch((err) => {
+        INDEXER_LOGGER.error(
+          `Failed to start indexer for chain ${chainId}: ${err?.message ?? err}`
+        )
+      })
     }
-
-    return count === this.supportedChains.length
   }
 
   private setupEventListeners() {
