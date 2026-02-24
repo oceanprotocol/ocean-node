@@ -103,6 +103,9 @@ export class Blockchain {
           this.providers.push(new JsonRpcProvider(rpc))
         }
       }
+      if (this.providers.length === 0) {
+        throw new Error('No RPC provider available (all endpoints failed or timed out)')
+      }
       this.provider = new FallbackProvider(this.providers)
     }
     return this.provider
@@ -157,7 +160,13 @@ export class Blockchain {
   }
 
   private async detectNetwork(): Promise<ConnectionStatus> {
-    const provider = await this.getProvider()
+    let provider: FallbackProvider
+    try {
+      provider = await this.getProvider()
+    } catch (err) {
+      CORE_LOGGER.error(`Unable to detect provider network: ${err.message}`)
+      return { ready: false, error: err.message }
+    }
     return new Promise((resolve) => {
       const timeout = setTimeout(() => {
         // timeout, hanging or invalid connection
