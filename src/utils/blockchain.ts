@@ -144,6 +144,8 @@ export class Blockchain {
 
   private async detectNetwork(): Promise<ConnectionStatus> {
     const provider = await this.getProvider()
+    console.log(`----------> PROVIDER: ${provider}`)
+    console.log(`----------> PROVIDER: ${JSON.stringify(provider)}`)
     return new Promise((resolve) => {
       const timeout = setTimeout(() => {
         // timeout, hanging or invalid connection
