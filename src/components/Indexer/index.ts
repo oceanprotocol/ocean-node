@@ -97,7 +97,12 @@ export class OceanIndexer {
     this.supportedChains = Object.keys(supportedNetworks)
     INDEXING_QUEUE = []
     this.setupDbConnectionListeners()
-    this.startAllChainIndexers()
+  }
+
+  public start(): void {
+    void this.startAllChainIndexers().catch((err) => {
+      INDEXER_LOGGER.error(`startAllChainIndexers failed: ${err?.message ?? err}`)
+    })
   }
 
   /**

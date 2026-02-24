@@ -120,6 +120,46 @@ if (!hasValidDBConfiguration(config.dbConfig)) {
 const keyManager = new KeyManager(config)
 const blockchainRegistry = new BlockchainRegistry(keyManager, config)
 
+if (config.hasP2P) {
+  if (dbconn) {
+    node = new OceanP2P(config, keyManager, dbconn)
+  } else {
+    node = new OceanP2P(config, keyManager)
+  }
+  await node.start()
+}
+if (config.hasIndexer && dbconn) {
+  indexer = new OceanIndexer(dbconn, config.indexingNetworks, blockchainRegistry)
+  // if we set this var
+  // it also loads initial data (useful for testing, or we might actually want to have a bootstrap list)
+  // store and advertise DDOs
+  if (process.env.LOAD_INITIAL_DDOS && config.hasP2P) {
+    const list = loadInitialDDOS()
+    if (list.length > 0) {
+      // we need a timeout here, otherwise we have no peers available
+      setTimeout(() => {
+        node.storeAndAdvertiseDDOS(list)
+      }, 3000)
+    }
+  }
+}
+if (dbconn) {
+  provider = new OceanProvider(dbconn)
+}
+
+// Singleton instance across application
+const oceanNode = OceanNode.getInstance(
+  config,
+
+  dbconn,
+  node,
+  provider,
+  indexer,
+  keyManager,
+  blockchainRegistry
+)
+oceanNode.addC2DEngines()
+
 function removeExtraSlashes(req: any, res: any, next: any) {
   req.url = req.url.replace(/\/{2,}/g, '/')
   next()
@@ -185,44 +225,11 @@ if (config.hasHttp) {
       OCEAN_NODE_LOGGER.logMessage(`HTTP port: ${config.httpPort}`, true)
     })
   }
+
+  // Call the function to schedule the cron job to delete old logs
+  scheduleCronJobs(oceanNode)
 }
 
-if (config.hasP2P) {
-  if (dbconn) {
-    node = new OceanP2P(config, keyManager, dbconn)
-  } else {
-    node = new OceanP2P(config, keyManager)
-  }
-  await node.start()
+if (indexer) {
+  indexer.start()
 }
-if (config.hasIndexer && dbconn) {
-  indexer = new OceanIndexer(dbconn, config.indexingNetworks, blockchainRegistry)
-  // if we set this var
-  // it also loads initial data (useful for testing, or we might actually want to have a bootstrap list)
-  // store and advertise DDOs
-  if (process.env.LOAD_INITIAL_DDOS && config.hasP2P) {
-    const list = loadInitialDDOS()
-    if (list.length > 0) {
-      // we need a timeout here, otherwise we have no peers available
-      setTimeout(() => {
-        node.storeAndAdvertiseDDOS(list)
-      }, 3000)
-    }
-  }
-}
-if (dbconn) {
-  provider = new OceanProvider(dbconn)
-}
-
-// Singleton instance across application
-const oceanNode = OceanNode.getInstance(
-  config,
-  dbconn,
-  node,
-  provider,
-  indexer,
-  keyManager,
-  blockchainRegistry
-)
-oceanNode.addC2DEngines()
-scheduleCronJobs(oceanNode)
