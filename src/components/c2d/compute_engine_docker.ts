@@ -1076,7 +1076,9 @@ export class C2DEngineDocker extends C2DEngine {
       }
     }
 
-    await this.makeJobFolders(job)
+    if (!this.makeJobFolders(job)) {
+      throw new Error('Storage failure')
+    }
     // make sure we actually were able to insert on DB
     const addedId = await this.db.newJob(job)
     if (!addedId) {
@@ -2492,24 +2494,29 @@ export class C2DEngineDocker extends C2DEngine {
     return ret
   }
 
-  // eslint-disable-next-line require-await
-  private async makeJobFolders(job: DBComputeJob) {
+  private makeJobFolders(job: DBComputeJob): boolean {
     try {
       const baseFolder = this.getC2DConfig().tempFolder + '/' + job.jobId
-      if (!existsSync(baseFolder)) mkdirSync(baseFolder)
-      if (!existsSync(baseFolder + '/data')) mkdirSync(baseFolder + '/data')
-      if (!existsSync(baseFolder + '/data/inputs')) mkdirSync(baseFolder + '/data/inputs')
-      if (!existsSync(baseFolder + '/data/transformations'))
-        mkdirSync(baseFolder + '/data/transformations')
-      // ddo directory
-      if (!existsSync(baseFolder + '/data/ddos')) {
-        mkdirSync(baseFolder + '/data/ddos')
+      const dirs = [
+        baseFolder,
+        baseFolder + '/data',
+        baseFolder + '/data/inputs',
+        baseFolder + '/data/transformations',
+        baseFolder + '/data/ddos',
+        baseFolder + '/data/outputs',
+        baseFolder + '/data/logs',
+        baseFolder + '/tarData'
+      ]
+      for (const dir of dirs) {
+        if (!existsSync(dir)) {
+          mkdirSync(dir, { recursive: true })
+        }
       }
-      if (!existsSync(baseFolder + '/data/outputs'))
-        mkdirSync(baseFolder + '/data/outputs')
-      if (!existsSync(baseFolder + '/data/logs')) mkdirSync(baseFolder + '/data/logs')
-      if (!existsSync(baseFolder + '/tarData')) mkdirSync(baseFolder + '/tarData') // used to upload and download data
-    } catch (e) {}
+      return true
+    } catch (e) {
+      CORE_LOGGER.error('Failed to create folders needed for the job: ' + e.message)
+      return false
+    }
   }
 
   // clean up temporary files
