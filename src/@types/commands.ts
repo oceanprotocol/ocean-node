@@ -88,6 +88,7 @@ export interface ValidateDDOCommand extends Command {
   nonce?: string
   signature?: string
   message?: string
+  policyServer?: any // object to pass to policy server
 }
 
 export interface StatusCommand extends Command {
