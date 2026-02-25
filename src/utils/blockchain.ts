@@ -15,7 +15,7 @@ import { getConfiguration } from './config.js'
 import { CORE_LOGGER } from './logging/common.js'
 import { ConnectionStatus } from '../@types/blockchain.js'
 import { ValidateChainId } from '../@types/commands.js'
-import { KNOWN_CONFIDENTIAL_EVMS } from '../utils/address.js'
+// import { KNOWN_CONFIDENTIAL_EVMS } from '../utils/address.js'
 import { OceanNodeConfig } from '../@types/OceanNode.js'
 import { KeyManager } from '../components/KeyManager/index.js'
 
