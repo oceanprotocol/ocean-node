@@ -76,7 +76,8 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
     try {
       const result = await this.client.get({
         index: this.index,
-        id: network.toString()
+        id: network.toString(),
+        refresh: true
       })
       return result._source
     } catch (error) {
