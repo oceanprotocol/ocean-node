@@ -618,11 +618,11 @@ describe('Indexer stores a new metadata events and orders.', () => {
     if (resolvedDDO) {
       // Expect a short version of the DDO
       expect(Object.keys(resolvedDDO).length).to.equal(5)
-      //expect(
-      //  'id' in resolvedDDO &&
-      //    'nftAddress' in resolvedDDO &&
-      //    'nft' in resolvedDDO.indexedMetadata
-      //).to.equal(true)
+      // expect(
+      //   'id' in resolvedDDO &&
+      //     'nftAddress' in resolvedDDO &&
+      //     'nft' in resolvedDDO.indexedMetadata
+      // ).to.equal(true)
     } else {
       expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
     }
