@@ -186,7 +186,6 @@ jobs:
 
   test_system:
     runs-on: ubuntu-latest
-    needs: [test_integration]
 
     steps:
       - name: Checkout code
