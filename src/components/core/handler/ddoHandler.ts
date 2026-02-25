@@ -860,7 +860,7 @@ export class ValidateDDOHandler extends CommandHandler {
             stream: null,
             status: {
               httpStatus: 403,
-              error: `Error: Encrypt for ${task.publisherAddress} was denied`
+              error: `Error: Validation for ${task.publisherAddress} was denied`
             }
           }
         }
