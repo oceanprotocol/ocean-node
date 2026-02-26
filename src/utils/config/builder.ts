@@ -132,16 +132,17 @@ export function buildC2DClusters(
   dockerComputeEnvironments: C2DDockerConfig[]
 ): C2DClusterInfo[] {
   const clusters: C2DClusterInfo[] = []
-
+  let count = 0
   if (process.env.OPERATOR_SERVICE_URL) {
     try {
       const clustersURLS: string[] = JSON.parse(process.env.OPERATOR_SERVICE_URL)
       for (const theURL of clustersURLS) {
         clusters.push({
           connection: theURL,
-          hash: create256Hash(theURL),
+          hash: create256Hash(String(count) + theURL),
           type: C2DClusterType.OPF_K8
         })
+        count += 1
       }
     } catch (error) {
       CONFIG_LOGGER.error(`Failed to parse OPERATOR_SERVICE_URL: ${error.message}`)
@@ -151,13 +152,14 @@ export function buildC2DClusters(
   if (dockerComputeEnvironments) {
     for (const dockerC2d of dockerComputeEnvironments) {
       if (dockerC2d.socketPath || dockerC2d.host) {
-        const hash = create256Hash(JSON.stringify(dockerC2d))
+        const hash = create256Hash(String(count) + JSON.stringify(dockerC2d))
         clusters.push({
           connection: dockerC2d,
           hash,
           type: C2DClusterType.DOCKER,
           tempFolder: './c2d_storage/' + hash
         })
+        count += 1
       }
     }
   }
