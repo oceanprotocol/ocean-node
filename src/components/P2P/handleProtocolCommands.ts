@@ -42,38 +42,21 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
 
   const sendErrorAndClose = async (httpStatus: number, error: string) => {
     try {
-      if (
-        stream.status === 'closed' ||
-        stream.status === 'closing' ||
-        stream.status === 'aborted' ||
-        stream.status === 'reset'
-      ) {
-        P2P_LOGGER.warn('Stream already closed/reset, cannot send error response')
+      // Check if stream is already closed
+      if (stream.status === 'closed' || stream.status === 'closing') {
+        P2P_LOGGER.warn('Stream already closed, cannot send error response')
         return
       }
-      if (stream.writeStatus !== 'writable' && stream.writeStatus !== 'closing') {
-        return
-      }
-      // Only resume if stream is paused and still readable; resume() throws if stream is closing/closed
-      if (stream.readStatus === 'paused') {
-        try {
-          stream.resume()
-        } catch (e) {
-          P2P_LOGGER.warn(
-            'Cannot resume stream (already closing/closed): ' + (e as Error).message
-          )
-          return
-        }
-      }
+
+      // Resume stream in case it's paused - we need to write
+      stream.resume()
       const status = { httpStatus, error }
       stream.send(uint8ArrayFromString(JSON.stringify(status)))
       await stream.close()
     } catch (e) {
-      P2P_LOGGER.error(`Error sending error response: ${(e as Error).message}`)
+      P2P_LOGGER.error(`Error sending error response: ${e.message}`)
       try {
-        if (stream.status === 'open' || stream.status === 'closing') {
-          stream.abort(e as Error)
-        }
+        stream.abort(e as Error)
       } catch {}
     }
   }
@@ -158,9 +141,11 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
       for await (const chunk of response.stream as Readable) {
         const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
 
-        // Handle backpressure - if send returns false, wait for drain (no timeout for large streams)
+        // Handle backpressure - if send returns false, wait for drain
         if (!stream.send(bytes)) {
-          await stream.onDrain()
+          await stream.onDrain({
+            signal: AbortSignal.timeout(30000) // 30 second timeout for drain
+          })
         }
       }
     }
