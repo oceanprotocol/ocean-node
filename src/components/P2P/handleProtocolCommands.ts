@@ -45,23 +45,31 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
       if (
         stream.status === 'closed' ||
         stream.status === 'closing' ||
-        stream.status === 'aborted'
+        stream.status === 'aborted' ||
+        stream.status === 'reset'
       ) {
-        P2P_LOGGER.warn('Stream already closed, cannot send error response')
+        P2P_LOGGER.warn('Stream already closed/reset, cannot send error response')
         return
       }
-      if (
-        stream.writeStatus !== 'writable' &&
-        stream.writeStatus !== 'closing'
-      ) {
+      if (stream.writeStatus !== 'writable' && stream.writeStatus !== 'closing') {
         return
       }
-      stream.resume()
+      // Only resume if stream is paused and still readable; resume() throws if stream is closing/closed
+      if (stream.readStatus === 'paused') {
+        try {
+          stream.resume()
+        } catch (e) {
+          P2P_LOGGER.warn(
+            'Cannot resume stream (already closing/closed): ' + (e as Error).message
+          )
+          return
+        }
+      }
       const status = { httpStatus, error }
       stream.send(uint8ArrayFromString(JSON.stringify(status)))
       await stream.close()
     } catch (e) {
-      P2P_LOGGER.error(`Error sending error response: ${e.message}`)
+      P2P_LOGGER.error(`Error sending error response: ${(e as Error).message}`)
       try {
         if (stream.status === 'open' || stream.status === 'closing') {
           stream.abort(e as Error)
