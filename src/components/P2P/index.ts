@@ -425,7 +425,14 @@ export class OceanP2P extends EventEmitter {
         datastore: store,
         privateKey: this.keyManager.getLibp2pPrivateKey(),
         transports,
-        streamMuxers: [yamux()],
+        streamMuxers: [
+          yamux({
+            maxMessageSize: 5 * 1024 * 1024,
+            streamOptions: {
+              maxStreamWindowSize: 5 * 1024 * 1024
+            }
+          })
+        ],
         connectionEncrypters: [
           noise(),
           tls()

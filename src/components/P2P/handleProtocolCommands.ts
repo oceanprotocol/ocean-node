@@ -144,7 +144,7 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
         // Handle backpressure - if send returns false, wait for drain
         if (!stream.send(bytes)) {
           await stream.onDrain({
-            signal: AbortSignal.timeout(30000) // 30 second timeout for drain
+            signal: AbortSignal.timeout(5 * 60 * 1000) // 5 minutes timeout for drain
           })
         }
       }
