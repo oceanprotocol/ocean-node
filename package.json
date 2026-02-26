@@ -83,7 +83,7 @@
     "dotenv": "^16.3.1",
     "eciesjs": "^0.4.5",
     "eth-crypto": "^2.6.0",
-    "ethers": "^6.8.1",
+    "ethers": "^6.16.0",
     "express": "^4.21.1",
     "humanhash": "^1.0.4",
     "hyperdiff": "^2.0.16",

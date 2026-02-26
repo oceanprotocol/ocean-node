@@ -163,14 +163,20 @@ export const C2DDockerConfigSchema = z.array(
           accessLists: z.array(z.string())
         })
         .optional(),
-      fees: z.record(z.string(), z.array(ComputeEnvFeesSchema)),
+      fees: z.record(z.string(), z.array(ComputeEnvFeesSchema)).optional(),
       free: ComputeEnvironmentFreeOptionsSchema.optional(),
       imageRetentionDays: z.number().int().min(1).optional().default(7),
       imageCleanupInterval: z.number().int().min(3600).optional().default(86400) // min 1 hour, default 24 hours
     })
-    .refine((data) => data.fees !== undefined && Object.keys(data.fees).length > 0, {
-      message: 'There is no fees configuration!'
-    })
+    .refine(
+      (data) =>
+        (data.fees !== undefined && Object.keys(data.fees).length > 0) ||
+        (data.free !== undefined && data.free !== null),
+      {
+        message:
+          'Each docker compute environment must have either a non-empty "fees" configuration or a "free" configuration'
+      }
+    )
     .refine((data) => data.storageExpiry >= data.maxJobDuration, {
       message: '"storageExpiry" should be greater than "maxJobDuration"'
     })

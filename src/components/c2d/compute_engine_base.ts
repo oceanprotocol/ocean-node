@@ -224,13 +224,8 @@ export abstract class C2DEngine {
     const properResources: ComputeResourceRequest[] = []
     const elements: string[] = []
 
-    for (const res of env.free.resources) elements.push(res.id)
+    for (const res of isFree ? (env.free?.resources ?? []) : []) elements.push(res.id)
     for (const res of env.resources) if (!elements.includes(res.id)) elements.push(res.id)
-
-    /* if (isFree && 'free' in env && 'resources' in env.free) {
-      for (const res of env.free.resources) elements.push(res.id)
-    } else for (const res of env.resources) elements.push(res.id)
-      */
     for (const device of elements) {
       let desired = this.getResourceRequest(resources, device)
       const minMax = this.getMaxMinResource(device, env, isFree)
@@ -330,7 +325,7 @@ export abstract class C2DEngine {
         throw new Error(`Not enough available ${request.id}`)
       if (isFree) {
         if (!env.free) throw new Error(`No free resources`)
-        envResource = this.getResource(env.free.resources, request.id)
+        envResource = this.getResource(env.free?.resources, request.id)
         if (!envResource) throw new Error(`No such free resource ${request.id}`)
         if (envResource.total - envResource.inUse < request.amount)
           throw new Error(`Not enough available ${request.id} for free`)

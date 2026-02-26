@@ -135,39 +135,41 @@ export class C2DEngineDocker extends C2DEngine {
         supportedChains.push(parseInt(chain))
       }
     }
-    for (const feeChain of Object.keys(envConfig.fees)) {
-      // for (const feeConfig of envConfig.fees) {
-      if (supportedChains.includes(parseInt(feeChain))) {
-        if (fees === null) fees = {}
-        if (!(feeChain in fees)) fees[feeChain] = []
-        const tmpFees: ComputeEnvFees[] = []
-        for (let i = 0; i < envConfig.fees[feeChain].length; i++) {
-          if (
-            envConfig.fees[feeChain][i].prices &&
-            envConfig.fees[feeChain][i].prices.length > 0
-          ) {
-            if (!envConfig.fees[feeChain][i].feeToken) {
-              const tokenAddress = getOceanTokenAddressForChain(parseInt(feeChain))
-              if (tokenAddress) {
-                envConfig.fees[feeChain][i].feeToken = tokenAddress
-                tmpFees.push(envConfig.fees[feeChain][i])
+    if (envConfig.fees && Object.keys(envConfig.fees).length > 0) {
+      for (const feeChain of Object.keys(envConfig.fees)) {
+        // for (const feeConfig of envConfig.fees) {
+        if (supportedChains.includes(parseInt(feeChain))) {
+          if (fees === null) fees = {}
+          if (!(feeChain in fees)) fees[feeChain] = []
+          const tmpFees: ComputeEnvFees[] = []
+          for (let i = 0; i < envConfig.fees[feeChain].length; i++) {
+            if (
+              envConfig.fees[feeChain][i].prices &&
+              envConfig.fees[feeChain][i].prices.length > 0
+            ) {
+              if (!envConfig.fees[feeChain][i].feeToken) {
+                const tokenAddress = getOceanTokenAddressForChain(parseInt(feeChain))
+                if (tokenAddress) {
+                  envConfig.fees[feeChain][i].feeToken = tokenAddress
+                  tmpFees.push(envConfig.fees[feeChain][i])
+                } else {
+                  CORE_LOGGER.error(
+                    `Unable to find Ocean token address for chain ${feeChain} and no custom token provided`
+                  )
+                }
               } else {
-                CORE_LOGGER.error(
-                  `Unable to find Ocean token address for chain ${feeChain} and no custom token provided`
-                )
+                tmpFees.push(envConfig.fees[feeChain][i])
               }
             } else {
-              tmpFees.push(envConfig.fees[feeChain][i])
+              CORE_LOGGER.error(
+                `Unable to find prices for fee ${JSON.stringify(
+                  envConfig.fees[feeChain][i]
+                )} on chain ${feeChain}`
+              )
             }
-          } else {
-            CORE_LOGGER.error(
-              `Unable to find prices for fee ${JSON.stringify(
-                envConfig.fees[feeChain][i]
-              )} on chain ${feeChain}`
-            )
           }
+          fees[feeChain] = tmpFees
         }
-        fees[feeChain] = tmpFees
       }
 
       /* for (const chain of Object.keys(config.supportedNetworks)) {
@@ -436,7 +438,7 @@ export class C2DEngineDocker extends C2DEngine {
 
       if (minDuration > 0) {
         // We need to claim payment
-        const fee = env.fees[job.payment.chainId]?.find(
+        const fee = env.fees?.[job.payment.chainId]?.find(
           (fee) => fee.feeToken === job.payment.token
         )
 
