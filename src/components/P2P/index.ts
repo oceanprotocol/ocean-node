@@ -756,7 +756,7 @@ export class OceanP2P extends EventEmitter {
     let stream: Stream
     try {
       const options = {
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(120000),
         priority: 100,
         runOnLimitedConnection: true
       }

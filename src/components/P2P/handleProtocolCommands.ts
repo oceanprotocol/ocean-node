@@ -42,13 +42,20 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
 
   const sendErrorAndClose = async (httpStatus: number, error: string) => {
     try {
-      // Check if stream is already closed
-      if (stream.status === 'closed' || stream.status === 'closing') {
+      if (
+        stream.status === 'closed' ||
+        stream.status === 'closing' ||
+        stream.status === 'aborted'
+      ) {
         P2P_LOGGER.warn('Stream already closed, cannot send error response')
         return
       }
-
-      // Resume stream in case it's paused - we need to write
+      if (
+        stream.writeStatus !== 'writable' &&
+        stream.writeStatus !== 'closing'
+      ) {
+        return
+      }
       stream.resume()
       const status = { httpStatus, error }
       stream.send(uint8ArrayFromString(JSON.stringify(status)))
@@ -56,7 +63,9 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
     } catch (e) {
       P2P_LOGGER.error(`Error sending error response: ${e.message}`)
       try {
-        stream.abort(e as Error)
+        if (stream.status === 'open' || stream.status === 'closing') {
+          stream.abort(e as Error)
+        }
       } catch {}
     }
   }
@@ -141,11 +150,9 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
       for await (const chunk of response.stream as Readable) {
         const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
 
-        // Handle backpressure - if send returns false, wait for drain
+        // Handle backpressure - if send returns false, wait for drain (no timeout for large streams)
         if (!stream.send(bytes)) {
-          await stream.onDrain({
-            signal: AbortSignal.timeout(30000) // 30 second timeout for drain
-          })
+          await stream.onDrain()
         }
       }
     }
