@@ -370,11 +370,10 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
   }
 
   getDDOSchema(ddo: Record<string, any>): TypesenseSchema {
-    // Find the schema based on the DDO version OR use the short DDO schema when state !== 0
+    // Use the short DDO schema only for deprecated DDOs; all others use their version-specific schema
     let schemaName: string
-    const ddoInstance = DDOManager.getDDOClass(ddo)
-    const ddoData = ddoInstance.getDDOData()
-    if ('indexedMetadata' in ddoData && ddoData?.indexedMetadata?.nft.state !== 0) {
+
+    if (ddo.version === 'deprecated') {
       schemaName = 'op_ddo_short'
     } else if (ddo.version) {
       schemaName = `op_ddo_v${ddo.version}`

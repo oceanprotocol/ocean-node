@@ -487,10 +487,8 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
 
   getDDOSchema(ddo: Record<string, any>) {
     let schemaName: string | undefined
-    const ddoInstance = DDOManager.getDDOClass(ddo)
-    const ddoData = ddoInstance.getDDOData()
 
-    if ('indexedMetadata' in ddoData && ddoData?.indexedMetadata?.nft.state !== 0) {
+    if (ddo.version === 'deprecated') {
       schemaName = 'op_ddo_short'
     } else if (ddo.version) {
       schemaName = `op_ddo_v${ddo.version}`
@@ -585,7 +583,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
           id: ddo.id,
           body: ddo
         })
-        return response
+        return normalizeDocumentId(response, response._id)
       } else {
         throw new Error(`Validation of DDO with schema version ${ddo.version} failed`)
       }
