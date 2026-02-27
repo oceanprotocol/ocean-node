@@ -44,7 +44,7 @@ export class CreateAuthTokenHandler extends CommandHandler {
         address,
         parseInt(nonce),
         signature,
-        String(address + nonce),
+        task.command,
         task.chainId
       )
 
@@ -96,7 +96,7 @@ export class InvalidateAuthTokenHandler extends CommandHandler {
         address,
         parseInt(nonce),
         signature,
-        String(address + nonce),
+        task.command,
         task.chainId
       )
       if (!isValid) {

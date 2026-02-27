@@ -1,8 +1,15 @@
+import EventEmitter from 'node:events'
 import { Client } from '@elastic/elasticsearch'
 import { OceanNodeDBConfig } from '../../@types'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { DB_TYPES } from '../../utils/constants.js'
+
+export const DB_EVENTS = {
+  CONNECTION_LOST: 'db:connection:lost',
+  CONNECTION_RESTORED: 'db:connection:restored'
+} as const
+export const ES_CONNECTION_EVENTS = new EventEmitter()
 
 export interface ElasticsearchRetryConfig {
   requestTimeout?: number
@@ -16,20 +23,20 @@ export interface ElasticsearchRetryConfig {
 }
 
 export const DEFAULT_ELASTICSEARCH_CONFIG: Required<ElasticsearchRetryConfig> = {
-  requestTimeout: parseInt(process.env.ELASTICSEARCH_REQUEST_TIMEOUT || '60000'),
-  pingTimeout: parseInt(process.env.ELASTICSEARCH_PING_TIMEOUT || '5000'),
+  requestTimeout: parseInt(process.env.ELASTICSEARCH_REQUEST_TIMEOUT || '30000'),
+  pingTimeout: parseInt(process.env.ELASTICSEARCH_PING_TIMEOUT || '3000'),
   resurrectStrategy:
     (process.env.ELASTICSEARCH_RESURRECT_STRATEGY as 'ping' | 'optimistic' | 'none') ||
     'ping',
-  maxRetries: parseInt(process.env.ELASTICSEARCH_MAX_RETRIES || '5'),
+  maxRetries: parseInt(process.env.ELASTICSEARCH_MAX_RETRIES || '3'),
   sniffOnStart: process.env.ELASTICSEARCH_SNIFF_ON_START !== 'false',
   sniffInterval:
     process.env.ELASTICSEARCH_SNIFF_INTERVAL === 'false'
       ? false
-      : parseInt(process.env.ELASTICSEARCH_SNIFF_INTERVAL || '30000'),
+      : parseInt(process.env.ELASTICSEARCH_SNIFF_INTERVAL || '30000', 10) || 30000,
   sniffOnConnectionFault: process.env.ELASTICSEARCH_SNIFF_ON_CONNECTION_FAULT !== 'false',
   healthCheckInterval: parseInt(
-    process.env.ELASTICSEARCH_HEALTH_CHECK_INTERVAL || '60000'
+    process.env.ELASTICSEARCH_HEALTH_CHECK_INTERVAL || '15000'
   )
 }
 
@@ -42,6 +49,7 @@ class ElasticsearchClientSingleton {
   private isRetrying: boolean = false
   private healthCheckTimer: NodeJS.Timeout | null = null
   private isMonitoring: boolean = false
+  private connectionLostEmitted: boolean = false
 
   private constructor() {}
 
@@ -73,21 +81,27 @@ class ElasticsearchClientSingleton {
     }
 
     if (this.client && this.config) {
+      // Skip the extra ping here: 5 DB-class constructors all call getClient()
+      // during reconnect reinit, and concurrent pings cause false errors that trigger another LOST/RESTORED cycle.
+      if (this.isMonitoring) {
+        return this.client
+      }
+
       const isHealthy = await this.checkConnectionHealth()
       if (isHealthy) {
         this.startHealthMonitoring(config, customConfig)
         return this.client
       } else {
         DATABASE_LOGGER.logMessageWithEmoji(
-          `Elasticsearch connection interrupted or failed to ${this.maskUrl(
+          `Elasticsearch connection unhealthy at ${this.maskUrl(
             this.config.url
-          )} - starting retry phase`,
+          )} - health monitoring will handle reconnection`,
           true,
           GENERIC_EMOJIS.EMOJI_CROSS_MARK,
           LOG_LEVELS_STR.LEVEL_WARN
         )
-        this.closeConnectionSync()
-        return this.startRetryConnection(config, customConfig)
+        this.startHealthMonitoring(config, customConfig)
+        throw new Error('Elasticsearch connection is not healthy')
       }
     }
 
@@ -109,33 +123,69 @@ class ElasticsearchClientSingleton {
 
     this.isMonitoring = true
     DATABASE_LOGGER.logMessageWithEmoji(
-      `Starting Elasticsearch connection monitoring (health check every ${finalConfig.healthCheckInterval}ms)`,
+      `Starting Elasticsearch health monitoring (interval: ${finalConfig.healthCheckInterval}ms)`,
       true,
       GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
       LOG_LEVELS_STR.LEVEL_DEBUG
     )
 
     this.healthCheckTimer = setInterval(async () => {
-      if (this.client && !this.isRetrying) {
-        const isHealthy = await this.checkConnectionHealth()
-        if (!isHealthy) {
+      if (this.isRetrying) {
+        return
+      }
+
+      const isHealthy = await this.checkConnectionHealth()
+      if (!isHealthy) {
+        if (this.client) {
+          try {
+            this.client.close()
+          } catch (err) {
+            DATABASE_LOGGER.logMessageWithEmoji(
+              `Error closing Elasticsearch client during health check: ${err instanceof Error ? err.message : String(err)}`,
+              true,
+              GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+              LOG_LEVELS_STR.LEVEL_DEBUG
+            )
+          }
+          this.client = null
+          this.config = null
+        }
+
+        // Emit CONNECTION_LOST
+        if (!this.connectionLostEmitted) {
+          this.connectionLostEmitted = true
           DATABASE_LOGGER.logMessageWithEmoji(
-            `Elasticsearch connection lost during monitoring - triggering automatic reconnection`,
+            `Elasticsearch connection lost to ${this.maskUrl(
+              config.url
+            )} - starting reconnection attempts every ${finalConfig.healthCheckInterval}ms`,
             true,
             GENERIC_EMOJIS.EMOJI_CROSS_MARK,
             LOG_LEVELS_STR.LEVEL_WARN
           )
-          this.closeConnectionSync()
-          try {
-            await this.startRetryConnection(config, customConfig)
-          } catch (error) {
-            DATABASE_LOGGER.logMessageWithEmoji(
-              `Automatic reconnection failed: ${error.message}`,
-              true,
-              GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-              LOG_LEVELS_STR.LEVEL_ERROR
-            )
-          }
+          ES_CONNECTION_EVENTS.emit(DB_EVENTS.CONNECTION_LOST)
+        }
+
+        // Single reconnection attempt
+        this.isRetrying = true
+        try {
+          DATABASE_LOGGER.logMessageWithEmoji(
+            `Attempting Elasticsearch reconnection to ${this.maskUrl(config.url)}`,
+            true,
+            GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
+            LOG_LEVELS_STR.LEVEL_INFO
+          )
+          await this.createNewConnection(config, customConfig)
+          this.isRetrying = false
+          this.connectionLostEmitted = false
+          DATABASE_LOGGER.logMessageWithEmoji(
+            `Elasticsearch connection restored to ${this.maskUrl(config.url)}`,
+            true,
+            GENERIC_EMOJIS.EMOJI_CHECK_MARK,
+            LOG_LEVELS_STR.LEVEL_INFO
+          )
+          ES_CONNECTION_EVENTS.emit(DB_EVENTS.CONNECTION_RESTORED)
+        } catch {
+          this.isRetrying = false
         }
       }
     }, finalConfig.healthCheckInterval)
@@ -155,71 +205,6 @@ class ElasticsearchClientSingleton {
     }
   }
 
-  private async startRetryConnection(
-    config: OceanNodeDBConfig,
-    customConfig: Partial<ElasticsearchRetryConfig> = {}
-  ): Promise<Client> {
-    if (!this.isElasticsearchDatabase(config)) {
-      throw new Error(`Database type '${config.dbType}' is not Elasticsearch`)
-    }
-
-    this.isRetrying = true
-    const finalConfig = {
-      ...DEFAULT_ELASTICSEARCH_CONFIG,
-      ...customConfig
-    }
-
-    DATABASE_LOGGER.logMessageWithEmoji(
-      `Starting Elasticsearch retry connection phase to ${this.maskUrl(
-        config.url
-      )} (max retries: ${finalConfig.maxRetries})`,
-      true,
-      GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
-      LOG_LEVELS_STR.LEVEL_INFO
-    )
-
-    for (let attempt = 1; attempt <= finalConfig.maxRetries; attempt++) {
-      try {
-        DATABASE_LOGGER.logMessageWithEmoji(
-          `Elasticsearch reconnection attempt ${attempt}/${
-            finalConfig.maxRetries
-          } to ${this.maskUrl(config.url)}`,
-          true,
-          GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
-          LOG_LEVELS_STR.LEVEL_INFO
-        )
-
-        const client = await this.createNewConnection(config, customConfig)
-        this.isRetrying = false
-        return client
-      } catch (error) {
-        if (attempt === finalConfig.maxRetries) {
-          this.isRetrying = false
-          DATABASE_LOGGER.logMessageWithEmoji(
-            `Elasticsearch retry connection failed after ${
-              finalConfig.maxRetries
-            } attempts to ${this.maskUrl(config.url)}: ${error.message}`,
-            true,
-            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-            LOG_LEVELS_STR.LEVEL_ERROR
-          )
-          throw error
-        }
-
-        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 30000)
-        DATABASE_LOGGER.logMessageWithEmoji(
-          `Elasticsearch retry attempt ${attempt}/${finalConfig.maxRetries} failed, waiting ${delay}ms before next attempt: ${error.message}`,
-          true,
-          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-          LOG_LEVELS_STR.LEVEL_WARN
-        )
-        await new Promise((resolve) => setTimeout(resolve, delay))
-      }
-    }
-
-    throw new Error('Maximum retry attempts reached')
-  }
-
   private async checkConnectionHealth(): Promise<boolean> {
     if (!this.client) return false
 
@@ -228,7 +213,7 @@ class ElasticsearchClientSingleton {
       return true
     } catch (error) {
       DATABASE_LOGGER.logMessageWithEmoji(
-        `Elasticsearch connection health check failed: ${error.message}`,
+        `Elasticsearch health check failed: ${error.message}`,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_DEBUG
@@ -277,9 +262,7 @@ class ElasticsearchClientSingleton {
       DATABASE_LOGGER.logMessageWithEmoji(
         `Elasticsearch connection established successfully to ${this.maskUrl(
           config.url
-        )} (attempt ${this.connectionAttempts}/${
-          finalConfig.maxRetries
-        }) last successful connection ${this.lastConnectionTime}`,
+        )} (attempt ${this.connectionAttempts}) last successful connection ${this.lastConnectionTime}`,
         true,
         GENERIC_EMOJIS.EMOJI_CHECK_MARK,
         LOG_LEVELS_STR.LEVEL_INFO
@@ -290,9 +273,7 @@ class ElasticsearchClientSingleton {
       DATABASE_LOGGER.logMessageWithEmoji(
         `Failed to connect to Elasticsearch at ${this.maskUrl(config.url)} (attempt ${
           this.connectionAttempts
-        }/${finalConfig.maxRetries}) last successful connection ${
-          this.lastConnectionTime
-        }: ${error.message}`,
+        }) last successful connection ${this.lastConnectionTime}: ${error.message}`,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
@@ -323,6 +304,7 @@ class ElasticsearchClientSingleton {
       this.client = null
       this.config = null
     }
+    this.connectionLostEmitted = false
   }
 
   public getConnectionStats(): {

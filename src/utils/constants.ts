@@ -3,7 +3,6 @@ import { Hashes } from '../@types/blockchain'
 // Add all the supported commands
 export const PROTOCOL_COMMANDS = {
   DOWNLOAD: 'download',
-  DOWNLOAD_URL: 'downloadURL', // we still use this
   ENCRYPT: 'encrypt',
   ENCRYPT_FILE: 'encryptFile',
   DECRYPT_DDO: 'decryptDDO',
