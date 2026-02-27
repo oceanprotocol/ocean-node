@@ -275,10 +275,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     const config = await getConfiguration(true)
     const queryStrategy = await DatabaseFactory.createDdoStateQuery(config.dbConfig)
     const queryDdoState: QueryCommand = {
-      query: {
-        ...queryStrategy.buildQuery(resolvedDDO.id),
-        preference: '_primary_first'
-      },
+      query: queryStrategy.buildQuery(resolvedDDO.id),
       command: PROTOCOL_COMMANDS.QUERY
     }
     const response = await queryDdoStateHandler.handle(queryDdoState)
