@@ -41,29 +41,6 @@ declare global {
   }
 }
 
-// we have 5 json examples
-// we should have some DDO class too
-function loadInitialDDOS(): any[] {
-  const ddos: any[] = []
-  const dir: string = './data/'
-  for (let i = 1; i < 6; i++) {
-    const fileName = `${dir}DDO_example_${i}.json`
-    OCEAN_NODE_LOGGER.logMessage(`Loading test DDO from ${fileName}`, true)
-    try {
-      // eslint-disable-next-line security/detect-non-literal-fs-filename
-      const rawData = fs.readFileSync(fileName, 'utf8')
-      const jsonData = JSON.parse(rawData)
-      ddos.push(jsonData)
-    } catch (err) {
-      OCEAN_NODE_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_WARN,
-        `Error loading test DDO from ${fileName}`,
-        true
-      )
-    }
-  }
-  return ddos
-}
 // (*) optional flag
 const isStartup: boolean = true
 // this is to avoid too much verbose logging, cause we're calling getConfig() from many parts
@@ -119,18 +96,6 @@ if (config.hasP2P) {
 }
 if (config.hasIndexer && dbconn) {
   indexer = new OceanIndexer(dbconn, config.indexingNetworks, blockchainRegistry)
-  // if we set this var
-  // it also loads initial data (useful for testing, or we might actually want to have a bootstrap list)
-  // store and advertise DDOs
-  if (process.env.LOAD_INITIAL_DDOS && config.hasP2P) {
-    const list = loadInitialDDOS()
-    if (list.length > 0) {
-      // we need a timeout here, otherwise we have no peers available
-      setTimeout(() => {
-        node.storeAndAdvertiseDDOS(list)
-      }, 3000)
-    }
-  }
 }
 if (dbconn) {
   provider = new OceanProvider(dbconn)
