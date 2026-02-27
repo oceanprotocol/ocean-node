@@ -323,12 +323,6 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.ACCOUNT_PURGATORY_URL,
     required: false
   },
-  CONTROL_PANEL: {
-    name: 'CONTROL_PANEL',
-    // keep this for backwards compatibility for now
-    value: process.env.CONTROL_PANEL || process.env.DASHBOARD,
-    required: false
-  },
   MAX_REQ_PER_MINUTE: {
     // rate limit per minute (MAX requests per minute for a given IP or peer ID)
     name: 'MAX_REQ_PER_MINUTE',

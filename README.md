@@ -139,7 +139,7 @@ The `PRIVATE_KEY` is the only mandatory environmental variable, you must include
 npm run start
 ```
 
-Your node is now running, the control panel will be available at `http://localhost:8000/controlpanel/`. To start additional nodes, repeat these steps in a new terminal.
+Your node is now running. To start additional nodes, repeat these steps in a new terminal.
 
 ## Additional Resources
 
@@ -150,19 +150,6 @@ Your node is now running, the control panel will be available at `http://localho
 - [Testing Guide](docs/testing.md)
 - [Network Configuration](docs/networking.md)
 - [Logging & accessing logs](docs/networking.md)
-- [Control Panel: Local development](controlpanel/README.md)
 - [Docker Deployment Guide](docs/dockerDeployment.md)
 - [C2D GPU Guide](docs/GPU.md)
 - [Compute pricing](docs/compute-pricing.md)
-
-## Control Panel
-
-The control panel is available at `http://localhost:8000/controlpanel/` when your node is running. The built files are included in the distribution, so you **don't need to rebuild it** unless you make changes to the control panel code.
-
-To rebuild after changes:
-
-```bash
-npm run build:controlpanel
-```
-
-For more details, see the [Control Panel Development Guide](controlpanel/README.md).

@@ -158,31 +158,6 @@ if (config.hasHttp) {
   // allow up to 25Mb file upload
   app.use(express.raw({ limit: '25mb' }))
   app.use(cors())
-
-  if (config.hasControlPanel) {
-    // Serve static files expected at the root, under the '/_next' path
-    app.use('/_next', express.static(path.join(__dirname, '/controlpanel/_next')))
-
-    // Serve static files for Next.js under '/controlpanel'
-    const controlPanelPath = path.join(__dirname, '/controlpanel')
-    app.use('/controlpanel', express.static(controlPanelPath))
-
-    // Custom middleware for SPA routing: Serve index.html for non-static asset requests
-    const serveIndexHtml = (
-      req: express.Request,
-      res: express.Response,
-      next: express.NextFunction
-    ) => {
-      if (/(.ico|.js|.css|.jpg|.png|.svg|.map)$/i.test(req.path)) {
-        return next() // Skip this middleware if the request is for a static asset
-      }
-      // For any other requests, serve index.html
-      res.sendFile(path.join(controlPanelPath, 'index.html'))
-    }
-
-    app.use('/controlpanel', serveIndexHtml)
-  }
-
   app.use(requestValidator, (req, res, next) => {
     req.caller = req.headers['x-forwarded-for'] || req.socket.remoteAddress
     req.oceanNode = oceanNode
