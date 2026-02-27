@@ -154,16 +154,7 @@ describe('Compute', () => {
     )
     config = await getConfiguration(true)
     dbconn = await Database.init(config.dbConfig)
-    oceanNode = await OceanNode.getInstance(
-      config,
-      dbconn,
-      null,
-      null,
-      null,
-      null,
-      null,
-      true
-    )
+    oceanNode = OceanNode.getInstance(config, dbconn, null, null, null, null, null, true)
     indexer = new OceanIndexer(
       dbconn,
       config.indexingNetworks,
@@ -2155,7 +2146,7 @@ describe('Compute Access Restrictions', () => {
       )
       config = await getConfiguration(true)
       dbconn = await Database.init(config.dbConfig)
-      oceanNode = await OceanNode.getInstance(
+      oceanNode = OceanNode.getInstance(
         config,
         dbconn,
         null,
@@ -2346,7 +2337,7 @@ describe('Compute Access Restrictions', () => {
       )
       config = await getConfiguration(true)
       dbconn = await Database.init(config.dbConfig)
-      oceanNode = await OceanNode.getInstance(
+      oceanNode = OceanNode.getInstance(
         config,
         dbconn,
         null,
@@ -2476,7 +2467,7 @@ describe('Compute Access Restrictions', () => {
       )
       config = await getConfiguration(true)
       dbconn = await Database.init(config.dbConfig)
-      oceanNode = await OceanNode.getInstance(
+      oceanNode = OceanNode.getInstance(
         config,
         dbconn,
         null,
@@ -2606,7 +2597,7 @@ describe('Compute Access Restrictions', () => {
       const now = Math.floor(Date.now() / 1000)
       const expiry = 3500
 
-      const providerAddress = await (await oceanNode.getKeyManager()).getEthAddress()
+      const providerAddress = oceanNode.getKeyManager().getEthAddress()
 
       // Clean up existing locks and authorizations first
       const locks = await oceanNode.escrow.getLocks(
