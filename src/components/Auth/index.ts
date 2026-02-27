@@ -10,7 +10,7 @@ export interface AuthValidation {
   address?: string
   nonce?: string
   signature?: string
-  message?: string
+  command?: string
   chainId?: string | null
 }
 
@@ -79,7 +79,7 @@ export class Auth {
   async validateAuthenticationOrToken(
     authValidation: AuthValidation
   ): Promise<CommonValidation> {
-    const { token, address, nonce, signature, message, chainId } = authValidation
+    const { token, address, nonce, signature, command, chainId } = authValidation
     try {
       if (signature && address && nonce) {
         const oceanNode = OceanNode.getInstance()
@@ -88,7 +88,7 @@ export class Auth {
           address,
           parseInt(nonce),
           signature,
-          message,
+          command,
           chainId
         )
 

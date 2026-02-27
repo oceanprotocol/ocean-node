@@ -306,7 +306,6 @@ export const OceanNodeConfigSchema = z
 
     p2pConfig: OceanNodeP2PConfigSchema.nullable().optional(),
     hasIndexer: booleanFromString.default(true),
-    hasControlPanel: booleanFromString.default(true),
 
     DB_URL: z.string().optional(),
     DB_USERNAME: z.string().optional(),

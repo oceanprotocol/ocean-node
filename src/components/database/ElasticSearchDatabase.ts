@@ -199,7 +199,8 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
         index: this.index,
         id: did,
         body: { chainId, did, nft: nftAddress, txId, valid, error: errorMsg },
-        refresh: 'wait_for'
+        // refresh: 'wait_for'
+        refresh: true
       })
       return { id: did, chainId, nft: nftAddress, txId, valid, error: errorMsg }
     } catch (error) {
@@ -237,7 +238,10 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
     try {
       const result = await this.client.search({
         index: this.index,
-        query
+        body: {
+          query
+        },
+        preference: '_primary_first'
       })
       console.log('Query result: ', result)
       return result.hits.hits.map((hit: any) => {
@@ -278,7 +282,8 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
           body: {
             doc: { chainId, did, nft: nftAddress, txId, valid, error: errorMsg }
           },
-          refresh: 'wait_for'
+          // refresh: 'wait_for'
+          refresh: true
         })
       } else {
         return await this.create(chainId, did, nftAddress, txId, valid, errorMsg)
@@ -302,7 +307,8 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
       await this.client.delete({
         index: this.index,
         id: did,
-        refresh: 'wait_for'
+        // refresh: 'wait_for'
+        refresh: true
       })
       return { id: did }
     } catch (error) {
@@ -804,7 +810,8 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
       const result = await this.client.index({
         index: this.index,
         body: { ...logEntry, timestamp },
-        refresh: 'wait_for'
+        // refresh: 'wait_for'
+        refresh: true
       })
       // uniformize result response (we need an id for the retrieveLog API)
       if (result._id) {
@@ -954,7 +961,8 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
       await this.client.delete({
         index: this.index,
         id: logId,
-        refresh: 'wait_for'
+        // refresh: 'wait_for'
+        refresh: true
       })
       DATABASE_LOGGER.logMessageWithEmoji(
         `Deleted log with ID: ${logId}`,

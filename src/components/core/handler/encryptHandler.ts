@@ -59,7 +59,7 @@ export class EncryptHandler extends CommandHandler {
       task.consumerAddress,
       task.nonce,
       task.signature,
-      String(task.nonce)
+      task.command
     )
     if (isAuthRequestValid.status.httpStatus !== 200) {
       return isAuthRequestValid
@@ -150,7 +150,7 @@ export class EncryptFileHandler extends CommandHandler {
       task.consumerAddress,
       task.nonce,
       task.signature,
-      String(task.nonce)
+      task.command
     )
     if (isAuthRequestValid.status.httpStatus !== 200) {
       return isAuthRequestValid

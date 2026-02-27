@@ -1,15 +1,17 @@
-import type { OceanNodeConfig, OceanNodeKeys } from '../../@types/OceanNode.js'
+import type { OceanNodeConfig } from '../../@types/OceanNode.js'
 import type { C2DClusterInfo, C2DDockerConfig } from '../../@types/C2D/C2D.js'
 import type { RPCS } from '../../@types/blockchain.js'
 import type { FeeTokens } from '../../@types/Fees.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
-import { privateKeyFromRaw } from '@libp2p/crypto/keys'
-import { peerIdFromPrivateKey } from '@libp2p/peer-id'
-import { Wallet } from 'ethers'
+// import { privateKeyFromRaw } from '@libp2p/crypto/keys'
+// import { peerIdFromPrivateKey } from '@libp2p/peer-id'
+// import { Wallet } from 'ethers'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { hexStringToByteArray, computeCodebaseHash } from '../index.js'
+// import { hexStringToByteArray, computeCodebaseHash } from '../index.js'
+import { computeCodebaseHash } from '../index.js'
+
 import {
   getOceanArtifactsAdresses,
   OCEAN_ARTIFACTS_ADDRESSES_PER_CHAIN
@@ -84,17 +86,6 @@ function preprocessConfigData(data: any): void {
   }
 }
 
-export function getPeerIdFromPrivateKey(privateKey: string): OceanNodeKeys {
-  const key = privateKeyFromRaw(hexStringToByteArray(privateKey.slice(2)))
-
-  return {
-    peerId: peerIdFromPrivateKey(key),
-    publicKey: key.publicKey.raw,
-    privateKey: key,
-    ethAddress: new Wallet(privateKey.substring(2)).address
-  }
-}
-
 export function getDefaultFeeTokens(supportedNetworks?: RPCS): FeeTokens[] {
   const nodeFeesTokens: FeeTokens[] = []
   let addressesData: any = getOceanArtifactsAdresses()
@@ -132,16 +123,17 @@ export function buildC2DClusters(
   dockerComputeEnvironments: C2DDockerConfig[]
 ): C2DClusterInfo[] {
   const clusters: C2DClusterInfo[] = []
-
+  let count = 0
   if (process.env.OPERATOR_SERVICE_URL) {
     try {
       const clustersURLS: string[] = JSON.parse(process.env.OPERATOR_SERVICE_URL)
       for (const theURL of clustersURLS) {
         clusters.push({
           connection: theURL,
-          hash: create256Hash(theURL),
+          hash: create256Hash(String(count) + theURL),
           type: C2DClusterType.OPF_K8
         })
+        count += 1
       }
     } catch (error) {
       CONFIG_LOGGER.error(`Failed to parse OPERATOR_SERVICE_URL: ${error.message}`)
@@ -151,13 +143,14 @@ export function buildC2DClusters(
   if (dockerComputeEnvironments) {
     for (const dockerC2d of dockerComputeEnvironments) {
       if (dockerC2d.socketPath || dockerC2d.host) {
-        const hash = create256Hash(JSON.stringify(dockerC2d))
+        const hash = create256Hash(String(count) + JSON.stringify(dockerC2d))
         clusters.push({
           connection: dockerC2d,
           hash,
           type: C2DClusterType.DOCKER,
           tempFolder: './c2d_storage/' + hash
         })
+        count += 1
       }
     }
   }

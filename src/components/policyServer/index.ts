@@ -70,6 +70,20 @@ export class PolicyServer {
     return await this.askServer(command)
   }
 
+  async validateDDO(
+    rawDDO: DDO,
+    publisherAddress: string,
+    policyServer: any
+  ): Promise<PolicyServerResult> {
+    const command = {
+      action: 'validateDDO',
+      rawDDO,
+      publisherAddress,
+      policyServer
+    }
+    return await this.askServer(command)
+  }
+
   async checkEncrypt(
     consumerAddress: string,
     policyServer: any
