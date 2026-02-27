@@ -14,6 +14,24 @@ import {
 } from '../../utils/validators.js'
 import type { Connection, Stream } from '@libp2p/interface'
 
+/** Safe string for logging/sending; never yields "undefined". */
+function safeErrorMessage(err: unknown): string {
+  if (err == null) return 'Unknown error'
+  if (typeof (err as Error).message === 'string' && (err as Error).message !== '') {
+    return (err as Error).message
+  }
+  return String(err)
+}
+
+/** True if the error indicates the stream is already closed/reset (no point sending). */
+function isStreamGoneError(err: unknown): boolean {
+  const msg = safeErrorMessage(err).toLowerCase()
+  return (
+    msg.includes('stream') &&
+    (msg.includes('reset') || msg.includes('closed') || msg.includes('aborted'))
+  )
+}
+
 export class ReadableString extends Readable {
   private sent = false
 
@@ -39,9 +57,9 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
 
   const sendErrorAndClose = async (httpStatus: number, error: string) => {
     try {
-      // Check if stream is already closed
-      if (stream.status === 'closed' || stream.status === 'closing') {
-        P2P_LOGGER.warn('Stream already closed, cannot send error response')
+      // Skip if stream is already closed, closing, aborted, or reset
+      if (['closed', 'closing', 'aborted', 'reset'].includes(stream.status)) {
+        P2P_LOGGER.warn('Stream already closed or reset, cannot send error response')
         return
       }
 
@@ -49,7 +67,13 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
       stream.send(uint8ArrayFromString(JSON.stringify(status)))
       await stream.close()
     } catch (e) {
-      P2P_LOGGER.error(`Error sending error response: ${e.message}`)
+      const msg = safeErrorMessage(e)
+      // Expected when peer closed/reset the stream; avoid noisy error log
+      if (msg.toLowerCase().includes('closed') || msg.toLowerCase().includes('reset')) {
+        P2P_LOGGER.warn(`Could not send error response (stream gone): ${msg}`)
+      } else {
+        P2P_LOGGER.error(`Error sending error response: ${msg}`)
+      }
       try {
         stream.abort(e as Error)
       } catch {}
@@ -98,11 +122,14 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
       }
     }
   } catch (err) {
+    const msg = safeErrorMessage(err)
     P2P_LOGGER.log(
       LOG_LEVELS_STR.LEVEL_ERROR,
-      `Unable to process P2P command: ${err.message}`
+      `Unable to process P2P command: ${msg}`
     )
-    await sendErrorAndClose(400, 'Invalid command')
+    if (!isStreamGoneError(err)) {
+      await sendErrorAndClose(400, 'Invalid command')
+    }
     return
   }
 
@@ -144,12 +171,15 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
 
     await stream.close()
   } catch (err) {
+    const msg = safeErrorMessage(err)
     P2P_LOGGER.logMessageWithEmoji(
-      'handleProtocolCommands Error: ' + err.message,
+      'handleProtocolCommands Error: ' + msg,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
     )
-    await sendErrorAndClose(500, err.message)
+    if (!isStreamGoneError(err)) {
+      await sendErrorAndClose(500, msg)
+    }
   }
 }
