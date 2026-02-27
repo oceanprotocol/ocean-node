@@ -19,7 +19,12 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 // import lzma from 'lzma-native'
 import lzmajs from 'lzma-purejs-requirejs'
 import { getValidationSignature } from '../utils/validateDdoHandler.js'
-import { getConfiguration, hasP2PInterface } from '../../../utils/config.js'
+import {
+  getConfiguration,
+  hasP2PInterface,
+  isPolicyServerConfigured
+} from '../../../utils/config.js'
+import { PolicyServer } from '../../policyServer/index.js'
 import {
   GetDdoCommand,
   FindDDOCommand,
@@ -786,6 +791,27 @@ export class ValidateDDOHandler extends CommandHandler {
         return {
           stream: null,
           status: { httpStatus: 400, error: `Validation error: ${validation[1]}` }
+        }
+      }
+      if (isPolicyServerConfigured()) {
+        const policyServer = new PolicyServer()
+        const response = await policyServer.validateDDO(
+          task.ddo,
+          task.publisherAddress,
+          task.policyServer
+        )
+        if (!response) {
+          CORE_LOGGER.logMessage(
+            `Error: Validation for ${task.publisherAddress} was denied`,
+            true
+          )
+          return {
+            stream: null,
+            status: {
+              httpStatus: 403,
+              error: `Error: Validation for ${task.publisherAddress} was denied`
+            }
+          }
         }
       }
       return {

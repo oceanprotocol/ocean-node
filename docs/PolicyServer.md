@@ -52,18 +52,31 @@ Called whenever a DDO is updated by indexer
 }
 ```
 
+### validateDDO
+
+Called whenever a DDO is validated
+
+```json
+{
+    "action":"validateDDO",
+    "rawDDO": {..},
+    "publisherAddress": '0x001',
+    "policyServer": {}
+}
+```
+
 ### initialize
 
 Called whenever a new initialize command is received by Ocean Node
 
 ```json
 {
-    "action":"initialize",
-    "documentId": "did:op:123",
-    "ddo": {},
-    "serviceId": "0x123",
-    "consumerAddress": "0x123"
-    "policyServer": {}
+  "action": "initialize",
+  "documentId": "did:op:123",
+  "ddo": {},
+  "serviceId": "0x123",
+  "consumerAddress": "0x123",
+  "policyServer": {}
 }
 ```
 
