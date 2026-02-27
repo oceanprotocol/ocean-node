@@ -13,6 +13,7 @@ import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 
 import { validateDDO } from '../../utils/asset.js'
+import { DDOManager } from '@oceanprotocol/ddo-js'
 
 export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
   private client: Client
@@ -492,8 +493,10 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
 
   getDDOSchema(ddo: Record<string, any>) {
     let schemaName: string | undefined
+    const ddoInstance = DDOManager.getDDOClass(ddo)
+    const ddoData = ddoInstance.getDDOData()
 
-    if (ddo.version === 'deprecated') {
+    if ('indexedMetadata' in ddoData && ddoData?.indexedMetadata?.nft.state !== 0) {
       schemaName = 'op_ddo_short'
     } else if (ddo.version) {
       schemaName = `op_ddo_v${ddo.version}`
@@ -588,7 +591,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
           id: ddo.id,
           body: ddo
         })
-        return normalizeDocumentId(response, response._id)
+        return response
       } else {
         throw new Error(`Validation of DDO with schema version ${ddo.version} failed`)
       }
