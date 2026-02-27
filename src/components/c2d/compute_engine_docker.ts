@@ -862,9 +862,11 @@ export class C2DEngineDocker extends C2DEngine {
 
     if (!response.ok) {
       const body = await response.text()
-      throw new Error(
+      const err = new Error(
         `Failed to get manifest: ${response.status} ${response.statusText} - ${body}`
-      )
+      ) as any
+      err.statusCode = response.status
+      throw err
     }
     return await response.json()
   }
@@ -945,11 +947,21 @@ export class C2DEngineDocker extends C2DEngine {
       CORE_LOGGER.error(`Unable to get Manifest for image ${image}: ${err.message}`)
       if (err.errors?.length) CORE_LOGGER.error(JSON.stringify(err.errors))
 
-      return {
-        valid: false,
-        status: 404,
-        reason: err.errors?.length ? JSON.stringify(err.errors) : err.message
+      // Only block the job when the registry explicitly says the image doesn't exist (404).
+      // For transient failures (rate limits, network errors, etc.) assume valid and let
+      // pullImage handle any real failure later.
+      if (err.statusCode === 404) {
+        return {
+          valid: false,
+          status: 404,
+          reason: err.errors?.length ? JSON.stringify(err.errors) : err.message
+        }
       }
+
+      CORE_LOGGER.warn(
+        `Transient error checking image ${image}, assuming valid: ${err.message}`
+      )
+      return { valid: true }
     }
   }
 
