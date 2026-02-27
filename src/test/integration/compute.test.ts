@@ -154,6 +154,12 @@ describe('Compute', () => {
     )
     config = await getConfiguration(true)
     dbconn = await Database.init(config.dbConfig)
+
+    const staleJobs = await dbconn.c2d.getRunningJobs()
+    for (const job of staleJobs) {
+      await dbconn.c2d.deleteJob(job.jobId)
+    }
+
     oceanNode = OceanNode.getInstance(config, dbconn, null, null, null, null, null, true)
     indexer = new OceanIndexer(
       dbconn,
