@@ -275,10 +275,14 @@ describe('Indexer stores a new metadata events and orders.', () => {
     const config = await getConfiguration(true)
     const queryStrategy = await DatabaseFactory.createDdoStateQuery(config.dbConfig)
     const queryDdoState: QueryCommand = {
-      query: queryStrategy.buildQuery(resolvedDDO.id),
+      query: {
+        ...queryStrategy.buildQuery(resolvedDDO.id),
+        preference: '_primary_first'
+      },
       command: PROTOCOL_COMMANDS.QUERY
     }
     const response = await queryDdoStateHandler.handle(queryDdoState)
+    console.log({ response })
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
