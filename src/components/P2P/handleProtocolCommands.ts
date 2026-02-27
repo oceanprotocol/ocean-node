@@ -14,16 +14,27 @@ import {
 } from '../../utils/validators.js'
 import type { Connection, Stream } from '@libp2p/interface'
 
-/** Safe string for logging/sending; never yields "undefined". */
-function safeErrorMessage(err: unknown): string {
-  if (err == null) return 'Unknown error'
-  if (typeof (err as Error).message === 'string' && (err as Error).message !== '') {
-    return (err as Error).message
+function unwrapError(err: unknown): unknown {
+  if (
+    err != null &&
+    typeof err === 'object' &&
+    'error' in err &&
+    (err as { error: unknown }).error instanceof Error
+  ) {
+    return (err as { error: Error }).error
   }
-  return String(err)
+  return err
 }
 
-/** True if the error indicates the stream is already closed/reset (no point sending). */
+function safeErrorMessage(err: unknown): string {
+  const e = unwrapError(err)
+  if (e == null) return 'Unknown error'
+  if (e instanceof Error && typeof e.message === 'string' && e.message !== '') {
+    return e.message
+  }
+  return String(e)
+}
+
 function isStreamGoneError(err: unknown): boolean {
   const msg = safeErrorMessage(err).toLowerCase()
   return (
@@ -71,10 +82,7 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
     }
   } catch (err) {
     const msg = safeErrorMessage(err)
-    P2P_LOGGER.log(
-      LOG_LEVELS_STR.LEVEL_ERROR,
-      `Unable to process P2P command: ${msg}`
-    )
+    P2P_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Unable to process P2P command: ${msg}`)
     if (!isStreamGoneError(err)) {
       // sendErrorAndClose not yet defined; stream may be gone anyway
       try {
