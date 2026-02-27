@@ -115,7 +115,6 @@ services:
       #      INDEXER_NETWORKS: '[]'
       ALLOWED_ADMINS: '["<<redacted>>"]'
       #      INDEXER_INTERVAL: ''
-      CONTROL_PANEL: 'true'
       #      RATE_DENY_LIST: ''
       #      MAX_REQ_PER_MINUTE: ''
       #      MAX_CHECKSUM_LENGTH: ''
