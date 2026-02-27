@@ -58,7 +58,8 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
       })
       await stream.close()
     } catch (e) {
-      P2P_LOGGER.error(`Error sending error response: ${e.message}`)
+      const msg = e instanceof Error ? e.message : e != null ? String(e) : 'Unknown error'
+      P2P_LOGGER.error(`Error sending error response: ${msg}`)
       try {
         stream.abort(e as Error)
       } catch {}
@@ -142,12 +143,14 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
 
     await stream.close()
   } catch (err) {
+    const errMessage =
+      err instanceof Error ? err.message : err != null ? String(err) : 'Unknown error'
     P2P_LOGGER.logMessageWithEmoji(
-      'handleProtocolCommands Error: ' + err.message,
+      'handleProtocolCommands Error: ' + errMessage,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
     )
-    await sendErrorAndClose(500, err.message)
+    await sendErrorAndClose(500, errMessage)
   }
 }
