@@ -326,8 +326,14 @@ export abstract class C2DEngine {
     for (const request of activeResources) {
       let envResource = this.getResource(env.resources, request.id)
       if (!envResource) throw new Error(`No such resource ${request.id}`)
-      if (envResource.total - envResource.inUse < request.amount)
+      if (envResource.total - envResource.inUse < request.amount) {
+        console.log({
+          totalResources: envResource.total,
+          inUseResources: envResource.inUse,
+          requested: request.amount
+        })
         throw new Error(`Not enough available ${request.id}`)
+      }
       if (isFree) {
         if (!env.free) throw new Error(`No free resources`)
         envResource = this.getResource(env.free?.resources, request.id)
