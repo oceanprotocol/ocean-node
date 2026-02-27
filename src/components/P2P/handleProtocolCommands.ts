@@ -14,35 +14,6 @@ import {
 } from '../../utils/validators.js'
 import type { Connection, Stream } from '@libp2p/interface'
 
-function unwrapError(err: unknown): unknown {
-  if (
-    err != null &&
-    typeof err === 'object' &&
-    'error' in err &&
-    (err as { error: unknown }).error instanceof Error
-  ) {
-    return (err as { error: Error }).error
-  }
-  return err
-}
-
-function safeErrorMessage(err: unknown): string {
-  const e = unwrapError(err)
-  if (e == null) return 'Unknown error'
-  if (e instanceof Error && typeof e.message === 'string' && e.message !== '') {
-    return e.message
-  }
-  return String(e)
-}
-
-function isStreamGoneError(err: unknown): boolean {
-  const msg = safeErrorMessage(err).toLowerCase()
-  return (
-    msg.includes('stream') &&
-    (msg.includes('reset') || msg.includes('closed') || msg.includes('aborted'))
-  )
-}
-
 export class ReadableString extends Readable {
   private sent = false
 
@@ -63,58 +34,27 @@ export class ReadableString extends Readable {
 export async function handleProtocolCommands(stream: Stream, connection: Connection) {
   const { remotePeer, remoteAddr } = connection
 
+  // Pause the stream. We do async operations here before writing.
+  stream.pause()
+
   P2P_LOGGER.logMessage('Incoming connection from peer ' + remotePeer, true)
   P2P_LOGGER.logMessage('Using ' + remoteAddr, true)
 
-  // Read command from stream immediately so we don't leave data unread (avoids
-  // read-buffer overflow reset) and so the client sees progress before any slow work.
-  let task: Command | null | undefined
-  try {
-    for await (const chunk of stream) {
-      try {
-        const str = uint8ArrayToString(chunk.subarray())
-        task = JSON.parse(str) as Command
-      } catch (e) {
-        task = null
-        break
-      }
-      break
-    }
-  } catch (err) {
-    const msg = safeErrorMessage(err)
-    P2P_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Unable to process P2P command: ${msg}`)
-    if (!isStreamGoneError(err)) {
-      // sendErrorAndClose not yet defined; stream may be gone anyway
-      try {
-        if (!['closed', 'closing', 'aborted', 'reset'].includes(stream.status)) {
-          const status = { httpStatus: 400, error: msg }
-          stream.send(uint8ArrayFromString(JSON.stringify(status)))
-          await stream.close()
-        }
-      } catch {}
-    }
-    return
-  }
-
   const sendErrorAndClose = async (httpStatus: number, error: string) => {
     try {
-      // Skip if stream is already closed, closing, aborted, or reset
-      if (['closed', 'closing', 'aborted', 'reset'].includes(stream.status)) {
-        P2P_LOGGER.warn('Stream already closed or reset, cannot send error response')
+      // Check if stream is already closed
+      if (stream.status === 'closed' || stream.status === 'closing') {
+        P2P_LOGGER.warn('Stream already closed, cannot send error response')
         return
       }
 
+      // Resume stream in case it's paused - we need to write
+      stream.resume()
       const status = { httpStatus, error }
       stream.send(uint8ArrayFromString(JSON.stringify(status)))
       await stream.close()
     } catch (e) {
-      const msg = safeErrorMessage(e)
-      // Expected when peer closed/reset the stream; avoid noisy error log
-      if (msg.toLowerCase().includes('closed') || msg.toLowerCase().includes('reset')) {
-        P2P_LOGGER.warn(`Could not send error response (stream gone): ${msg}`)
-      } else {
-        P2P_LOGGER.error(`Error sending error response: ${msg}`)
-      }
+      P2P_LOGGER.error(`Error sending error response: ${e.message}`)
       try {
         stream.abort(e as Error)
       } catch {}
@@ -150,6 +90,30 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
     return
   }
 
+  // Resume the stream. We can now write.
+  stream.resume()
+
+  // v3 streams are AsyncIterable
+  let task: Command
+  try {
+    for await (const chunk of stream) {
+      try {
+        const str = uint8ArrayToString(chunk.subarray())
+        task = JSON.parse(str) as Command
+      } catch (e) {
+        await sendErrorAndClose(400, 'Invalid command')
+        return
+      }
+    }
+  } catch (err) {
+    P2P_LOGGER.log(
+      LOG_LEVELS_STR.LEVEL_ERROR,
+      `Unable to process P2P command: ${err.message}`
+    )
+    await sendErrorAndClose(400, 'Invalid command')
+    return
+  }
+
   if (!task) {
     P2P_LOGGER.error('Invalid or missing task/command data!')
     await sendErrorAndClose(400, 'Invalid command')
@@ -172,20 +136,16 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
     // Send status first
     stream.send(uint8ArrayFromString(JSON.stringify(response.status)))
 
-    const SEND_CHUNK_SIZE = 64 * 1024
+    // Stream data chunks without buffering, with backpressure support
     if (response.stream) {
       for await (const chunk of response.stream as Readable) {
         const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
-        for (let offset = 0; offset < bytes.length; offset += SEND_CHUNK_SIZE) {
-          const slice = bytes.subarray(
-            offset,
-            Math.min(offset + SEND_CHUNK_SIZE, bytes.length)
-          )
-          if (!stream.send(slice)) {
-            await stream.onDrain({
-              signal: AbortSignal.timeout(5 * 60 * 1000) // 5 minutes timeout for drain
-            })
-          }
+
+        // Handle backpressure - if send returns false, wait for drain
+        if (!stream.send(bytes)) {
+          await stream.onDrain({
+            signal: AbortSignal.timeout(30000) // 30 second timeout for drain
+          })
         }
       }
       // Ensure last chunk is flushed before closing (avoid remote close before client reads tail)
@@ -194,15 +154,12 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
 
     await stream.close()
   } catch (err) {
-    const msg = safeErrorMessage(err)
     P2P_LOGGER.logMessageWithEmoji(
-      'handleProtocolCommands Error: ' + msg,
+      'handleProtocolCommands Error: ' + err.message,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
     )
-    if (!isStreamGoneError(err)) {
-      await sendErrorAndClose(500, msg)
-    }
+    await sendErrorAndClose(500, err.message)
   }
 }
