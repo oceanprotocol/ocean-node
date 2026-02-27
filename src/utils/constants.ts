@@ -3,7 +3,6 @@ import { Hashes } from '../@types/blockchain'
 // Add all the supported commands
 export const PROTOCOL_COMMANDS = {
   DOWNLOAD: 'download',
-  DOWNLOAD_URL: 'downloadURL', // we still use this
   ENCRYPT: 'encrypt',
   ENCRYPT_FILE: 'encryptFile',
   DECRYPT_DDO: 'decryptDDO',
@@ -321,12 +320,6 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   ACCOUNT_PURGATORY_URL: {
     name: 'ACCOUNT_PURGATORY_URL',
     value: process.env.ACCOUNT_PURGATORY_URL,
-    required: false
-  },
-  CONTROL_PANEL: {
-    name: 'CONTROL_PANEL',
-    // keep this for backwards compatibility for now
-    value: process.env.CONTROL_PANEL || process.env.DASHBOARD,
     required: false
   },
   MAX_REQ_PER_MINUTE: {

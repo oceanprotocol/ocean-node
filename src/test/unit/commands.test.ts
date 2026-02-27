@@ -10,6 +10,7 @@ import {
   ComputeGetEnvironmentsCommand,
   ComputeGetResultCommand,
   ComputeGetStatusCommand,
+  ComputeGetStreamableLogsCommand,
   ComputeInitializeCommand,
   PaidComputeStartCommand,
   ComputeStopCommand,
@@ -47,13 +48,15 @@ import { PaidComputeStartHandler } from '../../components/core/compute/startComp
 import { ComputeStopHandler } from '../../components/core/compute/stopCompute.js'
 import { ComputeGetStatusHandler } from '../../components/core/compute/getStatus.js'
 import { ComputeGetResultHandler } from '../../components/core/compute/getResults.js'
+import { ComputeGetStreamableLogsHandler } from '../../components/core/compute/getStreamableLogs.js'
 import { ComputeInitializeHandler } from '../../components/core/compute/initialize.js'
 import { StopNodeHandler } from '../../components/core/admin/stopNodeHandler.js'
 import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.js'
 import { ReindexChainHandler } from '../../components/core/admin/reindexChainHandler.js'
 import { CollectFeesHandler } from '../../components/core/admin/collectFeesHandler.js'
 import { GetJobsHandler } from '../../components/core/handler/getJobs.js'
-import { Wallet, ethers } from 'ethers'
+import { Wallet } from 'ethers'
+import { createHashForSignature, safeSign } from '../utils/signature.js'
 describe('Commands and handlers', () => {
   let node: OceanNode
   let consumerAccount: Wallet
@@ -138,13 +141,12 @@ describe('Commands and handlers', () => {
       node
     ).getHandler(PROTOCOL_COMMANDS.ENCRYPT)
     let nonce = Date.now().toString()
-    let message = String(nonce)
-    let consumerMessage = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    const messageHashBytes = createHashForSignature(
+      await consumerAccount.getAddress(),
+      nonce,
+      PROTOCOL_COMMANDS.ENCRYPT
     )
-    let messageHashBytes = ethers.toBeArray(consumerMessage)
-    let signature = await consumerAccount.signMessage(messageHashBytes)
+    let signature = await safeSign(consumerAccount, messageHashBytes)
     const encryptCommand: EncryptCommand = {
       blob: '1425252525',
       command: PROTOCOL_COMMANDS.ENCRYPT,
@@ -160,14 +162,13 @@ describe('Commands and handlers', () => {
     const encryptFileHandler: EncryptFileHandler = CoreHandlersRegistry.getInstance(
       node
     ).getHandler(PROTOCOL_COMMANDS.ENCRYPT_FILE)
-    nonce = (parseFloat(nonce) + 1).toString()
-    message = String(nonce)
-    consumerMessage = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    nonce = (parseInt(nonce) + 1).toString()
+    const messageHashBytes2 = createHashForSignature(
+      await consumerAccount.getAddress(),
+      nonce,
+      PROTOCOL_COMMANDS.ENCRYPT_FILE
     )
-    messageHashBytes = ethers.toBeArray(consumerMessage)
-    signature = await consumerAccount.signMessage(messageHashBytes)
+    signature = await safeSign(consumerAccount, messageHashBytes2)
     const encryptFileCommand: EncryptFileCommand = {
       rawData: Buffer.from('12345'),
       command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
@@ -357,6 +358,24 @@ describe('Commands and handlers', () => {
       index: -1
     }
     expect(resultEnvHandler.validate(resultEnvCommand).valid).to.be.equal(false)
+
+    // -----------------------------------------
+    // ComputeGetStreamableLogsHandler
+    const streamableLogsHandler: ComputeGetStreamableLogsHandler =
+      CoreHandlersRegistry.getInstance(node).getHandler(
+        PROTOCOL_COMMANDS.COMPUTE_GET_STREAMABLE_LOGS
+      )
+    const streamableLogsCommand: ComputeGetStreamableLogsCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_STREAMABLE_LOGS,
+      consumerAddress: 'abcdef',
+      jobId: 'hash-jobid',
+      signature: '',
+      nonce: ''
+    }
+    expect(streamableLogsHandler.validate(streamableLogsCommand).valid).to.be.equal(false)
+    streamableLogsCommand.consumerAddress = '0x8F292046bb73595A978F4e7A131b4EBd03A15e8a'
+    streamableLogsCommand.jobId = undefined
+    expect(streamableLogsHandler.validate(streamableLogsCommand).valid).to.be.equal(false)
 
     // -----------------------------------------
     // ComputeInitializeHandler

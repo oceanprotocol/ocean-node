@@ -165,6 +165,23 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     })
   }
 
+  deleteImage(image: string): Promise<void> {
+    const deleteSQL = `
+      DELETE FROM docker_images WHERE image = ?;
+    `
+    return new Promise<void>((resolve, reject) => {
+      this.db.run(deleteSQL, [image], (err) => {
+        if (err) {
+          DATABASE_LOGGER.error(`Could not delete image ${image}: ${err.message}`)
+          reject(err)
+        } else {
+          DATABASE_LOGGER.debug(`Deleted image ${image}`)
+          resolve()
+        }
+      })
+    })
+  }
+
   getOldImages(retentionDays: number = 7): Promise<string[]> {
     const cutoffTimestamp = Math.floor(Date.now() / 1000) - retentionDays * 24 * 60 * 60
     const selectSQL = `

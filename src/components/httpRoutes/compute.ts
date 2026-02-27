@@ -276,7 +276,10 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeStreamableLogs`, async (req,
       res.set(response.status.headers)
       response.stream.pipe(res)
     } else {
-      res.status(response.status.httpStatus).send(response.status.error)
+      const body =
+        response.status.error ??
+        (response.status.httpStatus === 404 ? 'Job not found or not running' : 'Error')
+      res.status(response.status.httpStatus).send(body)
     }
   } catch (error) {
     HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)

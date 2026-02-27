@@ -8,7 +8,6 @@ export const ENV_TO_CONFIG_MAPPING = {
   FEE_AMOUNT: 'FEE_AMOUNT',
   FEE_TOKENS: 'FEE_TOKENS',
   HTTP_API_PORT: 'httpPort',
-  CONTROL_PANEL: 'hasControlPanel',
   RPCS: 'supportedNetworks',
   IPFS_GATEWAY: 'ipfsGateway',
   ARWEAVE_GATEWAY: 'arweaveGateway',

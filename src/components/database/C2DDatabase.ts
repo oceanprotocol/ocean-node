@@ -93,6 +93,10 @@ export class C2DDatabase extends AbstractDatabase {
     return await this.provider.updateImage(image)
   }
 
+  async deleteImage(image: string): Promise<void> {
+    return await this.provider.deleteImage(image)
+  }
+
   async getOldImages(retentionDays: number): Promise<string[]> {
     return await this.provider.getOldImages(retentionDays)
   }

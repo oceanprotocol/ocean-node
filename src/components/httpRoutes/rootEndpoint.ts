@@ -14,6 +14,7 @@ rootEndpointRoutes.get('/', async (req, res) => {
     nodeId: keyManager.getPeerId().toString(),
     chainIds: config.supportedNetworks ? Object.keys(config.supportedNetworks) : [],
     providerAddress: keyManager.getEthAddress(),
+    nodePublicKey: keyManager.getPublicKey(),
     serviceEndpoints: getAllServiceEndpoints(),
     software: 'Ocean-Node',
     version: '0.0.1'

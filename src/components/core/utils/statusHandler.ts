@@ -131,6 +131,7 @@ export async function status(
       p2p: config.hasP2P,
       provider: [],
       indexer: [],
+      escrowAddress: {},
       supportedStorage: getSupportedStorageTypes(config),
       // uptime: process.uptime(),
       platform: platformInfo,
@@ -142,6 +143,11 @@ export async function status(
   if (config.supportedNetworks) {
     nodeStatus.provider = getProviderInfo(config)
     nodeStatus.indexer = await getIndexerInfo(oceanNode, config)
+    for (const chain of Object.keys(config.supportedNetworks)) {
+      nodeStatus.escrowAddress[chain] = oceanNode.escrow.getEscrowContractAddressForChain(
+        parseInt(chain)
+      )
+    }
   }
   // only these 2 might change between requests
   nodeStatus.platform.freemem = os.freemem()

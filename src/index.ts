@@ -41,29 +41,6 @@ declare global {
   }
 }
 
-// we have 5 json examples
-// we should have some DDO class too
-function loadInitialDDOS(): any[] {
-  const ddos: any[] = []
-  const dir: string = './data/'
-  for (let i = 1; i < 6; i++) {
-    const fileName = `${dir}DDO_example_${i}.json`
-    OCEAN_NODE_LOGGER.logMessage(`Loading test DDO from ${fileName}`, true)
-    try {
-      // eslint-disable-next-line security/detect-non-literal-fs-filename
-      const rawData = fs.readFileSync(fileName, 'utf8')
-      const jsonData = JSON.parse(rawData)
-      ddos.push(jsonData)
-    } catch (err) {
-      OCEAN_NODE_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_WARN,
-        `Error loading test DDO from ${fileName}`,
-        true
-      )
-    }
-  }
-  return ddos
-}
 // (*) optional flag
 const isStartup: boolean = true
 // this is to avoid too much verbose logging, cause we're calling getConfig() from many parts
@@ -119,18 +96,6 @@ if (config.hasP2P) {
 }
 if (config.hasIndexer && dbconn) {
   indexer = new OceanIndexer(dbconn, config.indexingNetworks, blockchainRegistry)
-  // if we set this var
-  // it also loads initial data (useful for testing, or we might actually want to have a bootstrap list)
-  // store and advertise DDOs
-  if (process.env.LOAD_INITIAL_DDOS && config.hasP2P) {
-    const list = loadInitialDDOS()
-    if (list.length > 0) {
-      // we need a timeout here, otherwise we have no peers available
-      setTimeout(() => {
-        node.storeAndAdvertiseDDOS(list)
-      }, 3000)
-    }
-  }
 }
 if (dbconn) {
   provider = new OceanProvider(dbconn)
@@ -158,31 +123,6 @@ if (config.hasHttp) {
   // allow up to 25Mb file upload
   app.use(express.raw({ limit: '25mb' }))
   app.use(cors())
-
-  if (config.hasControlPanel) {
-    // Serve static files expected at the root, under the '/_next' path
-    app.use('/_next', express.static(path.join(__dirname, '/controlpanel/_next')))
-
-    // Serve static files for Next.js under '/controlpanel'
-    const controlPanelPath = path.join(__dirname, '/controlpanel')
-    app.use('/controlpanel', express.static(controlPanelPath))
-
-    // Custom middleware for SPA routing: Serve index.html for non-static asset requests
-    const serveIndexHtml = (
-      req: express.Request,
-      res: express.Response,
-      next: express.NextFunction
-    ) => {
-      if (/(.ico|.js|.css|.jpg|.png|.svg|.map)$/i.test(req.path)) {
-        return next() // Skip this middleware if the request is for a static asset
-      }
-      // For any other requests, serve index.html
-      res.sendFile(path.join(controlPanelPath, 'index.html'))
-    }
-
-    app.use('/controlpanel', serveIndexHtml)
-  }
-
   app.use(requestValidator, (req, res, next) => {
     req.caller = req.headers['x-forwarded-for'] || req.socket.remoteAddress
     req.oceanNode = oceanNode

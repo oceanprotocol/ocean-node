@@ -1,0 +1,32 @@
+name: GHCR cleanup
+
+on:
+  workflow_dispatch:
+
+env:
+  DOCKERHUB_IMAGE: ${{ 'oceanprotocol/ocean-node' }}
+  GHCR_IMAGE: ${{ 'ghcr.io/oceanprotocol/ocean-node' }}
+
+jobs:
+  ghcr_cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to GitHub Container Registry
+        id: ghcr_login
+        env:
+          GHCR_PUSH_TOKEN: ${{ secrets.GHCR_PUSH_TOKEN }}
+        if: env.GHCR_PUSH_TOKEN != ''
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GHCR_PUSH_TOKEN }}
+      - name: 'Clean up docker images'
+        if: steps.ghcr_login.outcome == 'success'
+        uses: dataaxiom/ghcr-cleanup-action@v1
+        with:
+          token: ${{ secrets.GHCR_PUSH_TOKEN }}
+          exclude-tags: latest,main,v*
+          older-than: 1 month
+          delete-untagged: true
+          delete-partial-images: true

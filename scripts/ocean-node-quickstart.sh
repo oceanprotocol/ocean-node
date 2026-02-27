@@ -273,30 +273,210 @@ if [ -z "$DOCKER_COMPUTE_ENVIRONMENTS" ]; then
 fi
 
 # GPU Detection and Integration
-LIST_GPUS_SCRIPT="$(dirname "$0")/list_gpus.sh"
-if [ -f "$LIST_GPUS_SCRIPT" ] && command -v jq &> /dev/null; then
+
+# Function to check for NVIDIA GPUs
+get_nvidia_gpus() {
+    if command -v nvidia-smi &> /dev/null; then
+        nvidia-smi --query-gpu=name,uuid --format=csv,noheader | while IFS=, read -r name uuid; do
+            name=$(echo "$name" | xargs)
+            uuid=$(echo "$uuid" | xargs)
+            jq -c -n \
+                --arg name "$name" \
+                --arg uuid "$uuid" \
+                '{
+                    description: $name,
+                    init: {
+                        deviceRequests: {
+                            Driver: "nvidia",
+                            Devices: [$uuid]
+                        }
+                    }
+                }'
+        done
+    fi
+}
+
+# Declare the associative array (hashmap) globally
+declare -A gpu_map
+
+map_pci_to_primary() {
+    for card_path in /sys/class/drm/card*; do
+        [ -e "$card_path" ] || continue
+        real_device_path=$(readlink -f "$card_path/device")
+        pci_id=$(basename "$real_device_path")
+        card_name=$(basename "$card_path")
+        gpu_map["$pci_id"]="/dev/dri/$card_name"
+    done
+}
+
+process_pci_line() {
+    line="$1"
+
+    slot=$(echo "$line" | awk '{print $1}')
+    vendor_id_hex=$(echo "$line" | awk '{print $3}' | tr -d '"')
+
+    if [[ "$vendor_id_hex" == "10de" ]] && command -v nvidia-smi &> /dev/null; then
+        return
+    fi
+
+    full_info=$(lspci -s "$slot" -vmm)
+    vendor_name=$(echo "$full_info" | grep "^Vendor:" | cut -f2-)
+    device_name=$(echo "$full_info" | grep "^Device:" | cut -f2-)
+
+    description="$vendor_name $device_name"
+    pci_id="0000:$slot"
+
+    driver=""
+    if [[ "$vendor_id_hex" == "1002" ]]; then
+        driver="amdgpu"
+    elif [[ "$vendor_id_hex" = "8086" ]]; then
+        driver="intel"
+    fi
+
+    device_id=""
+    card_path=""
+    if [ -n "${gpu_map[$pci_id]}" ]; then
+        device_id="${gpu_map[$pci_id]}"
+        card_name=$(basename "$device_id")
+        card_path="/sys/class/drm/$card_name"
+    else
+        device_id="${pci_id}"
+    fi
+
+    local devices=()
+    local binds=()
+    local cap_add=()
+    local group_add=()
+    local ipc_mode="null"
+    local shm_size="null"
+    local security_opt="null"
+
+    if [ -n "$card_path" ] && [ -e "$card_path" ]; then
+        local real_device_path=$(readlink -f "$card_path/device")
+        local render_name=""
+        if [ -d "$real_device_path/drm" ]; then
+            render_name=$(ls "$real_device_path/drm" | grep "^renderD" | head -n 1)
+        fi
+
+        case "$vendor_id_hex" in
+            "1002") # AMD
+                if [ -e "/dev/dxg" ]; then
+                    devices+=("/dev/dxg")
+                else
+                    devices+=("/dev/kfd")
+                fi
+                [ -n "$render_name" ] && devices+=("/dev/dri/$render_name")
+                devices+=("$device_id")
+                [ -e "/opt/rocm/lib/libhsa-runtime64.so.1" ] && \
+                    binds+=("/opt/rocm/lib/libhsa-runtime64.so.1:/opt/rocm/lib/libhsa-runtime64.so.1")
+                cap_add+=("SYS_PTRACE")
+                ipc_mode="\"host\""
+                shm_size="8589934592"
+                security_opt='{"seccomp": "unconfined"}'
+                ;;
+            "8086") # Intel
+                [ -n "$render_name" ] && devices+=("/dev/dri/$render_name")
+                devices+=("$device_id")
+                group_add+=("video" "render")
+                cap_add+=("SYS_ADMIN")
+                ;;
+        esac
+    else
+        if [[ "$vendor_id_hex" == "1002" ]] || [[ "$vendor_id_hex" == "8086" ]]; then
+            if [[ "$device_id" == /dev/* ]]; then
+                devices+=("$device_id")
+            fi
+        fi
+    fi
+
+    json_devices=$(printf '%s\n' "${devices[@]}" | jq -R . | jq -s . | jq 'map(select(length > 0))')
+    json_binds=$(printf '%s\n' "${binds[@]}" | jq -R . | jq -s . | jq 'map(select(length > 0))')
+    json_cap=$(printf '%s\n' "${cap_add[@]}" | jq -R . | jq -s . | jq 'map(select(length > 0))')
+    json_group=$(printf '%s\n' "${group_add[@]}" | jq -R . | jq -s . | jq 'map(select(length > 0))')
+
+    if [ "$(echo "$json_devices" | jq length)" -eq 0 ]; then
+        json_devices="[\"$device_id\"]"
+    fi
+
+    jq -c -n \
+        --arg desc "$description" \
+        --arg driver "$driver" \
+        --arg device_id "$device_id" \
+        --argjson dev "$json_devices" \
+        --argjson bind "$json_binds" \
+        --argjson cap "$json_cap" \
+        --argjson group "$json_group" \
+        --argjson sec "$security_opt" \
+        --argjson shm "$shm_size" \
+        --argjson ipc "$ipc_mode" \
+        '{
+            description: $desc,
+            init: {
+                deviceRequests: {
+                    Driver: (if $driver != "" then $driver else null end),
+                    Devices: $dev,
+                    Capabilities: [["gpu"]]
+                },
+                Binds: $bind,
+                CapAdd: $cap,
+                GroupAdd: $group,
+                SecurityOpt: $sec,
+                ShmSize: $shm,
+                IpcMode: $ipc
+            }
+        } | del(.. | select(. == null)) | del(.. | select(. == []))'
+}
+
+# Function to check for other GPUs (AMD, Intel, etc.) via lspci
+get_generic_gpus() {
+    if ! command -v lspci &> /dev/null; then
+        return
+    fi
+    map_pci_to_primary
+    lspci -mm -n -d ::0300 | while read -r line; do process_pci_line "$line"; done
+    lspci -mm -n -d ::0302 | while read -r line; do process_pci_line "$line"; done
+}
+
+# Function to get all GPUs in JSON array format
+get_all_gpus_json() {
+    (
+        get_nvidia_gpus
+        get_generic_gpus
+    ) | jq -s '
+        group_by(.description) | map({
+            id: (.[0].description | ascii_downcase | gsub("[^a-z0-9]"; "-") | gsub("-+"; "-") | sub("^-"; "") | sub("-$"; "")),
+            description: .[0].description,
+            type: "gpu",
+            total: length,
+            init: {
+                deviceRequests: {
+                    Driver: .[0].init.deviceRequests.Driver,
+                    (if .[0].init.deviceRequests.Driver == "nvidia" then "DeviceIDs" else "Devices" end): (map(.init.deviceRequests.Devices[]?) | unique),
+                    Capabilities: [["gpu"]]
+                },
+                Binds: (map(.init.Binds[]?) | unique),
+                CapAdd: (map(.init.CapAdd[]?) | unique),
+                GroupAdd: (map(.init.GroupAdd[]?) | unique),
+                SecurityOpt: .[0].init.SecurityOpt,
+                ShmSize: .[0].init.ShmSize,
+                IpcMode: .[0].init.IpcMode
+            } | del(.. | select(. == null)) | del(.. | select(. == []))
+        }) | map(if .init.deviceRequests.Driver == null then del(.init.deviceRequests.Driver) else . end)
+    '
+}
+
+if command -v jq &> /dev/null; then
   echo "Checking for GPUs..."
-  source "$LIST_GPUS_SCRIPT"
   DETECTED_GPUS=$(get_all_gpus_json)
-  
-  # Check if we got any GPUs (array not empty)
   GPU_COUNT=$(echo "$DETECTED_GPUS" | jq 'length')
-  
+
   if [ "$GPU_COUNT" -gt 0 ]; then
     echo "Detected $GPU_COUNT GPU type(s). Updating configuration..."
-    
-    # Merge detected GPUs into the resources array of the first environment
-    # We use jq to append the detected GPU objects to existing resources
     DOCKER_COMPUTE_ENVIRONMENTS=$(echo "$DOCKER_COMPUTE_ENVIRONMENTS" | jq --argjson gpus "$DETECTED_GPUS" '.[0].resources += $gpus')
-    
-    # Also update free resources to include GPUs if desired, or at least the pricing?
-    # For now, let's just ensure they are in the available resources list.
     echo "GPUs added to Compute Environment resources."
   else
     echo "No GPUs detected."
   fi
-else
-  echo "Skipping GPU detection (script not found or jq missing)."
 fi
 
 echo $DOCKER_COMPUTE_ENVIRONMENTS
@@ -338,7 +518,6 @@ services:
       ALLOWED_ADMINS: '["$ALLOWED_ADMINS"]'
 #      ALLOWED_ADMINS_LIST: ''
 #      INDEXER_INTERVAL: ''
-      CONTROL_PANEL: 'true'
 #      RATE_DENY_LIST: ''
 #      MAX_REQ_PER_MINUTE: ''
 #      MAX_CONNECTIONS_PER_MINUTE: ''
