@@ -13,7 +13,6 @@ import {
   AbstractLogDatabase,
   AbstractOrderDatabase
 } from './BaseDatabase.js'
-import { DDOManager } from '@oceanprotocol/ddo-js'
 import { validateDDO } from '../../utils/asset.js'
 
 export class TypesenseOrderDatabase extends AbstractOrderDatabase {

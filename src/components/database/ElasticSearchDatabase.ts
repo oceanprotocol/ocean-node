@@ -12,7 +12,6 @@ import { ElasticsearchSchema } from './ElasticSchemas.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 
-import { DDOManager } from '@oceanprotocol/ddo-js'
 import { validateDDO } from '../../utils/asset.js'
 
 export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
