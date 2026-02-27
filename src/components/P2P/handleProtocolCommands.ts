@@ -172,16 +172,20 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
     // Send status first
     stream.send(uint8ArrayFromString(JSON.stringify(response.status)))
 
-    // Stream data chunks without buffering, with backpressure support
+    const SEND_CHUNK_SIZE = 64 * 1024
     if (response.stream) {
       for await (const chunk of response.stream as Readable) {
         const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
-
-        // Handle backpressure - if send returns false, wait for drain
-        if (!stream.send(bytes)) {
-          await stream.onDrain({
-            signal: AbortSignal.timeout(5 * 60 * 1000) // 5 minutes timeout for drain
-          })
+        for (let offset = 0; offset < bytes.length; offset += SEND_CHUNK_SIZE) {
+          const slice = bytes.subarray(
+            offset,
+            Math.min(offset + SEND_CHUNK_SIZE, bytes.length)
+          )
+          if (!stream.send(slice)) {
+            await stream.onDrain({
+              signal: AbortSignal.timeout(5 * 60 * 1000) // 5 minutes timeout for drain
+            })
+          }
         }
       }
     }

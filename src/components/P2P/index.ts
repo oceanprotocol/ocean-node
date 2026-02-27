@@ -429,6 +429,7 @@ export class OceanP2P extends EventEmitter {
           yamux({
             maxMessageSize: 5 * 1024 * 1024,
             streamOptions: {
+              initialStreamWindowSize: 5 * 1024 * 1024,
               maxStreamWindowSize: 5 * 1024 * 1024
             }
           })
