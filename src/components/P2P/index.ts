@@ -5,6 +5,7 @@ import { handleProtocolCommands } from './handlers.js'
 
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
+import { lpStream } from '@libp2p/utils'
 import type { Stream } from '@libp2p/interface'
 
 import { bootstrap } from '@libp2p/bootstrap'
@@ -778,22 +779,34 @@ export class OceanP2P extends EventEmitter {
     }
 
     try {
-      // Send message and close write side
-      stream.send(uint8ArrayFromString(message))
-      await stream.close()
+      const lp = lpStream(stream)
+      const writeSignal = AbortSignal.timeout(10_000)
+      const readSignal = AbortSignal.timeout(10_000)
 
-      // Read and parse status from first chunk
-      const iterator = stream[Symbol.asyncIterator]()
-      const { done, value } = await iterator.next()
+      await lp.write(uint8ArrayFromString(message), { signal: writeSignal })
 
-      if (done || !value) {
-        return { status: { httpStatus: 500, error: 'No response from peer' } }
+      const statusBytes = await lp.read({ signal: readSignal })
+      const status = JSON.parse(uint8ArrayToString(statusBytes.subarray()))
+
+      // Return status and remaining stream (length-prefixed messages)
+      const streamTimeout = 30_000
+      return {
+        status,
+        stream: {
+          [Symbol.asyncIterator]: async function* () {
+            try {
+              while (true) {
+                const chunk = await lp.read({
+                  signal: AbortSignal.timeout(streamTimeout)
+                })
+                yield chunk.subarray ? chunk.subarray() : chunk
+              }
+            } catch {
+              // stream ended or closed
+            }
+          }
+        }
       }
-
-      const status = JSON.parse(uint8ArrayToString(value.subarray()))
-
-      // Return status and remaining stream
-      return { status, stream: { [Symbol.asyncIterator]: () => iterator } }
     } catch (err) {
       P2P_LOGGER.error(`P2P communication error: ${err.message}`)
       try {
