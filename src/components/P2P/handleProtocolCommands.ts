@@ -188,6 +188,8 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
           }
         }
       }
+      // Ensure last chunk is flushed before closing (avoid remote close before client reads tail)
+      await stream.onDrain({ signal: AbortSignal.timeout(30000) })
     }
 
     await stream.close()
