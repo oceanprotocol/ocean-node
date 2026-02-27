@@ -1,7 +1,6 @@
 import { Readable } from 'stream'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
-import { byteStream } from '@libp2p/utils'
 
 import { P2P_LOGGER } from '../../utils/logging/common.js'
 import { Command } from '../../@types/commands.js'
@@ -14,9 +13,6 @@ import {
   checkRequestsRateLimit
 } from '../../utils/validators.js'
 import type { Connection, Stream } from '@libp2p/interface'
-
-const P2P_READ_TIMEOUT_MS = 30_000
-const P2P_DRAIN_TIMEOUT_MS = 30_000
 
 export class ReadableString extends Readable {
   private sent = false
@@ -94,21 +90,25 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
     return
   }
 
-  // Resume the stream. We can now read/write.
+  // Resume the stream. We can now write.
   stream.resume()
 
-  const bytes = byteStream(stream)
+  // v3 streams are AsyncIterable
   let task: Command
   try {
-    const data = await bytes.read({
-      signal: AbortSignal.timeout(P2P_READ_TIMEOUT_MS)
-    })
-    const str = uint8ArrayToString(data.subarray())
-    task = JSON.parse(str) as Command
+    for await (const chunk of stream) {
+      try {
+        const str = uint8ArrayToString(chunk.subarray())
+        task = JSON.parse(str) as Command
+      } catch (e) {
+        await sendErrorAndClose(400, 'Invalid command')
+        return
+      }
+    }
   } catch (err) {
     P2P_LOGGER.log(
       LOG_LEVELS_STR.LEVEL_ERROR,
-      `Unable to process P2P command: ${err?.message ?? err}`
+      `Unable to process P2P command: ${err.message}`
     )
     await sendErrorAndClose(400, 'Invalid command')
     return
@@ -133,25 +133,23 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
     task.caller = remotePeer.toString()
     const response: P2PCommandResponse = await handler.handle(task)
 
-    // Send status first (byteStream imperative write)
-    await bytes.write(uint8ArrayFromString(JSON.stringify(response.status)), {
-      signal: AbortSignal.timeout(P2P_READ_TIMEOUT_MS)
-    })
+    // Send status first
+    stream.send(uint8ArrayFromString(JSON.stringify(response.status)))
 
     // Stream data chunks without buffering, with backpressure support
     if (response.stream) {
       for await (const chunk of response.stream as Readable) {
-        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+        const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
 
         // Handle backpressure - if send returns false, wait for drain
-        if (!stream.send(buf)) {
+        if (!stream.send(bytes)) {
           await stream.onDrain({
-            signal: AbortSignal.timeout(P2P_DRAIN_TIMEOUT_MS)
+            signal: AbortSignal.timeout(30000) // 30 second timeout for drain
           })
         }
       }
       // Ensure last chunk is flushed before closing (avoid remote close before client reads tail)
-      await stream.onDrain({ signal: AbortSignal.timeout(P2P_DRAIN_TIMEOUT_MS) })
+      await stream.onDrain({ signal: AbortSignal.timeout(30000) })
     }
 
     await stream.close()
