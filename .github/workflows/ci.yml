@@ -308,10 +308,27 @@ jobs:
         with:
           repository: 'oceanprotocol/ocean-cli'
           path: 'ocean-cli'
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'v20.19.0'
+      - name: Checkout Ocean-js
+        uses: actions/checkout@v4
+        with:
+          repository: 'oceanprotocol/ocean.js'
+          path: 'ocean.js'
+          ref: feature/refactor_signatures
+      - name: Build ocean-js
+        working-directory: ${{ github.workspace }}/ocean.js
+        run: |
+          npm ci
+          npm run build
+          npm link
       - name: Setup Ocean CLI
         working-directory: ${{ github.workspace }}/ocean-cli
         run: |
           npm ci
+          npm link @oceanprotocol/lib
           npm run build
       - name: Run system tests
         working-directory: ${{ github.workspace }}/ocean-cli
@@ -333,22 +350,3 @@ jobs:
           docker logs ocean-typesense-1 || echo "No ocean-typesense-1 container"
           echo "=== System Processes ==="
           ps aux | grep -E "(node|ocean)" || echo "No node/ocean processes found"
-
-  control_panel_build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 'v22.15.0'
-      - name: Cache node_modules
-        uses: actions/cache@v3
-        env:
-          cache-name: cache-node-modules
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-control-panel-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: ${{ runner.os }}-control-panel-${{ env.cache-name }}-
-      - run: npm ci
-      - name: Build control panel
-        run: npm run build:controlpanel

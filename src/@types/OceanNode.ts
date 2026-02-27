@@ -116,7 +116,6 @@ export interface OceanNodeConfig {
   p2pConfig: OceanNodeP2PConfig | null
   hasIndexer: boolean
   hasHttp: boolean
-  hasControlPanel: boolean
   dbConfig?: OceanNodeDBConfig
   httpPort: number
   feeStrategy: FeeStrategy

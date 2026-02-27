@@ -286,7 +286,7 @@ export class C2DEngineDocker extends C2DEngine {
       }
     }
     this.envs[0].id =
-      this.getC2DConfig().hash + '-' + create256Hash(JSON.stringify(this.envs[0]))
+      this.getC2DConfig().hash + '-' + create256Hash(JSON.stringify(this.envs[0].fees))
 
     // only now set the timer
     if (!this.cronTimer) {
@@ -702,11 +702,10 @@ export class C2DEngineDocker extends C2DEngine {
     if (!this.docker) return []
     const filteredEnvs = []
     // const systemInfo = this.docker ? await this.docker.info() : null
-    for (const computeEnv of this.envs) {
-      if (
-        !chainId ||
-        (computeEnv.fees && Object.hasOwn(computeEnv.fees, String(chainId)))
-      ) {
+    for (const env of this.envs) {
+      if (!chainId || (env.fees && Object.hasOwn(env.fees, String(chainId)))) {
+        const computeEnv = JSON.parse(JSON.stringify(env))
+
         // TO DO - At some point in time we need to handle multiple runtimes
         // console.log('********************************')
         // console.log(systemInfo.GenericResources)
@@ -734,10 +733,12 @@ export class C2DEngineDocker extends C2DEngine {
         computeEnv.queMaxWaitTimeFree = maxWaitTimeFree
         computeEnv.runMaxWaitTime = maxRunningTime
         computeEnv.runMaxWaitTimeFree = maxRunningTimeFree
-        for (let i = 0; i < computeEnv.resources.length; i++) {
-          if (computeEnv.resources[i].id in usedResources)
-            computeEnv.resources[i].inUse = usedResources[computeEnv.resources[i].id]
-          else computeEnv.resources[i].inUse = 0
+        if (computeEnv.resources) {
+          for (let i = 0; i < computeEnv.resources.length; i++) {
+            if (computeEnv.resources[i].id in usedResources)
+              computeEnv.resources[i].inUse = usedResources[computeEnv.resources[i].id]
+            else computeEnv.resources[i].inUse = 0
+          }
         }
         if (computeEnv.free && computeEnv.free.resources) {
           for (let i = 0; i < computeEnv.free.resources.length; i++) {

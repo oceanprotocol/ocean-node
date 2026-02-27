@@ -254,7 +254,12 @@ export abstract class C2DEngine {
   public async getUsedResources(env: ComputeEnvironment): Promise<any> {
     const usedResources: { [x: string]: any } = {}
     const usedFreeResources: { [x: string]: any } = {}
-    const jobs = await this.db.getRunningJobs(this.getC2DConfig().hash)
+    let jobs: DBComputeJob[] = []
+    try {
+      jobs = await this.db.getRunningJobs(this.getC2DConfig().hash)
+    } catch (e) {
+      CORE_LOGGER.error('Failed to get running jobs:' + e.message)
+    }
     let totalJobs = 0
     let totalFreeJobs = 0
     let queuedJobs = 0

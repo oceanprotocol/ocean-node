@@ -162,25 +162,12 @@ aquariusRoutes.post(`${AQUARIUS_API_BASE_PATH}/assets/ddo/validate`, async (req,
       return
     }
 
-    const requestBody = JSON.parse(req.body)
-    const authorization = req.headers?.authorization
-    const { publisherAddress, nonce, signature } = requestBody
-
-    // This is for backward compatibility with the old way of sending the DDO
-    const ddo = requestBody.ddo || JSON.parse(req.body)
-
-    if (!ddo.version) {
-      res.status(400).send('Missing DDO version')
-      return
-    }
-
     const result = await new ValidateDDOHandler(node).handle({
-      ddo,
-      publisherAddress,
-      authorization,
-      nonce,
-      signature,
-      message: ddo.id + nonce,
+      ddo: req.body.ddo || null,
+      publisherAddress: (req.body.publisherAddress as string) || null,
+      signature: (req.body.signature as string) || null,
+      nonce: (req.body.nonce as string) || null,
+      authorization: req.headers?.authorization,
       command: PROTOCOL_COMMANDS.VALIDATE_DDO,
       caller: req.caller
     })

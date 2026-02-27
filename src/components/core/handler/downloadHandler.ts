@@ -186,20 +186,20 @@ export class DownloadHandler extends CommandHandler {
 
   async handle(task: DownloadCommand): Promise<P2PCommandResponse> {
     const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
+    }
     const isAuthRequestValid = await this.validateTokenOrSignature(
       task.authorization,
       task.consumerAddress,
       task.nonce,
       task.signature,
-      String(task.documentId + task.nonce)
+      task.command
     )
     if (isAuthRequestValid.status.httpStatus !== 200) {
       return isAuthRequestValid
     }
 
-    if (this.shouldDenyTaskHandling(validationResponse)) {
-      return validationResponse
-    }
     const node = this.getOceanNode()
     // 1. Get the DDO
     const handler: FindDdoHandler = node
@@ -531,7 +531,7 @@ export class DownloadHandler extends CommandHandler {
       return await handleDownloadUrlCommand(node, {
         fileObject: decriptedFileObject,
         aes_encrypted_key: task.aes_encrypted_key,
-        command: PROTOCOL_COMMANDS.DOWNLOAD_URL
+        command: PROTOCOL_COMMANDS.DOWNLOAD
       })
     } catch (e) {
       CORE_LOGGER.logMessage('Decryption error: ' + e, true)
