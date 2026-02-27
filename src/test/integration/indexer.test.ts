@@ -350,11 +350,12 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should get the updated state', async function () {
-    // const result = await nftContract.getMetaData()
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+    const result = await nftContract.getMetaData()
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.METADATA_UPDATED,
-      DEFAULT_TEST_TIMEOUT,
+      DEFAULT_TEST_TIMEOUT * 3,
       true
     )
     const retrievedDDO: any = ddo
@@ -362,9 +363,9 @@ describe('Indexer stores a new metadata events and orders.', () => {
       expect(retrievedDDO.indexedMetadata.nft).to.not.equal(undefined)
       expect(retrievedDDO).to.have.nested.property('indexedMetadata.nft.state')
       // Expect the result from contract
-      // expect(retrievedDDO.indexedMetadata.nft.state).to.equal(
-      //   parseInt(result[2].toString())
-      // )
+      expect(retrievedDDO.indexedMetadata.nft.state).to.equal(
+        parseInt(result[2].toString())
+      )
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
 
@@ -605,24 +606,25 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('Deprecated asset should have a short version of ddo', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
     const result = await nftContract.getMetaData()
     expect(parseInt(result[2].toString())).to.equal(2)
 
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.METADATA_STATE,
-      DEFAULT_TEST_TIMEOUT,
+      DEFAULT_TEST_TIMEOUT * 3,
       true
     )
     const resolvedDDO: any = ddo
     if (resolvedDDO) {
       // Expect a short version of the DDO
       expect(Object.keys(resolvedDDO).length).to.equal(5)
-      // expect(
-      //   'id' in resolvedDDO &&
-      //     'nftAddress' in resolvedDDO &&
-      //     'nft' in resolvedDDO.indexedMetadata
-      // ).to.equal(true)
+      expect(
+        'id' in resolvedDDO &&
+          'nftAddress' in resolvedDDO &&
+          'nft' in resolvedDDO.indexedMetadata
+      ).to.equal(true)
     } else {
       expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
     }
