@@ -55,6 +55,39 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
   P2P_LOGGER.logMessage('Incoming connection from peer ' + remotePeer, true)
   P2P_LOGGER.logMessage('Using ' + remoteAddr, true)
 
+  // Read command from stream immediately so we don't leave data unread (avoids
+  // read-buffer overflow reset) and so the client sees progress before any slow work.
+  let task: Command | null | undefined
+  try {
+    for await (const chunk of stream) {
+      try {
+        const str = uint8ArrayToString(chunk.subarray())
+        task = JSON.parse(str) as Command
+      } catch (e) {
+        task = null
+        break
+      }
+      break
+    }
+  } catch (err) {
+    const msg = safeErrorMessage(err)
+    P2P_LOGGER.log(
+      LOG_LEVELS_STR.LEVEL_ERROR,
+      `Unable to process P2P command: ${msg}`
+    )
+    if (!isStreamGoneError(err)) {
+      // sendErrorAndClose not yet defined; stream may be gone anyway
+      try {
+        if (!['closed', 'closing', 'aborted', 'reset'].includes(stream.status)) {
+          const status = { httpStatus: 400, error: msg }
+          stream.send(uint8ArrayFromString(JSON.stringify(status)))
+          await stream.close()
+        }
+      } catch {}
+    }
+    return
+  }
+
   const sendErrorAndClose = async (httpStatus: number, error: string) => {
     try {
       // Skip if stream is already closed, closing, aborted, or reset
@@ -106,30 +139,6 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
       `Exceeded limit of connections per minute ${configuration.maxConnections}: ${connectionsRateValidation.error}`
     )
     await sendErrorAndClose(403, 'Rate limit exceeded')
-    return
-  }
-
-  // v3 streams are AsyncIterable
-  let task: Command
-  try {
-    for await (const chunk of stream) {
-      try {
-        const str = uint8ArrayToString(chunk.subarray())
-        task = JSON.parse(str) as Command
-      } catch (e) {
-        await sendErrorAndClose(400, 'Invalid command')
-        return
-      }
-    }
-  } catch (err) {
-    const msg = safeErrorMessage(err)
-    P2P_LOGGER.log(
-      LOG_LEVELS_STR.LEVEL_ERROR,
-      `Unable to process P2P command: ${msg}`
-    )
-    if (!isStreamGoneError(err)) {
-      await sendErrorAndClose(400, 'Invalid command')
-    }
     return
   }
 
