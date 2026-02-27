@@ -797,7 +797,7 @@ describe('Compute', () => {
       nonce: nonce2,
       signature: signature2
     })
-    console.log(response)
+    console.log({ response })
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
