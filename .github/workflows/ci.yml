@@ -317,7 +317,7 @@ jobs:
         with:
           repository: 'oceanprotocol/ocean.js'
           path: 'ocean.js'
-          ref: feature/refactor_signatures
+          ref: main
       - name: Build ocean-js
         working-directory: ${{ github.workspace }}/ocean.js
         run: |
