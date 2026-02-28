@@ -148,20 +148,12 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
 
     await stream.close()
   } catch (err) {
-    const errMessage = (() => {
-      if (err instanceof Error) return err.message
-      if (err != null && typeof err === 'object' && 'type' in err) {
-        const e = err as { type?: string; message?: string }
-        return e.message ?? `Event: ${e.type ?? 'unknown'}`
-      }
-      return err != null ? String(err) : 'Unknown error'
-    })()
     P2P_LOGGER.logMessageWithEmoji(
-      'handleProtocolCommands Error: ' + errMessage,
+      'handleProtocolCommands Error: ' + err.message,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
     )
-    await sendErrorAndClose(500, errMessage)
+    await sendErrorAndClose(500, err.message)
   }
 }
