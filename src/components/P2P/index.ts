@@ -438,6 +438,9 @@ export class OceanP2P extends EventEmitter {
           dialTimeout: config.p2pConfig.connectionsDialTimeout,
           maxConnections: config.p2pConfig.maxConnections,
           maxPeerAddrsToDial: config.p2pConfig.maxPeerAddrsToDial
+        },
+        connectionMonitor: {
+          abortConnectionOnPingFailure: false
         }
       }
       if (config.p2pConfig.bootstrapNodes && config.p2pConfig.bootstrapNodes.length > 0) {
@@ -788,22 +791,16 @@ export class OceanP2P extends EventEmitter {
       const statusBytes = await lp.read({ signal: readSignal })
       const status = JSON.parse(uint8ArrayToString(statusBytes.subarray()))
 
-      // Return status and remaining stream (length-prefixed messages)
-      const streamTimeout = 30_000
       return {
         status,
         stream: {
           [Symbol.asyncIterator]: async function* () {
             try {
               while (true) {
-                const chunk = await lp.read({
-                  signal: AbortSignal.timeout(streamTimeout)
-                })
+                const chunk = await lp.read()
                 yield chunk.subarray ? chunk.subarray() : chunk
               }
-            } catch {
-              // stream ended or closed
-            }
+            } catch {}
           }
         }
       }

@@ -32,35 +32,6 @@ export class ReadableString extends Readable {
   }
 }
 
-/** Serialize any thrown value for debugging (Error, Event, plain object). */
-function serializeErrorForDebug(err: unknown): Record<string, unknown> {
-  try {
-    if (err instanceof Error) {
-      return { name: err.name, message: err.message, stack: err.stack }
-    }
-    if (err != null && typeof err === 'object') {
-      const o = err as Record<string, unknown>
-      const out: Record<string, unknown> = {}
-      for (const key of Object.keys(o)) {
-        try {
-          const v = o[key]
-          if (v === null || typeof v !== 'object' || typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
-            out[key] = v
-          } else {
-            out[key] = String(v)
-          }
-        } catch {
-          out[key] = '[unserializable]'
-        }
-      }
-      return out
-    }
-    return { value: err }
-  } catch {
-    return { raw: String(err) }
-  }
-}
-
 export async function handleProtocolCommands(stream: Stream, connection: Connection) {
   const { remotePeer, remoteAddr } = connection
 
@@ -70,7 +41,6 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
   P2P_LOGGER.logMessage('Incoming connection from peer ' + remotePeer, true)
   P2P_LOGGER.logMessage('Using ' + remoteAddr, true)
 
-  // Resume and use length-prefixed messages (libp2p v3 byteStream migration)
   stream.resume()
   const lp = lpStream(stream)
   const readWriteSignal = () => AbortSignal.timeout(30_000)
@@ -85,7 +55,9 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
         P2P_LOGGER.warn('Stream already closed, cannot send error response')
         return
       }
-      const status = errorDebug ? { httpStatus, error, errorDebug } : { httpStatus, error }
+      const status = errorDebug
+        ? { httpStatus, error, errorDebug }
+        : { httpStatus, error }
       await lp.write(uint8ArrayFromString(JSON.stringify(status)), {
         signal: readWriteSignal()
       })
@@ -184,14 +156,12 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
       }
       return err != null ? String(err) : 'Unknown error'
     })()
-    const errorDebug = serializeErrorForDebug(err)
     P2P_LOGGER.logMessageWithEmoji(
       'handleProtocolCommands Error: ' + errMessage,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
     )
-    P2P_LOGGER.error('handleProtocolCommands error object (debug): ' + JSON.stringify(errorDebug))
-    await sendErrorAndClose(500, errMessage, errorDebug)
+    await sendErrorAndClose(500, errMessage)
   }
 }
