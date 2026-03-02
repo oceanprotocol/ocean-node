@@ -2280,9 +2280,7 @@ describe('Compute Access Restrictions', () => {
                 minJobDuration: 60,
                 access: {
                   addresses: [],
-                  accessLists: {
-                    [DEVELOPMENT_CHAIN_ID]: [accessListAddress]
-                  }
+                  accessLists: [{ [DEVELOPMENT_CHAIN_ID]: [accessListAddress] }]
                 },
                 fees: {
                   [DEVELOPMENT_CHAIN_ID]: [
@@ -2298,9 +2296,7 @@ describe('Compute Access Restrictions', () => {
                   maxJobs: 3,
                   access: {
                     addresses: [],
-                    accessLists: {
-                      DEVELOPMENT_CHAIN_ID: [accessListAddress]
-                    }
+                    accessLists: [{ [DEVELOPMENT_CHAIN_ID]: [accessListAddress] }]
                   },
                   resources: [
                     { id: 'cpu', max: 1 },
@@ -2357,7 +2353,9 @@ describe('Compute Access Restrictions', () => {
       firstEnv = computeEnvironments[0]
       assert(firstEnv.access, 'Access control should exist')
       assert(
-        firstEnv.access.accessLists[DEVELOPMENT_CHAIN_ID].includes(accessListAddress),
+        firstEnv.access.accessLists?.some((map) =>
+          map?.[DEVELOPMENT_CHAIN_ID]?.includes(accessListAddress)
+        ),
         'Should have access list address'
       )
     })
