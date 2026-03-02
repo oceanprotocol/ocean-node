@@ -476,6 +476,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     if (ddo) {
       const retrievedDDO = ddo
       console.log('indexer retrieved ddo: ', JSON.stringify(retrievedDDO))
+      console.log('stats: ', JSON.stringify(retrievedDDO.indexedMetadata.stats))
       for (const stat of retrievedDDO.indexedMetadata.stats) {
         if (stat.datatokenAddress === datatokenAddress) {
           expect(stat.orders).to.equal(1)
