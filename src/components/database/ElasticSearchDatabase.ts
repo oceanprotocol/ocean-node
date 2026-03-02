@@ -241,8 +241,7 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
         index: this.index,
         body: {
           query
-        },
-        preference: '_primary_first'
+        }
       })
       console.log('Query result: ', result)
       return result.hits.hits.map((hit: any) => {
