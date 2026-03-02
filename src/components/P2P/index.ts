@@ -437,6 +437,9 @@ export class OceanP2P extends EventEmitter {
           dialTimeout: config.p2pConfig.connectionsDialTimeout,
           maxConnections: config.p2pConfig.maxConnections,
           maxPeerAddrsToDial: config.p2pConfig.maxPeerAddrsToDial
+        },
+        connectionMonitor: {
+          abortConnectionOnPingFailure: false
         }
       }
       if (config.p2pConfig.bootstrapNodes && config.p2pConfig.bootstrapNodes.length > 0) {
