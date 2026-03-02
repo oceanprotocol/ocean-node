@@ -138,7 +138,9 @@ export const ComputeEnvironmentFreeOptionsSchema = z.object({
   access: z
     .object({
       addresses: z.array(z.string()),
-      accessLists: z.array(z.string())
+      accessLists: z
+        .array(z.record(z.string(), z.array(z.string())).nullable())
+        .optional()
     })
     .optional()
 })
@@ -160,7 +162,7 @@ export const C2DDockerConfigSchema = z.array(
       access: z
         .object({
           addresses: z.array(z.string()),
-          accessLists: z.array(z.string())
+          accessLists: z.array(z.record(z.string(), z.array(z.string())).nullable())
         })
         .optional(),
       fees: z.record(z.string(), z.array(ComputeEnvFeesSchema)).optional(),
