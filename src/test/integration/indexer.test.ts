@@ -100,6 +100,11 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
     const config = await getConfiguration(true)
     database = await Database.init(config.dbConfig)
+
+    const oldIndexer = OceanNode.getInstance(config, database).getIndexer()
+    if (oldIndexer) {
+      await oldIndexer.stopAllChainIndexers()
+    }
     oceanNode = OceanNode.getInstance(
       config,
       database,
