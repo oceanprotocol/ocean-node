@@ -226,8 +226,16 @@ export class C2DEngineDocker extends C2DEngine {
 
     if (envConfig.resources) {
       for (const res of envConfig.resources) {
-        // allow user to add other resources
-        if (res.id !== 'cpu' && res.id !== 'ram') {
+        if (res.id === 'cpu' || res.id === 'ram') {
+          // allow config to override cpu/ram per env
+          const existing = this.envs[0].resources.find((r) => r.id === res.id)
+          if (existing) {
+            if (res.total != null) existing.total = res.total
+            if (res.max != null) existing.max = res.max
+            else if (res.total != null) existing.max = res.total
+            if (res.min != null) existing.min = res.min
+          }
+        } else {
           if (!res.max) res.max = res.total
           if (!res.min) res.min = 0
           this.envs[0].resources.push(res)
