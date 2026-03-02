@@ -208,25 +208,36 @@ export class C2DEngineDocker extends C2DEngine {
     if (`maxJobs` in envConfig) this.envs[0].maxJobs = envConfig.maxJobs
     // let's add resources
     this.envs[0].resources = []
-    this.envs[0].resources.push({
+    const cpuResources = {
       id: 'cpu',
       type: 'cpu',
       total: sysinfo.NCPU,
       max: sysinfo.NCPU,
       min: 1,
       description: os.cpus()[0].model
-    })
-    this.envs[0].resources.push({
+    }
+    const ramResources = {
       id: 'ram',
       type: 'ram',
       total: Math.floor(sysinfo.MemTotal / 1024 / 1024 / 1024),
       max: Math.floor(sysinfo.MemTotal / 1024 / 1024 / 1024),
       min: 1
-    })
+    }
 
     if (envConfig.resources) {
       for (const res of envConfig.resources) {
         // allow user to add other resources
+        if (res.id === 'cpu') {
+          if (res.total) cpuResources.total = res.total
+          if (res.max) cpuResources.max = res.max
+          if (res.min) cpuResources.min = res.min
+        }
+        if (res.id === 'ram') {
+          if (res.total) ramResources.total = res.total
+          if (res.max) ramResources.max = res.max
+          if (res.min) ramResources.min = res.min
+        }
+
         if (res.id !== 'cpu' && res.id !== 'ram') {
           if (!res.max) res.max = res.total
           if (!res.min) res.min = 0
@@ -234,6 +245,8 @@ export class C2DEngineDocker extends C2DEngine {
         }
       }
     }
+    this.envs[0].resources.push(cpuResources)
+    this.envs[0].resources.push(ramResources)
     /* TODO  - get namedresources & discreete one 
     if (sysinfo.GenericResources) {
       for (const [key, value] of Object.entries(sysinfo.GenericResources)) {
