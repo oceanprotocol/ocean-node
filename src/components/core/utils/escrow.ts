@@ -358,19 +358,23 @@ export class Escrow {
     chain: number,
     jobs: string[],
     tokens: string[],
-    payers: string[]
+    payers: string[],
+    generateHash: boolean = true
   ): Promise<string | null> {
     const blockchain = this.getBlockchain(chain)
     const signer = await blockchain.getSigner()
+    const ourAddress = await signer.getAddress()
     if (jobs.length !== tokens.length || jobs.length !== payers.length) {
       throw new Error('Invalid input: all arrays must have the same length')
     }
     const jobIds: string[] = []
     const payersAddresses: string[] = []
     for (let i = 0; i < jobs.length; i++) {
-      const jobId = create256Hash(jobs[i])
+      let jobId
+      if (generateHash) jobId = create256Hash(jobs[i])
+      else jobId = jobs[i]
       jobIds.push(jobId)
-      payersAddresses.push(await signer.getAddress())
+      payersAddresses.push(ourAddress)
     }
     const contract = this.getContract(chain, signer)
 

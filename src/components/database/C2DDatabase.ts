@@ -113,6 +113,8 @@ export class C2DDatabase extends AbstractDatabase {
    * @returns array of eexpired jobs
    */
   async cleanStorageExpiredJobs(): Promise<number> {
+    const allEnvironments: ComputeEnvironment[] = []
+    const currentTimestamp = Date.now() / 1000
     const config = await getConfiguration(true)
     const allEngines = await OceanNode.getInstance(
       config,
@@ -121,15 +123,17 @@ export class C2DDatabase extends AbstractDatabase {
 
     let cleaned = 0
     for (const engine of allEngines) {
-      const allEnvironments = await engine.getComputeEnvironments()
-      for (const computeEnvironment of allEnvironments) {
+      const engineEnvironments = await engine.getComputeEnvironments()
+      for (const computeEnvironment of engineEnvironments) {
+        allEnvironments.push(computeEnvironment)
         const finishedOrExpired: DBComputeJob[] = await this.provider.getFinishedJobs([
           computeEnvironment.id
         ])
         for (const job of finishedOrExpired) {
           if (
             computeEnvironment &&
-            computeEnvironment.storageExpiry > Date.now() / 1000
+            computeEnvironment.storageExpiry <
+              currentTimestamp - parseInt(job.dateFinished)
           ) {
             if (await engine.cleanupExpiredStorage(job)) {
               cleaned++
@@ -137,8 +141,9 @@ export class C2DDatabase extends AbstractDatabase {
           }
         }
       }
-      cleaned += await this.cleanOrphanJobs(allEnvironments)
     }
+    // now let's clean jobs that have an unknown envs (not in our envs)
+    cleaned += await this.cleanOrphanJobs(allEnvironments)
     return cleaned
   }
 
