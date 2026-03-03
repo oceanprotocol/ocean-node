@@ -26,6 +26,17 @@ import { hasValidDBConfiguration } from './utils/database.js'
 
 const app: Express = express()
 
+process.on('uncaughtException', (err) => {
+  OCEAN_NODE_LOGGER.error(`Uncaught exception: ${err.message}`)
+  process.exit(1)
+})
+process.on('unhandledRejection', (err) => {
+  OCEAN_NODE_LOGGER.error(
+    `Unhandled rejection: ${err instanceof Error ? err.message : String(err)}`
+  )
+  process.exit(1)
+})
+
 // const port = getRandomInt(6000,6500)
 
 express.static.mime.define({ 'image/svg+xml': ['svg'] })
