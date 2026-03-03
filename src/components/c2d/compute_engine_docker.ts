@@ -633,23 +633,22 @@ export class C2DEngineDocker extends C2DEngine {
     const jobIds: any[] = []
     const tokens: string[] = []
     const payer: string[] = []
-
-    const balocks = await this.escrow.getLocks(
-      parseInt(chain),
-      '0x0000000000000000000000000000000000000000',
-      '0x0000000000000000000000000000000000000000',
-      nodeAddress
-    )
-    for (const lock of balocks) {
-      const lockExpiry = BigInt(lock.expiry.toString())
-      if (currentTimestamp > lockExpiry) {
-        jobIds.push(lock.jobId.toString())
-        tokens.push(lock.token)
-        payer.push(lock.payer)
+    try {
+      const balocks = await this.escrow.getLocks(
+        parseInt(chain),
+        '0x0000000000000000000000000000000000000000',
+        '0x0000000000000000000000000000000000000000',
+        nodeAddress
+      )
+      for (const lock of balocks) {
+        const lockExpiry = BigInt(lock.expiry.toString())
+        if (currentTimestamp > lockExpiry) {
+          jobIds.push(lock.jobId.toString())
+          tokens.push(lock.token)
+          payer.push(lock.payer)
+        }
       }
-    }
-    if (jobIds.length > 0) {
-      try {
+      if (jobIds.length > 0) {
         const tx = await this.escrow.cancelExpiredLocks(
           parseInt(chain),
           jobIds,
@@ -658,10 +657,10 @@ export class C2DEngineDocker extends C2DEngine {
           false
         )
         CORE_LOGGER.warn(` Canceled locks on chain ${chain}, tx:${tx}`)
-      } catch (e) {
-        // not critical, since we will try to cancel them at next run
-        CORE_LOGGER.warn(`Tried to cancel some locks, errored: ${e.message}`)
       }
+    } catch (e) {
+      // not critical, since we will try to cancel them at next run
+      CORE_LOGGER.warn(`Tried to cancel some locks, errored: ${e.message}`)
     }
   }
 
