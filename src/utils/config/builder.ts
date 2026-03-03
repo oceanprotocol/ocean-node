@@ -143,7 +143,18 @@ export function buildC2DClusters(
   if (dockerComputeEnvironments) {
     for (const dockerC2d of dockerComputeEnvironments) {
       if (dockerC2d.socketPath || dockerC2d.host) {
-        const hash = create256Hash(String(count) + JSON.stringify(dockerC2d))
+        const hash = create256Hash(
+          String(count) +
+            JSON.stringify({
+              socketPath: dockerC2d.socketPath,
+              protocol: dockerC2d.protocol,
+              host: dockerC2d.host,
+              port: dockerC2d.port,
+              caPath: dockerC2d.caPath,
+              certPath: dockerC2d.certPath,
+              keyPath: dockerC2d.keyPath
+            })
+        )
         clusters.push({
           connection: dockerC2d,
           hash,
