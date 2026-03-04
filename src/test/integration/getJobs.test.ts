@@ -131,7 +131,7 @@ describe('GetJobsHandler integration', () => {
     expect(filtered.every((j) => Number(j.dateFinished) >= Number(fromTs))).to.equal(true)
   })
 
-  it('should exclude jobs owned by specified consumer addresses', async function () {
+  it('should include jobs owned by specified consumer addresses', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT)
 
     const resp = await handler.handle({
@@ -144,7 +144,7 @@ describe('GetJobsHandler integration', () => {
     const jobs = (await streamToObject(resp.stream as Readable)) as any[]
 
     const owners = jobs.filter((j) => j.environment === uniqueEnv).map((j) => j.owner)
-    expect(owners.includes(ownerA)).to.equal(false)
-    expect(owners.includes(ownerB)).to.equal(true)
+    expect(owners.includes(ownerA)).to.equal(true)
+    expect(owners.includes(ownerB)).to.equal(false)
   })
 })

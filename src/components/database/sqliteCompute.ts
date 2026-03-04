@@ -462,7 +462,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
 
     if (consumerAddrs && consumerAddrs.length > 0) {
       const placeholders = consumerAddrs.map(() => '?').join(',')
-      conditions.push(`owner NOT IN (${placeholders})`)
+      conditions.push(`owner IN (${placeholders})`)
       params.push(...consumerAddrs)
     }
 
