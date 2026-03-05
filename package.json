@@ -48,6 +48,7 @@
     "postinstall": "node scripts/fix-libp2p-http-utils.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1002.0",
     "@chainsafe/libp2p-noise": "^17.0.0",
     "@chainsafe/libp2p-yamux": "^8.0.1",
     "@elastic/elasticsearch": "^8.14.0",

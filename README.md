@@ -147,6 +147,7 @@ Your node is now running. To start additional nodes, repeat these steps in a new
 - [API Endpoints](docs/API.md)
 - [Environmental Variables](docs/env.md)
 - [Database Guide](docs/database.md)
+- [Storage Types](docs/Storage.md)
 - [Testing Guide](docs/testing.md)
 - [Network Configuration](docs/networking.md)
 - [Logging & accessing logs](docs/networking.md)
