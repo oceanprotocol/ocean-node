@@ -785,7 +785,9 @@ export class OceanP2P extends EventEmitter {
       const bs = byteStream(stream)
 
       // Send command
-      await bs.write(uint8ArrayFromString(message), { signal: AbortSignal.timeout(10000) })
+      await bs.write(uint8ArrayFromString(message), {
+        signal: AbortSignal.timeout(10000)
+      })
 
       // Read and parse status
       const statusBytes = await bs.read({ signal: AbortSignal.timeout(10000) })
