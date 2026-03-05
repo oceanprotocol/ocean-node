@@ -59,7 +59,7 @@ export interface FileInfoResponse {
 }
 
 export interface FileInfoHttpRequest {
-  type?: 'ipfs' | 'url' | 'arweave'
+  type?: FileObjectType
   did?: string
   hash?: string
   url?: string
