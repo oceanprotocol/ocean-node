@@ -1,5 +1,6 @@
 import { FileObjectType } from '../../@types/fileObject.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { CORE_LOGGER } from '../../utils/logging/common.js'
 
 import { ArweaveStorage } from './ArweaveStorage.js'
 import { IpfsStorage } from './IpfsStorage.js'
@@ -27,7 +28,7 @@ export function getStorageClass(
         throw new Error(`Invalid storage type: ${type}`)
     }
   } catch (err) {
-    console.error('Error in getStorageClass: ', err)
+    CORE_LOGGER.error(`Error in getStorageClass: ${err.message}`)
     throw err
   }
 }
