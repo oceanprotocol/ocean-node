@@ -6,6 +6,7 @@ import { handleProtocolCommands } from './handlers.js'
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import type { Stream } from '@libp2p/interface'
+import { byteStream } from '@libp2p/utils'
 
 import { bootstrap } from '@libp2p/bootstrap'
 import { noise } from '@chainsafe/libp2p-noise'
@@ -781,22 +782,31 @@ export class OceanP2P extends EventEmitter {
     }
 
     try {
-      // Send message and close write side
-      stream.send(uint8ArrayFromString(message))
-      await stream.close()
+      const bs = byteStream(stream)
 
-      // Read and parse status from first chunk
-      const iterator = stream[Symbol.asyncIterator]()
-      const { done, value } = await iterator.next()
+      // Send command
+      await bs.write(uint8ArrayFromString(message), { signal: AbortSignal.timeout(10000) })
 
-      if (done || !value) {
+      // Read and parse status
+      const statusBytes = await bs.read({ signal: AbortSignal.timeout(10000) })
+      if (!statusBytes) {
         return { status: { httpStatus: 500, error: 'No response from peer' } }
       }
+      const status = JSON.parse(uint8ArrayToString(statusBytes.subarray()))
 
-      const status = JSON.parse(uint8ArrayToString(value.subarray()))
-
-      // Return status and remaining stream
-      return { status, stream: { [Symbol.asyncIterator]: () => iterator } }
+      // Return status and remaining stream as async iterable
+      return {
+        status,
+        stream: {
+          [Symbol.asyncIterator]: async function* () {
+            while (true) {
+              const chunk = await bs.read()
+              if (chunk == null) break
+              yield chunk.subarray()
+            }
+          }
+        }
+      }
     } catch (err) {
       P2P_LOGGER.error(`P2P communication error: ${err.message}`)
       try {
