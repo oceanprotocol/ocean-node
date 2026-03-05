@@ -154,16 +154,13 @@ describe('Compute', () => {
     )
     config = await getConfiguration(true)
     dbconn = await Database.init(config.dbConfig)
-    oceanNode = await OceanNode.getInstance(
-      config,
-      dbconn,
-      null,
-      null,
-      null,
-      null,
-      null,
-      true
-    )
+
+    const staleJobs = await dbconn.c2d.getRunningJobs()
+    for (const job of staleJobs) {
+      await dbconn.c2d.deleteJob(job.jobId)
+    }
+
+    oceanNode = OceanNode.getInstance(config, dbconn, null, null, null, null, null, true)
     indexer = new OceanIndexer(
       dbconn,
       config.indexingNetworks,
@@ -641,62 +638,43 @@ describe('Compute', () => {
     assert(!response.stream, 'We should not have a stream')
   })
 
-  it('should start a compute job with maxed resources', async () => {
-    // first check escrow auth
-
-    let balance = await paymentTokenContract.balanceOf(await consumerAccount.getAddress())
-    let funds = await oceanNode.escrow.getUserAvailableFunds(
+  it('should fail to start a compute job without escrow funds', async () => {
+    // ensure clean escrow state: no funds, no auths, no locks
+    const funds = await oceanNode.escrow.getUserAvailableFunds(
       DEVELOPMENT_CHAIN_ID,
       await consumerAccount.getAddress(),
       paymentToken
     )
-    // make sure we have 0 funds
     if (BigInt(funds.toString()) > BigInt(0)) {
       await escrowContract
         .connect(consumerAccount)
         .withdraw([initializeResponse.payment.token], [funds])
     }
-    let auth = await oceanNode.escrow.getAuthorizations(
+    const auth = await oceanNode.escrow.getAuthorizations(
       DEVELOPMENT_CHAIN_ID,
       paymentToken,
       await consumerAccount.getAddress(),
       firstEnv.consumerAddress
     )
     if (auth.length > 0) {
-      // remove any auths
       await escrowContract
         .connect(consumerAccount)
         .authorize(initializeResponse.payment.token, firstEnv.consumerAddress, 0, 0, 0)
     }
-    let locks = await oceanNode.escrow.getLocks(
+    const locks = await oceanNode.escrow.getLocks(
       DEVELOPMENT_CHAIN_ID,
       paymentToken,
       await consumerAccount.getAddress(),
       firstEnv.consumerAddress
     )
-
-    if (locks.length > 0) {
-      // cancel all locks
-      for (const lock of locks) {
-        try {
-          await escrowContract
-            .connect(consumerAccount)
-            .cancelExpiredLock(
-              lock.jobId,
-              lock.token,
-              lock.payer,
-              firstEnv.consumerAddress
-            )
-        } catch (e) {}
-      }
-      locks = await oceanNode.escrow.getLocks(
-        DEVELOPMENT_CHAIN_ID,
-        paymentToken,
-        await consumerAccount.getAddress(),
-        firstEnv.consumerAddress
-      )
+    for (const lock of locks) {
+      try {
+        await escrowContract
+          .connect(consumerAccount)
+          .cancelExpiredLock(lock.jobId, lock.token, lock.payer, firstEnv.consumerAddress)
+      } catch (e) {}
     }
-    const locksBefore = locks.length
+
     const nonce = Date.now().toString()
     const messageHashBytes = createHashForSignature(
       await consumerAccount.getAddress(),
@@ -738,15 +716,17 @@ describe('Compute', () => {
       additionalViewers: [await additionalViewerAccount.getAddress()],
       maxJobDuration: computeJobDuration,
       resources: re
-      // additionalDatasets?: ComputeAsset[]
-      // output?: ComputeOutput
     }
-    // it should fail, because we don't have funds & auths in escrow
-    let response = await new PaidComputeStartHandler(oceanNode).handle(startComputeTask)
+    const response = await new PaidComputeStartHandler(oceanNode).handle(startComputeTask)
     assert(response.status.httpStatus === 400, 'Failed to get 400 response')
     assert(!response.stream, 'We should not have a stream')
-    // let's put funds in escrow & create an auth
-    balance = await paymentTokenContract.balanceOf(await consumerAccount.getAddress())
+  })
+
+  it('should start a compute job with maxed resources', async () => {
+    // deposit funds and create auth in escrow
+    const balance = await paymentTokenContract.balanceOf(
+      await consumerAccount.getAddress()
+    )
     await paymentTokenContract
       .connect(consumerAccount)
       .approve(initializeResponse.payment.escrowAddress, balance)
@@ -762,20 +742,13 @@ describe('Compute', () => {
         initializeResponse.payment.minLockSeconds,
         10
       )
-    auth = await oceanNode.escrow.getAuthorizations(
+
+    const auth = await oceanNode.escrow.getAuthorizations(
       DEVELOPMENT_CHAIN_ID,
       paymentToken,
       await consumerAccount.getAddress(),
       firstEnv.consumerAddress
     )
-    const authBefore = auth[0]
-    funds = await oceanNode.escrow.getUserAvailableFunds(
-      DEVELOPMENT_CHAIN_ID,
-      await consumerAccount.getAddress(),
-      paymentToken
-    )
-    const fundsBefore = funds
-    assert(BigInt(funds.toString()) > BigInt(0), 'Should have funds in escrow')
     assert(auth.length > 0, 'Should have authorization')
     assert(
       BigInt(auth[0].maxLockedAmount.toString()) > BigInt(0),
@@ -785,19 +758,68 @@ describe('Compute', () => {
       BigInt(auth[0].maxLockCounts.toString()) > BigInt(0),
       ' Should have maxLockCounts in auth'
     )
-    const nonce2 = Date.now().toString()
-    const messageHashBytes2 = createHashForSignature(
+    const authBefore = auth[0]
+
+    const fundsBefore = await oceanNode.escrow.getUserAvailableFunds(
+      DEVELOPMENT_CHAIN_ID,
       await consumerAccount.getAddress(),
-      nonce2,
+      paymentToken
+    )
+    assert(BigInt(fundsBefore.toString()) > BigInt(0), 'Should have funds in escrow')
+
+    const locksBefore = (
+      await oceanNode.escrow.getLocks(
+        DEVELOPMENT_CHAIN_ID,
+        paymentToken,
+        await consumerAccount.getAddress(),
+        firstEnv.consumerAddress
+      )
+    ).length
+
+    const nonce = Date.now().toString()
+    const messageHashBytes = createHashForSignature(
+      await consumerAccount.getAddress(),
+      nonce,
       PROTOCOL_COMMANDS.COMPUTE_START
     )
-    const signature2 = await safeSign(consumerAccount, messageHashBytes2)
-    response = await new PaidComputeStartHandler(oceanNode).handle({
-      ...startComputeTask,
-      nonce: nonce2,
-      signature: signature2
-    })
-    console.log(response)
+    const signature = await safeSign(consumerAccount, messageHashBytes)
+    const re = []
+    for (const res of firstEnv.resources) {
+      re.push({ id: res.id, amount: res.total })
+    }
+    const startComputeTask: PaidComputeStartCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_START,
+      consumerAddress: await consumerAccount.getAddress(),
+      signature,
+      nonce,
+      environment: firstEnv.id,
+      datasets: [
+        {
+          documentId: publishedComputeDataset.ddo.id,
+          serviceId: publishedComputeDataset.ddo.services[0].id,
+          transferTxId: datasetOrderTxId
+        }
+      ],
+      algorithm: {
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        transferTxId: algoOrderTxId,
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      },
+      output: {},
+      payment: {
+        chainId: DEVELOPMENT_CHAIN_ID,
+        token: paymentToken
+      },
+      metadata: {
+        key: 'value'
+      },
+      additionalViewers: [await additionalViewerAccount.getAddress()],
+      maxJobDuration: computeJobDuration,
+      resources: re
+    }
+    const response = await new PaidComputeStartHandler(oceanNode).handle(startComputeTask)
+    console.log({ response })
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
@@ -807,29 +829,35 @@ describe('Compute', () => {
     // eslint-disable-next-line prefer-destructuring
     jobId = jobs[0].jobId
     console.log('**** Started compute job with id: ', jobId)
-    // check escrow
-    funds = await oceanNode.escrow.getUserAvailableFunds(
+
+    // check escrow state changed after job start
+    const fundsAfter = await oceanNode.escrow.getUserAvailableFunds(
       DEVELOPMENT_CHAIN_ID,
       await consumerAccount.getAddress(),
       paymentToken
     )
-    assert(fundsBefore > funds, 'We should have less funds')
-    locks = await oceanNode.escrow.getLocks(
+    assert(fundsBefore > fundsAfter, 'We should have less funds')
+
+    const locksAfter = await oceanNode.escrow.getLocks(
       DEVELOPMENT_CHAIN_ID,
       paymentToken,
       await consumerAccount.getAddress(),
       firstEnv.consumerAddress
     )
-    assert(locks.length > locksBefore, 'We should have locks')
-    auth = await oceanNode.escrow.getAuthorizations(
+    assert(locksAfter.length > locksBefore, 'We should have locks')
+
+    const authAfter = await oceanNode.escrow.getAuthorizations(
       DEVELOPMENT_CHAIN_ID,
       paymentToken,
       await consumerAccount.getAddress(),
       firstEnv.consumerAddress
     )
-    assert(auth[0].currentLocks > authBefore.currentLocks, 'We should have running jobs')
     assert(
-      auth[0].currentLockedAmount > authBefore.currentLockedAmount,
+      authAfter[0].currentLocks > authBefore.currentLocks,
+      'We should have running jobs'
+    )
+    assert(
+      authAfter[0].currentLockedAmount > authBefore.currentLockedAmount,
       'We should have higher currentLockedAmount'
     )
   })
@@ -2124,7 +2152,7 @@ describe('Compute Access Restrictions', () => {
       )
       config = await getConfiguration(true)
       dbconn = await Database.init(config.dbConfig)
-      oceanNode = await OceanNode.getInstance(
+      oceanNode = OceanNode.getInstance(
         config,
         dbconn,
         null,
@@ -2311,7 +2339,7 @@ describe('Compute Access Restrictions', () => {
       )
       config = await getConfiguration(true)
       dbconn = await Database.init(config.dbConfig)
-      oceanNode = await OceanNode.getInstance(
+      oceanNode = OceanNode.getInstance(
         config,
         dbconn,
         null,
@@ -2443,7 +2471,7 @@ describe('Compute Access Restrictions', () => {
       )
       config = await getConfiguration(true)
       dbconn = await Database.init(config.dbConfig)
-      oceanNode = await OceanNode.getInstance(
+      oceanNode = OceanNode.getInstance(
         config,
         dbconn,
         null,
@@ -2573,7 +2601,7 @@ describe('Compute Access Restrictions', () => {
       const now = Math.floor(Date.now() / 1000)
       const expiry = 3500
 
-      const providerAddress = await (await oceanNode.getKeyManager()).getEthAddress()
+      const providerAddress = oceanNode.getKeyManager().getEthAddress()
 
       // Clean up existing locks and authorizations first
       const locks = await oceanNode.escrow.getLocks(

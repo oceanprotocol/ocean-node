@@ -20,7 +20,7 @@ import {
   TypesenseIndexerDatabase,
   TypesenseLogDatabase,
   TypesenseOrderDatabase
-} from './TypenseDatabase.js'
+} from './TypesenseDatabase.js'
 import { elasticSchemas } from './ElasticSchemas.js'
 import { IDdoStateQuery } from '../../@types/DDO/IDdoStateQuery.js'
 import { TypesenseDdoStateQuery } from './TypesenseDdoStateQuery.js'
