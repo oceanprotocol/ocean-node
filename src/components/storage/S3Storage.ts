@@ -79,7 +79,9 @@ export class S3Storage extends Storage {
       return {
         httpStatus: response.$metadata.httpStatusCode ?? 200,
         stream: response.Body as Readable,
-        headers: response.ContentType ? ([response.ContentType] as [any]) : undefined
+        headers: response.ContentType
+          ? { 'Content-Type': response.ContentType }
+          : undefined
       }
     } catch (err) {
       CORE_LOGGER.error(`Error fetching object from S3: ${err}`)

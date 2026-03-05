@@ -53,7 +53,7 @@ export type StorageObject =
 export interface StorageReadable {
   stream: Readable
   httpStatus?: number
-  headers?: [any]
+  headers?: Record<string, string | string[]> | undefined
   error?: any
 }
 
