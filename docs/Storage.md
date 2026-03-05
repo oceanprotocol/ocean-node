@@ -1,14 +1,15 @@
 # Storage Types
 
-Ocean Node supports three storage backends for assets (e.g. algorithm or data files). Each type is identified by a `type` field on the file object and has its own shape and validation rules.
+Ocean Node supports four storage backends for assets (e.g. algorithm or data files). Each type is identified by a `type` field on the file object and has its own shape and validation rules.
 
 ## Supported types
 
-| Type     | `type` value | Description                          |
-| -------- | ------------- | ------------------------------------ |
-| **URL**  | `url`         | File served via HTTP/HTTPS           |
-| **IPFS** | `ipfs`        | File identified by IPFS CID          |
-| **Arweave** | `arweave`  | File identified by Arweave transaction ID |
+| Type       | `type` value | Description                          |
+| ---------- | ------------- | ------------------------------------ |
+| **URL**    | `url`         | File served via HTTP/HTTPS           |
+| **IPFS**   | `ipfs`        | File identified by IPFS CID          |
+| **Arweave**| `arweave`     | File identified by Arweave transaction ID |
+| **S3**     | `s3`          | File in S3-compatible storage (AWS, Ceph, MinIO, etc.) |
 
 All file objects can optionally include encryption metadata: `encryptedBy` and `encryptMethod` (e.g. `AES`, `ECIES`).
 
@@ -113,10 +114,59 @@ The node builds the download URL as: `{arweaveGateway}/{transactionId}`.
 
 ---
 
+## S3 storage
+
+Files are stored in S3-compatible object storage. The node uses the AWS SDK and works with Amazon S3, Ceph, MinIO, DigitalOcean Spaces, and other S3-compatible services. Credentials and endpoint are provided on the file object; no node-level S3 config is required.
+
+### File object shape
+
+```json
+{
+  "type": "s3",
+  "s3Access": {
+    "endpoint": "https://s3.amazonaws.com",
+    "region": "us-east-1",
+    "bucket": "my-bucket",
+    "objectKey": "path/to/file.zip",
+    "accessKeyId": "AKIAIOSFODNN7EXAMPLE",
+    "secretAccessKey": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+  }
+}
+```
+
+| Field     | Required | Description |
+| --------- | -------- | ----------- |
+| `type`    | Yes      | Must be `"s3"` |
+| `s3Access` | Yes    | Object with endpoint, bucket, object key, and credentials (see below). |
+
+**`s3Access` fields:**
+
+| Field             | Required | Description |
+| ----------------- | -------- | ----------- |
+| `endpoint`        | Yes      | S3 endpoint URL (e.g. `https://s3.amazonaws.com`, `https://nyc3.digitaloceanspaces.com`, or `https://my-ceph.example.com`) |
+| `bucket`          | Yes      | Bucket name |
+| `objectKey`       | Yes      | Object key (path within the bucket) |
+| `accessKeyId`     | Yes      | Access key for the S3-compatible API |
+| `secretAccessKey` | Yes      | Secret key for the S3-compatible API |
+| `region`          | No       | Region (e.g. `us-east-1`). Optional; defaults to `us-east-1` if omitted. Some backends (e.g. Ceph) may ignore it. |
+
+### Validation
+
+- `s3Access` must be present.
+- Within `s3Access`, `bucket`, `objectKey`, `endpoint`, `accessKeyId`, and `secretAccessKey` must be present and non-empty.
+- `region` is optional; when provided it is used when creating the S3 client.
+
+### Node configuration
+
+- None. All S3 connection details (endpoint, credentials, bucket, key) come from the file object’s `s3Access`.
+
+---
+
 ## Summary
 
 - **URL**: flexible HTTP(S) endpoints; optional custom headers and `unsafeURLs` filtering.
 - **IPFS**: CID-based; requires `ipfsGateway` in config.
 - **Arweave**: transaction-ID-based; requires `arweaveGateway` in config.
+- **S3**: S3-compatible object storage (AWS, Ceph, MinIO, etc.); credentials and endpoint in the file object; `region` optional (defaults to `us-east-1`).
 
 The storage implementation lives under `src/components/storage/`. The node selects the backend from the file object’s `type` (case-insensitive) and validates the shape and config before fetching or streaming the file.

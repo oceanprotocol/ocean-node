@@ -1,11 +1,9 @@
 import {
-  ArweaveFileObject,
   FileInfoRequest,
   FileInfoResponse,
   FileObjectType,
-  IpfsFileObject,
   StorageReadable,
-  UrlFileObject,
+  StorageObject,
   EncryptMethod
 } from '../../@types/fileObject.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
@@ -17,12 +15,9 @@ export abstract class Storage {
   // eslint-disable-next-line no-use-before-define -- static factory return type references this class
   static getStorageClass: (file: any, config: OceanNodeConfig) => Storage
 
-  private file: UrlFileObject | IpfsFileObject | ArweaveFileObject
+  private file: StorageObject
   config: OceanNodeConfig
-  public constructor(
-    file: UrlFileObject | IpfsFileObject | ArweaveFileObject,
-    config: OceanNodeConfig
-  ) {
+  public constructor(file: StorageObject, config: OceanNodeConfig) {
     this.file = file
     this.config = config
   }

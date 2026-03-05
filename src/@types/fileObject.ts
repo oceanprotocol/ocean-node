@@ -30,16 +30,36 @@ export interface ArweaveFileObject extends BaseFileObject {
   transactionId: string
 }
 
+export interface S3Object {
+  endpoint: string
+  region: string
+  objectKey: string
+  bucket: string
+  accessKeyId: string
+  secretAccessKey: string
+}
+export interface S3FileObject extends BaseFileObject {
+  s3Access: S3Object
+}
+
+export type StorageObject =
+  | UrlFileObject
+  | IpfsFileObject
+  | ArweaveFileObject
+  | S3FileObject
+
 export interface StorageReadable {
   stream: Readable
   httpStatus?: number
   headers?: [any]
+  error?: any
 }
 
 export enum FileObjectType {
   URL = 'url',
   IPFS = 'ipfs',
-  ARWEAVE = 'arweave'
+  ARWEAVE = 'arweave',
+  S3 = 's3'
 }
 
 export interface FileInfoRequest {
