@@ -16,9 +16,10 @@ function createS3Client(s3Access: S3FileObject['s3Access']): S3Client {
     : `https://${s3Access.endpoint}`
   return new S3Client({
     endpoint,
-    // Region is optional in our file object; default to us-east-1 if not provided
+    // Region is optional; default to us-east-1 if not provided
     region: s3Access.region ?? 'us-east-1',
-    forcePathStyle: false,
+    // Path-style (e.g. endpoint/bucket/key) required for some S3-compatible services (e.g. MinIO); default false for AWS virtual-host style
+    forcePathStyle: s3Access.forcePathStyle ?? false,
     credentials: {
       accessKeyId: s3Access.accessKeyId,
       secretAccessKey: s3Access.secretAccessKey
@@ -57,16 +58,6 @@ export class S3Storage extends Storage {
       return [false, 'Missing secretAccessKey']
     }
     return [true, '']
-  }
-
-  isFilePath(): boolean {
-    // S3 keys are object keys (may contain slashes); not filesystem paths
-    return false
-  }
-
-  getDownloadUrl(): string {
-    const { bucket, objectKey } = this.getFile().s3Access
-    return `s3://${bucket}/${objectKey}`
   }
 
   override async getReadableStream(): Promise<StorageReadable> {

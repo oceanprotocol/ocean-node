@@ -7,7 +7,6 @@ import {
   EncryptMethod
 } from '../../@types/fileObject.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
-import axios from 'axios'
 
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 
@@ -23,35 +22,17 @@ export abstract class Storage {
   }
 
   abstract validate(): [boolean, string]
-  abstract getDownloadUrl(): string
 
   abstract fetchSpecificFileMetadata(
     fileObject: any,
     forceChecksum: boolean
   ): Promise<FileInfoResponse>
 
-  abstract isFilePath(): boolean
-
   getFile(): any {
     return this.file
   }
 
-  // similar to all subclasses
-  async getReadableStream(): Promise<StorageReadable> {
-    const input = this.getDownloadUrl()
-    const response = await axios({
-      method: 'get',
-      url: input,
-      responseType: 'stream',
-      timeout: 30000
-    })
-
-    return {
-      httpStatus: response.status,
-      stream: response.data,
-      headers: response.headers as any
-    }
-  }
+  abstract getReadableStream(): Promise<StorageReadable>
 
   getStorageType(file: any): FileObjectType {
     const { type } = file

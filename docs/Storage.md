@@ -149,12 +149,13 @@ Files are stored in S3-compatible object storage. The node uses the AWS SDK and 
 | `accessKeyId`     | Yes      | Access key for the S3-compatible API |
 | `secretAccessKey` | Yes      | Secret key for the S3-compatible API |
 | `region`          | No       | Region (e.g. `us-east-1`). Optional; defaults to `us-east-1` if omitted. Some backends (e.g. Ceph) may ignore it. |
+| `forcePathStyle`  | No       | If `true`, use path-style addressing (e.g. `endpoint/bucket/key`). Required for some S3-compatible services (e.g. MinIO). Default `false` (virtual-host style, e.g. `bucket.endpoint/key`, standard for AWS S3). |
 
 ### Validation
 
 - `s3Access` must be present.
 - Within `s3Access`, `bucket`, `objectKey`, `endpoint`, `accessKeyId`, and `secretAccessKey` must be present and non-empty.
-- `region` is optional; when provided it is used when creating the S3 client.
+- `region` and `forcePathStyle` are optional; when provided they are used when creating the S3 client.
 
 ### Node configuration
 

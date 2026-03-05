@@ -36,12 +36,12 @@ describe('URL Storage tests', () => {
     encryptedBy: nodeId,
     encryptMethod: EncryptMethod.AES
   }
-  let storage: Storage
+  let storage: UrlStorage
   let error: Error
   let config: any
   before(async () => {
     config = await getConfiguration()
-    storage = Storage.getStorageClass(file, config)
+    storage = Storage.getStorageClass(file, config) as UrlStorage
   })
 
   it('Storage instance', () => {
@@ -145,7 +145,7 @@ describe('URL Storage tests', () => {
         Authorization: 'Bearer auth_token_X'
       }
     }
-    storage = Storage.getStorageClass(file, config)
+    storage = Storage.getStorageClass(file, config) as UrlStorage
     expect(storage.getDownloadUrl()).to.eql('http://someUrl.com/file.json')
   })
 
@@ -208,7 +208,7 @@ describe('Unsafe URL tests', () => {
       url: 'https://oceanprotocol.com',
       method: 'get'
     }
-    const storage = Storage.getStorageClass(file, config)
+    const storage = Storage.getStorageClass(file, config) as UrlStorage
     expect(storage.getDownloadUrl()).to.eql('https://oceanprotocol.com')
   })
   after(() => {

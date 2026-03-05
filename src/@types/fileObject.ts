@@ -32,11 +32,13 @@ export interface ArweaveFileObject extends BaseFileObject {
 
 export interface S3Object {
   endpoint: string
-  region: string
+  region?: string
   objectKey: string
   bucket: string
   accessKeyId: string
   secretAccessKey: string
+  /** If true, use path-style addressing (e.g. endpoint/bucket/key). Required for some S3-compatible services (e.g. MinIO). Default false (virtual-host style, e.g. bucket.endpoint/key). */
+  forcePathStyle?: boolean
 }
 export interface S3FileObject extends BaseFileObject {
   s3Access: S3Object
