@@ -6,7 +6,7 @@ import { handleProtocolCommands } from './handlers.js'
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import type { Stream } from '@libp2p/interface'
-import { byteStream } from '@libp2p/utils'
+import { byteStream, lpStream } from '@libp2p/utils'
 
 import { bootstrap } from '@libp2p/bootstrap'
 import { noise } from '@chainsafe/libp2p-noise'
@@ -783,14 +783,15 @@ export class OceanP2P extends EventEmitter {
 
     try {
       const bs = byteStream(stream)
+      const ls = lpStream(stream)
 
       // Send command
-      await bs.write(uint8ArrayFromString(message), {
+      await ls.write(uint8ArrayFromString(message), {
         signal: AbortSignal.timeout(10000)
       })
 
       // Read and parse status
-      const statusBytes = await bs.read({ signal: AbortSignal.timeout(10000) })
+      const statusBytes = await ls.read({ signal: AbortSignal.timeout(10000) })
       if (!statusBytes) {
         return { status: { httpStatus: 500, error: 'No response from peer' } }
       }

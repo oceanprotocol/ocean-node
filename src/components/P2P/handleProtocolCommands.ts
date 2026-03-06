@@ -1,7 +1,7 @@
 import { Readable } from 'stream'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
-import { byteStream } from '@libp2p/utils'
+import { byteStream, lpStream } from '@libp2p/utils'
 
 import { P2P_LOGGER } from '../../utils/logging/common.js'
 import { Command } from '../../@types/commands.js'
@@ -39,6 +39,7 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
   P2P_LOGGER.logMessage('Using ' + remoteAddr, true)
 
   const bs = byteStream(stream)
+  const ls = lpStream(stream)
 
   const sendErrorAndClose = async (httpStatus: number, error: string) => {
     try {
@@ -49,7 +50,7 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
       }
 
       const status = { httpStatus, error }
-      await bs.write(uint8ArrayFromString(JSON.stringify(status)))
+      await ls.write(uint8ArrayFromString(JSON.stringify(status)))
       await stream.close()
     } catch (e) {
       P2P_LOGGER.error(`Error sending error response: ${e.message}`)
@@ -89,7 +90,7 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
   }
 
   let task: Command
-  const cmdBytes = await bs.read({ signal: AbortSignal.timeout(10000) })
+  const cmdBytes = await ls.read({ signal: AbortSignal.timeout(10000) })
   if (!cmdBytes) {
     await sendErrorAndClose(400, 'Invalid command')
     return
@@ -121,7 +122,7 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
     const response: P2PCommandResponse = await handler.handle(task)
 
     // Send status first
-    await bs.write(uint8ArrayFromString(JSON.stringify(response.status)))
+    await ls.write(uint8ArrayFromString(JSON.stringify(response.status)))
 
     if (response.stream) {
       for await (const chunk of response.stream as Readable) {
