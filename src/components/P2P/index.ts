@@ -786,16 +786,20 @@ export class OceanP2P extends EventEmitter {
       const ls = lpStream(stream)
 
       // Send command
+      console.log('Sending command')
       await ls.write(uint8ArrayFromString(message), {
         signal: AbortSignal.timeout(10000)
       })
 
       // Read and parse status
+      console.log('Reading response')
       const statusBytes = await ls.read({ signal: AbortSignal.timeout(10000) })
       if (!statusBytes) {
         return { status: { httpStatus: 500, error: 'No response from peer' } }
       }
+      console.log(uint8ArrayToString(statusBytes.subarray()))
       const status = JSON.parse(uint8ArrayToString(statusBytes.subarray()))
+      console.log(status)
 
       // Return status and remaining stream as async iterable
       return {
@@ -804,7 +808,10 @@ export class OceanP2P extends EventEmitter {
           [Symbol.asyncIterator]: async function* () {
             while (true) {
               const chunk = await bs.read()
+              console.log('Chunjk')
+
               if (chunk == null) break
+              console.log(chunk.subarray())
               yield chunk.subarray()
             }
           }

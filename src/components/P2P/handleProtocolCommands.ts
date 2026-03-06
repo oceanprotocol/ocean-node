@@ -91,6 +91,8 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
 
   let task: Command
   const cmdBytes = await ls.read({ signal: AbortSignal.timeout(10000) })
+  console.log('Received command')
+  console.log(uint8ArrayToString(cmdBytes.subarray()))
   if (!cmdBytes) {
     await sendErrorAndClose(400, 'Invalid command')
     return
@@ -125,6 +127,7 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
     await ls.write(uint8ArrayFromString(JSON.stringify(response.status)))
 
     if (response.stream) {
+      console.log('Writing stream...')
       for await (const chunk of response.stream as Readable) {
         const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
         await bs.write(bytes)
