@@ -80,7 +80,6 @@ describe('Arweave Storage getFileInfo integration tests', function () {
       type: FileObjectType.ARWEAVE
     }
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
-    console.log(fileInfo)
 
     assert(fileInfo[0].valid, 'File info is valid')
     assert(fileInfo[0].type === FileObjectType.ARWEAVE, 'Type is incorrect')
