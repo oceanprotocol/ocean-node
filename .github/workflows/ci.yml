@@ -148,7 +148,8 @@ jobs:
       - name: show permissions
         run: |
           ls -lh $HOME
-          [ -d $HOME/storage_ftp ] && ls -lh $HOME/storage_ftp || true
+          ls -lh $HOME/.ocean
+          [ -d $HOME/.ocean/storage_ftp ] && ls -lh $HOME/.ocean/storage_ftp || true
       - name: Set DOCKER_REGISTRY_AUTHS from Docker Hub secrets
         if: env.DOCKERHUB_USERNAME && env.DOCKERHUB_PASSWORD
         run: |
