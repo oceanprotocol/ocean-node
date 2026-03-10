@@ -5,26 +5,148 @@ get_nvidia_gpus() {
     if command -v nvidia-smi &> /dev/null; then
         # Query nvidia-smi for GPU count, names, and UUIDs
         # We use csv format for easier parsing
-        nvidia-smi --query-gpu=name,uuid --format=csv,noheader | while IFS=, read -r name uuid; do
+        nvidia-smi --query-gpu=name,uuid,driver_version,memory.total --format=csv,noheader | while IFS=, read -r name uuid driver_version memory_total; do
             # Trim leading/trailing whitespace
             name=$(echo "$name" | xargs)
             uuid=$(echo "$uuid" | xargs)
+            driver_version=$(echo "$driver_version" | xargs)
+            memory_total=$(echo "$memory_total" | xargs)
             
             # Create a JSON object for this GPU
             # Note: We use the UUID as the ID locally, but it will be aggregated later
              jq -c -n \
                 --arg name "$name" \
                 --arg uuid "$uuid" \
+                --arg driver_version "$driver_version" \
+                --arg memory_total "$memory_total" \
                 '{
                     description: $name,
                     init: {
                         deviceRequests: {
                             Driver: "nvidia",
-                            Devices: [$uuid]
+                            Devices: [$uuid],
+                            DriverVersion: $driver_version,
+                            MemoryTotal: $memory_total
                         }
                     }
                 }'
         done
+    fi
+}
+
+get_driver_version() {
+    local module="$1"
+
+    # Try the version field first (present when built as a loadable module)
+    local ver
+    ver=$(modinfo "$module" 2>/dev/null | awk '/^version:/ {print $2; exit}')
+    if [ -n "$ver" ]; then
+        echo "$ver"
+        return
+    fi
+
+    # If module exists but only has srcversion (built-in to kernel - integrated 
+    # GPU), fall back to the kernel version as the effective driver version
+    if modinfo "$module" 2>/dev/null | grep -q "^srcversion:"; then
+        uname -r
+        return
+    fi
+}
+
+get_intel_driver_version() {
+    # oneAPI / Level Zero runtime (Intel Arc)
+    local ver
+
+    # Try clinfo first (works for both oneAPI and standard OpenCL)
+    ver=$(clinfo 2>/dev/null | awk '/Driver Version/ {print $NF; exit}')
+    [ -n "$ver" ] && { echo "$ver"; return; }
+
+    # Try package manager
+    ver=$(dpkg -l 2>/dev/null | awk '/intel-level-zero-gpu/ {print $3; exit}')
+    [ -z "$ver" ] && ver=$(rpm -q --qf '%{VERSION}' intel-level-zero-gpu 2>/dev/null)
+    [ -n "$ver" ] && { echo "$ver"; return; }
+
+    # Fall back to kernel module / kernel version
+    get_driver_version "xe" || get_driver_version "i915"
+}
+
+get_amd_driver_version() {
+    local ver
+
+    # ROCm version file (most reliable)
+    ver=$(cat /opt/rocm/.info/version 2>/dev/null | head -n1)
+    [ -n "$ver" ] && { echo "ROCm $ver"; return; }
+
+    # Try rocm-smi
+    ver=$(rocm-smi --version 2>/dev/null | awk '/ROCm/ {print $NF; exit}')
+    [ -n "$ver" ] && { echo "$ver"; return; }
+
+    # Try package manager
+    ver=$(dpkg -l 2>/dev/null | awk '/rocm-core/ {print $3; exit}')
+    [ -z "$ver" ] && ver=$(rpm -q --qf '%{VERSION}' rocm-core 2>/dev/null)
+    [ -n "$ver" ] && { echo "ROCm $ver"; return; }
+
+    # Fall back to kernel module
+    get_driver_version "amdgpu"
+}
+
+get_amd_vram() {
+    local card_path="$1"
+    local real_device_path
+    real_device_path=$(readlink -f "$card_path/device")
+
+    # Try sysfs VRAM total (bytes) — most reliable on amdgpu
+    local vram_bytes=""
+    for f in \
+        "$real_device_path/mem_info_vram_total" \
+        "$card_path/device/mem_info_vram_total"; do
+        if [ -r "$f" ]; then
+            vram_bytes=$(cat "$f" 2>/dev/null)
+            break
+        fi
+    done
+
+    if [ -n "$vram_bytes" ] && [ "$vram_bytes" -gt 0 ] 2>/dev/null; then
+        echo $(( vram_bytes / 1024 / 1024 )) MiB
+    fi
+}
+
+get_intel_vram() {
+    local card_path="$1"
+    local real_device_path
+    real_device_path=$(readlink -f "$card_path/device")
+
+    # Dedicated VRAM via sysfs (Intel Arc, etc.)
+    for f in \
+        "$real_device_path/drm/$(basename $card_path)/gt/gt0/mem_info_vram_total" \
+        "$real_device_path/mem_info_vram_total"; do
+        if [ -r "$f" ]; then
+            local bytes
+            bytes=$(cat "$f" 2>/dev/null)
+            if [ -n "$bytes" ] && [ "$bytes" -gt 0 ] 2>/dev/null; then
+                echo "$(( bytes / 1024 / 1024 )) MiB"
+                return
+            fi
+        fi
+    done
+
+    # Integrated Intel: stolen/GTT memory from lspci, normalize to MiB
+    local slot
+    slot=$(basename "$real_device_path")
+    local raw
+    raw=$(lspci -s "$slot" -v 2>/dev/null | awk '/Memory at|prefetchable/ && /size=/ {
+        match($0, /size=([0-9]+[KMG])/, a); if (a[1]) { print a[1]; exit }
+    }')
+
+    if [ -n "$raw" ]; then
+        local num unit
+        num=$(echo "$raw" | tr -d 'KMG')
+        unit=$(echo "$raw" | tr -d '0-9')
+        case "$unit" in
+            K) echo "$(( num / 1024 )) MiB" ;;
+            M) echo "${num} MiB" ;;
+            G) echo "$(( num * 1024 )) MiB" ;;
+        esac
     fi
 }
 
@@ -54,8 +176,6 @@ map_pci_to_primary() {
         gpu_map["$pci_id"]="/dev/dri/$card_name"
     done
 }
-
-
 
 # Function to check for other GPUs (AMD, Intel, etc.) via lspci
 get_generic_gpus() {
@@ -131,6 +251,11 @@ process_pci_line() {
 
         case "$vendor_id_hex" in
             "1002") # AMD (0x1002)
+                local amd_driver_version
+                amd_driver_version=$(get_amd_driver_version)
+                local amd_memory_total
+                amd_memory_total=$(get_amd_vram "$card_path")
+
                 # Devices
                 if [ -e "/dev/dxg" ]; then
                     devices+=("/dev/dxg")
@@ -153,6 +278,11 @@ process_pci_line() {
                 ;;
             
             "8086") # Intel (0x8086)
+                local intel_driver_version
+                intel_driver_version=$(get_intel_driver_version)
+                local intel_memory_total
+                intel_memory_total=$(get_intel_vram "$card_path")
+
                  # Devices
                  [ -n "$render_name" ] && devices+=("/dev/dri/$render_name")
                  devices+=("$device_id")
@@ -190,11 +320,18 @@ process_pci_line() {
          json_devices="[\"$device_id\"]"
     fi
 
-
+    local driver_version=""
+    local memory_total=""
+    case "$vendor_id_hex" in
+        "1002") driver_version="$amd_driver_version"; memory_total="$amd_memory_total" ;;
+        "8086") driver_version="$intel_driver_version"; memory_total="$intel_memory_total" ;;
+    esac
     jq -c -n \
         --arg desc "$description" \
         --arg driver "$driver" \
         --arg device_id "$device_id" \
+        --arg driver_version "$driver_version" \
+        --arg memory_total "$memory_total" \
         --argjson dev "$json_devices" \
         --argjson bind "$json_binds" \
         --argjson cap "$json_cap" \
@@ -208,7 +345,9 @@ process_pci_line() {
                 deviceRequests: {
                     Driver: (if $driver != "" then $driver else null end),
                     Devices: $dev,
-                    Capabilities: [["gpu"]]
+                    Capabilities: [["gpu"]],
+                    DriverVersion: $driver_version,
+                    MemoryTotal: $memory_total
                 },
                 Binds: $bind,
                 CapAdd: $cap,
@@ -226,25 +365,42 @@ get_all_gpus_json() {
         get_nvidia_gpus
         get_generic_gpus
     ) | jq -s '
-        group_by(.description) | map({
-            id: (.[0].description | ascii_downcase | gsub("[^a-z0-9]"; "-") | gsub("-+"; "-") | sub("^-"; "") | sub("-$"; "")),
-            description: .[0].description,
-            type: "gpu",
-            total: length,
-            init: {
-                deviceRequests: {
-                    Driver: .[0].init.deviceRequests.Driver,
-                    (if .[0].init.deviceRequests.Driver == "nvidia" then "DeviceIDs" else "Devices" end): (map(.init.deviceRequests.Devices[]?) | unique),
-                    Capabilities: [["gpu"]]
-                },
-                Binds: (map(.init.Binds[]?) | unique),
-                CapAdd: (map(.init.CapAdd[]?) | unique),
-                GroupAdd: (map(.init.GroupAdd[]?) | unique),
-                SecurityOpt: .[0].init.SecurityOpt,
-                ShmSize: .[0].init.ShmSize,
-                IpcMode: .[0].init.IpcMode
+        group_by(.description) | map(
+            {
+                id: (.[0].description | ascii_downcase | gsub("[^a-z0-9]"; "-") | gsub("-+"; "-") | sub("^-"; "") | sub("-$"; "")),
+                description: .[0].description,
+                type: "gpu",
+                total: length,
+                driverVersion: (.[0].init.deviceRequests.DriverVersion // .[0].driverVersion // null),
+                memoryTotal: (.[0].init.deviceRequests.MemoryTotal // .[0].memoryTotal // null),
+                platform: (if .[0].init.deviceRequests.Driver == "amdgpu" then "amd" else .[0].init.deviceRequests.Driver end),
+                init: (
+                    if .[0].init.deviceRequests.Driver == "nvidia" then
+                    {
+                        deviceRequests: {
+                            Driver: .[0].init.deviceRequests.Driver,
+                            DeviceIDs: (map(.init.deviceRequests.Devices[]?) | unique),
+                            Capabilities: [["gpu"]]
+                        }
+                    }
+                    else
+                    {
+                        advanced: {
+                            Driver: .[0].init.deviceRequests.Driver,
+                            Devices: (map(.init.deviceRequests.Devices[]?) | unique),
+                            Capabilities: [["gpu"]],
+                            Binds: (map(.init.Binds[]?) | unique),
+                            CapAdd: (map(.init.CapAdd[]?) | unique),
+                            GroupAdd: (map(.init.GroupAdd[]?) | unique),
+                            SecurityOpt: .[0].init.SecurityOpt,
+                            ShmSize: .[0].init.ShmSize,
+                            IpcMode: .[0].init.IpcMode
+                        } | del(.. | select(. == null)) | del(.. | select(. == []))
+                    }
+                    end
+                )
             } | del(.. | select(. == null)) | del(.. | select(. == []))
-        }) | map(if .init.deviceRequests.Driver == null then del(.init.deviceRequests.Driver) else . end)
+        )
     '
 }
 

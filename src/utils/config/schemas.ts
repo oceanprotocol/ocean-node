@@ -118,7 +118,10 @@ export const ComputeResourceSchema = z.object({
   min: z.number().optional(),
   max: z.number().optional(),
   inUse: z.number().optional(),
-  init: z.any().optional()
+  init: z.any().optional(),
+  platform: z.string().optional(),
+  memoryTotal: z.string().optional(),
+  driverVersion: z.string().optional()
 })
 
 export const ComputeResourcesPricingInfoSchema = z.object({

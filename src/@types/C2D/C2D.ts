@@ -56,6 +56,12 @@ export interface ComputeResource {
   min: number // min number of resource needed for a job
   max: number // max number of resource for a job
   inUse?: number // for display purposes
+  driverVersion?: string
+  memoryTotal?: string
+  /**
+   * `nvidia` | `amd` | `intel`
+   */
+  platform?: string
   init?: dockerHwInit
 }
 export interface ComputeResourceRequest {
