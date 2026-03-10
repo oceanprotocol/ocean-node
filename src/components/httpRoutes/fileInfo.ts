@@ -6,7 +6,7 @@ import {
   FtpFileObject,
   IpfsFileObject,
   UrlFileObject
-} from '../../@types/fileObject'
+} from '../../@types/fileObject.js'
 import { PROTOCOL_COMMANDS, SERVICES_API_BASE_PATH } from '../../utils/constants.js'
 import { FileInfoHandler } from '../core/handler/fileInfoHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
