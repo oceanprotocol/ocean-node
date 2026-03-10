@@ -3,11 +3,17 @@ import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 
 import { ArweaveStorage } from './ArweaveStorage.js'
+import { FTPStorage } from './FTPStorage.js'
 import { IpfsStorage } from './IpfsStorage.js'
 import { S3Storage } from './S3Storage.js'
 import { UrlStorage } from './UrlStorage.js'
 
-export type StorageClass = UrlStorage | IpfsStorage | ArweaveStorage | S3Storage
+export type StorageClass =
+  | UrlStorage
+  | IpfsStorage
+  | ArweaveStorage
+  | S3Storage
+  | FTPStorage
 
 export function getStorageClass(file: any, config: OceanNodeConfig): StorageClass {
   if (!file) {
@@ -26,6 +32,8 @@ export function getStorageClass(file: any, config: OceanNodeConfig): StorageClas
         return new ArweaveStorage(file, config)
       case FileObjectType.S3:
         return new S3Storage(file, config)
+      case FileObjectType.FTP:
+        return new FTPStorage(file, config)
       default:
         throw new Error(`Invalid storage type: ${type}`)
     }

@@ -12,6 +12,7 @@ import {
   ArweaveFileObject,
   FileObjectType,
   EncryptMethod,
+  FtpFileObject,
   IpfsFileObject,
   UrlFileObject,
   BaseFileObject
@@ -69,7 +70,7 @@ export interface FileInfoCommand extends Command {
   did?: string
   serviceId?: string
   fileIndex?: number
-  file?: UrlFileObject | ArweaveFileObject | IpfsFileObject
+  file?: UrlFileObject | ArweaveFileObject | IpfsFileObject | FtpFileObject
   checksum?: boolean
 }
 // group these 2

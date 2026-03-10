@@ -15,16 +15,16 @@
 
 import { expect } from 'chai'
 import { Readable } from 'stream'
-import { Storage, S3Storage } from '../../components/storage/index.js'
-import { getConfiguration } from '../../utils/index.js'
+import { Storage, S3Storage } from '../../../components/storage/index.js'
+import { getConfiguration } from '../../../utils/index.js'
 import {
   CreateBucketCommand,
   DeleteObjectCommand,
   PutObjectCommand,
   S3Client
 } from '@aws-sdk/client-s3'
-import { FileInfoRequest, FileObjectType } from '../../@types/fileObject.js'
-import { DEFAULT_TEST_TIMEOUT } from '../utils/utils.js'
+import { FileInfoRequest, FileObjectType } from '../../../@types/fileObject.js'
+import { DEFAULT_TEST_TIMEOUT } from '../../utils/utils.js'
 
 const S3_TEST_ENDPOINT = 'http://172.15.0.7:7480'
 const S3_TEST_ACCESS_KEY_ID = 'ocean123'
@@ -55,6 +55,7 @@ describe('S3 Storage integration (Ceph RGW)', function () {
   let config: Awaited<ReturnType<typeof getConfiguration>>
   let s3Client: S3Client
   let objectCreated = false
+  const uploadTestKeys: string[] = []
 
   before(async function () {
     if (!canRunS3Tests()) {
@@ -92,14 +93,19 @@ describe('S3 Storage integration (Ceph RGW)', function () {
   })
 
   after(async function () {
-    if (!objectCreated || !s3Client) return
+    if (!s3Client) return
     try {
-      await s3Client.send(
-        new DeleteObjectCommand({
-          Bucket: S3_TEST_BUCKET,
-          Key: TEST_OBJECT_KEY
-        })
-      )
+      if (objectCreated) {
+        await s3Client.send(
+          new DeleteObjectCommand({
+            Bucket: S3_TEST_BUCKET,
+            Key: TEST_OBJECT_KEY
+          })
+        )
+      }
+      for (const key of uploadTestKeys) {
+        await s3Client.send(new DeleteObjectCommand({ Bucket: S3_TEST_BUCKET, Key: key }))
+      }
     } catch {
       // ignore cleanup errors
     }
@@ -206,5 +212,75 @@ describe('S3 Storage integration (Ceph RGW)', function () {
     expect(fileInfo[0].valid).to.equal(true)
     expect(fileInfo[0].contentLength).to.equal(String(TEST_BODY.length))
     expect(fileInfo[0].contentType).to.equal('text/plain')
+  })
+
+  it('upload sends file via PutObject and returns status', async function () {
+    if (!canRunS3Tests()) this.skip()
+    const key = `integration-test/upload-${Date.now()}.txt`
+    uploadTestKeys.push(key)
+    const file = {
+      type: 's3',
+      s3Access: {
+        endpoint: S3_TEST_ENDPOINT,
+        bucket: S3_TEST_BUCKET!,
+        objectKey: key,
+        accessKeyId: S3_TEST_ACCESS_KEY_ID!,
+        secretAccessKey: S3_TEST_SECRET_ACCESS_KEY!,
+        forcePathStyle: true
+      }
+    }
+    const storage = Storage.getStorageClass(file, config) as S3Storage
+    const body = 'S3 upload test content'
+    const result = await storage.upload('upload.txt', Readable.from([body]))
+    expect(result).to.have.property('httpStatus')
+    expect(result.httpStatus).to.equal(200)
+  })
+
+  it('upload with objectKey ending in / appends filename', async function () {
+    if (!canRunS3Tests()) this.skip()
+    const prefix = 'integration-test/upload-dir/'
+    const filename = 'appended.txt'
+    uploadTestKeys.push(`${prefix}${filename}`)
+    const file = {
+      type: 's3',
+      s3Access: {
+        endpoint: S3_TEST_ENDPOINT,
+        bucket: S3_TEST_BUCKET!,
+        objectKey: prefix,
+        accessKeyId: S3_TEST_ACCESS_KEY_ID!,
+        secretAccessKey: S3_TEST_SECRET_ACCESS_KEY!,
+        forcePathStyle: true
+      }
+    }
+    const storage = Storage.getStorageClass(file, config) as S3Storage
+    const result = await storage.upload(filename, Readable.from(['data']))
+    expect(result.httpStatus).to.equal(200)
+  })
+
+  it('upload then getReadableStream returns uploaded content', async function () {
+    if (!canRunS3Tests()) this.skip()
+    const key = `integration-test/roundtrip-${Date.now()}.txt`
+    uploadTestKeys.push(key)
+    const uploadBody = 'Roundtrip test body'
+    const file = {
+      type: 's3',
+      s3Access: {
+        endpoint: S3_TEST_ENDPOINT,
+        bucket: S3_TEST_BUCKET!,
+        objectKey: key,
+        accessKeyId: S3_TEST_ACCESS_KEY_ID!,
+        secretAccessKey: S3_TEST_SECRET_ACCESS_KEY!,
+        forcePathStyle: true
+      }
+    }
+    const storage = Storage.getStorageClass(file, config) as S3Storage
+    await storage.upload('roundtrip.txt', Readable.from([uploadBody]))
+    const result = await storage.getReadableStream()
+    expect(result.httpStatus).to.equal(200)
+    const chunks: Buffer[] = []
+    for await (const chunk of result.stream as Readable) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+    }
+    expect(Buffer.concat(chunks).toString('utf8')).to.equal(uploadBody)
   })
 })

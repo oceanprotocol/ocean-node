@@ -5,6 +5,7 @@ import {
 } from '../../@types/fileObject.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { GetObjectCommand, HeadObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { Upload } from '@aws-sdk/lib-storage'
 import { Readable } from 'stream'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 
@@ -29,7 +30,7 @@ function createS3Client(s3Access: S3FileObject['s3Access']): S3Client {
 
 export class S3Storage extends Storage {
   public constructor(file: S3FileObject, config: OceanNodeConfig) {
-    super(file, config)
+    super(file, config, true)
     const [isValid, message] = this.validate()
     if (isValid === false) {
       throw new Error(`Error validating the S3 file: ${message}`)
@@ -87,6 +88,37 @@ export class S3Storage extends Storage {
       CORE_LOGGER.error(`Error fetching object from S3: ${err}`)
       throw err
     }
+  }
+
+  /**
+   * Upload a file via S3 multipart upload (streaming). If s3Access.objectKey ends with /, the key becomes objectKey + filename; otherwise objectKey is the target key.
+   * Uses @aws-sdk/lib-storage Upload so large streams are sent in parts without buffering the entire file.
+   */
+  async upload(
+    filename: string,
+    stream: Readable
+  ): Promise<{ httpStatus: number; headers?: Record<string, string | string[]> }> {
+    const { s3Access } = this.getFile() as S3FileObject
+    const s3Client = createS3Client(s3Access)
+    let key = s3Access.objectKey
+    if (key.endsWith('/')) {
+      key = `${key.replace(/\/+$/, '')}/${filename}`
+    }
+    const upload = new Upload({
+      client: s3Client,
+      params: {
+        Bucket: s3Access.bucket,
+        Key: key,
+        Body: stream,
+        ContentType: 'application/octet-stream',
+        ContentDisposition: `attachment; filename="${filename.replace(/"/g, '\\"')}"`
+      },
+      queueSize: 4,
+      partSize: 5 * 1024 * 1024, // 5MB minimum for S3
+      leavePartsOnError: false
+    })
+    await upload.done()
+    return { httpStatus: 200, headers: {} }
   }
 
   async fetchSpecificFileMetadata(

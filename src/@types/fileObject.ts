@@ -44,11 +44,17 @@ export interface S3FileObject extends BaseFileObject {
   s3Access: S3Object
 }
 
+export interface FtpFileObject extends BaseFileObject {
+  /** Full FTP or FTPS URL: ftp://[user:password@]host[:port]/path or ftps://... */
+  url: string
+}
+
 export type StorageObject =
   | UrlFileObject
   | IpfsFileObject
   | ArweaveFileObject
   | S3FileObject
+  | FtpFileObject
 
 export interface StorageReadable {
   stream: Readable
@@ -61,7 +67,8 @@ export enum FileObjectType {
   URL = 'url',
   IPFS = 'ipfs',
   ARWEAVE = 'arweave',
-  S3 = 's3'
+  S3 = 's3',
+  FTP = 'ftp'
 }
 
 export interface FileInfoRequest {

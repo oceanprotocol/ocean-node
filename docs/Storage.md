@@ -1,6 +1,6 @@
 # Storage Types
 
-Ocean Node supports four storage backends for assets (e.g. algorithm or data files). Each type is identified by a `type` field on the file object and has its own shape and validation rules.
+Ocean Node supports five storage backends for assets (e.g. algorithm or data files). Each type is identified by a `type` field on the file object and has its own shape and validation rules.
 
 ## Supported types
 
@@ -10,6 +10,7 @@ Ocean Node supports four storage backends for assets (e.g. algorithm or data fil
 | **IPFS**   | `ipfs`        | File identified by IPFS CID          |
 | **Arweave**| `arweave`     | File identified by Arweave transaction ID |
 | **S3**     | `s3`          | File in S3-compatible storage (AWS, Ceph, MinIO, etc.) |
+| **FTP**    | `ftp`         | File served via FTP or FTPS          |
 
 All file objects can optionally include encryption metadata: `encryptedBy` and `encryptMethod` (e.g. `AES`, `ECIES`).
 
@@ -163,11 +164,55 @@ Files are stored in S3-compatible object storage. The node uses the AWS SDK and 
 
 ---
 
+## FTP storage
+
+Files are fetched or uploaded via FTP or FTPS. The node uses a single `url` field containing the full FTP(S) URL (including optional credentials). Functionality mirrors URL storage: stream download, file metadata (size; content-type is `application/octet-stream`), and upload via STOR.
+
+### File object shape
+
+```json
+{
+  "type": "ftp",
+  "url": "ftp://user:password@ftp.example.com:21/path/to/file.zip"
+}
+```
+
+For FTPS (TLS):
+
+```json
+{
+  "type": "ftp",
+  "url": "ftps://user:password@secure.example.com:990/pub/data.csv"
+}
+```
+
+| Field  | Required | Description |
+| ------ | -------- | ----------- |
+| `type` | Yes      | Must be `"ftp"` |
+| `url`  | Yes      | Full FTP or FTPS URL. Supports `ftp://` and `ftps://`. May include credentials as `ftp://user:password@host:port/path`. Default port is 21 for FTP and 990 for FTPS. |
+
+### Validation
+
+- `url` must be present.
+- URL must use protocol `ftp://` or `ftps://`.
+- If the node config defines `unsafeURLs` (list of regex patterns), any URL matching a pattern is rejected.
+
+### Node configuration
+
+- Optional: `unsafeURLs` – array of regex strings; URLs matching any of them are considered unsafe and rejected (same as URL storage).
+
+### Upload
+
+FTPStorage supports `upload(filename, stream)`. If the file object’s `url` ends with `/`, the filename is appended to form the remote path; otherwise the URL is used as the full target path. Uses FTP STOR command.
+
+---
+
 ## Summary
 
 - **URL**: flexible HTTP(S) endpoints; optional custom headers and `unsafeURLs` filtering.
 - **IPFS**: CID-based; requires `ipfsGateway` in config.
 - **Arweave**: transaction-ID-based; requires `arweaveGateway` in config.
 - **S3**: S3-compatible object storage (AWS, Ceph, MinIO, etc.); credentials and endpoint in the file object; `region` optional (defaults to `us-east-1`).
+- **FTP**: FTP/FTPS URLs; stream download, metadata (size), and upload via STOR; optional `unsafeURLs` filtering.
 
 The storage implementation lives under `src/components/storage/`. The node selects the backend from the file object’s `type` (case-insensitive) and validates the shape and config before fetching or streaming the file.
