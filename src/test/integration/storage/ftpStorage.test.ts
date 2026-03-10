@@ -17,8 +17,8 @@ const FTP_PORT = 21
 const FTP_USER = 'ftpuser'
 const FTP_PASS = 'ftppass'
 const FTP_BASE_URL = `ftp://${FTP_USER}:${FTP_PASS}@${FTP_HOST}:${FTP_PORT}`
-const FTP_FILE_URL = `${FTP_BASE_URL}/pub/readme.txt`
-const FTP_UPLOAD_DIR = `${FTP_BASE_URL}/pub/`
+const FTP_FILE_URL = `${FTP_BASE_URL}/readme.txt`
+const FTP_UPLOAD_DIR = `${FTP_BASE_URL}`
 
 describe('FTP Storage integration tests', function () {
   this.timeout(DEFAULT_TEST_TIMEOUT)
