@@ -1,6 +1,6 @@
 {
   "name": "ocean-node",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Ocean Node is used to run all core services in the Ocean stack",
   "author": "Ocean Protocol Foundation",
   "license": "Apache-2.0",
@@ -48,6 +48,7 @@
     "postinstall": "node scripts/fix-libp2p-http-utils.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1002.0",
     "@chainsafe/libp2p-noise": "^17.0.0",
     "@chainsafe/libp2p-yamux": "^8.0.1",
     "@elastic/elasticsearch": "^8.14.0",
@@ -95,7 +96,7 @@
     "node-cron": "^3.0.3",
     "sqlite3": "^5.1.7",
     "stream-concat": "^1.0.0",
-    "tar": "^7.5.8",
+    "tar": "^7.5.10",
     "uint8arrays": "^4.0.6",
     "url-join": "^5.0.0",
     "winston": "^3.11.0",

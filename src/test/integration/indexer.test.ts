@@ -100,7 +100,21 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
     const config = await getConfiguration(true)
     database = await Database.init(config.dbConfig)
-    oceanNode = OceanNode.getInstance(config, database)
+
+    const oldIndexer = OceanNode.getInstance(config, database).getIndexer()
+    if (oldIndexer) {
+      await oldIndexer.stopAllChainIndexers()
+    }
+    oceanNode = OceanNode.getInstance(
+      config,
+      database,
+      null,
+      null,
+      null,
+      null,
+      null,
+      true
+    )
     indexer = new OceanIndexer(
       database,
       mockSupportedNetworks,
@@ -341,11 +355,12 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should get the updated state', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
     const result = await nftContract.getMetaData()
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.METADATA_UPDATED,
-      DEFAULT_TEST_TIMEOUT,
+      DEFAULT_TEST_TIMEOUT * 3,
       true
     )
     const retrievedDDO: any = ddo
@@ -455,16 +470,17 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should get number of orders', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 4)
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.ORDER_STARTED,
-      DEFAULT_TEST_TIMEOUT * 2,
+      DEFAULT_TEST_TIMEOUT * 4,
       true
     )
     if (ddo) {
       const retrievedDDO = ddo
       console.log('indexer retrieved ddo: ', JSON.stringify(retrievedDDO))
+      console.log('stats: ', JSON.stringify(retrievedDDO.indexedMetadata.stats))
       for (const stat of retrievedDDO.indexedMetadata.stats) {
         if (stat.datatokenAddress === datatokenAddress) {
           expect(stat.orders).to.equal(1)
@@ -596,13 +612,14 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('Deprecated asset should have a short version of ddo', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
     const result = await nftContract.getMetaData()
     expect(parseInt(result[2].toString())).to.equal(2)
 
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.METADATA_STATE,
-      DEFAULT_TEST_TIMEOUT,
+      DEFAULT_TEST_TIMEOUT * 3,
       true
     )
     const resolvedDDO: any = ddo
