@@ -6,7 +6,7 @@ import { handleProtocolCommands } from './handlers.js'
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { lpStream } from '@libp2p/utils'
-import type { Stream } from '@libp2p/interface'
+import type { Connection, Stream } from '@libp2p/interface'
 
 import { bootstrap } from '@libp2p/bootstrap'
 import { noise } from '@chainsafe/libp2p-noise'
@@ -727,9 +727,19 @@ export class OceanP2P extends EventEmitter {
     message: string,
     multiAddrs?: string[]
   ): Promise<{ status: any; stream?: AsyncIterable<any> }> {
+    const signal = AbortSignal.timeout(10_000)
+    const options = {
+      signal: AbortSignal.timeout(10000),
+      priority: 100,
+      runOnLimitedConnection: true
+    }
+
+    let connection: Connection
+    let stream: Stream
+    let peerId
+
     P2P_LOGGER.logMessage('SendTo() node ' + peerName + ' task: ' + message, true)
 
-    let peerId
     try {
       peerId = peerIdFromString(peerName)
     } catch (e) {
@@ -757,18 +767,12 @@ export class OceanP2P extends EventEmitter {
       return { status: { httpStatus: 404, error } }
     }
 
-    let stream: Stream
     try {
-      const options = {
-        signal: AbortSignal.timeout(10000),
-        priority: 100,
-        runOnLimitedConnection: true
-      }
-      const connection = await this._libp2p.dial(multiaddrs, options)
+      connection = await this._libp2p.dial(multiaddrs, options)
       if (connection.remotePeer.toString() !== peerId.toString()) {
-        const error = `Invalid peer on the other side: ${connection.remotePeer.toString()}`
-        P2P_LOGGER.error(error)
-        return { status: { httpStatus: 404, error } }
+        throw new Error(
+          `Invalid peer on the other side: ${connection.remotePeer.toString()}`
+        )
       }
       stream = await connection.newStream(this._protocol, options)
     } catch (e) {
@@ -777,30 +781,12 @@ export class OceanP2P extends EventEmitter {
       return { status: { httpStatus: 404, error } }
     }
 
-    if (!stream) {
-      return { status: { httpStatus: 404, error: 'Unable to get remote P2P stream' } }
-    }
-
+    const lp = lpStream(stream)
+    let streamErr: Error | null = null
     try {
-      const lp = lpStream(stream)
-      const writeSignal = AbortSignal.timeout(10_000)
-      const readSignal = AbortSignal.timeout(10_000)
-
-      try {
-        await lp.write(uint8ArrayFromString(message), { signal: writeSignal })
-      } catch (writeErr) {
-        // Remote may have closed the stream after sending an error status (e.g. rate limit)
-        try {
-          const statusBytes = await lp.read({ signal: AbortSignal.timeout(1_000) })
-          return { status: JSON.parse(uint8ArrayToString(statusBytes.subarray())) }
-        } catch {
-          throw writeErr
-        }
-      }
-
-      const statusBytes = await lp.read({ signal: readSignal })
+      await lp.write(uint8ArrayFromString(message), { signal })
+      const statusBytes = await lp.read({ signal })
       const status = JSON.parse(uint8ArrayToString(statusBytes.subarray()))
-
       return {
         status,
         stream: {
@@ -815,11 +801,63 @@ export class OceanP2P extends EventEmitter {
         }
       }
     } catch (err) {
-      P2P_LOGGER.error(`P2P communication error: ${err.message}`)
       try {
         stream.abort(err as Error)
       } catch {}
-      return { status: { httpStatus: 500, error: `P2P error: ${err.message}` } }
+      streamErr = err
+    }
+
+    // abortConnectionOnPingFailure is disabled to keep long-running download streams alive,
+    // so stale connections are not evicted automatically. On a stale stream error, close the
+    // connection and retry once so the next dial establishes a fresh one.
+    if (!streamErr.message.includes('closed') && !streamErr.message.includes('reset')) {
+      P2P_LOGGER.error(`P2P communication error: ${streamErr.message}`)
+      return { status: { httpStatus: 500, error: `P2P error: ${streamErr.message}` } }
+    }
+
+    P2P_LOGGER.warn(`Stale connection to ${peerId}, retrying: ${streamErr.message}`)
+    try {
+      await connection.close()
+    } catch {}
+
+    try {
+      connection = await this._libp2p.dial(multiaddrs, options)
+      if (connection.remotePeer.toString() !== peerId.toString()) {
+        throw new Error(
+          `Invalid peer on the other side: ${connection.remotePeer.toString()}`
+        )
+      }
+      stream = await connection.newStream(this._protocol, options)
+    } catch (e) {
+      const error = `Cannot reconnect to peer ${peerId}: ${e.message}`
+      P2P_LOGGER.error(error)
+      return { status: { httpStatus: 404, error } }
+    }
+
+    const retryLp = lpStream(stream)
+    try {
+      await retryLp.write(uint8ArrayFromString(message), { signal })
+      const statusBytes = await retryLp.read({ signal })
+      const status = JSON.parse(uint8ArrayToString(statusBytes.subarray()))
+      return {
+        status,
+        stream: {
+          [Symbol.asyncIterator]: async function* () {
+            try {
+              while (true) {
+                const chunk = await retryLp.read()
+                yield chunk.subarray ? chunk.subarray() : chunk
+              }
+            } catch {}
+          }
+        }
+      }
+    } catch (retryErr) {
+      try {
+        stream.abort(retryErr as Error)
+      } catch {}
+      P2P_LOGGER.error(`P2P communication error on retry: ${retryErr.message}`)
+      return { status: { httpStatus: 500, error: `P2P error: ${retryErr.message}` } }
     }
   }
 
