@@ -77,7 +77,7 @@ export class CommonComputeHandler extends CommandHandler {
         return {
           status: {
             httpStatus: 400,
-            error: `Encrypted required, but no key`,
+            error: `Encryption required, but no key`,
             headers: null
           },
           stream: null
