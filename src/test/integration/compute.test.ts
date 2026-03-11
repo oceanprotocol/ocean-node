@@ -69,7 +69,7 @@ import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Fa
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
 import OceanToken from '@oceanprotocol/contracts/artifacts/contracts/utils/OceanToken.sol/OceanToken.json' with { type: 'json' }
 import EscrowJson from '@oceanprotocol/contracts/artifacts/contracts/escrow/Escrow.sol/Escrow.json' with { type: 'json' }
-import { createHash } from 'crypto'
+import { createHash, randomBytes } from 'crypto'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import {
   getAlgoChecksums,
@@ -716,6 +716,10 @@ describe('Compute', () => {
         type: 'url',
         url: 'http://172.15.0.7:80/',
         method: 'get'
+      },
+      encryption: {
+        encryptMethod: EncryptMethod.AES,
+        key: randomBytes(32).toString('hex')
       }
     }
     const encryptedOutput = await oceanNode

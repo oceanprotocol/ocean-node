@@ -93,6 +93,19 @@ export class CommonComputeHandler extends CommandHandler {
           stream: null
         }
       }
+      if (obj.encryption?.key) {
+        const keyBytes = Buffer.from(obj.encryption.key, 'hex')
+        if (keyBytes.length < 32) {
+          return {
+            status: {
+              httpStatus: 400,
+              error: `AES key must be at least 32 bytes (64 hex chars), got ${keyBytes.length} bytes`,
+              headers: null
+            },
+            stream: null
+          }
+        }
+      }
 
       return {
         status: {
