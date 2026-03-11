@@ -727,9 +727,8 @@ export class OceanP2P extends EventEmitter {
     message: string,
     multiAddrs?: string[]
   ): Promise<{ status: any; stream?: AsyncIterable<any> }> {
-    const signal = AbortSignal.timeout(10_000)
     const options = {
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(10_000),
       priority: 100,
       runOnLimitedConnection: true
     }
@@ -784,8 +783,8 @@ export class OceanP2P extends EventEmitter {
     const lp = lpStream(stream)
     let streamErr: Error | null = null
     try {
-      await lp.write(uint8ArrayFromString(message), { signal })
-      const statusBytes = await lp.read({ signal })
+      await lp.write(uint8ArrayFromString(message), { signal: options.signal })
+      const statusBytes = await lp.read({ signal: options.signal })
       const status = JSON.parse(uint8ArrayToString(statusBytes.subarray()))
       return {
         status,
@@ -816,28 +815,15 @@ export class OceanP2P extends EventEmitter {
     }
 
     P2P_LOGGER.warn(`Stale connection to ${peerId}, retrying: ${streamErr.message}`)
-    try {
-      await connection.close()
-    } catch {}
+    try { await connection.close() } catch {}
 
-    try {
-      connection = await this._libp2p.dial(multiaddrs, options)
-      if (connection.remotePeer.toString() !== peerId.toString()) {
-        throw new Error(
-          `Invalid peer on the other side: ${connection.remotePeer.toString()}`
-        )
-      }
-      stream = await connection.newStream(this._protocol, options)
-    } catch (e) {
-      const error = `Cannot reconnect to peer ${peerId}: ${e.message}`
-      P2P_LOGGER.error(error)
-      return { status: { httpStatus: 404, error } }
-    }
+    connection = await this._libp2p.dial(multiaddrs, options)
+    stream = await connection.newStream(this._protocol, options)
 
     const retryLp = lpStream(stream)
     try {
-      await retryLp.write(uint8ArrayFromString(message), { signal })
-      const statusBytes = await retryLp.read({ signal })
+      await retryLp.write(uint8ArrayFromString(message), { signal: options.signal })
+      const statusBytes = await retryLp.read({ signal: options.signal })
       const status = JSON.parse(uint8ArrayToString(statusBytes.subarray()))
       return {
         status,
