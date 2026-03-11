@@ -5,7 +5,7 @@ import { handleProtocolCommands } from './handlers.js'
 
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
-import { lpStream } from '@libp2p/utils'
+import { LengthPrefixedStream, lpStream } from '@libp2p/utils'
 import type { Connection, Stream } from '@libp2p/interface'
 
 import { bootstrap } from '@libp2p/bootstrap'
@@ -722,6 +722,28 @@ export class OceanP2P extends EventEmitter {
     return null
   }
 
+  async send(
+    lp: LengthPrefixedStream<Stream>,
+    message: string,
+    options: { signal: AbortSignal }
+  ) {
+    await lp.write(uint8ArrayFromString(message), { signal: options.signal })
+    const statusBytes = await lp.read({ signal: options.signal })
+    return {
+      status: JSON.parse(uint8ArrayToString(statusBytes.subarray())),
+      stream: {
+        [Symbol.asyncIterator]: async function* () {
+          try {
+            while (true) {
+              const chunk = await lp.read()
+              yield chunk.subarray ? chunk.subarray() : chunk
+            }
+          } catch {}
+        }
+      }
+    }
+  }
+
   async sendTo(
     peerName: string,
     message: string,
@@ -751,14 +773,9 @@ export class OceanP2P extends EventEmitter {
       return { status: { httpStatus: 404, error: 'Invalid peer' } }
     }
 
-    let multiaddrs: Multiaddr[] = []
-    if (!multiAddrs || multiAddrs.length < 1) {
-      multiaddrs = await this.getPeerMultiaddrs(peerName)
-    } else {
-      for (const addr of multiAddrs) {
-        multiaddrs.push(multiaddr(addr))
-      }
-    }
+    const multiaddrs = multiAddrs?.length
+      ? multiAddrs.map((addr) => multiaddr(addr))
+      : await this.getPeerMultiaddrs(peerName)
 
     if (multiaddrs.length < 1) {
       const error = `Cannot find any address to dial for peer: ${peerId}`
@@ -780,25 +797,9 @@ export class OceanP2P extends EventEmitter {
       return { status: { httpStatus: 404, error } }
     }
 
-    const lp = lpStream(stream)
     let streamErr: Error | null = null
     try {
-      await lp.write(uint8ArrayFromString(message), { signal: options.signal })
-      const statusBytes = await lp.read({ signal: options.signal })
-      const status = JSON.parse(uint8ArrayToString(statusBytes.subarray()))
-      return {
-        status,
-        stream: {
-          [Symbol.asyncIterator]: async function* () {
-            try {
-              while (true) {
-                const chunk = await lp.read()
-                yield chunk.subarray ? chunk.subarray() : chunk
-              }
-            } catch {}
-          }
-        }
-      }
+      return await this.send(lpStream(stream), message, options)
     } catch (err) {
       try {
         stream.abort(err as Error)
@@ -815,29 +816,14 @@ export class OceanP2P extends EventEmitter {
     }
 
     P2P_LOGGER.warn(`Stale connection to ${peerId}, retrying: ${streamErr.message}`)
-    try { await connection.close() } catch {}
-
+    try {
+      await connection.close()
+    } catch {}
     connection = await this._libp2p.dial(multiaddrs, options)
     stream = await connection.newStream(this._protocol, options)
 
-    const retryLp = lpStream(stream)
     try {
-      await retryLp.write(uint8ArrayFromString(message), { signal: options.signal })
-      const statusBytes = await retryLp.read({ signal: options.signal })
-      const status = JSON.parse(uint8ArrayToString(statusBytes.subarray()))
-      return {
-        status,
-        stream: {
-          [Symbol.asyncIterator]: async function* () {
-            try {
-              while (true) {
-                const chunk = await retryLp.read()
-                yield chunk.subarray ? chunk.subarray() : chunk
-              }
-            } catch {}
-          }
-        }
-      }
+      return await this.send(lpStream(stream), message, options)
     } catch (retryErr) {
       try {
         stream.abort(retryErr as Error)
