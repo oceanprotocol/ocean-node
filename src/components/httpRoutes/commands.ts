@@ -58,7 +58,6 @@ directCommandRoute.post(
   express.json(),
   async (req: Request, res: Response): Promise<void> => {
     let closedResponse = false
-    const abortController = new AbortController()
 
     try {
       const validate = validateCommandParameters(req.body, [])
@@ -70,7 +69,6 @@ directCommandRoute.post(
       res.on('close', () => {
         if (!closedResponse) {
           HTTP_LOGGER.error('TCP connection was closed before we could send a response!')
-          abortController.abort()
         }
         closedResponse = true
       })
@@ -110,12 +108,7 @@ directCommandRoute.post(
         // Remote command - use P2P sendTo
         const response = await req.oceanNode
           .getP2PNode()
-          .sendTo(
-            req.body.node as string,
-            JSON.stringify(req.body),
-            req.body.multiAddrs,
-            abortController.signal
-          )
+          .sendTo(req.body.node as string, JSON.stringify(req.body), req.body.multiAddrs)
 
         res.status(response.status.httpStatus)
         if (response.status.headers) {

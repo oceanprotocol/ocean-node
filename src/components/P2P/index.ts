@@ -725,8 +725,7 @@ export class OceanP2P extends EventEmitter {
   async sendTo(
     peerName: string,
     message: string,
-    multiAddrs?: string[],
-    abortSignal?: AbortSignal
+    multiAddrs?: string[]
   ): Promise<{ status: any; stream?: AsyncIterable<any> }> {
     P2P_LOGGER.logMessage('SendTo() node ' + peerName + ' task: ' + message, true)
 
@@ -784,8 +783,8 @@ export class OceanP2P extends EventEmitter {
 
     try {
       const lp = lpStream(stream)
-      const writeSignal = abortSignal ?? AbortSignal.timeout(10_000)
-      const readSignal = abortSignal ?? AbortSignal.timeout(10_000)
+      const writeSignal = AbortSignal.timeout(10_000)
+      const readSignal = AbortSignal.timeout(10_000)
 
       await lp.write(uint8ArrayFromString(message), { signal: writeSignal })
 
@@ -798,7 +797,7 @@ export class OceanP2P extends EventEmitter {
           [Symbol.asyncIterator]: async function* () {
             try {
               while (true) {
-                const chunk = await lp.read({ signal: abortSignal })
+                const chunk = await lp.read()
                 yield chunk.subarray ? chunk.subarray() : chunk
               }
             } catch {}
