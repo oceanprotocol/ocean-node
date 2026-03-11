@@ -901,7 +901,7 @@ describe('Compute', () => {
     const signature = await safeSign(consumerAccount, messageHashBytes)
     const re = []
     for (const res of firstEnv.resources) {
-      re.push({ id: res.id, amount: res.total })
+      re.push({ id: res.id, amount: res.min })
     }
     const startComputeTask: PaidComputeStartCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_START,
