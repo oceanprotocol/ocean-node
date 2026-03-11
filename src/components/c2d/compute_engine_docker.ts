@@ -1867,14 +1867,9 @@ export class C2DEngineDocker extends C2DEngine {
               let uploadStream = (await container.getArchive({
                 path: '/data/outputs'
               })) as unknown as Readable
-              if (output.encryption?.encryptMethod) {
+              if (output.encryption && output.encryption?.key) {
                 const enc = output.encryption
-                let key: Uint8Array | undefined
-                if (enc.encryptMethod === EncryptMethod.AES && enc.aesKey) {
-                  key = Uint8Array.from(Buffer.from(enc.aesKey, 'hex'))
-                } else if (enc.encryptMethod === EncryptMethod.ECIES && enc.publicKey) {
-                  key = Uint8Array.from(Buffer.from(enc.publicKey, 'hex'))
-                }
+                const key = Uint8Array.from(Buffer.from(enc.key, 'hex'))
                 uploadStream = this.keyManager.encryptStream(
                   uploadStream,
                   enc.encryptMethod,

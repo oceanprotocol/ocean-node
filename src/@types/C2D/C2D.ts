@@ -189,9 +189,8 @@ export interface ComputeJob {
 }
 
 export interface ComputeOutputEncryption {
-  encryptMethod?: EncryptMethod
-  aesKey?: string // if EncryptMethod=='AES', this is the symetric key
-  publicKey?: string // if EncryptMethod=='ECIES', this is the public key
+  encryptMethod: EncryptMethod.AES // in future we will support more ciphers
+  key: string // AES symetric key
 }
 
 export interface ComputeOutput {

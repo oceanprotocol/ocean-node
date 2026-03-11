@@ -72,7 +72,27 @@ export class CommonComputeHandler extends CommandHandler {
         .getKeyManager()
         .decrypt(Buffer.from(output, 'hex'), EncryptMethod.ECIES)
 
-      JSON.parse(decrypted.toString()) as ComputeOutput
+      const obj = JSON.parse(decrypted.toString()) as ComputeOutput
+      if (obj.encryption && !obj.encryption.key) {
+        return {
+          status: {
+            httpStatus: 400,
+            error: `Encrypted required, but no key`,
+            headers: null
+          },
+          stream: null
+        }
+      }
+      if (obj.encryption && obj.encryption.encryptMethod !== EncryptMethod.AES) {
+        return {
+          status: {
+            httpStatus: 400,
+            error: `Only AES encryption is supported`,
+            headers: null
+          },
+          stream: null
+        }
+      }
 
       return {
         status: {
