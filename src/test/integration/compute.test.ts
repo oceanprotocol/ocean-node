@@ -84,6 +84,43 @@ import { createHashForSignature, safeSign } from '../utils/signature.js'
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+/**
+ * Polls getComputeEnvironments until every environment's resources (and free.resources)
+ * have inUse === 0. Use with the same pattern as the compute tests: pass a callback that
+ * calls ComputeGetEnvironmentsHandler and streamToObject.
+ */
+export async function waitForAllJobsToFinish(
+  oceanNode: OceanNode,
+  options?: { pollIntervalMs?: number; timeoutMs?: number }
+): Promise<void> {
+  const getEnvironmentsTask = {
+    command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS
+  }
+  const pollIntervalMs = options?.pollIntervalMs ?? 2000
+  const timeoutMs = options?.timeoutMs ?? 120_000
+  const deadline = Date.now() + timeoutMs
+
+  while (true) {
+    const response = await new ComputeGetEnvironmentsHandler(oceanNode).handle(
+      getEnvironmentsTask
+    )
+    const envs = await streamToObject(response.stream as Readable)
+
+    const allIdle = envs.every((env: ComputeEnvironment) => {
+      const resources = env.resources ?? []
+      const freeResources = env.free?.resources ?? []
+      const paidInUse = resources.every((r) => (r.inUse ?? 0) === 0)
+      const freeInUse = freeResources.every((r) => (r.inUse ?? 0) === 0)
+      return paidInUse && freeInUse
+    })
+    if (allIdle) return
+    if (Date.now() >= deadline) {
+      throw new Error(`waitForAllJobsToFinish timed out after ${timeoutMs}ms`)
+    }
+    await sleep(pollIntervalMs)
+  }
+}
+
 describe('Compute', () => {
   let previousConfiguration: OverrideEnvConfig[]
   let config: OceanNodeConfig
@@ -864,6 +901,7 @@ describe('Compute', () => {
   })
 
   it('should start a compute job with output to URL storage at 172.15.0.7', async () => {
+    await waitForAllJobsToFinish(oceanNode)
     const auth = await oceanNode.escrow.getAuthorizations(
       DEVELOPMENT_CHAIN_ID,
       paymentToken,
