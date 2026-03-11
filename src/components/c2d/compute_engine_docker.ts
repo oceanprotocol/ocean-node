@@ -1881,11 +1881,13 @@ export class C2DEngineDocker extends C2DEngine {
                   key
                 )
               }
+              const fname =
+                'outputs-' + this.getC2DConfig().hash + '-' + job.jobId + '.tar'
               await (
                 storage as unknown as {
                   upload: (name: string, stream: Readable) => Promise<unknown>
                 }
-              ).upload(`outputs-${job.jobId}.tar`, uploadStream)
+              ).upload(fname, uploadStream)
             } else {
               await pipeline(
                 await container.getArchive({ path: '/data/outputs' }),

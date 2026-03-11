@@ -675,6 +675,108 @@ describe('Compute', () => {
     assert(response.status.httpStatus === 500, 'Failed to get 500 response')
     assert(!response.stream, 'We should not have a stream')
   })
+  it('should start a compute job with output to URL storage at 172.15.0.7', async () => {
+    // deposit funds and create auth in escrow
+    let balance = await paymentTokenContract.balanceOf(await consumerAccount.getAddress())
+    if (BigInt(balance.toString()) === BigInt(0)) {
+      const mintAmount = ethers.parseUnits('1000', 18)
+      const mintTx = await paymentTokenContract.mint(
+        await consumerAccount.getAddress(),
+        mintAmount
+      )
+      await mintTx.wait()
+      balance = await paymentTokenContract.balanceOf(await consumerAccount.getAddress())
+    }
+    await paymentTokenContract
+      .connect(consumerAccount)
+      .approve(initializeResponse.payment.escrowAddress, balance)
+    await escrowContract
+      .connect(consumerAccount)
+      .deposit(initializeResponse.payment.token, balance)
+
+    await escrowContract
+      .connect(consumerAccount)
+      .authorize(
+        initializeResponse.payment.token,
+        firstEnv.consumerAddress,
+        balance,
+        initializeResponse.payment.minLockSeconds,
+        10
+      )
+
+    const fundsBefore = await oceanNode.escrow.getUserAvailableFunds(
+      DEVELOPMENT_CHAIN_ID,
+      await consumerAccount.getAddress(),
+      paymentToken
+    )
+    assert(BigInt(fundsBefore.toString()) > BigInt(0), 'Should have funds in escrow')
+
+    const computeOutput = {
+      remoteStorage: {
+        type: 'url',
+        url: 'http://172.15.0.7:80/',
+        method: 'get'
+      }
+    }
+    const encryptedOutput = await oceanNode
+      .getKeyManager()
+      .encrypt(
+        new Uint8Array(Buffer.from(JSON.stringify(computeOutput))),
+        EncryptMethod.ECIES
+      )
+
+    const nonce = Date.now().toString()
+    const messageHashBytes = createHashForSignature(
+      await consumerAccount.getAddress(),
+      nonce,
+      PROTOCOL_COMMANDS.COMPUTE_START
+    )
+    const signature = await safeSign(consumerAccount, messageHashBytes)
+    const re = []
+    for (const res of firstEnv.resources) {
+      re.push({ id: res.id, amount: res.min })
+    }
+    const startComputeTask: PaidComputeStartCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_START,
+      consumerAddress: await consumerAccount.getAddress(),
+      signature,
+      nonce,
+      environment: firstEnv.id,
+      datasets: [
+        {
+          documentId: publishedComputeDataset.ddo.id,
+          serviceId: publishedComputeDataset.ddo.services[0].id,
+          transferTxId: datasetOrderTxId
+        }
+      ],
+      algorithm: {
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        transferTxId: algoOrderTxId,
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      },
+      output: Buffer.from(encryptedOutput).toString('hex'),
+      payment: {
+        chainId: DEVELOPMENT_CHAIN_ID,
+        token: paymentToken
+      },
+      metadata: { key: 'value' },
+      additionalViewers: [await additionalViewerAccount.getAddress()],
+      maxJobDuration: computeJobDuration,
+      resources: re
+    }
+    const response = await new PaidComputeStartHandler(oceanNode).handle(startComputeTask)
+    assert(response, 'Failed to get response')
+    assert(
+      response.status.httpStatus === 200,
+      `Expected 200, got ${response.status.httpStatus}: ${response.status?.error ?? ''}`
+    )
+    assert(response.stream, 'Failed to get stream')
+    expect(response.stream).to.be.instanceOf(Readable)
+    const jobs = await streamToObject(response.stream as Readable)
+    assert(jobs[0].jobId, 'Failed to get job id')
+    jobWithOutputURL = jobs[0].jobId
+  })
 
   it('should fail to start a compute job without escrow funds', async () => {
     // ensure clean escrow state: no funds, no auths, no locks
@@ -760,17 +862,27 @@ describe('Compute', () => {
     assert(!response.stream, 'We should not have a stream')
   })
 
-  it('should start a compute job with maxed resources', async () => {
-    // deposit funds and create auth in escrow
-    const balance = await paymentTokenContract.balanceOf(
-      await consumerAccount.getAddress()
-    )
+  it('should start a compute job with maxed resources', async function () {
+    this.timeout(130_000) // waitForAllJobsToFinish can take up to 120s
+    await waitForAllJobsToFinish(oceanNode)
+    let balance = await paymentTokenContract.balanceOf(await consumerAccount.getAddress())
+    if (BigInt(balance.toString()) === BigInt(0)) {
+      console.log('Minting')
+      const mintAmount = ethers.parseUnits('1000', 18)
+      const mintTx = await paymentTokenContract.mint(
+        await consumerAccount.getAddress(),
+        mintAmount
+      )
+      await mintTx.wait()
+      balance = await paymentTokenContract.balanceOf(await consumerAccount.getAddress())
+    }
     await paymentTokenContract
       .connect(consumerAccount)
       .approve(initializeResponse.payment.escrowAddress, balance)
     await escrowContract
       .connect(consumerAccount)
       .deposit(initializeResponse.payment.token, balance)
+
     await escrowContract
       .connect(consumerAccount)
       .authorize(
@@ -780,7 +892,6 @@ describe('Compute', () => {
         initializeResponse.payment.minLockSeconds,
         10
       )
-
     const auth = await oceanNode.escrow.getAuthorizations(
       DEVELOPMENT_CHAIN_ID,
       paymentToken,
@@ -898,90 +1009,6 @@ describe('Compute', () => {
       authAfter[0].currentLockedAmount > authBefore.currentLockedAmount,
       'We should have higher currentLockedAmount'
     )
-  })
-
-  it('should start a compute job with output to URL storage at 172.15.0.7', async () => {
-    await waitForAllJobsToFinish(oceanNode)
-    const auth = await oceanNode.escrow.getAuthorizations(
-      DEVELOPMENT_CHAIN_ID,
-      paymentToken,
-      await consumerAccount.getAddress(),
-      firstEnv.consumerAddress
-    )
-    assert(auth.length > 0, 'Should have authorization')
-    const fundsBefore = await oceanNode.escrow.getUserAvailableFunds(
-      DEVELOPMENT_CHAIN_ID,
-      await consumerAccount.getAddress(),
-      paymentToken
-    )
-    assert(BigInt(fundsBefore.toString()) > BigInt(0), 'Should have funds in escrow')
-
-    const computeOutput = {
-      remoteStorage: {
-        type: 'url',
-        url: 'http://172.15.0.7:80/',
-        method: 'get'
-      }
-    }
-    const encryptedOutput = await oceanNode
-      .getKeyManager()
-      .encrypt(
-        new Uint8Array(Buffer.from(JSON.stringify(computeOutput))),
-        EncryptMethod.ECIES
-      )
-
-    const nonce = Date.now().toString()
-    const messageHashBytes = createHashForSignature(
-      await consumerAccount.getAddress(),
-      nonce,
-      PROTOCOL_COMMANDS.COMPUTE_START
-    )
-    const signature = await safeSign(consumerAccount, messageHashBytes)
-    const re = []
-    for (const res of firstEnv.resources) {
-      re.push({ id: res.id, amount: res.min })
-    }
-    const startComputeTask: PaidComputeStartCommand = {
-      command: PROTOCOL_COMMANDS.COMPUTE_START,
-      consumerAddress: await consumerAccount.getAddress(),
-      signature,
-      nonce,
-      environment: firstEnv.id,
-      datasets: [
-        {
-          documentId: publishedComputeDataset.ddo.id,
-          serviceId: publishedComputeDataset.ddo.services[0].id,
-          transferTxId: datasetOrderTxId
-        }
-      ],
-      algorithm: {
-        documentId: publishedAlgoDataset.ddo.id,
-        serviceId: publishedAlgoDataset.ddo.services[0].id,
-        transferTxId: algoOrderTxId,
-        meta: publishedAlgoDataset.ddo.metadata.algorithm
-      },
-      output: Buffer.from(encryptedOutput).toString('hex'),
-      payment: {
-        chainId: DEVELOPMENT_CHAIN_ID,
-        token: paymentToken
-      },
-      metadata: { key: 'value' },
-      additionalViewers: [await additionalViewerAccount.getAddress()],
-      maxJobDuration: computeJobDuration,
-      resources: re
-    }
-    const response = await new PaidComputeStartHandler(oceanNode).handle(startComputeTask)
-    assert(response, 'Failed to get response')
-    assert(
-      response.status.httpStatus === 200,
-      `Expected 200, got ${response.status.httpStatus}: ${response.status?.error ?? ''}`
-    )
-    assert(response.stream, 'Failed to get stream')
-    expect(response.stream).to.be.instanceOf(Readable)
-    const jobs = await streamToObject(response.stream as Readable)
-    assert(jobs[0].jobId, 'Failed to get job id')
-    jobWithOutputURL = jobs[0].jobId
-    console.log('**** Started compute job with URL output storage, id:', jobWithOutputURL)
   })
 
   it('should try start another compute job with maxed resources, but fail', async () => {
@@ -2136,7 +2163,7 @@ describe('Compute', () => {
   })
 
   it('should wait for jobWithOutputURL status 70 and download output from URL', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    this.timeout(130_000) // waitForAllJobsToFinish can take up to 120s
     assert(jobWithOutputURL, 'jobWithOutputURL must be set by previous test')
     const statusTask: ComputeGetStatusCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
@@ -2156,7 +2183,11 @@ describe('Compute', () => {
         const { status: jobStatus } = job
         if (jobStatus !== undefined) {
           status = jobStatus
-          if (status === C2DStatusNumber.JobFinished) break
+          if (
+            status === C2DStatusNumber.JobFinished ||
+            status === C2DStatusNumber.JobSettle
+          )
+            break
         }
       }
       await new Promise((resolve) => setTimeout(resolve, 3000))
@@ -2560,7 +2591,6 @@ describe('Compute Access Restrictions', () => {
         firstEnv.id
       )
       const response = await new PaidComputeStartHandler(oceanNode).handle(command)
-      console.log(response)
       expect(response.status.httpStatus).to.not.equal(403)
     })
 
@@ -2571,7 +2601,6 @@ describe('Compute Access Restrictions', () => {
         firstEnv.id
       )
       const response = await new PaidComputeStartHandler(oceanNode).handle(command)
-      console.log(response)
       assert(
         response.status.httpStatus === 403,
         `Expected 403 but got ${response.status.httpStatus}: ${response.status.error}`
