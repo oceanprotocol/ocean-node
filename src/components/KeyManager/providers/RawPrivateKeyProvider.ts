@@ -88,22 +88,36 @@ export class RawPrivateKeyProvider implements IKeyProvider {
    * This method encrypts data according to a given algorithm using node keys
    * @param data data to encrypt
    * @param algorithm encryption algorithm AES or ECIES
+   * @param key optional: for ECIES, the decryptor's public key; for AES, the symmetric key (32 bytes)
    */
   // eslint-disable-next-line require-await
-  async encrypt(data: Uint8Array, algorithm: EncryptMethod): Promise<Buffer> {
+  async encrypt(
+    data: Uint8Array,
+    algorithm: EncryptMethod,
+    key?: Uint8Array
+  ): Promise<Buffer> {
     let encryptedData: Buffer
     const { privateKey, publicKey } = this
     if (algorithm === EncryptMethod.AES) {
-      // use first 16 bytes of public key as an initialisation vector
+      const cipherKey =
+        key !== undefined && key.length >= 32
+          ? Buffer.from(key.subarray(0, 32))
+          : privateKey.raw
+      if (key !== undefined && key.length < 32) {
+        throw new Error('encrypt: AES symmetric key must be at least 32 bytes')
+      }
+      if (cipherKey.length !== 32) {
+        throw new Error('encrypt: privateKey must be 32 bytes for AES-256')
+      }
       const initVector = publicKey.subarray(0, 16)
-      // creates cipher object, with the given algorithm, key and initialization vector
-      const cipher = crypto.createCipheriv('aes-256-cbc', privateKey.raw, initVector)
-      // encoding is ignored because we are working with bytes and want to return a buffer
+      const cipher = crypto.createCipheriv('aes-256-cbc', cipherKey, initVector)
       encryptedData = Buffer.concat([cipher.update(data), cipher.final()])
     } else if (algorithm === EncryptMethod.ECIES) {
-      const sk = new eciesjs.PrivateKey(privateKey.raw)
-      // get public key from Elliptic curve
-      encryptedData = eciesjs.encrypt(sk.publicKey.toHex(), data)
+      const recipientPublicKeyHex =
+        key && key.length > 0
+          ? Buffer.from(key).toString('hex')
+          : new eciesjs.PrivateKey(privateKey.raw).publicKey.toHex()
+      encryptedData = eciesjs.encrypt(recipientPublicKeyHex, data)
     }
     return encryptedData
   }
@@ -137,9 +151,14 @@ export class RawPrivateKeyProvider implements IKeyProvider {
    * Encrypts a stream according to a given algorithm using node keys
    * @param inputStream - Readable stream to encrypt
    * @param algorithm - Encryption algorithm AES or ECIES
+   * @param key optional: for ECIES, the decryptor's public key; for AES, the symmetric key (32 bytes)
    * @returns Readable stream with encrypted data
    */
-  encryptStream(inputStream: Readable, algorithm: EncryptMethod): Readable {
+  encryptStream(
+    inputStream: Readable,
+    algorithm: EncryptMethod,
+    key?: Uint8Array
+  ): Readable {
     if (!inputStream || typeof inputStream.pipe !== 'function') {
       throw new Error('encryptStream: inputStream must be a readable stream')
     }
@@ -147,23 +166,29 @@ export class RawPrivateKeyProvider implements IKeyProvider {
     const { privateKey, publicKey } = this
 
     if (algorithm === EncryptMethod.AES) {
+      const cipherKey =
+        key !== undefined && key.length >= 32
+          ? Buffer.from(key.subarray(0, 32))
+          : privateKey.raw
+      if (key !== undefined && key.length < 32) {
+        throw new Error('encryptStream: AES symmetric key must be at least 32 bytes')
+      }
+      if (cipherKey.length !== 32) {
+        throw new Error('encryptStream: privateKey must be 32 bytes for AES-256')
+      }
       if (publicKey.length < 16) {
         throw new Error(
           'encryptStream: publicKey must be at least 16 bytes for AES initialization vector'
         )
       }
-      if (privateKey.raw.length !== 32) {
-        throw new Error('encryptStream: privateKey must be 32 bytes for AES-256')
-      }
-      // Use first 16 bytes of public key as an initialization vector
       const initVector = publicKey.subarray(0, 16)
-      // Create cipher transform stream
-      const cipher = crypto.createCipheriv('aes-256-cbc', privateKey.raw, initVector)
-
-      // Pipe input stream through cipher and return the encrypted stream
+      const cipher = crypto.createCipheriv('aes-256-cbc', cipherKey, initVector)
       return inputStream.pipe(cipher)
     } else if (algorithm === EncryptMethod.ECIES) {
-      // ECIES doesn't support streaming, so we need to collect all data first
+      const recipientPublicKeyHex =
+        key !== undefined && key.length > 0
+          ? Buffer.from(key).toString('hex')
+          : new eciesjs.PrivateKey(privateKey.raw).publicKey.toHex()
       const chunks: Buffer[] = []
       const collector = new Transform({
         transform(chunk, encoding, callback) {
@@ -191,8 +216,7 @@ export class RawPrivateKeyProvider implements IKeyProvider {
                 new Error('encryptStream: no data to encrypt (empty stream)')
               )
             }
-            const sk = new eciesjs.PrivateKey(privateKey.raw)
-            const encryptedData = eciesjs.encrypt(sk.publicKey.toHex(), data)
+            const encryptedData = eciesjs.encrypt(recipientPublicKeyHex, data)
             this.push(Buffer.from(encryptedData))
             callback()
           } catch (err) {

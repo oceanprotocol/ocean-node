@@ -456,7 +456,7 @@ describe('Trusted algorithms Flow', () => {
         transferTxId: algoOrderTxId,
         meta: publishedAlgoDataset.ddo.metadata.algorithm
       },
-      output: {},
+      output: null,
       payment: {
         chainId: DEVELOPMENT_CHAIN_ID,
         token: paymentToken

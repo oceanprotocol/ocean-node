@@ -12,7 +12,6 @@ import {
 import type {
   ComputeAlgorithm,
   ComputeAsset,
-  ComputeOutput,
   ComputeResourceRequest
 } from '../../@types/C2D/C2D.js'
 import type {
@@ -88,7 +87,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
         (req.body.encryptedDockerRegistryAuth as string) || null
     }
     if (req.body.output) {
-      startComputeTask.output = req.body.output as ComputeOutput
+      startComputeTask.output = req.body.output
     }
 
     const response = await new PaidComputeStartHandler(req.oceanNode).handle(
@@ -137,7 +136,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/freeCompute`, async (req, res) => 
         (req.body.encryptedDockerRegistryAuth as string) || null
     }
     if (req.body.output) {
-      startComputeTask.output = req.body.output as ComputeOutput
+      startComputeTask.output = req.body.output
     }
 
     const response = await new FreeComputeStartHandler(req.oceanNode).handle(

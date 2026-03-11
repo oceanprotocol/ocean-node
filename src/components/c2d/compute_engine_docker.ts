@@ -10,9 +10,9 @@ import type {
   C2DClusterInfo,
   ComputeEnvironment,
   ComputeAlgorithm,
+  ComputeOutput,
   ComputeAsset,
   ComputeJob,
-  ComputeOutput,
   DBComputeJob,
   DBComputeJobPayment,
   ComputeResult,
@@ -1023,7 +1023,7 @@ export class C2DEngineDocker extends C2DEngine {
   public override async startComputeJob(
     assets: ComputeAsset[],
     algorithm: ComputeAlgorithm,
-    output: ComputeOutput,
+    output: string,
     environment: string,
     owner: string,
     maxJobDuration: number,
@@ -1119,7 +1119,8 @@ export class C2DEngineDocker extends C2DEngine {
       terminationDetails: { exitCode: null, OOMKilled: null },
       algoDuration: 0,
       queueMaxWaitTime: queueMaxWaitTime || 0,
-      encryptedDockerRegistryAuth // we store the encrypted docker registry auth in the job
+      encryptedDockerRegistryAuth, // we store the encrypted docker registry auth in the job
+      output
     }
 
     if (algorithm.meta.container && algorithm.meta.container.dockerfile) {
@@ -1239,17 +1240,21 @@ export class C2DEngineDocker extends C2DEngine {
       }
     } catch (e) {}
     try {
-      const outputStat = statSync(
-        this.getC2DConfig().tempFolder + '/' + jobId + '/data/outputs/outputs.tar'
-      )
-      if (outputStat) {
-        res.push({
-          filename: 'outputs.tar',
-          filesize: outputStat.size,
-          type: 'output',
-          index
-        })
-        index = index + 1
+      // check if we have an output request.
+      const jobDb = await this.db.getJob(jobId)
+      if (jobDb.length < 1 || !jobDb[0].output) {
+        const outputStat = statSync(
+          this.getC2DConfig().tempFolder + '/' + jobId + '/data/outputs/outputs.tar'
+        )
+        if (outputStat) {
+          res.push({
+            filename: 'outputs.tar',
+            filesize: outputStat.size,
+            type: 'output',
+            index
+          })
+          index = index + 1
+        }
       }
     } catch (e) {}
     try {
@@ -1837,15 +1842,62 @@ export class C2DEngineDocker extends C2DEngine {
         job.terminationDetails.OOMKilled = null
         job.terminationDetails.exitCode = null
       }
-
       const outputsArchivePath =
         this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/outputs/outputs.tar'
+
       try {
         if (container) {
-          await pipeline(
-            await container.getArchive({ path: '/data/outputs' }),
-            createWriteStream(outputsArchivePath)
-          )
+          // if we have an output request, stream to remote storage; otherwise write to local file
+          if (job.output) {
+            const decryptedOutput = await this.keyManager.decrypt(
+              Uint8Array.from(Buffer.from(job.output, 'hex')),
+              EncryptMethod.ECIES
+            )
+            const output = JSON.parse(decryptedOutput.toString()) as ComputeOutput
+            const storage = Storage.getStorageClass(
+              output.remoteStorage,
+              await getConfiguration()
+            )
+
+            if (
+              storage.hasUpload &&
+              'upload' in storage &&
+              typeof storage.upload === 'function'
+            ) {
+              let uploadStream = (await container.getArchive({
+                path: '/data/outputs'
+              })) as unknown as Readable
+              if (output.encryption?.encryptMethod) {
+                const enc = output.encryption
+                let key: Uint8Array | undefined
+                if (enc.encryptMethod === EncryptMethod.AES && enc.aesKey) {
+                  key = Uint8Array.from(Buffer.from(enc.aesKey, 'hex'))
+                } else if (enc.encryptMethod === EncryptMethod.ECIES && enc.publicKey) {
+                  key = Uint8Array.from(Buffer.from(enc.publicKey, 'hex'))
+                }
+                uploadStream = this.keyManager.encryptStream(
+                  uploadStream,
+                  enc.encryptMethod,
+                  key
+                )
+              }
+              await (
+                storage as unknown as {
+                  upload: (name: string, stream: Readable) => Promise<unknown>
+                }
+              ).upload(`outputs-${job.jobId}.tar`, uploadStream)
+            } else {
+              await pipeline(
+                await container.getArchive({ path: '/data/outputs' }),
+                createWriteStream(outputsArchivePath)
+              )
+            }
+          } else {
+            await pipeline(
+              await container.getArchive({ path: '/data/outputs' }),
+              createWriteStream(outputsArchivePath)
+            )
+          }
         }
       } catch (e) {
         CORE_LOGGER.error('Failed to get outputs archive: ' + e.message)

@@ -1,5 +1,5 @@
 import { MetadataAlgorithm, ConsumerParameter } from '@oceanprotocol/ddo-js'
-import type { BaseFileObject } from '../fileObject.js'
+import type { BaseFileObject, StorageObject, EncryptMethod } from '../fileObject.js'
 export enum C2DClusterType {
   // eslint-disable-next-line no-unused-vars
   OPF_K8 = 0,
@@ -188,16 +188,15 @@ export interface ComputeJob {
   queueMaxWaitTime: number // max time in seconds a job can wait in the queue before being started
 }
 
+export interface ComputeOutputEncryption {
+  encryptMethod?: EncryptMethod
+  aesKey?: string // if EncryptMethod=='AES', this is the symetric key
+  publicKey?: string // if EncryptMethod=='ECIES', this is the public key
+}
+
 export interface ComputeOutput {
-  publishAlgorithmLog?: boolean
-  publishOutput?: boolean
-  providerAddress?: string
-  providerUri?: string
-  metadataUri?: string
-  nodeUri?: string
-  owner?: string
-  secretStoreUri?: string
-  whitelist?: string[]
+  remoteStorage?: StorageObject
+  encryption?: ComputeOutputEncryption
 }
 
 export interface ComputeAsset {
@@ -266,6 +265,7 @@ export interface DBComputeJob extends ComputeJob {
   additionalViewers?: string[] // addresses of additional addresses that can get results
   algoDuration: number // duration of the job in seconds
   encryptedDockerRegistryAuth?: string
+  output?: string // this is always an ECIES encrypted string, that decodes to ComputeOutput interface
 }
 
 // make sure we keep them both in sync
