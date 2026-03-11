@@ -786,7 +786,17 @@ export class OceanP2P extends EventEmitter {
       const writeSignal = AbortSignal.timeout(10_000)
       const readSignal = AbortSignal.timeout(10_000)
 
-      await lp.write(uint8ArrayFromString(message), { signal: writeSignal })
+      try {
+        await lp.write(uint8ArrayFromString(message), { signal: writeSignal })
+      } catch (writeErr) {
+        // Remote may have closed the stream after sending an error status (e.g. rate limit)
+        try {
+          const statusBytes = await lp.read({ signal: AbortSignal.timeout(1_000) })
+          return { status: JSON.parse(uint8ArrayToString(statusBytes.subarray())) }
+        } catch {
+          throw writeErr
+        }
+      }
 
       const statusBytes = await lp.read({ signal: readSignal })
       const status = JSON.parse(uint8ArrayToString(statusBytes.subarray()))

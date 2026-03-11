@@ -71,7 +71,23 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
     }
   }
 
-  // Rate limiting and deny list checks
+  // Read the command first so the client always gets a response after writing.
+  // Rate limiting checks happen after reading to maintain the write→read protocol order.
+  let task: Command
+  try {
+    const cmdBytes = await lp.read({ signal: readWriteSignal() })
+    const str = uint8ArrayToString(cmdBytes.subarray())
+    task = JSON.parse(str) as Command
+  } catch (err) {
+    P2P_LOGGER.log(
+      LOG_LEVELS_STR.LEVEL_ERROR,
+      `Unable to process P2P command: ${err?.message ?? err}`
+    )
+    await sendErrorAndClose(400, 'Invalid command')
+    return
+  }
+
+  // Rate limiting and deny list checks (after reading command)
   const configuration = await getConfiguration()
   const { denyList } = configuration
 
@@ -97,20 +113,6 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
       `Exceeded limit of connections per minute ${configuration.maxConnections}: ${connectionsRateValidation.error}`
     )
     await sendErrorAndClose(403, 'Rate limit exceeded')
-    return
-  }
-
-  let task: Command
-  try {
-    const cmdBytes = await lp.read({ signal: readWriteSignal() })
-    const str = uint8ArrayToString(cmdBytes.subarray())
-    task = JSON.parse(str) as Command
-  } catch (err) {
-    P2P_LOGGER.log(
-      LOG_LEVELS_STR.LEVEL_ERROR,
-      `Unable to process P2P command: ${err?.message ?? err}`
-    )
-    await sendErrorAndClose(400, 'Invalid command')
     return
   }
 
