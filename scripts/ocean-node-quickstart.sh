@@ -290,15 +290,15 @@ get_nvidia_gpus() {
                 --arg memory_total "$memory_total" \
                 '{
                     description: $name,
+                    driverVersion: (if $driver_version != "" then $driver_version else null end),
+                    memoryTotal: (if $memory_total != "" then $memory_total else null end),
                     init: {
                         deviceRequests: {
                             Driver: "nvidia",
-                            Devices: [$uuid],
-                            DriverVersion: $driver_version,
-                            MemoryTotal: $memory_total
+                            Devices: [$uuid]
                         }
                     }
-                }'
+                } | del(.. | select(. == null))'
         done
     fi
 }
@@ -546,13 +546,13 @@ process_pci_line() {
         --argjson ipc "$ipc_mode" \
         '{
             description: $desc,
+            driverVersion: (if $driver_version != "" then $driver_version else null end),
+            memoryTotal: (if $memory_total != "" then $memory_total else null end),
             init: {
                 deviceRequests: {
                     Driver: (if $driver != "" then $driver else null end),
                     Devices: $dev,
-                    Capabilities: [["gpu"]],
-                    DriverVersion: $driver_version,
-                    MemoryTotal: $memory_total
+                    Capabilities: [["gpu"]]
                 },
                 Binds: $bind,
                 CapAdd: $cap,
@@ -576,8 +576,8 @@ get_all_gpus_json() {
                 description: .[0].description,
                 type: "gpu",
                 total: length,
-                driverVersion: (.[0].init.deviceRequests.DriverVersion // .[0].driverVersion // null),
-                memoryTotal: (.[0].init.deviceRequests.MemoryTotal // .[0].memoryTotal // null),
+                driverVersion: (.[0].driverVersion // null),
+                memoryTotal: (.[0].memoryTotal // null),
                 platform: (if .[0].init.deviceRequests.Driver == "amdgpu" then "amd" else .[0].init.deviceRequests.Driver end),
                 init: (
                     if .[0].init.deviceRequests.Driver == "nvidia" then
