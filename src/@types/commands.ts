@@ -264,6 +264,7 @@ export interface ComputeGetResultCommand extends Command {
   nonce: string
   jobId: string
   index: number
+  offset?: number
 }
 export interface ComputeGetStreamableLogsCommand extends Command {
   consumerAddress: string

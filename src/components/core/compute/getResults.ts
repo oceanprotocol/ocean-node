@@ -65,7 +65,8 @@ export class ComputeGetResultHandler extends CommandHandler {
       const respStream = await engine.getComputeJobResult(
         task.consumerAddress,
         jobId,
-        task.index
+        task.index,
+        task.offset ?? 0
       )
       const response: P2PCommandResponse = {
         stream: respStream?.stream,

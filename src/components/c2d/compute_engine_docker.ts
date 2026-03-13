@@ -1294,7 +1294,8 @@ export class C2DEngineDocker extends C2DEngine {
   public override async getComputeJobResult(
     consumerAddress: string,
     jobId: string,
-    index: number
+    index: number,
+    offset: number = 0
   ): Promise<{ stream: Readable; headers: any }> {
     const jobs = await this.db.getJob(jobId, null, null)
     if (jobs.length === 0 || jobs.length > 1) {
@@ -1358,7 +1359,8 @@ export class C2DEngineDocker extends C2DEngine {
         if (i.type === 'output') {
           return {
             stream: createReadStream(
-              this.getC2DConfig().tempFolder + '/' + jobId + '/data/outputs/outputs.tar'
+              this.getC2DConfig().tempFolder + '/' + jobId + '/data/outputs/outputs.tar',
+              offset > 0 ? { start: offset } : undefined
             ),
             headers: {
               'Content-Type': 'application/octet-stream'

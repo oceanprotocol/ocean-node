@@ -135,7 +135,10 @@ directCommandRoute.post(
       }
     } catch (err) {
       HTTP_LOGGER.error(err.message)
-      res.status(500).send(err.message)
+      closedResponse = true
+      if (!res.headersSent) {
+        res.status(500).send(err.message)
+      }
     }
   }
 )

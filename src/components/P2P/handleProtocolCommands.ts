@@ -12,6 +12,7 @@ import {
   checkGlobalConnectionsRateLimit,
   checkRequestsRateLimit
 } from '../../utils/validators.js'
+import { lpStream } from '@libp2p/utils'
 import type { Connection, Stream } from '@libp2p/interface'
 
 export class ReadableString extends Readable {
@@ -40,28 +41,54 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
   P2P_LOGGER.logMessage('Incoming connection from peer ' + remotePeer, true)
   P2P_LOGGER.logMessage('Using ' + remoteAddr, true)
 
-  const sendErrorAndClose = async (httpStatus: number, error: string) => {
+  stream.resume()
+  const lp = lpStream(stream)
+  const handshakeSignal = () => AbortSignal.timeout(30_000)
+  const dataWriteSignal = () => AbortSignal.timeout(30 * 60_000)
+
+  const sendErrorAndClose = async (
+    httpStatus: number,
+    error: string,
+    errorDebug?: Record<string, unknown>
+  ) => {
     try {
-      // Check if stream is already closed
       if (stream.status === 'closed' || stream.status === 'closing') {
         P2P_LOGGER.warn('Stream already closed, cannot send error response')
         return
       }
-
-      // Resume stream in case it's paused - we need to write
-      stream.resume()
-      const status = { httpStatus, error }
-      stream.send(uint8ArrayFromString(JSON.stringify(status)))
+      const status = errorDebug
+        ? { httpStatus, error, errorDebug }
+        : { httpStatus, error }
+      await lp.write(uint8ArrayFromString(JSON.stringify(status)), {
+        signal: handshakeSignal()
+      })
       await stream.close()
     } catch (e) {
-      P2P_LOGGER.error(`Error sending error response: ${e.message}`)
+      const msg = e instanceof Error ? e.message : e != null ? String(e) : 'Unknown error'
+      P2P_LOGGER.error(`Error sending error response: ${msg}`)
       try {
         stream.abort(e as Error)
       } catch {}
     }
   }
 
-  // Rate limiting and deny list checks
+  // Read the command first so the client always gets a response after writing.
+  // Rate limiting checks happen after reading to maintain the write→read protocol order.
+  let task: Command
+  try {
+    const cmdBytes = await lp.read({ signal: handshakeSignal() })
+    const str = uint8ArrayToString(cmdBytes.subarray())
+    task = JSON.parse(str) as Command
+  } catch (err) {
+    P2P_LOGGER.log(
+      LOG_LEVELS_STR.LEVEL_ERROR,
+      `Unable to process P2P command: ${err?.message ?? err}`
+    )
+    await sendErrorAndClose(400, 'Invalid command')
+    return
+  }
+
+  // Rate limiting and deny list checks (after reading command)
   const configuration = await getConfiguration()
   const { denyList } = configuration
 
@@ -90,30 +117,6 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
     return
   }
 
-  // Resume the stream. We can now write.
-  stream.resume()
-
-  // v3 streams are AsyncIterable
-  let task: Command
-  try {
-    for await (const chunk of stream) {
-      try {
-        const str = uint8ArrayToString(chunk.subarray())
-        task = JSON.parse(str) as Command
-      } catch (e) {
-        await sendErrorAndClose(400, 'Invalid command')
-        return
-      }
-    }
-  } catch (err) {
-    P2P_LOGGER.log(
-      LOG_LEVELS_STR.LEVEL_ERROR,
-      `Unable to process P2P command: ${err.message}`
-    )
-    await sendErrorAndClose(400, 'Invalid command')
-    return
-  }
-
   if (!task) {
     P2P_LOGGER.error('Invalid or missing task/command data!')
     await sendErrorAndClose(400, 'Invalid command')
@@ -133,20 +136,16 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
     task.caller = remotePeer.toString()
     const response: P2PCommandResponse = await handler.handle(task)
 
-    // Send status first
-    stream.send(uint8ArrayFromString(JSON.stringify(response.status)))
+    // Send status first (length-prefixed)
+    await lp.write(uint8ArrayFromString(JSON.stringify(response.status)), {
+      signal: handshakeSignal()
+    })
 
-    // Stream data chunks without buffering, with backpressure support
+    // Stream data chunks as length-prefixed messages
     if (response.stream) {
       for await (const chunk of response.stream as Readable) {
         const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
-
-        // Handle backpressure - if send returns false, wait for drain
-        if (!stream.send(bytes)) {
-          await stream.onDrain({
-            signal: AbortSignal.timeout(30000) // 30 second timeout for drain
-          })
-        }
+        await lp.write(bytes, { signal: dataWriteSignal() })
       }
     }
 
