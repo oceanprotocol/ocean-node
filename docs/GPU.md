@@ -37,9 +37,9 @@ Fri Apr 25 06:00:34 2025
 Now, time to get the id of the gpu:
 
 ```bash
-root@gpu-1:/repos/ocean/ocean-node# nvidia-smi --query-gpu=name,uuid --format=csv
-name, uuid
-NVIDIA GeForce GTX 1060 3GB, GPU-294c6802-bb2f-fedb-f9e0-a26b9142dd81
+root@gpu-1:/repos/ocean/ocean-node# nvidia-smi --query-gpu=name,uuid,driver_version,memory.total --format=csv
+name, uuid, driver version, memory total
+NVIDIA GeForce GTX 1060 3GB, GPU-294c6802-bb2f-fedb-f9e0-a26b9142dd81, 570.195.03, 3072 MiB
 ```
 
 Now, we can define the gpu for node:
@@ -56,7 +56,9 @@ Now, we can define the gpu for node:
       "DeviceIDs": ["GPU-294c6802-bb2f-fedb-f9e0-a26b9142dd81"],
       "Capabilities": [["gpu"]]
     }
-  }
+  },
+  "driverVersion": "570.195.03",
+  "memoryTotal": "3072 MiB"
 }
 ```
 
@@ -80,7 +82,9 @@ Here is the full definition of DOCKER_COMPUTE_ENVIRONMENTS:
             "DeviceIDs": ["GPU-294c6802-bb2f-fedb-f9e0-a26b9142dd81"],
             "Capabilities": [["gpu"]]
           }
-        }
+        },
+        "driverVersion": "570.195.03",
+        "memoryTotal": "3072 MiB"
       },
       { "id": "disk", "total": 1 }
     ],
@@ -93,7 +97,7 @@ Here is the full definition of DOCKER_COMPUTE_ENVIRONMENTS:
           "feeToken": "0x123",
           "prices": [
             { "id": "cpu", "price": 1 },
-            { "id": "nyGPU", "price": 3 }
+            { "id": "myGPU", "price": 3 }
           ]
         }
       ]
@@ -161,6 +165,8 @@ root@gpu-1:/repos/ocean/ocean-node# curl http://localhost:8000/api/services/comp
             "Capabilities": [["gpu"]]
           }
         },
+        "driverVersion": "570.195.03",
+        "memoryTotal": "3072 MiB",
         "max": 1,
         "min": 0,
         "inUse": 0
@@ -259,7 +265,9 @@ Then define DOCKER_COMPUTE_ENVIRONMENTS with
               "seccomp": "unconfined"
             }
           }
-        }
+        },
+        "driverVersion": "26.2.2",
+        "memoryTotal": "16384 MiB"
       },
       {
         "id": "disk",
@@ -316,8 +324,7 @@ Then define DOCKER_COMPUTE_ENVIRONMENTS with
 aka
 
 ```bash
-export DOCKER_COMPUTE_ENVIRONMENTS="[{\"socketPath\":\"/var/run/docker.sock\",\"resources\":[{\"id\":\"myGPU\",\"description\":\"AMD Radeon RX 9070 XT\",\"type\":\"gpu\",\"total\":1,\"init\":{\"advanced\":{
-\"IpcMode\":\"host\",\"CapAdd\":[\"CAP_SYS_PTRACE\"],\"Devices\":[\"/dev/dxg\",\"/dev/dri/card0\"],\"Binds\":[\"/usr/lib/wsl/lib/libdxcore.so:/usr/lib/libdxcore.so\",\"/opt/rocm/lib/libhsa-runtime64.so.1:/opt/rocm/lib/libhsa-runtime64.so.1\"],\"SecurityOpt\":{\"seccomp\":\"unconfined\"}}}},{\"id\":\"disk\",\"total\":10}],\"storageExpiry\":604800,\"maxJobDuration\":3600,\"minJobDuration\":60,\"fees\":{\"1\":[{\"feeToken\":\"0x123\",\"prices\":[{\"id\":\"cpu\",\"price\":1},{\"id\":\"nyGPU\",\"price\":3}]}]},\"free\":{\"maxJobDuration\":60,\"minJobDuration\":10,\"maxJobs\":3,\"resources\":[{\"id\":\"cpu\",\"max\":1},{\"id\":\"ram\",\"max\":1},{\"id\":\"disk\",\"max\":1},{\"id\":\"myGPU\",\"max\":1}]}}]"
+export DOCKER_COMPUTE_ENVIRONMENTS='[{"socketPath":"/var/run/docker.sock","resources":[{"id":"myGPU","description":"AMD Radeon RX 9070 XT","type":"gpu","total":1,"init":{"advanced":{"IpcMode":"host","ShmSize":8589934592,"CapAdd":["SYS_PTRACE"],"Devices":["/dev/dxg","/dev/dri/card0"],"Binds":["/usr/lib/wsl/lib/libdxcore.so:/usr/lib/libdxcore.so","/opt/rocm/lib/libhsa-runtime64.so.1:/opt/rocm/lib/libhsa-runtime64.so.1"],"SecurityOpt":{"seccomp":"unconfined"}}},"driverVersion":"26.2.2","memoryTotal":"16384 MiB"},{"id":"disk","total":1}],"storageExpiry":604800,"maxJobDuration":3600,"minJobDuration":60,"fees":{"1":[{"feeToken":"0x123","prices":[{"id":"cpu","price":1},{"id":"nyGPU","price":3}]}]},"free":{"maxJobDuration":60,"minJobDuration":10,"maxJobs":3,"resources":[{"id":"cpu","max":1},{"id":"ram","max":1},{"id":"disk","max":1},{"id":"myGPU","max":1}]}}]'
 ```
 
 you should have it in your compute envs:
@@ -390,6 +397,8 @@ root@gpu-1:/repos/ocean/ocean-node# curl http://localhost:8000/api/services/comp
             }
           }
         },
+        "driverVersion": "26.2.2",
+        "memoryTotal": "16384 MiB",
         "max": 1,
         "min": 0,
         "inUse": 0
@@ -541,7 +550,9 @@ Now, we can define the GPU for the node:
       "GroupAdd": ["video", "render"],
       "CapAdd": ["SYS_ADMIN"]
     }
-  }
+  },
+  "driverVersion": "32.0.101.8531",
+  "memoryTotal": "16384 MiB"
 }
 ```
 
@@ -563,7 +574,9 @@ Here is the full definition of DOCKER_COMPUTE_ENVIRONMENTS with Intel GPU:
             "GroupAdd": ["video", "render"],
             "CapAdd": ["SYS_ADMIN"]
           }
-        }
+        },
+        "driverVersion": "32.0.101.8531",
+        "memoryTotal": "16384 MiB"
       },
       { "id": "disk", "total": 1 }
     ],
@@ -644,6 +657,8 @@ root@gpu-1:/repos/ocean/ocean-node# curl http://localhost:8000/api/services/comp
             "CapAdd": ["SYS_ADMIN"]
           }
         },
+        "driverVersion": "32.0.101.8531",
+        "memoryTotal": "16384 MiB"
         "max": 1,
         "min": 0,
         "inUse": 0
