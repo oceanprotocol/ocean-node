@@ -43,7 +43,8 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
 
   stream.resume()
   const lp = lpStream(stream)
-  const readWriteSignal = () => AbortSignal.timeout(30_000)
+  const handshakeSignal = () => AbortSignal.timeout(30_000)
+  const dataWriteSignal = () => AbortSignal.timeout(30 * 60_000)
 
   const sendErrorAndClose = async (
     httpStatus: number,
@@ -59,7 +60,7 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
         ? { httpStatus, error, errorDebug }
         : { httpStatus, error }
       await lp.write(uint8ArrayFromString(JSON.stringify(status)), {
-        signal: readWriteSignal()
+        signal: handshakeSignal()
       })
       await stream.close()
     } catch (e) {
@@ -75,7 +76,7 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
   // Rate limiting checks happen after reading to maintain the write→read protocol order.
   let task: Command
   try {
-    const cmdBytes = await lp.read({ signal: readWriteSignal() })
+    const cmdBytes = await lp.read({ signal: handshakeSignal() })
     const str = uint8ArrayToString(cmdBytes.subarray())
     task = JSON.parse(str) as Command
   } catch (err) {
@@ -137,14 +138,14 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
 
     // Send status first (length-prefixed)
     await lp.write(uint8ArrayFromString(JSON.stringify(response.status)), {
-      signal: readWriteSignal()
+      signal: handshakeSignal()
     })
 
     // Stream data chunks as length-prefixed messages
     if (response.stream) {
       for await (const chunk of response.stream as Readable) {
         const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
-        await lp.write(bytes, { signal: readWriteSignal() })
+        await lp.write(bytes, { signal: dataWriteSignal() })
       }
     }
 
