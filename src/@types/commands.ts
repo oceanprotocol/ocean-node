@@ -4,7 +4,6 @@ import { DDO } from '@oceanprotocol/ddo-js'
 import type {
   ComputeAsset,
   ComputeAlgorithm,
-  ComputeOutput,
   ComputeResourceRequest,
   DBComputeJobMetadata
 } from './C2D/C2D.js'
@@ -238,7 +237,7 @@ export interface FreeComputeStartCommand extends Command {
   environment: string
   algorithm: ComputeAlgorithm
   datasets?: ComputeAsset[]
-  output?: ComputeOutput
+  output?: string // this is always an ECIES encrypted string, that decodes to ComputeOutput interface
   resources?: ComputeResourceRequest[]
   maxJobDuration?: number
   policyServer?: any // object to pass to policy server

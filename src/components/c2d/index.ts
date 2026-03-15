@@ -43,7 +43,8 @@ export function omitDBComputeFieldsFromComputeJob(dbCompute: DBComputeJob): Comp
     'isRunning',
     'isStarted',
     'containerImage',
-    'encryptedDockerRegistryAuth'
+    'encryptedDockerRegistryAuth',
+    'output'
   ]) as ComputeJob
   return job
 }

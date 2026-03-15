@@ -149,9 +149,14 @@ export class KeyManager {
    * This method encrypts data according to a given algorithm using node keys
    * @param data data to encrypt
    * @param algorithm encryption algorithm AES or ECIES
+   * @param key optional: for ECIES, the decryptor's public key; for AES, the symmetric key (32 bytes)
    */
-  async encrypt(data: Uint8Array, algorithm: EncryptMethod): Promise<Buffer> {
-    return await this.keyProvider.encrypt(data, algorithm)
+  async encrypt(
+    data: Uint8Array,
+    algorithm: EncryptMethod,
+    key?: Uint8Array
+  ): Promise<Buffer> {
+    return await this.keyProvider.encrypt(data, algorithm, key)
   }
 
   /**
@@ -167,10 +172,15 @@ export class KeyManager {
    * Encrypts a stream according to a given algorithm using node keys
    * @param inputStream - Readable stream to encrypt
    * @param algorithm - Encryption algorithm AES or ECIES
+   * @param key optional: for ECIES, the decryptor's public key; for AES, the symmetric key (32 bytes)
    * @returns Readable stream with encrypted data
    */
-  encryptStream(inputStream: Readable, algorithm: EncryptMethod): Readable {
-    return this.keyProvider.encryptStream(inputStream, algorithm)
+  encryptStream(
+    inputStream: Readable,
+    algorithm: EncryptMethod,
+    key?: Uint8Array
+  ): Readable {
+    return this.keyProvider.encryptStream(inputStream, algorithm, key)
   }
 
   /**

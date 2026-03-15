@@ -69,7 +69,7 @@ import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Fa
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
 import OceanToken from '@oceanprotocol/contracts/artifacts/contracts/utils/OceanToken.sol/OceanToken.json' with { type: 'json' }
 import EscrowJson from '@oceanprotocol/contracts/artifacts/contracts/escrow/Escrow.sol/Escrow.json' with { type: 'json' }
-import { createHash } from 'crypto'
+import { createHash, randomBytes } from 'crypto'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import {
   getAlgoChecksums,
@@ -83,6 +83,43 @@ import { C2DEngineDocker } from '../../components/c2d/compute_engine_docker.js'
 import { createHashForSignature, safeSign } from '../utils/signature.js'
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Polls getComputeEnvironments until every environment's resources (and free.resources)
+ * have inUse === 0. Use with the same pattern as the compute tests: pass a callback that
+ * calls ComputeGetEnvironmentsHandler and streamToObject.
+ */
+export async function waitForAllJobsToFinish(
+  oceanNode: OceanNode,
+  options?: { pollIntervalMs?: number; timeoutMs?: number }
+): Promise<void> {
+  const getEnvironmentsTask = {
+    command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS
+  }
+  const pollIntervalMs = options?.pollIntervalMs ?? 2000
+  const timeoutMs = options?.timeoutMs ?? 120_000
+  const deadline = Date.now() + timeoutMs
+
+  while (true) {
+    const response = await new ComputeGetEnvironmentsHandler(oceanNode).handle(
+      getEnvironmentsTask
+    )
+    const envs = await streamToObject(response.stream as Readable)
+
+    const allIdle = envs.every((env: ComputeEnvironment) => {
+      const resources = env.resources ?? []
+      const freeResources = env.free?.resources ?? []
+      const paidInUse = resources.every((r) => (r.inUse ?? 0) === 0)
+      const freeInUse = freeResources.every((r) => (r.inUse ?? 0) === 0)
+      return paidInUse && freeInUse
+    })
+    if (allIdle) return
+    if (Date.now() >= deadline) {
+      throw new Error(`waitForAllJobsToFinish timed out after ${timeoutMs}ms`)
+    }
+    await sleep(pollIntervalMs)
+  }
+}
 
 describe('Compute', () => {
   let previousConfiguration: OverrideEnvConfig[]
@@ -99,6 +136,7 @@ describe('Compute', () => {
   let publishedAlgoDataset: any
   let jobId: string
   let freeJobId: string
+  let jobWithOutputURL: string
   let datasetOrderTxId: any
   let algoOrderTxId: any
   let paymentToken: any
@@ -637,6 +675,112 @@ describe('Compute', () => {
     assert(response.status.httpStatus === 500, 'Failed to get 500 response')
     assert(!response.stream, 'We should not have a stream')
   })
+  it('should start a compute job with output to URL storage at 172.15.0.7', async () => {
+    // deposit funds and create auth in escrow
+    let balance = await paymentTokenContract.balanceOf(await consumerAccount.getAddress())
+    if (BigInt(balance.toString()) === BigInt(0)) {
+      const mintAmount = ethers.parseUnits('1000', 18)
+      const mintTx = await paymentTokenContract.mint(
+        await consumerAccount.getAddress(),
+        mintAmount
+      )
+      await mintTx.wait()
+      balance = await paymentTokenContract.balanceOf(await consumerAccount.getAddress())
+    }
+    await paymentTokenContract
+      .connect(consumerAccount)
+      .approve(initializeResponse.payment.escrowAddress, balance)
+    await escrowContract
+      .connect(consumerAccount)
+      .deposit(initializeResponse.payment.token, balance)
+
+    await escrowContract
+      .connect(consumerAccount)
+      .authorize(
+        initializeResponse.payment.token,
+        firstEnv.consumerAddress,
+        balance,
+        initializeResponse.payment.minLockSeconds,
+        10
+      )
+
+    const fundsBefore = await oceanNode.escrow.getUserAvailableFunds(
+      DEVELOPMENT_CHAIN_ID,
+      await consumerAccount.getAddress(),
+      paymentToken
+    )
+    assert(BigInt(fundsBefore.toString()) > BigInt(0), 'Should have funds in escrow')
+
+    const computeOutput = {
+      remoteStorage: {
+        type: 'url',
+        url: 'http://172.15.0.7:80/',
+        method: 'get'
+      },
+      encryption: {
+        encryptMethod: EncryptMethod.AES,
+        key: randomBytes(32).toString('hex')
+      }
+    }
+    const encryptedOutput = await oceanNode
+      .getKeyManager()
+      .encrypt(
+        new Uint8Array(Buffer.from(JSON.stringify(computeOutput))),
+        EncryptMethod.ECIES
+      )
+
+    const nonce = Date.now().toString()
+    const messageHashBytes = createHashForSignature(
+      await consumerAccount.getAddress(),
+      nonce,
+      PROTOCOL_COMMANDS.COMPUTE_START
+    )
+    const signature = await safeSign(consumerAccount, messageHashBytes)
+    const re = []
+    for (const res of firstEnv.resources) {
+      re.push({ id: res.id, amount: res.min })
+    }
+    const startComputeTask: PaidComputeStartCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_START,
+      consumerAddress: await consumerAccount.getAddress(),
+      signature,
+      nonce,
+      environment: firstEnv.id,
+      datasets: [
+        {
+          documentId: publishedComputeDataset.ddo.id,
+          serviceId: publishedComputeDataset.ddo.services[0].id,
+          transferTxId: datasetOrderTxId
+        }
+      ],
+      algorithm: {
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        transferTxId: algoOrderTxId,
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      },
+      output: Buffer.from(encryptedOutput).toString('hex'),
+      payment: {
+        chainId: DEVELOPMENT_CHAIN_ID,
+        token: paymentToken
+      },
+      metadata: { key: 'value' },
+      additionalViewers: [await additionalViewerAccount.getAddress()],
+      maxJobDuration: computeJobDuration,
+      resources: re
+    }
+    const response = await new PaidComputeStartHandler(oceanNode).handle(startComputeTask)
+    assert(response, 'Failed to get response')
+    assert(
+      response.status.httpStatus === 200,
+      `Expected 200, got ${response.status.httpStatus}: ${response.status?.error ?? ''}`
+    )
+    assert(response.stream, 'Failed to get stream')
+    expect(response.stream).to.be.instanceOf(Readable)
+    const jobs = await streamToObject(response.stream as Readable)
+    assert(jobs[0].jobId, 'Failed to get job id')
+    jobWithOutputURL = jobs[0].jobId
+  })
 
   it('should fail to start a compute job without escrow funds', async () => {
     // ensure clean escrow state: no funds, no auths, no locks
@@ -705,7 +849,7 @@ describe('Compute', () => {
         transferTxId: algoOrderTxId,
         meta: publishedAlgoDataset.ddo.metadata.algorithm
       },
-      output: {},
+      output: null,
       payment: {
         chainId: DEVELOPMENT_CHAIN_ID,
         token: paymentToken
@@ -722,17 +866,27 @@ describe('Compute', () => {
     assert(!response.stream, 'We should not have a stream')
   })
 
-  it('should start a compute job with maxed resources', async () => {
-    // deposit funds and create auth in escrow
-    const balance = await paymentTokenContract.balanceOf(
-      await consumerAccount.getAddress()
-    )
+  it('should start a compute job with maxed resources', async function () {
+    this.timeout(130_000) // waitForAllJobsToFinish can take up to 120s
+    await waitForAllJobsToFinish(oceanNode)
+    let balance = await paymentTokenContract.balanceOf(await consumerAccount.getAddress())
+    if (BigInt(balance.toString()) === BigInt(0)) {
+      console.log('Minting')
+      const mintAmount = ethers.parseUnits('1000', 18)
+      const mintTx = await paymentTokenContract.mint(
+        await consumerAccount.getAddress(),
+        mintAmount
+      )
+      await mintTx.wait()
+      balance = await paymentTokenContract.balanceOf(await consumerAccount.getAddress())
+    }
     await paymentTokenContract
       .connect(consumerAccount)
       .approve(initializeResponse.payment.escrowAddress, balance)
     await escrowContract
       .connect(consumerAccount)
       .deposit(initializeResponse.payment.token, balance)
+
     await escrowContract
       .connect(consumerAccount)
       .authorize(
@@ -742,7 +896,6 @@ describe('Compute', () => {
         initializeResponse.payment.minLockSeconds,
         10
       )
-
     const auth = await oceanNode.escrow.getAuthorizations(
       DEVELOPMENT_CHAIN_ID,
       paymentToken,
@@ -806,7 +959,7 @@ describe('Compute', () => {
         transferTxId: algoOrderTxId,
         meta: publishedAlgoDataset.ddo.metadata.algorithm
       },
-      output: {},
+      output: null,
       payment: {
         chainId: DEVELOPMENT_CHAIN_ID,
         token: paymentToken
@@ -901,7 +1054,7 @@ describe('Compute', () => {
         transferTxId: algoOrderTxId,
         meta: publishedAlgoDataset.ddo.metadata.algorithm
       },
-      output: {},
+      output: null,
       payment: {
         chainId: DEVELOPMENT_CHAIN_ID,
         token: paymentToken
@@ -947,7 +1100,7 @@ describe('Compute', () => {
         transferTxId: algoOrderTxId,
         meta: publishedAlgoDataset.ddo.metadata.algorithm
       },
-      output: {},
+      output: null,
       queueMaxWaitTime: 300 // 5 minutes
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
@@ -1742,7 +1895,7 @@ describe('Compute', () => {
           transferTxId: algoOrderTxId,
           meta: publishedAlgoDataset.ddo.metadata.algorithm
         },
-        output: {},
+        output: null,
         encryptedDockerRegistryAuth: encryptedAuth
       }
 
@@ -1799,7 +1952,7 @@ describe('Compute', () => {
           transferTxId: algoOrderTxId,
           meta: publishedAlgoDataset.ddo.metadata.algorithm
         },
-        output: {},
+        output: null,
         encryptedDockerRegistryAuth: encryptedAuth
       }
 
@@ -2013,6 +2166,53 @@ describe('Compute', () => {
     })
   })
 
+  it('should wait for jobWithOutputURL status 70 and download output from URL', async function () {
+    this.timeout(130_000) // waitForAllJobsToFinish can take up to 120s
+    assert(jobWithOutputURL, 'jobWithOutputURL must be set by previous test')
+    const statusTask: ComputeGetStatusCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
+      consumerAddress: null,
+      agreementId: null,
+      jobId: jobWithOutputURL
+    }
+    const deadline = Date.now() + DEFAULT_TEST_TIMEOUT
+    let status: number | null = null
+    while (Date.now() < deadline) {
+      const response = await new ComputeGetStatusHandler(oceanNode).handle(statusTask)
+      assert(response?.status?.httpStatus === 200, 'Failed to get status')
+      const { stream } = response
+      const jobs = await streamToObject(stream as Readable)
+      const [job] = jobs
+      if (job) {
+        const { status: jobStatus } = job
+        if (jobStatus !== undefined) {
+          status = jobStatus
+          if (
+            status === C2DStatusNumber.JobFinished ||
+            status === C2DStatusNumber.JobSettle
+          )
+            break
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 3000))
+    }
+    assert(
+      status === C2DStatusNumber.JobFinished || status === C2DStatusNumber.JobSettle,
+      `Job ${jobWithOutputURL} did not reach status 70 (JobFinished) in time (last status: ${status})`
+    )
+    const outputUrl = `http://172.15.0.7:80/outputs-${jobWithOutputURL}.tar`
+    const downloadResponse = await fetch(outputUrl)
+    assert(
+      downloadResponse.ok,
+      `Failed to download output from ${outputUrl}: ${downloadResponse.status} ${downloadResponse.statusText}`
+    )
+    const body = await downloadResponse.arrayBuffer()
+    assert(body.byteLength > 0, `Output file at ${outputUrl} should be non-empty`)
+    console.log(
+      `**** Downloaded output from ${outputUrl}, size: ${body.byteLength} bytes`
+    )
+  })
+
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
     indexer.stopAllChainIndexers()
@@ -2107,7 +2307,7 @@ describe('Compute Access Restrictions', () => {
         serviceId: publishedAlgoDataset.ddo.services[0].id,
         meta: publishedAlgoDataset.ddo.metadata.algorithm
       },
-      output: {}
+      output: null
     }
   }
 
@@ -2395,7 +2595,6 @@ describe('Compute Access Restrictions', () => {
         firstEnv.id
       )
       const response = await new PaidComputeStartHandler(oceanNode).handle(command)
-      console.log(response)
       expect(response.status.httpStatus).to.not.equal(403)
     })
 
@@ -2406,7 +2605,6 @@ describe('Compute Access Restrictions', () => {
         firstEnv.id
       )
       const response = await new PaidComputeStartHandler(oceanNode).handle(command)
-      console.log(response)
       assert(
         response.status.httpStatus === 403,
         `Expected 403 but got ${response.status.httpStatus}: ${response.status.error}`

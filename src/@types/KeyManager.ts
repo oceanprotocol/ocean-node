@@ -52,8 +52,9 @@ export interface IKeyProvider {
    * Encrypts data according to a given algorithm
    * @param data data to encrypt
    * @param algorithm encryption algorithm AES or ECIES
+   * @param key optional: for ECIES, the decryptor's public key; for AES, the symmetric key (32 bytes)
    */
-  encrypt(data: Uint8Array, algorithm: EncryptMethod): Promise<Buffer>
+  encrypt(data: Uint8Array, algorithm: EncryptMethod, key?: Uint8Array): Promise<Buffer>
 
   /**
    * Decrypts data according to a given algorithm using node keys
@@ -65,9 +66,14 @@ export interface IKeyProvider {
    * Encrypts a stream according to a given algorithm using node keys
    * @param inputStream - Readable stream to encrypt
    * @param algorithm - Encryption algorithm AES or ECIES
+   * @param key optional: for ECIES, the decryptor's public key; for AES, the symmetric key (32 bytes)
    * @returns Readable stream with encrypted data
    */
-  encryptStream(inputStream: Readable, algorithm: EncryptMethod): Readable
+  encryptStream(
+    inputStream: Readable,
+    algorithm: EncryptMethod,
+    key?: Uint8Array
+  ): Readable
   /**
    * Decrypts a stream according to a given algorithm using node keys
    * @param inputStream - Readable stream to decrypt
