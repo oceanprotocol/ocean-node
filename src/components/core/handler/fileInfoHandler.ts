@@ -1,18 +1,12 @@
 import { Readable } from 'stream'
-import urlJoin from 'url-join'
 import { P2PCommandResponse } from '../../../@types/index.js'
-import {
-  ArweaveFileObject,
-  IpfsFileObject,
-  UrlFileObject
-} from '../../../@types/fileObject.js'
+import { StorageObject } from '../../../@types/fileObject.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
 import { FileInfoCommand } from '../../../@types/commands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Storage } from '../../storage/index.js'
 import { CommandHandler } from './handler.js'
 import { validateDDOIdentifier } from './ddoHandler.js'
-import { fetchFileMetadata } from '../../../utils/asset.js'
 import {
   ValidateParams,
   buildInvalidRequestMessage,
@@ -22,35 +16,22 @@ import { getFile } from '../../../utils/file.js'
 import { getConfiguration } from '../../../utils/index.js'
 
 async function formatMetadata(
-  file: ArweaveFileObject | IpfsFileObject | UrlFileObject,
+  file: StorageObject,
   config: OceanNodeConfig
-) {
-  const url =
-    file.type === 'url'
-      ? (file as UrlFileObject).url
-      : file.type === 'arweave'
-        ? urlJoin(config.arweaveGateway, (file as ArweaveFileObject).transactionId)
-        : file.type === 'ipfs'
-          ? urlJoin(config.ipfsGateway, (file as IpfsFileObject).hash)
-          : null
-  const headers = file.type === 'url' ? (file as UrlFileObject).headers : undefined
-
-  const { contentLength, contentType, contentChecksum } = await fetchFileMetadata(
-    url,
-    'get',
-    false,
-    headers
+): Promise<{
+  valid: boolean
+  contentLength: string
+  contentType: string
+  checksum?: string
+  name: string
+  type: string
+}> {
+  const storage = Storage.getStorageClass(file, config)
+  const fileInfo = await storage.fetchSpecificFileMetadata(file, false)
+  CORE_LOGGER.logMessage(
+    `Metadata for file: ${fileInfo.contentLength} ${fileInfo.contentType}`
   )
-  CORE_LOGGER.logMessage(`Metadata for file: ${contentLength} ${contentType}`)
-
-  return {
-    valid: true,
-    contentLength,
-    contentType,
-    checksum: contentChecksum,
-    name: new URL(url).pathname.split('/').pop() || '',
-    type: file.type
-  }
+  return fileInfo
 }
 export class FileInfoHandler extends CommandHandler {
   validate(command: FileInfoCommand): ValidateParams {

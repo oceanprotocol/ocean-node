@@ -24,7 +24,8 @@ import {
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import {
   ComputeAccessList,
-  ComputeResourceRequestWithPrice
+  ComputeResourceRequestWithPrice,
+  ComputeOutput
 } from '../../../@types/C2D/C2D.js'
 // import { verifyProviderFees } from '../utils/feesHandler.js'
 import { validateOrderTransaction } from '../utils/validateOrders.js'
@@ -39,7 +40,96 @@ import { PolicyServer } from '../../policyServer/index.js'
 import { checkCredentials } from '../../../utils/credentials.js'
 import { checkAddressOnAccessList } from '../../../utils/accessList.js'
 
-export class PaidComputeStartHandler extends CommandHandler {
+export class CommonComputeHandler extends CommandHandler {
+  validate(command: PaidComputeStartCommand): ValidateParams {
+    return {
+      valid: true
+    }
+  }
+
+  // eslint-disable-next-line require-await
+  async handle(task: PaidComputeStartCommand): Promise<P2PCommandResponse> {
+    return null
+  }
+
+  // eslint-disable-next-line require-await
+  // checks if the encrypted string sent by the user is a valid ComputeOutput object
+  async validateOutput(node: OceanNode, output: string): Promise<P2PCommandResponse> {
+    // null output is valid, because it's optional
+    if (!output) {
+      return {
+        status: {
+          httpStatus: 200,
+          error: null,
+          headers: null
+        },
+        stream: null
+      }
+    }
+
+    try {
+      const decrypted = await node
+        .getKeyManager()
+        .decrypt(Buffer.from(output, 'hex'), EncryptMethod.ECIES)
+
+      const obj = JSON.parse(decrypted.toString()) as ComputeOutput
+      if (obj.encryption && !obj.encryption.key) {
+        return {
+          status: {
+            httpStatus: 400,
+            error: `Encryption required, but no key`,
+            headers: null
+          },
+          stream: null
+        }
+      }
+      if (obj.encryption && obj.encryption.encryptMethod !== EncryptMethod.AES) {
+        return {
+          status: {
+            httpStatus: 400,
+            error: `Only AES encryption is supported`,
+            headers: null
+          },
+          stream: null
+        }
+      }
+      if (obj.encryption?.key) {
+        const keyBytes = Buffer.from(obj.encryption.key, 'hex')
+        if (keyBytes.length < 32) {
+          return {
+            status: {
+              httpStatus: 400,
+              error: `AES key must be at least 32 bytes (64 hex chars), got ${keyBytes.length} bytes`,
+              headers: null
+            },
+            stream: null
+          }
+        }
+      }
+
+      return {
+        status: {
+          httpStatus: 200,
+          error: null,
+          headers: null
+        },
+        stream: null
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      return {
+        status: {
+          httpStatus: 400,
+          error: `Invalid output: ${message}`,
+          headers: null
+        },
+        stream: null
+      }
+    }
+  }
+}
+
+export class PaidComputeStartHandler extends CommonComputeHandler {
   validate(command: PaidComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
       'environment',
@@ -79,9 +169,8 @@ export class PaidComputeStartHandler extends CommandHandler {
     if (authValidationResponse.status.httpStatus !== 200) {
       return authValidationResponse
     }
-
+    const node = this.getOceanNode()
     try {
-      const node = this.getOceanNode()
       // split compute env (which is already in hash-envId format) and get the hash
       // then get env which might contain dashes as well
       const eIndex = task.environment.indexOf('-')
@@ -562,6 +651,10 @@ export class PaidComputeStartHandler extends CommandHandler {
           }
         }
       }
+      const isValidOutput = await this.validateOutput(node, task.output)
+      if (isValidOutput.status.httpStatus !== 200) {
+        return isValidOutput
+      }
       try {
         const response = await engine.startComputeJob(
           task.datasets,
@@ -632,7 +725,7 @@ export class PaidComputeStartHandler extends CommandHandler {
   }
 }
 
-export class FreeComputeStartHandler extends CommandHandler {
+export class FreeComputeStartHandler extends CommonComputeHandler {
   validate(command: FreeComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
       'algorithm',
@@ -710,6 +803,11 @@ export class FreeComputeStartHandler extends CommandHandler {
             }
           }
         }
+      }
+      const node = this.getOceanNode()
+      const isValidOutput = await this.validateOutput(node, task.output)
+      if (isValidOutput.status.httpStatus !== 200) {
+        return isValidOutput
       }
       const policyServer = new PolicyServer()
       for (const elem of [...[task.algorithm], ...task.datasets]) {

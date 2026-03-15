@@ -457,10 +457,10 @@ export const algoAsset = {
       version: '0.1',
       container: {
         entrypoint: 'node $ALGO',
-        image: 'node',
-        tag: 'latest',
+        image: 'ghcr.io/oceanprotocol/c2d_examples',
+        tag: 'js-general',
         checksum:
-          'sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36'
+          'sha256:75d2abe7651d54b074093e2cf44470d6c1abd7923eab08d86a0778f0a0ff9a6a'
       }
     }
   },

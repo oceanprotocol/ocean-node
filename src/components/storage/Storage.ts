@@ -16,9 +16,15 @@ export abstract class Storage {
 
   private file: StorageObject
   config: OceanNodeConfig
-  public constructor(file: StorageObject, config: OceanNodeConfig) {
+  public hasUpload: boolean
+  public constructor(
+    file: StorageObject,
+    config: OceanNodeConfig,
+    hasUpload: boolean = false
+  ) {
     this.file = file
     this.config = config
+    this.hasUpload = hasUpload
   }
 
   abstract validate(): [boolean, string]

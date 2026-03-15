@@ -3,9 +3,10 @@ import {
   ArweaveFileObject,
   FileInfoHttpRequest,
   FileObjectType,
+  FtpFileObject,
   IpfsFileObject,
   UrlFileObject
-} from '../../@types/fileObject'
+} from '../../@types/fileObject.js'
 import { PROTOCOL_COMMANDS, SERVICES_API_BASE_PATH } from '../../utils/constants.js'
 import { FileInfoHandler } from '../core/handler/fileInfoHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
@@ -20,10 +21,13 @@ const validateFileInfoRequest = (req: FileInfoHttpRequest): boolean => {
   const matchesRegex = (value: string, regex: RegExp): boolean => regex.test(value)
 
   if (!req.type && !req.did) return false // either 'type' or 'did' is required
-  if (req.type && !['ipfs', 'url', 'arweave'].includes(req.type)) return false // 'type' must be one of the allowed values
+  if (req.type && !['ipfs', 'url', 'arweave', 's3', 'ftp'].includes(req.type)) {
+    return false // 'type' must be one of the allowed values
+  }
   if (req.did && !matchesRegex(req.did, /^did:op/)) return false // 'did' must match the regex
   if (req.type === 'ipfs' && !req.hash) return false // 'hash' is required if 'type' is 'ipfs'
   if (req.type === 'url' && !req.url) return false // 'url' is required if 'type' is 'url'
+  if (req.type === 'ftp' && !req.url) return false // 'url' is required if 'type' is 'ftp'
   if (req.type === 'arweave' && !req.transactionId) return false // 'transactionId' is required if 'type' is 'arweave'
   if (!req.type && !req.serviceId) return false // 'serviceId' is required if 'type' is not provided
 
@@ -44,7 +48,7 @@ fileInfoRoute.post(
 
     try {
       // Retrieve the file info
-      let fileObject: UrlFileObject | IpfsFileObject | ArweaveFileObject
+      let fileObject: UrlFileObject | IpfsFileObject | ArweaveFileObject | FtpFileObject
       let fileInfoTask: FileInfoCommand
 
       if (fileInfoReq.did && fileInfoReq.serviceId) {
@@ -88,6 +92,17 @@ fileInfoRoute.post(
           command: PROTOCOL_COMMANDS.FILE_INFO,
           file: fileObject,
           type: fileObject.type as FileObjectType,
+          caller: req.caller
+        }
+      } else if (fileInfoReq.type === 'ftp' && fileInfoReq.url) {
+        fileObject = {
+          type: 'ftp',
+          url: fileInfoReq.url
+        } as FtpFileObject
+        fileInfoTask = {
+          command: PROTOCOL_COMMANDS.FILE_INFO,
+          file: fileObject,
+          type: FileObjectType.FTP,
           caller: req.caller
         }
       }

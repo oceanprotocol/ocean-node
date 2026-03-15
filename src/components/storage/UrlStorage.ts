@@ -1,3 +1,4 @@
+import { Readable } from 'stream'
 import {
   FileInfoResponse,
   StorageReadable,
@@ -11,7 +12,7 @@ import { Storage } from './Storage.js'
 
 export class UrlStorage extends Storage {
   public constructor(file: UrlFileObject, config: OceanNodeConfig) {
-    super(file, config)
+    super(file, config, true)
     const [isValid, message] = this.validate()
     if (isValid === false) {
       throw new Error(`Error validating the URL file: ${message}`)
@@ -34,6 +35,40 @@ export class UrlStorage extends Storage {
       httpStatus: response.status,
       stream: response.data,
       headers: response.headers as any
+    }
+  }
+
+  /**
+   * Upload a file via HTTP PUT. Uses PUT regardless of UrlFileObject.method (which applies to download).
+   * @param filename – used in Content-Disposition and, if url ends with /, appended to url
+   * @param stream – readable stream to send as the request body
+   * @returns response status and headers
+   */
+  async upload(
+    filename: string,
+    stream: Readable
+  ): Promise<{ httpStatus: number; headers?: Record<string, string | string[]> }> {
+    const { url: baseUrl, headers: fileHeaders } = this.getFile() as UrlFileObject
+    let url = baseUrl
+    if (url.endsWith('/')) {
+      url = `${url.replace(/\/+$/, '')}/${encodeURIComponent(filename)}`
+    }
+    const headers: Record<string, string> = {
+      ...(fileHeaders ?? {}),
+      'Content-Disposition': `attachment; filename="${filename.replace(/"/g, '\\"')}"`
+    }
+    const response = await axios({
+      method: 'put',
+      url,
+      data: stream,
+      headers,
+      timeout: 30000,
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity
+    })
+    return {
+      httpStatus: response.status,
+      headers: response.headers as Record<string, string | string[]>
     }
   }
 
