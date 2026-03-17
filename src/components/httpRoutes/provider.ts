@@ -10,7 +10,7 @@ import { DecryptDdoHandler } from '../core/handler/ddoHandler.js'
 import { DownloadHandler } from '../core/handler/downloadHandler.js'
 import { DownloadCommand } from '../../@types/commands.js'
 import { FeesHandler } from '../core/handler/feesHandler.js'
-import { BaseFileObject, EncryptMethod } from '../../@types/fileObject.js'
+import { StorageObject, EncryptMethod } from '../../@types/fileObject.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { getEncryptMethodFromString } from '../../utils/crypt.js'
 
@@ -119,7 +119,7 @@ providerRoutes.post(`${SERVICES_API_BASE_PATH}/encryptFile`, async (req, res) =>
     if (req.is('application/json')) {
       // body as fileObject
       result = await new EncryptFileHandler(req.oceanNode).handle({
-        files: req.body as BaseFileObject,
+        files: req.body as StorageObject,
         encryptionType: encryptMethod,
         command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
         caller: req.caller,

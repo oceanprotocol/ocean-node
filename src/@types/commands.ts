@@ -7,15 +7,7 @@ import type {
   ComputeResourceRequest,
   DBComputeJobMetadata
 } from './C2D/C2D.js'
-import {
-  ArweaveFileObject,
-  FileObjectType,
-  EncryptMethod,
-  FtpFileObject,
-  IpfsFileObject,
-  UrlFileObject,
-  BaseFileObject
-} from './fileObject'
+import { FileObjectType, StorageObject, EncryptMethod } from './fileObject'
 
 export interface Command {
   command: string // command name
@@ -69,7 +61,7 @@ export interface FileInfoCommand extends Command {
   did?: string
   serviceId?: string
   fileIndex?: number
-  file?: UrlFileObject | ArweaveFileObject | IpfsFileObject | FtpFileObject
+  file?: StorageObject
   checksum?: boolean
 }
 // group these 2
@@ -135,7 +127,7 @@ export interface EncryptFileCommand extends Command {
   consumerAddress: string
   signature: string
   encryptionType?: EncryptMethod.AES | EncryptMethod.ECIES
-  files?: BaseFileObject
+  files?: StorageObject
   rawData?: Buffer
   policyServer?: any // object to pass to policy server
 }
