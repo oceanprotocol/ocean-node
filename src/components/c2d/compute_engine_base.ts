@@ -248,7 +248,63 @@ export abstract class C2DEngine {
       properResources.push({ id: device, amount: desired })
     }
 
+    this.checkResourceConstraints(properResources, env, isFree)
     return properResources
+  }
+
+  protected checkResourceConstraints(
+    resources: ComputeResourceRequest[],
+    env: ComputeEnvironment,
+    isFree: boolean
+  ): void {
+    const envResources = isFree ? (env.free?.resources ?? []) : (env.resources ?? [])
+    for (const envResource of envResources) {
+      if (!envResource.constraints || envResource.constraints.length === 0) continue
+      const parentAmount = this.getResourceRequest(resources, envResource.id)
+      if (!parentAmount || parentAmount <= 0) continue
+
+      for (const constraint of envResource.constraints) {
+        let constrainedAmount = this.getResourceRequest(resources, constraint.id) ?? 0
+
+        if (constraint.min !== undefined) {
+          const requiredMin = parentAmount * constraint.min
+          if (constrainedAmount < requiredMin) {
+            const constrainedMaxMin = this.getMaxMinResource(constraint.id, env, isFree)
+            if (requiredMin > constrainedMaxMin.max) {
+              throw new Error(
+                `Cannot satisfy constraint: ${parentAmount} ${envResource.id} requires at least ${requiredMin} ${constraint.id}, but max is ${constrainedMaxMin.max}`
+              )
+            }
+            this.setResourceAmount(resources, constraint.id, requiredMin)
+            constrainedAmount = requiredMin
+          }
+        }
+
+        if (constraint.max !== undefined) {
+          const requiredMax = parentAmount * constraint.max
+          // re-read in case it was bumped above
+          constrainedAmount = this.getResourceRequest(resources, constraint.id) ?? 0
+          if (constrainedAmount > requiredMax) {
+            throw new Error(
+              `Too much ${constraint.id} for ${parentAmount} ${envResource.id}. Max allowed: ${requiredMax}, requested: ${constrainedAmount}`
+            )
+          }
+        }
+      }
+    }
+  }
+
+  protected setResourceAmount(
+    resources: ComputeResourceRequest[],
+    id: ComputeResourceType,
+    amount: number
+  ): void {
+    for (const resource of resources) {
+      if (resource.id === id) {
+        resource.amount = amount
+        return
+      }
+    }
   }
 
   public async getUsedResources(env: ComputeEnvironment): Promise<any> {
