@@ -44,7 +44,7 @@ export async function getAlgoChecksums(
         file as StorageObject,
         true // force checksum
       )
-      checksums.files = checksums.files.concat(fileInfo.checksum ?? '')
+      checksums.files = checksums.files.concat(fileInfo.checksum)
     }
 
     const ddoInstance = DDOManager.getDDOClass(algoDDO)
