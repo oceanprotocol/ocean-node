@@ -163,8 +163,8 @@ export class ChainIndexer {
       `Initial details for chain ${this.blockchain.getSupportedChain()}: RPCS start block: ${this.rpcDetails.startBlock}, Contract deployment block: ${contractDeploymentBlock}, Crawling start block: ${crawlingStartBlock}`
     )
 
-    const provider = await this.blockchain.getProvider()
-    const signer = await this.blockchain.getSigner()
+    let provider = await this.blockchain.getProvider()
+    let signer = await this.blockchain.getSigner()
     const interval = getCrawlingInterval()
     let chunkSize = this.rpcDetails.chunkSize || 1
     let successfulRetrievalCount = 0
@@ -298,7 +298,13 @@ export class ChainIndexer {
           INDEXER_LOGGER.error(
             `Error in indexing loop for chain ${this.blockchain.getSupportedChain()}: ${error.message}`
           )
+          // Reset the provider so ethers recreates it fresh on next iteration.
+          // FallbackProvider permanently marks configs as _lastFatalError after
+          // any RPC failure — without reset, all subsequent calls throw immediately.
+          this.blockchain.resetProvider()
           await sleep(interval)
+          provider = await this.blockchain.getProvider()
+          signer = await this.blockchain.getSigner()
         } finally {
           lockProcessing = false
         }

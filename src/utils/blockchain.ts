@@ -111,6 +111,18 @@ export class Blockchain {
     return this.knownRPCs
   }
 
+  /**
+   * Reset the cached provider and signer so they are recreated on the next call.
+   * Needed because ethers.js permanently marks a FallbackProvider's config as
+   * _lastFatalError after a single RPC failure, making it return "no runners?!"
+   * on every subsequent call.
+   */
+  public resetProvider(): void {
+    this.provider = undefined as undefined as FallbackProvider
+    this.providers = []
+    this.signer = undefined as unknown as Signer
+  }
+
   public async calculateGasCost(to: string, amount: bigint): Promise<bigint> {
     const provider = await this.getProvider()
     const estimatedGas = await provider.estimateGas({
