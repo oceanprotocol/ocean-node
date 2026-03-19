@@ -964,6 +964,7 @@ export class OceanP2P extends EventEmitter {
         // on timeout the query ends with an abort signal => CodeError: Query aborted
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
+
       for await (const value of f) {
         peersFound.push(value)
       }
