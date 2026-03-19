@@ -31,38 +31,49 @@ import {
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { completeDBComputeJob, dockerImageManifest } from '../data/assets.js'
-import { C2DEngine, omitDBComputeFieldsFromComputeJob } from '../../components/c2d/index.js'
+import {
+  C2DEngine,
+  omitDBComputeFieldsFromComputeJob
+} from '../../components/c2d/index.js'
 import { checkManifestPlatform } from '../../components/c2d/compute_engine_docker.js'
 import { ValidateParams } from '../../components/httpRoutes/validateCommands.js'
 import { Readable } from 'stream'
 
-// Minimal concrete subclass for unit testing C2DEngine base logic
+/* eslint-disable require-await */
 class TestC2DEngine extends C2DEngine {
   constructor() {
     super(null, null, null, null, null)
   }
+
   async getComputeEnvironments(): Promise<ComputeEnvironment[]> {
     return []
   }
+
   async checkDockerImage(): Promise<ValidateParams> {
     return { valid: true, reason: null as string, status: 200 }
   }
+
   async startComputeJob(): Promise<ComputeJob[]> {
     return []
   }
+
   async stopComputeJob(): Promise<ComputeJob[]> {
     return []
   }
+
   async getComputeJobStatus(): Promise<ComputeJob[]> {
     return []
   }
+
   async getComputeJobResult(): Promise<{ stream: Readable; headers: any }> {
     return null
   }
+
   async cleanupExpiredStorage(): Promise<boolean> {
     return true
   }
 }
+/* eslint-enable require-await */
 
 function makeEnv(
   resources: any[],
