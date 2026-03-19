@@ -5,7 +5,6 @@ import {
   Contract,
   JsonRpcApiProvider,
   JsonRpcProvider,
-  FallbackProvider,
   FetchRequest,
   isAddress,
   parseUnits,
@@ -28,16 +27,10 @@ export class Blockchain {
   private static providers: Map<string, JsonRpcApiProvider> = new Map()
   private keyManager: KeyManager
   private signer: Signer
-  private provider: FallbackProvider
-  private providers: JsonRpcProvider[] = []
+  private provider: JsonRpcProvider
+  private rpc: string
   private chainId: number
-  private knownRPCs: string[] = []
 
-  /**
-   * Constructor overloads:
-   * 1. New pattern: (rpc, chainId, signer, fallbackRPCs?) - signer provided by KeyManager
-   * 2. Old pattern: (rpc, chainId, config, fallbackRPCs?) - for backward compatibility
-   */
   public constructor(
     keyManager: KeyManager,
     rpc: string,
@@ -46,11 +39,8 @@ export class Blockchain {
   ) {
     this.chainId = chainId
     this.keyManager = keyManager
-    this.knownRPCs.push(rpc)
-    if (fallbackRPCs && fallbackRPCs.length > 0) {
-      this.knownRPCs.push(...fallbackRPCs)
-    }
-    this.provider = undefined as undefined as FallbackProvider
+    this.rpc = rpc
+    this.provider = undefined as unknown as JsonRpcProvider
     this.signer = undefined as unknown as Signer
   }
 
@@ -66,39 +56,19 @@ export class Blockchain {
     return await this.signer.getAddress()
   }
 
-  public async getProvider(force: boolean = false): Promise<FallbackProvider> {
+  public async getProvider(): Promise<JsonRpcProvider> {
     if (!this.provider) {
-      for (const rpc of this.knownRPCs) {
-        const fetchReq = new FetchRequest(rpc)
-        fetchReq.timeout = RPC_REQUEST_TIMEOUT_MS
-        const rpcProvider = new JsonRpcProvider(fetchReq)
-        // filter wrong chains or broken RPCs
-        if (!force) {
-          try {
-            const { chainId } = await rpcProvider.getNetwork()
-            if (chainId.toString() === this.chainId.toString()) {
-              this.providers.push(rpcProvider)
-              // do not break — add all valid RPCs so FallbackProvider has real alternatives
-              // when one stalls, otherwise #waitForQuorum hangs with no runner to rescue it
-            }
-          } catch (error) {
-            CORE_LOGGER.error(`Error getting network for RPC ${rpc}: ${error}`)
-          }
-        } else {
-          this.providers.push(new JsonRpcProvider(fetchReq))
-        }
-      }
-      this.provider = new FallbackProvider(this.providers)
+      const fetchReq = new FetchRequest(this.rpc)
+      fetchReq.timeout = RPC_REQUEST_TIMEOUT_MS
+      this.provider = new JsonRpcProvider(fetchReq)
     }
     return this.provider
   }
 
   public async getSigner(): Promise<Signer> {
     if (!this.signer) {
-      if (!this.provider) {
-        await this.getProvider()
-      }
-      this.signer = await this.keyManager.getEvmSigner(this.provider, this.chainId)
+      const provider = await this.getProvider()
+      this.signer = await this.keyManager.getEvmSigner(provider, this.chainId)
     }
     return this.signer
   }
@@ -107,19 +77,12 @@ export class Blockchain {
     return await this.detectNetwork()
   }
 
-  public getKnownRPCs(): string[] {
-    return this.knownRPCs
+  public getRpc(): string {
+    return this.rpc
   }
 
-  /**
-   * Reset the cached provider and signer so they are recreated on the next call.
-   * Needed because ethers.js permanently marks a FallbackProvider's config as
-   * _lastFatalError after a single RPC failure, making it return "no runners?!"
-   * on every subsequent call.
-   */
   public resetProvider(): void {
-    this.provider = undefined as undefined as FallbackProvider
-    this.providers = []
+    this.provider = undefined as unknown as JsonRpcProvider
     this.signer = undefined as unknown as Signer
   }
 

@@ -1,5 +1,5 @@
 import { DDOManager } from '@oceanprotocol/ddo-js'
-import { ethers, Signer, FallbackProvider } from 'ethers'
+import { ethers, Signer, JsonRpcProvider } from 'ethers'
 import { EVENTS } from '../../../utils/constants.js'
 import { getDatabase } from '../../../utils/database.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
@@ -18,7 +18,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
     event: ethers.Log,
     chainId: number,
     signer: Signer,
-    provider: FallbackProvider
+    provider: JsonRpcProvider
   ): Promise<any> {
     const decodedEventData = await this.getEventData(
       provider,

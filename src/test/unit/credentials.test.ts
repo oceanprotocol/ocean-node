@@ -38,7 +38,7 @@ describe('credentials', () => {
     const blockchains = new BlockchainRegistry(keyManager, config)
     blockchain = blockchains.getBlockchain(DEVELOPMENT_CHAIN_ID)
     // force usage of known bad provider
-    await blockchain.getProvider(true)
+    await blockchain.getProvider()
     signer = await blockchain.getSigner()
   })
 

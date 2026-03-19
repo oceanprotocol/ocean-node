@@ -1,4 +1,4 @@
-import { Contract, Interface, TransactionReceipt, Signer, FallbackProvider } from 'ethers'
+import { Contract, Interface, TransactionReceipt, Signer, JsonRpcProvider } from 'ethers'
 import { fetchEventFromTransaction } from '../../../utils/util.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
@@ -14,7 +14,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export async function fetchTransactionReceipt(
   txId: string,
-  provider: FallbackProvider,
+  provider: JsonRpcProvider,
   retries: number = 2
 ): Promise<TransactionReceipt> {
   while (retries > 0) {
@@ -39,7 +39,7 @@ export async function fetchTransactionReceipt(
 export async function validateOrderTransaction(
   txId: string,
   userAddress: string,
-  provider: FallbackProvider,
+  provider: JsonRpcProvider,
   dataNftAddress: string,
   datatokenAddress: string,
   serviceIndex: number,

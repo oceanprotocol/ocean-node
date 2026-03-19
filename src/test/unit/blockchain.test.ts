@@ -37,8 +37,8 @@ describe('Should validate blockchain network connections', () => {
     blockchain = blockchainRegistry.getBlockchain(8996)
   })
 
-  it('should get known rpcs', () => {
-    expect(blockchain.getKnownRPCs().length).to.be.equal(3)
+  it('should get rpc', () => {
+    expect(blockchain.getRpc()).to.be.a('string')
   })
 
   it('should get network not ready', async function () {

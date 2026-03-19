@@ -1,5 +1,5 @@
 import EventEmitter from 'node:events'
-import { FallbackProvider, Log, Signer } from 'ethers'
+import { JsonRpcProvider, Log, Signer } from 'ethers'
 import { SupportedNetwork } from '../../@types/blockchain.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { isDefined, sleep } from '../../utils/util.js'
@@ -299,7 +299,7 @@ export class ChainIndexer {
             `Error in indexing loop for chain ${this.blockchain.getSupportedChain()}: ${error.message}`
           )
           // Reset the provider so ethers recreates it fresh on next iteration.
-          // FallbackProvider permanently marks configs as _lastFatalError after
+          // JsonRpcProvider permanently marks configs as _lastFatalError after
           // any RPC failure — without reset, all subsequent calls throw immediately.
           this.blockchain.resetProvider()
           await sleep(interval)
@@ -441,7 +441,7 @@ export class ChainIndexer {
    * Uses FIFO (First-In, First-Out) order via shift()
    */
   private async processReindexQueue(
-    provider: FallbackProvider,
+    provider: JsonRpcProvider,
     signer: Signer
   ): Promise<void> {
     while (this.reindexQueue.length > 0) {
