@@ -6,6 +6,7 @@ import {
   JsonRpcApiProvider,
   JsonRpcProvider,
   FallbackProvider,
+  FetchRequest,
   isAddress,
   parseUnits,
   Wallet,
@@ -18,6 +19,8 @@ import { ValidateChainId } from '../@types/commands.js'
 // import { KNOWN_CONFIDENTIAL_EVMS } from '../utils/address.js'
 import { OceanNodeConfig } from '../@types/OceanNode.js'
 import { KeyManager } from '../components/KeyManager/index.js'
+
+const RPC_REQUEST_TIMEOUT_MS = 5_000
 
 export class Blockchain {
   private config?: OceanNodeConfig // Optional for new constructor
@@ -66,20 +69,23 @@ export class Blockchain {
   public async getProvider(force: boolean = false): Promise<FallbackProvider> {
     if (!this.provider) {
       for (const rpc of this.knownRPCs) {
-        const rpcProvider = new JsonRpcProvider(rpc)
+        const fetchReq = new FetchRequest(rpc)
+        fetchReq.timeout = RPC_REQUEST_TIMEOUT_MS
+        const rpcProvider = new JsonRpcProvider(fetchReq)
         // filter wrong chains or broken RPCs
         if (!force) {
           try {
             const { chainId } = await rpcProvider.getNetwork()
             if (chainId.toString() === this.chainId.toString()) {
               this.providers.push(rpcProvider)
-              break
+              // do not break — add all valid RPCs so FallbackProvider has real alternatives
+              // when one stalls, otherwise #waitForQuorum hangs with no runner to rescue it
             }
           } catch (error) {
             CORE_LOGGER.error(`Error getting network for RPC ${rpc}: ${error}`)
           }
         } else {
-          this.providers.push(new JsonRpcProvider(rpc))
+          this.providers.push(new JsonRpcProvider(fetchReq))
         }
       }
       this.provider = new FallbackProvider(this.providers)

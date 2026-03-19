@@ -61,10 +61,9 @@ export const getDeployedContractBlock = (network: number) => {
   return deployedBlock
 }
 
-export const getNetworkHeight = async (provider: FallbackProvider) => {
-  const networkHeight = await provider.getBlockNumber()
 
-  return networkHeight
+export const getNetworkHeight = async (provider: FallbackProvider): Promise<number> => {
+  return provider.getBlockNumber()
 }
 
 export const retrieveChunkEvents = async (
