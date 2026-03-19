@@ -117,7 +117,7 @@ export class RawPrivateKeyProvider implements IKeyProvider {
         key && key.length > 0
           ? Buffer.from(key).toString('hex')
           : new eciesjs.PrivateKey(privateKey.raw).publicKey.toHex()
-      encryptedData = eciesjs.encrypt(recipientPublicKeyHex, data)
+      encryptedData = Buffer.from(eciesjs.encrypt(recipientPublicKeyHex, data))
     }
     return encryptedData
   }
@@ -142,7 +142,7 @@ export class RawPrivateKeyProvider implements IKeyProvider {
       decryptedData = Buffer.concat([decipher.update(data), decipher.final()])
     } else if (algorithm === EncryptMethod.ECIES) {
       const sk = new eciesjs.PrivateKey(privateKey.raw)
-      decryptedData = eciesjs.decrypt(sk.secret, data)
+      decryptedData = Buffer.from(eciesjs.decrypt(sk.secret, data))
     }
     return decryptedData
   }
