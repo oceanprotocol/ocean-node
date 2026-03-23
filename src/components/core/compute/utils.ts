@@ -144,7 +144,6 @@ export async function validateAlgoForDataset(
   }
 }
 
-// eslint-disable-next-line require-await
 // checks if the encrypted string sent by the user is a valid ComputeOutput object
 export async function validateOutput(
   node: OceanNode,
