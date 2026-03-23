@@ -1463,6 +1463,7 @@ starts a free compute job and returns jobId if succesfull
 | additionalViewers           | object |          | optional array of addresses that are allowed to fetch the result                                                                                                            |
 | queueMaxWaitTime            | number |          | optional max time in seconds a job can wait in the queue before being started                                                                                               |
 | encryptedDockerRegistryAuth | string |          | Ecies encrypted docker auth schema for image (see [Private Docker Registries with Per-Job Authentication](../env.md#private-docker-registries-with-per-job-authentication)) |
+| output                      | string |          | Ecies encrypted with instructions for uploading compute results (see [C2D result upload to remote storage](../Storage.md#c2d-result-upload-to-remote-storage))              |
 
 #### Request
 
