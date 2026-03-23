@@ -171,17 +171,41 @@ export async function validateOutput(
     const obj = JSON.parse(decrypted.toString()) as ComputeOutput
     const storage = Storage.getStorageClass(obj.remoteStorage, config)
 
-    if (storage.hasUpload && 'upload' in storage && typeof storage.upload === 'function')
-      if (obj.encryption && !obj.encryption.key) {
-        return {
-          status: {
-            httpStatus: 400,
-            error: `Encryption required, but no key`,
-            headers: null
-          },
-          stream: null
-        }
+    const hasUploadSupport =
+      storage.hasUpload && 'upload' in storage && typeof storage.upload === 'function'
+
+    // Only validate output-encryption semantics if backend can actually upload results.
+    if (!hasUploadSupport) {
+      return {
+        status: {
+          httpStatus: 400,
+          error: `Storage class has no support for upload`,
+          headers: null
+        },
+        stream: null
       }
+    }
+    const [isValidStorage, storageValidationError] = storage.validate()
+    if (!isValidStorage) {
+      return {
+        status: {
+          httpStatus: 400,
+          error: storageValidationError || 'Invalid remote storage configuration',
+          headers: null
+        },
+        stream: null
+      }
+    }
+    if (obj.encryption && !obj.encryption.key) {
+      return {
+        status: {
+          httpStatus: 400,
+          error: `Encryption required, but no key`,
+          headers: null
+        },
+        stream: null
+      }
+    }
     if (obj.encryption && obj.encryption.encryptMethod !== EncryptMethod.AES) {
       return {
         status: {
