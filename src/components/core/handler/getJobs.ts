@@ -32,8 +32,18 @@ export class GetJobsHandler extends CommandHandler {
         task.fromTimestamp,
         task.consumerAddrs
       )
+      const sanitizedJobs = jobs.map((job) => {
+        if (job.algorithm) {
+          const { envs, meta, ...restAlgo } = job.algorithm
+          const sanitizedAlgo = meta
+            ? { ...restAlgo, meta: (({ rawcode, ...restMeta }) => restMeta)(meta) }
+            : restAlgo
+          return { ...job, algorithm: sanitizedAlgo }
+        }
+        return job
+      })
       return {
-        stream: Readable.from(JSON.stringify(jobs)),
+        stream: Readable.from(JSON.stringify(sanitizedJobs)),
         status: {
           httpStatus: 200,
           error: null

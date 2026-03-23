@@ -1,14 +1,9 @@
 import { OceanNode } from '../../../OceanNode.js'
 import { AlgoChecksums } from '../../../@types/C2D/C2D.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
-import {
-  ArweaveFileObject,
-  IpfsFileObject,
-  UrlFileObject
-} from '../../../@types/fileObject.js'
+import { StorageObject } from '../../../@types/fileObject.js'
 import { getFile } from '../../../utils/file.js'
-import urlJoin from 'url-join'
-import { fetchFileMetadata } from '../../../utils/asset.js'
+import { Storage } from '../../storage/index.js'
 
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { createHash } from 'crypto'
@@ -44,18 +39,12 @@ export async function getAlgoChecksums(
     }
     const fileArray = await getFile(algoDDO, algoServiceId, oceanNode)
     for (const file of fileArray) {
-      const url =
-        file.type === 'url'
-          ? (file as UrlFileObject).url
-          : file.type === 'arweave'
-            ? urlJoin(config.arweaveGateway, (file as ArweaveFileObject).transactionId)
-            : file.type === 'ipfs'
-              ? urlJoin(config.ipfsGateway, (file as IpfsFileObject).hash)
-              : null
-      const headers = file.type === 'url' ? (file as UrlFileObject).headers : undefined
-
-      const { contentChecksum } = await fetchFileMetadata(url, 'get', false, headers)
-      checksums.files = checksums.files.concat(contentChecksum)
+      const storage = Storage.getStorageClass(file as StorageObject, config)
+      const fileInfo = await storage.fetchSpecificFileMetadata(
+        file as StorageObject,
+        true // force checksum
+      )
+      checksums.files = checksums.files.concat(fileInfo.checksum)
     }
 
     const ddoInstance = DDOManager.getDDOClass(algoDDO)

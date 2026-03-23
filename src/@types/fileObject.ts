@@ -87,11 +87,10 @@ export interface FileInfoResponse {
   encryptMethod?: EncryptMethod
 }
 
-export interface FileInfoHttpRequest {
-  type?: FileObjectType
-  did?: string
-  hash?: string
-  url?: string
-  transactionId?: string
-  serviceId?: string
-}
+export type FileInfoHttpRequest =
+  | StorageObject
+  | {
+      did?: string
+      serviceId?: string
+      checksum?: boolean
+    }

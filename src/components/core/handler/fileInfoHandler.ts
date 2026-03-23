@@ -1,6 +1,6 @@
 import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
-import { StorageObject } from '../../../@types/fileObject.js'
+import { FileObjectType, StorageObject } from '../../../@types/fileObject.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
 import { FileInfoCommand } from '../../../@types/commands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
@@ -54,6 +54,17 @@ export class FileInfoHandler extends CommandHandler {
         return buildInvalidRequestMessage('Invalid Request: no fields are present!')
       }
     }
+
+    const matchesRegex = (value: string, regex: RegExp): boolean => regex.test(value)
+    if (command.did && !matchesRegex(command.did, /^did:op/)) {
+      return buildInvalidRequestMessage('Invalid Request: invalid did!')
+    }
+    if (command.type && !Object.values(FileObjectType).includes(command.type)) {
+      return buildInvalidRequestMessage(
+        'Invalid Request: type must be one of ' + Object.values(FileObjectType).join(', ')
+      )
+    }
+
     return validation
   }
 

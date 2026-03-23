@@ -1,9 +1,4 @@
-import {
-  ArweaveFileObject,
-  EncryptMethod,
-  IpfsFileObject,
-  UrlFileObject
-} from '../@types/fileObject.js'
+import { StorageObject, EncryptMethod } from '../@types/fileObject.js'
 import { OceanNode } from '../OceanNode.js'
 import { FindDdoHandler } from '../components/core/handler/ddoHandler.js'
 import { AssetUtils } from './asset.js'
@@ -16,7 +11,7 @@ export async function getFile(
   didOrDdo: string | DDO,
   serviceId: string,
   node: OceanNode
-): Promise<UrlFileObject[] | ArweaveFileObject[] | IpfsFileObject[]> {
+): Promise<StorageObject[]> {
   try {
     // 1. Get the DDO
     const ddo =
