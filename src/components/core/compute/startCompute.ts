@@ -7,7 +7,12 @@ import {
 } from '../../../@types/commands.js'
 import { CommandHandler } from '../handler/handler.js'
 import { OceanNode } from '../../../OceanNode.js'
-import { generateUniqueID, getAlgoChecksums, validateAlgoForDataset } from './utils.js'
+import {
+  generateUniqueID,
+  getAlgoChecksums,
+  validateAlgoForDataset,
+  validateOutput
+} from './utils.js'
 import {
   ValidateParams,
   buildInvalidRequestMessage,
@@ -24,8 +29,7 @@ import {
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import {
   ComputeAccessList,
-  ComputeResourceRequestWithPrice,
-  ComputeOutput
+  ComputeResourceRequestWithPrice
 } from '../../../@types/C2D/C2D.js'
 // import { verifyProviderFees } from '../utils/feesHandler.js'
 import { validateOrderTransaction } from '../utils/validateOrders.js'
@@ -50,82 +54,6 @@ export class CommonComputeHandler extends CommandHandler {
   // eslint-disable-next-line require-await
   async handle(task: PaidComputeStartCommand): Promise<P2PCommandResponse> {
     return null
-  }
-
-  // eslint-disable-next-line require-await
-  // checks if the encrypted string sent by the user is a valid ComputeOutput object
-  async validateOutput(node: OceanNode, output: string): Promise<P2PCommandResponse> {
-    // null output is valid, because it's optional
-    if (!output) {
-      return {
-        status: {
-          httpStatus: 200,
-          error: null,
-          headers: null
-        },
-        stream: null
-      }
-    }
-
-    try {
-      const decrypted = await node
-        .getKeyManager()
-        .decrypt(Buffer.from(output, 'hex'), EncryptMethod.ECIES)
-
-      const obj = JSON.parse(decrypted.toString()) as ComputeOutput
-      if (obj.encryption && !obj.encryption.key) {
-        return {
-          status: {
-            httpStatus: 400,
-            error: `Encryption required, but no key`,
-            headers: null
-          },
-          stream: null
-        }
-      }
-      if (obj.encryption && obj.encryption.encryptMethod !== EncryptMethod.AES) {
-        return {
-          status: {
-            httpStatus: 400,
-            error: `Only AES encryption is supported`,
-            headers: null
-          },
-          stream: null
-        }
-      }
-      if (obj.encryption?.key) {
-        const keyBytes = Buffer.from(obj.encryption.key, 'hex')
-        if (keyBytes.length < 32) {
-          return {
-            status: {
-              httpStatus: 400,
-              error: `AES key must be at least 32 bytes (64 hex chars), got ${keyBytes.length} bytes`,
-              headers: null
-            },
-            stream: null
-          }
-        }
-      }
-
-      return {
-        status: {
-          httpStatus: 200,
-          error: null,
-          headers: null
-        },
-        stream: null
-      }
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e)
-      return {
-        status: {
-          httpStatus: 400,
-          error: `Invalid output: ${message}`,
-          headers: null
-        },
-        stream: null
-      }
-    }
   }
 }
 
@@ -651,7 +579,11 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
           }
         }
       }
-      const isValidOutput = await this.validateOutput(node, task.output)
+      const isValidOutput = await validateOutput(
+        node,
+        task.output,
+        await getConfiguration()
+      )
       if (isValidOutput.status.httpStatus !== 200) {
         return isValidOutput
       }
@@ -805,7 +737,11 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
         }
       }
       const node = this.getOceanNode()
-      const isValidOutput = await this.validateOutput(node, task.output)
+      const isValidOutput = await validateOutput(
+        node,
+        task.output,
+        await getConfiguration()
+      )
       if (isValidOutput.status.httpStatus !== 200) {
         return isValidOutput
       }

@@ -220,6 +220,7 @@ export interface ComputeInitializeCommand extends Command {
   policyServer?: any // object to pass to policy server
   queueMaxWaitTime?: number // max time in seconds a job can wait in the queue before being started
   encryptedDockerRegistryAuth?: string
+  output?: string // this is always an ECIES encrypted string, that decodes to ComputeOutput interface
 }
 
 export interface FreeComputeStartCommand extends Command {

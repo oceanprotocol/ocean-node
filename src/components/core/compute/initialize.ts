@@ -33,7 +33,12 @@ import { getAlgorithmImage } from '../../c2d/compute_engine_docker.js'
 import { Credentials, DDOManager } from '@oceanprotocol/ddo-js'
 import { checkCredentials } from '../../../utils/credentials.js'
 import { PolicyServer } from '../../policyServer/index.js'
-import { generateUniqueID, getAlgoChecksums, validateAlgoForDataset } from './utils.js'
+import {
+  generateUniqueID,
+  getAlgoChecksums,
+  validateAlgoForDataset,
+  validateOutput
+} from './utils.js'
 
 export class ComputeInitializeHandler extends CommandHandler {
   validate(command: ComputeInitializeCommand): ValidateParams {
@@ -207,7 +212,14 @@ export class ComputeInitializeHandler extends CommandHandler {
           )
         }
       }
-
+      const isValidOutput = await validateOutput(
+        node,
+        task.output,
+        await getConfiguration()
+      )
+      if (isValidOutput.status.httpStatus !== 200) {
+        return isValidOutput
+      }
       // check algo
       let index = 0
       const policyServer = new PolicyServer()

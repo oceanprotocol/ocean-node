@@ -1,7 +1,7 @@
 import { OceanNode } from '../../../OceanNode.js'
-import { AlgoChecksums } from '../../../@types/C2D/C2D.js'
+import { AlgoChecksums, ComputeOutput } from '../../../@types/C2D/C2D.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
-import { StorageObject } from '../../../@types/fileObject.js'
+import { StorageObject, EncryptMethod } from '../../../@types/fileObject.js'
 import { getFile } from '../../../utils/file.js'
 import { Storage } from '../../storage/index.js'
 
@@ -9,6 +9,8 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { createHash } from 'crypto'
 import { FindDdoHandler } from '../../core/handler/ddoHandler.js'
 import { DDOManager, VersionedDDO } from '@oceanprotocol/ddo-js'
+
+import { P2PCommandResponse } from '../../../@types/index.js'
 
 export function generateUniqueID(jobStructure: any): string {
   const timestamp =
@@ -139,5 +141,88 @@ export async function validateAlgoForDataset(
   } catch (error) {
     CORE_LOGGER.error(error.message)
     return false
+  }
+}
+
+// eslint-disable-next-line require-await
+// checks if the encrypted string sent by the user is a valid ComputeOutput object
+export async function validateOutput(
+  node: OceanNode,
+  output: string,
+  config: OceanNodeConfig
+): Promise<P2PCommandResponse> {
+  // null output is valid, because it's optional
+  if (!output) {
+    return {
+      status: {
+        httpStatus: 200,
+        error: null,
+        headers: null
+      },
+      stream: null
+    }
+  }
+
+  try {
+    const decrypted = await node
+      .getKeyManager()
+      .decrypt(Buffer.from(output, 'hex'), EncryptMethod.ECIES)
+
+    const obj = JSON.parse(decrypted.toString()) as ComputeOutput
+    const storage = Storage.getStorageClass(obj.remoteStorage, config)
+
+    if (storage.hasUpload && 'upload' in storage && typeof storage.upload === 'function')
+      if (obj.encryption && !obj.encryption.key) {
+        return {
+          status: {
+            httpStatus: 400,
+            error: `Encryption required, but no key`,
+            headers: null
+          },
+          stream: null
+        }
+      }
+    if (obj.encryption && obj.encryption.encryptMethod !== EncryptMethod.AES) {
+      return {
+        status: {
+          httpStatus: 400,
+          error: `Only AES encryption is supported`,
+          headers: null
+        },
+        stream: null
+      }
+    }
+    if (obj.encryption?.key) {
+      const keyBytes = Buffer.from(obj.encryption.key, 'hex')
+      if (keyBytes.length < 32) {
+        return {
+          status: {
+            httpStatus: 400,
+            error: `AES key must be at least 32 bytes (64 hex chars), got ${keyBytes.length} bytes`,
+            headers: null
+          },
+          stream: null
+        }
+      }
+    }
+
+    return {
+      status: {
+        httpStatus: 200,
+        error: null,
+        headers: null
+      },
+      stream: null
+    }
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    return {
+      status: {
+        httpStatus: 400,
+        error: `Invalid output: ${message}`,
+        headers: null
+      },
+      stream: null
+    }
   }
 }
