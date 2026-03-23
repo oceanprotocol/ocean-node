@@ -361,13 +361,14 @@ export class C2DEngineDocker extends C2DEngine {
       }
     }
 
-    // get all jobs that are in the settle status
-    const jobs = await this.db.getJobs(
-      envs,
-      undefined,
-      undefined,
+    // get all jobs that needs to be paid
+    const jobs = await this.db.getJobsByStatus(envs, [
+      C2DStatusNumber.AlgorithmFailed,
+      C2DStatusNumber.DiskQuotaExceeded,
+      C2DStatusNumber.ResultsFetchFailed,
+      C2DStatusNumber.ResultsUploadFailed,
       C2DStatusNumber.JobSettle
-    )
+    ])
     CORE_LOGGER.info(`ClaimPayments:  Got ${jobs.length} jobs to check`)
     if (jobs.length > 0) {
       const providerAddress = this.getKeyManager().getEthAddress()

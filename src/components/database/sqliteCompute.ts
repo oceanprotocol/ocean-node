@@ -439,7 +439,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     })
   }
 
-  getJobs(
+  async getJobs(
     environments?: string[],
     fromTimestamp?: string,
     consumerAddrs?: string[],
@@ -476,7 +476,44 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       selectSQL += ` WHERE ${conditions.join(' AND ')}`
     }
     selectSQL += ` ORDER BY dateCreated DESC`
+    return await this.doQuery(selectSQL, params, environments)
+  }
 
+  async getJobsByStatus(
+    environments: string[],
+    status: C2DStatusNumber[]
+  ): Promise<DBComputeJob[]> {
+    let selectSQL = `SELECT * FROM ${this.schema.name}`
+
+    // sqlite3 bindings accept both strings and numbers; `status` is a numeric enum.
+    const params: Array<string | number> = []
+    const conditions: string[] = []
+
+    if (environments && environments.length > 0) {
+      const placeholders = environments.map(() => '?').join(',')
+      conditions.push(`environment IN (${placeholders})`)
+      params.push(...environments)
+    }
+
+    if (status && status.length > 0) {
+      const placeholders = status.map(() => '?').join(',')
+      conditions.push(`status IN (${placeholders})`)
+      params.push(...status)
+    }
+
+    if (conditions.length > 0) {
+      selectSQL += ` WHERE ${conditions.join(' AND ')}`
+    }
+    selectSQL += ` ORDER BY dateCreated DESC`
+
+    return await this.doQuery(selectSQL, params, environments)
+  }
+
+  private doQuery(
+    selectSQL: string,
+    params: Array<string | number>,
+    environments: string[]
+  ) {
     return new Promise<DBComputeJob[]>((resolve, reject) => {
       this.db.all(selectSQL, params, (err, rows: any[] | undefined) => {
         if (err) {

@@ -89,6 +89,13 @@ export class C2DDatabase extends AbstractDatabase {
     return await this.provider.getJobs(environments, fromTimestamp, consumerAddrs, status)
   }
 
+  async getJobsByStatus(
+    environments: string[],
+    status: C2DStatusNumber[]
+  ): Promise<DBComputeJob[]> {
+    return await this.provider.getJobsByStatus(environments, status)
+  }
+
   async updateImage(image: string): Promise<void> {
     return await this.provider.updateImage(image)
   }
