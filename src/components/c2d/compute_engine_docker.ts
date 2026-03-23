@@ -439,10 +439,10 @@ export class C2DEngineDocker extends C2DEngine {
           continue
         }
 
-        // Calculate minimum duration
-        let minDuration = 0
-        if (algoDuration < 0) minDuration += algoDuration * -1
-        else minDuration += algoDuration
+        let minDuration = Math.abs(algoDuration)
+        if (minDuration > job.maxJobDuration) {
+          minDuration = job.maxJobDuration
+        }
         if (
           `minJobDuration` in env &&
           env.minJobDuration &&
