@@ -360,7 +360,7 @@ export abstract class BaseEventProcessor {
               .getCoreHandlers()
               .getHandler(PROTOCOL_COMMANDS.NONCE)
               .handle(getNonceTask)
-            nonceP2p = await streamToString(response.stream as Readable)
+            nonceP2p = String(parseInt(await streamToString(response.stream as Readable)) + 1)
           } catch (error) {
             const message = `Node exception on getting nonce from local nodeId ${nodeId}. Status: ${error.message}`
             INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
@@ -423,7 +423,7 @@ export abstract class BaseEventProcessor {
             }
 
             // Convert stream to Uint8Array
-            const remoteNonce = await streamToString(response.stream as Readable)
+            const remoteNonce = String(parseInt(await streamToString(response.stream as Readable)) + 1)
             INDEXER_LOGGER.debug(
               `decryptDDO: Fetched fresh nonce ${remoteNonce} from remote node ${decryptorURL} for decrypt attempt`
             )
