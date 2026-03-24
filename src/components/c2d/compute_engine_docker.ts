@@ -1675,6 +1675,9 @@ export class C2DEngineDocker extends C2DEngine {
         containerInfo.HostConfig.SecurityOpt = advancedConfig.SecurityOpt
       if (advancedConfig.Binds) containerInfo.HostConfig.Binds = advancedConfig.Binds
       containerInfo.HostConfig.CapDrop = ['ALL']
+      for (const cap of advancedConfig.CapDrop ?? []) {
+        containerInfo.HostConfig.CapDrop.push(cap)
+      }
       if (advancedConfig.CapAdd) containerInfo.HostConfig.CapAdd = advancedConfig.CapAdd
       if (advancedConfig.IpcMode)
         containerInfo.HostConfig.IpcMode = advancedConfig.IpcMode
