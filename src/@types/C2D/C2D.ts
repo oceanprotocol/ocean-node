@@ -245,6 +245,7 @@ export interface DBComputeJobPayment {
   token: string
   lockTx: string
   claimTx: string
+  cancelTx: string
   cost: number
 }
 
@@ -271,6 +272,7 @@ export interface DBComputeJob extends ComputeJob {
   algoDuration: number // duration of the job in seconds
   encryptedDockerRegistryAuth?: string
   output?: string // this is always an ECIES encrypted string, that decodes to ComputeOutput interface
+  jobIdHash: string
 }
 
 // make sure we keep them both in sync

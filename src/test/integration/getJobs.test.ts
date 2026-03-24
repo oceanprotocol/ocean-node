@@ -17,6 +17,7 @@ import {
   tearDownEnvironment
 } from '../utils/utils.js'
 import { streamToObject } from '../../utils/util.js'
+import { create256Hash } from '../../utils/crypt.js'
 
 // Helper to create a minimal valid DBComputeJob
 function buildJob(overrides: Partial<DBComputeJob> = {}): DBComputeJob {
@@ -25,6 +26,9 @@ function buildJob(overrides: Partial<DBComputeJob> = {}): DBComputeJob {
     owner: overrides.owner || '0xowner_test',
     did: overrides.did,
     jobId: overrides.jobId || `job-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    jobIdHash: create256Hash(
+      overrides.jobId || `job-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    ),
     dateCreated: overrides.dateCreated || nowSec,
     dateFinished: overrides.dateFinished || (null as unknown as string),
     status: overrides.status ?? C2DStatusNumber.JobStarted,

@@ -669,6 +669,7 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
             token: task.payment.token,
             lockTx: agreementId,
             claimTx: null,
+            cancelTx: null,
             cost: 0
           },
           jobId,

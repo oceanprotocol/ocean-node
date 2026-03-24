@@ -344,7 +344,6 @@ export class C2DEngineDocker extends C2DEngine {
     const currentTimestamp = BigInt(Math.floor(Date.now() / 1000))
     const envs: string[] = []
     const envsChains: string[] = []
-
     // Group jobs by operation type and chain for batch processing
     const jobsToClaim: Array<{
       job: DBComputeJob
@@ -413,7 +412,7 @@ export class C2DEngineDocker extends C2DEngine {
 
         // Find matching lock
         const lock = locks.find(
-          (lock) => BigInt(lock.jobId.toString()) === BigInt(create256Hash(job.jobId))
+          (lock) => BigInt(lock.jobId.toString()) === BigInt(job.jobIdHash)
         )
 
         if (!lock) {
@@ -579,6 +578,7 @@ export class C2DEngineDocker extends C2DEngine {
           if (txId) {
             // Update all jobs
             for (const job of jobsToCancelBatch) {
+              job.payment!.cancelTx = txId
               job.status = C2DStatusNumber.JobFinished
               job.statusText = C2DStatusText.JobFinished
               await this.db.updateJob(job)
@@ -601,6 +601,7 @@ export class C2DEngineDocker extends C2DEngine {
                 job.owner
               )
               if (txId) {
+                job.payment!.cancelTx = txId
                 job.status = C2DStatusNumber.JobFinished
                 job.statusText = C2DStatusText.JobFinished
                 await this.db.updateJob(job)
@@ -618,6 +619,8 @@ export class C2DEngineDocker extends C2DEngine {
       for (const job of jobsWithoutLock) {
         job.status = C2DStatusNumber.JobFinished
         job.statusText = C2DStatusText.JobFinished
+        job.payment!.cancelTx = ''
+        job.payment!.claimTx = ''
         await this.db.updateJob(job)
       }
     }
@@ -1088,6 +1091,7 @@ export class C2DEngineDocker extends C2DEngine {
       containerImage: image,
       owner,
       jobId,
+      jobIdHash: create256Hash(jobId),
       dateCreated: String(Date.now() / 1000),
       dateFinished: null,
       status:
