@@ -1620,6 +1620,7 @@ export class C2DEngineDocker extends C2DEngine {
       // create the container
       const mountVols: any = { '/data': {} }
       const hostConfig: HostConfig = {
+        NetworkMode: 'none', // no network inside the container
         Mounts: [
           {
             Type: 'volume',
@@ -1673,9 +1674,8 @@ export class C2DEngineDocker extends C2DEngine {
       if (advancedConfig.SecurityOpt)
         containerInfo.HostConfig.SecurityOpt = advancedConfig.SecurityOpt
       if (advancedConfig.Binds) containerInfo.HostConfig.Binds = advancedConfig.Binds
+      containerInfo.HostConfig.CapDrop = ['ALL']
       if (advancedConfig.CapAdd) containerInfo.HostConfig.CapAdd = advancedConfig.CapAdd
-      if (advancedConfig.CapDrop)
-        containerInfo.HostConfig.CapDrop = advancedConfig.CapDrop
       if (advancedConfig.IpcMode)
         containerInfo.HostConfig.IpcMode = advancedConfig.IpcMode
       if (advancedConfig.ShmSize)
