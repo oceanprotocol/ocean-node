@@ -2749,7 +2749,7 @@ export class C2DEngineDocker extends C2DEngine {
         CORE_LOGGER.info('Pull complete.')
         return true
       } else {
-        CORE_LOGGER.error(`Unabe to pull ${trivyImage}: ${error.message}`)
+        CORE_LOGGER.error(`Unable to pull ${trivyImage}: ${error.message}`)
         return true
       }
     }
