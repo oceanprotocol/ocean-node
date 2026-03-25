@@ -2839,6 +2839,7 @@ export class C2DEngineDocker extends C2DEngine {
       critical: allVulnerabilities.filter((v: any) => v.Severity === 'CRITICAL').length,
       high: allVulnerabilities.filter((v: any) => v.Severity === 'HIGH').length,
       list: allVulnerabilities.slice(0, 5).map((v: any) => ({
+        severity: v.Severity,
         id: v.VulnerabilityID,
         package: v.PkgName,
         title: v.Title || 'No description'
