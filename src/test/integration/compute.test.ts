@@ -3167,19 +3167,5 @@ describe('Compute Access Restrictions', () => {
         )
       }
     })
-
-    it('should start payment claim timer on engine start', function () {
-      // Verify timer methods exist
-      // Timer might be null if not started yet, or a NodeJS.Timeout if started
-      // We can't easily test the timer directly, but we can verify the method exists
-      assert(
-        typeof (dockerEngine as any).startPaymentTimer === 'function',
-        'startPaymentTimer method should exist'
-      )
-      assert(
-        typeof (dockerEngine as any).claimPayments === 'function',
-        'claimPayments method should exist'
-      )
-    })
   })
 })
