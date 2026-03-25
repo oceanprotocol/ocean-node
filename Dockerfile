@@ -36,7 +36,8 @@ ARG DOCKER_GID=999
 RUN groupadd -g ${DOCKER_GID} docker && usermod -aG docker node
 
 WORKDIR /usr/src/app
-RUN chown node:node /usr/src/app
+RUN mkdir databases c2d_storage logs & \
+    chown node:node /usr/src/app
 
 COPY --chown=node:node --from=builder /usr/src/app/ .
 
