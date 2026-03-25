@@ -6,6 +6,7 @@ import {
 } from '../../@types/C2D/C2D.js'
 import sqlite3, { RunResult } from 'sqlite3'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
+import { create256Hash } from '../../utils/crypt.js'
 
 interface ComputeDatabaseProvider {
   newJob(job: DBComputeJob): Promise<string>
@@ -530,6 +531,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
               const maxJobDuration = row.expireTimestamp
               delete row.expireTimestamp
               const job: DBComputeJob = { ...row, ...body, maxJobDuration }
+              if (!job.jobIdHash && job.jobId) {
+                job.jobIdHash = create256Hash(job.jobId)
+              }
               return job
             })
             resolve(all)
