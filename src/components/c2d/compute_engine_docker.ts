@@ -1639,7 +1639,7 @@ export class C2DEngineDocker extends C2DEngine {
         const logText =
           `Image scanned for vulnerabilities\nVulnerable:${check.vulnerable}\nSummary:` +
           JSON.stringify(check.summary, null, 2)
-        CORE_LOGGER.error(logText)
+        CORE_LOGGER.debug(logText)
         appendFileSync(imageLogFile, logText)
         if (check.vulnerable) {
           job.status = C2DStatusNumber.VulnerableImage
@@ -2777,11 +2777,13 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   private async scanImage(imageName: string) {
+    if (!imageName || !imageName.trim()) return null
     const hasImage = await this.checkscanDBImage()
     if (!hasImage) {
       // we cannot update without image
       return
     }
+    CORE_LOGGER.debug(`Starting vulnerability check for ${imageName}`)
     const container = await this.docker.createContainer({
       Image: trivyImage,
       Cmd: [
@@ -2789,7 +2791,10 @@ export class C2DEngineDocker extends C2DEngine {
         '--format',
         'json',
         '--quiet',
-        // '--skip-db-update', // Optional: Use this if you want to update via a separate cron job
+        '--no-progress',
+        '--skip-db-update',
+        '--severity',
+        'CRITICAL,HIGH',
         imageName
       ],
       HostConfig: {
@@ -2802,23 +2807,67 @@ export class C2DEngineDocker extends C2DEngine {
 
     await container.start()
 
-    // Capture the output stream
-    const logStream = new PassThrough()
-    const logs = await container.logs({ follow: true, stdout: true, stderr: true })
+    // Wait for completion, then parse from *demuxed stdout* to avoid corrupt JSON
+    // due to Docker multiplexed log framing.
+    const logsStream = await container.logs({
+      follow: true,
+      stdout: true,
+      stderr: true
+    })
 
-    // Demux Docker's multiplexed stream (removes binary headers)
-    container.modem.demuxStream(logs, logStream, process.stderr)
+    const outStream = new PassThrough()
+    const errStream = new PassThrough()
+    outStream.resume()
+    errStream.resume()
 
-    let rawData = ''
-    logStream.on('data', (chunk) => {
-      rawData += chunk
+    const rawChunks: Buffer[] = []
+    outStream.on('data', (chunk) => {
+      rawChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+    })
+
+    container.modem.demuxStream(logsStream, outStream, errStream)
+
+    const logsDrained = new Promise<void>((resolve, reject) => {
+      const done = () => resolve()
+      logsStream.once('end', done)
+      logsStream.once('close', done)
+      logsStream.once('error', reject)
     })
 
     await container.wait()
+    // Wait for the docker log stream to finish producing data.
+    await logsDrained
+
     await container.remove()
+    CORE_LOGGER.debug(`Vulnerability check for ${imageName} finished`)
 
     try {
-      return JSON.parse(rawData)
+      const rawData = Buffer.concat(rawChunks).toString('utf8')
+      // Trivy's `--format json` output is a JSON object (it includes `SchemaVersion`).
+      // Prefer extracting the JSON object only; do not attempt array parsing since
+      // Trivy help/usage output may include `[` tokens (e.g. "[flags]") that are not JSON.
+      const firstBrace = rawData.indexOf('{')
+      const lastBrace = rawData.lastIndexOf('}')
+
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        const jsonText = rawData.slice(firstBrace, lastBrace + 1).trim()
+        if (!jsonText.includes('"SchemaVersion"')) {
+          CORE_LOGGER.error(
+            'Trivy output did not contain SchemaVersion in extracted JSON. Truncated output: ' +
+              rawData.slice(0, 500)
+          )
+          return null
+        }
+        return JSON.parse(jsonText)
+      }
+
+      CORE_LOGGER.error(
+        `Failed to locate JSON in Trivy output. Truncated output: ${rawData.slice(
+          0,
+          1000
+        )}`
+      )
+      return null
     } catch (e) {
       CORE_LOGGER.error('Failed to parse Trivy output: ' + e.message)
       return null
@@ -2834,16 +2883,49 @@ export class C2DEngineDocker extends C2DEngine {
     // Results is an array (one entry per OS package manager / language)
     const allVulnerabilities = report.Results.flatMap((r: any) => r.Vulnerabilities || [])
 
+    const severityRank = (sev: string) => {
+      switch (sev) {
+        case 'CRITICAL':
+          return 3
+        case 'HIGH':
+          return 2
+        default:
+          return 1
+      }
+    }
+
     const summary = {
       total: allVulnerabilities.length,
       critical: allVulnerabilities.filter((v: any) => v.Severity === 'CRITICAL').length,
       high: allVulnerabilities.filter((v: any) => v.Severity === 'HIGH').length,
-      list: allVulnerabilities.slice(0, 5).map((v: any) => ({
-        severity: v.Severity,
-        id: v.VulnerabilityID,
-        package: v.PkgName,
-        title: v.Title || 'No description'
-      }))
+      list: (() => {
+        // Present the most important vulnerabilities first.
+        const sorted = [...allVulnerabilities].sort((a: any, b: any) => {
+          const diff = severityRank(b.Severity) - severityRank(a.Severity)
+          if (diff !== 0) return diff
+          return String(a.VulnerabilityID || '').localeCompare(
+            String(b.VulnerabilityID || '')
+          )
+        })
+
+        const list: Array<{
+          severity: string
+          id: string
+          package: string
+          title: string
+        }> = []
+
+        for (const v of sorted) {
+          list.push({
+            severity: v.Severity,
+            id: v.VulnerabilityID,
+            package: v.PkgName,
+            title: v.Title || 'No description'
+          })
+        }
+
+        return list
+      })()
     }
 
     if (summary.critical > 0) {
