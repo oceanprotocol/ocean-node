@@ -151,6 +151,8 @@ export interface C2DDockerConfig {
   imageRetentionDays?: number // Default: 7 days
   imageCleanupInterval?: number // Default: 86400 seconds (24 hours)
   paymentClaimInterval?: number // Default: 3600 seconds (1 hours)
+  scanImages?: boolean
+  scanImageDBUpdateInterval?: number // Default: 12 hours
 }
 
 export type ComputeResultType =
@@ -292,6 +294,8 @@ export enum C2DStatusNumber {
   // eslint-disable-next-line no-unused-vars
   BuildImageFailed = 13,
   // eslint-disable-next-line no-unused-vars
+  VulnerableImage = 14,
+  // eslint-disable-next-line no-unused-vars
   ConfiguringVolumes = 20,
   // eslint-disable-next-line no-unused-vars
   VolumeCreationFailed = 21,
@@ -339,6 +343,8 @@ export enum C2DStatusText {
   BuildImage = 'Building algorithm image',
   // eslint-disable-next-line no-unused-vars
   BuildImageFailed = 'Building algorithm image failed',
+  // eslint-disable-next-line no-unused-vars
+  VulnerableImage = 'Image has vulnerabilities',
   // eslint-disable-next-line no-unused-vars
   ConfiguringVolumes = 'Configuring volumes',
   // eslint-disable-next-line no-unused-vars
