@@ -5,6 +5,7 @@ import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
 import { KeyManager } from '../KeyManager/index.js'
+import { CORE_LOGGER } from '../../utils/logging/common.js'
 
 export class C2DEngines {
   public engines: C2DEngine[]
@@ -24,16 +25,25 @@ export class C2DEngines {
       let cpuOffset = 0
       for (const cluster of config.c2dClusters) {
         if (cluster.type === C2DClusterType.DOCKER) {
-          this.engines.push(
-            new C2DEngineDocker(
-              cluster,
-              db,
-              escrow,
-              keyManager,
-              config.dockerRegistrysAuth,
-              cpuOffset
+          // do some checks
+          const limit = 6
+          const claimDurationTimeout = escrow.getMinLockTime(0)
+          if (cluster.connection.paymentClaimInterval * limit > claimDurationTimeout) {
+            CORE_LOGGER.error(
+              `Cannot create engine ${cluster.connection.hash}.\r\nConfig.claimDurationTimeout is not high enough to claim at least ${limit} times. Either decrease environment.paymentClaimInterval${cluster.connection.paymentClaimInterval} or increase config.claimDurationTimeout(${claimDurationTimeout})`
             )
-          )
+          } else {
+            this.engines.push(
+              new C2DEngineDocker(
+                cluster,
+                db,
+                escrow,
+                keyManager,
+                config.dockerRegistrysAuth,
+                cpuOffset
+              )
+            )
+          }
           // Advance the CPU offset by this cluster's configured CPU total
           if (cluster.connection?.resources) {
             const cpuRes = cluster.connection.resources.find((r: any) => r.id === 'cpu')
