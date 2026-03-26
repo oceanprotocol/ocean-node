@@ -17,6 +17,7 @@ RUN npm run build && npm prune --omit=dev
 FROM node:22.15.0-bookworm-slim@sha256:557e52a0fcb928ee113df7e1fb5d4f60c1341dbda53f55e3d815ca10807efdce AS runner
 RUN apt-get update && apt-get install -y --no-install-recommends \
     dumb-init \
+    gosu \
     libatomic1 \
     && rm -rf /var/lib/apt/lists/*
 
@@ -39,10 +40,10 @@ WORKDIR /usr/src/app
 
 COPY --chown=node:node --from=builder /usr/src/app/ .
 
-RUN mkdir -p databases c2d_storage logs && \
-    chown node:node databases c2d_storage logs
+RUN mkdir -p databases c2d_storage logs
 
-USER node
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-ENTRYPOINT ["dumb-init", "--"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["node", "--max-old-space-size=28784", "--trace-warnings", "--experimental-specifier-resolution=node", "dist/index.js"]
