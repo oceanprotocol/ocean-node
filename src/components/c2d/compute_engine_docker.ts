@@ -35,6 +35,7 @@ import {
   createWriteStream,
   existsSync,
   mkdirSync,
+  chmodSync,
   rmSync,
   writeFileSync,
   appendFileSync,
@@ -2643,6 +2644,7 @@ export class C2DEngineDocker extends C2DEngine {
         if (!existsSync(dir)) {
           mkdirSync(dir, { recursive: true })
         }
+        chmodSync(dir, 0o777)
       }
       return true
     } catch (e) {
