@@ -32,16 +32,17 @@ ENV NODE_ENV=production \
 
 EXPOSE 9000 9001 9002 9003 9005 8000
 
-#ARG DOCKER_GID=999
-#RUN groupadd -g ${DOCKER_GID} docker && usermod -aG docker node
+ARG DOCKER_GID=999
+RUN groupadd -g ${DOCKER_GID} docker && usermod -aG docker node
 
 WORKDIR /usr/src/app
-#RUN chown node:node /usr/src/app
 
-#COPY --chown=node:node --from=builder /usr/src/app/ .
-COPY --from=builder /usr/src/app/ .
+COPY --chown=node:node --from=builder /usr/src/app/ .
 
-#USER node
+RUN mkdir -p databases c2d_storage logs && \
+    chown node:node databases c2d_storage logs
+
+USER node
 
 ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "--max-old-space-size=28784", "--trace-warnings", "--experimental-specifier-resolution=node", "dist/index.js"]
