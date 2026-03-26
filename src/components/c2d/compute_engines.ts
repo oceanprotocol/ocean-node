@@ -21,6 +21,7 @@ export class C2DEngines {
     // if yes, do not create multiple engines
     if (config && config.c2dClusters) {
       this.engines = []
+      let cpuOffset = 0
       for (const cluster of config.c2dClusters) {
         if (cluster.type === C2DClusterType.DOCKER) {
           this.engines.push(
@@ -29,9 +30,17 @@ export class C2DEngines {
               db,
               escrow,
               keyManager,
-              config.dockerRegistrysAuth
+              config.dockerRegistrysAuth,
+              cpuOffset
             )
           )
+          // Advance the CPU offset by this cluster's configured CPU total
+          if (cluster.connection?.resources) {
+            const cpuRes = cluster.connection.resources.find((r: any) => r.id === 'cpu')
+            if (cpuRes?.total) {
+              cpuOffset += cpuRes.total
+            }
+          }
         }
       }
     }

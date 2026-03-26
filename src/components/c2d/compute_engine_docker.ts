@@ -70,14 +70,19 @@ export class C2DEngineDocker extends C2DEngine {
   private retentionDays: number
   private cleanupInterval: number
   private paymentClaimInterval: number
+  private cpuAllocations: Map<string, number[]> = new Map()
+  private envCpuCores: number[] = []
+  private cpuOffset: number
   public constructor(
     clusterConfig: C2DClusterInfo,
     db: C2DDatabase,
     escrow: Escrow,
     keyManager: KeyManager,
-    dockerRegistryAuths: dockerRegistrysAuth
+    dockerRegistryAuths: dockerRegistrysAuth,
+    cpuOffset: number = 0
   ) {
     super(clusterConfig, db, escrow, keyManager, dockerRegistryAuths)
+    this.cpuOffset = cpuOffset
 
     this.docker = null
     if (clusterConfig.connection.socketPath) {
@@ -248,7 +253,15 @@ export class C2DEngineDocker extends C2DEngine {
     }
     this.envs[0].resources.push(cpuResources)
     this.envs[0].resources.push(ramResources)
-    /* TODO  - get namedresources & discreete one 
+    // Build the list of physical CPU core indices for this environment
+    this.envCpuCores = Array.from(
+      { length: cpuResources.total },
+      (_, i) => this.cpuOffset + i
+    )
+    CORE_LOGGER.info(
+      `CPU affinity: environment cores ${this.envCpuCores[0]}-${this.envCpuCores[this.envCpuCores.length - 1]} (offset=${this.cpuOffset}, total=${cpuResources.total})`
+    )
+    /* TODO  - get namedresources & discreete one
     if (sysinfo.GenericResources) {
       for (const [key, value] of Object.entries(sysinfo.GenericResources)) {
         for (const [type, val] of Object.entries(value)) {
@@ -301,6 +314,9 @@ export class C2DEngineDocker extends C2DEngine {
     }
     this.envs[0].id =
       this.getC2DConfig().hash + '-' + create256Hash(JSON.stringify(this.envs[0].fees))
+
+    // Rebuild CPU allocations from running containers (handles node restart)
+    await this.rebuildCpuAllocations()
 
     // only now set the timer
     if (!this.cronTimer) {
@@ -1621,6 +1637,7 @@ export class C2DEngineDocker extends C2DEngine {
       // create the container
       const mountVols: any = { '/data': {} }
       const hostConfig: HostConfig = {
+        NetworkMode: 'none', // no network inside the container
         Mounts: [
           {
             Type: 'volume',
@@ -1647,6 +1664,11 @@ export class C2DEngineDocker extends C2DEngine {
       if (cpus && cpus > 0) {
         hostConfig.CpuPeriod = 100000 // 100 miliseconds is usually the default
         hostConfig.CpuQuota = Math.floor(cpus * hostConfig.CpuPeriod)
+        // Pin the container to specific physical CPU cores
+        const cpusetStr = this.allocateCpus(job.jobId, cpus)
+        if (cpusetStr) {
+          hostConfig.CpusetCpus = cpusetStr
+        }
       }
       const containerInfo: ContainerCreateOptions = {
         name: job.jobId + '-algoritm',
@@ -1674,9 +1696,11 @@ export class C2DEngineDocker extends C2DEngine {
       if (advancedConfig.SecurityOpt)
         containerInfo.HostConfig.SecurityOpt = advancedConfig.SecurityOpt
       if (advancedConfig.Binds) containerInfo.HostConfig.Binds = advancedConfig.Binds
+      containerInfo.HostConfig.CapDrop = ['ALL']
+      for (const cap of advancedConfig.CapDrop ?? []) {
+        containerInfo.HostConfig.CapDrop.push(cap)
+      }
       if (advancedConfig.CapAdd) containerInfo.HostConfig.CapAdd = advancedConfig.CapAdd
-      if (advancedConfig.CapDrop)
-        containerInfo.HostConfig.CapDrop = advancedConfig.CapDrop
       if (advancedConfig.IpcMode)
         containerInfo.HostConfig.IpcMode = advancedConfig.IpcMode
       if (advancedConfig.ShmSize)
@@ -1923,6 +1947,93 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   // eslint-disable-next-line require-await
+  private parseCpusetString(cpuset: string): number[] {
+    const cores: number[] = []
+    if (!cpuset) return cores
+    for (const part of cpuset.split(',')) {
+      if (part.includes('-')) {
+        const [start, end] = part.split('-').map(Number)
+        for (let i = start; i <= end; i++) {
+          cores.push(i)
+        }
+      } else {
+        cores.push(Number(part))
+      }
+    }
+    return cores
+  }
+
+  private allocateCpus(jobId: string, count: number): string | null {
+    if (this.envCpuCores.length === 0 || count <= 0) return null
+
+    const usedCores = new Set<number>()
+    for (const cores of this.cpuAllocations.values()) {
+      for (const core of cores) {
+        usedCores.add(core)
+      }
+    }
+
+    const freeCores: number[] = []
+    for (const core of this.envCpuCores) {
+      if (!usedCores.has(core)) {
+        freeCores.push(core)
+        if (freeCores.length === count) break
+      }
+    }
+
+    if (freeCores.length < count) {
+      CORE_LOGGER.warn(
+        `CPU affinity: not enough free cores for job ${jobId} (requested=${count}, available=${freeCores.length}/${this.envCpuCores.length})`
+      )
+      return null
+    }
+
+    this.cpuAllocations.set(jobId, freeCores)
+    const cpusetStr = freeCores.join(',')
+    CORE_LOGGER.info(`CPU affinity: allocated cores [${cpusetStr}] to job ${jobId}`)
+    return cpusetStr
+  }
+
+  private releaseCpus(jobId: string): void {
+    const cores = this.cpuAllocations.get(jobId)
+    if (cores) {
+      CORE_LOGGER.info(
+        `CPU affinity: released cores [${cores.join(',')}] from job ${jobId}`
+      )
+      this.cpuAllocations.delete(jobId)
+    }
+  }
+
+  /**
+   * On startup, inspects running Docker containers to rebuild the CPU allocation map.
+   */
+  private async rebuildCpuAllocations(): Promise<void> {
+    if (this.envCpuCores.length === 0) return
+    try {
+      const jobs = await this.db.getRunningJobs(this.getC2DConfig().hash)
+      for (const job of jobs) {
+        try {
+          const container = this.docker.getContainer(job.jobId + '-algoritm')
+          const info = await container.inspect()
+          const cpuset = info.HostConfig?.CpusetCpus
+          if (cpuset) {
+            const cores = this.parseCpusetString(cpuset)
+            if (cores.length > 0) {
+              this.cpuAllocations.set(job.jobId, cores)
+              CORE_LOGGER.info(
+                `CPU affinity: recovered allocation [${cpuset}] for running job ${job.jobId}`
+              )
+            }
+          }
+        } catch (e) {
+          // Container may not exist yet (e.g., job is in pull/build phase)
+        }
+      }
+    } catch (e) {
+      CORE_LOGGER.error(`CPU affinity: failed to rebuild allocations: ${e.message}`)
+    }
+  }
+
   private async cleanupJob(job: DBComputeJob) {
     // cleaning up
     // - claim payment or release lock
@@ -1931,6 +2042,7 @@ export class C2DEngineDocker extends C2DEngine {
     //  - delete container
 
     this.jobImageSizes.delete(job.jobId)
+    this.releaseCpus(job.jobId)
 
     try {
       const container = await this.docker.getContainer(job.jobId + '-algoritm')
@@ -2229,6 +2341,9 @@ export class C2DEngineDocker extends C2DEngine {
     const job = JSON.parse(JSON.stringify(originaljob)) as DBComputeJob
     const imageLogFile =
       this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/logs/image.log'
+    const controller = new AbortController()
+    const timeoutMs = 5 * 60 * 1000
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
     try {
       const pack = tarStream.pack()
 
@@ -2242,52 +2357,104 @@ export class C2DEngineDocker extends C2DEngine {
       }
       pack.finalize()
 
-      // Build the image using the tar stream as context
-      const buildStream = await this.docker.buildImage(pack, {
-        t: job.containerImage
-      })
+      // Build the image using the tar stream as context (Node IncomingMessage extends stream.Readable)
+      const buildStream = (await this.docker.buildImage(pack, {
+        t: job.containerImage,
+        memory: 1024 * 1024 * 1024, // 1GB RAM in bytes
+        memswap: -1, // Disable swap
+        cpushares: 512, // CPU Shares (default is 1024)
+        cpuquota: 50000, // 50% of one CPU (100000 = 1 CPU)
+        cpuperiod: 100000, // Default period
+        nocache: true, // prevent cache poison
+        abortSignal: controller.signal
+      })) as Readable
 
-      // Optional: listen to build output
-      buildStream.on('data', (data) => {
+      const onBuildData = (data: Buffer) => {
         try {
           const text = JSON.parse(data.toString('utf8'))
-          CORE_LOGGER.debug(
-            "Building image for jobId '" + job.jobId + "': " + text.stream.trim()
-          )
-          appendFileSync(imageLogFile, String(text.stream))
+          if (text && text.stream && typeof text.stream === 'string') {
+            CORE_LOGGER.debug(
+              "Building image for jobId '" + job.jobId + "': " + text.stream.trim()
+            )
+            appendFileSync(imageLogFile, String(text.stream))
+          }
         } catch (e) {
           // console.log('non json build data: ', data.toString('utf8'))
         }
-      })
+      }
+      buildStream.on('data', onBuildData)
 
       await new Promise<void>((resolve, reject) => {
-        buildStream.on('end', () => {
-          CORE_LOGGER.debug(`Image '${job.containerImage}' built successfully.`)
-          this.updateImageUsage(job.containerImage).catch((e) => {
-            CORE_LOGGER.debug(`Failed to track image usage: ${e.message}`)
+        let settled = false
+        const detachBuildLog = () => {
+          buildStream.removeListener('data', onBuildData)
+        }
+        const finish = (action: () => void) => {
+          if (settled) return
+          settled = true
+          action()
+        }
+        const onAbort = () => {
+          finish(() => {
+            detachBuildLog()
+            buildStream.destroy()
+            const err = new Error('Image build aborted') as NodeJS.ErrnoException
+            err.code = 'ABORT_ERR'
+            err.name = 'AbortError'
+            reject(err)
           })
-          resolve()
-        })
+        }
+        controller.signal.addEventListener('abort', onAbort, { once: true })
+        const onSuccess = () => {
+          finish(() => {
+            detachBuildLog()
+            controller.signal.removeEventListener('abort', onAbort)
+            CORE_LOGGER.debug(`Image '${job.containerImage}' built successfully.`)
+            this.updateImageUsage(job.containerImage).catch((e) => {
+              CORE_LOGGER.debug(`Failed to track image usage: ${e.message}`)
+            })
+            resolve()
+          })
+        }
+        // Some HTTP responses emit `close` without a reliable `end`; handle both (settled ensures once).
+        buildStream.on('end', onSuccess)
+        buildStream.on('close', onSuccess)
         buildStream.on('error', (err) => {
           CORE_LOGGER.debug(`Error building image '${job.containerImage}':` + err.message)
           appendFileSync(imageLogFile, String(err.message))
-          reject(err)
+          finish(() => {
+            detachBuildLog()
+            controller.signal.removeEventListener('abort', onAbort)
+            reject(err)
+          })
         })
       })
       job.status = C2DStatusNumber.ConfiguringVolumes
       job.statusText = C2DStatusText.ConfiguringVolumes
-      this.db.updateJob(job)
+      await this.db.updateJob(job)
     } catch (err) {
-      CORE_LOGGER.error(
-        `Unable to build docker image: ${job.containerImage}: ${err.message}`
-      )
-      appendFileSync(imageLogFile, String(err.message))
+      const aborted =
+        (err as NodeJS.ErrnoException)?.code === 'ABORT_ERR' ||
+        (err as Error)?.name === 'AbortError'
+      if (aborted) {
+        // timeout-specific handling
+        const msg = `Image build timed out after ${timeoutMs / 1000}s`
+        CORE_LOGGER.error(`Unable to build docker image: ${job.containerImage}: ${msg}`)
+        appendFileSync(imageLogFile, msg)
+      } else {
+        CORE_LOGGER.error(
+          `Unable to build docker image: ${job.containerImage}: ${err.message}`
+        )
+        appendFileSync(imageLogFile, String(err.message))
+      }
       job.status = C2DStatusNumber.BuildImageFailed
       job.statusText = C2DStatusText.BuildImageFailed
       job.isRunning = false
       job.dateFinished = String(Date.now() / 1000)
       await this.db.updateJob(job)
       await this.cleanupJob(job)
+    } finally {
+      clearTimeout(timer)
     }
   }
 

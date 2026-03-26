@@ -7,8 +7,9 @@ import {
   C2DStatusText,
   ComputeAlgorithm,
   ComputeAsset,
-  // ComputeEnvironment,
+  ComputeEnvironment,
   ComputeJob,
+  ComputeResourceRequest,
   DBComputeJob,
   RunningPlatform
 } from '../../@types/C2D/C2D.js'
@@ -30,8 +31,85 @@ import {
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { completeDBComputeJob, dockerImageManifest } from '../data/assets.js'
-import { omitDBComputeFieldsFromComputeJob } from '../../components/c2d/index.js'
+import {
+  C2DEngine,
+  omitDBComputeFieldsFromComputeJob
+} from '../../components/c2d/index.js'
 import { checkManifestPlatform } from '../../components/c2d/compute_engine_docker.js'
+import { ValidateParams } from '../../components/httpRoutes/validateCommands.js'
+import { Readable } from 'stream'
+
+/* eslint-disable require-await */
+class TestC2DEngine extends C2DEngine {
+  constructor() {
+    super(null, null, null, null, null)
+  }
+
+  async getComputeEnvironments(): Promise<ComputeEnvironment[]> {
+    return []
+  }
+
+  async checkDockerImage(): Promise<ValidateParams> {
+    return { valid: true, reason: null as string, status: 200 }
+  }
+
+  async startComputeJob(): Promise<ComputeJob[]> {
+    return []
+  }
+
+  async stopComputeJob(): Promise<ComputeJob[]> {
+    return []
+  }
+
+  async getComputeJobStatus(): Promise<ComputeJob[]> {
+    return []
+  }
+
+  async getComputeJobResult(): Promise<{ stream: Readable; headers: any }> {
+    return null
+  }
+
+  async cleanupExpiredStorage(): Promise<boolean> {
+    return true
+  }
+}
+/* eslint-enable require-await */
+
+function makeEnv(
+  resources: any[],
+  opts: {
+    freeResources?: any[]
+    runningJobs?: number
+    runningfreeJobs?: number
+    maxJobs?: number
+  } = {}
+): ComputeEnvironment {
+  return {
+    id: 'test-env',
+    resources,
+    free: opts.freeResources
+      ? {
+          resources: opts.freeResources,
+          access: { addresses: [], accessLists: null }
+        }
+      : undefined,
+    runningJobs: opts.runningJobs ?? 0,
+    runningfreeJobs: opts.runningfreeJobs ?? 0,
+    queuedJobs: 0,
+    queuedFreeJobs: 0,
+    queMaxWaitTime: 0,
+    queMaxWaitTimeFree: 0,
+    runMaxWaitTime: 0,
+    runMaxWaitTimeFree: 0,
+    consumerAddress: '0x0',
+    fees: {},
+    access: { addresses: [], accessLists: null },
+    platform: { architecture: 'x86_64', os: 'linux' },
+    minJobDuration: 60,
+    maxJobDuration: 3600,
+    maxJobs: opts.maxJobs ?? 10
+  }
+}
 
 describe('Compute Jobs Database', () => {
   let envOverrides: OverrideEnvConfig[]
@@ -252,11 +330,187 @@ describe('Compute Jobs Database', () => {
     expect(checkManifestPlatform(null, env)).to.be.equal(true)
   })
 
-  it('testing checkAndFillMissingResources', async function () {
-    // TO DO
+  describe('testing checkAndFillMissingResources', function () {
+    let engine: TestC2DEngine
+
+    before(function () {
+      engine = new TestC2DEngine()
+    })
+
+    const baseResources = [
+      { id: 'cpu', total: 8, min: 1, max: 8, inUse: 0 },
+      { id: 'ram', total: 32, min: 1, max: 32, inUse: 0 },
+      { id: 'disk', total: 500, min: 10, max: 500, inUse: 0 }
+    ]
+
+    it('satisfies constraints exactly → passes without modification', async function () {
+      const resources = [
+        ...baseResources.slice(0, 1).map((r) => ({
+          ...r,
+          constraints: [{ id: 'ram', min: 1, max: 4 }]
+        })),
+        ...baseResources.slice(1)
+      ]
+      const env = makeEnv(resources)
+      // 4 cpu, 8 ram (= 4*2, in [4, 16]) → no change
+      const req: ComputeResourceRequest[] = [
+        { id: 'cpu', amount: 4 },
+        { id: 'ram', amount: 8 },
+        { id: 'disk', amount: 50 }
+      ]
+      const result = await engine.checkAndFillMissingResources(req, env, false)
+      const ramEntry = result.find((r) => r.id === 'ram')
+      expect(ramEntry.amount).to.equal(8)
+    })
+
+    it('resource below constraint min → auto-bumped to required minimum', async function () {
+      const resources = [
+        { ...baseResources[0], constraints: [{ id: 'ram', min: 2, max: 8 }] },
+        ...baseResources.slice(1)
+      ]
+      const env = makeEnv(resources)
+      // 4 cpu, 4 ram → ram < 4*2=8 → should be bumped to 8
+      const req: ComputeResourceRequest[] = [
+        { id: 'cpu', amount: 4 },
+        { id: 'ram', amount: 4 },
+        { id: 'disk', amount: 50 }
+      ]
+      const result = await engine.checkAndFillMissingResources(req, env, false)
+      const ramEntry = result.find((r) => r.id === 'ram')
+      expect(ramEntry.amount).to.equal(8)
+    })
+
+    it('resource above constraint max → throws meaningful error', async function () {
+      const resources = [
+        { ...baseResources[0], constraints: [{ id: 'ram', min: 1, max: 3 }] },
+        ...baseResources.slice(1)
+      ]
+      const env = makeEnv(resources)
+      // 4 cpu, 20 ram → ram > 4*3=12 → throws
+      const req: ComputeResourceRequest[] = [
+        { id: 'cpu', amount: 4 },
+        { id: 'ram', amount: 20 },
+        { id: 'disk', amount: 50 }
+      ]
+      try {
+        await engine.checkAndFillMissingResources(req, env, false)
+        assert.fail('Expected error was not thrown')
+      } catch (err: any) {
+        expect(err.message).to.include('Too much ram')
+        expect(err.message).to.include('4 cpu')
+        expect(err.message).to.include('Max allowed: 12')
+      }
+    })
+
+    it('constraint involving GPU with 0 GPU requested → no constraint applied', async function () {
+      const resources = [
+        ...baseResources,
+        {
+          id: 'gpu',
+          total: 4,
+          min: 0,
+          max: 4,
+          inUse: 0,
+          constraints: [{ id: 'ram', min: 8, max: 32 }]
+        }
+      ]
+      const env = makeEnv(resources)
+      // 0 gpu → gpu constraints should not be applied → ram stays at 4
+      const req: ComputeResourceRequest[] = [
+        { id: 'cpu', amount: 2 },
+        { id: 'ram', amount: 4 },
+        { id: 'disk', amount: 50 },
+        { id: 'gpu', amount: 0 }
+      ]
+      const result = await engine.checkAndFillMissingResources(req, env, false)
+      const ramEntry = result.find((r) => r.id === 'ram')
+      expect(ramEntry.amount).to.equal(4)
+    })
+
+    it('no constraints defined → existing behavior unchanged', async function () {
+      const env = makeEnv(baseResources)
+      // below min → bumped to min; above max → throws
+      const req: ComputeResourceRequest[] = [
+        { id: 'cpu', amount: 0 },
+        { id: 'ram', amount: 0 },
+        { id: 'disk', amount: 0 }
+      ]
+      const result = await engine.checkAndFillMissingResources(req, env, false)
+      const cpuEntry = result.find((r) => r.id === 'cpu')
+      const diskEntry = result.find((r) => r.id === 'disk')
+      expect(cpuEntry.amount).to.equal(1) // bumped to min
+      expect(diskEntry.amount).to.equal(10) // bumped to min
+    })
   })
-  it('testing checkIfResourcesAreAvailable', async function () {
-    // TO DO
+
+  describe('testing checkIfResourcesAreAvailable', function () {
+    let engine: TestC2DEngine
+
+    before(function () {
+      engine = new TestC2DEngine()
+    })
+
+    it('resources within env limits → passes', async function () {
+      const env = makeEnv([
+        { id: 'cpu', total: 8, min: 1, max: 8, inUse: 2 },
+        { id: 'ram', total: 32, min: 1, max: 32, inUse: 4 },
+        { id: 'disk', total: 500, min: 10, max: 500, inUse: 50 }
+      ])
+      const req: ComputeResourceRequest[] = [
+        { id: 'cpu', amount: 4 },
+        { id: 'ram', amount: 8 },
+        { id: 'disk', amount: 100 }
+      ]
+      // should not throw
+      await engine.checkIfResourcesAreAvailable(req, env, false)
+    })
+
+    it('resources exceed env availability → throws', async function () {
+      const env = makeEnv([
+        { id: 'cpu', total: 4, min: 1, max: 4, inUse: 3 },
+        { id: 'ram', total: 32, min: 1, max: 32, inUse: 0 },
+        { id: 'disk', total: 500, min: 10, max: 500, inUse: 0 }
+      ])
+      const req: ComputeResourceRequest[] = [
+        { id: 'cpu', amount: 4 }, // only 1 available (4-3)
+        { id: 'ram', amount: 8 },
+        { id: 'disk', amount: 100 }
+      ]
+      try {
+        await engine.checkIfResourcesAreAvailable(req, env, false)
+        assert.fail('Expected error was not thrown')
+      } catch (err: any) {
+        expect(err.message).to.include('Not enough available cpu')
+      }
+    })
+
+    it('free resource limit exceeded → throws', async function () {
+      const env = makeEnv(
+        [
+          { id: 'cpu', total: 8, min: 1, max: 8, inUse: 0 },
+          { id: 'ram', total: 32, min: 1, max: 32, inUse: 0 },
+          { id: 'disk', total: 500, min: 10, max: 500, inUse: 0 }
+        ],
+        {
+          freeResources: [
+            { id: 'cpu', total: 2, min: 1, max: 2, inUse: 2 }, // fully used
+            { id: 'ram', total: 4, min: 1, max: 4, inUse: 0 },
+            { id: 'disk', total: 20, min: 10, max: 20, inUse: 0 }
+          ]
+        }
+      )
+      const req: ComputeResourceRequest[] = [
+        { id: 'cpu', amount: 1 },
+        { id: 'ram', amount: 2 },
+        { id: 'disk', amount: 10 }
+      ]
+      try {
+        await engine.checkIfResourcesAreAvailable(req, env, true)
+        assert.fail('Expected error was not thrown')
+      } catch (err: any) {
+        expect(err.message).to.include('cpu')
+      }
+    })
   })
 
   after(async () => {
