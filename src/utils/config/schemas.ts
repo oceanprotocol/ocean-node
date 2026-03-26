@@ -109,6 +109,12 @@ export const DockerRegistryAuthSchema = z
 
 export const DockerRegistrysSchema = z.record(z.string(), DockerRegistryAuthSchema)
 
+const ResourceConstraintSchema = z.object({
+  id: z.string(),
+  min: z.number().optional(),
+  max: z.number().optional()
+})
+
 export const ComputeResourceSchema = z.object({
   id: z.string(),
   total: z.number().optional(),
@@ -121,7 +127,8 @@ export const ComputeResourceSchema = z.object({
   init: z.any().optional(),
   platform: z.string().optional(),
   memoryTotal: z.string().optional(),
-  driverVersion: z.string().optional()
+  driverVersion: z.string().optional(),
+  constraints: z.array(ResourceConstraintSchema).optional()
 })
 
 export const ComputeResourcesPricingInfoSchema = z.object({

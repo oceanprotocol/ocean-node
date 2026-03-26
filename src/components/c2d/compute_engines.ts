@@ -24,6 +24,7 @@ export class C2DEngines {
     }
     if (config && config.c2dClusters) {
       this.engines = []
+      let cpuOffset = 0
       for (const cluster of config.c2dClusters) {
         if (cluster.type === C2DClusterType.DOCKER) {
           const cfg = JSON.parse(JSON.stringify(cluster)) as C2DClusterInfo
@@ -51,8 +52,22 @@ export class C2DEngines {
             }
           }
           this.engines.push(
-            new C2DEngineDocker(cfg, db, escrow, keyManager, config.dockerRegistrysAuth)
+            new C2DEngineDocker(
+              cfg,
+              db,
+              escrow,
+              keyManager,
+              config.dockerRegistrysAuth,
+              cpuOffset
+            )
           )
+          // Advance the CPU offset by this cluster's configured CPU total
+          if (cluster.connection?.resources) {
+            const cpuRes = cluster.connection.resources.find((r: any) => r.id === 'cpu')
+            if (cpuRes?.total) {
+              cpuOffset += cpuRes.total
+            }
+          }
         }
       }
     }
