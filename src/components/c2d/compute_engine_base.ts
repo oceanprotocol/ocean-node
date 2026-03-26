@@ -327,8 +327,9 @@ export abstract class C2DEngine {
     for (const job of jobs) {
       if (job.environment === env.id) {
         if (job.queueMaxWaitTime === 0) {
-          const timeElapsed =
-            new Date().getTime() / 1000 - Number.parseFloat(job?.algoStartTimestamp)
+          const timeElapsed = job.buildStartTimestamp
+            ? new Date().getTime() / 1000 - Number.parseFloat(job?.buildStartTimestamp)
+            : new Date().getTime() / 1000 - Number.parseFloat(job?.algoStartTimestamp)
           totalJobs++
           maxRunningTime += job.maxJobDuration - timeElapsed
           if (job.isFree) {

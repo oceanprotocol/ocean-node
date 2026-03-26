@@ -280,6 +280,8 @@ export interface DBComputeJob extends ComputeJob {
   encryptedDockerRegistryAuth?: string
   output?: string // this is always an ECIES encrypted string, that decodes to ComputeOutput interface
   jobIdHash: string
+  buildStartTimestamp?: string
+  buildStopTimestamp?: string
 }
 
 // make sure we keep them both in sync
