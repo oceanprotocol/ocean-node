@@ -14,6 +14,7 @@ import { typesenseSchemas } from '../../database/TypesenseSchemas.js'
 import { SupportedNetwork } from '../../../@types/blockchain.js'
 import { getAdminAddresses } from '../../../utils/auth.js'
 import HumanHasher from 'humanhash'
+import { getPackageVersion } from '../../../utils/version.js'
 
 function getSupportedStorageTypes(config: OceanNodeConfig): StorageTypes {
   return {
@@ -126,7 +127,7 @@ export async function status(
       publicKey: publicKeyHex,
       friendlyName: new HumanHasher().humanize(publicKeyHex),
       address: oceanNode.getKeyManager().getEthAddress(),
-      version: process.env.npm_package_version,
+      version: getPackageVersion(),
       http: config.hasHttp,
       p2p: config.hasP2P,
       provider: [],
