@@ -1697,6 +1697,7 @@ export class C2DEngineDocker extends C2DEngine {
       // create the container
       const mountVols: any = { '/data': {} }
       const hostConfig: HostConfig = {
+        NetworkMode: 'none', // no network inside the container
         Mounts: [
           {
             Type: 'volume',
@@ -1755,9 +1756,11 @@ export class C2DEngineDocker extends C2DEngine {
       if (advancedConfig.SecurityOpt)
         containerInfo.HostConfig.SecurityOpt = advancedConfig.SecurityOpt
       if (advancedConfig.Binds) containerInfo.HostConfig.Binds = advancedConfig.Binds
+      containerInfo.HostConfig.CapDrop = ['ALL']
+      for (const cap of advancedConfig.CapDrop ?? []) {
+        containerInfo.HostConfig.CapDrop.push(cap)
+      }
       if (advancedConfig.CapAdd) containerInfo.HostConfig.CapAdd = advancedConfig.CapAdd
-      if (advancedConfig.CapDrop)
-        containerInfo.HostConfig.CapDrop = advancedConfig.CapDrop
       if (advancedConfig.IpcMode)
         containerInfo.HostConfig.IpcMode = advancedConfig.IpcMode
       if (advancedConfig.ShmSize)
@@ -2391,7 +2394,11 @@ export class C2DEngineDocker extends C2DEngine {
     additionalDockerFiles: { [key: string]: any }
   ) {
     const job = JSON.parse(JSON.stringify(originaljob)) as DBComputeJob
-    const imageLogFile = this.getStoragePath() + '/' + job.jobId + '/data/logs/image.log'
+    const imageLogFile =
+      this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/logs/image.log'
+    const controller = new AbortController()
+    const timeoutMs = 5 * 60 * 1000
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
     try {
       const pack = tarStream.pack()
 
@@ -2405,52 +2412,104 @@ export class C2DEngineDocker extends C2DEngine {
       }
       pack.finalize()
 
-      // Build the image using the tar stream as context
-      const buildStream = await this.docker.buildImage(pack, {
-        t: job.containerImage
-      })
+      // Build the image using the tar stream as context (Node IncomingMessage extends stream.Readable)
+      const buildStream = (await this.docker.buildImage(pack, {
+        t: job.containerImage,
+        memory: 1024 * 1024 * 1024, // 1GB RAM in bytes
+        memswap: -1, // Disable swap
+        cpushares: 512, // CPU Shares (default is 1024)
+        cpuquota: 50000, // 50% of one CPU (100000 = 1 CPU)
+        cpuperiod: 100000, // Default period
+        nocache: true, // prevent cache poison
+        abortSignal: controller.signal
+      })) as Readable
 
-      // Optional: listen to build output
-      buildStream.on('data', (data) => {
+      const onBuildData = (data: Buffer) => {
         try {
           const text = JSON.parse(data.toString('utf8'))
-          CORE_LOGGER.debug(
-            "Building image for jobId '" + job.jobId + "': " + text.stream.trim()
-          )
-          appendFileSync(imageLogFile, String(text.stream))
+          if (text && text.stream && typeof text.stream === 'string') {
+            CORE_LOGGER.debug(
+              "Building image for jobId '" + job.jobId + "': " + text.stream.trim()
+            )
+            appendFileSync(imageLogFile, String(text.stream))
+          }
         } catch (e) {
           // console.log('non json build data: ', data.toString('utf8'))
         }
-      })
+      }
+      buildStream.on('data', onBuildData)
 
       await new Promise<void>((resolve, reject) => {
-        buildStream.on('end', () => {
-          CORE_LOGGER.debug(`Image '${job.containerImage}' built successfully.`)
-          this.updateImageUsage(job.containerImage).catch((e) => {
-            CORE_LOGGER.debug(`Failed to track image usage: ${e.message}`)
+        let settled = false
+        const detachBuildLog = () => {
+          buildStream.removeListener('data', onBuildData)
+        }
+        const finish = (action: () => void) => {
+          if (settled) return
+          settled = true
+          action()
+        }
+        const onAbort = () => {
+          finish(() => {
+            detachBuildLog()
+            buildStream.destroy()
+            const err = new Error('Image build aborted') as NodeJS.ErrnoException
+            err.code = 'ABORT_ERR'
+            err.name = 'AbortError'
+            reject(err)
           })
-          resolve()
-        })
+        }
+        controller.signal.addEventListener('abort', onAbort, { once: true })
+        const onSuccess = () => {
+          finish(() => {
+            detachBuildLog()
+            controller.signal.removeEventListener('abort', onAbort)
+            CORE_LOGGER.debug(`Image '${job.containerImage}' built successfully.`)
+            this.updateImageUsage(job.containerImage).catch((e) => {
+              CORE_LOGGER.debug(`Failed to track image usage: ${e.message}`)
+            })
+            resolve()
+          })
+        }
+        // Some HTTP responses emit `close` without a reliable `end`; handle both (settled ensures once).
+        buildStream.on('end', onSuccess)
+        buildStream.on('close', onSuccess)
         buildStream.on('error', (err) => {
           CORE_LOGGER.debug(`Error building image '${job.containerImage}':` + err.message)
           appendFileSync(imageLogFile, String(err.message))
-          reject(err)
+          finish(() => {
+            detachBuildLog()
+            controller.signal.removeEventListener('abort', onAbort)
+            reject(err)
+          })
         })
       })
       job.status = C2DStatusNumber.ConfiguringVolumes
       job.statusText = C2DStatusText.ConfiguringVolumes
-      this.db.updateJob(job)
+      await this.db.updateJob(job)
     } catch (err) {
-      CORE_LOGGER.error(
-        `Unable to build docker image: ${job.containerImage}: ${err.message}`
-      )
-      appendFileSync(imageLogFile, String(err.message))
+      const aborted =
+        (err as NodeJS.ErrnoException)?.code === 'ABORT_ERR' ||
+        (err as Error)?.name === 'AbortError'
+      if (aborted) {
+        // timeout-specific handling
+        const msg = `Image build timed out after ${timeoutMs / 1000}s`
+        CORE_LOGGER.error(`Unable to build docker image: ${job.containerImage}: ${msg}`)
+        appendFileSync(imageLogFile, msg)
+      } else {
+        CORE_LOGGER.error(
+          `Unable to build docker image: ${job.containerImage}: ${err.message}`
+        )
+        appendFileSync(imageLogFile, String(err.message))
+      }
       job.status = C2DStatusNumber.BuildImageFailed
       job.statusText = C2DStatusText.BuildImageFailed
       job.isRunning = false
       job.dateFinished = String(Date.now() / 1000)
       await this.db.updateJob(job)
       await this.cleanupJob(job)
+    } finally {
+      clearTimeout(timer)
     }
   }
 
