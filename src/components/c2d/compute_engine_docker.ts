@@ -1519,6 +1519,52 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
+  private async ensureImage(image: string): Promise<void> {
+    try {
+      await this.docker.getImage(image).inspect()
+    } catch {
+      CORE_LOGGER.info(`Image ${image} not found locally, pulling...`)
+      const pullStream = await this.docker.pull(image)
+      await new Promise<void>((resolve, reject) => {
+        this.docker.modem.followProgress(pullStream, (err: any) => {
+          if (err) reject(err)
+          else resolve()
+        })
+      })
+    }
+  }
+
+  private async initializeVolumePermissions(volumeName: string): Promise<boolean> {
+    let initContainer: Dockerode.Container | null = null
+    try {
+      await this.ensureImage('busybox')
+      initContainer = await this.docker.createContainer({
+        Image: 'busybox',
+        Cmd: [
+          'sh',
+          '-c',
+          'mkdir -p /data/inputs /data/outputs /data/transformations /data/ddos /data/logs && chmod 777 /data /data/inputs /data/outputs /data/transformations /data/ddos /data/logs'
+        ],
+        HostConfig: {
+          NetworkMode: 'none',
+          Mounts: [{ Type: 'volume', Source: volumeName, Target: '/data' }]
+        }
+      })
+      await initContainer.start()
+      await initContainer.wait()
+      return true
+    } catch (e) {
+      CORE_LOGGER.error(`Failed to initialize volume permissions: ${e.message}`)
+      return false
+    } finally {
+      if (initContainer) {
+        try {
+          await initContainer.remove()
+        } catch {}
+      }
+    }
+  }
+
   private async createDockerVolume(
     volume: VolumeCreateOptions,
     retry: boolean = false
@@ -1627,6 +1673,15 @@ export class C2DEngineDocker extends C2DEngine {
       } */
       const volumeCreated = await this.createDockerVolume(volume, true)
       if (!volumeCreated) {
+        job.status = C2DStatusNumber.VolumeCreationFailed
+        job.statusText = C2DStatusText.VolumeCreationFailed
+        job.isRunning = false
+        job.dateFinished = String(Date.now() / 1000)
+        await this.db.updateJob(job)
+        await this.cleanupJob(job)
+        return
+      }
+      if (!(await this.initializeVolumePermissions(volume.Name))) {
         job.status = C2DStatusNumber.VolumeCreationFailed
         job.statusText = C2DStatusText.VolumeCreationFailed
         job.isRunning = false
