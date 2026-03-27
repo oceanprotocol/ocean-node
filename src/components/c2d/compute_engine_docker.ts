@@ -1551,7 +1551,14 @@ export class C2DEngineDocker extends C2DEngine {
         }
       })
       await initContainer.start()
-      await initContainer.wait()
+      const { StatusCode } = await initContainer.wait()
+      if (StatusCode !== 0) {
+        CORE_LOGGER.error(
+          `Volume permission init container exited with code ${StatusCode} for volume ${volumeName}`
+        )
+        return false
+      }
+      CORE_LOGGER.info(`Volume permissions initialized successfully for ${volumeName}`)
       return true
     } catch (e) {
       CORE_LOGGER.error(`Failed to initialize volume permissions: ${e.message}`)
