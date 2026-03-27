@@ -800,7 +800,7 @@ export class ValidateDDOHandler extends CommandHandler {
           task.publisherAddress,
           task.policyServer
         )
-        if (!response) {
+        if (!response.success) {
           CORE_LOGGER.logMessage(
             `Error: Validation for ${task.publisherAddress} was denied`,
             true
