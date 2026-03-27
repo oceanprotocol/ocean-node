@@ -2757,6 +2757,11 @@ export class C2DEngineDocker extends C2DEngine {
           map: (header: any) => {
             header.uid = C2D_CONTAINER_UID
             header.gid = C2D_CONTAINER_GID
+            // Docker's putArchive applies chmod but not chown — set directories
+            // world-writable so the container user (uid 1000) can write to them
+            if (header.type === 'Directory') {
+              header.mode = 0o777
+            }
             return header
           }
         } as any,
