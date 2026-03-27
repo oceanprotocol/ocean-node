@@ -1108,9 +1108,13 @@ export class C2DEngineDocker extends C2DEngine {
         throw new Error(`additionalDockerFiles cannot be used with queued jobs`)
       }
     }
-    // if (algorithm.meta.container && algorithm.meta.container.dockerfile && isFree) {
-    //  throw new Error(`Building image is not allowed for free jobs`)
-    // }
+    if (
+      algorithm.meta.container &&
+      algorithm.meta.container.dockerfile &&
+      !env.free.allowImageBuild
+    ) {
+      throw new Error(`Building image is not allowed for free jobs`)
+    }
 
     const job: DBComputeJob = {
       clusterHash: this.getC2DConfig().hash,

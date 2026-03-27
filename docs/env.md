@@ -218,6 +218,7 @@ The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of
   - **maxJobDuration**: Maximum duration in seconds for a free job.
   - **minJobDuration**: Minimum duration in seconds for a free job.
   - **maxJobs**: Maximum number of simultaneous free jobs.
+  - **allowImageBuild**: If building images is allowed on free envs. Default: false
   - **access**: Access control configuration for free compute jobs. Works the same as the main `access` field.
     - **addresses**: Array of Ethereum addresses allowed to run free compute jobs.
     - **accessLists**: Array of AccessList contract addresses for free compute access control.

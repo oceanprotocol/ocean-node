@@ -106,6 +106,7 @@ export interface ComputeEnvironmentFreeOptions {
   maxJobs?: number // maximum number of simultaneous free jobs
   resources?: ComputeResource[]
   access: ComputeAccessList
+  allowImageBuild?: boolean
 }
 export interface ComputeEnvironmentBaseConfig {
   description?: string // v1
