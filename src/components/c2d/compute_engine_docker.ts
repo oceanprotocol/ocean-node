@@ -659,7 +659,7 @@ export class C2DEngineDocker extends C2DEngine {
 
   private async cleanUpUnknownLocks(chain: string, currentTimestamp: bigint) {
     try {
-      const nodeAddress = await this.getKeyManager().getEthAddress()
+      const nodeAddress = this.getKeyManager().getEthAddress()
       const jobIds: any[] = []
       const tokens: string[] = []
       const payer: string[] = []
@@ -1414,7 +1414,7 @@ export class C2DEngineDocker extends C2DEngine {
     if (!jobRes[0].isRunning) return null
     try {
       const job = jobRes[0]
-      const container = await this.docker.getContainer(job.jobId + '-algoritm')
+      const container = this.docker.getContainer(job.jobId + '-algoritm')
       const details = await container.inspect()
       if (details.State.Running === false) return null
       return await container.logs({
@@ -1765,7 +1765,7 @@ export class C2DEngineDocker extends C2DEngine {
       let container
       let details
       try {
-        container = await this.docker.getContainer(job.jobId + '-algoritm')
+        container = this.docker.getContainer(job.jobId + '-algoritm')
         details = await container.inspect()
       } catch (e) {
         console.error(
@@ -1867,7 +1867,7 @@ export class C2DEngineDocker extends C2DEngine {
       job.statusText = C2DStatusText.JobSettle
       let container
       try {
-        container = await this.docker.getContainer(job.jobId + '-algoritm')
+        container = this.docker.getContainer(job.jobId + '-algoritm')
       } catch (e) {
         CORE_LOGGER.debug('Could not retrieve container: ' + e.message)
         job.isRunning = false
@@ -2056,7 +2056,7 @@ export class C2DEngineDocker extends C2DEngine {
     this.releaseCpus(job.jobId)
 
     try {
-      const container = await this.docker.getContainer(job.jobId + '-algoritm')
+      const container = this.docker.getContainer(job.jobId + '-algoritm')
       if (container) {
         if (job.status !== C2DStatusNumber.AlgorithmFailed) {
           writeFileSync(
@@ -2748,24 +2748,25 @@ export class C2DEngineDocker extends C2DEngine {
     const destination = jobFolderPath + '/tarData/upload.tar.gz'
     try {
       tar.create(
+        // map is a valid runtime option but missing from type definitions
         {
           gzip: true,
           file: destination,
           sync: true,
           C: folderToTar,
-          map: (header) => {
+          map: (header: any) => {
             header.uid = C2D_CONTAINER_UID
             header.gid = C2D_CONTAINER_GID
             return header
           }
-        },
+        } as any,
         ['./']
       )
       // check if tar.gz actually exists
 
       if (existsSync(destination)) {
         // now, upload it to the container
-        const container = await this.docker.getContainer(job.jobId + '-algoritm')
+        const container = this.docker.getContainer(job.jobId + '-algoritm')
 
         try {
           // await container2.putArchive(destination, {
@@ -2851,7 +2852,7 @@ export class C2DEngineDocker extends C2DEngine {
       }
 
       // delete output folders
-      await this.deleteOutputFolder(job)
+      this.deleteOutputFolder(job)
       // delete the job
       await this.db.deleteJob(job.jobId)
       return true
