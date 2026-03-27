@@ -55,6 +55,9 @@ import { dockerRegistrysAuth, dockerRegistryAuth } from '../../@types/OceanNode.
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { ZeroAddress } from 'ethers'
 
+const C2D_CONTAINER_UID = 1000
+const C2D_CONTAINER_GID = 1000
+
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
 
@@ -1637,6 +1640,12 @@ export class C2DEngineDocker extends C2DEngine {
       const mountVols: any = { '/data': {} }
       const hostConfig: HostConfig = {
         NetworkMode: 'none', // no network inside the container
+        ReadonlyRootfs: true,
+        PidsLimit: 512,
+        Tmpfs: {
+          '/tmp': 'rw,noexec,nosuid,size=256m',
+          '/run': 'rw,noexec,nosuid,size=64m'
+        },
         Mounts: [
           {
             Type: 'volume',
@@ -1675,9 +1684,10 @@ export class C2DEngineDocker extends C2DEngine {
         AttachStdin: false,
         AttachStdout: true,
         AttachStderr: true,
-        Tty: true,
+        Tty: false,
         OpenStdin: false,
         StdinOnce: false,
+        User: `${C2D_CONTAINER_UID}:${C2D_CONTAINER_GID}`,
         Volumes: mountVols,
         HostConfig: hostConfig
       }
@@ -1692,8 +1702,10 @@ export class C2DEngineDocker extends C2DEngine {
         containerInfo.HostConfig.Devices = advancedConfig.Devices
       if (advancedConfig.GroupAdd)
         containerInfo.HostConfig.GroupAdd = advancedConfig.GroupAdd
-      if (advancedConfig.SecurityOpt)
-        containerInfo.HostConfig.SecurityOpt = advancedConfig.SecurityOpt
+      containerInfo.HostConfig.SecurityOpt = [
+        'no-new-privileges',
+        ...(advancedConfig.SecurityOpt ?? [])
+      ]
       if (advancedConfig.Binds) containerInfo.HostConfig.Binds = advancedConfig.Binds
       containerInfo.HostConfig.CapDrop = ['ALL']
       for (const cap of advancedConfig.CapDrop ?? []) {
@@ -2740,7 +2752,12 @@ export class C2DEngineDocker extends C2DEngine {
           gzip: true,
           file: destination,
           sync: true,
-          C: folderToTar
+          C: folderToTar,
+          map: (header) => {
+            header.uid = C2D_CONTAINER_UID
+            header.gid = C2D_CONTAINER_GID
+            return header
+          }
         },
         ['./']
       )
