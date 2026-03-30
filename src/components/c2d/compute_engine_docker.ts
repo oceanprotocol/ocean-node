@@ -2811,6 +2811,7 @@ export class C2DEngineDocker extends C2DEngine {
         if (!existsSync(dir)) {
           mkdirSync(dir, { recursive: true })
         }
+        // update directory permissions to allow read/write from job containers
         chmodSync(dir, 0o777)
       }
       return true
