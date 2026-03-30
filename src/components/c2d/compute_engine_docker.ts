@@ -54,6 +54,7 @@ import { getOceanTokenAddressForChain } from '../../utils/address.js'
 import { dockerRegistrysAuth, dockerRegistryAuth } from '../../@types/OceanNode.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { ZeroAddress } from 'ethers'
+import { chmodSync } from 'node:fs'
 
 const C2D_CONTAINER_UID = 1000
 const C2D_CONTAINER_GID = 1000
@@ -1519,58 +1520,58 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
-  private async ensureImage(image: string): Promise<void> {
-    try {
-      await this.docker.getImage(image).inspect()
-    } catch {
-      CORE_LOGGER.info(`Image ${image} not found locally, pulling...`)
-      const pullStream = await this.docker.pull(image)
-      await new Promise<void>((resolve, reject) => {
-        this.docker.modem.followProgress(pullStream, (err: any) => {
-          if (err) reject(err)
-          else resolve()
-        })
-      })
-    }
-  }
+  // private async ensureImage(image: string): Promise<void> {
+  //   try {
+  //     await this.docker.getImage(image).inspect()
+  //   } catch {
+  //     CORE_LOGGER.info(`Image ${image} not found locally, pulling...`)
+  //     const pullStream = await this.docker.pull(image)
+  //     await new Promise<void>((resolve, reject) => {
+  //       this.docker.modem.followProgress(pullStream, (err: any) => {
+  //         if (err) reject(err)
+  //         else resolve()
+  //       })
+  //     })
+  //   }
+  // }
 
-  private async initializeVolumePermissions(volumeName: string): Promise<boolean> {
-    let initContainer: Dockerode.Container | null = null
-    try {
-      await this.ensureImage('busybox')
-      initContainer = await this.docker.createContainer({
-        Image: 'busybox',
-        Cmd: [
-          'sh',
-          '-c',
-          'mkdir -p /data/inputs /data/outputs /data/transformations /data/ddos /data/logs && chmod 777 /data /data/inputs /data/outputs /data/transformations /data/ddos /data/logs'
-        ],
-        HostConfig: {
-          NetworkMode: 'none',
-          Mounts: [{ Type: 'volume', Source: volumeName, Target: '/data' }]
-        }
-      })
-      await initContainer.start()
-      const { StatusCode } = await initContainer.wait()
-      if (StatusCode !== 0) {
-        CORE_LOGGER.error(
-          `Volume permission init container exited with code ${StatusCode} for volume ${volumeName}`
-        )
-        return false
-      }
-      CORE_LOGGER.info(`Volume permissions initialized successfully for ${volumeName}`)
-      return true
-    } catch (e) {
-      CORE_LOGGER.error(`Failed to initialize volume permissions: ${e.message}`)
-      return false
-    } finally {
-      if (initContainer) {
-        try {
-          await initContainer.remove()
-        } catch {}
-      }
-    }
-  }
+  // private async initializeVolumePermissions(volumeName: string): Promise<boolean> {
+  //   let initContainer: Dockerode.Container | null = null
+  //   try {
+  //     await this.ensureImage('busybox')
+  //     initContainer = await this.docker.createContainer({
+  //       Image: 'busybox',
+  //       Cmd: [
+  //         'sh',
+  //         '-c',
+  //         'mkdir -p /data/inputs /data/outputs /data/transformations /data/ddos /data/logs && chmod 777 /data /data/inputs /data/outputs /data/transformations /data/ddos /data/logs'
+  //       ],
+  //       HostConfig: {
+  //         NetworkMode: 'none',
+  //         Mounts: [{ Type: 'volume', Source: volumeName, Target: '/data' }]
+  //       }
+  //     })
+  //     await initContainer.start()
+  //     const { StatusCode } = await initContainer.wait()
+  //     if (StatusCode !== 0) {
+  //       CORE_LOGGER.error(
+  //         `Volume permission init container exited with code ${StatusCode} for volume ${volumeName}`
+  //       )
+  //       return false
+  //     }
+  //     CORE_LOGGER.info(`Volume permissions initialized successfully for ${volumeName}`)
+  //     return true
+  //   } catch (e) {
+  //     CORE_LOGGER.error(`Failed to initialize volume permissions: ${e.message}`)
+  //     return false
+  //   } finally {
+  //     if (initContainer) {
+  //       try {
+  //         await initContainer.remove()
+  //       } catch {}
+  //     }
+  //   }
+  // }
 
   private async createDockerVolume(
     volume: VolumeCreateOptions,
@@ -1688,15 +1689,15 @@ export class C2DEngineDocker extends C2DEngine {
         await this.cleanupJob(job)
         return
       }
-      if (!(await this.initializeVolumePermissions(volume.Name))) {
-        job.status = C2DStatusNumber.VolumeCreationFailed
-        job.statusText = C2DStatusText.VolumeCreationFailed
-        job.isRunning = false
-        job.dateFinished = String(Date.now() / 1000)
-        await this.db.updateJob(job)
-        await this.cleanupJob(job)
-        return
-      }
+      // if (!(await this.initializeVolumePermissions(volume.Name))) {
+      //  job.status = C2DStatusNumber.VolumeCreationFailed
+      //  job.statusText = C2DStatusText.VolumeCreationFailed
+      //  job.isRunning = false
+      //  job.dateFinished = String(Date.now() / 1000)
+      //  await this.db.updateJob(job)
+      //  await this.cleanupJob(job)
+      //  return
+      // }
 
       // create the container
       const mountVols: any = { '/data': {} }
@@ -2815,17 +2816,17 @@ export class C2DEngineDocker extends C2DEngine {
           gzip: true,
           file: destination,
           sync: true,
-          C: folderToTar,
-          map: (header: any) => {
-            header.uid = C2D_CONTAINER_UID
-            header.gid = C2D_CONTAINER_GID
-            // Docker's putArchive applies chmod but not chown — set directories
-            // world-writable so the container user (uid 1000) can write to them
-            if (header.type === 'Directory') {
-              header.mode = 0o777
-            }
-            return header
-          }
+          C: folderToTar
+          // map: (header: any) => {
+          //  header.uid = C2D_CONTAINER_UID
+          //  header.gid = C2D_CONTAINER_GID
+          //  // Docker's putArchive applies chmod but not chown — set directories
+          //  // world-writable so the container user (uid 1000) can write to them
+          //  if (header.type === 'Directory') {
+          //    header.mode = 0o777
+          //  }
+          //  return header
+          // }
         } as any,
         ['./']
       )
@@ -2895,6 +2896,8 @@ export class C2DEngineDocker extends C2DEngine {
         if (!existsSync(dir)) {
           mkdirSync(dir, { recursive: true })
         }
+        // update directory permissions to allow read/write from job containers
+        chmodSync(dir, 0o777)
       }
       return true
     } catch (e) {
