@@ -1641,14 +1641,8 @@ export class C2DEngineDocker extends C2DEngine {
       const mountVols: any = { '/data': {} }
       const hostConfig: HostConfig = {
         NetworkMode: 'none', // no network inside the container
-        ReadonlyRootfs: true,
         // limit number of Pids container can spawn, to avoid flooding
         PidsLimit: 512,
-        Tmpfs: {
-          '/home/ubuntu/.cache': 'rw,noexec,nosuid,size=512m',
-          '/tmp': 'rw,noexec,nosuid,size=256m',
-          '/run': 'rw,noexec,nosuid,size=64m'
-        },
         Mounts: [
           {
             Type: 'volume',
