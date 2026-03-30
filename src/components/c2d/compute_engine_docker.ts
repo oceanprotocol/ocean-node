@@ -1708,7 +1708,7 @@ export class C2DEngineDocker extends C2DEngine {
         Tmpfs: {
           '/tmp': 'rw,noexec,nosuid,size=256m',
           '/run': 'rw,noexec,nosuid,size=64m',
-          '~/.cache': 'rw,noexec,nosuid,size=256m'
+          '/home/ubuntu/.cache': 'rw,noexec,nosuid,size=256m'
         },
         Mounts: [
           {
