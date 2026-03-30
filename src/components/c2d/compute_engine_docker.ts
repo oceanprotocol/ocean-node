@@ -1707,7 +1707,8 @@ export class C2DEngineDocker extends C2DEngine {
         PidsLimit: 512,
         Tmpfs: {
           '/tmp': 'rw,noexec,nosuid,size=256m',
-          '/run': 'rw,noexec,nosuid,size=64m'
+          '/run': 'rw,noexec,nosuid,size=64m',
+          '~/.cache': 'rw,noexec,nosuid,size=256m'
         },
         Mounts: [
           {
