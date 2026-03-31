@@ -183,7 +183,10 @@ export const C2DDockerConfigSchema = z.array(
       fees: z.record(z.string(), z.array(ComputeEnvFeesSchema)).optional(),
       free: ComputeEnvironmentFreeOptionsSchema.optional(),
       imageRetentionDays: z.number().int().min(1).optional().default(7),
-      imageCleanupInterval: z.number().int().min(3600).optional().default(86400) // min 1 hour, default 24 hours
+      imageCleanupInterval: z.number().int().min(3600).optional().default(86400), // min 1 hour, default 24 hours
+      scanImages: z.boolean().optional().default(false),
+      scanImageDBUpdateInterval: z.number().int().min(3600).optional().default(43200), // default 43200 (12 hours)
+      enableNetwork: z.boolean().optional().default(false)
     })
     .refine(
       (data) =>

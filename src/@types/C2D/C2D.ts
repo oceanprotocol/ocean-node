@@ -161,6 +161,7 @@ export interface C2DDockerConfig {
   paymentClaimInterval?: number // Default: 3600 seconds (1 hours)
   scanImages?: boolean
   scanImageDBUpdateInterval?: number // Default: 12 hours
+  enableNetwork?: boolean // whether network is enabled for algorithm containers
 }
 
 export type ComputeResultType =

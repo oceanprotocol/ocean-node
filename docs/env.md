@@ -137,6 +137,7 @@ The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of
   {
     "socketPath": "/var/run/docker.sock",
     "scanImages": true,
+    "enableNetwork": false,
     "imageRetentionDays": 7,
     "imageCleanupInterval": 86400,
     "resources": [
@@ -195,7 +196,9 @@ The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of
 #### Configuration Options
 
 - **socketPath**: Path to the Docker socket (e.g., docker.sock).
-- **scanImages**: If the docker images should be scan for vulnerabilities using trivy. If yes and critical vulnerabilities are found, then C2D job is refused
+- **scanImages**: Whether Docker images should be scanned for vulnerabilities using Trivy. If enabled and critical vulnerabilities are found, the C2D job is rejected.
+- **scanImageDBUpdateInterval**: How often to update the vulnerability database, in seconds. Default: 43200 (12 hours)
+- **enableNetwork**: Whether networking is enabled for algorithm containers. Default: false
 - **imageRetentionDays** - how long docker images are kept, in days. Default: 7
 - **imageCleanupInterval** - how often to run cleanup for docker images, in seconds. Min: 3600 (1hour), Default: 86400 (24 hours)
 - **paymentClaimInterval** - how often to run payment claiming, in seconds. Default: 3600 (1 hour)
