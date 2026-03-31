@@ -71,7 +71,7 @@ export class EncryptHandler extends CommandHandler {
         task.consumerAddress,
         task.policyServer
       )
-      if (!response) {
+      if (!response.success) {
         CORE_LOGGER.logMessage(
           `Error: Encrypt for ${task.consumerAddress} was denied`,
           true
@@ -163,7 +163,7 @@ export class EncryptFileHandler extends CommandHandler {
         task.policyServer,
         task.files
       )
-      if (!response) {
+      if (!response.success) {
         CORE_LOGGER.logMessage(
           `Error: EncryptFile for ${task.consumerAddress} was denied`,
           true

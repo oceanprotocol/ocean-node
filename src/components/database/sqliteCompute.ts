@@ -48,7 +48,9 @@ function getInternalStructure(job: DBComputeJob): any {
     algoDuration: job.algoDuration,
     queueMaxWaitTime: job.queueMaxWaitTime,
     output: job.output,
-    jobIdHash: job.jobIdHash
+    jobIdHash: job.jobIdHash,
+    buildStartTimestamp: job.buildStartTimestamp,
+    buildStopTimestamp: job.buildStopTimestamp
   }
   return internalBlob
 }

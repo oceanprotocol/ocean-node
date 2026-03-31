@@ -153,7 +153,8 @@ export const ComputeEnvironmentFreeOptionsSchema = z.object({
         .nullable()
         .optional()
     })
-    .optional()
+    .optional(),
+  allowImageBuild: z.boolean().optional().default(false)
 })
 
 export const C2DDockerConfigSchema = z.array(

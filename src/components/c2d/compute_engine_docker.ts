@@ -79,6 +79,7 @@ export class C2DEngineDocker extends C2DEngine {
   private cpuAllocations: Map<string, number[]> = new Map()
   private envCpuCores: number[] = []
   private cpuOffset: number
+
   public constructor(
     clusterConfig: C2DClusterInfo,
     db: C2DDatabase,
@@ -511,11 +512,11 @@ export class C2DEngineDocker extends C2DEngine {
       }
 
       // Process each job to determine what operation is needed
+      let duration
       for (const job of jobs) {
         // Calculate algo duration
-        const algoDuration =
-          parseFloat(job.algoStopTimestamp) - parseFloat(job.algoStartTimestamp)
-        job.algoDuration = algoDuration
+        duration = parseFloat(job.algoStopTimestamp) - parseFloat(job.algoStartTimestamp)
+        duration += this.getValidBuildDurationSeconds(job)
 
         // Free jobs or jobs without payment info - mark as finished
         if (job.isFree || !job.payment) {
@@ -552,7 +553,7 @@ export class C2DEngineDocker extends C2DEngine {
           continue
         }
 
-        let minDuration = Math.abs(algoDuration)
+        let minDuration = Math.abs(duration)
         if (minDuration > job.maxJobDuration) {
           minDuration = job.maxJobDuration
         }
@@ -1151,6 +1152,13 @@ export class C2DEngineDocker extends C2DEngine {
         throw new Error(`additionalDockerFiles cannot be used with queued jobs`)
       }
     }
+    if (
+      algorithm.meta.container &&
+      algorithm.meta.container.dockerfile &&
+      !env.free.allowImageBuild
+    ) {
+      throw new Error(`Building image is not allowed for free jobs`)
+    }
 
     const job: DBComputeJob = {
       clusterHash: this.getC2DConfig().hash,
@@ -1191,7 +1199,9 @@ export class C2DEngineDocker extends C2DEngine {
       algoDuration: 0,
       queueMaxWaitTime: queueMaxWaitTime || 0,
       encryptedDockerRegistryAuth, // we store the encrypted docker registry auth in the job
-      output
+      output,
+      buildStartTimestamp: '0',
+      buildStopTimestamp: '0'
     }
 
     if (algorithm.meta.container && algorithm.meta.container.dockerfile) {
@@ -1647,6 +1657,20 @@ export class C2DEngineDocker extends C2DEngine {
     }
 
     if (job.status === C2DStatusNumber.ConfiguringVolumes) {
+      // we have the image (etiher pulled or built)
+      // if built, check if build process took all allocated time
+      // if yes, stop the job
+      const buildDuration = this.getValidBuildDurationSeconds(job)
+      if (buildDuration > 0 && buildDuration >= job.maxJobDuration) {
+        job.isStarted = false
+        job.status = C2DStatusNumber.PublishingResults
+        job.statusText = C2DStatusText.PublishingResults
+        job.algoStartTimestamp = '0'
+        job.algoStopTimestamp = '0'
+        job.isRunning = false
+        await this.db.updateJob(job)
+        return
+      }
       // now that we have the image ready, check it for vulnerabilities
       if (this.getC2DConfig().connection?.scanImages) {
         const check = await this.checkImageVulnerability(job.containerImage)
@@ -1872,7 +1896,13 @@ export class C2DEngineDocker extends C2DEngine {
         }
 
         const timeNow = Date.now() / 1000
-        const expiry = parseFloat(job.algoStartTimestamp) + job.maxJobDuration
+        let expiry
+
+        const buildDuration = this.getValidBuildDurationSeconds(job)
+        if (buildDuration > 0) {
+          // if job has build time, reduce the remaining algorithm runtime budget
+          expiry = parseFloat(job.algoStartTimestamp) + job.maxJobDuration - buildDuration
+        } else expiry = parseFloat(job.algoStartTimestamp) + job.maxJobDuration
         CORE_LOGGER.debug(
           'container running since timeNow: ' + timeNow + ' , Expiry: ' + expiry
         )
@@ -2022,6 +2052,14 @@ export class C2DEngineDocker extends C2DEngine {
 
   private allocateCpus(jobId: string, count: number): string | null {
     if (this.envCpuCores.length === 0 || count <= 0) return null
+    const existing = this.cpuAllocations.get(jobId)
+    if (existing && existing.length > 0) {
+      const cpusetStr = existing.join(',')
+      CORE_LOGGER.info(
+        `CPU affinity: reusing existing cores [${cpusetStr}] for job ${jobId}`
+      )
+      return cpusetStr
+    }
 
     const usedCores = new Set<number>()
     for (const cores of this.cpuAllocations.values()) {
@@ -2397,7 +2435,7 @@ export class C2DEngineDocker extends C2DEngine {
     const imageLogFile =
       this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/logs/image.log'
     const controller = new AbortController()
-    const timeoutMs = 5 * 60 * 1000
+    const timeoutMs = job.maxJobDuration * 1000
     const timer = setTimeout(() => controller.abort(), timeoutMs)
     try {
       const pack = tarStream.pack()
@@ -2411,18 +2449,29 @@ export class C2DEngineDocker extends C2DEngine {
         }
       }
       pack.finalize()
+      job.buildStartTimestamp = String(Date.now() / 1000)
+      await this.db.updateJob(job)
 
-      // Build the image using the tar stream as context (Node IncomingMessage extends stream.Readable)
-      const buildStream = (await this.docker.buildImage(pack, {
+      const cpuperiod = 100000
+      const ramGb = this.getResourceRequest(job.resources, 'ram')
+      const ramBytes =
+        ramGb && ramGb > 0 ? ramGb * 1024 * 1024 * 1024 : 1024 * 1024 * 1024
+
+      const cpus = this.getResourceRequest(job.resources, 'cpu')
+      const cpuquota = cpus && cpus > 0 ? Math.floor(cpus * cpuperiod) : 50000
+
+      const buildOptions: Dockerode.ImageBuildOptions = {
         t: job.containerImage,
-        memory: 1024 * 1024 * 1024, // 1GB RAM in bytes
-        memswap: -1, // Disable swap
-        cpushares: 512, // CPU Shares (default is 1024)
-        cpuquota: 50000, // 50% of one CPU (100000 = 1 CPU)
-        cpuperiod: 100000, // Default period
+        memory: ramBytes,
+        memswap: ramBytes, // same as memory => no swap
+        cpushares: 1024, // CPU Shares (default is 1024)
+        cpuquota, // 100000 = 1 CPU with cpuperiod=100000
+        cpuperiod,
         nocache: true, // prevent cache poison
         abortSignal: controller.signal
-      })) as Readable
+      }
+      // Build the image using the tar stream as context (Node IncomingMessage extends stream.Readable)
+      const buildStream = (await this.docker.buildImage(pack, buildOptions)) as Readable
 
       const onBuildData = (data: Buffer) => {
         try {
@@ -2461,9 +2510,23 @@ export class C2DEngineDocker extends C2DEngine {
         }
         controller.signal.addEventListener('abort', onAbort, { once: true })
         const onSuccess = () => {
-          finish(() => {
+          finish(async () => {
             detachBuildLog()
             controller.signal.removeEventListener('abort', onAbort)
+
+            // Build stream completed, but does the image actually exist?
+            try {
+              await this.docker.getImage(job.containerImage).inspect()
+            } catch (e) {
+              return reject(
+                new Error(
+                  `Cannot find image '${job.containerImage}' after building. Most likely it failed: ${
+                    (e as Error)?.message || String(e)
+                  }`
+                )
+              )
+            }
+
             CORE_LOGGER.debug(`Image '${job.containerImage}' built successfully.`)
             this.updateImageUsage(job.containerImage).catch((e) => {
               CORE_LOGGER.debug(`Failed to track image usage: ${e.message}`)
@@ -2486,6 +2549,7 @@ export class C2DEngineDocker extends C2DEngine {
       })
       job.status = C2DStatusNumber.ConfiguringVolumes
       job.statusText = C2DStatusText.ConfiguringVolumes
+      job.buildStopTimestamp = String(Date.now() / 1000)
       await this.db.updateJob(job)
     } catch (err) {
       const aborted =
@@ -2504,6 +2568,7 @@ export class C2DEngineDocker extends C2DEngine {
       }
       job.status = C2DStatusNumber.BuildImageFailed
       job.statusText = C2DStatusText.BuildImageFailed
+      job.buildStopTimestamp = String(Date.now() / 1000)
       job.isRunning = false
       job.dateFinished = String(Date.now() / 1000)
       await this.db.updateJob(job)
@@ -2895,6 +2960,18 @@ export class C2DEngineDocker extends C2DEngine {
       CORE_LOGGER.error('Error cleaning up C2D storage and Job: ' + e.message)
     }
     return false
+  }
+
+  private getValidBuildDurationSeconds(job: DBComputeJob): number {
+    const startRaw = job.buildStartTimestamp
+    const stopRaw = job.buildStopTimestamp
+    if (!startRaw || !stopRaw) return 0
+    const start = Number.parseFloat(startRaw)
+    const stop = Number.parseFloat(stopRaw)
+    if (!Number.isFinite(start) || !Number.isFinite(stop)) return 0
+    if (start <= 0) return 0
+    if (stop < start) return 0
+    return stop - start
   }
 
   private async checkscanDBImage(): Promise<boolean> {

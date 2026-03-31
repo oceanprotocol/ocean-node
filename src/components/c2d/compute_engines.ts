@@ -9,6 +9,7 @@ import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
 import { KeyManager } from '../KeyManager/index.js'
+import { CORE_LOGGER } from '../../utils/logging/common.js'
 
 export class C2DEngines {
   public engines: C2DEngine[]
@@ -27,40 +28,49 @@ export class C2DEngines {
       let cpuOffset = 0
       for (const cluster of config.c2dClusters) {
         if (cluster.type === C2DClusterType.DOCKER) {
-          const cfg = JSON.parse(JSON.stringify(cluster)) as C2DClusterInfo
-          // make sure that crons are running only on one docker engine
-          if (crons.imageCleanup) {
-            // already running, set cron to null for this engine
-            cfg.connection.imageCleanupInterval = null
-          } else {
-            // not running yet, set the defaults
-            cfg.connection.imageCleanupInterval =
-              cfg.connection.imageCleanupInterval || 86400 // 24 hours
-            crons.imageCleanup = true
-          }
-          if (crons.scanDBUpdate) {
-            cfg.connection.scanImageDBUpdateInterval = null
-          } else {
-            if (cfg.connection.scanImages) {
-              // set the defaults
-              cfg.connection.scanImageDBUpdateInterval =
-                cfg.connection.scanImageDBUpdateInterval || 43200 // 12 hours
-              crons.scanDBUpdate = true
-            } else {
-              // image scanning disabled for this engine
-              cfg.connection.scanImageDBUpdateInterval = null
-            }
-          }
-          this.engines.push(
-            new C2DEngineDocker(
-              cfg,
-              db,
-              escrow,
-              keyManager,
-              config.dockerRegistrysAuth,
-              cpuOffset
+          // do some checks
+          const limit = 6
+          const claimDurationTimeout = escrow.getMinLockTime(0)
+          if (cluster.connection.paymentClaimInterval * limit > claimDurationTimeout) {
+            CORE_LOGGER.error(
+              `Cannot create engine ${cluster.connection.hash}.\r\nConfig.claimDurationTimeout is not high enough to claim at least ${limit} times. Either decrease environment.paymentClaimInterval${cluster.connection.paymentClaimInterval} or increase config.claimDurationTimeout(${claimDurationTimeout})`
             )
-          )
+          } else {
+            const cfg = JSON.parse(JSON.stringify(cluster)) as C2DClusterInfo
+            // make sure that crons are running only on one docker engine
+            if (crons.imageCleanup) {
+              // already running, set cron to null for this engine
+              cfg.connection.imageCleanupInterval = null
+            } else {
+              // not running yet, set the defaults
+              cfg.connection.imageCleanupInterval =
+                cfg.connection.imageCleanupInterval || 86400 // 24 hours
+              crons.imageCleanup = true
+            }
+            if (crons.scanDBUpdate) {
+              cfg.connection.scanImageDBUpdateInterval = null
+            } else {
+              if (cfg.connection.scanImages) {
+                // set the defaults
+                cfg.connection.scanImageDBUpdateInterval =
+                  cfg.connection.scanImageDBUpdateInterval || 43200 // 12 hours
+                crons.scanDBUpdate = true
+              } else {
+                // image scanning disabled for this engine
+                cfg.connection.scanImageDBUpdateInterval = null
+              }
+            }
+            this.engines.push(
+              new C2DEngineDocker(
+                cfg,
+                db,
+                escrow,
+                keyManager,
+                config.dockerRegistrysAuth,
+                cpuOffset
+              )
+            )
+          }
           // Advance the CPU offset by this cluster's configured CPU total
           if (cluster.connection?.resources) {
             const cpuRes = cluster.connection.resources.find((r: any) => r.id === 'cpu')

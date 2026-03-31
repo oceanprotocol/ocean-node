@@ -60,7 +60,9 @@ function buildJob(overrides: Partial<DBComputeJob> = {}): DBComputeJob {
     payment: overrides.payment,
     additionalViewers: overrides.additionalViewers || [],
     algoDuration: overrides.algoDuration || 0,
-    queueMaxWaitTime: overrides.queueMaxWaitTime || 0
+    queueMaxWaitTime: overrides.queueMaxWaitTime || 0,
+    buildStartTimestamp: overrides.buildStartTimestamp || '0',
+    buildStopTimestamp: overrides.buildStopTimestamp || '0'
   }
 }
 

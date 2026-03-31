@@ -106,6 +106,7 @@ export interface ComputeEnvironmentFreeOptions {
   maxJobs?: number // maximum number of simultaneous free jobs
   resources?: ComputeResource[]
   access: ComputeAccessList
+  allowImageBuild?: boolean
 }
 export interface ComputeEnvironmentBaseConfig {
   description?: string // v1
@@ -282,6 +283,8 @@ export interface DBComputeJob extends ComputeJob {
   encryptedDockerRegistryAuth?: string
   output?: string // this is always an ECIES encrypted string, that decodes to ComputeOutput interface
   jobIdHash: string
+  buildStartTimestamp?: string
+  buildStopTimestamp?: string
 }
 
 // make sure we keep them both in sync
