@@ -1,6 +1,6 @@
 import type { ComputeResourcesPricingInfo } from '../../../@types/C2D/C2D.js'
 import {
-  FallbackProvider,
+  JsonRpcProvider,
   ethers,
   Interface,
   BigNumberish,
@@ -134,7 +134,7 @@ export async function createProviderFee(
 export async function verifyProviderFees(
   txId: string,
   userAddress: string,
-  provider: FallbackProvider,
+  provider: JsonRpcProvider,
   service: Service
 ): Promise<ProviderFeeValidation> {
   /* given a transaction, check if there is a valid provider fee event

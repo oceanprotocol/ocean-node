@@ -218,7 +218,7 @@ export class OceanIndexer {
     interval: number = 5000 // in milliseconds, default 2 secs
   ): Promise<boolean> {
     try {
-      const retryInterval = Math.max(blockchain.getKnownRPCs().length * 3000, interval) // give 2 secs per each one
+      const retryInterval = Math.max(3000, interval)
       const result = await this.startCrawler(blockchain)
       const dbActive = this.getDatabase()
       if (!dbActive || !(await isReachableConnection(dbActive.getConfig().url))) {

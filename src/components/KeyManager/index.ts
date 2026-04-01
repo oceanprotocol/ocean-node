@@ -1,5 +1,5 @@
 import type { PeerId } from '@libp2p/interface'
-import { Signer, Wallet, FallbackProvider } from 'ethers'
+import { Signer, Wallet, JsonRpcProvider } from 'ethers'
 import { IKeyProvider } from '../../@types/KeyManager.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { RawPrivateKeyProvider } from './providers/RawPrivateKeyProvider.js'
@@ -96,7 +96,7 @@ export class KeyManager {
    * @param provider - The JSON-RPC provider to connect the signer to
    * @returns An ethers Signer instance
    */
-  async getEvmSigner(provider: FallbackProvider, chainId?: number): Promise<Signer> {
+  async getEvmSigner(provider: JsonRpcProvider, chainId?: number): Promise<Signer> {
     // Create a cache key based on chainId and provider URL
     // TO DO
     if (!chainId) {

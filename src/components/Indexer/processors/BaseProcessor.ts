@@ -9,7 +9,7 @@ import {
   hexlify,
   getBytes,
   toUtf8String,
-  FallbackProvider
+  JsonRpcProvider
 } from 'ethers'
 import { Readable } from 'winston-transport'
 import { DecryptDDOCommand, NonceCommand } from '../../../@types/commands.js'
@@ -83,7 +83,7 @@ export abstract class BaseEventProcessor {
   }
 
   protected async getEventData(
-    provider: FallbackProvider,
+    provider: JsonRpcProvider,
     transactionHash: string,
     abi: any,
     eventType: string
@@ -491,7 +491,7 @@ export abstract class BaseEventProcessor {
     event: ethers.Log,
     chainId: number,
     signer: Signer,
-    provider: FallbackProvider,
+    provider: JsonRpcProvider,
     eventName?: string
   ): Promise<any>
 }

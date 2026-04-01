@@ -1,5 +1,5 @@
 import { DDOManager, DDO, VersionedDDO } from '@oceanprotocol/ddo-js'
-import { ethers, Signer, FallbackProvider, getAddress } from 'ethers'
+import { ethers, Signer, JsonRpcProvider, getAddress } from 'ethers'
 import {
   ENVIRONMENT_VARIABLES,
   EVENTS,
@@ -23,7 +23,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
     event: ethers.Log,
     chainId: number,
     signer: Signer,
-    provider: FallbackProvider,
+    provider: JsonRpcProvider,
     eventName: string
   ): Promise<any> {
     let did = 'did:op'

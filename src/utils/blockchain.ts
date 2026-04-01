@@ -5,7 +5,7 @@ import {
   Contract,
   JsonRpcApiProvider,
   JsonRpcProvider,
-  FallbackProvider,
+  FetchRequest,
   isAddress,
   parseUnits,
   Wallet,
@@ -19,22 +19,18 @@ import { ValidateChainId } from '../@types/commands.js'
 import { OceanNodeConfig } from '../@types/OceanNode.js'
 import { KeyManager } from '../components/KeyManager/index.js'
 
+const RPC_REQUEST_TIMEOUT_MS = 5_000
+
 export class Blockchain {
   private config?: OceanNodeConfig // Optional for new constructor
   private static signers: Map<string, Signer> = new Map()
   private static providers: Map<string, JsonRpcApiProvider> = new Map()
   private keyManager: KeyManager
   private signer: Signer
-  private provider: FallbackProvider
-  private providers: JsonRpcProvider[] = []
+  private provider: JsonRpcProvider
+  private rpc: string
   private chainId: number
-  private knownRPCs: string[] = []
 
-  /**
-   * Constructor overloads:
-   * 1. New pattern: (rpc, chainId, signer, fallbackRPCs?) - signer provided by KeyManager
-   * 2. Old pattern: (rpc, chainId, config, fallbackRPCs?) - for backward compatibility
-   */
   public constructor(
     keyManager: KeyManager,
     rpc: string,
@@ -43,11 +39,8 @@ export class Blockchain {
   ) {
     this.chainId = chainId
     this.keyManager = keyManager
-    this.knownRPCs.push(rpc)
-    if (fallbackRPCs && fallbackRPCs.length > 0) {
-      this.knownRPCs.push(...fallbackRPCs)
-    }
-    this.provider = undefined as undefined as FallbackProvider
+    this.rpc = rpc
+    this.provider = undefined as unknown as JsonRpcProvider
     this.signer = undefined as unknown as Signer
   }
 
@@ -63,36 +56,19 @@ export class Blockchain {
     return await this.signer.getAddress()
   }
 
-  public async getProvider(force: boolean = false): Promise<FallbackProvider> {
+  public async getProvider(): Promise<JsonRpcProvider> {
     if (!this.provider) {
-      for (const rpc of this.knownRPCs) {
-        const rpcProvider = new JsonRpcProvider(rpc)
-        // filter wrong chains or broken RPCs
-        if (!force) {
-          try {
-            const { chainId } = await rpcProvider.getNetwork()
-            if (chainId.toString() === this.chainId.toString()) {
-              this.providers.push(rpcProvider)
-              break
-            }
-          } catch (error) {
-            CORE_LOGGER.error(`Error getting network for RPC ${rpc}: ${error}`)
-          }
-        } else {
-          this.providers.push(new JsonRpcProvider(rpc))
-        }
-      }
-      this.provider = new FallbackProvider(this.providers)
+      const fetchReq = new FetchRequest(this.rpc)
+      fetchReq.timeout = RPC_REQUEST_TIMEOUT_MS
+      this.provider = new JsonRpcProvider(fetchReq)
     }
     return this.provider
   }
 
   public async getSigner(): Promise<Signer> {
     if (!this.signer) {
-      if (!this.provider) {
-        await this.getProvider()
-      }
-      this.signer = await this.keyManager.getEvmSigner(this.provider, this.chainId)
+      const provider = await this.getProvider()
+      this.signer = await this.keyManager.getEvmSigner(provider, this.chainId)
     }
     return this.signer
   }
@@ -101,8 +77,13 @@ export class Blockchain {
     return await this.detectNetwork()
   }
 
-  public getKnownRPCs(): string[] {
-    return this.knownRPCs
+  public getRpc(): string {
+    return this.rpc
+  }
+
+  public resetProvider(): void {
+    this.provider = undefined as unknown as JsonRpcProvider
+    this.signer = undefined as unknown as Signer
   }
 
   public async calculateGasCost(to: string, amount: bigint): Promise<bigint> {
