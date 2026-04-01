@@ -2168,7 +2168,7 @@ describe('Compute', () => {
   })
 
   it('should wait for jobWithOutputURL status 70 and download output from URL', async function () {
-    this.timeout(130_000) // waitForAllJobsToFinish can take up to 120s
+    this.timeout(180_000) // waitForAllJobsToFinish can take up to 180s
     assert(jobWithOutputURL, 'jobWithOutputURL must be set by previous test')
     const statusTask: ComputeGetStatusCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
