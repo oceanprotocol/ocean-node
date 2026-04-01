@@ -92,7 +92,10 @@ export class Blockchain {
         }
       }
       // quorum=1: accept the first response to avoid calls to all configured rpcs
-      this.provider = new FallbackProvider(configs, undefined, { quorum: 1 })
+      this.provider =
+        configs.length > 0
+          ? new FallbackProvider(configs, undefined, { quorum: 1 })
+          : new FallbackProvider([])
     }
     return this.provider
   }
