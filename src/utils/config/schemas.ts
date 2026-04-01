@@ -319,6 +319,7 @@ export const OceanNodeConfigSchema = z
     INTERFACES: z.string().optional(),
     hasP2P: booleanFromString.optional().default(true),
     hasHttp: booleanFromString.optional().default(true),
+    enableBenchmark: booleanFromString.optional().default(false),
 
     p2pConfig: OceanNodeP2PConfigSchema.nullable().optional(),
     hasIndexer: booleanFromString.default(true),

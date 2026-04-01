@@ -139,6 +139,7 @@ export interface OceanNodeConfig {
   jwtSecret?: string
   httpCertPath?: string
   httpKeyPath?: string
+  enableBenchmark?: boolean
 }
 
 export interface P2PStatusResponse {

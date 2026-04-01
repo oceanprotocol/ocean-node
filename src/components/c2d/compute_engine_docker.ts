@@ -22,9 +22,10 @@ import type {
   ComputeResourceRequest,
   ComputeEnvFees,
   ComputeResource,
-  C2DEnvironmentConfig
+  C2DEnvironmentConfig,
+  ComputeResourcesPricingInfo
 } from '../../@types/C2D/C2D.js'
-import { getConfiguration } from '../../utils/config.js'
+import { BENCHMARK_MONITORING_ADDRESS, getConfiguration } from '../../utils/config.js'
 import { C2DEngine } from './compute_engine_base.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
@@ -214,6 +215,54 @@ export class C2DEngineDocker extends C2DEngine {
       os: sysinfo.OSType
     }
     const consumerAddress = this.getKeyManager().getEthAddress()
+
+    if (config.enableBenchmark) {
+      const ramGB = this.physicalLimits.get('ram') || 0
+      const physicalDiskGB = this.physicalLimits.get('disk') || 0
+
+      const gpuResources: ComputeResource[] = []
+      for (const env of envConfig.environments) {
+        if (env.resources) {
+          for (const res of env.resources) {
+            if (res.id !== 'cpu' && res.id !== 'ram' && res.id !== 'disk') {
+              gpuResources.push(res)
+            }
+          }
+        }
+      }
+
+      const benchmarkPrices: ComputeResourcesPricingInfo[] = gpuResources.map((gpu) => ({
+        id: gpu.id,
+        price: 1
+      }))
+
+      const sepoliaChainId = '11155111' // TODO: add Sepolia chain ID
+      const usdcToken = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' // TODO: add USDC token address on Sepolia
+
+      const benchmarkFees: ComputeEnvFeesStructure = {
+        [sepoliaChainId]: [{ feeToken: usdcToken, prices: benchmarkPrices }]
+      }
+
+      const benchmarkEnv: C2DEnvironmentConfig = {
+        description: 'Auto-generated benchmark environment',
+        storageExpiry: 604800,
+        maxJobDuration: 180,
+        minJobDuration: 60,
+        resources: [
+          { id: 'cpu', total: sysinfo.NCPU, min: 1, max: sysinfo.NCPU },
+          { id: 'ram', total: ramGB, min: 1, max: ramGB },
+          { id: 'disk', total: physicalDiskGB, min: 0, max: physicalDiskGB },
+          ...gpuResources
+        ],
+        access: {
+          addresses: [BENCHMARK_MONITORING_ADDRESS],
+          accessLists: null
+        },
+        fees: benchmarkFees
+      }
+
+      envConfig.environments.push(benchmarkEnv)
+    }
 
     for (let envIdx = 0; envIdx < envConfig.environments.length; envIdx++) {
       const envDef: C2DEnvironmentConfig = envConfig.environments[envIdx]

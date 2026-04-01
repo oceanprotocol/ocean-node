@@ -68,12 +68,14 @@ export const ENV_TO_CONFIG_MAPPING = {
   P2P_AUTODIALINTERVAL: 'p2pConfig.autoDialInterval',
   P2P_ENABLE_NETWORK_STATS: 'p2pConfig.enableNetworkStats',
   HTTP_CERT_PATH: 'httpCertPath',
-  HTTP_KEY_PATH: 'httpKeyPath'
+  HTTP_KEY_PATH: 'httpKeyPath',
+  ENABLE_BENCHMARK: 'enableBenchmark'
 } as const
 
 // Configuration defaults
 export const DEFAULT_RATE_LIMIT_PER_MINUTE = 30
 export const DEFAULT_MAX_CONNECTIONS_PER_MINUTE = 60 * 2 // 120 requests per minute
+export const BENCHMARK_MONITORING_ADDRESS = '0xC5ea7916f95D5a087A644f1Dc0f7d19955eC446F'
 
 export const DEFAULT_BOOTSTRAP_ADDRESSES = [
   // OPF nodes

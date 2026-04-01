@@ -93,6 +93,7 @@
   "claimDurationTimeout": 3600,
   "validateUnsignedDDO": true,
   "jwtSecret": "ocean-node-secret",
+  "enableBenchmark": true,
   "dockerComputeEnvironments": [
     {
       "socketPath": "/var/run/docker.sock",
