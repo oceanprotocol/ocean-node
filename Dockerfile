@@ -33,11 +33,8 @@ ENV NODE_ENV=production \
 
 EXPOSE 9000 9001 9002 9003 9005 8000
 
-# GID of the docker group on the host. Needs to match so the node user can access
-# /var/run/docker.sock for compute jobs. Default is 999 (common on Debian/Ubuntu).
-# Override at build time if your host differs: docker build --build-arg DOCKER_GID=$(getent group docker | cut -d: -f3) .
-ARG DOCKER_GID=999
-RUN groupadd -g ${DOCKER_GID} docker && usermod -aG docker node
+# Docker group membership is handled at runtime in docker-entrypoint.sh by
+# inspecting the GID of /var/run/docker.sock, so it works across hosts.
 
 WORKDIR /usr/src/app
 
