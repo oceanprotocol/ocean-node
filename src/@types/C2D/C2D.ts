@@ -106,6 +106,7 @@ export interface ComputeEnvironmentFreeOptions {
   maxJobs?: number // maximum number of simultaneous free jobs
   resources?: ComputeResource[]
   access: ComputeAccessList
+  allowImageBuild?: boolean
 }
 export interface ComputeEnvironmentBaseConfig {
   description?: string // v1
@@ -158,6 +159,9 @@ export interface C2DDockerConfig {
   imageRetentionDays?: number // Default: 7 days
   imageCleanupInterval?: number // Default: 86400 seconds (24 hours)
   paymentClaimInterval?: number // Default: 3600 seconds (1 hours)
+  scanImages?: boolean
+  scanImageDBUpdateInterval?: number // Default: 12 hours
+  enableNetwork?: boolean // whether network is enabled for algorithm containers
 }
 
 export type ComputeResultType =
@@ -280,6 +284,8 @@ export interface DBComputeJob extends ComputeJob {
   encryptedDockerRegistryAuth?: string
   output?: string // this is always an ECIES encrypted string, that decodes to ComputeOutput interface
   jobIdHash: string
+  buildStartTimestamp?: string
+  buildStopTimestamp?: string
 }
 
 // make sure we keep them both in sync
@@ -298,6 +304,8 @@ export enum C2DStatusNumber {
   BuildImage = 12,
   // eslint-disable-next-line no-unused-vars
   BuildImageFailed = 13,
+  // eslint-disable-next-line no-unused-vars
+  VulnerableImage = 14,
   // eslint-disable-next-line no-unused-vars
   ConfiguringVolumes = 20,
   // eslint-disable-next-line no-unused-vars
@@ -346,6 +354,8 @@ export enum C2DStatusText {
   BuildImage = 'Building algorithm image',
   // eslint-disable-next-line no-unused-vars
   BuildImageFailed = 'Building algorithm image failed',
+  // eslint-disable-next-line no-unused-vars
+  VulnerableImage = 'Image has vulnerabilities',
   // eslint-disable-next-line no-unused-vars
   ConfiguringVolumes = 'Configuring volumes',
   // eslint-disable-next-line no-unused-vars

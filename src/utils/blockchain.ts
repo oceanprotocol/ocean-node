@@ -3,7 +3,6 @@ import {
   ethers,
   Signer,
   Contract,
-  JsonRpcApiProvider,
   JsonRpcProvider,
   FallbackProvider,
   isAddress,
@@ -15,18 +14,12 @@ import { getConfiguration } from './config.js'
 import { CORE_LOGGER } from './logging/common.js'
 import { ConnectionStatus } from '../@types/blockchain.js'
 import { ValidateChainId } from '../@types/commands.js'
-// import { KNOWN_CONFIDENTIAL_EVMS } from '../utils/address.js'
-import { OceanNodeConfig } from '../@types/OceanNode.js'
 import { KeyManager } from '../components/KeyManager/index.js'
 
 export class Blockchain {
-  private config?: OceanNodeConfig // Optional for new constructor
-  private static signers: Map<string, Signer> = new Map()
-  private static providers: Map<string, JsonRpcApiProvider> = new Map()
   private keyManager: KeyManager
   private signer: Signer
   private provider: FallbackProvider
-  private providers: JsonRpcProvider[] = []
   private chainId: number
   private knownRPCs: string[] = []
 
@@ -65,24 +58,44 @@ export class Blockchain {
 
   public async getProvider(force: boolean = false): Promise<FallbackProvider> {
     if (!this.provider) {
-      for (const rpc of this.knownRPCs) {
+      const configs: {
+        provider: JsonRpcProvider
+        priority: number
+        stallTimeout: number
+      }[] = []
+
+      const PRIMARY_RPC_TIMEOUT = 3000
+      const FALLBACK_RPC_TIMEOUT = 1500
+      for (let i = 0; i < this.knownRPCs.length; i++) {
+        const rpc = this.knownRPCs[i]
         const rpcProvider = new JsonRpcProvider(rpc)
-        // filter wrong chains or broken RPCs
         if (!force) {
           try {
             const { chainId } = await rpcProvider.getNetwork()
             if (chainId.toString() === this.chainId.toString()) {
-              this.providers.push(rpcProvider)
-              break
+              // primary RPC gets lowest priority = is first to be called
+              configs.push({
+                provider: rpcProvider,
+                priority: i + 1,
+                stallTimeout: i === 0 ? PRIMARY_RPC_TIMEOUT : FALLBACK_RPC_TIMEOUT
+              })
             }
           } catch (error) {
             CORE_LOGGER.error(`Error getting network for RPC ${rpc}: ${error}`)
           }
         } else {
-          this.providers.push(new JsonRpcProvider(rpc))
+          configs.push({
+            provider: rpcProvider,
+            priority: i + 1,
+            stallTimeout: i === 0 ? PRIMARY_RPC_TIMEOUT : FALLBACK_RPC_TIMEOUT
+          })
         }
       }
-      this.provider = new FallbackProvider(this.providers)
+      // quorum=1: accept the first response to avoid calls to all configured rpcs
+      this.provider =
+        configs.length > 0
+          ? new FallbackProvider(configs, undefined, { quorum: 1 })
+          : new FallbackProvider([])
     }
     return this.provider
   }

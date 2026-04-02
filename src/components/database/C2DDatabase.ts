@@ -84,9 +84,16 @@ export class C2DDatabase extends AbstractDatabase {
     environments?: string[],
     fromTimestamp?: string,
     consumerAddrs?: string[],
-    status?: C2DStatusNumber
+    status?: C2DStatusNumber,
+    runningJobs?: boolean
   ): Promise<DBComputeJob[]> {
-    return await this.provider.getJobs(environments, fromTimestamp, consumerAddrs, status)
+    return await this.provider.getJobs(
+      environments,
+      fromTimestamp,
+      consumerAddrs,
+      status,
+      runningJobs
+    )
   }
 
   async getJobsByStatus(

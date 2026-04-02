@@ -5,8 +5,11 @@ This guide explains how to configure your node’s Docker compute environments a
 ## Overview
 
 - **Configuration**: Define compute environments via the `DOCKER_COMPUTE_ENVIRONMENTS` environment variable (JSON) or via `config.json` under `dockerComputeEnvironments`.
+- **Environment**: Is a group of resources, payment and accesslists.
 - **Resources**: Each environment declares resources (e.g. `cpu`, `ram`, `disk`, and optionally GPUs). You must declare a `disk` resource.
 - **Pricing**: For each chain and fee token, you set a `price` per resource. Cost is computed as **price × amount × duration (in minutes, rounded up)**.
+- **Free**: Environments which does not require a payment for the resources, but most likley are very limited in terms of resources available and job duration.
+- **Image building**: **Free jobs cannot build images** (Dockerfiles are not allowed). For **paid jobs**, **image build time counts toward billable duration** and also consumes the job’s `maxJobDuration`.
 
 ## Pricing Units
 

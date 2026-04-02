@@ -5,26 +5,34 @@ import { BaseFileObject } from '../../@types/fileObject.js'
 
 export class PolicyServer {
   serverUrl: string
+  private apikey: string
 
   public constructor() {
     this.serverUrl = process.env.POLICY_SERVER_URL
+    this.apikey = process.env.POLICY_SERVER_API_KEY
   }
 
   private async askServer(command: any): Promise<PolicyServerResult> {
     if (!this.serverUrl) return { success: true, message: '', httpStatus: 404 }
     let response
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    }
+    if (this.apikey) {
+      headers['X-API-Key'] = this.apikey
+    }
     try {
       response = await fetch(this.serverUrl, {
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers,
         method: 'POST',
         body: JSON.stringify(command)
       })
     } catch (e) {
+      const errorText =
+        e instanceof Error ? e.message : typeof e === 'string' ? e : JSON.stringify(e)
       return {
-        success: true,
-        message: '',
+        success: false,
+        message: errorText || 'Policy server request failed',
         httpStatus: 400
       }
     }

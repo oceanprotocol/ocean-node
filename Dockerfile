@@ -1,44 +1,56 @@
-FROM ubuntu:22.04 AS base
-RUN apt-get update && apt-get -y install bash curl git wget libatomic1 python3 build-essential
-COPY .nvmrc /usr/src/app/
-RUN rm /bin/sh && ln -s /bin/bash /bin/sh
-ENV NVM_DIR=/usr/local/nvm
-RUN mkdir $NVM_DIR
-ENV NODE_VERSION=v22.15.0
-# Install nvm with node and npm
-RUN curl https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash \
-    && source $NVM_DIR/nvm.sh \
-    && nvm install $NODE_VERSION \
-    && nvm alias default $NODE_VERSION \
-    && nvm use default
-ENV NODE_PATH=$NVM_DIR/$NODE_VERSION/lib/node_modules
-ENV PATH=$NVM_DIR/versions/node/$NODE_VERSION/bin:$PATH
-ENV IPFS_GATEWAY='https://ipfs.io/'
-ENV ARWEAVE_GATEWAY='https://arweave.net/'
+FROM node:22.15.0-bookworm@sha256:a1f1274dadd49738bcd4cf552af43354bb781a7e9e3bc984cfeedc55aba2ddd8 AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    build-essential \
+    libatomic1 \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
-FROM base AS builder
-COPY package*.json /usr/src/app/
-COPY scripts/ /usr/src/app/scripts/
-WORKDIR /usr/src/app/
+WORKDIR /usr/src/app
+COPY package*.json ./
+COPY scripts/ ./scripts/
 RUN npm ci
+COPY . .
+RUN npm run build && npm prune --omit=dev
 
 
-FROM base AS runner
-COPY . /usr/src/app
-WORKDIR /usr/src/app/
-COPY --from=builder /usr/src/app/node_modules/ /usr/src/app/node_modules/
-RUN npm run build
-ENV P2P_ipV4BindTcpPort=9000
-EXPOSE 9000
-ENV P2P_ipV4BindWsPort=9001
-EXPOSE 9001
-ENV P2P_ipV6BindTcpPort=9002
-EXPOSE 9002
-ENV P2P_ipV6BindWsPort=9003
-EXPOSE 9003
-ENV P2P_ipV4BindWssPort=9005
-EXPOSE 9005
-ENV HTTP_API_PORT=8000
-EXPOSE 8000
-ENV NODE_ENV='production'
-CMD ["npm","run","start"]
+FROM node:22.15.0-bookworm-slim@sha256:557e52a0fcb928ee113df7e1fb5d4f60c1341dbda53f55e3d815ca10807efdce AS runner
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    dumb-init \
+    gosu \
+    libatomic1 \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV NODE_ENV=production \
+    IPFS_GATEWAY='https://ipfs.io/' \
+    ARWEAVE_GATEWAY='https://arweave.net/' \
+    P2P_ipV4BindTcpPort=9000 \
+    P2P_ipV4BindWsPort=9001 \
+    P2P_ipV6BindTcpPort=9002 \
+    P2P_ipV6BindWsPort=9003 \
+    P2P_ipV4BindWssPort=9005 \
+    HTTP_API_PORT=8000
+
+EXPOSE 9000 9001 9002 9003 9005 8000
+
+# GID of the docker group on the host. Needs to match so the node user can access
+# /var/run/docker.sock for compute jobs. Default is 999 (common on Debian/Ubuntu).
+# Override at build time if your host differs: docker build --build-arg DOCKER_GID=$(getent group docker | cut -d: -f3) .
+ARG DOCKER_GID=999
+RUN groupadd -g ${DOCKER_GID} docker && usermod -aG docker node
+
+WORKDIR /usr/src/app
+
+COPY --chown=node:node --from=builder /usr/src/app/dist ./dist
+COPY --chown=node:node --from=builder /usr/src/app/node_modules ./node_modules
+COPY --chown=node:node --from=builder /usr/src/app/schemas ./schemas
+COPY --chown=node:node --from=builder /usr/src/app/package.json ./
+COPY --chown=node:node --from=builder /usr/src/app/config.json ./
+
+RUN mkdir -p databases c2d_storage logs
+
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["node", "--max-old-space-size=28784", "--trace-warnings", "--experimental-specifier-resolution=node", "dist/index.js"]

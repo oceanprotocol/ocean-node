@@ -30,7 +30,9 @@ export class GetJobsHandler extends CommandHandler {
       const jobs = await c2d.getJobs(
         task.environments,
         task.fromTimestamp,
-        task.consumerAddrs
+        task.consumerAddrs,
+        undefined,
+        task.runningJobs
       )
       const sanitizedJobs = jobs.map((job) => {
         if (job.algorithm) {

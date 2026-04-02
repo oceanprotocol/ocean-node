@@ -312,4 +312,5 @@ export interface GetJobsCommand extends Command {
   environments?: string[]
   fromTimestamp?: string
   consumerAddrs?: string[]
+  runningJobs?: boolean
 }

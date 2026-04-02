@@ -1,4 +1,8 @@
-import { C2DClusterType, ComputeEnvironment } from '../../@types/C2D/C2D.js'
+import {
+  C2DClusterInfo,
+  C2DClusterType,
+  ComputeEnvironment
+} from '../../@types/C2D/C2D.js'
 import { C2DEngine } from './compute_engine_base.js'
 import { C2DEngineDocker } from './compute_engine_docker.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
@@ -15,11 +19,10 @@ export class C2DEngines {
     escrow: Escrow,
     keyManager: KeyManager
   ) {
-    // let's see what engines do we have and initialize them one by one
-    // for docker, we need to add the "free"
-
-    // TO DO - check if we have multiple config.c2dClusters with the same host
-    // if yes, do not create multiple engines
+    const crons = {
+      imageCleanup: false,
+      scanDBUpdate: false
+    }
     if (config && config.c2dClusters) {
       this.engines = []
       let cpuOffset = 0
@@ -33,9 +36,33 @@ export class C2DEngines {
               `Cannot create engine ${cluster.connection.hash}.\r\nConfig.claimDurationTimeout is not high enough to claim at least ${limit} times. Either decrease environment.paymentClaimInterval${cluster.connection.paymentClaimInterval} or increase config.claimDurationTimeout(${claimDurationTimeout})`
             )
           } else {
+            const cfg = JSON.parse(JSON.stringify(cluster)) as C2DClusterInfo
+            // make sure that crons are running only on one docker engine
+            if (crons.imageCleanup) {
+              // already running, set cron to null for this engine
+              cfg.connection.imageCleanupInterval = null
+            } else {
+              // not running yet, set the defaults
+              cfg.connection.imageCleanupInterval =
+                cfg.connection.imageCleanupInterval || 86400 // 24 hours
+              crons.imageCleanup = true
+            }
+            if (crons.scanDBUpdate) {
+              cfg.connection.scanImageDBUpdateInterval = null
+            } else {
+              if (cfg.connection.scanImages) {
+                // set the defaults
+                cfg.connection.scanImageDBUpdateInterval =
+                  cfg.connection.scanImageDBUpdateInterval || 43200 // 12 hours
+                crons.scanDBUpdate = true
+              } else {
+                // image scanning disabled for this engine
+                cfg.connection.scanImageDBUpdateInterval = null
+              }
+            }
             this.engines.push(
               new C2DEngineDocker(
-                cluster,
+                cfg,
                 db,
                 escrow,
                 keyManager,

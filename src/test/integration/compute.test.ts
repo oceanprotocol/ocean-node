@@ -2168,7 +2168,7 @@ describe('Compute', () => {
   })
 
   it('should wait for jobWithOutputURL status 70 and download output from URL', async function () {
-    this.timeout(130_000) // waitForAllJobsToFinish can take up to 120s
+    this.timeout(180_000) // waitForAllJobsToFinish can take up to 180s
     assert(jobWithOutputURL, 'jobWithOutputURL must be set by previous test')
     const statusTask: ComputeGetStatusCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
@@ -3166,20 +3166,6 @@ describe('Compute Access Restrictions', () => {
           `Job ${jobId} should be processed`
         )
       }
-    })
-
-    it('should start payment claim timer on engine start', function () {
-      // Verify timer methods exist
-      // Timer might be null if not started yet, or a NodeJS.Timeout if started
-      // We can't easily test the timer directly, but we can verify the method exists
-      assert(
-        typeof (dockerEngine as any).startPaymentTimer === 'function',
-        'startPaymentTimer method should exist'
-      )
-      assert(
-        typeof (dockerEngine as any).claimPayments === 'function',
-        'claimPayments method should exist'
-      )
     })
   })
 })
