@@ -331,11 +331,9 @@ export class OceanP2P extends EventEmitter {
           `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindWsPort}/ws`
         )
       }
-      // Include /p2p-circuit in listen addresses so that circuitRelayTransport
-      // discovers relay servers and makes reservations. Without this, the
-      // transport never calls reserveRelay() and browser clients can't reach
-      // this node via circuit relay.
-      const listenAddrs = [...bindInterfaces, '/p2p-circuit']
+      const listenAddrs = config.p2pConfig.enableCircuitRelayClient
+        ? [...bindInterfaces, '/p2p-circuit']
+        : bindInterfaces
       let addresses = {}
       if (
         config.p2pConfig.announceAddresses &&
@@ -400,7 +398,14 @@ export class OceanP2P extends EventEmitter {
       // eslint-disable-next-line no-constant-condition, no-self-compare
       if (config.p2pConfig.enableCircuitRelayServer) {
         P2P_LOGGER.info('Enabling Circuit Relay Server')
-        servicesConfig = { ...servicesConfig, ...{ circuitRelay: circuitRelayServer() } }
+        servicesConfig = {
+          ...servicesConfig,
+          ...{
+            circuitRelay: circuitRelayServer({
+              reservations: { maxReservations: 2 }
+            })
+          }
+        }
       }
       // eslint-disable-next-line no-constant-condition, no-self-compare
       if (config.p2pConfig.upnp) {
