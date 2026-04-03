@@ -401,7 +401,7 @@ export class OceanP2P extends EventEmitter {
         servicesConfig = {
           ...servicesConfig,
           ...{
-            circuitRelay: circuitRelayServer()
+            circuitRelay: circuitRelayServer({ reservations: { maxReservations: 2 } })
           }
         }
       }
