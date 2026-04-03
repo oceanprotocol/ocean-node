@@ -331,20 +331,25 @@ export class OceanP2P extends EventEmitter {
           `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindWsPort}/ws`
         )
       }
+      // Include /p2p-circuit in listen addresses so that circuitRelayTransport
+      // discovers relay servers and makes reservations. Without this, the
+      // transport never calls reserveRelay() and browser clients can't reach
+      // this node via circuit relay.
+      const listenAddrs = [...bindInterfaces, '/p2p-circuit']
       let addresses = {}
       if (
         config.p2pConfig.announceAddresses &&
         config.p2pConfig.announceAddresses.length > 0
       ) {
         addresses = {
-          listen: bindInterfaces,
+          listen: listenAddrs,
           announceFilter: (multiaddrs: any[]) =>
             multiaddrs.filter((m) => this.shouldAnnounce(m)),
           appendAnnounce: config.p2pConfig.announceAddresses
         }
       } else {
         addresses = {
-          listen: bindInterfaces,
+          listen: listenAddrs,
           announceFilter: (multiaddrs: any[]) =>
             multiaddrs.filter((m) => this.shouldAnnounce(m))
         }
