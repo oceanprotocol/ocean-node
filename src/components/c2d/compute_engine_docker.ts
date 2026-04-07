@@ -36,6 +36,7 @@ import {
   createWriteStream,
   existsSync,
   mkdirSync,
+  chmodSync,
   rmSync,
   writeFileSync,
   appendFileSync,
@@ -55,6 +56,9 @@ import { getOceanTokenAddressForChain } from '../../utils/address.js'
 import { dockerRegistrysAuth, dockerRegistryAuth } from '../../@types/OceanNode.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { ZeroAddress } from 'ethers'
+
+const C2D_CONTAINER_UID = 1000
+const C2D_CONTAINER_GID = 1000
 
 const trivyImage = 'aquasec/trivy:0.69.3' // Use pinned versions for safety
 
@@ -79,6 +83,7 @@ export class C2DEngineDocker extends C2DEngine {
   private cpuAllocations: Map<string, number[]> = new Map()
   private envCpuCores: number[] = []
   private cpuOffset: number
+  private enableNetwork: boolean
 
   public constructor(
     clusterConfig: C2DClusterInfo,
@@ -104,6 +109,7 @@ export class C2DEngineDocker extends C2DEngine {
     this.paymentClaimInterval = clusterConfig.connection.paymentClaimInterval || 3600 // 1 hour
     this.scanImages = clusterConfig.connection.scanImages || false // default is not to scan images for now, until it's prod ready
     this.scanImageDBUpdateInterval = clusterConfig.connection.scanImageDBUpdateInterval
+    this.enableNetwork = clusterConfig.connection.enableNetwork ?? false
     if (
       clusterConfig.connection.protocol &&
       clusterConfig.connection.host &&
@@ -754,7 +760,7 @@ export class C2DEngineDocker extends C2DEngine {
 
   private async cleanUpUnknownLocks(chain: string, currentTimestamp: bigint) {
     try {
-      const nodeAddress = await this.getKeyManager().getEthAddress()
+      const nodeAddress = this.getKeyManager().getEthAddress()
       const jobIds: any[] = []
       const tokens: string[] = []
       const payer: string[] = []
@@ -765,6 +771,10 @@ export class C2DEngineDocker extends C2DEngine {
         '0x0000000000000000000000000000000000000000',
         nodeAddress
       )
+      if (!balocks || balocks.length === 0) {
+        CORE_LOGGER.warn(`Could not find any locks for chain ${chain}, skipping cleanup`)
+        return
+      }
       for (const lock of balocks) {
         const lockExpiry = BigInt(lock.expiry.toString())
         if (currentTimestamp > lockExpiry) {
@@ -1462,7 +1472,7 @@ export class C2DEngineDocker extends C2DEngine {
     if (!jobRes[0].isRunning) return null
     try {
       const job = jobRes[0]
-      const container = await this.docker.getContainer(job.jobId + '-algoritm')
+      const container = this.docker.getContainer(job.jobId + '-algoritm')
       const details = await container.inspect()
       if (details.State.Running === false) return null
       return await container.logs({
@@ -1721,7 +1731,8 @@ export class C2DEngineDocker extends C2DEngine {
       // create the container
       const mountVols: any = { '/data': {} }
       const hostConfig: HostConfig = {
-        NetworkMode: 'none', // no network inside the container
+        // limit number of Pids container can spawn, to avoid flooding
+        PidsLimit: 512,
         Mounts: [
           {
             Type: 'volume',
@@ -1730,6 +1741,9 @@ export class C2DEngineDocker extends C2DEngine {
             ReadOnly: false
           }
         ]
+      }
+      if (!this.enableNetwork) {
+        hostConfig.NetworkMode = 'none' // no network inside the container
       }
       // disk
       // if (diskSize && diskSize > 0) {
@@ -1760,9 +1774,10 @@ export class C2DEngineDocker extends C2DEngine {
         AttachStdin: false,
         AttachStdout: true,
         AttachStderr: true,
-        Tty: true,
+        Tty: false,
         OpenStdin: false,
         StdinOnce: false,
+        User: `${C2D_CONTAINER_UID}:${C2D_CONTAINER_GID}`,
         Volumes: mountVols,
         HostConfig: hostConfig
       }
@@ -1777,8 +1792,10 @@ export class C2DEngineDocker extends C2DEngine {
         containerInfo.HostConfig.Devices = advancedConfig.Devices
       if (advancedConfig.GroupAdd)
         containerInfo.HostConfig.GroupAdd = advancedConfig.GroupAdd
-      if (advancedConfig.SecurityOpt)
-        containerInfo.HostConfig.SecurityOpt = advancedConfig.SecurityOpt
+      containerInfo.HostConfig.SecurityOpt = [
+        'no-new-privileges',
+        ...(advancedConfig.SecurityOpt ?? [])
+      ]
       if (advancedConfig.Binds) containerInfo.HostConfig.Binds = advancedConfig.Binds
       containerInfo.HostConfig.CapDrop = ['ALL']
       for (const cap of advancedConfig.CapDrop ?? []) {
@@ -1838,7 +1855,7 @@ export class C2DEngineDocker extends C2DEngine {
       let container
       let details
       try {
-        container = await this.docker.getContainer(job.jobId + '-algoritm')
+        container = this.docker.getContainer(job.jobId + '-algoritm')
         details = await container.inspect()
       } catch (e) {
         console.error(
@@ -1943,7 +1960,7 @@ export class C2DEngineDocker extends C2DEngine {
       job.statusText = C2DStatusText.JobSettle
       let container
       try {
-        container = await this.docker.getContainer(job.jobId + '-algoritm')
+        container = this.docker.getContainer(job.jobId + '-algoritm')
       } catch (e) {
         CORE_LOGGER.debug('Could not retrieve container: ' + e.message)
         job.isRunning = false
@@ -2140,7 +2157,7 @@ export class C2DEngineDocker extends C2DEngine {
     this.releaseCpus(job.jobId)
 
     try {
-      const container = await this.docker.getContainer(job.jobId + '-algoritm')
+      const container = this.docker.getContainer(job.jobId + '-algoritm')
       if (container) {
         if (job.status !== C2DStatusNumber.AlgorithmFailed) {
           writeFileSync(
@@ -2866,7 +2883,7 @@ export class C2DEngineDocker extends C2DEngine {
 
       if (existsSync(destination)) {
         // now, upload it to the container
-        const container = await this.docker.getContainer(job.jobId + '-algoritm')
+        const container = this.docker.getContainer(job.jobId + '-algoritm')
 
         try {
           // await container2.putArchive(destination, {
@@ -2928,6 +2945,8 @@ export class C2DEngineDocker extends C2DEngine {
         if (!existsSync(dir)) {
           mkdirSync(dir, { recursive: true })
         }
+        // update directory permissions to allow read/write from job containers
+        chmodSync(dir, 0o777)
       }
       return true
     } catch (e) {
@@ -2952,7 +2971,7 @@ export class C2DEngineDocker extends C2DEngine {
       }
 
       // delete output folders
-      await this.deleteOutputFolder(job)
+      this.deleteOutputFolder(job)
       // delete the job
       await this.db.deleteJob(job.jobId)
       return true
