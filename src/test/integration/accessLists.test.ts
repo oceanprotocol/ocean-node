@@ -17,7 +17,7 @@ import { AccessListContract, OceanNodeConfig } from '../../@types/OceanNode.js'
 import { homedir } from 'os'
 import { getConfiguration } from '../../utils/config.js'
 import { assert, expect } from 'chai'
-import { checkAddressOnAccessList } from '../../utils/accessList.js'
+import { checkAddressOnAccessListWithSigner } from '../../utils/accessList.js'
 import { KeyManager } from '../../components/KeyManager/index.js'
 
 describe('Should deploy some accessLists before all other tests.', () => {
@@ -174,7 +174,11 @@ describe('Should deploy some accessLists before all other tests.', () => {
       for (let i = 0; i < wallets.length; i++) {
         const account = await wallets[i].getAddress()
         expect(
-          (await checkAddressOnAccessList(accessListAddress, account, owner)) === true,
+          (await checkAddressOnAccessListWithSigner(
+            accessListAddress,
+            account,
+            owner
+          )) === true,
           `Address ${account} has no balance on Access List ${accessListAddress}, so its not Authorized`
         )
       }
@@ -187,7 +191,11 @@ describe('Should deploy some accessLists before all other tests.', () => {
       for (let i = wallets.length; i < 4; i++) {
         const account = await (await provider.getSigner(i)).getAddress()
         expect(
-          (await checkAddressOnAccessList(accessListAddress, account, owner)) === false,
+          (await checkAddressOnAccessListWithSigner(
+            accessListAddress,
+            account,
+            owner
+          )) === false,
           `Address ${account} should not be part Access List ${accessListAddress}, therefore its not Authorized`
         )
       }

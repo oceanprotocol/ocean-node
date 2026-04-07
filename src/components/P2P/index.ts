@@ -33,7 +33,7 @@ import {
 } from '@libp2p/kad-dht'
 
 import { EVENTS, cidFromRawString } from '../../utils/index.js'
-import { Transform } from 'stream'
+import { Transform, Readable } from 'stream'
 import { Database } from '../database'
 import {
   OceanNodeConfig,
@@ -69,6 +69,35 @@ type DDOCache = {
 }
 
 let index = 0
+
+/** Optional request payload sent as LP frames after the command JSON; ends with an empty LP frame. */
+export type P2PRequestBodyStream = AsyncIterable<Uint8Array | Buffer | string> | Readable
+
+function toUint8ArrayChunk(chunk: unknown): Uint8Array {
+  if (chunk instanceof Uint8Array) return chunk
+  if (Buffer.isBuffer(chunk)) return new Uint8Array(chunk)
+  if (typeof chunk === 'string') return uint8ArrayFromString(chunk)
+  if (
+    chunk &&
+    typeof chunk === 'object' &&
+    ArrayBuffer.isView(chunk as ArrayBufferView)
+  ) {
+    const v = chunk as ArrayBufferView
+    return new Uint8Array(v.buffer, v.byteOffset, v.byteLength)
+  }
+  throw new Error('Unsupported chunk type for P2P request body')
+}
+
+async function writeP2pRequestBodyLp(
+  lp: LengthPrefixedStream<Stream>,
+  body: P2PRequestBodyStream,
+  signal: AbortSignal
+): Promise<void> {
+  for await (const chunk of body as AsyncIterable<unknown>) {
+    await lp.write(toUint8ArrayChunk(chunk), { signal })
+  }
+  await lp.write(new Uint8Array(0), { signal })
+}
 
 export class OceanP2P extends EventEmitter {
   _libp2p: Libp2p
@@ -725,9 +754,19 @@ export class OceanP2P extends EventEmitter {
   async send(
     lp: LengthPrefixedStream<Stream>,
     message: string,
-    options: { signal: AbortSignal }
+    options: { signal: AbortSignal },
+    requestBody?: P2PRequestBodyStream
   ) {
-    await lp.write(uint8ArrayFromString(message), { signal: options.signal })
+    let outbound = message
+    if (requestBody) {
+      const cmd = JSON.parse(message) as Record<string, unknown>
+      cmd.p2pStreamBody = true
+      outbound = JSON.stringify(cmd)
+    }
+    await lp.write(uint8ArrayFromString(outbound), { signal: options.signal })
+    if (requestBody) {
+      await writeP2pRequestBodyLp(lp, requestBody, options.signal)
+    }
     const statusBytes = await lp.read({ signal: options.signal })
     return {
       status: JSON.parse(uint8ArrayToString(statusBytes.subarray())),
@@ -747,7 +786,8 @@ export class OceanP2P extends EventEmitter {
   async sendTo(
     peerName: string,
     message: string,
-    multiAddrs?: string[]
+    multiAddrs?: string[],
+    requestBody?: P2PRequestBodyStream
   ): Promise<{ status: any; stream?: AsyncIterable<any> }> {
     const options = {
       signal: AbortSignal.timeout(10_000),
@@ -799,7 +839,7 @@ export class OceanP2P extends EventEmitter {
 
     let streamErr: Error | null = null
     try {
-      return await this.send(lpStream(stream), message, options)
+      return await this.send(lpStream(stream), message, options, requestBody)
     } catch (err) {
       try {
         stream.abort(err as Error)
@@ -823,7 +863,7 @@ export class OceanP2P extends EventEmitter {
     stream = await connection.newStream(this._protocol, options)
 
     try {
-      return await this.send(lpStream(stream), message, options)
+      return await this.send(lpStream(stream), message, options, requestBody)
     } catch (retryErr) {
       try {
         stream.abort(retryErr as Error)

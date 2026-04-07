@@ -32,8 +32,23 @@ export function validateCommandParameters(
     return buildInvalidRequestMessage(`Invalid or unrecognized command: "${commandStr}"`)
   }
 
-  // deep copy
-  const logCommandData = structuredClone(commandData)
+  // deep copy for logging (must not throw for non-cloneable payloads like streams)
+  let logCommandData: any
+  try {
+    // For some commands, the task contains non-cloneable fields (e.g. Node streams).
+    // We redact those before cloning to avoid DataCloneError.
+    const sanitized = { ...(commandData ?? {}) }
+    if ('stream' in sanitized) {
+      sanitized.stream = '[STREAM]'
+    }
+    logCommandData = structuredClone(sanitized)
+  } catch {
+    // Last resort: shallow clone; avoid crashing validation because of logging.
+    logCommandData = { ...(commandData ?? {}) }
+    if ('stream' in logCommandData) {
+      logCommandData.stream = '[STREAM]'
+    }
+  }
 
   if (commandStr === PROTOCOL_COMMANDS.ENCRYPT) {
     logCommandData.files = [] // hide files data (sensitive) + rawData (long buffer) from logging

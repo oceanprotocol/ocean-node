@@ -13,6 +13,8 @@ import { Auth } from './components/Auth/index.js'
 import { KeyManager } from './components/KeyManager/index.js'
 import { BlockchainRegistry } from './components/BlockchainRegistry/index.js'
 import { Blockchain } from './utils/blockchain.js'
+import { createPersistentStorage } from './components/persistentStorage/createPersistentStorage.js'
+import { PersistentStorageFactory } from './components/persistentStorage/PersistentStorageFactory.js'
 
 export interface RequestLimiter {
   requester: string | string[] // IP address or peer ID
@@ -37,6 +39,7 @@ export class OceanNode {
   private remoteCaller: string | string[]
   private requestMap: Map<string, RequestLimiter>
   private auth: Auth
+  private persistentStorage: PersistentStorageFactory
 
   // eslint-disable-next-line no-useless-constructor
   private constructor(
@@ -73,6 +76,11 @@ export class OceanNode {
         this.config.claimDurationTimeout,
         this.blockchainRegistry
       )
+      if (this.config.persistentStorage?.enabled) {
+        this.persistentStorage = createPersistentStorage(this)
+      } else {
+        this.persistentStorage = null
+      }
     }
   }
 
@@ -181,6 +189,10 @@ export class OceanNode {
     return this.blockchainRegistry
   }
 
+  public getPersistentStorage(): PersistentStorageFactory | null {
+    return this.persistentStorage
+  }
+
   /**
    * Get a Blockchain instance for the given chainId.
    * Delegates to BlockchainRegistry.
@@ -198,6 +210,10 @@ export class OceanNode {
         this.blockchainRegistry
       )
     }
+  }
+
+  public getConfig(): OceanNodeConfig {
+    return this.config
   }
 
   /**

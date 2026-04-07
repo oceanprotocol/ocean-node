@@ -47,6 +47,13 @@ import {
 } from './p2p.js'
 import { CreateAuthTokenHandler, InvalidateAuthTokenHandler } from './authHandler.js'
 import { GetJobsHandler } from './getJobs.js'
+import {
+  PersistentStorageCreateBucketHandler,
+  PersistentStorageDeleteFileHandler,
+  PersistentStorageGetBucketsHandler,
+  PersistentStorageListFilesHandler,
+  PersistentStorageUploadFileHandler
+} from './persistentStorage.js'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler
@@ -167,6 +174,26 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(PROTOCOL_COMMANDS.PUSH_CONFIG, new PushConfigHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.GET_LOGS, new GetLogsHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.JOBS, new GetJobsHandler(node))
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      new PersistentStorageCreateBucketHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_BUCKETS,
+      new PersistentStorageGetBucketsHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_LIST_FILES,
+      new PersistentStorageListFilesHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
+      new PersistentStorageUploadFileHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DELETE_FILE,
+      new PersistentStorageDeleteFileHandler(node)
+    )
   }
 
   public static getInstance(

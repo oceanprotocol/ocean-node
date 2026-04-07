@@ -3,7 +3,7 @@ import { AccessListContract } from '../@types/OceanNode.js'
 import { CORE_LOGGER } from './logging/common.js'
 import { Credential, Credentials, MATCH_RULES } from '@oceanprotocol/ddo-js'
 import { CREDENTIALS_TYPES } from '../@types/DDO/Credentials.js'
-import { checkAddressOnAccessList } from './accessList.js'
+import { checkAddressOnAccessListWithSigner } from './accessList.js'
 import { isDefined } from './util.js'
 
 /**
@@ -203,7 +203,7 @@ export async function checkSingleCredential(
 
     try {
       // Check if the consumer address has tokens in the access list contract
-      const hasAccess = await checkAddressOnAccessList(
+      const hasAccess = await checkAddressOnAccessListWithSigner(
         accessListCredential.accessList,
         consumerAddress,
         signer
@@ -252,7 +252,7 @@ export async function checkCredentialOnAccessList(
   if (chainsListed.length > 0 && chainsListed.includes(chainId)) {
     let isAuthorized = false
     for (const accessListAddress of accessList[chainId]) {
-      const result = await checkAddressOnAccessList(
+      const result = await checkAddressOnAccessListWithSigner(
         accessListAddress,
         addressToCheck,
         signer

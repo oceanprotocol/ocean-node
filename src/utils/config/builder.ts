@@ -9,8 +9,7 @@ import { C2DClusterType } from '../../@types/C2D/C2D.js'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-// import { hexStringToByteArray, computeCodebaseHash } from '../index.js'
-import { computeCodebaseHash } from '../index.js'
+import { computeCodebaseHash } from '../attestation.js'
 
 import {
   getOceanArtifactsAdresses,

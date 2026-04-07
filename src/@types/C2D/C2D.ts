@@ -1,5 +1,6 @@
 import { MetadataAlgorithm, ConsumerParameter } from '@oceanprotocol/ddo-js'
 import type { BaseFileObject, StorageObject, EncryptMethod } from '../fileObject.js'
+import type { AccessList } from '../AccessList.js'
 export enum C2DClusterType {
   // eslint-disable-next-line no-unused-vars
   OPF_K8 = 0,
@@ -95,7 +96,7 @@ export interface RunningPlatform {
 
 export interface ComputeAccessList {
   addresses: string[]
-  accessLists: { [chainId: string]: string[] }[] | null
+  accessLists: AccessList[] | null
 }
 
 export interface ComputeEnvironmentFreeOptions {

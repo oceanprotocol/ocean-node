@@ -123,7 +123,39 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
     return
   }
 
-  P2P_LOGGER.logMessage('Performing P2P task: ' + JSON.stringify(task), true)
+  const taskRecord = task as unknown as Record<string, unknown>
+  if (taskRecord.p2pStreamBody === true) {
+    delete taskRecord.p2pStreamBody
+
+    // True streaming: expose an async Readable that reads LP frames lazily
+    // as the handler consumes it. Frames are terminated by an empty chunk.
+    taskRecord.stream = Readable.from(
+      (async function* () {
+        while (true) {
+          const frame = await lp.read({ signal: handshakeSignal() })
+          const buf = Buffer.from(
+            (frame as unknown as { subarray: () => Uint8Array }).subarray()
+          )
+
+          if (buf.length === 0) {
+            break
+          }
+
+          yield buf
+        }
+      })()
+    )
+  }
+
+  const logPayload = { ...taskRecord }
+  // Avoid JSON-stringifying the request stream itself.
+  if (logPayload.stream) {
+    logPayload.stream = '[request stream]'
+  }
+  if (Buffer.isBuffer(logPayload.rawData)) {
+    logPayload.rawData = `[${logPayload.rawData.length} bytes]`
+  }
+  P2P_LOGGER.logMessage('Performing P2P task: ' + JSON.stringify(logPayload), true)
 
   // Get and execute handler
   const handler: BaseHandler = this.getCoreHandlers().getHandler(task.command)
@@ -152,11 +184,15 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
     await stream.close()
   } catch (err) {
     P2P_LOGGER.logMessageWithEmoji(
-      'handleProtocolCommands Error: ' + err.message,
+      'handleProtocolCommands Error: ' +
+        (err instanceof Error ? err.message : String(err)),
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
     )
-    await sendErrorAndClose(500, err.message)
+    const httpStatus =
+      typeof (err as any)?.status === 'number' ? (err as any).status : 500
+    const msg = err instanceof Error ? err.message : String(err)
+    await sendErrorAndClose(httpStatus, msg)
   }
 }

@@ -84,6 +84,64 @@ export const OceanNodeDBConfigSchema = z.object({
   dbType: z.string().nullable()
 })
 
+export const PersistentStorageConfigSchema = z
+  .object({
+    enabled: z.boolean().optional().default(false),
+    type: z.enum(['localfs', 's3']).optional().default('localfs'),
+    accessLists: jsonFromString(z.array(z.record(z.string(), z.array(z.string()))))
+      .optional()
+      .default([]),
+    options: z.any().optional()
+  })
+  .superRefine((data, ctx) => {
+    if (!data.enabled) return
+
+    if (data.type === 'localfs') {
+      if (!data.options || typeof data.options !== 'object') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'persistentStorage.options must be an object for localfs',
+          path: ['options']
+        })
+        return
+      }
+      if (
+        typeof (data.options as any).folder !== 'string' ||
+        !(data.options as any).folder
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'persistentStorage.options.folder is required for localfs',
+          path: ['options', 'folder']
+        })
+      }
+    }
+
+    if (data.type === 's3') {
+      if (!data.options || typeof data.options !== 'object') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'persistentStorage.options must be an object for s3',
+          path: ['options']
+        })
+        return
+      }
+      const required = ['endpoint', 'objectKey', 'accessKeyId', 'secretAccessKey']
+      for (const key of required) {
+        if (
+          typeof (data.options as any)[key] !== 'string' ||
+          !(data.options as any)[key]
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `persistentStorage.options.${key} is required for s3`,
+            path: ['options', key]
+          })
+        }
+      }
+    }
+  })
+
 export const DockerRegistryAuthSchema = z
   .object({
     username: z.string().optional(),
@@ -329,6 +387,7 @@ export const OceanNodeConfigSchema = z
     DB_PASSWORD: z.string().optional(),
     DB_TYPE: z.string().optional(),
     dbConfig: OceanNodeDBConfigSchema.optional(),
+    persistentStorage: PersistentStorageConfigSchema.optional(),
 
     FEE_AMOUNT: z.string().optional(),
     FEE_TOKENS: z.string().optional(),

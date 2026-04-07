@@ -1,3 +1,4 @@
+import { Readable } from 'stream'
 import { ValidateParams } from '../components/httpRoutes/validateCommands.js'
 import { P2PCommandResponse } from './OceanNode'
 import { DDO } from '@oceanprotocol/ddo-js'
@@ -8,12 +9,13 @@ import type {
   DBComputeJobMetadata
 } from './C2D/C2D.js'
 import { FileObjectType, StorageObject, EncryptMethod } from './fileObject'
-
+import type { AccessList } from './AccessList.js'
 export interface Command {
   command: string // command name
   node?: string // if not present it means current node
   authorization?: string
   caller?: string | string[] // added by our node for rate limiting
+  stream?: Readable | null // commands may have an extra stream, after body. IE: Encrypt file
 }
 
 export interface GetP2PPeerCommand extends Command {
@@ -313,4 +315,44 @@ export interface GetJobsCommand extends Command {
   fromTimestamp?: string
   consumerAddrs?: string[]
   runningJobs?: boolean
+}
+
+export interface PersistentStorageCreateBucketCommand extends Command {
+  consumerAddress: string
+  signature: string
+  nonce: string
+  accessLists: AccessList[]
+}
+
+export interface PersistentStorageGetBucketsCommand extends Command {
+  consumerAddress: string
+  signature: string
+  nonce: string
+  chainId: number
+  /** Ethereum address; only buckets with this stored owner are returned (then filtered by ACL). */
+  owner: string
+}
+
+export interface PersistentStorageListFilesCommand extends Command {
+  consumerAddress: string
+  signature: string
+  nonce: string
+  bucketId: string
+}
+
+export interface PersistentStorageUploadFileCommand extends Command {
+  consumerAddress: string
+  signature: string
+  nonce: string
+  bucketId: string
+  fileName: string
+}
+
+export interface PersistentStorageDeleteFileCommand extends Command {
+  consumerAddress: string
+  signature: string
+  nonce: string
+  chainId: number
+  bucketId: string
+  fileName: string
 }

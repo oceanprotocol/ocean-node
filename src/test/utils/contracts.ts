@@ -55,7 +55,6 @@ export async function deployAccessListContract(
   if (!nameAccessList || !symbolAccessList) {
     throw new Error(`Access list symbol and name are required`)
   }
-
   const contract = getContract(contractFactoryAddress, contractFactoryAbi, signer)
 
   try {
@@ -125,7 +124,12 @@ export async function deployAndGetAccessListConfig(
       await wallets[2].getAddress(),
       await wallets[3].getAddress()
     ],
-    ['https://oceanprotocol.com/nft/']
+    [
+      'https://oceanprotocol.com/nft/',
+      'https://oceanprotocol.com/nft/',
+      'https://oceanprotocol.com/nft/',
+      'https://oceanprotocol.com/nft/'
+    ]
   )
 
   if (!txAddress) {

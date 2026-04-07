@@ -1025,41 +1025,5 @@ async function validateAccess(
   if (access.addresses.includes(consumerAddress)) {
     return true
   }
-
-  const config = await getConfiguration()
-  const { supportedNetworks } = config
-  for (const accessListMap of access.accessLists) {
-    if (!accessListMap) continue
-    for (const chain of Object.keys(accessListMap)) {
-      const { chainId } = supportedNetworks[chain]
-      try {
-        const blockchain = oceanNode.getBlockchain(chainId)
-        if (!blockchain) {
-          CORE_LOGGER.logMessage(
-            `Blockchain instance not available for chain ${chainId}, skipping access list check`,
-            true
-          )
-          continue
-        }
-        const signer = await blockchain.getSigner()
-        for (const accessListAddress of accessListMap[chain]) {
-          const hasAccess = await checkAddressOnAccessList(
-            accessListAddress,
-            consumerAddress,
-            signer
-          )
-          if (hasAccess) {
-            return true
-          }
-        }
-      } catch (error) {
-        CORE_LOGGER.logMessage(
-          `Failed to check access lists on chain ${chain}: ${error.message}`,
-          true
-        )
-      }
-    }
-  }
-
-  return false
+  return await checkAddressOnAccessList(consumerAddress, access.accessLists, oceanNode)
 }

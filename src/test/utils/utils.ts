@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url'
 import { DB_TYPES, ENVIRONMENT_VARIABLES, EnvVariable } from '../../utils/constants.js'
 import { CONFIG_LOGGER } from '../../utils/logging/common.js'
 import { RPCS } from '../../@types/blockchain.js'
-import { getConfiguration } from '../../utils/config.js'
+import { getConfiguration } from '../../utils/config/builder.js'
 
 export const DEFAULT_TEST_TIMEOUT = 20000 // 20 secs MAX
 // __dirname and __filename are not defined in ES module scope
@@ -164,3 +164,5 @@ export function isRunningContinousIntegrationEnv(): boolean {
 export const SELECTED_RUN_DATABASE =
   new Date().getTime() % 2 === 0 ? DB_TYPES.ELASTIC_SEARCH : DB_TYPES.TYPESENSE
 CONFIG_LOGGER.debug(`SELECTED_RUN_DATABASE: ${SELECTED_RUN_DATABASE}`)
+
+export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))

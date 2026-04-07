@@ -58,7 +58,8 @@ import {
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
   setupEnvironment,
-  tearDownEnvironment
+  tearDownEnvironment,
+  sleep
 } from '../utils/utils.js'
 
 import { ProviderFees, ProviderComputeInitializeResults } from '../../@types/Fees.js'
@@ -82,8 +83,6 @@ import Dockerode from 'dockerode'
 import { C2DEngineDocker } from '../../components/c2d/compute_engine_docker.js'
 import { createHashForSignature, safeSign } from '../utils/signature.js'
 import { create256Hash } from '../../utils/crypt.js'
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /**
  * Polls getComputeEnvironments until every environment's resources (and free.resources)
