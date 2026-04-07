@@ -49,7 +49,7 @@ export async function checkAddressOnAccessList(
   oceanNode: OceanNode
 ): Promise<boolean> {
   if (!access || access.length === 0) {
-    return true
+    return false
   }
   const config = oceanNode.getConfig()
   const { supportedNetworks } = config
