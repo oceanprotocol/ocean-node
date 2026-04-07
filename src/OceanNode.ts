@@ -77,8 +77,12 @@ export class OceanNode {
         this.blockchainRegistry
       )
       if (this.config.persistentStorage?.enabled) {
+        OCEAN_NODE_LOGGER.info(
+          `Starting PersistenStorage with type ${this.config.persistentStorage.type}`
+        )
         this.persistentStorage = createPersistentStorage(this)
       } else {
+        OCEAN_NODE_LOGGER.info(`Starting without PersistenStorage`)
         this.persistentStorage = null
       }
     }

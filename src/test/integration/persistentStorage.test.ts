@@ -161,7 +161,7 @@ describe('Persistent storage handlers (integration)', function () {
       fileName,
       stream: Readable.from(body)
     } as any)
-
+    console.log(uploadRes)
     expect(uploadRes.status.httpStatus).to.equal(200)
     const uploaded = await streamToObject(uploadRes.stream as Readable)
     expect(uploaded.name).to.equal(fileName)
