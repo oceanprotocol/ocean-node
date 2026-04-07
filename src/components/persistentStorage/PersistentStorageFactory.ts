@@ -3,6 +3,7 @@ import type { BaseFileObject } from '../../@types/fileObject.js'
 import sqlite3, { RunResult } from 'sqlite3'
 import path from 'path'
 import fs from 'fs'
+import { getAddress } from 'ethers'
 import { OceanNode } from '../../OceanNode.js'
 import { checkAddressOnAccessList } from '../../utils/accessList.js'
 
@@ -10,6 +11,14 @@ export class PersistentStorageAccessDeniedError extends Error {
   constructor(message = 'You are not allowed to access this bucket') {
     super(message)
     this.name = 'PersistentStorageAccessDeniedError'
+  }
+}
+
+function normalizeWeb3Address(addr: string): string {
+  try {
+    return getAddress(addr)
+  } catch {
+    return (addr ?? '').toLowerCase()
   }
 }
 
@@ -100,13 +109,23 @@ export abstract class PersistentStorageFactory {
   async getBucketAccessList(bucketId: string): Promise<AccessList[]> {
     await this.dbCreateTables()
     try {
-      const row = await this.dbGetBucket(bucketId)
+      const row = await this.getBucket(bucketId)
       if (!row) {
         return []
       }
       return parseBucketAccessListsJson(row.accessListJson)
     } catch {
       return []
+    }
+  }
+
+  async getBucket(bucketId: string): Promise<BucketRow | null> {
+    await this.dbCreateTables()
+    try {
+      const row = await this.dbGetBucket(bucketId)
+      return row
+    } catch {
+      return null
     }
   }
 
@@ -201,7 +220,11 @@ export abstract class PersistentStorageFactory {
     consumerAddress: string,
     bucketId: string
   ): Promise<void> {
-    const accessLists = await this.getBucketAccessList(bucketId)
+    const bucket = await this.getBucket(bucketId)
+    const accessLists = parseBucketAccessListsJson(bucket.accessListJson)
+    if (normalizeWeb3Address(consumerAddress) === normalizeWeb3Address(bucket.owner)) {
+      return
+    }
     if (!(await this.isAllowed(consumerAddress, accessLists))) {
       throw new PersistentStorageAccessDeniedError()
     }

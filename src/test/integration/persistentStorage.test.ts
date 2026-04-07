@@ -52,6 +52,7 @@ describe('Persistent storage handlers (integration)', function () {
   let owner: Signer
   let wallets: Signer[] = []
   let forbiddenConsumer: Signer
+  let bucketAllowList: any
 
   before(async () => {
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
@@ -79,6 +80,7 @@ describe('Persistent storage handlers (integration)', function () {
       provider,
       wallets
     )
+    bucketAllowList = accessListPublishers
     previousConfiguration = await setupEnvironment(
       TEST_ENV_CONFIG_FILE,
       buildEnvOverrideConfig(
@@ -92,7 +94,7 @@ describe('Persistent storage handlers (integration)', function () {
     config.persistentStorage = {
       enabled: true,
       type: 'localfs',
-      accessLists: [accessListPublishers],
+      accessLists: [bucketAllowList],
       options: { folder: psRoot }
     }
 
@@ -161,7 +163,6 @@ describe('Persistent storage handlers (integration)', function () {
       fileName,
       stream: Readable.from(body)
     } as any)
-    console.log(uploadRes)
     expect(uploadRes.status.httpStatus).to.equal(200)
     const uploaded = await streamToObject(uploadRes.stream as Readable)
     expect(uploaded.name).to.equal(fileName)
@@ -249,6 +250,72 @@ describe('Persistent storage handlers (integration)', function () {
 
     expect(res.status.httpStatus).to.equal(403)
     expect(res.status.error).to.contain('not allowed')
+  })
+
+  it('should deny forbiddenConsumer for bucket operations when bucket has accessList', async () => {
+    // Create a bucket whose ACL allows only wallets[0..3]
+    const consumerAddress = await consumer.getAddress()
+    let nonce = Date.now().toString()
+    let messageHashBytes = createHashForSignature(
+      consumerAddress,
+      nonce,
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+    )
+    let signature = await safeSign(consumer, messageHashBytes)
+
+    const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      consumerAddress,
+      signature,
+      nonce,
+      accessLists: [bucketAllowList],
+      authorization: undefined
+    } as any)
+
+    expect(createRes.status.httpStatus).to.equal(200)
+    const created = await streamToObject(createRes.stream as Readable)
+    const bucketId = created.bucketId as string
+
+    // Forbidden consumer tries to list files -> should fail
+    const forbiddenConsumerAddress = await forbiddenConsumer.getAddress()
+    nonce = Date.now().toString()
+    messageHashBytes = createHashForSignature(
+      forbiddenConsumerAddress,
+      nonce,
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_LIST_FILES
+    )
+    signature = await safeSign(forbiddenConsumer, messageHashBytes)
+    const listRes = await new PersistentStorageListFilesHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_LIST_FILES,
+      consumerAddress: forbiddenConsumerAddress,
+      signature,
+      nonce,
+      bucketId,
+      authorization: undefined
+    } as any)
+    expect(listRes.status.httpStatus).to.equal(403)
+    expect(listRes.status.error).to.contain('not allowed')
+
+    // Forbidden consumer tries to upload -> should fail
+    nonce = Date.now().toString()
+    messageHashBytes = createHashForSignature(
+      forbiddenConsumerAddress,
+      nonce,
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
+    )
+    signature = await safeSign(forbiddenConsumer, messageHashBytes)
+    const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
+      consumerAddress: forbiddenConsumerAddress,
+      signature,
+      nonce,
+      bucketId,
+      fileName: 'forbidden.txt',
+      stream: Readable.from(Buffer.from('nope')),
+      authorization: undefined
+    } as any)
+    expect(uploadRes.status.httpStatus).to.equal(403)
+    expect(uploadRes.status.error).to.contain('not allowed')
   })
 
   it('getBuckets returns buckets the consumer can access', async () => {
