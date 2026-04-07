@@ -1586,3 +1586,154 @@ returns job result
 #### Response
 
 File content
+
+---
+
+## Persistent Storage
+
+### `HTTP` POST /api/services/persistentStorage/buckets
+
+#### Description
+
+Create a new persistent storage bucket. Bucket ownership is set to the request `consumerAddress`.
+
+#### Request Headers
+
+| name            | type   | required | description |
+| --------------- | ------ | -------- | ----------- |
+| Authorization   | string |          | auth token (optional; depends on node auth configuration) |
+
+#### Request Body
+
+```json
+{
+  "consumerAddress": "0x...",
+  "signature": "0x...",
+  "nonce": "123",
+  "accessLists": []
+}
+```
+
+#### Response (200)
+
+```json
+{
+  "bucketId": "uuid",
+  "owner": "0x...",
+  "accessList": []
+}
+```
+
+---
+
+### `HTTP` GET /api/services/persistentStorage/buckets
+
+#### Description
+
+List buckets for a given `owner`. Results are filtered by bucket access lists for the calling consumer.
+
+#### Query Parameters
+
+| name            | type   | required | description |
+| --------------- | ------ | -------- | ----------- |
+| consumerAddress | string | v        | consumer address |
+| signature       | string | v        | signed message (consumerAddress + nonce + command) |
+| nonce           | string | v        | request nonce |
+| chainId         | number | v        | chain id (used by auth/signature checks) |
+| owner           | string | v        | bucket owner to filter by |
+
+#### Response (200)
+
+```json
+[
+  {
+    "bucketId": "uuid",
+    "owner": "0x...",
+    "createdAt": 1710000000,
+    "accessLists": []
+  }
+]
+```
+
+---
+
+### `HTTP` GET /api/services/persistentStorage/buckets/:bucketId/files
+
+#### Description
+
+List files in a bucket.
+
+#### Query Parameters
+
+| name            | type   | required | description |
+| --------------- | ------ | -------- | ----------- |
+| consumerAddress | string | v        | consumer address |
+| signature       | string | v        | signed message (consumerAddress + nonce + command) |
+| nonce           | string | v        | request nonce |
+
+#### Response (200)
+
+```json
+[
+  {
+    "bucketId": "uuid",
+    "name": "hello.txt",
+    "size": 123,
+    "lastModified": 1710000000
+  }
+]
+```
+
+---
+
+### `HTTP` POST /api/services/persistentStorage/buckets/:bucketId/files/:fileName
+
+#### Description
+
+Upload a file to a bucket. The request body is treated as raw bytes.
+
+#### Query Parameters
+
+| name            | type   | required | description |
+| --------------- | ------ | -------- | ----------- |
+| consumerAddress | string | v        | consumer address |
+| signature       | string | v        | signed message (consumerAddress + nonce + command) |
+| nonce           | string | v        | request nonce |
+
+#### Request Body
+
+Raw bytes (any content-type).
+
+#### Response (200)
+
+```json
+{
+  "bucketId": "uuid",
+  "name": "hello.txt",
+  "size": 123,
+  "lastModified": 1710000000
+}
+```
+
+---
+
+### `HTTP` DELETE /api/services/persistentStorage/buckets/:bucketId/files/:fileName
+
+#### Description
+
+Delete a file from a bucket.
+
+#### Query Parameters
+
+| name            | type   | required | description |
+| --------------- | ------ | -------- | ----------- |
+| consumerAddress | string | v        | consumer address |
+| signature       | string | v        | signed message (consumerAddress + nonce + command) |
+| nonce           | string | v        | request nonce |
+| chainId         | number | v        | chain id (used by auth/signature checks) |
+
+#### Response (200)
+
+```json
+{ "success": true }
+```
