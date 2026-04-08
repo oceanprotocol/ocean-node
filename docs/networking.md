@@ -137,7 +137,7 @@ Look at the `addresses` array in the response. Are any of those IPs/hostnames re
 Ask a known public node to report back what it knows about you:
 
 ```bash
-curl http://node2.oceanprotocol.com:8000/getP2pPeer?peerId=<your-peer-id>
+curl https://cp1.oncompute.ai/getP2pPeer?peerId=<your-peer-id>
 ```
 
 If the response is empty or missing your public address, the node is not reachable from the outside.
