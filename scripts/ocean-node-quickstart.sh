@@ -182,10 +182,10 @@ if [ -n "$P2P_ANNOUNCE_ADDRESS" ]; then
 
 if [[ "$P2P_ANNOUNCE_ADDRESS" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     # IPv4
-    P2P_ANNOUNCE_ADDRESSES='["/ip4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindTcpPort'", "/ip4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindWsPort'/ws", "/ip4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindWsPort'/tls/ws", "/ip4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindWsPort'/tls/wss"]'
+    P2P_ANNOUNCE_ADDRESSES='["/ip4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindTcpPort'", "/ip4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindWsPort'/ws", "/ip4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindWsPort'/tls/ws"]'
   elif [[ "$P2P_ANNOUNCE_ADDRESS" =~ ^[a-zA-Z0-9.-]+$ ]]; then
     # FQDN
-    P2P_ANNOUNCE_ADDRESSES='["/dns4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindTcpPort'", "/dns4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindWsPort'/ws", "/dns4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindWsPort'/tls/ws", "/dns4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindWsPort'/tls/wss"]'
+    P2P_ANNOUNCE_ADDRESSES='["/dns4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindTcpPort'", "/dns4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindWsPort'/ws", "/dns4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindWsPort'/tls/ws"]'
   fi
 else
   P2P_ANNOUNCE_ADDRESSES=''

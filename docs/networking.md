@@ -12,12 +12,11 @@ Example for a node with public IP `1.2.3.4`, using ports 9000 (TCP) and 9001 (We
 P2P_ANNOUNCE_ADDRESSES='[
   "/ip4/1.2.3.4/tcp/9000",
   "/ip4/1.2.3.4/tcp/9001/ws",
-  "/ip4/1.2.3.4/tcp/9001/tls/ws",
-  "/ip4/1.2.3.4/tcp/9001/tls/wss"
+  "/ip4/1.2.3.4/tcp/9001/tls/ws"
 ]'
 ```
 
-The `/tls/ws` and `/tls/wss` entries enable [AutoTLS](#tls-and-sni-server-name-indication) for node-to-browser communication. AutoTLS handles certificate provisioning automatically — no DNS setup required on your part.
+The `/tls/ws` entry enables [AutoTLS](#tls-and-sni-server-name-indication) for node-to-browser communication. AutoTLS provisions a certificate and serves TLS at the transport layer on the WebSocket port, making it browser-compatible — no DNS setup required on your part.
 
 ## Option 2: Dynamic DNS (no static IP)
 
@@ -31,8 +30,7 @@ Once you have a hostname (e.g. `mynode.duckdns.org`), set up the DDNS client on 
 P2P_ANNOUNCE_ADDRESSES='[
   "/dns4/mynode.duckdns.org/tcp/9000",
   "/dns4/mynode.duckdns.org/tcp/9001/ws",
-  "/dns4/mynode.duckdns.org/tcp/9001/tls/ws",
-  "/dns4/mynode.duckdns.org/tcp/9001/tls/wss"
+  "/dns4/mynode.duckdns.org/tcp/9001/tls/ws"
 ]'
 ```
 
@@ -74,7 +72,9 @@ Do not enable `P2P_ENABLE_CIRCUIT_RELAY_SERVER` on edge nodes; that setting is f
 
 ## TLS and SNI (Server Name Indication)
 
-AutoTLS provisions TLS certificates for your node automatically, enabling P2P node-to-browser communication. It is always active internally — no DNS or certificate setup required on your part. For it to work, you must include `/tls/ws` or `/tls/wss` entries in `P2P_ANNOUNCE_ADDRESSES`, which the quickstart script does automatically.
+AutoTLS provisions TLS certificates for your node automatically, enabling P2P node-to-browser communication. It is always active internally — no DNS or certificate setup required on your part. For it to work, you must include a `/tls/ws` entry in `P2P_ANNOUNCE_ADDRESSES`, which the quickstart script does automatically.
+
+AutoTLS serves TLS at the transport layer on the WebSocket port, making it standard browser-compatible WSS — no separate port is needed.
 
 Example `.env` / docker-compose entry:
 
@@ -82,8 +82,7 @@ Example `.env` / docker-compose entry:
 P2P_ANNOUNCE_ADDRESSES='[
   "/ip4/<your-ip>/tcp/9000",
   "/ip4/<your-ip>/tcp/9001/ws",
-  "/ip4/<your-ip>/tcp/9001/tls/ws",
-  "/ip4/<your-ip>/tcp/9001/tls/wss"
+  "/ip4/<your-ip>/tcp/9001/tls/ws"
 ]'
 ```
 
@@ -95,8 +94,7 @@ Or in `config.json`:
     "announceAddresses": [
       "/ip4/<your-ip>/tcp/9000",
       "/ip4/<your-ip>/tcp/9001/ws",
-      "/ip4/<your-ip>/tcp/9001/tls/ws",
-      "/ip4/<your-ip>/tcp/9001/tls/wss"
+      "/ip4/<your-ip>/tcp/9001/tls/ws"
     ]
   }
 }
