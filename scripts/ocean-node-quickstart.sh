@@ -182,10 +182,10 @@ if [ -n "$P2P_ANNOUNCE_ADDRESS" ]; then
 
 if [[ "$P2P_ANNOUNCE_ADDRESS" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     # IPv4
-    P2P_ANNOUNCE_ADDRESSES='["/ip4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindTcpPort'", "/ip4/'$P2P_ANNOUNCE_ADDRESS'/ws/tcp/'$P2P_ipV4BindWsPort'"]'
+    P2P_ANNOUNCE_ADDRESSES='["/ip4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindTcpPort'", "/ip4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindWsPort'/ws", "/ip4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindWsPort'/tls/ws", "/ip4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindWsPort'/tls/wss"]'
   elif [[ "$P2P_ANNOUNCE_ADDRESS" =~ ^[a-zA-Z0-9.-]+$ ]]; then
     # FQDN
-    P2P_ANNOUNCE_ADDRESSES='["/dns4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindTcpPort'", "/dns4/'$P2P_ANNOUNCE_ADDRESS'/ws/tcp/'$P2P_ipV4BindWsPort'"]'
+    P2P_ANNOUNCE_ADDRESSES='["/dns4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindTcpPort'", "/dns4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindWsPort'/ws", "/dns4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindWsPort'/tls/ws", "/dns4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindWsPort'/tls/wss"]'
   fi
 else
   P2P_ANNOUNCE_ADDRESSES=''
@@ -686,8 +686,8 @@ services:
 #      P2P_connectionsDialTimeout: ''
        P2P_ENABLE_UPNP: '$P2P_ENABLE_UPNP'
 #      P2P_ENABLE_AUTONAT: ''
-#      P2P_ENABLE_CIRCUIT_RELAY_SERVER: ''
-#      P2P_ENABLE_CIRCUIT_RELAY_CLIENT: ''
+      P2P_ENABLE_CIRCUIT_RELAY_SERVER: false
+      P2P_ENABLE_CIRCUIT_RELAY_CLIENT: false
 #      P2P_BOOTSTRAP_NODES: ''
 #      P2P_FILTER_ANNOUNCED_ADDRESSES: ''
       DOCKER_COMPUTE_ENVIRONMENTS: '$DOCKER_COMPUTE_ENVIRONMENTS'
@@ -753,3 +753,7 @@ echo -e "\e[1;32mP2P IPv6 TCP Port: $P2P_ipV6BindTcpPort\e[0m"
 echo -e "\e[1;32mP2P IPv6 WebSocket Port: $P2P_ipV6BindWsPort\e[0m"
 echo ""
 echo -e "\e[1;32m4)\e[0m If using SSL/TLS with a custom domain name, make sure to listen on host port 443 for the HTTP API, or use a reverse proxy with TLS offloading"
+echo ""
+echo -e "If your node is not reachable by other peers (NAT, no public IP, port forwarding issues),"
+echo -e "refer to the networking guide for help with Dynamic DNS, port forwarding, and circuit relay:"
+echo -e "\e[1;34mhttps://github.com/oceanprotocol/ocean-node/blob/main/docs/networking.md\e[0m"
