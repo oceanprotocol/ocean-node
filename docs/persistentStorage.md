@@ -6,9 +6,10 @@ This document describes Ocean Node **Persistent Storage** at a high level: what 
 
 ## What it is
 
-Persistent Storage is a simple bucket + file store intended for **long-lived artifacts** that Ocean Node needs to keep across requests (and potentially across restarts), and to reference later (e.g. as file objects for compute).
+Persistent Storage is a simple bucket + file store intended for **long-lived artifacts** that Ocean Node needs to keep across requests and across restarts, and to reference later (e.g. as file objects for compute).
 
 Key primitives:
+
 - **Bucket**: a logical container for files.
 - **File**: binary content stored inside a bucket.
 - **Bucket registry**: a local SQLite table that stores bucket metadata (owner, access lists, createdAt).
@@ -35,7 +36,8 @@ Key primitives:
 
 Persistent Storage uses two stores:
 
-1) **Bucket registry (SQLite)**
+1. **Bucket registry (SQLite)**
+
 - File: `databases/persistentStorage.sqlite`
 - Table: `persistent_storage_buckets`
 - Columns:
@@ -44,7 +46,8 @@ Persistent Storage uses two stores:
   - `accessListJson` (JSON-encoded access list array)
   - `createdAt` (unix timestamp)
 
-2) **Backend data**
+2. **Backend data**
+
 - `localfs`: writes file bytes to the configured folder under `buckets/<bucketId>/<fileName>`.
 - `s3`: not implemented yet.
 
@@ -75,11 +78,13 @@ This access list is used to decide whether a given `consumerAddress` is allowed 
 
 Access checks happen at two levels:
 
-1) **Backend enforcement** (required)
+1. **Backend enforcement** (required)
+
 - Backend operations `listFiles`, `uploadFile`, `deleteFile`, and `getFileObject` all require `consumerAddress`.
 - The base class helper `assertConsumerAllowedForBucket(consumerAddress, bucketId)` loads the bucket ACL and throws `PersistentStorageAccessDeniedError` if the consumer is not allowed.
 
-2) **Handler enforcement** (command-specific)
+2. **Handler enforcement** (command-specific)
+
 - `createBucket`: additionally checks the node-level allow list `config.persistentStorage.accessLists` (who can create buckets at all).
 - `getBuckets`: queries registry rows filtered by `owner` and then:
   - if `consumerAddress === owner`: returns all buckets for that owner
@@ -115,6 +120,10 @@ Access checks happen at two levels:
   - Deletes the named file from the bucket.
   - Enforces bucket ACL.
 
+- **getFileObject**
+  - Returns fileObject format for c2d use
+  - Enforces bucket ACL.
+
 ### Not implemented yet
 
 - **S3 backend**
@@ -127,6 +136,7 @@ Access checks happen at two levels:
 Persistent storage is controlled by `persistentStorage` in node config.
 
 Key fields:
+
 - `enabled`: boolean
 - `type`: `"localfs"` or `"s3"`
 - `accessLists`: AccessList[] — node-level allow list to create buckets
@@ -138,9 +148,18 @@ Key fields:
 
 ## Usage
 
+Flow is:
+
+- create bucket (or use existing bucket)
+- list files
+- upload file if needed
+- GetFileObject to get object needed for c2d reference
+- start c2d job using fileObject for datasets
+
 ### P2P commands
 
 All persistent storage operations are implemented as protocol commands in the handler:
+
 - `persistentStorageCreateBucket`
 - `persistentStorageGetBuckets`
 - `persistentStorageListFiles`
@@ -155,6 +174,7 @@ Each command requires authentication (token or signature) based on Ocean Node’
 HTTP routes are available under `/api/services/persistentStorage/...` and call the same handlers. See `docs/API.md` for the full parameter lists and examples.
 
 At a glance:
+
 - `POST /api/services/persistentStorage/buckets`
 - `GET /api/services/persistentStorage/buckets`
 - `GET /api/services/persistentStorage/buckets/:bucketId/files`
@@ -171,4 +191,3 @@ Upload uses the raw request body as bytes and forwards it to the handler as a st
 - The bucket registry is local to the node (SQLite file). If you run multiple nodes, each node’s registry is independent unless you externalize/replicate it.
 - `listBuckets(owner)` requires `owner` and only returns buckets that were created with that owner recorded.
 - Filenames in `localfs` are constrained (no path separators) to avoid path traversal.
-
