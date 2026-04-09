@@ -1,5 +1,5 @@
 import type { AccessList } from './AccessList'
-
+import type { BaseFileObject } from './fileObject.js'
 export type PersistentStorageType = 'localfs' | 's3'
 
 export interface PersistentStorageLocalFSOptions {
@@ -21,4 +21,21 @@ export interface PersistentStorageConfig {
   type: PersistentStorageType
   accessLists: AccessList[]
   options: PersistentStorageLocalFSOptions | PersistentStorageS3Options
+}
+
+/**
+ * Docker mount descriptor used by the Docker C2D engine.
+ * Mirrors Dockerode `HostConfig.Mounts[]` item shape.
+ */
+export interface DockerMountObject {
+  Type: 'bind'
+  Source: string
+  Target: string
+  ReadOnly: boolean
+}
+
+export interface PersistentStorageObject extends BaseFileObject {
+  type: 'nodePersistentStorage'
+  bucketId: string
+  fileName: string
 }

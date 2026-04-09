@@ -144,6 +144,7 @@ All persistent storage operations are implemented as protocol commands in the ha
 - `persistentStorageCreateBucket`
 - `persistentStorageGetBuckets`
 - `persistentStorageListFiles`
+- `persistentStorageGetFileObject`
 - `persistentStorageUploadFile`
 - `persistentStorageDeleteFile`
 
@@ -157,6 +158,7 @@ At a glance:
 - `POST /api/services/persistentStorage/buckets`
 - `GET /api/services/persistentStorage/buckets`
 - `GET /api/services/persistentStorage/buckets/:bucketId/files`
+- `GET /api/services/persistentStorage/buckets/:bucketId/files/:fileName/object`
 - `POST /api/services/persistentStorage/buckets/:bucketId/files/:fileName`
 - `DELETE /api/services/persistentStorage/buckets/:bucketId/files/:fileName`
 

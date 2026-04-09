@@ -9,6 +9,7 @@ import {
   PersistentStorageCreateBucketHandler,
   PersistentStorageDeleteFileHandler,
   PersistentStorageGetBucketsHandler,
+  PersistentStorageGetFileObjectHandler,
   PersistentStorageListFilesHandler,
   PersistentStorageUploadFileHandler
 } from '../core/handler/persistentStorage.js'
@@ -103,6 +104,36 @@ persistentStorageRoutes.get(
       res.status(200).json(payload)
     } catch (error) {
       HTTP_LOGGER.error(`PersistentStorage list files error: ${error}`)
+      res.status(500).send('Internal Server Error')
+    }
+  }
+)
+
+// Get file object for a file in a bucket
+persistentStorageRoutes.get(
+  `${SERVICES_API_BASE_PATH}/persistentStorage/buckets/:bucketId/files/:fileName/object`,
+  async (req, res) => {
+    try {
+      const response = await new PersistentStorageGetFileObjectHandler(
+        req.oceanNode
+      ).handle({
+        command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_FILE_OBJECT,
+        consumerAddress: req.query.consumerAddress as string,
+        signature: req.query.signature as string,
+        nonce: req.query.nonce as string,
+        bucketId: req.params.bucketId,
+        fileName: req.params.fileName,
+        authorization: req.headers?.authorization,
+        caller: req.caller
+      } as any)
+      if (!response.stream) {
+        res.status(response.status.httpStatus).send(response.status.error)
+        return
+      }
+      const payload = await streamToObject(response.stream as Readable)
+      res.status(200).json(payload)
+    } catch (error) {
+      HTTP_LOGGER.error(`PersistentStorage get file object error: ${error}`)
       res.status(500).send('Internal Server Error')
     }
   }

@@ -1686,6 +1686,32 @@ List files in a bucket.
 
 ---
 
+### `HTTP` GET /api/services/persistentStorage/buckets/:bucketId/files/:fileName/object
+
+#### Description
+
+Return the `fileObject` for a specific file in a bucket (useful for passing references to other subsystems like compute).
+
+#### Query Parameters
+
+| name            | type   | required | description |
+| --------------- | ------ | -------- | ----------- |
+| consumerAddress | string | v        | consumer address |
+| signature       | string | v        | signed message (consumerAddress + nonce + command) |
+| nonce           | string | v        | request nonce |
+
+#### Response (200)
+
+```json
+{
+  "type": "nodePersistentStorage",
+  "bucketId": "uuid",
+  "fileName": "hello.txt"
+}
+```
+
+---
+
 ### `HTTP` POST /api/services/persistentStorage/buckets/:bucketId/files/:fileName
 
 #### Description

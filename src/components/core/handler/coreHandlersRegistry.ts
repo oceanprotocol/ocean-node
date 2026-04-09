@@ -51,6 +51,7 @@ import {
   PersistentStorageCreateBucketHandler,
   PersistentStorageDeleteFileHandler,
   PersistentStorageGetBucketsHandler,
+  PersistentStorageGetFileObjectHandler,
   PersistentStorageListFilesHandler,
   PersistentStorageUploadFileHandler
 } from './persistentStorage.js'
@@ -189,6 +190,10 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
       new PersistentStorageUploadFileHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_FILE_OBJECT,
+      new PersistentStorageGetFileObjectHandler(node)
     )
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DELETE_FILE,

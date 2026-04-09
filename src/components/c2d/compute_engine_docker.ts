@@ -1820,6 +1820,64 @@ export class C2DEngineDocker extends C2DEngine {
         }
         containerInfo.Env = envVars
       }
+      // persistent Storage: bind-mount bucket files into the job container (localfs backend)
+      for (const i in job.assets) {
+        const asset = job.assets[i]
+        if (!asset.fileObject || asset.fileObject.type !== 'nodePersistentStorage') {
+          continue
+        }
+        const fo = asset.fileObject as { bucketId?: string; fileName?: string }
+        if (!fo.bucketId || !fo.fileName) {
+          CORE_LOGGER.error(
+            `Job ${job.jobId} asset ${i}: nodePersistentStorage requires bucketId and fileName`
+          )
+          job.status = C2DStatusNumber.DataProvisioningFailed
+          job.statusText = C2DStatusText.DataProvisioningFailed
+          job.isRunning = false
+          job.dateFinished = String(Date.now() / 1000)
+          await this.db.updateJob(job)
+          await this.cleanupJob(job)
+          return
+        }
+        const ps = OceanNode.getInstance().getPersistentStorage()
+        if (!ps) {
+          CORE_LOGGER.error(
+            `Job ${job.jobId} asset ${i}: persistent storage is not configured on this node`
+          )
+          job.status = C2DStatusNumber.DataProvisioningFailed
+          job.statusText = C2DStatusText.DataProvisioningFailed
+          job.isRunning = false
+          job.dateFinished = String(Date.now() / 1000)
+          await this.db.updateJob(job)
+          await this.cleanupJob(job)
+          return
+        }
+        try {
+          const bindMount = await ps.getDockerMountObject(
+            fo.bucketId,
+            fo.fileName,
+            job.owner
+          )
+          CORE_LOGGER.debug(
+            `Mounting bucket ${fo.bucketId} to folder ${bindMount.Target}`
+          )
+          hostConfig.Mounts.push(bindMount)
+          mountVols[bindMount.Target] = {}
+        } catch (e) {
+          const errMsg = e instanceof Error ? e.message : String(e)
+          CORE_LOGGER.error(
+            `Job ${job.jobId} asset ${i}: failed to resolve persistent storage bind: ${errMsg}`
+          )
+          job.status = C2DStatusNumber.DataProvisioningFailed
+          job.statusText = C2DStatusText.DataProvisioningFailed
+          job.isRunning = false
+          job.dateFinished = String(Date.now() / 1000)
+          await this.db.updateJob(job)
+          await this.cleanupJob(job)
+          return
+        }
+      }
+
       const container = await this.createDockerContainer(containerInfo, true)
       if (container) {
         job.status = C2DStatusNumber.Provisioning
@@ -2767,6 +2825,10 @@ export class C2DEngineDocker extends C2DEngine {
       if (asset.fileObject) {
         try {
           if (asset.fileObject.type) {
+            if (asset.fileObject.type === 'nodePersistentStorage') {
+              // local storage is handled later, when we start the container and create the binds
+              continue
+            }
             storage = Storage.getStorageClass(asset.fileObject, config)
           } else {
             CORE_LOGGER.info('asset file object seems to be encrypted, checking it...')

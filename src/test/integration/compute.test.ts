@@ -63,7 +63,7 @@ import {
 } from '../utils/utils.js'
 
 import { ProviderFees, ProviderComputeInitializeResults } from '../../@types/Fees.js'
-import { homedir } from 'os'
+import { homedir, tmpdir } from 'os'
 import { publishAlgoDDO, publishDatasetDDO } from '../data/ddo.js'
 import { DEVELOPMENT_CHAIN_ID, getOceanArtifactsAdresses } from '../../utils/address.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' with { type: 'json' }
@@ -83,6 +83,15 @@ import Dockerode from 'dockerode'
 import { C2DEngineDocker } from '../../components/c2d/compute_engine_docker.js'
 import { createHashForSignature, safeSign } from '../utils/signature.js'
 import { create256Hash } from '../../utils/crypt.js'
+import fsp from 'fs/promises'
+import path from 'path'
+import { existsSync } from 'fs'
+import {
+  PersistentStorageCreateBucketHandler,
+  PersistentStorageUploadFileHandler
+} from '../../components/core/handler/persistentStorage.js'
+import { deployAndGetAccessListConfig } from '../utils/contracts.js'
+import * as tar from 'tar'
 
 /**
  * Polls getComputeEnvironments until every environment's resources (and free.resources)
@@ -2211,6 +2220,383 @@ describe('Compute', () => {
     console.log(
       `**** Downloaded output from ${outputUrl}, size: ${body.byteLength} bytes`
     )
+  })
+
+  describe('Compute with persistent storage (localfs)', function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 4)
+
+    let psRoot: string
+    let psDockerEngine: C2DEngineDocker | undefined
+    let psSuiteActive = false
+
+    const jobReachedSuccessfulTerminalStatus = (status: number) =>
+      status === C2DStatusNumber.JobFinished || status === C2DStatusNumber.JobSettle
+
+    const waitForComputeJobFinished = async (
+      node: OceanNode,
+      fullJobId: string,
+      timeoutMs: number
+    ) => {
+      const deadline = Date.now() + timeoutMs
+      while (Date.now() < deadline) {
+        const r = await new ComputeGetStatusHandler(node).handle({
+          command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
+          consumerAddress: null,
+          agreementId: null,
+          jobId: fullJobId
+        })
+        assert.equal(r.status.httpStatus, 200)
+        const jobs = await streamToObject(r.stream as Readable)
+        const j = jobs[0]
+        if (!j) {
+          await sleep(2000)
+          continue
+        }
+        if (jobReachedSuccessfulTerminalStatus(j.status)) {
+          return j
+        }
+        if (j.dateFinished && !jobReachedSuccessfulTerminalStatus(j.status)) {
+          assert.fail(
+            `Job ended with status ${j.status} (${j.statusText}) instead of JobFinished or JobSettle`
+          )
+        }
+        await sleep(3000)
+      }
+      assert.fail(
+        `Job ${fullJobId} did not reach JobFinished or JobSettle within ${timeoutMs}ms`
+      )
+    }
+
+    before(async function () {
+      try {
+        const d = new Dockerode()
+        await d.info()
+      } catch {
+        this.skip()
+      }
+
+      psRoot = await fsp.mkdtemp(path.join(tmpdir(), 'ocean-compute-ps-'))
+      const bucketAllowList = await deployAndGetAccessListConfig(
+        publisherAccount,
+        provider,
+        [
+          publisherAccount,
+          consumerAccount,
+          (await provider.getSigner(2)) as Signer,
+          (await provider.getSigner(3)) as Signer
+        ]
+      )
+      assert(bucketAllowList, 'access list deploy failed for persistent storage')
+
+      const cfg = await getConfiguration(true)
+      cfg.persistentStorage = {
+        enabled: true,
+        type: 'localfs',
+        accessLists: [bucketAllowList],
+        options: { folder: psRoot }
+      }
+
+      const enginesOld = oceanNode.getC2DEngines()
+      if (enginesOld) await enginesOld.stopAllEngines()
+      const km = oceanNode.getKeyManager()
+      const br = oceanNode.blockchainRegistry
+      oceanNode = OceanNode.getInstance(cfg, dbconn, null, null, indexer, km, br, true)
+      oceanNode.addIndexer(indexer)
+      await oceanNode.addC2DEngines()
+
+      const c2dEngines = oceanNode.getC2DEngines()
+      const engines = (c2dEngines as any).engines as C2DEngineDocker[]
+      psDockerEngine = engines.find((e) => e instanceof C2DEngineDocker)
+      if (!psDockerEngine) {
+        this.skip()
+      }
+
+      await waitForAllJobsToFinish(oceanNode)
+      psSuiteActive = true
+    })
+
+    after(async () => {
+      if (!psSuiteActive) return
+      try {
+        const enginesOld = oceanNode.getC2DEngines()
+        if (enginesOld) await enginesOld.stopAllEngines()
+        const cfg = await getConfiguration(true)
+        cfg.persistentStorage = {
+          enabled: false,
+          type: 'localfs',
+          accessLists: [],
+          options: { folder: '/tmp' }
+        }
+        const km = oceanNode.getKeyManager()
+        const br = oceanNode.blockchainRegistry
+        oceanNode = OceanNode.getInstance(cfg, dbconn, null, null, indexer, km, br, true)
+        oceanNode.addIndexer(indexer)
+        await oceanNode.addC2DEngines()
+      } catch (e) {
+        console.error('Compute persistent-storage suite teardown failed:', e)
+      }
+    })
+
+    it('happy path: bind-mounted persistent storage file is readable inside the container', async function () {
+      const consumerAddress = await consumerAccount.getAddress()
+      let nonce = Date.now().toString()
+      let messageHashBytes = createHashForSignature(
+        consumerAddress,
+        nonce,
+        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+      )
+      let signature = await safeSign(consumerAccount, messageHashBytes)
+      const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
+        command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+        consumerAddress,
+        signature,
+        nonce,
+        accessLists: [],
+        authorization: undefined
+      } as any)
+      assert.equal(createRes.status.httpStatus, 200)
+      const created = await streamToObject(createRes.stream as Readable)
+      const bucketId = created.bucketId as string
+
+      const fileName = 'ps-data.txt'
+      const secret = 'PS_COMPUTE_INTEGRATION_OK\n'
+      nonce = Date.now().toString()
+      messageHashBytes = createHashForSignature(
+        consumerAddress,
+        nonce,
+        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
+      )
+      signature = await safeSign(consumerAccount, messageHashBytes)
+      const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
+        command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
+        consumerAddress,
+        signature,
+        nonce,
+        bucketId,
+        fileName,
+        stream: Readable.from(Buffer.from(secret))
+      } as any)
+      assert.equal(uploadRes.status.httpStatus, 200)
+
+      const rawcode = [
+        "const fs = require('fs');",
+        `const p = '/data/persistentStorage/${bucketId}/${fileName}';`,
+        "const out = '/data/outputs/ps-result.txt';",
+        "fs.mkdirSync('/data/outputs', { recursive: true });",
+        "const c = fs.readFileSync(p, 'utf8');",
+        "fs.writeFileSync(out, c, 'utf8');"
+      ].join('\n')
+
+      const algoMeta = publishedAlgoDataset.ddo.metadata.algorithm
+
+      const initResp = await new ComputeInitializeHandler(oceanNode).handle({
+        command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
+        consumerAddress,
+        datasets: [
+          {
+            fileObject: {
+              type: 'nodePersistentStorage',
+              bucketId,
+              fileName
+            } as any
+          }
+        ],
+        algorithm: {
+          meta: {
+            ...algoMeta,
+            rawcode
+          }
+        },
+        environment: firstEnv.id,
+        payment: {
+          chainId: DEVELOPMENT_CHAIN_ID,
+          token: paymentToken
+        },
+        maxJobDuration: 60
+      } as any)
+      assert.equal(initResp.status.httpStatus, 200, String(initResp.status.error))
+
+      nonce = Date.now().toString()
+      messageHashBytes = createHashForSignature(
+        consumerAddress,
+        nonce,
+        PROTOCOL_COMMANDS.FREE_COMPUTE_START
+      )
+      signature = await safeSign(consumerAccount, messageHashBytes)
+
+      const startTask: FreeComputeStartCommand = {
+        command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+        consumerAddress,
+        signature,
+        nonce,
+        environment: firstEnv.id,
+        queueMaxWaitTime: 0,
+        datasets: [
+          {
+            fileObject: {
+              type: 'nodePersistentStorage',
+              bucketId,
+              fileName
+            } as any
+          }
+        ],
+        algorithm: {
+          meta: {
+            ...algoMeta,
+            rawcode
+          }
+        },
+        output: null
+      }
+
+      const startRes = await new FreeComputeStartHandler(oceanNode).handle(startTask)
+      assert.equal(startRes.status.httpStatus, 200, String(startRes.status.error))
+      const started = await streamToObject(startRes.stream as Readable)
+      const fullJobId = started[0].jobId as string
+      const innerJobId = fullJobId.slice(fullJobId.indexOf('-') + 1)
+
+      await waitForComputeJobFinished(oceanNode, fullJobId, 180_000)
+
+      const base = (psDockerEngine as any).getStoragePath() as string
+      const outputsTarPath = path.join(base, innerJobId, 'data/outputs/outputs.tar')
+      /* eslint-disable security/detect-non-literal-fs-filename -- job paths from C2D engine */
+      assert(
+        existsSync(outputsTarPath),
+        `expected outputs archive at ${outputsTarPath} (algorithm should write into /data/outputs before tar)`
+      )
+      const extractDir = await fsp.mkdtemp(path.join(tmpdir(), 'ocean-ps-tar-'))
+      try {
+        await tar.x(
+          {
+            file: outputsTarPath,
+            cwd: extractDir
+          },
+          ['outputs/ps-result.txt']
+        )
+        const extractedFile = path.join(extractDir, 'outputs/ps-result.txt')
+        assert(
+          existsSync(extractedFile),
+          'expected outputs/ps-result.txt inside outputs.tar'
+        )
+        const written = await fsp.readFile(extractedFile, 'utf8')
+        assert.equal(written, secret)
+      } finally {
+        await fsp.rm(extractDir, { recursive: true, force: true })
+      }
+      /* eslint-enable security/detect-non-literal-fs-filename */
+    })
+
+    it('denies free compute start when consumer is not on the bucket access list', async function () {
+      const ownerAddress = await consumerAccount.getAddress()
+      let nonce = Date.now().toString()
+      let messageHashBytes = createHashForSignature(
+        ownerAddress,
+        nonce,
+        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+      )
+      let signature = await safeSign(consumerAccount, messageHashBytes)
+      const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
+        command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+        consumerAddress: ownerAddress,
+        signature,
+        nonce,
+        accessLists: [],
+        authorization: undefined
+      } as any)
+      assert.equal(createRes.status.httpStatus, 200)
+      const created = await streamToObject(createRes.stream as Readable)
+      const bucketId = created.bucketId as string
+
+      const fileName = 'private.txt'
+      nonce = Date.now().toString()
+      messageHashBytes = createHashForSignature(
+        ownerAddress,
+        nonce,
+        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
+      )
+      signature = await safeSign(consumerAccount, messageHashBytes)
+      const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
+        command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
+        consumerAddress: ownerAddress,
+        signature,
+        nonce,
+        bucketId,
+        fileName,
+        stream: Readable.from(Buffer.from('secret'))
+      } as any)
+      assert.equal(uploadRes.status.httpStatus, 200)
+
+      const intruderAddress = await nonAllowedAccount.getAddress()
+      nonce = Date.now().toString()
+      messageHashBytes = createHashForSignature(
+        intruderAddress,
+        nonce,
+        PROTOCOL_COMMANDS.FREE_COMPUTE_START
+      )
+      signature = await safeSign(nonAllowedAccount, messageHashBytes)
+
+      const algoMeta = publishedAlgoDataset.ddo.metadata.algorithm
+
+      const initResp = await new ComputeInitializeHandler(oceanNode).handle({
+        command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
+        consumerAddress: intruderAddress,
+        datasets: [
+          {
+            fileObject: {
+              type: 'nodePersistentStorage',
+              bucketId,
+              fileName
+            } as any
+          }
+        ],
+        algorithm: {
+          meta: {
+            ...algoMeta,
+            rawcode: "console.log('noop');"
+          }
+        },
+        environment: firstEnv.id,
+        payment: {
+          chainId: DEVELOPMENT_CHAIN_ID,
+          token: paymentToken
+        },
+        maxJobDuration: 60
+      } as any)
+      assert.equal(initResp.status.httpStatus, 403, String(initResp.status.error))
+
+      const startTask: FreeComputeStartCommand = {
+        command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+        consumerAddress: intruderAddress,
+        signature,
+        nonce,
+        environment: firstEnv.id,
+        queueMaxWaitTime: 0,
+        datasets: [
+          {
+            fileObject: {
+              type: 'nodePersistentStorage',
+              bucketId,
+              fileName
+            } as any
+          }
+        ],
+        algorithm: {
+          meta: {
+            ...algoMeta,
+            rawcode: "console.log('noop');"
+          }
+        },
+        output: null
+      }
+
+      const startRes = await new FreeComputeStartHandler(oceanNode).handle(startTask)
+      assert.equal(startRes.status.httpStatus, 403, String(startRes.status.error))
+      assert.include(
+        (startRes.status.error || '').toLowerCase(),
+        'allow',
+        'expected access-denied style message'
+      )
+    })
   })
 
   after(async () => {

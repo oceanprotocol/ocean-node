@@ -348,6 +348,14 @@ export interface PersistentStorageUploadFileCommand extends Command {
   fileName: string
 }
 
+export interface PersistentStorageGetFileObjectCommand extends Command {
+  consumerAddress: string
+  signature: string
+  nonce: string
+  bucketId: string
+  fileName: string
+}
+
 export interface PersistentStorageDeleteFileCommand extends Command {
   consumerAddress: string
   signature: string

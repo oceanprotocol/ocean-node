@@ -10,6 +10,7 @@ import {
   PersistentStorageCreateBucketHandler,
   PersistentStorageDeleteFileHandler,
   PersistentStorageGetBucketsHandler,
+  PersistentStorageGetFileObjectHandler,
   PersistentStorageListFilesHandler,
   PersistentStorageUploadFileHandler
 } from '../../components/core/handler/persistentStorage.js'
@@ -229,6 +230,72 @@ describe('Persistent storage handlers (integration)', function () {
     expect(listedAfter.some((f: { name: string }) => f.name === fileName)).to.equal(false)
   })
 
+  it('getFileObject returns a file object for an allowed consumer', async () => {
+    const consumerAddress = await consumer.getAddress()
+
+    let nonce = Date.now().toString()
+    let messageHashBytes = createHashForSignature(
+      consumerAddress,
+      nonce,
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+    )
+    let signature = await safeSign(consumer, messageHashBytes)
+
+    const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      consumerAddress,
+      signature,
+      nonce,
+      accessLists: [],
+      authorization: undefined
+    } as any)
+    expect(createRes.status.httpStatus).to.equal(200)
+    const created = await streamToObject(createRes.stream as Readable)
+    const bucketId = created.bucketId as string
+
+    const fileName = 'obj.txt'
+    const body = Buffer.from('file-object')
+    nonce = Date.now().toString()
+    messageHashBytes = createHashForSignature(
+      consumerAddress,
+      nonce,
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
+    )
+    signature = await safeSign(consumer, messageHashBytes)
+    const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
+      consumerAddress,
+      signature,
+      nonce,
+      bucketId,
+      fileName,
+      stream: Readable.from(body)
+    } as any)
+    expect(uploadRes.status.httpStatus).to.equal(200)
+
+    nonce = Date.now().toString()
+    messageHashBytes = createHashForSignature(
+      consumerAddress,
+      nonce,
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_FILE_OBJECT
+    )
+    signature = await safeSign(consumer, messageHashBytes)
+    const objRes = await new PersistentStorageGetFileObjectHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_FILE_OBJECT,
+      consumerAddress,
+      signature,
+      nonce,
+      bucketId,
+      fileName,
+      authorization: undefined
+    } as any)
+    expect(objRes.status.httpStatus).to.equal(200)
+    const obj = await streamToObject(objRes.stream as Readable)
+    expect(obj).to.be.an('object')
+    expect(obj.bucketId).to.equal(bucketId)
+    expect(obj.fileName).to.equal(fileName)
+  })
+
   it('should not create bucket when consumer is not on allow list', async () => {
     const forbiddenConsumerAddress = await forbiddenConsumer.getAddress()
     const nonce = Date.now().toString()
@@ -316,6 +383,162 @@ describe('Persistent storage handlers (integration)', function () {
     } as any)
     expect(uploadRes.status.httpStatus).to.equal(403)
     expect(uploadRes.status.error).to.contain('not allowed')
+  })
+
+  it('getFileObject should fail for forbiddenConsumer when bucket has accessList', async () => {
+    // Create a bucket whose ACL allows only wallets[0..3]
+    const consumerAddress = await consumer.getAddress()
+    let nonce = Date.now().toString()
+    let messageHashBytes = createHashForSignature(
+      consumerAddress,
+      nonce,
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+    )
+    let signature = await safeSign(consumer, messageHashBytes)
+
+    const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      consumerAddress,
+      signature,
+      nonce,
+      accessLists: [bucketAllowList],
+      authorization: undefined
+    } as any)
+    expect(createRes.status.httpStatus).to.equal(200)
+    const created = await streamToObject(createRes.stream as Readable)
+    const bucketId = created.bucketId as string
+
+    const fileName = 'forbidden-obj.txt'
+    nonce = Date.now().toString()
+    messageHashBytes = createHashForSignature(
+      consumerAddress,
+      nonce,
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
+    )
+    signature = await safeSign(consumer, messageHashBytes)
+    const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
+      consumerAddress,
+      signature,
+      nonce,
+      bucketId,
+      fileName,
+      stream: Readable.from(Buffer.from('secret'))
+    } as any)
+    expect(uploadRes.status.httpStatus).to.equal(200)
+
+    const forbiddenConsumerAddress = await forbiddenConsumer.getAddress()
+    nonce = Date.now().toString()
+    messageHashBytes = createHashForSignature(
+      forbiddenConsumerAddress,
+      nonce,
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_FILE_OBJECT
+    )
+    signature = await safeSign(forbiddenConsumer, messageHashBytes)
+
+    const objRes = await new PersistentStorageGetFileObjectHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_FILE_OBJECT,
+      consumerAddress: forbiddenConsumerAddress,
+      signature,
+      nonce,
+      bucketId,
+      fileName,
+      authorization: undefined
+    } as any)
+
+    expect(objRes.status.httpStatus).to.equal(403)
+    expect(objRes.status.error).to.contain('not allowed')
+  })
+
+  it('getFileObject should fail when file does not exist', async () => {
+    const consumerAddress = await consumer.getAddress()
+
+    let nonce = Date.now().toString()
+    let messageHashBytes = createHashForSignature(
+      consumerAddress,
+      nonce,
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+    )
+    let signature = await safeSign(consumer, messageHashBytes)
+
+    const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      consumerAddress,
+      signature,
+      nonce,
+      accessLists: [],
+      authorization: undefined
+    } as any)
+    expect(createRes.status.httpStatus).to.equal(200)
+    const created = await streamToObject(createRes.stream as Readable)
+    const bucketId = created.bucketId as string
+
+    const missingFileName = 'missing.txt'
+    nonce = Date.now().toString()
+    messageHashBytes = createHashForSignature(
+      consumerAddress,
+      nonce,
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_FILE_OBJECT
+    )
+    signature = await safeSign(consumer, messageHashBytes)
+
+    const objRes = await new PersistentStorageGetFileObjectHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_FILE_OBJECT,
+      consumerAddress,
+      signature,
+      nonce,
+      bucketId,
+      fileName: missingFileName,
+      authorization: undefined
+    } as any)
+    expect(objRes.status.httpStatus).to.equal(404)
+    expect(objRes.status.error?.toLowerCase()).to.contain('file not found')
+  })
+
+  it('deleteFile should fail when file does not exist', async () => {
+    const consumerAddress = await consumer.getAddress()
+
+    let nonce = Date.now().toString()
+    let messageHashBytes = createHashForSignature(
+      consumerAddress,
+      nonce,
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+    )
+    let signature = await safeSign(consumer, messageHashBytes)
+
+    const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      consumerAddress,
+      signature,
+      nonce,
+      accessLists: [],
+      authorization: undefined
+    } as any)
+    expect(createRes.status.httpStatus).to.equal(200)
+    const created = await streamToObject(createRes.stream as Readable)
+    const bucketId = created.bucketId as string
+
+    const missingFileName = 'missing-delete.txt'
+    nonce = Date.now().toString()
+    messageHashBytes = createHashForSignature(
+      consumerAddress,
+      nonce,
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DELETE_FILE
+    )
+    signature = await safeSign(consumer, messageHashBytes)
+
+    const delRes = await new PersistentStorageDeleteFileHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DELETE_FILE,
+      consumerAddress,
+      signature,
+      nonce,
+      chainId: 8996,
+      bucketId,
+      fileName: missingFileName,
+      authorization: undefined
+    } as any)
+    expect(delRes.status.httpStatus).to.equal(500)
+    expect(delRes.status.error?.toLowerCase()).to.contain('file not found')
   })
 
   it('getBuckets returns buckets the consumer can access', async () => {

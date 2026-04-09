@@ -6,8 +6,11 @@ import {
 } from './PersistentStorageFactory.js'
 
 import type { AccessList } from '../../@types/AccessList.js'
-import type { PersistentStorageS3Options } from '../../@types/PersistentStorage.js'
-import type { BaseFileObject } from '../../@types/fileObject.js'
+import type {
+  DockerMountObject,
+  PersistentStorageS3Options,
+  PersistentStorageObject
+} from '../../@types/PersistentStorage.js'
 import { OceanNode } from '../../OceanNode.js'
 
 export class PersistentStorageS3 extends PersistentStorageFactory {
@@ -68,7 +71,16 @@ export class PersistentStorageS3 extends PersistentStorageFactory {
     _bucketId: string,
     _fileName: string,
     _consumerAddress: string
-  ): Promise<BaseFileObject> {
+  ): Promise<PersistentStorageObject> {
+    throw new Error('PersistentStorageS3 is not implemented yet')
+  }
+
+  // eslint-disable-next-line require-await
+  async getDockerMountObject(
+    _bucketId: string,
+    _fileName: string,
+    _consumerAddress?: string
+  ): Promise<DockerMountObject> {
     throw new Error('PersistentStorageS3 is not implemented yet')
   }
 }

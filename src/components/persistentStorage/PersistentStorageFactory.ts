@@ -1,5 +1,10 @@
+import { P2PCommandResponse } from '../../@types/index.js'
 import type { AccessList } from '../../@types/AccessList.js'
-import type { BaseFileObject } from '../../@types/fileObject.js'
+import type {
+  DockerMountObject,
+  PersistentStorageObject
+} from '../../@types/PersistentStorage.js'
+
 import sqlite3, { RunResult } from 'sqlite3'
 import path from 'path'
 import fs from 'fs'
@@ -72,6 +77,19 @@ export abstract class PersistentStorageFactory {
     this.db = new sqlite3.Database(dbDir + 'persistentStorage.sqlite')
   }
 
+  /**
+   * Validate a bucket id. Today localfs uses UUIDs, so enforce UUIDv4.
+   * This is a security boundary because bucketId participates in filesystem paths.
+   */
+  public validateBucket(bucketId: string): void {
+    // UUID v4: xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx
+    const uuidV4 =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    if (typeof bucketId !== 'string' || !uuidV4.test(bucketId)) {
+      throw new Error('Invalid bucketId')
+    }
+  }
+
   public abstract createNewBucket(
     accessList: AccessList[],
     owner: string
@@ -103,7 +121,17 @@ export abstract class PersistentStorageFactory {
     bucketId: string,
     fileName: string,
     consumerAddress: string
-  ): Promise<BaseFileObject>
+  ): Promise<PersistentStorageObject>
+
+  /**
+   * Returns a Docker mount descriptor for a specific bucket file.
+   * This is used by the Docker C2D engine to mount the file into the job container.
+   */
+  public abstract getDockerMountObject(
+    bucketId: string,
+    fileName: string,
+    consumerAddress?: string
+  ): Promise<DockerMountObject>
 
   // common functions
   async getBucketAccessList(bucketId: string): Promise<AccessList[]> {
@@ -216,11 +244,14 @@ export abstract class PersistentStorageFactory {
   }
 
   /** Throws {@link PersistentStorageAccessDeniedError} if the consumer is not on the bucket access list. */
-  protected async assertConsumerAllowedForBucket(
+  public async assertConsumerAllowedForBucket(
     consumerAddress: string,
     bucketId: string
   ): Promise<void> {
     const bucket = await this.getBucket(bucketId)
+    if (!bucket) {
+      throw new PersistentStorageAccessDeniedError()
+    }
     const accessLists = parseBucketAccessListsJson(bucket.accessListJson)
     if (normalizeWeb3Address(consumerAddress) === normalizeWeb3Address(bucket.owner)) {
       return
@@ -229,4 +260,89 @@ export abstract class PersistentStorageFactory {
       throw new PersistentStorageAccessDeniedError()
     }
   }
+}
+
+/**
+ * Algorithms must not reference node persistent storage; only datasets may use
+ * `nodePersistentStorage` / `localfs` file objects.
+ */
+export function rejectPersistentStorageFileObjectOnAlgorithm(
+  fileObject: unknown
+): P2PCommandResponse | null {
+  if (fileObject === null || fileObject === undefined || typeof fileObject !== 'object') {
+    return null
+  }
+  const fo = fileObject as { type?: string }
+  if (fo.type === 'nodePersistentStorage' || fo.type === 'localfs') {
+    return {
+      stream: null,
+      status: {
+        httpStatus: 400,
+        error:
+          'Algorithms cannot use node persistent storage file objects; only datasets may reference persistent storage.'
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * When a compute dataset uses a node persistent-storage file (localfs backend),
+ * ensure the consumer is on the bucket ACL before proceeding.
+ */
+export async function ensureConsumerAllowedForPersistentStorageLocalfsFileObject(
+  node: OceanNode,
+  consumerAddress: string,
+  fileObject: unknown
+): Promise<P2PCommandResponse | null> {
+  if (fileObject === null || fileObject === undefined || typeof fileObject !== 'object') {
+    return null
+  }
+  const fo = fileObject as { type?: string; bucketId?: unknown }
+  if (fo.type !== 'nodePersistentStorage') {
+    return null
+  }
+  if (typeof fo.bucketId !== 'string' || fo.bucketId.length === 0) {
+    return {
+      stream: null,
+      status: {
+        httpStatus: 400,
+        error: 'Persistent storage file object is missing a valid bucketId'
+      }
+    }
+  }
+  const cfg = node.getConfig().persistentStorage
+  if (!cfg?.enabled || cfg.type !== 'localfs') {
+    return {
+      stream: null,
+      status: {
+        httpStatus: 400,
+        error:
+          'This compute job references node persistent storage (localfs), which is not enabled or not configured as localfs on this node'
+      }
+    }
+  }
+  const storage = node.getPersistentStorage()
+  if (!storage) {
+    return {
+      stream: null,
+      status: {
+        httpStatus: 400,
+        error:
+          'This compute job references node persistent storage but persistent storage is not available on this node'
+      }
+    }
+  }
+  try {
+    await storage.assertConsumerAllowedForBucket(consumerAddress, fo.bucketId)
+  } catch (e) {
+    if (e instanceof PersistentStorageAccessDeniedError) {
+      return {
+        stream: null,
+        status: { httpStatus: 403, error: e.message }
+      }
+    }
+    throw e
+  }
+  return null
 }

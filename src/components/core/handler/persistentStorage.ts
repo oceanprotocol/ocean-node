@@ -3,6 +3,7 @@ import type {
   PersistentStorageCreateBucketCommand,
   PersistentStorageDeleteFileCommand,
   PersistentStorageGetBucketsCommand,
+  PersistentStorageGetFileObjectCommand,
   PersistentStorageListFilesCommand,
   PersistentStorageUploadFileCommand
 } from '../../../@types/commands.js'
@@ -215,6 +216,60 @@ export class PersistentStorageListFilesHandler extends CommandHandler {
       }
       const message = e instanceof Error ? e.message : String(e)
       CORE_LOGGER.error(`PersistentStorageListFilesHandler error: ${message}`)
+      return { stream: null, status: { httpStatus: 500, error: message } }
+    }
+  }
+}
+
+export class PersistentStorageGetFileObjectHandler extends CommandHandler {
+  validate(command: PersistentStorageGetFileObjectCommand): ValidateParams {
+    const base = validateCommandParameters(command, [
+      'consumerAddress',
+      'signature',
+      'nonce',
+      'bucketId',
+      'fileName'
+    ])
+    if (!base.valid) return base
+    return { valid: true }
+  }
+
+  async handle(task: PersistentStorageGetFileObjectCommand): Promise<P2PCommandResponse> {
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) return validationResponse
+
+    const isAuthRequestValid = await this.validateTokenOrSignature(
+      task.authorization,
+      task.consumerAddress,
+      task.nonce,
+      task.signature,
+      task.command
+    )
+    if (isAuthRequestValid.status.httpStatus !== 200) return isAuthRequestValid
+
+    try {
+      const storage = await requirePersistentStorage(this)
+      const obj = await storage.getFileObject(
+        task.bucketId,
+        task.fileName,
+        task.consumerAddress
+      )
+      return {
+        stream: Readable.from(JSON.stringify(obj)),
+        status: { httpStatus: 200, error: null }
+      }
+    } catch (e) {
+      if (e instanceof PersistentStorageAccessDeniedError) {
+        return {
+          stream: null,
+          status: { httpStatus: 403, error: e.message }
+        }
+      }
+      const message = e instanceof Error ? e.message : String(e)
+      if (message.toLowerCase().includes('file not found')) {
+        return { stream: null, status: { httpStatus: 404, error: message } }
+      }
+      CORE_LOGGER.error(`PersistentStorageGetFileObjectHandler error: ${message}`)
       return { stream: null, status: { httpStatus: 500, error: message } }
     }
   }
