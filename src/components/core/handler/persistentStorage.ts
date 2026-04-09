@@ -23,9 +23,7 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { CommandHandler } from './handler.js'
 
-function requirePersistentStorage(
-  handler: CommandHandler
-): Promise<PersistentStorageFactory> {
+function requirePersistentStorage(handler: CommandHandler): PersistentStorageFactory {
   const node = handler.getOceanNode() as any
   if (!node.getPersistentStorage) {
     throw new Error('Persistent storage is not available on this node')
@@ -68,7 +66,7 @@ export class PersistentStorageCreateBucketHandler extends CommandHandler {
     if (isAuthRequestValid.status.httpStatus !== 200) return isAuthRequestValid
 
     try {
-      const storage = await requirePersistentStorage(this)
+      const storage = requirePersistentStorage(this)
       const node = this.getOceanNode()
       const config = node.getConfig()
       const isAllowedCreate = await checkAddressOnAccessList(
@@ -156,7 +154,7 @@ export class PersistentStorageGetBucketsHandler extends CommandHandler {
     }
 
     try {
-      const storage = await requirePersistentStorage(this)
+      const storage = requirePersistentStorage(this)
       // const node = this.getOceanNode()
       const rows = await storage.listBuckets(ownerNormalized)
 
@@ -201,7 +199,7 @@ export class PersistentStorageListFilesHandler extends CommandHandler {
     if (isAuthRequestValid.status.httpStatus !== 200) return isAuthRequestValid
 
     try {
-      const storage = await requirePersistentStorage(this)
+      const storage = requirePersistentStorage(this)
       const result = await storage.listFiles(task.bucketId, task.consumerAddress)
       return {
         stream: Readable.from(JSON.stringify(result)),
@@ -248,7 +246,7 @@ export class PersistentStorageGetFileObjectHandler extends CommandHandler {
     if (isAuthRequestValid.status.httpStatus !== 200) return isAuthRequestValid
 
     try {
-      const storage = await requirePersistentStorage(this)
+      const storage = requirePersistentStorage(this)
       const obj = await storage.getFileObject(
         task.bucketId,
         task.fileName,
@@ -302,7 +300,7 @@ export class PersistentStorageUploadFileHandler extends CommandHandler {
     if (isAuthRequestValid.status.httpStatus !== 200) return isAuthRequestValid
 
     try {
-      const storage = await requirePersistentStorage(this)
+      const storage = requirePersistentStorage(this)
       if (!task.stream) {
         return {
           stream: null,
@@ -361,7 +359,7 @@ export class PersistentStorageDeleteFileHandler extends CommandHandler {
     if (isAuthRequestValid.status.httpStatus !== 200) return isAuthRequestValid
 
     try {
-      const storage = await requirePersistentStorage(this)
+      const storage = requirePersistentStorage(this)
       await storage.deleteFile(task.bucketId, task.fileName, task.consumerAddress)
       return {
         stream: Readable.from(JSON.stringify({ success: true })),

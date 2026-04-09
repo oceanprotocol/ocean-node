@@ -29,11 +29,7 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
       .options as PersistentStorageLocalFSOptions
 
     this.baseFolder = options.folder
-  }
-
-  async init(): Promise<void> {
-    await fsp.mkdir(this.baseFolder, { recursive: true })
-    await super.dbCreateTables()
+    fsp.mkdir(this.baseFolder, { recursive: true })
   }
 
   private bucketPath(bucketId: string): string {
@@ -71,8 +67,8 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
     }
   }
 
+  // eslint-disable-next-line require-await
   async listBuckets(owner: string): Promise<PersistentStorageBucketRecord[]> {
-    await this.init()
     return super.listBuckets(owner)
   }
 
@@ -80,8 +76,6 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
     accessList: AccessList[],
     owner: string
   ): Promise<CreateBucketResult> {
-    await this.init()
-
     const bucketId = randomUUID()
     const createdAt = Math.floor(Date.now() / 1000)
     await fsp.mkdir(this.bucketPath(bucketId), { recursive: true })
@@ -99,7 +93,6 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
     bucketId: string,
     consumerAddress: string
   ): Promise<PersistentStorageFileInfo[]> {
-    await this.init()
     await this.ensureBucketExists(bucketId)
     await this.assertConsumerAllowedForBucket(consumerAddress, bucketId)
 
@@ -128,7 +121,6 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
     content: NodeJS.ReadableStream,
     consumerAddress: string
   ): Promise<PersistentStorageFileInfo> {
-    await this.init()
     await this.ensureBucketExists(bucketId)
     await this.assertConsumerAllowedForBucket(consumerAddress, bucketId)
 
@@ -156,7 +148,6 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
     fileName: string,
     consumerAddress: string
   ): Promise<void> {
-    await this.init()
     await this.ensureBucketExists(bucketId)
     await this.assertConsumerAllowedForBucket(consumerAddress, bucketId)
     await this.ensureFileExists(bucketId, fileName)
@@ -170,7 +161,6 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
     fileName: string,
     consumerAddress: string
   ): Promise<PersistentStorageObject> {
-    await this.init()
     await this.ensureBucketExists(bucketId)
     await this.assertConsumerAllowedForBucket(consumerAddress, bucketId)
     await this.ensureFileExists(bucketId, fileName)
@@ -189,7 +179,6 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
     fileName: string,
     consumerAddress?: string
   ): Promise<DockerMountObject> {
-    await this.init()
     await this.ensureBucketExists(bucketId)
     if (consumerAddress) {
       await this.assertConsumerAllowedForBucket(consumerAddress, bucketId)

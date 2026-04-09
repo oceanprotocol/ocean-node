@@ -67,14 +67,45 @@ export type PersistentStorageBucketRecord = {
 export abstract class PersistentStorageFactory {
   private db: sqlite3.Database
   private node: OceanNode
+  private dbReady = false
+  private dbReadyPromise: Promise<void>
 
   constructor(node: OceanNode) {
     this.node = node
-    const dbDir = path.dirname('databases/')
+    const dbDir = path.dirname('databases/persistentStorage.sqlite')
     if (!fs.existsSync(dbDir)) {
       fs.mkdirSync(dbDir, { recursive: true })
     }
-    this.db = new sqlite3.Database(dbDir + 'persistentStorage.sqlite')
+    this.db = new sqlite3.Database('databases/persistentStorage.sqlite')
+    const createBucketsSQL = `
+      CREATE TABLE IF NOT EXISTS persistent_storage_buckets (
+        bucketId TEXT PRIMARY KEY,
+        owner TEXT NOT NULL,
+        accessListJson TEXT NOT NULL,
+        createdAt INTEGER NOT NULL
+      );
+    `
+    this.dbReadyPromise = new Promise<void>((resolve, reject) => {
+      this.db.run(createBucketsSQL, (err) => {
+        if (err) {
+          reject(err)
+          return
+        }
+        this.dbReady = true
+        resolve()
+      })
+    })
+  }
+
+  public isDbReady(): boolean {
+    return this.dbReady
+  }
+
+  private async ensureDbReady(): Promise<void> {
+    if (this.dbReady) {
+      return
+    }
+    await this.dbReadyPromise
   }
 
   /**
@@ -135,7 +166,6 @@ export abstract class PersistentStorageFactory {
 
   // common functions
   async getBucketAccessList(bucketId: string): Promise<AccessList[]> {
-    await this.dbCreateTables()
     try {
       const row = await this.getBucket(bucketId)
       if (!row) {
@@ -148,7 +178,6 @@ export abstract class PersistentStorageFactory {
   }
 
   async getBucket(bucketId: string): Promise<BucketRow | null> {
-    await this.dbCreateTables()
     try {
       const row = await this.dbGetBucket(bucketId)
       return row
@@ -163,7 +192,6 @@ export abstract class PersistentStorageFactory {
    * Backends that need setup (e.g. localfs init) should override and call `super.listBuckets(owner)`.
    */
   async listBuckets(owner: string): Promise<PersistentStorageBucketRecord[]> {
-    await this.dbCreateTables()
     const rows = await this.dbListBucketsByOwner(owner)
     return rows.map((row) => ({
       bucketId: row.bucketId,
@@ -173,22 +201,10 @@ export abstract class PersistentStorageFactory {
     }))
   }
 
-  dbCreateTables(): Promise<void> {
-    const createBucketsSQL = `
-      CREATE TABLE IF NOT EXISTS persistent_storage_buckets (
-        bucketId TEXT PRIMARY KEY,
-        owner TEXT NOT NULL,
-        accessListJson TEXT NOT NULL,
-        createdAt INTEGER NOT NULL
-      );
-    `
-    return new Promise<void>((resolve, reject) => {
-      this.db.run(createBucketsSQL, (err) => {
-        if (err) reject(err)
-        else resolve()
-      })
-    })
-  }
+  /*
+   * NOTE: db* methods are intentionally gated on ensureDbReady() to avoid races
+   * with constructor-time schema creation.
+   */
 
   dbUpsertBucket(
     bucketId: string,
@@ -201,42 +217,54 @@ export abstract class PersistentStorageFactory {
       VALUES (?, ?, ?, ?)
       ON CONFLICT(bucketId) DO UPDATE SET accessListJson=excluded.accessListJson;
     `
-    return new Promise<void>((resolve, reject) => {
-      this.db.run(sql, [bucketId, owner, accessListJson, createdAt], (err) => {
-        if (err) reject(err)
-        else resolve()
-      })
-    })
+    return this.ensureDbReady().then(
+      () =>
+        new Promise<void>((resolve, reject) => {
+          this.db.run(sql, [bucketId, owner, accessListJson, createdAt], (err) => {
+            if (err) reject(err)
+            else resolve()
+          })
+        })
+    )
   }
 
   dbGetBucket(bucketId: string): Promise<BucketRow | null> {
     const sql = `SELECT bucketId, owner, accessListJson, createdAt FROM persistent_storage_buckets WHERE bucketId = ?`
-    return new Promise((resolve, reject) => {
-      this.db.get(sql, [bucketId], (err, row: BucketRow | undefined) => {
-        if (err) reject(err)
-        else resolve(row ?? null)
-      })
-    })
+    return this.ensureDbReady().then(
+      () =>
+        new Promise((resolve, reject) => {
+          this.db.get(sql, [bucketId], (err, row: BucketRow | undefined) => {
+            if (err) reject(err)
+            else resolve(row ?? null)
+          })
+        })
+    )
   }
 
   dbListBucketsByOwner(owner: string): Promise<BucketRow[]> {
     const sql = `SELECT bucketId, owner, accessListJson, createdAt FROM persistent_storage_buckets WHERE owner = ? ORDER BY createdAt ASC`
-    return new Promise((resolve, reject) => {
-      this.db.all(sql, [owner], (err, rows: BucketRow[]) => {
-        if (err) reject(err)
-        else resolve(rows ?? [])
-      })
-    })
+    return this.ensureDbReady().then(
+      () =>
+        new Promise((resolve, reject) => {
+          this.db.all(sql, [owner], (err, rows: BucketRow[]) => {
+            if (err) reject(err)
+            else resolve(rows ?? [])
+          })
+        })
+    )
   }
 
   dbDeleteBucket(bucketId: string): Promise<boolean> {
     const sql = `DELETE FROM persistent_storage_buckets WHERE bucketId = ?`
-    return new Promise((resolve, reject) => {
-      this.db.run(sql, [bucketId], function (this: RunResult, err) {
-        if (err) reject(err)
-        else resolve(this.changes === 1)
-      })
-    })
+    return this.ensureDbReady().then(
+      () =>
+        new Promise((resolve, reject) => {
+          this.db.run(sql, [bucketId], function (this: RunResult, err) {
+            if (err) reject(err)
+            else resolve(this.changes === 1)
+          })
+        })
+    )
   }
 
   isAllowed(consumerAddress: string, accessLists: AccessList[]): Promise<boolean> {
