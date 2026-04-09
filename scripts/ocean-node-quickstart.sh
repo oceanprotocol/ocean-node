@@ -113,6 +113,12 @@ ensure_jq() {
     fi
 }
 
+get_public_ip() {
+    if command -v curl >/dev/null 2>&1; then
+        DETECTED_PUBLIC_IP=$(curl -s ifconfig.me) 
+    fi
+}
+
 echo "Checking prerequisites (jq) are installed.."
 ensure_jq
 
@@ -170,8 +176,14 @@ if [ "$enable_upnp" == "y" ]; then
     P2P_ENABLE_UPNP='true'
 fi
 
-
-read -p "Provide the public IPv4 address or FQDN where this node will be accessible: " P2P_ANNOUNCE_ADDRESS
+get_public_ip
+if [ -n "$DETECTED_PUBLIC_IP" ]; then
+    echo -ne "Provide the public IPv4 address or FQDN where this node will be accessible (press Enter to accept detected address: "$DETECTED_PUBLIC_IP") ": 
+    read P2P_ANNOUNCE_ADDRESS
+    P2P_ANNOUNCE_ADDRESS=${P2P_ANNOUNCE_ADDRESS:-$DETECTED_PUBLIC_IP}
+else
+    read -p "Provide the public IPv4 address or FQDN where this node will be accessible: " P2P_ANNOUNCE_ADDRESS
+fi
 
 if [ -n "$P2P_ANNOUNCE_ADDRESS" ]; then
   validate_ip_or_fqdn "$P2P_ANNOUNCE_ADDRESS"
