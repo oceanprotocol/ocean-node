@@ -4,6 +4,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libatomic1 \
     git \
+    python3 \
+    make \
+    g++ \
+    libsqlite3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
@@ -11,6 +15,7 @@ COPY package*.json ./
 COPY scripts/ ./scripts/
 RUN npm ci
 COPY . .
+RUN npm rebuild sqlite3 --build-from-source
 RUN npm run build && npm prune --omit=dev
 
 
