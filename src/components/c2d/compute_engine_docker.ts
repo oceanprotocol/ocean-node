@@ -392,16 +392,29 @@ export class C2DEngineDocker extends C2DEngine {
       )
     }
 
+    const physicalCpuCount = this.physicalLimits.get('cpu') || 0
     let cpuOffset = 0
     for (const env of this.envs) {
-      const cpuRes = this.getResource(env.resources, 'cpu')
+      const cpuRes = this.getResource(env.resources ?? [], 'cpu')
       if (cpuRes && cpuRes.total > 0) {
-        const cores = Array.from({ length: cpuRes.total }, (_, i) => cpuOffset + i)
-        this.envCpuCoresMap.set(env.id, cores)
-        CORE_LOGGER.info(
-          `CPU affinity: environment ${env.id} cores ${cores[0]}-${cores[cores.length - 1]} (offset=${cpuOffset}, total=${cpuRes.total})`
+        const isBenchmarkEnv = env.access?.addresses?.includes(
+          BENCHMARK_MONITORING_ADDRESS
         )
-        cpuOffset += cpuRes.total
+        if (isBenchmarkEnv) {
+          const total = physicalCpuCount > 0 ? physicalCpuCount : cpuRes.total
+          const cores = Array.from({ length: total }, (_, i) => i)
+          this.envCpuCoresMap.set(env.id, cores)
+          CORE_LOGGER.info(
+            `CPU affinity: benchmark environment ${env.id} cores 0-${cores[cores.length - 1]}`
+          )
+        } else {
+          const cores = Array.from({ length: cpuRes.total }, (_, i) => cpuOffset + i)
+          this.envCpuCoresMap.set(env.id, cores)
+          CORE_LOGGER.info(
+            `CPU affinity: environment ${env.id} cores ${cores[0]}-${cores[cores.length - 1]}`
+          )
+          cpuOffset += cpuRes.total
+        }
       }
     }
 
