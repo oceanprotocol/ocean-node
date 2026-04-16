@@ -526,6 +526,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'HTTP_KEY_PATH',
     value: process.env.HTTP_KEY_PATH,
     required: false
+  },
+  PERSISTENT_STORAGE: {
+    name: 'PERSISTENT_STORAGE',
+    value: process.env.PERSISTENT_STORAGE,
+    required: false
   }
 }
 export const CONNECTION_HISTORY_DELETE_THRESHOLD = 300

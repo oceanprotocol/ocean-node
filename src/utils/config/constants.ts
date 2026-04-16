@@ -69,7 +69,8 @@ export const ENV_TO_CONFIG_MAPPING = {
   P2P_ENABLE_NETWORK_STATS: 'p2pConfig.enableNetworkStats',
   HTTP_CERT_PATH: 'httpCertPath',
   HTTP_KEY_PATH: 'httpKeyPath',
-  ENABLE_BENCHMARK: 'enableBenchmark'
+  ENABLE_BENCHMARK: 'enableBenchmark',
+  PERSISTENT_STORAGE: 'persistentStorage'
 } as const
 
 // Configuration defaults
