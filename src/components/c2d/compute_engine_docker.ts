@@ -2067,7 +2067,13 @@ export class C2DEngineDocker extends C2DEngine {
             job.isStarted = false
             job.status = C2DStatusNumber.PublishingResults
             job.statusText = C2DStatusText.PublishingResults
-            job.algoStopTimestamp = String(Date.now() / 1000)
+            const containerFinishedAt =
+              new Date(details.State.FinishedAt).getTime() / 1000
+            job.algoStopTimestamp = String(
+              containerFinishedAt > parseFloat(job.algoStartTimestamp)
+                ? containerFinishedAt
+                : Date.now() / 1000
+            )
             job.isRunning = false
             await this.db.updateJob(job)
             return
