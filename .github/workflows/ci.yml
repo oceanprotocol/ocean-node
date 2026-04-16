@@ -196,6 +196,15 @@ jobs:
         with:
           node-version: 'v22.15.0'
 
+      - name: Cache node_modules
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-node-modules
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-test-integration-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-test-integration-${{ env.cache-name }}-
+
       - name: Set ADDRESS_FILE
         run: echo "ADDRESS_FILE=${HOME}/.ocean/ocean-contracts/artifacts/address.json" >> $GITHUB_ENV
 
@@ -236,33 +245,12 @@ jobs:
         run: docker logs ocean-contracts-1 && docker logs ocean-typesense-1
         if: ${{ failure() }}
 
-      - name: Checkout Ocean-js
-        uses: actions/checkout@v4
-        with:
-          repository: 'oceanprotocol/ocean.js'
-          path: 'ocean.js'
-          ref: main
-      - name: Set up Node.js for ocean.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 'v20.19.0'
-      - name: Build ocean-js
-        working-directory: ${{ github.workspace }}/ocean.js
-        run: |
-          npm ci
-          npm run build
-          npm link
-
       - name: Checkout Ocean Node
         uses: actions/checkout@v4
         with:
           repository: 'oceanprotocol/ocean-node'
           path: 'ocean-node'
           ref: ${{ github.event_name == 'pull_request' && github.head_ref || 'main' }}
-      - name: Set up Node.js for ocean-node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 'v22.15.0'
       - name: Set DOCKER_REGISTRY_AUTHS from Docker Hub secrets
         if: env.DOCKERHUB_USERNAME && env.DOCKERHUB_PASSWORD
         run: |
@@ -320,10 +308,22 @@ jobs:
         with:
           repository: 'oceanprotocol/ocean-cli'
           path: 'ocean-cli'
-      - name: Set up Node.js for ocean-cli
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 'v20.19.0'
+      - name: Checkout Ocean-js
+        uses: actions/checkout@v4
+        with:
+          repository: 'oceanprotocol/ocean.js'
+          path: 'ocean.js'
+          ref: fix/esbuild-version
+      - name: Build ocean-js
+        working-directory: ${{ github.workspace }}/ocean.js
+        run: |
+          npm ci
+          npm run build
+          npm link
       - name: Setup Ocean CLI
         working-directory: ${{ github.workspace }}/ocean-cli
         run: |
