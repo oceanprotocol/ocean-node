@@ -112,7 +112,7 @@ export async function status(
     )
     return
   }
-  const config = await getConfiguration()
+  const config = oceanNode.getConfig()
 
   // no previous status?
   if (!nodeStatus) {
@@ -172,6 +172,12 @@ export async function status(
       CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error getting c2d clusters: ${error}`)
     }
     nodeStatus.supportedSchemas = typesenseSchemas.ddoSchemas
+  }
+
+  if (config.persistentStorage) {
+    nodeStatus.persistentStorage = {}
+    if (config.persistentStorage.accessLists)
+      nodeStatus.persistentStorage.accessLists = config.persistentStorage.accessLists
   }
   return nodeStatus
 }

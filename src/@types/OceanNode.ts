@@ -5,6 +5,7 @@ import { FeeStrategy } from './Fees'
 import { Schema } from '../components/database'
 import { KeyProviderType } from './KeyManager'
 import type { PersistentStorageConfig } from './PersistentStorage.js'
+import type { AccessList } from './AccessList'
 
 export interface OceanNodeDBConfig {
   url: string | null
@@ -194,6 +195,9 @@ export interface OceanNodeStatus {
   // detailed information
   c2dClusters?: any[]
   supportedSchemas?: Schema[]
+  persistentStorage?: {
+    accessLists?: AccessList[]
+  }
 }
 
 export interface FindDDOResponse {
