@@ -389,7 +389,21 @@ export const OceanNodeConfigSchema = z
     DB_PASSWORD: z.string().optional(),
     DB_TYPE: z.string().optional(),
     dbConfig: OceanNodeDBConfigSchema.optional(),
-    persistentStorage: PersistentStorageConfigSchema.optional(),
+    // Accept either an object (config file) or a JSON string (env var `PERSISTENT_STORAGE`),
+    // and validate the parsed value against the PersistentStorage schema.
+    persistentStorage: z
+      .preprocess((val) => {
+        if (val === undefined || val === null) return val
+        if (typeof val === 'string') {
+          try {
+            return JSON.parse(val)
+          } catch {
+            return val
+          }
+        }
+        return val
+      }, PersistentStorageConfigSchema)
+      .optional(),
 
     FEE_AMOUNT: z.string().optional(),
     FEE_TOKENS: z.string().optional(),
