@@ -18,6 +18,7 @@ import {
   PersistentStorageFileInfo
 } from './PersistentStorageFactory.js'
 import { OceanNode } from '../../OceanNode.js'
+import { CORE_LOGGER } from '../../utils/logging/common.js'
 
 export class PersistentStorageLocalFS extends PersistentStorageFactory {
   /* eslint-disable security/detect-non-literal-fs-filename -- localfs backend operates on filesystem paths */
@@ -29,7 +30,26 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
       .options as PersistentStorageLocalFSOptions
 
     this.baseFolder = options.folder
-    fsp.mkdir(this.baseFolder, { recursive: true })
+
+    // Ensure base folder exists and is a directory (sync to avoid startup races).
+    try {
+      fs.mkdirSync(this.baseFolder, { recursive: true })
+      const st = fs.statSync(this.baseFolder)
+      if (!st.isDirectory()) {
+        throw new Error(
+          `Persistent storage folder is not a directory: ${this.baseFolder}`
+        )
+      }
+      fs.mkdirSync(path.join(this.baseFolder, 'buckets'), { recursive: true })
+    } catch (e: any) {
+      if (e?.code === 'EACCES') {
+        throw new Error(
+          `Persistent storage folder is not accessible (EACCES): ${this.baseFolder}. ` +
+            `Configure 'persistentStorage.options.folder' to a writable path inside the container and mount it as a volume.`
+        )
+      }
+      throw e
+    }
   }
 
   private bucketPath(bucketId: string): string {
@@ -78,7 +98,9 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
   ): Promise<CreateBucketResult> {
     const bucketId = randomUUID()
     const createdAt = Math.floor(Date.now() / 1000)
-    await fsp.mkdir(this.bucketPath(bucketId), { recursive: true })
+    const path = this.bucketPath(bucketId)
+    CORE_LOGGER.debug(`Creating ${path} folder for new bucket`)
+    await fsp.mkdir(path)
     await super.dbUpsertBucket(
       bucketId,
       owner,

@@ -70,7 +70,10 @@ export class PersistentStorageCreateBucketHandler extends CommandHandler {
       const node = this.getOceanNode()
       const config = node.getConfig()
       // if we have access lists,check them.
-      if (config.persistentStorage?.accessLists) {
+      if (
+        config.persistentStorage?.accessLists &&
+        config.persistentStorage?.accessLists.length > 0
+      ) {
         const isAllowedCreate = await checkAddressOnAccessList(
           task.consumerAddress,
           config.persistentStorage?.accessLists,
