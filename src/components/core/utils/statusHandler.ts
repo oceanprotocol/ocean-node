@@ -7,7 +7,6 @@ import {
   StorageTypes,
   OceanNodeConfig
 } from '../../../@types/OceanNode.js'
-import { getConfiguration } from '../../../utils/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { typesenseSchemas } from '../../database/TypesenseSchemas.js'
