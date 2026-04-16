@@ -131,7 +131,7 @@ describe('Persistent storage handlers (integration)', function () {
     const nodeStatus = JSON.parse(body) as OceanNodeStatus
     expect(nodeStatus.persistentStorage).to.be.an('object')
     expect(nodeStatus.persistentStorage?.accessLists).to.be.an('array').with.lengthOf(1)
-    expect(nodeStatus.persistentStorage.accessLists).to.equal(bucketAllowList)
+    expect(nodeStatus.persistentStorage.accessLists).to.equal([bucketAllowList])
   })
 
   it('create bucket → upload → list → delete (happy path)', async () => {
