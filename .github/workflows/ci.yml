@@ -318,12 +318,22 @@ jobs:
           repository: 'oceanprotocol/ocean.js'
           path: 'ocean.js'
           ref: main
+      - name: Cache ocean.js node_modules
+        uses: actions/cache@v3
+        with:
+          path: ocean.js/node_modules
+          key: ${{ runner.os }}-oceanjs-${{ hashFiles('ocean.js/package-lock.json') }}
       - name: Build ocean-js
         working-directory: ${{ github.workspace }}/ocean.js
         run: |
           npm ci
           npm run build
           npm link
+      - name: Cache ocean-cli node_modules
+        uses: actions/cache@v3
+        with:
+          path: ocean-cli/node_modules
+          key: ${{ runner.os }}-oceancli-${{ hashFiles('ocean-cli/package-lock.json') }}
       - name: Setup Ocean CLI
         working-directory: ${{ github.workspace }}/ocean-cli
         run: |
