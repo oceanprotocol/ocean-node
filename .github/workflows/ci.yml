@@ -245,12 +245,33 @@ jobs:
         run: docker logs ocean-contracts-1 && docker logs ocean-typesense-1
         if: ${{ failure() }}
 
+      - name: Checkout Ocean-js
+        uses: actions/checkout@v4
+        with:
+          repository: 'oceanprotocol/ocean.js'
+          path: 'ocean.js'
+          ref: main
+      - name: Set up Node.js for ocean.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'v20.19.0'
+      - name: Build ocean-js
+        working-directory: ${{ github.workspace }}/ocean.js
+        run: |
+          npm ci
+          npm run build
+          npm link
+
       - name: Checkout Ocean Node
         uses: actions/checkout@v4
         with:
           repository: 'oceanprotocol/ocean-node'
           path: 'ocean-node'
           ref: ${{ github.event_name == 'pull_request' && github.head_ref || 'main' }}
+      - name: Set up Node.js for ocean-node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'v22.15.0'
       - name: Set DOCKER_REGISTRY_AUTHS from Docker Hub secrets
         if: env.DOCKERHUB_USERNAME && env.DOCKERHUB_PASSWORD
         run: |
@@ -308,32 +329,10 @@ jobs:
         with:
           repository: 'oceanprotocol/ocean-cli'
           path: 'ocean-cli'
-      - name: Set up Node.js
+      - name: Set up Node.js for ocean-cli
         uses: actions/setup-node@v4
         with:
           node-version: 'v20.19.0'
-      - name: Checkout Ocean-js
-        uses: actions/checkout@v4
-        with:
-          repository: 'oceanprotocol/ocean.js'
-          path: 'ocean.js'
-          ref: main
-      - name: Cache ocean.js node_modules
-        uses: actions/cache@v3
-        with:
-          path: ocean.js/node_modules
-          key: ${{ runner.os }}-oceanjs-${{ hashFiles('ocean.js/package-lock.json') }}
-      - name: Build ocean-js
-        working-directory: ${{ github.workspace }}/ocean.js
-        run: |
-          npm ci
-          npm run build
-          npm link
-      - name: Cache ocean-cli node_modules
-        uses: actions/cache@v3
-        with:
-          path: ocean-cli/node_modules
-          key: ${{ runner.os }}-oceancli-${{ hashFiles('ocean-cli/package-lock.json') }}
       - name: Setup Ocean CLI
         working-directory: ${{ github.workspace }}/ocean-cli
         run: |
