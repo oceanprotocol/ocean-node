@@ -69,15 +69,21 @@ export class PersistentStorageCreateBucketHandler extends CommandHandler {
       const storage = requirePersistentStorage(this)
       const node = this.getOceanNode()
       const config = node.getConfig()
-      const isAllowedCreate = await checkAddressOnAccessList(
-        task.consumerAddress,
-        config.persistentStorage?.accessLists,
-        node
-      )
-      if (!isAllowedCreate) {
-        return {
-          stream: null,
-          status: { httpStatus: 403, error: 'You are not allowed to create new buckets' }
+      // if we have access lists,check them.
+      if (config.persistentStorage?.accessLists) {
+        const isAllowedCreate = await checkAddressOnAccessList(
+          task.consumerAddress,
+          config.persistentStorage?.accessLists,
+          node
+        )
+        if (!isAllowedCreate) {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 403,
+              error: 'You are not allowed to create new buckets'
+            }
+          }
         }
       }
 
