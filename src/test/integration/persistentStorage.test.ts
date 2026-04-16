@@ -14,11 +14,12 @@ import {
   PersistentStorageListFilesHandler,
   PersistentStorageUploadFileHandler
 } from '../../components/core/handler/persistentStorage.js'
+import { StatusHandler } from '../../components/core/handler/statusHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import type { AccessList } from '../../@types/AccessList.js'
 import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { getConfiguration } from '../../utils/config.js'
-import { streamToObject } from '../../utils/util.js'
+import { streamToObject, streamToString } from '../../utils/util.js'
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
@@ -35,7 +36,7 @@ import { Blockchain } from '../../utils/blockchain.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
 import { DEVELOPMENT_CHAIN_ID } from '../../utils/address.js'
 import { deployAndGetAccessListConfig } from '../utils/contracts.js'
-import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { OceanNodeConfig, OceanNodeStatus } from '../../@types/OceanNode.js'
 import { KeyManager } from '../../components/KeyManager/index.js'
 
 describe('Persistent storage handlers (integration)', function () {
@@ -117,6 +118,20 @@ describe('Persistent storage handlers (integration)', function () {
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
     // await fsp.rm(psRoot, { recursive: true, force: true })
+  })
+
+  it('should expose persistent storage access lists on node status', async () => {
+    const statusCommand = {
+      command: PROTOCOL_COMMANDS.STATUS,
+      node: oceanNode.getKeyManager().getPeerId().toString()
+    }
+    const response = await new StatusHandler(oceanNode).handle(statusCommand)
+    expect(response.status.httpStatus).to.equal(200)
+    const body = await streamToString(response.stream as Readable)
+    const nodeStatus = JSON.parse(body) as OceanNodeStatus
+    expect(nodeStatus.persistentStorage).to.be.an('object')
+    expect(nodeStatus.persistentStorage?.accessLists).to.be.an('array').with.lengthOf(1)
+    expect(nodeStatus.persistentStorage.accessLists).to.equal(bucketAllowList)
   })
 
   it('create bucket → upload → list → delete (happy path)', async () => {
