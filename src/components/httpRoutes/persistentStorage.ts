@@ -16,15 +16,6 @@ import {
 
 export const persistentStorageRoutes = express.Router()
 
-function readRawBody(req: any): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = []
-    req.on('data', (chunk: any) => chunks.push(Buffer.from(chunk)))
-    req.on('end', () => resolve(Buffer.concat(chunks)))
-    req.on('error', reject)
-  })
-}
-
 // Create bucket
 persistentStorageRoutes.post(
   `${SERVICES_API_BASE_PATH}/persistentStorage/buckets`,
@@ -144,7 +135,6 @@ persistentStorageRoutes.post(
   `${SERVICES_API_BASE_PATH}/persistentStorage/buckets/:bucketId/files/:fileName`,
   async (req, res) => {
     try {
-      const raw = await readRawBody(req)
       const response = await new PersistentStorageUploadFileHandler(req.oceanNode).handle(
         {
           command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
@@ -153,7 +143,8 @@ persistentStorageRoutes.post(
           nonce: req.query.nonce as string,
           bucketId: req.params.bucketId,
           fileName: req.params.fileName,
-          stream: Readable.from(raw),
+          // Stream request body directly (supports chunked uploads, avoids buffering).
+          stream: req,
           authorization: req.headers?.authorization,
           caller: req.caller
         } as any
