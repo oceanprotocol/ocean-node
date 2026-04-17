@@ -28,8 +28,8 @@ import type {
 import {
   BENCHMARK_MONITORING_ADDRESS,
   getConfiguration,
-  SEPOLIA_CHAIN_ID,
-  USDC_TOKEN
+  BASE_CHAIN_ID,
+  USDC_TOKEN_ON_BASE
 } from '../../utils/config.js'
 import { C2DEngine } from './compute_engine_base.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
@@ -215,11 +215,11 @@ export class C2DEngineDocker extends C2DEngine {
       price: 1
     }))
 
-    const sepoliaChainId = SEPOLIA_CHAIN_ID
-    const usdcToken = USDC_TOKEN
+    const benchmarkEnvId = BASE_CHAIN_ID
+    const usdcToken = USDC_TOKEN_ON_BASE
 
     const benchmarkFees: ComputeEnvFeesStructure = {
-      [sepoliaChainId]: [{ feeToken: usdcToken, prices: benchmarkPrices }]
+      [benchmarkEnvId]: [{ feeToken: usdcToken, prices: benchmarkPrices }]
     }
 
     const benchmarkEnv: C2DEnvironmentConfig = {
