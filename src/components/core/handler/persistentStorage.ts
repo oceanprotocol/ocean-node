@@ -119,13 +119,9 @@ export class PersistentStorageGetBucketsHandler extends CommandHandler {
       'consumerAddress',
       'signature',
       'nonce',
-      'chainId',
       'owner'
     ])
     if (!base.valid) return base
-    if (typeof command.chainId !== 'number') {
-      return buildInvalidRequestMessage('Invalid parameter: "chainId" must be a number')
-    }
     if (!command.owner || typeof command.owner !== 'string') {
       return buildInvalidRequestMessage(
         'Invalid parameter: "owner" must be a non-empty string'
@@ -346,7 +342,6 @@ export class PersistentStorageDeleteFileHandler extends CommandHandler {
       'consumerAddress',
       'signature',
       'nonce',
-      'chainId',
       'bucketId',
       'fileName'
     ])

@@ -54,7 +54,6 @@ persistentStorageRoutes.get(
           consumerAddress: req.query.consumerAddress as string,
           signature: req.query.signature as string,
           nonce: req.query.nonce as string,
-          chainId: parseInt(req.query.chainId as string) || null,
           owner: req.query.owner as string,
           authorization: req.headers?.authorization,
           caller: req.caller
@@ -173,7 +172,6 @@ persistentStorageRoutes.delete(
           consumerAddress: req.query.consumerAddress as string,
           signature: req.query.signature as string,
           nonce: req.query.nonce as string,
-          chainId: parseInt(req.query.chainId as string) || null,
           bucketId: req.params.bucketId,
           fileName: req.params.fileName,
           authorization: req.headers?.authorization,

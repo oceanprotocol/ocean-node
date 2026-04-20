@@ -328,8 +328,6 @@ export interface PersistentStorageGetBucketsCommand extends Command {
   consumerAddress: string
   signature: string
   nonce: string
-  chainId: number
-  /** Ethereum address; only buckets with this stored owner are returned (then filtered by ACL). */
   owner: string
 }
 
@@ -360,7 +358,6 @@ export interface PersistentStorageDeleteFileCommand extends Command {
   consumerAddress: string
   signature: string
   nonce: string
-  chainId: number
   bucketId: string
   fileName: string
 }
