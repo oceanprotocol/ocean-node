@@ -246,6 +246,12 @@ export class C2DEngineDocker extends C2DEngine {
   public override async start() {
     const config = await getConfiguration()
     const envConfig = await this.getC2DConfig().connection
+    if (!envConfig?.environments?.length) {
+      CORE_LOGGER.warn(
+        `Skipping C2D Engine ${this.getC2DConfig().hash}: no environments configured`
+      )
+      return
+    }
     let sysinfo = null
     try {
       sysinfo = await this.docker.info()
