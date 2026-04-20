@@ -700,7 +700,7 @@ services:
 #      P2P_mDNSInterval: ''
 #      P2P_connectionsMaxParallelDials: ''
 #      P2P_connectionsDialTimeout: ''
-       P2P_ENABLE_UPNP: '$P2P_ENABLE_UPNP'
+      P2P_ENABLE_UPNP: '$P2P_ENABLE_UPNP'
 #      P2P_ENABLE_AUTONAT: ''
       P2P_ENABLE_CIRCUIT_RELAY_SERVER: false
       P2P_ENABLE_CIRCUIT_RELAY_CLIENT: false
