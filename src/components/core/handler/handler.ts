@@ -161,7 +161,7 @@ export abstract class CommandHandler
       return buildRateLimitReachedResponse()
     }
     // then validate the command arguments
-    const validation = await this.validate(task)
+    const validation = this.validate(task)
     if (!validation.valid) {
       return buildInvalidParametersResponse(validation)
     }
@@ -176,7 +176,7 @@ export abstract class CommandHandler
   async getAddressFromToken(authToken: string): Promise<string> {
     const auth = this.getOceanNode().getAuth()
     if (!auth) {
-      return 'Unauthorized'
+      throw new Error('Auth not configured')
     }
 
     return (await auth.validateToken(authToken)).address
