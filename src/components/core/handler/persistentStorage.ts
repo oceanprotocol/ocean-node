@@ -9,7 +9,6 @@ import type {
 } from '../../../@types/commands.js'
 import {
   PersistentStorageAccessDeniedError,
-  PersistentStorageFileInfo,
   type PersistentStorageFactory
 } from '../../persistentStorage/PersistentStorageFactory.js'
 import type { P2PCommandResponse } from '../../../@types/OceanNode.js'
@@ -23,7 +22,6 @@ import {
   type ValidateParams
 } from '../../httpRoutes/validateCommands.js'
 import { CommandHandler } from './handler.js'
-import { PersistentStorageObject } from '../../../@types/PersistentStorage.js'
 
 function requirePersistentStorage(handler: CommandHandler): PersistentStorageFactory {
   const node = handler.getOceanNode() as any
@@ -89,12 +87,9 @@ export class PersistentStorageCreateBucketHandler extends CommandHandler {
 
       let ownerNormalized: string
       try {
-        if (task.consumerAddress) {
-          ownerNormalized = getAddress(task.consumerAddress)
-        } else {
-          const authTokenAddress = await this.getAddressFromToken(task.authorization)
-          ownerNormalized = getAddress(authTokenAddress)
-        }
+        ownerNormalized = task.consumerAddress
+          ? getAddress(task.consumerAddress)
+          : getAddress(await this.getAddressFromToken(task.authorization))
       } catch {
         return {
           stream: null,
@@ -197,13 +192,10 @@ export class PersistentStorageListFilesHandler extends CommandHandler {
 
     try {
       const storage = requirePersistentStorage(this)
-      let result: PersistentStorageFileInfo[]
-      if (task.consumerAddress) {
-        result = await storage.listFiles(task.bucketId, task.consumerAddress)
-      } else {
-        const authTokenAddress = await this.getAddressFromToken(task.authorization)
-        result = await storage.listFiles(task.bucketId, authTokenAddress)
-      }
+      const ownerNormalized = task.consumerAddress
+        ? getAddress(task.consumerAddress)
+        : getAddress(await this.getAddressFromToken(task.authorization))
+      const result = await storage.listFiles(task.bucketId, ownerNormalized)
       return {
         stream: Readable.from(JSON.stringify(result)),
         status: { httpStatus: 200, error: null }
@@ -244,17 +236,15 @@ export class PersistentStorageGetFileObjectHandler extends CommandHandler {
 
     try {
       const storage = requirePersistentStorage(this)
-      let obj: PersistentStorageObject
-      if (task.consumerAddress) {
-        obj = await storage.getFileObject(
-          task.bucketId,
-          task.fileName,
-          task.consumerAddress
-        )
-      } else {
-        const authTokenAddress = await this.getAddressFromToken(task.authorization)
-        obj = await storage.getFileObject(task.bucketId, task.fileName, authTokenAddress)
-      }
+      const ownerNormalized = task.consumerAddress
+        ? getAddress(task.consumerAddress)
+        : getAddress(await this.getAddressFromToken(task.authorization))
+      const obj = await storage.getFileObject(
+        task.bucketId,
+        task.fileName,
+        ownerNormalized
+      )
+
       return {
         stream: Readable.from(JSON.stringify(obj)),
         status: { httpStatus: 200, error: null }
@@ -304,23 +294,16 @@ export class PersistentStorageUploadFileHandler extends CommandHandler {
           status: { httpStatus: 403, error: 'Upload stream error' }
         }
       }
-      let result: PersistentStorageFileInfo
-      if (task.consumerAddress) {
-        result = await storage.uploadFile(
-          task.bucketId,
-          task.fileName,
-          task.stream,
-          task.consumerAddress
-        )
-      } else {
-        const authTokenAddress = await this.getAddressFromToken(task.authorization)
-        result = await storage.uploadFile(
-          task.bucketId,
-          task.fileName,
-          task.stream,
-          authTokenAddress
-        )
-      }
+      const ownerNormalized = task.consumerAddress
+        ? getAddress(task.consumerAddress)
+        : getAddress(await this.getAddressFromToken(task.authorization))
+      const result = await storage.uploadFile(
+        task.bucketId,
+        task.fileName,
+        task.stream,
+        ownerNormalized
+      )
+
       return {
         stream: Readable.from(JSON.stringify(result)),
         status: { httpStatus: 200, error: null }
@@ -361,12 +344,10 @@ export class PersistentStorageDeleteFileHandler extends CommandHandler {
 
     try {
       const storage = requirePersistentStorage(this)
-      if (task.consumerAddress) {
-        await storage.deleteFile(task.bucketId, task.fileName, task.consumerAddress)
-      } else {
-        const authTokenAddress = await this.getAddressFromToken(task.authorization)
-        await storage.deleteFile(task.bucketId, task.fileName, authTokenAddress)
-      }
+      const ownerNormalized = task.consumerAddress
+        ? getAddress(task.consumerAddress)
+        : getAddress(await this.getAddressFromToken(task.authorization))
+      await storage.deleteFile(task.bucketId, task.fileName, ownerNormalized)
       return {
         stream: Readable.from(JSON.stringify({ success: true })),
         status: { httpStatus: 200, error: null }
