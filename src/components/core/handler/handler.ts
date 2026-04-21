@@ -173,6 +173,15 @@ export abstract class CommandHandler
     }
   }
 
+  async getAddressFromToken(authToken: string): Promise<string> {
+    const auth = this.getOceanNode().getAuth()
+    if (!auth) {
+      return 'Unauthorized'
+    }
+
+    return (await auth.validateToken(authToken)).address
+  }
+
   async validateTokenOrSignature(
     authToken: string,
     address: string,
