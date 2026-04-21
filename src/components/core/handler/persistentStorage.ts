@@ -23,6 +23,7 @@ import {
   type ValidateParams
 } from '../../httpRoutes/validateCommands.js'
 import { CommandHandler } from './handler.js'
+import { PersistentStorageObject } from '../../../@types/PersistentStorage.js'
 
 function requirePersistentStorage(handler: CommandHandler): PersistentStorageFactory {
   const node = handler.getOceanNode() as any
