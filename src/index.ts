@@ -134,11 +134,11 @@ if (config.hasHttp) {
   // allow up to 25Mb file upload
   app.use(express.raw({ limit: '25mb' }))
   app.use(cors())
-  app.use(requestValidator, (req, res, next) => {
+  app.use((req, res, next) => {
     req.caller = req.headers['x-forwarded-for'] || req.socket.remoteAddress
     req.oceanNode = oceanNode
     next()
-  })
+  }, requestValidator)
 
   // Integrate static file serving middleware
   app.use(removeExtraSlashes)
