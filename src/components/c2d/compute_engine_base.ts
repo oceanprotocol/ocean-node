@@ -49,7 +49,7 @@ export abstract class C2DEngine {
     this.escrow = escrow
     this.keyManager = keyManager
     this.config = config
-    this.dockerRegistryAuths = config.dockerRegistrysAuth
+    this.dockerRegistryAuths = config?.dockerRegistrysAuth
   }
 
   getKeyManager(): KeyManager {
