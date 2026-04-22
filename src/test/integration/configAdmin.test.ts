@@ -55,7 +55,18 @@ describe('Config Admin Endpoints Integration Tests', () => {
 
     config = await getConfiguration(true)
     database = await Database.init(config.dbConfig)
-    oceanNode = OceanNode.getInstance(config, database)
+    // Force a new singleton so this suite sees env-based config (e.g. ALLOWED_ADMINS);
+    // an instance from an earlier test file would otherwise keep stale config.
+    oceanNode = OceanNode.getInstance(
+      config,
+      database,
+      null,
+      null,
+      null,
+      null,
+      null,
+      true
+    )
   })
 
   after(async () => {
