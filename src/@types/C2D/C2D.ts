@@ -120,6 +120,7 @@ export interface ComputeEnvironmentBaseConfig {
   access: ComputeAccessList
   free?: ComputeEnvironmentFreeOptions
   platform: RunningPlatform
+  enableNetwork?: boolean // whether network is enabled for algorithm containers
 }
 
 export interface ComputeRuntimes {
@@ -152,6 +153,7 @@ export interface C2DEnvironmentConfig {
   access?: ComputeAccessList
   free?: ComputeEnvironmentFreeOptions
   resources?: ComputeResource[]
+  enableNetwork?: boolean // whether network is enabled for algorithm containers
 }
 
 export interface C2DDockerConfig {
@@ -168,7 +170,6 @@ export interface C2DDockerConfig {
   scanImages?: boolean
   scanImageDBUpdateInterval?: number // Default: 12 hours
   environments: C2DEnvironmentConfig[]
-  enableNetwork?: boolean // whether network is enabled for algorithm containers
 }
 
 export type ComputeResultType =

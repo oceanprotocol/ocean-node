@@ -235,7 +235,8 @@ export const C2DEnvironmentConfigSchema = z
       })
       .optional(),
     free: ComputeEnvironmentFreeOptionsSchema.optional(),
-    resources: z.array(ComputeResourceSchema).optional()
+    resources: z.array(ComputeResourceSchema).optional(),
+    enableNetwork: z.boolean().optional().default(false)
   })
   .refine(
     (data) =>
@@ -270,7 +271,6 @@ export const C2DDockerConfigSchema = z.array(
     imageCleanupInterval: z.number().int().min(3600).optional().default(86400), // min 1 hour, default 24 hours
     scanImages: z.boolean().optional().default(false),
     scanImageDBUpdateInterval: z.number().int().min(3600).optional().default(43200), // default 43200 (12 hours)
-    enableNetwork: z.boolean().optional().default(false),
     environments: z.array(C2DEnvironmentConfigSchema).min(1)
   })
 )
