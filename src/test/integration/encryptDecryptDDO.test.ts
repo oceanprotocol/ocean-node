@@ -108,7 +108,17 @@ describe('Should encrypt and decrypt DDO', () => {
     )
     const config = await getConfiguration()
     database = await Database.init(config.dbConfig)
-    oceanNode = OceanNode.getInstance(config, database)
+    oceanNode = OceanNode.getInstance(
+      config,
+      database,
+      null,
+      null,
+      null,
+      null,
+      null,
+      true
+    )
+
     // will be used later
     indexer = new OceanIndexer(database, config, oceanNode.blockchainRegistry)
     oceanNode.addIndexer(indexer)
