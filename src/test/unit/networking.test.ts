@@ -148,10 +148,13 @@ describe('Test rate limitations and deny list settings', () => {
       ]
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
+    console.log(envOverrides)
     const config = await getConfiguration(true)
+    console.log(config)
     const keyManager = new KeyManager(config)
     const p2pNode = new OceanP2P(config, keyManager)
     await p2pNode.start()
+
     node = OceanNode.getInstance(config, null, p2pNode, null, null, null, null, true)
   })
 
