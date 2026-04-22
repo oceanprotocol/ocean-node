@@ -261,6 +261,11 @@ jobs:
           repository: 'oceanprotocol/ocean-node'
           path: 'ocean-node'
           ref: ${{ github.event_name == 'pull_request' && github.head_ref || 'main' }}
+      - name: Build Ocean Node
+        working-directory: ${{ github.workspace }}/ocean-node
+        run: |
+          npm ci
+          npm run build
 
       - name: Wait for contracts deployment and C2D cluster to be ready
         working-directory: ${{ github.workspace }}/barge
@@ -290,8 +295,6 @@ jobs:
       - name: Start Ocean Node
         working-directory: ${{ github.workspace }}/ocean-node
         run: |
-          npm ci
-          npm run build
           npm run start > ocean-node.log 2>&1 &
         env:
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
