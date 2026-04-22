@@ -223,6 +223,7 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
 
     did = publishedDataset.ddo.id
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       did,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT * 3
@@ -232,6 +233,7 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
     }
     didWithMatchAll = publishedDatasetWithMatchAll.ddo.id
     const resolvedDdoWithMatchAll = await waitToIndex(
+      oceanNode,
       didWithMatchAll,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT * 3
@@ -243,6 +245,7 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
 
     computeDid = publishedComputeDataset.ddo.id
     const resolvedComputeDdo = await waitToIndex(
+      oceanNode,
       computeDid,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT * 3
@@ -255,6 +258,7 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
 
     algoDid = publishedAlgo.ddo.id
     const resolvedAlgo = await waitToIndex(
+      oceanNode,
       algoDid,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT * 3
@@ -601,6 +605,7 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
 
     // will timeout
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       publishedDataset?.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT

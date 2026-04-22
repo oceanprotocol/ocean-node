@@ -145,6 +145,7 @@ describe('Trusted algorithms Flow', () => {
     )
     publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
     const computeDatasetResult = await waitToIndex(
+      oceanNode,
       publishedComputeDataset.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT
@@ -157,6 +158,7 @@ describe('Trusted algorithms Flow', () => {
       }`
     )
     const algoDatasetResult = await waitToIndex(
+      oceanNode,
       publishedAlgoDataset.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT
@@ -286,6 +288,7 @@ describe('Trusted algorithms Flow', () => {
     const txReceipt = await setMetaDataTx.wait()
     assert(txReceipt, 'set metadata failed')
     publishedComputeDataset = await waitToIndex(
+      oceanNode,
       publishedComputeDataset.ddo.id,
       EVENTS.METADATA_UPDATED,
       DEFAULT_TEST_TIMEOUT * 2,

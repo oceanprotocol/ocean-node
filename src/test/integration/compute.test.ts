@@ -253,6 +253,7 @@ describe('Compute', () => {
     publishedComputeDataset = await publishAsset(computeAsset, publisherAccount)
     publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
     const computeDatasetResult = await waitToIndex(
+      oceanNode,
       publishedComputeDataset.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT
@@ -264,6 +265,7 @@ describe('Compute', () => {
       )
     }
     const algoDatasetResult = await waitToIndex(
+      oceanNode,
       publishedAlgoDataset.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT
@@ -315,6 +317,7 @@ describe('Compute', () => {
     const txReceipt = await setMetaDataTx.wait()
     assert(txReceipt, 'set metadata failed')
     publishedComputeDataset = await waitToIndex(
+      oceanNode,
       publishedComputeDataset.ddo.id,
       EVENTS.METADATA_UPDATED,
       DEFAULT_TEST_TIMEOUT * 2,
@@ -1491,6 +1494,7 @@ describe('Compute', () => {
 
     it('should getAlgoChecksums', async function () {
       const { ddo, wasTimeout } = await waitToIndex(
+        oceanNode,
         algoDDO.id,
         EVENTS.METADATA_CREATED,
         DEFAULT_TEST_TIMEOUT,
@@ -1518,6 +1522,7 @@ describe('Compute', () => {
     it('should validateAlgoForDataset', async function () {
       this.timeout(DEFAULT_TEST_TIMEOUT * 10)
       const { ddo, wasTimeout } = await waitToIndex(
+        oceanNode,
         algoDDO.id,
         EVENTS.METADATA_CREATED,
         DEFAULT_TEST_TIMEOUT * 2,
@@ -1534,6 +1539,7 @@ describe('Compute', () => {
           config
         )
         const { ddo, wasTimeout } = await waitToIndex(
+          oceanNode,
           datasetDDO.id,
           EVENTS.METADATA_CREATED,
           DEFAULT_TEST_TIMEOUT * 2,
@@ -2760,11 +2766,13 @@ describe('Compute Access Restrictions', () => {
       publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
 
       await waitToIndex(
+        oceanNode,
         publishedComputeDataset.ddo.id,
         EVENTS.METADATA_CREATED,
         DEFAULT_TEST_TIMEOUT
       )
       await waitToIndex(
+        oceanNode,
         publishedAlgoDataset.ddo.id,
         EVENTS.METADATA_CREATED,
         DEFAULT_TEST_TIMEOUT
@@ -2955,11 +2963,13 @@ describe('Compute Access Restrictions', () => {
       publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
 
       await waitToIndex(
+        oceanNode,
         publishedComputeDataset.ddo.id,
         EVENTS.METADATA_CREATED,
         DEFAULT_TEST_TIMEOUT
       )
       await waitToIndex(
+        oceanNode,
         publishedAlgoDataset.ddo.id,
         EVENTS.METADATA_CREATED,
         DEFAULT_TEST_TIMEOUT

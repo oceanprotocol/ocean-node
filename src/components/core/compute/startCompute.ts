@@ -34,7 +34,7 @@ import {
 } from '../../../@types/C2D/C2D.js'
 // import { verifyProviderFees } from '../utils/feesHandler.js'
 import { validateOrderTransaction } from '../utils/validateOrders.js'
-import { getConfiguration, isPolicyServerConfigured } from '../../../utils/index.js'
+import { isPolicyServerConfigured } from '../../../utils/index.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 // import { ProviderFeeValidation } from '../../../@types/Fees.js'
@@ -192,7 +192,7 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
       }
 
       const { algorithm } = task
-      const config = await getConfiguration()
+      const config = node.getConfig()
 
       const accessGranted = await validateAccess(
         task.consumerAddress,
@@ -283,9 +283,10 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
               }
             }
           }
-          const config = await getConfiguration()
-          const { chainId } = config.supportedNetworks[ddoChainId]
           const oceanNode = this.getOceanNode()
+          const config = oceanNode.getConfig()
+          const { chainId } = config.supportedNetworks[ddoChainId]
+
           const blockchain = oceanNode.getBlockchain(chainId)
           if (!blockchain) {
             return {
@@ -602,11 +603,7 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
           }
         }
       }
-      const isValidOutput = await validateOutput(
-        node,
-        task.output,
-        await getConfiguration()
-      )
+      const isValidOutput = await validateOutput(node, task.output, node.getConfig())
       if (isValidOutput.status.httpStatus !== 200) {
         return isValidOutput
       }
@@ -761,11 +758,7 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
         }
       }
       const node = this.getOceanNode()
-      const isValidOutput = await validateOutput(
-        node,
-        task.output,
-        await getConfiguration()
-      )
+      const isValidOutput = await validateOutput(node, task.output, node.getConfig())
       if (isValidOutput.status.httpStatus !== 200) {
         return isValidOutput
       }
@@ -816,9 +809,9 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
             }
           }
         }
-        const config = await getConfiguration()
-        const { chainId } = config.supportedNetworks[ddoChainId]
         const oceanNode = this.getOceanNode()
+        const config = oceanNode.getConfig()
+        const { chainId } = config.supportedNetworks[ddoChainId]
         const blockchain = oceanNode.getBlockchain(chainId)
         if (!blockchain) {
           return {

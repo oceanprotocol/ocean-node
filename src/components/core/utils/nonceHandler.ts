@@ -1,5 +1,5 @@
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
-import { P2PCommandResponse } from '../../../@types/OceanNode.js'
+import { OceanNodeConfig, P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { ethers } from 'ethers'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { CORE_LOGGER, DATABASE_LOGGER } from '../../../utils/logging/common.js'
@@ -10,7 +10,6 @@ import { PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { NonceCommand } from '../../../@types/commands.js'
 import { streamToString } from '../../../utils/util.js'
 import { Readable } from 'node:stream'
-import { getConfiguration } from '../../../utils/config.js'
 
 export function getDefaultErrorResponse(errorMessage: string): P2PCommandResponse {
   return {
@@ -116,6 +115,7 @@ async function updateNonce(
 
 // get stored nonce for an address, update it on db, validate signature
 export async function checkNonce(
+  config: OceanNodeConfig,
   db: AbstractNonceDatabase,
   consumer: string,
   nonce: number,
@@ -137,6 +137,7 @@ export async function checkNonce(
       consumer,
       signature,
       command,
+      config,
       chainId
     )
     if (validate.valid) {
@@ -185,6 +186,7 @@ async function validateNonceAndSignature(
   consumer: string,
   signature: string,
   command: string = null,
+  config: OceanNodeConfig,
   chainId?: string | null
 ): Promise<NonceResponse> {
   if (nonce <= existingNonce) {
@@ -218,7 +220,6 @@ async function validateNonceAndSignature(
 
   // Try ERC-1271 (smart account) validation
   try {
-    const config = await getConfiguration()
     const targetChainId = chainId || Object.keys(config?.supportedNetworks || {})[0]
     if (targetChainId && config?.supportedNetworks?.[targetChainId]) {
       const provider = new ethers.JsonRpcProvider(

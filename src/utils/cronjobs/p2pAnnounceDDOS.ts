@@ -6,7 +6,7 @@ import { P2P_LOGGER } from '../logging/common.js'
 
 export async function p2pAnnounceDDOS(node: OceanNode) {
   try {
-    const db = node.getDatabase()
+    const db = await node.getDatabase()
     const p2pNode = node.getP2PNode()
     if (!db || !db.ddo) {
       P2P_LOGGER.info(

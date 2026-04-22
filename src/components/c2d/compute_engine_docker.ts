@@ -27,7 +27,6 @@ import type {
 } from '../../@types/C2D/C2D.js'
 import {
   BENCHMARK_MONITORING_ADDRESS,
-  getConfiguration,
   SEPOLIA_CHAIN_ID,
   USDC_TOKEN
 } from '../../utils/config.js'
@@ -62,7 +61,7 @@ import { decryptFilesObject, omitDBComputeFieldsFromComputeJob } from './index.j
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
 import { Service } from '@oceanprotocol/ddo-js'
 import { getOceanTokenAddressForChain } from '../../utils/address.js'
-import { dockerRegistrysAuth, dockerRegistryAuth } from '../../@types/OceanNode.js'
+import { dockerRegistryAuth, OceanNodeConfig } from '../../@types/OceanNode.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { ZeroAddress } from 'ethers'
 
@@ -98,9 +97,9 @@ export class C2DEngineDocker extends C2DEngine {
     db: C2DDatabase,
     escrow: Escrow,
     keyManager: KeyManager,
-    dockerRegistryAuths: dockerRegistrysAuth
+    config: OceanNodeConfig
   ) {
-    super(clusterConfig, db, escrow, keyManager, dockerRegistryAuths)
+    super(clusterConfig, db, escrow, keyManager, config)
 
     this.docker = null
     if (clusterConfig.connection.socketPath) {
@@ -244,7 +243,7 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   public override async start() {
-    const config = await getConfiguration()
+    const config = this.getConfig()
     const envConfig = await this.getC2DConfig().connection
     if (!envConfig?.environments?.length) {
       CORE_LOGGER.warn(
@@ -2144,7 +2143,7 @@ export class C2DEngineDocker extends C2DEngine {
             const output = JSON.parse(decryptedOutput.toString()) as ComputeOutput
             const storage = Storage.getStorageClass(
               output.remoteStorage,
-              await getConfiguration()
+              this.getConfig()
             )
 
             if (
@@ -2761,7 +2760,7 @@ export class C2DEngineDocker extends C2DEngine {
   private async uploadData(
     job: DBComputeJob
   ): Promise<{ status: C2DStatusNumber; statusText: C2DStatusText }> {
-    const config = await getConfiguration()
+    const config = this.getConfig()
     const ret = {
       status: C2DStatusNumber.RunningAlgorithm,
       statusText: C2DStatusText.RunningAlgorithm

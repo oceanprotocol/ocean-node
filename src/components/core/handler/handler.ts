@@ -11,7 +11,6 @@ import {
   buildRateLimitReachedResponse,
   ValidateParams
 } from '../../httpRoutes/validateCommands.js'
-import { getConfiguration } from '../../../utils/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { ReadableString } from '../../P2P/handlers.js'
 import { CONNECTION_HISTORY_DELETE_THRESHOLD } from '../../../utils/constants.js'
@@ -32,9 +31,11 @@ export abstract class BaseHandler implements ICommandHandler {
   }
 
   // TODO LOG, implement all handlers
+  // eslint-disable-next-line require-await
   async checkRateLimit(caller: string | string[]): Promise<boolean> {
-    const requestMap = this.getOceanNode().getRequestMap()
-    const ratePerMinute = (await getConfiguration()).rateLimit
+    const node = this.getOceanNode()
+    const requestMap = node.getRequestMap()
+    const ratePerMinute = node.getConfig().rateLimit
     const requestTime = new Date().getTime()
     let isOK = true
 

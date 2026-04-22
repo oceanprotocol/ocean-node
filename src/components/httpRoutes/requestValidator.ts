@@ -1,5 +1,4 @@
 import { Request, Response } from 'express'
-import { getConfiguration } from '../../utils/config.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import {
@@ -15,7 +14,7 @@ export const requestValidator = async function (req: Request, res: Response, nex
     req.socket.remoteAddress ||
     '') as string
 
-  const configuration = await getConfiguration()
+  const configuration = req.oceanNode.getConfig()
 
   const ipValidation = await checkIP(requestIP, configuration)
   if (!ipValidation.valid) {

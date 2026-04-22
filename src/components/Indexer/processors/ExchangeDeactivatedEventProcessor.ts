@@ -1,7 +1,6 @@
 import { DDOManager } from '@oceanprotocol/ddo-js'
 import { ethers, Signer, FallbackProvider, ZeroAddress } from 'ethers'
 import { EVENTS } from '../../../utils/constants.js'
-import { getDatabase } from '../../../utils/database.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import {
@@ -59,7 +58,7 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
     const nftAddress = await datatokenContract.getERC721Address()
     const did = getDid(nftAddress, chainId)
     try {
-      const { ddo: ddoDatabase } = await getDatabase()
+      const { ddo: ddoDatabase } = await this.getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
       if (!ddo) {
         INDEXER_LOGGER.logMessage(

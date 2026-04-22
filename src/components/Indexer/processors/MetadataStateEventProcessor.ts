@@ -1,7 +1,6 @@
 import { DDOManager } from '@oceanprotocol/ddo-js'
 import { ethers, Signer, FallbackProvider } from 'ethers'
 import { EVENTS, MetadataStates } from '../../../utils/constants.js'
-import { getDatabase } from '../../../utils/database.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
@@ -31,7 +30,7 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
     const did = getDid(event.address, chainId)
 
     try {
-      const { ddo: ddoDatabase } = await getDatabase()
+      const { ddo: ddoDatabase } = await this.getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
       if (!ddo) {
         INDEXER_LOGGER.logMessage(

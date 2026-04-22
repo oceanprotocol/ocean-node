@@ -9,7 +9,6 @@ import {
   ValidateParams
 } from '../../httpRoutes/validateCommands.js'
 import { AdminCommandHandler } from './adminHandler.js'
-import { checkSupportedChainId } from '../../../utils/blockchain.js'
 
 export class IndexingThreadHandler extends AdminCommandHandler {
   async validateAdminCommand(command: StartStopIndexingCommand): Promise<ValidateParams> {
@@ -18,7 +17,7 @@ export class IndexingThreadHandler extends AdminCommandHandler {
       ![IndexingCommand.START_THREAD, IndexingCommand.STOP_THREAD].includes(
         command.action
       ) ||
-      (command.chainId && !checkSupportedChainId(command.chainId))
+      (command.chainId && !this.getOceanNode().checkSupportedChainId(command.chainId))
     ) {
       return buildInvalidRequestMessage(
         `Missing or invalid "action" and/or "chainId" fields for command: "${command}".`

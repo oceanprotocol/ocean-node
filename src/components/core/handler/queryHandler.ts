@@ -20,7 +20,7 @@ export class QueryHandler extends CommandHandler {
       return validationResponse
     }
     try {
-      const database = this.getOceanNode().getDatabase()
+      const database = await this.getOceanNode().getDatabase()
       if (!database || !database.ddo) {
         CORE_LOGGER.error('DDO database is not available')
         return {
@@ -53,7 +53,7 @@ export class QueryDdoStateHandler extends QueryHandler {
       return buildInvalidParametersResponse(validation)
     }
     try {
-      const database = this.getOceanNode().getDatabase()
+      const database = await this.getOceanNode().getDatabase()
       if (!database || !database.ddoState) {
         CORE_LOGGER.error('DDO State database is not available')
         return {

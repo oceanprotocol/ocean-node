@@ -189,7 +189,7 @@ providerRoutes.get(`${SERVICES_API_BASE_PATH}/nonce`, async (req, res) => {
       res.status(400).send('Missing required parameter: "userAddress"')
       return
     }
-    const nonceDB = req.oceanNode.getDatabase().nonce
+    const nonceDB = (await req.oceanNode.getDatabase()).nonce
     const result = await getNonce(nonceDB, userAddress)
     if (result.stream) {
       res.json({ nonce: await streamToString(result.stream as Readable) })

@@ -1,5 +1,4 @@
 import { CommandHandler } from './handler.js'
-import { getConfiguration } from '../../../utils/config.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import {
   FindPeerCommand,
@@ -130,9 +129,10 @@ export class GetP2PNetworkStatsHandler extends CommandHandler {
       return checks
     }
     try {
-      const config = await getConfiguration()
+      const node = this.getOceanNode()
+      const config = node.getConfig()
       if (config.p2pConfig.enableNetworkStats) {
-        const stats = this.getOceanNode().getP2PNode().getNetworkingStats()
+        const stats = node.getP2PNode().getNetworkingStats()
         return {
           stream: Readable.from(JSON.stringify(stats)),
           status: { httpStatus: 200 }

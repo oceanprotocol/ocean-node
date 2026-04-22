@@ -52,10 +52,11 @@ import { getCrawlingInterval } from '../../components/Indexer/utils.js'
 import { ReindexTask } from '../../components/Indexer/ChainIndexer.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { CollectFeesHandler } from '../../components/core/admin/collectFeesHandler.js'
-import { getProviderFeeToken } from '../../components/core/utils/feesHandler.js'
+
 import { KeyManager } from '../../components/KeyManager/index.js'
 import { BlockchainRegistry } from '../../components/BlockchainRegistry/index.js'
 import { createHashForSignature, safeSign } from '../utils/signature.js'
+import { Providerfees } from '../../components/core/utils/feesHandler.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -155,9 +156,10 @@ describe('Should test admin operations', () => {
       PROTOCOL_COMMANDS.COLLECT_FEES
     )
     let signature = await safeSign(adminWallet, messageHashBytes)
+    const fees = new Providerfees(oceanNode)
     const collectFeesCommand: AdminCollectFeesCommand = {
       command: PROTOCOL_COMMANDS.COLLECT_FEES,
-      tokenAddress: await getProviderFeeToken(DEVELOPMENT_CHAIN_ID),
+      tokenAddress: fees.getProviderFeeToken(DEVELOPMENT_CHAIN_ID),
       chainId: DEVELOPMENT_CHAIN_ID,
       tokenAmount: 0.01,
       destinationAddress: await destinationWallet.getAddress(),
@@ -231,6 +233,7 @@ describe('Should test admin operations', () => {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     publishedDataset = await publishAsset(downloadAsset, adminWallet)
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       publishedDataset.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT * 2
@@ -242,7 +245,7 @@ describe('Should test admin operations', () => {
 
   it('should pass for reindex tx command', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
-    await waitToIndex(publishedDataset.ddo.did, EVENTS.METADATA_CREATED)
+    await waitToIndex(oceanNode, publishedDataset.ddo.did, EVENTS.METADATA_CREATED)
     const nonce = Date.now().toString()
     const messageHashBytes = createHashForSignature(
       await adminWallet.getAddress(),
@@ -315,6 +318,7 @@ describe('Should test admin operations', () => {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       publishedDataset.ddo.did,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT * 2

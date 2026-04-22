@@ -2,9 +2,8 @@ import { AuthToken, AuthTokenDatabase } from '../database/AuthTokenDatabase.js'
 import jwt from 'jsonwebtoken'
 import { checkNonce, NonceResponse } from '../core/utils/nonceHandler.js'
 import { OceanNode } from '../../OceanNode.js'
-import { getConfiguration } from '../../utils/index.js'
 import { CommonValidation } from '../../utils/validators.js'
-
+import { OceanNodeConfig } from '../../@types/OceanNode.js'
 export interface AuthValidation {
   token?: string
   address?: string
@@ -16,16 +15,18 @@ export interface AuthValidation {
 
 export class Auth {
   private authTokenDatabase: AuthTokenDatabase
+  private jwtSecret: string
 
-  public constructor(authTokenDatabase: AuthTokenDatabase) {
+  public constructor(authTokenDatabase: AuthTokenDatabase, config: OceanNodeConfig) {
     this.authTokenDatabase = authTokenDatabase
+    this.jwtSecret = config.jwtSecret
   }
 
-  public async getJwtSecret(): Promise<string> {
-    const config = await getConfiguration()
-    return config.jwtSecret
+  public getJwtSecret(): string {
+    return this.jwtSecret
   }
 
+  // eslint-disable-next-line require-await
   async getJWTToken(address: string, nonce: string, createdAt: number): Promise<string> {
     const jwtToken = jwt.sign(
       {
@@ -33,7 +34,7 @@ export class Auth {
         nonce,
         createdAt
       },
-      await this.getJwtSecret()
+      this.getJwtSecret()
     )
 
     return jwtToken
@@ -84,7 +85,8 @@ export class Auth {
       if (signature && address && nonce) {
         const oceanNode = OceanNode.getInstance()
         const nonceCheckResult: NonceResponse = await checkNonce(
-          oceanNode.getDatabase().nonce,
+          oceanNode.getConfig(),
+          (await oceanNode.getDatabase()).nonce,
           address,
           parseInt(nonce),
           signature,

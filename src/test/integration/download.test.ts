@@ -179,6 +179,7 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
     publishedDataset = await publishAsset(downloadAsset, publisherAccount)
     publishedDatasetWithCredentials = await publishAsset(genericDDO, publisherAccount)
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       publishedDataset.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT * 3
@@ -189,6 +190,7 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
     }
     const { ddo: ddoWithCredentials, wasTimeout: wasTimeoutCredentials } =
       await waitToIndex(
+        oceanNode,
         publishedDataset.ddo.id,
         EVENTS.METADATA_CREATED,
         DEFAULT_TEST_TIMEOUT * 3

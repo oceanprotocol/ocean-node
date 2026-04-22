@@ -6,14 +6,12 @@ import {
   buildRateLimitReachedResponse,
   buildInvalidParametersResponse
 } from '../../httpRoutes/validateCommands.js'
-import { getAdminAddresses } from '../../../utils/auth.js'
 import { checkSingleCredential } from '../../../utils/credentials.js'
 import { CREDENTIALS_TYPES } from '../../../@types/DDO/Credentials.js'
 import { BaseHandler } from '../handler/handler.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import { CommonValidation } from '../../../utils/validators.js'
-import { getConfiguration } from '../../../utils/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
 export abstract class AdminCommandHandler
@@ -67,8 +65,7 @@ export abstract class AdminCommandHandler
       }
     }
     try {
-      const config = await getConfiguration()
-      const allowedAdmins = await getAdminAddresses(config)
+      const allowedAdmins = oceanNode.getAdminAddresses()
 
       const { addresses, accessLists } = allowedAdmins
       let allowed = await checkSingleCredential(

@@ -107,6 +107,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     publishedDataset = await publishAsset(genericDDO, publisherAccount)
 
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       publishedDataset.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT * 2
@@ -125,6 +126,7 @@ describe('validateOrderTransaction Function with Orders', () => {
 
   it('should get the active state', async function () {
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       publishedDataset.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT,

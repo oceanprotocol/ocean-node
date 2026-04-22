@@ -26,7 +26,7 @@ import {
   getOceanArtifactsAdresses,
   getOceanArtifactsAdressesByChainId
 } from '../../utils/address.js'
-import { createFee } from '../../components/core/utils/feesHandler.js'
+
 import { Asset, DDO } from '@oceanprotocol/ddo-js'
 import {
   DEFAULT_TEST_TIMEOUT,
@@ -48,6 +48,7 @@ import { QueryCommand } from '../../@types/commands.js'
 import { getConfiguration } from '../../utils/config.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { deleteIndexedMetadataIfExists } from '../../utils/asset.js'
+import { Providerfees } from '../../components/core/utils/feesHandler.js'
 
 describe('Indexer stores a new metadata events and orders.', () => {
   let database: Database
@@ -224,6 +225,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
   it('should store the ddo in the database and return it ', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       assetDID,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT * 2
@@ -334,6 +336,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   it('should detect update event and store the udpdated ddo in the database', async function () {
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       assetDID,
       EVENTS.METADATA_UPDATED,
       DEFAULT_TEST_TIMEOUT,
@@ -358,6 +361,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
     const result = await nftContract.getMetaData()
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       assetDID,
       EVENTS.METADATA_UPDATED,
       DEFAULT_TEST_TIMEOUT * 3,
@@ -382,6 +386,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   it('should get the active state', async function () {
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       assetDID,
       EVENTS.METADATA_UPDATED,
       DEFAULT_TEST_TIMEOUT,
@@ -408,8 +413,8 @@ describe('Indexer stores a new metadata events and orders.', () => {
       paymentCollector?.toLowerCase() === publisherAddress?.toLowerCase(),
       'paymentCollector not correct'
     )
-
-    const feeData = await createFee(
+    const fees = new Providerfees(oceanNode)
+    const feeData = await fees.createFee(
       resolvedDDO as DDO,
       0,
       'null',
@@ -472,6 +477,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
   it('should get number of orders', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 4)
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       assetDID,
       EVENTS.ORDER_STARTED,
       DEFAULT_TEST_TIMEOUT * 4,
@@ -510,7 +516,8 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   it('should detect OrderReused event', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
-    const feeData = await createFee(
+    const fees = new Providerfees(oceanNode)
+    const feeData = await fees.createFee(
       resolvedDDO as DDO,
       0,
       'null',
@@ -566,6 +573,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
   it('should increase number of orders', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       assetDID,
       EVENTS.ORDER_REUSED,
       DEFAULT_TEST_TIMEOUT * 3,
@@ -617,6 +625,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     expect(parseInt(result[2].toString())).to.equal(2)
 
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       assetDID,
       EVENTS.METADATA_STATE,
       DEFAULT_TEST_TIMEOUT * 3,
@@ -651,6 +660,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   it('should store ddo reindex', async function () {
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       assetDID,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT

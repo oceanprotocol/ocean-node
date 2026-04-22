@@ -209,6 +209,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
   it('should store the ddo in the database and return it ', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       assetDID,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT * 2
@@ -346,6 +347,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
   it('should store the updated ddo in the database and return it ', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       genericAssetCloned.id,
       EVENTS.METADATA_UPDATED,
       DEFAULT_TEST_TIMEOUT * 2,

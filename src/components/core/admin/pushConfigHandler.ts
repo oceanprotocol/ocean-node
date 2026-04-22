@@ -25,7 +25,7 @@ export class PushConfigHandler extends AdminCommandHandler {
 
     // Pre-validate the config fields using Zod schema
     try {
-      const currentConfig = await getConfiguration()
+      const currentConfig = this.getOceanNode().getConfig()
       const mergedConfig = { ...currentConfig, ...command.config }
 
       OceanNodeConfigSchema.parse(mergedConfig)

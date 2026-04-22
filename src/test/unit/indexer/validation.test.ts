@@ -1,5 +1,4 @@
 import { DDOExample, ddov5, ddov7, ddoValidationSignature } from '../../data/ddo.js'
-import { getValidationSignature } from '../../../components/core/utils/validateDdoHandler.js'
 import { ENVIRONMENT_VARIABLES, getConfiguration } from '../../../utils/index.js'
 import { expect } from 'chai'
 import {
@@ -113,7 +112,7 @@ describe('Schema validation tests', () => {
     const validationResult = await ddoInstance.validate()
     expect(validationResult[0]).to.eql(true)
     expect(validationResult[1]).to.eql({})
-    const signatureResult = await getValidationSignature(
+    const signatureResult = await oceanNode.getValidationSignature(
       JSON.stringify(ddoValidationSignature)
     )
     expect(signatureResult).to.eql({

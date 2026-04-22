@@ -15,7 +15,7 @@ describe('Auth Token Tests', () => {
     config = await getConfiguration(true)
     authTokenDatabase = await AuthTokenDatabase.create(config.dbConfig)
     wallet = new Wallet(process.env.PRIVATE_KEY)
-    auth = new Auth(authTokenDatabase)
+    auth = new Auth(authTokenDatabase, config)
   })
 
   const getRandomNonce = () => {

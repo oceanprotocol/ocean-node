@@ -35,7 +35,7 @@ import { BlockchainRegistry } from '../BlockchainRegistry/index.js'
 import { CommandStatus, JobStatus } from '../../@types/commands.js'
 import { buildJobIdentifier, getDeployedContractBlock } from './utils.js'
 import { create256Hash } from '../../utils/crypt.js'
-import { getDatabase, isReachableConnection } from '../../utils/database.js'
+import { isReachableConnection } from '../../utils/database.js'
 import { sleep } from '../../utils/util.js'
 import { isReindexingNeeded } from './version.js'
 import { getPackageVersion } from '../../utils/version.js'
@@ -145,10 +145,10 @@ export class OceanIndexer {
         INDEXER_LOGGER.info(
           'Database connection stable - reinitialising DB and restarting all chain indexers'
         )
-        const freshDb = await getDatabase(true)
-        if (freshDb) {
-          this.db = freshDb
-        }
+        // const freshDb = await getDatabase(true)
+        // if (freshDb) {
+        // this.db = freshDb
+        // }
 
         await this.startAllChainIndexers()
       }, 5000)
@@ -292,7 +292,8 @@ export class OceanIndexer {
     const indexer = new ChainIndexer(
       blockchain,
       rpcDetails,
-      INDEXER_CRAWLING_EVENT_EMITTER
+      INDEXER_CRAWLING_EVENT_EMITTER,
+      this.db
     )
 
     INDEXER_LOGGER.log(
