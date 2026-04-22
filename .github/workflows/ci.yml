@@ -226,8 +226,6 @@ jobs:
         working-directory: ${{ github.workspace }}/barge
         run: |
           bash -x start_ocean.sh --no-node --with-typesense 2>&1 > start_ocean.log &
-      - run: npm ci
-      - run: npm run build
       - run: docker image ls
       - name: Delete default runner images
         run: |
