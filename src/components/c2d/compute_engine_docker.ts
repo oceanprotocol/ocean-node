@@ -25,11 +25,7 @@ import type {
   C2DEnvironmentConfig,
   ComputeResourcesPricingInfo
 } from '../../@types/C2D/C2D.js'
-import {
-  BENCHMARK_MONITORING_ADDRESS,
-  SEPOLIA_CHAIN_ID,
-  USDC_TOKEN
-} from '../../utils/config.js'
+import { BASE_CHAIN_ID, USDC_TOKEN_ADDRESS_BASE } from '../../utils/config.js'
 import { C2DEngine } from './compute_engine_base.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
@@ -63,7 +59,8 @@ import { Service } from '@oceanprotocol/ddo-js'
 import { getOceanTokenAddressForChain } from '../../utils/address.js'
 import { dockerRegistryAuth, OceanNodeConfig } from '../../@types/OceanNode.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
-import { ZeroAddress } from 'ethers'
+import { getAddress, ZeroAddress } from 'ethers'
+import { AccessList } from '../../@types/AccessList.js'
 
 const C2D_CONTAINER_UID = 1000
 const C2D_CONTAINER_GID = 1000
@@ -90,7 +87,6 @@ export class C2DEngineDocker extends C2DEngine {
   private trivyCachePath: string
   private cpuAllocations: Map<string, number[]> = new Map()
   private envCpuCoresMap: Map<string, number[]> = new Map()
-  private enableNetwork: boolean
 
   public constructor(
     clusterConfig: C2DClusterInfo,
@@ -114,7 +110,7 @@ export class C2DEngineDocker extends C2DEngine {
     this.paymentClaimInterval = clusterConfig.connection.paymentClaimInterval || 3600 // 1 hour
     this.scanImages = clusterConfig.connection.scanImages || false // default is not to scan images for now, until it's prod ready
     this.scanImageDBUpdateInterval = clusterConfig.connection.scanImageDBUpdateInterval
-    this.enableNetwork = clusterConfig.connection.enableNetwork ?? false
+
     if (
       clusterConfig.connection.protocol &&
       clusterConfig.connection.host &&
@@ -214,11 +210,8 @@ export class C2DEngineDocker extends C2DEngine {
       price: 1
     }))
 
-    const sepoliaChainId = SEPOLIA_CHAIN_ID
-    const usdcToken = USDC_TOKEN
-
     const benchmarkFees: ComputeEnvFeesStructure = {
-      [sepoliaChainId]: [{ feeToken: usdcToken, prices: benchmarkPrices }]
+      [BASE_CHAIN_ID]: [{ feeToken: USDC_TOKEN_ADDRESS_BASE, prices: benchmarkPrices }]
     }
 
     const benchmarkEnv: C2DEnvironmentConfig = {
@@ -233,10 +226,13 @@ export class C2DEngineDocker extends C2DEngine {
         ...gpuResources
       ],
       access: {
-        addresses: [BENCHMARK_MONITORING_ADDRESS],
-        accessLists: null
+        addresses: [],
+        accessLists: [
+          { [BASE_CHAIN_ID]: [getAddress('0xcb7Db55Ca9Aa9C3b25F5Bc266da63317fa02086a')] }
+        ]
       },
-      fees: benchmarkFees
+      fees: benchmarkFees,
+      enableNetwork: true
     }
 
     envConfig.environments.push(benchmarkEnv)
@@ -285,7 +281,13 @@ export class C2DEngineDocker extends C2DEngine {
     const consumerAddress = this.getKeyManager().getEthAddress()
 
     if (config.enableBenchmark) {
-      this.createBenchmarkEnvironment(sysinfo, envConfig)
+      if (supportedChains.includes(parseInt(BASE_CHAIN_ID))) {
+        this.createBenchmarkEnvironment(sysinfo, envConfig)
+      } else {
+        CORE_LOGGER.warn(
+          `Skipping benchmark environment: Base chain (${BASE_CHAIN_ID}) is not in supportedNetworks`
+        )
+      }
     }
 
     for (let envIdx = 0; envIdx < envConfig.environments.length; envIdx++) {
@@ -361,7 +363,8 @@ export class C2DEngineDocker extends C2DEngine {
         queMaxWaitTime: 0,
         queMaxWaitTimeFree: 0,
         runMaxWaitTime: 0,
-        runMaxWaitTimeFree: 0
+        runMaxWaitTimeFree: 0,
+        enableNetwork: envDef.enableNetwork
       }
 
       if (envDef.storageExpiry !== undefined) env.storageExpiry = envDef.storageExpiry
@@ -402,9 +405,16 @@ export class C2DEngineDocker extends C2DEngine {
     for (const env of this.envs) {
       const cpuRes = this.getResource(env.resources ?? [], 'cpu')
       if (cpuRes && cpuRes.total > 0) {
-        const isBenchmarkEnv = env.access?.addresses?.includes(
-          BENCHMARK_MONITORING_ADDRESS
-        )
+        let isBenchmarkEnv = false
+        if (env.access?.accessLists) {
+          const baseAccessList = env.access?.accessLists?.[0] as AccessList
+          if (baseAccessList && baseAccessList[BASE_CHAIN_ID]) {
+            isBenchmarkEnv = baseAccessList[BASE_CHAIN_ID].includes(
+              getAddress('0xcb7Db55Ca9Aa9C3b25F5Bc266da63317fa02086a')
+            )
+          }
+        }
+
         if (isBenchmarkEnv) {
           const total = physicalCpuCount > 0 ? physicalCpuCount : cpuRes.total
           const cores = Array.from({ length: total }, (_, i) => i)
@@ -1823,7 +1833,7 @@ export class C2DEngineDocker extends C2DEngine {
           }
         ]
       }
-      if (!this.enableNetwork) {
+      if (!env.enableNetwork) {
         hostConfig.NetworkMode = 'none' // no network inside the container
       }
       // disk
