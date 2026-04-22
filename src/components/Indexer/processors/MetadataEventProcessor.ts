@@ -152,10 +152,9 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       // check authorized publishers
       const { authorizedPublishers, authorizedPublishersList } = this.getConfig()
       if (authorizedPublishers.length > 0) {
-        // if is not there, do not index
-        const authorized: string[] = authorizedPublishers.filter((address) =>
-          // do a case insensitive search
-          address.toLowerCase().includes(owner.toLowerCase())
+        const ownerNormalized = getAddress(String(owner))
+        const authorized: string[] = authorizedPublishers.filter(
+          (address) => getAddress(address).toLowerCase() === ownerNormalized.toLowerCase()
         )
         if (!authorized.length) {
           INDEXER_LOGGER.error(

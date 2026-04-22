@@ -41,6 +41,7 @@ import { isReindexingNeeded } from './version.js'
 import { getPackageVersion } from '../../utils/version.js'
 import { DB_EVENTS, ES_CONNECTION_EVENTS } from '../database/ElasticsearchConfigHelper.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { clearEventProcessorCache } from './processor.js'
 
 /**
  * Event emitter for DDO (Data Descriptor Object) events
@@ -99,6 +100,7 @@ export class OceanIndexer {
     this.networks = this.config.indexingNetworks
     this.blockchainRegistry = _blockchainRegistry
     this.supportedChains = Object.keys(this.networks)
+    clearEventProcessorCache()
     INDEXING_QUEUE = []
     this.setupDbConnectionListeners()
     this.startAllChainIndexers()

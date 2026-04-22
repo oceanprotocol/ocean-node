@@ -41,6 +41,11 @@ const EVENT_PROCESSOR_MAP: Record<string, ProcessorConstructor> = {
 
 const processorInstances = new Map<string, BaseEventProcessor>()
 
+/** Drop cached processors so they are recreated with the current config (tests, new indexer, etc.). */
+export function clearEventProcessorCache(): void {
+  processorInstances.clear()
+}
+
 function getEventProcessor(
   eventType: string,
   chainId: number,
