@@ -232,11 +232,11 @@ jobs:
       - name: Delete default runner images
         run: |
           rm -rf /usr/share/swift/
-          - name: Checkout Ocean CLI
-          uses: actions/checkout@v4
-          with:
-            repository: 'oceanprotocol/ocean-cli'
-            path: 'ocean-cli'
+      - name: Checkout Ocean CLI
+        uses: actions/checkout@v4
+        with:
+          repository: 'oceanprotocol/ocean-cli'
+          path: 'ocean-cli'
       - name: Checkout Ocean-js
         uses: actions/checkout@v4
         with:
