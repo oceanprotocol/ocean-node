@@ -36,6 +36,7 @@ export abstract class BaseHandler implements ICommandHandler {
     const node = this.getOceanNode()
     const requestMap = node.getRequestMap()
     const ratePerMinute = node.getConfig().rateLimit
+    console.log(ratePerMinute)
     const requestTime = new Date().getTime()
     let isOK = true
 
