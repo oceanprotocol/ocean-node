@@ -60,16 +60,8 @@ export class OceanNode {
     public keyManager?: KeyManager,
     public blockchainRegistry?: BlockchainRegistry
   ) {
-    if (keyManager) {
-      this.keyManager = keyManager
-    } else {
-      this.keyManager = new KeyManager(config)
-    }
-    if (blockchainRegistry) {
-      this.blockchainRegistry = blockchainRegistry
-    } else {
-      this.blockchainRegistry = new BlockchainRegistry(this.keyManager, config)
-    }
+    this.keyManager = new KeyManager(config)
+    this.blockchainRegistry = new BlockchainRegistry(this.keyManager, config)
     this.coreHandlers = CoreHandlersRegistry.getInstance(this, true)
     this.requestMap = new Map<string, RequestLimiter>()
     this.config = config

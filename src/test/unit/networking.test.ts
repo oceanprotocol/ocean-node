@@ -148,9 +148,7 @@ describe('Test rate limitations and deny list settings', () => {
       ]
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
-    console.log(envOverrides)
     const config = await getConfiguration(true)
-    console.log(config)
     const keyManager = new KeyManager(config)
     const p2pNode = new OceanP2P(config, keyManager)
     await p2pNode.start()
@@ -182,12 +180,9 @@ describe('Test rate limitations and deny list settings', () => {
     expect(rate).to.be.equal(true)
     for (let i = 0; i < 4; i++) {
       // 4 responses, at least one should be blocked
-      console.log('Try ' + i)
       const rateResp = await statusHandler.checkRateLimit('127.0.0.2')
       rateLimitResponses.push(rateResp)
     }
-    console.log('Arr')
-    console.log(rateLimitResponses)
     const filtered = rateLimitResponses.filter((r) => r === false)
     expect(filtered.length).to.be.gte(1)
   })
