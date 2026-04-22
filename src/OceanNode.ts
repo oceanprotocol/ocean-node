@@ -70,7 +70,7 @@ export class OceanNode {
     } else {
       this.blockchainRegistry = new BlockchainRegistry(this.keyManager, config)
     }
-    this.coreHandlers = CoreHandlersRegistry.getInstance(this)
+    this.coreHandlers = CoreHandlersRegistry.getInstance(this, true)
     this.requestMap = new Map<string, RequestLimiter>()
     this.config = config
     this.database = db
