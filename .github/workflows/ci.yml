@@ -232,6 +232,35 @@ jobs:
       - name: Delete default runner images
         run: |
           rm -rf /usr/share/swift/
+          - name: Checkout Ocean CLI
+          uses: actions/checkout@v4
+          with:
+            repository: 'oceanprotocol/ocean-cli'
+            path: 'ocean-cli'
+      - name: Checkout Ocean-js
+        uses: actions/checkout@v4
+        with:
+          repository: 'oceanprotocol/ocean.js'
+          path: 'ocean.js'
+          ref: main
+      - name: Build ocean-js
+        working-directory: ${{ github.workspace }}/ocean.js
+        run: |
+          npm ci
+          npm run build
+          npm link
+      - name: Setup Ocean CLI
+        working-directory: ${{ github.workspace }}/ocean-cli
+        run: |
+          npm ci
+          npm link @oceanprotocol/lib
+          npm run build
+      - name: Checkout Ocean Node
+        uses: actions/checkout@v4
+        with:
+          repository: 'oceanprotocol/ocean-node'
+          path: 'ocean-node'
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref || 'main' }}
 
       - name: Wait for contracts deployment and C2D cluster to be ready
         working-directory: ${{ github.workspace }}/barge
@@ -245,12 +274,6 @@ jobs:
         run: docker logs ocean-contracts-1 && docker logs ocean-typesense-1
         if: ${{ failure() }}
 
-      - name: Checkout Ocean Node
-        uses: actions/checkout@v4
-        with:
-          repository: 'oceanprotocol/ocean-node'
-          path: 'ocean-node'
-          ref: ${{ github.event_name == 'pull_request' && github.head_ref || 'main' }}
       - name: Set DOCKER_REGISTRY_AUTHS from Docker Hub secrets
         if: env.DOCKERHUB_USERNAME && env.DOCKERHUB_PASSWORD
         run: |
@@ -303,33 +326,6 @@ jobs:
           done
           echo "Ocean Node did not start in time"
           exit 1
-      - name: Checkout Ocean CLI
-        uses: actions/checkout@v4
-        with:
-          repository: 'oceanprotocol/ocean-cli'
-          path: 'ocean-cli'
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 'v20.19.0'
-      - name: Checkout Ocean-js
-        uses: actions/checkout@v4
-        with:
-          repository: 'oceanprotocol/ocean.js'
-          path: 'ocean.js'
-          ref: main
-      - name: Build ocean-js
-        working-directory: ${{ github.workspace }}/ocean.js
-        run: |
-          npm ci
-          npm run build
-          npm link
-      - name: Setup Ocean CLI
-        working-directory: ${{ github.workspace }}/ocean-cli
-        run: |
-          npm ci
-          npm link @oceanprotocol/lib
-          npm run build
       - name: Run system tests
         working-directory: ${{ github.workspace }}/ocean-cli
         run: npm run test:system
