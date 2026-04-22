@@ -85,11 +85,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     const config = await getConfiguration(true)
     database = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance()
-    indexer = new OceanIndexer(
-      database,
-      mockSupportedNetworks,
-      oceanNode.blockchainRegistry
-    )
+    indexer = new OceanIndexer(database, config, oceanNode.blockchainRegistry)
     oceanNode.addIndexer(indexer)
     artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!artifactsAddresses) {

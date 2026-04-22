@@ -42,12 +42,14 @@ export class ChainIndexer {
     blockchain: Blockchain,
     rpcDetails: SupportedNetwork,
     eventEmitter: EventEmitter,
-    database: Database
+    database: Database,
+    _config: OceanNodeConfig
   ) {
     this.blockchain = blockchain
     this.eventEmitter = eventEmitter
     this.rpcDetails = rpcDetails
     this.db = database
+    this.config = _config
   }
 
   /**

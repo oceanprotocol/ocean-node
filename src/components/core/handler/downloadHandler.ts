@@ -380,7 +380,20 @@ export class DownloadHandler extends CommandHandler {
       // get all compute envs
       const computeAddrs: string[] = []
 
-      const environments = await oceanNode.getC2DEngines().fetchEnvironments(ddo.chainId)
+      const c2dEngines = oceanNode.getC2DEngines()
+      if (!c2dEngines) {
+        const msg =
+          'Compute engines are not configured on this node; cannot validate compute download'
+        CORE_LOGGER.logMessage(msg, true)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 503,
+            error: msg
+          }
+        }
+      }
+      const environments = await c2dEngines.fetchEnvironments(ddo.chainId)
       for (const env of environments)
         computeAddrs.push(env.consumerAddress?.toLowerCase())
 

@@ -40,6 +40,7 @@ import { sleep } from '../../utils/util.js'
 import { isReindexingNeeded } from './version.js'
 import { getPackageVersion } from '../../utils/version.js'
 import { DB_EVENTS, ES_CONNECTION_EVENTS } from '../database/ElasticsearchConfigHelper.js'
+import { OceanNodeConfig } from '../../@types/OceanNode.js'
 
 /**
  * Event emitter for DDO (Data Descriptor Object) events
@@ -79,6 +80,7 @@ let numCrawlAttempts = 0
  */
 export class OceanIndexer {
   private db: Database
+  private config: OceanNodeConfig
   private networks: RPCS
   private blockchainRegistry?: BlockchainRegistry
   private supportedChains: string[]
@@ -88,14 +90,15 @@ export class OceanIndexer {
   private reconnectTimer: NodeJS.Timeout | null = null
 
   constructor(
-    db: Database,
-    supportedNetworks: RPCS,
-    blockchainRegistry: BlockchainRegistry
+    _db: Database,
+    _config: OceanNodeConfig,
+    _blockchainRegistry: BlockchainRegistry
   ) {
-    this.db = db
-    this.networks = supportedNetworks
-    this.blockchainRegistry = blockchainRegistry
-    this.supportedChains = Object.keys(supportedNetworks)
+    this.db = _db
+    this.config = _config
+    this.networks = this.config.indexingNetworks
+    this.blockchainRegistry = _blockchainRegistry
+    this.supportedChains = Object.keys(this.networks)
     INDEXING_QUEUE = []
     this.setupDbConnectionListeners()
     this.startAllChainIndexers()
@@ -293,7 +296,8 @@ export class OceanIndexer {
       blockchain,
       rpcDetails,
       INDEXER_CRAWLING_EVENT_EMITTER,
-      this.db
+      this.db,
+      this.config
     )
 
     INDEXER_LOGGER.log(

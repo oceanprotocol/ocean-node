@@ -208,11 +208,7 @@ describe('Compute', () => {
     }
 
     oceanNode = OceanNode.getInstance(config, dbconn, null, null, null, null, null, true)
-    indexer = new OceanIndexer(
-      dbconn,
-      config.indexingNetworks,
-      oceanNode.blockchainRegistry
-    )
+    indexer = new OceanIndexer(dbconn, config, oceanNode.blockchainRegistry)
     oceanNode.addIndexer(indexer)
     await oceanNode.addC2DEngines()
 
@@ -2754,11 +2750,7 @@ describe('Compute Access Restrictions', () => {
         null,
         true
       )
-      const indexer = new OceanIndexer(
-        dbconn,
-        config.indexingNetworks,
-        oceanNode.blockchainRegistry
-      )
+      const indexer = new OceanIndexer(dbconn, config, oceanNode.blockchainRegistry)
       oceanNode.addIndexer(indexer)
       await oceanNode.addC2DEngines()
 
@@ -2951,11 +2943,7 @@ describe('Compute Access Restrictions', () => {
         null,
         true
       )
-      const indexer = new OceanIndexer(
-        dbconn,
-        config.indexingNetworks,
-        oceanNode.blockchainRegistry
-      )
+      const indexer = new OceanIndexer(dbconn, config, oceanNode.blockchainRegistry)
       oceanNode.addIndexer(indexer)
       await oceanNode.addC2DEngines()
 
@@ -3083,11 +3071,7 @@ describe('Compute Access Restrictions', () => {
         null,
         true
       )
-      const indexer = new OceanIndexer(
-        dbconn,
-        config.indexingNetworks,
-        oceanNode.blockchainRegistry
-      )
+      const indexer = new OceanIndexer(dbconn, config, oceanNode.blockchainRegistry)
       oceanNode.addIndexer(indexer)
       await oceanNode.addC2DEngines()
 

@@ -70,11 +70,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     config = await getConfiguration(true) // Force reload the configuration
     const dbconn = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance(config, dbconn)
-    indexer = new OceanIndexer(
-      dbconn,
-      config.indexingNetworks,
-      oceanNode.blockchainRegistry
-    )
+    indexer = new OceanIndexer(dbconn, config, oceanNode.blockchainRegistry)
     oceanNode.addIndexer(indexer)
 
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)

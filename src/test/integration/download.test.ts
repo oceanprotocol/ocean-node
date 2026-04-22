@@ -91,11 +91,7 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
     config = await getConfiguration(true) // Force reload the configuration
     database = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance(config, database)
-    indexer = new OceanIndexer(
-      database,
-      config.indexingNetworks,
-      oceanNode.blockchainRegistry
-    )
+    indexer = new OceanIndexer(database, config, oceanNode.blockchainRegistry)
     oceanNode.addIndexer(indexer)
 
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)

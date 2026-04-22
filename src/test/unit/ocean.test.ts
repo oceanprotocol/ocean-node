@@ -43,7 +43,7 @@ describe('Status command tests', async () => {
   const keyManager = new KeyManager(config)
   const blockchainRegistry = new BlockchainRegistry(keyManager, config)
   const oceanP2P = new OceanP2P(config, keyManager, db)
-  const oceanIndexer = new OceanIndexer(db, config.indexingNetworks, blockchainRegistry)
+  const oceanIndexer = new OceanIndexer(db, config, blockchainRegistry)
   const oceanProvider = new OceanProvider(db)
   const oceanNode = OceanNode.getInstance(config, db, oceanP2P)
 

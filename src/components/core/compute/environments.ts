@@ -26,6 +26,15 @@ export class ComputeGetEnvironmentsHandler extends CommandHandler {
     }
     try {
       const computeEngines = this.getOceanNode().getC2DEngines()
+      if (!computeEngines) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 503,
+            error: 'Compute engines are not configured on this node'
+          }
+        }
+      }
       const result = await computeEngines.fetchEnvironments(task.chainId)
 
       CORE_LOGGER.logMessage(

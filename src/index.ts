@@ -106,7 +106,7 @@ if (config.hasP2P) {
   await node.start()
 }
 if (config.hasIndexer && dbconn) {
-  indexer = new OceanIndexer(dbconn, config.indexingNetworks, blockchainRegistry)
+  indexer = new OceanIndexer(dbconn, config, blockchainRegistry)
 }
 if (dbconn) {
   provider = new OceanProvider(dbconn)
@@ -123,7 +123,7 @@ const oceanNode = OceanNode.getInstance(
   keyManager,
   blockchainRegistry
 )
-oceanNode.addC2DEngines()
+await oceanNode.addC2DEngines()
 
 function removeExtraSlashes(req: any, res: any, next: any) {
   req.url = req.url.replace(/\/{2,}/g, '/')

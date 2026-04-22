@@ -116,11 +116,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
       null,
       true
     )
-    indexer = new OceanIndexer(
-      database,
-      mockSupportedNetworks,
-      oceanNode.blockchainRegistry
-    )
+    indexer = new OceanIndexer(database, config, oceanNode.blockchainRegistry)
     oceanNode.addIndexer(indexer)
     let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!artifactsAddresses) {

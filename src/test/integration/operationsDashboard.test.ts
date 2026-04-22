@@ -111,11 +111,7 @@ describe('Should test admin operations', () => {
       keyManager,
       blockchainRegistry
     )
-    indexer = new OceanIndexer(
-      dbconn,
-      config.indexingNetworks,
-      oceanNode.blockchainRegistry
-    )
+    indexer = new OceanIndexer(dbconn, config, oceanNode.blockchainRegistry)
     oceanNode.addIndexer(indexer)
   })
 

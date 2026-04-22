@@ -61,13 +61,9 @@ describe('Config Database', () => {
       initialVersionNull = await oceanIndexer.getDatabase().sqliteConfig.retrieveValue()
       assert(initialVersionNull.value === null, 'Initial version should be null')
     })
-
-    const oceanNode = await OceanNode.getInstance(await getConfiguration(true), database)
-    oceanIndexer = new OceanIndexer(
-      database,
-      getMockSupportedNetworks(),
-      oceanNode.blockchainRegistry
-    )
+    const config = await getConfiguration(true)
+    const oceanNode = await OceanNode.getInstance(config, database)
+    oceanIndexer = new OceanIndexer(database, config, oceanNode.blockchainRegistry)
     oceanNode.addIndexer(oceanIndexer)
   })
 

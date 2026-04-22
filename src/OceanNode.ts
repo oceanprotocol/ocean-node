@@ -163,7 +163,7 @@ export class OceanNode {
     return this.indexer
   }
 
-  public getC2DEngines(): C2DEngines {
+  public getC2DEngines(): C2DEngines | undefined {
     return this.c2dEngines
   }
 
