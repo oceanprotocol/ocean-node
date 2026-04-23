@@ -61,7 +61,6 @@ function getEventProcessor(
     INDEXER_LOGGER.debug(
       'Creating new Processor for event ' + eventType + 'with key ' + cacheKey
     )
-    console.log(config)
     processorInstances.set(cacheKey, new ProcessorClass(chainId, config))
   } else {
     INDEXER_LOGGER.debug('Reusing cached processor for key ' + cacheKey)

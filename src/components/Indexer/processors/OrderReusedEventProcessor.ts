@@ -43,6 +43,13 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
         )
         return
       }
+      const existingOrder = await orderDatabase.retrieve(event.transactionHash)
+      if (existingOrder) {
+        INDEXER_LOGGER.logMessage(
+          `OrderReused already processed for tx ${event.transactionHash}, skipping duplicate`
+        )
+        return ddo
+      }
       const ddoInstance = DDOManager.getDDOClass(ddo)
       if (!ddoInstance.getAssetFields().indexedMetadata) {
         ddoInstance.updateFields({ indexedMetadata: {} })
