@@ -151,6 +151,9 @@ export class MetadataEventProcessor extends BaseEventProcessor {
 
       // check authorized publishers
       const { authorizedPublishers, authorizedPublishersList } = this.getConfig()
+      console.log('Indexing with')
+      console.log(authorizedPublishers)
+      console.log(authorizedPublishersList)
       if (authorizedPublishers.length > 0) {
         const ownerNormalized = getAddress(String(owner))
         const authorized: string[] = authorizedPublishers.filter(

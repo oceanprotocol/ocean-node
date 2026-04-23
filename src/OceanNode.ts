@@ -129,7 +129,15 @@ export class OceanNode {
   }
 
   public addIndexer(_indexer: OceanIndexer) {
+    const previous = this.indexer
     this.indexer = _indexer
+    if (previous) {
+      previous.stopAllChainIndexers().catch((err: unknown) => {
+        OCEAN_NODE_LOGGER.warn(
+          `Failed to stop replaced indexer: ${err instanceof Error ? err.message : String(err)}`
+        )
+      })
+    }
   }
 
   public async addC2DEngines() {
