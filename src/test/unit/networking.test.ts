@@ -202,8 +202,6 @@ describe('Test rate limitations and deny list settings', () => {
       const rateResp = await statusHandler.checkRateLimit(ips[i])
       rateLimitResponses.push(rateResp)
     }
-    console.log('Arr')
-    console.log(rateLimitResponses)
     const filtered = rateLimitResponses.filter((r) => r === true)
     // should have 4 valid responses
     expect(filtered.length).to.be.equal(ips.length)
