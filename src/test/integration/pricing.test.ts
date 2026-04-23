@@ -376,6 +376,6 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
   })
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
-    await indexer.stopAllChainIndexers()
+    indexer.stopAllChainIndexers()
   })
 })

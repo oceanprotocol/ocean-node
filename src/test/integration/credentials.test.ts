@@ -611,6 +611,6 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
 
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
-    await oceanNode.getIndexer().stopAllChainIndexers()
+    oceanNode.getIndexer().stopAllChainIndexers()
   })
 })

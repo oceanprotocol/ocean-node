@@ -106,7 +106,7 @@ describe('Config Database', () => {
     assert(version.value === updatedVersion, `Version should be ${updatedVersion}`)
   })
   after(async () => {
-    await oceanIndexer.stopAllChainIndexers()
+    oceanIndexer.stopAllChainIndexers()
     await tearDownEnvironment(previousConfiguration)
   })
 })

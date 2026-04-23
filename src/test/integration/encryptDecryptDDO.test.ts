@@ -416,6 +416,6 @@ describe('Should encrypt and decrypt DDO', () => {
 
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
-    await indexer.stopAllChainIndexers()
+    indexer.stopAllChainIndexers()
   })
 })

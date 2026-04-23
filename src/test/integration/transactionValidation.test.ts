@@ -239,6 +239,6 @@ describe('validateOrderTransaction Function with Orders', () => {
   })
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
-    await indexer.stopAllChainIndexers()
+    indexer.stopAllChainIndexers()
   })
 })

@@ -318,6 +318,6 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
   })
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
-    await indexer.stopAllChainIndexers()
+    indexer.stopAllChainIndexers()
   })
 })

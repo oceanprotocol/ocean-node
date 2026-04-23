@@ -495,6 +495,6 @@ describe('Trusted algorithms Flow', () => {
   })
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
-    await indexer.stopAllChainIndexers()
+    indexer.stopAllChainIndexers()
   })
 })
