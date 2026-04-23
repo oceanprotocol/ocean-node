@@ -209,10 +209,8 @@ export class C2DEngineDocker extends C2DEngine {
     }
     const gpuResources: ComputeResource[] = Array.from(gpuMap.values())
 
-    const benchmarkPrices: ComputeResourcesPricingInfo[] = gpuResources.map((gpu) => ({
-      id: gpu.id,
-      price: 1
-    }))
+    const benchmarkPrices: ComputeResourcesPricingInfo[] =
+      gpuResources.length > 0 ? [{ id: gpuResources[0].id, price: 1 }] : []
 
     const benchmarkFees: ComputeEnvFeesStructure = {
       [BASE_CHAIN_ID]: [{ feeToken: USDC_TOKEN_ADDRESS_BASE, prices: benchmarkPrices }]
