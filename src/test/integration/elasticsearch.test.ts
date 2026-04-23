@@ -19,7 +19,7 @@ const dbConfig = {
 }
 const elasticsearch: Database = await Database.init(dbConfig)
 
-describe('Elastic Search', () => {
+describe('**********         Elastic Search', () => {
   it('Get instances of Elastic Search', () => {
     expect(elasticsearch.ddo).to.be.instanceOf(ElasticsearchDdoDatabase)
     expect(elasticsearch.indexer).to.be.instanceOf(ElasticsearchIndexerDatabase)
@@ -30,7 +30,7 @@ describe('Elastic Search', () => {
   })
 })
 
-describe('Elastic Search DDO collections', () => {
+describe('**********         Elastic Search DDO collections', () => {
   it('create document in ddo collection', async () => {
     const result = await elasticsearch.ddo.create(ddo)
     expect(result.result).to.equal('created')

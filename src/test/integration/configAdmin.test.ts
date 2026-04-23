@@ -21,7 +21,7 @@ import { Readable } from 'stream'
 import { expect } from 'chai'
 import { createHashForSignature, safeSign } from '../utils/signature.js'
 
-describe('Config Admin Endpoints Integration Tests', () => {
+describe('**********         Config Admin Endpoints Integration Tests', () => {
   let config: OceanNodeConfig
   let database: Database
   let adminAccount: Signer

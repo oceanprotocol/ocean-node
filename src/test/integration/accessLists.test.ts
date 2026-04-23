@@ -20,7 +20,7 @@ import { assert, expect } from 'chai'
 import { checkAddressOnAccessListWithSigner } from '../../utils/accessList.js'
 import { KeyManager } from '../../components/KeyManager/index.js'
 
-describe('Should deploy some accessLists before all other tests.', () => {
+describe('**********         AccessLists tests', () => {
   let config: OceanNodeConfig
   let provider: JsonRpcProvider
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()

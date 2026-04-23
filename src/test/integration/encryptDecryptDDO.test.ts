@@ -41,7 +41,7 @@ import { homedir } from 'os'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { createHashForSignature, safeSign } from '../utils/signature.js'
 
-describe('Should encrypt and decrypt DDO', () => {
+describe('**********         Should encrypt and decrypt DDO', () => {
   let database: Database
   let oceanNode: OceanNode
   let provider: JsonRpcProvider

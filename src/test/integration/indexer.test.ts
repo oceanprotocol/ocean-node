@@ -50,7 +50,7 @@ import { EncryptMethod } from '../../@types/fileObject.js'
 import { deleteIndexedMetadataIfExists } from '../../utils/asset.js'
 import { Providerfees } from '../../components/core/utils/feesHandler.js'
 
-describe('Indexer stores a new metadata events and orders.', () => {
+describe('**********         Indexer stores a new metadata events and orders.', () => {
   let database: Database
   let oceanNode: OceanNode
   let provider: JsonRpcProvider

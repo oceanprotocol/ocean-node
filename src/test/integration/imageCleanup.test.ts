@@ -18,7 +18,7 @@ import { KeyManager } from '../../components/KeyManager/index.js'
 import { C2DClusterInfo } from '../../@types/C2D/C2D.js'
 import Dockerode from 'dockerode'
 
-describe('Docker Image Cleanup Integration Tests', () => {
+describe('**********         Docker Image Cleanup Integration Tests', () => {
   let envOverrides: OverrideEnvConfig[]
   let config: OceanNodeConfig
   let db: C2DDatabase

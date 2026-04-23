@@ -50,7 +50,7 @@ import { createHash } from 'crypto'
 import { getAlgoChecksums } from '../../components/core/compute/utils.js'
 import { createHashForSignature, safeSign } from '../utils/signature.js'
 
-describe('Trusted algorithms Flow', () => {
+describe('**********         Trusted algorithms Flow', () => {
   let previousConfiguration: OverrideEnvConfig[]
   let config: OceanNodeConfig
   let dbconn: Database

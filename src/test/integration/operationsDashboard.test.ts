@@ -58,7 +58,7 @@ import { BlockchainRegistry } from '../../components/BlockchainRegistry/index.js
 import { createHashForSignature, safeSign } from '../utils/signature.js'
 import { Providerfees } from '../../components/core/utils/feesHandler.js'
 
-describe('Should test admin operations', () => {
+describe('**********         OperationsDashboard tests', () => {
   let config: OceanNodeConfig
   let oceanNode: OceanNode
   let publishedDataset: any

@@ -130,7 +130,7 @@ export async function waitForAllJobsToFinish(
   }
 }
 
-describe('Compute', () => {
+describe('**********         Compute', () => {
   let previousConfiguration: OverrideEnvConfig[]
   let config: OceanNodeConfig
   let dbconn: Database
@@ -2605,7 +2605,7 @@ describe('Compute', () => {
   })
 })
 
-describe('Compute Access Restrictions', () => {
+describe('**********         Compute Access Restrictions', () => {
   let previousConfiguration: OverrideEnvConfig[]
   let config: OceanNodeConfig
   let dbconn: Database

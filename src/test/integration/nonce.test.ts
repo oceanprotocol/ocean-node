@@ -3,7 +3,7 @@ import { ZeroAddress } from 'ethers'
 import { nonceSchema } from '../data/nonceSchema.js'
 import { Typesense, convertTypesenseConfig } from '../../components/database/typesense.js'
 
-describe('handle nonce', () => {
+describe('**********         Nonce tests', () => {
   let typesense: Typesense
   let error: Error
 

@@ -19,7 +19,7 @@ import { getConfiguration } from '../../utils/index.js'
 
 let previousConfiguration: OverrideEnvConfig[]
 
-describe('LogDatabase CRUD', () => {
+describe('**********         LogDatabase CRUD', () => {
   let database: Database
   let logger: CustomNodeLogger
   const logEntry = {
@@ -166,7 +166,7 @@ describe('LogDatabase CRUD', () => {
   })
 })
 
-describe('LogDatabase retrieveMultipleLogs with specific parameters', () => {
+describe('**********         LogDatabase retrieveMultipleLogs with specific parameters', () => {
   let database: Database
   // Assume start and end times are defined to bracket your test logs
   const startTime = new Date(Date.now() - 10000) // 10 seconds ago
@@ -325,7 +325,7 @@ describe('LogDatabase retrieveMultipleLogs with specific parameters', () => {
   })
 })
 
-describe('LogDatabase deleteOldLogs', () => {
+describe('**********         LogDatabase deleteOldLogs', () => {
   let database: Database
   const oldLogEntry = {
     timestamp: new Date().getTime() - 31 * 24 * 60 * 60 * 1000, // 31 days ago
@@ -403,7 +403,7 @@ describe('LogDatabase deleteOldLogs', () => {
     await tearDownEnvironment(previousConfiguration)
   })
 })
-describe('LogDatabase retrieveMultipleLogs with pagination', () => {
+describe('**********         LogDatabase retrieveMultipleLogs with pagination', () => {
   let database: Database
   const logCount = 10 // Total number of logs to insert and also the limit for logs per page
 

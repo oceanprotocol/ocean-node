@@ -25,7 +25,7 @@ const emptyDBConfig: OceanNodeDBConfig = {
   dbType: null
 }
 
-describe('Database', () => {
+describe('**********         Database', () => {
   let database: Database
 
   before(async () => {
@@ -37,7 +37,7 @@ describe('Database', () => {
   })
 })
 
-describe('DdoDatabase CRUD', () => {
+describe('**********         DdoDatabase CRUD', () => {
   let database: Database
   const ddoWithInvalidDid = {
     hashType: 'sha256',
@@ -87,7 +87,7 @@ describe('DdoDatabase CRUD', () => {
   })
 })
 
-describe('NonceDatabase CRUD - SQL lite (With typesense DB config)', () => {
+describe('**********         NonceDatabase CRUD - SQL lite (With typesense DB config)', () => {
   let database: Database
 
   before(async () => {
@@ -123,7 +123,7 @@ describe('NonceDatabase CRUD - SQL lite (With typesense DB config)', () => {
   })
 })
 
-describe('NonceDatabase CRUD (without Elastic or Typesense config)', () => {
+describe('**********         NonceDatabase CRUD (without Elastic or Typesense config)', () => {
   let database: Database
 
   before(async () => {
@@ -159,7 +159,7 @@ describe('NonceDatabase CRUD (without Elastic or Typesense config)', () => {
   })
 })
 
-describe('IndexerDatabase CRUD', () => {
+describe('**********         IndexerDatabase CRUD', () => {
   let database: Database
   let existsPrevious: any = {}
 
@@ -203,7 +203,7 @@ describe('IndexerDatabase CRUD', () => {
   })
 })
 
-describe('OrderDatabase CRUD', () => {
+describe('**********         OrderDatabase CRUD', () => {
   let database: Database
 
   before(async () => {
@@ -263,7 +263,7 @@ describe('OrderDatabase CRUD', () => {
   })
 })
 
-describe('Typesense OrderDatabase CRUD', () => {
+describe('**********         Typesense OrderDatabase CRUD', () => {
   let database: AbstractOrderDatabase
 
   before(async () => {
@@ -308,7 +308,7 @@ describe('Typesense OrderDatabase CRUD', () => {
   })
 })
 
-describe('Elasticsearch OrderDatabase CRUD', () => {
+describe('**********         Elasticsearch OrderDatabase CRUD', () => {
   let database: AbstractOrderDatabase
 
   before(async () => {
@@ -356,7 +356,7 @@ describe('Elasticsearch OrderDatabase CRUD', () => {
   })
 })
 
-describe('DdoStateQuery', () => {
+describe('**********         DdoStateQuery', () => {
   it('should build Typesense query for did', async () => {
     const query = (await DatabaseFactory.createDdoStateQuery(typesenseConfig)).buildQuery(
       'did:op:abc123'
@@ -409,7 +409,7 @@ describe('DdoStateQuery', () => {
   })
 })
 
-describe('MetadataQuery', () => {
+describe('**********         MetadataQuery', () => {
   it('should return a Typesense query when DB is Typesense and a Typesense query is passed', async () => {
     const typesenseQuery = {
       q: '*',

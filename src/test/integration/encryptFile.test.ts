@@ -19,7 +19,7 @@ import {
 import { Database } from '../../components/database/index.js'
 import { createHashForSignature, safeSign } from '../utils/signature.js'
 
-describe('Encrypt File', () => {
+describe('**********         Encrypt File', () => {
   let config: OceanNodeConfig
   let oceanNode: OceanNode
   let previousConfiguration: OverrideEnvConfig[]

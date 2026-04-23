@@ -24,7 +24,7 @@ import { expect } from 'chai'
 import { ValidateDDOHandler } from '../../components/core/handler/ddoHandler.js'
 import { createHashForSignature, safeSign } from '../utils/signature.js'
 
-describe('Auth Token Integration Tests', () => {
+describe('**********         Auth Token Integration Tests', () => {
   let config: OceanNodeConfig
   let database: Database
   let provider: JsonRpcProvider

@@ -7,7 +7,7 @@ import {
   tearDownEnvironment
 } from '../utils/utils.js'
 import { ENVIRONMENT_VARIABLES, getConfiguration } from '../../utils/index.js'
-describe('Purgatory test', () => {
+describe('**********         Purgatory test', () => {
   let purgatory: Purgatory
   let previousConfiguration: OverrideEnvConfig[]
   let config: any

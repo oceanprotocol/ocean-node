@@ -12,7 +12,7 @@ import { C2DEngineDocker } from '../../components/c2d/compute_engine_docker.js'
 import { C2DClusterInfo, C2DClusterType } from '../../@types/C2D/C2D.js'
 import { DockerRegistryAuthSchema } from '../../utils/config/schemas.js'
 import { getConfiguration } from '../../utils/index.js'
-describe('Docker Registry Authentication Integration Tests', () => {
+describe('**********         Docker Registry Authentication Integration Tests', () => {
   let config: any
   before(async () => {
     config = await getConfiguration(true)

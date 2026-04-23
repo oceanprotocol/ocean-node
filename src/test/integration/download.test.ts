@@ -45,7 +45,7 @@ import { genericDDO } from '../data/ddo.js'
 import { homedir } from 'os'
 import { createHashForSignature, safeSign } from '../utils/signature.js'
 
-describe('[Download Flow] - Should run a complete node flow.', () => {
+describe('**********         [Download Flow] - Should run a complete node flow.', () => {
   let config: OceanNodeConfig
   let database: Database
   let oceanNode: OceanNode

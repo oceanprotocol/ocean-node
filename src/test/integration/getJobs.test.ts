@@ -66,7 +66,7 @@ function buildJob(overrides: Partial<DBComputeJob> = {}): DBComputeJob {
   }
 }
 
-describe('GetJobsHandler integration', () => {
+describe('**********         GetJobsHandler integration', () => {
   let previousConfiguration: OverrideEnvConfig[]
   let oceanNode: OceanNode
   let db: Database

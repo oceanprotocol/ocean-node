@@ -26,7 +26,7 @@ const emptyDBConfig: OceanNodeDBConfig = {
   dbType: null
 }
 
-describe('Config Database', () => {
+describe('**********         Config Database', () => {
   let database: Database
   let oceanIndexer: OceanIndexer
   let initialVersionNull: any

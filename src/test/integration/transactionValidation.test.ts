@@ -25,7 +25,7 @@ import {
   tearDownEnvironment
 } from '../utils/utils.js'
 import { homedir } from 'os'
-describe('validateOrderTransaction Function with Orders', () => {
+describe('**********         validateOrderTransaction Function with Orders', () => {
   let database: Database
   let oceanNode: OceanNode
   let provider: JsonRpcProvider

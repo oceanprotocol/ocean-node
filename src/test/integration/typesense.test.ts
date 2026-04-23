@@ -8,7 +8,7 @@ import { ddo } from '../data/ddo.js'
 import { expect } from 'chai'
 import { TypesenseSearchParams } from '../../@types/index.js'
 
-describe('Typesense', () => {
+describe('**********         Typesense', () => {
   let typesense: Typesense
 
   before(() => {
@@ -26,7 +26,7 @@ describe('Typesense', () => {
   })
 })
 
-describe('Typesense collections', () => {
+describe('**********         Typesense collections', () => {
   let typesense: Typesense
 
   before(() => {
@@ -76,7 +76,7 @@ describe('Typesense collections', () => {
   })
 })
 
-describe('Typesense documents', () => {
+describe('**********         Typesense documents', () => {
   let typesense: Typesense
 
   before(() => {
@@ -140,7 +140,7 @@ describe('Typesense documents', () => {
   })
 })
 
-describe('Typesense documents', () => {
+describe('**********         Typesense documents', () => {
   let typesense: Typesense
 
   before(() => {

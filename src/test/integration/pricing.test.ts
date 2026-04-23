@@ -40,7 +40,7 @@ import { getConfiguration } from '../../utils/config.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { Asset } from '@oceanprotocol/ddo-js'
 
-describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () => {
+describe('**********         Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () => {
   let database: Database
   let oceanNode: OceanNode
   let provider: JsonRpcProvider
@@ -84,7 +84,16 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
 
     const config = await getConfiguration(true)
     database = await Database.init(config.dbConfig)
-    oceanNode = await OceanNode.getInstance()
+    oceanNode = await OceanNode.getInstance(
+      config,
+      database,
+      null,
+      null,
+      null,
+      null,
+      null,
+      true
+    )
     indexer = new OceanIndexer(database, config, oceanNode.blockchainRegistry)
     oceanNode.addIndexer(indexer)
     artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)

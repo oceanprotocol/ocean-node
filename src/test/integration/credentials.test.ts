@@ -66,7 +66,7 @@ import { ComputeGetEnvironmentsHandler } from '../../components/core/compute/env
 import { ComputeInitializeCommand } from '../../@types/commands.js'
 import { createHashForSignature, safeSign } from '../utils/signature.js'
 
-describe('[Credentials Flow] - Should run a complete node flow.', () => {
+describe('**********         [Credentials Flow] - Should run a complete node flow.', () => {
   let config: OceanNodeConfig
   let oceanNode: OceanNode
   let provider: JsonRpcProvider
