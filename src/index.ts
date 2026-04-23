@@ -131,8 +131,6 @@ function removeExtraSlashes(req: any, res: any, next: any) {
 }
 
 if (config.hasHttp) {
-  // allow up to 25Mb file upload
-  app.use(express.raw({ limit: '25mb' }))
   app.use(cors())
   app.use(requestValidator, (req, res, next) => {
     req.caller = req.headers['x-forwarded-for'] || req.socket.remoteAddress
