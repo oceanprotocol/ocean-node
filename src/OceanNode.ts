@@ -343,12 +343,19 @@ export class OceanNode {
     return this.config.hasP2P || false
   }
 
+  private dbInitPromise: Promise<Database> | null = null
   async getDatabase(forceReload: boolean = false): Promise<Database> {
     if (!this.database || forceReload) {
-      const { dbConfig } = this.config
-      if (dbConfig && dbConfig.url) {
-        this.database = await Database.init(dbConfig)
+      if (!this.dbInitPromise || forceReload) {
+        const { dbConfig } = this.config
+        if (dbConfig && dbConfig.url) {
+          this.dbInitPromise = Database.init(dbConfig).then((db) => {
+            this.database = db
+            return db
+          })
+        }
       }
+      return await this.dbInitPromise
     }
     return this.database
   }
