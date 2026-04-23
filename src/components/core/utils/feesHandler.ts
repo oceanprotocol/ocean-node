@@ -83,7 +83,11 @@ export class Providerfees {
     }
 
     if (providerFeeToken && providerFeeToken?.toLowerCase() !== ZeroAddress) {
-      const provider = await this.node.getBlockchain(assetChainId).getProvider()
+      const blockchain = this.node.getBlockchain(Number(assetChainId))
+      if (!blockchain) {
+        throw new Error(`Blockchain for chainId ${assetChainId} is not configured`)
+      }
+      const provider = await blockchain.getProvider()
       const decimals = await getDatatokenDecimals(providerFeeToken, provider)
       providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(10), decimals)
     } else {
