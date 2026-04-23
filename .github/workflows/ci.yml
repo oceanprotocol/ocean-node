@@ -119,7 +119,7 @@ jobs:
           repository: 'oceanprotocol/barge'
           path: 'barge'
       - name: Login to Docker Hub
-        if: ${{ env.DOCKERHUB_PASSWORD && env.DOCKERHUB_USERNAME }}
+        if: ${{ env.DOCKERHUB_PASSWORDNONO && env.DOCKERHUB_USERNAMENONO }}
         run: |
           echo "Login to Docker Hub";echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
         env:

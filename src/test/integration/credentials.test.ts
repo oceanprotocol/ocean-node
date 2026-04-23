@@ -596,7 +596,6 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
     const nonAuthorizedAccount = (await provider.getSigner(4)) as Signer
     const authorizedAccount = await publisherAccount.getAddress()
 
-    printCurrentConfig()
     expect(
       config.authorizedPublishers.length === 1 &&
         config.authorizedPublishers[0] === authorizedAccount,

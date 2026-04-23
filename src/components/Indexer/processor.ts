@@ -59,11 +59,13 @@ function getEventProcessor(
       throw new Error(`No processor found for event type: ${eventType}`)
     }
     INDEXER_LOGGER.debug(
-      'Creating new Processor for event ' + eventType + "with key ' + cacheKey"
+      'Creating new Processor for event ' + eventType + 'with key ' + cacheKey
     )
+    console.log(config)
     processorInstances.set(cacheKey, new ProcessorClass(chainId, config))
+  } else {
+    INDEXER_LOGGER.debug('Reusing cached processor for key ' + cacheKey)
   }
-  INDEXER_LOGGER.debug('Reusing cached processor for key ' + cacheKey)
   return processorInstances.get(cacheKey)
 }
 
