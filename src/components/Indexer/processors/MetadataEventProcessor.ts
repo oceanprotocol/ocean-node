@@ -360,7 +360,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         ddoUpdatedWithPricing = ddoWithPricing
       }
       // always call, but only create instance once
-      const purgatory = await Purgatory.getInstance(this.getConfig())
+      const purgatory = Purgatory.getInstance(this.getConfig())
       // if purgatory is disabled just return false
       const updatedDDO = await this.updatePurgatoryStateDdo(
         ddoUpdatedWithPricing,
