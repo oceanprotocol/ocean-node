@@ -36,7 +36,10 @@ providerRoutes.post(`${SERVICES_API_BASE_PATH}/decrypt`, async (req, res) => {
   }
 })
 
-providerRoutes.post(`${SERVICES_API_BASE_PATH}/encrypt`, async (req, res) => {
+providerRoutes.post(
+  `${SERVICES_API_BASE_PATH}/encrypt`,
+  express.raw({ limit: '25mb' }),
+  async (req, res) => {
   try {
     const data = req.body.toString()
     if (!data) {
@@ -81,7 +84,11 @@ providerRoutes.post(`${SERVICES_API_BASE_PATH}/encrypt`, async (req, res) => {
 // Headers
 // X-Encrypted-By: our_node_id
 // X-Encrypted-Method: aes or ecies
-providerRoutes.post(`${SERVICES_API_BASE_PATH}/encryptFile`, async (req, res) => {
+providerRoutes.post(
+  `${SERVICES_API_BASE_PATH}/encryptFile`,
+  express.raw({ limit: '25mb', type: 'application/octet-stream' }),
+  express.json(),
+  async (req, res) => {
   const writeResponse = async (
     result: P2PCommandResponse,
     encryptMethod: EncryptMethod
