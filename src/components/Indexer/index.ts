@@ -150,10 +150,6 @@ export class OceanIndexer {
         INDEXER_LOGGER.info(
           'Database connection stable - reinitialising DB and restarting all chain indexers'
         )
-        // const freshDb = await getDatabase(true)
-        // if (freshDb) {
-        // this.db = freshDb
-        // }
 
         await this.startAllChainIndexers()
       }, 5000)
