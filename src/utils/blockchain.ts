@@ -55,6 +55,19 @@ export class Blockchain {
     return await this.signer.getAddress()
   }
 
+  public stop() {
+    if (this.provider) {
+      this.provider.providerConfigs.forEach((config) => {
+        // Each config contains a 'provider' property
+        config.provider.destroy()
+      })
+
+      // 2. Destroy the FallbackProvider itself
+      this.provider.destroy()
+      this.provider = null
+    }
+  }
+
   public async getProvider(force: boolean = false): Promise<FallbackProvider> {
     if (!this.provider) {
       const configs: {

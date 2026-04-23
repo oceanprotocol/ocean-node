@@ -60,12 +60,16 @@ export class OceanNode {
     public keyManager?: KeyManager,
     public blockchainRegistry?: BlockchainRegistry
   ) {
-    this.keyManager = new KeyManager(config)
-    this.blockchainRegistry = new BlockchainRegistry(this.keyManager, config)
+    this.keyManager = keyManager
+    if (this.blockchainRegistry) {
+      this.blockchainRegistry.stop()
+    }
+    this.blockchainRegistry = blockchainRegistry
     this.coreHandlers = CoreHandlersRegistry.getInstance(this, true)
     this.requestMap = new Map<string, RequestLimiter>()
     this.config = config
     this.database = db
+
     if (this.db && this.db?.authToken) {
       this.auth = new Auth(this.db.authToken, config)
     }
@@ -88,6 +92,7 @@ export class OceanNode {
         this.persistentStorage = null
       }
     }
+    this.addIndexer(indexer)
   }
 
   // Singleton instance
@@ -106,10 +111,12 @@ export class OceanNode {
         if (!config) {
           throw new Error('KeyManager and BlockchainRegistry are required')
         }
-        keyManager = new KeyManager(config)
-        blockchainRegistry = new BlockchainRegistry(keyManager, config)
+        if (!keyManager) keyManager = new KeyManager(config)
+        if (!blockchainRegistry)
+          blockchainRegistry = new BlockchainRegistry(keyManager, config)
       }
       // prepare compute engines
+      OCEAN_NODE_LOGGER.debug('Creating new OceanNode instance')
       this.instance = new OceanNode(
         config,
         db,
@@ -119,6 +126,8 @@ export class OceanNode {
         keyManager,
         blockchainRegistry
       )
+    } else {
+      OCEAN_NODE_LOGGER.debug('Return cached OceanNode instance')
     }
     return this.instance
   }
@@ -132,7 +141,7 @@ export class OceanNode {
     const previous = this.indexer
     this.indexer = _indexer
     if (previous) {
-      previous.stopAllChainIndexers().catch((err: unknown) => {
+      previous.stop().catch((err: unknown) => {
         OCEAN_NODE_LOGGER.warn(
           `Failed to stop replaced indexer: ${err instanceof Error ? err.message : String(err)}`
         )
@@ -143,10 +152,18 @@ export class OceanNode {
   public async tearDownAll() {
     if (this.c2dEngines) {
       await this.c2dEngines.stopAllEngines()
+      this.c2dEngines = null
     }
     if (this.indexer) {
       await this.indexer.stop()
+      this.indexer = null
     }
+    if (this.blockchainRegistry) {
+      this.blockchainRegistry.stop()
+      this.blockchainRegistry = null
+    }
+    OceanNode.instance = null
+    OCEAN_NODE_LOGGER.debug('Destroyed OceanNode instance')
   }
 
   public async addC2DEngines() {
