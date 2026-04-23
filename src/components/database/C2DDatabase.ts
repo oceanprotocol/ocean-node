@@ -128,7 +128,8 @@ export class C2DDatabase extends AbstractDatabase {
   async cleanStorageExpiredJobs(): Promise<number> {
     const allEnvironments: ComputeEnvironment[] = []
     const currentTimestamp = Date.now() / 1000
-    const allEngines = await OceanNode.getInstance().getC2DEngines().engines
+    const c2dEngines = OceanNode.getInstance().getC2DEngines()
+    const allEngines = c2dEngines ? c2dEngines.engines : []
 
     let cleaned = 0
     for (const engine of allEngines) {
