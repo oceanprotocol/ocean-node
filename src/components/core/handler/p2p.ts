@@ -132,7 +132,14 @@ export class GetP2PNetworkStatsHandler extends CommandHandler {
       const node = this.getOceanNode()
       const config = node.getConfig()
       if (config.p2pConfig.enableNetworkStats) {
-        const stats = node.getP2PNode().getNetworkingStats()
+        const p2pNode = node.getP2PNode()
+        if (!p2pNode) {
+          return {
+            stream: null,
+            status: { httpStatus: 503, error: 'P2P Interface is disabled' }
+          }
+        }
+        const stats = p2pNode.getNetworkingStats()
         return {
           stream: Readable.from(JSON.stringify(stats)),
           status: { httpStatus: 200 }

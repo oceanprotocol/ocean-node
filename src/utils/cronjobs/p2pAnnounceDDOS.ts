@@ -8,9 +8,9 @@ export async function p2pAnnounceDDOS(node: OceanNode) {
   try {
     const db = await node.getDatabase()
     const p2pNode = node.getP2PNode()
-    if (!db || !db.ddo) {
+    if (!db || !db.ddo || !p2pNode) {
       P2P_LOGGER.info(
-        `republishStoredDDOS() attempt aborted because there is no database!`
+        `republishStoredDDOS() attempt aborted because there is no database or P2P is not available!`
       )
       return
     }
