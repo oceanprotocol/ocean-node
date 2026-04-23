@@ -1,7 +1,7 @@
 import { CommandHandler } from './handler.js'
 import { MetadataStates, PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
-import { Providerfees } from '../utils/feesHandler.js'
+import { ProviderFees } from '../utils/feesHandler.js'
 import { FindDdoHandler } from './ddoHandler.js'
 import crypto from 'crypto'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
@@ -410,7 +410,7 @@ export class DownloadHandler extends CommandHandler {
       }
     }
     // 5. check that the provider fee transaction is valid
-    const fees = new Providerfees(node)
+    const fees = new ProviderFees(node)
     const validFee = await fees.verifyProviderFees(
       task.transferTxId,
       task.consumerAddress,

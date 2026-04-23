@@ -12,7 +12,7 @@ import {
   FeeTokens,
   ProviderFeeData,
   ProviderFeeValidation,
-  ProviderFees
+  ProviderFees as ProviderFeesResult
 } from '../../../@types/Fees'
 import { Service, DDOManager, Asset } from '@oceanprotocol/ddo-js'
 import { getDatatokenDecimals, verifyMessage } from '../../../utils/blockchain.js'
@@ -23,7 +23,7 @@ import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/template
 import { fetchEventFromTransaction } from '../../../utils/util.js'
 import { fetchTransactionReceipt } from './validateOrders.js'
 
-export class Providerfees {
+export class ProviderFees {
   private node: OceanNode
 
   constructor(_node: OceanNode) {
@@ -58,7 +58,7 @@ export class Providerfees {
     asset: Asset,
     service: Service,
     validUntil: number
-  ): Promise<ProviderFees> | undefined {
+  ): Promise<ProviderFeesResult> | undefined {
     // round for safety
     validUntil = Math.round(validUntil)
 

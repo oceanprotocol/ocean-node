@@ -1,7 +1,7 @@
 import { CommandHandler } from './handler.js'
 import { GetFeesCommand } from '../../../@types/commands.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
-import { Providerfees } from '../utils/feesHandler.js'
+import { ProviderFees } from '../utils/feesHandler.js'
 import { Readable } from 'stream'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { PROVIDER_LOGGER } from '../../../utils/logging/common.js'
@@ -100,7 +100,7 @@ export class FeesHandler extends CommandHandler {
     const nonceDB = (await this.getOceanNode().getDatabase()).nonce
     const nonceHandlerResponse = await getNonce(nonceDB, task.consumerAddress)
     const nonce = await streamToString(nonceHandlerResponse.stream as Readable)
-    const feesClass = new Providerfees(this.getOceanNode())
+    const feesClass = new ProviderFees(this.getOceanNode())
     try {
       const providerFee = await feesClass.createProviderFee(ddo, service, validUntil)
       if (providerFee) {

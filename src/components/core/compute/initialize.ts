@@ -12,7 +12,7 @@ import {
   isDataTokenTemplate4,
   isERC20Template4Active
 } from '../../../utils/asset.js'
-import { Providerfees } from '../utils/feesHandler.js'
+import { ProviderFees } from '../utils/feesHandler.js'
 
 import { validateOrderTransaction } from '../utils/validateOrders.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
@@ -532,7 +532,7 @@ export class ComputeInitializeHandler extends CommandHandler {
             message: false
           }
           result.consumerAddress = env.consumerAddress
-          const fees = new Providerfees(node)
+          const fees = new ProviderFees(node)
           if ('transferTxId' in elem && elem.transferTxId) {
             // search for that compute env and see if it has access to dataset
             const paymentValidation = await validateOrderTransaction(

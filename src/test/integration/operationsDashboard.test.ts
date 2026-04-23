@@ -56,7 +56,7 @@ import { CollectFeesHandler } from '../../components/core/admin/collectFeesHandl
 import { KeyManager } from '../../components/KeyManager/index.js'
 import { BlockchainRegistry } from '../../components/BlockchainRegistry/index.js'
 import { createHashForSignature, safeSign } from '../utils/signature.js'
-import { Providerfees } from '../../components/core/utils/feesHandler.js'
+import { ProviderFees } from '../../components/core/utils/feesHandler.js'
 
 describe('**********         OperationsDashboard tests', () => {
   let config: OceanNodeConfig
@@ -155,7 +155,7 @@ describe('**********         OperationsDashboard tests', () => {
       PROTOCOL_COMMANDS.COLLECT_FEES
     )
     let signature = await safeSign(adminWallet, messageHashBytes)
-    const fees = new Providerfees(oceanNode)
+    const fees = new ProviderFees(oceanNode)
     const collectFeesCommand: AdminCollectFeesCommand = {
       command: PROTOCOL_COMMANDS.COLLECT_FEES,
       tokenAddress: fees.getProviderFeeToken(DEVELOPMENT_CHAIN_ID),

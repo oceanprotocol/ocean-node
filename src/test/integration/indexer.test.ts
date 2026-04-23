@@ -48,7 +48,7 @@ import { QueryCommand } from '../../@types/commands.js'
 import { getConfiguration } from '../../utils/config.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { deleteIndexedMetadataIfExists } from '../../utils/asset.js'
-import { Providerfees } from '../../components/core/utils/feesHandler.js'
+import { ProviderFees } from '../../components/core/utils/feesHandler.js'
 
 describe('**********         Indexer stores a new metadata events and orders.', () => {
   let database: Database
@@ -412,7 +412,7 @@ describe('**********         Indexer stores a new metadata events and orders.', 
       paymentCollector?.toLowerCase() === publisherAddress?.toLowerCase(),
       'paymentCollector not correct'
     )
-    const fees = new Providerfees(oceanNode)
+    const fees = new ProviderFees(oceanNode)
     const feeData = await fees.createFee(
       resolvedDDO as DDO,
       0,
@@ -515,7 +515,7 @@ describe('**********         Indexer stores a new metadata events and orders.', 
 
   it('should detect OrderReused event', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
-    const fees = new Providerfees(oceanNode)
+    const fees = new ProviderFees(oceanNode)
     const feeData = await fees.createFee(
       resolvedDDO as DDO,
       0,
