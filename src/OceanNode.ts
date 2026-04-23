@@ -61,9 +61,6 @@ export class OceanNode {
     public blockchainRegistry?: BlockchainRegistry
   ) {
     this.keyManager = keyManager
-    if (this.blockchainRegistry) {
-      this.blockchainRegistry.stop()
-    }
     this.blockchainRegistry = blockchainRegistry
     this.coreHandlers = CoreHandlersRegistry.getInstance(this, true)
     this.requestMap = new Map<string, RequestLimiter>()
@@ -115,7 +112,14 @@ export class OceanNode {
         if (!blockchainRegistry)
           blockchainRegistry = new BlockchainRegistry(keyManager, config)
       }
-      // prepare compute engines
+      // teardown old instance if needed
+      this.instance?.tearDownAll().catch((err: unknown) => {
+        OCEAN_NODE_LOGGER.warn(
+          `Failed to tear down previous OceanNode instance: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        )
+      })
       OCEAN_NODE_LOGGER.debug('Creating new OceanNode instance')
       this.instance = new OceanNode(
         config,
