@@ -140,6 +140,10 @@ export class OceanP2P extends EventEmitter {
     return this.coreHandlers
   }
 
+  getConfig() {
+    return this._config
+  }
+
   async start(options: any = null) {
     this._topic = 'oceanprotocol'
     this._libp2p = await this.createNode(this._config)

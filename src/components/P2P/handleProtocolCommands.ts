@@ -88,7 +88,7 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
   }
 
   // Rate limiting and deny list checks (after reading command)
-  const configuration = this.config
+  const configuration = this.getConfig()
   const { denyList } = configuration
 
   if (denyList.peers.includes(remotePeer.toString())) {
