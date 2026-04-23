@@ -458,8 +458,7 @@ export class Providerfees {
    */
   // eslint-disable-next-line require-await
   async getProviderWallet(chainId?: string): Promise<ethers.Wallet> {
-    const oceanNode = OceanNode.getInstance()
-    const keyManager = oceanNode.getKeyManager()
+    const keyManager = this.node.getKeyManager()
     return keyManager.getEthWallet()
   }
 

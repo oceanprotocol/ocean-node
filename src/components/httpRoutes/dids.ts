@@ -10,7 +10,7 @@ getProvidersForStringRoute.get(
       res.sendStatus(400)
       return
     }
-    if (req.oceanNode.hasP2PInterface) {
+    if (req.oceanNode.hasP2PInterface()) {
       const providers = await req.oceanNode
         .getP2PNode()
         .getProvidersForString(req.query.input as string)
