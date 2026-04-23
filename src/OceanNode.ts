@@ -166,8 +166,10 @@ export class OceanNode {
       this.blockchainRegistry.stop()
       this.blockchainRegistry = null
     }
-    OceanNode.instance = null
-    OCEAN_NODE_LOGGER.debug('Destroyed OceanNode instance')
+    if (OceanNode.instance === this) {
+      OceanNode.instance = null
+    }
+    OCEAN_NODE_LOGGER.debug('OceanNode instance stopped & cleared')
   }
 
   public async addC2DEngines() {
