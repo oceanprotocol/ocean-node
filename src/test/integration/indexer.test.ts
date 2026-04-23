@@ -133,7 +133,10 @@ describe('Indexer stores a new metadata events and orders.', () => {
       publisherAccount
     )
   })
-
+  after(async () => {
+    await oceanNode.tearDownAll()
+    await tearDownEnvironment(previousConfiguration)
+  })
   it('instance Database', () => {
     expect(database).to.be.instanceOf(Database)
   })
@@ -675,10 +678,5 @@ describe('Indexer stores a new metadata events and orders.', () => {
       const queue = indexer.getIndexingQueue()
       expect(queue.length).to.be.equal(0)
     }, DEFAULT_TEST_TIMEOUT / 2)
-  })
-
-  after(async () => {
-    await tearDownEnvironment(previousConfiguration)
-    indexer.stopAllChainIndexers()
   })
 })

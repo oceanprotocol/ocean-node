@@ -107,7 +107,16 @@ describe('Trusted algorithms Flow', () => {
     )
     config = await getConfiguration(true)
     dbconn = await Database.init(config.dbConfig)
-    oceanNode = await OceanNode.getInstance(config, dbconn, null, null, null)
+    oceanNode = await OceanNode.getInstance(
+      config,
+      dbconn,
+      null,
+      null,
+      null,
+      null,
+      null,
+      true
+    )
     indexer = new OceanIndexer(dbconn, config, oceanNode.blockchainRegistry)
     oceanNode.addIndexer(indexer)
     oceanNode.addC2DEngines()
@@ -126,7 +135,10 @@ describe('Trusted algorithms Flow', () => {
       publisherAccount
     )
   })
-
+  after(async () => {
+    await tearDownEnvironment(previousConfiguration)
+    await oceanNode.tearDownAll()
+  })
   it('Sets up compute envs', () => {
     assert(oceanNode, 'Failed to instantiate OceanNode')
     assert(config.c2dClusters, 'Failed to get c2dClusters')
@@ -491,9 +503,5 @@ describe('Trusted algorithms Flow', () => {
     // eslint-disable-next-line prefer-destructuring
     jobId = jobs[0].jobId
     assert(jobId)
-  })
-  after(async () => {
-    await tearDownEnvironment(previousConfiguration)
-    indexer.stopAllChainIndexers()
   })
 })

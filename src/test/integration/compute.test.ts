@@ -237,7 +237,10 @@ describe('Compute', () => {
       publisherAccount
     )
   })
-
+  after(async () => {
+    await oceanNode.tearDownAll()
+    await tearDownEnvironment(previousConfiguration)
+  })
   it('Sets up compute envs', () => {
     assert(oceanNode, 'Failed to instantiate OceanNode')
     assert(config.c2dClusters, 'Failed to get c2dClusters')
@@ -2600,11 +2603,6 @@ describe('Compute', () => {
       )
     })
   })
-
-  after(async () => {
-    await tearDownEnvironment(previousConfiguration)
-    await indexer.stopAllChainIndexers()
-  })
 })
 
 describe('Compute Access Restrictions', () => {
@@ -2770,7 +2768,10 @@ describe('Compute Access Restrictions', () => {
         DEFAULT_TEST_TIMEOUT
       )
     })
-
+    after(async () => {
+      await oceanNode.tearDownAll()
+      await tearDownEnvironment(previousConfiguration)
+    })
     it('Get compute environments with address restrictions', async () => {
       const getEnvironmentsTask = { command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS }
       const response = await new ComputeGetEnvironmentsHandler(oceanNode).handle(
@@ -2803,10 +2804,6 @@ describe('Compute Access Restrictions', () => {
       )
       const response = await new FreeComputeStartHandler(oceanNode).handle(command)
       assert(response.status.httpStatus === 403, 'Should get 403 access denied')
-    })
-
-    after(async () => {
-      await tearDownEnvironment(previousConfiguration)
     })
   })
 
@@ -2963,7 +2960,10 @@ describe('Compute Access Restrictions', () => {
         DEFAULT_TEST_TIMEOUT
       )
     })
-
+    after(async () => {
+      await oceanNode.tearDownAll()
+      await tearDownEnvironment(previousConfiguration)
+    })
     it('Get compute environments with access list restrictions', async () => {
       const getEnvironmentsTask = { command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS }
       const response = await new ComputeGetEnvironmentsHandler(oceanNode).handle(
@@ -3012,10 +3012,6 @@ describe('Compute Access Restrictions', () => {
       const response = await new FreeComputeStartHandler(oceanNode).handle(command)
       console.log(response)
       expect(response.status.httpStatus).to.not.equal(403)
-    })
-
-    after(async () => {
-      await tearDownEnvironment(previousConfiguration)
     })
   })
 
@@ -3109,6 +3105,7 @@ describe('Compute Access Restrictions', () => {
     })
 
     after(async () => {
+      await oceanNode.tearDownAll()
       await tearDownEnvironment(previousConfiguration)
     })
 

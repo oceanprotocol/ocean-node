@@ -139,7 +139,9 @@ describe('Should deploy some accessLists before all other tests.', () => {
 
     config = await getConfiguration()
   })
-
+  after(async () => {
+    await tearDownEnvironment(previousConfiguration)
+  })
   it('should have some access lists', () => {
     expect(EXISTING_ACCESSLISTS.size > 0, 'Should have at least 1 accessList')
   })
@@ -200,9 +202,5 @@ describe('Should deploy some accessLists before all other tests.', () => {
         )
       }
     }
-  })
-
-  after(async () => {
-    await tearDownEnvironment(previousConfiguration)
   })
 })

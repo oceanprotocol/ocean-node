@@ -114,7 +114,10 @@ describe('Should test admin operations', () => {
     indexer = new OceanIndexer(dbconn, config, oceanNode.blockchainRegistry)
     oceanNode.addIndexer(indexer)
   })
-
+  after(async () => {
+    await oceanNode.tearDownAll()
+    await tearDownEnvironment(previousConfiguration)
+  })
   it('validation should pass for stop node command', async () => {
     const nonce = Date.now().toString()
     const messageHashBytes = createHashForSignature(
@@ -457,11 +460,5 @@ describe('Should test admin operations', () => {
     const responseStart = await indexingHandler.handle(indexingStartCommand)
     assert(responseStart.stream, 'Failed to get stream when starting thread')
     expect(responseStart.status.httpStatus).to.be.equal(200)
-  })
-
-  after(async () => {
-    await tearDownEnvironment(previousConfiguration)
-    INDEXER_CRAWLING_EVENT_EMITTER.removeAllListeners()
-    indexer.stopAllChainIndexers()
   })
 })

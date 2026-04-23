@@ -27,8 +27,7 @@ import {
   ENVIRONMENT_VARIABLES,
   EVENTS,
   PROTOCOL_COMMANDS,
-  getConfiguration,
-  printCurrentConfig
+  getConfiguration
 } from '../../utils/index.js'
 import { DownloadHandler } from '../../components/core/handler/downloadHandler.js'
 import { GetDdoHandler } from '../../components/core/handler/ddoHandler.js'
@@ -162,7 +161,10 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
     ]
     consumerAddresses = await Promise.all(consumerAccounts.map((a) => a.getAddress()))
   })
-
+  after(async () => {
+    await oceanNode.tearDownAll()
+    await tearDownEnvironment(previousConfiguration)
+  })
   it('should deploy accessList contract', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     let networkArtifacts = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
@@ -616,10 +618,5 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
     )
 
     assert(ddo === null && wasTimeout === true, 'DDO should NOT have been indexed')
-  })
-
-  after(async () => {
-    await tearDownEnvironment(previousConfiguration)
-    oceanNode.getIndexer().stopAllChainIndexers()
   })
 })

@@ -105,7 +105,10 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     delete genericAssetCloned.event
     delete genericAssetCloned.nft
   })
-
+  after(async () => {
+    await oceanNode.tearDownAll()
+    await tearDownEnvironment(previousConfiguration)
+  })
   it('instance Database', () => {
     expect(database).to.be.instanceOf(Database)
   })
@@ -371,9 +374,5 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
         'mismatch datatoken address'
       )
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
-  })
-  after(async () => {
-    await tearDownEnvironment(previousConfiguration)
-    indexer.stopAllChainIndexers()
   })
 })

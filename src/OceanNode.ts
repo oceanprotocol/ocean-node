@@ -140,6 +140,15 @@ export class OceanNode {
     }
   }
 
+  public async tearDownAll() {
+    if (this.c2dEngines) {
+      await this.c2dEngines.stopAllEngines()
+    }
+    if (this.indexer) {
+      await this.indexer.stop()
+    }
+  }
+
   public async addC2DEngines() {
     if (this.c2dEngines) {
       await this.c2dEngines.stopAllEngines()

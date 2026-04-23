@@ -49,13 +49,23 @@ describe('Auth Token Integration Tests', () => {
 
     config = await getConfiguration(true)
     database = await Database.init(config.dbConfig)
-    oceanNode = await OceanNode.getInstance(config, database)
+    oceanNode = await OceanNode.getInstance(
+      config,
+      database,
+      null,
+      null,
+      null,
+      null,
+      null,
+      true
+    )
 
     provider = new JsonRpcProvider(mockSupportedNetworks['8996'].rpc)
     consumerAccount = (await provider.getSigner(1)) as Signer
   })
 
   after(async () => {
+    await oceanNode.tearDownAll()
     await tearDownEnvironment(previousConfiguration)
   })
 
@@ -247,9 +257,5 @@ describe('Auth Token Integration Tests', () => {
         expect(response2.status.httpStatus).to.equal(400)
       })
     })
-  })
-
-  after(async () => {
-    await tearDownEnvironment(previousConfiguration)
   })
 })

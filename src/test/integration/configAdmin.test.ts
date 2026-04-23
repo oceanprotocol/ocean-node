@@ -89,6 +89,7 @@ describe('Config Admin Endpoints Integration Tests', () => {
       delete process.env.MAX_CONNECTIONS_PER_MINUTE
     }
     await getConfiguration(true)
+    await oceanNode.tearDownAll()
     await tearDownEnvironment(previousConfiguration)
   })
 

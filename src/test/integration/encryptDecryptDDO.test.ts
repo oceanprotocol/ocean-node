@@ -123,7 +123,10 @@ describe('Should encrypt and decrypt DDO', () => {
     indexer = new OceanIndexer(database, config, oceanNode.blockchainRegistry)
     oceanNode.addIndexer(indexer)
   })
-
+  after(async () => {
+    await oceanNode.tearDownAll()
+    await tearDownEnvironment(previousConfiguration)
+  })
   it('should publish a dataset', async () => {
     const tx = await (factoryContract as any).createNftWithErc20(
       {
@@ -418,10 +421,5 @@ describe('Should encrypt and decrypt DDO', () => {
     const decryptedStringDDO = await streamToString(response.stream as Readable)
     const stringDDO = JSON.stringify(genericAsset)
     expect(decryptedStringDDO).to.equal(stringDDO)
-  })
-
-  after(async () => {
-    await tearDownEnvironment(previousConfiguration)
-    indexer.stopAllChainIndexers()
   })
 })

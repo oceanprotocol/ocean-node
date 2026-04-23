@@ -116,6 +116,7 @@ describe('Persistent storage handlers (integration)', function () {
   })
 
   after(async () => {
+    await oceanNode.tearDownAll()
     await tearDownEnvironment(previousConfiguration)
     // await fsp.rm(psRoot, { recursive: true, force: true })
   })

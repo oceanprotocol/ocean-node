@@ -80,7 +80,16 @@ describe('GetJobsHandler integration', () => {
     previousConfiguration = await setupEnvironment(TEST_ENV_CONFIG_FILE)
     const config = await getConfiguration(true)
     db = await Database.init(config.dbConfig)
-    oceanNode = await OceanNode.getInstance(config, db)
+    oceanNode = await OceanNode.getInstance(
+      config,
+      db,
+      null,
+      null,
+      null,
+      null,
+      null,
+      true
+    )
 
     handler = new GetJobsHandler(oceanNode)
 
@@ -107,6 +116,7 @@ describe('GetJobsHandler integration', () => {
   })
 
   after(async () => {
+    await oceanNode.tearDownAll()
     await tearDownEnvironment(previousConfiguration)
   })
 

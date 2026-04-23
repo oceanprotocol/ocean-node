@@ -604,4 +604,10 @@ export class OceanIndexer {
       INDEXER_LOGGER.info('No reindexing needed based on version check')
     }
   }
+
+  public async stop(): Promise<void> {
+    await this.stopAllChainIndexers()
+    INDEXER_CRAWLING_EVENT_EMITTER.removeAllListeners()
+    INDEXER_DDO_EVENT_EMITTER.removeAllListeners()
+  }
 }

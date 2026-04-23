@@ -105,7 +105,10 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
     consumerAccount = (await provider.getSigner(1)) as Signer
     anotherConsumer = (await provider.getSigner(2)) as Signer
   })
-
+  after(async () => {
+    await oceanNode.tearDownAll()
+    await tearDownEnvironment(previousConfiguration)
+  })
   it('should get node status', async () => {
     const statusCommand = {
       command: PROTOCOL_COMMANDS.STATUS,
@@ -313,9 +316,5 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
     }
 
     await doCheck()
-  })
-  after(async () => {
-    await tearDownEnvironment(previousConfiguration)
-    indexer.stopAllChainIndexers()
   })
 })
