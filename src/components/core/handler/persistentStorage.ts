@@ -37,12 +37,7 @@ function requirePersistentStorage(handler: CommandHandler): PersistentStorageFac
 
 export class PersistentStorageCreateBucketHandler extends CommandHandler {
   validate(command: PersistentStorageCreateBucketCommand): ValidateParams {
-    const base = validateCommandParameters(command, [
-      'consumerAddress',
-      'signature',
-      'nonce',
-      'accessLists'
-    ])
+    const base = validateCommandParameters(command, ['accessLists'])
     if (!base.valid) return base
     if (!Array.isArray(command.accessLists)) {
       return buildInvalidRequestMessage(
@@ -115,12 +110,7 @@ export class PersistentStorageCreateBucketHandler extends CommandHandler {
 
 export class PersistentStorageGetBucketsHandler extends CommandHandler {
   validate(command: PersistentStorageGetBucketsCommand): ValidateParams {
-    const base = validateCommandParameters(command, [
-      'consumerAddress',
-      'signature',
-      'nonce',
-      'owner'
-    ])
+    const base = validateCommandParameters(command, ['owner'])
     if (!base.valid) return base
     if (!command.owner || typeof command.owner !== 'string') {
       return buildInvalidRequestMessage(
@@ -177,12 +167,7 @@ export class PersistentStorageGetBucketsHandler extends CommandHandler {
 
 export class PersistentStorageListFilesHandler extends CommandHandler {
   validate(command: PersistentStorageListFilesCommand): ValidateParams {
-    const base = validateCommandParameters(command, [
-      'consumerAddress',
-      'signature',
-      'nonce',
-      'bucketId'
-    ])
+    const base = validateCommandParameters(command, ['bucketId'])
     if (!base.valid) return base
     if (!command.bucketId || typeof command.bucketId !== 'string') {
       return buildInvalidRequestMessage('Invalid parameter: "bucketId" must be a string')
@@ -226,13 +211,7 @@ export class PersistentStorageListFilesHandler extends CommandHandler {
 
 export class PersistentStorageGetFileObjectHandler extends CommandHandler {
   validate(command: PersistentStorageGetFileObjectCommand): ValidateParams {
-    const base = validateCommandParameters(command, [
-      'consumerAddress',
-      'signature',
-      'nonce',
-      'bucketId',
-      'fileName'
-    ])
+    const base = validateCommandParameters(command, ['bucketId', 'fileName'])
     if (!base.valid) return base
     return { valid: true }
   }
@@ -280,13 +259,7 @@ export class PersistentStorageGetFileObjectHandler extends CommandHandler {
 
 export class PersistentStorageUploadFileHandler extends CommandHandler {
   validate(command: PersistentStorageUploadFileCommand): ValidateParams {
-    const base = validateCommandParameters(command, [
-      'consumerAddress',
-      'signature',
-      'nonce',
-      'bucketId',
-      'fileName'
-    ])
+    const base = validateCommandParameters(command, ['bucketId', 'fileName'])
     if (!base.valid) return base
     return { valid: true }
   }
@@ -338,13 +311,7 @@ export class PersistentStorageUploadFileHandler extends CommandHandler {
 
 export class PersistentStorageDeleteFileHandler extends CommandHandler {
   validate(command: PersistentStorageDeleteFileCommand): ValidateParams {
-    const base = validateCommandParameters(command, [
-      'consumerAddress',
-      'signature',
-      'nonce',
-      'bucketId',
-      'fileName'
-    ])
+    const base = validateCommandParameters(command, ['bucketId', 'fileName'])
     if (!base.valid) return base
     return { valid: true }
   }

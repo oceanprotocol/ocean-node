@@ -707,6 +707,7 @@ services:
 #      P2P_BOOTSTRAP_NODES: ''
 #      P2P_FILTER_ANNOUNCED_ADDRESSES: ''
       DOCKER_COMPUTE_ENVIRONMENTS: '$DOCKER_COMPUTE_ENVIRONMENTS'
+      ENABLE_BENCHMARK: true
 $(
   if [ "$enable_tls" == "y" ]; then
     echo "      HTTP_CERT_PATH: '/usr/src/app/certs/cert.pem'"

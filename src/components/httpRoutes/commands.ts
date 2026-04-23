@@ -106,9 +106,23 @@ directCommandRoute.post(
         res.end()
       } else if (hasP2PInterface) {
         // Remote command - use P2P sendTo
+        let { multiAddrs } = req.body
+        if (typeof multiAddrs === 'string') {
+          if (multiAddrs.startsWith('[')) {
+            try {
+              const parsed = JSON.parse(multiAddrs)
+              multiAddrs = Array.isArray(parsed) ? parsed : [multiAddrs]
+            } catch {
+              multiAddrs = [multiAddrs]
+            }
+          } else {
+            multiAddrs = [multiAddrs]
+          }
+        }
+
         const response = await req.oceanNode
           .getP2PNode()
-          .sendTo(req.body.node as string, JSON.stringify(req.body), req.body.multiAddrs)
+          .sendTo(req.body.node as string, JSON.stringify(req.body), multiAddrs)
 
         res.status(response.status.httpStatus)
         if (response.status.headers) {
