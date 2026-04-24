@@ -751,7 +751,7 @@ export class OceanP2P extends EventEmitter {
           isNaN(timeout) || timeout === 0
             ? AbortSignal.timeout(5000)
             : AbortSignal.timeout(timeout),
-        useCache: true,
+        useCache: false,
         useNetwork: true
       })
       return data
