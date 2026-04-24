@@ -1258,7 +1258,7 @@ export class C2DEngineDocker extends C2DEngine {
     if (
       algorithm.meta.container &&
       algorithm.meta.container.dockerfile &&
-      !env.free.allowImageBuild
+      !env.free?.allowImageBuild
     ) {
       throw new Error(`Building image is not allowed for free jobs`)
     }
