@@ -1695,29 +1695,13 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
-  private getDownloadTimeoutMs(): number {
+  private getImagePullTimeoutMs(): number {
     const raw = ENVIRONMENT_VARIABLES.C2D_DOWNLOAD_TIMEOUT.value
     const parsed = raw ? parseInt(raw, 10) : NaN
     if (Number.isFinite(parsed) && parsed > 0) {
       return parsed * 1000
     }
     return 15 * 60 * 1000
-  }
-
-  private async pipelineWithDownloadTimeout(
-    source: NodeJS.ReadableStream,
-    destination: NodeJS.WritableStream
-  ): Promise<void> {
-    const timeoutMs = this.getDownloadTimeoutMs()
-    const controller = new AbortController()
-    const timer = setTimeout(() => {
-      controller.abort(new Error(`Download timed out after ${timeoutMs / 1000}s`))
-    }, timeoutMs)
-    try {
-      await pipeline(source, destination, { signal: controller.signal })
-    } finally {
-      clearTimeout(timer)
-    }
   }
 
   // eslint-disable-next-line require-await
@@ -2573,6 +2557,7 @@ export class C2DEngineDocker extends C2DEngine {
         )
       }
 
+      pullOptions.abortSignal = AbortSignal.timeout(this.getImagePullTimeoutMs())
       const pullStream = await this.docker.pull(job.containerImage, pullOptions)
       await new Promise((resolve, reject) => {
         let wroteStatusBanner = false
@@ -2909,7 +2894,7 @@ export class C2DEngineDocker extends C2DEngine {
         }
 
         if (storage) {
-          await this.pipelineWithDownloadTimeout(
+          await pipeline(
             (await storage.getReadableStream()).stream,
             createWriteStream(fullAlgoPath)
           )
@@ -3018,7 +3003,7 @@ export class C2DEngineDocker extends C2DEngine {
         const fullPath = jobFolderPath + '/data/inputs/' + fileInfo[0].name
         appendFileSync(configLogPath, `Downloading asset to ${fullPath}\n`)
         try {
-          await this.pipelineWithDownloadTimeout(
+          await pipeline(
             (await storage.getReadableStream()).stream,
             createWriteStream(fullPath)
           )

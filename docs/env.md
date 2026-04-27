@@ -127,7 +127,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 
 ## Compute
 
-- `C2D_DOWNLOAD_TIMEOUT`: Per-file timeout (in seconds) for downloading the algorithm and each input asset during a C2D job. If a download exceeds this timeout, the job fails instead of getting stuck. Defaults to `900` (15 minutes). Example: `900`
+- `C2D_DOWNLOAD_TIMEOUT`: Timeout (in seconds) for pulling the algorithm docker image during a C2D job. If the pull exceeds this timeout, the job fails with `PullImageFailed` instead of getting stuck. Defaults to `900` (15 minutes). Example: `900`
 
 The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable is used to configure Docker-based compute environments in Ocean Node. This guide will walk you through the options available for defining `DOCKER_COMPUTE_ENVIRONMENTS` and how to set it up correctly. For configuring compute environments and setting prices for each resource (including pricing units and examples), see [Compute pricing](compute-pricing.md).
 
