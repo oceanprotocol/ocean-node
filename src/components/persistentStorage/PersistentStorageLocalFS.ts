@@ -3,7 +3,6 @@ import fsp from 'fs/promises'
 import path from 'path'
 import { pipeline } from 'stream/promises'
 import { randomUUID } from 'crypto'
-import Dockerode from 'dockerode'
 
 import type { AccessList } from '../../@types/AccessList.js'
 import type {
@@ -24,18 +23,13 @@ import { CORE_LOGGER } from '../../utils/logging/common.js'
 export class PersistentStorageLocalFS extends PersistentStorageFactory {
   /* eslint-disable security/detect-non-literal-fs-filename -- localfs backend operates on filesystem paths */
   private baseFolder: string
-  // Host path equivalent of baseFolder, used as the Source for algorithm bind mounts.
-  private hostBaseFolder: string
-  private hostBaseFolderReady: Promise<void>
 
   constructor(node: OceanNode) {
     super(node)
     const options = node.getConfig().persistentStorage
       .options as PersistentStorageLocalFSOptions
 
-    this.baseFolder = path.resolve(options.folder)
-    this.hostBaseFolder = this.baseFolder
-    this.hostBaseFolderReady = this.detectHostBaseFolder()
+    this.baseFolder = options.folder
 
     // Ensure base folder exists and is a directory (sync to avoid startup races).
     try {
@@ -60,34 +54,6 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
 
   private bucketPath(bucketId: string): string {
     return path.join(this.baseFolder, 'buckets', bucketId)
-  }
-
-  // Resolve baseFolder to its host path so bind mounts use a Source the daemon
-  // can find. No-op outside Docker.
-  private async detectHostBaseFolder(): Promise<void> {
-    try {
-      const containerId = fs.readFileSync('/etc/hostname', 'utf8').trim()
-      if (!containerId) return
-      const docker = new Dockerode({ socketPath: '/var/run/docker.sock' })
-      const { Mounts = [] } = await docker.getContainer(containerId).inspect()
-      const covering = Mounts.filter(
-        (m) =>
-          this.baseFolder === m.Destination ||
-          this.baseFolder.startsWith(m.Destination + '/')
-      ).sort((a, b) => b.Destination.length - a.Destination.length)[0]
-      if (!covering) return
-      this.hostBaseFolder = path.join(
-        covering.Source,
-        path.relative(covering.Destination, this.baseFolder)
-      )
-      CORE_LOGGER.info(
-        `Persistent storage host path resolved: ${this.baseFolder} -> ${this.hostBaseFolder}`
-      )
-    } catch (e: any) {
-      CORE_LOGGER.debug(
-        `Persistent storage host path detection skipped: ${e?.message ?? e}`
-      )
-    }
   }
 
   private async ensureBucketExists(bucketId: string): Promise<void> {
@@ -240,9 +206,8 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
       await this.assertConsumerAllowedForBucket(consumerAddress, bucketId)
     }
     await this.ensureFileExists(bucketId, fileName)
-    await this.hostBaseFolderReady
 
-    const source = path.join(this.hostBaseFolder, 'buckets', bucketId, fileName)
+    const source = path.join(this.bucketPath(bucketId), fileName)
     const target = path.posix.join('/data', 'persistentStorage', bucketId, fileName)
 
     return {
