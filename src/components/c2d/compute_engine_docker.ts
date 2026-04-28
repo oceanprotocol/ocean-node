@@ -1252,6 +1252,7 @@ export class C2DEngineDocker extends C2DEngine {
       }
     }
     if (
+      isFree &&
       algorithm.meta.container &&
       algorithm.meta.container.dockerfile &&
       !env.free?.allowImageBuild
