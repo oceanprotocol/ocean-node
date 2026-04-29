@@ -24,9 +24,7 @@ export class Blockchain {
   private fallbackRpcTimeout: number
 
   /**
-   * Constructor overloads:
-   * 1. New pattern: (rpc, chainId, signer, fallbackRPCs?) - signer provided by KeyManager
-   * 2. Old pattern: (rpc, chainId, config, fallbackRPCs?) - for backward compatibility
+   * Creates a new Blockchain instance utilizing KeyManager and a SupportedNetwork configuration
    */
   public constructor(keyManager: KeyManager, network: SupportedNetwork) {
     this.chainId = network.chainId || 0
@@ -53,7 +51,6 @@ export class Blockchain {
     return await this.signer.getAddress()
   }
 
-  // eslint-disable-next-line require-await
   public stop() {
     if (this.provider) {
       this.provider.providerConfigs.forEach((config) => {
@@ -78,7 +75,7 @@ export class Blockchain {
 
       for (let i = 0; i < this.knownRPCs.length; i++) {
         const rpc = this.knownRPCs[i]
-        const rpcProvider = new ethers.JsonRpcProvider(rpc, undefined, {
+        const rpcProvider = new ethers.JsonRpcProvider(rpc, this.chainId, {
           staticNetwork: true
         })
         configs.push({
@@ -90,7 +87,7 @@ export class Blockchain {
       // quorum=1: accept the first response to avoid calls to all configured rpcs
       this.provider =
         configs.length > 0
-          ? new FallbackProvider(configs, undefined, { quorum: 1 })
+          ? new FallbackProvider(configs, this.chainId, { quorum: 1 })
           : new FallbackProvider([])
     }
     return this.provider
