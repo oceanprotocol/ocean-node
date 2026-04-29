@@ -12,7 +12,6 @@ import {
 } from 'ethers'
 import { CORE_LOGGER } from './logging/common.js'
 import { ConnectionStatus, SupportedNetwork } from '../@types/blockchain.js'
-import { ValidateChainId } from '../@types/commands.js'
 import { KeyManager } from '../components/KeyManager/index.js'
 
 export class Blockchain {
@@ -68,6 +67,7 @@ export class Blockchain {
     }
   }
 
+  // eslint-disable-next-line require-await
   public async getProvider(force: boolean = false): Promise<FallbackProvider> {
     if (force || !this.provider?.providerConfigs?.length) {
       const configs: {
