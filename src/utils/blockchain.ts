@@ -75,7 +75,7 @@ export class Blockchain {
 
       for (let i = 0; i < this.knownRPCs.length; i++) {
         const rpc = this.knownRPCs[i]
-        const rpcProvider = new ethers.JsonRpcProvider(rpc, this.chainId, {
+        const rpcProvider = new JsonRpcProvider(rpc, this.chainId, {
           staticNetwork: true
         })
         configs.push({
