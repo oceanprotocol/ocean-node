@@ -59,9 +59,7 @@ export class C2DEngines {
                 cfg.connection.scanImageDBUpdateInterval = null
               }
             }
-            this.engines.push(
-              new C2DEngineDocker(cfg, db, escrow, keyManager, config.dockerRegistrysAuth)
-            )
+            this.engines.push(new C2DEngineDocker(cfg, db, escrow, keyManager, config))
           }
         }
       }

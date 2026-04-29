@@ -10,10 +10,14 @@
 import { expect, assert } from 'chai'
 import { C2DEngineDocker } from '../../components/c2d/compute_engine_docker.js'
 import { C2DClusterInfo, C2DClusterType } from '../../@types/C2D/C2D.js'
-import { dockerRegistrysAuth } from '../../@types/OceanNode.js'
 import { DockerRegistryAuthSchema } from '../../utils/config/schemas.js'
+import { getConfiguration } from '../../utils/index.js'
+describe('**********         Docker Registry Authentication Integration Tests', () => {
+  let config: any
+  before(async () => {
+    config = await getConfiguration(true)
+  })
 
-describe('Docker Registry Authentication Integration Tests', () => {
   describe('Public registry access (no credentials)', () => {
     it('should successfully fetch manifest for public Docker Hub image', async () => {
       // Create minimal engine instance for testing
@@ -32,7 +36,7 @@ describe('Docker Registry Authentication Integration Tests', () => {
         null as any,
         null as any,
         null as any,
-        {} // No auth config
+        config
       )
 
       // Test with a well-known public image
@@ -59,7 +63,7 @@ describe('Docker Registry Authentication Integration Tests', () => {
         null as any,
         null as any,
         null as any,
-        {}
+        config
       )
 
       // Use a simple image reference that will default to Docker Hub
@@ -73,7 +77,7 @@ describe('Docker Registry Authentication Integration Tests', () => {
 
   describe('Registry authentication configuration', () => {
     it('should store and retrieve username/password credentials', () => {
-      const testAuth: dockerRegistrysAuth = {
+      config.dockerRegistrysAuth = {
         'https://registry-1.docker.io': {
           username: 'testuser',
           password: 'testpass',
@@ -89,13 +93,12 @@ describe('Docker Registry Authentication Integration Tests', () => {
         },
         tempFolder: '/tmp/test-docker-auth'
       }
-
       const engineWithAuth = new C2DEngineDocker(
         clusterConfig,
         null as any,
         null as any,
         null as any,
-        testAuth
+        config
       )
 
       // Verify that getDockerRegistryAuth returns the credentials
@@ -109,7 +112,7 @@ describe('Docker Registry Authentication Integration Tests', () => {
 
     it('should use auth string when provided', () => {
       const preEncodedAuth = Buffer.from('testuser:testpass').toString('base64')
-      const testAuth: dockerRegistrysAuth = {
+      config.dockerRegistrysAuth = {
         'https://registry-1.docker.io': {
           username: 'testuser',
           password: 'testpass',
@@ -131,7 +134,7 @@ describe('Docker Registry Authentication Integration Tests', () => {
         null as any,
         null as any,
         null as any,
-        testAuth
+        config
       )
 
       const auth = (engineWithAuth as any).getDockerRegistryAuth(
@@ -150,13 +153,13 @@ describe('Docker Registry Authentication Integration Tests', () => {
         },
         tempFolder: '/tmp/test-docker-3'
       }
-
+      config.dockerRegistrysAuth = {}
       const dockerEngine = new C2DEngineDocker(
         clusterConfig,
         null as any,
         null as any,
         null as any,
-        {}
+        config
       )
 
       const auth = (dockerEngine as any).getDockerRegistryAuth(
@@ -166,7 +169,7 @@ describe('Docker Registry Authentication Integration Tests', () => {
     })
 
     it('should handle multiple registry configurations', () => {
-      const testAuth: dockerRegistrysAuth = {
+      config.dockerRegistrysAuth = {
         'https://registry-1.docker.io': {
           username: 'user1',
           password: 'pass1',
@@ -193,7 +196,7 @@ describe('Docker Registry Authentication Integration Tests', () => {
         null as any,
         null as any,
         null as any,
-        testAuth
+        config
       )
 
       const dockerHubAuth = (engineWithAuth as any).getDockerRegistryAuth(
@@ -223,13 +226,14 @@ describe('Docker Registry Authentication Integration Tests', () => {
         },
         tempFolder: '/tmp/test-docker-error'
       }
+      config.dockerRegistrysAuth = {}
 
       const dockerEngine = new C2DEngineDocker(
         clusterConfig,
         null as any,
         null as any,
         null as any,
-        {}
+        config
       )
 
       try {

@@ -1,7 +1,7 @@
 import { CommandHandler } from './handler.js'
 import { MetadataStates, PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
-import { verifyProviderFees } from '../utils/feesHandler.js'
+import { ProviderFees } from '../utils/feesHandler.js'
 import { FindDdoHandler } from './ddoHandler.js'
 import crypto from 'crypto'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
@@ -14,7 +14,7 @@ import {
   isERC20Template4Active
 } from '../../../utils/asset.js'
 import { Storage } from '../../storage/index.js'
-import { getConfiguration, isPolicyServerConfigured } from '../../../utils/index.js'
+import { isPolicyServerConfigured } from '../../../utils/index.js'
 import { checkCredentials } from '../../../utils/credentials.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
@@ -60,7 +60,7 @@ export async function handleDownloadUrlCommand(
 ): Promise<P2PCommandResponse> {
   const encryptFile = !!task.aes_encrypted_key
   CORE_LOGGER.logMessage('DownloadCommand requires file encryption? ' + encryptFile, true)
-  const config = await getConfiguration()
+  const config = node.getConfig()
   try {
     // Determine the type of storage and get a readable stream
     const storage = Storage.getStorageClass(task.fileObject, config)
@@ -256,7 +256,7 @@ export class DownloadHandler extends CommandHandler {
     }
 
     // Initialize blockchain early (needed for credential checks with accessList)
-    const config = await getConfiguration()
+    const config = node.getConfig()
     const { chainId } = config.supportedNetworks[ddoChainId]
     let provider
     let blockchain
@@ -380,7 +380,20 @@ export class DownloadHandler extends CommandHandler {
       // get all compute envs
       const computeAddrs: string[] = []
 
-      const environments = await oceanNode.getC2DEngines().fetchEnvironments(ddo.chainId)
+      const c2dEngines = oceanNode.getC2DEngines()
+      if (!c2dEngines) {
+        const msg =
+          'Compute engines are not configured on this node; cannot validate compute download'
+        CORE_LOGGER.logMessage(msg, true)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 503,
+            error: msg
+          }
+        }
+      }
+      const environments = await c2dEngines.fetchEnvironments(ddo.chainId)
       for (const env of environments)
         computeAddrs.push(env.consumerAddress?.toLowerCase())
 
@@ -397,7 +410,8 @@ export class DownloadHandler extends CommandHandler {
       }
     }
     // 5. check that the provider fee transaction is valid
-    const validFee = await verifyProviderFees(
+    const fees = new ProviderFees(node)
+    const validFee = await fees.verifyProviderFees(
       task.transferTxId,
       task.consumerAddress,
       provider,

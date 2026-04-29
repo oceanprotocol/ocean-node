@@ -3,7 +3,7 @@ import { PurgatoryAccounts, PurgatoryAssets } from '../../@types/Purgatory.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { URLUtils } from '../../utils/url.js'
-import { getConfiguration } from '../../utils/index.js'
+import { OceanNodeConfig } from '../../@types/OceanNode.js'
 
 export class Purgatory {
   private bannedAccounts: Array<PurgatoryAccounts>
@@ -165,9 +165,8 @@ export class Purgatory {
     return this.enabled
   }
 
-  static async getInstance(): Promise<Purgatory> {
+  static getInstance(config: OceanNodeConfig): Purgatory {
     if (!Purgatory.instance) {
-      const config = await getConfiguration()
       Purgatory.instance = new Purgatory(
         config.accountPurgatoryUrl,
         config.assetPurgatoryUrl

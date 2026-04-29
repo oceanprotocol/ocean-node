@@ -1,7 +1,13 @@
 import { OceanP2P } from './components/P2P/index.js'
 import { OceanProvider } from './components/Provider/index.js'
 import { OceanIndexer } from './components/Indexer/index.js'
-import { OceanNodeConfig, P2PCommandResponse } from './@types/OceanNode.js'
+import {
+  AccessListContract,
+  OceanNodeConfig,
+  P2PCommandResponse
+} from './@types/OceanNode.js'
+import { ValidateChainId } from './@types/commands.js'
+
 import { Database } from './components/database/index.js'
 import { Escrow } from './components/core/utils/escrow.js'
 import { CoreHandlersRegistry } from './components/core/handler/coreHandlersRegistry.js'
@@ -15,6 +21,8 @@ import { BlockchainRegistry } from './components/BlockchainRegistry/index.js'
 import { Blockchain } from './utils/blockchain.js'
 import { createPersistentStorage } from './components/persistentStorage/createPersistentStorage.js'
 import { PersistentStorageFactory } from './components/persistentStorage/PersistentStorageFactory.js'
+import { isAddress, FallbackProvider, ethers } from 'ethers'
+import { create256Hash } from './utils/crypt.js'
 
 export interface RequestLimiter {
   requester: string | string[] // IP address or peer ID
@@ -40,6 +48,7 @@ export class OceanNode {
   private requestMap: Map<string, RequestLimiter>
   private auth: Auth
   private persistentStorage: PersistentStorageFactory
+  private database: Database
 
   // eslint-disable-next-line no-useless-constructor
   private constructor(
@@ -51,21 +60,15 @@ export class OceanNode {
     public keyManager?: KeyManager,
     public blockchainRegistry?: BlockchainRegistry
   ) {
-    if (keyManager) {
-      this.keyManager = keyManager
-    } else {
-      this.keyManager = new KeyManager(config)
-    }
-    if (blockchainRegistry) {
-      this.blockchainRegistry = blockchainRegistry
-    } else {
-      this.blockchainRegistry = new BlockchainRegistry(this.keyManager, config)
-    }
-    this.coreHandlers = CoreHandlersRegistry.getInstance(this)
+    this.keyManager = keyManager
+    this.blockchainRegistry = blockchainRegistry
+    this.coreHandlers = CoreHandlersRegistry.getInstance(this, true)
     this.requestMap = new Map<string, RequestLimiter>()
     this.config = config
+    this.database = db
+
     if (this.db && this.db?.authToken) {
-      this.auth = new Auth(this.db.authToken)
+      this.auth = new Auth(this.db.authToken, config)
     }
     if (node) {
       node.setCoreHandlers(this.coreHandlers)
@@ -86,6 +89,7 @@ export class OceanNode {
         this.persistentStorage = null
       }
     }
+    this.addIndexer(indexer)
   }
 
   // Singleton instance
@@ -104,10 +108,19 @@ export class OceanNode {
         if (!config) {
           throw new Error('KeyManager and BlockchainRegistry are required')
         }
-        keyManager = new KeyManager(config)
-        blockchainRegistry = new BlockchainRegistry(keyManager, config)
+        if (!keyManager) keyManager = new KeyManager(config)
+        if (!blockchainRegistry)
+          blockchainRegistry = new BlockchainRegistry(keyManager, config)
       }
-      // prepare compute engines
+      // teardown old instance if needed
+      this.instance?.tearDownAll().catch((err: unknown) => {
+        OCEAN_NODE_LOGGER.warn(
+          `Failed to tear down previous OceanNode instance: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        )
+      })
+      OCEAN_NODE_LOGGER.debug('Creating new OceanNode instance')
       this.instance = new OceanNode(
         config,
         db,
@@ -117,6 +130,8 @@ export class OceanNode {
         keyManager,
         blockchainRegistry
       )
+    } else {
+      OCEAN_NODE_LOGGER.debug('Return cached OceanNode instance')
     }
     return this.instance
   }
@@ -127,7 +142,34 @@ export class OceanNode {
   }
 
   public addIndexer(_indexer: OceanIndexer) {
+    const previous = this.indexer
     this.indexer = _indexer
+    if (previous) {
+      previous.stop().catch((err: unknown) => {
+        OCEAN_NODE_LOGGER.warn(
+          `Failed to stop replaced indexer: ${err instanceof Error ? err.message : String(err)}`
+        )
+      })
+    }
+  }
+
+  public async tearDownAll() {
+    if (this.c2dEngines) {
+      await this.c2dEngines.stopAllEngines()
+      this.c2dEngines = null
+    }
+    if (this.indexer) {
+      await this.indexer.stop()
+      this.indexer = null
+    }
+    if (this.blockchainRegistry) {
+      this.blockchainRegistry.stop()
+      this.blockchainRegistry = null
+    }
+    if (OceanNode.instance === this) {
+      OceanNode.instance = null
+    }
+    OCEAN_NODE_LOGGER.debug('OceanNode instance stopped & cleared')
   }
 
   public async addC2DEngines() {
@@ -161,11 +203,7 @@ export class OceanNode {
     return this.indexer
   }
 
-  public getDatabase(): Database {
-    return this.db
-  }
-
-  public getC2DEngines(): C2DEngines {
+  public getC2DEngines(): C2DEngines | undefined {
     return this.c2dEngines
   }
 
@@ -257,6 +295,90 @@ export class OceanNode {
         stream: null,
         status: { httpStatus: 500, error: err.message }
       }
+    }
+  }
+
+  getAdminAddresses(): { addresses: string[]; accessLists: any } {
+    const ret = {
+      addresses: [] as string[],
+      accessLists: undefined as AccessListContract | undefined
+    }
+
+    if (this.config.allowedAdmins && this.config.allowedAdmins.length > 0) {
+      for (const admin of this.config.allowedAdmins) {
+        if (isAddress(admin) === true) {
+          ret.addresses.push(admin)
+        }
+      }
+    }
+    ret.accessLists = this.config.allowedAdminsList
+    return ret
+  }
+
+  checkSupportedChainId(chainId: number): ValidateChainId {
+    if (!chainId || !(`${chainId.toString()}` in this.config.supportedNetworks)) {
+      OCEAN_NODE_LOGGER.error(`Chain ID ${chainId} is not supported`)
+      return {
+        validation: false,
+        networkRpc: ''
+      }
+    }
+    return {
+      validation: true,
+      networkRpc: this.config.supportedNetworks[chainId.toString()].rpc
+    }
+  }
+
+  async getJsonRpcProvider(chainId: number): Promise<FallbackProvider> {
+    const checkResult = this.checkSupportedChainId(chainId)
+    if (!checkResult.validation) {
+      return null
+    }
+    const blockchain = this.getBlockchain(chainId)
+    if (!blockchain) return null
+    return await blockchain.getProvider()
+  }
+
+  hasP2PInterface() {
+    return this.config.hasP2P || false
+  }
+
+  private dbInitPromise: Promise<Database> | null = null
+  async getDatabase(forceReload: boolean = false): Promise<Database> {
+    if (!this.database || forceReload) {
+      if (!this.dbInitPromise || forceReload) {
+        const { dbConfig } = this.config
+        if (dbConfig && dbConfig.url) {
+          this.dbInitPromise = Database.init(dbConfig).then((db) => {
+            this.database = db
+            return db
+          })
+        }
+      }
+      return await this.dbInitPromise
+    }
+    return this.database
+  }
+
+  async getValidationSignature(ddo: string): Promise<any> {
+    try {
+      const hashedDDO = create256Hash(ddo)
+      const providerWallet = await this.keyManager.getEthWallet()
+      const messageHash = ethers.solidityPackedKeccak256(
+        ['bytes'],
+        [ethers.hexlify(ethers.toUtf8Bytes(hashedDDO))]
+      )
+      const signed32Bytes = await providerWallet.signMessage(
+        new Uint8Array(ethers.toBeArray(messageHash))
+      )
+      const signatureSplitted = ethers.Signature.from(signed32Bytes)
+      const v = signatureSplitted.v <= 1 ? signatureSplitted.v + 27 : signatureSplitted.v
+      const r = ethers.hexlify(signatureSplitted.r) // 32 bytes
+      const s = ethers.hexlify(signatureSplitted.s)
+      return { hash: hashedDDO, publicKey: providerWallet.address, r, s, v }
+    } catch (error) {
+      OCEAN_NODE_LOGGER.logMessage(`Validation signature error: ${error}`, true)
+      return { hash: '', publicKey: '', r: '', s: '', v: '' }
     }
   }
 }

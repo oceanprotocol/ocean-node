@@ -10,7 +10,6 @@ import {
   Wallet,
   TransactionReceipt
 } from 'ethers'
-import { getConfiguration } from './config.js'
 import { CORE_LOGGER } from './logging/common.js'
 import { ConnectionStatus, SupportedNetwork } from '../@types/blockchain.js'
 import { ValidateChainId } from '../@types/commands.js'
@@ -56,6 +55,19 @@ export class Blockchain {
   }
 
   // eslint-disable-next-line require-await
+  public stop() {
+    if (this.provider) {
+      this.provider.providerConfigs.forEach((config) => {
+        // Each config contains a 'provider' property
+        config.provider.destroy()
+      })
+
+      // 2. Destroy the FallbackProvider itself
+      this.provider.destroy()
+      this.provider = null
+    }
+  }
+
   public async getProvider(force: boolean = false): Promise<FallbackProvider> {
     if (force || !this.provider?.providerConfigs?.length) {
       const configs: {
@@ -248,29 +260,4 @@ export function getMessageHash(message: string): Uint8Array {
   )
   const messageHashBytes = ethers.toBeArray(messageHash)
   return messageHashBytes
-}
-
-export async function checkSupportedChainId(chainId: number): Promise<ValidateChainId> {
-  const config = await getConfiguration()
-  if (!chainId || !(`${chainId.toString()}` in config.supportedNetworks)) {
-    CORE_LOGGER.error(`Chain ID ${chainId} is not supported`)
-    return {
-      validation: false,
-      networkRpc: ''
-    }
-  }
-  return {
-    validation: true,
-    networkRpc: config.supportedNetworks[chainId.toString()].rpc
-  }
-}
-
-export async function getJsonRpcProvider(
-  chainId: number
-): Promise<JsonRpcProvider> | null {
-  const checkResult = await checkSupportedChainId(chainId)
-  if (!checkResult.validation) {
-    return null
-  }
-  return new JsonRpcProvider(checkResult.networkRpc)
 }

@@ -20,7 +20,9 @@ export class GetLogsHandler extends AdminCommandHandler {
     }
     try {
       if (task.logId) {
-        const logs = await this.getOceanNode().getDatabase().logs.retrieveLog(task.logId)
+        const logs = await (
+          await this.getOceanNode().getDatabase()
+        ).logs.retrieveLog(task.logId)
         if (logs) {
           return {
             status: { httpStatus: 200 },
@@ -40,9 +42,9 @@ export class GetLogsHandler extends AdminCommandHandler {
         const maxLogs = Math.min(task.maxLogs ?? 100, 1000)
         const { moduleName, level, page } = task
 
-        const logs = await this.getOceanNode()
-          .getDatabase()
-          .logs.retrieveMultipleLogs(startTime, endTime, maxLogs, moduleName, level, page)
+        const logs = await (
+          await this.getOceanNode().getDatabase()
+        ).logs.retrieveMultipleLogs(startTime, endTime, maxLogs, moduleName, level, page)
 
         if (!logs || logs.length === 0) {
           const fileLogs = await readExceptionLogFiles(

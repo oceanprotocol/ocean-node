@@ -19,7 +19,7 @@ import {
 import { Database } from '../../components/database/index.js'
 import { createHashForSignature, safeSign } from '../utils/signature.js'
 
-describe('Encrypt File', () => {
+describe('**********         Encrypt File', () => {
   let config: OceanNodeConfig
   let oceanNode: OceanNode
   let previousConfiguration: OverrideEnvConfig[]
@@ -35,11 +35,23 @@ describe('Encrypt File', () => {
     )
     config = await getConfiguration(true) // Force reload the configuration
     const dbconn = await Database.init(config.dbConfig)
-    oceanNode = await OceanNode.getInstance(config, dbconn)
+    oceanNode = await OceanNode.getInstance(
+      config,
+      dbconn,
+      null,
+      null,
+      null,
+      null,
+      null,
+      true
+    )
     const provider = new JsonRpcProvider('http://127.0.0.1:8545')
     anotherConsumerWallet = (await provider.getSigner(1)) as Signer
   })
-
+  after(async () => {
+    await oceanNode.tearDownAll()
+    await tearDownEnvironment(previousConfiguration)
+  })
   it('should encrypt files', async () => {
     const nonce = Date.now().toString()
     const messageHashBytes = createHashForSignature(
@@ -166,9 +178,5 @@ describe('Encrypt File', () => {
     expect(response.status.error).to.be.equal(
       'Unknown error: Invalid storage type: Unknown'
     )
-  })
-
-  after(async () => {
-    await tearDownEnvironment(previousConfiguration)
   })
 })

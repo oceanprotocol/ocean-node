@@ -11,8 +11,7 @@ import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { TypesenseSchema } from './TypesenseSchemas.js'
 import { AbstractDatabase } from './BaseDatabase.js'
 import { OceanNode } from '../../OceanNode.js'
-import { getDatabase } from '../../utils/database.js'
-import { getConfiguration } from '../../utils/index.js'
+
 import { generateUniqueID } from '../core/compute/utils.js'
 export class C2DDatabase extends AbstractDatabase {
   private provider: SQLiteCompute
@@ -129,11 +128,8 @@ export class C2DDatabase extends AbstractDatabase {
   async cleanStorageExpiredJobs(): Promise<number> {
     const allEnvironments: ComputeEnvironment[] = []
     const currentTimestamp = Date.now() / 1000
-    const config = await getConfiguration(true)
-    const allEngines = await OceanNode.getInstance(
-      config,
-      await getDatabase()
-    ).getC2DEngines().engines
+    const c2dEngines = OceanNode.getInstance().getC2DEngines()
+    const allEngines = c2dEngines ? c2dEngines.engines : []
 
     let cleaned = 0
     for (const engine of allEngines) {
@@ -167,7 +163,6 @@ export class C2DDatabase extends AbstractDatabase {
    * @returns number of orphans
    */
   async cleanOrphanJobs(existingEnvironments: ComputeEnvironment[]) {
-    const c2dDatabase = await (await getDatabase()).c2d
     let cleaned = 0
 
     const envIds: string[] = existingEnvironments
@@ -175,11 +170,11 @@ export class C2DDatabase extends AbstractDatabase {
       .map((env: any) => env.id)
 
     // Get all finished jobs from DB, not just from known environments
-    const allJobs: DBComputeJob[] = await c2dDatabase.getFinishedJobs()
+    const allJobs: DBComputeJob[] = await this.getFinishedJobs()
 
     for (const job of allJobs) {
       if (!job.environment || !envIds.includes(job.environment)) {
-        if (await c2dDatabase.deleteJob(job.jobId)) {
+        if (await this.deleteJob(job.jobId)) {
           cleaned++
         }
       }

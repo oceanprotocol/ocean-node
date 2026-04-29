@@ -18,7 +18,7 @@ import { KeyManager } from '../../components/KeyManager/index.js'
 import { C2DClusterInfo } from '../../@types/C2D/C2D.js'
 import Dockerode from 'dockerode'
 
-describe('Docker Image Cleanup Integration Tests', () => {
+describe('**********         Docker Image Cleanup Integration Tests', () => {
   let envOverrides: OverrideEnvConfig[]
   let config: OceanNodeConfig
   let db: C2DDatabase
@@ -196,7 +196,7 @@ describe('Docker Image Cleanup Integration Tests', () => {
       escrow = {} as Escrow
       keyManager = {} as KeyManager
 
-      dockerEngine = new C2DEngineDocker(clusterConfig, db, escrow, keyManager, {})
+      dockerEngine = new C2DEngineDocker(clusterConfig, db, escrow, keyManager, config)
     })
 
     it('should track image usage when image is pulled', async () => {

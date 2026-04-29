@@ -87,7 +87,9 @@ export class PersistentStorageCreateBucketHandler extends CommandHandler {
 
       let ownerNormalized: string
       try {
-        ownerNormalized = getAddress(task.consumerAddress)
+        ownerNormalized = task.consumerAddress
+          ? getAddress(task.consumerAddress)
+          : getAddress(await this.getAddressFromToken(task.authorization))
       } catch {
         return {
           stream: null,
@@ -190,7 +192,10 @@ export class PersistentStorageListFilesHandler extends CommandHandler {
 
     try {
       const storage = requirePersistentStorage(this)
-      const result = await storage.listFiles(task.bucketId, task.consumerAddress)
+      const ownerNormalized = task.consumerAddress
+        ? getAddress(task.consumerAddress)
+        : getAddress(await this.getAddressFromToken(task.authorization))
+      const result = await storage.listFiles(task.bucketId, ownerNormalized)
       return {
         stream: Readable.from(JSON.stringify(result)),
         status: { httpStatus: 200, error: null }
@@ -231,11 +236,15 @@ export class PersistentStorageGetFileObjectHandler extends CommandHandler {
 
     try {
       const storage = requirePersistentStorage(this)
+      const ownerNormalized = task.consumerAddress
+        ? getAddress(task.consumerAddress)
+        : getAddress(await this.getAddressFromToken(task.authorization))
       const obj = await storage.getFileObject(
         task.bucketId,
         task.fileName,
-        task.consumerAddress
+        ownerNormalized
       )
+
       return {
         stream: Readable.from(JSON.stringify(obj)),
         status: { httpStatus: 200, error: null }
@@ -285,12 +294,16 @@ export class PersistentStorageUploadFileHandler extends CommandHandler {
           status: { httpStatus: 403, error: 'Upload stream error' }
         }
       }
+      const ownerNormalized = task.consumerAddress
+        ? getAddress(task.consumerAddress)
+        : getAddress(await this.getAddressFromToken(task.authorization))
       const result = await storage.uploadFile(
         task.bucketId,
         task.fileName,
         task.stream,
-        task.consumerAddress
+        ownerNormalized
       )
+
       return {
         stream: Readable.from(JSON.stringify(result)),
         status: { httpStatus: 200, error: null }
@@ -331,7 +344,10 @@ export class PersistentStorageDeleteFileHandler extends CommandHandler {
 
     try {
       const storage = requirePersistentStorage(this)
-      await storage.deleteFile(task.bucketId, task.fileName, task.consumerAddress)
+      const ownerNormalized = task.consumerAddress
+        ? getAddress(task.consumerAddress)
+        : getAddress(await this.getAddressFromToken(task.authorization))
+      await storage.deleteFile(task.bucketId, task.fileName, ownerNormalized)
       return {
         stream: Readable.from(JSON.stringify({ success: true })),
         status: { httpStatus: 200, error: null }

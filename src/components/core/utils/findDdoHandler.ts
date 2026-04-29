@@ -5,7 +5,6 @@ import { FindDDOResponse } from '../../../@types/index.js'
 import { Service } from '@oceanprotocol/ddo-js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
-import { hasP2PInterface } from '../../../utils/config.js'
 
 /**
  * Check if the specified ddo is cached and if the cached version is recent enough
@@ -58,7 +57,7 @@ export async function findDDOLocally(
   node: OceanNode,
   id: string
 ): Promise<FindDDOResponse> | undefined {
-  const database = node.getDatabase()
+  const database = await node.getDatabase()
   if (!database || !database.ddo) {
     CORE_LOGGER.log(
       LOG_LEVELS_STR.LEVEL_WARN,
@@ -72,7 +71,7 @@ export async function findDDOLocally(
   if (ddo) {
     // node has ddo
     const p2pNode: OceanP2P = node.getP2PNode()
-    if (!p2pNode || !hasP2PInterface) {
+    if (!p2pNode || !node.hasP2PInterface()) {
       const peerId: string = node.getKeyManager().getPeerId().toString()
       return {
         id: ddo.id,

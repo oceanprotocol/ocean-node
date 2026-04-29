@@ -9,7 +9,6 @@ import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { QueryCommand } from '../../@types/commands.js'
 import { DatabaseFactory } from '../database/DatabaseFactory.js'
 import { SearchQuery } from '../../@types/DDO/SearchQuery.js'
-import { getConfiguration } from '../../utils/index.js'
 
 export const aquariusRoutes = express.Router()
 
@@ -71,7 +70,7 @@ aquariusRoutes.post(
         return
       }
 
-      const config = await getConfiguration()
+      const config = req.oceanNode.getConfig()
       const queryStrategy = await DatabaseFactory.createMetadataQuery(config.dbConfig)
       const transformedQuery = queryStrategy.buildQuery(searchQuery)
 
@@ -95,7 +94,7 @@ aquariusRoutes.post(
 
 aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
   try {
-    const config = await getConfiguration()
+    const config = req.oceanNode.getConfig()
     const queryStrategy = await DatabaseFactory.createDdoStateQuery(config.dbConfig)
 
     const did = req.query.did ? String(req.query.did) : undefined

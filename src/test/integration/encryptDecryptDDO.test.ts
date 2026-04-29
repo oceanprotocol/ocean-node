@@ -41,7 +41,7 @@ import { homedir } from 'os'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { createHashForSignature, safeSign } from '../utils/signature.js'
 
-describe('Should encrypt and decrypt DDO', () => {
+describe('**********         Should encrypt and decrypt DDO', () => {
   let database: Database
   let oceanNode: OceanNode
   let provider: JsonRpcProvider
@@ -108,16 +108,25 @@ describe('Should encrypt and decrypt DDO', () => {
     )
     const config = await getConfiguration()
     database = await Database.init(config.dbConfig)
-    oceanNode = OceanNode.getInstance(config, database)
-    // will be used later
-    indexer = new OceanIndexer(
+    oceanNode = OceanNode.getInstance(
+      config,
       database,
-      mockSupportedNetworks,
-      oceanNode.blockchainRegistry
+      null,
+      null,
+      null,
+      null,
+      null,
+      true
     )
+
+    // will be used later
+    indexer = new OceanIndexer(database, config, oceanNode.blockchainRegistry)
     oceanNode.addIndexer(indexer)
   })
-
+  after(async () => {
+    await oceanNode.tearDownAll()
+    await tearDownEnvironment(previousConfiguration)
+  })
   it('should publish a dataset', async () => {
     const tx = await (factoryContract as any).createNftWithErc20(
       {
@@ -412,10 +421,5 @@ describe('Should encrypt and decrypt DDO', () => {
     const decryptedStringDDO = await streamToString(response.stream as Readable)
     const stringDDO = JSON.stringify(genericAsset)
     expect(decryptedStringDDO).to.equal(stringDDO)
-  })
-
-  after(async () => {
-    await tearDownEnvironment(previousConfiguration)
-    indexer.stopAllChainIndexers()
   })
 })

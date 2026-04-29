@@ -32,9 +32,9 @@ export class PolicyServerPassthroughHandler extends CommandHandler {
     task.policyServerPassthrough.ddo = null
     // resolve DDO first
     try {
-      task.policyServerPassthrough.ddo = await this.getOceanNode()
-        .getDatabase()
-        .ddo.retrieve(task.policyServerPassthrough.documentId)
+      task.policyServerPassthrough.ddo = await (
+        await this.getOceanNode().getDatabase()
+      ).ddo.retrieve(task.policyServerPassthrough.documentId)
     } catch (error) {
       // just log it
       CORE_LOGGER.warn(
@@ -82,7 +82,7 @@ export class PolicyServerInitializeHandler extends CommandHandler {
     }
     // resolve DDO first
     try {
-      const database = this.getOceanNode().getDatabase()
+      const database = await this.getOceanNode().getDatabase()
       if (!database || !database.ddo) {
         return {
           stream: null,

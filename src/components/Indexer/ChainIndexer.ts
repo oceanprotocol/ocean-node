@@ -5,7 +5,6 @@ import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { isDefined, sleep } from '../../utils/util.js'
 import { EVENTS, INDEXER_CRAWLING_EVENTS } from '../../utils/index.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
-import { getDatabase } from '../../utils/database.js'
 import { DEVELOPMENT_CHAIN_ID } from '../../utils/address.js'
 import { processBlocks, processChunkLogs } from './processor.js'
 import { Blockchain } from '../../utils/blockchain.js'
@@ -16,6 +15,7 @@ import {
   retrieveChunkEvents
 } from './utils.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { Database } from '../database/index.js'
 
 export interface ReindexTask {
   txId: string
@@ -36,15 +36,20 @@ export class ChainIndexer {
   private reindexQueue: ReindexTask[] = []
   private eventEmitter: EventEmitter
   private blockchain: Blockchain
+  private db: Database
 
   constructor(
     blockchain: Blockchain,
     rpcDetails: SupportedNetwork,
-    eventEmitter: EventEmitter
+    eventEmitter: EventEmitter,
+    database: Database,
+    _config: OceanNodeConfig
   ) {
     this.blockchain = blockchain
     this.eventEmitter = eventEmitter
     this.rpcDetails = rpcDetails
+    this.db = database
+    this.config = _config
   }
 
   /**
@@ -237,7 +242,8 @@ export class ChainIndexer {
                 provider,
                 this.blockchain.getSupportedChain(),
                 startBlock,
-                blocksToProcess
+                blocksToProcess,
+                this.config
               )
 
               INDEXER_LOGGER.debug(
@@ -320,7 +326,7 @@ export class ChainIndexer {
    * Get the last indexed block from database
    */
   private async getLastIndexedBlock(): Promise<number | null> {
-    const { indexer } = await getDatabase()
+    const { indexer } = this.db
     try {
       const networkDetails = await indexer.retrieve(this.blockchain.getSupportedChain())
       if (networkDetails && networkDetails.lastIndexedBlock) {
@@ -352,7 +358,7 @@ export class ChainIndexer {
         return -1
       }
 
-      const { indexer } = await getDatabase()
+      const { indexer } = this.db
       const updatedIndex = await indexer.update(
         this.blockchain.getSupportedChain(),
         block
@@ -383,7 +389,7 @@ export class ChainIndexer {
    * Delete all assets from this chain
    */
   private async deleteAllAssetsFromChain(): Promise<number> {
-    const { ddo } = await getDatabase()
+    const { ddo } = this.db
     try {
       const numDeleted = await ddo.deleteAllAssetsFromChain(
         this.blockchain.getSupportedChain()
@@ -449,7 +455,8 @@ export class ChainIndexer {
             logs,
             signer,
             provider,
-            this.blockchain.getSupportedChain()
+            this.blockchain.getSupportedChain(),
+            this.config
           )
 
           // Emit event to clear from parent queue

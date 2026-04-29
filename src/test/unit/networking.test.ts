@@ -152,6 +152,7 @@ describe('Test rate limitations and deny list settings', () => {
     const keyManager = new KeyManager(config)
     const p2pNode = new OceanP2P(config, keyManager)
     await p2pNode.start()
+
     node = OceanNode.getInstance(config, null, p2pNode, null, null, null, null, true)
   })
 

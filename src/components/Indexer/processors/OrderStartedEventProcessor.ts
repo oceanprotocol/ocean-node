@@ -1,7 +1,6 @@
 import { DDOManager } from '@oceanprotocol/ddo-js'
 import { ethers, Signer, FallbackProvider } from 'ethers'
 import { EVENTS } from '../../../utils/constants.js'
-import { getDatabase } from '../../../utils/database.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { getDtContract, getDid, getPricesByDt } from '../utils.js'
@@ -34,13 +33,20 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
     const nftAddress = await datatokenContract.getERC721Address()
     const did = getDid(nftAddress, chainId)
     try {
-      const { ddo: ddoDatabase, order: orderDatabase } = await getDatabase()
+      const { ddo: ddoDatabase, order: orderDatabase } = await this.getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
       if (!ddo) {
         INDEXER_LOGGER.logMessage(
           `Detected OrderStarted changed for ${did}, but it does not exists.`
         )
         return
+      }
+      const existingOrder = await orderDatabase.retrieve(event.transactionHash)
+      if (existingOrder) {
+        INDEXER_LOGGER.logMessage(
+          `OrderStarted already processed for tx ${event.transactionHash}, skipping duplicate`
+        )
+        return ddo
       }
       const ddoInstance = DDOManager.getDDOClass(ddo)
       if (!ddoInstance.getAssetFields().indexedMetadata) {

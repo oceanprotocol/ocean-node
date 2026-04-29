@@ -26,11 +26,12 @@ const emptyDBConfig: OceanNodeDBConfig = {
   dbType: null
 }
 
-describe('Config Database', () => {
+describe('**********         Config Database', () => {
   let database: Database
   let oceanIndexer: OceanIndexer
   let initialVersionNull: any
   let previousConfiguration: OverrideEnvConfig[]
+  let oceanNode: OceanNode
 
   before(async () => {
     database = await Database.init(versionConfig)
@@ -61,14 +62,23 @@ describe('Config Database', () => {
       initialVersionNull = await oceanIndexer.getDatabase().sqliteConfig.retrieveValue()
       assert(initialVersionNull.value === null, 'Initial version should be null')
     })
-
-    const oceanNode = await OceanNode.getInstance(await getConfiguration(true), database)
-    oceanIndexer = new OceanIndexer(
+    const config = await getConfiguration(true)
+    oceanNode = await OceanNode.getInstance(
+      config,
       database,
-      getMockSupportedNetworks(),
-      oceanNode.blockchainRegistry
+      null,
+      null,
+      null,
+      null,
+      null,
+      true
     )
+    oceanIndexer = new OceanIndexer(database, config, oceanNode.blockchainRegistry)
     oceanNode.addIndexer(oceanIndexer)
+  })
+  after(async () => {
+    await oceanNode.tearDownAll()
+    await tearDownEnvironment(previousConfiguration)
   })
 
   it('check version DB instance of SQL Lite', () => {
@@ -104,10 +114,6 @@ describe('Config Database', () => {
       .sqliteConfig.createOrUpdateConfig('version', updatedVersion)
     version = await oceanIndexer.getDatabase().sqliteConfig.retrieveValue()
     assert(version.value === updatedVersion, `Version should be ${updatedVersion}`)
-  })
-  after(async () => {
-    oceanIndexer.stopAllChainIndexers()
-    await tearDownEnvironment(previousConfiguration)
   })
 })
 

@@ -22,7 +22,7 @@ export class GetJobsHandler extends CommandHandler {
     }
 
     try {
-      const { c2d } = this.getOceanNode().getDatabase()
+      const { c2d } = await this.getOceanNode().getDatabase()
       if (!c2d) {
         throw new Error('C2D database not initialized')
       }

@@ -11,7 +11,6 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { typesenseSchemas } from '../../database/TypesenseSchemas.js'
 import { SupportedNetwork } from '../../../@types/blockchain.js'
-import { getAdminAddresses } from '../../../utils/auth.js'
 import HumanHasher from 'humanhash'
 import { getPackageVersion } from '../../../utils/version.js'
 
@@ -75,7 +74,7 @@ async function getIndexerBlockInfo(
 ): Promise<string> {
   let blockNr = '0'
   try {
-    const database = oceanNode.getDatabase()
+    const database = await oceanNode.getDatabase()
     if (!database || !database.indexer) {
       CORE_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_WARN,
@@ -136,7 +135,7 @@ export async function status(
       // uptime: process.uptime(),
       platform: platformInfo,
       codeHash: config.codeHash,
-      allowedAdmins: await getAdminAddresses()
+      allowedAdmins: oceanNode.getAdminAddresses()
     }
   }
   // need to update at least block info if available

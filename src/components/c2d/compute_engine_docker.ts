@@ -25,11 +25,7 @@ import type {
   C2DEnvironmentConfig,
   ComputeResourcesPricingInfo
 } from '../../@types/C2D/C2D.js'
-import {
-  BASE_CHAIN_ID,
-  getConfiguration,
-  USDC_TOKEN_ADDRESS_BASE
-} from '../../utils/config.js'
+import { BASE_CHAIN_ID, USDC_TOKEN_ADDRESS_BASE } from '../../utils/config.js'
 import { C2DEngine } from './compute_engine_base.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
@@ -61,7 +57,7 @@ import { decryptFilesObject, omitDBComputeFieldsFromComputeJob } from './index.j
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
 import { Service } from '@oceanprotocol/ddo-js'
 import { getOceanTokenAddressForChain } from '../../utils/address.js'
-import { dockerRegistrysAuth, dockerRegistryAuth } from '../../@types/OceanNode.js'
+import { dockerRegistryAuth, OceanNodeConfig } from '../../@types/OceanNode.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { getAddress, ZeroAddress } from 'ethers'
 import { AccessList } from '../../@types/AccessList.js'
@@ -97,9 +93,9 @@ export class C2DEngineDocker extends C2DEngine {
     db: C2DDatabase,
     escrow: Escrow,
     keyManager: KeyManager,
-    dockerRegistryAuths: dockerRegistrysAuth
+    config: OceanNodeConfig
   ) {
-    super(clusterConfig, db, escrow, keyManager, dockerRegistryAuths)
+    super(clusterConfig, db, escrow, keyManager, config)
 
     this.docker = null
     if (clusterConfig.connection.socketPath) {
@@ -241,7 +237,7 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   public override async start() {
-    const config = await getConfiguration()
+    const config = this.getConfig()
     const envConfig = await this.getC2DConfig().connection
     if (!envConfig?.environments?.length) {
       CORE_LOGGER.warn(
@@ -1256,9 +1252,10 @@ export class C2DEngineDocker extends C2DEngine {
       }
     }
     if (
+      isFree &&
       algorithm.meta.container &&
       algorithm.meta.container.dockerfile &&
-      !env.free.allowImageBuild
+      !env.free?.allowImageBuild
     ) {
       throw new Error(`Building image is not allowed for free jobs`)
     }
@@ -2155,7 +2152,7 @@ export class C2DEngineDocker extends C2DEngine {
             const output = JSON.parse(decryptedOutput.toString()) as ComputeOutput
             const storage = Storage.getStorageClass(
               output.remoteStorage,
-              await getConfiguration()
+              this.getConfig()
             )
 
             if (
@@ -2772,7 +2769,7 @@ export class C2DEngineDocker extends C2DEngine {
   private async uploadData(
     job: DBComputeJob
   ): Promise<{ status: C2DStatusNumber; statusText: C2DStatusText }> {
-    const config = await getConfiguration()
+    const config = this.getConfig()
     const ret = {
       status: C2DStatusNumber.RunningAlgorithm,
       statusText: C2DStatusText.RunningAlgorithm

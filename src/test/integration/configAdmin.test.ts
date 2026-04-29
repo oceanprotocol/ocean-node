@@ -21,13 +21,15 @@ import { Readable } from 'stream'
 import { expect } from 'chai'
 import { createHashForSignature, safeSign } from '../utils/signature.js'
 
-describe('Config Admin Endpoints Integration Tests', () => {
+describe('**********         Config Admin Endpoints Integration Tests', () => {
   let config: OceanNodeConfig
   let database: Database
   let adminAccount: Signer
   let nonAdminAccount: Signer
   let previousConfiguration: OverrideEnvConfig[]
   let oceanNode: OceanNode
+  let savedMaxReqPerMinute: string | undefined
+  let savedMaxConnectionsPerMinute: string | undefined
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
 
@@ -53,12 +55,41 @@ describe('Config Admin Endpoints Integration Tests', () => {
       )
     )
 
+    // buildMergedConfig merges env over file; these vars would override pushed rate limits.
+    savedMaxReqPerMinute = process.env.MAX_REQ_PER_MINUTE
+    savedMaxConnectionsPerMinute = process.env.MAX_CONNECTIONS_PER_MINUTE
+    delete process.env.MAX_REQ_PER_MINUTE
+    delete process.env.MAX_CONNECTIONS_PER_MINUTE
+
     config = await getConfiguration(true)
     database = await Database.init(config.dbConfig)
-    oceanNode = OceanNode.getInstance(config, database)
+    // Force a new singleton so this suite sees env-based config (e.g. ALLOWED_ADMINS);
+    // an instance from an earlier test file would otherwise keep stale config.
+    oceanNode = OceanNode.getInstance(
+      config,
+      database,
+      null,
+      null,
+      null,
+      null,
+      null,
+      true
+    )
   })
 
   after(async () => {
+    if (savedMaxReqPerMinute !== undefined) {
+      process.env.MAX_REQ_PER_MINUTE = savedMaxReqPerMinute
+    } else {
+      delete process.env.MAX_REQ_PER_MINUTE
+    }
+    if (savedMaxConnectionsPerMinute !== undefined) {
+      process.env.MAX_CONNECTIONS_PER_MINUTE = savedMaxConnectionsPerMinute
+    } else {
+      delete process.env.MAX_CONNECTIONS_PER_MINUTE
+    }
+    await getConfiguration(true)
+    await oceanNode.tearDownAll()
     await tearDownEnvironment(previousConfiguration)
   })
 

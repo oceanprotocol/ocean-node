@@ -1,6 +1,5 @@
 import express, { Request, Response } from 'express'
 import { sendMissingP2PResponse } from './index.js'
-import { hasP2PInterface } from '../../utils/config.js'
 
 export const getProvidersForStringRoute = express.Router()
 getProvidersForStringRoute.get(
@@ -11,7 +10,7 @@ getProvidersForStringRoute.get(
       res.sendStatus(400)
       return
     }
-    if (hasP2PInterface) {
+    if (req.oceanNode.hasP2PInterface()) {
       const providers = await req.oceanNode
         .getP2PNode()
         .getProvidersForString(req.query.input as string)

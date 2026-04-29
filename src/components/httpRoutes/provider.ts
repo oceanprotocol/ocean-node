@@ -36,35 +36,39 @@ providerRoutes.post(`${SERVICES_API_BASE_PATH}/decrypt`, async (req, res) => {
   }
 })
 
-providerRoutes.post(`${SERVICES_API_BASE_PATH}/encrypt`, async (req, res) => {
-  try {
-    const data = req.body.toString()
-    if (!data) {
-      res.status(400).send('Missing required body')
-      return
+providerRoutes.post(
+  `${SERVICES_API_BASE_PATH}/encrypt`,
+  express.raw({ limit: '25mb' }),
+  async (req, res) => {
+    try {
+      const data = req.body.toString()
+      if (!data) {
+        res.status(400).send('Missing required body')
+        return
+      }
+      const result = await new EncryptHandler(req.oceanNode).handle({
+        blob: data,
+        encoding: 'string',
+        encryptionType: EncryptMethod.ECIES,
+        command: PROTOCOL_COMMANDS.ENCRYPT,
+        caller: req.caller,
+        nonce: req.query.nonce as string,
+        consumerAddress: req.query.consumerAddress as string,
+        signature: req.query.signature as string
+      })
+      if (result.stream) {
+        const encryptedData = await streamToString(result.stream as Readable)
+        res.header('Content-Type', 'application/octet-stream')
+        res.status(200).send(encryptedData)
+      } else {
+        res.status(result.status.httpStatus).send(result.status.error)
+      }
+    } catch (error) {
+      HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+      res.status(500).send('Internal Server Error')
     }
-    const result = await new EncryptHandler(req.oceanNode).handle({
-      blob: data,
-      encoding: 'string',
-      encryptionType: EncryptMethod.ECIES,
-      command: PROTOCOL_COMMANDS.ENCRYPT,
-      caller: req.caller,
-      nonce: req.query.nonce as string,
-      consumerAddress: req.query.consumerAddress as string,
-      signature: req.query.signature as string
-    })
-    if (result.stream) {
-      const encryptedData = await streamToString(result.stream as Readable)
-      res.header('Content-Type', 'application/octet-stream')
-      res.status(200).send(encryptedData)
-    } else {
-      res.status(result.status.httpStatus).send(result.status.error)
-    }
-  } catch (error) {
-    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
-    res.status(500).send('Internal Server Error')
   }
-})
+)
 
 // There are two ways of encrypting a file:
 
@@ -81,45 +85,30 @@ providerRoutes.post(`${SERVICES_API_BASE_PATH}/encrypt`, async (req, res) => {
 // Headers
 // X-Encrypted-By: our_node_id
 // X-Encrypted-Method: aes or ecies
-providerRoutes.post(`${SERVICES_API_BASE_PATH}/encryptFile`, async (req, res) => {
-  const writeResponse = async (
-    result: P2PCommandResponse,
-    encryptMethod: EncryptMethod
-  ) => {
-    if (result.stream) {
-      const encryptedData = await streamToString(result.stream as Readable)
-      res.set(result.status.headers)
-      res.status(200).send(encryptedData)
-    } else {
-      res.status(result.status.httpStatus).send(result.status.error)
+providerRoutes.post(
+  `${SERVICES_API_BASE_PATH}/encryptFile`,
+  express.raw({ limit: '25mb', type: 'application/octet-stream' }),
+  express.json(),
+  async (req, res) => {
+    const writeResponse = async (
+      result: P2PCommandResponse,
+      encryptMethod: EncryptMethod
+    ) => {
+      if (result.stream) {
+        const encryptedData = await streamToString(result.stream as Readable)
+        res.set(result.status.headers)
+        res.status(200).send(encryptedData)
+      } else {
+        res.status(result.status.httpStatus).send(result.status.error)
+      }
     }
-  }
 
-  const getEncryptedData = async (
-    encryptMethod: EncryptMethod.AES | EncryptMethod.ECIES,
-    input: Buffer
-  ) => {
-    const result = await new EncryptFileHandler(req.oceanNode).handle({
-      rawData: input,
-      encryptionType: encryptMethod,
-      command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
-      caller: req.caller,
-      nonce: req.query.nonce as string,
-      consumerAddress: req.query.consumerAddress as string,
-      signature: req.query.signature as string
-    })
-    return result
-  }
-
-  try {
-    const encryptMethod: EncryptMethod = getEncryptMethodFromString(
-      req.query.encryptMethod as string
-    )
-    let result: P2PCommandResponse
-    if (req.is('application/json')) {
-      // body as fileObject
-      result = await new EncryptFileHandler(req.oceanNode).handle({
-        files: req.body as StorageObject,
+    const getEncryptedData = async (
+      encryptMethod: EncryptMethod.AES | EncryptMethod.ECIES,
+      input: Buffer
+    ) => {
+      const result = await new EncryptFileHandler(req.oceanNode).handle({
+        rawData: input,
         encryptionType: encryptMethod,
         command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
         caller: req.caller,
@@ -127,31 +116,53 @@ providerRoutes.post(`${SERVICES_API_BASE_PATH}/encryptFile`, async (req, res) =>
         consumerAddress: req.query.consumerAddress as string,
         signature: req.query.signature as string
       })
-      return await writeResponse(result, encryptMethod)
-      // raw data on body
-    } else if (req.is('application/octet-stream') || req.is('multipart/form-data')) {
-      if (req.is('application/octet-stream')) {
-        result = await getEncryptedData(encryptMethod, req.body)
-        return await writeResponse(result, encryptMethod)
-      } else {
-        // multipart/form-data
-        const data: Buffer[] = []
-        req.on('data', function (chunk) {
-          data.push(chunk)
-        })
-        req.on('end', async function () {
-          result = await getEncryptedData(encryptMethod, Buffer.concat(data))
-          return await writeResponse(result, encryptMethod)
-        })
-      }
-    } else {
-      res.status(400).send('Invalid request (missing body data or invalid content-type)')
+      return result
     }
-  } catch (error) {
-    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
-    res.status(500).send('Internal Server Error')
+
+    try {
+      const encryptMethod: EncryptMethod = getEncryptMethodFromString(
+        req.query.encryptMethod as string
+      )
+      let result: P2PCommandResponse
+      if (req.is('application/json')) {
+        // body as fileObject
+        result = await new EncryptFileHandler(req.oceanNode).handle({
+          files: req.body as StorageObject,
+          encryptionType: encryptMethod,
+          command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
+          caller: req.caller,
+          nonce: req.query.nonce as string,
+          consumerAddress: req.query.consumerAddress as string,
+          signature: req.query.signature as string
+        })
+        return await writeResponse(result, encryptMethod)
+        // raw data on body
+      } else if (req.is('application/octet-stream') || req.is('multipart/form-data')) {
+        if (req.is('application/octet-stream')) {
+          result = await getEncryptedData(encryptMethod, req.body)
+          return await writeResponse(result, encryptMethod)
+        } else {
+          // multipart/form-data
+          const data: Buffer[] = []
+          req.on('data', function (chunk) {
+            data.push(chunk)
+          })
+          req.on('end', async function () {
+            result = await getEncryptedData(encryptMethod, Buffer.concat(data))
+            return await writeResponse(result, encryptMethod)
+          })
+        }
+      } else {
+        res
+          .status(400)
+          .send('Invalid request (missing body data or invalid content-type)')
+      }
+    } catch (error) {
+      HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+      res.status(500).send('Internal Server Error')
+    }
   }
-})
+)
 
 providerRoutes.get(`${SERVICES_API_BASE_PATH}/initialize`, async (req, res) => {
   try {
@@ -189,7 +200,7 @@ providerRoutes.get(`${SERVICES_API_BASE_PATH}/nonce`, async (req, res) => {
       res.status(400).send('Missing required parameter: "userAddress"')
       return
     }
-    const nonceDB = req.oceanNode.getDatabase().nonce
+    const nonceDB = (await req.oceanNode.getDatabase()).nonce
     const result = await getNonce(nonceDB, userAddress)
     if (result.stream) {
       res.json({ nonce: await streamToString(result.stream as Readable) })

@@ -3,7 +3,7 @@ import express, { Request, Response } from 'express'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
-import { hasP2PInterface } from '../../utils/config.js'
+
 import { validateCommandParameters } from './validateCommands.js'
 import { Readable } from 'stream'
 
@@ -76,7 +76,7 @@ directCommandRoute.post(
       HTTP_LOGGER.logMessage('Sending command : ' + JSON.stringify(req.body), true)
 
       const isLocalCommand =
-        !hasP2PInterface ||
+        !req.oceanNode.hasP2PInterface() ||
         !req.body.node ||
         req.oceanNode.getP2PNode()?.isTargetPeerSelf(req.body.node)
 
@@ -104,7 +104,7 @@ directCommandRoute.post(
 
         closedResponse = true
         res.end()
-      } else if (hasP2PInterface) {
+      } else if (req.oceanNode.hasP2PInterface()) {
         // Remote command - use P2P sendTo
         let { multiAddrs } = req.body
         if (typeof multiAddrs === 'string') {

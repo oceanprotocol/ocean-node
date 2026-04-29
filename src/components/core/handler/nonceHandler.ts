@@ -29,6 +29,6 @@ export class NonceHandler extends CommandHandler {
       return validationResponse
     }
     const { address } = task
-    return getNonce(this.getOceanNode().getDatabase().nonce, address)
+    return getNonce((await this.getOceanNode().getDatabase()).nonce, address)
   }
 }

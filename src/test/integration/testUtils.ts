@@ -4,8 +4,9 @@ import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 
 import { JsonRpcSigner, JsonRpcProvider, getBytes } from 'ethers'
 import { DEFAULT_TEST_TIMEOUT } from '../utils/utils.js'
-import { getDatabase } from '../../utils/database.js'
+
 import { Asset } from '@oceanprotocol/ddo-js'
+import { OceanNode } from '../../OceanNode.js'
 
 // listen for indexer events
 export function addIndexerEventListener(eventName: string, ddoId: string, callback: any) {
@@ -31,9 +32,9 @@ export function expectedTimeoutFailure(testName: string): boolean {
   return true
 }
 
-async function getIndexedDDOFromDB(did: string): Promise<any> {
+async function getIndexedDDOFromDB(did: string, node: OceanNode): Promise<any> {
   try {
-    const database: Database = await getDatabase()
+    const database: Database = await node.getDatabase()
     const ddo = await database.ddo.retrieve(did)
     if (ddo) {
       return ddo
@@ -50,27 +51,28 @@ export type WaitIndexResult = {
 }
 
 export const waitToIndex = async (
+  node: OceanNode,
   did: string,
   eventName: string,
   testTimeout: number = DEFAULT_TEST_TIMEOUT,
   forceWaitForEvent?: boolean
 ): Promise<WaitIndexResult> => {
   if (!forceWaitForEvent) {
-    const ddo = await getIndexedDDOFromDB(did)
+    const ddo = await getIndexedDDOFromDB(did, node)
     if (ddo) return { ddo, wasTimeout: false }
   }
 
   return new Promise((resolve) => {
     const listener = addIndexerEventListener(eventName, did, async () => {
       clearTimeout(timeoutId)
-      const ddo = await getIndexedDDOFromDB(did)
+      const ddo = await getIndexedDDOFromDB(did, node)
       INDEXER_DDO_EVENT_EMITTER.removeListener(eventName, listener)
       resolve({ ddo, wasTimeout: false })
     })
 
     const timeoutId = setTimeout(async () => {
       try {
-        const ddo = await getIndexedDDOFromDB(did)
+        const ddo = await getIndexedDDOFromDB(did, node)
         INDEXER_DDO_EVENT_EMITTER.removeListener(eventName, listener)
         resolve({ ddo, wasTimeout: true })
       } catch (error) {

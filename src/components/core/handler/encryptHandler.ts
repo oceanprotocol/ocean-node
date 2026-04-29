@@ -4,7 +4,7 @@ import { EncryptCommand, EncryptFileCommand } from '../../../@types/commands.js'
 import * as base58 from 'base58-js'
 import { Readable } from 'stream'
 import { Storage } from '../../storage/index.js'
-import { getConfiguration, isPolicyServerConfigured } from '../../../utils/index.js'
+import { isPolicyServerConfigured } from '../../../utils/index.js'
 import { PolicyServer } from '../../policyServer/index.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import {
@@ -180,7 +180,7 @@ export class EncryptFileHandler extends CommandHandler {
 
     try {
       const oceanNode = this.getOceanNode()
-      const config = await getConfiguration()
+      const config = oceanNode.getConfig()
       const headers = {
         'Content-Type': 'application/octet-stream',
         'X-Encrypted-By': oceanNode.getKeyManager().getPeerId().toString(),

@@ -20,7 +20,11 @@ import { C2DClusterType } from '../../@types/C2D/C2D.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
 import { KeyManager } from '../KeyManager/index.js'
-import { dockerRegistryAuth, dockerRegistrysAuth } from '../../@types/OceanNode.js'
+import {
+  dockerRegistryAuth,
+  dockerRegistrysAuth,
+  OceanNodeConfig
+} from '../../@types/OceanNode.js'
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
@@ -31,19 +35,21 @@ export abstract class C2DEngine {
   public escrow: Escrow
   public keyManager: KeyManager
   public dockerRegistryAuths: dockerRegistrysAuth
+  public config: OceanNodeConfig
 
   public constructor(
     cluster: C2DClusterInfo,
     db: C2DDatabase,
     escrow: Escrow,
     keyManager: KeyManager,
-    dockerRegistryAuths: dockerRegistrysAuth
+    config: OceanNodeConfig
   ) {
     this.clusterConfig = cluster
     this.db = db
     this.escrow = escrow
     this.keyManager = keyManager
-    this.dockerRegistryAuths = dockerRegistryAuths
+    this.config = config
+    this.dockerRegistryAuths = config?.dockerRegistrysAuth
   }
 
   getKeyManager(): KeyManager {
@@ -654,6 +660,10 @@ export abstract class C2DEngine {
       return this.dockerRegistryAuths[registry]
     }
     return null
+  }
+
+  public getConfig(): OceanNodeConfig {
+    return this.config
   }
 
   public async checkEncryptedDockerRegistryAuth(

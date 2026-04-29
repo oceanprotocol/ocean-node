@@ -50,7 +50,7 @@ import { createHash } from 'crypto'
 import { getAlgoChecksums } from '../../components/core/compute/utils.js'
 import { createHashForSignature, safeSign } from '../utils/signature.js'
 
-describe('Trusted algorithms Flow', () => {
+describe('**********         Trusted algorithms Flow', () => {
   let previousConfiguration: OverrideEnvConfig[]
   let config: OceanNodeConfig
   let dbconn: Database
@@ -107,12 +107,17 @@ describe('Trusted algorithms Flow', () => {
     )
     config = await getConfiguration(true)
     dbconn = await Database.init(config.dbConfig)
-    oceanNode = await OceanNode.getInstance(config, dbconn, null, null, null)
-    indexer = new OceanIndexer(
+    oceanNode = await OceanNode.getInstance(
+      config,
       dbconn,
-      config.indexingNetworks,
-      oceanNode.blockchainRegistry
+      null,
+      null,
+      null,
+      null,
+      null,
+      true
     )
+    indexer = new OceanIndexer(dbconn, config, oceanNode.blockchainRegistry)
     oceanNode.addIndexer(indexer)
     oceanNode.addC2DEngines()
 
@@ -130,7 +135,10 @@ describe('Trusted algorithms Flow', () => {
       publisherAccount
     )
   })
-
+  after(async () => {
+    await tearDownEnvironment(previousConfiguration)
+    await oceanNode.tearDownAll()
+  })
   it('Sets up compute envs', () => {
     assert(oceanNode, 'Failed to instantiate OceanNode')
     assert(config.c2dClusters, 'Failed to get c2dClusters')
@@ -145,6 +153,7 @@ describe('Trusted algorithms Flow', () => {
     )
     publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
     const computeDatasetResult = await waitToIndex(
+      oceanNode,
       publishedComputeDataset.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT
@@ -157,6 +166,7 @@ describe('Trusted algorithms Flow', () => {
       }`
     )
     const algoDatasetResult = await waitToIndex(
+      oceanNode,
       publishedAlgoDataset.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT
@@ -286,6 +296,7 @@ describe('Trusted algorithms Flow', () => {
     const txReceipt = await setMetaDataTx.wait()
     assert(txReceipt, 'set metadata failed')
     publishedComputeDataset = await waitToIndex(
+      oceanNode,
       publishedComputeDataset.ddo.id,
       EVENTS.METADATA_UPDATED,
       DEFAULT_TEST_TIMEOUT * 2,
@@ -492,9 +503,5 @@ describe('Trusted algorithms Flow', () => {
     // eslint-disable-next-line prefer-destructuring
     jobId = jobs[0].jobId
     assert(jobId)
-  })
-  after(async () => {
-    await tearDownEnvironment(previousConfiguration)
-    indexer.stopAllChainIndexers()
   })
 })

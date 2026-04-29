@@ -130,7 +130,7 @@ export async function waitForAllJobsToFinish(
   }
 }
 
-describe('Compute', () => {
+describe('**********         Compute', () => {
   let previousConfiguration: OverrideEnvConfig[]
   let config: OceanNodeConfig
   let dbconn: Database
@@ -208,11 +208,7 @@ describe('Compute', () => {
     }
 
     oceanNode = OceanNode.getInstance(config, dbconn, null, null, null, null, null, true)
-    indexer = new OceanIndexer(
-      dbconn,
-      config.indexingNetworks,
-      oceanNode.blockchainRegistry
-    )
+    indexer = new OceanIndexer(dbconn, config, oceanNode.blockchainRegistry)
     oceanNode.addIndexer(indexer)
     await oceanNode.addC2DEngines()
 
@@ -241,7 +237,10 @@ describe('Compute', () => {
       publisherAccount
     )
   })
-
+  after(async () => {
+    await oceanNode.tearDownAll()
+    await tearDownEnvironment(previousConfiguration)
+  })
   it('Sets up compute envs', () => {
     assert(oceanNode, 'Failed to instantiate OceanNode')
     assert(config.c2dClusters, 'Failed to get c2dClusters')
@@ -253,6 +252,7 @@ describe('Compute', () => {
     publishedComputeDataset = await publishAsset(computeAsset, publisherAccount)
     publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
     const computeDatasetResult = await waitToIndex(
+      oceanNode,
       publishedComputeDataset.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT
@@ -264,6 +264,7 @@ describe('Compute', () => {
       )
     }
     const algoDatasetResult = await waitToIndex(
+      oceanNode,
       publishedAlgoDataset.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT
@@ -315,6 +316,7 @@ describe('Compute', () => {
     const txReceipt = await setMetaDataTx.wait()
     assert(txReceipt, 'set metadata failed')
     publishedComputeDataset = await waitToIndex(
+      oceanNode,
       publishedComputeDataset.ddo.id,
       EVENTS.METADATA_UPDATED,
       DEFAULT_TEST_TIMEOUT * 2,
@@ -1491,6 +1493,7 @@ describe('Compute', () => {
 
     it('should getAlgoChecksums', async function () {
       const { ddo, wasTimeout } = await waitToIndex(
+        oceanNode,
         algoDDO.id,
         EVENTS.METADATA_CREATED,
         DEFAULT_TEST_TIMEOUT,
@@ -1518,6 +1521,7 @@ describe('Compute', () => {
     it('should validateAlgoForDataset', async function () {
       this.timeout(DEFAULT_TEST_TIMEOUT * 10)
       const { ddo, wasTimeout } = await waitToIndex(
+        oceanNode,
         algoDDO.id,
         EVENTS.METADATA_CREATED,
         DEFAULT_TEST_TIMEOUT * 2,
@@ -1534,6 +1538,7 @@ describe('Compute', () => {
           config
         )
         const { ddo, wasTimeout } = await waitToIndex(
+          oceanNode,
           datasetDDO.id,
           EVENTS.METADATA_CREATED,
           DEFAULT_TEST_TIMEOUT * 2,
@@ -2598,14 +2603,9 @@ describe('Compute', () => {
       )
     })
   })
-
-  after(async () => {
-    await tearDownEnvironment(previousConfiguration)
-    await indexer.stopAllChainIndexers()
-  })
 })
 
-describe('Compute Access Restrictions', () => {
+describe('**********         Compute Access Restrictions', () => {
   let previousConfiguration: OverrideEnvConfig[]
   let config: OceanNodeConfig
   let dbconn: Database
@@ -2748,11 +2748,7 @@ describe('Compute Access Restrictions', () => {
         null,
         true
       )
-      const indexer = new OceanIndexer(
-        dbconn,
-        config.indexingNetworks,
-        oceanNode.blockchainRegistry
-      )
+      const indexer = new OceanIndexer(dbconn, config, oceanNode.blockchainRegistry)
       oceanNode.addIndexer(indexer)
       await oceanNode.addC2DEngines()
 
@@ -2760,17 +2756,22 @@ describe('Compute Access Restrictions', () => {
       publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
 
       await waitToIndex(
+        oceanNode,
         publishedComputeDataset.ddo.id,
         EVENTS.METADATA_CREATED,
         DEFAULT_TEST_TIMEOUT
       )
       await waitToIndex(
+        oceanNode,
         publishedAlgoDataset.ddo.id,
         EVENTS.METADATA_CREATED,
         DEFAULT_TEST_TIMEOUT
       )
     })
-
+    after(async () => {
+      await oceanNode.tearDownAll()
+      await tearDownEnvironment(previousConfiguration)
+    })
     it('Get compute environments with address restrictions', async () => {
       const getEnvironmentsTask = { command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS }
       const response = await new ComputeGetEnvironmentsHandler(oceanNode).handle(
@@ -2803,10 +2804,6 @@ describe('Compute Access Restrictions', () => {
       )
       const response = await new FreeComputeStartHandler(oceanNode).handle(command)
       assert(response.status.httpStatus === 403, 'Should get 403 access denied')
-    })
-
-    after(async () => {
-      await tearDownEnvironment(previousConfiguration)
     })
   })
 
@@ -2943,11 +2940,7 @@ describe('Compute Access Restrictions', () => {
         null,
         true
       )
-      const indexer = new OceanIndexer(
-        dbconn,
-        config.indexingNetworks,
-        oceanNode.blockchainRegistry
-      )
+      const indexer = new OceanIndexer(dbconn, config, oceanNode.blockchainRegistry)
       oceanNode.addIndexer(indexer)
       await oceanNode.addC2DEngines()
 
@@ -2955,17 +2948,22 @@ describe('Compute Access Restrictions', () => {
       publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
 
       await waitToIndex(
+        oceanNode,
         publishedComputeDataset.ddo.id,
         EVENTS.METADATA_CREATED,
         DEFAULT_TEST_TIMEOUT
       )
       await waitToIndex(
+        oceanNode,
         publishedAlgoDataset.ddo.id,
         EVENTS.METADATA_CREATED,
         DEFAULT_TEST_TIMEOUT
       )
     })
-
+    after(async () => {
+      await oceanNode.tearDownAll()
+      await tearDownEnvironment(previousConfiguration)
+    })
     it('Get compute environments with access list restrictions', async () => {
       const getEnvironmentsTask = { command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS }
       const response = await new ComputeGetEnvironmentsHandler(oceanNode).handle(
@@ -3014,10 +3012,6 @@ describe('Compute Access Restrictions', () => {
       const response = await new FreeComputeStartHandler(oceanNode).handle(command)
       console.log(response)
       expect(response.status.httpStatus).to.not.equal(403)
-    })
-
-    after(async () => {
-      await tearDownEnvironment(previousConfiguration)
     })
   })
 
@@ -3073,11 +3067,7 @@ describe('Compute Access Restrictions', () => {
         null,
         true
       )
-      const indexer = new OceanIndexer(
-        dbconn,
-        config.indexingNetworks,
-        oceanNode.blockchainRegistry
-      )
+      const indexer = new OceanIndexer(dbconn, config, oceanNode.blockchainRegistry)
       oceanNode.addIndexer(indexer)
       await oceanNode.addC2DEngines()
 
@@ -3115,6 +3105,7 @@ describe('Compute Access Restrictions', () => {
     })
 
     after(async () => {
+      await oceanNode.tearDownAll()
       await tearDownEnvironment(previousConfiguration)
     })
 

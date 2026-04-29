@@ -45,7 +45,7 @@ import { genericDDO } from '../data/ddo.js'
 import { homedir } from 'os'
 import { createHashForSignature, safeSign } from '../utils/signature.js'
 
-describe('[Download Flow] - Should run a complete node flow.', () => {
+describe('**********         [Download Flow] - Should run a complete node flow.', () => {
   let config: OceanNodeConfig
   let database: Database
   let oceanNode: OceanNode
@@ -91,11 +91,7 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
     config = await getConfiguration(true) // Force reload the configuration
     database = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance(config, database)
-    indexer = new OceanIndexer(
-      database,
-      config.indexingNetworks,
-      oceanNode.blockchainRegistry
-    )
+    indexer = new OceanIndexer(database, config, oceanNode.blockchainRegistry)
     oceanNode.addIndexer(indexer)
 
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
@@ -109,7 +105,10 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
     consumerAccount = (await provider.getSigner(1)) as Signer
     anotherConsumer = (await provider.getSigner(2)) as Signer
   })
-
+  after(async () => {
+    await oceanNode.tearDownAll()
+    await tearDownEnvironment(previousConfiguration)
+  })
   it('should get node status', async () => {
     const statusCommand = {
       command: PROTOCOL_COMMANDS.STATUS,
@@ -179,6 +178,7 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
     publishedDataset = await publishAsset(downloadAsset, publisherAccount)
     publishedDatasetWithCredentials = await publishAsset(genericDDO, publisherAccount)
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       publishedDataset.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT * 3
@@ -189,6 +189,7 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
     }
     const { ddo: ddoWithCredentials, wasTimeout: wasTimeoutCredentials } =
       await waitToIndex(
+        oceanNode,
         publishedDataset.ddo.id,
         EVENTS.METADATA_CREATED,
         DEFAULT_TEST_TIMEOUT * 3
@@ -315,9 +316,5 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
     }
 
     await doCheck()
-  })
-  after(async () => {
-    await tearDownEnvironment(previousConfiguration)
-    indexer.stopAllChainIndexers()
   })
 })

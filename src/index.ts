@@ -106,7 +106,7 @@ if (config.hasP2P) {
   await node.start()
 }
 if (config.hasIndexer && dbconn) {
-  indexer = new OceanIndexer(dbconn, config.indexingNetworks, blockchainRegistry)
+  indexer = new OceanIndexer(dbconn, config, blockchainRegistry)
 }
 if (dbconn) {
   provider = new OceanProvider(dbconn)
@@ -123,7 +123,7 @@ const oceanNode = OceanNode.getInstance(
   keyManager,
   blockchainRegistry
 )
-oceanNode.addC2DEngines()
+await oceanNode.addC2DEngines()
 
 function removeExtraSlashes(req: any, res: any, next: any) {
   req.url = req.url.replace(/\/{2,}/g, '/')
@@ -131,14 +131,12 @@ function removeExtraSlashes(req: any, res: any, next: any) {
 }
 
 if (config.hasHttp) {
-  // allow up to 25Mb file upload
-  app.use(express.raw({ limit: '25mb' }))
   app.use(cors())
-  app.use(requestValidator, (req, res, next) => {
+  app.use((req, res, next) => {
     req.caller = req.headers['x-forwarded-for'] || req.socket.remoteAddress
     req.oceanNode = oceanNode
     next()
-  })
+  }, requestValidator)
 
   // Integrate static file serving middleware
   app.use(removeExtraSlashes)

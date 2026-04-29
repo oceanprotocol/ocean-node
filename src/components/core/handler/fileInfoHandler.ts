@@ -13,7 +13,6 @@ import {
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 import { getFile } from '../../../utils/file.js'
-import { getConfiguration } from '../../../utils/index.js'
 
 async function formatMetadata(
   file: StorageObject,
@@ -75,7 +74,7 @@ export class FileInfoHandler extends CommandHandler {
     }
     try {
       const oceanNode = this.getOceanNode()
-      const config = await getConfiguration()
+      const config = oceanNode.getConfig()
       let fileInfo = []
 
       if (task.file && task.type) {

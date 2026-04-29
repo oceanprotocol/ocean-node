@@ -6,11 +6,11 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
-import { ENVIRONMENT_VARIABLES } from '../../utils/index.js'
-
-describe('Purgatory test', () => {
+import { ENVIRONMENT_VARIABLES, getConfiguration } from '../../utils/index.js'
+describe('**********         Purgatory test', () => {
   let purgatory: Purgatory
   let previousConfiguration: OverrideEnvConfig[]
+  let config: any
 
   before(async () => {
     // override and save configuration (always before calling getConfig())
@@ -27,8 +27,9 @@ describe('Purgatory test', () => {
         ]
       )
     )
+    config = await getConfiguration(true)
 
-    purgatory = await Purgatory.getInstance()
+    purgatory = await Purgatory.getInstance(config)
   })
 
   it('instance Purgatory', () => {

@@ -1,11 +1,23 @@
 import { OceanNode } from '../../OceanNode.js'
+import { OCEAN_NODE_LOGGER } from '../logging/common.js'
 // import { P2P_LOGGER } from '../logging/common.js'
 const GB = 1024 * 1024 * 1024 // 1 GB in bytes
 
 export async function p2pAnnounceC2D(node: OceanNode) {
   const announce: any[] = []
   const computeEngines = node.getC2DEngines()
-  const result = await computeEngines.fetchEnvironments()
+  if (!computeEngines) {
+    return
+  }
+  let result
+  try {
+    result = await computeEngines.fetchEnvironments()
+  } catch (err) {
+    OCEAN_NODE_LOGGER.error(
+      `p2pAnnounceC2D: failed to fetch environments: ${err instanceof Error ? err.message : String(err)}`
+    )
+    return
+  }
   for (const env of result) {
     for (const resource of env.resources) {
       switch (resource.type) {
@@ -92,10 +104,14 @@ export async function p2pAnnounceC2D(node: OceanNode) {
       }
     }
   }
+  const p2p = node.getP2PNode()
+  if (!p2p) {
+    return
+  }
   for (const obj of announce) {
     const res = {
       c2d: obj
     }
-    node.getP2PNode().advertiseString(JSON.stringify(res))
+    p2p.advertiseString(JSON.stringify(res))
   }
 }

@@ -35,11 +35,13 @@ import { BlockchainRegistry } from '../BlockchainRegistry/index.js'
 import { CommandStatus, JobStatus } from '../../@types/commands.js'
 import { buildJobIdentifier, getDeployedContractBlock } from './utils.js'
 import { create256Hash } from '../../utils/crypt.js'
-import { getDatabase, isReachableConnection } from '../../utils/database.js'
+import { isReachableConnection } from '../../utils/database.js'
 import { sleep } from '../../utils/util.js'
 import { isReindexingNeeded } from './version.js'
 import { getPackageVersion } from '../../utils/version.js'
 import { DB_EVENTS, ES_CONNECTION_EVENTS } from '../database/ElasticsearchConfigHelper.js'
+import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { clearEventProcessorCache } from './processor.js'
 
 /**
  * Event emitter for DDO (Data Descriptor Object) events
@@ -79,6 +81,7 @@ let numCrawlAttempts = 0
  */
 export class OceanIndexer {
   private db: Database
+  private config: OceanNodeConfig
   private networks: RPCS
   private blockchainRegistry?: BlockchainRegistry
   private supportedChains: string[]
@@ -88,14 +91,16 @@ export class OceanIndexer {
   private reconnectTimer: NodeJS.Timeout | null = null
 
   constructor(
-    db: Database,
-    supportedNetworks: RPCS,
-    blockchainRegistry: BlockchainRegistry
+    _db: Database,
+    _config: OceanNodeConfig,
+    _blockchainRegistry: BlockchainRegistry
   ) {
-    this.db = db
-    this.networks = supportedNetworks
-    this.blockchainRegistry = blockchainRegistry
-    this.supportedChains = Object.keys(supportedNetworks)
+    this.db = _db
+    this.config = _config
+    this.networks = this.config.indexingNetworks
+    this.blockchainRegistry = _blockchainRegistry
+    this.supportedChains = Object.keys(this.networks)
+    clearEventProcessorCache()
     INDEXING_QUEUE = []
     this.setupDbConnectionListeners()
     this.startAllChainIndexers()
@@ -145,10 +150,6 @@ export class OceanIndexer {
         INDEXER_LOGGER.info(
           'Database connection stable - reinitialising DB and restarting all chain indexers'
         )
-        const freshDb = await getDatabase(true)
-        if (freshDb) {
-          this.db = freshDb
-        }
 
         await this.startAllChainIndexers()
       }, 5000)
@@ -292,7 +293,9 @@ export class OceanIndexer {
     const indexer = new ChainIndexer(
       blockchain,
       rpcDetails,
-      INDEXER_CRAWLING_EVENT_EMITTER
+      INDEXER_CRAWLING_EVENT_EMITTER,
+      this.db,
+      this.config
     )
 
     INDEXER_LOGGER.log(
@@ -596,5 +599,11 @@ export class OceanIndexer {
     } else {
       INDEXER_LOGGER.info('No reindexing needed based on version check')
     }
+  }
+
+  public async stop(): Promise<void> {
+    await this.stopAllChainIndexers()
+    INDEXER_CRAWLING_EVENT_EMITTER.removeAllListeners()
+    INDEXER_DDO_EVENT_EMITTER.removeAllListeners()
   }
 }

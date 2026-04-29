@@ -12,7 +12,7 @@ import {
   isDataTokenTemplate4,
   isERC20Template4Active
 } from '../../../utils/asset.js'
-import { verifyProviderFees, createProviderFee } from '../utils/feesHandler.js'
+import { ProviderFees } from '../utils/feesHandler.js'
 
 import { validateOrderTransaction } from '../utils/validateOrders.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
@@ -23,7 +23,7 @@ import {
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 import { isAddress } from 'ethers'
-import { getConfiguration, isPolicyServerConfigured } from '../../../utils/index.js'
+import { isPolicyServerConfigured } from '../../../utils/index.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
@@ -86,7 +86,7 @@ export class ComputeInitializeHandler extends CommandHandler {
     let resourcesNeeded
     try {
       const node = this.getOceanNode()
-      const config = await getConfiguration()
+      const config = node.getConfig()
       try {
         // split compute env (which is already in hash-envId format) and get the hash
         // then get env which might contain dashes as well
@@ -219,7 +219,7 @@ export class ComputeInitializeHandler extends CommandHandler {
       const isValidOutput = await validateOutput(
         node,
         task.output,
-        await getConfiguration()
+        this.getOceanNode().getConfig()
       )
       if (isValidOutput.status.httpStatus !== 200) {
         return isValidOutput
@@ -301,9 +301,10 @@ export class ComputeInitializeHandler extends CommandHandler {
               }
             }
           }
-          const config = await getConfiguration()
-          const { chainId } = config.supportedNetworks[ddoChainId]
           const oceanNode = this.getOceanNode()
+          const config = oceanNode.getConfig()
+          const { chainId } = config.supportedNetworks[ddoChainId]
+
           const blockchain = oceanNode.getBlockchain(chainId)
           if (!blockchain) {
             return {
@@ -531,6 +532,7 @@ export class ComputeInitializeHandler extends CommandHandler {
             message: false
           }
           result.consumerAddress = env.consumerAddress
+          const fees = new ProviderFees(node)
           if ('transferTxId' in elem && elem.transferTxId) {
             // search for that compute env and see if it has access to dataset
             const paymentValidation = await validateOrderTransaction(
@@ -546,7 +548,7 @@ export class ComputeInitializeHandler extends CommandHandler {
             if (paymentValidation.isValid === true) {
               // order is valid, so let's check providerFees
               result.validOrder = elem.transferTxId
-              validFee = await verifyProviderFees(
+              validFee = await fees.verifyProviderFees(
                 elem.transferTxId,
                 task.consumerAddress,
                 provider,
@@ -559,7 +561,11 @@ export class ComputeInitializeHandler extends CommandHandler {
           }
           if (validFee.isValid === false) {
             if (canDecrypt) {
-              result.providerFee = await createProviderFee(ddo, service, service.timeout)
+              result.providerFee = await fees.createProviderFee(
+                ddo,
+                service,
+                service.timeout
+              )
             } else {
               // TO DO:  Edge case when this asset is served by a remote provider.
               // We should connect to that provider and get the fee

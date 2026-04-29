@@ -18,12 +18,8 @@ import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
 // import lzma from 'lzma-native'
 import lzmajs from 'lzma-purejs-requirejs'
-import { getValidationSignature } from '../utils/validateDdoHandler.js'
-import {
-  getConfiguration,
-  hasP2PInterface,
-  isPolicyServerConfigured
-} from '../../../utils/config.js'
+
+import { isPolicyServerConfigured } from '../../../utils/config.js'
 import { PolicyServer } from '../../policyServer/index.js'
 import {
   GetDdoCommand,
@@ -76,7 +72,7 @@ export class DecryptDdoHandler extends CommandHandler {
       return validationResponse
     }
     const chainId = String(task.chainId)
-    const config = await getConfiguration()
+    const config = this.getOceanNode().getConfig()
     const supportedNetwork = config.supportedNetworks[chainId]
 
     // check if supported chainId
@@ -400,7 +396,7 @@ export class GetDdoHandler extends CommandHandler {
       return validationResponse
     }
     try {
-      const database = this.getOceanNode().getDatabase()
+      const database = await this.getOceanNode().getDatabase()
       if (!database || !database.ddo) {
         CORE_LOGGER.error('DDO database is not available')
         return {
@@ -449,7 +445,7 @@ export class FindDdoHandler extends CommandHandler {
       const p2pNode = node.getP2PNode()
 
       // if not P2P node just look on local DB
-      if (!hasP2PInterface || !p2pNode) {
+      if (!node.hasP2PInterface() || !p2pNode) {
         // Checking locally only...
         const ddoInf = await findDDOLocally(node, task.id)
         const result = ddoInf ? [ddoInf] : []
@@ -477,7 +473,7 @@ export class FindDdoHandler extends CommandHandler {
       let processed = 0
       let toProcess = 0
 
-      const configuration = await getConfiguration()
+      const configuration = node.getConfig()
 
       // Checking locally...
       const ddoInfo = await findDDOLocally(node, task.id)
@@ -526,7 +522,7 @@ export class FindDdoHandler extends CommandHandler {
 
             // Store locally if indexer is enabled
             if (configuration.hasIndexer) {
-              const database = node.getDatabase()
+              const database = await node.getDatabase()
               if (database && database.ddo) {
                 const ddoExistsLocally = await database.ddo.retrieve(ddo.id)
                 if (!ddoExistsLocally) {
@@ -667,7 +663,7 @@ export class FindDdoHandler extends CommandHandler {
     // First try to find the DDO Locally if findDDO is not enforced
     if (!force) {
       try {
-        const database = node.getDatabase()
+        const database = await node.getDatabase()
         if (database && database.ddo) {
           const ddo = await database.ddo.retrieve(ddoId)
           return ddo as DDO
@@ -759,7 +755,7 @@ export class ValidateDDOHandler extends CommandHandler {
       }
     }
     let shouldSign = false
-    const configuration = await getConfiguration()
+    const configuration = this.getOceanNode().getConfig()
     if (configuration.validateUnsignedDDO) {
       shouldSign = true
     }
@@ -817,7 +813,9 @@ export class ValidateDDOHandler extends CommandHandler {
       return {
         stream: shouldSign
           ? Readable.from(
-              JSON.stringify(await getValidationSignature(JSON.stringify(task.ddo)))
+              JSON.stringify(
+                await this.getOceanNode().getValidationSignature(JSON.stringify(task.ddo))
+              )
             )
           : null,
         status: { httpStatus: 200 }
@@ -904,7 +902,7 @@ async function checkIfDDOResponseIsLegit(
   }
 
   // 3) check if we support this network
-  const config = await getConfiguration()
+  const config = oceanNode.getConfig()
   const network = config.supportedNetworks[chainId.toString()]
   if (!network) {
     CORE_LOGGER.error(

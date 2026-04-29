@@ -40,7 +40,7 @@ import { getConfiguration } from '../../utils/config.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { Asset } from '@oceanprotocol/ddo-js'
 
-describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () => {
+describe('**********         Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () => {
   let database: Database
   let oceanNode: OceanNode
   let provider: JsonRpcProvider
@@ -84,12 +84,17 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
 
     const config = await getConfiguration(true)
     database = await Database.init(config.dbConfig)
-    oceanNode = await OceanNode.getInstance()
-    indexer = new OceanIndexer(
+    oceanNode = await OceanNode.getInstance(
+      config,
       database,
-      mockSupportedNetworks,
-      oceanNode.blockchainRegistry
+      null,
+      null,
+      null,
+      null,
+      null,
+      true
     )
+    indexer = new OceanIndexer(database, config, oceanNode.blockchainRegistry)
     oceanNode.addIndexer(indexer)
     artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!artifactsAddresses) {
@@ -109,7 +114,10 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     delete genericAssetCloned.event
     delete genericAssetCloned.nft
   })
-
+  after(async () => {
+    await oceanNode.tearDownAll()
+    await tearDownEnvironment(previousConfiguration)
+  })
   it('instance Database', () => {
     expect(database).to.be.instanceOf(Database)
   })
@@ -209,6 +217,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
   it('should store the ddo in the database and return it ', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       assetDID,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT * 2
@@ -346,6 +355,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
   it('should store the updated ddo in the database and return it ', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       genericAssetCloned.id,
       EVENTS.METADATA_UPDATED,
       DEFAULT_TEST_TIMEOUT * 2,
@@ -373,9 +383,5 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
         'mismatch datatoken address'
       )
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
-  })
-  after(async () => {
-    await tearDownEnvironment(previousConfiguration)
-    indexer.stopAllChainIndexers()
   })
 })

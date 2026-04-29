@@ -9,7 +9,7 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { checkSupportedChainId } from '../../../utils/blockchain.js'
+
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 
 export class ReindexChainHandler extends AdminCommandHandler {
@@ -28,7 +28,7 @@ export class ReindexChainHandler extends AdminCommandHandler {
       return buildInvalidParametersResponse(validation)
     }
     CORE_LOGGER.logMessage(`Reindexing chain command called`)
-    const checkChainId = await checkSupportedChainId(task.chainId)
+    const checkChainId = this.getOceanNode().checkSupportedChainId(task.chainId)
     if (!checkChainId.validation) {
       return buildErrorResponse(
         `Chain ID ${task.chainId} is not supported in the node's config`

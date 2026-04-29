@@ -25,7 +25,7 @@ import {
   tearDownEnvironment
 } from '../utils/utils.js'
 import { homedir } from 'os'
-describe('validateOrderTransaction Function with Orders', () => {
+describe('**********         validateOrderTransaction Function with Orders', () => {
   let database: Database
   let oceanNode: OceanNode
   let provider: JsonRpcProvider
@@ -69,12 +69,17 @@ describe('validateOrderTransaction Function with Orders', () => {
 
     config = await getConfiguration(true) // Force reload the configuration
     const dbconn = await Database.init(config.dbConfig)
-    oceanNode = await OceanNode.getInstance(config, dbconn)
-    indexer = new OceanIndexer(
+    oceanNode = await OceanNode.getInstance(
+      config,
       dbconn,
-      config.indexingNetworks,
-      oceanNode.blockchainRegistry
+      null,
+      null,
+      null,
+      null,
+      null,
+      true
     )
+    indexer = new OceanIndexer(dbconn, config, oceanNode.blockchainRegistry)
     oceanNode.addIndexer(indexer)
 
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
@@ -97,7 +102,10 @@ describe('validateOrderTransaction Function with Orders', () => {
     const { dbConfig } = await getConfiguration(true)
     database = await Database.init(dbConfig)
   })
-
+  after(async () => {
+    await oceanNode.tearDownAll()
+    await tearDownEnvironment(previousConfiguration)
+  })
   it('Start instance of Database', () => {
     expect(database).to.be.instanceOf(Database)
   })
@@ -107,6 +115,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     publishedDataset = await publishAsset(genericDDO, publisherAccount)
 
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       publishedDataset.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT * 2
@@ -125,6 +134,7 @@ describe('validateOrderTransaction Function with Orders', () => {
 
   it('should get the active state', async function () {
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       publishedDataset.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT,
@@ -236,9 +246,5 @@ describe('validateOrderTransaction Function with Orders', () => {
       validationResult.message ===
         'Tx id used not valid, one of the NFT addresses, Datatoken address or the User address contract address does not match.'
     )
-  })
-  after(async () => {
-    await tearDownEnvironment(previousConfiguration)
-    indexer.stopAllChainIndexers()
   })
 })

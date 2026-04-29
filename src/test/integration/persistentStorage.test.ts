@@ -39,7 +39,7 @@ import { deployAndGetAccessListConfig } from '../utils/contracts.js'
 import { OceanNodeConfig, OceanNodeStatus } from '../../@types/OceanNode.js'
 import { KeyManager } from '../../components/KeyManager/index.js'
 
-describe('Persistent storage handlers (integration)', function () {
+describe('**********         Persistent storage handlers (integration)', function () {
   this.timeout(DEFAULT_TEST_TIMEOUT)
 
   let previousConfiguration: OverrideEnvConfig[]
@@ -116,6 +116,7 @@ describe('Persistent storage handlers (integration)', function () {
   })
 
   after(async () => {
+    await oceanNode.tearDownAll()
     await tearDownEnvironment(previousConfiguration)
     // await fsp.rm(psRoot, { recursive: true, force: true })
   })

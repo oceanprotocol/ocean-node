@@ -11,7 +11,6 @@ import {
   buildInvalidRequestMessage,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
-import { getConfiguration, checkSupportedChainId } from '../../../utils/index.js'
 import { parseUnits, Contract, ZeroAddress, isAddress } from 'ethers'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template.sol/ERC20Template.json' with { type: 'json' }
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
@@ -44,7 +43,7 @@ export class CollectFeesHandler extends AdminCommandHandler {
     if (!validation.valid) {
       return buildInvalidParametersResponse(validation)
     }
-    const config = await getConfiguration()
+    const config = this.getOceanNode().getConfig()
     const keyManager = this.nodeInstance.getKeyManager()
     if (task.node && task.node !== keyManager.getPeerIdString()) {
       const msg: string = `Cannot run this command ${JSON.stringify(
@@ -53,7 +52,7 @@ export class CollectFeesHandler extends AdminCommandHandler {
       CORE_LOGGER.error(msg)
       return buildErrorResponse(msg)
     }
-    const checkChainId = await checkSupportedChainId(task.chainId)
+    const checkChainId = this.getOceanNode().checkSupportedChainId(task.chainId)
     if (!checkChainId.validation) {
       return buildErrorResponse(
         `Chain ID ${task.chainId} is not supported in the node's config`

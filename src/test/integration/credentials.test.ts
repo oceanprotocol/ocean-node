@@ -27,8 +27,7 @@ import {
   ENVIRONMENT_VARIABLES,
   EVENTS,
   PROTOCOL_COMMANDS,
-  getConfiguration,
-  printCurrentConfig
+  getConfiguration
 } from '../../utils/index.js'
 import { DownloadHandler } from '../../components/core/handler/downloadHandler.js'
 import { GetDdoHandler } from '../../components/core/handler/ddoHandler.js'
@@ -67,7 +66,7 @@ import { ComputeGetEnvironmentsHandler } from '../../components/core/compute/env
 import { ComputeInitializeCommand } from '../../@types/commands.js'
 import { createHashForSignature, safeSign } from '../utils/signature.js'
 
-describe('[Credentials Flow] - Should run a complete node flow.', () => {
+describe('**********         [Credentials Flow] - Should run a complete node flow.', () => {
   let config: OceanNodeConfig
   let oceanNode: OceanNode
   let provider: JsonRpcProvider
@@ -137,12 +136,17 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
 
     config = await getConfiguration(true) // Force reload the configuration
     const database = await Database.init(config.dbConfig)
-    oceanNode = OceanNode.getInstance(config, database)
-    const indexer = new OceanIndexer(
+    oceanNode = OceanNode.getInstance(
+      config,
       database,
-      config.indexingNetworks,
-      oceanNode.blockchainRegistry
+      null,
+      null,
+      null,
+      null,
+      null,
+      true
     )
+    const indexer = new OceanIndexer(database, config, oceanNode.blockchainRegistry)
     oceanNode.addIndexer(indexer)
     await oceanNode.addC2DEngines()
 
@@ -157,7 +161,10 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
     ]
     consumerAddresses = await Promise.all(consumerAccounts.map((a) => a.getAddress()))
   })
-
+  after(async () => {
+    await oceanNode.tearDownAll()
+    await tearDownEnvironment(previousConfiguration)
+  })
   it('should deploy accessList contract', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     let networkArtifacts = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
@@ -223,6 +230,7 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
 
     did = publishedDataset.ddo.id
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       did,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT * 3
@@ -232,6 +240,7 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
     }
     didWithMatchAll = publishedDatasetWithMatchAll.ddo.id
     const resolvedDdoWithMatchAll = await waitToIndex(
+      oceanNode,
       didWithMatchAll,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT * 3
@@ -243,6 +252,7 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
 
     computeDid = publishedComputeDataset.ddo.id
     const resolvedComputeDdo = await waitToIndex(
+      oceanNode,
       computeDid,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT * 3
@@ -255,6 +265,7 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
 
     algoDid = publishedAlgo.ddo.id
     const resolvedAlgo = await waitToIndex(
+      oceanNode,
       algoDid,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT * 3
@@ -587,7 +598,6 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
     const nonAuthorizedAccount = (await provider.getSigner(4)) as Signer
     const authorizedAccount = await publisherAccount.getAddress()
 
-    printCurrentConfig()
     expect(
       config.authorizedPublishers.length === 1 &&
         config.authorizedPublishers[0] === authorizedAccount,
@@ -601,16 +611,12 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
 
     // will timeout
     const { ddo, wasTimeout } = await waitToIndex(
+      oceanNode,
       publishedDataset?.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT
     )
 
     assert(ddo === null && wasTimeout === true, 'DDO should NOT have been indexed')
-  })
-
-  after(async () => {
-    await tearDownEnvironment(previousConfiguration)
-    oceanNode.getIndexer().stopAllChainIndexers()
   })
 })

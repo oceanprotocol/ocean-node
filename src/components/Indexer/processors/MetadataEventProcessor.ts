@@ -6,9 +6,9 @@ import {
   MetadataStates
 } from '../../../utils/constants.js'
 import { deleteIndexedMetadataIfExists } from '../../../utils/asset.js'
-import { getConfiguration } from '../../../utils/config.js'
+
 import { checkCredentialOnAccessList } from '../../../utils/credentials.js'
-import { getDatabase } from '../../../utils/database.js'
+
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { asyncCallWithTimeout } from '../../../utils/util.js'
@@ -28,7 +28,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
   ): Promise<any> {
     let did = 'did:op'
     try {
-      const { ddo: ddoDatabase, ddoState } = await getDatabase()
+      const { ddo: ddoDatabase, ddoState } = await this.getDatabase()
       const wasDeployedByUs = await wasNFTDeployedByOurFactory(
         chainId,
         signer,
@@ -72,7 +72,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           `Delete DDO because Metadata state is ${metadataState}`,
           true
         )
-        const { ddo: ddoDatabase } = await getDatabase()
+        const { ddo: ddoDatabase } = await this.getDatabase()
         const ddo = await ddoDatabase.retrieve(did)
         if (!ddo) {
           INDEXER_LOGGER.logMessage(
@@ -150,12 +150,11 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       }
 
       // check authorized publishers
-      const { authorizedPublishers, authorizedPublishersList } = await getConfiguration()
+      const { authorizedPublishers, authorizedPublishersList } = this.getConfig()
       if (authorizedPublishers.length > 0) {
-        // if is not there, do not index
-        const authorized: string[] = authorizedPublishers.filter((address) =>
-          // do a case insensitive search
-          address.toLowerCase().includes(owner.toLowerCase())
+        const ownerNormalized = getAddress(String(owner))
+        const authorized: string[] = authorizedPublishers.filter(
+          (address) => getAddress(address).toLowerCase() === ownerNormalized.toLowerCase()
         )
         if (!authorized.length) {
           INDEXER_LOGGER.error(
@@ -361,7 +360,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         ddoUpdatedWithPricing = ddoWithPricing
       }
       // always call, but only create instance once
-      const purgatory = await Purgatory.getInstance()
+      const purgatory = Purgatory.getInstance(this.getConfig())
       // if purgatory is disabled just return false
       const updatedDDO = await this.updatePurgatoryStateDdo(
         ddoUpdatedWithPricing,
@@ -375,7 +374,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         return saveDDO
       }
     } catch (error) {
-      const { ddoState } = await getDatabase()
+      const { ddoState } = await this.getDatabase()
       await ddoState.update(
         this.networkId,
         did,

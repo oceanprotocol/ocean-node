@@ -7,7 +7,6 @@ import { Command } from '../../@types/commands.js'
 import { P2PCommandResponse } from '../../@types/OceanNode'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { BaseHandler } from '../core/handler/handler.js'
-import { getConfiguration } from '../../utils/index.js'
 import {
   checkGlobalConnectionsRateLimit,
   checkRequestsRateLimit
@@ -89,7 +88,7 @@ export async function handleProtocolCommands(stream: Stream, connection: Connect
   }
 
   // Rate limiting and deny list checks (after reading command)
-  const configuration = await getConfiguration()
+  const configuration = this.getConfig()
   const { denyList } = configuration
 
   if (denyList.peers.includes(remotePeer.toString())) {
