@@ -39,11 +39,9 @@ export class BlockchainRegistry {
 
     // Get network configuration
     const networkConfig = supportedNetworks[chainId.toString()]
-    const { rpc } = networkConfig
-    const { fallbackRPCs } = networkConfig
 
     // Create Blockchain instance with new constructor
-    const blockchain = new Blockchain(this.keyManager, rpc, chainId, fallbackRPCs)
+    const blockchain = new Blockchain(this.keyManager, networkConfig)
 
     // Cache the instance
     this.blockchains.set(chainId, blockchain)

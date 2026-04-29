@@ -5,6 +5,8 @@ export interface SupportedNetwork {
   chunkSize?: number
   startBlock?: number
   fallbackRPCs?: string[]
+  primaryRpcTimeout?: number
+  fallbackRpcTimeout?: number
 }
 
 export interface RPCS {
