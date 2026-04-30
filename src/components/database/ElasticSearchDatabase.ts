@@ -1,11 +1,13 @@
 import { Client } from '@elastic/elasticsearch'
 import {
+  AbstractAccessListDatabase,
   AbstractDdoDatabase,
   AbstractDdoStateDatabase,
   AbstractIndexerDatabase,
   AbstractLogDatabase,
   AbstractOrderDatabase
 } from './BaseDatabase.js'
+import { AccessListUser } from '../../@types/AccessList.js'
 import { createElasticsearchClientWithRetry } from './ElasticsearchConfigHelper.js'
 import { OceanNodeDBConfig } from '../../@types'
 import { ElasticsearchSchema } from './ElasticSchemas.js'
@@ -1017,6 +1019,337 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
     } catch (e) {
       DATABASE_LOGGER.error('Unable to retrieve logs count: ' + e.message)
       return 0
+    }
+  }
+}
+
+export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase {
+  private client: Client
+  private index: string
+
+  constructor(config: OceanNodeDBConfig) {
+    super(config)
+    this.index = 'access_list'
+
+    return (async (): Promise<ElasticsearchAccessListDatabase> => {
+      this.client = await createElasticsearchClientWithRetry(config)
+      await this.initializeIndex()
+      return this
+    })() as unknown as ElasticsearchAccessListDatabase
+  }
+
+  private docId(chainId: number, contractAddress: string): string {
+    return `${chainId}-${contractAddress.toLowerCase()}`
+  }
+
+  private async initializeIndex() {
+    try {
+      const indexExists = await this.client.indices.exists({ index: this.index })
+      if (!indexExists) {
+        await this.client.indices.create({
+          index: this.index,
+          body: {
+            mappings: {
+              properties: {
+                chainId: { type: 'integer' },
+                contractAddress: { type: 'keyword' },
+                owner: { type: 'keyword' },
+                factoryDeployed: { type: 'boolean' },
+                transferable: { type: 'boolean' },
+                users: {
+                  type: 'nested',
+                  properties: {
+                    wallet: { type: 'keyword' },
+                    tokenId: { type: 'long' },
+                    block: { type: 'long' },
+                    txId: { type: 'keyword' },
+                    timestamp: { type: 'long' }
+                  }
+                },
+                lastUpdatedBlock: { type: 'long' },
+                lastTxId: { type: 'keyword' }
+              }
+            }
+          }
+        })
+      }
+    } catch (e) {
+      DATABASE_LOGGER.error(e.message)
+    }
+  }
+
+  async create(
+    chainId: number,
+    contractAddress: string,
+    owner: string,
+    transferable: boolean,
+    block: number,
+    txId: string
+  ) {
+    const id = this.docId(chainId, contractAddress)
+    const lowerOwner = owner.toLowerCase()
+    const lowerContract = contractAddress.toLowerCase()
+    try {
+      await this.client.update({
+        index: this.index,
+        id,
+        body: {
+          script: {
+            source: `
+              ctx._source.factoryDeployed = true;
+              ctx._source.owner = params.owner;
+              ctx._source.transferable = params.transferable;
+              ctx._source.lastUpdatedBlock = params.block;
+              ctx._source.lastTxId = params.txId;
+            `,
+            lang: 'painless',
+            params: { owner: lowerOwner, transferable, block, txId }
+          },
+          upsert: {
+            chainId,
+            contractAddress: lowerContract,
+            owner: lowerOwner,
+            factoryDeployed: true,
+            transferable,
+            users: [],
+            lastUpdatedBlock: block,
+            lastTxId: txId
+          }
+        },
+        refresh: 'wait_for'
+      })
+      return { id }
+    } catch (error) {
+      const errorMsg = `Error when upserting access list ${id}: ${error.message}`
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async retrieve(chainId: number, contractAddress: string) {
+    const id = this.docId(chainId, contractAddress)
+    try {
+      const result = await this.client.get({
+        index: this.index,
+        id,
+        refresh: true
+      })
+      return result._source
+    } catch (error) {
+      if (error?.meta?.statusCode === 404) {
+        return null
+      }
+      const errorMsg = `Error when retrieving access list ${id}: ${error.message}`
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async addUser(chainId: number, contractAddress: string, user: AccessListUser) {
+    const id = this.docId(chainId, contractAddress)
+    const lowerContract = contractAddress.toLowerCase()
+    const normalized: AccessListUser = { ...user, wallet: user.wallet.toLowerCase() }
+    try {
+      await this.client.update({
+        index: this.index,
+        id,
+        body: {
+          script: {
+            source: `
+              if (ctx._source.users == null) { ctx._source.users = []; }
+              boolean exists = false;
+              for (int i = 0; i < ctx._source.users.length; i++) {
+                if (ctx._source.users[i].tokenId == params.user.tokenId) { exists = true; break; }
+              }
+              if (!exists) { ctx._source.users.add(params.user); }
+              ctx._source.lastUpdatedBlock = params.block;
+              ctx._source.lastTxId = params.txId;
+            `,
+            lang: 'painless',
+            params: { user: normalized, block: normalized.block, txId: normalized.txId }
+          },
+          upsert: {
+            chainId,
+            contractAddress: lowerContract,
+            owner: '',
+            factoryDeployed: false,
+            transferable: false,
+            users: [normalized],
+            lastUpdatedBlock: normalized.block,
+            lastTxId: normalized.txId
+          }
+        },
+        refresh: 'wait_for'
+      })
+      return { id }
+    } catch (error) {
+      const errorMsg = `Error when adding user ${normalized.wallet} to access list ${id}: ${error.message}`
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async removeUserByTokenId(
+    chainId: number,
+    contractAddress: string,
+    tokenId: number,
+    block: number,
+    txId: string
+  ) {
+    const id = this.docId(chainId, contractAddress)
+    try {
+      await this.client.update({
+        index: this.index,
+        id,
+        body: {
+          script: {
+            source: `
+              if (ctx._source.users != null) {
+                ctx._source.users.removeIf(u -> u.tokenId == params.tokenId);
+              }
+              ctx._source.lastUpdatedBlock = params.block;
+              ctx._source.lastTxId = params.txId;
+            `,
+            lang: 'painless',
+            params: { tokenId, block, txId }
+          }
+        },
+        refresh: 'wait_for'
+      })
+      return { id }
+    } catch (error) {
+      if (error?.meta?.statusCode === 404) {
+        DATABASE_LOGGER.logMessageWithEmoji(
+          `AddressRemoved on missing access list ${id} (tokenId=${tokenId}); ignoring.`,
+          true,
+          GENERIC_EMOJIS.EMOJI_CHECK_MARK,
+          LOG_LEVELS_STR.LEVEL_WARN
+        )
+        return null
+      }
+      const errorMsg = `Error when removing tokenId ${tokenId} from access list ${id}: ${error.message}`
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async updateOwner(
+    chainId: number,
+    contractAddress: string,
+    owner: string,
+    block: number,
+    txId: string
+  ) {
+    const id = this.docId(chainId, contractAddress)
+    try {
+      await this.client.update({
+        index: this.index,
+        id,
+        body: {
+          script: {
+            source: `
+              ctx._source.owner = params.owner;
+              ctx._source.lastUpdatedBlock = params.block;
+              ctx._source.lastTxId = params.txId;
+            `,
+            lang: 'painless',
+            params: { owner: owner.toLowerCase(), block, txId }
+          }
+        },
+        refresh: 'wait_for'
+      })
+      return { id }
+    } catch (error) {
+      if (error?.meta?.statusCode === 404) {
+        return null
+      }
+      const errorMsg = `Error when updating owner on access list ${id}: ${error.message}`
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async searchByWallet(wallet: string, chainId?: number): Promise<any[]> {
+    const lowerWallet = wallet.toLowerCase()
+    const filters: any[] = [
+      {
+        nested: {
+          path: 'users',
+          query: { term: { 'users.wallet': lowerWallet } },
+          inner_hits: { _source: { includes: ['users'] } }
+        }
+      }
+    ]
+    if (chainId !== undefined) {
+      filters.push({ term: { chainId } })
+    }
+    try {
+      const result = await this.client.search({
+        index: this.index,
+        size: 250,
+        body: {
+          query: { bool: { must: filters } }
+        }
+      } as any)
+      return result.hits.hits.map((h: any) => ({
+        ...(h._source as object),
+        innerHits: h.inner_hits?.users?.hits?.hits?.map((ih: any) => ih._source) ?? []
+      }))
+    } catch (error) {
+      const errorMsg = `Error when searching access lists by wallet ${lowerWallet}: ${error.message}`
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return []
+    }
+  }
+
+  async delete(chainId: number, contractAddress: string) {
+    const id = this.docId(chainId, contractAddress)
+    try {
+      await this.client.delete({
+        index: this.index,
+        id,
+        refresh: 'wait_for'
+      })
+      return { id }
+    } catch (error) {
+      const errorMsg = `Error when deleting access list ${id}: ${error.message}`
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
     }
   }
 }

@@ -1,5 +1,6 @@
 import { Schema } from '.'
 import { OceanNodeDBConfig } from '../../@types'
+import { AccessListUser } from '../../@types/AccessList.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { ElasticsearchSchema } from './ElasticSchemas.js'
@@ -36,6 +37,43 @@ export abstract class AbstractIndexerDatabase extends AbstractDatabase {
   abstract retrieve(network: number): Promise<any>
   abstract update(network: number, lastIndexedBlock: number): Promise<any>
   abstract delete(network: number): Promise<any>
+}
+
+export abstract class AbstractAccessListDatabase extends AbstractDatabase {
+  abstract create(
+    chainId: number,
+    contractAddress: string,
+    owner: string,
+    transferable: boolean,
+    block: number,
+    txId: string
+  ): Promise<any>
+
+  abstract retrieve(chainId: number, contractAddress: string): Promise<any>
+  abstract addUser(
+    chainId: number,
+    contractAddress: string,
+    user: AccessListUser
+  ): Promise<any>
+
+  abstract removeUserByTokenId(
+    chainId: number,
+    contractAddress: string,
+    tokenId: number,
+    block: number,
+    txId: string
+  ): Promise<any>
+
+  abstract updateOwner(
+    chainId: number,
+    contractAddress: string,
+    owner: string,
+    block: number,
+    txId: string
+  ): Promise<any>
+
+  abstract searchByWallet(wallet: string, chainId?: number): Promise<any[]>
+  abstract delete(chainId: number, contractAddress: string): Promise<any>
 }
 
 export abstract class AbstractLogDatabase extends AbstractDatabase {

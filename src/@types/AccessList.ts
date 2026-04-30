@@ -4,3 +4,11 @@
 export interface AccessList {
   [chainId: string]: string[]
 }
+
+export interface AccessListUser {
+  wallet: string
+  tokenId: number
+  block: number
+  txId: string
+  timestamp: number
+}

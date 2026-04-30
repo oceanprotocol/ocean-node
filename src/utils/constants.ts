@@ -44,7 +44,9 @@ export const PROTOCOL_COMMANDS = {
   PERSISTENT_STORAGE_LIST_FILES: 'persistentStorageListFiles',
   PERSISTENT_STORAGE_UPLOAD_FILE: 'persistentStorageUploadFile',
   PERSISTENT_STORAGE_GET_FILE_OBJECT: 'persistentStorageGetFileObject',
-  PERSISTENT_STORAGE_DELETE_FILE: 'persistentStorageDeleteFile'
+  PERSISTENT_STORAGE_DELETE_FILE: 'persistentStorageDeleteFile',
+  GET_ACCESS_LIST: 'getAccessList',
+  SEARCH_ACCESS_LIST: 'searchAccessList'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -90,7 +92,9 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.PERSISTENT_STORAGE_LIST_FILES,
   PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
   PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_FILE_OBJECT,
-  PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DELETE_FILE
+  PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DELETE_FILE,
+  PROTOCOL_COMMANDS.GET_ACCESS_LIST,
+  PROTOCOL_COMMANDS.SEARCH_ACCESS_LIST
 ]
 
 export const MetadataStates = {
@@ -115,7 +119,11 @@ export const EVENTS = {
   DISPENSER_ACTIVATED: 'DispenserActivated',
   DISPENSER_DEACTIVATED: 'DispenserDeactivated',
   EXCHANGE_ACTIVATED: 'ExchangeActivated',
-  EXCHANGE_DEACTIVATED: 'ExchangeDeactivated'
+  EXCHANGE_DEACTIVATED: 'ExchangeDeactivated',
+  ADDRESS_ADDED: 'AddressAdded',
+  ADDRESS_REMOVED: 'AddressRemoved',
+  NEW_ACCESS_LIST: 'NewAccessList',
+  ACCESS_LIST_OWNERSHIP_TRANSFERRED: 'OwnershipTransferred'
 }
 
 export const INDEXER_CRAWLING_EVENTS = {
@@ -185,6 +193,22 @@ export const EVENT_HASHES: Hashes = {
   '0x03da9148e1de78fba22de63c573465562ebf6ef878a1d3ea83790a560229984c': {
     type: EVENTS.EXCHANGE_DEACTIVATED,
     text: 'ExchangeDeactivated(bytes32,address)'
+  },
+  '0x9cc987676e7d63379f176ea50df0ae8d2d9d1141d1231d4ce15b5965f73c9430': {
+    type: EVENTS.ADDRESS_ADDED,
+    text: 'AddressAdded(address,uint256)'
+  },
+  '0xb1e731889e7185f2cc895a86c70cded99d77ab8ecea58ab5abe5d43b084f51ae': {
+    type: EVENTS.ADDRESS_REMOVED,
+    text: 'AddressRemoved(uint256)'
+  },
+  '0xd65bc8e3024bbad886df74eea79b6e118b7fbcffe1f3f98054e5a6b98dc83891': {
+    type: EVENTS.NEW_ACCESS_LIST,
+    text: 'NewAccessList(address,address)'
+  },
+  '0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0': {
+    type: EVENTS.ACCESS_LIST_OWNERSHIP_TRANSFERRED,
+    text: 'OwnershipTransferred(address,address)'
   }
 }
 

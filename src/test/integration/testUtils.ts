@@ -84,6 +84,28 @@ export const waitToIndex = async (
   })
 }
 
+/**
+ * Polls a predicate until it returns truthy or the timeout elapses.
+ * Returns the predicate's truthy value, or null on timeout.
+ */
+export async function waitForCondition<T>(
+  predicate: () => Promise<T | null>,
+  timeoutMs: number = DEFAULT_TEST_TIMEOUT,
+  intervalMs: number = 1000
+): Promise<T | null> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const result = await predicate()
+      if (result) return result
+    } catch (_e) {
+      // ignore and retry
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs))
+  }
+  return null
+}
+
 export async function signMessage(
   message: string,
   address: string,

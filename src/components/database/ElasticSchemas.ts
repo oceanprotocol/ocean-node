@@ -94,6 +94,7 @@ export type ElasticsearchSchemas = {
   logSchemas: ElasticsearchSchema
   orderSchema: ElasticsearchSchema
   ddoStateSchema: ElasticsearchSchema
+  accessListSchema: ElasticsearchSchema
 }
 
 const ddoSchemas = readElasticsearchJsonSchemas()
@@ -161,6 +162,32 @@ export const elasticSchemas: ElasticsearchSchemas = {
           txId: { type: 'keyword' },
           valid: { type: 'boolean' },
           error: { type: 'text' }
+        }
+      }
+    }
+  },
+  accessListSchema: {
+    index: 'access_list',
+    body: {
+      mappings: {
+        properties: {
+          chainId: { type: 'integer' },
+          contractAddress: { type: 'keyword' },
+          owner: { type: 'keyword' },
+          factoryDeployed: { type: 'boolean' },
+          transferable: { type: 'boolean' },
+          users: {
+            type: 'nested',
+            properties: {
+              wallet: { type: 'keyword' },
+              tokenId: { type: 'long' },
+              block: { type: 'long' },
+              txId: { type: 'keyword' },
+              timestamp: { type: 'long' }
+            }
+          },
+          lastUpdatedBlock: { type: 'long' },
+          lastTxId: { type: 'keyword' }
         }
       }
     }

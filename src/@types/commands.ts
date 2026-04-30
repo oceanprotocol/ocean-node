@@ -29,6 +29,16 @@ export interface FindPeerCommand extends Command {
 export interface GetP2PPeersCommand extends Command {}
 export interface GetP2PNetworkStatsCommand extends Command {}
 
+export interface GetAccessListCommand extends Command {
+  chainId: number
+  contractAddress: string
+}
+
+export interface SearchAccessListCommand extends Command {
+  wallet: string
+  chainId?: number
+}
+
 export interface SignedCommand extends Command {
   nonce: string
   signature: string

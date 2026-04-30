@@ -15,6 +15,7 @@ import { PolicyServerPassthroughRoute } from './policyServer.js'
 import { authRoutes } from './auth.js'
 import { adminConfigRoutes } from './adminConfig.js'
 import { persistentStorageRoutes } from './persistentStorage.js'
+import { accessListRoutes } from './accessList.js'
 
 export * from './getOceanPeers.js'
 export * from './auth.js'
@@ -64,6 +65,8 @@ httpRoutes.use(authRoutes)
 httpRoutes.use(adminConfigRoutes)
 // persistent storage routes
 httpRoutes.use(persistentStorageRoutes)
+// access list routes
+httpRoutes.use(accessListRoutes)
 
 export function getAllServiceEndpoints() {
   httpRoutes.stack.forEach(addMapping.bind(null, []))

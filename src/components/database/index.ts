@@ -6,6 +6,7 @@ import {
 } from '../../utils/logging/Logger.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import {
+  AbstractAccessListDatabase,
   AbstractDdoDatabase,
   AbstractDdoStateDatabase,
   AbstractIndexerDatabase,
@@ -29,6 +30,7 @@ export class Database {
   logs: AbstractLogDatabase
   order: AbstractOrderDatabase
   ddoState: AbstractDdoStateDatabase
+  accessList: AbstractAccessListDatabase
   sqliteConfig: SQLLiteConfigDatabase
   c2d: C2DDatabase
   authToken: AuthTokenDatabase
@@ -99,6 +101,13 @@ export class Database {
         db.ddoState = await DatabaseFactory.createDdoStateDatabase(config)
       } catch (error) {
         DATABASE_LOGGER.error(`DDO State database initialization failed: ${error}`)
+        return null
+      }
+
+      try {
+        db.accessList = await DatabaseFactory.createAccessListDatabase(config)
+      } catch (error) {
+        DATABASE_LOGGER.error(`AccessList database initialization failed: ${error}`)
         return null
       }
     } else {

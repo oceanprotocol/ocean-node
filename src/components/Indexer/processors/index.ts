@@ -12,6 +12,10 @@ export * from './MetadataEventProcessor.js'
 export * from './MetadataStateEventProcessor.js'
 export * from './OrderReusedEventProcessor.js'
 export * from './OrderStartedEventProcessor.js'
+export * from './NewAccessListEventProcessor.js'
+export * from './AddressAddedEventProcessor.js'
+export * from './AddressRemovedEventProcessor.js'
+export * from './AccessListOwnershipTransferredEventProcessor.js'
 export * from './BaseProcessor.js'
 
 export type ProcessorConstructor = new (
