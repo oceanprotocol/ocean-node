@@ -10,5 +10,4 @@ export interface AccessListUser {
   tokenId: number
   block: number
   txId: string
-  timestamp: number
 }

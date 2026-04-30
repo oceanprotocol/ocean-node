@@ -1053,7 +1053,6 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
               properties: {
                 chainId: { type: 'integer' },
                 contractAddress: { type: 'keyword' },
-                owner: { type: 'keyword' },
                 factoryDeployed: { type: 'boolean' },
                 transferable: { type: 'boolean' },
                 users: {
@@ -1062,8 +1061,7 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
                     wallet: { type: 'keyword' },
                     tokenId: { type: 'long' },
                     block: { type: 'long' },
-                    txId: { type: 'keyword' },
-                    timestamp: { type: 'long' }
+                    txId: { type: 'keyword' }
                   }
                 },
                 lastUpdatedBlock: { type: 'long' },
@@ -1081,13 +1079,11 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
   async create(
     chainId: number,
     contractAddress: string,
-    owner: string,
     transferable: boolean,
     block: number,
     txId: string
   ) {
     const id = this.docId(chainId, contractAddress)
-    const lowerOwner = owner.toLowerCase()
     const lowerContract = contractAddress.toLowerCase()
     try {
       await this.client.update({
@@ -1097,18 +1093,16 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
           script: {
             source: `
               ctx._source.factoryDeployed = true;
-              ctx._source.owner = params.owner;
               ctx._source.transferable = params.transferable;
               ctx._source.lastUpdatedBlock = params.block;
               ctx._source.lastTxId = params.txId;
             `,
             lang: 'painless',
-            params: { owner: lowerOwner, transferable, block, txId }
+            params: { transferable, block, txId }
           },
           upsert: {
             chainId,
             contractAddress: lowerContract,
-            owner: lowerOwner,
             factoryDeployed: true,
             transferable,
             users: [],
@@ -1181,7 +1175,6 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
           upsert: {
             chainId,
             contractAddress: lowerContract,
-            owner: '',
             factoryDeployed: false,
             transferable: false,
             users: [normalized],
@@ -1243,47 +1236,6 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
         return null
       }
       const errorMsg = `Error when removing tokenId ${tokenId} from access list ${id}: ${error.message}`
-      DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
-      return null
-    }
-  }
-
-  async updateOwner(
-    chainId: number,
-    contractAddress: string,
-    owner: string,
-    block: number,
-    txId: string
-  ) {
-    const id = this.docId(chainId, contractAddress)
-    try {
-      await this.client.update({
-        index: this.index,
-        id,
-        body: {
-          script: {
-            source: `
-              ctx._source.owner = params.owner;
-              ctx._source.lastUpdatedBlock = params.block;
-              ctx._source.lastTxId = params.txId;
-            `,
-            lang: 'painless',
-            params: { owner: owner.toLowerCase(), block, txId }
-          }
-        },
-        refresh: 'wait_for'
-      })
-      return { id }
-    } catch (error) {
-      if (error?.meta?.statusCode === 404) {
-        return null
-      }
-      const errorMsg = `Error when updating owner on access list ${id}: ${error.message}`
       DATABASE_LOGGER.logMessageWithEmoji(
         errorMsg,
         true,

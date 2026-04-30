@@ -965,21 +965,18 @@ export class TypesenseAccessListDatabase extends AbstractAccessListDatabase {
   async create(
     chainId: number,
     contractAddress: string,
-    owner: string,
     transferable: boolean,
     block: number,
     txId: string
   ) {
     const id = this.docId(chainId, contractAddress)
     const lowerContract = contractAddress.toLowerCase()
-    const lowerOwner = owner.toLowerCase()
     try {
       const existing: any = await this.retrieve(chainId, contractAddress)
       const doc = {
         id,
         chainId,
         contractAddress: lowerContract,
-        owner: lowerOwner,
         factoryDeployed: true,
         transferable,
         users: existing?.users ?? [],
@@ -1025,7 +1022,6 @@ export class TypesenseAccessListDatabase extends AbstractAccessListDatabase {
         id,
         chainId,
         contractAddress: lowerContract,
-        owner: existing?.owner ?? '',
         factoryDeployed: existing?.factoryDeployed ?? false,
         transferable: existing?.transferable ?? false,
         users: nextUsers,
@@ -1065,29 +1061,6 @@ export class TypesenseAccessListDatabase extends AbstractAccessListDatabase {
         .update(id, { users: nextUsers, lastUpdatedBlock: block, lastTxId: txId })
     } catch (error) {
       this.logError(`removing tokenId ${tokenId} from access list ${id}`, error)
-      return null
-    }
-  }
-
-  async updateOwner(
-    chainId: number,
-    contractAddress: string,
-    owner: string,
-    block: number,
-    txId: string
-  ) {
-    const id = this.docId(chainId, contractAddress)
-    try {
-      return await this.provider.collections(this.schema.name).documents().update(id, {
-        owner: owner.toLowerCase(),
-        lastUpdatedBlock: block,
-        lastTxId: txId
-      })
-    } catch (error) {
-      if (error instanceof TypesenseError && error.httpStatus === 404) {
-        return null
-      }
-      this.logError(`updating owner on access list ${id}`, error)
       return null
     }
   }

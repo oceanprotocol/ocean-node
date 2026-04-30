@@ -22,7 +22,6 @@ export class NewAccessListEventProcessor extends BaseEventProcessor {
       if (!decoded) return null
 
       const contractAddress = decoded.args[0].toString().toLowerCase()
-      const owner = decoded.args[1].toString().toLowerCase()
 
       let transferable = false
       try {
@@ -43,14 +42,13 @@ export class NewAccessListEventProcessor extends BaseEventProcessor {
       const result = await accessList.create(
         chainId,
         contractAddress,
-        owner,
         transferable,
         event.blockNumber,
         event.transactionHash
       )
 
       INDEXER_LOGGER.logMessage(
-        `[NewAccessList] Indexed access list ${contractAddress} on chain ${chainId} (owner=${owner}, transferable=${transferable})`
+        `[NewAccessList] Indexed access list ${contractAddress} on chain ${chainId} (transferable=${transferable})`
       )
       return result
     } catch (err) {

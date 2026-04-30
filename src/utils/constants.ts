@@ -122,8 +122,7 @@ export const EVENTS = {
   EXCHANGE_DEACTIVATED: 'ExchangeDeactivated',
   ADDRESS_ADDED: 'AddressAdded',
   ADDRESS_REMOVED: 'AddressRemoved',
-  NEW_ACCESS_LIST: 'NewAccessList',
-  ACCESS_LIST_OWNERSHIP_TRANSFERRED: 'OwnershipTransferred'
+  NEW_ACCESS_LIST: 'NewAccessList'
 }
 
 export const INDEXER_CRAWLING_EVENTS = {
@@ -205,10 +204,6 @@ export const EVENT_HASHES: Hashes = {
   '0xd65bc8e3024bbad886df74eea79b6e118b7fbcffe1f3f98054e5a6b98dc83891': {
     type: EVENTS.NEW_ACCESS_LIST,
     text: 'NewAccessList(address,address)'
-  },
-  '0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0': {
-    type: EVENTS.ACCESS_LIST_OWNERSHIP_TRANSFERRED,
-    text: 'OwnershipTransferred(address,address)'
   }
 }
 

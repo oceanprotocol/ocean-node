@@ -134,7 +134,6 @@ export const typesenseSchemas: TypesenseSchemas = {
     fields: [
       { name: 'chainId', type: 'int64' },
       { name: 'contractAddress', type: 'string' },
-      { name: 'owner', type: 'string' },
       { name: 'factoryDeployed', type: 'bool' },
       { name: 'transferable', type: 'bool' },
       { name: 'users', type: 'object[]', optional: true },

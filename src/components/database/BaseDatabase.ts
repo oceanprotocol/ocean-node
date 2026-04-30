@@ -43,7 +43,6 @@ export abstract class AbstractAccessListDatabase extends AbstractDatabase {
   abstract create(
     chainId: number,
     contractAddress: string,
-    owner: string,
     transferable: boolean,
     block: number,
     txId: string
@@ -60,14 +59,6 @@ export abstract class AbstractAccessListDatabase extends AbstractDatabase {
     chainId: number,
     contractAddress: string,
     tokenId: number,
-    block: number,
-    txId: string
-  ): Promise<any>
-
-  abstract updateOwner(
-    chainId: number,
-    contractAddress: string,
-    owner: string,
     block: number,
     txId: string
   ): Promise<any>

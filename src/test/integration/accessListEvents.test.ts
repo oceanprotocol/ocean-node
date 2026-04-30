@@ -38,7 +38,6 @@ describe('**********         AccessList event indexing', function () {
   let oceanNode: OceanNode
   let provider: JsonRpcProvider
   let owner: Signer
-  let secondOwner: Signer
   let factoryAddress: string
   let indexer: OceanIndexer
   const chainId = DEVELOPMENT_CHAIN_ID
@@ -81,9 +80,6 @@ describe('**********         AccessList event indexing', function () {
       null,
       true
     )
-    indexer = new OceanIndexer(database, config, oceanNode.blockchainRegistry)
-    oceanNode.addIndexer(indexer)
-
     let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!artifactsAddresses) {
       artifactsAddresses = getOceanArtifactsAdresses().development
@@ -92,7 +88,15 @@ describe('**********         AccessList event indexing', function () {
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     owner = (await provider.getSigner(0)) as Signer
-    secondOwner = (await provider.getSigner(1)) as Signer
+
+    // Skip historical replay: the hardhat chain accumulates AccessList events
+    // across test runs. Pin the indexer to the current head so it only sees
+    // events emitted by THIS suite.
+    const headBlock = await provider.getBlockNumber()
+    await database.indexer.update(chainId, headBlock)
+
+    indexer = new OceanIndexer(database, config, oceanNode.blockchainRegistry)
+    oceanNode.addIndexer(indexer)
   })
 
   after(async () => {
@@ -101,7 +105,6 @@ describe('**********         AccessList event indexing', function () {
   })
 
   it('factory deploy with no initial users creates an indexed document', async () => {
-    const ownerAddr = (await owner.getAddress()).toLowerCase()
     const deployedAddr = await deployAccessListContract(
       owner,
       factoryAddress,
@@ -121,7 +124,6 @@ describe('**********         AccessList event indexing', function () {
 
     expect(doc, 'document was not indexed in time').to.not.equal(null)
     expect(doc.contractAddress).to.equal(deployedAddr!.toLowerCase())
-    expect(doc.owner).to.equal(ownerAddr)
     expect(doc.factoryDeployed).to.equal(true)
     expect(doc.transferable).to.equal(false)
     expect(Array.isArray(doc.users)).to.equal(true)
@@ -162,7 +164,6 @@ describe('**********         AccessList event indexing', function () {
       expect(u.tokenId).to.be.a('number')
       expect(u.block).to.be.a('number').and.greaterThan(0)
       expect(u.txId).to.be.a('string')
-      expect(u.timestamp).to.be.a('number').and.greaterThan(0)
     }
   })
 
@@ -264,8 +265,7 @@ describe('**********         AccessList event indexing', function () {
       wallet: '0x' + 'a'.repeat(40),
       tokenId: 999,
       block: 1,
-      txId: '0xdeadbeef',
-      timestamp: 1
+      txId: '0xdeadbeef'
     }
 
     await database.accessList.addUser(chainId, deployedAddr!, sameUser)
@@ -274,38 +274,6 @@ describe('**********         AccessList event indexing', function () {
     const doc: any = await database.accessList.retrieve(chainId, deployedAddr!)
     const matches = doc.users.filter((u: any) => u.tokenId === sameUser.tokenId)
     expect(matches.length).to.equal(1)
-  })
-
-  it('transferOwnership updates the owner field', async () => {
-    const deployedAddr = await deployAccessListContract(
-      owner,
-      factoryAddress,
-      AccessListFactory.abi,
-      'OwnershipList',
-      'OWN',
-      false,
-      await owner.getAddress(),
-      [],
-      []
-    )
-    expect(deployedAddr).to.be.a('string')
-
-    await waitForCondition(async () => {
-      return await database.accessList.retrieve(chainId, deployedAddr!)
-    }, DEFAULT_TEST_TIMEOUT * 2)
-
-    const accessListContract = getContract(deployedAddr!, AccessList.abi, owner)
-    const newOwnerAddr = (await secondOwner.getAddress()).toLowerCase()
-
-    const tx = await accessListContract.transferOwnership(newOwnerAddr)
-    await tx.wait()
-
-    const doc: any = await waitForCondition(async () => {
-      const d: any = await database.accessList.retrieve(chainId, deployedAddr!)
-      return d && d.owner === newOwnerAddr ? d : null
-    }, DEFAULT_TEST_TIMEOUT * 2)
-    expect(doc, 'owner update was not indexed').to.not.equal(null)
-    expect(doc.owner).to.equal(newOwnerAddr)
   })
 
   it('transferable: true is recorded on the doc', async () => {

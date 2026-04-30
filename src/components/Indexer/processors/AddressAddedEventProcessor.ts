@@ -23,16 +23,13 @@ export class AddressAddedEventProcessor extends BaseEventProcessor {
       const wallet = decoded.args[0].toString().toLowerCase()
       const tokenId = Number(decoded.args[1])
       const contractAddress = event.address.toLowerCase()
-      const block = await provider.getBlock(event.blockNumber)
-      const timestamp = block?.timestamp ?? Math.floor(Date.now() / 1000)
 
       const { accessList } = await this.getDatabase()
       const result = await accessList.addUser(chainId, contractAddress, {
         wallet,
         tokenId,
         block: event.blockNumber,
-        txId: event.transactionHash,
-        timestamp
+        txId: event.transactionHash
       })
 
       INDEXER_LOGGER.logMessage(
