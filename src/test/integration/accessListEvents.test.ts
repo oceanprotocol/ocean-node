@@ -124,7 +124,6 @@ describe('**********         AccessList event indexing', function () {
 
     expect(doc, 'document was not indexed in time').to.not.equal(null)
     expect(doc.contractAddress).to.equal(deployedAddr!.toLowerCase())
-    expect(doc.factoryDeployed).to.equal(true)
     expect(doc.transferable).to.equal(false)
     expect(Array.isArray(doc.users)).to.equal(true)
     expect(doc.users.length).to.equal(0)
@@ -353,7 +352,6 @@ describe('**********         AccessList event indexing', function () {
     expect(result.stream).to.not.equal(null)
     const doc = JSON.parse(await streamToString(result.stream as Readable))
     expect(doc.contractAddress).to.equal(deployedAddr!.toLowerCase())
-    expect(doc.factoryDeployed).to.equal(true)
   })
 
   it('GetAccessListHandler returns 404 for an unknown contract', async () => {

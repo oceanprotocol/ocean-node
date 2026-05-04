@@ -24,17 +24,26 @@ export class NewAccessListEventProcessor extends BaseEventProcessor {
       const contractAddress = decoded.args[0].toString().toLowerCase()
 
       let transferable = false
+      let name: string | undefined
+      let symbol: string | undefined
       try {
         const accessListContract = new ethers.Contract(
           contractAddress,
           AccessList.abi,
           provider
         )
-        transferable = Boolean(await accessListContract.transferable())
+        const [transferableRaw, nameRaw, symbolRaw] = await Promise.all([
+          accessListContract.transferable(),
+          accessListContract.name(),
+          accessListContract.symbol()
+        ])
+        transferable = Boolean(transferableRaw)
+        name = nameRaw
+        symbol = symbolRaw
       } catch (err) {
         INDEXER_LOGGER.log(
           LOG_LEVELS_STR.LEVEL_WARN,
-          `Failed to read transferable() on ${contractAddress}: ${err.message}`
+          `Failed to read on-chain metadata for ${contractAddress}: ${err.message}`
         )
       }
 
@@ -44,11 +53,13 @@ export class NewAccessListEventProcessor extends BaseEventProcessor {
         contractAddress,
         transferable,
         event.blockNumber,
-        event.transactionHash
+        event.transactionHash,
+        name,
+        symbol
       )
 
       INDEXER_LOGGER.logMessage(
-        `[NewAccessList] Indexed access list ${contractAddress} on chain ${chainId} (transferable=${transferable})`
+        `[NewAccessList] Indexed access list ${contractAddress} on chain ${chainId} (name=${name}, symbol=${symbol}, transferable=${transferable})`
       )
       return result
     } catch (err) {

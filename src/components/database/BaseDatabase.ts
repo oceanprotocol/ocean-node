@@ -45,7 +45,9 @@ export abstract class AbstractAccessListDatabase extends AbstractDatabase {
     contractAddress: string,
     transferable: boolean,
     block: number,
-    txId: string
+    txId: string,
+    name?: string,
+    symbol?: string
   ): Promise<any>
 
   abstract retrieve(chainId: number, contractAddress: string): Promise<any>
@@ -58,9 +60,7 @@ export abstract class AbstractAccessListDatabase extends AbstractDatabase {
   abstract removeUserByTokenId(
     chainId: number,
     contractAddress: string,
-    tokenId: number,
-    block: number,
-    txId: string
+    tokenId: number
   ): Promise<any>
 
   abstract searchByWallet(wallet: string, chainId?: number): Promise<any[]>

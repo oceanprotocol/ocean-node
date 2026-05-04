@@ -1053,7 +1053,8 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
               properties: {
                 chainId: { type: 'integer' },
                 contractAddress: { type: 'keyword' },
-                factoryDeployed: { type: 'boolean' },
+                name: { type: 'keyword' },
+                symbol: { type: 'keyword' },
                 transferable: { type: 'boolean' },
                 users: {
                   type: 'nested',
@@ -1064,8 +1065,8 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
                     txId: { type: 'keyword' }
                   }
                 },
-                lastUpdatedBlock: { type: 'long' },
-                lastTxId: { type: 'keyword' }
+                deploymentBlock: { type: 'long' },
+                deploymentTxId: { type: 'keyword' }
               }
             }
           }
@@ -1081,7 +1082,9 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
     contractAddress: string,
     transferable: boolean,
     block: number,
-    txId: string
+    txId: string,
+    name?: string,
+    symbol?: string
   ) {
     const id = this.docId(chainId, contractAddress)
     const lowerContract = contractAddress.toLowerCase()
@@ -1092,22 +1095,24 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
         body: {
           script: {
             source: `
-              ctx._source.factoryDeployed = true;
               ctx._source.transferable = params.transferable;
-              ctx._source.lastUpdatedBlock = params.block;
-              ctx._source.lastTxId = params.txId;
+              ctx._source.deploymentBlock = params.block;
+              ctx._source.deploymentTxId = params.txId;
+              if (params.name != null) { ctx._source.name = params.name; }
+              if (params.symbol != null) { ctx._source.symbol = params.symbol; }
             `,
             lang: 'painless',
-            params: { transferable, block, txId }
+            params: { transferable, block, txId, name, symbol }
           },
           upsert: {
             chainId,
             contractAddress: lowerContract,
-            factoryDeployed: true,
+            name,
+            symbol,
             transferable,
             users: [],
-            lastUpdatedBlock: block,
-            lastTxId: txId
+            deploymentBlock: block,
+            deploymentTxId: txId
           }
         },
         refresh: 'wait_for'
@@ -1166,20 +1171,15 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
                 if (ctx._source.users[i].tokenId == params.user.tokenId) { exists = true; break; }
               }
               if (!exists) { ctx._source.users.add(params.user); }
-              ctx._source.lastUpdatedBlock = params.block;
-              ctx._source.lastTxId = params.txId;
             `,
             lang: 'painless',
-            params: { user: normalized, block: normalized.block, txId: normalized.txId }
+            params: { user: normalized }
           },
           upsert: {
             chainId,
             contractAddress: lowerContract,
-            factoryDeployed: false,
             transferable: false,
-            users: [normalized],
-            lastUpdatedBlock: normalized.block,
-            lastTxId: normalized.txId
+            users: [normalized]
           }
         },
         refresh: 'wait_for'
@@ -1197,13 +1197,7 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
     }
   }
 
-  async removeUserByTokenId(
-    chainId: number,
-    contractAddress: string,
-    tokenId: number,
-    block: number,
-    txId: string
-  ) {
+  async removeUserByTokenId(chainId: number, contractAddress: string, tokenId: number) {
     const id = this.docId(chainId, contractAddress)
     try {
       await this.client.update({
@@ -1215,11 +1209,9 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
               if (ctx._source.users != null) {
                 ctx._source.users.removeIf(u -> u.tokenId == params.tokenId);
               }
-              ctx._source.lastUpdatedBlock = params.block;
-              ctx._source.lastTxId = params.txId;
             `,
             lang: 'painless',
-            params: { tokenId, block, txId }
+            params: { tokenId }
           }
         },
         refresh: 'wait_for'
@@ -1252,8 +1244,7 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
       {
         nested: {
           path: 'users',
-          query: { term: { 'users.wallet': lowerWallet } },
-          inner_hits: { _source: { includes: ['users'] } }
+          query: { term: { 'users.wallet': lowerWallet } }
         }
       }
     ]
@@ -1268,10 +1259,7 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
           query: { bool: { must: filters } }
         }
       } as any)
-      return result.hits.hits.map((h: any) => ({
-        ...(h._source as object),
-        innerHits: h.inner_hits?.users?.hits?.hits?.map((ih: any) => ih._source) ?? []
-      }))
+      return result.hits.hits.map((h: any) => h._source)
     } catch (error) {
       const errorMsg = `Error when searching access lists by wallet ${lowerWallet}: ${error.message}`
       DATABASE_LOGGER.logMessageWithEmoji(

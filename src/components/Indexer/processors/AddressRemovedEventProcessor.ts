@@ -27,9 +27,7 @@ export class AddressRemovedEventProcessor extends BaseEventProcessor {
       const result = await accessList.removeUserByTokenId(
         chainId,
         contractAddress,
-        tokenId,
-        event.blockNumber,
-        event.transactionHash
+        tokenId
       )
 
       INDEXER_LOGGER.logMessage(

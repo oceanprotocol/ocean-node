@@ -134,13 +134,14 @@ export const typesenseSchemas: TypesenseSchemas = {
     fields: [
       { name: 'chainId', type: 'int64' },
       { name: 'contractAddress', type: 'string' },
-      { name: 'factoryDeployed', type: 'bool' },
+      { name: 'name', type: 'string', optional: true },
+      { name: 'symbol', type: 'string', optional: true },
       { name: 'transferable', type: 'bool' },
       { name: 'users', type: 'object[]', optional: true },
       { name: 'users.wallet', type: 'string[]', optional: true, facet: true },
       { name: 'users.tokenId', type: 'int64[]', optional: true },
-      { name: 'lastUpdatedBlock', type: 'int64' },
-      { name: 'lastTxId', type: 'string' }
+      { name: 'deploymentBlock', type: 'int64', optional: true },
+      { name: 'deploymentTxId', type: 'string', optional: true }
     ]
   }
 }

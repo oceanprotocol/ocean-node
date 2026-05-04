@@ -173,7 +173,8 @@ export const elasticSchemas: ElasticsearchSchemas = {
         properties: {
           chainId: { type: 'integer' },
           contractAddress: { type: 'keyword' },
-          factoryDeployed: { type: 'boolean' },
+          name: { type: 'keyword' },
+          symbol: { type: 'keyword' },
           transferable: { type: 'boolean' },
           users: {
             type: 'nested',
@@ -184,8 +185,8 @@ export const elasticSchemas: ElasticsearchSchemas = {
               txId: { type: 'keyword' }
             }
           },
-          lastUpdatedBlock: { type: 'long' },
-          lastTxId: { type: 'keyword' }
+          deploymentBlock: { type: 'long' },
+          deploymentTxId: { type: 'keyword' }
         }
       }
     }

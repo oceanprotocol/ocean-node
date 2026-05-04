@@ -967,7 +967,9 @@ export class TypesenseAccessListDatabase extends AbstractAccessListDatabase {
     contractAddress: string,
     transferable: boolean,
     block: number,
-    txId: string
+    txId: string,
+    name?: string,
+    symbol?: string
   ) {
     const id = this.docId(chainId, contractAddress)
     const lowerContract = contractAddress.toLowerCase()
@@ -977,11 +979,12 @@ export class TypesenseAccessListDatabase extends AbstractAccessListDatabase {
         id,
         chainId,
         contractAddress: lowerContract,
-        factoryDeployed: true,
+        name,
+        symbol,
         transferable,
         users: existing?.users ?? [],
-        lastUpdatedBlock: block,
-        lastTxId: txId
+        deploymentBlock: block,
+        deploymentTxId: txId
       }
       if (existing) {
         return await this.provider
@@ -999,7 +1002,11 @@ export class TypesenseAccessListDatabase extends AbstractAccessListDatabase {
   async retrieve(chainId: number, contractAddress: string) {
     const id = this.docId(chainId, contractAddress)
     try {
-      return await this.provider.collections(this.schema.name).documents().retrieve(id)
+      const doc: any = await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .retrieve(id)
+      return stripId(doc)
     } catch (error) {
       if (error instanceof TypesenseError && error.httpStatus === 404) {
         return null
@@ -1018,36 +1025,26 @@ export class TypesenseAccessListDatabase extends AbstractAccessListDatabase {
       const users: AccessListUser[] = existing?.users ?? []
       const exists = users.some((u) => u.tokenId === normalized.tokenId)
       const nextUsers = exists ? users : [...users, normalized]
-      const doc = {
-        id,
-        chainId,
-        contractAddress: lowerContract,
-        factoryDeployed: existing?.factoryDeployed ?? false,
-        transferable: existing?.transferable ?? false,
-        users: nextUsers,
-        lastUpdatedBlock: normalized.block,
-        lastTxId: normalized.txId
-      }
       if (existing) {
         return await this.provider
           .collections(this.schema.name)
           .documents()
-          .update(id, doc)
+          .update(id, { users: nextUsers })
       }
-      return await this.provider.collections(this.schema.name).documents().create(doc)
+      return await this.provider.collections(this.schema.name).documents().create({
+        id,
+        chainId,
+        contractAddress: lowerContract,
+        transferable: false,
+        users: nextUsers
+      })
     } catch (error) {
       this.logError(`adding user ${normalized.wallet} to access list ${id}`, error)
       return null
     }
   }
 
-  async removeUserByTokenId(
-    chainId: number,
-    contractAddress: string,
-    tokenId: number,
-    block: number,
-    txId: string
-  ) {
+  async removeUserByTokenId(chainId: number, contractAddress: string, tokenId: number) {
     const id = this.docId(chainId, contractAddress)
     try {
       const existing: any = await this.retrieve(chainId, contractAddress)
@@ -1058,7 +1055,7 @@ export class TypesenseAccessListDatabase extends AbstractAccessListDatabase {
       return await this.provider
         .collections(this.schema.name)
         .documents()
-        .update(id, { users: nextUsers, lastUpdatedBlock: block, lastTxId: txId })
+        .update(id, { users: nextUsers })
     } catch (error) {
       this.logError(`removing tokenId ${tokenId} from access list ${id}`, error)
       return null
@@ -1079,7 +1076,7 @@ export class TypesenseAccessListDatabase extends AbstractAccessListDatabase {
           filter_by: filterParts.join(' && '),
           per_page: 250
         })
-      return (result.hits ?? []).map((h: any) => h.document)
+      return (result.hits ?? []).map((h: any) => stripId(h.document))
     } catch (error) {
       this.logError(`searching access lists by wallet ${lowerWallet}`, error)
       return []
@@ -1104,4 +1101,10 @@ export class TypesenseAccessListDatabase extends AbstractAccessListDatabase {
       LOG_LEVELS_STR.LEVEL_ERROR
     )
   }
+}
+
+function stripId(doc: any): any {
+  if (!doc) return doc
+  const { id: _id, ...rest } = doc
+  return rest
 }
