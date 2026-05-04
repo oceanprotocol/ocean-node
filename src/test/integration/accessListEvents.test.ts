@@ -238,9 +238,8 @@ describe('**********         AccessList event indexing', function () {
     const matched = await waitForCondition(async () => {
       const results = await database.accessList.searchByWallet(wallet, chainId)
       return (
-        results.find(
-          (r: any) => r.contractAddress === deployedAddr!.toLowerCase()
-        ) ?? null
+        results.find((r: any) => r.contractAddress === deployedAddr!.toLowerCase()) ??
+        null
       )
     }, DEFAULT_TEST_TIMEOUT * 3)
     expect(matched, 'wallet not found in any access list').to.not.equal(null)
@@ -396,9 +395,7 @@ describe('**********         AccessList event indexing', function () {
       if (result.status.httpStatus !== 200 || !result.stream) return null
       const docs = JSON.parse(await streamToString(result.stream as Readable))
       return (
-        docs.find(
-          (d: any) => d.contractAddress === deployedAddr!.toLowerCase()
-        ) ?? null
+        docs.find((d: any) => d.contractAddress === deployedAddr!.toLowerCase()) ?? null
       )
     }, DEFAULT_TEST_TIMEOUT * 3)
     expect(matched, 'wallet not found via cross-chain handler').to.not.equal(null)
@@ -433,9 +430,7 @@ describe('**********         AccessList event indexing', function () {
       if (result.status.httpStatus !== 200 || !result.stream) return null
       const docs = JSON.parse(await streamToString(result.stream as Readable))
       return (
-        docs.find(
-          (d: any) => d.contractAddress === deployedAddr!.toLowerCase()
-        ) ?? null
+        docs.find((d: any) => d.contractAddress === deployedAddr!.toLowerCase()) ?? null
       )
     }, DEFAULT_TEST_TIMEOUT * 3)
     expect(matched, 'wallet not found via handler').to.not.equal(null)

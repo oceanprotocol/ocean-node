@@ -5,6 +5,7 @@ import {
   SearchAccessListCommand
 } from '../../../@types/commands.js'
 import { Readable } from 'stream'
+import { isAddress } from 'ethers'
 import {
   ValidateParams,
   validateCommandParameters
@@ -58,9 +59,16 @@ export class SearchAccessListHandler extends CommandHandler {
       return checks
     }
     try {
+      const walletString = String(task.wallet)
+      if (!isAddress(walletString)) {
+        return {
+          stream: null,
+          status: { httpStatus: 400, error: 'Invalid wallet address' }
+        }
+      }
       const db = await this.getOceanNode().getDatabase()
       const chainId = task.chainId !== undefined ? Number(task.chainId) : undefined
-      const docs = await db.accessList.searchByWallet(String(task.wallet), chainId)
+      const docs = await db.accessList.searchByWallet(walletString, chainId)
       return {
         stream: Readable.from(JSON.stringify(docs ?? [])),
         status: { httpStatus: 200 }
