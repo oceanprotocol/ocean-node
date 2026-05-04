@@ -53,6 +53,7 @@ export type TypesenseSchemas = {
   logSchemas: TypesenseSchema
   orderSchema: TypesenseSchema
   ddoStateSchema: TypesenseSchema
+  accessListSchema: TypesenseSchema
 }
 const ddoSchemas = readJsonSchemas()
 export const typesenseSchemas: TypesenseSchemas = {
@@ -125,6 +126,22 @@ export const typesenseSchemas: TypesenseSchemas = {
       { name: 'txId', type: 'string' },
       { name: 'valid', type: 'bool' },
       { name: 'error', type: 'string' }
+    ]
+  },
+  accessListSchema: {
+    name: 'access_list',
+    enable_nested_fields: true,
+    fields: [
+      { name: 'chainId', type: 'int64' },
+      { name: 'contractAddress', type: 'string' },
+      { name: 'name', type: 'string', optional: true },
+      { name: 'symbol', type: 'string', optional: true },
+      { name: 'transferable', type: 'bool' },
+      { name: 'users', type: 'object[]', optional: true },
+      { name: 'users.wallet', type: 'string[]', optional: true, facet: true },
+      { name: 'users.tokenId', type: 'int64[]', optional: true },
+      { name: 'deploymentBlock', type: 'int64', optional: true },
+      { name: 'deploymentTxId', type: 'string', optional: true }
     ]
   }
 }

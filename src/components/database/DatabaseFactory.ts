@@ -1,5 +1,6 @@
 import { OceanNodeDBConfig } from '../../@types'
 import {
+  AbstractAccessListDatabase,
   AbstractDdoDatabase,
   AbstractDdoStateDatabase,
   AbstractIndexerDatabase,
@@ -7,6 +8,7 @@ import {
   AbstractOrderDatabase
 } from './BaseDatabase.js'
 import {
+  ElasticsearchAccessListDatabase,
   ElasticsearchDdoDatabase,
   ElasticsearchDdoStateDatabase,
   ElasticsearchIndexerDatabase,
@@ -15,6 +17,7 @@ import {
 } from './ElasticSearchDatabase.js'
 import { typesenseSchemas } from './TypesenseSchemas.js'
 import {
+  TypesenseAccessListDatabase,
   TypesenseDdoDatabase,
   TypesenseDdoStateDatabase,
   TypesenseIndexerDatabase,
@@ -45,7 +48,9 @@ export class DatabaseFactory {
         new ElasticsearchOrderDatabase(config, elasticSchemas.orderSchema),
       ddoState: (config: OceanNodeDBConfig) => new ElasticsearchDdoStateDatabase(config),
       ddoStateQuery: () => new ElasticSearchDdoStateQuery(),
-      metadataQuery: () => new ElasticSearchMetadataQuery()
+      metadataQuery: () => new ElasticSearchMetadataQuery(),
+      accessList: (config: OceanNodeDBConfig) =>
+        new ElasticsearchAccessListDatabase(config)
     },
     typesense: {
       ddo: (config: OceanNodeDBConfig) =>
@@ -59,7 +64,9 @@ export class DatabaseFactory {
       ddoState: (config: OceanNodeDBConfig) =>
         new TypesenseDdoStateDatabase(config, typesenseSchemas.ddoStateSchema),
       ddoStateQuery: () => new TypesenseDdoStateQuery(),
-      metadataQuery: () => new TypesenseMetadataQuery()
+      metadataQuery: () => new TypesenseMetadataQuery(),
+      accessList: (config: OceanNodeDBConfig) =>
+        new TypesenseAccessListDatabase(config, typesenseSchemas.accessListSchema)
     }
   }
 
@@ -128,5 +135,11 @@ export class DatabaseFactory {
 
   static async createConfigDatabase(): Promise<SQLLiteConfigDatabase> {
     return await new SQLLiteConfigDatabase()
+  }
+
+  static createAccessListDatabase(
+    config: OceanNodeDBConfig
+  ): Promise<AbstractAccessListDatabase> {
+    return this.createDatabase('accessList', config)
   }
 }

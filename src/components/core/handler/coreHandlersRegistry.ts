@@ -55,6 +55,7 @@ import {
   PersistentStorageListFilesHandler,
   PersistentStorageUploadFileHandler
 } from './persistentStorage.js'
+import { GetAccessListHandler, SearchAccessListHandler } from './accessListHandler.js'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler
@@ -198,6 +199,14 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DELETE_FILE,
       new PersistentStorageDeleteFileHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.GET_ACCESS_LIST,
+      new GetAccessListHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.SEARCH_ACCESS_LIST,
+      new SearchAccessListHandler(node)
     )
   }
 

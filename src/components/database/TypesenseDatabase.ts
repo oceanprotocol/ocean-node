@@ -7,12 +7,14 @@ import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 
 import { ENVIRONMENT_VARIABLES, TYPESENSE_HITS_CAP } from '../../utils/constants.js'
 import {
+  AbstractAccessListDatabase,
   AbstractDdoDatabase,
   AbstractDdoStateDatabase,
   AbstractIndexerDatabase,
   AbstractLogDatabase,
   AbstractOrderDatabase
 } from './BaseDatabase.js'
+import { AccessListUser } from '../../@types/AccessList.js'
 import { validateDDO } from '../../utils/asset.js'
 import { DDOManager } from '@oceanprotocol/ddo-js'
 
@@ -933,4 +935,176 @@ export class TypesenseLogDatabase extends AbstractLogDatabase {
       return 0
     }
   }
+}
+
+export class TypesenseAccessListDatabase extends AbstractAccessListDatabase {
+  private provider: Typesense
+
+  constructor(config: OceanNodeDBConfig, schema: TypesenseSchema) {
+    super(config, schema)
+    return (async (): Promise<TypesenseAccessListDatabase> => {
+      this.provider = new Typesense({
+        ...convertTypesenseConfig(this.config.url),
+        logger: DATABASE_LOGGER
+      })
+      try {
+        await this.provider.collections(this.schema.name).retrieve()
+      } catch (error) {
+        if (error instanceof TypesenseError && error.httpStatus === 404) {
+          await this.provider.collections().create(this.schema)
+        }
+      }
+      return this
+    })() as unknown as TypesenseAccessListDatabase
+  }
+
+  private docId(chainId: number, contractAddress: string): string {
+    return `${chainId}-${contractAddress.toLowerCase()}`
+  }
+
+  async create(
+    chainId: number,
+    contractAddress: string,
+    transferable: boolean,
+    block: number,
+    txId: string,
+    name?: string,
+    symbol?: string
+  ) {
+    const id = this.docId(chainId, contractAddress)
+    const lowerContract = contractAddress.toLowerCase()
+    try {
+      const existing: any = await this.retrieve(chainId, contractAddress)
+      const doc = {
+        id,
+        chainId,
+        contractAddress: lowerContract,
+        name,
+        symbol,
+        transferable,
+        users: existing?.users ?? [],
+        deploymentBlock: block,
+        deploymentTxId: txId
+      }
+      if (existing) {
+        return await this.provider
+          .collections(this.schema.name)
+          .documents()
+          .update(id, doc)
+      }
+      return await this.provider.collections(this.schema.name).documents().create(doc)
+    } catch (error) {
+      this.logError(`upserting access list ${id}`, error)
+      return null
+    }
+  }
+
+  async retrieve(chainId: number, contractAddress: string) {
+    const id = this.docId(chainId, contractAddress)
+    try {
+      const doc: any = await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .retrieve(id)
+      return stripId(doc)
+    } catch (error) {
+      if (error instanceof TypesenseError && error.httpStatus === 404) {
+        return null
+      }
+      this.logError(`retrieving access list ${id}`, error)
+      return null
+    }
+  }
+
+  async addUser(chainId: number, contractAddress: string, user: AccessListUser) {
+    const id = this.docId(chainId, contractAddress)
+    const lowerContract = contractAddress.toLowerCase()
+    const normalized: AccessListUser = { ...user, wallet: user.wallet.toLowerCase() }
+    try {
+      const existing: any = await this.retrieve(chainId, contractAddress)
+      const users: AccessListUser[] = existing?.users ?? []
+      const exists = users.some((u) => u.tokenId === normalized.tokenId)
+      const nextUsers = exists ? users : [...users, normalized]
+      if (existing) {
+        return await this.provider
+          .collections(this.schema.name)
+          .documents()
+          .update(id, { users: nextUsers })
+      }
+      return await this.provider.collections(this.schema.name).documents().create({
+        id,
+        chainId,
+        contractAddress: lowerContract,
+        transferable: false,
+        users: nextUsers
+      })
+    } catch (error) {
+      this.logError(`adding user ${normalized.wallet} to access list ${id}`, error)
+      return null
+    }
+  }
+
+  async removeUserByTokenId(chainId: number, contractAddress: string, tokenId: number) {
+    const id = this.docId(chainId, contractAddress)
+    try {
+      const existing: any = await this.retrieve(chainId, contractAddress)
+      if (!existing) return null
+      const nextUsers = (existing.users ?? []).filter(
+        (u: AccessListUser) => u.tokenId !== tokenId
+      )
+      return await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .update(id, { users: nextUsers })
+    } catch (error) {
+      this.logError(`removing tokenId ${tokenId} from access list ${id}`, error)
+      return null
+    }
+  }
+
+  async searchByWallet(wallet: string, chainId?: number): Promise<any[]> {
+    const lowerWallet = wallet.toLowerCase()
+    try {
+      const filterParts = [`users.wallet:=${lowerWallet}`]
+      if (chainId !== undefined) filterParts.push(`chainId:=${chainId}`)
+      const result = await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .search({
+          q: '*',
+          query_by: 'contractAddress',
+          filter_by: filterParts.join(' && '),
+          per_page: 250
+        })
+      return (result.hits ?? []).map((h: any) => stripId(h.document))
+    } catch (error) {
+      this.logError(`searching access lists by wallet ${lowerWallet}`, error)
+      return []
+    }
+  }
+
+  async delete(chainId: number, contractAddress: string) {
+    const id = this.docId(chainId, contractAddress)
+    try {
+      return await this.provider.collections(this.schema.name).documents().delete(id)
+    } catch (error) {
+      this.logError(`deleting access list ${id}`, error)
+      return null
+    }
+  }
+
+  private logError(action: string, error: any) {
+    DATABASE_LOGGER.logMessageWithEmoji(
+      `Error when ${action}: ${error?.message ?? error}`,
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEL_ERROR
+    )
+  }
+}
+
+function stripId(doc: any): any {
+  if (!doc) return doc
+  const { id: _id, ...rest } = doc
+  return rest
 }

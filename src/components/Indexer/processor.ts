@@ -17,6 +17,9 @@ import {
   ExchangeActivatedEventProcessor,
   ExchangeDeactivatedEventProcessor,
   ExchangeRateChangedEventProcessor,
+  NewAccessListEventProcessor,
+  AddressAddedEventProcessor,
+  AddressRemovedEventProcessor,
   ProcessorConstructor
 } from './processors/index.js'
 import { findEventByKey } from './utils.js'
@@ -36,7 +39,10 @@ const EVENT_PROCESSOR_MAP: Record<string, ProcessorConstructor> = {
   [EVENTS.EXCHANGE_CREATED]: ExchangeCreatedEventProcessor,
   [EVENTS.EXCHANGE_ACTIVATED]: ExchangeActivatedEventProcessor,
   [EVENTS.EXCHANGE_DEACTIVATED]: ExchangeDeactivatedEventProcessor,
-  [EVENTS.EXCHANGE_RATE_CHANGED]: ExchangeRateChangedEventProcessor
+  [EVENTS.EXCHANGE_RATE_CHANGED]: ExchangeRateChangedEventProcessor,
+  [EVENTS.NEW_ACCESS_LIST]: NewAccessListEventProcessor,
+  [EVENTS.ADDRESS_ADDED]: AddressAddedEventProcessor,
+  [EVENTS.ADDRESS_REMOVED]: AddressRemovedEventProcessor
 }
 
 const processorInstances = new Map<string, BaseEventProcessor>()
