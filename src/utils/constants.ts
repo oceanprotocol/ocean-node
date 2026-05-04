@@ -531,6 +531,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'PERSISTENT_STORAGE',
     value: process.env.PERSISTENT_STORAGE,
     required: false
+  },
+  C2D_DOWNLOAD_TIMEOUT: {
+    name: 'C2D_DOWNLOAD_TIMEOUT',
+    value: process.env.C2D_DOWNLOAD_TIMEOUT,
+    required: false
   }
 }
 export const CONNECTION_HISTORY_DELETE_THRESHOLD = 300

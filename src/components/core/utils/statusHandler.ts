@@ -170,6 +170,9 @@ export async function status(
       CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error getting c2d clusters: ${error}`)
     }
     nodeStatus.supportedSchemas = typesenseSchemas.ddoSchemas
+  } else {
+    delete nodeStatus.c2dClusters
+    delete nodeStatus.supportedSchemas
   }
 
   if (config.persistentStorage) {

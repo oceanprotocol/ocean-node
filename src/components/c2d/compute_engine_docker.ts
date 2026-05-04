@@ -49,6 +49,7 @@ import {
 } from 'fs'
 import { pipeline } from 'node:stream/promises'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
+import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { AssetUtils } from '../../utils/asset.js'
 import { FindDdoHandler } from '../core/handler/ddoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
@@ -1695,6 +1696,15 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
+  private getImagePullTimeoutMs(): number {
+    const raw = ENVIRONMENT_VARIABLES.C2D_DOWNLOAD_TIMEOUT.value
+    const parsed = raw ? parseInt(raw, 10) : NaN
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed * 1000
+    }
+    return 15 * 60 * 1000
+  }
+
   // eslint-disable-next-line require-await
   private async processJob(job: DBComputeJob) {
     CORE_LOGGER.info(
@@ -2548,6 +2558,7 @@ export class C2DEngineDocker extends C2DEngine {
         )
       }
 
+      pullOptions.abortSignal = AbortSignal.timeout(this.getImagePullTimeoutMs())
       const pullStream = await this.docker.pull(job.containerImage, pullOptions)
       await new Promise((resolve, reject) => {
         let wroteStatusBanner = false
