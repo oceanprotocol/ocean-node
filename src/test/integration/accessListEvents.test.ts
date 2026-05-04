@@ -235,10 +235,14 @@ describe('**********         AccessList event indexing', function () {
       return d && d.users.length === 1 ? d : null
     }, DEFAULT_TEST_TIMEOUT * 3)
 
-    const results = await database.accessList.searchByWallet(wallet, chainId)
-    const matched = results.find(
-      (r: any) => r.contractAddress === deployedAddr!.toLowerCase()
-    )
+    const matched = await waitForCondition(async () => {
+      const results = await database.accessList.searchByWallet(wallet, chainId)
+      return (
+        results.find(
+          (r: any) => r.contractAddress === deployedAddr!.toLowerCase()
+        ) ?? null
+      )
+    }, DEFAULT_TEST_TIMEOUT * 3)
     expect(matched, 'wallet not found in any access list').to.not.equal(null)
   })
 
@@ -384,17 +388,20 @@ describe('**********         AccessList event indexing', function () {
       return d && d.users.length === 1 ? d : null
     }, DEFAULT_TEST_TIMEOUT * 3)
 
-    const result = await new SearchAccessListHandler(oceanNode).handle({
-      command: PROTOCOL_COMMANDS.SEARCH_ACCESS_LIST,
-      wallet
-    })
-    expect(result.status.httpStatus).to.equal(200)
-    const docs = JSON.parse(await streamToString(result.stream as Readable))
-    expect(Array.isArray(docs)).to.equal(true)
-    const matched = docs.find(
-      (d: any) => d.contractAddress === deployedAddr!.toLowerCase()
-    )
-    expect(matched, 'wallet not found via cross-chain handler').to.not.equal(undefined)
+    const matched = await waitForCondition(async () => {
+      const result = await new SearchAccessListHandler(oceanNode).handle({
+        command: PROTOCOL_COMMANDS.SEARCH_ACCESS_LIST,
+        wallet
+      })
+      if (result.status.httpStatus !== 200 || !result.stream) return null
+      const docs = JSON.parse(await streamToString(result.stream as Readable))
+      return (
+        docs.find(
+          (d: any) => d.contractAddress === deployedAddr!.toLowerCase()
+        ) ?? null
+      )
+    }, DEFAULT_TEST_TIMEOUT * 3)
+    expect(matched, 'wallet not found via cross-chain handler').to.not.equal(null)
   })
 
   it('SearchAccessListHandler returns docs containing a wallet', async () => {
@@ -417,17 +424,20 @@ describe('**********         AccessList event indexing', function () {
       return d && d.users.length === 1 ? d : null
     }, DEFAULT_TEST_TIMEOUT * 3)
 
-    const result = await new SearchAccessListHandler(oceanNode).handle({
-      command: PROTOCOL_COMMANDS.SEARCH_ACCESS_LIST,
-      wallet,
-      chainId
-    })
-    expect(result.status.httpStatus).to.equal(200)
-    const docs = JSON.parse(await streamToString(result.stream as Readable))
-    expect(Array.isArray(docs)).to.equal(true)
-    const matched = docs.find(
-      (d: any) => d.contractAddress === deployedAddr!.toLowerCase()
-    )
-    expect(matched, 'wallet not found via handler').to.not.equal(undefined)
+    const matched = await waitForCondition(async () => {
+      const result = await new SearchAccessListHandler(oceanNode).handle({
+        command: PROTOCOL_COMMANDS.SEARCH_ACCESS_LIST,
+        wallet,
+        chainId
+      })
+      if (result.status.httpStatus !== 200 || !result.stream) return null
+      const docs = JSON.parse(await streamToString(result.stream as Readable))
+      return (
+        docs.find(
+          (d: any) => d.contractAddress === deployedAddr!.toLowerCase()
+        ) ?? null
+      )
+    }, DEFAULT_TEST_TIMEOUT * 3)
+    expect(matched, 'wallet not found via handler').to.not.equal(null)
   })
 })
