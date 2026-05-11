@@ -571,6 +571,10 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
         task.maxJobDuration
       )
       let agreementId
+      CORE_LOGGER.logMessage(
+        `escrow.createLock cost=${cost} token=${task.payment.token} chainId=${task.payment.chainId} resources=${JSON.stringify(task.resources)} maxJobDuration=${task.maxJobDuration}`,
+        true
+      )
       try {
         agreementId = await engine.escrow.createLock(
           task.payment.chainId,
