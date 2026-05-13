@@ -217,7 +217,7 @@ export class C2DEngineDocker extends C2DEngine {
       description: 'Auto-generated benchmark environment',
       storageExpiry: 604800,
       maxJobDuration: 180,
-      minJobDuration: 60,
+      minJobDuration: 0,
       resources: [
         { id: 'cpu', total: sysinfo.NCPU, min: 1, max: sysinfo.NCPU },
         { id: 'ram', total: ramGB, min: 1, max: ramGB },
