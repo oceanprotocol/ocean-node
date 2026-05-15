@@ -1,8 +1,4 @@
-import fs from 'fs'
-import path, { dirname, resolve } from 'path'
-import { fileURLToPath } from 'url'
-import { DATABASE_LOGGER } from '../../utils/logging/common.js'
-import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { ddoElasticMappings } from '@oceanprotocol/ddo-js'
 
 export type ElasticsearchSchema = {
   index: string
@@ -18,75 +14,6 @@ export type ElasticsearchSchema = {
   }
 }
 
-export function readElasticsearchJsonSchemas(): ElasticsearchSchema[] {
-  const jsonDocuments: ElasticsearchSchema[] = []
-  const pathToSchemaDir: string = '../../../schemas'
-  const currentModulePath = fileURLToPath(import.meta.url)
-
-  try {
-    const currentDirectory = dirname(currentModulePath)
-    const schemaFilePath = resolve(currentDirectory, pathToSchemaDir)
-    const jsonFiles = fs
-      .readdirSync(schemaFilePath)
-      .filter((file) => path.extname(file) === '.json')
-
-    if (jsonFiles.length === 0) {
-      DATABASE_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `No JSON files found in the schemas directory ${schemaFilePath}.`,
-        true
-      )
-      return []
-    } else {
-      jsonFiles.forEach((file) => {
-        const fileData = fs.readFileSync(path.join(schemaFilePath, file), 'utf-8')
-        const jsonFile = JSON.parse(fileData.toString())
-
-        const esSchema: ElasticsearchSchema = {
-          index: jsonFile.name,
-          body: {
-            mappings: {
-              properties: jsonFile.fields.reduce((acc: any, field: any) => {
-                acc[field.name] = { type: convertToElasticsearchType(field.type) }
-                if (field.sort) {
-                  acc[field.name].index = true
-                }
-                if (field.optional) {
-                  acc[field.name].null_value = null
-                }
-                if (field.enum) {
-                  acc[field.name].enum = field.enum
-                }
-                return acc
-              }, {})
-            }
-          }
-        }
-
-        jsonDocuments.push(esSchema)
-      })
-      return jsonDocuments
-    }
-  } catch (error) {
-    DATABASE_LOGGER.log(
-      LOG_LEVELS_STR.LEVEL_ERROR,
-      `JSON mappings could not be loaded in Elasticsearch database.
-      Error: ${error}`,
-      true
-    )
-  }
-  return []
-}
-
-function convertToElasticsearchType(typesenseType: string): string {
-  const typeMapping: { [key: string]: string } = {
-    int64: 'long',
-    string: 'keyword',
-    bool: 'boolean'
-  }
-  return typeMapping[typesenseType] || 'text'
-}
-
 export type ElasticsearchSchemas = {
   ddoSchemas: ElasticsearchSchema[]
   nonceSchemas: ElasticsearchSchema
@@ -97,9 +24,35 @@ export type ElasticsearchSchemas = {
   accessListSchema: ElasticsearchSchema
 }
 
-const ddoSchemas = readElasticsearchJsonSchemas()
+// "op_ddo_short" is a node-side index for deprecated DDOs (state !== 0).
+// Not part of the DDO spec, so it stays here rather than in @oceanprotocol/ddo-js.
+const ddoShortSchema: ElasticsearchSchema = {
+  index: 'op_ddo_short',
+  body: {
+    mappings: {
+      properties: {
+        id: { type: 'keyword' },
+        version: { type: 'keyword' },
+        chainId: { type: 'long' },
+        nftAddress: { type: 'keyword' },
+        indexedMetadata: {
+          type: 'object',
+          properties: {
+            nft: {
+              type: 'object',
+              properties: {
+                state: { type: 'integer' }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 export const elasticSchemas: ElasticsearchSchemas = {
-  ddoSchemas,
+  ddoSchemas: [...(ddoElasticMappings as ElasticsearchSchema[]), ddoShortSchema],
   nonceSchemas: {
     index: 'nonce',
     body: {
