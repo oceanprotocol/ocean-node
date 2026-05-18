@@ -500,9 +500,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
           })
         }
       } catch (e) {
-        DATABASE_LOGGER.error(
-          `Failed to create DDO index ${schema.index}: ${e.message}`
-        )
+        DATABASE_LOGGER.error(`Failed to create DDO index ${schema.index}: ${e.message}`)
       }
     }
   }
