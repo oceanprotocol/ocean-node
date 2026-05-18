@@ -88,6 +88,7 @@ export class C2DEngineDocker extends C2DEngine {
   private trivyCachePath: string
   private cpuAllocations: Map<string, number[]> = new Map()
   private envCpuCoresMap: Map<string, number[]> = new Map()
+  private activeBuildAborts: Map<string, AbortController> = new Map()
 
   public constructor(
     clusterConfig: C2DClusterInfo,
@@ -1730,6 +1731,40 @@ export class C2DEngineDocker extends C2DEngine {
        - delete the container
        - delete the volume
        */
+    if (
+      job.status === C2DStatusNumber.BuildImage ||
+      job.status === C2DStatusNumber.PullImage
+    ) {
+      // In-process build/pull: abort if stop was requested, then let the
+      // existing catch handler finalize. Otherwise let it run.
+      const activeBuildAbort = this.activeBuildAborts.get(job.jobId)
+      if (activeBuildAbort) {
+        if (job.stopRequested === true) {
+          activeBuildAbort.abort()
+        }
+        return
+      }
+
+      // No active build abort → orphan (the process running build/pull died).
+      const isBuild = job.status === C2DStatusNumber.BuildImage
+      const nowSec = Date.now() / 1000
+      job.status = isBuild
+        ? C2DStatusNumber.BuildImageFailed
+        : C2DStatusNumber.PullImageFailed
+      job.statusText = isBuild
+        ? C2DStatusText.BuildImageFailed
+        : C2DStatusText.PullImageFailed
+      job.isRunning = false
+      if (isBuild) {
+        job.buildStopTimestamp = String(nowSec)
+      }
+      job.dateFinished = String(nowSec)
+
+      await this.db.updateJob(job)
+      await this.cleanupJob(job)
+      return
+    }
+
     if (job.status === C2DStatusNumber.JobQueued) {
       // check if we can start the job now
       const now = String(Date.now() / 1000)
@@ -2516,6 +2551,9 @@ export class C2DEngineDocker extends C2DEngine {
   private async pullImage(originaljob: DBComputeJob) {
     const job = JSON.parse(JSON.stringify(originaljob)) as DBComputeJob
     const imageLogFile = this.getStoragePath() + '/' + job.jobId + '/data/logs/image.log'
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), this.getImagePullTimeoutMs())
+    this.activeBuildAborts.set(job.jobId, controller)
     try {
       // Get registry auth for the image
       const { registry } = this.parseImage(job.containerImage)
@@ -2560,7 +2598,7 @@ export class C2DEngineDocker extends C2DEngine {
         )
       }
 
-      pullOptions.abortSignal = AbortSignal.timeout(this.getImagePullTimeoutMs())
+      pullOptions.abortSignal = controller.signal
       const pullStream = await this.docker.pull(job.containerImage, pullOptions)
       await new Promise((resolve, reject) => {
         let wroteStatusBanner = false
@@ -2609,6 +2647,9 @@ export class C2DEngineDocker extends C2DEngine {
       job.dateFinished = String(Date.now() / 1000)
       await this.db.updateJob(job)
       await this.cleanupJob(job)
+    } finally {
+      clearTimeout(timer)
+      this.activeBuildAborts.delete(job.jobId)
     }
   }
 
@@ -2622,6 +2663,7 @@ export class C2DEngineDocker extends C2DEngine {
     const controller = new AbortController()
     const timeoutMs = job.maxJobDuration * 1000
     const timer = setTimeout(() => controller.abort(), timeoutMs)
+    this.activeBuildAborts.set(job.jobId, controller)
     try {
       const pack = tarStream.pack()
 
@@ -2760,6 +2802,7 @@ export class C2DEngineDocker extends C2DEngine {
       await this.cleanupJob(job)
     } finally {
       clearTimeout(timer)
+      this.activeBuildAborts.delete(job.jobId)
     }
   }
 
