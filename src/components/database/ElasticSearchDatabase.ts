@@ -484,8 +484,25 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
 
     return (async (): Promise<ElasticsearchDdoDatabase> => {
       this.client = await createElasticsearchClientWithRetry(config)
+      await this.initializeIndexes()
       return this
     })() as unknown as ElasticsearchDdoDatabase
+  }
+
+  private async initializeIndexes() {
+    for (const schema of this.getSchemas()) {
+      try {
+        const exists = await this.client.indices.exists({ index: schema.index })
+        if (!exists) {
+          await this.client.indices.create({
+            index: schema.index,
+            body: schema.body as any
+          })
+        }
+      } catch (e) {
+        DATABASE_LOGGER.error(`Failed to create DDO index ${schema.index}: ${e.message}`)
+      }
+    }
   }
 
   getSchemas(): ElasticsearchSchema[] {
