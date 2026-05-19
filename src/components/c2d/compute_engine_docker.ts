@@ -2658,8 +2658,7 @@ export class C2DEngineDocker extends C2DEngine {
     additionalDockerFiles: { [key: string]: any }
   ) {
     const job = JSON.parse(JSON.stringify(originaljob)) as DBComputeJob
-    const imageLogFile =
-      this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/logs/image.log'
+    const imageLogFile = this.getStoragePath() + '/' + job.jobId + '/data/logs/image.log'
     const controller = new AbortController()
     const timeoutMs = job.maxJobDuration * 1000
     const timer = setTimeout(() => controller.abort(), timeoutMs)
