@@ -106,6 +106,18 @@ export interface QueryCommand extends Command {
   maxResultsPerPage?: number
   pageNumber?: number
 }
+
+export interface GetEscrowEventsCommand extends Command {
+  chainId?: number
+  eventType?: string
+  payer?: string
+  payee?: string
+  token?: string
+  jobId?: string
+  txId?: string
+  maxResultsPerPage?: number
+  pageNumber?: number
+}
 export interface ReindexCommand extends Command {
   txId: string
   chainId: number

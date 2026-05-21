@@ -9,6 +9,7 @@ import {
   AbstractAccessListDatabase,
   AbstractDdoDatabase,
   AbstractDdoStateDatabase,
+  AbstractEscrowDatabase,
   AbstractIndexerDatabase,
   AbstractLogDatabase,
   AbstractOrderDatabase
@@ -31,6 +32,7 @@ export class Database {
   order: AbstractOrderDatabase
   ddoState: AbstractDdoStateDatabase
   accessList: AbstractAccessListDatabase
+  escrow: AbstractEscrowDatabase
   sqliteConfig: SQLLiteConfigDatabase
   c2d: C2DDatabase
   authToken: AuthTokenDatabase
@@ -108,6 +110,13 @@ export class Database {
         db.accessList = await DatabaseFactory.createAccessListDatabase(config)
       } catch (error) {
         DATABASE_LOGGER.error(`AccessList database initialization failed: ${error}`)
+        return null
+      }
+
+      try {
+        db.escrow = await DatabaseFactory.createEscrowDatabase(config)
+      } catch (error) {
+        DATABASE_LOGGER.error(`Escrow database initialization failed: ${error}`)
         return null
       }
     } else {

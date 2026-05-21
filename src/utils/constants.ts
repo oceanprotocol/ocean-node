@@ -46,7 +46,8 @@ export const PROTOCOL_COMMANDS = {
   PERSISTENT_STORAGE_GET_FILE_OBJECT: 'persistentStorageGetFileObject',
   PERSISTENT_STORAGE_DELETE_FILE: 'persistentStorageDeleteFile',
   GET_ACCESS_LIST: 'getAccessList',
-  SEARCH_ACCESS_LIST: 'searchAccessList'
+  SEARCH_ACCESS_LIST: 'searchAccessList',
+  GET_ESCROW_EVENTS: 'getEscrowEvents'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -94,7 +95,8 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_FILE_OBJECT,
   PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DELETE_FILE,
   PROTOCOL_COMMANDS.GET_ACCESS_LIST,
-  PROTOCOL_COMMANDS.SEARCH_ACCESS_LIST
+  PROTOCOL_COMMANDS.SEARCH_ACCESS_LIST,
+  PROTOCOL_COMMANDS.GET_ESCROW_EVENTS
 ]
 
 export const MetadataStates = {
@@ -122,7 +124,14 @@ export const EVENTS = {
   EXCHANGE_DEACTIVATED: 'ExchangeDeactivated',
   ADDRESS_ADDED: 'AddressAdded',
   ADDRESS_REMOVED: 'AddressRemoved',
-  NEW_ACCESS_LIST: 'NewAccessList'
+  NEW_ACCESS_LIST: 'NewAccessList',
+  // Escrow contract events. Values must equal the on-chain event name.
+  ESCROW_AUTH: 'Auth',
+  ESCROW_LOCK: 'Lock',
+  ESCROW_CLAIMED: 'Claimed',
+  ESCROW_CANCELED: 'Canceled',
+  ESCROW_DEPOSIT: 'Deposit',
+  ESCROW_WITHDRAW: 'Withdraw'
 }
 
 export const INDEXER_CRAWLING_EVENTS = {
@@ -204,6 +213,30 @@ export const EVENT_HASHES: Hashes = {
   '0xd65bc8e3024bbad886df74eea79b6e118b7fbcffe1f3f98054e5a6b98dc83891': {
     type: EVENTS.NEW_ACCESS_LIST,
     text: 'NewAccessList(address,address)'
+  },
+  '0x118cb6c6a02e26bfdb39cab8d70573499942c4ee3f0d7616d3c4100fe9163d9d': {
+    type: EVENTS.ESCROW_AUTH,
+    text: 'Auth(address,address,uint256,uint256,uint256)'
+  },
+  '0xb746b0421b0b98debe76bb312ec9fb701603af22ddb107f7e639b0187e4ff880': {
+    type: EVENTS.ESCROW_LOCK,
+    text: 'Lock(address,address,uint256,uint256,uint256,address)'
+  },
+  '0x77aeb72af8b0efaf7fd8c746d2fb78653ae489dd88dea7a851cb354e4cdc4eed': {
+    type: EVENTS.ESCROW_CLAIMED,
+    text: 'Claimed(address,uint256,address,address,uint256,bytes)'
+  },
+  '0x5bcb66e310a3be233290f5d61fba34fe58a0e8045b4678714af2c7986f3a5e50': {
+    type: EVENTS.ESCROW_CANCELED,
+    text: 'Canceled(address,uint256,address,address,uint256)'
+  },
+  '0x5548c837ab068cf56a2c2479df0882a4922fd203edb7517321831d95078c5f62': {
+    type: EVENTS.ESCROW_DEPOSIT,
+    text: 'Deposit(address,address,uint256)'
+  },
+  '0x9b1bfa7fa9ee420a16e124f794c35ac9f90472acc99140eb2f6447c714cad8eb': {
+    type: EVENTS.ESCROW_WITHDRAW,
+    text: 'Withdraw(address,address,uint256)'
   }
 }
 

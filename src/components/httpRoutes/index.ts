@@ -16,6 +16,7 @@ import { authRoutes } from './auth.js'
 import { adminConfigRoutes } from './adminConfig.js'
 import { persistentStorageRoutes } from './persistentStorage.js'
 import { accessListRoutes } from './accessList.js'
+import { escrowRoutes } from './escrow.js'
 
 export * from './getOceanPeers.js'
 export * from './auth.js'
@@ -67,6 +68,9 @@ httpRoutes.use(adminConfigRoutes)
 httpRoutes.use(persistentStorageRoutes)
 // access list routes
 httpRoutes.use(accessListRoutes)
+// escrow events routes
+// /api/services/escrow/events
+httpRoutes.use(escrowRoutes)
 
 export function getAllServiceEndpoints() {
   httpRoutes.stack.forEach(addMapping.bind(null, []))

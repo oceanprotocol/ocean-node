@@ -54,6 +54,7 @@ export type TypesenseSchemas = {
   orderSchema: TypesenseSchema
   ddoStateSchema: TypesenseSchema
   accessListSchema: TypesenseSchema
+  escrowSchema: TypesenseSchema
 }
 const ddoSchemas = readJsonSchemas()
 export const typesenseSchemas: TypesenseSchemas = {
@@ -142,6 +143,28 @@ export const typesenseSchemas: TypesenseSchemas = {
       { name: 'users.tokenId', type: 'int64[]', optional: true },
       { name: 'deploymentBlock', type: 'int64', optional: true },
       { name: 'deploymentTxId', type: 'string', optional: true }
+    ]
+  },
+  escrowSchema: {
+    name: 'escrow',
+    enable_nested_fields: true,
+    fields: [
+      { name: 'eventType', type: 'string', facet: true },
+      { name: 'chainId', type: 'int64', facet: true },
+      { name: 'contract', type: 'string' },
+      { name: 'block', type: 'int64' },
+      { name: 'txHash', type: 'string' },
+      { name: 'payer', type: 'string', optional: true },
+      { name: 'payee', type: 'string', optional: true },
+      { name: 'token', type: 'string', optional: true },
+      { name: 'jobId', type: 'string', optional: true },
+      // uint256 values kept as raw strings to avoid precision loss
+      { name: 'amount', type: 'string', optional: true },
+      { name: 'expiry', type: 'string', optional: true },
+      { name: 'proof', type: 'string', optional: true },
+      { name: 'maxLockedAmount', type: 'string', optional: true },
+      { name: 'maxLockSeconds', type: 'string', optional: true },
+      { name: 'maxLockCounts', type: 'string', optional: true }
     ]
   }
 }

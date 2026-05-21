@@ -15,6 +15,7 @@ export * from './OrderStartedEventProcessor.js'
 export * from './NewAccessListEventProcessor.js'
 export * from './AddressAddedEventProcessor.js'
 export * from './AddressRemovedEventProcessor.js'
+export * from './EscrowEventProcessor.js'
 export * from './BaseProcessor.js'
 
 export type ProcessorConstructor = new (

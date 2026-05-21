@@ -22,6 +22,7 @@ export type ElasticsearchSchemas = {
   orderSchema: ElasticsearchSchema
   ddoStateSchema: ElasticsearchSchema
   accessListSchema: ElasticsearchSchema
+  escrowSchema: ElasticsearchSchema
 }
 
 // "op_ddo_short" is a node-side index for deprecated DDOs (state !== 0).
@@ -140,6 +141,31 @@ export const elasticSchemas: ElasticsearchSchemas = {
           },
           deploymentBlock: { type: 'long' },
           deploymentTxId: { type: 'keyword' }
+        }
+      }
+    }
+  },
+  escrowSchema: {
+    index: 'escrow',
+    body: {
+      mappings: {
+        properties: {
+          id: { type: 'keyword' },
+          eventType: { type: 'keyword' },
+          chainId: { type: 'long' },
+          contract: { type: 'keyword' },
+          block: { type: 'long' },
+          txHash: { type: 'keyword' },
+          payer: { type: 'keyword' },
+          payee: { type: 'keyword' },
+          token: { type: 'keyword' },
+          jobId: { type: 'keyword' },
+          amount: { type: 'text' },
+          expiry: { type: 'text' },
+          proof: { type: 'text' },
+          maxLockedAmount: { type: 'text' },
+          maxLockSeconds: { type: 'text' },
+          maxLockCounts: { type: 'text' }
         }
       }
     }

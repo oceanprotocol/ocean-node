@@ -1,6 +1,7 @@
 import { Schema } from '.'
 import { OceanNodeDBConfig } from '../../@types'
 import { AccessListUser } from '../../@types/AccessList.js'
+import { EscrowEvent } from '../../@types/Escrow.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { ElasticsearchSchema } from './ElasticSchemas.js'
@@ -150,6 +151,28 @@ export abstract class AbstractOrderDatabase {
   ): Promise<any>
 
   abstract delete(orderId: string): Promise<any>
+}
+
+export abstract class AbstractEscrowDatabase {
+  protected config: OceanNodeDBConfig
+  protected schema: Schema
+
+  constructor(config: OceanNodeDBConfig, schema: Schema) {
+    this.config = config
+    this.schema = schema
+  }
+
+  abstract create(event: EscrowEvent): Promise<any>
+
+  abstract retrieve(id: string): Promise<Record<string, any> | null>
+
+  abstract search(
+    filters: Record<string, any>,
+    maxResultsPerPage?: number,
+    pageNumber?: number
+  ): Promise<Record<string, any>[] | null>
+
+  abstract delete(id: string): Promise<any>
 }
 
 export abstract class AbstractDdoDatabase {

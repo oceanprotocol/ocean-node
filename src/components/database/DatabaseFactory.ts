@@ -3,6 +3,7 @@ import {
   AbstractAccessListDatabase,
   AbstractDdoDatabase,
   AbstractDdoStateDatabase,
+  AbstractEscrowDatabase,
   AbstractIndexerDatabase,
   AbstractLogDatabase,
   AbstractOrderDatabase
@@ -11,6 +12,7 @@ import {
   ElasticsearchAccessListDatabase,
   ElasticsearchDdoDatabase,
   ElasticsearchDdoStateDatabase,
+  ElasticsearchEscrowDatabase,
   ElasticsearchIndexerDatabase,
   ElasticsearchLogDatabase,
   ElasticsearchOrderDatabase
@@ -20,6 +22,7 @@ import {
   TypesenseAccessListDatabase,
   TypesenseDdoDatabase,
   TypesenseDdoStateDatabase,
+  TypesenseEscrowDatabase,
   TypesenseIndexerDatabase,
   TypesenseLogDatabase,
   TypesenseOrderDatabase
@@ -50,7 +53,9 @@ export class DatabaseFactory {
       ddoStateQuery: () => new ElasticSearchDdoStateQuery(),
       metadataQuery: () => new ElasticSearchMetadataQuery(),
       accessList: (config: OceanNodeDBConfig) =>
-        new ElasticsearchAccessListDatabase(config)
+        new ElasticsearchAccessListDatabase(config),
+      escrow: (config: OceanNodeDBConfig) =>
+        new ElasticsearchEscrowDatabase(config, elasticSchemas.escrowSchema)
     },
     typesense: {
       ddo: (config: OceanNodeDBConfig) =>
@@ -66,7 +71,9 @@ export class DatabaseFactory {
       ddoStateQuery: () => new TypesenseDdoStateQuery(),
       metadataQuery: () => new TypesenseMetadataQuery(),
       accessList: (config: OceanNodeDBConfig) =>
-        new TypesenseAccessListDatabase(config, typesenseSchemas.accessListSchema)
+        new TypesenseAccessListDatabase(config, typesenseSchemas.accessListSchema),
+      escrow: (config: OceanNodeDBConfig) =>
+        new TypesenseEscrowDatabase(config, typesenseSchemas.escrowSchema)
     }
   }
 
@@ -141,5 +148,11 @@ export class DatabaseFactory {
     config: OceanNodeDBConfig
   ): Promise<AbstractAccessListDatabase> {
     return this.createDatabase('accessList', config)
+  }
+
+  static createEscrowDatabase(
+    config: OceanNodeDBConfig
+  ): Promise<AbstractEscrowDatabase> {
+    return this.createDatabase('escrow', config)
   }
 }
