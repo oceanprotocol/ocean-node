@@ -284,7 +284,10 @@ export class TypesenseEscrowDatabase extends AbstractEscrowDatabase {
     try {
       const filterBy = Object.entries(filters || {})
         .filter(([, value]) => value !== undefined && value !== null && value !== '')
-        .map(([field, value]) => `${field}:=${value}`)
+        // Backtick string values so spaces/special chars can't break the syntax.
+        .map(([field, value]) =>
+          typeof value === 'string' ? `${field}:=\`${value}\`` : `${field}:=${value}`
+        )
         .join(' && ')
 
       const maxPerPage = maxResultsPerPage

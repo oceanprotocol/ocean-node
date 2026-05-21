@@ -161,7 +161,9 @@ export const typesenseSchemas: TypesenseSchemas = {
       // uint256 values kept as raw strings to avoid precision loss
       { name: 'amount', type: 'string', optional: true },
       { name: 'expiry', type: 'string', optional: true },
-      { name: 'proof', type: 'string', optional: true },
+      // proof (Claimed event bytes) is stored but never filtered; skip indexing
+      // it so a large hex value can't hit Typesense's indexed-field length limit.
+      { name: 'proof', type: 'string', optional: true, index: false },
       { name: 'maxLockedAmount', type: 'string', optional: true },
       { name: 'maxLockSeconds', type: 'string', optional: true },
       { name: 'maxLockCounts', type: 'string', optional: true }

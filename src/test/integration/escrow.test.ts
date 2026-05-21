@@ -94,8 +94,6 @@ describe('Indexer stores Escrow contract events', () => {
       null,
       true
     )
-    indexer = new OceanIndexer(database, config, oceanNode.blockchainRegistry)
-    oceanNode.addIndexer(indexer)
 
     let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!artifactsAddresses) {
@@ -109,6 +107,12 @@ describe('Indexer stores Escrow contract events', () => {
     consumerAccount = (await provider.getSigner(1)) as Signer
     payerAddress = await consumerAccount.getAddress()
     payeeAddress = await publisherAccount.getAddress()
+
+    const headBlock = await provider.getBlockNumber()
+    await database.indexer.update(chainId, headBlock)
+
+    indexer = new OceanIndexer(database, config, oceanNode.blockchainRegistry)
+    oceanNode.addIndexer(indexer)
 
     if (escrowAddress && paymentToken) {
       tokenContract = new ethers.Contract(paymentToken, OceanToken.abi, publisherAccount)
