@@ -58,6 +58,17 @@ describe('Indexer stores Escrow contract events', () => {
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   let previousConfiguration: OverrideEnvConfig[]
 
+  // search() returns [] (truthy) when empty, which would make waitForCondition
+  // resolve on the first poll; return null until a matching row is indexed.
+  const waitForEscrowEvents = (filters: Record<string, any>) =>
+    waitForCondition(
+      async () => {
+        const found = await database.escrow.search(filters)
+        return found && found.length ? found : null
+      },
+      DEFAULT_TEST_TIMEOUT * 3 - 5000
+    )
+
   before(async () => {
     previousConfiguration = await setupEnvironment(
       null,
@@ -150,14 +161,10 @@ describe('Indexer stores Escrow contract events', () => {
     const receipt = await tx.wait()
     depositTxHash = receipt.hash
 
-    const events = await waitForCondition(
-      () =>
-        database.escrow.search({
-          txHash: depositTxHash,
-          eventType: EVENTS.ESCROW_DEPOSIT
-        }),
-      DEFAULT_TEST_TIMEOUT * 3 - 5000
-    )
+    const events = await waitForEscrowEvents({
+      txHash: depositTxHash,
+      eventType: EVENTS.ESCROW_DEPOSIT
+    })
     assert(events && events.length > 0, 'Deposit event should be indexed')
     const event = events[0]
     expect(event.eventType).to.equal(EVENTS.ESCROW_DEPOSIT)
@@ -181,10 +188,10 @@ describe('Indexer stores Escrow contract events', () => {
     const receipt = await tx.wait()
     authTxHash = receipt.hash
 
-    const events = await waitForCondition(
-      () => database.escrow.search({ txHash: authTxHash, eventType: EVENTS.ESCROW_AUTH }),
-      DEFAULT_TEST_TIMEOUT * 3 - 5000
-    )
+    const events = await waitForEscrowEvents({
+      txHash: authTxHash,
+      eventType: EVENTS.ESCROW_AUTH
+    })
     assert(events && events.length > 0, 'Auth event should be indexed')
     const event = events[0]
     expect(event.payer).to.equal(payerAddress.toLowerCase())
@@ -203,10 +210,10 @@ describe('Indexer stores Escrow contract events', () => {
     const receipt = await tx.wait()
     lockTxHash = receipt.hash
 
-    const events = await waitForCondition(
-      () => database.escrow.search({ txHash: lockTxHash, eventType: EVENTS.ESCROW_LOCK }),
-      DEFAULT_TEST_TIMEOUT * 3 - 5000
-    )
+    const events = await waitForEscrowEvents({
+      txHash: lockTxHash,
+      eventType: EVENTS.ESCROW_LOCK
+    })
     assert(events && events.length > 0, 'Lock event should be indexed')
     const event = events[0]
     expect(event.payer).to.equal(payerAddress.toLowerCase())
