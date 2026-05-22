@@ -80,6 +80,7 @@ An off-chain, multi-chain metadata & chain events cache. It continually monitors
   - validates DDO, according to multiple SHACL schemas
   - provides proof for valid DDOs
   - monitors datatokens contracts & stores orders
+  - monitors the Escrow contract events (Auth, Lock, Claimed, Canceled, Deposit, Withdraw) and stores them for querying
   - allows querys for all the above
   - supports graceful shutdown and chain-specific reindexing
 
