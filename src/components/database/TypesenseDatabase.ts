@@ -280,9 +280,12 @@ export class TypesenseEscrowDatabase extends AbstractEscrowDatabase {
     try {
       const filterBy = Object.entries(filters || {})
         .filter(([, value]) => value !== undefined && value !== null && value !== '')
-        // Backtick string values so spaces/special chars can't break the syntax.
+        // Backtick string values so spaces/special chars can't break the syntax;
+        // strip backticks from the value so it can't escape the quoted literal.
         .map(([field, value]) =>
-          typeof value === 'string' ? `${field}:=\`${value}\`` : `${field}:=${value}`
+          typeof value === 'string'
+            ? `${field}:=\`${value.replace(/`/g, '')}\``
+            : `${field}:=${value}`
         )
         .join(' && ')
 

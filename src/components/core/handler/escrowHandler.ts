@@ -31,9 +31,9 @@ export class EscrowEventsHandler extends CommandHandler {
       const filters: Record<string, any> = {
         chainId: task.chainId,
         eventType: task.eventType,
-        payer: task.payer ? task.payer.toLowerCase() : undefined,
-        payee: task.payee ? task.payee.toLowerCase() : undefined,
-        token: task.token ? task.token.toLowerCase() : undefined,
+        payer: typeof task.payer === 'string' ? task.payer.toLowerCase() : undefined,
+        payee: typeof task.payee === 'string' ? task.payee.toLowerCase() : undefined,
+        token: typeof task.token === 'string' ? task.token.toLowerCase() : undefined,
         jobId: task.jobId,
         txHash: task.txId
       }
