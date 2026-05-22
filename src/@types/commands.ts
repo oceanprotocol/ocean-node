@@ -115,8 +115,8 @@ export interface GetEscrowEventsCommand extends Command {
   token?: string
   jobId?: string
   txId?: string
-  maxResultsPerPage?: number
-  pageNumber?: number
+  offset?: number
+  size?: number
 }
 export interface ReindexCommand extends Command {
   txId: string

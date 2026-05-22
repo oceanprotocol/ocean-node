@@ -38,11 +38,7 @@ export class EscrowEventsHandler extends CommandHandler {
         txHash: task.txId
       }
 
-      let result = await database.escrow.search(
-        filters,
-        task.maxResultsPerPage,
-        task.pageNumber
-      )
+      let result = await database.escrow.search(filters, task.offset, task.size)
       if (!result) {
         result = []
       }

@@ -276,11 +276,7 @@ export class TypesenseEscrowDatabase extends AbstractEscrowDatabase {
     }
   }
 
-  async search(
-    filters: Record<string, any>,
-    maxResultsPerPage?: number,
-    pageNumber?: number
-  ) {
+  async search(filters: Record<string, any>, offset?: number, size?: number) {
     try {
       const filterBy = Object.entries(filters || {})
         .filter(([, value]) => value !== undefined && value !== null && value !== '')
@@ -290,16 +286,15 @@ export class TypesenseEscrowDatabase extends AbstractEscrowDatabase {
         )
         .join(' && ')
 
-      const maxPerPage = maxResultsPerPage
-        ? Math.min(maxResultsPerPage, TYPESENSE_HITS_CAP)
-        : TYPESENSE_HITS_CAP
-      const page = pageNumber || 1
+      // clamp the page size so a single request can't return an unbounded set
+      const limit = Math.min(size && size > 0 ? size : 100, TYPESENSE_HITS_CAP)
+      const from = offset && offset > 0 ? offset : 0
 
       const searchParams: TypesenseSearchParams = {
         q: '*',
         query_by: 'eventType',
-        per_page: maxPerPage,
-        page
+        offset: from,
+        limit
       }
       if (filterBy) {
         searchParams.filter_by = filterBy

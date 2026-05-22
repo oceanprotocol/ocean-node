@@ -243,4 +243,15 @@ describe('Indexer stores Escrow contract events', () => {
       'query should return the indexed Deposit event'
     )
   })
+
+  it('respects offset and size pagination', async function () {
+    if (!escrowAddress || !paymentToken) this.skip()
+    // Deposit, Auth and Lock are all indexed for this chain by now (>= 2 rows).
+    const page = await database.escrow.search({ chainId }, 0, 2)
+    assert(page && page.length === 2, 'size should cap the page to 2 rows')
+
+    const next = await database.escrow.search({ chainId }, 1, 1)
+    assert(next && next.length === 1, 'offset + size should return a single row')
+    expect(next[0].id).to.not.equal(page[0].id) // offset advanced past the first row
+  })
 })

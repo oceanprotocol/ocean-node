@@ -539,14 +539,11 @@ export class ElasticsearchEscrowDatabase extends AbstractEscrowDatabase {
     }
   }
 
-  async search(
-    filters: Record<string, any>,
-    maxResultsPerPage?: number,
-    pageNumber?: number
-  ) {
+  async search(filters: Record<string, any>, offset?: number, size?: number) {
     try {
-      const size = maxResultsPerPage || 10
-      const page = pageNumber || 1
+      // clamp the page size so a single request can't return an unbounded set
+      const limit = Math.min(size && size > 0 ? size : 100, 250)
+      const from = offset && offset > 0 ? offset : 0
 
       const terms = Object.entries(filters || {})
         .filter(([, value]) => value !== undefined && value !== null && value !== '')
@@ -555,7 +552,7 @@ export class ElasticsearchEscrowDatabase extends AbstractEscrowDatabase {
 
       const searchParams = {
         index: this.getSchema().index,
-        body: { query, from: (page - 1) * size, size }
+        body: { query, from, size: limit }
       }
       const result = await this.provider.search(searchParams)
       return result.hits.hits.map((hit: any) => normalizeDocumentId(hit._source, hit._id))

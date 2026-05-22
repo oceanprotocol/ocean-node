@@ -168,8 +168,8 @@ export abstract class AbstractEscrowDatabase {
 
   abstract search(
     filters: Record<string, any>,
-    maxResultsPerPage?: number,
-    pageNumber?: number
+    offset?: number,
+    size?: number
   ): Promise<Record<string, any>[] | null>
 
   abstract delete(id: string): Promise<any>

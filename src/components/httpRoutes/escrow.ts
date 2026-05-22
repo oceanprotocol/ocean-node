@@ -29,10 +29,8 @@ escrowRoutes.get(
       token: req.query.token ? String(req.query.token) : undefined,
       jobId: req.query.jobId ? String(req.query.jobId) : undefined,
       txId: req.query.txId ? String(req.query.txId) : undefined,
-      maxResultsPerPage: req.query.maxResultsPerPage
-        ? Number(req.query.maxResultsPerPage)
-        : undefined,
-      pageNumber: req.query.pageNumber ? Number(req.query.pageNumber) : undefined,
+      offset: req.query.offset ? Number(req.query.offset) : undefined,
+      size: req.query.size ? Number(req.query.size) : undefined,
       caller: req.caller
     }
 
