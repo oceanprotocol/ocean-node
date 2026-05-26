@@ -1329,6 +1329,61 @@ updates node configuration and reloads it gracefully (admin only)
 
 ---
 
+## Get Escrow Events
+
+### `HTTP` GET /api/services/escrow/events?
+
+### `HTTP` POST /directCommand
+
+### `P2P` command: getEscrowEvents
+
+#### Description
+
+Returns indexed Escrow contract events. The indexer matches Escrow logs by topic hash, verifies they came from the chain's `Escrow` contract (`Deposit`/`Withdraw`/`Lock` are generic signatures), and stores one row per event in the append-only `escrow` collection keyed by `${txHash}-${logIndex}`. All filters are optional.
+
+#### Parameters
+
+| name      | type   | required  | description                                               |
+| --------- | ------ | --------- | --------------------------------------------------------- |
+| command   | string | POST only | command name (`getEscrowEvents`)                          |
+| chainId   | number |           | chain id                                                  |
+| eventType | string |           | one of `Auth, Lock, Claimed, Canceled, Deposit, Withdraw` |
+| payer     | string |           | payer address (case-insensitive)                          |
+| payee     | string |           | payee address (case-insensitive)                          |
+| token     | string |           | token address (case-insensitive)                          |
+| jobId     | string |           | compute job id                                            |
+| txId      | string |           | transaction hash                                          |
+| offset    | number |           | rows to skip (default 0)                                  |
+| size      | number |           | page size (default 100, max 250)                          |
+
+#### Request (POST /directCommand)
+
+```json
+{ "command": "getEscrowEvents", "chainId": 8996, "eventType": "Deposit", "offset": 0, "size": 50 }
+```
+
+#### Response
+
+Every row has `id, eventType, chainId, contract, block, txHash` plus event-specific fields (`payer, payee, token, jobId, amount, expiry, proof, maxLockedAmount, maxLockSeconds, maxLockCounts`).
+
+```json
+[
+  {
+    "id": "0x39f3...6575-3",
+    "eventType": "Deposit",
+    "chainId": 8996,
+    "contract": "0x282d...a1a1",
+    "block": 55,
+    "txHash": "0x39f3...6575",
+    "payer": "0xbe54...ab5e",
+    "token": "0x282d...a1a1",
+    "amount": "100000000000000000000"
+  }
+]
+```
+
+---
+
 # Compute
 
 For starters, you can find a list of algorithms in the [Ocean Algorithms repository](https://github.com/oceanprotocol/algo_dockers) and the docker images in the [Algo Dockerhub](https://hub.docker.com/r/oceanprotocol/algo_dockers/tags).

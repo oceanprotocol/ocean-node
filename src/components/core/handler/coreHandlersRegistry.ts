@@ -56,6 +56,7 @@ import {
   PersistentStorageUploadFileHandler
 } from './persistentStorage.js'
 import { GetAccessListHandler, SearchAccessListHandler } from './accessListHandler.js'
+import { EscrowEventsHandler } from './escrowHandler.js'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler
@@ -207,6 +208,10 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.SEARCH_ACCESS_LIST,
       new SearchAccessListHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.GET_ESCROW_EVENTS,
+      new EscrowEventsHandler(node)
     )
   }
 

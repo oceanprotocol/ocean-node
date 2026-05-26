@@ -3,11 +3,13 @@ import {
   AbstractAccessListDatabase,
   AbstractDdoDatabase,
   AbstractDdoStateDatabase,
+  AbstractEscrowDatabase,
   AbstractIndexerDatabase,
   AbstractLogDatabase,
   AbstractOrderDatabase
 } from './BaseDatabase.js'
 import { AccessListUser } from '../../@types/AccessList.js'
+import { EscrowEvent } from '../../@types/Escrow.js'
 import { createElasticsearchClientWithRetry } from './ElasticsearchConfigHelper.js'
 import { OceanNodeDBConfig } from '../../@types'
 import { ElasticsearchSchema } from './ElasticSchemas.js'
@@ -470,6 +472,108 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
       return { id: orderId }
     } catch (error) {
       const errorMsg = `Error when deleting order ${orderId}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(errorMsg, true, LOG_LEVELS_STR.LEVEL_ERROR)
+      return null
+    }
+  }
+}
+
+export class ElasticsearchEscrowDatabase extends AbstractEscrowDatabase {
+  private provider: Client
+
+  constructor(config: OceanNodeDBConfig, schema: ElasticsearchSchema) {
+    super(config, schema)
+
+    return (async (): Promise<ElasticsearchEscrowDatabase> => {
+      this.provider = await createElasticsearchClientWithRetry(config)
+      await this.initializeIndex()
+      return this
+    })() as unknown as ElasticsearchEscrowDatabase
+  }
+
+  getSchema(): ElasticsearchSchema {
+    return this.schema as ElasticsearchSchema
+  }
+
+  private async initializeIndex() {
+    try {
+      const { index } = this.getSchema()
+      const exists = await this.provider.indices.exists({ index })
+      if (!exists) {
+        await this.provider.indices.create({
+          index,
+          body: this.getSchema().body as any
+        })
+      }
+    } catch (e) {
+      DATABASE_LOGGER.error(`Failed to create escrow index: ${e.message}`)
+    }
+  }
+
+  async create(event: EscrowEvent) {
+    try {
+      await this.provider.index({
+        index: this.getSchema().index,
+        id: event.id,
+        body: event
+      })
+      return event
+    } catch (error) {
+      const errorMsg = `Error when creating escrow event ${event.id}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(errorMsg, true, LOG_LEVELS_STR.LEVEL_ERROR)
+      return null
+    }
+  }
+
+  async retrieve(id: string) {
+    try {
+      const result = await this.provider.get({
+        index: this.getSchema().index,
+        id
+      })
+      return normalizeDocumentId(result._source, result._id)
+    } catch (error) {
+      const errorMsg = `Error when retrieving escrow event ${id}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(errorMsg, true, LOG_LEVELS_STR.LEVEL_ERROR)
+      return null
+    }
+  }
+
+  async search(filters: Record<string, any>, offset?: number, size?: number) {
+    try {
+      // clamp the page size so a single request can't return an unbounded set
+      const limit = Math.min(size && size > 0 ? size : 100, 250)
+      const from = offset && offset > 0 ? offset : 0
+
+      const terms = Object.entries(filters || {})
+        .filter(([, value]) => value !== undefined && value !== null && value !== '')
+        .map(([field, value]) => ({ term: { [field]: value } }))
+      const query = terms.length ? { bool: { must: terms } } : { match_all: {} }
+
+      const searchParams = {
+        index: this.getSchema().index,
+        body: { query, from, size: limit }
+      }
+      const result = await this.provider.search(searchParams)
+      return result.hits.hits.map((hit: any) => normalizeDocumentId(hit._source, hit._id))
+    } catch (error) {
+      const errorMsg =
+        `Error when searching escrow events by ${JSON.stringify(filters)}: ` +
+        error.message
+      DATABASE_LOGGER.logMessageWithEmoji(errorMsg, true, LOG_LEVELS_STR.LEVEL_ERROR)
+      return null
+    }
+  }
+
+  async delete(id: string) {
+    try {
+      await this.provider.delete({
+        index: this.getSchema().index,
+        id
+      })
+      return { id }
+    } catch (error) {
+      const errorMsg = `Error when deleting escrow event ${id}: ` + error.message
       DATABASE_LOGGER.logMessageWithEmoji(errorMsg, true, LOG_LEVELS_STR.LEVEL_ERROR)
       return null
     }

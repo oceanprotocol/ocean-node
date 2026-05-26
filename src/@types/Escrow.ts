@@ -14,3 +14,22 @@ export interface EscrowLock {
   expiry: BigInt
   token: string
 }
+
+export interface EscrowEvent {
+  id: string
+  eventType: string
+  chainId: number
+  contract: string
+  block: number
+  txHash: string
+  payer?: string
+  payee?: string
+  token?: string
+  jobId?: string
+  amount?: string
+  expiry?: string
+  proof?: string
+  maxLockedAmount?: string
+  maxLockSeconds?: string
+  maxLockCounts?: string
+}
