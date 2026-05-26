@@ -43,6 +43,7 @@ export class EscrowEventProcessor extends BaseEventProcessor {
       if (!decoded) return null
 
       const { args } = decoded
+      if (!eventName) return null
       const record: EscrowEvent = {
         id: `${event.transactionHash}-${event.index}`,
         eventType: eventName,

@@ -134,6 +134,15 @@ export const EVENTS = {
   ESCROW_WITHDRAW: 'Withdraw'
 }
 
+export const ESCROW_EVENTS = [
+  EVENTS.ESCROW_AUTH,
+  EVENTS.ESCROW_LOCK,
+  EVENTS.ESCROW_CLAIMED,
+  EVENTS.ESCROW_CANCELED,
+  EVENTS.ESCROW_DEPOSIT,
+  EVENTS.ESCROW_WITHDRAW
+]
+
 export const INDEXER_CRAWLING_EVENTS = {
   CRAWLING_STARTED: 'crawlingStarted',
   REINDEX_QUEUE_POP: 'popFromQueue', // this is for reindex tx, not chain

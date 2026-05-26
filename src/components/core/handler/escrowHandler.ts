@@ -7,9 +7,17 @@ import {
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { ESCROW_EVENTS } from '../../../utils/constants.js'
 
 export class EscrowEventsHandler extends CommandHandler {
   validate(command: GetEscrowEventsCommand): ValidateParams {
+    if (command.eventType && !ESCROW_EVENTS.includes(command.eventType)) {
+      return {
+        valid: false,
+        status: 400,
+        reason: `eventType must be one of: ${ESCROW_EVENTS.join(', ')}`
+      }
+    }
     return validateCommandParameters(command, [])
   }
 
