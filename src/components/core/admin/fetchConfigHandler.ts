@@ -25,6 +25,7 @@ export class FetchConfigHandler extends AdminCommandHandler {
       const config = loadConfigFromFile()
       config.keys.privateKey = '[*** HIDDEN CONTENT ***]'
 
+      console.log({ config })
       return new Promise<P2PCommandResponse>((resolve) => {
         resolve({
           status: { httpStatus: 200 },
