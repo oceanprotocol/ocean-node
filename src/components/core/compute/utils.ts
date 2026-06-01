@@ -23,8 +23,8 @@ export function generateUniqueID(jobStructure: any): string {
 }
 
 export async function getAlgoChecksums(
-  algoDID: string,
-  algoServiceId: string,
+  algoDID: string | undefined,
+  algoServiceId: string | undefined,
   oceanNode: OceanNode,
   config: OceanNodeConfig
 ): Promise<AlgoChecksums> {
@@ -32,6 +32,10 @@ export async function getAlgoChecksums(
     files: '',
     container: '',
     serviceId: algoServiceId
+  }
+  // Raw-code algorithms have no DDO to resolve - skip the lookup (no error logs, no DB hit)
+  if (!algoDID) {
+    return checksums
   }
   try {
     const algoDDO = await new FindDdoHandler(oceanNode).findAndFormatDdo(algoDID)
