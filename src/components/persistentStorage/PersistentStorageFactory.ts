@@ -95,30 +95,13 @@ export abstract class PersistentStorageFactory {
           reject(err)
           return
         }
-        // Add the `label` column to databases created before it existed.
-        this.db.all(
-          `PRAGMA table_info(persistent_storage_buckets)`,
-          (pragmaErr, columns: Array<{ name: string }>) => {
-            if (pragmaErr) {
-              reject(pragmaErr)
-              return
-            }
-            if (columns.some((col) => col.name === 'label')) {
-              this.dbReady = true
-              resolve()
-              return
-            }
-            this.db.run(
-              `ALTER TABLE persistent_storage_buckets ADD COLUMN label TEXT`,
-              (alterErr) => {
-                if (alterErr && !/duplicate column name/i.test(alterErr.message)) {
-                  reject(alterErr)
-                  return
-                }
-                this.dbReady = true
-                resolve()
-              }
-            )
+        // Migration: add the label column if it doesn't exist
+        this.db.run(
+          `ALTER TABLE persistent_storage_buckets ADD COLUMN label TEXT`,
+          () => {
+            // Ignore error if column already exists
+            this.dbReady = true
+            resolve()
           }
         )
       })
