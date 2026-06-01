@@ -41,6 +41,7 @@ export type BucketRow = {
   owner: string
   accessListJson: string
   createdAt: number
+  label: string | null
 }
 
 export interface PersistentStorageFileInfo {
@@ -54,6 +55,7 @@ export type CreateBucketResult = {
   bucketId: string
   owner: string
   accessList: AccessList[]
+  label?: string | null
 }
 
 /** Bucket metadata from registry (list APIs and internal filtering). */
@@ -62,6 +64,7 @@ export type PersistentStorageBucketRecord = {
   owner: string
   createdAt: number
   accessLists: AccessList[]
+  label?: string | null
 }
 
 export abstract class PersistentStorageFactory {
@@ -82,7 +85,8 @@ export abstract class PersistentStorageFactory {
         bucketId TEXT PRIMARY KEY,
         owner TEXT NOT NULL,
         accessListJson TEXT NOT NULL,
-        createdAt INTEGER NOT NULL
+        createdAt INTEGER NOT NULL,
+        label TEXT
       );
     `
     this.dbReadyPromise = new Promise<void>((resolve, reject) => {
@@ -91,8 +95,32 @@ export abstract class PersistentStorageFactory {
           reject(err)
           return
         }
-        this.dbReady = true
-        resolve()
+        // Add the `label` column to databases created before it existed.
+        this.db.all(
+          `PRAGMA table_info(persistent_storage_buckets)`,
+          (pragmaErr, columns: Array<{ name: string }>) => {
+            if (pragmaErr) {
+              reject(pragmaErr)
+              return
+            }
+            if (columns.some((col) => col.name === 'label')) {
+              this.dbReady = true
+              resolve()
+              return
+            }
+            this.db.run(
+              `ALTER TABLE persistent_storage_buckets ADD COLUMN label TEXT`,
+              (alterErr) => {
+                if (alterErr && !/duplicate column name/i.test(alterErr.message)) {
+                  reject(alterErr)
+                  return
+                }
+                this.dbReady = true
+                resolve()
+              }
+            )
+          }
+        )
       })
     })
   }
@@ -123,7 +151,8 @@ export abstract class PersistentStorageFactory {
 
   public abstract createNewBucket(
     accessList: AccessList[],
-    owner: string
+    owner: string,
+    label?: string
   ): Promise<CreateBucketResult>
 
   public abstract listFiles(
@@ -197,7 +226,8 @@ export abstract class PersistentStorageFactory {
       bucketId: row.bucketId,
       owner: row.owner,
       createdAt: row.createdAt,
-      accessLists: parseBucketAccessListsJson(row.accessListJson)
+      accessLists: parseBucketAccessListsJson(row.accessListJson),
+      label: row.label ?? null
     }))
   }
 
@@ -210,17 +240,19 @@ export abstract class PersistentStorageFactory {
     bucketId: string,
     owner: string,
     accessListJson: string,
-    createdAt: number
+    createdAt: number,
+    label: string | null
   ): Promise<void> {
+    // ON CONFLICT does not touch label, so a re-create never clobbers a rename.
     const sql = `
-      INSERT INTO persistent_storage_buckets (bucketId, owner, accessListJson, createdAt)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO persistent_storage_buckets (bucketId, owner, accessListJson, createdAt, label)
+      VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(bucketId) DO UPDATE SET accessListJson=excluded.accessListJson;
     `
     return this.ensureDbReady().then(
       () =>
         new Promise<void>((resolve, reject) => {
-          this.db.run(sql, [bucketId, owner, accessListJson, createdAt], (err) => {
+          this.db.run(sql, [bucketId, owner, accessListJson, createdAt, label], (err) => {
             if (err) reject(err)
             else resolve()
           })
@@ -229,7 +261,7 @@ export abstract class PersistentStorageFactory {
   }
 
   dbGetBucket(bucketId: string): Promise<BucketRow | null> {
-    const sql = `SELECT bucketId, owner, accessListJson, createdAt FROM persistent_storage_buckets WHERE bucketId = ?`
+    const sql = `SELECT bucketId, owner, accessListJson, createdAt, label FROM persistent_storage_buckets WHERE bucketId = ?`
     return this.ensureDbReady().then(
       () =>
         new Promise((resolve, reject) => {
@@ -242,7 +274,7 @@ export abstract class PersistentStorageFactory {
   }
 
   dbListBucketsByOwner(owner: string): Promise<BucketRow[]> {
-    const sql = `SELECT bucketId, owner, accessListJson, createdAt FROM persistent_storage_buckets WHERE owner = ? ORDER BY createdAt ASC`
+    const sql = `SELECT bucketId, owner, accessListJson, createdAt, label FROM persistent_storage_buckets WHERE owner = ? ORDER BY createdAt ASC`
     return this.ensureDbReady().then(
       () =>
         new Promise((resolve, reject) => {
@@ -260,6 +292,23 @@ export abstract class PersistentStorageFactory {
       () =>
         new Promise((resolve, reject) => {
           this.db.run(sql, [bucketId], function (this: RunResult, err) {
+            if (err) reject(err)
+            else resolve(this.changes === 1)
+          })
+        })
+    )
+  }
+
+  dbUpdateBucketLabel(
+    bucketId: string,
+    owner: string,
+    label: string | null
+  ): Promise<boolean> {
+    const sql = `UPDATE persistent_storage_buckets SET label = ? WHERE bucketId = ? AND owner = ?`
+    return this.ensureDbReady().then(
+      () =>
+        new Promise((resolve, reject) => {
+          this.db.run(sql, [label, bucketId, owner], function (this: RunResult, err) {
             if (err) reject(err)
             else resolve(this.changes === 1)
           })
@@ -287,6 +336,28 @@ export abstract class PersistentStorageFactory {
     if (!(await this.isAllowed(consumerAddress, accessLists))) {
       throw new PersistentStorageAccessDeniedError()
     }
+  }
+
+  public async updateBucketLabel(
+    bucketId: string,
+    label: string | null,
+    owner: string
+  ): Promise<string | null> {
+    this.validateBucket(bucketId)
+    const bucket = await this.getBucket(bucketId)
+    if (!bucket) {
+      throw new Error(`Bucket not found: ${bucketId}`)
+    }
+    if (normalizeWeb3Address(owner) !== normalizeWeb3Address(bucket.owner)) {
+      throw new PersistentStorageAccessDeniedError()
+    }
+    const normalized = label && label.trim() ? label.trim() : null
+    await this.dbUpdateBucketLabel(
+      bucketId,
+      normalizeWeb3Address(bucket.owner),
+      normalized
+    )
+    return normalized
   }
 }
 

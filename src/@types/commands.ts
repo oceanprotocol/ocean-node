@@ -344,6 +344,15 @@ export interface PersistentStorageCreateBucketCommand extends Command {
   signature: string
   nonce: string
   accessLists: AccessList[]
+  label?: string
+}
+
+export interface PersistentStorageUpdateBucketCommand extends Command {
+  consumerAddress: string
+  signature: string
+  nonce: string
+  bucketId: string
+  label?: string
 }
 
 export interface PersistentStorageGetBucketsCommand extends Command {
