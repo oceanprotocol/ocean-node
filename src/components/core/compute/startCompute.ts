@@ -784,7 +784,7 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
         }
       }
       for (const elem of [...[task.algorithm], ...task.datasets]) {
-        if (!('documentId' in elem)) {
+        if (!('documentId' in elem) || !elem.documentId) {
           continue
         }
         const ddo = await new FindDdoHandler(this.getOceanNode()).findAndFormatDdo(

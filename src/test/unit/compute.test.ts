@@ -38,6 +38,10 @@ import {
 import { checkManifestPlatform } from '../../components/c2d/compute_engine_docker.js'
 import { ValidateParams } from '../../components/httpRoutes/validateCommands.js'
 import { Readable } from 'stream'
+import sinon from 'sinon'
+import { getAlgoChecksums } from '../../components/core/compute/utils.js'
+import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
+import { CORE_LOGGER } from '../../utils/logging/common.js'
 
 /* eslint-disable require-await */
 class TestC2DEngine extends C2DEngine {
@@ -515,5 +519,35 @@ describe('Compute Jobs Database', () => {
 
   after(async () => {
     await tearDownEnvironment(envOverrides)
+  })
+})
+
+describe('getAlgoChecksums', () => {
+  let findDdoStub: sinon.SinonStub
+  let loggerErrorSpy: sinon.SinonSpy
+
+  beforeEach(() => {
+    findDdoStub = sinon.stub(FindDdoHandler.prototype, 'findAndFormatDdo')
+    loggerErrorSpy = sinon.spy(CORE_LOGGER, 'error')
+  })
+
+  afterEach(() => {
+    findDdoStub.restore()
+    loggerErrorSpy.restore()
+  })
+
+  it('returns empty checksums without a DDO lookup for raw-code algorithms (no documentId)', async () => {
+    const checksums = await getAlgoChecksums(
+      undefined,
+      undefined,
+      null as any,
+      null as any
+    )
+
+    expect(checksums).to.deep.equal({ files: '', container: '', serviceId: undefined })
+    // no DDO lookup must be attempted when there is no algorithm documentId
+    expect(findDdoStub.called).to.equal(false)
+    // and therefore no "Algorithm with id: undefined not found!" error is logged
+    expect(loggerErrorSpy.called).to.equal(false)
   })
 })
