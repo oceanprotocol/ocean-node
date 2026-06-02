@@ -98,8 +98,13 @@ export abstract class PersistentStorageFactory {
         // Migration: add the label column if it doesn't exist
         this.db.run(
           `ALTER TABLE persistent_storage_buckets ADD COLUMN label TEXT`,
-          () => {
-            // Ignore error if column already exists
+          (alterErr) => {
+            // Ignore "duplicate column name" (expected once the column exists);
+            // surface any other failure instead of starting with a broken schema.
+            if (alterErr && !/duplicate column name/i.test(alterErr.message)) {
+              reject(alterErr)
+              return
+            }
             this.dbReady = true
             resolve()
           }
@@ -339,11 +344,14 @@ export abstract class PersistentStorageFactory {
       return bucket.label ?? null
     }
     const normalized = label && label.trim() ? label.trim() : null
-    await this.dbUpdateBucketLabel(
+    const updated = await this.dbUpdateBucketLabel(
       bucketId,
       normalizeWeb3Address(bucket.owner),
       normalized
     )
+    if (!updated) {
+      throw new Error(`Bucket not found: ${bucketId}`)
+    }
     return normalized
   }
 }
