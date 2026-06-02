@@ -164,7 +164,7 @@ export class PersistentStorageUpdateBucketHandler extends CommandHandler {
         : getAddress(await this.getAddressFromToken(task.authorization))
       const label = await storage.updateBucketLabel(
         task.bucketId,
-        task.label ?? null,
+        task.label,
         ownerNormalized
       )
       return {

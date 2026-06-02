@@ -323,7 +323,7 @@ export abstract class PersistentStorageFactory {
 
   public async updateBucketLabel(
     bucketId: string,
-    label: string | null,
+    label: string | null | undefined,
     owner: string
   ): Promise<string | null> {
     this.validateBucket(bucketId)
@@ -333,6 +333,10 @@ export abstract class PersistentStorageFactory {
     }
     if (normalizeWeb3Address(owner) !== normalizeWeb3Address(bucket.owner)) {
       throw new PersistentStorageAccessDeniedError()
+    }
+    // Omitted label leaves the name unchanged (PATCH semantics); null/'' clears it.
+    if (label === undefined) {
+      return bucket.label ?? null
     }
     const normalized = label && label.trim() ? label.trim() : null
     await this.dbUpdateBucketLabel(
