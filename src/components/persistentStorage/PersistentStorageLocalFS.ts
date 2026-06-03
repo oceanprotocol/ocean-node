@@ -3,6 +3,7 @@ import fsp from 'fs/promises'
 import path from 'path'
 import { pipeline } from 'stream/promises'
 import { randomUUID } from 'crypto'
+import { uniqueNamesGenerator, adjectives, animals } from 'unique-names-generator'
 
 import type { AccessList } from '../../@types/AccessList.js'
 import type {
@@ -94,10 +95,15 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
 
   async createNewBucket(
     accessList: AccessList[],
-    owner: string
+    owner: string,
+    label?: string
   ): Promise<CreateBucketResult> {
     const bucketId = randomUUID()
     const createdAt = Math.floor(Date.now() / 1000)
+    const finalLabel =
+      label && label.trim()
+        ? label.trim()
+        : uniqueNamesGenerator({ dictionaries: [adjectives, animals], separator: '-' })
     const path = this.bucketPath(bucketId)
     CORE_LOGGER.debug(`Creating ${path} folder for new bucket`)
     await fsp.mkdir(path)
@@ -105,10 +111,11 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
       bucketId,
       owner,
       JSON.stringify(accessList ?? []),
-      createdAt
+      createdAt,
+      finalLabel
     )
 
-    return { bucketId, owner, accessList }
+    return { bucketId, owner, accessList, label: finalLabel }
   }
 
   async listFiles(

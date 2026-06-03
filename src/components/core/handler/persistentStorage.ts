@@ -5,6 +5,7 @@ import type {
   PersistentStorageGetBucketsCommand,
   PersistentStorageGetFileObjectCommand,
   PersistentStorageListFilesCommand,
+  PersistentStorageUpdateBucketCommand,
   PersistentStorageUploadFileCommand
 } from '../../../@types/commands.js'
 import {
@@ -22,6 +23,21 @@ import {
   type ValidateParams
 } from '../../httpRoutes/validateCommands.js'
 import { CommandHandler } from './handler.js'
+
+const MAX_BUCKET_LABEL_LENGTH = 256
+
+function validateOptionalLabel(label: unknown): ValidateParams | null {
+  if (label === undefined || label === null) return null
+  if (typeof label !== 'string') {
+    return buildInvalidRequestMessage('Invalid parameter: "label" must be a string')
+  }
+  if (label.length > MAX_BUCKET_LABEL_LENGTH) {
+    return buildInvalidRequestMessage(
+      `Invalid parameter: "label" must be at most ${MAX_BUCKET_LABEL_LENGTH} characters`
+    )
+  }
+  return null
+}
 
 function requirePersistentStorage(handler: CommandHandler): PersistentStorageFactory {
   const node = handler.getOceanNode() as any
@@ -44,6 +60,8 @@ export class PersistentStorageCreateBucketHandler extends CommandHandler {
         'Invalid parameter: "accessLists" must be an array of objects'
       )
     }
+    const labelError = validateOptionalLabel(command.label)
+    if (labelError) return labelError
     return { valid: true }
   }
 
@@ -97,7 +115,11 @@ export class PersistentStorageCreateBucketHandler extends CommandHandler {
         }
       }
 
-      const result = await storage.createNewBucket(task.accessLists, ownerNormalized)
+      const result = await storage.createNewBucket(
+        task.accessLists,
+        ownerNormalized,
+        task.label
+      )
       return {
         stream: Readable.from(JSON.stringify(result)),
         status: { httpStatus: 200, error: null }
@@ -105,6 +127,59 @@ export class PersistentStorageCreateBucketHandler extends CommandHandler {
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
       CORE_LOGGER.error(`PersistentStorageCreateBucketHandler error: ${message}`)
+      return { stream: null, status: { httpStatus: 500, error: message } }
+    }
+  }
+}
+
+export class PersistentStorageUpdateBucketHandler extends CommandHandler {
+  validate(command: PersistentStorageUpdateBucketCommand): ValidateParams {
+    const base = validateCommandParameters(command, ['bucketId'])
+    if (!base.valid) return base
+    if (!command.bucketId || typeof command.bucketId !== 'string') {
+      return buildInvalidRequestMessage('Invalid parameter: "bucketId" must be a string')
+    }
+    const labelError = validateOptionalLabel(command.label)
+    if (labelError) return labelError
+    return { valid: true }
+  }
+
+  async handle(task: PersistentStorageUpdateBucketCommand): Promise<P2PCommandResponse> {
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) return validationResponse
+
+    const isAuthRequestValid = await this.validateTokenOrSignature(
+      task.authorization,
+      task.consumerAddress,
+      task.nonce,
+      task.signature,
+      task.command
+    )
+    if (isAuthRequestValid.status.httpStatus !== 200) return isAuthRequestValid
+
+    try {
+      const storage = requirePersistentStorage(this)
+      const ownerNormalized = task.consumerAddress
+        ? getAddress(task.consumerAddress)
+        : getAddress(await this.getAddressFromToken(task.authorization))
+      const label = await storage.updateBucketLabel(
+        task.bucketId,
+        task.label,
+        ownerNormalized
+      )
+      return {
+        stream: Readable.from(JSON.stringify({ bucketId: task.bucketId, label })),
+        status: { httpStatus: 200, error: null }
+      }
+    } catch (e) {
+      if (e instanceof PersistentStorageAccessDeniedError) {
+        return { stream: null, status: { httpStatus: 403, error: e.message } }
+      }
+      const message = e instanceof Error ? e.message : String(e)
+      if (message.toLowerCase().includes('not found')) {
+        return { stream: null, status: { httpStatus: 404, error: message } }
+      }
+      CORE_LOGGER.error(`PersistentStorageUpdateBucketHandler error: ${message}`)
       return { stream: null, status: { httpStatus: 500, error: message } }
     }
   }

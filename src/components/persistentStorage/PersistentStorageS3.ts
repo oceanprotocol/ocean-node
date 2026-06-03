@@ -34,7 +34,8 @@ export class PersistentStorageS3 extends PersistentStorageFactory {
   // eslint-disable-next-line require-await
   async createNewBucket(
     accessList: AccessList[],
-    _owner: string
+    _owner: string,
+    _label?: string
   ): Promise<CreateBucketResult> {
     throw new Error('PersistentStorageS3 is not implemented yet')
   }

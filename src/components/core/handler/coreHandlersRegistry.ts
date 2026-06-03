@@ -53,6 +53,7 @@ import {
   PersistentStorageGetBucketsHandler,
   PersistentStorageGetFileObjectHandler,
   PersistentStorageListFilesHandler,
+  PersistentStorageUpdateBucketHandler,
   PersistentStorageUploadFileHandler
 } from './persistentStorage.js'
 import { GetAccessListHandler, SearchAccessListHandler } from './accessListHandler.js'
@@ -180,6 +181,10 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
       new PersistentStorageCreateBucketHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPDATE_BUCKET,
+      new PersistentStorageUpdateBucketHandler(node)
     )
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_BUCKETS,

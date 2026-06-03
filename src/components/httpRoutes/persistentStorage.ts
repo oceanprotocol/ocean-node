@@ -11,6 +11,7 @@ import {
   PersistentStorageGetBucketsHandler,
   PersistentStorageGetFileObjectHandler,
   PersistentStorageListFilesHandler,
+  PersistentStorageUpdateBucketHandler,
   PersistentStorageUploadFileHandler
 } from '../core/handler/persistentStorage.js'
 
@@ -38,6 +39,37 @@ persistentStorageRoutes.post(
       res.status(200).json(payload)
     } catch (error) {
       HTTP_LOGGER.error(`PersistentStorage create bucket error: ${error}`)
+      res.status(500).send('Internal Server Error')
+    }
+  }
+)
+
+// Update bucket (rename / set label)
+persistentStorageRoutes.patch(
+  `${SERVICES_API_BASE_PATH}/persistentStorage/buckets/:bucketId`,
+  express.json(),
+  async (req, res) => {
+    try {
+      const response = await new PersistentStorageUpdateBucketHandler(
+        req.oceanNode
+      ).handle({
+        command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPDATE_BUCKET,
+        consumerAddress: req.query.consumerAddress as string,
+        signature: req.query.signature as string,
+        nonce: req.query.nonce as string,
+        bucketId: req.params.bucketId,
+        label: req.body?.label,
+        authorization: req.headers?.authorization,
+        caller: req.caller
+      } as any)
+      if (!response.stream) {
+        res.status(response.status.httpStatus).send(response.status.error)
+        return
+      }
+      const payload = await streamToObject(response.stream as Readable)
+      res.status(200).json(payload)
+    } catch (error) {
+      HTTP_LOGGER.error(`PersistentStorage update bucket error: ${error}`)
       res.status(500).send('Internal Server Error')
     }
   }
