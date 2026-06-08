@@ -224,5 +224,23 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
       ReadOnly: true
     }
   }
+
+  async getDockerOutputMountObject(
+    bucketId: string,
+    consumerAddress: string
+  ): Promise<DockerMountObject> {
+    await this.ensureBucketExists(bucketId)
+    await this.assertConsumerAllowedForBucket(consumerAddress, bucketId)
+
+    const source = path.resolve(this.bucketPath(bucketId))
+    await fsp.chmod(source, 0o777)
+
+    return {
+      Type: 'bind',
+      Source: source,
+      Target: '/data/outputs',
+      ReadOnly: false
+    }
+  }
 }
 /* eslint-enable security/detect-non-literal-fs-filename */

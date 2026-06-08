@@ -1207,7 +1207,8 @@ export class C2DEngineDocker extends C2DEngine {
     metadata?: DBComputeJobMetadata,
     additionalViewers?: string[],
     queueMaxWaitTime?: number,
-    encryptedDockerRegistryAuth?: string
+    encryptedDockerRegistryAuth?: string,
+    outputBucketId?: string
   ): Promise<ComputeJob[]> {
     if (!this.docker) return []
     // TO DO - iterate over resources and get default runtime
@@ -1304,6 +1305,7 @@ export class C2DEngineDocker extends C2DEngine {
       queueMaxWaitTime: queueMaxWaitTime || 0,
       encryptedDockerRegistryAuth, // we store the encrypted docker registry auth in the job
       output,
+      outputBucketId,
       buildStartTimestamp: '0',
       buildStopTimestamp: '0'
     }
@@ -1427,7 +1429,7 @@ export class C2DEngineDocker extends C2DEngine {
     try {
       // check if we have an output request.
       const jobDb = await this.db.getJob(jobId)
-      if (jobDb.length < 1 || !jobDb[0].output) {
+      if (jobDb.length < 1 || (!jobDb[0].output && !jobDb[0].outputBucketId)) {
         const outputStat = statSync(
           this.getStoragePath() + '/' + jobId + '/data/outputs/outputs.tar'
         )
@@ -1968,12 +1970,7 @@ export class C2DEngineDocker extends C2DEngine {
           CORE_LOGGER.error(
             `Job ${job.jobId} asset ${i}: nodePersistentStorage requires bucketId and fileName`
           )
-          job.status = C2DStatusNumber.DataProvisioningFailed
-          job.statusText = C2DStatusText.DataProvisioningFailed
-          job.isRunning = false
-          job.dateFinished = String(Date.now() / 1000)
-          await this.db.updateJob(job)
-          await this.cleanupJob(job)
+          await this.failJobDataProvisioning(job)
           return
         }
         const ps = OceanNode.getInstance().getPersistentStorage()
@@ -1981,12 +1978,7 @@ export class C2DEngineDocker extends C2DEngine {
           CORE_LOGGER.error(
             `Job ${job.jobId} asset ${i}: persistent storage is not configured on this node`
           )
-          job.status = C2DStatusNumber.DataProvisioningFailed
-          job.statusText = C2DStatusText.DataProvisioningFailed
-          job.isRunning = false
-          job.dateFinished = String(Date.now() / 1000)
-          await this.db.updateJob(job)
-          await this.cleanupJob(job)
+          await this.failJobDataProvisioning(job)
           return
         }
         try {
@@ -2005,12 +1997,31 @@ export class C2DEngineDocker extends C2DEngine {
           CORE_LOGGER.error(
             `Job ${job.jobId} asset ${i}: failed to resolve persistent storage bind: ${errMsg}`
           )
-          job.status = C2DStatusNumber.DataProvisioningFailed
-          job.statusText = C2DStatusText.DataProvisioningFailed
-          job.isRunning = false
-          job.dateFinished = String(Date.now() / 1000)
-          await this.db.updateJob(job)
-          await this.cleanupJob(job)
+          await this.failJobDataProvisioning(job)
+          return
+        }
+      }
+      if (job.outputBucketId) {
+        try {
+          const ps = OceanNode.getInstance().getPersistentStorage()
+          if (!ps) {
+            throw new Error('Persistent storage is not configured on this node')
+          }
+          const outputMount = await ps.getDockerOutputMountObject(
+            job.outputBucketId,
+            job.owner
+          )
+          CORE_LOGGER.debug(
+            `Mounting output bucket ${job.outputBucketId} to folder ${outputMount.Target}`
+          )
+          hostConfig.Mounts.push(outputMount)
+          mountVols[outputMount.Target] = {}
+        } catch (e) {
+          const errMsg = e instanceof Error ? e.message : String(e)
+          CORE_LOGGER.error(
+            `Job ${job.jobId}: failed to mount output bucket ${job.outputBucketId}: ${errMsg}`
+          )
+          await this.failJobDataProvisioning(job)
           return
         }
       }
@@ -2190,8 +2201,11 @@ export class C2DEngineDocker extends C2DEngine {
 
       try {
         if (container) {
-          // if we have an output request, stream to remote storage; otherwise write to local file
-          if (job.output) {
+          if (job.outputBucketId) {
+            CORE_LOGGER.info(
+              `Job ${job.jobId}: results stored in bucket ${job.outputBucketId}`
+            )
+          } else if (job.output) {
             const decryptedOutput = await this.keyManager.decrypt(
               Uint8Array.from(Buffer.from(job.output, 'hex')),
               EncryptMethod.ECIES
@@ -2249,6 +2263,15 @@ export class C2DEngineDocker extends C2DEngine {
       await this.db.updateJob(job)
       await this.cleanupJob(job)
     }
+  }
+
+  private async failJobDataProvisioning(job: DBComputeJob): Promise<void> {
+    job.status = C2DStatusNumber.DataProvisioningFailed
+    job.statusText = C2DStatusText.DataProvisioningFailed
+    job.isRunning = false
+    job.dateFinished = String(Date.now() / 1000)
+    await this.db.updateJob(job)
+    await this.cleanupJob(job)
   }
 
   // eslint-disable-next-line require-await

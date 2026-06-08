@@ -2602,6 +2602,173 @@ describe('**********         Compute', () => {
         'expected access-denied style message'
       )
     })
+
+    describe('Compute output in bucket (outputBucketId)', function () {
+      let outputBucketId: string
+      const seedFileName = 'seed.txt'
+      const resultFileName = 'bucket-result.txt'
+      const seedContent = 'OUTPUT_BUCKET_SEED\n'
+
+      const bucketResultPath = () =>
+        path.join(psRoot, 'buckets', outputBucketId, resultFileName)
+
+      const copyRawcode = (inputFileName: string, appendSuffix = '') =>
+        [
+          "const fs = require('fs');",
+          `const c = fs.readFileSync('/data/persistentStorage/${outputBucketId}/${inputFileName}', 'utf8');`,
+          `fs.writeFileSync('/data/outputs/${resultFileName}', c + '${appendSuffix}', 'utf8');`
+        ].join('\n')
+
+      const startFreeJob = async (
+        inputFileName: string,
+        rawcode: string,
+        opts: { account?: typeof consumerAccount; output?: string } = {}
+      ) => {
+        const account = opts.account ?? consumerAccount
+        const consumerAddress = await account.getAddress()
+        const nonce = Date.now().toString()
+        const signature = await safeSign(
+          account,
+          createHashForSignature(
+            consumerAddress,
+            nonce,
+            PROTOCOL_COMMANDS.FREE_COMPUTE_START
+          )
+        )
+        const startTask: FreeComputeStartCommand = {
+          command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+          consumerAddress,
+          signature,
+          nonce,
+          environment: firstEnv.id,
+          queueMaxWaitTime: 0,
+          datasets: [
+            {
+              fileObject: {
+                type: 'nodePersistentStorage',
+                bucketId: outputBucketId,
+                fileName: inputFileName
+              } as any
+            }
+          ],
+          algorithm: {
+            meta: { ...publishedAlgoDataset.ddo.metadata.algorithm, rawcode }
+          },
+          output: opts.output ?? null,
+          outputBucketId
+        }
+        return new FreeComputeStartHandler(oceanNode).handle(startTask)
+      }
+
+      const startFreeJobAndWait = async (inputFileName: string, rawcode: string) => {
+        const startRes = await startFreeJob(inputFileName, rawcode)
+        assert.equal(startRes.status.httpStatus, 200, String(startRes.status.error))
+        const started = await streamToObject(startRes.stream as Readable)
+        const fullJobId = started[0].jobId as string
+        const job = await waitForComputeJobFinished(oceanNode, fullJobId, 180_000)
+        return { job, innerJobId: fullJobId.slice(fullJobId.indexOf('-') + 1) }
+      }
+
+      before(async function () {
+        const consumerAddress = await consumerAccount.getAddress()
+        let nonce = Date.now().toString()
+        let signature = await safeSign(
+          consumerAccount,
+          createHashForSignature(
+            consumerAddress,
+            nonce,
+            PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+          )
+        )
+        const createRes = await new PersistentStorageCreateBucketHandler(
+          oceanNode
+        ).handle({
+          command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+          consumerAddress,
+          signature,
+          nonce,
+          accessLists: [],
+          authorization: undefined
+        } as any)
+        assert.equal(createRes.status.httpStatus, 200)
+        outputBucketId = (await streamToObject(createRes.stream as Readable)).bucketId
+
+        nonce = Date.now().toString()
+        signature = await safeSign(
+          consumerAccount,
+          createHashForSignature(
+            consumerAddress,
+            nonce,
+            PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
+          )
+        )
+        const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
+          command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
+          consumerAddress,
+          signature,
+          nonce,
+          bucketId: outputBucketId,
+          fileName: seedFileName,
+          stream: Readable.from(Buffer.from(seedContent))
+        } as any)
+        assert.equal(uploadRes.status.httpStatus, 200)
+      })
+
+      /* eslint-disable security/detect-non-literal-fs-filename -- test paths */
+      it('stores job results directly in the bucket as individual files (no outputs.tar)', async function () {
+        this.timeout(300_000)
+        const { job, innerJobId } = await startFreeJobAndWait(
+          seedFileName,
+          copyRawcode(seedFileName)
+        )
+
+        assert.equal(await fsp.readFile(bucketResultPath(), 'utf8'), seedContent)
+        const files = await oceanNode
+          .getPersistentStorage()
+          .listFiles(outputBucketId, await consumerAccount.getAddress())
+        assert(
+          files.some((f) => f.name === resultFileName),
+          'result file should be listed in the bucket'
+        )
+
+        const base = (psDockerEngine as any).getStoragePath() as string
+        const outputsTarPath = path.join(base, innerJobId, 'data/outputs/outputs.tar')
+        assert(!existsSync(outputsTarPath), 'outputs.tar should not exist')
+        assert(
+          !(job.results || []).some((r: any) => r.type === 'output'),
+          'no output entry expected in results'
+        )
+      })
+
+      it('chains a bucket output file as input of a next job and overwrites on collision', async function () {
+        this.timeout(300_000)
+        await startFreeJobAndWait(resultFileName, copyRawcode(resultFileName, 'CHAINED'))
+
+        assert.equal(
+          await fsp.readFile(bucketResultPath(), 'utf8'),
+          seedContent + 'CHAINED'
+        )
+        const entries = await fsp.readdir(path.join(psRoot, 'buckets', outputBucketId))
+        assert.deepEqual(entries.sort(), [resultFileName, seedFileName].sort())
+      })
+      /* eslint-enable security/detect-non-literal-fs-filename */
+
+      it('rejects a start request with both output and outputBucketId', async function () {
+        const res = await startFreeJob(seedFileName, "console.log('noop');", {
+          output: '0xdeadbeef'
+        })
+        assert.equal(res.status.httpStatus, 400, String(res.status.error))
+        assert.include(String(res.status.error), 'mutually exclusive')
+      })
+
+      it('denies compute start when consumer is not allowed on the output bucket', async function () {
+        const res = await startFreeJob(seedFileName, "console.log('noop');", {
+          account: nonAllowedAccount
+        })
+        assert.equal(res.status.httpStatus, 403, String(res.status.error))
+        assert.include((res.status.error || '').toLowerCase(), 'allow')
+      })
+    })
   })
 })
 

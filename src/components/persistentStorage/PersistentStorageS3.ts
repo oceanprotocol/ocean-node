@@ -84,4 +84,12 @@ export class PersistentStorageS3 extends PersistentStorageFactory {
   ): Promise<DockerMountObject> {
     throw new Error('PersistentStorageS3 is not implemented yet')
   }
+
+  // eslint-disable-next-line require-await
+  async getDockerOutputMountObject(
+    _bucketId: string,
+    _consumerAddress: string
+  ): Promise<DockerMountObject> {
+    throw new Error('PersistentStorageS3 is not implemented yet')
+  }
 }

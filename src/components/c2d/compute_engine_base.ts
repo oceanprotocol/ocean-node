@@ -99,7 +99,8 @@ export abstract class C2DEngine {
     metadata?: DBComputeJobMetadata,
     additionalViewers?: string[],
     queueMaxWaitTime?: number,
-    encryptedDockerRegistryAuth?: string
+    encryptedDockerRegistryAuth?: string,
+    outputBucketId?: string
   ): Promise<ComputeJob[]>
 
   public abstract stopComputeJob(
