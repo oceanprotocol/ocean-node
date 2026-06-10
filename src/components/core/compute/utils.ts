@@ -253,3 +253,54 @@ export async function validateOutput(
     }
   }
 }
+
+export async function validateOutputBucket(
+  node: OceanNode,
+  outputBucketId: string,
+  output: string,
+  consumerAddress: string
+): Promise<P2PCommandResponse> {
+  const success: P2PCommandResponse = {
+    status: {
+      httpStatus: 200,
+      error: null,
+      headers: null
+    },
+    stream: null
+  }
+  const failure = (httpStatus: number, error: string): P2PCommandResponse => ({
+    status: {
+      httpStatus,
+      error,
+      headers: null
+    },
+    stream: null
+  })
+
+  if (!outputBucketId) {
+    return success
+  }
+  if (output) {
+    return failure(400, 'output and outputBucketId are mutually exclusive')
+  }
+  const persistentStorage = node.getPersistentStorage()
+  if (!persistentStorage) {
+    return failure(400, 'Persistent storage is not enabled on this node')
+  }
+  try {
+    persistentStorage.validateBucket(outputBucketId)
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    return failure(400, message)
+  }
+  try {
+    await persistentStorage.assertConsumerAllowedForBucket(
+      consumerAddress,
+      outputBucketId
+    )
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    return failure(403, message)
+  }
+  return success
+}

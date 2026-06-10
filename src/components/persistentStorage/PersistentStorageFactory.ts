@@ -181,6 +181,11 @@ export abstract class PersistentStorageFactory {
     consumerAddress?: string
   ): Promise<DockerMountObject>
 
+  public abstract getDockerOutputMountObject(
+    bucketId: string,
+    consumerAddress: string
+  ): Promise<DockerMountObject>
+
   // common functions
   async getBucketAccessList(bucketId: string): Promise<AccessList[]> {
     try {

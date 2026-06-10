@@ -89,6 +89,9 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
     if (req.body.output) {
       startComputeTask.output = req.body.output
     }
+    if (req.body.outputBucketId) {
+      startComputeTask.outputBucketId = req.body.outputBucketId
+    }
 
     const response = await new PaidComputeStartHandler(req.oceanNode).handle(
       startComputeTask
@@ -137,6 +140,9 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/freeCompute`, async (req, res) => 
     }
     if (req.body.output) {
       startComputeTask.output = req.body.output
+    }
+    if (req.body.outputBucketId) {
+      startComputeTask.outputBucketId = req.body.outputBucketId
     }
 
     const response = await new FreeComputeStartHandler(req.oceanNode).handle(

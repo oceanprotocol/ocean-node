@@ -255,6 +255,7 @@ export interface FreeComputeStartCommand extends Command {
   algorithm: ComputeAlgorithm
   datasets?: ComputeAsset[]
   output?: string // this is always an ECIES encrypted string, that decodes to ComputeOutput interface
+  outputBucketId?: string
   resources?: ComputeResourceRequest[]
   maxJobDuration?: number
   policyServer?: any // object to pass to policy server

@@ -211,6 +211,8 @@ FTPStorage supports `upload(filename, stream)`. If the file object’s `url` end
 
 Compute-to-Data jobs can upload their output archive to a remote backend instead of keeping it only on local node disk.
 
+Alternatively, results can be stored as individual files in a node persistent-storage bucket via the `outputBucketId` start parameter — see [persistent storage](./persistentStorage.md#using-a-bucket-for-compute-job-outputs). The two options are mutually exclusive.
+
 ### How it works
 
 1. You build a `ComputeOutput` JSON object with:

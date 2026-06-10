@@ -291,6 +291,7 @@ export interface DBComputeJob extends ComputeJob {
   algoDuration: number // duration of the job in seconds
   encryptedDockerRegistryAuth?: string
   output?: string // this is always an ECIES encrypted string, that decodes to ComputeOutput interface
+  outputBucketId?: string
   jobIdHash: string
   buildStartTimestamp?: string
   buildStopTimestamp?: string

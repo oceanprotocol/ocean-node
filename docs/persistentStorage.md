@@ -186,6 +186,50 @@ Upload uses the raw request body as bytes and forwards it to the handler as a st
 
 ---
 
+## Using a bucket for compute job outputs
+
+Compute jobs (free and paid) can store their results directly in a persistent storage bucket instead of the default `outputs.tar` archive. Pass the bucket id as `outputBucketId` in the start compute command:
+
+```json
+{
+  "command": "freeStartCompute",
+  "...": "...",
+  "outputBucketId": "a4ad237d-dfd8-404c-a5d6-b8fc3a1f66d3"
+}
+```
+
+How it works:
+
+- The bucket directory is bind-mounted **read-write** at `/data/outputs` inside the job container, so everything the algorithm writes there lands directly in the bucket as **individual files** (no archive, no copy step). Files appear in the bucket as the job writes them.
+- No local `outputs.tar` is produced and the job's results index contains no `output` entry; logs (`imageLog`, `configurationLog`, `algorithmLog`) behave as usual. Results are retrieved via the persistent storage list/get APIs.
+- The consumer starting the job must be the bucket owner or on the bucket access list, otherwise the start request is rejected with `403`.
+- `outputBucketId` is **mutually exclusive** with the `output` (remote storage upload) parameter — sending both returns `400`.
+- Files keep the names the algorithm gives them; writing an existing name **overwrites** it, so pipelines can re-run jobs with stable filenames.
+- Nested directories created by the algorithm under `/data/outputs` are not visible through the bucket API (bucket filenames are flat); algorithms should write top-level files.
+
+### Chaining jobs
+
+Because results are regular bucket files, they can feed the next compute job without any intermediate download — use the standard `nodePersistentStorage` file object as a dataset:
+
+```json
+{
+  "command": "freeStartCompute",
+  "...": "...",
+  "datasets": [
+    {
+      "fileObject": {
+        "type": "nodePersistentStorage",
+        "bucketId": "a4ad237d-dfd8-404c-a5d6-b8fc3a1f66d3",
+        "fileName": "result-from-previous-job.csv"
+      }
+    }
+  ],
+  "outputBucketId": "a4ad237d-dfd8-404c-a5d6-b8fc3a1f66d3"
+}
+```
+
+---
+
 ## Limitations and notes
 
 - The bucket registry is local to the node (SQLite file). If you run multiple nodes, each node’s registry is independent unless you externalize/replicate it.
