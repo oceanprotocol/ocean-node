@@ -86,7 +86,7 @@
     "eciesjs": "^0.4.5",
     "eth-crypto": "^2.6.0",
     "ethers": "^6.16.0",
-    "express": "^4.21.1",
+    "express": "^4.22.2",
     "humanhash": "^1.0.4",
     "hyperdiff": "^2.0.16",
     "ipaddr.js": "^2.3.0",
