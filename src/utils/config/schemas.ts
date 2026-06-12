@@ -198,7 +198,7 @@ export const EnvironmentResourceRefSchema = z
     max: z.number().optional(),
     constraints: z.array(ResourceConstraintSchema).optional()
   })
-  .strict()
+  .passthrough()
 
 export const ComputeResourcesPricingInfoSchema = z.object({
   id: z.string(),
