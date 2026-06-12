@@ -135,7 +135,7 @@
     "prettier": "^3.7.4",
     "release-it": "^20.0.0",
     "sinon": "^19.0.2",
-    "tsx": "^4.19.3",
+    "tsx": "^4.22.4",
     "typescript": "^5.9.3"
   },
   "overrides": {
