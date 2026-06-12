@@ -1,6 +1,5 @@
 /* eslint-disable security/detect-non-literal-fs-filename */
 import { Readable, PassThrough } from 'stream'
-import os from 'os'
 import path from 'path'
 import {
   C2DStatusNumber,
@@ -22,6 +21,7 @@ import type {
   ComputeResourceRequest,
   ComputeEnvFees,
   ComputeResource,
+  ComputeResourceKind,
   C2DEnvironmentConfig,
   ComputeResourcesPricingInfo
 } from '../../@types/C2D/C2D.js'
@@ -61,7 +61,6 @@ import { getOceanTokenAddressForChain } from '../../utils/address.js'
 import { dockerRegistryAuth, OceanNodeConfig } from '../../@types/OceanNode.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { getAddress, ZeroAddress } from 'ethers'
-import { AccessList } from '../../@types/AccessList.js'
 
 const C2D_CONTAINER_UID = 1000
 const C2D_CONTAINER_GID = 1000
@@ -189,23 +188,125 @@ export class C2DEngineDocker extends C2DEngine {
     return this.getC2DConfig().tempFolder + this.getC2DConfig().hash
   }
 
-  private createBenchmarkEnvironment(sysinfo: any, envConfig: any): void {
-    const ramGB = this.physicalLimits.get('ram') || 0
+  private resolveResourceKind(res: ComputeResource): ComputeResourceKind {
+    if (res.kind) return res.kind
+    if (res.init) return 'discrete'
+    return 'fungible'
+  }
+
+  private resolveConnectionResourcePool(
+    sysinfo: any,
+    configResources: ComputeResource[] | undefined
+  ): Map<string, ComputeResource> {
+    const pool = new Map<string, ComputeResource>()
+
+    const physicalCpu = sysinfo.NCPU
+    const physicalRamGB = Math.floor(sysinfo.MemTotal / 1024 / 1024 / 1024)
     const physicalDiskGB = this.physicalLimits.get('disk') || 0
 
-    const gpuMap = new Map<string, ComputeResource>()
-    for (const env of envConfig.environments) {
-      if (env.resources) {
-        for (const res of env.resources) {
-          if (res.id !== 'cpu' && res.id !== 'ram' && res.id !== 'disk') {
-            if (!gpuMap.has(res.id)) {
-              gpuMap.set(res.id, res)
-            }
-          }
+    pool.set('cpu', {
+      id: 'cpu',
+      type: 'cpu',
+      kind: 'fungible',
+      total: physicalCpu,
+      max: physicalCpu,
+      min: 1
+    })
+    pool.set('ram', {
+      id: 'ram',
+      type: 'ram',
+      kind: 'fungible',
+      total: physicalRamGB,
+      max: physicalRamGB,
+      min: 1
+    })
+    pool.set('disk', {
+      id: 'disk',
+      type: 'disk',
+      kind: 'fungible',
+      total: physicalDiskGB,
+      max: physicalDiskGB,
+      min: 0
+    })
+
+    for (const res of configResources ?? []) {
+      const resolvedKind = this.resolveResourceKind(res)
+      if (['cpu', 'ram', 'disk'].includes(res.id)) {
+        const base = pool.get(res.id)
+        const cap = this.physicalLimits.get(res.id) ?? res.total
+        if (res.total > cap)
+          CORE_LOGGER.warn(
+            `Resource "${res.id}": configured total ${res.total} exceeds physical ${cap}, capping`
+          )
+        base.total = Math.min(res.total, cap)
+        base.max = res.max !== undefined ? Math.min(res.max, base.total) : base.total
+        if (res.min !== undefined) base.min = res.min
+        if (res.constraints !== undefined)
+          base.constraints = structuredClone(res.constraints)
+      } else {
+        // Warn if a GPU resource has multiple DeviceIDs — each physical GPU should be its own resource.
+        if (res.init?.deviceRequests?.DeviceIDs?.length > 1) {
+          CORE_LOGGER.warn(
+            `Resource "${res.id}": DeviceIDs has ${res.init.deviceRequests.DeviceIDs.length} entries. ` +
+              `Each physical GPU should be its own resource with a single DeviceID.`
+          )
         }
+        const custom: ComputeResource = {
+          ...res,
+          kind: resolvedKind,
+          max: res.max ?? res.total,
+          min: res.min ?? 0
+        }
+        pool.set(res.id, custom)
+        // Register in physicalLimits so checkGlobalResourceAvailability caps correctly.
+        this.physicalLimits.set(res.id, res.total)
       }
     }
-    const gpuResources: ComputeResource[] = Array.from(gpuMap.values())
+    return pool
+  }
+
+  private resolveEnvironmentResources(
+    envDef: C2DEnvironmentConfig,
+    pool: Map<string, ComputeResource>
+  ): ComputeResource[] {
+    const refs = envDef.resources || []
+    const result: ComputeResource[] = []
+    for (const ref of refs) {
+      const poolRes = pool.get(ref.id)
+      if (!poolRes) {
+        CORE_LOGGER.warn(`resource "${ref.id}" not in pool, skipping`)
+        continue
+      }
+      const resolved: ComputeResource = {
+        ...poolRes,
+        init: poolRes.init ? structuredClone(poolRes.init) : undefined,
+        constraints: poolRes.constraints
+          ? structuredClone(poolRes.constraints)
+          : undefined
+      }
+
+      if (poolRes.kind === 'fungible') {
+        resolved.total =
+          ref.total !== undefined ? Math.min(ref.total, poolRes.total) : poolRes.total
+      }
+      if (ref.max !== undefined) resolved.max = Math.min(ref.max, resolved.total)
+      if (ref.min !== undefined) resolved.min = ref.min
+      if (ref.constraints !== undefined)
+        resolved.constraints = structuredClone(ref.constraints)
+      result.push(resolved)
+    }
+    return result
+  }
+
+  private createBenchmarkEnvironment(sysinfo: any, envConfig: any): void {
+    // GPUs are now at connection level; collect non-fungible resources from there.
+    const gpuResources: ComputeResource[] = (envConfig.resources ?? []).filter(
+      (res: ComputeResource) =>
+        res.id !== 'cpu' &&
+        res.id !== 'ram' &&
+        res.id !== 'disk' &&
+        res.kind !== 'fungible'
+    )
 
     const benchmarkPrices: ComputeResourcesPricingInfo[] =
       gpuResources.length > 0 ? [{ id: gpuResources[0].id, price: 1 }] : []
@@ -214,17 +315,14 @@ export class C2DEngineDocker extends C2DEngine {
       [BASE_CHAIN_ID]: [{ feeToken: USDC_TOKEN_ADDRESS_BASE, prices: benchmarkPrices }]
     }
 
+    // Benchmark env uses resource refs: cpu/ram/disk are auto-detected; GPUs listed by id.
+    const gpuRefs = gpuResources.map((r) => ({ id: r.id }))
     const benchmarkEnv: C2DEnvironmentConfig = {
       description: 'Auto-generated benchmark environment',
       storageExpiry: 604800,
       maxJobDuration: 180,
       minJobDuration: 0,
-      resources: [
-        { id: 'cpu', total: sysinfo.NCPU, min: 1, max: sysinfo.NCPU },
-        { id: 'ram', total: ramGB, min: 1, max: ramGB },
-        { id: 'disk', total: physicalDiskGB, min: 0, max: physicalDiskGB },
-        ...gpuResources
-      ],
+      resources: [{ id: 'cpu' }, { id: 'ram' }, { id: 'disk' }, ...gpuRefs],
       access: {
         addresses: [],
         accessLists: [
@@ -290,65 +388,16 @@ export class C2DEngineDocker extends C2DEngine {
       }
     }
 
+    const connectionPool = this.resolveConnectionResourcePool(
+      sysinfo,
+      envConfig.resources
+    )
+
     for (let envIdx = 0; envIdx < envConfig.environments.length; envIdx++) {
       const envDef: C2DEnvironmentConfig = envConfig.environments[envIdx]
 
       const fees = this.processFeesForEnvironment(envDef.fees, supportedChains)
-
-      const envResources: ComputeResource[] = []
-      const cpuResources = {
-        id: 'cpu',
-        type: 'cpu',
-        total: sysinfo.NCPU,
-        max: sysinfo.NCPU,
-        min: 1,
-        description: os.cpus()[0].model
-      }
-      const ramResources = {
-        id: 'ram',
-        type: 'ram',
-        total: Math.floor(sysinfo.MemTotal / 1024 / 1024 / 1024),
-        max: Math.floor(sysinfo.MemTotal / 1024 / 1024 / 1024),
-        min: 1
-      }
-      const physicalDiskGB = this.physicalLimits.get('disk') || 0
-      const diskResources = {
-        id: 'disk',
-        type: 'disk',
-        total: physicalDiskGB,
-        max: physicalDiskGB,
-        min: 0
-      }
-
-      if (envDef.resources) {
-        for (const res of envDef.resources) {
-          // allow user to add other resources
-          if (res.id === 'cpu') {
-            if (res.total) cpuResources.total = res.total
-            if (res.max) cpuResources.max = res.max
-            if (res.min) cpuResources.min = res.min
-          }
-          if (res.id === 'ram') {
-            if (res.total) ramResources.total = res.total
-            if (res.max) ramResources.max = res.max
-            if (res.min) ramResources.min = res.min
-          }
-          if (res.id === 'disk') {
-            if (res.total) diskResources.total = res.total
-            if (res.max) diskResources.max = res.max
-            if (res.min !== undefined) diskResources.min = res.min
-          }
-
-          if (res.id !== 'cpu' && res.id !== 'ram' && res.id !== 'disk') {
-            if (!res.max) res.max = res.total
-            if (!res.min) res.min = 0
-            envResources.push(res)
-          }
-        }
-      }
-      envResources.push(cpuResources)
-      envResources.push(ramResources)
-      envResources.push(diskResources)
+      const envResources = this.resolveEnvironmentResources(envDef, connectionPool)
 
       const env: ComputeEnvironment = {
         id: '',
@@ -385,9 +434,15 @@ export class C2DEngineDocker extends C2DEngine {
         if (envDef.free.maxJobDuration !== undefined)
           env.free.maxJobDuration = envDef.free.maxJobDuration
         if (envDef.free.maxJobs !== undefined) env.free.maxJobs = envDef.free.maxJobs
-        if (envDef.free.resources) env.free.resources = envDef.free.resources
         if (envDef.free.allowImageBuild !== undefined)
           env.free.allowImageBuild = envDef.free.allowImageBuild
+        // Resolve free resource refs → full ComputeResource[] using the same connection pool.
+        if (envDef.free.resources) {
+          env.free.resources = this.resolveEnvironmentResources(
+            { resources: envDef.free.resources } as C2DEnvironmentConfig,
+            connectionPool
+          )
+        }
       }
 
       const envIdSuffix = envDef.id || String(envIdx)
@@ -402,36 +457,17 @@ export class C2DEngineDocker extends C2DEngine {
       )
     }
 
+    // CPU affinity: all environments share the full physical core pool.
+    // allocateCpus() dynamically assigns free cores per job across all envs.
     const physicalCpuCount = this.physicalLimits.get('cpu') || 0
-    let cpuOffset = 0
+    const allCores = Array.from({ length: physicalCpuCount }, (_, i) => i)
     for (const env of this.envs) {
       const cpuRes = this.getResource(env.resources ?? [], 'cpu')
       if (cpuRes && cpuRes.total > 0) {
-        let isBenchmarkEnv = false
-        if (env.access?.accessLists) {
-          const baseAccessList = env.access?.accessLists?.[0] as AccessList
-          if (baseAccessList && baseAccessList[BASE_CHAIN_ID]) {
-            isBenchmarkEnv = baseAccessList[BASE_CHAIN_ID].includes(
-              getAddress('0xcb7Db55Ca9Aa9C3b25F5Bc266da63317fa02086a')
-            )
-          }
-        }
-
-        if (isBenchmarkEnv) {
-          const total = physicalCpuCount > 0 ? physicalCpuCount : cpuRes.total
-          const cores = Array.from({ length: total }, (_, i) => i)
-          this.envCpuCoresMap.set(env.id, cores)
-          CORE_LOGGER.info(
-            `CPU affinity: benchmark environment ${env.id} cores 0-${cores[cores.length - 1]}`
-          )
-        } else {
-          const cores = Array.from({ length: cpuRes.total }, (_, i) => cpuOffset + i)
-          this.envCpuCoresMap.set(env.id, cores)
-          CORE_LOGGER.info(
-            `CPU affinity: environment ${env.id} cores ${cores[0]}-${cores[cores.length - 1]}`
-          )
-          cpuOffset += cpuRes.total
-        }
+        this.envCpuCoresMap.set(env.id, allCores)
+        CORE_LOGGER.info(
+          `CPU affinity: environment ${env.id} shares pool of ${allCores.length} cores`
+        )
       }
     }
 

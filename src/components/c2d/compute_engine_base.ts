@@ -364,10 +364,10 @@ export abstract class C2DEngine {
         for (const resource of job.resources) {
           const envRes = envResourceMap.get(resource.id)
           if (envRes) {
-            // GPUs are shared-exclusive: inUse tracked globally across all envs
-            // Everything else (cpu, ram, disk) is per-env exclusive
-            const isSharedExclusive = envRes.type === 'gpu'
-            if (!isSharedExclusive && !isThisEnv) continue
+            // discrete resources (GPUs, FPGAs, NICs) tracked globally across all envs
+            // fungible resources (cpu, ram, disk) are per-env exclusive
+            const isGloballyTracked = envRes.kind === 'discrete'
+            if (!isGloballyTracked && !isThisEnv) continue
             if (!(resource.id in usedResources)) usedResources[resource.id] = 0
             usedResources[resource.id] += resource.amount
             if (job.isFree) {
@@ -434,12 +434,19 @@ export abstract class C2DEngine {
     for (const request of activeResources) {
       let envResource = this.getResource(env.resources, request.id)
       if (!envResource) throw new Error(`No such resource ${request.id}`)
-      if (envResource.total - envResource.inUse < request.amount)
-        throw new Error(`Not enough available ${request.id}`)
 
-      // Global check for non-GPU resources (cpu, ram, disk are per-env exclusive)
-      // GPUs are shared-exclusive so their inUse already reflects global usage
-      if (allEnvironments && envResource.type !== 'gpu') {
+      const isFungible = envResource.kind === 'fungible'
+      const isShareableDiscrete =
+        envResource.kind === 'discrete' && envResource.shareable === true
+
+      // Gate 1 (per-env ceiling) — fungible resources only.
+      // envResource.total = env aggregate ceiling (from EnvironmentResourceRef.total).
+      if (isFungible && envResource.total - (envResource.inUse ?? 0) < request.amount)
+        throw new Error(`Not enough available ${request.id} in this environment`)
+
+      // Gate 2 (engine-wide pool ceiling) — fungible + exclusive discrete.
+      // shareable discrete: tracked for visibility but never blocks allocation.
+      if (!isShareableDiscrete && allEnvironments) {
         this.checkGlobalResourceAvailability(allEnvironments, request.id, request.amount)
       }
 
