@@ -299,24 +299,20 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   private createBenchmarkEnvironment(sysinfo: any, envConfig: any): void {
-    // GPUs are now at connection level; collect non-fungible resources from there.
-    const gpuResources: ComputeResource[] = (envConfig.resources ?? []).filter(
-      (res: ComputeResource) =>
-        res.id !== 'cpu' &&
-        res.id !== 'ram' &&
-        res.id !== 'disk' &&
-        res.kind !== 'fungible'
+    // Collect all discrete accelerators (GPUs, FPGAs, etc.) from the connection-level resources.
+    const discreteResources: ComputeResource[] = (envConfig.resources ?? []).filter(
+      (res: ComputeResource) => res.kind === 'discrete'
     )
 
     const benchmarkPrices: ComputeResourcesPricingInfo[] =
-      gpuResources.length > 0 ? [{ id: gpuResources[0].id, price: 1 }] : []
+      discreteResources.length > 0 ? [{ id: discreteResources[0].id, price: 1 }] : []
 
     const benchmarkFees: ComputeEnvFeesStructure = {
       [BASE_CHAIN_ID]: [{ feeToken: USDC_TOKEN_ADDRESS_BASE, prices: benchmarkPrices }]
     }
 
-    // Benchmark env uses resource refs: cpu/ram/disk are auto-detected; GPUs listed by id.
-    const gpuRefs = gpuResources.map((r) => ({ id: r.id }))
+    // Benchmark env uses resource refs: cpu/ram/disk are auto-detected; discrete accelerators listed by id.
+    const gpuRefs = discreteResources.map((r) => ({ id: r.id }))
     const benchmarkEnv: C2DEnvironmentConfig = {
       description: 'Auto-generated benchmark environment',
       storageExpiry: 604800,
