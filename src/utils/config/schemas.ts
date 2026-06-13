@@ -336,12 +336,12 @@ export const C2DDockerConfigSchema = z.array(
       })
 
       // Reject shareable:true on gpu/fpga type resources — these require exclusive access.
-      ;(dockerConfig.resources ?? []).forEach((res) => {
+      ;(dockerConfig.resources ?? []).forEach((res, i) => {
         if (res.shareable === true && (res.type === 'gpu' || res.type === 'fpga')) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: `Resource "${res.id}": shareable:true is not allowed for type "${res.type}" — GPUs and FPGAs require exclusive access per job`,
-            path: ['resources']
+            path: ['resources', i]
           })
         }
       })
