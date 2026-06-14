@@ -30,7 +30,10 @@ export class StopJobHandler extends AdminCommandHandler {
       if (index === -1) {
         return {
           stream: null,
-          status: { httpStatus: 400, error: 'Invalid jobId format: expected "<hash>-<jobId>"' }
+          status: {
+            httpStatus: 400,
+            error: 'Invalid jobId format: expected "<hash>-<jobId>"'
+          }
         }
       }
       const hash = task.jobId.slice(0, index)

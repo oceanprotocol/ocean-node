@@ -78,7 +78,10 @@ describe('**********         Admin StopJob Handler Integration Tests', () => {
     return safeSign(adminAccount, messageHashBytes)
   }
 
-  const getNonAdminSignature = async (nonce: string, command: string): Promise<string> => {
+  const getNonAdminSignature = async (
+    nonce: string,
+    command: string
+  ): Promise<string> => {
     const messageHashBytes = createHashForSignature(
       await nonAdminAccount.getAddress(),
       nonce,
