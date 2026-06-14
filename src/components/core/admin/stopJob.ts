@@ -50,10 +50,13 @@ export class StopJobHandler extends AdminCommandHandler {
       let engine
       try {
         engine = await engines.getC2DByHash(hash)
+        if (!engine) {
+          throw new Error('C2D engine not found for hash: ' + hash)
+        }
       } catch (e) {
         return {
           stream: null,
-          status: { httpStatus: 500, error: 'Invalid C2D Environment' }
+          status: { httpStatus: 400, error: 'Invalid C2D Environment' }
         }
       }
 
@@ -65,11 +68,12 @@ export class StopJobHandler extends AdminCommandHandler {
         stream: Readable.from(JSON.stringify(response)),
         status: { httpStatus: 200 }
       }
-    } catch (error) {
-      CORE_LOGGER.error(error.message)
+    } catch (error: any) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      CORE_LOGGER.error(errorMessage)
       return {
         stream: null,
-        status: { httpStatus: 500, error: error.message }
+        status: { httpStatus: 500, error: errorMessage }
       }
     }
   }
