@@ -818,12 +818,28 @@ describe('Compute Jobs Database', () => {
         ])
       )
       const env1 = makeEnv([
-        { id: 'gpu0', kind: 'discrete', shareable: false, total: 2, min: 0, max: 2, inUse: 1 }
+        {
+          id: 'gpu0',
+          kind: 'discrete',
+          shareable: false,
+          total: 2,
+          min: 0,
+          max: 2,
+          inUse: 1
+        }
       ])
       env1.id = 'env1'
       // env2 carries the same global inUse value because getUsedResources tracks discrete globally
       const env2 = makeEnv([
-        { id: 'gpu0', kind: 'discrete', shareable: false, total: 2, min: 0, max: 2, inUse: 1 }
+        {
+          id: 'gpu0',
+          kind: 'discrete',
+          shareable: false,
+          total: 2,
+          min: 0,
+          max: 2,
+          inUse: 1
+        }
       ])
       env2.id = 'env2'
       // 1 GPU in use, 1 remaining — this request must succeed, not be double-blocked
