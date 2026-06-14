@@ -301,7 +301,7 @@ export class C2DEngineDocker extends C2DEngine {
   private createBenchmarkEnvironment(sysinfo: any, envConfig: any): void {
     // Collect all discrete accelerators (GPUs, FPGAs, etc.) from the connection-level resources.
     const discreteResources: ComputeResource[] = (envConfig.resources ?? []).filter(
-      (res: ComputeResource) => res.kind === 'discrete'
+      (res: ComputeResource) => this.resolveResourceKind(res) === 'discrete'
     )
 
     const benchmarkPrices: ComputeResourcesPricingInfo[] =
