@@ -401,13 +401,21 @@ export abstract class C2DEngine {
   ) {
     let globalUsed = 0
     let globalTotal = 0
+    let discreteInUse: number | undefined
     for (const e of allEnvironments) {
       const res = this.getResource(e.resources, resourceId)
       if (res) {
         globalTotal += res.total || 0
-        globalUsed += res.inUse || 0
+        if (res.kind === 'discrete') {
+          // getUsedResources already aggregates discrete inUse globally across all envs,
+          // so each env carries the same global value — take the max to avoid N-fold counting.
+          discreteInUse = Math.max(discreteInUse ?? 0, res.inUse || 0)
+        } else {
+          globalUsed += res.inUse || 0
+        }
       }
     }
+    if (discreteInUse !== undefined) globalUsed += discreteInUse
     const physicalLimit = this.physicalLimits.get(resourceId)
     if (physicalLimit !== undefined && globalTotal > physicalLimit) {
       globalTotal = physicalLimit

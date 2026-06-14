@@ -801,6 +801,36 @@ describe('Compute Jobs Database', () => {
         expect(err.message).to.include('globally')
       }
     })
+
+    it('discrete GPU — double-counting across envs does not block when capacity remains', async function () {
+      // Setup: 2 physical GPUs (physicalLimits gpu0=2), two environments each advertising
+      // total:2. A single job consumes 1 GPU on env1. getUsedResources aggregates discrete
+      // usage globally, so both env1 and env2 receive inUse:1. Without the max-vs-sum fix,
+      // checkGlobalResourceAvailability would compute globalUsed = 1+1 = 2, exhausting
+      // the physical pool and incorrectly blocking the next allocation.
+      engine.setPhysicalLimits(
+        new Map([
+          ['cpu', 10],
+          ['ram', 32],
+          ['disk', 100],
+          ['gpu0', 2],
+          ['nic0', 1]
+        ])
+      )
+      const env1 = makeEnv([
+        { id: 'gpu0', kind: 'discrete', shareable: false, total: 2, min: 0, max: 2, inUse: 1 }
+      ])
+      env1.id = 'env1'
+      // env2 carries the same global inUse value because getUsedResources tracks discrete globally
+      const env2 = makeEnv([
+        { id: 'gpu0', kind: 'discrete', shareable: false, total: 2, min: 0, max: 2, inUse: 1 }
+      ])
+      env2.id = 'env2'
+      // 1 GPU in use, 1 remaining — this request must succeed, not be double-blocked
+      const req: ComputeResourceRequest[] = [{ id: 'gpu0', amount: 1 }]
+      await engine.checkIfResourcesAreAvailable(req, env2, false, [env1, env2])
+      // no throw = pass (double-counting would have thrown "Not enough gpu0 globally")
+    })
   })
 
   after(async () => {

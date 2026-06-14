@@ -238,7 +238,7 @@ export class C2DEngineDocker extends C2DEngine {
           CORE_LOGGER.warn(
             `Resource "${res.id}": configured total ${res.total} exceeds physical ${cap}, capping`
           )
-        base.total = Math.min(res.total, cap)
+        if (res.total !== undefined) base.total = Math.min(res.total, cap)
         base.max = res.max !== undefined ? Math.min(res.max, base.total) : base.total
         if (res.min !== undefined) base.min = res.min
         if (res.constraints !== undefined)
