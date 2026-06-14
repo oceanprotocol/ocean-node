@@ -877,6 +877,8 @@ describe('Schema validation (C2DDockerConfigSchema)', () => {
     ]
     const result = C2DDockerConfigSchema.safeParse(config)
     expect(result.success).to.equal(false)
+    const msgs = result.error?.issues.map((i) => i.message).join(' ')
+    expect(msgs).to.include('migration guide')
   })
 
   it('env ref pointing to unknown pool id is rejected', function () {
