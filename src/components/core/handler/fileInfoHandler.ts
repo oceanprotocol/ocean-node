@@ -32,10 +32,10 @@ async function formatMetadata(
 }> {
   // Persistent-storage files are ACL-gated: only resolve real metadata when a
   // consumerAddress is supplied (the backend then enforces the bucket ACL). Without it,
-  // return a generic entry instead of querying the backend, to avoid leaking size/existence.
+  // return a generic entry
   if (isPersistentStorageType((file as { type?: string })?.type) && !consumerAddress) {
     return {
-      valid: true,
+      valid: false,
       contentLength: '',
       contentType: 'application/octet-stream',
       name: '',
