@@ -1,7 +1,11 @@
 import { OceanNode } from '../../../OceanNode.js'
 import { AlgoChecksums, ComputeOutput } from '../../../@types/C2D/C2D.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
-import { StorageObject, EncryptMethod } from '../../../@types/fileObject.js'
+import {
+  StorageObject,
+  EncryptMethod,
+  isPersistentStorageType
+} from '../../../@types/fileObject.js'
 import { getFile } from '../../../utils/file.js'
 import { Storage } from '../../storage/index.js'
 
@@ -48,7 +52,7 @@ export async function getAlgoChecksums(
     for (const file of fileArray) {
       // persistent storage checksums require a consumerAddress (ACL); guard so a
       // missing consumer errors instead of silently producing an empty checksum
-      if ((file as any)?.type === 'nodePersistentStorage' && !consumerAddress) {
+      if (isPersistentStorageType((file as any)?.type) && !consumerAddress) {
         throw new Error(
           'Unable to compute checksum for persistent storage algorithm file: missing consumerAddress'
         )

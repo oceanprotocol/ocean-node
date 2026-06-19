@@ -79,6 +79,16 @@ export enum FileObjectType {
   NODE_PERSISTENT_STORAGE = 'nodePersistentStorage'
 }
 
+// Case-insensitive match for the persistent-storage type. getStorageClass routes on
+// `type?.toLowerCase()`, so all guard checks must normalize too or a casing variant
+// (e.g. "NodePersistentStorage") slips past the guard and is still routed as PS.
+export function isPersistentStorageType(type: unknown): boolean {
+  return (
+    typeof type === 'string' &&
+    type.toLowerCase() === FileObjectType.NODE_PERSISTENT_STORAGE.toLowerCase()
+  )
+}
+
 export interface FileInfoRequest {
   type: FileObjectType
   fileIndex?: number

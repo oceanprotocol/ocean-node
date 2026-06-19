@@ -1,4 +1,5 @@
 import { P2PCommandResponse } from '../../@types/index.js'
+import { isPersistentStorageType } from '../../@types/fileObject.js'
 import type { AccessList } from '../../@types/AccessList.js'
 import type {
   DockerMountObject,
@@ -405,7 +406,7 @@ export async function ensureConsumerAllowedForPersistentStorageLocalfsFileObject
     return null
   }
   const fo = fileObject as { type?: string; bucketId?: unknown }
-  if (fo.type !== 'nodePersistentStorage') {
+  if (!isPersistentStorageType(fo.type)) {
     return null
   }
   if (typeof fo.bucketId !== 'string' || fo.bucketId.length === 0) {

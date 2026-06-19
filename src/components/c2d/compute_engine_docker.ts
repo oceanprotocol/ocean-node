@@ -59,7 +59,11 @@ import { ValidateParams } from '../httpRoutes/validateCommands.js'
 import { Service } from '@oceanprotocol/ddo-js'
 import { getOceanTokenAddressForChain } from '../../utils/address.js'
 import { dockerRegistryAuth, OceanNodeConfig } from '../../@types/OceanNode.js'
-import { BaseFileObject, EncryptMethod } from '../../@types/fileObject.js'
+import {
+  BaseFileObject,
+  EncryptMethod,
+  isPersistentStorageType
+} from '../../@types/fileObject.js'
 import { getAddress, ZeroAddress } from 'ethers'
 import { AccessList } from '../../@types/AccessList.js'
 
@@ -1964,7 +1968,7 @@ export class C2DEngineDocker extends C2DEngine {
         const asset = job.assets[i]
         // resolve the effective file object (plaintext, encrypted, or via documentId/serviceId)
         const resolved = await resolveComputeFileObject(asset)
-        if (!resolved || resolved.type !== 'nodePersistentStorage') {
+        if (!resolved || !isPersistentStorageType(resolved.type)) {
           // non persistent-storage assets are downloaded later, during uploadData
           continue
         }
@@ -2935,7 +2939,7 @@ export class C2DEngineDocker extends C2DEngine {
       if (asset.fileObject) {
         try {
           if (asset.fileObject.type) {
-            if (asset.fileObject.type === 'nodePersistentStorage') {
+            if (isPersistentStorageType(asset.fileObject.type)) {
               // persistent storage is handled during ConfiguringVolumes via bind mounts
               continue
             }
@@ -2946,7 +2950,7 @@ export class C2DEngineDocker extends C2DEngine {
             let filesObject: any = await decryptFilesObject(asset.fileObject)
             // persistent storage assets are bind-mounted during ConfiguringVolumes;
             // skip download here even if the resolved object wasn't written back
-            if (filesObject?.type === 'nodePersistentStorage') {
+            if (isPersistentStorageType(filesObject?.type)) {
               continue
             }
             filesObject = await this.addUserDataToFilesObject(filesObject, asset.userdata)
@@ -2986,7 +2990,7 @@ export class C2DEngineDocker extends C2DEngine {
             // 3. Decrypt the url
             let decryptedFileObject = await decryptFilesObject(service.files)
             // persistent storage assets are bind-mounted during ConfiguringVolumes
-            if (decryptedFileObject?.type === 'nodePersistentStorage') {
+            if (isPersistentStorageType(decryptedFileObject?.type)) {
               continue
             }
             decryptedFileObject = await this.addUserDataToFilesObject(

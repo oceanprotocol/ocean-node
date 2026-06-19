@@ -75,6 +75,8 @@ export interface FileInfoCommand extends Command {
   fileIndex?: number
   file?: StorageObject
   checksum?: boolean
+  // required only for nodePersistentStorage files, to gate on the bucket ACL
+  consumerAddress?: string
 }
 // group these 2
 export interface DDOCommand extends Command {

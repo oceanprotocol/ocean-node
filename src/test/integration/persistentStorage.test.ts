@@ -35,6 +35,7 @@ import { createHashForSignature, safeSign } from '../utils/signature.js'
 import { Storage, NodePersistentStorage } from '../../components/storage/index.js'
 import { FileObjectType } from '../../@types/fileObject.js'
 import { PersistentStorageLocalFS } from '../../components/persistentStorage/PersistentStorageLocalFS.js'
+import { FileInfoHandler } from '../../components/core/handler/fileInfoHandler.js'
 
 import { BlockchainRegistry } from '../../components/BlockchainRegistry/index.js'
 import { Blockchain } from '../../utils/blockchain.js'
@@ -507,6 +508,90 @@ describe('**********         Persistent storage handlers (integration)', functio
       denied = true
     }
     expect(denied).to.equal(true)
+  })
+
+  it('fileInfo serves a persistentStorage file only with an allowed consumerAddress', async () => {
+    const consumerAddress = await consumer.getAddress()
+
+    let nonce = Date.now().toString()
+    let signature = await safeSign(
+      consumer,
+      createHashForSignature(
+        consumerAddress,
+        nonce,
+        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+      )
+    )
+    const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      consumerAddress,
+      signature,
+      nonce,
+      accessLists: [],
+      authorization: undefined
+    } as any)
+    expect(createRes.status.httpStatus).to.equal(200)
+    const bucketId = (await streamToObject(createRes.stream as Readable))
+      .bucketId as string
+
+    const fileName = 'fileinfo.txt'
+    const body = Buffer.from('node-persistent-storage-fileinfo')
+
+    nonce = Date.now().toString()
+    signature = await safeSign(
+      consumer,
+      createHashForSignature(
+        consumerAddress,
+        nonce,
+        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
+      )
+    )
+    const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
+      consumerAddress,
+      signature,
+      nonce,
+      bucketId,
+      fileName,
+      stream: Readable.from(body)
+    } as any)
+    expect(uploadRes.status.httpStatus).to.equal(200)
+
+    const fileObject = {
+      type: FileObjectType.NODE_PERSISTENT_STORAGE,
+      bucketId,
+      fileName
+    }
+
+    // allowed consumer -> metadata returned
+    const okRes = await new FileInfoHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.FILE_INFO,
+      file: fileObject as any,
+      type: FileObjectType.NODE_PERSISTENT_STORAGE,
+      consumerAddress
+    } as any)
+    expect(okRes.status.httpStatus).to.equal(200)
+    const info = await streamToObject(okRes.stream as Readable)
+    expect(info[0].contentLength).to.equal(String(body.length))
+    expect(info[0].type).to.equal('nodePersistentStorage')
+
+    // missing consumerAddress -> rejected at validation
+    const noConsumerRes = await new FileInfoHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.FILE_INFO,
+      file: fileObject as any,
+      type: FileObjectType.NODE_PERSISTENT_STORAGE
+    } as any)
+    expect(noConsumerRes.status.httpStatus).to.not.equal(200)
+
+    // consumer not on the bucket ACL -> backend denies -> error, no metadata
+    const intruderAddress = await forbiddenConsumer.getAddress()
+    const deniedRes = await new FileInfoHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.FILE_INFO,
+      file: fileObject as any,
+      type: FileObjectType.NODE_PERSISTENT_STORAGE,
+      consumerAddress: intruderAddress
+    } as any)
+    expect(deniedRes.status.httpStatus).to.not.equal(200)
   })
 
   it('should not create bucket when consumer is not on allow list', async () => {
