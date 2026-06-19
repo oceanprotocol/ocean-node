@@ -49,12 +49,19 @@ export interface FtpFileObject extends BaseFileObject {
   url: string
 }
 
+export interface PersistentStorageObject extends BaseFileObject {
+  type: 'nodePersistentStorage'
+  bucketId: string
+  fileName: string
+}
+
 export type StorageObject =
   | UrlFileObject
   | IpfsFileObject
   | ArweaveFileObject
   | S3FileObject
   | FtpFileObject
+  | PersistentStorageObject
 
 export interface StorageReadable {
   stream: Readable
@@ -68,7 +75,8 @@ export enum FileObjectType {
   IPFS = 'ipfs',
   ARWEAVE = 'arweave',
   S3 = 's3',
-  FTP = 'ftp'
+  FTP = 'ftp',
+  NODE_PERSISTENT_STORAGE = 'nodePersistentStorage'
 }
 
 export interface FileInfoRequest {

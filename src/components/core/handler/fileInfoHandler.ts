@@ -25,6 +25,17 @@ async function formatMetadata(
   name: string
   type: string
 }> {
+  // Persistent-storage files are ACL-gated and not exposed through fileInfo; return a
+  // generic entry instead of querying the backend (which would leak size/existence).
+  if ((file as { type?: string })?.type === FileObjectType.NODE_PERSISTENT_STORAGE) {
+    return {
+      valid: true,
+      contentLength: '',
+      contentType: 'application/octet-stream',
+      name: '',
+      type: FileObjectType.NODE_PERSISTENT_STORAGE
+    }
+  }
   const storage = Storage.getStorageClass(file, config)
   const fileInfo = await storage.fetchSpecificFileMetadata(file, false)
   CORE_LOGGER.logMessage(
@@ -61,6 +72,12 @@ export class FileInfoHandler extends CommandHandler {
     if (command.type && !Object.values(FileObjectType).includes(command.type)) {
       return buildInvalidRequestMessage(
         'Invalid Request: type must be one of ' + Object.values(FileObjectType).join(', ')
+      )
+    }
+    // persistent storage files are ACL-gated and not served through fileInfo
+    if (command.type === FileObjectType.NODE_PERSISTENT_STORAGE) {
+      return buildInvalidRequestMessage(
+        'Invalid Request: nodePersistentStorage files are not supported by fileInfo'
       )
     }
 

@@ -2,7 +2,7 @@ import { expect } from 'chai'
 import fsp from 'fs/promises'
 import os from 'os'
 import path from 'path'
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import { Readable } from 'stream'
 import { getAddress, JsonRpcProvider, Signer } from 'ethers'
 
@@ -32,6 +32,9 @@ import {
   sleep
 } from '../utils/utils.js'
 import { createHashForSignature, safeSign } from '../utils/signature.js'
+import { Storage, NodePersistentStorage } from '../../components/storage/index.js'
+import { FileObjectType } from '../../@types/fileObject.js'
+import { PersistentStorageLocalFS } from '../../components/persistentStorage/PersistentStorageLocalFS.js'
 
 import { BlockchainRegistry } from '../../components/BlockchainRegistry/index.js'
 import { Blockchain } from '../../utils/blockchain.js'
@@ -134,6 +137,39 @@ describe('**********         Persistent storage handlers (integration)', functio
     const nodeStatus = JSON.parse(body) as OceanNodeStatus
     expect(nodeStatus.persistentStorage).to.be.an('object')
     expect(nodeStatus.persistentStorage?.accessLists).to.be.an('array').with.lengthOf(1)
+  })
+
+  it('getDockerMountObject returns an absolute Source even when folder is relative', async () => {
+    // a relative folder must still produce an absolute bind-mount Source (Docker requires it)
+    const relativeFolder = '.tmp-ps-relative-mount-test'
+    const fakeNode = {
+      getConfig: () => ({
+        persistentStorage: {
+          enabled: true,
+          type: 'localfs',
+          // accessLists: [],
+          options: { folder: relativeFolder }
+        }
+      })
+    } as unknown as OceanNode
+
+    const backend = new PersistentStorageLocalFS(fakeNode)
+    try {
+      const ownerAddress = await consumer.getAddress()
+      const { bucketId } = await backend.createNewBucket([], ownerAddress)
+      const fileName = 'rel.txt'
+      await backend.uploadFile(
+        bucketId,
+        fileName,
+        Readable.from(Buffer.from('x')),
+        ownerAddress
+      )
+
+      const mount = await backend.getDockerMountObject(bucketId, fileName)
+      expect(path.isAbsolute(mount.Source)).to.equal(true)
+    } finally {
+      await fsp.rm(path.resolve(relativeFolder), { recursive: true, force: true })
+    }
   })
 
   it('create bucket → upload → list → delete (happy path)', async () => {
@@ -311,6 +347,162 @@ describe('**********         Persistent storage handlers (integration)', functio
     expect(obj).to.be.an('object')
     expect(obj.bucketId).to.equal(bucketId)
     expect(obj.fileName).to.equal(fileName)
+  })
+
+  it('getFileChecksum returns the sha256 of the file contents for an allowed consumer', async () => {
+    const consumerAddress = await consumer.getAddress()
+
+    let nonce = Date.now().toString()
+    let signature = await safeSign(
+      consumer,
+      createHashForSignature(
+        consumerAddress,
+        nonce,
+        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+      )
+    )
+    const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      consumerAddress,
+      signature,
+      nonce,
+      accessLists: [],
+      authorization: undefined
+    } as any)
+    expect(createRes.status.httpStatus).to.equal(200)
+    const bucketId = (await streamToObject(createRes.stream as Readable))
+      .bucketId as string
+
+    const fileName = 'checksum.bin'
+    const body = Buffer.from('persistent-storage-checksum-contents')
+    const expected = createHash('sha256').update(body).digest('hex')
+
+    nonce = Date.now().toString()
+    signature = await safeSign(
+      consumer,
+      createHashForSignature(
+        consumerAddress,
+        nonce,
+        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
+      )
+    )
+    const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
+      consumerAddress,
+      signature,
+      nonce,
+      bucketId,
+      fileName,
+      stream: Readable.from(body)
+    } as any)
+    expect(uploadRes.status.httpStatus).to.equal(200)
+
+    const ps = oceanNode.getPersistentStorage()
+    const checksum = await ps.getFileChecksum(bucketId, fileName, consumerAddress)
+    expect(checksum).to.equal(expected)
+
+    // a consumer not on the bucket ACL must be denied
+    const intruderAddress = await forbiddenConsumer.getAddress()
+    let denied = false
+    try {
+      await ps.getFileChecksum(bucketId, fileName, intruderAddress)
+    } catch {
+      denied = true
+    }
+    expect(denied).to.equal(true)
+  })
+
+  it('getStorageClass returns a working NodePersistentStorage for nodePersistentStorage files', async () => {
+    const consumerAddress = await consumer.getAddress()
+
+    let nonce = Date.now().toString()
+    let signature = await safeSign(
+      consumer,
+      createHashForSignature(
+        consumerAddress,
+        nonce,
+        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+      )
+    )
+    const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      consumerAddress,
+      signature,
+      nonce,
+      accessLists: [],
+      authorization: undefined
+    } as any)
+    expect(createRes.status.httpStatus).to.equal(200)
+    const bucketId = (await streamToObject(createRes.stream as Readable))
+      .bucketId as string
+
+    const fileName = 'storage-class.txt'
+    const body = Buffer.from('node-persistent-storage-class-contents')
+    const expectedChecksum = createHash('sha256').update(body).digest('hex')
+
+    nonce = Date.now().toString()
+    signature = await safeSign(
+      consumer,
+      createHashForSignature(
+        consumerAddress,
+        nonce,
+        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
+      )
+    )
+    const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
+      consumerAddress,
+      signature,
+      nonce,
+      bucketId,
+      fileName,
+      stream: Readable.from(body)
+    } as any)
+    expect(uploadRes.status.httpStatus).to.equal(200)
+
+    const fileObject = {
+      type: FileObjectType.NODE_PERSISTENT_STORAGE,
+      bucketId,
+      fileName
+    }
+
+    // factory returns the right class
+    const storage = Storage.getStorageClass(fileObject, config, consumerAddress)
+    expect(storage).to.be.instanceOf(NodePersistentStorage)
+
+    // metadata (with consumer -> checksum present)
+    const info = await storage.fetchSpecificFileMetadata(fileObject as any, true)
+    expect(info.valid).to.equal(true)
+    expect(info.contentLength).to.equal(String(body.length))
+    expect(info.type).to.equal('nodePersistentStorage')
+    expect(info.checksum).to.equal(expectedChecksum)
+
+    // readable stream returns the bytes
+    const { stream } = await storage.getReadableStream()
+    const chunks: Buffer[] = []
+    for await (const chunk of stream as Readable) {
+      chunks.push(Buffer.from(chunk))
+    }
+    expect(Buffer.concat(chunks).toString()).to.equal(body.toString())
+
+    // without a consumer, forceChecksum cannot run the ACL'd checksum -> undefined
+    const noConsumer = Storage.getStorageClass(fileObject, config)
+    const infoNoConsumer = await noConsumer.fetchSpecificFileMetadata(
+      fileObject as any,
+      true
+    )
+    expect(infoNoConsumer.checksum).to.equal(undefined)
+
+    // a consumer not on the bucket ACL is denied when reading
+    const intruderAddress = await forbiddenConsumer.getAddress()
+    const intruderStorage = Storage.getStorageClass(fileObject, config, intruderAddress)
+    let denied = false
+    try {
+      await intruderStorage.getReadableStream()
+    } catch {
+      denied = true
+    }
+    expect(denied).to.equal(true)
   })
 
   it('should not create bucket when consumer is not on allow list', async () => {

@@ -19,7 +19,7 @@ import { checkCredentials } from '../../../utils/credentials.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { DownloadCommand, DownloadURLCommand } from '../../../@types/commands.js'
-import { EncryptMethod } from '../../../@types/fileObject.js'
+import { EncryptMethod, FileObjectType } from '../../../@types/fileObject.js'
 
 import {
   validateCommandParameters,
@@ -56,14 +56,30 @@ export function isOrderingAllowedForAsset(asset: Asset): OrdableAssetResponse {
 
 export async function handleDownloadUrlCommand(
   node: OceanNode,
-  task: DownloadURLCommand
+  task: DownloadURLCommand,
+  consumerAddress?: string
 ): Promise<P2PCommandResponse> {
   const encryptFile = !!task.aes_encrypted_key
   CORE_LOGGER.logMessage('DownloadCommand requires file encryption? ' + encryptFile, true)
   const config = node.getConfig()
   try {
+    // Persistent-storage files are ACL-gated by the bucket; refuse to serve them
+    // unless we know the consumer (this command path has no order/credential gating).
+    if (
+      (task.fileObject as { type?: string })?.type ===
+        FileObjectType.NODE_PERSISTENT_STORAGE &&
+      !consumerAddress
+    ) {
+      return {
+        stream: null,
+        status: {
+          httpStatus: 403,
+          error: 'Persistent storage files require an authenticated consumer'
+        }
+      }
+    }
     // Determine the type of storage and get a readable stream
-    const storage = Storage.getStorageClass(task.fileObject, config)
+    const storage = Storage.getStorageClass(task.fileObject, config, consumerAddress)
 
     // Validate storage configuration (checks if gateways are configured)
     const [isValid, validationError] = storage.validate()
@@ -542,11 +558,15 @@ export class DownloadHandler extends CommandHandler {
       }
 
       // 8. Proceed to download the file
-      return await handleDownloadUrlCommand(node, {
-        fileObject: decriptedFileObject,
-        aes_encrypted_key: task.aes_encrypted_key,
-        command: PROTOCOL_COMMANDS.DOWNLOAD
-      })
+      return await handleDownloadUrlCommand(
+        node,
+        {
+          fileObject: decriptedFileObject,
+          aes_encrypted_key: task.aes_encrypted_key,
+          command: PROTOCOL_COMMANDS.DOWNLOAD
+        },
+        task.consumerAddress
+      )
     } catch (e) {
       CORE_LOGGER.logMessage('Decryption error: ' + e, true)
       return {

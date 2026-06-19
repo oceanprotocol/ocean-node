@@ -7,6 +7,7 @@ import { FTPStorage } from './FTPStorage.js'
 import { IpfsStorage } from './IpfsStorage.js'
 import { S3Storage } from './S3Storage.js'
 import { UrlStorage } from './UrlStorage.js'
+import { NodePersistentStorage } from './NodePersistentStorage.js'
 
 export type StorageClass =
   | UrlStorage
@@ -14,8 +15,13 @@ export type StorageClass =
   | ArweaveStorage
   | S3Storage
   | FTPStorage
+  | NodePersistentStorage
 
-export function getStorageClass(file: any, config: OceanNodeConfig): StorageClass {
+export function getStorageClass(
+  file: any,
+  config: OceanNodeConfig,
+  consumerAddress?: string
+): StorageClass {
   if (!file) {
     throw new Error('Empty file object')
   }
@@ -34,6 +40,8 @@ export function getStorageClass(file: any, config: OceanNodeConfig): StorageClas
         return new S3Storage(file, config)
       case FileObjectType.FTP:
         return new FTPStorage(file, config)
+      case FileObjectType.NODE_PERSISTENT_STORAGE.toLowerCase():
+        return new NodePersistentStorage(file, config, consumerAddress)
       default:
         throw new Error(`Invalid storage type: ${type}`)
     }

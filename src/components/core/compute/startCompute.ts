@@ -45,10 +45,7 @@ import { getNonceAsNumber } from '../utils/nonceHandler.js'
 import { PolicyServer } from '../../policyServer/index.js'
 import { checkCredentials } from '../../../utils/credentials.js'
 import { checkAddressOnAccessList } from '../../../utils/accessList.js'
-import {
-  ensureConsumerAllowedForPersistentStorageLocalfsFileObject,
-  rejectPersistentStorageFileObjectOnAlgorithm
-} from '../../persistentStorage/PersistentStorageFactory.js'
+import { ensureConsumerAllowedForPersistentStorageLocalfsFileObject } from '../../persistentStorage/PersistentStorageFactory.js'
 
 export class CommonComputeHandler extends CommandHandler {
   validate(command: PaidComputeStartCommand): ValidateParams {
@@ -214,7 +211,8 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
         task.algorithm.documentId,
         task.algorithm.serviceId,
         node,
-        config
+        config,
+        task.consumerAddress
       )
 
       const isRawCodeAlgorithm = task.algorithm.meta?.rawcode
@@ -233,17 +231,11 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
         }
       }
       const policyServer = new PolicyServer()
-      const algoPersistentStorageBan = rejectPersistentStorageFileObjectOnAlgorithm(
-        task.algorithm.fileObject
-      )
-      if (algoPersistentStorageBan) {
-        return algoPersistentStorageBan
-      }
-      for (const dataset of task.datasets) {
+      for (const elem of [task.algorithm, ...task.datasets]) {
         const psAccess = await ensureConsumerAllowedForPersistentStorageLocalfsFileObject(
           node,
           task.consumerAddress,
-          dataset.fileObject
+          elem.fileObject
         )
         if (psAccess) {
           return psAccess
@@ -787,17 +779,11 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
         return isValidOutput
       }
       const policyServer = new PolicyServer()
-      const algoPersistentStorageBanFree = rejectPersistentStorageFileObjectOnAlgorithm(
-        task.algorithm.fileObject
-      )
-      if (algoPersistentStorageBanFree) {
-        return algoPersistentStorageBanFree
-      }
-      for (const dataset of task.datasets) {
+      for (const elem of [task.algorithm, ...task.datasets]) {
         const psAccess = await ensureConsumerAllowedForPersistentStorageLocalfsFileObject(
           thisNode,
           task.consumerAddress,
-          dataset.fileObject
+          elem.fileObject
         )
         if (psAccess) {
           return psAccess
