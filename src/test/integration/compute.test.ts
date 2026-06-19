@@ -2381,6 +2381,7 @@ describe('**********         Compute', () => {
       const started = await streamToObject(startRes.stream as Readable)
       const fullJobId = started[0].jobId as string
       const innerJobId = fullJobId.slice(fullJobId.indexOf('-') + 1)
+      await sleep(2000) // give the job a moment to start and create its output directory
       await waitForComputeJobFinished(oceanNode, fullJobId, 180_000)
 
       const base = (psDockerEngine as any).getStoragePath() as string
