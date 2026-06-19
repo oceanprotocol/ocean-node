@@ -406,7 +406,9 @@ describe('**********         Persistent storage handlers (integration)', functio
     let denied = false
     try {
       await ps.getFileChecksum(bucketId, fileName, intruderAddress)
-    } catch {
+    } catch (e) {
+      // only the expected access-denial counts; anything else fails the test
+      expect((e as Error).name).to.equal('PersistentStorageAccessDeniedError')
       denied = true
     }
     expect(denied).to.equal(true)
@@ -499,7 +501,9 @@ describe('**********         Persistent storage handlers (integration)', functio
     let denied = false
     try {
       await intruderStorage.getReadableStream()
-    } catch {
+    } catch (e) {
+      // only the expected access-denial counts; anything else fails the test
+      expect((e as Error).name).to.equal('PersistentStorageAccessDeniedError')
       denied = true
     }
     expect(denied).to.equal(true)

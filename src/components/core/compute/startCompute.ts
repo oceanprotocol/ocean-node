@@ -46,6 +46,7 @@ import { PolicyServer } from '../../policyServer/index.js'
 import { checkCredentials } from '../../../utils/credentials.js'
 import { checkAddressOnAccessList } from '../../../utils/accessList.js'
 import { ensureConsumerAllowedForPersistentStorageLocalfsFileObject } from '../../persistentStorage/PersistentStorageFactory.js'
+import { resolveComputeFileObject } from '../../c2d/compute_engine_docker.js'
 
 export class CommonComputeHandler extends CommandHandler {
   validate(command: PaidComputeStartCommand): ValidateParams {
@@ -232,10 +233,14 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
       }
       const policyServer = new PolicyServer()
       for (const elem of [task.algorithm, ...task.datasets]) {
+        // resolve encrypted / documentId+serviceId references so persistent-storage ACL
+        // is validated here too (not only plaintext file objects)
+        const resolvedFileObject =
+          (await resolveComputeFileObject(elem)) ?? elem.fileObject
         const psAccess = await ensureConsumerAllowedForPersistentStorageLocalfsFileObject(
           node,
           task.consumerAddress,
-          elem.fileObject
+          resolvedFileObject
         )
         if (psAccess) {
           return psAccess
@@ -780,10 +785,14 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
       }
       const policyServer = new PolicyServer()
       for (const elem of [task.algorithm, ...task.datasets]) {
+        // resolve encrypted / documentId+serviceId references so persistent-storage ACL
+        // is validated here too (not only plaintext file objects)
+        const resolvedFileObject =
+          (await resolveComputeFileObject(elem)) ?? elem.fileObject
         const psAccess = await ensureConsumerAllowedForPersistentStorageLocalfsFileObject(
           thisNode,
           task.consumerAddress,
-          elem.fileObject
+          resolvedFileObject
         )
         if (psAccess) {
           return psAccess

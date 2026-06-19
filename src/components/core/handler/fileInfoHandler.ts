@@ -14,6 +14,15 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { getFile } from '../../../utils/file.js'
 
+// Case-insensitive match for the persistent-storage type, mirroring how getStorageClass
+// routes on `type?.toLowerCase()` so casing variants can't slip past the fileInfo gates.
+function isPersistentStorageType(type: unknown): boolean {
+  return (
+    typeof type === 'string' &&
+    type.toLowerCase() === FileObjectType.NODE_PERSISTENT_STORAGE.toLowerCase()
+  )
+}
+
 async function formatMetadata(
   file: StorageObject,
   config: OceanNodeConfig
@@ -27,7 +36,7 @@ async function formatMetadata(
 }> {
   // Persistent-storage files are ACL-gated and not exposed through fileInfo; return a
   // generic entry instead of querying the backend (which would leak size/existence).
-  if ((file as { type?: string })?.type === FileObjectType.NODE_PERSISTENT_STORAGE) {
+  if (isPersistentStorageType((file as { type?: string })?.type)) {
     return {
       valid: true,
       contentLength: '',
@@ -74,8 +83,13 @@ export class FileInfoHandler extends CommandHandler {
         'Invalid Request: type must be one of ' + Object.values(FileObjectType).join(', ')
       )
     }
-    // persistent storage files are ACL-gated and not served through fileInfo
-    if (command.type === FileObjectType.NODE_PERSISTENT_STORAGE) {
+    // persistent storage files are ACL-gated and not served through fileInfo. Check both
+    // the top-level command type AND the embedded file type (normalized for casing), since
+    // handle() routes getStorageClass on file.type — guarding only command.type is bypassable.
+    if (
+      isPersistentStorageType(command.type) ||
+      isPersistentStorageType(command.file?.type)
+    ) {
       return buildInvalidRequestMessage(
         'Invalid Request: nodePersistentStorage files are not supported by fileInfo'
       )

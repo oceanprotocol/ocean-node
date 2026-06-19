@@ -28,7 +28,10 @@ import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
-import { getAlgorithmImage } from '../../c2d/compute_engine_docker.js'
+import {
+  getAlgorithmImage,
+  resolveComputeFileObject
+} from '../../c2d/compute_engine_docker.js'
 
 import { Credentials, DDOManager } from '@oceanprotocol/ddo-js'
 import { checkCredentials } from '../../../utils/credentials.js'
@@ -223,10 +226,14 @@ export class ComputeInitializeHandler extends CommandHandler {
         return isValidOutput
       }
       for (const elem of [task.algorithm, ...task.datasets]) {
+        // resolve encrypted / documentId+serviceId references so persistent-storage ACL
+        // is validated here too (not only plaintext file objects)
+        const resolvedFileObject =
+          (await resolveComputeFileObject(elem)) ?? elem.fileObject
         const psAccess = await ensureConsumerAllowedForPersistentStorageLocalfsFileObject(
           node,
           task.consumerAddress,
-          elem.fileObject
+          resolvedFileObject
         )
         if (psAccess) {
           return psAccess

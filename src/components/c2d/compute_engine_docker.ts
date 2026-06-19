@@ -1963,14 +1963,14 @@ export class C2DEngineDocker extends C2DEngine {
       for (const i in job.assets) {
         const asset = job.assets[i]
         // resolve the effective file object (plaintext, encrypted, or via documentId/serviceId)
-        const resolved = await this.resolveComputeFileObject(asset)
+        const resolved = await resolveComputeFileObject(asset)
         if (!resolved || resolved.type !== 'nodePersistentStorage') {
           // non persistent-storage assets are downloaded later, during uploadData
           continue
         }
-        // persist the resolved (plaintext) persistent-storage file object back onto the job
-        // so the uploadData phase skips it without having to decrypt/resolve again
-        asset.fileObject = resolved
+        // keep `resolved` local — do NOT persist the decrypted bucketId/fileName back
+        // onto the job record. uploadData independently re-detects encrypted and
+        // DDO-derived persistent-storage assets and skips them.
         const fo = resolved as unknown as { bucketId?: string; fileName?: string }
         if (!fo.bucketId || !fo.fileName) {
           CORE_LOGGER.error(
@@ -2850,50 +2850,6 @@ export class C2DEngineDocker extends C2DEngine {
     return filesObject
   }
 
-  /**
-   * Resolves the effective (decrypted) file object for a compute asset or algorithm.
-   * Handles the three ways a file object can arrive:
-   *  1. plaintext file object (already has a `type`)
-   *  2. encrypted file object (no `type`) -> decrypt it
-   *  3. no file object, only `documentId` + `serviceId` -> resolve the DDO and decrypt `service.files`
-   * Returns null if nothing could be resolved.
-   */
-  private async resolveComputeFileObject(
-    item: ComputeAsset | ComputeAlgorithm
-  ): Promise<BaseFileObject | null> {
-    try {
-      if (item.fileObject) {
-        // plaintext: type is directly available
-        if ((item.fileObject as BaseFileObject).type) {
-          return item.fileObject as BaseFileObject
-        }
-        // encrypted: decrypt to reveal the type
-        return await decryptFilesObject(item.fileObject)
-      }
-      // no file object: try documentId + serviceId
-      const { documentId, serviceId } = item
-      if (documentId && serviceId) {
-        const ddo = await new FindDdoHandler(OceanNode.getInstance()).findAndFormatDdo(
-          documentId
-        )
-        if (!ddo) {
-          return null
-        }
-        const service: Service = AssetUtils.getServiceById(ddo, serviceId)
-        if (!service) {
-          return null
-        }
-        return await decryptFilesObject(service.files)
-      }
-      return null
-    } catch (e) {
-      CORE_LOGGER.error(
-        `Unable to resolve compute file object: ${e instanceof Error ? e.message : String(e)}`
-      )
-      return null
-    }
-  }
-
   private async uploadData(
     job: DBComputeJob
   ): Promise<{ status: C2DStatusNumber; statusText: C2DStatusText }> {
@@ -2926,7 +2882,7 @@ export class C2DEngineDocker extends C2DEngine {
         // documentId/serviceId). All types — including nodePersistentStorage — are
         // streamed uniformly through the Storage class (job.owner enforces the bucket
         // ACL for persistent storage).
-        const resolved = await this.resolveComputeFileObject(job.algorithm)
+        const resolved = await resolveComputeFileObject(job.algorithm)
         if (!resolved) {
           CORE_LOGGER.info(
             'Could not extract any files object from the compute algorithm, skipping...'
@@ -3429,6 +3385,52 @@ export class C2DEngineDocker extends C2DEngine {
 }
 
 // this uses the docker engine, but exposes only one env, the free one
+
+/**
+ * Resolves the effective (decrypted) file object for a compute asset or algorithm.
+ * Handles the three ways a file object can arrive:
+ *  1. plaintext file object (already has a `type`)
+ *  2. encrypted file object (no `type`) -> decrypt it
+ *  3. no file object, only `documentId` + `serviceId` -> resolve the DDO and decrypt `service.files`
+ * Returns null if nothing could be resolved. Shared by the Docker provisioning path
+ * and the compute pre-checks (initialize/start) so persistent-storage ACL validation
+ * sees the same resolved object.
+ */
+export async function resolveComputeFileObject(
+  item: ComputeAsset | ComputeAlgorithm
+): Promise<BaseFileObject | null> {
+  try {
+    if (item.fileObject) {
+      // plaintext: type is directly available
+      if ((item.fileObject as BaseFileObject).type) {
+        return item.fileObject as BaseFileObject
+      }
+      // encrypted: decrypt to reveal the type
+      return await decryptFilesObject(item.fileObject)
+    }
+    // no file object: try documentId + serviceId
+    const { documentId, serviceId } = item
+    if (documentId && serviceId) {
+      const ddo = await new FindDdoHandler(OceanNode.getInstance()).findAndFormatDdo(
+        documentId
+      )
+      if (!ddo) {
+        return null
+      }
+      const service: Service = AssetUtils.getServiceById(ddo, serviceId)
+      if (!service) {
+        return null
+      }
+      return await decryptFilesObject(service.files)
+    }
+    return null
+  } catch (e) {
+    CORE_LOGGER.error(
+      `Unable to resolve compute file object: ${e instanceof Error ? e.message : String(e)}`
+    )
+    return null
+  }
+}
 
 export function getAlgorithmImage(algorithm: ComputeAlgorithm, jobId: string): string {
   if (!algorithm.meta || !algorithm.meta.container) {
