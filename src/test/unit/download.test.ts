@@ -229,6 +229,20 @@ describe('Should validate files structure for download', () => {
     expect((result.status.error || '').toLowerCase()).to.include('compute')
   })
 
+  it('should deny downloading a mixed-case persistentStorage file object (compute-only)', async () => {
+    const result = await handleDownloadUrlCommand(oceanNode, {
+      fileObject: {
+        type: 'NodePersistentStorage',
+        bucketId: 'some-bucket',
+        fileName: 'data.txt'
+      } as any,
+      command: PROTOCOL_COMMANDS.DOWNLOAD
+    } as any)
+    expect(result.stream).to.equal(null)
+    expect(result.status.httpStatus).to.equal(403)
+    expect((result.status.error || '').toLowerCase()).to.include('compute')
+  })
+
   it('should check if DDO service files is missing or empty (exected for confidential EVM, dt4)', () => {
     const otherDDOConfidential = structuredClone(ddoObj)
     expect(

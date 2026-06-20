@@ -211,9 +211,12 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
     consumerAddress?: string
   ): Promise<DockerMountObject> {
     await this.ensureBucketExists(bucketId)
-    if (consumerAddress) {
-      await this.assertConsumerAllowedForBucket(consumerAddress, bucketId)
+    if (!consumerAddress) {
+      throw new Error(
+        'Access denied: consumerAddress is required to access persistent storage'
+      )
     }
+    await this.assertConsumerAllowedForBucket(consumerAddress, bucketId)
     await this.ensureFileExists(bucketId, fileName)
 
     const source = path.join(this.bucketPath(bucketId), fileName)
@@ -251,7 +254,10 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
     consumerAddress: string
   ): Promise<string> {
     await this.ensureBucketExists(bucketId)
-    await this.assertConsumerAllowedForBucket(consumerAddress, bucketId)
+    // file checksum can be obtained without consumerAddress, but if provided, it will be validated for access.
+    if (consumerAddress) {
+      await this.assertConsumerAllowedForBucket(consumerAddress, bucketId)
+    }
     await this.ensureFileExists(bucketId, fileName)
 
     const targetPath = path.join(this.bucketPath(bucketId), fileName)
@@ -266,6 +272,7 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
     consumerAddress?: string
   ): Promise<{ size: number; lastModified: number }> {
     await this.ensureBucketExists(bucketId)
+    // fileInfo can be obtained without consumerAddress, but if provided, it will be validated for access.
     if (consumerAddress) {
       await this.assertConsumerAllowedForBucket(consumerAddress, bucketId)
     }
@@ -273,7 +280,7 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
 
     const targetPath = path.join(this.bucketPath(bucketId), fileName)
     const st = await fsp.stat(targetPath)
-    return { size: st.size, lastModified: st.mtimeMs }
+    return { size: st.size, lastModified: Math.floor(st.mtimeMs) }
   }
 
   async getReadableStream(
@@ -282,9 +289,12 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
     consumerAddress?: string
   ): Promise<NodeJS.ReadableStream> {
     await this.ensureBucketExists(bucketId)
-    if (consumerAddress) {
-      await this.assertConsumerAllowedForBucket(consumerAddress, bucketId)
+    if (!consumerAddress) {
+      throw new Error(
+        'Access denied: consumerAddress is required to access persistent storage'
+      )
     }
+    await this.assertConsumerAllowedForBucket(consumerAddress, bucketId)
     await this.ensureFileExists(bucketId, fileName)
 
     const targetPath = path.join(this.bucketPath(bucketId), fileName)

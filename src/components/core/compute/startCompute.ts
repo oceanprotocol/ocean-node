@@ -208,6 +208,24 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
         }
       }
 
+      const policyServer = new PolicyServer()
+      for (const elem of [task.algorithm, ...task.datasets]) {
+        // resolve encrypted / documentId+serviceId references so persistent-storage ACL
+        // is validated here too (not only plaintext file objects)
+        const resolvedFileObject =
+          (await resolveComputeFileObject(elem)) ?? elem.fileObject
+        const psAccess = await ensureConsumerAllowedForPersistentStorageLocalfsFileObject(
+          node,
+          task.consumerAddress,
+          resolvedFileObject
+        )
+        if (psAccess) {
+          return psAccess
+        }
+      }
+
+      // ACL preflight is confirmed above before attempting checksum retrieval,
+      // so unauthorized consumers get an explicit ACL denial instead of a generic 500.
       const algoChecksums = await getAlgoChecksums(
         task.algorithm.documentId,
         task.algorithm.serviceId,
@@ -229,21 +247,6 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
             httpStatus: 500,
             error: errorMessage
           }
-        }
-      }
-      const policyServer = new PolicyServer()
-      for (const elem of [task.algorithm, ...task.datasets]) {
-        // resolve encrypted / documentId+serviceId references so persistent-storage ACL
-        // is validated here too (not only plaintext file objects)
-        const resolvedFileObject =
-          (await resolveComputeFileObject(elem)) ?? elem.fileObject
-        const psAccess = await ensureConsumerAllowedForPersistentStorageLocalfsFileObject(
-          node,
-          task.consumerAddress,
-          resolvedFileObject
-        )
-        if (psAccess) {
-          return psAccess
         }
       }
       // check algo and datasets (orders, credentials, etc.)

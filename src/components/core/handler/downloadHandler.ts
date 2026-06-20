@@ -19,7 +19,7 @@ import { checkCredentials } from '../../../utils/credentials.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { DownloadCommand, DownloadURLCommand } from '../../../@types/commands.js'
-import { EncryptMethod, FileObjectType } from '../../../@types/fileObject.js'
+import { EncryptMethod, isPersistentStorageType } from '../../../@types/fileObject.js'
 
 import {
   validateCommandParameters,
@@ -63,10 +63,7 @@ export async function handleDownloadUrlCommand(
   const config = node.getConfig()
   try {
     // Persistent-storage files are only available within compute jobs, never via download.
-    if (
-      (task.fileObject as { type?: string })?.type ===
-      FileObjectType.NODE_PERSISTENT_STORAGE
-    ) {
+    if (isPersistentStorageType((task.fileObject as { type?: string })?.type)) {
       return {
         stream: null,
         status: {
