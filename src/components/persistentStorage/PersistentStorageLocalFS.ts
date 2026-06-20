@@ -251,7 +251,7 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
   async getFileChecksum(
     bucketId: string,
     fileName: string,
-    consumerAddress: string
+    consumerAddress?: string
   ): Promise<string> {
     await this.ensureBucketExists(bucketId)
     // file checksum can be obtained without consumerAddress, but if provided, it will be validated for access.
