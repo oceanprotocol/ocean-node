@@ -129,114 +129,134 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 
 - `C2D_DOWNLOAD_TIMEOUT`: Timeout (in seconds) for pulling the algorithm docker image during a C2D job. If the pull exceeds this timeout, the job fails with `PullImageFailed` instead of getting stuck. Defaults to `900` (15 minutes). Example: `900`
 
-The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable is used to configure Docker-based compute environments in Ocean Node. This guide will walk you through the options available for defining `DOCKER_COMPUTE_ENVIRONMENTS` and how to set it up correctly. For configuring compute environments and setting prices for each resource (including pricing units and examples), see [Compute pricing](compute-pricing.md).
+The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable is used to configure Docker-based compute environments in Ocean Node. For GPU setup and examples see [GPU Guide](GPU.md). For pricing configuration see [Compute pricing](compute-pricing.md).
 
-Example Configuration
-The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of objects, where each object represents a Docker compute environment configuration. Below is an example configuration:
+`cpu`, `ram`, and `disk` resources are **auto-detected** from the host at startup. All resource values are expressed in natural units: CPU in cores, RAM and disk in GB.
 
-`Disk` and `Ram` resources are always expressed in GB.
+The config has a two-level structure:
+- **Connection level** (`C2DDockerConfig`): Docker connection details + optional hardware resource pool (GPUs, NICs, or overrides for auto-detected cpu/ram/disk)
+- **Environment level** (`C2DEnvironmentConfig`): per-environment business rules (fees, access, durations) + lightweight resource refs
 
 ```json
 [
   {
     "socketPath": "/var/run/docker.sock",
-    "scanImages": true,
-    "enableNetwork": false,
+    "scanImages": false,
     "imageRetentionDays": 7,
     "imageCleanupInterval": 86400,
+    "paymentClaimInterval": 3600,
+
     "resources": [
-      {
-        "id": "disk",
-        "total": 10
-      }
+      { "id": "cpu", "total": 6 },
+      { "id": "disk", "total": 50 }
     ],
-    "storageExpiry": 604800,
-    "maxJobDuration": 3600,
-    "minJobDuration": 60,
-    "access": {
-      "addresses": ["0x123", "0x456"],
-      "accessLists": []
-    },
-    "fees": {
-      "1": [
-        {
-          "feeToken": "0x123",
-          "prices": [
+
+    "environments": [
+      {
+        "id": "default",
+        "description": "CPU compute environment",
+        "storageExpiry": 604800,
+        "maxJobDuration": 3600,
+        "minJobDuration": 60,
+        "enableNetwork": false,
+        "access": {
+          "addresses": ["0x123", "0x456"],
+          "accessLists": []
+        },
+        "fees": {
+          "1": [
             {
-              "id": "cpu",
-              "price": 1
+              "feeToken": "0x967da4048cD07aB37855c090aAF366e4ce1b9F48",
+              "prices": [{ "id": "cpu", "price": 1 }]
             }
           ]
-        }
-      ]
-    },
-    "free": {
-      "maxJobDuration": 60,
-      "minJobDuration": 10,
-      "maxJobs": 3,
-      "access": {
-        "addresses": [],
-        "accessLists": ["0x789"]
-      },
-      "resources": [
-        {
-          "id": "cpu",
-          "max": 1
         },
-        {
-          "id": "ram",
-          "max": 1
-        },
-        {
-          "id": "disk",
-          "max": 1
+        "resources": [
+          { "id": "cpu", "min": 1, "max": 4 },
+          { "id": "ram", "min": 1, "max": 8 },
+          { "id": "disk", "min": 1, "max": 50 }
+        ],
+        "free": {
+          "maxJobDuration": 60,
+          "minJobDuration": 10,
+          "maxJobs": 3,
+          "access": { "addresses": [], "accessLists": [] },
+          "resources": [
+            { "id": "cpu", "max": 1 },
+            { "id": "ram", "max": 1 },
+            { "id": "disk", "max": 1 }
+          ]
         }
-      ]
-    }
+      }
+    ]
   }
 ]
 ```
 
-#### Configuration Options
+#### Connection-level fields
 
-- **socketPath**: Path to the Docker socket (e.g., docker.sock).
-- **scanImages**: Whether Docker images should be scanned for vulnerabilities using Trivy. If enabled and critical vulnerabilities are found, the C2D job is rejected.
-- **scanImageDBUpdateInterval**: How often to update the vulnerability database, in seconds. Default: 43200 (12 hours)
-- **enableNetwork**: Whether networking is enabled for algorithm containers. Default: false
-- **imageRetentionDays** - how long docker images are kept, in days. Default: 7
-- **imageCleanupInterval** - how often to run cleanup for docker images, in seconds. Min: 3600 (1hour), Default: 86400 (24 hours)
-- **paymentClaimInterval** - how often to run payment claiming, in seconds. Default: 3600 (1 hour)
-- **enableBenchmark** - when set to `true`, the node will auto-create a benchmark compute environment at startup using the system's available resources (CPU, RAM, disk, GPUs). Default: `false`
-- **storageExpiry**: Amount of seconds for storage expiry.(Mandatory)
-- **maxJobDuration**: Maximum duration in seconds for a job.(Mandatory)
-- **minJobDuration**: Minimum duration in seconds for a job.(Mandatory)
-- **access**: Access control configuration for paid compute jobs. If both `addresses` and `accessLists` are empty, all addresses are allowed.
-  - **addresses**: Array of Ethereum addresses allowed to run compute jobs. If empty and no access lists are configured, all addresses are allowed.
-  - **accessLists**: Array of AccessList contract addresses. Users holding NFTs from these contracts can run compute jobs. Checked across all supported networks.
-- **fees**: Fee structure for the compute environment.
-  - **feeToken**: Token address for the fee.
-  - **prices**: Array of resource pricing information.
-    - **id**: Resource type (e.g., `cpu`, `ram`, `disk`).
-    - **price**: Price per unit of the resource.
-- **resources**: Array of resources available in the compute environment.
-  - **id**: Resource type (e.g., `cpu`, `ram`, `disk`).
-  - **total**: Total number of the resource available.
-  - **min**: Minimum number of the resource needed for a job.
-  - **max**: Maximum number of the resource for a job.
-- **free**: Optional configuration for free jobs.
-  - **storageExpiry**: Amount of seconds for storage expiry for free jobs.
-  - **maxJobDuration**: Maximum duration in seconds for a free job.
-  - **minJobDuration**: Minimum duration in seconds for a free job.
-  - **maxJobs**: Maximum number of simultaneous free jobs.
-  - **allowImageBuild**: If building images is allowed on free envs. Default: false
-  - **access**: Access control configuration for free compute jobs. Works the same as the main `access` field.
-    - **addresses**: Array of Ethereum addresses allowed to run free compute jobs.
-    - **accessLists**: Array of AccessList contract addresses for free compute access control.
-  - **resources**: Array of resources available for free jobs.
-    - **id**: Resource type (e.g., `cpu`, `ram`, `disk`).
-    - **total**: Total number of the resource available.
-    - **min**: Minimum number of the resource needed for a job.
-    - **max**: Maximum number of the resource for a job.
+- **socketPath** / **host** / **port** / **protocol** / **caPath** / **certPath** / **keyPath**: Docker connection settings.
+- **scanImages**: Scan algorithm images for vulnerabilities with Trivy. Default: `false`
+- **scanImageDBUpdateInterval**: Vulnerability DB update interval in seconds. Default: `43200` (12 hours)
+- **imageRetentionDays**: How long to keep Docker images, in days. Default: `7`
+- **imageCleanupInterval**: Image cleanup interval in seconds. Min: `3600`, Default: `86400`
+- **paymentClaimInterval**: Payment claim interval in seconds. Min: `60`, Default: `3600`
+- **resources** *(optional)*: Hardware resource pool for this connection. `cpu`, `ram`, and `disk` are auto-detected from the host — include them only to cap their totals or to add custom resources (GPUs, NICs, etc.).
+  - **id**: Resource identifier. `cpu`, `ram`, `disk` are built-in; any other string defines a custom resource.
+  - **kind**: `"discrete"` (non-fungible device, e.g. GPU) or `"fungible"` (interchangeable units, e.g. CPU). Auto-inferred: `"discrete"` if `init` is present, `"fungible"` otherwise.
+  - **shareable** *(discrete only)*: `true` allows multiple jobs to use the device simultaneously (NIC, TPM). Default: `false`. **Not allowed** on `type: "gpu"` or `type: "fpga"`.
+  - **total**: Total units available. Capped at the physical host limit.
+  - **min** / **max**: Per-job minimum/maximum.
+  - **description**, **platform**, **driverVersion**, **memoryTotal**: Informational metadata.
+  - **init**: Docker device configuration (`deviceRequests` for NVIDIA, `advanced` for AMD/Intel). See [GPU Guide](GPU.md).
+  - **constraints**: Cross-resource requirements. `{ "id": "ram", "min": 4 }` means renting this resource also requires 4 GB RAM.
+
+#### Environment-level fields
+
+- **id** *(optional)*: Stable identifier for the environment. Used to compute the environment hash.
+- **description**: Human-readable description.
+- **storageExpiry**: Seconds before compute results expire.
+- **maxJobDuration** / **minJobDuration**: Maximum/minimum job duration in seconds.
+- **maxJobs**: Maximum simultaneous paid jobs.
+- **enableNetwork**: Whether algorithm containers can make outbound network connections. Default: `false`
+- **access**: Access control for paid jobs.
+  - **addresses**: Ethereum addresses allowed to submit jobs. Empty + no accessLists = open access.
+  - **accessLists**: AccessList NFT contract addresses. NFT holders can submit jobs.
+- **fees**: Fee structure per chain.
+  - **feeToken**: ERC-20 token address for payment.
+  - **prices**: `[{ "id": "<resource-id>", "price": <per-unit-per-minute> }]`
+- **resources**: Lightweight refs to the connection pool. `cpu`, `ram`, `disk` are always available.
+  - **id**: Must match a connection-level resource id, or `cpu` / `ram` / `disk`.
+  - **total**: Env aggregate ceiling — max units all running jobs in this env can use simultaneously. Omit for no per-env cap.
+  - **min** / **max**: Per-job limits for this environment (further restricted from pool values).
+  - **constraints**: Per-env override for pool-level constraints. Replaces (not merges) the pool constraints. Set `[]` to remove constraints for this env.
+- **free** *(optional)*: Free tier configuration.
+  - **maxJobDuration** / **minJobDuration** / **maxJobs**: Free job limits.
+  - **allowImageBuild**: Allow image builds on free jobs. Default: `false`
+  - **access**: Same structure as the paid access field.
+  - **resources**: Same structure as environment resources — lightweight refs limiting what free jobs can request.
+
+> **Strict isolation**: If you need strict physical CPU isolation between environments (e.g., for regulated data), run each environment on a separate Docker connection. All environments on the same connection share the same CPU core pool dynamically.
+
+#### Migration from old format
+
+The old format placed hardware details (`init`, `driverVersion`, etc.) inside environments. This is now **a startup error**.
+
+**Old (rejected):**
+```json
+[{ "socketPath": "...", "environments": [{ "resources": [{ "id": "myGPU", "init": {...} }] }] }]
+```
+
+**New:**
+```json
+[{
+  "socketPath": "...",
+  "resources": [{ "id": "myGPU", "kind": "discrete", "total": 1, "init": {...} }],
+  "environments": [{ "resources": [{ "id": "myGPU" }] }]
+}]
+```
+
+Move all `init`, `driverVersion`, `platform`, `memoryTotal`, `type`, `kind`, and `constraints` fields to the connection-level `resources` array. Environment resources keep only `id` and optionally `total`/`min`/`max`/`constraints`.
 
 ### Docker Registry Authentication
 
