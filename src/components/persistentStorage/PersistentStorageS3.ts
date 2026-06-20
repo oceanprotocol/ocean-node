@@ -97,7 +97,7 @@ export class PersistentStorageS3 extends PersistentStorageFactory {
   async getFileChecksum(
     _bucketId: string,
     _fileName: string,
-    _consumerAddress: string
+    _consumerAddress?: string
   ): Promise<string> {
     throw new Error('PersistentStorageS3 is not implemented yet')
   }

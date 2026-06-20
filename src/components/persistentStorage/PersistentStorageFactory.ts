@@ -195,7 +195,7 @@ export abstract class PersistentStorageFactory {
   public abstract getFileChecksum(
     bucketId: string,
     fileName: string,
-    consumerAddress: string
+    consumerAddress?: string
   ): Promise<string>
 
   /**
