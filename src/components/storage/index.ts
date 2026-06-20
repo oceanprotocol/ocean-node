@@ -5,7 +5,16 @@ import { FTPStorage } from './FTPStorage.js'
 import { IpfsStorage } from './IpfsStorage.js'
 import { S3Storage } from './S3Storage.js'
 import { UrlStorage } from './UrlStorage.js'
+import { NodePersistentStorage } from './NodePersistentStorage.js'
 
 Storage.getStorageClass = getStorageClass
 
-export { Storage, UrlStorage, ArweaveStorage, IpfsStorage, S3Storage, FTPStorage }
+export {
+  Storage,
+  UrlStorage,
+  ArweaveStorage,
+  IpfsStorage,
+  S3Storage,
+  FTPStorage,
+  NodePersistentStorage
+}

@@ -2,7 +2,7 @@ import fs from 'fs'
 import fsp from 'fs/promises'
 import path from 'path'
 import { pipeline } from 'stream/promises'
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import { uniqueNamesGenerator, adjectives, animals } from 'unique-names-generator'
 
 import type { AccessList } from '../../@types/AccessList.js'
@@ -30,7 +30,9 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
     const options = node.getConfig().persistentStorage
       .options as PersistentStorageLocalFSOptions
 
-    this.baseFolder = options.folder
+    // Resolve to an absolute path so all derived paths (incl. Docker bind-mount Source,
+    // which must be absolute) are absolute even when a relative folder is configured.
+    this.baseFolder = path.resolve(options.folder)
 
     // Ensure base folder exists and is a directory (sync to avoid startup races).
     try {
@@ -209,9 +211,12 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
     consumerAddress?: string
   ): Promise<DockerMountObject> {
     await this.ensureBucketExists(bucketId)
-    if (consumerAddress) {
-      await this.assertConsumerAllowedForBucket(consumerAddress, bucketId)
+    if (!consumerAddress) {
+      throw new Error(
+        'Access denied: consumerAddress is required to access persistent storage'
+      )
     }
+    await this.assertConsumerAllowedForBucket(consumerAddress, bucketId)
     await this.ensureFileExists(bucketId, fileName)
 
     const source = path.join(this.bucketPath(bucketId), fileName)
@@ -241,6 +246,59 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
       Target: '/data/outputs',
       ReadOnly: false
     }
+  }
+
+  async getFileChecksum(
+    bucketId: string,
+    fileName: string,
+    consumerAddress?: string
+  ): Promise<string> {
+    await this.ensureBucketExists(bucketId)
+    // file checksum can be obtained without consumerAddress, but if provided, it will be validated for access.
+    if (consumerAddress) {
+      await this.assertConsumerAllowedForBucket(consumerAddress, bucketId)
+    }
+    await this.ensureFileExists(bucketId, fileName)
+
+    const targetPath = path.join(this.bucketPath(bucketId), fileName)
+    const hash = createHash('sha256')
+    await pipeline(fs.createReadStream(targetPath), hash)
+    return hash.digest('hex')
+  }
+
+  async getFileInfo(
+    bucketId: string,
+    fileName: string,
+    consumerAddress?: string
+  ): Promise<{ size: number; lastModified: number }> {
+    await this.ensureBucketExists(bucketId)
+    // fileInfo can be obtained without consumerAddress, but if provided, it will be validated for access.
+    if (consumerAddress) {
+      await this.assertConsumerAllowedForBucket(consumerAddress, bucketId)
+    }
+    await this.ensureFileExists(bucketId, fileName)
+
+    const targetPath = path.join(this.bucketPath(bucketId), fileName)
+    const st = await fsp.stat(targetPath)
+    return { size: st.size, lastModified: Math.floor(st.mtimeMs) }
+  }
+
+  async getReadableStream(
+    bucketId: string,
+    fileName: string,
+    consumerAddress?: string
+  ): Promise<NodeJS.ReadableStream> {
+    await this.ensureBucketExists(bucketId)
+    if (!consumerAddress) {
+      throw new Error(
+        'Access denied: consumerAddress is required to access persistent storage'
+      )
+    }
+    await this.assertConsumerAllowedForBucket(consumerAddress, bucketId)
+    await this.ensureFileExists(bucketId, fileName)
+
+    const targetPath = path.join(this.bucketPath(bucketId), fileName)
+    return fs.createReadStream(targetPath)
   }
 }
 /* eslint-enable security/detect-non-literal-fs-filename */

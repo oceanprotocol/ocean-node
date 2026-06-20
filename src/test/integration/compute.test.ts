@@ -2272,6 +2272,139 @@ describe('**********         Compute', () => {
       )
     }
 
+    // create a bucket owned by `account` and upload `content` under `fileName`
+    const createBucketAndUpload = async (
+      account: any,
+      fileName: string,
+      content: string | Buffer
+    ): Promise<string> => {
+      const consumerAddress = await account.getAddress()
+      let nonce = Date.now().toString()
+      let signature = await safeSign(
+        account,
+        createHashForSignature(
+          consumerAddress,
+          nonce,
+          PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+        )
+      )
+      const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
+        command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+        consumerAddress,
+        signature,
+        nonce,
+        accessLists: [],
+        authorization: undefined
+      } as any)
+      assert.equal(createRes.status.httpStatus, 200)
+      const bucketId = (await streamToObject(createRes.stream as Readable))
+        .bucketId as string
+
+      nonce = Date.now().toString()
+      signature = await safeSign(
+        account,
+        createHashForSignature(
+          consumerAddress,
+          nonce,
+          PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
+        )
+      )
+      const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
+        command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
+        consumerAddress,
+        signature,
+        nonce,
+        bucketId,
+        fileName,
+        stream: Readable.from(Buffer.isBuffer(content) ? content : Buffer.from(content))
+      } as any)
+      assert.equal(uploadRes.status.httpStatus, 200)
+      return bucketId
+    }
+
+    // ECIES-encrypted file object (hex) wrapping a nodePersistentStorage reference,
+    // mirroring how an encrypted DDO service.files would look
+    const encryptPSFileObject = async (
+      bucketId: string,
+      fileName: string
+    ): Promise<string> => {
+      const data = Uint8Array.from(
+        Buffer.from(
+          JSON.stringify({
+            files: [{ type: 'nodePersistentStorage', bucketId, fileName }]
+          })
+        )
+      )
+      const encrypted = await oceanNode.getKeyManager().encrypt(data, EncryptMethod.ECIES)
+      return Buffer.from(encrypted).toString('hex')
+    }
+
+    const buildFreeStart = async (
+      account: any,
+      datasets: any[],
+      algorithm: any
+    ): Promise<FreeComputeStartCommand> => {
+      const consumerAddress = await account.getAddress()
+      const nonce = Date.now().toString()
+      const signature = await safeSign(
+        account,
+        createHashForSignature(
+          consumerAddress,
+          nonce,
+          PROTOCOL_COMMANDS.FREE_COMPUTE_START
+        )
+      )
+      return {
+        command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+        consumerAddress,
+        signature,
+        nonce,
+        environment: firstEnv.id,
+        queueMaxWaitTime: 0,
+        datasets,
+        algorithm,
+        output: null
+      }
+    }
+
+    // run a free compute job to completion and return the extracted contents of a
+    // single output file written by the algorithm into /data/outputs
+    const runFreeJobAndReadOutput = async (
+      account: any,
+      datasets: any[],
+      algorithm: any,
+      outputFileName: string
+    ): Promise<string> => {
+      const startTask = await buildFreeStart(account, datasets, algorithm)
+      const startRes = await new FreeComputeStartHandler(oceanNode).handle(startTask)
+      assert.equal(startRes.status.httpStatus, 200, String(startRes.status.error))
+      const started = await streamToObject(startRes.stream as Readable)
+      const fullJobId = started[0].jobId as string
+      const innerJobId = fullJobId.slice(fullJobId.indexOf('-') + 1)
+      await sleep(2000) // give the job a moment to start and create its output directory
+      await waitForComputeJobFinished(oceanNode, fullJobId, 180_000)
+
+      const base = (psDockerEngine as any).getStoragePath() as string
+      const outputsTarPath = path.join(base, innerJobId, 'data/outputs/outputs.tar')
+      /* eslint-disable security/detect-non-literal-fs-filename -- job paths from C2D engine */
+      assert(existsSync(outputsTarPath), `expected outputs archive at ${outputsTarPath}`)
+      const extractDir = await fsp.mkdtemp(path.join(tmpdir(), 'ocean-ps-out-'))
+      try {
+        await tar.x({ file: outputsTarPath, cwd: extractDir }, [
+          `outputs/${outputFileName}`
+        ])
+        const extracted = path.join(extractDir, `outputs/${outputFileName}`)
+        assert(
+          existsSync(extracted),
+          `expected outputs/${outputFileName} inside outputs.tar`
+        )
+        return await fsp.readFile(extracted, 'utf8')
+      } finally {
+        await fsp.rm(extractDir, { recursive: true, force: true })
+      }
+      /* eslint-enable security/detect-non-literal-fs-filename */
+    }
+
     before(async function () {
       try {
         const d = new Dockerode()
@@ -2601,6 +2734,207 @@ describe('**********         Compute', () => {
         'allow',
         'expected access-denied style message'
       )
+    })
+
+    it('reads a persistent storage dataset provided as an ENCRYPTED file object', async function () {
+      const fileName = 'enc-ps-data.txt'
+      const secret = 'ENCRYPTED_PS_DATASET_OK\n'
+      const bucketId = await createBucketAndUpload(consumerAccount, fileName, secret)
+      const encryptedFileObject = await encryptPSFileObject(bucketId, fileName)
+
+      const rawcode = [
+        "const fs = require('fs');",
+        `const p = '/data/persistentStorage/${bucketId}/${fileName}';`,
+        "fs.mkdirSync('/data/outputs', { recursive: true });",
+        "fs.writeFileSync('/data/outputs/enc-result.txt', fs.readFileSync(p, 'utf8'), 'utf8');"
+      ].join('\n')
+      const algoMeta = publishedAlgoDataset.ddo.metadata.algorithm
+
+      const written = await runFreeJobAndReadOutput(
+        consumerAccount,
+        [{ fileObject: encryptedFileObject as any }],
+        { meta: { ...algoMeta, rawcode } },
+        'enc-result.txt'
+      )
+      assert.equal(written, secret)
+    })
+
+    it('runs an ALGORITHM stored in persistent storage (no longer banned)', async function () {
+      const algoFileName = 'algo.js'
+      const inputFileName = 'algo-input.txt'
+      const algoCode = [
+        "const fs = require('fs');",
+        "fs.mkdirSync('/data/outputs', { recursive: true });",
+        "fs.writeFileSync('/data/outputs/algo-result.txt', 'PS_ALGORITHM_OK\\n', 'utf8');"
+      ].join('\n')
+      const bucketId = await createBucketAndUpload(
+        consumerAccount,
+        algoFileName,
+        algoCode
+      )
+      // upload an input file into the same bucket so the job has a dataset
+      await (async () => {
+        const consumerAddress = await consumerAccount.getAddress()
+        const nonce = Date.now().toString()
+        const signature = await safeSign(
+          consumerAccount,
+          createHashForSignature(
+            consumerAddress,
+            nonce,
+            PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
+          )
+        )
+        const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
+          command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
+          consumerAddress,
+          signature,
+          nonce,
+          bucketId,
+          fileName: inputFileName,
+          stream: Readable.from(Buffer.from('input\n'))
+        } as any)
+        assert.equal(uploadRes.status.httpStatus, 200)
+      })()
+
+      const algoMeta = publishedAlgoDataset.ddo.metadata.algorithm
+      const written = await runFreeJobAndReadOutput(
+        consumerAccount,
+        [
+          {
+            fileObject: {
+              type: 'nodePersistentStorage',
+              bucketId,
+              fileName: inputFileName
+            } as any
+          }
+        ],
+        {
+          meta: { ...algoMeta },
+          fileObject: {
+            type: 'nodePersistentStorage',
+            bucketId,
+            fileName: algoFileName
+          } as any
+        },
+        'algo-result.txt'
+      )
+      assert.equal(written, 'PS_ALGORITHM_OK\n')
+    })
+
+    it('handles a MIX of persistent-storage and non-persistent-storage datasets', async function () {
+      const fileName = 'mixed-ps.txt'
+      const secret = 'MIXED_PS_OK\n'
+      const bucketId = await createBucketAndUpload(consumerAccount, fileName, secret)
+      const encryptedFileObject = await encryptPSFileObject(bucketId, fileName)
+
+      const rawcode = [
+        "const fs = require('fs');",
+        `const ps = fs.readFileSync('/data/persistentStorage/${bucketId}/${fileName}', 'utf8');`,
+        "const inputs = fs.readdirSync('/data/inputs').filter(f => f !== 'algoCustomData.json');",
+        "fs.mkdirSync('/data/outputs', { recursive: true });",
+        "fs.writeFileSync('/data/outputs/mixed-result.txt', ps + '|inputs=' + inputs.length, 'utf8');"
+      ].join('\n')
+      const algoMeta = publishedAlgoDataset.ddo.metadata.algorithm
+
+      const written = await runFreeJobAndReadOutput(
+        consumerAccount,
+        [
+          { fileObject: encryptedFileObject as any },
+          {
+            fileObject: {
+              type: 'url',
+              method: 'GET',
+              url: 'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js'
+            } as any
+          }
+        ],
+        { meta: { ...algoMeta, rawcode } },
+        'mixed-result.txt'
+      )
+      // the persistent-storage dataset is bind-mounted, the URL dataset is downloaded
+      // into /data/inputs alongside algoCustomData.json
+      assert(written.startsWith(secret + '|inputs='), `unexpected output: ${written}`)
+      const count = parseInt(written.split('|inputs=')[1], 10)
+      assert(count >= 1, `expected at least one downloaded non-PS input, got ${count}`)
+    })
+
+    it('denies a persistent-storage ALGORITHM when the consumer is not on the bucket ACL', async function () {
+      const algoFileName = 'private-algo.js'
+      const bucketId = await createBucketAndUpload(
+        consumerAccount,
+        algoFileName,
+        "console.log('noop');"
+      )
+
+      const intruder = nonAllowedAccount
+      const algoMeta = publishedAlgoDataset.ddo.metadata.algorithm
+      const startTask = await buildFreeStart(
+        intruder,
+        [
+          {
+            fileObject: {
+              type: 'nodePersistentStorage',
+              bucketId,
+              fileName: algoFileName
+            } as any
+          }
+        ],
+        {
+          meta: { ...algoMeta },
+          fileObject: {
+            type: 'nodePersistentStorage',
+            bucketId,
+            fileName: algoFileName
+          } as any
+        }
+      )
+      const startRes = await new FreeComputeStartHandler(oceanNode).handle(startTask)
+      assert.equal(startRes.status.httpStatus, 403, String(startRes.status.error))
+      assert.include((startRes.status.error || '').toLowerCase(), 'allow')
+    })
+
+    it('getAlgoChecksums computes a real content checksum for a PUBLISHED persistent-storage algorithm', async function () {
+      this.timeout(DEFAULT_TEST_TIMEOUT * 6)
+      const algoFileName = 'published-algo.js'
+      const algoCode = "console.log('published ps algo');\n"
+      const bucketId = await createBucketAndUpload(
+        consumerAccount,
+        algoFileName,
+        algoCode
+      )
+      const expected = createHash('sha256').update(Buffer.from(algoCode)).digest('hex')
+
+      // publish an algorithm DDO whose (encrypted) service.files points to the bucket file
+      const psAlgoAsset = JSON.parse(JSON.stringify(algoAsset))
+      psAlgoAsset.services[0].files.files = [
+        { type: 'nodePersistentStorage', bucketId, fileName: algoFileName }
+      ]
+      const published = await publishAsset(psAlgoAsset, publisherAccount)
+      assert(published, 'failed to publish persistent-storage algorithm DDO')
+
+      const { ddo, wasTimeout } = await waitToIndex(
+        oceanNode,
+        published.ddo.id,
+        EVENTS.METADATA_CREATED,
+        DEFAULT_TEST_TIMEOUT * 3,
+        true
+      )
+      if (!ddo) {
+        expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+        return
+      }
+
+      const config = await getConfiguration()
+      const consumerAddress = await consumerAccount.getAddress()
+      const checksums = await getAlgoChecksums(
+        ddo.id,
+        ddo.services[0].id,
+        oceanNode,
+        config,
+        consumerAddress
+      )
+      expect(checksums.files).to.equal(expected)
+      expect(checksums.container).to.not.equal('')
     })
 
     describe('Compute output in bucket (outputBucketId)', function () {

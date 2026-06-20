@@ -33,6 +33,9 @@ fileInfoRoute.post(
         res.status(400).send('Invalid request parameters')
         return
       }
+      // optional; required only for nodePersistentStorage files (gates on the bucket ACL)
+      const consumerAddress = (req.body as { consumerAddress?: string })?.consumerAddress
+
       // Retrieve the file info
       let fileObject: StorageObject
       let fileInfoTask: FileInfoCommand
@@ -42,6 +45,7 @@ fileInfoRoute.post(
           command: PROTOCOL_COMMANDS.FILE_INFO,
           did: fileInfoReq.did,
           serviceId: fileInfoReq.serviceId,
+          consumerAddress,
           caller: req.caller
         }
       } else {
@@ -51,6 +55,7 @@ fileInfoRoute.post(
           command: PROTOCOL_COMMANDS.FILE_INFO,
           file: fileObject,
           type: fileObject.type as FileObjectType,
+          consumerAddress,
           caller: req.caller
         }
       }

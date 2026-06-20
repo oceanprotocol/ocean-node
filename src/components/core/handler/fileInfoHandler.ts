@@ -1,6 +1,10 @@
 import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
-import { FileObjectType, StorageObject } from '../../../@types/fileObject.js'
+import {
+  FileObjectType,
+  StorageObject,
+  isPersistentStorageType
+} from '../../../@types/fileObject.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
 import { FileInfoCommand } from '../../../@types/commands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
@@ -16,7 +20,8 @@ import { getFile } from '../../../utils/file.js'
 
 async function formatMetadata(
   file: StorageObject,
-  config: OceanNodeConfig
+  config: OceanNodeConfig,
+  consumerAddress?: string
 ): Promise<{
   valid: boolean
   contentLength: string
@@ -25,7 +30,19 @@ async function formatMetadata(
   name: string
   type: string
 }> {
-  const storage = Storage.getStorageClass(file, config)
+  // Persistent-storage files are ACL-gated: only resolve real metadata when a
+  // consumerAddress is supplied (the backend then enforces the bucket ACL). Without it,
+  // return a generic entry
+  if (isPersistentStorageType((file as { type?: string })?.type) && !consumerAddress) {
+    return {
+      valid: false,
+      contentLength: '',
+      contentType: 'application/octet-stream',
+      name: '',
+      type: FileObjectType.NODE_PERSISTENT_STORAGE
+    }
+  }
+  const storage = Storage.getStorageClass(file, config, consumerAddress)
   const fileInfo = await storage.fetchSpecificFileMetadata(file, false)
   CORE_LOGGER.logMessage(
     `Metadata for file: ${fileInfo.contentLength} ${fileInfo.contentType}`
@@ -63,6 +80,18 @@ export class FileInfoHandler extends CommandHandler {
         'Invalid Request: type must be one of ' + Object.values(FileObjectType).join(', ')
       )
     }
+    // persistent storage files are ACL-gated: a consumerAddress is required so the bucket
+    // ACL can be enforced. Check both the top-level command type AND the embedded file type
+    // (normalized for casing), since handle() routes getStorageClass on file.type.
+    if (
+      (isPersistentStorageType(command.type) ||
+        isPersistentStorageType(command.file?.type)) &&
+      !command.consumerAddress
+    ) {
+      return buildInvalidRequestMessage(
+        'Invalid Request: consumerAddress is required for nodePersistentStorage files'
+      )
+    }
 
     return validation
   }
@@ -78,7 +107,7 @@ export class FileInfoHandler extends CommandHandler {
       let fileInfo = []
 
       if (task.file && task.type) {
-        const storage = Storage.getStorageClass(task.file, config)
+        const storage = Storage.getStorageClass(task.file, config, task.consumerAddress)
 
         fileInfo = await storage.getFileInfo({
           type: task.type,
@@ -87,11 +116,15 @@ export class FileInfoHandler extends CommandHandler {
       } else if (task.did && task.serviceId) {
         const fileArray = await getFile(task.did, task.serviceId, oceanNode)
         if (task.fileIndex) {
-          const fileMetadata = await formatMetadata(fileArray[task.fileIndex], config)
+          const fileMetadata = await formatMetadata(
+            fileArray[task.fileIndex],
+            config,
+            task.consumerAddress
+          )
           fileInfo.push(fileMetadata)
         } else {
           for (const file of fileArray) {
-            const fileMetadata = await formatMetadata(file, config)
+            const fileMetadata = await formatMetadata(file, config, task.consumerAddress)
             fileInfo.push(fileMetadata)
           }
         }

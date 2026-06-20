@@ -59,7 +59,11 @@ import { ValidateParams } from '../httpRoutes/validateCommands.js'
 import { Service } from '@oceanprotocol/ddo-js'
 import { getOceanTokenAddressForChain } from '../../utils/address.js'
 import { dockerRegistryAuth, OceanNodeConfig } from '../../@types/OceanNode.js'
-import { EncryptMethod } from '../../@types/fileObject.js'
+import {
+  BaseFileObject,
+  EncryptMethod,
+  isPersistentStorageType
+} from '../../@types/fileObject.js'
 import { getAddress, ZeroAddress } from 'ethers'
 import { AccessList } from '../../@types/AccessList.js'
 
@@ -1962,10 +1966,16 @@ export class C2DEngineDocker extends C2DEngine {
       // persistent Storage: bind-mount bucket files into the job container (localfs backend)
       for (const i in job.assets) {
         const asset = job.assets[i]
-        if (!asset.fileObject || asset.fileObject.type !== 'nodePersistentStorage') {
+        // resolve the effective file object (plaintext, encrypted, or via documentId/serviceId)
+        const resolved = await resolveComputeFileObject(asset)
+        if (!resolved || !isPersistentStorageType(resolved.type)) {
+          // non persistent-storage assets are downloaded later, during uploadData
           continue
         }
-        const fo = asset.fileObject as { bucketId?: string; fileName?: string }
+        // keep `resolved` local — do NOT persist the decrypted bucketId/fileName back
+        // onto the job record. uploadData independently re-detects encrypted and
+        // DDO-derived persistent-storage assets and skips them.
+        const fo = resolved as unknown as { bucketId?: string; fileName?: string }
         if (!fo.bucketId || !fo.fileName) {
           CORE_LOGGER.error(
             `Job ${job.jobId} asset ${i}: nodePersistentStorage requires bucketId and fileName`
@@ -2872,107 +2882,36 @@ export class C2DEngineDocker extends C2DEngine {
         appendFileSync(configLogPath, `Writing raw algo code to ${fullAlgoPath}\n`)
         writeFileSync(fullAlgoPath, job.algorithm.meta.rawcode)
       } else {
-        // do we have a files object?
-        if (job.algorithm.fileObject) {
-          // is it unencrypted?
-          if (job.algorithm.fileObject.type) {
-            // we can get the storage directly
-            try {
-              storage = Storage.getStorageClass(job.algorithm.fileObject, config)
-            } catch (e) {
-              CORE_LOGGER.error(`Unable to get storage class for algorithm: ${e.message}`)
-              appendFileSync(
-                configLogPath,
-                `Unable to get storage class for algorithm: ${e.message}\n`
-              )
-              return {
-                status: C2DStatusNumber.AlgorithmProvisioningFailed,
-                statusText: C2DStatusText.AlgorithmProvisioningFailed
-              }
-            }
-          } else {
-            // ok, maybe we have this encrypted instead
-            CORE_LOGGER.info(
-              'algorithm file object seems to be encrypted, checking it...'
-            )
-            // 1. Decrypt the files object
-            try {
-              const decryptedFileObject = await decryptFilesObject(
-                job.algorithm.fileObject
-              )
-              storage = Storage.getStorageClass(decryptedFileObject, config)
-            } catch (e) {
-              CORE_LOGGER.error(`Unable to decrypt algorithm files object: ${e.message}`)
-              appendFileSync(
-                configLogPath,
-                `Unable to decrypt algorithm files object: ${e.message}\n`
-              )
-              return {
-                status: C2DStatusNumber.AlgorithmProvisioningFailed,
-                statusText: C2DStatusText.AlgorithmProvisioningFailed
-              }
-            }
-          }
-        } else {
-          // no files object, try to get information from documentId and serviceId
-          CORE_LOGGER.info(
-            'algorithm file object seems to be missing, checking "serviceId" and "documentId"...'
-          )
-          const { serviceId, documentId } = job.algorithm
-          appendFileSync(
-            configLogPath,
-            `Using ${documentId} and serviceId ${serviceId} to get algorithm files.\n`
-          )
-          // we can get it from this info
-          if (serviceId && documentId) {
-            const algoDdo = await new FindDdoHandler(
-              OceanNode.getInstance()
-            ).findAndFormatDdo(documentId)
-            // 1. Get the service
-            const service: Service = AssetUtils.getServiceById(algoDdo, serviceId)
-            if (!service) {
-              CORE_LOGGER.error(
-                `Could not find service with ID ${serviceId} in DDO ${documentId}`
-              )
-              appendFileSync(
-                configLogPath,
-                `Could not find service with ID ${serviceId} in DDO ${documentId}\n`
-              )
-              return {
-                status: C2DStatusNumber.AlgorithmProvisioningFailed,
-                statusText: C2DStatusText.AlgorithmProvisioningFailed
-              }
-            }
-            try {
-              // 2. Decrypt the files object
-              const decryptedFileObject = await decryptFilesObject(service.files)
-              storage = Storage.getStorageClass(decryptedFileObject, config)
-            } catch (e) {
-              CORE_LOGGER.error(`Unable to decrypt algorithm files object: ${e.message}`)
-              appendFileSync(
-                configLogPath,
-                `Unable to decrypt algorithm files object: ${e.message}\n`
-              )
-              return {
-                status: C2DStatusNumber.AlgorithmProvisioningFailed,
-                statusText: C2DStatusText.AlgorithmProvisioningFailed
-              }
-            }
-          }
-        }
-
-        if (storage) {
-          await pipeline(
-            (await storage.getReadableStream()).stream,
-            createWriteStream(fullAlgoPath)
-          )
-        } else {
+        // resolve the effective algorithm file object (plaintext, encrypted, or via
+        // documentId/serviceId). All types — including nodePersistentStorage — are
+        // streamed uniformly through the Storage class (job.owner enforces the bucket
+        // ACL for persistent storage).
+        const resolved = await resolveComputeFileObject(job.algorithm)
+        if (!resolved) {
           CORE_LOGGER.info(
             'Could not extract any files object from the compute algorithm, skipping...'
           )
           appendFileSync(
             configLogPath,
             'Could not extract any files object from the compute algorithm, skipping...\n'
+          )
+        } else {
+          try {
+            storage = Storage.getStorageClass(resolved, config, job.owner)
+          } catch (e) {
+            CORE_LOGGER.error(`Unable to get storage class for algorithm: ${e.message}`)
+            appendFileSync(
+              configLogPath,
+              `Unable to get storage class for algorithm: ${e.message}\n`
+            )
+            return {
+              status: C2DStatusNumber.AlgorithmProvisioningFailed,
+              statusText: C2DStatusText.AlgorithmProvisioningFailed
+            }
+          }
+          await pipeline(
+            (await storage.getReadableStream()).stream,
+            createWriteStream(fullAlgoPath)
           )
         }
       }
@@ -3000,8 +2939,8 @@ export class C2DEngineDocker extends C2DEngine {
       if (asset.fileObject) {
         try {
           if (asset.fileObject.type) {
-            if (asset.fileObject.type === 'nodePersistentStorage') {
-              // local storage is handled later, when we start the container and create the binds
+            if (isPersistentStorageType(asset.fileObject.type)) {
+              // persistent storage is handled during ConfiguringVolumes via bind mounts
               continue
             }
             storage = Storage.getStorageClass(asset.fileObject, config)
@@ -3009,6 +2948,11 @@ export class C2DEngineDocker extends C2DEngine {
             CORE_LOGGER.info('asset file object seems to be encrypted, checking it...')
             // get the encrypted bytes
             let filesObject: any = await decryptFilesObject(asset.fileObject)
+            // persistent storage assets are bind-mounted during ConfiguringVolumes;
+            // skip download here even if the resolved object wasn't written back
+            if (isPersistentStorageType(filesObject?.type)) {
+              continue
+            }
             filesObject = await this.addUserDataToFilesObject(filesObject, asset.userdata)
             storage = Storage.getStorageClass(filesObject, config)
           }
@@ -3045,6 +2989,10 @@ export class C2DEngineDocker extends C2DEngine {
             const service: Service = AssetUtils.getServiceById(ddo, serviceId)
             // 3. Decrypt the url
             let decryptedFileObject = await decryptFilesObject(service.files)
+            // persistent storage assets are bind-mounted during ConfiguringVolumes
+            if (isPersistentStorageType(decryptedFileObject?.type)) {
+              continue
+            }
             decryptedFileObject = await this.addUserDataToFilesObject(
               decryptedFileObject,
               asset.userdata
@@ -3441,6 +3389,52 @@ export class C2DEngineDocker extends C2DEngine {
 }
 
 // this uses the docker engine, but exposes only one env, the free one
+
+/**
+ * Resolves the effective (decrypted) file object for a compute asset or algorithm.
+ * Handles the three ways a file object can arrive:
+ *  1. plaintext file object (already has a `type`)
+ *  2. encrypted file object (no `type`) -> decrypt it
+ *  3. no file object, only `documentId` + `serviceId` -> resolve the DDO and decrypt `service.files`
+ * Returns null if nothing could be resolved. Shared by the Docker provisioning path
+ * and the compute pre-checks (initialize/start) so persistent-storage ACL validation
+ * sees the same resolved object.
+ */
+export async function resolveComputeFileObject(
+  item: ComputeAsset | ComputeAlgorithm
+): Promise<BaseFileObject | null> {
+  try {
+    if (item.fileObject) {
+      // plaintext: type is directly available
+      if ((item.fileObject as BaseFileObject).type) {
+        return item.fileObject as BaseFileObject
+      }
+      // encrypted: decrypt to reveal the type
+      return await decryptFilesObject(item.fileObject)
+    }
+    // no file object: try documentId + serviceId
+    const { documentId, serviceId } = item
+    if (documentId && serviceId) {
+      const ddo = await new FindDdoHandler(OceanNode.getInstance()).findAndFormatDdo(
+        documentId
+      )
+      if (!ddo) {
+        return null
+      }
+      const service: Service = AssetUtils.getServiceById(ddo, serviceId)
+      if (!service) {
+        return null
+      }
+      return await decryptFilesObject(service.files)
+    }
+    return null
+  } catch (e) {
+    CORE_LOGGER.error(
+      `Unable to resolve compute file object: ${e instanceof Error ? e.message : String(e)}`
+    )
+    return null
+  }
+}
 
 export function getAlgorithmImage(algorithm: ComputeAlgorithm, jobId: string): string {
   if (!algorithm.meta || !algorithm.meta.container) {

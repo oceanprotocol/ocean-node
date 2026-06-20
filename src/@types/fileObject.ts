@@ -49,12 +49,19 @@ export interface FtpFileObject extends BaseFileObject {
   url: string
 }
 
+export interface PersistentStorageObject extends BaseFileObject {
+  type: 'nodePersistentStorage'
+  bucketId: string
+  fileName: string
+}
+
 export type StorageObject =
   | UrlFileObject
   | IpfsFileObject
   | ArweaveFileObject
   | S3FileObject
   | FtpFileObject
+  | PersistentStorageObject
 
 export interface StorageReadable {
   stream: Readable
@@ -68,7 +75,18 @@ export enum FileObjectType {
   IPFS = 'ipfs',
   ARWEAVE = 'arweave',
   S3 = 's3',
-  FTP = 'ftp'
+  FTP = 'ftp',
+  NODE_PERSISTENT_STORAGE = 'nodePersistentStorage'
+}
+
+// Case-insensitive match for the persistent-storage type. getStorageClass routes on
+// `type?.toLowerCase()`, so all guard checks must normalize too or a casing variant
+// (e.g. "NodePersistentStorage") slips past the guard and is still routed as PS.
+export function isPersistentStorageType(type: unknown): boolean {
+  return (
+    typeof type === 'string' &&
+    type.toLowerCase() === FileObjectType.NODE_PERSISTENT_STORAGE.toLowerCase()
+  )
 }
 
 export interface FileInfoRequest {

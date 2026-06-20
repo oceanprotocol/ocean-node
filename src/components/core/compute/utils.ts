@@ -1,7 +1,11 @@
 import { OceanNode } from '../../../OceanNode.js'
 import { AlgoChecksums, ComputeOutput } from '../../../@types/C2D/C2D.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
-import { StorageObject, EncryptMethod } from '../../../@types/fileObject.js'
+import {
+  StorageObject,
+  EncryptMethod,
+  isPersistentStorageType
+} from '../../../@types/fileObject.js'
 import { getFile } from '../../../utils/file.js'
 import { Storage } from '../../storage/index.js'
 
@@ -26,7 +30,8 @@ export async function getAlgoChecksums(
   algoDID: string | undefined,
   algoServiceId: string | undefined,
   oceanNode: OceanNode,
-  config: OceanNodeConfig
+  config: OceanNodeConfig,
+  consumerAddress?: string
 ): Promise<AlgoChecksums> {
   const checksums: AlgoChecksums = {
     files: '',
@@ -45,7 +50,18 @@ export async function getAlgoChecksums(
     }
     const fileArray = await getFile(algoDDO, algoServiceId, oceanNode)
     for (const file of fileArray) {
-      const storage = Storage.getStorageClass(file as StorageObject, config)
+      // persistent storage checksums require a consumerAddress (ACL); guard so a
+      // missing consumer errors instead of silently producing an empty checksum
+      if (isPersistentStorageType((file as any)?.type) && !consumerAddress) {
+        throw new Error(
+          'Unable to compute checksum for persistent storage algorithm file: missing consumerAddress'
+        )
+      }
+      const storage = Storage.getStorageClass(
+        file as StorageObject,
+        config,
+        consumerAddress
+      )
       const fileInfo = await storage.fetchSpecificFileMetadata(
         file as StorageObject,
         true // force checksum

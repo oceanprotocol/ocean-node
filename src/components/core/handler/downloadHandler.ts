@@ -19,7 +19,7 @@ import { checkCredentials } from '../../../utils/credentials.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { DownloadCommand, DownloadURLCommand } from '../../../@types/commands.js'
-import { EncryptMethod } from '../../../@types/fileObject.js'
+import { EncryptMethod, isPersistentStorageType } from '../../../@types/fileObject.js'
 
 import {
   validateCommandParameters,
@@ -62,6 +62,17 @@ export async function handleDownloadUrlCommand(
   CORE_LOGGER.logMessage('DownloadCommand requires file encryption? ' + encryptFile, true)
   const config = node.getConfig()
   try {
+    // Persistent-storage files are only available within compute jobs, never via download.
+    if (isPersistentStorageType((task.fileObject as { type?: string })?.type)) {
+      return {
+        stream: null,
+        status: {
+          httpStatus: 403,
+          error:
+            'Persistent storage files cannot be downloaded; they are only available within compute jobs'
+        }
+      }
+    }
     // Determine the type of storage and get a readable stream
     const storage = Storage.getStorageClass(task.fileObject, config)
 

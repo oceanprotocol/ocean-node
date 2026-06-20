@@ -1,5 +1,5 @@
 import type { AccessList } from './AccessList'
-import type { BaseFileObject } from './fileObject.js'
+export type { PersistentStorageObject } from './fileObject.js'
 export type PersistentStorageType = 'localfs' | 's3'
 
 export interface PersistentStorageLocalFSOptions {
@@ -32,10 +32,4 @@ export interface DockerMountObject {
   Source: string
   Target: string
   ReadOnly: boolean
-}
-
-export interface PersistentStorageObject extends BaseFileObject {
-  type: 'nodePersistentStorage'
-  bucketId: string
-  fileName: string
 }

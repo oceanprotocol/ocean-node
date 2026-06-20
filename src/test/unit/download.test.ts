@@ -15,7 +15,10 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
-import { validateFilesStructure } from '../../components/core/handler/downloadHandler.js'
+import {
+  handleDownloadUrlCommand,
+  validateFilesStructure
+} from '../../components/core/handler/downloadHandler.js'
 import { AssetUtils, isConfidentialChainDDO } from '../../utils/asset.js'
 import { DEVELOPMENT_CHAIN_ID, KNOWN_CONFIDENTIAL_EVMS } from '../../utils/address.js'
 import { DDO } from '@oceanprotocol/ddo-js'
@@ -210,6 +213,34 @@ describe('Should validate files structure for download', () => {
         otherDatatokenAddress?.toLowerCase()
     )
     assert(decryptedFileData.nftAddress?.toLowerCase() === otherNFTAddress?.toLowerCase())
+  })
+
+  it('should deny downloading a persistentStorage file object (compute-only)', async () => {
+    const result = await handleDownloadUrlCommand(oceanNode, {
+      fileObject: {
+        type: 'nodePersistentStorage',
+        bucketId: 'some-bucket',
+        fileName: 'data.txt'
+      } as any,
+      command: PROTOCOL_COMMANDS.DOWNLOAD
+    } as any)
+    expect(result.stream).to.equal(null)
+    expect(result.status.httpStatus).to.equal(403)
+    expect((result.status.error || '').toLowerCase()).to.include('compute')
+  })
+
+  it('should deny downloading a mixed-case persistentStorage file object (compute-only)', async () => {
+    const result = await handleDownloadUrlCommand(oceanNode, {
+      fileObject: {
+        type: 'NodePersistentStorage',
+        bucketId: 'some-bucket',
+        fileName: 'data.txt'
+      } as any,
+      command: PROTOCOL_COMMANDS.DOWNLOAD
+    } as any)
+    expect(result.stream).to.equal(null)
+    expect(result.status.httpStatus).to.equal(403)
+    expect((result.status.error || '').toLowerCase()).to.include('compute')
   })
 
   it('should check if DDO service files is missing or empty (exected for confidential EVM, dt4)', () => {

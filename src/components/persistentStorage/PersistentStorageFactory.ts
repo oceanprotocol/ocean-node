@@ -1,4 +1,5 @@
 import { P2PCommandResponse } from '../../@types/index.js'
+import { isPersistentStorageType } from '../../@types/fileObject.js'
 import type { AccessList } from '../../@types/AccessList.js'
 import type {
   DockerMountObject,
@@ -186,6 +187,37 @@ export abstract class PersistentStorageFactory {
     consumerAddress: string
   ): Promise<DockerMountObject>
 
+  /**
+   * Returns a sha256 checksum of a bucket file's contents.
+   * Used to compute algorithm file checksums for compute jobs that reference
+   * persistent storage.
+   */
+  public abstract getFileChecksum(
+    bucketId: string,
+    fileName: string,
+    consumerAddress?: string
+  ): Promise<string>
+
+  /**
+   * Stat-like metadata for a bucket file. ACL is enforced only when
+   * `consumerAddress` is provided (mirrors `getDockerMountObject`).
+   */
+  public abstract getFileInfo(
+    bucketId: string,
+    fileName: string,
+    consumerAddress?: string
+  ): Promise<{ size: number; lastModified: number }>
+
+  /**
+   * Returns a readable stream of a bucket file's contents. ACL is enforced only
+   * when `consumerAddress` is provided. Backs the NodePersistentStorage class.
+   */
+  public abstract getReadableStream(
+    bucketId: string,
+    fileName: string,
+    consumerAddress?: string
+  ): Promise<NodeJS.ReadableStream>
+
   // common functions
   async getBucketAccessList(bucketId: string): Promise<AccessList[]> {
     try {
@@ -362,31 +394,7 @@ export abstract class PersistentStorageFactory {
 }
 
 /**
- * Algorithms must not reference node persistent storage; only datasets may use
- * `nodePersistentStorage` / `localfs` file objects.
- */
-export function rejectPersistentStorageFileObjectOnAlgorithm(
-  fileObject: unknown
-): P2PCommandResponse | null {
-  if (fileObject === null || fileObject === undefined || typeof fileObject !== 'object') {
-    return null
-  }
-  const fo = fileObject as { type?: string }
-  if (fo.type === 'nodePersistentStorage' || fo.type === 'localfs') {
-    return {
-      stream: null,
-      status: {
-        httpStatus: 400,
-        error:
-          'Algorithms cannot use node persistent storage file objects; only datasets may reference persistent storage.'
-      }
-    }
-  }
-  return null
-}
-
-/**
- * When a compute dataset uses a node persistent-storage file (localfs backend),
+ * When a compute dataset or algorithm uses a node persistent-storage file (localfs backend),
  * ensure the consumer is on the bucket ACL before proceeding.
  */
 export async function ensureConsumerAllowedForPersistentStorageLocalfsFileObject(
@@ -398,7 +406,7 @@ export async function ensureConsumerAllowedForPersistentStorageLocalfsFileObject
     return null
   }
   const fo = fileObject as { type?: string; bucketId?: unknown }
-  if (fo.type !== 'nodePersistentStorage') {
+  if (!isPersistentStorageType(fo.type)) {
     return null
   }
   if (typeof fo.bucketId !== 'string' || fo.bucketId.length === 0) {
