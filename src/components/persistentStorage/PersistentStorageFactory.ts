@@ -179,7 +179,7 @@ export abstract class PersistentStorageFactory {
   public abstract getDockerMountObject(
     bucketId: string,
     fileName: string,
-    consumerAddress?: string
+    consumerAddress: string
   ): Promise<DockerMountObject>
 
   public abstract getDockerOutputMountObject(
