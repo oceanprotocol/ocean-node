@@ -166,7 +166,7 @@ describe('**********         Persistent storage handlers (integration)', functio
         ownerAddress
       )
 
-      const mount = await backend.getDockerMountObject(bucketId, fileName)
+      const mount = await backend.getDockerMountObject(bucketId, fileName, ownerAddress)
       expect(path.isAbsolute(mount.Source)).to.equal(true)
     } finally {
       await fsp.rm(path.resolve(relativeFolder), { recursive: true, force: true })

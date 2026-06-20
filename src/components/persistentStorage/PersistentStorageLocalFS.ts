@@ -208,7 +208,7 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
   async getDockerMountObject(
     bucketId: string,
     fileName: string,
-    consumerAddress?: string
+    consumerAddress: string
   ): Promise<DockerMountObject> {
     await this.ensureBucketExists(bucketId)
     if (!consumerAddress) {
