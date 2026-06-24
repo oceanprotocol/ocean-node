@@ -120,15 +120,18 @@ describe('**********         Service on Demand', () => {
   }
 
   async function fundEscrow(beneficiaryNodeAddr: string, durationForLock: number) {
-    let balance = await paymentTokenContract.balanceOf(consumerAddress)
-    if (BigInt(balance.toString()) === BigInt(0)) {
-      const mintTx = await paymentTokenContract.mint(
-        consumerAddress,
-        ethers.parseUnits('1000', 18)
-      )
-      await mintTx.wait()
-      balance = await paymentTokenContract.balanceOf(consumerAddress)
-    }
+    // Always mint a large top-up rather than only when the balance is 0. Integration suites
+    // share one dev chain and run in sequence; by the time this suite runs, earlier suites
+    // (e.g. compute) have left locked funds against the same (token, payer, node beneficiary)
+    // and drained the wallet. Setting maxLockedAmount from a small leftover balance would push
+    // it below the already-accumulated currentLockedAmount → "will go over limit". A large
+    // deposit + authorization ceiling clears that leftover and covers all locks in (d)→(l).
+    const mintTx = await paymentTokenContract.mint(
+      consumerAddress,
+      ethers.parseUnits('1000000', 18)
+    )
+    await mintTx.wait()
+    const balance = await paymentTokenContract.balanceOf(consumerAddress)
     await (
       await paymentTokenContract
         .connect(consumerAccount)
@@ -141,7 +144,7 @@ describe('**********         Service on Demand', () => {
     await (
       await escrowContract
         .connect(consumerAccount)
-        .authorize(paymentToken, beneficiaryNodeAddr, balance, minLockSeconds, 10)
+        .authorize(paymentToken, beneficiaryNodeAddr, balance, minLockSeconds, 100)
     ).wait()
     return await oceanNode.escrow.getUserAvailableFunds(
       DEVELOPMENT_CHAIN_ID,
