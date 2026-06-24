@@ -3119,6 +3119,10 @@ export class C2DEngineDocker extends C2DEngine {
     }
     await this.db.newServiceJob(job)
 
+    // Live Docker handles, tracked so the catch block can tear down a half-created
+    // service (otherwise the network leaks and exhausts the daemon's IPAM pool).
+    let network: Dockerode.Network | null = null
+    let container: Dockerode.Container | null = null
     try {
       const sod = this.getC2DConfig().connection?.serviceOnDemand
       // 2. Pull or build image
@@ -3163,7 +3167,7 @@ export class C2DEngineDocker extends C2DEngine {
       job.endpoints = endpoints
 
       // 5. Per-service Docker network
-      const network = await this.docker.createNetwork({ Name: `ocean-svc-${serviceId}` })
+      network = await this.docker.createNetwork({ Name: `ocean-svc-${serviceId}` })
 
       // 6. Container env from the decrypted (in-memory) userData; command/entrypoint from the request.
       const env = userDataToEnv(decryptedUserData)
@@ -3183,7 +3187,7 @@ export class C2DEngineDocker extends C2DEngine {
         this.buildServiceResourceConstraints(resources)
 
       // 9. Create and start container
-      const container = await this.docker.createContainer({
+      container = await this.docker.createContainer({
         Image: containerImage,
         Cmd: cmd,
         Entrypoint: entrypoint,
@@ -3210,6 +3214,7 @@ export class C2DEngineDocker extends C2DEngine {
       await this.db.updateServiceJob(job)
       return job
     } catch (err: any) {
+      await this.cleanupServiceDocker(container, network)
       for (const ep of job.endpoints) releaseHostPort(ep.hostPort)
       job.status = dockerfile
         ? ServiceStatusNumber.BuildImageFailed
@@ -3221,6 +3226,22 @@ export class C2DEngineDocker extends C2DEngine {
       await this.db.updateServiceJob(job)
       CORE_LOGGER.error(`startService ${serviceId} failed: ${err.message}`)
       throw err
+    }
+  }
+
+  // Best-effort teardown of a half-created service container + network. Used by the
+  // startService / restartService failure paths to avoid leaking Docker networks
+  // (which would exhaust the daemon's IPAM CIDR pool over repeated failures).
+  private async cleanupServiceDocker(
+    container: Dockerode.Container | null,
+    network: Dockerode.Network | null
+  ): Promise<void> {
+    if (container) {
+      await container.stop({ t: 5 }).catch(() => {})
+      await container.remove({ force: true }).catch(() => {})
+    }
+    if (network) {
+      await network.remove().catch(() => {})
     }
   }
 
@@ -3292,6 +3313,10 @@ export class C2DEngineDocker extends C2DEngine {
     job.networkId = ''
     await this.db.updateServiceJob(job)
 
+    // Live Docker handles for the newly-created container/network, tracked so the
+    // catch block can tear them down on failure (otherwise the network leaks).
+    let network: Dockerode.Network | null = null
+    let container: Dockerode.Container | null = null
     try {
       const sod = this.getC2DConfig().connection?.serviceOnDemand
 
@@ -3336,7 +3361,7 @@ export class C2DEngineDocker extends C2DEngine {
       })
 
       // 6. New per-service network
-      const network = await this.docker.createNetwork({ Name: `ocean-svc-${serviceId}` })
+      network = await this.docker.createNetwork({ Name: `ocean-svc-${serviceId}` })
 
       // 7. Resource constraints
       const { Memory, NanoCpus, DeviceRequests } = this.buildServiceResourceConstraints(
@@ -3344,7 +3369,7 @@ export class C2DEngineDocker extends C2DEngine {
       )
 
       // 8. Create and start new container
-      const container = await this.docker.createContainer({
+      container = await this.docker.createContainer({
         Image: job.containerImage,
         Cmd: cmd,
         Entrypoint: entrypoint,
@@ -3372,6 +3397,7 @@ export class C2DEngineDocker extends C2DEngine {
       await this.db.updateServiceJob(job)
       return job
     } catch (err: any) {
+      await this.cleanupServiceDocker(container, network)
       job.status = ServiceStatusNumber.Error
       job.statusText = String(err.message)
       await this.db.updateServiceJob(job)

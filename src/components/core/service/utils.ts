@@ -60,11 +60,13 @@ export async function allocateHostPort(
   for (let i = 0; i < Math.min(size, 50); i++) {
     const candidate = rangeStart + Math.floor(Math.random() * size)
     if (allocatedPorts.has(candidate)) continue
+    // Reserve before the async check to close the TOCTOU window: the synchronous
+    // has()->add() pair is atomic, so no concurrent caller can claim the same port
+    // while we await isPortFree(). Release the reservation if the OS port is busy.
+    allocatedPorts.add(candidate)
     // eslint-disable-next-line no-await-in-loop
-    if (await isPortFree(candidate)) {
-      allocatedPorts.add(candidate)
-      return candidate
-    }
+    if (await isPortFree(candidate)) return candidate
+    allocatedPorts.delete(candidate)
   }
   throw new Error(`No free host port in range ${rangeStart}–${rangeEnd}`)
 }

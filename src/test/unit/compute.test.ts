@@ -1230,3 +1230,153 @@ describe('getAlgoChecksums', () => {
     expect(loggerErrorSpy.called).to.equal(false)
   })
 })
+
+describe('service start/restart Docker cleanup on failure', function () {
+  let engine: any
+  let network: { id: string; remove: sinon.SinonStub }
+
+  function makeContainer(startRejects: boolean) {
+    return {
+      id: 'container-1',
+      start: startRejects
+        ? sinon.stub().rejects(new Error('start failed'))
+        : sinon.stub().resolves(),
+      stop: sinon.stub().resolves(),
+      remove: sinon.stub().resolves()
+    }
+  }
+
+  beforeEach(function () {
+    // Bypass the Docker-specific constructor but keep the prototype methods.
+    engine = Object.create(C2DEngineDocker.prototype)
+    network = { id: 'net-1', remove: sinon.stub().resolves() }
+
+    engine.db = {
+      newServiceJob: sinon.stub().resolves(),
+      updateServiceJob: sinon.stub().resolves()
+    }
+    engine.getC2DConfig = sinon.stub().returns({
+      hash: 'cluster-hash',
+      connection: {
+        serviceOnDemand: { hostPortRange: [30000, 32767], nodeHost: 'localhost' }
+      }
+    })
+    // Image pull succeeds; the failure we exercise is later, at container create/start.
+    engine.pullImageRef = sinon.stub().resolves()
+    engine.buildServiceResourceConstraints = sinon
+      .stub()
+      .returns({ Memory: 0, NanoCpus: 0, DeviceRequests: [] })
+  })
+
+  afterEach(() => sinon.restore())
+
+  async function expectRejects(promise: Promise<unknown>, messagePart: string) {
+    let thrown: Error | null = null
+    try {
+      await promise
+    } catch (err: any) {
+      thrown = err
+    }
+    expect(thrown, 'expected the call to reject').to.not.equal(null)
+    expect(thrown!.message).to.contain(messagePart)
+  }
+
+  it('startService removes the network when createContainer fails', async function () {
+    engine.docker = {
+      createNetwork: sinon.stub().resolves(network),
+      createContainer: sinon.stub().rejects(new Error('createContainer failed'))
+    }
+
+    await expectRejects(
+      engine.startService(
+        'env-1',
+        'nginx',
+        'latest',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        [80],
+        [{ id: 'cpu', amount: 1 }],
+        60,
+        '0xowner',
+        { chainId: 1, token: '0xtoken' } as any,
+        'svc-1',
+        undefined
+      ),
+      'createContainer failed'
+    )
+
+    expect(network.remove.calledOnce, 'network.remove should be called').to.equal(true)
+  })
+
+  it('startService removes container and network when container.start fails', async function () {
+    const container = makeContainer(true)
+    engine.docker = {
+      createNetwork: sinon.stub().resolves(network),
+      createContainer: sinon.stub().resolves(container)
+    }
+
+    await expectRejects(
+      engine.startService(
+        'env-1',
+        'nginx',
+        'latest',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        [80],
+        [{ id: 'cpu', amount: 1 }],
+        60,
+        '0xowner',
+        { chainId: 1, token: '0xtoken' } as any,
+        'svc-2',
+        undefined
+      ),
+      'start failed'
+    )
+
+    expect(container.remove.calledOnce, 'container.remove should be called').to.equal(
+      true
+    )
+    expect(network.remove.calledOnce, 'network.remove should be called').to.equal(true)
+  })
+
+  it('restartService removes the newly created network when createContainer fails', async function () {
+    const existingJob = {
+      serviceId: 'svc-3',
+      clusterHash: 'cluster-hash',
+      environment: 'env-1',
+      owner: '0xowner',
+      image: 'nginx',
+      tag: 'latest',
+      containerImage: 'nginx:latest',
+      containerId: '', // empty → skip pre-teardown
+      networkId: '',
+      status: 40, // Running
+      statusText: 'Running',
+      dateCreated: new Date().toISOString(),
+      expiresAt: Date.now() + 60000,
+      duration: 60,
+      exposedPorts: [80],
+      endpoints: [{ containerPort: 80, hostPort: 30001, url: 'http://localhost:30001' }],
+      resources: [{ id: 'cpu', amount: 1 }],
+      payment: { chainId: 1, token: '0xtoken' }
+    }
+    engine.db.getServiceJob = sinon.stub().resolves([existingJob])
+    engine.docker = {
+      createNetwork: sinon.stub().resolves(network),
+      createContainer: sinon.stub().rejects(new Error('createContainer failed'))
+    }
+
+    await expectRejects(
+      engine.restartService('svc-3', '0xowner', undefined),
+      'createContainer failed'
+    )
+
+    expect(network.remove.calledOnce, 'network.remove should be called').to.equal(true)
+  })
+})

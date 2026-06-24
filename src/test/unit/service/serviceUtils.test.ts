@@ -3,7 +3,9 @@ import type { ServiceJob } from '../../../@types/C2D/ServiceOnDemand.js'
 import {
   userDataToEnv,
   toPublicServiceJob,
-  decryptUserData
+  decryptUserData,
+  allocateHostPort,
+  releaseHostPort
 } from '../../../components/core/service/utils.js'
 
 describe('service utils', () => {
@@ -62,6 +64,29 @@ describe('service utils', () => {
         threw = true
       }
       expect(threw).to.equal(true)
+    })
+  })
+
+  describe('allocateHostPort', () => {
+    it('never hands out the same port to concurrent callers (TOCTOU)', async () => {
+      // A range exactly the size of the request count: every port must be used
+      // once and only once. Without reserving before the async isPortFree() check,
+      // concurrent calls would race and return duplicates.
+      const rangeStart = 41000
+      const count = 12
+      const rangeEnd = rangeStart + count - 1
+
+      const ports = await Promise.all(
+        Array.from({ length: count }, () => allocateHostPort(rangeStart, rangeEnd))
+      )
+      try {
+        expect(new Set(ports).size).to.equal(count) // all unique
+        ports.forEach((p) =>
+          expect(p).to.be.within(rangeStart, rangeEnd, `port ${p} out of range`)
+        )
+      } finally {
+        ports.forEach((p) => releaseHostPort(p))
+      }
     })
   })
 })

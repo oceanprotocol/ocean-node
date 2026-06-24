@@ -18,12 +18,17 @@ import { toPublicServiceJob } from './utils.js'
 
 export class ServiceExtendHandler extends CommandHandler {
   validate(command: ServiceExtendCommand): ValidateParams {
-    return validateCommandParameters(command, [
+    const commandValidation = validateCommandParameters(command, [
       'consumerAddress',
       'serviceId',
       'additionalDuration',
       'payment'
     ])
+    if (commandValidation.valid) {
+      if (parseInt(String(command.additionalDuration)) <= 0)
+        return buildInvalidRequestMessage('Invalid additionalDuration')
+    }
+    return commandValidation
   }
 
   async handle(task: ServiceExtendCommand): Promise<P2PCommandResponse> {

@@ -296,6 +296,20 @@ describe('Service handlers', () => {
       expect(res.status.httpStatus).to.equal(400)
     })
 
+    it('400 when additionalDuration is not strictly positive', async () => {
+      const { node } = buildFakes({ serviceJobInDb: makeJob() })
+      for (const additionalDuration of [0, -1, -3600]) {
+        const res = await new ServiceExtendHandler(node).handle({
+          ...baseTask,
+          additionalDuration
+        } as any)
+        expect(
+          res.status.httpStatus,
+          `additionalDuration=${additionalDuration}`
+        ).to.equal(400)
+      }
+    })
+
     it('401 when not owner', async () => {
       const { node } = buildFakes({ serviceJobInDb: makeJob({ owner: '0xother' }) })
       const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
