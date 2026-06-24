@@ -69,12 +69,15 @@ describe('service utils', () => {
 
   describe('allocateHostPort', () => {
     it('never hands out the same port to concurrent callers (TOCTOU)', async () => {
-      // A range exactly the size of the request count: every port must be used
-      // once and only once. Without reserving before the async isPortFree() check,
-      // concurrent calls would race and return duplicates.
+      // Property under test: concurrent allocations are always unique. allocateHostPort
+      // reserves a candidate synchronously (allocatedPorts.add) before the async
+      // isPortFree() check, so no two concurrent callers can return the same port.
+      // Use a range far larger than the request count — the allocator probes randomly with
+      // a bounded retry budget, so an exact-fit range would flake (and CI may already hold
+      // some ports); ample headroom isolates the uniqueness guarantee from exhaustion.
       const rangeStart = 41000
-      const count = 12
-      const rangeEnd = rangeStart + count - 1
+      const rangeEnd = 41999 // 1000 ports
+      const count = 25
 
       const ports = await Promise.all(
         Array.from({ length: count }, () => allocateHostPort(rangeStart, rangeEnd))
