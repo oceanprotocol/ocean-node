@@ -265,12 +265,13 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
   }
 
   getRunningServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
-    // Starting, PullImage, BuildImage, Running
+    // Starting, PullImage, BuildImage, Running, Stopping are considered "active" statuses for a service job
     const activeStatuses = [
       ServiceStatusNumber.Starting,
       ServiceStatusNumber.PullImage,
       ServiceStatusNumber.BuildImage,
-      ServiceStatusNumber.Running
+      ServiceStatusNumber.Running,
+      ServiceStatusNumber.Stopping
     ]
     const placeholders = activeStatuses.map(() => '?').join(',')
     const params: Array<string | number> = [...activeStatuses]
