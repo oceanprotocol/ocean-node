@@ -1819,3 +1819,265 @@ Delete a file from a bucket.
 ```json
 { "success": true }
 ```
+
+---
+
+## Service on Demand
+
+Service-on-Demand lets a consumer launch a long-running Docker container (e.g. JupyterLab, a
+vLLM inference server, VS Code) on a compute environment, pay up front via on-chain escrow for
+a requested `duration`, and reach it over forwarded network endpoints
+(`http://<nodeHost>:<hostPort>`) while it runs. Unlike a compute job, a service stays up until
+it expires, is stopped, or is extended. See [`services.md`](./services.md) for the full design
+and security model.
+
+All routes live under `/api/services`. Every command except `serviceTemplates` is
+authenticated by a signature over `consumerAddress` + `nonce` + `command` (or an auth-token
+`Authorization` header). Cost is computed only from the environment's server-side pricing and
+charged to the authenticated `consumerAddress`.
+
+> **Note:** service containers run hardened (`no-new-privileges`, `CapDrop: ['ALL']`), so a
+> process inside the container cannot bind to a port below 1024 — have your service listen on a
+> **high port** (the published host port is allocated by the node regardless).
+
+### Service object definitions
+
+#### `ServiceTemplatePublic` (returned by `serviceTemplates`)
+
+Operator-published blueprint. Secret `envVars` values are never returned — only their keys via
+`envVarKeys`.
+
+| property                  | type                          | description |
+| ------------------------- | ----------------------------- | ----------- |
+| id                        | string                        | template id (`[a-z0-9][a-z0-9_-]{0,63}`) |
+| name / description        | string                        | human-readable labels |
+| image                     | string                        | base image |
+| tag / checksum / dockerfile | string                      | image spec — exactly one |
+| exposedPorts              | number[]                      | container ports to forward |
+| envVarKeys                | string[]                      | keys of operator-set env vars (values never returned) |
+| userConfigurableEnvVars   | object[]                      | `{ key, validation?, sensitive? }` passed via `userData` |
+| command / entrypoint      | string[]                      | Docker CMD / ENTRYPOINT overrides |
+| requiredResources         | object[]                      | resources the service MUST have to run |
+| recommendedResources      | object[]                      | resources for best performance |
+
+#### `ServiceJob` (returned by start / status / extend / restart / stop)
+
+The encrypted `userData` is never returned. Key fields:
+
+| property      | type     | description |
+| ------------- | -------- | ----------- |
+| serviceId     | string   | unique id of the running service |
+| environment   | string   | envId the service runs on |
+| owner         | string   | consumerAddress |
+| status        | number   | `10` Starting, `11` PullImage, `13` BuildImage, `40` Running, `50` Stopping, `70` Stopped, `75` Expired, `99` Error |
+| statusText    | string   | human-readable status |
+| dateCreated   | string   | ISO timestamp |
+| expiresAt     | number   | Unix ms timestamp when the paid window ends |
+| duration      | number   | requested seconds |
+| endpoints     | object[] | `{ containerPort, hostPort, url }` per exposed port |
+| resources     | object[] | `{ id, amount, price }` |
+| payment       | object   | initial start payment record |
+| extendPayments | object[] | one entry per successful extend |
+
+---
+
+### `HTTP` GET /api/services/serviceTemplates
+
+### `P2P` command: serviceGetTemplates
+
+#### Description
+
+List the operator-published service templates (sanitized). Not authenticated.
+
+#### Query Parameters
+
+| name    | type   | required | description |
+| ------- | ------ | -------- | ----------- |
+| chainId | number |          | filter to templates whose envs price on this chain |
+
+#### Response (200)
+
+```json
+[
+  {
+    "id": "jupyter-cpu",
+    "name": "JupyterLab (CPU)",
+    "image": "quay.io/jupyter/datascience-notebook",
+    "tag": "latest",
+    "exposedPorts": [8888],
+    "userConfigurableEnvVars": [{ "key": "JUPYTER_TOKEN", "sensitive": true }],
+    "requiredResources": [{ "id": "cpu", "min": 1 }, { "id": "ram", "min": 2 }]
+  }
+]
+```
+
+---
+
+### `HTTP` POST /api/services/serviceStart
+
+### `P2P` command: serviceStart
+
+#### Description
+
+Validate the request, charge escrow, and launch the service container. The consumer supplies
+the container spec directly (an `image` referenced by `tag`/`checksum`, or an inline
+`dockerfile` when the operator allows building). Returns the created `ServiceJob`.
+
+#### Request Body
+
+```json
+{
+  "consumerAddress": "0x...",
+  "nonce": "123",
+  "signature": "0x...",
+  "environment": "env-1",
+  "image": "nginxinc/nginx-unprivileged",
+  "tag": "alpine",
+  "exposedPorts": [8080],
+  "resources": [{ "id": "cpu", "amount": 1 }, { "id": "ram", "amount": 1 }],
+  "duration": 3600,
+  "userData": "<ECIES-encrypted-to-node-pubkey hex>",
+  "payment": { "chainId": 8996, "token": "0x..." }
+}
+```
+
+| field                 | type     | required | description |
+| --------------------- | -------- | -------- | ----------- |
+| environment           | string   | v        | envId to run on (services must be enabled on it) |
+| image                 | string   | v        | base image |
+| tag / checksum / dockerfile | string |        | image spec — at most one; `dockerfile` requires `allowImageBuild` |
+| additionalDockerFiles | object   |          | filename → content; only with `dockerfile` |
+| dockerCmd / dockerEntrypoint | string[] |    | container CMD / ENTRYPOINT overrides |
+| exposedPorts          | number[] |          | container ports to publish |
+| resources             | object[] |          | `{ id, amount }` requested resources |
+| duration              | number   | v        | seconds; capped by `serviceOnDemand.maxDurationSeconds` |
+| userData              | string   |          | ECIES-encrypted (to the node pubkey) JSON of env vars |
+| payment               | object   | v        | `{ chainId, token }` |
+
+#### Response (200)
+
+```json
+[
+  {
+    "serviceId": "0x...",
+    "environment": "env-1",
+    "owner": "0x...",
+    "status": 40,
+    "statusText": "Running",
+    "expiresAt": 1735689600000,
+    "duration": 3600,
+    "endpoints": [{ "containerPort": 8080, "hostPort": 31042, "url": "http://localhost:31042" }],
+    "payment": { "chainId": 8996, "token": "0x...", "cost": 10 }
+  }
+]
+```
+
+Errors: `403` services disabled on the env / access denied, `400` invalid params,
+`402` escrow lock/claim failed.
+
+---
+
+### `HTTP` GET /api/services/serviceStatus
+
+### `P2P` command: serviceGetStatus
+
+#### Description
+
+Read service job status and endpoints. **Authenticated and owner-scoped** — only services owned
+by the authenticated `consumerAddress` are returned.
+
+#### Query Parameters
+
+| name            | type   | required | description |
+| --------------- | ------ | -------- | ----------- |
+| consumerAddress | string | v        | owner address |
+| nonce           | string | v        | request nonce |
+| signature       | string | v        | signed message (or use an `Authorization` auth-token header) |
+| serviceId       | string |          | filter to a single service; omit to list all owned services |
+
+#### Response (200)
+
+Array of `ServiceJob` (with `userData` stripped).
+
+---
+
+### `HTTP` POST /api/services/serviceExtend
+
+### `P2P` command: serviceExtend
+
+#### Description
+
+Pay to push the service expiry further out. The total remaining duration must not exceed
+`maxDurationSeconds`. Re-checks the environment access list.
+
+#### Request Body
+
+```json
+{
+  "consumerAddress": "0x...",
+  "nonce": "123",
+  "signature": "0x...",
+  "serviceId": "0x...",
+  "additionalDuration": 1800,
+  "payment": { "chainId": 8996, "token": "0x..." }
+}
+```
+
+`additionalDuration` must be a positive number of seconds.
+
+#### Response (200)
+
+The updated `ServiceJob` (advanced `expiresAt`, new entry in `extendPayments`).
+
+---
+
+### `HTTP` POST /api/services/serviceRestart
+
+### `P2P` command: serviceRestart
+
+#### Description
+
+Recreate the service container (no extra charge), keeping the same `expiresAt` and host ports.
+Re-checks the environment service gate and access list; rejected if the service has expired.
+Optionally pass `userData` to replace the stored env vars.
+
+#### Request Body
+
+```json
+{
+  "consumerAddress": "0x...",
+  "nonce": "123",
+  "signature": "0x...",
+  "serviceId": "0x...",
+  "userData": "<optional ECIES-encrypted hex; replaces stored userData>"
+}
+```
+
+#### Response (200)
+
+The `ServiceJob` with a new `containerId` (same `hostPort` and `expiresAt`).
+
+---
+
+### `HTTP` POST /api/services/serviceStop
+
+### `P2P` command: serviceStop
+
+#### Description
+
+Tear down the service container and network and release its resources. Owner-gated.
+
+#### Request Body
+
+```json
+{
+  "consumerAddress": "0x...",
+  "nonce": "123",
+  "signature": "0x...",
+  "serviceId": "0x..."
+}
+```
+
+#### Response (200)
+
+The `ServiceJob` with `status: 70` (Stopped).
