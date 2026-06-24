@@ -65,9 +65,9 @@ const PORT_RANGE_END = 39500
 const TEMPLATE_JSON = {
   id: TEMPLATE_ID,
   name: 'Nginx demo',
-  image: 'nginx',
+  image: 'nginxinc/nginx-unprivileged',
   tag: 'alpine',
-  exposedPorts: [80],
+  exposedPorts: [8080],
   requiredResources: [
     { id: 'cpu', min: 1 },
     { id: 'ram', min: 1 }
@@ -395,9 +395,13 @@ describe('**********         Service on Demand', () => {
       nonce,
       signature,
       environment: servicesEnv.id,
-      image: 'nginx',
+      // Rootless nginx: runs as UID 101 and listens on 8080. The standard nginx image
+      // cannot start under the service hardening (CapDrop: ['ALL']) — it needs
+      // NET_BIND_SERVICE to bind :80 and CAP_SETUID/SETGID to drop workers to the nginx
+      // user. Services must use a high port and not rely on dropped capabilities.
+      image: 'nginxinc/nginx-unprivileged',
       tag: 'alpine',
-      exposedPorts: [80],
+      exposedPorts: [8080],
       duration: SERVICE_DURATION,
       resources: [
         { id: 'cpu', amount: 1 },
@@ -457,9 +461,13 @@ describe('**********         Service on Demand', () => {
       nonce,
       signature,
       environment: noServicesEnv.id,
-      image: 'nginx',
+      // Rootless nginx: runs as UID 101 and listens on 8080. The standard nginx image
+      // cannot start under the service hardening (CapDrop: ['ALL']) — it needs
+      // NET_BIND_SERVICE to bind :80 and CAP_SETUID/SETGID to drop workers to the nginx
+      // user. Services must use a high port and not rely on dropped capabilities.
+      image: 'nginxinc/nginx-unprivileged',
       tag: 'alpine',
-      exposedPorts: [80],
+      exposedPorts: [8080],
       duration: SERVICE_DURATION,
       payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken }
     }
@@ -479,9 +487,13 @@ describe('**********         Service on Demand', () => {
       nonce,
       signature,
       environment: servicesEnv.id,
-      image: 'nginx',
+      // Rootless nginx: runs as UID 101 and listens on 8080. The standard nginx image
+      // cannot start under the service hardening (CapDrop: ['ALL']) — it needs
+      // NET_BIND_SERVICE to bind :80 and CAP_SETUID/SETGID to drop workers to the nginx
+      // user. Services must use a high port and not rely on dropped capabilities.
+      image: 'nginxinc/nginx-unprivileged',
       tag: 'alpine',
-      exposedPorts: [80],
+      exposedPorts: [8080],
       duration: MAX_DURATION + 1,
       payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken }
     }
@@ -501,9 +513,13 @@ describe('**********         Service on Demand', () => {
       nonce,
       signature,
       environment: servicesEnv.id,
-      image: 'nginx',
+      // Rootless nginx: runs as UID 101 and listens on 8080. The standard nginx image
+      // cannot start under the service hardening (CapDrop: ['ALL']) — it needs
+      // NET_BIND_SERVICE to bind :80 and CAP_SETUID/SETGID to drop workers to the nginx
+      // user. Services must use a high port and not rely on dropped capabilities.
+      image: 'nginxinc/nginx-unprivileged',
       tag: 'alpine',
-      exposedPorts: [80],
+      exposedPorts: [8080],
       duration: SERVICE_DURATION,
       // not ECIES-encrypted to the node key → decrypt must fail
       userData: Buffer.from('not-encrypted-userData').toString('hex'),
@@ -640,9 +656,13 @@ describe('**********         Service on Demand', () => {
       nonce,
       signature,
       environment: servicesEnv.id,
-      image: 'nginx',
+      // Rootless nginx: runs as UID 101 and listens on 8080. The standard nginx image
+      // cannot start under the service hardening (CapDrop: ['ALL']) — it needs
+      // NET_BIND_SERVICE to bind :80 and CAP_SETUID/SETGID to drop workers to the nginx
+      // user. Services must use a high port and not rely on dropped capabilities.
+      image: 'nginxinc/nginx-unprivileged',
       tag: 'alpine',
-      exposedPorts: [80],
+      exposedPorts: [8080],
       duration: EXPIRY_DURATION,
       resources: [
         { id: 'cpu', amount: 1 },
@@ -671,8 +691,14 @@ describe('**********         Service on Demand', () => {
       nonce,
       signature
     } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_START)
+    // Rootless nginx base (listens on 8080 as UID 101) so it runs under the service
+    // hardening (CapDrop: ['ALL']). USER root only to write the file into the root-owned
+    // docroot, then back to 101 so the runtime nginx matches the image's unprivileged user.
     const dockerfile =
-      'FROM nginx:alpine\nRUN echo built > /usr/share/nginx/html/built.txt\n'
+      'FROM nginxinc/nginx-unprivileged:alpine\n' +
+      'USER root\n' +
+      'RUN echo built > /usr/share/nginx/html/built.txt\n' +
+      'USER 101\n'
     const task: ServiceStartCommand = {
       command: PROTOCOL_COMMANDS.SERVICE_START,
       consumerAddress: addr,
@@ -682,7 +708,7 @@ describe('**********         Service on Demand', () => {
       image: 'custom-svc',
       dockerfile,
       dockerCmd: ['nginx', '-g', 'daemon off;'],
-      exposedPorts: [80],
+      exposedPorts: [8080],
       duration: SERVICE_DURATION,
       resources: [
         { id: 'cpu', amount: 1 },
