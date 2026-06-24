@@ -27,7 +27,7 @@ and `signature` as query parameters (or an auth-token `Authorization` header).
 | Command | Route | Method | Purpose |
 | --- | --- | --- | --- |
 | `SERVICE_START` | `/api/services/serviceStart` | POST | Validate, charge escrow, launch the container |
-| `SERVICE_STATUS` | `/api/services/serviceStatus` | GET | Read job status / endpoints — authenticated, owner-scoped (see notice below) |
+| `SERVICE_GET_STATUS` | `/api/services/serviceStatus` | GET | Read job status / endpoints — authenticated, owner-scoped (see notice below) |
 | `SERVICE_EXTEND` | `/api/services/serviceExtend` | POST | Pay to push the expiry further out |
 | `SERVICE_RESTART` | `/api/services/serviceRestart` | POST | Recreate the container (no extra charge) |
 | `SERVICE_STOP` | `/api/services/serviceStop` | POST | Tear down the container and release resources |

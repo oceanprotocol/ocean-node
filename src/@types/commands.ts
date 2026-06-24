@@ -409,7 +409,7 @@ export interface ServiceStartCommand extends Command {
   consumerAddress: string
   nonce: string
   signature: string
-  environment: string // required: the envId to run the service on (from SERVICE_GET_TEMPLATES)
+  environment: string // required: the envId to run the service on (from GET_COMPUTE_ENVIRONMENTS)
   // Image spec — exactly one of tag/checksum/dockerfile. `image` is always required.
   image: string // base image name (or build label when dockerfile is set)
   tag?: string // pull by name:tag

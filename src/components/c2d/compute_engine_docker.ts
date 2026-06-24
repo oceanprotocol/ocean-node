@@ -3036,6 +3036,21 @@ export class C2DEngineDocker extends C2DEngine {
       })
       // Verify image exists after build
       await this.docker.getImage(imageRef).inspect()
+
+      // Image scanning — same Trivy gate used by pullImageRef(). A built image must clear
+      // it too; on failure remove the built image so it cannot be used to start a service.
+      if (this.scanImages) {
+        const scanResult = await this.checkImageVulnerability(imageRef)
+        if (scanResult.vulnerable) {
+          await this.docker
+            .getImage(imageRef)
+            .remove({ force: true })
+            .catch(() => {})
+          throw new Error(
+            `Image "${imageRef}" failed security scan: ${JSON.stringify(scanResult.summary)}`
+          )
+        }
+      }
     } finally {
       clearTimeout(timer)
     }
@@ -3151,11 +3166,21 @@ export class C2DEngineDocker extends C2DEngine {
         await this.pullImageRef(containerImage)
       }
 
-      // 3. Allocate one host port per exposedPort from the daemon's configured range
+      // 3. Allocate one host port per exposedPort from the daemon's configured range.
+      // Sequential (not Promise.all) with explicit rollback: at this point job.endpoints
+      // is not populated yet, so a mid-way allocation failure would otherwise leave the
+      // already-reserved ports stranded in the in-memory allocatedPorts set.
       const [rangeStart, rangeEnd] = sod?.hostPortRange ?? [30000, 32767]
-      const hostPorts = await Promise.all(
-        exposedPorts.map(() => allocateHostPort(rangeStart, rangeEnd))
-      )
+      const hostPorts: number[] = []
+      try {
+        for (let i = 0; i < exposedPorts.length; i++) {
+          // eslint-disable-next-line no-await-in-loop
+          hostPorts.push(await allocateHostPort(rangeStart, rangeEnd))
+        }
+      } catch (e) {
+        for (const port of hostPorts) releaseHostPort(port)
+        throw e
+      }
 
       // 4. Build endpoints — nodeHost is the operator-configured reachable host
       const nodeHost = sod?.nodeHost ?? 'localhost'
@@ -3261,25 +3286,44 @@ export class C2DEngineDocker extends C2DEngine {
     job.statusText = ServiceStatusText[ServiceStatusNumber.Stopping]
     await this.db.updateServiceJob(job)
 
+    // "Already gone" Docker errors (404 missing, 304 already stopped) are the desired end
+    // state, so treat them as success. Any other error means teardown genuinely failed —
+    // record it and keep the job OUT of Stopped so the persisted state stays accurate.
+    const isBenignDockerError = (e: any) => e?.statusCode === 404 || e?.statusCode === 304
+    let cleanupError: Error | null = null
     try {
       if (job.containerId) {
         const c = this.docker.getContainer(job.containerId)
-        await c.stop({ t: 10 }).catch(() => {})
-        await c.remove({ force: true }).catch(() => {})
+        await c.stop({ t: 10 }).catch((e) => {
+          if (!isBenignDockerError(e)) throw e
+        })
+        await c.remove({ force: true }).catch((e) => {
+          if (!isBenignDockerError(e)) throw e
+        })
       }
       if (job.networkId) {
         await this.docker
           .getNetwork(job.networkId)
           .remove()
-          .catch(() => {})
+          .catch((e) => {
+            if (!isBenignDockerError(e)) throw e
+          })
       }
+      // Only release the reserved host ports once the container is confirmed gone — a
+      // port still bound by a not-removed container must not be handed to another service.
       for (const ep of job.endpoints) releaseHostPort(ep.hostPort)
     } catch (err: any) {
+      cleanupError = err
       CORE_LOGGER.error(`stopService ${serviceId} cleanup error: ${err.message}`)
     }
 
-    job.status = ServiceStatusNumber.Stopped
-    job.statusText = ServiceStatusText[ServiceStatusNumber.Stopped]
+    if (cleanupError) {
+      job.status = ServiceStatusNumber.Error
+      job.statusText = `stop failed: ${cleanupError.message}`
+    } else {
+      job.status = ServiceStatusNumber.Stopped
+      job.statusText = ServiceStatusText[ServiceStatusNumber.Stopped]
+    }
     await this.db.updateServiceJob(job)
     return job
   }
@@ -3291,7 +3335,10 @@ export class C2DEngineDocker extends C2DEngine {
   ): Promise<ServiceJob | null> {
     const [job] = await this.db.getServiceJob(serviceId, owner)
     if (!job) return null
-    if (job.status === ServiceStatusNumber.Expired)
+    // Reject on the expiry timestamp too, not just the status: the expiry cron flips the
+    // status asynchronously, so a service can be past its paid window before it reads Expired.
+    // Restarting then would silently extend the service beyond what was paid for.
+    if (job.status === ServiceStatusNumber.Expired || Date.now() >= job.expiresAt)
       throw new Error('Cannot restart an expired service')
 
     // 1. Tear down existing container + network (best-effort)

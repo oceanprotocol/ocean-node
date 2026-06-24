@@ -428,12 +428,14 @@ export abstract class C2DEngine {
     // compute jobs, so a running service must occupy resources too. Services are
     // always paid (no free tier) and always "running" while in the DB's running set,
     // so we only tally their resources — job-slot/queue metrics stay compute-only.
-    let serviceJobs: ServiceJob[] = []
-    try {
-      serviceJobs = await this.db.getRunningServiceJobs(this.getC2DConfig().hash)
-    } catch (e) {
-      CORE_LOGGER.error('Failed to get running service jobs: ' + e.message)
-    }
+    // Do NOT swallow this failure: getUsedResources feeds the strict resource-availability
+    // gate (checkIfResourcesAreAvailable). Under-counting running services would let the
+    // engine overcommit shared GPU/CPU/RAM. Let it propagate so the allocation path defers
+    // the job (the caller already wraps getComputeEnvironments in try/catch) rather than
+    // proceeding with missing service data.
+    const serviceJobs: ServiceJob[] = await this.db.getRunningServiceJobs(
+      this.getC2DConfig().hash
+    )
     for (const svc of serviceJobs) {
       const isThisEnv = svc.environment === env.id
       for (const resource of svc.resources) {

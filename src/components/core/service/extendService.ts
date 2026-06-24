@@ -71,14 +71,22 @@ export class ServiceExtendHandler extends CommandHandler {
     if (job.owner.toLowerCase() !== task.consumerAddress.toLowerCase())
       return { stream: null, status: { httpStatus: 401, error: 'Not the service owner' } }
 
-    // Access-list gate (mirrors paid compute → 403). Re-checked here because access
-    // lists are mutable and extending prolongs use of the restricted environment.
+    // Resolve the environment the service actually runs on. This MUST exist: both the
+    // access gate and pricing key off it. A missing env would otherwise let validateAccess
+    // auto-allow (undefined access → true) and pricing fall back to an unrelated env.
     const runEnv: ComputeEnvironment | undefined = (
       await engine.getComputeEnvironments()
     ).find((e) => e.id === job!.environment)
+    if (!runEnv)
+      return buildInvalidParametersResponse(
+        buildInvalidRequestMessage(`Service environment "${job.environment}" not found`)
+      )
+
+    // Access-list gate (mirrors paid compute → 403). Re-checked here because access
+    // lists are mutable and extending prolongs use of the restricted environment.
     const accessGranted = await validateAccess(
       task.consumerAddress,
-      runEnv?.access,
+      runEnv.access,
       this.getOceanNode()
     )
     if (!accessGranted)
@@ -108,22 +116,11 @@ export class ServiceExtendHandler extends CommandHandler {
       )
 
     // Cost — same price formula as the start, priced off the env the service runs on.
-    const envs = await engine.getComputeEnvironments()
-    const pricingEnv: ComputeEnvironment | undefined =
-      envs.find((e) => e.id === job!.environment) ??
-      envs.find(
-        (e) =>
-          engine!.getEnvPricesForToken(e, task.payment.chainId, task.payment.token) !==
-          null
-      )
-    if (!pricingEnv)
-      return buildInvalidParametersResponse(
-        buildInvalidRequestMessage('No environment available to price the extension')
-      )
-
+    // No fallback: pricing must use runEnv (resolved above); calculateResourcesCost returns
+    // null if that env has no pricing for the token, handled by the check below.
     const costExtend = engine.calculateResourcesCost(
       job.resources.map((r) => ({ id: r.id, amount: r.amount })),
-      pricingEnv,
+      runEnv,
       task.payment.chainId,
       task.payment.token,
       task.additionalDuration

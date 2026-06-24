@@ -62,12 +62,27 @@ export class ServiceRestartHandler extends CommandHandler {
     if (job.owner.toLowerCase() !== task.consumerAddress.toLowerCase())
       return { stream: null, status: { httpStatus: 401, error: 'Not the service owner' } }
 
-    // Access-list gate (mirrors paid compute → 403). Re-checked here because access
-    // lists are mutable and restarting resumes use of the restricted environment.
+    // Resolve the environment the service runs on. This MUST exist: the services gate and
+    // access gate both key off it, and restarting resumes the container on it.
     const runEnv: ComputeEnvironment | undefined = (
       await engine.getComputeEnvironments()
     ).find((e) => e.id === job!.environment)
-    const accessGranted = await validateAccess(task.consumerAddress, runEnv?.access, node)
+    if (!runEnv)
+      return buildInvalidParametersResponse(
+        buildInvalidRequestMessage(`Service environment "${job.environment}" not found`)
+      )
+
+    // Services capability gate (mirrors the start path → 403). features.services is mutable,
+    // so an environment that no longer offers services must not have its services resumed.
+    if (runEnv.features?.services === false)
+      return {
+        stream: null,
+        status: { httpStatus: 403, error: 'Services are not enabled on this environment' }
+      }
+
+    // Access-list gate (mirrors paid compute → 403). Re-checked here because access
+    // lists are mutable and restarting resumes use of the restricted environment.
+    const accessGranted = await validateAccess(task.consumerAddress, runEnv.access, node)
     if (!accessGranted)
       return { stream: null, status: { httpStatus: 403, error: 'Access denied' } }
 
