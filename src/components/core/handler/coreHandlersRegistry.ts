@@ -59,6 +59,14 @@ import {
 } from './persistentStorage.js'
 import { GetAccessListHandler, SearchAccessListHandler } from './accessListHandler.js'
 import { EscrowEventsHandler } from './escrowHandler.js'
+import {
+  ServiceGetTemplatesHandler,
+  ServiceStartHandler,
+  ServiceStopHandler,
+  ServiceExtendHandler,
+  ServiceRestartHandler,
+  ServiceGetStatusHandler
+} from '../service/index.js'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler
@@ -145,6 +153,24 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
       new ComputeInitializeHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.SERVICE_GET_TEMPLATES,
+      new ServiceGetTemplatesHandler(node)
+    )
+    this.registerCoreHandler(PROTOCOL_COMMANDS.SERVICE_START, new ServiceStartHandler(node))
+    this.registerCoreHandler(PROTOCOL_COMMANDS.SERVICE_STOP, new ServiceStopHandler(node))
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.SERVICE_EXTEND,
+      new ServiceExtendHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.SERVICE_RESTART,
+      new ServiceRestartHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.SERVICE_GET_STATUS,
+      new ServiceGetStatusHandler(node)
     )
     this.registerCoreHandler(PROTOCOL_COMMANDS.STOP_NODE, new StopNodeHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.STOP_JOB, new StopJobHandler(node))

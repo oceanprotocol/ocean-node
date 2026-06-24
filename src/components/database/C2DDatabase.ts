@@ -5,6 +5,7 @@ import {
   DBComputeJob,
   C2DStatusNumber
 } from '../../@types/C2D/C2D.js'
+import { ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
 import { SQLiteCompute } from './sqliteCompute.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
@@ -30,6 +31,7 @@ export class C2DDatabase extends AbstractDatabase {
       this.provider = new SQLiteCompute('databases/c2dDatabase.sqlite')
       await this.provider.createTable()
       await this.provider.createImageTable()
+      await this.provider.createServiceTable()
 
       return this
     })() as unknown as C2DDatabase
@@ -69,6 +71,28 @@ export class C2DDatabase extends AbstractDatabase {
 
   async getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]> {
     return await this.provider.getRunningJobs(engine, environment)
+  }
+
+  // ── Service-on-Demand jobs ──────────────────────────────────────────
+
+  async newServiceJob(job: ServiceJob): Promise<void> {
+    return await this.provider.newServiceJob(job)
+  }
+
+  async getServiceJob(serviceId?: string, owner?: string): Promise<ServiceJob[]> {
+    return await this.provider.getServiceJob(serviceId, owner)
+  }
+
+  async updateServiceJob(job: ServiceJob): Promise<number> {
+    return await this.provider.updateServiceJob(job)
+  }
+
+  async getRunningServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
+    return await this.provider.getRunningServiceJobs(clusterHash)
+  }
+
+  async getExpiredServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
+    return await this.provider.getExpiredServiceJobs(clusterHash)
   }
 
   async deleteJob(jobId: string): Promise<boolean> {

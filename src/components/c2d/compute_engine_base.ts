@@ -16,6 +16,7 @@ import type {
   DBComputeJobMetadata,
   ComputeEnvFees
 } from '../../@types/C2D/C2D.js'
+import type { ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
@@ -77,6 +78,50 @@ export abstract class C2DEngine {
   // overwritten by classes for cleanup
   public stop(): Promise<void> {
     return null
+  }
+
+  // ── Service on Demand (Docker-only for Stage 1; concrete no-ops here) ──
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  public async startService(
+    environment: string,
+    image: string,
+    tag: string | undefined,
+    checksum: string | undefined,
+    dockerfile: string | undefined,
+    additionalDockerFiles: Record<string, string> | undefined,
+    dockerCmd: string[] | undefined,
+    dockerEntrypoint: string[] | undefined,
+    exposedPorts: number[],
+    resources: ComputeResourceRequest[],
+    duration: number,
+    owner: string,
+    payment: DBComputeJobPayment,
+    serviceId: string,
+    userData?: string // ECIES-encrypted; the engine decrypts it transiently into the container env
+  ): Promise<ServiceJob | null> {
+    return null
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  public async stopService(serviceId: string, owner: string): Promise<ServiceJob | null> {
+    return null
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  public async restartService(
+    serviceId: string,
+    owner: string,
+    newUserData?: string
+  ): Promise<ServiceJob | null> {
+    return null
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  public async getServiceStatus(
+    consumerAddress?: string,
+    serviceId?: string
+  ): Promise<ServiceJob[]> {
+    return []
   }
 
   // eslint-disable-next-line require-await
@@ -376,6 +421,30 @@ export abstract class C2DEngine {
             }
           }
         }
+      }
+    }
+
+    // Fold in on-demand services: they share the same physical resource pool as
+    // compute jobs, so a running service must occupy resources too. Services are
+    // always paid (no free tier) and always "running" while in the DB's running set,
+    // so we only tally their resources — job-slot/queue metrics stay compute-only.
+    let serviceJobs: ServiceJob[] = []
+    try {
+      serviceJobs = await this.db.getRunningServiceJobs(this.getC2DConfig().hash)
+    } catch (e) {
+      CORE_LOGGER.error('Failed to get running service jobs: ' + e.message)
+    }
+    for (const svc of serviceJobs) {
+      const isThisEnv = svc.environment === env.id
+      for (const resource of svc.resources) {
+        const envRes = envResourceMap.get(resource.id)
+        if (!envRes) continue
+        // discrete resources (GPUs, FPGAs, NICs) tracked globally across all envs;
+        // fungible resources (cpu, ram, disk) are per-env exclusive.
+        const isGloballyTracked = envRes.kind === 'discrete'
+        if (!isGloballyTracked && !isThisEnv) continue
+        if (!(resource.id in usedResources)) usedResources[resource.id] = 0
+        usedResources[resource.id] += resource.amount
       }
     }
     return {

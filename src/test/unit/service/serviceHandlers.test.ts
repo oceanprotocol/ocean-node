@@ -1,0 +1,464 @@
+import { assert, expect } from 'chai'
+import { Readable } from 'stream'
+import sinon from 'sinon'
+import { streamToObject } from '../../../utils/util.js'
+import { PROTOCOL_COMMANDS } from '../../../utils/constants.js'
+import { ServiceStatusNumber, ServiceJob } from '../../../@types/C2D/ServiceOnDemand.js'
+import { ServiceGetTemplatesHandler } from '../../../components/core/service/getTemplates.js'
+import { ServiceGetStatusHandler } from '../../../components/core/service/getStatus.js'
+import { ServiceStartHandler } from '../../../components/core/service/startService.js'
+import { ServiceStopHandler } from '../../../components/core/service/stopService.js'
+import { ServiceExtendHandler } from '../../../components/core/service/extendService.js'
+import { ServiceRestartHandler } from '../../../components/core/service/restartService.js'
+
+const OWNER = '0x0000000000000000000000000000000000000abc'
+
+function makeJob(overrides: Partial<ServiceJob> = {}): ServiceJob {
+  return {
+    serviceId: 'svc-1',
+    clusterHash: 'hash-1',
+    environment: 'env-1',
+    owner: OWNER,
+    image: 'img',
+    tag: 'latest',
+    containerImage: 'img:latest',
+    containerId: 'c1',
+    networkId: 'n1',
+    status: ServiceStatusNumber.Running,
+    statusText: 'Running',
+    dateCreated: new Date(0).toISOString(),
+    expiresAt: Date.now() + 3600_000,
+    duration: 3600,
+    exposedPorts: [8888],
+    endpoints: [{ containerPort: 8888, hostPort: 31000, url: 'http://localhost:31000' }],
+    userData: 'ENCRYPTED',
+    resources: [{ id: 'cpu', amount: 2 }],
+    payment: {
+      chainId: 8996,
+      token: '0xtoken',
+      lockTx: '0xl',
+      claimTx: '0xc',
+      cancelTx: '',
+      cost: 5
+    },
+    ...overrides
+  }
+}
+
+const TEMPLATE = {
+  id: 'jupyter-cpu',
+  image: 'quay.io/jupyter/datascience-notebook',
+  tag: 'latest',
+  exposedPorts: [8888]
+}
+
+interface FakeOpts {
+  serviceEnabled?: boolean
+  serviceJobInDb?: ServiceJob | null
+  cost?: number | null
+  envId?: string
+}
+
+function buildFakes(opts: FakeOpts = {}) {
+  const env: any = {
+    id: opts.envId ?? 'env-1',
+    features: {
+      computeJobs: true,
+      services: opts.serviceEnabled !== false
+    },
+    resources: [{ id: 'cpu', kind: 'fungible', total: 8, min: 1, max: 8 }]
+  }
+
+  const escrow = {
+    createLock: sinon.stub().resolves('0xlock'),
+    claimLock: sinon.stub().resolves('0xclaim'),
+    cancelExpiredLock: sinon.stub().resolves('0xcancel'),
+    waitForTransaction: sinon.stub().resolves(undefined),
+    getMinLockTime: sinon.stub().returns(3600)
+  }
+
+  const engine: any = {
+    db: {
+      getServiceJob: sinon
+        .stub()
+        .resolves(
+          opts.serviceJobInDb === undefined
+            ? []
+            : opts.serviceJobInDb
+              ? [opts.serviceJobInDb]
+              : []
+        ),
+      updateServiceJob: sinon.stub().resolves(1)
+    },
+    escrow,
+    getComputeEnvironments: sinon.stub().resolves([env]),
+    getC2DConfig: sinon
+      .stub()
+      .returns({ connection: { serviceOnDemand: { maxDurationSeconds: 86400 } } }),
+    calculateResourcesCost: sinon
+      .stub()
+      .returns(opts.cost === undefined ? 10 : opts.cost),
+    checkAndFillMissingResources: sinon
+      .stub()
+      .callsFake((r: any) => Promise.resolve(r ?? [])),
+    checkIfResourcesAreAvailable: sinon.stub().resolves(undefined),
+    getEnvPricesForToken: sinon.stub().returns([{ id: 'cpu', price: 1 }]),
+    startService: sinon.stub().callsFake(() => Promise.resolve(makeJob())),
+    stopService: sinon
+      .stub()
+      .callsFake(() => Promise.resolve(makeJob({ status: ServiceStatusNumber.Stopped }))),
+    restartService: sinon
+      .stub()
+      .callsFake(() =>
+        Promise.resolve(
+          makeJob({ containerId: 'c2', status: ServiceStatusNumber.Running })
+        )
+      ),
+    getServiceStatus: sinon
+      .stub()
+      .resolves(opts.serviceJobInDb ? [opts.serviceJobInDb] : [])
+  }
+
+  const engines: any = {
+    getAllEngines: () => [engine],
+    getC2DByEnvId: sinon.stub().resolves(engine),
+    getC2DByHash: sinon.stub().resolves(engine),
+    fetchServiceTemplates: sinon.stub().resolves([{ ...TEMPLATE }])
+  }
+
+  const node: any = {
+    getRequestMap: () => new Map(),
+    getConfig: (): any => ({
+      rateLimit: undefined as number | undefined,
+      serviceTemplatesPath: undefined as string | undefined
+    }),
+    getC2DEngines: () => engines,
+    getKeyManager: () => ({
+      decrypt: (d: Uint8Array) => Promise.resolve(Buffer.from(d))
+    }),
+    getAuth: () => ({
+      validateAuthenticationOrToken: () => Promise.resolve({ valid: true })
+    })
+  }
+
+  return { node, engine, engines, escrow, env }
+}
+
+function body(response: any): Promise<any> {
+  return streamToObject(response.stream as Readable)
+}
+
+describe('Service handlers', () => {
+  afterEach(() => sinon.restore())
+
+  describe('ServiceGetTemplatesHandler', () => {
+    it('returns templates from fetchServiceTemplates (200)', async () => {
+      const { node, engines } = buildFakes()
+      const res = await new ServiceGetTemplatesHandler(node).handle({
+        command: PROTOCOL_COMMANDS.SERVICE_GET_TEMPLATES
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      const templates = await body(res)
+      expect(templates).to.have.length(1)
+      expect(engines.fetchServiceTemplates.calledOnce).to.equal(true)
+    })
+  })
+
+  describe('ServiceGetStatusHandler', () => {
+    it('400 when consumerAddress is missing', async () => {
+      const { node } = buildFakes()
+      const res = await new ServiceGetStatusHandler(node).handle({
+        command: PROTOCOL_COMMANDS.SERVICE_GET_STATUS,
+        serviceId: 'svc-1'
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('401 when the signature/token is invalid', async () => {
+      const { node } = buildFakes({ serviceJobInDb: makeJob() })
+      node.getAuth = () => ({
+        validateAuthenticationOrToken: () =>
+          Promise.resolve({ valid: false, error: 'bad signature' })
+      })
+      const res = await new ServiceGetStatusHandler(node).handle({
+        command: PROTOCOL_COMMANDS.SERVICE_GET_STATUS,
+        consumerAddress: OWNER,
+        nonce: '1',
+        signature: '0xbad',
+        serviceId: 'svc-1'
+      } as any)
+      expect(res.status.httpStatus).to.equal(401)
+    })
+
+    it('returns jobs by serviceId with userData stripped (authenticated)', async () => {
+      const { node } = buildFakes({ serviceJobInDb: makeJob() })
+      const res = await new ServiceGetStatusHandler(node).handle({
+        command: PROTOCOL_COMMANDS.SERVICE_GET_STATUS,
+        consumerAddress: OWNER,
+        nonce: '1',
+        signature: '0xsig',
+        serviceId: 'svc-1'
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      const jobs = await body(res)
+      expect(jobs).to.have.length(1)
+      expect(jobs[0]).to.not.have.property('userData')
+      expect(jobs[0].serviceId).to.equal('svc-1')
+    })
+  })
+
+  describe('ServiceStopHandler', () => {
+    const baseTask = {
+      command: PROTOCOL_COMMANDS.SERVICE_STOP,
+      consumerAddress: OWNER,
+      nonce: '1',
+      signature: '0xsig',
+      serviceId: 'svc-1'
+    }
+
+    it('400 when service not found', async () => {
+      const { node } = buildFakes({ serviceJobInDb: null })
+      const res = await new ServiceStopHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('401 when caller is not the owner', async () => {
+      const { node } = buildFakes({ serviceJobInDb: makeJob({ owner: '0xsomeoneelse' }) })
+      const res = await new ServiceStopHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(401)
+    })
+
+    it('200 and calls engine.stopService on success', async () => {
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      const res = await new ServiceStopHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      expect(engine.stopService.calledOnce).to.equal(true)
+      const jobs = await body(res)
+      expect(jobs[0].status).to.equal(ServiceStatusNumber.Stopped)
+      expect(jobs[0]).to.not.have.property('userData')
+    })
+  })
+
+  describe('ServiceRestartHandler', () => {
+    const baseTask = {
+      command: PROTOCOL_COMMANDS.SERVICE_RESTART,
+      consumerAddress: OWNER,
+      nonce: '1',
+      signature: '0xsig',
+      serviceId: 'svc-1'
+    }
+
+    it('400 when not found', async () => {
+      const { node } = buildFakes({ serviceJobInDb: null })
+      const res = await new ServiceRestartHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('401 when not owner', async () => {
+      const { node } = buildFakes({ serviceJobInDb: makeJob({ owner: '0xother' }) })
+      const res = await new ServiceRestartHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(401)
+    })
+
+    it('400 when restarting an expired service', async () => {
+      const { node } = buildFakes({
+        serviceJobInDb: makeJob({ status: ServiceStatusNumber.Expired })
+      })
+      const res = await new ServiceRestartHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('200 and calls engine.restartService on success', async () => {
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      const res = await new ServiceRestartHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      expect(engine.restartService.calledOnce).to.equal(true)
+      const jobs = await body(res)
+      expect(jobs[0].containerId).to.equal('c2')
+      expect(jobs[0]).to.not.have.property('userData')
+    })
+  })
+
+  describe('ServiceExtendHandler', () => {
+    const baseTask = {
+      command: PROTOCOL_COMMANDS.SERVICE_EXTEND,
+      consumerAddress: OWNER,
+      nonce: '1',
+      signature: '0xsig',
+      serviceId: 'svc-1',
+      additionalDuration: 3600,
+      payment: { chainId: 8996, token: '0xtoken' }
+    }
+
+    it('400 when not found', async () => {
+      const { node } = buildFakes({ serviceJobInDb: null })
+      const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('401 when not owner', async () => {
+      const { node } = buildFakes({ serviceJobInDb: makeJob({ owner: '0xother' }) })
+      const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(401)
+    })
+
+    it('400 when service is Stopped (bad state)', async () => {
+      const { node } = buildFakes({
+        serviceJobInDb: makeJob({ status: ServiceStatusNumber.Stopped })
+      })
+      const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('400 when extension exceeds maxDurationSeconds', async () => {
+      const { node } = buildFakes({
+        serviceJobInDb: makeJob({ expiresAt: Date.now() + 86000 * 1000 })
+      })
+      const res = await new ServiceExtendHandler(node).handle({
+        ...baseTask,
+        additionalDuration: 10000
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('402 when escrow lock fails', async () => {
+      const { node, escrow } = buildFakes({ serviceJobInDb: makeJob() })
+      escrow.createLock.resolves(null)
+      const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(402)
+    })
+
+    it('402 and cancels lock when claim fails', async () => {
+      const { node, escrow } = buildFakes({ serviceJobInDb: makeJob() })
+      escrow.claimLock.resolves(null)
+      const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(402)
+      expect(escrow.cancelExpiredLock.calledOnce).to.equal(true)
+    })
+
+    it('200, advances expiresAt and records an extendPayment', async () => {
+      const job = makeJob()
+      const before = job.expiresAt
+      const { node, engine, escrow } = buildFakes({ serviceJobInDb: job })
+      const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      expect(escrow.createLock.calledOnce).to.equal(true)
+      expect(escrow.claimLock.calledOnce).to.equal(true)
+      expect(engine.db.updateServiceJob.calledOnce).to.equal(true)
+      const out = await body(res)
+      expect(out[0].expiresAt).to.equal(before + 3600 * 1000)
+      expect(out[0].extendPayments).to.have.length(1)
+      expect(out[0]).to.not.have.property('userData')
+    })
+  })
+
+  describe('ServiceStartHandler', () => {
+    const baseTask = {
+      command: PROTOCOL_COMMANDS.SERVICE_START,
+      consumerAddress: OWNER,
+      nonce: '1',
+      signature: '0xsig',
+      environment: 'env-1',
+      image: 'nginx',
+      tag: 'alpine',
+      exposedPorts: [80],
+      dockerCmd: ['nginx', '-g', 'daemon off;'],
+      dockerEntrypoint: ['/docker-entrypoint.sh'],
+      duration: 3600,
+      payment: { chainId: 8996, token: '0xtoken' }
+    }
+
+    it('400 when consumerAddress is not a valid address', async () => {
+      const { node } = buildFakes()
+      const res = await new ServiceStartHandler(node).handle({
+        ...baseTask,
+        consumerAddress: 'not-an-address'
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('400 when environment is unknown (getC2DByEnvId throws)', async () => {
+      const { node, engines } = buildFakes()
+      engines.getC2DByEnvId.rejects(new Error('not found'))
+      const res = await new ServiceStartHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('403 when services are disabled on the environment', async () => {
+      const { node } = buildFakes({ serviceEnabled: false })
+      const res = await new ServiceStartHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(403)
+    })
+
+    it('400 when image is missing', async () => {
+      const { node } = buildFakes()
+      const { image, ...noImage } = baseTask
+      const res = await new ServiceStartHandler(node).handle({ ...noImage } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('400 when more than one image mode is set (tag + dockerfile)', async () => {
+      const { node } = buildFakes()
+      const res = await new ServiceStartHandler(node).handle({
+        ...baseTask,
+        dockerfile: 'FROM nginx:alpine'
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('400 when duration exceeds maxDurationSeconds', async () => {
+      const { node } = buildFakes()
+      const res = await new ServiceStartHandler(node).handle({
+        ...baseTask,
+        duration: 999999
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('400 when no pricing for the token (cost null)', async () => {
+      const { node } = buildFakes({ cost: null })
+      const res = await new ServiceStartHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('402 when escrow lock fails', async () => {
+      const { node, escrow } = buildFakes()
+      escrow.createLock.resolves(null)
+      const res = await new ServiceStartHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(402)
+    })
+
+    it('402 and cancels lock when claim fails', async () => {
+      const { node, escrow } = buildFakes()
+      escrow.claimLock.resolves(null)
+      const res = await new ServiceStartHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(402)
+      expect(escrow.cancelExpiredLock.calledOnce).to.equal(true)
+    })
+
+    it('402 and cancels lock when the lock tx is not confirmed', async () => {
+      const { node, escrow } = buildFakes()
+      escrow.waitForTransaction.rejects(new Error('timeout'))
+      const res = await new ServiceStartHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(402)
+      expect(escrow.cancelExpiredLock.calledOnce).to.equal(true)
+      expect(escrow.claimLock.called).to.equal(false)
+    })
+
+    it('200 happy path: calls startService with env/image/dockerCmd/dockerEntrypoint, strips userData', async () => {
+      const { node, engine } = buildFakes()
+      const res = await new ServiceStartHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      assert(engine.startService.calledOnce, 'startService should be called')
+      const { args } = engine.startService.firstCall
+      // signature: (environment, image, tag, checksum, dockerfile, additionalDockerFiles,
+      //             dockerCmd, dockerEntrypoint, exposedPorts, ...)
+      expect(args[0]).to.equal('env-1')
+      expect(args[1]).to.equal('nginx')
+      expect(args[6]).to.deep.equal(['nginx', '-g', 'daemon off;'])
+      expect(args[7]).to.deep.equal(['/docker-entrypoint.sh'])
+      const out = await body(res)
+      expect(out[0]).to.not.have.property('userData')
+    })
+  })
+})

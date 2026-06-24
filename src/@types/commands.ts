@@ -398,3 +398,60 @@ export interface PersistentStorageDeleteFileCommand extends Command {
   bucketId: string
   fileName: string
 }
+
+// ── Service On Demand ─────────────────────────────────────────────────
+
+export interface ServiceGetTemplatesCommand extends Command {
+  chainId?: number
+}
+
+export interface ServiceStartCommand extends Command {
+  consumerAddress: string
+  nonce: string
+  signature: string
+  environment: string // required: the envId to run the service on (from SERVICE_GET_TEMPLATES)
+  // Image spec — exactly one of tag/checksum/dockerfile. `image` is always required.
+  image: string // base image name (or build label when dockerfile is set)
+  tag?: string // pull by name:tag
+  checksum?: string // pull by digest: "sha256:<64 hex>"
+  dockerfile?: string // build from inline Dockerfile; requires allowImageBuild on the env
+  additionalDockerFiles?: Record<string, string> // extra files in the build context
+  dockerCmd?: string[] // exact container command (Docker exec-form CMD override; no shell)
+  dockerEntrypoint?: string[] // container ENTRYPOINT override
+  exposedPorts?: number[] // container ports to forward
+  resources?: ComputeResourceRequest[]
+  duration: number // seconds; capped by serviceOnDemand.maxDurationSeconds
+  userData?: string // ECIES-encrypted (to the node's public key) JSON object → the container's env-var map
+  payment: { chainId: number; token: string }
+}
+
+export interface ServiceStopCommand extends Command {
+  consumerAddress: string
+  nonce: string
+  signature: string
+  serviceId: string
+}
+
+export interface ServiceGetStatusCommand extends Command {
+  consumerAddress: string
+  nonce: string
+  signature: string
+  serviceId?: string
+}
+
+export interface ServiceRestartCommand extends Command {
+  consumerAddress: string
+  nonce: string
+  signature: string
+  serviceId: string
+  userData?: string // optional ECIES-encrypted userData. If provided it REPLACES the stored userData (send the complete set). If omitted, the stored userData is reused — no re-supply needed.
+}
+
+export interface ServiceExtendCommand extends Command {
+  consumerAddress: string
+  nonce: string
+  signature: string
+  serviceId: string
+  additionalDuration: number
+  payment: { chainId: number; token: string }
+}
