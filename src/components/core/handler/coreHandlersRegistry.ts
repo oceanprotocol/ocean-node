@@ -158,7 +158,10 @@ export class CoreHandlersRegistry {
       PROTOCOL_COMMANDS.SERVICE_GET_TEMPLATES,
       new ServiceGetTemplatesHandler(node)
     )
-    this.registerCoreHandler(PROTOCOL_COMMANDS.SERVICE_START, new ServiceStartHandler(node))
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.SERVICE_START,
+      new ServiceStartHandler(node)
+    )
     this.registerCoreHandler(PROTOCOL_COMMANDS.SERVICE_STOP, new ServiceStopHandler(node))
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.SERVICE_EXTEND,

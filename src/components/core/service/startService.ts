@@ -98,11 +98,7 @@ export class ServiceStartHandler extends CommandHandler {
       // 1b. Access-list gate (mirrors paid compute → 403). The signature only proves
       //     control of consumerAddress, not allowlist membership, so this must be
       //     enforced here before any escrow/charge logic.
-      const accessGranted = await validateAccess(
-        task.consumerAddress,
-        env.access,
-        node
-      )
+      const accessGranted = await validateAccess(task.consumerAddress, env.access, node)
       if (!accessGranted)
         return {
           stream: null,
