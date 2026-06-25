@@ -94,6 +94,7 @@
   "validateUnsignedDDO": true,
   "jwtSecret": "ocean-node-secret",
   "enableBenchmark": false,
+  "serviceTemplatesPath": "docs/serviceTemplates/",
   "dockerComputeEnvironments": [
     {
       "socketPath": "/var/run/docker.sock",
