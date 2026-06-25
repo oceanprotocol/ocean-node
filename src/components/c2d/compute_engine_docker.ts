@@ -92,6 +92,13 @@ export class C2DEngineDocker extends C2DEngine {
   private cronTime: number = 2000
   private jobImageSizes: Map<string, number> = new Map()
   private isInternalLoopRunning: boolean = false
+  // Set true by stop() so a stopped engine cannot reschedule or run another InternalLoop pass.
+  // Without this, an in-flight loop's finally → setNewTimer() resurrects the timer on a stopped
+  // instance, leaving two engines (old + new, e.g. across a test restart) racing the same DB
+  // and double-processing a job (→ Docker 409 "container name already in use").
+  private stopped: boolean = false
+  // The currently-running InternalLoop pass, so stop() can drain it before returning.
+  private internalLoopPromise: Promise<void> | null = null
   // serviceIds currently being advanced by processServiceStart, so the InternalLoop doesn't
   // launch a second pipeline for the same service while one is already in flight.
   private servicesBeingStarted: Set<string> = new Set()
@@ -499,6 +506,9 @@ export class C2DEngineDocker extends C2DEngine {
       CORE_LOGGER.warn(`Could not seed allocated service ports: ${e.message}`)
     })
 
+    // (re)starting: clear the stopped flag so the loop can schedule again
+    this.stopped = false
+
     // only now set the timer
     if (!this.cronTimer) {
       this.setNewTimer()
@@ -585,11 +595,22 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
-  public override stop(): Promise<void> {
+  public override async stop(): Promise<void> {
+    // Mark stopped FIRST so the in-flight loop's finally won't reschedule and a queued timer
+    // becomes a no-op. This keeps a stopped engine from racing a freshly-started one on the
+    // same shared DB (which caused the same job to be processed twice).
+    this.stopped = true
     // Clear the timer and reset the flag
     if (this.cronTimer) {
       clearTimeout(this.cronTimer)
       this.cronTimer = null
+    }
+    // Drain a currently-running InternalLoop pass so it fully completes before we return,
+    // so the caller (e.g. addC2DEngines / tearDownAll) can start a new engine knowing the old
+    // one is quiescent.
+    if (this.internalLoopPromise) {
+      await this.internalLoopPromise.catch(() => {})
+      this.internalLoopPromise = null
     }
     this.isInternalLoopRunning = false
     // Stop image cleanup timer
@@ -603,7 +624,6 @@ export class C2DEngineDocker extends C2DEngine {
       this.paymentClaimTimer = null
       CORE_LOGGER.debug('Payment claim timer stopped')
     }
-    return Promise.resolve()
   }
 
   public async updateImageUsage(image: string): Promise<void> {
@@ -1644,17 +1664,30 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   private setNewTimer() {
+    // never reschedule once stopped (prevents an in-flight loop's finally from resurrecting
+    // the timer on a stopped engine)
+    if (this.stopped) {
+      return
+    }
     if (this.cronTimer) {
       return
     }
     // don't set the cron if we don't have compute environments
     if (this.envs.length > 0)
-      this.cronTimer = setTimeout(this.InternalLoop.bind(this), this.cronTime)
+      this.cronTimer = setTimeout(() => {
+        // track the running pass so stop() can drain it
+        this.internalLoopPromise = this.InternalLoop()
+      }, this.cronTime)
   }
 
   private async InternalLoop() {
     // this is the internal loop of docker engine
     // gets list of all running jobs and process them one by one
+
+    // a queued timer may fire after stop(); a stopped engine must not process anything
+    if (this.stopped) {
+      return
+    }
 
     // Prevent concurrent execution
     if (this.isInternalLoopRunning) {
