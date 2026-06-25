@@ -102,6 +102,10 @@ export class C2DEngineDocker extends C2DEngine {
   // serviceIds currently being advanced by processServiceStart, so the InternalLoop doesn't
   // launch a second pipeline for the same service while one is already in flight.
   private servicesBeingStarted: Set<string> = new Set()
+  // The in-flight processServiceStart() promises (launched fire-and-forget by InternalLoop),
+  // so stop() can drain them before returning — otherwise a start could outlive stop() and
+  // race a restarted engine on the same shared DB.
+  private serviceStartPromises: Set<Promise<void>> = new Set()
   private imageCleanupTimer: NodeJS.Timeout | null = null
   private paymentClaimTimer: NodeJS.Timeout | null = null
   private scanDBUpdateTimer: NodeJS.Timeout | null = null
@@ -611,6 +615,12 @@ export class C2DEngineDocker extends C2DEngine {
     if (this.internalLoopPromise) {
       await this.internalLoopPromise.catch(() => {})
       this.internalLoopPromise = null
+    }
+    // Drain any in-flight service-start pipelines launched by the loop, so none continue
+    // (and touch escrow/Docker on the shared DB) after the engine is considered stopped.
+    if (this.serviceStartPromises.size > 0) {
+      await Promise.allSettled([...this.serviceStartPromises])
+      this.serviceStartPromises.clear()
     }
     this.isInternalLoopRunning = false
     // Stop image cleanup timer
@@ -1735,9 +1745,12 @@ export class C2DEngineDocker extends C2DEngine {
       for (const svc of pendingStarts) {
         if (this.servicesBeingStarted.has(svc.serviceId)) continue
         this.servicesBeingStarted.add(svc.serviceId)
-        this.processServiceStart(svc).finally(() =>
+        // Track the promise so stop() can drain it; clean both trackers when it settles.
+        const startPromise = this.processServiceStart(svc).finally(() => {
           this.servicesBeingStarted.delete(svc.serviceId)
-        )
+          this.serviceStartPromises.delete(startPromise)
+        })
+        this.serviceStartPromises.add(startPromise)
       }
 
       // Service-on-Demand expiry: stop services whose paid window has elapsed.
