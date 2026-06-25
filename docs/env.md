@@ -129,6 +129,8 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 
 - `C2D_DOWNLOAD_TIMEOUT`: Timeout (in seconds) for pulling the algorithm docker image during a C2D job. If the pull exceeds this timeout, the job fails with `PullImageFailed` instead of getting stuck. Defaults to `900` (15 minutes). Example: `900`
 
+- `SERVICE_TEMPLATES_PATH`: Path to a folder of operator-published Service-on-Demand template files (`*.json`, validated against the template schema). The folder is re-read on every `serviceTemplates` request, so templates can be added, edited, or removed without restarting the node. Maps to the `serviceTemplatesPath` config field. Defaults to `databases/serviceTemplates/`. See the [Services guide](services.md). Example: `docs/serviceTemplates/`
+
 The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable is used to configure Docker-based compute environments in Ocean Node. For GPU setup and examples see [GPU Guide](GPU.md). For pricing configuration see [Compute pricing](compute-pricing.md).
 
 `cpu`, `ram`, and `disk` resources are **auto-detected** from the host at startup. All resource values are expressed in natural units: CPU in cores, RAM and disk in GB.

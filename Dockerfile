@@ -43,6 +43,9 @@ COPY --chown=node:node --from=builder /usr/src/app/node_modules ./node_modules
 COPY --chown=node:node --from=builder /usr/src/app/schemas ./schemas
 COPY --chown=node:node --from=builder /usr/src/app/package.json ./
 COPY --chown=node:node --from=builder /usr/src/app/config.json ./
+# Ship the operator service-on-demand templates so SERVICE_TEMPLATES_PATH=docs/serviceTemplates/
+# resolves inside the image (the rest of docs/ stays excluded via .dockerignore).
+COPY --chown=node:node --from=builder /usr/src/app/docs/serviceTemplates ./docs/serviceTemplates
 
 RUN mkdir -p databases c2d_storage logs
 
