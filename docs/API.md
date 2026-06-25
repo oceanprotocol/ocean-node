@@ -1869,7 +1869,7 @@ The encrypted `userData` is never returned. Key fields:
 | serviceId     | string   | unique id of the running service |
 | environment   | string   | envId the service runs on |
 | owner         | string   | consumerAddress |
-| status        | number   | `10` Starting, `11` PullImage, `13` BuildImage, `40` Running, `50` Stopping, `70` Stopped, `75` Expired, `99` Error |
+| status        | number   | `10` Starting, `20` Locking, `11` PullImage, `13` BuildImage, `30` Claiming, `40` Running, `12` PullImageFailed, `14` BuildImageFailed, `15` VulnerableImage, `50` Stopping, `70` Stopped, `75` Expired, `99` Error |
 | statusText    | string   | human-readable status |
 | dateCreated   | string   | ISO timestamp |
 | expiresAt     | number   | Unix ms timestamp when the paid window ends |
@@ -1919,9 +1919,16 @@ List the operator-published service templates (sanitized). Not authenticated.
 
 #### Description
 
-Validate the request, charge escrow, and launch the service container. The consumer supplies
-the container spec directly (an `image` referenced by `tag`/`checksum`, or an inline
-`dockerfile` when the operator allows building). Returns the created `ServiceJob`.
+Validate the request, persist the job, and **return immediately** with the `serviceId` — the
+response does **not** wait for escrow or the image pull/build. The consumer supplies the
+container spec directly (an `image` referenced by `tag`/`checksum`, or an inline `dockerfile`
+when the operator allows building).
+
+The returned job has `status: 10` (`Starting`) and no `endpoints` yet. A background loop then
+advances it: `Starting → Locking` (escrow lock) `→ PullImage`/`BuildImage` (image + scan) `→
+Claiming` (claim on success, or refund/cancel the lock on failure) `→ Running`. **Poll
+`serviceStatus`** until `status` is `40` (`Running`, with `endpoints` populated) or a terminal
+`*Failed` / `Error` status.
 
 #### Request Body
 
@@ -1956,24 +1963,28 @@ the container spec directly (an `image` referenced by `tag`/`checksum`, or an in
 
 #### Response (200)
 
+The immediate response — `Starting`, no endpoints yet. Poll `serviceStatus` for the rest.
+
 ```json
 [
   {
     "serviceId": "0x...",
     "environment": "env-1",
     "owner": "0x...",
-    "status": 40,
-    "statusText": "Running",
+    "status": 10,
+    "statusText": "Starting",
     "expiresAt": 1735689600000,
     "duration": 3600,
-    "endpoints": [{ "containerPort": 8080, "hostPort": 31042, "url": "http://localhost:31042" }],
+    "endpoints": [],
     "payment": { "chainId": 8996, "token": "0x...", "cost": 10 }
   }
 ]
 ```
 
-Errors: `403` services disabled on the env / access denied, `400` invalid params,
-`402` escrow lock/claim failed.
+Errors: `403` services disabled on the env / access denied, `400` invalid params (bad address,
+duration, image spec, unavailable resources, or no pricing for the token). Escrow lock/claim now
+happens in the background, so escrow failures surface as the job ending in an `Error` / `*Failed`
+status (observed via `serviceStatus`), not as a synchronous `402`.
 
 ---
 

@@ -265,11 +265,15 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
   }
 
   getRunningServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
-    // Starting, PullImage, BuildImage, Running, Stopping are considered "active" statuses for a service job
+    // All pre-terminal statuses are "active": a service reserves its resources from the moment
+    // its record is created (Starting) through the whole start pipeline (Locking, image, Claiming)
+    // until it is Running, and while Stopping.
     const activeStatuses = [
       ServiceStatusNumber.Starting,
+      ServiceStatusNumber.Locking,
       ServiceStatusNumber.PullImage,
       ServiceStatusNumber.BuildImage,
+      ServiceStatusNumber.Claiming,
       ServiceStatusNumber.Running,
       ServiceStatusNumber.Stopping
     ]
@@ -295,6 +299,36 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
   getExpiredServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
     const params: Array<string | number> = [ServiceStatusNumber.Running, Date.now()]
     let selectSQL = `SELECT * FROM service_jobs WHERE status = ? AND expiresAt <= ?`
+    if (clusterHash) {
+      selectSQL += ` AND clusterHash = ?`
+      params.push(clusterHash)
+    }
+    return new Promise<ServiceJob[]>((resolve, reject) => {
+      this.db.all(selectSQL, params, (err, rows: any[] | undefined) => {
+        if (err) {
+          DATABASE_LOGGER.error(err.message)
+          reject(err)
+        } else {
+          resolve(this.mapServiceRows(rows))
+        }
+      })
+    })
+  }
+
+  // Service jobs that are mid-start and need the background loop to advance them.
+  // Starting = fresh (handler just created it); the intermediate states are picked up too so
+  // the loop can resume / orphan-recover them after a node restart.
+  getPendingServiceStarts(clusterHash?: string): Promise<ServiceJob[]> {
+    const startStatuses = [
+      ServiceStatusNumber.Starting,
+      ServiceStatusNumber.Locking,
+      ServiceStatusNumber.PullImage,
+      ServiceStatusNumber.BuildImage,
+      ServiceStatusNumber.Claiming
+    ]
+    const placeholders = startStatuses.map(() => '?').join(',')
+    const params: Array<string | number> = [...startStatuses]
+    let selectSQL = `SELECT * FROM service_jobs WHERE status IN (${placeholders})`
     if (clusterHash) {
       selectSQL += ` AND clusterHash = ?`
       params.push(clusterHash)

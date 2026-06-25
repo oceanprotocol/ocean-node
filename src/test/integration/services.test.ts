@@ -420,6 +420,11 @@ describe('**********         Service on Demand', () => {
     serviceId = job.serviceId
     startedServices.push(serviceId)
 
+    // serviceStart is async: the immediate response is a Starting record with no endpoints.
+    // The background loop then drives it (locking → image → claiming → running).
+    expect(job.status).to.equal(ServiceStatusNumber.Starting)
+    expect(job.endpoints).to.have.length(0)
+
     const running = await pollServiceStatus(serviceId, ServiceStatusNumber.Running)
     assert(running.endpoints.length === 1, 'expected one endpoint')
     hostPort = running.endpoints[0].hostPort

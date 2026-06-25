@@ -26,17 +26,35 @@ and `signature` as query parameters (or an auth-token `Authorization` header).
 
 | Command | Route | Method | Purpose |
 | --- | --- | --- | --- |
-| `SERVICE_START` | `/api/services/serviceStart` | POST | Validate, charge escrow, launch the container |
-| `SERVICE_GET_STATUS` | `/api/services/serviceStatus` | GET | Read job status / endpoints — authenticated, owner-scoped (see notice below) |
+| `SERVICE_START` | `/api/services/serviceStart` | POST | Validate, persist a `Starting` record, and return the `serviceId` immediately (escrow + image + container happen in the background) |
+| `SERVICE_GET_STATUS` | `/api/services/serviceStatus` | GET | Read job status / endpoints — authenticated, owner-scoped (see notice below); poll this to follow a starting service |
 | `SERVICE_EXTEND` | `/api/services/serviceExtend` | POST | Pay to push the expiry further out |
 | `SERVICE_RESTART` | `/api/services/serviceRestart` | POST | Recreate the container (no extra charge) |
 | `SERVICE_STOP` | `/api/services/serviceStop` | POST | Tear down the container and release resources |
 | `SERVICE_GET_TEMPLATES` | `/api/services/serviceTemplates` | GET | List operator-published service templates |
 
-**Start flow (high level):** signature check → environment + access-list check →
-`userData` decrypt (pre-charge validity check) → duration cap → resource resolution &
-availability → cost computed from **server-side** environment pricing → escrow
-**lock then claim** → container created and started → record persisted.
+**Start is asynchronous.** `serviceStart` does only the fast, synchronous validation and then
+returns the `serviceId` right away — it does **not** wait for escrow or the (potentially
+multi-minute) image pull/build. A background loop on the node then advances the service through
+a sequence of statuses; clients **poll `serviceStatus`** to follow it to `Running` (or a
+terminal `*Failed` / `Error`).
+
+**Handler (synchronous, before responding):** signature check → environment + access-list +
+`features.services` check → `userData` decrypt (validity check) → duration cap → resource
+resolution & availability → cost computed from **server-side** environment pricing → persist the
+job as `Starting` (which also reserves its resources) → respond `200` with the `serviceId`.
+
+**Background pipeline (per the start statuses below):**
+`Starting (10)` → **locking** `Locking (20)`: escrow `createLock` (+ wait for it to mine) →
+**image** `PullImage (11)` / `BuildImage (13)`: pull or build the image and run the vulnerability
+scan → **payment** `Claiming (30)`: `claimLock` on success, or `cancelLock` (refund) if the image
+step failed → allocate host ports, create the network, create + start the container →
+`Running (40)`.
+
+Escrow is **claimed only after the image succeeds**; if the image pull/build/scan fails, or
+container creation fails before the claim, the lock is **cancelled (refunded)** and the job ends
+in a `*Failed` / `Error` status. This is a change from the previous synchronous flow, which
+locked-then-claimed up front.
 
 ## Configuration
 

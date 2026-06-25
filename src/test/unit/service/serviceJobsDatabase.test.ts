@@ -178,6 +178,8 @@ describe('Service Jobs Database', () => {
   it('getRunningServiceJobs returns only active statuses for the cluster', async () => {
     const running = makeServiceJob({ status: ServiceStatusNumber.Running })
     const starting = makeServiceJob({ status: ServiceStatusNumber.Starting })
+    const locking = makeServiceJob({ status: ServiceStatusNumber.Locking })
+    const claiming = makeServiceJob({ status: ServiceStatusNumber.Claiming })
     const stopped = makeServiceJob({ status: ServiceStatusNumber.Stopped })
     const otherCluster = makeServiceJob({
       status: ServiceStatusNumber.Running,
@@ -185,6 +187,8 @@ describe('Service Jobs Database', () => {
     })
     await db.newServiceJob(running)
     await db.newServiceJob(starting)
+    await db.newServiceJob(locking)
+    await db.newServiceJob(claiming)
     await db.newServiceJob(stopped)
     await db.newServiceJob(otherCluster)
 
@@ -192,6 +196,36 @@ describe('Service Jobs Database', () => {
     const ids = active.map((j) => j.serviceId)
     expect(ids).to.include(running.serviceId)
     expect(ids).to.include(starting.serviceId)
+    // the new start-pipeline states must reserve resources too
+    expect(ids).to.include(locking.serviceId)
+    expect(ids).to.include(claiming.serviceId)
+    expect(ids).to.not.include(stopped.serviceId)
+    expect(ids).to.not.include(otherCluster.serviceId)
+  })
+
+  it('getPendingServiceStarts returns mid-start jobs (not Running/terminal) for the cluster', async () => {
+    const starting = makeServiceJob({ status: ServiceStatusNumber.Starting })
+    const locking = makeServiceJob({ status: ServiceStatusNumber.Locking })
+    const claiming = makeServiceJob({ status: ServiceStatusNumber.Claiming })
+    const running = makeServiceJob({ status: ServiceStatusNumber.Running })
+    const stopped = makeServiceJob({ status: ServiceStatusNumber.Stopped })
+    const otherCluster = makeServiceJob({
+      status: ServiceStatusNumber.Starting,
+      clusterHash: 'other-cluster'
+    })
+    await db.newServiceJob(starting)
+    await db.newServiceJob(locking)
+    await db.newServiceJob(claiming)
+    await db.newServiceJob(running)
+    await db.newServiceJob(stopped)
+    await db.newServiceJob(otherCluster)
+
+    const pending = await db.getPendingServiceStarts(CLUSTER_HASH)
+    const ids = pending.map((j) => j.serviceId)
+    expect(ids).to.include(starting.serviceId)
+    expect(ids).to.include(locking.serviceId)
+    expect(ids).to.include(claiming.serviceId)
+    expect(ids).to.not.include(running.serviceId) // already started
     expect(ids).to.not.include(stopped.serviceId)
     expect(ids).to.not.include(otherCluster.serviceId)
   })

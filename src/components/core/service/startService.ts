@@ -152,7 +152,7 @@ export class ServiceStartHandler extends CommandHandler {
         )
       }
 
-      // 6. Cost + escrow lock + immediate claim
+      // 6. Server-side cost (used to size the escrow lock the background loop will create).
       const cost = engine.calculateResourcesCost(
         resources,
         env,
@@ -175,86 +175,21 @@ export class ServiceStartHandler extends CommandHandler {
         nonce: task.nonce
       })
 
-      let lockTx: string | null
-      try {
-        lockTx = await engine.escrow.createLock(
-          task.payment.chainId,
-          serviceId,
-          task.payment.token,
-          task.consumerAddress,
-          cost,
-          engine.escrow.getMinLockTime(task.duration)
-        )
-      } catch (e: any) {
-        CORE_LOGGER.error(`Service escrow createLock failed: ${e.message}`)
-        return { stream: null, status: { httpStatus: 402, error: e.message } }
-      }
-      if (!lockTx)
-        return {
-          stream: null,
-          status: { httpStatus: 402, error: 'Escrow lock failed' }
-        }
-
-      // Wait for the lock tx to be mined before claiming — the claim is sent by the same
-      // node signer immediately after, so it must pick up the advanced nonce + confirmed lock.
-      try {
-        await engine.escrow.waitForTransaction(task.payment.chainId, lockTx)
-      } catch (e: any) {
-        CORE_LOGGER.error(`Service escrow lock not confirmed: ${e.message}`)
-        await engine.escrow
-          .cancelExpiredLock(
-            task.payment.chainId,
-            serviceId,
-            task.payment.token,
-            task.consumerAddress
-          )
-          .catch((err) => CORE_LOGGER.error(`cancelExpiredLock failed: ${err.message}`))
-        return {
-          stream: null,
-          status: { httpStatus: 402, error: 'Escrow lock not confirmed — lock cancelled' }
-        }
-      }
-
-      let claimTx: string | null
-      try {
-        claimTx = await engine.escrow.claimLock(
-          task.payment.chainId,
-          serviceId,
-          task.payment.token,
-          task.consumerAddress,
-          cost,
-          `service-start:${serviceId}`
-        )
-      } catch (e: any) {
-        claimTx = null
-        CORE_LOGGER.error(`Service escrow claimLock failed: ${e.message}`)
-      }
-      if (!claimTx) {
-        await engine.escrow
-          .cancelExpiredLock(
-            task.payment.chainId,
-            serviceId,
-            task.payment.token,
-            task.consumerAddress
-          )
-          .catch((e) => CORE_LOGGER.error(`cancelExpiredLock failed: ${e.message}`))
-        return {
-          stream: null,
-          status: { httpStatus: 402, error: 'Escrow claim failed — lock cancelled' }
-        }
-      }
-
+      // Escrow tx hashes are filled in later by the background pipeline (locking → payment).
       const payment: Payment = {
         chainId: task.payment.chainId,
         token: task.payment.token,
-        lockTx,
-        claimTx,
+        lockTx: '',
+        claimTx: '',
         cancelTx: '',
         cost
       }
 
-      // 7. Start the service from the explicit request parameters
-      const job = await engine.startService(
+      // 7. Persist the Starting record and return immediately with the serviceId. The
+      //    engine's background loop (processServiceStart) then performs escrow lock → image
+      //    pull/build → claim/cancel → container start. Clients poll SERVICE_GET_STATUS to
+      //    watch the service progress to Running (or a *Failed / Error terminal status).
+      const job = await engine.createServiceJob(
         task.environment,
         task.image,
         task.tag,

@@ -95,6 +95,10 @@ export class C2DDatabase extends AbstractDatabase {
     return await this.provider.getExpiredServiceJobs(clusterHash)
   }
 
+  async getPendingServiceStarts(clusterHash?: string): Promise<ServiceJob[]> {
+    return await this.provider.getPendingServiceStarts(clusterHash)
+  }
+
   async deleteJob(jobId: string): Promise<boolean> {
     return await this.provider.deleteJob(jobId)
   }

@@ -81,8 +81,11 @@ export abstract class C2DEngine {
   }
 
   // ── Service on Demand (Docker-only for Stage 1; concrete no-ops here) ──
+  // Persists the initial Starting record and returns immediately. The heavy lifting
+  // (escrow lock/claim, image pull/build, container start) is done asynchronously by
+  // processServiceStart(), driven by the engine's background loop.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
-  public async startService(
+  public async createServiceJob(
     environment: string,
     image: string,
     tag: string | undefined,
@@ -101,6 +104,11 @@ export abstract class C2DEngine {
   ): Promise<ServiceJob | null> {
     return null
   }
+
+  // Background pipeline that advances a Starting service job through locking → image →
+  // payment → container → Running. Never throws (terminal failures are persisted as status).
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  public async processServiceStart(job: ServiceJob): Promise<void> {}
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
   public async stopService(serviceId: string, owner: string): Promise<ServiceJob | null> {

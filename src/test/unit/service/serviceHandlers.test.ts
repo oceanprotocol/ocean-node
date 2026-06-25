@@ -103,7 +103,19 @@ function buildFakes(opts: FakeOpts = {}) {
       .callsFake((r: any) => Promise.resolve(r ?? [])),
     checkIfResourcesAreAvailable: sinon.stub().resolves(undefined),
     getEnvPricesForToken: sinon.stub().returns([{ id: 'cpu', price: 1 }]),
-    startService: sinon.stub().callsFake(() => Promise.resolve(makeJob())),
+    // Async start: the handler only persists a Starting record and returns; the escrow +
+    // image + container work is done later by processServiceStart (driven by the cron).
+    createServiceJob: sinon.stub().callsFake(() =>
+      Promise.resolve(
+        makeJob({
+          status: ServiceStatusNumber.Starting,
+          statusText: 'Starting',
+          containerId: '',
+          networkId: '',
+          endpoints: []
+        })
+      )
+    ),
     stopService: sinon
       .stub()
       .callsFake(() => Promise.resolve(makeJob({ status: ServiceStatusNumber.Stopped }))),
@@ -435,42 +447,40 @@ describe('Service handlers', () => {
       expect(res.status.httpStatus).to.equal(400)
     })
 
-    it('402 when escrow lock fails', async () => {
-      const { node, escrow } = buildFakes()
-      escrow.createLock.resolves(null)
+    it('200 returns immediately with a Starting job and does NOT run escrow synchronously', async () => {
+      const { node, engine, escrow } = buildFakes()
       const res = await new ServiceStartHandler(node).handle({ ...baseTask } as any)
-      expect(res.status.httpStatus).to.equal(402)
-    })
-
-    it('402 and cancels lock when claim fails', async () => {
-      const { node, escrow } = buildFakes()
-      escrow.claimLock.resolves(null)
-      const res = await new ServiceStartHandler(node).handle({ ...baseTask } as any)
-      expect(res.status.httpStatus).to.equal(402)
-      expect(escrow.cancelExpiredLock.calledOnce).to.equal(true)
-    })
-
-    it('402 and cancels lock when the lock tx is not confirmed', async () => {
-      const { node, escrow } = buildFakes()
-      escrow.waitForTransaction.rejects(new Error('timeout'))
-      const res = await new ServiceStartHandler(node).handle({ ...baseTask } as any)
-      expect(res.status.httpStatus).to.equal(402)
-      expect(escrow.cancelExpiredLock.calledOnce).to.equal(true)
+      expect(res.status.httpStatus).to.equal(200)
+      const out = await body(res)
+      // The response is the freshly-persisted Starting record — escrow + container come later.
+      expect(out[0].status).to.equal(ServiceStatusNumber.Starting)
+      expect(out[0].endpoints).to.deep.equal([])
+      expect(out[0]).to.not.have.property('userData')
+      // Escrow now runs in the background pipeline, not in the request path.
+      expect(escrow.createLock.called).to.equal(false)
       expect(escrow.claimLock.called).to.equal(false)
+      // The handler must not invoke the background pipeline itself.
+      expect(engine.processServiceStart).to.equal(undefined)
     })
 
-    it('200 happy path: calls startService with env/image/dockerCmd/dockerEntrypoint, strips userData', async () => {
+    it('200 happy path: calls createServiceJob with env/image/dockerCmd/dockerEntrypoint, strips userData', async () => {
       const { node, engine } = buildFakes()
       const res = await new ServiceStartHandler(node).handle({ ...baseTask } as any)
       expect(res.status.httpStatus).to.equal(200)
-      assert(engine.startService.calledOnce, 'startService should be called')
-      const { args } = engine.startService.firstCall
+      assert(engine.createServiceJob.calledOnce, 'createServiceJob should be called')
+      const { args } = engine.createServiceJob.firstCall
       // signature: (environment, image, tag, checksum, dockerfile, additionalDockerFiles,
-      //             dockerCmd, dockerEntrypoint, exposedPorts, ...)
+      //             dockerCmd, dockerEntrypoint, exposedPorts, resources, duration, owner,
+      //             payment, serviceId, userData)
       expect(args[0]).to.equal('env-1')
       expect(args[1]).to.equal('nginx')
       expect(args[6]).to.deep.equal(['nginx', '-g', 'daemon off;'])
       expect(args[7]).to.deep.equal(['/docker-entrypoint.sh'])
+      // payment carries the server-side cost but no tx hashes yet (filled in by the pipeline).
+      const payment = args[12]
+      expect(payment.cost).to.equal(10)
+      expect(payment.lockTx).to.equal('')
+      expect(payment.claimTx).to.equal('')
       const out = await body(res)
       expect(out[0]).to.not.have.property('userData')
     })
