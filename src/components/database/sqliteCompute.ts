@@ -4,6 +4,7 @@ import {
   C2DStatusText,
   type DBComputeJob
 } from '../../@types/C2D/C2D.js'
+import { ServiceStatusNumber, type ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
 import sqlite3, { RunResult } from 'sqlite3'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { create256Hash } from '../../utils/crypt.js'
@@ -145,6 +146,200 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
           reject(err)
         } else {
           resolve()
+        }
+      })
+    })
+  }
+
+  // ── Service-on-Demand jobs ──────────────────────────────────────────
+
+  createServiceTable(): Promise<void> {
+    const createTableSQL = `
+      CREATE TABLE IF NOT EXISTS service_jobs (
+        serviceId TEXT PRIMARY KEY,
+        owner TEXT,
+        clusterHash TEXT,
+        status INTEGER,
+        expiresAt INTEGER,
+        dateCreated TEXT,
+        body BLOB
+      );
+    `
+    return new Promise<void>((resolve, reject) => {
+      this.db.run(createTableSQL, (err) => {
+        if (err) {
+          DATABASE_LOGGER.error('Could not create service_jobs table: ' + err.message)
+          reject(err)
+        } else {
+          resolve()
+        }
+      })
+    })
+  }
+
+  newServiceJob(job: ServiceJob): Promise<void> {
+    const insertSQL = `
+      INSERT INTO service_jobs
+      (serviceId, owner, clusterHash, status, expiresAt, dateCreated, body)
+      VALUES (?, ?, ?, ?, ?, ?, ?);
+    `
+    return new Promise<void>((resolve, reject) => {
+      this.db.run(
+        insertSQL,
+        [
+          job.serviceId,
+          job.owner,
+          job.clusterHash,
+          job.status,
+          job.expiresAt,
+          job.dateCreated,
+          Buffer.from(JSON.stringify(job))
+        ],
+        (err) => {
+          if (err) {
+            DATABASE_LOGGER.error('Could not insert service job on DB: ' + err.message)
+            reject(err)
+          } else {
+            resolve()
+          }
+        }
+      )
+    })
+  }
+
+  updateServiceJob(job: ServiceJob): Promise<number> {
+    const updateSQL = `
+      UPDATE service_jobs
+      SET owner = ?, clusterHash = ?, status = ?, expiresAt = ?, body = ?
+      WHERE serviceId = ?;
+    `
+    return new Promise<number>((resolve, reject) => {
+      this.db.run(
+        updateSQL,
+        [
+          job.owner,
+          job.clusterHash,
+          job.status,
+          job.expiresAt,
+          Buffer.from(JSON.stringify(job)),
+          job.serviceId
+        ],
+        function (this: RunResult, err: Error | null) {
+          if (err) {
+            DATABASE_LOGGER.error(`Error while updating service job: ${err.message}`)
+            reject(err)
+          } else {
+            resolve(this.changes)
+          }
+        }
+      )
+    })
+  }
+
+  private mapServiceRows(rows: any[] | undefined): ServiceJob[] {
+    if (!rows || rows.length === 0) return []
+    return rows.map((row) => JSON.parse(row.body.toString()) as ServiceJob)
+  }
+
+  getServiceJob(serviceId?: string, owner?: string): Promise<ServiceJob[]> {
+    const params: any[] = []
+    let selectSQL = `SELECT * FROM service_jobs WHERE 1=1`
+    if (serviceId) {
+      selectSQL += ` AND serviceId = ?`
+      params.push(serviceId)
+    }
+    if (owner) {
+      selectSQL += ` AND owner = ?`
+      params.push(owner)
+    }
+    return new Promise<ServiceJob[]>((resolve, reject) => {
+      this.db.all(selectSQL, params, (err, rows: any[] | undefined) => {
+        if (err) {
+          DATABASE_LOGGER.error(err.message)
+          reject(err)
+        } else {
+          resolve(this.mapServiceRows(rows))
+        }
+      })
+    })
+  }
+
+  getRunningServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
+    // All pre-terminal statuses are "active": a service reserves its resources from the moment
+    // its record is created (Starting) through the whole start pipeline (Locking, image, Claiming)
+    // until it is Running, and while Stopping.
+    const activeStatuses = [
+      ServiceStatusNumber.Starting,
+      ServiceStatusNumber.Locking,
+      ServiceStatusNumber.PullImage,
+      ServiceStatusNumber.BuildImage,
+      ServiceStatusNumber.Claiming,
+      ServiceStatusNumber.Running,
+      ServiceStatusNumber.Stopping
+    ]
+    const placeholders = activeStatuses.map(() => '?').join(',')
+    const params: Array<string | number> = [...activeStatuses]
+    let selectSQL = `SELECT * FROM service_jobs WHERE status IN (${placeholders})`
+    if (clusterHash) {
+      selectSQL += ` AND clusterHash = ?`
+      params.push(clusterHash)
+    }
+    return new Promise<ServiceJob[]>((resolve, reject) => {
+      this.db.all(selectSQL, params, (err, rows: any[] | undefined) => {
+        if (err) {
+          DATABASE_LOGGER.error(err.message)
+          reject(err)
+        } else {
+          resolve(this.mapServiceRows(rows))
+        }
+      })
+    })
+  }
+
+  getExpiredServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
+    const params: Array<string | number> = [ServiceStatusNumber.Running, Date.now()]
+    let selectSQL = `SELECT * FROM service_jobs WHERE status = ? AND expiresAt <= ?`
+    if (clusterHash) {
+      selectSQL += ` AND clusterHash = ?`
+      params.push(clusterHash)
+    }
+    return new Promise<ServiceJob[]>((resolve, reject) => {
+      this.db.all(selectSQL, params, (err, rows: any[] | undefined) => {
+        if (err) {
+          DATABASE_LOGGER.error(err.message)
+          reject(err)
+        } else {
+          resolve(this.mapServiceRows(rows))
+        }
+      })
+    })
+  }
+
+  // Service jobs that are mid-start and need the background loop to advance them.
+  // Starting = fresh (handler just created it); the intermediate states are picked up too so
+  // the loop can resume / orphan-recover them after a node restart.
+  getPendingServiceStarts(clusterHash?: string): Promise<ServiceJob[]> {
+    const startStatuses = [
+      ServiceStatusNumber.Starting,
+      ServiceStatusNumber.Locking,
+      ServiceStatusNumber.PullImage,
+      ServiceStatusNumber.BuildImage,
+      ServiceStatusNumber.Claiming
+    ]
+    const placeholders = startStatuses.map(() => '?').join(',')
+    const params: Array<string | number> = [...startStatuses]
+    let selectSQL = `SELECT * FROM service_jobs WHERE status IN (${placeholders})`
+    if (clusterHash) {
+      selectSQL += ` AND clusterHash = ?`
+      params.push(clusterHash)
+    }
+    return new Promise<ServiceJob[]>((resolve, reject) => {
+      this.db.all(selectSQL, params, (err, rows: any[] | undefined) => {
+        if (err) {
+          DATABASE_LOGGER.error(err.message)
+          reject(err)
+        } else {
+          resolve(this.mapServiceRows(rows))
         }
       })
     })

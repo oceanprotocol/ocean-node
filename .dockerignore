@@ -7,7 +7,8 @@ databases
 .env.*
 .git
 .github
-docs
+docs/*
+!docs/serviceTemplates
 src/test
 *.md
 *.log

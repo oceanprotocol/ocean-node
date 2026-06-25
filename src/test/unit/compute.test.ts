@@ -40,6 +40,7 @@ import {
   checkManifestPlatform,
   C2DEngineDocker
 } from '../../components/c2d/compute_engine_docker.js'
+import { ServiceStatusNumber } from '../../@types/C2D/ServiceOnDemand.js'
 import { C2DDockerConfigSchema } from '../../utils/config/schemas.js'
 import { ValidateParams } from '../../components/httpRoutes/validateCommands.js'
 import { Readable } from 'stream'
@@ -1228,5 +1229,226 @@ describe('getAlgoChecksums', () => {
     expect(findDdoStub.called).to.equal(false)
     // and therefore no "Algorithm with id: undefined not found!" error is logged
     expect(loggerErrorSpy.called).to.equal(false)
+  })
+})
+
+describe('service start/restart Docker cleanup on failure', function () {
+  let engine: any
+  let network: { id: string; remove: sinon.SinonStub }
+
+  function makeContainer(startRejects: boolean) {
+    return {
+      id: 'container-1',
+      start: startRejects
+        ? sinon.stub().rejects(new Error('start failed'))
+        : sinon.stub().resolves(),
+      stop: sinon.stub().resolves(),
+      remove: sinon.stub().resolves()
+    }
+  }
+
+  beforeEach(function () {
+    // Bypass the Docker-specific constructor but keep the prototype methods.
+    engine = Object.create(C2DEngineDocker.prototype)
+    network = { id: 'net-1', remove: sinon.stub().resolves() }
+
+    engine.db = {
+      newServiceJob: sinon.stub().resolves(),
+      updateServiceJob: sinon.stub().resolves()
+    }
+    engine.getC2DConfig = sinon.stub().returns({
+      hash: 'cluster-hash',
+      connection: {
+        serviceOnDemand: { hostPortRange: [30000, 32767], nodeHost: 'localhost' }
+      }
+    })
+    // Image pull succeeds; the failure we exercise is later, at container create/start.
+    engine.pullImageRef = sinon.stub().resolves()
+    engine.buildServiceResourceConstraints = sinon
+      .stub()
+      .returns({ Memory: 0, NanoCpus: 0, DeviceRequests: [] })
+    // Escrow succeeds (lock + claim) so the pipeline reaches the container phase.
+    engine.escrow = {
+      createLock: sinon.stub().resolves('0xlock'),
+      waitForTransaction: sinon.stub().resolves(),
+      claimLock: sinon.stub().resolves('0xclaim'),
+      cancelExpiredLock: sinon.stub().resolves('0xcancel'),
+      getMinLockTime: sinon.stub().returns(3600)
+    }
+    engine.keyManager = { decrypt: sinon.stub().resolves(Buffer.from('{}')) }
+  })
+
+  afterEach(() => sinon.restore())
+
+  async function expectRejects(promise: Promise<unknown>, messagePart: string) {
+    let thrown: Error | null = null
+    try {
+      await promise
+    } catch (err: any) {
+      thrown = err
+    }
+    expect(thrown, 'expected the call to reject').to.not.equal(null)
+    expect(thrown!.message).to.contain(messagePart)
+  }
+
+  // A fresh Starting job, as createServiceJob would have persisted it.
+  function makeStartingJob(overrides: any = {}) {
+    return {
+      serviceId: 'svc-1',
+      clusterHash: 'cluster-hash',
+      environment: 'env-1',
+      owner: '0xowner',
+      image: 'nginx',
+      tag: 'latest',
+      containerImage: 'nginx:latest',
+      containerId: '',
+      networkId: '',
+      status: 10, // Starting
+      statusText: 'Starting',
+      dateCreated: new Date().toISOString(),
+      expiresAt: Date.now() + 60000,
+      duration: 60,
+      exposedPorts: [80],
+      endpoints: [],
+      resources: [{ id: 'cpu', amount: 1 }],
+      payment: {
+        chainId: 1,
+        token: '0xtoken',
+        cost: 10,
+        lockTx: '',
+        claimTx: '',
+        cancelTx: ''
+      },
+      ...overrides
+    }
+  }
+
+  it('processServiceStart removes the network and marks Error when createContainer fails', async function () {
+    engine.docker = {
+      createNetwork: sinon.stub().resolves(network),
+      createContainer: sinon.stub().rejects(new Error('createContainer failed'))
+    }
+    const job = makeStartingJob({ serviceId: 'svc-1' })
+
+    await engine.processServiceStart(job) // never throws — failures are persisted as status
+
+    expect(network.remove.calledOnce, 'network.remove should be called').to.equal(true)
+    expect(job.status).to.equal(ServiceStatusNumber.Error)
+    // Funds were already claimed before the container step, so no refund here.
+    expect(engine.escrow.claimLock.calledOnce).to.equal(true)
+    expect(engine.escrow.cancelExpiredLock.called).to.equal(false)
+  })
+
+  it('processServiceStart removes container and network when container.start fails', async function () {
+    const container = makeContainer(true)
+    engine.docker = {
+      createNetwork: sinon.stub().resolves(network),
+      createContainer: sinon.stub().resolves(container)
+    }
+    const job = makeStartingJob({ serviceId: 'svc-2' })
+
+    await engine.processServiceStart(job)
+
+    expect(container.remove.calledOnce, 'container.remove should be called').to.equal(
+      true
+    )
+    expect(network.remove.calledOnce, 'network.remove should be called').to.equal(true)
+    expect(job.status).to.equal(ServiceStatusNumber.Error)
+  })
+
+  it('processServiceStart refunds (cancelLock) and marks PullImageFailed when the image pull fails', async function () {
+    engine.pullImageRef = sinon.stub().rejects(new Error('pull failed'))
+    engine.docker = {
+      createNetwork: sinon.stub().resolves(network),
+      createContainer: sinon.stub().resolves(makeContainer(false))
+    }
+    const job = makeStartingJob({ serviceId: 'svc-img' })
+
+    await engine.processServiceStart(job)
+
+    expect(engine.escrow.claimLock.called, 'must not claim when image failed').to.equal(
+      false
+    )
+    expect(engine.escrow.cancelExpiredLock.calledOnce, 'must refund the lock').to.equal(
+      true
+    )
+    expect(job.status).to.equal(ServiceStatusNumber.PullImageFailed)
+    expect(engine.docker.createContainer.called, 'must not create a container').to.equal(
+      false
+    )
+  })
+
+  it('processServiceStart marks Error and skips the image when createLock fails', async function () {
+    engine.escrow.createLock = sinon.stub().resolves(null)
+    engine.docker = { createNetwork: sinon.stub(), createContainer: sinon.stub() }
+    const job = makeStartingJob({ serviceId: 'svc-lock' })
+
+    await engine.processServiceStart(job)
+
+    expect(engine.pullImageRef.called, 'must not pull when lock failed').to.equal(false)
+    expect(engine.escrow.claimLock.called).to.equal(false)
+    expect(job.status).to.equal(ServiceStatusNumber.Error)
+  })
+
+  it('processServiceStart orphan recovery: cancels an unclaimed lock and marks Error', async function () {
+    engine.docker = { createNetwork: sinon.stub(), createContainer: sinon.stub() }
+    // Resuming a job left in Locking from a previous process, with a lock but no claim.
+    const job = makeStartingJob({
+      serviceId: 'svc-orphan',
+      status: ServiceStatusNumber.Locking,
+      statusText: 'Locking',
+      payment: {
+        chainId: 1,
+        token: '0xtoken',
+        cost: 10,
+        lockTx: '0xlock',
+        claimTx: '',
+        cancelTx: ''
+      }
+    })
+
+    await engine.processServiceStart(job)
+
+    expect(
+      engine.escrow.cancelExpiredLock.calledOnce,
+      'orphan lock must be refunded'
+    ).to.equal(true)
+    expect(engine.escrow.createLock.called, 'must not re-lock an orphan').to.equal(false)
+    expect(job.status).to.equal(ServiceStatusNumber.Error)
+  })
+
+  it('restartService removes the newly created network when createContainer fails', async function () {
+    const existingJob = {
+      serviceId: 'svc-3',
+      clusterHash: 'cluster-hash',
+      environment: 'env-1',
+      owner: '0xowner',
+      image: 'nginx',
+      tag: 'latest',
+      containerImage: 'nginx:latest',
+      containerId: '', // empty → skip pre-teardown
+      networkId: '',
+      status: 40, // Running
+      statusText: 'Running',
+      dateCreated: new Date().toISOString(),
+      expiresAt: Date.now() + 60000,
+      duration: 60,
+      exposedPorts: [80],
+      endpoints: [{ containerPort: 80, hostPort: 30001, url: 'http://localhost:30001' }],
+      resources: [{ id: 'cpu', amount: 1 }],
+      payment: { chainId: 1, token: '0xtoken' }
+    }
+    engine.db.getServiceJob = sinon.stub().resolves([existingJob])
+    engine.docker = {
+      createNetwork: sinon.stub().resolves(network),
+      createContainer: sinon.stub().rejects(new Error('createContainer failed'))
+    }
+
+    await expectRejects(
+      engine.restartService('svc-3', '0xowner', undefined),
+      'createContainer failed'
+    )
+
+    expect(network.remove.calledOnce, 'network.remove should be called').to.equal(true)
   })
 })

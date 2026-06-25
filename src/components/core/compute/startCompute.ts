@@ -136,6 +136,15 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
             }
           }
         }
+        if (env.features?.computeJobs === false) {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 403,
+              error: 'Compute jobs are not enabled on this environment'
+            }
+          }
+        }
         if (!task.maxJobDuration || task.maxJobDuration > env.maxJobDuration) {
           task.maxJobDuration = env.maxJobDuration
         }
@@ -950,6 +959,15 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
           }
         }
       }
+      if (env.features?.computeJobs === false) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 403,
+            error: 'Compute jobs are not enabled on this environment'
+          }
+        }
+      }
       try {
         const accessGranted = await validateAccess(
           task.consumerAddress,
@@ -1062,7 +1080,7 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
   }
 }
 
-async function validateAccess(
+export async function validateAccess(
   consumerAddress: string,
   access: ComputeAccessList | undefined,
   oceanNode: OceanNode
