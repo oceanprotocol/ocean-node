@@ -59,7 +59,7 @@ export class CreateAuthTokenHandler extends CommandHandler {
       const createdAt = Date.now()
       const jwtToken = await this.getOceanNode()
         .getAuth()
-        .getJWTToken(task.address, task.nonce, createdAt)
+        .getJWTToken(task.address, task.nonce, createdAt, signature, task.validUntil)
 
       await this.getOceanNode()
         .getAuth()
