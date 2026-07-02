@@ -6,13 +6,9 @@ import {
   verifyConsumerSignature
 } from '../core/utils/nonceHandler.js'
 import { OceanNode } from '../../OceanNode.js'
-import { OceanP2P } from '../P2P/index.js'
 import { CommonValidation } from '../../utils/validators.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { streamToString } from '../../utils/util.js'
-import { peerIdFromString } from '@libp2p/peer-id'
-import { Readable } from 'node:stream'
 export interface AuthValidation {
   token?: string
   address?: string
@@ -22,23 +18,15 @@ export interface AuthValidation {
   chainId?: string | null
 }
 
-const VALIDATE_TOKEN_DIAL_TIMEOUT_MS = 30_000
-
 export class Auth {
   private authTokenDatabase: AuthTokenDatabase
   private jwtSecret: string
   private config: OceanNodeConfig
-  private getP2PNode: () => OceanP2P | undefined
 
-  public constructor(
-    authTokenDatabase: AuthTokenDatabase,
-    config: OceanNodeConfig,
-    getP2PNode: () => OceanP2P | undefined = () => OceanNode.getInstance().getP2PNode()
-  ) {
+  public constructor(authTokenDatabase: AuthTokenDatabase, config: OceanNodeConfig) {
     this.authTokenDatabase = authTokenDatabase
     this.jwtSecret = config.jwtSecret
     this.config = config
-    this.getP2PNode = getP2PNode
   }
 
   public getJwtSecret(): string {
@@ -51,7 +39,7 @@ export class Auth {
     nonce: string,
     createdAt: number,
     signature?: string,
-    issuerPeerId?: string,
+    validUntil?: number | null,
     chainId?: string | null
   ): Promise<string> {
     const jwtToken = jwt.sign(
@@ -60,7 +48,7 @@ export class Auth {
         nonce,
         createdAt,
         signature,
-        issuerPeerId,
+        validUntil,
         chainId
       },
       this.getJwtSecret()
@@ -94,27 +82,27 @@ export class Auth {
     if (tokenEntry) {
       return tokenEntry
     }
-    return await this.validateRemoteToken(token)
+    return await this.validateSelfContainedToken(token)
   }
 
-  async getLocalToken(token: string): Promise<AuthToken | null> {
-    return await this.authTokenDatabase.validateToken(token)
-  }
-
-  private async validateRemoteToken(token: string): Promise<AuthToken | null> {
+  private async validateSelfContainedToken(token: string): Promise<AuthToken | null> {
     const decoded = jwt.decode(token)
     if (!decoded || typeof decoded !== 'object') {
       return null
     }
-    const { address, nonce, signature, createdAt, issuerPeerId, chainId } = decoded as {
+    const { address, nonce, signature, createdAt, validUntil, chainId } = decoded as {
       address?: string
       nonce?: string
       signature?: string
       createdAt?: number
-      issuerPeerId?: string
+      validUntil?: number | null
       chainId?: string | null
     }
-    if (!address || !nonce || !signature) {
+    if (!address || !nonce || !signature || validUntil == null) {
+      return null
+    }
+    const validUntilNum = Number(validUntil)
+    if (!Number.isFinite(validUntilNum) || Date.now() >= validUntilNum) {
       return null
     }
     const signatureValid = await verifyConsumerSignature(
@@ -123,42 +111,10 @@ export class Auth {
       signature,
       PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
       this.config,
-      chainId
+      chainId,
+      validUntil
     )
     if (!signatureValid) {
-      return null
-    }
-
-    if (!issuerPeerId) {
-      return null
-    }
-    try {
-      peerIdFromString(issuerPeerId)
-    } catch {
-      return null
-    }
-    const p2p = this.getP2PNode()
-    if (!p2p || p2p.isTargetPeerSelf(issuerPeerId)) {
-      return null
-    }
-
-    const response = await p2p.sendTo(
-      issuerPeerId,
-      JSON.stringify({ command: PROTOCOL_COMMANDS.VALIDATE_AUTH_TOKEN, token }),
-      undefined,
-      undefined,
-      VALIDATE_TOKEN_DIAL_TIMEOUT_MS
-    )
-    if (response?.status?.httpStatus !== 200 || !response.stream) {
-      return null
-    }
-    let verdict: { valid?: boolean; validUntil?: number | string | null }
-    try {
-      verdict = JSON.parse(await streamToString(response.stream as Readable))
-    } catch {
-      return null
-    }
-    if (!verdict.valid) {
       return null
     }
 
@@ -167,8 +123,7 @@ export class Auth {
       token,
       address,
       created: Number.isFinite(createdNum) ? new Date(createdNum) : new Date(),
-      validUntil:
-        verdict.validUntil != null ? new Date(Number(verdict.validUntil)) : null,
+      validUntil: new Date(validUntilNum),
       isValid: true
     }
   }

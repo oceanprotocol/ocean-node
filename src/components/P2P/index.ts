@@ -799,11 +799,10 @@ export class OceanP2P extends EventEmitter {
     peerName: string,
     message: string,
     multiAddrs?: string[],
-    requestBody?: P2PRequestBodyStream,
-    timeoutMs: number = 10_000
+    requestBody?: P2PRequestBodyStream
   ): Promise<{ status: any; stream?: AsyncIterable<any> }> {
     const options = {
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: AbortSignal.timeout(10_000),
       priority: 100,
       runOnLimitedConnection: true
     }
