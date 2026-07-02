@@ -1,9 +1,14 @@
 import { AuthToken, AuthTokenDatabase } from '../database/AuthTokenDatabase.js'
 import jwt from 'jsonwebtoken'
-import { checkNonce, NonceResponse } from '../core/utils/nonceHandler.js'
+import {
+  checkNonce,
+  NonceResponse,
+  verifyConsumerSignature
+} from '../core/utils/nonceHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { CommonValidation } from '../../utils/validators.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { PROTOCOL_COMMANDS, MAX_AUTH_TOKEN_TTL_MS } from '../../utils/constants.js'
 export interface AuthValidation {
   token?: string
   address?: string
@@ -16,10 +21,12 @@ export interface AuthValidation {
 export class Auth {
   private authTokenDatabase: AuthTokenDatabase
   private jwtSecret: string
+  private config: OceanNodeConfig
 
   public constructor(authTokenDatabase: AuthTokenDatabase, config: OceanNodeConfig) {
     this.authTokenDatabase = authTokenDatabase
     this.jwtSecret = config.jwtSecret
+    this.config = config
   }
 
   public getJwtSecret(): string {
@@ -27,12 +34,22 @@ export class Auth {
   }
 
   // eslint-disable-next-line require-await
-  async getJWTToken(address: string, nonce: string, createdAt: number): Promise<string> {
+  async getJWTToken(
+    address: string,
+    nonce: string,
+    createdAt: number,
+    signature?: string,
+    validUntil?: number | null,
+    chainId?: string | null
+  ): Promise<string> {
     const jwtToken = jwt.sign(
       {
         address,
         nonce,
-        createdAt
+        createdAt,
+        signature,
+        validUntil,
+        chainId
       },
       this.getJwtSecret()
     )
@@ -62,10 +79,63 @@ export class Auth {
 
   async validateToken(token: string): Promise<AuthToken | null> {
     const tokenEntry = await this.authTokenDatabase.validateToken(token)
-    if (!tokenEntry) {
+    if (tokenEntry) {
+      return tokenEntry
+    }
+    return await this.validateSelfContainedToken(token)
+  }
+
+  private async validateSelfContainedToken(token: string): Promise<AuthToken | null> {
+    const decoded = jwt.decode(token)
+    if (!decoded || typeof decoded !== 'object') {
       return null
     }
-    return tokenEntry
+    const { address, nonce, signature, createdAt, validUntil, chainId } = decoded as {
+      address?: string
+      nonce?: string
+      signature?: string
+      createdAt?: number
+      validUntil?: number | null
+      chainId?: string | null
+    }
+    if (
+      typeof address !== 'string' ||
+      typeof nonce !== 'string' ||
+      typeof signature !== 'string' ||
+      typeof validUntil !== 'number'
+    ) {
+      return null
+    }
+    // Enforce the max lifetime here too: a self-verifying token can be built
+    // client-side, so the creation-time cap alone is not binding cross-node.
+    if (
+      !Number.isFinite(validUntil) ||
+      Date.now() >= validUntil ||
+      validUntil - Date.now() > MAX_AUTH_TOKEN_TTL_MS
+    ) {
+      return null
+    }
+    const signatureValid = await verifyConsumerSignature(
+      address,
+      nonce,
+      signature,
+      PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
+      this.config,
+      chainId,
+      validUntil
+    )
+    if (!signatureValid) {
+      return null
+    }
+
+    const createdNum = Number(createdAt)
+    return {
+      token,
+      address,
+      created: Number.isFinite(createdNum) ? new Date(createdNum) : new Date(),
+      validUntil: new Date(validUntil),
+      isValid: true
+    }
   }
 
   /**
@@ -79,7 +149,7 @@ export class Auth {
    */
   async validateAuthenticationOrToken(
     authValidation: AuthValidation
-  ): Promise<CommonValidation> {
+  ): Promise<CommonValidation & { address?: string }> {
     const { token, address, nonce, signature, command, chainId } = authValidation
     try {
       if (signature && address && nonce) {
@@ -99,14 +169,14 @@ export class Auth {
         }
 
         if (nonceCheckResult.valid) {
-          return { valid: true, error: '' }
+          return { valid: true, error: '', address }
         }
       }
 
       if (token) {
         const authToken = await this.validateToken(token)
         if (authToken) {
-          return { valid: true, error: '' }
+          return { valid: true, error: '', address: authToken.address }
         }
 
         return { valid: false, error: 'Invalid token' }

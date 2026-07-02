@@ -1,6 +1,8 @@
 import { Hashes } from '../@types/blockchain'
 
 // Add all the supported commands
+export const MAX_AUTH_TOKEN_TTL_MS = 24 * 60 * 60 * 1000
+
 export const PROTOCOL_COMMANDS = {
   DOWNLOAD: 'download',
   ENCRYPT: 'encrypt',

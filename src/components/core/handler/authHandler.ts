@@ -8,6 +8,7 @@ import { ReadableString } from '../../P2P/handlers.js'
 import { Command } from '../../../@types/commands.js'
 import { Readable } from 'stream'
 import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
+import { MAX_AUTH_TOKEN_TTL_MS } from '../../../utils/constants.js'
 
 export interface AuthMessage {
   address: string
@@ -39,6 +40,18 @@ export class CreateAuthTokenHandler extends CommandHandler {
     }
 
     try {
+      // validUntil is optional: without it the token is local-only (old clients);
+      // a signed validUntil makes it cross-node verifiable. Cap it when present.
+      if (
+        task.validUntil != null &&
+        Number(task.validUntil) > Date.now() + MAX_AUTH_TOKEN_TTL_MS
+      ) {
+        return {
+          stream: null,
+          status: { httpStatus: 400, error: 'validUntil exceeds max token lifetime' }
+        }
+      }
+
       const nonceCheckResult: NonceResponse = await checkNonce(
         this.getOceanNode().getConfig(),
         nonceDb,
@@ -46,7 +59,8 @@ export class CreateAuthTokenHandler extends CommandHandler {
         parseInt(nonce),
         signature,
         task.command,
-        task.chainId
+        task.chainId,
+        task.validUntil
       )
 
       if (!nonceCheckResult.valid) {
@@ -59,7 +73,14 @@ export class CreateAuthTokenHandler extends CommandHandler {
       const createdAt = Date.now()
       const jwtToken = await this.getOceanNode()
         .getAuth()
-        .getJWTToken(task.address, task.nonce, createdAt)
+        .getJWTToken(
+          task.address,
+          task.nonce,
+          createdAt,
+          signature,
+          task.validUntil,
+          task.chainId
+        )
 
       await this.getOceanNode()
         .getAuth()
