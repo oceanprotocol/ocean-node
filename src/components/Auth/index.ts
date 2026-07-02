@@ -8,7 +8,7 @@ import {
 import { OceanNode } from '../../OceanNode.js'
 import { CommonValidation } from '../../utils/validators.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
-import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { PROTOCOL_COMMANDS, MAX_AUTH_TOKEN_TTL_MS } from '../../utils/constants.js'
 export interface AuthValidation {
   token?: string
   address?: string
@@ -98,11 +98,21 @@ export class Auth {
       validUntil?: number | null
       chainId?: string | null
     }
-    if (!address || !nonce || !signature || validUntil == null) {
+    if (
+      typeof address !== 'string' ||
+      typeof nonce !== 'string' ||
+      typeof signature !== 'string' ||
+      typeof validUntil !== 'number'
+    ) {
       return null
     }
-    const validUntilNum = Number(validUntil)
-    if (!Number.isFinite(validUntilNum) || Date.now() >= validUntilNum) {
+    // Enforce the max lifetime here too: a self-verifying token can be built
+    // client-side, so the creation-time cap alone is not binding cross-node.
+    if (
+      !Number.isFinite(validUntil) ||
+      Date.now() >= validUntil ||
+      validUntil - Date.now() > MAX_AUTH_TOKEN_TTL_MS
+    ) {
       return null
     }
     const signatureValid = await verifyConsumerSignature(
@@ -123,7 +133,7 @@ export class Auth {
       token,
       address,
       created: Number.isFinite(createdNum) ? new Date(createdNum) : new Date(),
-      validUntil: new Date(validUntilNum),
+      validUntil: new Date(validUntil),
       isValid: true
     }
   }

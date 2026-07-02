@@ -8,8 +8,7 @@ import { ReadableString } from '../../P2P/handlers.js'
 import { Command } from '../../../@types/commands.js'
 import { Readable } from 'stream'
 import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
-
-const MAX_AUTH_TOKEN_TTL_MS = 24 * 60 * 60 * 1000
+import { MAX_AUTH_TOKEN_TTL_MS } from '../../../utils/constants.js'
 
 export interface AuthMessage {
   address: string

@@ -121,9 +121,19 @@ describe('Auth cross-node self-verifying token', () => {
   })
 
   it('rejects a token whose validUntil was tampered after signing', async () => {
+    // tampered validUntil stays within the max lifetime so it reaches (and fails)
+    // the signature check rather than the TTL cap
     const token = await mintToken(consumer, consumer.address, {
       signedValidUntil: Date.now() + 60_000,
-      validUntil: Date.now() + 999_999_999
+      validUntil: Date.now() + 6 * 60 * 60 * 1000
+    })
+    const result = await auth.validateToken(token)
+    expect(result).to.equal(null)
+  })
+
+  it('rejects a token whose validUntil exceeds the max lifetime', async () => {
+    const token = await mintToken(consumer, consumer.address, {
+      validUntil: Date.now() + 48 * 60 * 60 * 1000
     })
     const result = await auth.validateToken(token)
     expect(result).to.equal(null)
