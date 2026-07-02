@@ -1,18 +1,18 @@
 import { AuthToken, AuthTokenDatabase } from '../database/AuthTokenDatabase.js'
 import jwt from 'jsonwebtoken'
-import { checkNonce, NonceResponse } from '../core/utils/nonceHandler.js'
+import {
+  checkNonce,
+  NonceResponse,
+  verifyConsumerSignature
+} from '../core/utils/nonceHandler.js'
 import { OceanNode } from '../../OceanNode.js'
+import { OceanP2P } from '../P2P/index.js'
 import { CommonValidation } from '../../utils/validators.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import {
-  getAddress,
-  hexlify,
-  solidityPackedKeccak256,
-  toBeArray,
-  toUtf8Bytes,
-  verifyMessage
-} from 'ethers'
+import { streamToString } from '../../utils/util.js'
+import { peerIdFromString } from '@libp2p/peer-id'
+import { Readable } from 'node:stream'
 export interface AuthValidation {
   token?: string
   address?: string
@@ -22,13 +22,23 @@ export interface AuthValidation {
   chainId?: string | null
 }
 
+const VALIDATE_TOKEN_DIAL_TIMEOUT_MS = 30_000
+
 export class Auth {
   private authTokenDatabase: AuthTokenDatabase
   private jwtSecret: string
+  private config: OceanNodeConfig
+  private getP2PNode: () => OceanP2P | undefined
 
-  public constructor(authTokenDatabase: AuthTokenDatabase, config: OceanNodeConfig) {
+  public constructor(
+    authTokenDatabase: AuthTokenDatabase,
+    config: OceanNodeConfig,
+    getP2PNode: () => OceanP2P | undefined = () => OceanNode.getInstance().getP2PNode()
+  ) {
     this.authTokenDatabase = authTokenDatabase
     this.jwtSecret = config.jwtSecret
+    this.config = config
+    this.getP2PNode = getP2PNode
   }
 
   public getJwtSecret(): string {
@@ -41,7 +51,8 @@ export class Auth {
     nonce: string,
     createdAt: number,
     signature?: string,
-    validUntil?: number | null
+    issuerPeerId?: string,
+    chainId?: string | null
   ): Promise<string> {
     const jwtToken = jwt.sign(
       {
@@ -49,7 +60,8 @@ export class Auth {
         nonce,
         createdAt,
         signature,
-        validUntil
+        issuerPeerId,
+        chainId
       },
       this.getJwtSecret()
     )
@@ -82,60 +94,82 @@ export class Auth {
     if (tokenEntry) {
       return tokenEntry
     }
-    return this.validateRemoteToken(token)
+    return await this.validateRemoteToken(token)
   }
 
-  private validateRemoteToken(token: string): AuthToken | null {
+  async getLocalToken(token: string): Promise<AuthToken | null> {
+    return await this.authTokenDatabase.validateToken(token)
+  }
+
+  private async validateRemoteToken(token: string): Promise<AuthToken | null> {
     const decoded = jwt.decode(token)
     if (!decoded || typeof decoded !== 'object') {
       return null
     }
-    const { address, nonce, signature, createdAt, validUntil } = decoded as {
+    const { address, nonce, signature, createdAt, issuerPeerId, chainId } = decoded as {
       address?: string
       nonce?: string
       signature?: string
       createdAt?: number
-      validUntil?: number | null
+      issuerPeerId?: string
+      chainId?: string | null
     }
     if (!address || !nonce || !signature) {
       return null
     }
-    if (validUntil != null && Date.now() >= Number(validUntil)) {
+    const signatureValid = await verifyConsumerSignature(
+      address,
+      nonce,
+      signature,
+      PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
+      this.config,
+      chainId
+    )
+    if (!signatureValid) {
       return null
     }
-    if (!this.signatureMatchesAddress(address, nonce, signature)) {
+
+    if (!issuerPeerId) {
       return null
     }
+    try {
+      peerIdFromString(issuerPeerId)
+    } catch {
+      return null
+    }
+    const p2p = this.getP2PNode()
+    if (!p2p || p2p.isTargetPeerSelf(issuerPeerId)) {
+      return null
+    }
+
+    const response = await p2p.sendTo(
+      issuerPeerId,
+      JSON.stringify({ command: PROTOCOL_COMMANDS.VALIDATE_AUTH_TOKEN, token }),
+      undefined,
+      undefined,
+      VALIDATE_TOKEN_DIAL_TIMEOUT_MS
+    )
+    if (response?.status?.httpStatus !== 200 || !response.stream) {
+      return null
+    }
+    let verdict: { valid?: boolean; validUntil?: number | string | null }
+    try {
+      verdict = JSON.parse(await streamToString(response.stream as Readable))
+    } catch {
+      return null
+    }
+    if (!verdict.valid) {
+      return null
+    }
+
+    const createdNum = Number(createdAt)
     return {
       token,
       address,
-      created: new Date(Number(createdAt)),
-      validUntil: validUntil != null ? new Date(Number(validUntil)) : null,
+      created: Number.isFinite(createdNum) ? new Date(createdNum) : new Date(),
+      validUntil:
+        verdict.validUntil != null ? new Date(Number(verdict.validUntil)) : null,
       isValid: true
-    }
-  }
-
-  private signatureMatchesAddress(
-    address: string,
-    nonce: string,
-    signature: string
-  ): boolean {
-    try {
-      const message =
-        String(address) + String(nonce) + PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN
-      const consumerMessage = solidityPackedKeccak256(
-        ['bytes'],
-        [hexlify(toUtf8Bytes(message))]
-      )
-      const expected = getAddress(address).toLowerCase()
-      return (
-        getAddress(verifyMessage(consumerMessage, signature)).toLowerCase() ===
-          expected ||
-        getAddress(verifyMessage(toBeArray(consumerMessage), signature)).toLowerCase() ===
-          expected
-      )
-    } catch {
-      return false
     }
   }
 
@@ -150,7 +184,7 @@ export class Auth {
    */
   async validateAuthenticationOrToken(
     authValidation: AuthValidation
-  ): Promise<CommonValidation> {
+  ): Promise<CommonValidation & { address?: string }> {
     const { token, address, nonce, signature, command, chainId } = authValidation
     try {
       if (signature && address && nonce) {
@@ -170,14 +204,14 @@ export class Auth {
         }
 
         if (nonceCheckResult.valid) {
-          return { valid: true, error: '' }
+          return { valid: true, error: '', address }
         }
       }
 
       if (token) {
         const authToken = await this.validateToken(token)
         if (authToken) {
-          return { valid: true, error: '' }
+          return { valid: true, error: '', address: authToken.address }
         }
 
         return { valid: false, error: 'Invalid token' }

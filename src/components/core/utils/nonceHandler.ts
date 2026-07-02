@@ -195,6 +195,25 @@ async function validateNonceAndSignature(
       error: 'nonce: ' + nonce + ' is not a valid nonce'
     }
   }
+  if (
+    await verifyConsumerSignature(consumer, nonce, signature, command, config, chainId)
+  ) {
+    return { valid: true }
+  }
+  return {
+    valid: false,
+    error: 'consumer address and nonce signature mismatch'
+  }
+}
+
+export async function verifyConsumerSignature(
+  consumer: string,
+  nonce: string | number,
+  signature: string,
+  command: string = null,
+  config?: OceanNodeConfig,
+  chainId?: string | null
+): Promise<boolean> {
   const message = String(String(consumer) + String(nonce) + String(command))
   const consumerMessage = ethers.solidityPackedKeccak256(
     ['bytes'],
@@ -212,7 +231,7 @@ async function validateNonceAndSignature(
       ethers.getAddress(addressFromBytesSignature)?.toLowerCase() ===
         ethers.getAddress(consumer)?.toLowerCase()
     ) {
-      return { valid: true }
+      return true
     }
   } catch (error) {
     // Continue to smart account check
@@ -228,23 +247,20 @@ async function validateNonceAndSignature(
 
       // Try custom hash format (for backward compatibility)
       if (await isERC1271Valid(consumer, consumerMessage, signature, provider)) {
-        return { valid: true }
+        return true
       }
 
       // Try EIP-191 prefixed hash (standard for smart wallets)
       const eip191Hash = ethers.hashMessage(message)
       if (await isERC1271Valid(consumer, eip191Hash, signature, provider)) {
-        return { valid: true }
+        return true
       }
     }
   } catch (error) {
     // Smart account validation failed
   }
 
-  return {
-    valid: false,
-    error: 'consumer address and nonce signature mismatch'
-  }
+  return false
 }
 
 // Smart account validation
