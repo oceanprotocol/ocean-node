@@ -192,11 +192,17 @@ describe('**********         Auth Token Integration Tests', () => {
 
       const token = await streamToObject(handlerResponse.stream as Readable)
       const newNonce = getRandomNonce()
+      const invalidateHash = createHashForSignature(
+        consumerAddress,
+        newNonce,
+        PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN
+      )
+      const invalidateSignature = await safeSign(consumerAccount, invalidateHash)
 
       await new InvalidateAuthTokenHandler(oceanNode).handle({
         command: PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
         address: consumerAddress,
-        signature,
+        signature: invalidateSignature,
         nonce: newNonce,
         token: token.token
       })
