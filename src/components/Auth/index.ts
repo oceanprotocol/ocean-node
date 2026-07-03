@@ -10,9 +10,25 @@ import { OceanP2P } from '../P2P/index.js'
 import { CommonValidation } from '../../utils/validators.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { streamToString } from '../../utils/util.js'
 import { peerIdFromString } from '@libp2p/peer-id'
 import { Readable } from 'node:stream'
+
+const MAX_VERDICT_BYTES = 4096
+
+async function readBounded(stream: Readable): Promise<string> {
+  const chunks: Buffer[] = []
+  let size = 0
+  for await (const chunk of stream) {
+    size += chunk.length
+    if (size > MAX_VERDICT_BYTES) {
+      stream.destroy()
+      throw new Error('validation response too large')
+    }
+    chunks.push(Buffer.from(chunk))
+  }
+  return Buffer.concat(chunks).toString()
+}
+
 export interface AuthValidation {
   token?: string
   address?: string
@@ -149,7 +165,7 @@ export class Auth {
     }
     let verdict: { valid?: boolean; validUntil?: number | string | null }
     try {
-      verdict = JSON.parse(await streamToString(response.stream as Readable))
+      verdict = JSON.parse(await readBounded(response.stream as Readable))
     } catch {
       return null
     }

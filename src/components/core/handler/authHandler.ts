@@ -60,9 +60,10 @@ export class CreateAuthTokenHandler extends CommandHandler {
 
       const createdAt = Date.now()
       const requested = Number(task.validUntil)
-      const validUntil = Number.isFinite(requested)
-        ? Math.min(requested, createdAt + MAX_AUTH_TOKEN_TTL_MS)
-        : createdAt + MAX_AUTH_TOKEN_TTL_MS
+      const validUntil =
+        Number.isFinite(requested) && requested > createdAt
+          ? Math.min(requested, createdAt + MAX_AUTH_TOKEN_TTL_MS)
+          : createdAt + MAX_AUTH_TOKEN_TTL_MS
       const issuerPeerId = this.getOceanNode().getKeyManager().getPeerIdString()
       const jwtToken = await this.getOceanNode()
         .getAuth()
