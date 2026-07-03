@@ -46,7 +46,11 @@ import {
   GetP2PNetworkStatsHandler,
   FindPeerHandler
 } from './p2p.js'
-import { CreateAuthTokenHandler, InvalidateAuthTokenHandler } from './authHandler.js'
+import {
+  CreateAuthTokenHandler,
+  InvalidateAuthTokenHandler,
+  ValidateAuthTokenHandler
+} from './authHandler.js'
 import { GetJobsHandler } from './getJobs.js'
 import {
   PersistentStorageCreateBucketHandler,
@@ -175,6 +179,10 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
       new InvalidateAuthTokenHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.VALIDATE_AUTH_TOKEN,
+      new ValidateAuthTokenHandler(node)
     )
     this.registerCoreHandler(PROTOCOL_COMMANDS.FETCH_CONFIG, new FetchConfigHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.PUSH_CONFIG, new PushConfigHandler(node))

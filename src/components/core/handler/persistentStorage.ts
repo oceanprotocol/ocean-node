@@ -88,7 +88,7 @@ export class PersistentStorageCreateBucketHandler extends CommandHandler {
         config.persistentStorage?.accessLists.length > 0
       ) {
         const isAllowedCreate = await checkAddressOnAccessList(
-          task.consumerAddress,
+          isAuthRequestValid.consumerAddress,
           config.persistentStorage?.accessLists,
           node
         )

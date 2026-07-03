@@ -121,8 +121,7 @@ export async function checkNonce(
   nonce: number,
   signature: string,
   command: string,
-  chainId?: string | null,
-  validUntil?: number | null
+  chainId?: string | null
 ): Promise<NonceResponse> {
   try {
     // get nonce from db
@@ -139,8 +138,7 @@ export async function checkNonce(
       signature,
       command,
       config,
-      chainId,
-      validUntil
+      chainId
     )
     if (validate.valid) {
       const updateStatus = await updateNonce(db, consumer, nonce)
@@ -189,8 +187,7 @@ async function validateNonceAndSignature(
   signature: string,
   command: string = null,
   config: OceanNodeConfig,
-  chainId?: string | null,
-  validUntil?: number | null
+  chainId?: string | null
 ): Promise<NonceResponse> {
   if (nonce <= existingNonce) {
     return {
@@ -199,15 +196,7 @@ async function validateNonceAndSignature(
     }
   }
   if (
-    await verifyConsumerSignature(
-      consumer,
-      nonce,
-      signature,
-      command,
-      config,
-      chainId,
-      validUntil
-    )
+    await verifyConsumerSignature(consumer, nonce, signature, command, config, chainId)
   ) {
     return { valid: true }
   }
@@ -223,15 +212,9 @@ export async function verifyConsumerSignature(
   signature: string,
   command: string = null,
   config?: OceanNodeConfig,
-  chainId?: string | null,
-  validUntil?: number | null
+  chainId?: string | null
 ): Promise<boolean> {
-  const message = String(
-    String(consumer) +
-      String(nonce) +
-      String(command) +
-      (validUntil != null ? String(validUntil) : '')
-  )
+  const message = String(String(consumer) + String(nonce) + String(command))
   const consumerMessage = ethers.solidityPackedKeccak256(
     ['bytes'],
     [ethers.hexlify(ethers.toUtf8Bytes(message))]
@@ -274,7 +257,7 @@ export async function verifyConsumerSignature(
       }
     }
   } catch (error) {
-    // Smart account validation failed
+    CORE_LOGGER.error(`ERC-1271 signature validation error: ${error?.message}`)
   }
 
   return false

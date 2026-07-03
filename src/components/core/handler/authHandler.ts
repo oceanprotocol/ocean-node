@@ -9,6 +9,7 @@ import { Command } from '../../../@types/commands.js'
 import { Readable } from 'stream'
 import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
 import { MAX_AUTH_TOKEN_TTL_MS } from '../../../utils/constants.js'
+import jwt from 'jsonwebtoken'
 
 export interface AuthMessage {
   address: string
@@ -40,18 +41,6 @@ export class CreateAuthTokenHandler extends CommandHandler {
     }
 
     try {
-      // validUntil is optional: without it the token is local-only (old clients);
-      // a signed validUntil makes it cross-node verifiable. Cap it when present.
-      if (
-        task.validUntil != null &&
-        Number(task.validUntil) > Date.now() + MAX_AUTH_TOKEN_TTL_MS
-      ) {
-        return {
-          stream: null,
-          status: { httpStatus: 400, error: 'validUntil exceeds max token lifetime' }
-        }
-      }
-
       const nonceCheckResult: NonceResponse = await checkNonce(
         this.getOceanNode().getConfig(),
         nonceDb,
@@ -59,8 +48,7 @@ export class CreateAuthTokenHandler extends CommandHandler {
         parseInt(nonce),
         signature,
         task.command,
-        task.chainId,
-        task.validUntil
+        task.chainId
       )
 
       if (!nonceCheckResult.valid) {
@@ -71,6 +59,11 @@ export class CreateAuthTokenHandler extends CommandHandler {
       }
 
       const createdAt = Date.now()
+      const requested = Number(task.validUntil)
+      const validUntil = Number.isFinite(requested)
+        ? Math.min(requested, createdAt + MAX_AUTH_TOKEN_TTL_MS)
+        : createdAt + MAX_AUTH_TOKEN_TTL_MS
+      const issuerPeerId = this.getOceanNode().getKeyManager().getPeerIdString()
       const jwtToken = await this.getOceanNode()
         .getAuth()
         .getJWTToken(
@@ -78,13 +71,13 @@ export class CreateAuthTokenHandler extends CommandHandler {
           task.nonce,
           createdAt,
           signature,
-          task.validUntil,
+          issuerPeerId,
           task.chainId
         )
 
       await this.getOceanNode()
         .getAuth()
-        .insertToken(task.address, jwtToken, task.validUntil, createdAt, task.chainId)
+        .insertToken(task.address, jwtToken, validUntil, createdAt, task.chainId)
 
       return {
         stream: Readable.from(JSON.stringify({ token: jwtToken })),
@@ -113,7 +106,7 @@ export class InvalidateAuthTokenHandler extends CommandHandler {
     }
 
     try {
-      const isValid = await checkNonce(
+      const nonceCheckResult = await checkNonce(
         this.getOceanNode().getConfig(),
         nonceDb,
         address,
@@ -122,7 +115,7 @@ export class InvalidateAuthTokenHandler extends CommandHandler {
         task.command,
         task.chainId
       )
-      if (!isValid) {
+      if (!nonceCheckResult.valid) {
         return {
           stream: null,
           status: { httpStatus: 400, error: 'Invalid signature' }
@@ -139,6 +132,50 @@ export class InvalidateAuthTokenHandler extends CommandHandler {
       return {
         stream: null,
         status: { httpStatus: 500, error: `Error invalidating auth token: ${error}` }
+      }
+    }
+  }
+}
+
+export interface ValidateAuthTokenCommand extends Command {
+  token: string
+}
+
+export class ValidateAuthTokenHandler extends CommandHandler {
+  validate(command: ValidateAuthTokenCommand): ValidateParams {
+    return validateCommandParameters(command, ['token'])
+  }
+
+  async handle(task: ValidateAuthTokenCommand): Promise<P2PCommandResponse> {
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
+    }
+
+    try {
+      const auth = this.getOceanNode().getAuth()
+      let verified = true
+      try {
+        jwt.verify(task.token, auth.getJwtSecret())
+      } catch {
+        verified = false
+      }
+      const row = verified ? await auth.getLocalToken(task.token) : null
+      const body = row
+        ? {
+            valid: true,
+            validUntil: row.validUntil == null ? null : new Date(row.validUntil).getTime()
+          }
+        : { valid: false }
+
+      return {
+        stream: Readable.from(JSON.stringify(body)),
+        status: { httpStatus: 200, error: null }
+      }
+    } catch (error) {
+      return {
+        stream: null,
+        status: { httpStatus: 500, error: `Error validating auth token: ${error}` }
       }
     }
   }

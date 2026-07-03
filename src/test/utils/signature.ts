@@ -16,15 +16,9 @@ import { ethers, Signer, JsonRpcSigner } from 'ethers'
 export function createHashForSignature(
   consumer: string,
   nonce: string | number,
-  command: string,
-  validUntil?: number | null
+  command: string
 ): Uint8Array {
-  const message = String(
-    String(consumer) +
-      String(nonce) +
-      String(command) +
-      (validUntil != null ? String(validUntil) : '')
-  )
+  const message = String(String(consumer) + String(nonce) + String(command))
   const consumerMessage = ethers.solidityPackedKeccak256(
     ['bytes'],
     [ethers.hexlify(ethers.toUtf8Bytes(message))]
