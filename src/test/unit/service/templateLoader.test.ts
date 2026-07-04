@@ -69,8 +69,9 @@ describe('loadServiceTemplates', () => {
     expect(templates[0].tag).to.equal('first')
   })
 
-  it('8. non-.json files ignored', async () => {
+  it('8. non-.json files ignored (e.g. README.md)', async () => {
     writeFileSync(join(dir, 'readme.txt'), 'hello')
+    writeFileSync(join(dir, 'README.md'), '# docs, not a template')
     writeFileSync(join(dir, 'good.json'), JSON.stringify(valid('good')))
     const templates = await loadServiceTemplates(dir)
     expect(templates.map((t) => t.id)).to.deep.equal(['good'])
