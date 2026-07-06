@@ -267,7 +267,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
   getRunningServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
     // All pre-terminal statuses are "active": a service reserves its resources from the moment
     // its record is created (Starting) through the whole start pipeline (Locking, image, Claiming)
-    // until it is Running, and while Stopping.
+    // until it is Running, and while Stopping. Error is included too: a service whose container
+    // died on its own keeps its resources/ports reserved (consumer already paid for them) until
+    // it is explicitly restarted/stopped, or swept by getExpiredServiceJobs once past expiresAt.
     const activeStatuses = [
       ServiceStatusNumber.Starting,
       ServiceStatusNumber.Locking,
@@ -275,7 +277,8 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       ServiceStatusNumber.BuildImage,
       ServiceStatusNumber.Claiming,
       ServiceStatusNumber.Running,
-      ServiceStatusNumber.Stopping
+      ServiceStatusNumber.Stopping,
+      ServiceStatusNumber.Error
     ]
     const placeholders = activeStatuses.map(() => '?').join(',')
     const params: Array<string | number> = [...activeStatuses]
@@ -297,8 +300,14 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
   }
 
   getExpiredServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
-    const params: Array<string | number> = [ServiceStatusNumber.Running, Date.now()]
-    let selectSQL = `SELECT * FROM service_jobs WHERE status = ? AND expiresAt <= ?`
+    // Running AND Error: an Error'd service (e.g. container died on its own) still holds its
+    // resources/ports reserved for a possible restart, but once past expiresAt it must be
+    // swept and released just like a normally-running one — otherwise an abandoned Error
+    // service would leak its reservation forever.
+    const expirableStatuses = [ServiceStatusNumber.Running, ServiceStatusNumber.Error]
+    const placeholders = expirableStatuses.map(() => '?').join(',')
+    const params: Array<string | number> = [...expirableStatuses, Date.now()]
+    let selectSQL = `SELECT * FROM service_jobs WHERE status IN (${placeholders}) AND expiresAt <= ?`
     if (clusterHash) {
       selectSQL += ` AND clusterHash = ?`
       params.push(clusterHash)
