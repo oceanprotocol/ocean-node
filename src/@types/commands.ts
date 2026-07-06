@@ -432,6 +432,13 @@ export interface ServiceStopCommand extends Command {
   serviceId: string
 }
 
+export interface ServiceGetStreamableLogsCommand extends Command {
+  consumerAddress: string
+  nonce: string
+  signature: string
+  serviceId: string
+}
+
 export interface ServiceGetStatusCommand extends Command {
   consumerAddress: string
   nonce: string

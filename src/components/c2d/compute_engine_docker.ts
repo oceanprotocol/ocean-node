@@ -3689,6 +3689,34 @@ export class C2DEngineDocker extends C2DEngine {
     return jobs.filter((j) => j.clusterHash === this.getC2DConfig().hash)
   }
 
+  public override async getServiceStreamableLogs(
+    serviceId: string,
+    owner: string
+  ): Promise<NodeJS.ReadableStream | null> {
+    const [job] = await this.db.getServiceJob(serviceId, owner)
+    if (!job) return null
+    if (
+      job.status !== ServiceStatusNumber.Running &&
+      job.status !== ServiceStatusNumber.Error
+    ) {
+      return null
+    }
+    try {
+      const container = this.docker.getContainer(job.containerId)
+      await container.inspect() // throws if the container no longer exists
+      return (await container.logs({
+        stdout: true,
+        stderr: true,
+        follow: true
+      })) as unknown as NodeJS.ReadableStream
+    } catch (e: any) {
+      CORE_LOGGER.error(
+        `getServiceStreamableLogs failed for ${serviceId}: ${e?.message ?? e}`
+      )
+      return null
+    }
+  }
+
   private addUserDataToFilesObject(
     filesObject: any,
     userData: { [key: string]: any }

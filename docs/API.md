@@ -2098,3 +2098,37 @@ Tear down the service container and network and release its resources. Owner-gat
 #### Response (200)
 
 The `ServiceJob` with `status: 70` (Stopped).
+
+---
+
+### `HTTP` GET /api/services/serviceStreamableLogs
+
+### `P2P` command: serviceGetStreamableLogs
+
+#### Description
+
+Stream the service container's stdout/stderr logs live. **Authenticated and owner-scoped**
+— only the service's owner (`consumerAddress`, proven by signature/nonce or auth token) can
+read its logs. Available while the service is `Running` (`40`) or `Error` (`99`) — a crashed
+container is kept around until `stop`/`restart`, so its logs remain fetchable for diagnosis.
+
+#### Query Parameters
+
+| name            | type   | required | description |
+| --------------- | ------ | -------- | ----------- |
+| consumerAddress | string | v        | owner address |
+| nonce           | string | v        | request nonce |
+| signature       | string | v        | signed message (or use an `Authorization` auth-token header) |
+| serviceId       | string | v        | the service to stream logs for |
+
+#### Response (200)
+
+Raw `stdout`/`stderr` byte stream from the container, connection kept open and followed live.
+
+#### Response (404)
+
+Service not found, or not `Running`/`Error`.
+
+#### Response (401)
+
+Missing/invalid auth, or `consumerAddress` is not the service owner.

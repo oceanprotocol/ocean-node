@@ -132,6 +132,14 @@ export abstract class C2DEngine {
     return []
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  public async getServiceStreamableLogs(
+    serviceId: string,
+    owner: string
+  ): Promise<NodeJS.ReadableStream | null> {
+    return null
+  }
+
   // eslint-disable-next-line require-await
   public abstract checkDockerImage(
     image: string,

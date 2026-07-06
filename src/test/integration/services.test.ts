@@ -5,7 +5,8 @@ import {
   ServiceStopHandler,
   ServiceExtendHandler,
   ServiceRestartHandler,
-  ServiceGetStatusHandler
+  ServiceGetStatusHandler,
+  ServiceGetStreamableLogsHandler
 } from '../../components/core/service/index.js'
 import { ComputeGetEnvironmentsHandler } from '../../components/core/compute/index.js'
 import type {
@@ -14,7 +15,8 @@ import type {
   ServiceStopCommand,
   ServiceExtendCommand,
   ServiceRestartCommand,
-  ServiceGetStatusCommand
+  ServiceGetStatusCommand,
+  ServiceGetStreamableLogsCommand
 } from '../../@types/commands.js'
 import {
   ServiceStatusNumber,
@@ -214,6 +216,31 @@ describe('**********         Service on Demand', () => {
   function getDockerEngine(): C2DEngineDocker {
     const engines = (oceanNode.getC2DEngines() as any).engines as C2DEngineDocker[]
     return engines.find((e) => e instanceof C2DEngineDocker) as C2DEngineDocker
+  }
+
+  // container.logs({follow: true}) never ends on its own, so read for a bounded
+  // window and always destroy the stream afterwards to release the docker log socket.
+  async function readLogsWithTimeout(stream: Readable, timeoutMs = 5000): Promise<string> {
+    return new Promise((resolve) => {
+      let data = ''
+      const finish = () => {
+        stream.removeAllListeners()
+        stream.destroy()
+        resolve(data)
+      }
+      const timer = setTimeout(finish, timeoutMs)
+      stream.on('data', (chunk) => {
+        data += chunk.toString()
+      })
+      stream.on('end', () => {
+        clearTimeout(timer)
+        finish()
+      })
+      stream.on('error', () => {
+        clearTimeout(timer)
+        finish()
+      })
+    })
   }
 
   // ── setup / teardown ─────────────────────────────────────────────────
@@ -454,7 +481,54 @@ describe('**********         Service on Demand', () => {
     expect(unauth.status.httpStatus).to.not.equal(200)
   })
 
-  it('(f) SERVICE_START on a services-disabled environment → 403', async () => {
+  it('(f) SERVICE_GET_STREAMABLE_LOGS streams the real container logs (owner-only)', async () => {
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS)
+    const task: ServiceGetStreamableLogsCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      serviceId
+    }
+    const resp = await new ServiceGetStreamableLogsHandler(oceanNode).handle(task)
+    assert(
+      resp.status.httpStatus === 200,
+      `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
+    )
+    // follow:true keeps the stream open indefinitely, so read for a bounded window
+    // and destroy it afterwards — nginx logs its startup banner to stdout on boot.
+    const logs = await readLogsWithTimeout(resp.stream as Readable)
+    assert(typeof logs === 'string', 'expected log output to be a string')
+
+    // an unauthenticated request (no nonce/signature) is rejected
+    const unauth = await new ServiceGetStreamableLogsHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,
+      consumerAddress,
+      serviceId
+    } as ServiceGetStreamableLogsCommand)
+    expect(unauth.status.httpStatus).to.not.equal(200)
+
+    // a non-owner request is rejected too
+    const {
+      consumerAddress: otherAddr,
+      nonce: otherNonce,
+      signature: otherSignature
+    } = await signFor(nonOwnerAccount, PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS)
+    const nonOwnerResp = await new ServiceGetStreamableLogsHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,
+      consumerAddress: otherAddr,
+      nonce: otherNonce,
+      signature: otherSignature,
+      serviceId
+    } as ServiceGetStreamableLogsCommand)
+    expect(nonOwnerResp.status.httpStatus).to.not.equal(200)
+  })
+
+  it('(g) SERVICE_START on a services-disabled environment → 403', async () => {
     const {
       consumerAddress: addr,
       nonce,
@@ -480,7 +554,7 @@ describe('**********         Service on Demand', () => {
     expect(resp.status.httpStatus).to.equal(403)
   })
 
-  it('(g) SERVICE_START with duration > maxDurationSeconds → 400', async () => {
+  it('(h) SERVICE_START with duration > maxDurationSeconds → 400', async () => {
     const {
       consumerAddress: addr,
       nonce,
@@ -506,7 +580,7 @@ describe('**********         Service on Demand', () => {
     expect(resp.status.httpStatus).to.equal(400)
   })
 
-  it('(h) SERVICE_START with undecryptable userData → 400', async () => {
+  it('(i) SERVICE_START with undecryptable userData → 400', async () => {
     const {
       consumerAddress: addr,
       nonce,
@@ -534,7 +608,7 @@ describe('**********         Service on Demand', () => {
     expect(resp.status.httpStatus).to.equal(400)
   })
 
-  it('(i) SERVICE_EXTEND advances expiresAt and records an extendPayment', async () => {
+  it('(j) SERVICE_EXTEND advances expiresAt and records an extendPayment', async () => {
     const {
       consumerAddress: addr,
       nonce,
@@ -560,7 +634,7 @@ describe('**********         Service on Demand', () => {
     expiresAt = job.expiresAt
   })
 
-  it('(j) SERVICE_EXTEND by a non-owner is rejected (non-200)', async () => {
+  it('(k) SERVICE_EXTEND by a non-owner is rejected (non-200)', async () => {
     // In a real DB, getServiceJob filters by owner, so a non-owner lookup returns
     // "not found" (400) rather than reaching the 401 ownership branch.
     const {
@@ -581,7 +655,7 @@ describe('**********         Service on Demand', () => {
     expect(resp.status.httpStatus).to.not.equal(200)
   })
 
-  it('(k) SERVICE_RESTART → new container, same hostPort + expiresAt', async function () {
+  it('(l) SERVICE_RESTART → new container, same hostPort + expiresAt', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 4)
     const before = await getServiceJob(serviceId)
     const oldContainerId = before.containerId
@@ -612,7 +686,7 @@ describe('**********         Service on Demand', () => {
     assert(res.status === 200, `expected nginx HTTP 200 after restart, got ${res.status}`)
   })
 
-  it('(l) SERVICE_STOP → Stopped, container + network removed', async function () {
+  it('(m) SERVICE_STOP → Stopped, container + network removed', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const before = await getServiceJob(serviceId)
     const { containerId } = before
@@ -648,7 +722,7 @@ describe('**********         Service on Demand', () => {
     assert(inspectFailed, 'container should have been removed')
   })
 
-  it('(m) [slow] expiry cron marks a short-lived service Expired', async function () {
+  it('(n) [slow] expiry cron marks a short-lived service Expired', async function () {
     this.timeout(150000)
     const {
       consumerAddress: addr,
@@ -689,7 +763,7 @@ describe('**********         Service on Demand', () => {
     expect(expired.status).to.equal(ServiceStatusNumber.Expired)
   })
 
-  it('(n) [build] Dockerfile-based custom service builds and serves', async function () {
+  it('(o) [build] Dockerfile-based custom service builds and serves', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 8)
     const {
       consumerAddress: addr,

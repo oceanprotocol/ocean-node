@@ -55,7 +55,8 @@ export const PROTOCOL_COMMANDS = {
   SERVICE_STOP: 'serviceStop',
   SERVICE_RESTART: 'serviceRestart',
   SERVICE_GET_STATUS: 'serviceGetStatus',
-  SERVICE_EXTEND: 'serviceExtend'
+  SERVICE_EXTEND: 'serviceExtend',
+  SERVICE_GET_STREAMABLE_LOGS: 'serviceGetStreamableLogs'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -112,7 +113,8 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.SERVICE_STOP,
   PROTOCOL_COMMANDS.SERVICE_RESTART,
   PROTOCOL_COMMANDS.SERVICE_GET_STATUS,
-  PROTOCOL_COMMANDS.SERVICE_EXTEND
+  PROTOCOL_COMMANDS.SERVICE_EXTEND,
+  PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS
 ]
 
 export const MetadataStates = {

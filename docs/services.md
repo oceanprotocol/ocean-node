@@ -32,6 +32,7 @@ and `signature` as query parameters (or an auth-token `Authorization` header).
 | `SERVICE_RESTART` | `/api/services/serviceRestart` | POST | Recreate the container (no extra charge) |
 | `SERVICE_STOP` | `/api/services/serviceStop` | POST | Tear down the container and release resources |
 | `SERVICE_GET_TEMPLATES` | `/api/services/serviceTemplates` | GET | List operator-published service templates |
+| `SERVICE_GET_STREAMABLE_LOGS` | `/api/services/serviceStreamableLogs` | GET | Stream the container's live stdout/stderr logs — authenticated, owner-scoped; available while `Running` or `Error` |
 
 **Start is asynchronous.** `serviceStart` does only the fast, synchronous validation and then
 returns the `serviceId` right away — it does **not** wait for escrow or the (potentially
@@ -125,6 +126,13 @@ are never returned by the API (only the env-var keys are exposed).
   and does not authenticate traffic to the container, so put your own authentication in
   front of any sensitive service and do not rely on endpoint-URL secrecy as access
   control.
+
+- **`serviceStreamableLogs` is authenticated and owner-scoped, like `serviceStatus`.**
+  Container stdout/stderr can leak secrets or sensitive request data, so the same
+  proof-of-`consumerAddress` + ownership check gates log access — a non-owner gets `401`.
+  Logs are only served while the service is `Running` or `Error` (a crashed container's
+  logs stay available for diagnosis until `stop`/`restart` tears it down); otherwise the
+  route returns `404`.
 
 - **`allowImageBuild` runs arbitrary build instructions.** When enabled, a consumer's
   inline `dockerfile` is built by the Docker daemon, so its `RUN` steps execute arbitrary

@@ -10,6 +10,7 @@ import { ServiceStartHandler } from '../../../components/core/service/startServi
 import { ServiceStopHandler } from '../../../components/core/service/stopService.js'
 import { ServiceExtendHandler } from '../../../components/core/service/extendService.js'
 import { ServiceRestartHandler } from '../../../components/core/service/restartService.js'
+import { ServiceGetStreamableLogsHandler } from '../../../components/core/service/getStreamableLogs.js'
 
 const OWNER = '0x0000000000000000000000000000000000000abc'
 
@@ -57,6 +58,7 @@ interface FakeOpts {
   serviceJobInDb?: ServiceJob | null
   cost?: number | null
   envId?: string
+  streamableLogs?: Readable | null
 }
 
 function buildFakes(opts: FakeOpts = {}) {
@@ -128,7 +130,12 @@ function buildFakes(opts: FakeOpts = {}) {
       ),
     getServiceStatus: sinon
       .stub()
-      .resolves(opts.serviceJobInDb ? [opts.serviceJobInDb] : [])
+      .resolves(opts.serviceJobInDb ? [opts.serviceJobInDb] : []),
+    getServiceStreamableLogs: sinon
+      .stub()
+      .resolves(
+        opts.streamableLogs === undefined ? Readable.from(['hello logs']) : opts.streamableLogs
+      )
   }
 
   const engines: any = {
@@ -483,6 +490,86 @@ describe('Service handlers', () => {
       expect(payment.claimTx).to.equal('')
       const out = await body(res)
       expect(out[0]).to.not.have.property('userData')
+    })
+  })
+
+  describe('ServiceGetStreamableLogsHandler', () => {
+    const baseTask = {
+      command: PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,
+      consumerAddress: OWNER,
+      nonce: '1',
+      signature: '0xsig',
+      serviceId: 'svc-1'
+    }
+
+    it('400 when serviceId is missing', async () => {
+      const { node } = buildFakes({ serviceJobInDb: makeJob() })
+      const { serviceId, ...noServiceId } = baseTask
+      const res = await new ServiceGetStreamableLogsHandler(node).handle({
+        ...noServiceId
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('401 when the signature/token is invalid', async () => {
+      const { node } = buildFakes({ serviceJobInDb: makeJob() })
+      node.getAuth = () => ({
+        validateAuthenticationOrToken: () =>
+          Promise.resolve({ valid: false, error: 'bad signature' })
+      })
+      const res = await new ServiceGetStreamableLogsHandler(node).handle({
+        ...baseTask
+      } as any)
+      expect(res.status.httpStatus).to.equal(401)
+    })
+
+    it('400 when service not found', async () => {
+      const { node } = buildFakes({ serviceJobInDb: null })
+      const res = await new ServiceGetStreamableLogsHandler(node).handle({
+        ...baseTask
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('401 when caller is not the owner', async () => {
+      const { node } = buildFakes({ serviceJobInDb: makeJob({ owner: '0xsomeoneelse' }) })
+      const res = await new ServiceGetStreamableLogsHandler(node).handle({
+        ...baseTask
+      } as any)
+      expect(res.status.httpStatus).to.equal(401)
+    })
+
+    it('404 when the engine has no stream to return (not running/error)', async () => {
+      const { node } = buildFakes({ serviceJobInDb: makeJob(), streamableLogs: null })
+      const res = await new ServiceGetStreamableLogsHandler(node).handle({
+        ...baseTask
+      } as any)
+      expect(res.status.httpStatus).to.equal(404)
+    })
+
+    it('200 and returns the engine stream on success', async () => {
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      const res = await new ServiceGetStreamableLogsHandler(node).handle({
+        ...baseTask
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      expect(engine.getServiceStreamableLogs.calledOnceWith('svc-1', OWNER)).to.equal(true)
+      const chunks: Buffer[] = []
+      for await (const chunk of res.stream as Readable) {
+        chunks.push(Buffer.from(chunk))
+      }
+      expect(Buffer.concat(chunks).toString()).to.equal('hello logs')
+    })
+
+    it('200 when service is in Error status (crashed container logs still fetchable)', async () => {
+      const { node, engine } = buildFakes({
+        serviceJobInDb: makeJob({ status: ServiceStatusNumber.Error })
+      })
+      const res = await new ServiceGetStreamableLogsHandler(node).handle({
+        ...baseTask
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      expect(engine.getServiceStreamableLogs.calledOnce).to.equal(true)
     })
   })
 })

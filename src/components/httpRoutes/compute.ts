@@ -27,7 +27,8 @@ import type {
   ServiceStopCommand,
   ServiceExtendCommand,
   ServiceRestartCommand,
-  ServiceGetStatusCommand
+  ServiceGetStatusCommand,
+  ServiceGetStreamableLogsCommand
 } from '../../@types/commands.js'
 import {
   ServiceGetTemplatesHandler,
@@ -35,7 +36,8 @@ import {
   ServiceStopHandler,
   ServiceExtendHandler,
   ServiceRestartHandler,
-  ServiceGetStatusHandler
+  ServiceGetStatusHandler,
+  ServiceGetStreamableLogsHandler
 } from '../core/service/index.js'
 
 import { streamToObject, streamToString } from '../../utils/util.js'
@@ -468,4 +470,42 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/serviceStatus`, async (req, res) =>
     caller: req.caller
   }
   await runServiceCommand(ServiceGetStatusHandler, task, res)
+})
+
+// streaming logs for services
+computeRoutes.get(`${SERVICES_API_BASE_PATH}/serviceStreamableLogs`, async (req, res) => {
+  try {
+    HTTP_LOGGER.logMessage(
+      `ServiceGetStreamableLogsCommand request received with query: ${JSON.stringify(
+        req.query
+      )}`,
+      true
+    )
+
+    const task: ServiceGetStreamableLogsCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,
+      node: (req.query.node as string) || null,
+      consumerAddress: (req.query.consumerAddress as string) || null,
+      serviceId: (req.query.serviceId as string) || null,
+      signature: (req.query.signature as string) || null,
+      nonce: (req.query.nonce as string) || null,
+      authorization: req.headers?.authorization,
+      caller: req.caller
+    }
+
+    const response = await new ServiceGetStreamableLogsHandler(req.oceanNode).handle(task)
+    if (response.stream) {
+      res.status(response.status.httpStatus)
+      res.set(response.status.headers)
+      response.stream.pipe(res)
+    } else {
+      const body =
+        response.status.error ??
+        (response.status.httpStatus === 404 ? 'Service not found or not running' : 'Error')
+      res.status(response.status.httpStatus).send(body)
+    }
+  } catch (error) {
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    res.status(500).send('Internal Server Error')
+  }
 })
