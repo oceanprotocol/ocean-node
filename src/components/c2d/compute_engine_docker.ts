@@ -23,7 +23,8 @@ import type {
   ComputeResource,
   ComputeResourceKind,
   C2DEnvironmentConfig,
-  ComputeResourcesPricingInfo
+  ComputeResourcesPricingInfo,
+  EnvironmentResourceRef
 } from '../../@types/C2D/C2D.js'
 import { BASE_CHAIN_ID, USDC_TOKEN_ADDRESS_BASE } from '../../utils/config.js'
 import { C2DEngine } from './compute_engine_base.js'
@@ -300,7 +301,16 @@ export class C2DEngineDocker extends C2DEngine {
     envDef: C2DEnvironmentConfig,
     pool: Map<string, ComputeResource>
   ): ComputeResource[] {
-    const refs = envDef.resources || []
+    const configuredRefs = envDef.resources || []
+    // cpu/ram/disk are baseline resources every environment has (unlike opt-in discrete
+    // resources such as GPUs) — guarantee they're always resolved, using pool defaults
+    // when the config doesn't reference them, so a config that forgets one doesn't
+    // silently lose all tracking/enforcement for it.
+    const configuredIds = new Set(configuredRefs.map((r) => r.id))
+    const baselineRefs: EnvironmentResourceRef[] = (['cpu', 'ram', 'disk'] as const)
+      .filter((id) => !configuredIds.has(id))
+      .map((id) => ({ id }))
+    const refs: EnvironmentResourceRef[] = [...configuredRefs, ...baselineRefs]
     const result: ComputeResource[] = []
     for (const ref of refs) {
       const poolRes = pool.get(ref.id)
