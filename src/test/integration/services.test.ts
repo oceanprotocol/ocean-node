@@ -220,7 +220,10 @@ describe('**********         Service on Demand', () => {
 
   // container.logs({follow: true}) never ends on its own, so read for a bounded
   // window and always destroy the stream afterwards to release the docker log socket.
-  async function readLogsWithTimeout(stream: Readable, timeoutMs = 5000): Promise<string> {
+  async function readLogsWithTimeout(
+    stream: Readable,
+    timeoutMs = 5000
+  ): Promise<string> {
     return new Promise((resolve) => {
       let data = ''
       const finish = () => {

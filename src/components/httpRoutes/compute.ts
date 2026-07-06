@@ -501,7 +501,9 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/serviceStreamableLogs`, async (req,
     } else {
       const body =
         response.status.error ??
-        (response.status.httpStatus === 404 ? 'Service not found or not running' : 'Error')
+        (response.status.httpStatus === 404
+          ? 'Service not found or not running'
+          : 'Error')
       res.status(response.status.httpStatus).send(body)
     }
   } catch (error) {

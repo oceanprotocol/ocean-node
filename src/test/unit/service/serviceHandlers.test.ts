@@ -134,7 +134,9 @@ function buildFakes(opts: FakeOpts = {}) {
     getServiceStreamableLogs: sinon
       .stub()
       .resolves(
-        opts.streamableLogs === undefined ? Readable.from(['hello logs']) : opts.streamableLogs
+        opts.streamableLogs === undefined
+          ? Readable.from(['hello logs'])
+          : opts.streamableLogs
       )
   }
 
@@ -553,7 +555,9 @@ describe('Service handlers', () => {
         ...baseTask
       } as any)
       expect(res.status.httpStatus).to.equal(200)
-      expect(engine.getServiceStreamableLogs.calledOnceWith('svc-1', OWNER)).to.equal(true)
+      expect(engine.getServiceStreamableLogs.calledOnceWith('svc-1', OWNER)).to.equal(
+        true
+      )
       const chunks: Buffer[] = []
       for await (const chunk of res.stream as Readable) {
         chunks.push(Buffer.from(chunk))
