@@ -504,6 +504,7 @@ export class C2DEngineDocker extends C2DEngine {
 
     // Rebuild CPU allocations from running containers (handles node restart)
     await this.rebuildCpuAllocations()
+    await this.rebuildServiceCpuAllocations()
 
     // Re-seed the in-memory allocated-host-port set from running service jobs (handles node restart)
     await seedAllocatedPorts(this.db, this.getC2DConfig().hash).catch((e) => {
@@ -2524,6 +2525,43 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
+  /**
+   * On startup, inspects running Docker service containers to rebuild the CPU allocation
+   * map. Statuses without a container yet (Starting/Locking/PullImage/BuildImage/Claiming)
+   * are skipped; Running/Error services with a still-present (even if exited) container
+   * keep their cores reserved, matching the "reserved until explicit restart/stop/expiry"
+   * semantics that getRunningServiceJobs already relies on.
+   */
+  private async rebuildServiceCpuAllocations(): Promise<void> {
+    if (this.envCpuCoresMap.size === 0) return
+    try {
+      const services = await this.db.getRunningServiceJobs(this.getC2DConfig().hash)
+      for (const job of services) {
+        if (!job.containerId) continue
+        try {
+          const container = this.docker.getContainer(job.containerId)
+          const info = await container.inspect()
+          const cpuset = info.HostConfig?.CpusetCpus
+          if (cpuset) {
+            const cores = this.parseCpusetString(cpuset)
+            if (cores.length > 0) {
+              this.cpuAllocations.set(job.serviceId, cores)
+              CORE_LOGGER.info(
+                `CPU affinity: recovered allocation [${cpuset}] for running service ${job.serviceId}`
+              )
+            }
+          }
+        } catch (e) {
+          // Container may be gone
+        }
+      }
+    } catch (e) {
+      CORE_LOGGER.error(
+        `CPU affinity: failed to rebuild service allocations: ${e.message}`
+      )
+    }
+  }
+
   private async cleanupJob(job: DBComputeJob) {
     // cleaning up
     // - claim payment or release lock
@@ -3127,20 +3165,28 @@ export class C2DEngineDocker extends C2DEngine {
 
   // Builds Docker HostConfig resource constraints (memory, cpu, GPU device requests)
   // from a service resource request, resolved against the connection-level resource pool.
-  private buildServiceResourceConstraints(resources: ComputeResourceRequest[]): {
+  private buildServiceResourceConstraints(
+    resources: ComputeResourceRequest[],
+    serviceId: string,
+    environment: string
+  ): {
     Memory?: number
     NanoCpus?: number
     DeviceRequests?: any[]
+    CpusetCpus?: string
   } {
     const connResources: ComputeResource[] =
       this.getC2DConfig().connection?.resources ?? []
     const ram = resources.find((r) => r.id === 'ram')?.amount
     const cpu = resources.find((r) => r.id === 'cpu')?.amount
     const deviceRequests = this.getDockerDeviceRequest(resources, connResources) ?? []
+    const cpusetStr =
+      cpu && cpu > 0 ? this.allocateCpus(serviceId, cpu, environment) : null
     return {
       Memory: ram ? ram * 1024 ** 3 : undefined,
       NanoCpus: cpu ? cpu * 1e9 : undefined,
-      DeviceRequests: deviceRequests.length ? deviceRequests : undefined
+      DeviceRequests: deviceRequests.length ? deviceRequests : undefined,
+      CpusetCpus: cpusetStr ?? undefined
     }
   }
 
@@ -3226,7 +3272,11 @@ export class C2DEngineDocker extends C2DEngine {
         )
       }
       if (job.containerId)
-        await this.cleanupServiceDocker(this.docker.getContainer(job.containerId), null)
+        await this.cleanupServiceDocker(
+          this.docker.getContainer(job.containerId),
+          null,
+          serviceId
+        )
       if (job.networkId)
         await this.docker
           .getNetwork(job.networkId)
@@ -3373,9 +3423,12 @@ export class C2DEngineDocker extends C2DEngine {
         ExposedPorts[`${cp}/tcp`] = {}
       })
 
-      const { Memory, NanoCpus, DeviceRequests } = this.buildServiceResourceConstraints(
-        job.resources.map((r) => ({ id: r.id, amount: r.amount }))
-      )
+      const { Memory, NanoCpus, DeviceRequests, CpusetCpus } =
+        this.buildServiceResourceConstraints(
+          job.resources.map((r) => ({ id: r.id, amount: r.amount })),
+          job.serviceId,
+          job.environment
+        )
 
       container = await this.docker.createContainer({
         Image: job.containerImage,
@@ -3387,6 +3440,7 @@ export class C2DEngineDocker extends C2DEngine {
           Memory,
           NanoCpus,
           DeviceRequests,
+          CpusetCpus,
           PortBindings,
           NetworkMode: network.id,
           SecurityOpt: ['no-new-privileges'], // security plan #5
@@ -3402,7 +3456,7 @@ export class C2DEngineDocker extends C2DEngine {
       job.statusText = ServiceStatusText[ServiceStatusNumber.Running]
       await this.db.updateServiceJob(job)
     } catch (err: any) {
-      await this.cleanupServiceDocker(container, network)
+      await this.cleanupServiceDocker(container, network, serviceId)
       for (const ep of job.endpoints) releaseHostPort(ep.hostPort)
       // Refund if funds were locked but never claimed (e.g. container creation failed).
       if (job.payment.lockTx && !job.payment.claimTx && !job.payment.cancelTx) {
@@ -3441,8 +3495,10 @@ export class C2DEngineDocker extends C2DEngine {
   // (which would exhaust the daemon's IPAM CIDR pool over repeated failures).
   private async cleanupServiceDocker(
     container: Dockerode.Container | null,
-    network: Dockerode.Network | null
+    network: Dockerode.Network | null,
+    serviceId: string
   ): Promise<void> {
+    this.releaseCpus(serviceId)
     if (container) {
       await container.stop({ t: 5 }).catch(() => {})
       await container.remove({ force: true }).catch(() => {})
@@ -3513,6 +3569,7 @@ export class C2DEngineDocker extends C2DEngine {
     job.status = ServiceStatusNumber.Stopping
     job.statusText = ServiceStatusText[ServiceStatusNumber.Stopping]
     await this.db.updateServiceJob(job)
+    this.releaseCpus(serviceId)
 
     // "Already gone" Docker errors (404 missing, 304 already stopped) are the desired end
     // state, so treat them as success. Any other error means teardown genuinely failed —
@@ -3639,9 +3696,12 @@ export class C2DEngineDocker extends C2DEngine {
       network = await this.docker.createNetwork({ Name: `ocean-svc-${serviceId}` })
 
       // 7. Resource constraints
-      const { Memory, NanoCpus, DeviceRequests } = this.buildServiceResourceConstraints(
-        job.resources.map((r) => ({ id: r.id, amount: r.amount }))
-      )
+      const { Memory, NanoCpus, DeviceRequests, CpusetCpus } =
+        this.buildServiceResourceConstraints(
+          job.resources.map((r) => ({ id: r.id, amount: r.amount })),
+          serviceId,
+          job.environment
+        )
 
       // 8. Create and start new container
       container = await this.docker.createContainer({
@@ -3654,6 +3714,7 @@ export class C2DEngineDocker extends C2DEngine {
           Memory,
           NanoCpus,
           DeviceRequests,
+          CpusetCpus,
           PortBindings,
           NetworkMode: network.id,
           SecurityOpt: ['no-new-privileges'],
@@ -3672,7 +3733,7 @@ export class C2DEngineDocker extends C2DEngine {
       await this.db.updateServiceJob(job)
       return job
     } catch (err: any) {
-      await this.cleanupServiceDocker(container, network)
+      await this.cleanupServiceDocker(container, network, serviceId)
       job.status = ServiceStatusNumber.Error
       job.statusText = String(err.message)
       await this.db.updateServiceJob(job)
