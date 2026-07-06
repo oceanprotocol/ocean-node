@@ -778,12 +778,10 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       if (ddo?.indexedMetadata?.nft) delete ddo.nft
       const validation = await validateDDO(ddo)
       if (validation === true) {
-        const response: any = await this.client.update({
+        const response: any = await this.client.index({
           index: schema.index,
           id: ddo.id,
-          body: {
-            doc: ddo
-          }
+          body: ddo
         })
         // make sure we do not have different responses 4 between DBs
         // do the same thing on other methods

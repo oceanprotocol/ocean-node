@@ -643,10 +643,7 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
       if (ddo?.indexedMetadata?.nft) delete ddo.nft
       const validation = await validateDDO(ddo)
       if (validation === true) {
-        return await this.provider
-          .collections(schema.name)
-          .documents()
-          .update(ddo.id, ddo)
+        return await this.provider.collections(schema.name).documents().upsert(ddo)
       } else {
         throw new Error(
           `Validation of DDO with schema version ${ddo.version} failed with errors`

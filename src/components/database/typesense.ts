@@ -59,6 +59,14 @@ class TypesenseDocuments {
   }
 
   // eslint-disable-next-line require-await
+  async upsert(document: TypesenseDocumentSchema) {
+    if (!document) throw new Error('No document provided')
+    return this.api.post<TypesenseDocumentSchema>(this.apiPath, document, {
+      action: 'upsert'
+    })
+  }
+
+  // eslint-disable-next-line require-await
   async retrieve(documentId: string) {
     const path = `${this.apiPath}/${documentId}`
     return this.api.get<TypesenseDocumentSchema>(path)
