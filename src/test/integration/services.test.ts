@@ -220,6 +220,7 @@ describe('**********         Service on Demand', () => {
 
   // container.logs({follow: true}) never ends on its own, so read for a bounded
   // window and always destroy the stream afterwards to release the docker log socket.
+  // eslint-disable-next-line require-await
   async function readLogsWithTimeout(
     stream: Readable,
     timeoutMs = 5000
