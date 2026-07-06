@@ -1205,7 +1205,7 @@ describe('resolveResourceKind / resolveConnectionResourcePool / resolveEnvironme
     })
 
     it('cpu/ram/disk are always resolved even when the config references none of them', function () {
-      const envDef = { resources: [] }
+      const envDef = { resources: [] as any[] }
       const result = engine.resolveEnvironmentResources(envDef, pool)
       expect(result.map((r: ComputeResource) => r.id).sort()).to.deep.equal([
         'cpu',
