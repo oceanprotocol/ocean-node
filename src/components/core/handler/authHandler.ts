@@ -8,7 +8,6 @@ import { ReadableString } from '../../P2P/handlers.js'
 import { Command } from '../../../@types/commands.js'
 import { Readable } from 'stream'
 import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
-import { MAX_AUTH_TOKEN_TTL_MS } from '../../../utils/constants.js'
 import jwt from 'jsonwebtoken'
 
 export interface AuthMessage {
@@ -59,11 +58,6 @@ export class CreateAuthTokenHandler extends CommandHandler {
       }
 
       const createdAt = Date.now()
-      const requested = Number(task.validUntil)
-      const validUntil =
-        Number.isFinite(requested) && requested > createdAt
-          ? Math.min(requested, createdAt + MAX_AUTH_TOKEN_TTL_MS)
-          : createdAt + MAX_AUTH_TOKEN_TTL_MS
       const issuerPeerId = this.getOceanNode().getKeyManager().getPeerIdString()
       const jwtToken = await this.getOceanNode()
         .getAuth()
@@ -78,7 +72,7 @@ export class CreateAuthTokenHandler extends CommandHandler {
 
       await this.getOceanNode()
         .getAuth()
-        .insertToken(task.address, jwtToken, validUntil, createdAt, task.chainId)
+        .insertToken(task.address, jwtToken, task.validUntil, createdAt, task.chainId)
 
       return {
         stream: Readable.from(JSON.stringify({ token: jwtToken })),
