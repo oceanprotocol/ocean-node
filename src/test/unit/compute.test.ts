@@ -1194,10 +1194,36 @@ describe('resolveResourceKind / resolveConnectionResourcePool / resolveEnvironme
       expect(pool.get('gpu0').init.deviceRequests.DeviceIDs[0]).to.equal('uuid-a')
     })
 
-    it('unknown ref.id is skipped silently', function () {
+    it('unknown ref.id is skipped silently, baseline cpu/ram/disk still resolved', function () {
       const envDef = { resources: [{ id: 'nonexistent' }] }
       const result = engine.resolveEnvironmentResources(envDef, pool)
-      expect(result).to.have.length(0)
+      expect(result.map((r: ComputeResource) => r.id).sort()).to.deep.equal([
+        'cpu',
+        'disk',
+        'ram'
+      ])
+    })
+
+    it('cpu/ram/disk are always resolved even when the config references none of them', function () {
+      const envDef = { resources: [] }
+      const result = engine.resolveEnvironmentResources(envDef, pool)
+      expect(result.map((r: ComputeResource) => r.id).sort()).to.deep.equal([
+        'cpu',
+        'disk',
+        'ram'
+      ])
+    })
+
+    it('an explicit baseline override is preserved, not clobbered by the auto-filled default', function () {
+      const envDef = { resources: [{ id: 'ram', max: 4 }] }
+      const result = engine.resolveEnvironmentResources(envDef, pool)
+      const ramRes = result.find((r: ComputeResource) => r.id === 'ram')
+      expect(ramRes.max).to.equal(4)
+      expect(result.map((r: ComputeResource) => r.id).sort()).to.deep.equal([
+        'cpu',
+        'disk',
+        'ram'
+      ])
     })
   })
 })
