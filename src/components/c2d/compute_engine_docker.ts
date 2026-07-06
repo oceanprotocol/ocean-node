@@ -330,7 +330,14 @@ export class C2DEngineDocker extends C2DEngine {
         resolved.total =
           ref.total !== undefined ? Math.min(ref.total, poolRes.total) : poolRes.total
       }
-      if (ref.max !== undefined) resolved.max = Math.min(ref.max, resolved.total)
+      if (ref.max !== undefined) {
+        if (ref.max > resolved.total) {
+          CORE_LOGGER.warn(
+            `Environment "${envDef.description || envDef.id || 'unknown'}": resource "${ref.id}" has max (${ref.max}) greater than total (${resolved.total}) — clamping max to ${resolved.total}. Fix your config so max <= total for this resource.`
+          )
+        }
+        resolved.max = Math.min(ref.max, resolved.total)
+      }
       if (ref.min !== undefined) resolved.min = ref.min
       if (ref.constraints !== undefined)
         resolved.constraints = structuredClone(ref.constraints)

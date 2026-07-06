@@ -1145,6 +1145,35 @@ describe('resolveResourceKind / resolveConnectionResourcePool / resolveEnvironme
       expect(result[0].max).to.equal(6) // capped to total
     })
 
+    it('warns when ref.max exceeds resolved.total, so the operator can fix their config', function () {
+      const warnSpy = sinon.spy(CORE_LOGGER, 'warn')
+      try {
+        const envDef = {
+          description: 'gpu-restricted',
+          resources: [{ id: 'cpu', total: 1, max: 10, min: 1 }]
+        }
+        const result = engine.resolveEnvironmentResources(envDef, pool)
+        expect(result[0].max).to.equal(1) // still clamped to total
+        expect(
+          warnSpy.calledWithMatch(sinon.match(/cpu.*max \(10\) greater than total \(1\)/))
+        ).to.equal(true)
+        expect(warnSpy.calledWithMatch(sinon.match(/gpu-restricted/))).to.equal(true)
+      } finally {
+        warnSpy.restore()
+      }
+    })
+
+    it('does not warn when ref.max is within resolved.total', function () {
+      const warnSpy = sinon.spy(CORE_LOGGER, 'warn')
+      try {
+        const envDef = { resources: [{ id: 'cpu', total: 6, max: 6 }] }
+        engine.resolveEnvironmentResources(envDef, pool)
+        expect(warnSpy.called).to.equal(false)
+      } finally {
+        warnSpy.restore()
+      }
+    })
+
     it('ref.min overrides pool min', function () {
       const envDef = { resources: [{ id: 'cpu', min: 2 }] }
       const result = engine.resolveEnvironmentResources(envDef, pool)
