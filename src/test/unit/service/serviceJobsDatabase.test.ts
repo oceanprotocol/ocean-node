@@ -180,6 +180,7 @@ describe('Service Jobs Database', () => {
     const starting = makeServiceJob({ status: ServiceStatusNumber.Starting })
     const locking = makeServiceJob({ status: ServiceStatusNumber.Locking })
     const claiming = makeServiceJob({ status: ServiceStatusNumber.Claiming })
+    const error = makeServiceJob({ status: ServiceStatusNumber.Error })
     const stopped = makeServiceJob({ status: ServiceStatusNumber.Stopped })
     const otherCluster = makeServiceJob({
       status: ServiceStatusNumber.Running,
@@ -189,6 +190,7 @@ describe('Service Jobs Database', () => {
     await db.newServiceJob(starting)
     await db.newServiceJob(locking)
     await db.newServiceJob(claiming)
+    await db.newServiceJob(error)
     await db.newServiceJob(stopped)
     await db.newServiceJob(otherCluster)
 
@@ -199,6 +201,9 @@ describe('Service Jobs Database', () => {
     // the new start-pipeline states must reserve resources too
     expect(ids).to.include(locking.serviceId)
     expect(ids).to.include(claiming.serviceId)
+    // a service whose container died on its own still reserves its resources until
+    // restarted/stopped/expired
+    expect(ids).to.include(error.serviceId)
     expect(ids).to.not.include(stopped.serviceId)
     expect(ids).to.not.include(otherCluster.serviceId)
   })
@@ -230,9 +235,13 @@ describe('Service Jobs Database', () => {
     expect(ids).to.not.include(otherCluster.serviceId)
   })
 
-  it('getExpiredServiceJobs returns only Running jobs past expiry', async () => {
+  it('getExpiredServiceJobs returns Running and Error jobs past expiry', async () => {
     const expired = makeServiceJob({
       status: ServiceStatusNumber.Running,
+      expiresAt: Date.now() - 1000
+    })
+    const expiredError = makeServiceJob({
+      status: ServiceStatusNumber.Error,
       expiresAt: Date.now() - 1000
     })
     const future = makeServiceJob({
@@ -244,12 +253,16 @@ describe('Service Jobs Database', () => {
       expiresAt: Date.now() - 1000
     })
     await db.newServiceJob(expired)
+    await db.newServiceJob(expiredError)
     await db.newServiceJob(future)
     await db.newServiceJob(expiredButStopped)
 
     const expiredJobs = await db.getExpiredServiceJobs(CLUSTER_HASH)
     const ids = expiredJobs.map((j) => j.serviceId)
     expect(ids).to.include(expired.serviceId)
+    // an abandoned Error'd service must still be swept once past expiresAt, or its
+    // reserved resources/ports would leak forever
+    expect(ids).to.include(expiredError.serviceId)
     expect(ids).to.not.include(future.serviceId)
     expect(ids).to.not.include(expiredButStopped.serviceId)
   })

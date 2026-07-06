@@ -1928,7 +1928,10 @@ The returned job has `status: 10` (`Starting`) and no `endpoints` yet. A backgro
 advances it: `Starting → Locking` (escrow lock) `→ PullImage`/`BuildImage` (image + scan) `→
 Claiming` (claim on success, or refund/cancel the lock on failure) `→ Running`. **Poll
 `serviceStatus`** until `status` is `40` (`Running`, with `endpoints` populated) or a terminal
-`*Failed` / `Error` status.
+`*Failed` / `Error` status. Note that `Running` is not a final resting state for a poller to stop
+at: the same background loop keeps checking the container's health afterward, and can move an
+already-`Running` service to `Error` later if the container dies on its own — long-lived clients
+should keep watching `serviceStatus`, not just stop once they first see `Running`.
 
 #### Request Body
 
@@ -2050,7 +2053,10 @@ The updated `ServiceJob` (advanced `expiresAt`, new entry in `extendPayments`).
 
 Recreate the service container (no extra charge), keeping the same `expiresAt` and host ports.
 Re-checks the environment service gate and access list; rejected if the service has expired.
-Optionally pass `userData` to replace the stored env vars.
+Optionally pass `userData` to replace the stored env vars. This is the recommended recovery path
+after a service lands in `Error` because its container died on its own (the background health
+check leaves host ports/network/container record reserved specifically so restart can reuse
+them), in addition to recovering from an explicit `serviceStop` or any other terminal failure.
 
 #### Request Body
 

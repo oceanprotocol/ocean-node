@@ -56,6 +56,17 @@ container creation fails before the claim, the lock is **cancelled (refunded)** 
 in a `*Failed` / `Error` status. This is a change from the previous synchronous flow, which
 locked-then-claimed up front.
 
+**`Running` is monitored too.** The same background loop that advances a starting service also
+checks every `Running` service's container on each tick (~every few seconds). If the container
+exits on its own — crash, OOM, or the Docker daemon itself becoming unreachable — the job is
+moved to `Error` immediately instead of waiting for `expiresAt`. This health check does **not**
+release the service's reserved host ports/network/container record, since the consumer already
+paid for them; use `SERVICE_RESTART` to bring the service back on the same endpoints. `Error`
+counts as an active/resource-reserving status just like `Running` does — it still occupies its
+cpu/ram/gpu allocation and keeps its host ports held — until it is restarted, explicitly
+stopped, or swept by the same expiry check once `expiresAt` passes (which then fully releases
+everything, same as a normal expiry).
+
 ## Configuration
 
 Service-on-demand is configured per Docker connection under `serviceOnDemand`:

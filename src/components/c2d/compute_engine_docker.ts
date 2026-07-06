@@ -1734,6 +1734,10 @@ export class C2DEngineDocker extends C2DEngine {
         await Promise.all(promises)
       }
 
+      // Service-on-Demand health check: catch Running services whose container died on its
+      // own (crash, OOM, or Docker daemon down) instead of only noticing at expiresAt.
+      await this.checkRunningServices()
+
       // Service-on-Demand starts: advance pending service jobs through the start pipeline.
       // Fire-and-forget (NOT awaited): an image pull can take minutes and must not block the
       // loop (compute jobs + expiry must keep advancing). The in-progress guard prevents a
@@ -3446,6 +3450,52 @@ export class C2DEngineDocker extends C2DEngine {
     if (network) {
       await network.remove().catch(() => {})
     }
+  }
+
+  // Checked every InternalLoop tick (same cadence as compute jobs) so a service whose
+  // container died on its own (crash, OOM, or the whole Docker daemon going down) is
+  // detected within ~cronTime instead of only at expiresAt.
+  private async checkRunningServices(): Promise<void> {
+    const services = await this.db.getRunningServiceJobs(this.getC2DConfig().hash)
+    const runningOnly = services.filter(
+      (svc) => svc.status === ServiceStatusNumber.Running
+    )
+    await Promise.all(runningOnly.map((svc) => this.checkServiceContainerHealth(svc)))
+  }
+
+  private async checkServiceContainerHealth(job: ServiceJob): Promise<void> {
+    let details
+    try {
+      const container = this.docker.getContainer(job.containerId)
+      details = await container.inspect()
+    } catch (e: any) {
+      await this.markServiceFailed(job, `container lost: ${e.message}`)
+      return
+    }
+    if (details.State.Running === false) {
+      const reason = details.State.OOMKilled
+        ? 'OOM killed'
+        : details.State.Error
+          ? `error: ${details.State.Error}`
+          : `exited with code ${details.State.ExitCode}`
+      await this.markServiceFailed(job, reason)
+    }
+  }
+
+  // Flips a service to Error after its container died unexpectedly. Deliberately does not
+  // touch Docker or release host ports/network — the consumer already paid for those and
+  // restartService() reuses them (and does its own best-effort teardown of the dead
+  // container/network first).
+  private async markServiceFailed(job: ServiceJob, reason: string): Promise<void> {
+    const [fresh] = await this.db.getServiceJob(job.serviceId, job.owner)
+    if (!fresh || fresh.status !== ServiceStatusNumber.Running) {
+      // already moved on (stopped/restarted/expired) by another path — don't clobber it
+      return
+    }
+    fresh.status = ServiceStatusNumber.Error
+    fresh.statusText = `service container exited unexpectedly: ${reason}`
+    await this.db.updateServiceJob(fresh)
+    CORE_LOGGER.error(`Service ${job.serviceId} container died — ${reason}`)
   }
 
   public override async stopService(
