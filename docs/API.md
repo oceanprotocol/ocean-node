@@ -2120,10 +2120,18 @@ container is kept around until `stop`/`restart`, so its logs remain fetchable fo
 | nonce           | string | v        | request nonce |
 | signature       | string | v        | signed message (or use an `Authorization` auth-token header) |
 | serviceId       | string | v        | the service to stream logs for |
+| since           | string |          | lower time bound for returned logs. Either a Unix timestamp in seconds (e.g. `1735689600`), or a relative duration counted back from now (e.g. `30s`, `45m`, `2h`, `7d`). Omit to get the full history since container start, then follow live. |
 
 #### Response (200)
 
 Raw `stdout`/`stderr` byte stream from the container, connection kept open and followed live.
+With `since` set, historical output before that point is skipped — useful for a long-lived
+service where fetching the full history would otherwise dump days/weeks of buffered logs
+before reaching the live tail (e.g. `since=1h` for just the last hour).
+
+#### Response (400)
+
+`since` is present but not a valid Unix timestamp or duration (`<number><s|m|h|d>`).
 
 #### Response (404)
 

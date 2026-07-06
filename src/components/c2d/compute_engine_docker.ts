@@ -3691,7 +3691,8 @@ export class C2DEngineDocker extends C2DEngine {
 
   public override async getServiceStreamableLogs(
     serviceId: string,
-    owner: string
+    owner: string,
+    since?: number
   ): Promise<NodeJS.ReadableStream | null> {
     const [job] = await this.db.getServiceJob(serviceId, owner)
     if (!job) return null
@@ -3707,7 +3708,8 @@ export class C2DEngineDocker extends C2DEngine {
       return (await container.logs({
         stdout: true,
         stderr: true,
-        follow: true
+        follow: true,
+        ...(since !== undefined ? { since } : {})
       })) as unknown as NodeJS.ReadableStream
     } catch (e: any) {
       CORE_LOGGER.error(

@@ -489,6 +489,7 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/serviceStreamableLogs`, async (req,
       serviceId: (req.query.serviceId as string) || null,
       signature: (req.query.signature as string) || null,
       nonce: (req.query.nonce as string) || null,
+      since: (req.query.since as string) || undefined,
       authorization: req.headers?.authorization,
       caller: req.caller
     }

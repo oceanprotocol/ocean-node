@@ -508,6 +508,41 @@ describe('**********         Service on Demand', () => {
     const logs = await readLogsWithTimeout(resp.stream as Readable)
     assert(typeof logs === 'string', 'expected log output to be a string')
 
+    // `since` accepts a relative duration (converted to a Unix timestamp before
+    // reaching dockerode) — e.g. "1h" to skip straight to the last hour's output.
+    const sinceSigned = await signFor(
+      consumerAccount,
+      PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS
+    )
+    const sinceResp = await new ServiceGetStreamableLogsHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,
+      consumerAddress: sinceSigned.consumerAddress,
+      nonce: sinceSigned.nonce,
+      signature: sinceSigned.signature,
+      serviceId,
+      since: '1h'
+    } as ServiceGetStreamableLogsCommand)
+    assert(
+      sinceResp.status.httpStatus === 200,
+      `expected 200 with since=1h, got ${sinceResp.status.httpStatus}: ${sinceResp.status?.error ?? ''}`
+    )
+    await readLogsWithTimeout(sinceResp.stream as Readable, 1000)
+
+    // an invalid `since` format is rejected before any docker call is made
+    const badSinceSigned = await signFor(
+      consumerAccount,
+      PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS
+    )
+    const badSinceResp = await new ServiceGetStreamableLogsHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,
+      consumerAddress: badSinceSigned.consumerAddress,
+      nonce: badSinceSigned.nonce,
+      signature: badSinceSigned.signature,
+      serviceId,
+      since: 'not-a-valid-since'
+    } as ServiceGetStreamableLogsCommand)
+    expect(badSinceResp.status.httpStatus).to.equal(400)
+
     // an unauthenticated request (no nonce/signature) is rejected
     const unauth = await new ServiceGetStreamableLogsHandler(oceanNode).handle({
       command: PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,

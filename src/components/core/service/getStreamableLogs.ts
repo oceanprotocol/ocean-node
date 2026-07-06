@@ -11,10 +11,23 @@ import {
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import type { C2DEngine } from '../../c2d/compute_engine_base.js'
 import type { ServiceJob } from '../../../@types/C2D/ServiceOnDemand.js'
+import { parseSinceParam } from './utils.js'
 
 export class ServiceGetStreamableLogsHandler extends CommandHandler {
   validate(command: ServiceGetStreamableLogsCommand): ValidateParams {
-    return validateCommandParameters(command, ['consumerAddress', 'serviceId'])
+    const validation = validateCommandParameters(command, [
+      'consumerAddress',
+      'serviceId'
+    ])
+    if (!validation.valid) return validation
+    if (command.since) {
+      try {
+        parseSinceParam(command.since)
+      } catch (error: any) {
+        return buildInvalidRequestMessage(error.message)
+      }
+    }
+    return validation
   }
 
   async handle(task: ServiceGetStreamableLogsCommand): Promise<P2PCommandResponse> {
@@ -58,7 +71,8 @@ export class ServiceGetStreamableLogsHandler extends CommandHandler {
     try {
       const respStream = await engine.getServiceStreamableLogs(
         task.serviceId,
-        task.consumerAddress
+        task.consumerAddress,
+        parseSinceParam(task.since)
       )
       if (!respStream) {
         return {

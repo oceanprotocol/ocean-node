@@ -575,5 +575,41 @@ describe('Service handlers', () => {
       expect(res.status.httpStatus).to.equal(200)
       expect(engine.getServiceStreamableLogs.calledOnce).to.equal(true)
     })
+
+    it('400 when since has an invalid format', async () => {
+      const { node } = buildFakes({ serviceJobInDb: makeJob() })
+      const res = await new ServiceGetStreamableLogsHandler(node).handle({
+        ...baseTask,
+        since: 'not-a-valid-since'
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('200 and passes an absolute since timestamp straight through', async () => {
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      const res = await new ServiceGetStreamableLogsHandler(node).handle({
+        ...baseTask,
+        since: '1735689600'
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      expect(engine.getServiceStreamableLogs.firstCall.args).to.deep.equal([
+        'svc-1',
+        OWNER,
+        1735689600
+      ])
+    })
+
+    it('200 and converts a relative since duration to a timestamp', async () => {
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      const before = Math.floor(Date.now() / 1000) - 3600
+      const res = await new ServiceGetStreamableLogsHandler(node).handle({
+        ...baseTask,
+        since: '1h'
+      } as any)
+      const after = Math.floor(Date.now() / 1000) - 3600
+      expect(res.status.httpStatus).to.equal(200)
+      const since = engine.getServiceStreamableLogs.firstCall.args[2]
+      expect(since).to.be.within(before, after)
+    })
   })
 })

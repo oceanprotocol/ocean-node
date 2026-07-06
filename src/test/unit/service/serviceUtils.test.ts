@@ -5,7 +5,8 @@ import {
   toPublicServiceJob,
   decryptUserData,
   allocateHostPort,
-  releaseHostPort
+  releaseHostPort,
+  parseSinceParam
 } from '../../../components/core/service/utils.js'
 
 describe('service utils', () => {
@@ -64,6 +65,34 @@ describe('service utils', () => {
         threw = true
       }
       expect(threw).to.equal(true)
+    })
+  })
+
+  describe('parseSinceParam', () => {
+    it('returns undefined when omitted', () => {
+      expect(parseSinceParam(undefined)).to.equal(undefined)
+    })
+    it('parses an all-digit string as an absolute Unix timestamp', () => {
+      expect(parseSinceParam('1735689600')).to.equal(1735689600)
+    })
+    for (const [input, seconds] of [
+      ['30s', 30],
+      ['45m', 45 * 60],
+      ['2h', 2 * 3600],
+      ['7d', 7 * 86400]
+    ] as [string, number][]) {
+      it(`converts relative duration "${input}" to now - ${seconds}s`, () => {
+        const before = Math.floor(Date.now() / 1000) - seconds
+        const result = parseSinceParam(input)
+        const after = Math.floor(Date.now() / 1000) - seconds
+        expect(result).to.be.within(before, after)
+      })
+    }
+    it('throws on an invalid format', () => {
+      expect(() => parseSinceParam('not-valid')).to.throw(/Invalid "since" parameter/)
+    })
+    it('throws on an unsupported unit', () => {
+      expect(() => parseSinceParam('5w')).to.throw(/Invalid "since" parameter/)
     })
   })
 

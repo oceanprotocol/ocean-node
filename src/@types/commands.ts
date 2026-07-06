@@ -437,6 +437,10 @@ export interface ServiceGetStreamableLogsCommand extends Command {
   nonce: string
   signature: string
   serviceId: string
+  // Optional lower time bound for the returned logs: either a Unix timestamp in seconds
+  // (e.g. "1735689600"), or a relative duration counted back from now (e.g. "30s", "45m",
+  // "2h", "7d"). Omit to get the full history since container start, then follow live.
+  since?: string
 }
 
 export interface ServiceGetStatusCommand extends Command {

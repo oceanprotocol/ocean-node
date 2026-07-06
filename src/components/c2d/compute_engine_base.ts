@@ -135,7 +135,8 @@ export abstract class C2DEngine {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
   public async getServiceStreamableLogs(
     serviceId: string,
-    owner: string
+    owner: string,
+    since?: number
   ): Promise<NodeJS.ReadableStream | null> {
     return null
   }

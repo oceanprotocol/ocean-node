@@ -551,7 +551,7 @@
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "{{token}}", "disabled": true }],
             "url": {
-              "raw": "{{baseUrl}}/api/services/serviceStreamableLogs?consumerAddress={{consumerAddress}}&serviceId={{serviceId}}&signature={{signature}}&nonce={{nonce}}",
+              "raw": "{{baseUrl}}/api/services/serviceStreamableLogs?consumerAddress={{consumerAddress}}&serviceId={{serviceId}}&signature={{signature}}&nonce={{nonce}}&since=1h",
               "host": ["{{baseUrl}}"],
               "path": ["api", "services", "serviceStreamableLogs"],
               "query": [
@@ -559,10 +559,15 @@
                 { "key": "serviceId", "value": "{{serviceId}}" },
                 { "key": "signature", "value": "{{signature}}" },
                 { "key": "nonce", "value": "{{nonce}}" },
+                {
+                  "key": "since",
+                  "value": "1h",
+                  "description": "Optional: Unix timestamp (seconds) or relative duration like 30s/45m/2h/7d. Omit for full history + live follow."
+                },
                 { "key": "node", "value": "", "disabled": true }
               ]
             },
-            "description": "Stream real-time stdout/stderr logs from a service container. Authenticated and owner-scoped (401 if consumerAddress is not the owner). Available while Running or Error; 404 otherwise."
+            "description": "Stream real-time stdout/stderr logs from a service container. Authenticated and owner-scoped (401 if consumerAddress is not the owner). Available while Running or Error; 404 otherwise. Optional `since` skips history and starts from a recent point (Unix timestamp or relative duration e.g. 1h)."
           }
         }
       ]

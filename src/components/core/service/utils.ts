@@ -41,6 +41,35 @@ export function toPublicServiceJob(
   return pub
 }
 
+const SINCE_DURATION_RE = /^(\d+)(s|m|h|d)$/
+const SINCE_DURATION_UNIT_SECONDS: Record<string, number> = {
+  s: 1,
+  m: 60,
+  h: 3600,
+  d: 86400
+}
+
+// Parses the `since` param for SERVICE_GET_STREAMABLE_LOGS into a Unix timestamp (seconds),
+// the format `container.logs({ since })` expects. Accepts either an absolute Unix timestamp
+// (all-digit string, e.g. "1735689600") or a relative duration counted back from now
+// (e.g. "30s", "45m", "2h", "7d") — the latter is a client convenience since the Docker
+// Engine API itself only understands absolute timestamps. Returns undefined for "no filter"
+// (parameter omitted). Throws on an unrecognized format so the caller can turn it into a 400.
+export function parseSinceParam(since?: string): number | undefined {
+  if (!since) return undefined
+  if (/^\d+$/.test(since)) return parseInt(since, 10)
+  const match = since.match(SINCE_DURATION_RE)
+  if (!match) {
+    throw new Error(
+      `Invalid "since" parameter: "${since}". Use a Unix timestamp in seconds, or a relative ` +
+        'duration like "30s", "45m", "2h", "7d".'
+    )
+  }
+  const [, amountStr, unit] = match
+  const amount = parseInt(amountStr, 10)
+  return Math.floor(Date.now() / 1000) - amount * SINCE_DURATION_UNIT_SECONDS[unit]
+}
+
 // Port allocation — in-memory set seeded from DB on engine restart
 const allocatedPorts = new Set<number>()
 
