@@ -456,6 +456,8 @@ export interface ServiceRestartCommand extends Command {
   signature: string
   serviceId: string
   userData?: string // optional ECIES-encrypted userData. If provided it REPLACES the stored userData (send the complete set). If omitted, the stored userData is reused — no re-supply needed.
+  dockerCmd?: string[] // optional. If provided (even []) it REPLACES the stored CMD override. If omitted, the stored dockerCmd is reused.
+  dockerEntrypoint?: string[] // optional. If provided (even []) it REPLACES the stored ENTRYPOINT override. If omitted, the stored dockerEntrypoint is reused.
 }
 
 export interface ServiceExtendCommand extends Command {

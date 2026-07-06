@@ -119,7 +119,9 @@ export abstract class C2DEngine {
   public async restartService(
     serviceId: string,
     owner: string,
-    newUserData?: string
+    newUserData?: string,
+    newDockerCmd?: string[],
+    newDockerEntrypoint?: string[]
   ): Promise<ServiceJob | null> {
     return null
   }

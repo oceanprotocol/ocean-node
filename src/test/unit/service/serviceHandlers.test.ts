@@ -298,6 +298,29 @@ describe('Service handlers', () => {
       expect(jobs[0].containerId).to.equal('c2')
       expect(jobs[0]).to.not.have.property('userData')
     })
+
+    it('forwards dockerCmd and dockerEntrypoint overrides to engine.restartService', async () => {
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      await new ServiceRestartHandler(node).handle({
+        ...baseTask,
+        dockerCmd: ['python', 'new_script.py'],
+        dockerEntrypoint: ['/bin/new-entrypoint']
+      } as any)
+      expect(engine.restartService.calledOnce).to.equal(true)
+      const callArgs = engine.restartService.firstCall.args
+      expect(callArgs[0]).to.equal('svc-1')
+      expect(callArgs[1]).to.equal(OWNER)
+      expect(callArgs[3]).to.deep.equal(['python', 'new_script.py'])
+      expect(callArgs[4]).to.deep.equal(['/bin/new-entrypoint'])
+    })
+
+    it('forwards undefined dockerCmd/dockerEntrypoint when not supplied, so the engine reuses stored values', async () => {
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      await new ServiceRestartHandler(node).handle({ ...baseTask } as any)
+      const callArgs = engine.restartService.firstCall.args
+      expect(callArgs[3]).to.equal(undefined)
+      expect(callArgs[4]).to.equal(undefined)
+    })
   })
 
   describe('ServiceExtendHandler', () => {

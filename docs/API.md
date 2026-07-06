@@ -2053,10 +2053,13 @@ The updated `ServiceJob` (advanced `expiresAt`, new entry in `extendPayments`).
 
 Recreate the service container (no extra charge), keeping the same `expiresAt` and host ports.
 Re-checks the environment service gate and access list; rejected if the service has expired.
-Optionally pass `userData` to replace the stored env vars. This is the recommended recovery path
-after a service lands in `Error` because its container died on its own (the background health
-check leaves host ports/network/container record reserved specifically so restart can reuse
-them), in addition to recovering from an explicit `serviceStop` or any other terminal failure.
+Optionally pass `userData` to replace the stored env vars, and/or `dockerCmd`/`dockerEntrypoint`
+to replace the stored CMD/ENTRYPOINT overrides — each is independent: supply it (even as `[]`)
+to replace the stored value, or omit it to reuse what the service already has. This is the
+recommended recovery path after a service lands in `Error` because its container died on its own
+(the background health check leaves host ports/network/container record reserved specifically so
+restart can reuse them), in addition to recovering from an explicit `serviceStop` or any other
+terminal failure.
 
 #### Request Body
 
@@ -2066,7 +2069,9 @@ them), in addition to recovering from an explicit `serviceStop` or any other ter
   "nonce": "123",
   "signature": "0x...",
   "serviceId": "0x...",
-  "userData": "<optional ECIES-encrypted hex; replaces stored userData>"
+  "userData": "<optional ECIES-encrypted hex; replaces stored userData>",
+  "dockerCmd": ["<optional; replaces stored CMD override>"],
+  "dockerEntrypoint": ["<optional; replaces stored ENTRYPOINT override>"]
 }
 ```
 

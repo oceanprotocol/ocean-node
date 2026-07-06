@@ -1510,4 +1510,90 @@ describe('service start/restart Docker cleanup on failure', function () {
 
     expect(network.remove.calledOnce, 'network.remove should be called').to.equal(true)
   })
+
+  function makeRunningJobWithCmd(overrides: any = {}) {
+    return {
+      serviceId: 'svc-cmd',
+      clusterHash: 'cluster-hash',
+      environment: 'env-1',
+      owner: '0xowner',
+      image: 'nginx',
+      tag: 'latest',
+      containerImage: 'nginx:latest',
+      containerId: '',
+      networkId: '',
+      status: 40, // Running
+      statusText: 'Running',
+      dateCreated: new Date().toISOString(),
+      expiresAt: Date.now() + 60000,
+      duration: 60,
+      exposedPorts: [80],
+      endpoints: [{ containerPort: 80, hostPort: 30001, url: 'http://localhost:30001' }],
+      resources: [{ id: 'cpu', amount: 1 }],
+      payment: { chainId: 1, token: '0xtoken' },
+      dockerCmd: ['old', 'cmd'],
+      dockerEntrypoint: ['/old-entrypoint'],
+      ...overrides
+    }
+  }
+
+  it('restartService overrides dockerCmd/dockerEntrypoint when new ones are supplied', async function () {
+    const existingJob = makeRunningJobWithCmd()
+    engine.db.getServiceJob = sinon.stub().resolves([existingJob])
+    const container = makeContainer(false)
+    engine.docker = {
+      createNetwork: sinon.stub().resolves(network),
+      createContainer: sinon.stub().resolves(container)
+    }
+
+    const result = await engine.restartService(
+      'svc-cmd',
+      '0xowner',
+      undefined,
+      ['new', 'cmd'],
+      ['/new-entrypoint']
+    )
+
+    const createArgs = engine.docker.createContainer.firstCall.args[0]
+    expect(createArgs.Cmd).to.deep.equal(['new', 'cmd'])
+    expect(createArgs.Entrypoint).to.deep.equal(['/new-entrypoint'])
+    expect(result.dockerCmd).to.deep.equal(['new', 'cmd'])
+    expect(result.dockerEntrypoint).to.deep.equal(['/new-entrypoint'])
+  })
+
+  it('restartService reuses the stored dockerCmd/dockerEntrypoint when none are supplied', async function () {
+    const existingJob = makeRunningJobWithCmd()
+    engine.db.getServiceJob = sinon.stub().resolves([existingJob])
+    const container = makeContainer(false)
+    engine.docker = {
+      createNetwork: sinon.stub().resolves(network),
+      createContainer: sinon.stub().resolves(container)
+    }
+
+    const result = await engine.restartService('svc-cmd', '0xowner', undefined)
+
+    const createArgs = engine.docker.createContainer.firstCall.args[0]
+    expect(createArgs.Cmd).to.deep.equal(['old', 'cmd'])
+    expect(createArgs.Entrypoint).to.deep.equal(['/old-entrypoint'])
+    expect(result.dockerCmd).to.deep.equal(['old', 'cmd'])
+    expect(result.dockerEntrypoint).to.deep.equal(['/old-entrypoint'])
+  })
+
+  it('restartService clears dockerCmd/dockerEntrypoint when explicitly given an empty array', async function () {
+    const existingJob = makeRunningJobWithCmd()
+    engine.db.getServiceJob = sinon.stub().resolves([existingJob])
+    const container = makeContainer(false)
+    engine.docker = {
+      createNetwork: sinon.stub().resolves(network),
+      createContainer: sinon.stub().resolves(container)
+    }
+
+    const result = await engine.restartService('svc-cmd', '0xowner', undefined, [], [])
+
+    const createArgs = engine.docker.createContainer.firstCall.args[0]
+    expect(createArgs.Cmd).to.equal(undefined)
+    expect(createArgs.Entrypoint).to.equal(undefined)
+    expect(result.dockerCmd).to.deep.equal([])
+    expect(result.dockerEntrypoint).to.deep.equal([])
+  })
 })

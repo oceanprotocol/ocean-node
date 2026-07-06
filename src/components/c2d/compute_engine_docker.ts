@@ -3633,7 +3633,9 @@ export class C2DEngineDocker extends C2DEngine {
   public override async restartService(
     serviceId: string,
     owner: string,
-    newUserData?: string
+    newUserData?: string,
+    newDockerCmd?: string[],
+    newDockerEntrypoint?: string[]
   ): Promise<ServiceJob | null> {
     const [job] = await this.db.getServiceJob(serviceId, owner)
     if (!job) return null
@@ -3692,14 +3694,20 @@ export class C2DEngineDocker extends C2DEngine {
         await this.pullImageRef(job.containerImage)
       }
 
-      // 3. Effective userData: newUserData REPLACES the stored one when supplied.
+      // 3. Effective overrides: each REPLACES the stored value when supplied (even with an
+      // empty value), and falls back to the stored one when omitted (undefined).
       const effectiveUserData = newUserData ?? job.userData
+      const effectiveDockerCmd = newDockerCmd !== undefined ? newDockerCmd : job.dockerCmd
+      const effectiveDockerEntrypoint =
+        newDockerEntrypoint !== undefined ? newDockerEntrypoint : job.dockerEntrypoint
       const decryptedUserData = await decryptUserData(effectiveUserData, this.keyManager)
 
-      // 4. Rebuild env (from userData) + command/entrypoint (stored on the job)
+      // 4. Rebuild env (from userData) + command/entrypoint
       const env = userDataToEnv(decryptedUserData)
-      const cmd = job.dockerCmd?.length ? job.dockerCmd : undefined
-      const entrypoint = job.dockerEntrypoint?.length ? job.dockerEntrypoint : undefined
+      const cmd = effectiveDockerCmd?.length ? effectiveDockerCmd : undefined
+      const entrypoint = effectiveDockerEntrypoint?.length
+        ? effectiveDockerEntrypoint
+        : undefined
 
       // 5. Rebuild port bindings — reuse already-allocated host ports
       const PortBindings: Record<string, Array<{ HostPort: string }>> = {}
@@ -3745,6 +3753,8 @@ export class C2DEngineDocker extends C2DEngine {
       job.containerId = container.id
       job.networkId = network.id
       job.userData = effectiveUserData
+      job.dockerCmd = effectiveDockerCmd
+      job.dockerEntrypoint = effectiveDockerEntrypoint
       job.status = ServiceStatusNumber.Running
       job.statusText = ServiceStatusText[ServiceStatusNumber.Running]
       await this.db.updateServiceJob(job)

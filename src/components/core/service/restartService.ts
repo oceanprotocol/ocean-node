@@ -110,7 +110,9 @@ export class ServiceRestartHandler extends CommandHandler {
       const restarted = await engine.restartService(
         task.serviceId,
         task.consumerAddress,
-        task.userData
+        task.userData,
+        task.dockerCmd,
+        task.dockerEntrypoint
       )
       return {
         stream: Readable.from(JSON.stringify([toPublicServiceJob(restarted)])),
