@@ -112,7 +112,12 @@ describe('Auth cross-node delegated validation', () => {
     const nonce = opts.nonce ?? '12345'
     const signature = await safeSign(
       signWith,
-      createHashForSignature(claimAddress, nonce, 'createAuthToken')
+      createHashForSignature(
+        claimAddress,
+        nonce,
+        'createAuthToken',
+        opts.issuerPeerId ?? ISSUER_PEER_ID
+      )
     )
     return auth.getJWTToken(
       claimAddress,
@@ -197,7 +202,7 @@ describe('Auth cross-node delegated validation', () => {
     const nonce = '3'
     const signature = await safeSign(
       consumer,
-      createHashForSignature(consumer.address, nonce, 'createAuthToken')
+      createHashForSignature(consumer.address, nonce, 'createAuthToken', ISSUER_PEER_ID)
     )
     const token = await auth.getJWTToken(consumer.address, nonce, Date.now(), signature)
 

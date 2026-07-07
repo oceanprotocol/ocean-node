@@ -126,7 +126,8 @@ describe('**********         Auth Token Integration Tests', () => {
       const messageHash = createHashForSignature(
         await consumerAccount.getAddress(),
         nonce,
-        PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN
+        PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
+        oceanNode.getKeyManager().getPeerIdString()
       )
       const signature = await safeSign(consumerAccount, messageHash)
 
@@ -150,7 +151,8 @@ describe('**********         Auth Token Integration Tests', () => {
       const messageHash = createHashForSignature(
         consumerAddress,
         nonce,
-        PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN
+        PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
+        oceanNode.getKeyManager().getPeerIdString()
       )
       const signature = await safeSign(consumerAccount, messageHash)
 
@@ -179,7 +181,8 @@ describe('**********         Auth Token Integration Tests', () => {
       const messageHash = createHashForSignature(
         consumerAddress,
         nonce,
-        PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN
+        PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
+        oceanNode.getKeyManager().getPeerIdString()
       )
       const signature = await safeSign(consumerAccount, messageHash)
 
@@ -195,7 +198,8 @@ describe('**********         Auth Token Integration Tests', () => {
       const invalidateHash = createHashForSignature(
         consumerAddress,
         newNonce,
-        PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN
+        PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
+        oceanNode.getKeyManager().getPeerIdString()
       )
       const invalidateSignature = await safeSign(consumerAccount, invalidateHash)
 
@@ -250,7 +254,8 @@ describe('**********         Auth Token Integration Tests', () => {
         const messageHash = createHashForSignature(
           await consumerAccount.getAddress(),
           nonce,
-          PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN
+          PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
+          oceanNode.getKeyManager().getPeerIdString()
         )
         const signature = await safeSign(consumerAccount, messageHash)
 

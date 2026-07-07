@@ -257,7 +257,8 @@ describe('**********         [Download Flow] - Should run a complete node flow.'
       const messageHashBytes = createHashForSignature(
         await consumerAccount.getAddress(),
         nonce,
-        PROTOCOL_COMMANDS.DOWNLOAD
+        PROTOCOL_COMMANDS.DOWNLOAD,
+        oceanNode.getKeyManager().getPeerIdString()
       )
       const signature = await safeSign(consumerAccount, messageHashBytes)
       const downloadTask = {
@@ -290,7 +291,8 @@ describe('**********         [Download Flow] - Should run a complete node flow.'
     const messageHashBytes = createHashForSignature(
       await anotherConsumer.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.DOWNLOAD
+      PROTOCOL_COMMANDS.DOWNLOAD,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     const signature = await safeSign(anotherConsumer, messageHashBytes)
 

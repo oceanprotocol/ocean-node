@@ -209,7 +209,8 @@ describe('**********         Should encrypt and decrypt DDO', () => {
     const messageHashBytes = createHashForSignature(
       await nonAllowedAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.DECRYPT_DDO
+      PROTOCOL_COMMANDS.DECRYPT_DDO,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     const signature = await safeSign(nonAllowedAccount, messageHashBytes)
 
@@ -231,7 +232,8 @@ describe('**********         Should encrypt and decrypt DDO', () => {
     const messageHashBytes = createHashForSignature(
       await thisNodeWallet.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.DECRYPT_DDO
+      PROTOCOL_COMMANDS.DECRYPT_DDO,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     const signature = await safeSign(thisNodeWallet, messageHashBytes)
     const decryptDDOTask: DecryptDDOCommand = {
@@ -253,7 +255,8 @@ describe('**********         Should encrypt and decrypt DDO', () => {
     const messageHashBytes = createHashForSignature(
       await publisherAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.DECRYPT_DDO
+      PROTOCOL_COMMANDS.DECRYPT_DDO,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     const signature = await safeSign(publisherAccount, messageHashBytes)
     const decryptDDOTask: DecryptDDOCommand = {
@@ -276,7 +279,8 @@ describe('**********         Should encrypt and decrypt DDO', () => {
     const messageHashBytes = createHashForSignature(
       await publisherAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.DECRYPT_DDO
+      PROTOCOL_COMMANDS.DECRYPT_DDO,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     const signature = await safeSign(publisherAccount, messageHashBytes)
     const decryptDDOTask: DecryptDDOCommand = {
@@ -300,7 +304,8 @@ describe('**********         Should encrypt and decrypt DDO', () => {
     const messageHashBytes = createHashForSignature(
       await publisherAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.DECRYPT_DDO
+      PROTOCOL_COMMANDS.DECRYPT_DDO,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     const signature = await safeSign(publisherAccount, messageHashBytes)
     const decryptDDOTask: DecryptDDOCommand = {
@@ -326,7 +331,8 @@ describe('**********         Should encrypt and decrypt DDO', () => {
     const messageHashBytes = createHashForSignature(
       await publisherAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.DECRYPT_DDO
+      PROTOCOL_COMMANDS.DECRYPT_DDO,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     const signature = await safeSign(publisherAccount, messageHashBytes)
     const decryptDDOTask: DecryptDDOCommand = {
@@ -352,7 +358,8 @@ describe('**********         Should encrypt and decrypt DDO', () => {
     const messageHashBytes = createHashForSignature(
       await publisherAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.DECRYPT_DDO
+      PROTOCOL_COMMANDS.DECRYPT_DDO,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     const signature = await safeSign(publisherAccount, messageHashBytes)
     const decryptDDOTask: DecryptDDOCommand = {
@@ -376,7 +383,8 @@ describe('**********         Should encrypt and decrypt DDO', () => {
     const messageHashBytes = createHashForSignature(
       await publisherAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.DECRYPT_DDO
+      PROTOCOL_COMMANDS.DECRYPT_DDO,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     const signature = await safeSign(publisherAccount, messageHashBytes)
 
@@ -401,7 +409,8 @@ describe('**********         Should encrypt and decrypt DDO', () => {
     const messageHashBytes = createHashForSignature(
       await publisherAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.DECRYPT_DDO
+      PROTOCOL_COMMANDS.DECRYPT_DDO,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     const signature = await safeSign(publisherAccount, messageHashBytes)
 

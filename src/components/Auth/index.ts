@@ -140,6 +140,7 @@ export class Auth {
       address,
       nonce,
       signature,
+      issuerPeerId,
       PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
       this.config,
       chainId

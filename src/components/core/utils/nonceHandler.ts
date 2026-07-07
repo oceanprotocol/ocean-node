@@ -195,8 +195,17 @@ async function validateNonceAndSignature(
       error: 'nonce: ' + nonce + ' is not a valid nonce'
     }
   }
+  const issuerPeerId = OceanNode.getInstance().getKeyManager().getPeerIdString()
   if (
-    await verifyConsumerSignature(consumer, nonce, signature, command, config, chainId)
+    await verifyConsumerSignature(
+      consumer,
+      nonce,
+      signature,
+      issuerPeerId,
+      command,
+      config,
+      chainId
+    )
   ) {
     return { valid: true }
   }
@@ -210,11 +219,14 @@ export async function verifyConsumerSignature(
   consumer: string,
   nonce: string | number,
   signature: string,
+  issuerPeerId: string,
   command: string = null,
   config?: OceanNodeConfig,
   chainId?: string | null
 ): Promise<boolean> {
-  const message = String(String(consumer) + String(nonce) + String(command))
+  const message = String(
+    String(consumer) + String(nonce) + String(command) + String(issuerPeerId)
+  )
   const consumerMessage = ethers.solidityPackedKeccak256(
     ['bytes'],
     [ethers.hexlify(ethers.toUtf8Bytes(message))]
