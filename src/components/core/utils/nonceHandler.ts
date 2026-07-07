@@ -195,7 +195,10 @@ async function validateNonceAndSignature(
       error: 'nonce: ' + nonce + ' is not a valid nonce'
     }
   }
-  const issuerPeerId = OceanNode.getInstance().getKeyManager().getPeerIdString()
+  const issuerPeerId =
+    command === PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN
+      ? OceanNode.getInstance().getKeyManager().getPeerIdString()
+      : ''
   if (
     await verifyConsumerSignature(
       consumer,

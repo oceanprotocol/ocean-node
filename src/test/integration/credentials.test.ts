@@ -346,8 +346,7 @@ describe('**********         [Credentials Flow] - Should run a complete node flo
       const messageHashBytes = createHashForSignature(
         await consumerAccounts[0].getAddress(),
         nonce,
-        PROTOCOL_COMMANDS.DOWNLOAD,
-        oceanNode.getKeyManager().getPeerIdString()
+        PROTOCOL_COMMANDS.DOWNLOAD
       )
       const signature = await safeSign(consumerAccounts[0], messageHashBytes)
 
@@ -381,8 +380,7 @@ describe('**********         [Credentials Flow] - Should run a complete node flo
       const messageHashBytes = createHashForSignature(
         await consumerAccounts[0].getAddress(),
         nonce,
-        PROTOCOL_COMMANDS.DOWNLOAD,
-        oceanNode.getKeyManager().getPeerIdString()
+        PROTOCOL_COMMANDS.DOWNLOAD
       )
       const signature = await safeSign(consumerAccounts[0], messageHashBytes)
 
@@ -529,8 +527,7 @@ describe('**********         [Credentials Flow] - Should run a complete node flo
       const messageHashBytes = createHashForSignature(
         await consumerAccounts[1].getAddress(),
         nonce,
-        PROTOCOL_COMMANDS.DOWNLOAD,
-        oceanNode.getKeyManager().getPeerIdString()
+        PROTOCOL_COMMANDS.DOWNLOAD
       )
       const signature = await safeSign(consumerAccounts[1], messageHashBytes)
 
@@ -567,8 +564,7 @@ describe('**********         [Credentials Flow] - Should run a complete node flo
       const messageHashBytes = createHashForSignature(
         await consumerAccounts[2].getAddress(),
         nonce,
-        PROTOCOL_COMMANDS.DOWNLOAD,
-        oceanNode.getKeyManager().getPeerIdString()
+        PROTOCOL_COMMANDS.DOWNLOAD
       )
       const signature = await safeSign(consumerAccounts[2], messageHashBytes)
 

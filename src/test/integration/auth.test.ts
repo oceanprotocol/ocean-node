@@ -198,8 +198,7 @@ describe('**********         Auth Token Integration Tests', () => {
       const invalidateHash = createHashForSignature(
         consumerAddress,
         newNonce,
-        PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
-        oceanNode.getKeyManager().getPeerIdString()
+        PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN
       )
       const invalidateSignature = await safeSign(consumerAccount, invalidateHash)
 

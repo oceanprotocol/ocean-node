@@ -649,8 +649,7 @@ describe('**********         Compute', () => {
     const messageHashBytes = createHashForSignature(
       await consumerAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.COMPUTE_START,
-      oceanNode.getKeyManager().getPeerIdString()
+      PROTOCOL_COMMANDS.COMPUTE_START
     )
     // since ganache does not supports personal_sign, we use wallet account
     const signature = await safeSign(consumerAccount, messageHashBytes)
@@ -745,8 +744,7 @@ describe('**********         Compute', () => {
     const messageHashBytes = createHashForSignature(
       await consumerAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.COMPUTE_START,
-      oceanNode.getKeyManager().getPeerIdString()
+      PROTOCOL_COMMANDS.COMPUTE_START
     )
     const signature = await safeSign(consumerAccount, messageHashBytes)
     const re = []
@@ -836,8 +834,7 @@ describe('**********         Compute', () => {
     const messageHashBytes = createHashForSignature(
       await consumerAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.COMPUTE_START,
-      oceanNode.getKeyManager().getPeerIdString()
+      PROTOCOL_COMMANDS.COMPUTE_START
     )
     const signature = await safeSign(consumerAccount, messageHashBytes)
     const re = []
@@ -947,8 +944,7 @@ describe('**********         Compute', () => {
     const messageHashBytes = createHashForSignature(
       await consumerAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.COMPUTE_START,
-      oceanNode.getKeyManager().getPeerIdString()
+      PROTOCOL_COMMANDS.COMPUTE_START
     )
     const signature = await safeSign(consumerAccount, messageHashBytes)
     const re = []
@@ -1043,8 +1039,7 @@ describe('**********         Compute', () => {
     const messageHashBytes = createHashForSignature(
       await consumerAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.COMPUTE_START,
-      oceanNode.getKeyManager().getPeerIdString()
+      PROTOCOL_COMMANDS.COMPUTE_START
     )
     const signature = await safeSign(consumerAccount, messageHashBytes)
     const re = []
@@ -1092,8 +1087,7 @@ describe('**********         Compute', () => {
     const messageHashBytes = createHashForSignature(
       await consumerAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.FREE_COMPUTE_START,
-      oceanNode.getKeyManager().getPeerIdString()
+      PROTOCOL_COMMANDS.FREE_COMPUTE_START
     )
     const signature = await safeSign(consumerAccount, messageHashBytes)
     const startComputeTask: FreeComputeStartCommand = {
@@ -1178,8 +1172,7 @@ describe('**********         Compute', () => {
     const messageHashBytes = createHashForSignature(
       await consumerAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
-      oceanNode.getKeyManager().getPeerIdString()
+      PROTOCOL_COMMANDS.COMPUTE_GET_RESULT
     )
     const signature = await safeSign(consumerAccount, messageHashBytes)
     const resultComputeTask: ComputeGetResultCommand = {
@@ -1201,8 +1194,7 @@ describe('**********         Compute', () => {
     const messageHashBytes = createHashForSignature(
       await additionalViewerAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
-      oceanNode.getKeyManager().getPeerIdString()
+      PROTOCOL_COMMANDS.COMPUTE_GET_RESULT
     )
     const signature = await safeSign(additionalViewerAccount, messageHashBytes)
     const resultComputeTask: ComputeGetResultCommand = {
@@ -1224,8 +1216,7 @@ describe('**********         Compute', () => {
     const messageHashBytes = createHashForSignature(
       await nonAllowedAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
-      oceanNode.getKeyManager().getPeerIdString()
+      PROTOCOL_COMMANDS.COMPUTE_GET_RESULT
     )
     const signature = await safeSign(nonAllowedAccount, messageHashBytes)
     const resultComputeTask: ComputeGetResultCommand = {
@@ -1250,8 +1241,7 @@ describe('**********         Compute', () => {
     const messageHashBytes = createHashForSignature(
       await consumerAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.COMPUTE_STOP,
-      oceanNode.getKeyManager().getPeerIdString()
+      PROTOCOL_COMMANDS.COMPUTE_STOP
     )
     const signature = await safeSign(consumerAccount, messageHashBytes)
     const stopComputeTask: ComputeStopCommand = {
@@ -1303,8 +1293,7 @@ describe('**********         Compute', () => {
     const messageHashBytes = createHashForSignature(
       await consumerAccount.address,
       nonce,
-      PROTOCOL_COMMANDS.FREE_COMPUTE_START,
-      oceanNode.getKeyManager().getPeerIdString()
+      PROTOCOL_COMMANDS.FREE_COMPUTE_START
     )
     const signature = await safeSign(consumerAccount, messageHashBytes)
     freeComputeStartPayload.command = PROTOCOL_COMMANDS.FREE_COMPUTE_START
@@ -1784,8 +1773,7 @@ describe('**********         Compute', () => {
       const messageHashBytes = createHashForSignature(
         await consumerAccount.getAddress(),
         nonce,
-        PROTOCOL_COMMANDS.COMPUTE_START,
-        oceanNode.getKeyManager().getPeerIdString()
+        PROTOCOL_COMMANDS.COMPUTE_START
       )
       const signature = await safeSign(consumerAccount, messageHashBytes)
       const startComputeTask: PaidComputeStartCommand = {
@@ -1843,8 +1831,7 @@ describe('**********         Compute', () => {
       const messageHashBytes = createHashForSignature(
         await consumerAccount.getAddress(),
         nonce,
-        PROTOCOL_COMMANDS.COMPUTE_START,
-        oceanNode.getKeyManager().getPeerIdString()
+        PROTOCOL_COMMANDS.COMPUTE_START
       )
       const signature = await safeSign(consumerAccount, messageHashBytes)
 
@@ -1897,8 +1884,7 @@ describe('**********         Compute', () => {
       const messageHashBytes = createHashForSignature(
         await consumerAccount.address,
         nonce,
-        PROTOCOL_COMMANDS.FREE_COMPUTE_START,
-        oceanNode.getKeyManager().getPeerIdString()
+        PROTOCOL_COMMANDS.FREE_COMPUTE_START
       )
       const signature = await safeSign(consumerAccount, messageHashBytes)
 
@@ -1955,8 +1941,7 @@ describe('**********         Compute', () => {
       const messageHashBytes = createHashForSignature(
         await consumerAccount.getAddress(),
         nonce,
-        PROTOCOL_COMMANDS.FREE_COMPUTE_START,
-        oceanNode.getKeyManager().getPeerIdString()
+        PROTOCOL_COMMANDS.FREE_COMPUTE_START
       )
       const signature = await safeSign(consumerAccount, messageHashBytes)
 
@@ -2300,8 +2285,7 @@ describe('**********         Compute', () => {
         createHashForSignature(
           consumerAddress,
           nonce,
-          PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
-          oceanNode.getKeyManager().getPeerIdString()
+          PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
         )
       )
       const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
@@ -2322,8 +2306,7 @@ describe('**********         Compute', () => {
         createHashForSignature(
           consumerAddress,
           nonce,
-          PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
-          oceanNode.getKeyManager().getPeerIdString()
+          PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
         )
       )
       const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
@@ -2368,8 +2351,7 @@ describe('**********         Compute', () => {
         createHashForSignature(
           consumerAddress,
           nonce,
-          PROTOCOL_COMMANDS.FREE_COMPUTE_START,
-          oceanNode.getKeyManager().getPeerIdString()
+          PROTOCOL_COMMANDS.FREE_COMPUTE_START
         )
       )
       return {
@@ -2499,8 +2481,7 @@ describe('**********         Compute', () => {
       let messageHashBytes = createHashForSignature(
         consumerAddress,
         nonce,
-        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
-        oceanNode.getKeyManager().getPeerIdString()
+        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
       )
       let signature = await safeSign(consumerAccount, messageHashBytes)
       const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
@@ -2521,8 +2502,7 @@ describe('**********         Compute', () => {
       messageHashBytes = createHashForSignature(
         consumerAddress,
         nonce,
-        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
-        oceanNode.getKeyManager().getPeerIdString()
+        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
       )
       signature = await safeSign(consumerAccount, messageHashBytes)
       const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
@@ -2578,8 +2558,7 @@ describe('**********         Compute', () => {
       messageHashBytes = createHashForSignature(
         consumerAddress,
         nonce,
-        PROTOCOL_COMMANDS.FREE_COMPUTE_START,
-        oceanNode.getKeyManager().getPeerIdString()
+        PROTOCOL_COMMANDS.FREE_COMPUTE_START
       )
       signature = await safeSign(consumerAccount, messageHashBytes)
 
@@ -2651,8 +2630,7 @@ describe('**********         Compute', () => {
       let messageHashBytes = createHashForSignature(
         ownerAddress,
         nonce,
-        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
-        oceanNode.getKeyManager().getPeerIdString()
+        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
       )
       let signature = await safeSign(consumerAccount, messageHashBytes)
       const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
@@ -2672,8 +2650,7 @@ describe('**********         Compute', () => {
       messageHashBytes = createHashForSignature(
         ownerAddress,
         nonce,
-        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
-        oceanNode.getKeyManager().getPeerIdString()
+        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
       )
       signature = await safeSign(consumerAccount, messageHashBytes)
       const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
@@ -2692,8 +2669,7 @@ describe('**********         Compute', () => {
       messageHashBytes = createHashForSignature(
         intruderAddress,
         nonce,
-        PROTOCOL_COMMANDS.FREE_COMPUTE_START,
-        oceanNode.getKeyManager().getPeerIdString()
+        PROTOCOL_COMMANDS.FREE_COMPUTE_START
       )
       signature = await safeSign(nonAllowedAccount, messageHashBytes)
 
@@ -2805,8 +2781,7 @@ describe('**********         Compute', () => {
           createHashForSignature(
             consumerAddress,
             nonce,
-            PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
-            oceanNode.getKeyManager().getPeerIdString()
+            PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
           )
         )
         const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
@@ -2991,8 +2966,7 @@ describe('**********         Compute', () => {
           createHashForSignature(
             consumerAddress,
             nonce,
-            PROTOCOL_COMMANDS.FREE_COMPUTE_START,
-            oceanNode.getKeyManager().getPeerIdString()
+            PROTOCOL_COMMANDS.FREE_COMPUTE_START
           )
         )
         const startTask: FreeComputeStartCommand = {
@@ -3037,8 +3011,7 @@ describe('**********         Compute', () => {
           createHashForSignature(
             consumerAddress,
             nonce,
-            PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
-            oceanNode.getKeyManager().getPeerIdString()
+            PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
           )
         )
         const createRes = await new PersistentStorageCreateBucketHandler(
@@ -3060,8 +3033,7 @@ describe('**********         Compute', () => {
           createHashForSignature(
             consumerAddress,
             nonce,
-            PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
-            oceanNode.getKeyManager().getPeerIdString()
+            PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
           )
         )
         const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
@@ -3162,8 +3134,7 @@ describe('**********         Compute Access Restrictions', () => {
     const messageHashBytes = createHashForSignature(
       consumerAddr,
       nonce,
-      PROTOCOL_COMMANDS.COMPUTE_START,
-      oceanNode.getKeyManager().getPeerIdString()
+      PROTOCOL_COMMANDS.COMPUTE_START
     )
     const signature = await safeSign(signerWallet, messageHashBytes)
 
@@ -3200,8 +3171,7 @@ describe('**********         Compute Access Restrictions', () => {
     const messageHashBytes = createHashForSignature(
       consumerAddr,
       nonce,
-      PROTOCOL_COMMANDS.FREE_COMPUTE_START,
-      oceanNode.getKeyManager().getPeerIdString()
+      PROTOCOL_COMMANDS.FREE_COMPUTE_START
     )
     const signature = await safeSign(signerWallet, messageHashBytes)
 

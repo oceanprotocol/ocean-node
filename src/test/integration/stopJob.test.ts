@@ -73,8 +73,7 @@ describe('**********         Admin StopJob Handler Integration Tests', () => {
     const messageHashBytes = createHashForSignature(
       await adminAccount.getAddress(),
       nonce,
-      command,
-      oceanNode.getKeyManager().getPeerIdString()
+      command
     )
     return safeSign(adminAccount, messageHashBytes)
   }
@@ -86,8 +85,7 @@ describe('**********         Admin StopJob Handler Integration Tests', () => {
     const messageHashBytes = createHashForSignature(
       await nonAdminAccount.getAddress(),
       nonce,
-      command,
-      oceanNode.getKeyManager().getPeerIdString()
+      command
     )
     return safeSign(nonAdminAccount, messageHashBytes)
   }

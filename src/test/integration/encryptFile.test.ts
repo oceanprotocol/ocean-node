@@ -57,8 +57,7 @@ describe('**********         Encrypt File', () => {
     const messageHashBytes = createHashForSignature(
       await anotherConsumerWallet.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.ENCRYPT_FILE,
-      oceanNode.getKeyManager().getPeerIdString()
+      PROTOCOL_COMMANDS.ENCRYPT_FILE
     )
     const signature = await safeSign(anotherConsumerWallet, messageHashBytes)
     const encryptFileTask: EncryptFileCommand = {
@@ -95,8 +94,7 @@ describe('**********         Encrypt File', () => {
     const messageHashBytes = createHashForSignature(
       await anotherConsumerWallet.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.ENCRYPT_FILE,
-      oceanNode.getKeyManager().getPeerIdString()
+      PROTOCOL_COMMANDS.ENCRYPT_FILE
     )
     const signature = await safeSign(anotherConsumerWallet, messageHashBytes)
     const encryptFileTask: EncryptFileCommand = {
@@ -128,8 +126,7 @@ describe('**********         Encrypt File', () => {
     const messageHashBytes = createHashForSignature(
       await anotherConsumerWallet.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.ENCRYPT_FILE,
-      oceanNode.getKeyManager().getPeerIdString()
+      PROTOCOL_COMMANDS.ENCRYPT_FILE
     )
     const signature = await safeSign(anotherConsumerWallet, messageHashBytes)
     const encryptFileTask: EncryptFileCommand = {
@@ -159,8 +156,7 @@ describe('**********         Encrypt File', () => {
     const messageHashBytes = createHashForSignature(
       await anotherConsumerWallet.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.ENCRYPT_FILE,
-      oceanNode.getKeyManager().getPeerIdString()
+      PROTOCOL_COMMANDS.ENCRYPT_FILE
     )
     const signature = await safeSign(anotherConsumerWallet, messageHashBytes)
     const encryptFileTask: EncryptFileCommand = {

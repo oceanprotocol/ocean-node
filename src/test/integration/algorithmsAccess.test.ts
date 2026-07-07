@@ -445,8 +445,7 @@ describe('**********         Trusted algorithms Flow', () => {
     const messageHashBytes = createHashForSignature(
       await consumerAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.COMPUTE_START,
-      oceanNode.getKeyManager().getPeerIdString()
+      PROTOCOL_COMMANDS.COMPUTE_START
     )
     const signature = await safeSign(consumerAccount, messageHashBytes)
     const startComputeTask: PaidComputeStartCommand = {
