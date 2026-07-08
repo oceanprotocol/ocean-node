@@ -2,7 +2,6 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-This file covers the repository at `/repos/ocean/ocean-node`.
 
 Ocean Node is the all-in-one backend for the Ocean Protocol stack. A single Node process
 replaces three legacy components: **Provider** (data access / encryption / compute),
