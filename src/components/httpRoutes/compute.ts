@@ -452,6 +452,8 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/serviceRestart`, async (req, res) 
     signature: (req.body.signature as string) || null,
     serviceId: (req.body.serviceId as string) || null,
     userData: (req.body.userData as string) || undefined,
+    dockerCmd: (req.body.dockerCmd as string[]) || undefined,
+    dockerEntrypoint: (req.body.dockerEntrypoint as string[]) || undefined,
     authorization: req.headers?.authorization,
     caller: req.caller
   }
