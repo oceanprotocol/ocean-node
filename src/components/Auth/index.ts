@@ -178,13 +178,19 @@ export class Auth {
     if (!verdict.valid) {
       return null
     }
+    if (verdict.validUntil == null) {
+      return null
+    }
+    const validUntilMs = Number(verdict.validUntil)
+    if (!Number.isFinite(validUntilMs) || validUntilMs <= Date.now()) {
+      return null
+    }
     const createdNum = Number(createdAt)
     return {
       token,
       address,
       created: Number.isFinite(createdNum) ? new Date(createdNum) : new Date(),
-      validUntil:
-        verdict.validUntil != null ? new Date(Number(verdict.validUntil)) : null,
+      validUntil: new Date(validUntilMs),
       isValid: true
     }
   }
