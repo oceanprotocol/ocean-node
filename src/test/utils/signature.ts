@@ -10,15 +10,19 @@ import { ethers, Signer, JsonRpcSigner } from 'ethers'
  * @param consumer - The consumer's Ethereum address (hex string)
  * @param nonce - A unique nonce value (string or number) to prevent replay attacks
  * @param command - The protocol command being requested (e.g., 'COMPUTE_START')
+ * @param issuerPeerId - The target node's peerId, binding the signature to that node
  * @returns A Uint8Array containing the message hash bytes ready for signing
  *
  */
 export function createHashForSignature(
   consumer: string,
   nonce: string | number,
-  command: string
+  command: string,
+  issuerPeerId: string = ''
 ): Uint8Array {
-  const message = String(String(consumer) + String(nonce) + String(command))
+  const message = String(
+    String(consumer) + String(nonce) + String(command) + String(issuerPeerId)
+  )
   const consumerMessage = ethers.solidityPackedKeccak256(
     ['bytes'],
     [ethers.hexlify(ethers.toUtf8Bytes(message))]

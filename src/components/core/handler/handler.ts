@@ -174,22 +174,13 @@ export abstract class CommandHandler
     }
   }
 
-  async getAddressFromToken(authToken: string): Promise<string> {
-    const auth = this.getOceanNode().getAuth()
-    if (!auth) {
-      throw new Error('Auth not configured')
-    }
-
-    return (await auth.validateToken(authToken)).address
-  }
-
   async validateTokenOrSignature(
     authToken: string,
     address: string,
     nonce: string,
     signature: string,
     command: string
-  ): Promise<P2PCommandResponse> {
+  ): Promise<P2PCommandResponse & { consumerAddress?: string }> {
     const oceanNode = this.getOceanNode()
     const auth = oceanNode.getAuth()
     if (!auth) {
@@ -214,7 +205,8 @@ export abstract class CommandHandler
 
     return {
       stream: null,
-      status: { httpStatus: 200 }
+      status: { httpStatus: 200 },
+      consumerAddress: isAuthRequestValid.address
     }
   }
 }
