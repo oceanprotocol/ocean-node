@@ -42,6 +42,23 @@ export class Escrow {
   }
 
   /**
+   * Waits for a submitted transaction to be mined. Used when two transactions are sent
+   * back-to-back from the node signer (e.g. the immediate createLock → claimLock sequence
+   * in Service-on-Demand) so the second tx picks up the advanced account nonce and acts on
+   * confirmed on-chain state.
+   */
+  async waitForTransaction(
+    chain: number,
+    txHash: string,
+    confirmations: number = 1,
+    timeoutMs: number = 60000
+  ): Promise<void> {
+    const blockchain = this.getBlockchain(chain)
+    const provider = await blockchain.getProvider()
+    await provider.waitForTransaction(txHash, confirmations, timeoutMs)
+  }
+
+  /**
    * Get a Blockchain instance for the given chainId from BlockchainRegistry.
    *
    * @param chainId - The chain ID to get a Blockchain instance for

@@ -23,7 +23,8 @@ import type {
   ComputeResource,
   ComputeResourceKind,
   C2DEnvironmentConfig,
-  ComputeResourcesPricingInfo
+  ComputeResourcesPricingInfo,
+  EnvironmentResourceRef
 } from '../../@types/C2D/C2D.js'
 import { BASE_CHAIN_ID, USDC_TOKEN_ADDRESS_BASE } from '../../utils/config.js'
 import { C2DEngine } from './compute_engine_base.js'
@@ -65,6 +66,19 @@ import {
   isPersistentStorageType
 } from '../../@types/fileObject.js'
 import { getAddress, ZeroAddress } from 'ethers'
+import {
+  ServiceStatusNumber,
+  ServiceStatusText
+} from '../../@types/C2D/ServiceOnDemand.js'
+import type { ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
+import { resolveServiceImage } from './serviceResourceMatching.js'
+import {
+  allocateHostPort,
+  releaseHostPort,
+  seedAllocatedPorts,
+  userDataToEnv,
+  decryptUserData
+} from '../core/service/utils.js'
 
 const C2D_CONTAINER_UID = 1000
 const C2D_CONTAINER_GID = 1000
@@ -79,6 +93,20 @@ export class C2DEngineDocker extends C2DEngine {
   private cronTime: number = 2000
   private jobImageSizes: Map<string, number> = new Map()
   private isInternalLoopRunning: boolean = false
+  // Set true by stop() so a stopped engine cannot reschedule or run another InternalLoop pass.
+  // Without this, an in-flight loop's finally → setNewTimer() resurrects the timer on a stopped
+  // instance, leaving two engines (old + new, e.g. across a test restart) racing the same DB
+  // and double-processing a job (→ Docker 409 "container name already in use").
+  private stopped: boolean = false
+  // The currently-running InternalLoop pass, so stop() can drain it before returning.
+  private internalLoopPromise: Promise<void> | null = null
+  // serviceIds currently being advanced by processServiceStart, so the InternalLoop doesn't
+  // launch a second pipeline for the same service while one is already in flight.
+  private servicesBeingStarted: Set<string> = new Set()
+  // The in-flight processServiceStart() promises (launched fire-and-forget by InternalLoop),
+  // so stop() can drain them before returning — otherwise a start could outlive stop() and
+  // race a restarted engine on the same shared DB.
+  private serviceStartPromises: Set<Promise<void>> = new Set()
   private imageCleanupTimer: NodeJS.Timeout | null = null
   private paymentClaimTimer: NodeJS.Timeout | null = null
   private scanDBUpdateTimer: NodeJS.Timeout | null = null
@@ -273,7 +301,16 @@ export class C2DEngineDocker extends C2DEngine {
     envDef: C2DEnvironmentConfig,
     pool: Map<string, ComputeResource>
   ): ComputeResource[] {
-    const refs = envDef.resources || []
+    const configuredRefs = envDef.resources || []
+    // cpu/ram/disk are baseline resources every environment has (unlike opt-in discrete
+    // resources such as GPUs) — guarantee they're always resolved, using pool defaults
+    // when the config doesn't reference them, so a config that forgets one doesn't
+    // silently lose all tracking/enforcement for it.
+    const configuredIds = new Set(configuredRefs.map((r) => r.id))
+    const baselineRefs: EnvironmentResourceRef[] = (['cpu', 'ram', 'disk'] as const)
+      .filter((id) => !configuredIds.has(id))
+      .map((id) => ({ id }))
+    const refs: EnvironmentResourceRef[] = [...configuredRefs, ...baselineRefs]
     const result: ComputeResource[] = []
     for (const ref of refs) {
       const poolRes = pool.get(ref.id)
@@ -293,7 +330,14 @@ export class C2DEngineDocker extends C2DEngine {
         resolved.total =
           ref.total !== undefined ? Math.min(ref.total, poolRes.total) : poolRes.total
       }
-      if (ref.max !== undefined) resolved.max = Math.min(ref.max, resolved.total)
+      if (ref.max !== undefined) {
+        if (ref.max > resolved.total) {
+          CORE_LOGGER.warn(
+            `Environment "${envDef.description || envDef.id || 'unknown'}": resource "${ref.id}" has max (${ref.max}) greater than total (${resolved.total}) — clamping max to ${resolved.total}. Fix your config so max <= total for this resource.`
+          )
+        }
+        resolved.max = Math.min(ref.max, resolved.total)
+      }
       if (ref.min !== undefined) resolved.min = ref.min
       if (ref.constraints !== undefined)
         resolved.constraints = structuredClone(ref.constraints)
@@ -413,7 +457,11 @@ export class C2DEngineDocker extends C2DEngine {
         queMaxWaitTimeFree: 0,
         runMaxWaitTime: 0,
         runMaxWaitTimeFree: 0,
-        enableNetwork: envDef.enableNetwork
+        enableNetwork: envDef.enableNetwork,
+        features: {
+          computeJobs: envDef.features?.computeJobs ?? true,
+          services: envDef.features?.services ?? true
+        }
       }
 
       if (envDef.storageExpiry !== undefined) env.storageExpiry = envDef.storageExpiry
@@ -473,6 +521,15 @@ export class C2DEngineDocker extends C2DEngine {
 
     // Rebuild CPU allocations from running containers (handles node restart)
     await this.rebuildCpuAllocations()
+    await this.rebuildServiceCpuAllocations()
+
+    // Re-seed the in-memory allocated-host-port set from running service jobs (handles node restart)
+    await seedAllocatedPorts(this.db, this.getC2DConfig().hash).catch((e) => {
+      CORE_LOGGER.warn(`Could not seed allocated service ports: ${e.message}`)
+    })
+
+    // (re)starting: clear the stopped flag so the loop can schedule again
+    this.stopped = false
 
     // only now set the timer
     if (!this.cronTimer) {
@@ -560,11 +617,28 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
-  public override stop(): Promise<void> {
+  public override async stop(): Promise<void> {
+    // Mark stopped FIRST so the in-flight loop's finally won't reschedule and a queued timer
+    // becomes a no-op. This keeps a stopped engine from racing a freshly-started one on the
+    // same shared DB (which caused the same job to be processed twice).
+    this.stopped = true
     // Clear the timer and reset the flag
     if (this.cronTimer) {
       clearTimeout(this.cronTimer)
       this.cronTimer = null
+    }
+    // Drain a currently-running InternalLoop pass so it fully completes before we return,
+    // so the caller (e.g. addC2DEngines / tearDownAll) can start a new engine knowing the old
+    // one is quiescent.
+    if (this.internalLoopPromise) {
+      await this.internalLoopPromise.catch(() => {})
+      this.internalLoopPromise = null
+    }
+    // Drain any in-flight service-start pipelines launched by the loop, so none continue
+    // (and touch escrow/Docker on the shared DB) after the engine is considered stopped.
+    if (this.serviceStartPromises.size > 0) {
+      await Promise.allSettled([...this.serviceStartPromises])
+      this.serviceStartPromises.clear()
     }
     this.isInternalLoopRunning = false
     // Stop image cleanup timer
@@ -578,7 +652,6 @@ export class C2DEngineDocker extends C2DEngine {
       this.paymentClaimTimer = null
       CORE_LOGGER.debug('Payment claim timer stopped')
     }
-    return Promise.resolve()
   }
 
   public async updateImageUsage(image: string): Promise<void> {
@@ -1619,17 +1692,30 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   private setNewTimer() {
+    // never reschedule once stopped (prevents an in-flight loop's finally from resurrecting
+    // the timer on a stopped engine)
+    if (this.stopped) {
+      return
+    }
     if (this.cronTimer) {
       return
     }
     // don't set the cron if we don't have compute environments
     if (this.envs.length > 0)
-      this.cronTimer = setTimeout(this.InternalLoop.bind(this), this.cronTime)
+      this.cronTimer = setTimeout(() => {
+        // track the running pass so stop() can drain it
+        this.internalLoopPromise = this.InternalLoop()
+      }, this.cronTime)
   }
 
   private async InternalLoop() {
     // this is the internal loop of docker engine
     // gets list of all running jobs and process them one by one
+
+    // a queued timer may fire after stop(); a stopped engine must not process anything
+    if (this.stopped) {
+      return
+    }
 
     // Prevent concurrent execution
     if (this.isInternalLoopRunning) {
@@ -1664,6 +1750,49 @@ export class C2DEngineDocker extends C2DEngine {
         }
         // wait for all promises, there is no return
         await Promise.all(promises)
+      }
+
+      // Service-on-Demand health check: catch Running services whose container died on its
+      // own (crash, OOM, or Docker daemon down) instead of only noticing at expiresAt.
+      await this.checkRunningServices()
+
+      // Service-on-Demand starts: advance pending service jobs through the start pipeline.
+      // Fire-and-forget (NOT awaited): an image pull can take minutes and must not block the
+      // loop (compute jobs + expiry must keep advancing). The in-progress guard prevents a
+      // second pipeline for the same service across overlapping ticks. processServiceStart
+      // never throws, so the unawaited promise is safe.
+      const pendingStarts = await this.db.getPendingServiceStarts(
+        this.getC2DConfig().hash
+      )
+      for (const svc of pendingStarts) {
+        if (this.servicesBeingStarted.has(svc.serviceId)) continue
+        this.servicesBeingStarted.add(svc.serviceId)
+        // Track the promise so stop() can drain it; clean both trackers when it settles.
+        const startPromise = this.processServiceStart(svc).finally(() => {
+          this.servicesBeingStarted.delete(svc.serviceId)
+          this.serviceStartPromises.delete(startPromise)
+        })
+        this.serviceStartPromises.add(startPromise)
+      }
+
+      // Service-on-Demand expiry: stop services whose paid window has elapsed.
+      const expiredServices = await this.db.getExpiredServiceJobs(
+        this.getC2DConfig().hash
+      )
+      for (const svc of expiredServices) {
+        CORE_LOGGER.info(`Service ${svc.serviceId} expired — stopping`)
+        await this.stopService(svc.serviceId, svc.owner).catch((e) => {
+          CORE_LOGGER.error(
+            `Failed to stop expired service ${svc.serviceId}: ${e.message}`
+          )
+        })
+        // mark the (now stopped) record as Expired so it is not picked up again
+        const [stoppedJob] = await this.db.getServiceJob(svc.serviceId, svc.owner)
+        if (stoppedJob) {
+          stoppedJob.status = ServiceStatusNumber.Expired
+          stoppedJob.statusText = ServiceStatusText[ServiceStatusNumber.Expired]
+          await this.db.updateServiceJob(stoppedJob)
+        }
       }
     } catch (e) {
       CORE_LOGGER.error(`Error in C2D InternalLoop: ${e.message}`)
@@ -2413,6 +2542,43 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
+  /**
+   * On startup, inspects running Docker service containers to rebuild the CPU allocation
+   * map. Statuses without a container yet (Starting/Locking/PullImage/BuildImage/Claiming)
+   * are skipped; Running/Error services with a still-present (even if exited) container
+   * keep their cores reserved, matching the "reserved until explicit restart/stop/expiry"
+   * semantics that getRunningServiceJobs already relies on.
+   */
+  private async rebuildServiceCpuAllocations(): Promise<void> {
+    if (this.envCpuCoresMap.size === 0) return
+    try {
+      const services = await this.db.getRunningServiceJobs(this.getC2DConfig().hash)
+      for (const job of services) {
+        if (!job.containerId) continue
+        try {
+          const container = this.docker.getContainer(job.containerId)
+          const info = await container.inspect()
+          const cpuset = info.HostConfig?.CpusetCpus
+          if (cpuset) {
+            const cores = this.parseCpusetString(cpuset)
+            if (cores.length > 0) {
+              this.cpuAllocations.set(job.serviceId, cores)
+              CORE_LOGGER.info(
+                `CPU affinity: recovered allocation [${cpuset}] for running service ${job.serviceId}`
+              )
+            }
+          }
+        } catch (e) {
+          // Container may be gone
+        }
+      }
+    } catch (e) {
+      CORE_LOGGER.error(
+        `CPU affinity: failed to rebuild service allocations: ${e.message}`
+      )
+    }
+  }
+
   private async cleanupJob(job: DBComputeJob) {
     // cleaning up
     // - claim payment or release lock
@@ -2867,6 +3033,777 @@ export class C2DEngineDocker extends C2DEngine {
     } finally {
       clearTimeout(timer)
       this.activeBuildAborts.delete(job.jobId)
+    }
+  }
+
+  // ── Service on Demand ─────────────────────────────────────────────────
+
+  // Pulls a plain image reference with the same registry-auth + Trivy scan
+  // guarantees as pullImage(). Service code MUST go through this — never docker.pull() raw.
+  private async pullImageRef(
+    imageRef: string,
+    encryptedDockerRegistryAuth?: string,
+    logFile?: string
+  ): Promise<void> {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), this.getImagePullTimeoutMs())
+    try {
+      const { registry } = this.parseImage(imageRef)
+      let dockerRegistryAuthForPull: any
+      if (encryptedDockerRegistryAuth) {
+        const decryptedDockerRegistryAuth = await this.keyManager.decrypt(
+          Uint8Array.from(Buffer.from(encryptedDockerRegistryAuth, 'hex')),
+          EncryptMethod.ECIES
+        )
+        dockerRegistryAuthForPull = JSON.parse(decryptedDockerRegistryAuth.toString())
+      } else {
+        dockerRegistryAuthForPull = this.getDockerRegistryAuth(registry)
+      }
+
+      const pullOptions: any = { abortSignal: controller.signal }
+      if (dockerRegistryAuthForPull) {
+        const registryUrl = new URL(registry)
+        const serveraddress =
+          registryUrl.hostname + (registryUrl.port ? `:${registryUrl.port}` : '')
+        const authString = dockerRegistryAuthForPull.auth
+          ? dockerRegistryAuthForPull.auth
+          : Buffer.from(
+              `${dockerRegistryAuthForPull.username}:${dockerRegistryAuthForPull.password}`
+            ).toString('base64')
+        pullOptions.authconfig = {
+          serveraddress,
+          ...(dockerRegistryAuthForPull.auth
+            ? { auth: authString }
+            : {
+                username: dockerRegistryAuthForPull.username,
+                password: dockerRegistryAuthForPull.password
+              })
+        }
+      }
+
+      const pullStream = await this.docker.pull(imageRef, pullOptions)
+      await new Promise<void>((resolve, reject) => {
+        this.docker.modem.followProgress(
+          pullStream,
+          (err: any) => {
+            if (err) {
+              if (logFile) appendFileSync(logFile, String(err.message))
+              return reject(err)
+            }
+            resolve()
+          },
+          (progress: any) => {
+            if (logFile) appendFileSync(logFile, (progress.status ?? '') + '\n')
+          }
+        )
+      })
+      this.updateImageUsage(imageRef).catch((e) => {
+        CORE_LOGGER.debug(`Failed to track image usage: ${e.message}`)
+      })
+
+      // Image scanning — same Trivy check used by the compute path.
+      if (this.scanImages) {
+        const scanResult = await this.checkImageVulnerability(imageRef)
+        if (scanResult.vulnerable) {
+          await this.docker
+            .getImage(imageRef)
+            .remove({ force: true })
+            .catch(() => {})
+          throw new Error(
+            `Image "${imageRef}" failed security scan: ${JSON.stringify(scanResult.summary)}`
+          )
+        }
+      }
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  // Builds an image from a plain Dockerfile string with the same build mechanics as
+  // buildImage(). Service code MUST go through this — never docker.buildImage() raw.
+  private async buildImageFromSpec(
+    imageRef: string,
+    dockerfile: string,
+    additionalDockerFiles: Record<string, string>,
+    maxDurationSeconds: number,
+    memoryGB?: number,
+    cpuCount?: number
+  ): Promise<void> {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), maxDurationSeconds * 1000)
+    try {
+      const pack = tarStream.pack()
+      pack.entry({ name: 'Dockerfile' }, dockerfile)
+      for (const [name, content] of Object.entries(additionalDockerFiles))
+        pack.entry({ name }, content)
+      pack.finalize()
+
+      const buildOptions: Dockerode.ImageBuildOptions = {
+        t: imageRef,
+        nocache: true,
+        abortSignal: controller.signal
+      }
+      if (memoryGB) {
+        buildOptions.memory = memoryGB * 1024 ** 3
+        buildOptions.memswap = memoryGB * 1024 ** 3
+      }
+      if (cpuCount) {
+        buildOptions.cpuquota = cpuCount * 100000
+        buildOptions.cpuperiod = 100000
+      }
+
+      const buildStream = (await this.docker.buildImage(pack, buildOptions)) as Readable
+      await new Promise<void>((resolve, reject) => {
+        this.docker.modem.followProgress(buildStream, (err: any) =>
+          err ? reject(err) : resolve()
+        )
+      })
+      // Verify image exists after build
+      await this.docker.getImage(imageRef).inspect()
+
+      // Image scanning — same Trivy gate used by pullImageRef(). A built image must clear
+      // it too; on failure remove the built image so it cannot be used to start a service.
+      if (this.scanImages) {
+        const scanResult = await this.checkImageVulnerability(imageRef)
+        if (scanResult.vulnerable) {
+          await this.docker
+            .getImage(imageRef)
+            .remove({ force: true })
+            .catch(() => {})
+          throw new Error(
+            `Image "${imageRef}" failed security scan: ${JSON.stringify(scanResult.summary)}`
+          )
+        }
+      }
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  // Builds Docker HostConfig resource constraints (memory, cpu, GPU device requests)
+  // from a service resource request, resolved against the connection-level resource pool.
+  private buildServiceResourceConstraints(
+    resources: ComputeResourceRequest[],
+    serviceId: string,
+    environment: string
+  ): {
+    Memory?: number
+    NanoCpus?: number
+    DeviceRequests?: any[]
+    CpusetCpus?: string
+  } {
+    const connResources: ComputeResource[] =
+      this.getC2DConfig().connection?.resources ?? []
+    const ram = resources.find((r) => r.id === 'ram')?.amount
+    const cpu = resources.find((r) => r.id === 'cpu')?.amount
+    const deviceRequests = this.getDockerDeviceRequest(resources, connResources) ?? []
+    const cpusetStr =
+      cpu && cpu > 0 ? this.allocateCpus(serviceId, cpu, environment) : null
+    return {
+      Memory: ram ? ram * 1024 ** 3 : undefined,
+      NanoCpus: cpu ? cpu * 1e9 : undefined,
+      DeviceRequests: deviceRequests.length ? deviceRequests : undefined,
+      CpusetCpus: cpusetStr ?? undefined
+    }
+  }
+
+  // Handler-facing: persist the initial Starting record and return immediately so the HTTP
+  // response carries the serviceId without waiting for escrow/image/container. The background
+  // loop then calls processServiceStart() to advance it. Persisting Starting also reserves the
+  // service's resources (getRunningServiceJobs counts Starting), preventing oversubscription.
+  public override async createServiceJob(
+    environment: string,
+    image: string,
+    tag: string | undefined,
+    checksum: string | undefined,
+    dockerfile: string | undefined,
+    additionalDockerFiles: Record<string, string> | undefined,
+    dockerCmd: string[] | undefined,
+    dockerEntrypoint: string[] | undefined,
+    exposedPorts: number[],
+    resources: ComputeResourceRequest[],
+    duration: number,
+    owner: string,
+    payment: DBComputeJobPayment,
+    serviceId: string,
+    userData?: string
+  ): Promise<ServiceJob | null> {
+    const containerImage = resolveServiceImage(
+      image,
+      tag,
+      checksum,
+      dockerfile,
+      serviceId
+    )
+    const job: ServiceJob = {
+      serviceId,
+      clusterHash: this.getC2DConfig().hash,
+      environment,
+      owner,
+      image,
+      tag,
+      checksum,
+      dockerfile,
+      additionalDockerFiles,
+      dockerCmd,
+      dockerEntrypoint,
+      containerImage,
+      containerId: '',
+      networkId: '',
+      status: ServiceStatusNumber.Starting,
+      statusText: ServiceStatusText[ServiceStatusNumber.Starting],
+      dateCreated: new Date().toISOString(),
+      expiresAt: Date.now() + duration * 1000,
+      duration,
+      exposedPorts,
+      endpoints: [],
+      userData, // stored as received (ECIES-encrypted); decrypted transiently at container start
+      resources: resources.map((r) => ({ id: r.id, amount: r.amount })),
+      payment
+    }
+    await this.db.newServiceJob(job)
+    return job
+  }
+
+  // Background pipeline (driven by InternalLoop): Starting → Locking → (Pull|Build)Image →
+  // Claiming → Running. Escrow is reordered vs. the old sync flow: createLock first, claimLock
+  // only AFTER the image succeeds, cancelLock (refund) if the image step fails. Never throws —
+  // every terminal outcome is persisted as the job status so clients see it via serviceStatus.
+  public override async processServiceStart(job: ServiceJob): Promise<void> {
+    const { serviceId } = job
+    const { chainId, token } = job.payment
+
+    // Orphan recovery: a previous process died mid-start (after a restart the in-memory loop
+    // guard is empty, so an intermediate-state record reaches here). Refund any unclaimed lock,
+    // tear down partial docker, release ports, and mark Error — never resume on-chain ops.
+    if (job.status !== ServiceStatusNumber.Starting) {
+      CORE_LOGGER.error(
+        `processServiceStart: orphaned service ${serviceId} in state "${job.statusText}" — cleaning up`
+      )
+      if (job.payment.lockTx && !job.payment.claimTx && !job.payment.cancelTx) {
+        job.payment.cancelTx = await this.safeCancelLock(
+          chainId,
+          serviceId,
+          token,
+          job.owner
+        )
+      }
+      if (job.containerId)
+        await this.cleanupServiceDocker(
+          this.docker.getContainer(job.containerId),
+          null,
+          serviceId
+        )
+      if (job.networkId)
+        await this.docker
+          .getNetwork(job.networkId)
+          .remove()
+          .catch(() => {})
+      for (const ep of job.endpoints) releaseHostPort(ep.hostPort)
+      job.status = ServiceStatusNumber.Error
+      job.statusText = 'Service start aborted (node restarted mid-start)'
+      await this.db.updateServiceJob(job)
+      return
+    }
+
+    const sod = this.getC2DConfig().connection?.serviceOnDemand
+    // Live docker handles, tracked so the catch can tear down a half-created service.
+    let network: Dockerode.Network | null = null
+    let container: Dockerode.Container | null = null
+    try {
+      // 1. LOCKING — lock the consumer's funds in escrow (refundable until claimed).
+      job.status = ServiceStatusNumber.Locking
+      job.statusText = ServiceStatusText[ServiceStatusNumber.Locking]
+      await this.db.updateServiceJob(job)
+      const lockTx = await this.escrow.createLock(
+        chainId,
+        serviceId,
+        token,
+        job.owner,
+        job.payment.cost,
+        this.escrow.getMinLockTime(job.duration)
+      )
+      if (!lockTx) throw new Error('Escrow lock failed')
+      await this.escrow.waitForTransaction(chainId, lockTx)
+      job.payment.lockTx = lockTx
+      await this.db.updateServiceJob(job)
+
+      // 2. IMAGE — pull or build the image (vulnerability scan runs inside these helpers).
+      let imageError: Error | null = null
+      try {
+        if (job.dockerfile) {
+          if (!sod?.allowImageBuild)
+            throw new Error(
+              'Dockerfile-based services are not allowed on this environment (allowImageBuild=false)'
+            )
+          job.status = ServiceStatusNumber.BuildImage
+          job.statusText = ServiceStatusText[ServiceStatusNumber.BuildImage]
+          await this.db.updateServiceJob(job)
+          const ram = job.resources.find((r) => r.id === 'ram')?.amount
+          const cpu = job.resources.find((r) => r.id === 'cpu')?.amount
+          await this.buildImageFromSpec(
+            job.containerImage,
+            job.dockerfile,
+            job.additionalDockerFiles ?? {},
+            sod?.maxDurationSeconds ?? job.duration,
+            ram,
+            cpu
+          )
+        } else {
+          job.status = ServiceStatusNumber.PullImage
+          job.statusText = ServiceStatusText[ServiceStatusNumber.PullImage]
+          await this.db.updateServiceJob(job)
+          await this.pullImageRef(job.containerImage)
+        }
+      } catch (e: any) {
+        imageError = e
+      }
+
+      // 3. PAYMENT — claim the lock on success, or cancel it (refund the consumer) if the
+      //    image step failed.
+      job.status = ServiceStatusNumber.Claiming
+      job.statusText = ServiceStatusText[ServiceStatusNumber.Claiming]
+      await this.db.updateServiceJob(job)
+
+      if (imageError) {
+        job.payment.cancelTx = await this.safeCancelLock(
+          chainId,
+          serviceId,
+          token,
+          job.owner
+        )
+        job.status = job.dockerfile
+          ? ServiceStatusNumber.BuildImageFailed
+          : ServiceStatusNumber.PullImageFailed
+        job.statusText = String(imageError.message)
+        await this.db.updateServiceJob(job)
+        CORE_LOGGER.error(
+          `startService ${serviceId} image step failed (lock refunded): ${imageError.message}`
+        )
+        return
+      }
+
+      const claimTx = await this.escrow.claimLock(
+        chainId,
+        serviceId,
+        token,
+        job.owner,
+        job.payment.cost,
+        `service-start:${serviceId}`
+      )
+      if (!claimTx) {
+        job.payment.cancelTx = await this.safeCancelLock(
+          chainId,
+          serviceId,
+          token,
+          job.owner
+        )
+        throw new Error('Escrow claim failed — lock cancelled')
+      }
+      job.payment.claimTx = claimTx
+      await this.db.updateServiceJob(job)
+
+      // 4. CONTINUE — allocate host ports → network → create + start container → Running.
+      // Sequential allocation with rollback (job.endpoints isn't populated yet, so a mid-way
+      // failure would otherwise strand reserved ports in the in-memory allocatedPorts set).
+      const [rangeStart, rangeEnd] = sod?.hostPortRange ?? [30000, 32767]
+      const hostPorts: number[] = []
+      try {
+        for (let i = 0; i < job.exposedPorts.length; i++) {
+          // eslint-disable-next-line no-await-in-loop
+          hostPorts.push(await allocateHostPort(rangeStart, rangeEnd))
+        }
+      } catch (e) {
+        for (const port of hostPorts) releaseHostPort(port)
+        throw e
+      }
+
+      const nodeHost = sod?.nodeHost ?? 'localhost'
+      job.endpoints = job.exposedPorts.map((cp, i) => ({
+        containerPort: cp,
+        hostPort: hostPorts[i],
+        url: `http://${nodeHost}:${hostPorts[i]}`
+      }))
+
+      network = await this.docker.createNetwork({ Name: `ocean-svc-${serviceId}` })
+
+      // Container env from the decrypted (in-memory) userData; command/entrypoint from the request.
+      const decryptedUserData = await decryptUserData(job.userData, this.keyManager)
+      const env = userDataToEnv(decryptedUserData)
+      const cmd = job.dockerCmd?.length ? job.dockerCmd : undefined
+      const entrypoint = job.dockerEntrypoint?.length ? job.dockerEntrypoint : undefined
+
+      const PortBindings: Record<string, Array<{ HostPort: string }>> = {}
+      const ExposedPorts: Record<string, Record<string, never>> = {}
+      job.exposedPorts.forEach((cp, i) => {
+        PortBindings[`${cp}/tcp`] = [{ HostPort: String(hostPorts[i]) }]
+        ExposedPorts[`${cp}/tcp`] = {}
+      })
+
+      const { Memory, NanoCpus, DeviceRequests, CpusetCpus } =
+        this.buildServiceResourceConstraints(
+          job.resources.map((r) => ({ id: r.id, amount: r.amount })),
+          job.serviceId,
+          job.environment
+        )
+
+      container = await this.docker.createContainer({
+        Image: job.containerImage,
+        Cmd: cmd,
+        Entrypoint: entrypoint,
+        Env: Object.entries(env).map(([k, v]) => `${k}=${v}`),
+        ExposedPorts,
+        HostConfig: {
+          Memory,
+          NanoCpus,
+          DeviceRequests,
+          CpusetCpus,
+          PortBindings,
+          NetworkMode: network.id,
+          SecurityOpt: ['no-new-privileges'], // security plan #5
+          CapDrop: ['ALL'],
+          PidsLimit: 512
+        }
+      })
+      await container.start()
+
+      job.containerId = container.id
+      job.networkId = network.id
+      job.status = ServiceStatusNumber.Running
+      job.statusText = ServiceStatusText[ServiceStatusNumber.Running]
+      await this.db.updateServiceJob(job)
+    } catch (err: any) {
+      await this.cleanupServiceDocker(container, network, serviceId)
+      for (const ep of job.endpoints) releaseHostPort(ep.hostPort)
+      // Refund if funds were locked but never claimed (e.g. container creation failed).
+      if (job.payment.lockTx && !job.payment.claimTx && !job.payment.cancelTx) {
+        job.payment.cancelTx = await this.safeCancelLock(
+          chainId,
+          serviceId,
+          token,
+          job.owner
+        )
+      }
+      job.status = ServiceStatusNumber.Error
+      job.statusText = String(err.message)
+      await this.db.updateServiceJob(job)
+      CORE_LOGGER.error(`startService ${serviceId} failed: ${err.message}`)
+    }
+  }
+
+  // Best-effort escrow refund used by the start pipeline's failure paths. Returns the cancel
+  // tx hash, or '' if there was nothing to cancel / the cancel itself failed (never throws).
+  private async safeCancelLock(
+    chainId: number,
+    serviceId: string,
+    token: string,
+    owner: string
+  ): Promise<string> {
+    try {
+      return (await this.escrow.cancelExpiredLock(chainId, serviceId, token, owner)) ?? ''
+    } catch (e: any) {
+      CORE_LOGGER.error(`cancelExpiredLock failed for ${serviceId}: ${e.message}`)
+      return ''
+    }
+  }
+
+  // Best-effort teardown of a half-created service container + network. Used by the
+  // startService / restartService failure paths to avoid leaking Docker networks
+  // (which would exhaust the daemon's IPAM CIDR pool over repeated failures).
+  private async cleanupServiceDocker(
+    container: Dockerode.Container | null,
+    network: Dockerode.Network | null,
+    serviceId: string
+  ): Promise<void> {
+    this.releaseCpus(serviceId)
+    if (container) {
+      await container.stop({ t: 5 }).catch(() => {})
+      await container.remove({ force: true }).catch(() => {})
+    }
+    if (network) {
+      await network.remove().catch(() => {})
+    }
+  }
+
+  // Checked every InternalLoop tick (same cadence as compute jobs) so a service whose
+  // container died on its own (crash, OOM, or the whole Docker daemon going down) is
+  // detected within ~cronTime instead of only at expiresAt.
+  private async checkRunningServices(): Promise<void> {
+    const services = await this.db.getRunningServiceJobs(this.getC2DConfig().hash)
+    const runningOnly = services.filter(
+      (svc) => svc.status === ServiceStatusNumber.Running
+    )
+    await Promise.all(runningOnly.map((svc) => this.checkServiceContainerHealth(svc)))
+  }
+
+  private async checkServiceContainerHealth(job: ServiceJob): Promise<void> {
+    let details
+    try {
+      const container = this.docker.getContainer(job.containerId)
+      details = await container.inspect()
+    } catch (e: any) {
+      await this.markServiceFailed(job, `container lost: ${e.message}`)
+      return
+    }
+    if (details.State.Running === false) {
+      const reason = details.State.OOMKilled
+        ? 'OOM killed'
+        : details.State.Error
+          ? `error: ${details.State.Error}`
+          : `exited with code ${details.State.ExitCode}`
+      await this.markServiceFailed(job, reason)
+    }
+  }
+
+  // Flips a service to Error after its container died unexpectedly. Deliberately does not
+  // touch Docker or release host ports/network — the consumer already paid for those and
+  // restartService() reuses them (and does its own best-effort teardown of the dead
+  // container/network first).
+  private async markServiceFailed(job: ServiceJob, reason: string): Promise<void> {
+    const [fresh] = await this.db.getServiceJob(job.serviceId, job.owner)
+    if (!fresh || fresh.status !== ServiceStatusNumber.Running) {
+      // already moved on (stopped/restarted/expired) by another path — don't clobber it
+      return
+    }
+    fresh.status = ServiceStatusNumber.Error
+    fresh.statusText = `service container exited unexpectedly: ${reason}`
+    await this.db.updateServiceJob(fresh)
+    CORE_LOGGER.error(`Service ${job.serviceId} container died — ${reason}`)
+  }
+
+  public override async stopService(
+    serviceId: string,
+    owner: string
+  ): Promise<ServiceJob | null> {
+    const [job] = await this.db.getServiceJob(serviceId, owner)
+    if (!job) return null
+    if (
+      job.status === ServiceStatusNumber.Stopped ||
+      job.status === ServiceStatusNumber.Expired
+    )
+      return job
+
+    job.status = ServiceStatusNumber.Stopping
+    job.statusText = ServiceStatusText[ServiceStatusNumber.Stopping]
+    await this.db.updateServiceJob(job)
+    this.releaseCpus(serviceId)
+
+    // "Already gone" Docker errors (404 missing, 304 already stopped) are the desired end
+    // state, so treat them as success. Any other error means teardown genuinely failed —
+    // record it and keep the job OUT of Stopped so the persisted state stays accurate.
+    const isBenignDockerError = (e: any) => e?.statusCode === 404 || e?.statusCode === 304
+    let cleanupError: Error | null = null
+    try {
+      if (job.containerId) {
+        const c = this.docker.getContainer(job.containerId)
+        await c.stop({ t: 10 }).catch((e) => {
+          if (!isBenignDockerError(e)) throw e
+        })
+        await c.remove({ force: true }).catch((e) => {
+          if (!isBenignDockerError(e)) throw e
+        })
+      }
+      if (job.networkId) {
+        await this.docker
+          .getNetwork(job.networkId)
+          .remove()
+          .catch((e) => {
+            if (!isBenignDockerError(e)) throw e
+          })
+      }
+      // Only release the reserved host ports once the container is confirmed gone — a
+      // port still bound by a not-removed container must not be handed to another service.
+      for (const ep of job.endpoints) releaseHostPort(ep.hostPort)
+    } catch (err: any) {
+      cleanupError = err
+      CORE_LOGGER.error(`stopService ${serviceId} cleanup error: ${err.message}`)
+    }
+
+    if (cleanupError) {
+      job.status = ServiceStatusNumber.Error
+      job.statusText = `stop failed: ${cleanupError.message}`
+    } else {
+      job.status = ServiceStatusNumber.Stopped
+      job.statusText = ServiceStatusText[ServiceStatusNumber.Stopped]
+    }
+    await this.db.updateServiceJob(job)
+    return job
+  }
+
+  public override async restartService(
+    serviceId: string,
+    owner: string,
+    newUserData?: string,
+    newDockerCmd?: string[],
+    newDockerEntrypoint?: string[]
+  ): Promise<ServiceJob | null> {
+    const [job] = await this.db.getServiceJob(serviceId, owner)
+    if (!job) return null
+    // Reject on the expiry timestamp too, not just the status: the expiry cron flips the
+    // status asynchronously, so a service can be past its paid window before it reads Expired.
+    // Restarting then would silently extend the service beyond what was paid for.
+    if (job.status === ServiceStatusNumber.Expired || Date.now() >= job.expiresAt)
+      throw new Error('Cannot restart an expired service')
+
+    // 1. Tear down existing container + network (best-effort)
+    if (job.containerId) {
+      const c = this.docker.getContainer(job.containerId)
+      await c.stop({ t: 10 }).catch(() => {})
+      await c.remove({ force: true }).catch(() => {})
+    }
+    if (job.networkId) {
+      await this.docker
+        .getNetwork(job.networkId)
+        .remove()
+        .catch(() => {})
+    }
+
+    job.status = ServiceStatusNumber.Starting
+    job.statusText = ServiceStatusText[ServiceStatusNumber.Starting]
+    job.containerId = ''
+    job.networkId = ''
+    await this.db.updateServiceJob(job)
+
+    // Live Docker handles for the newly-created container/network, tracked so the
+    // catch block can tear them down on failure (otherwise the network leaks).
+    let network: Dockerode.Network | null = null
+    let container: Dockerode.Container | null = null
+    try {
+      const sod = this.getC2DConfig().connection?.serviceOnDemand
+
+      // 2. Pull or rebuild image based on how the service was originally started
+      //    (the original Dockerfile + build files are stored on the job).
+      if (job.dockerfile) {
+        job.status = ServiceStatusNumber.BuildImage
+        job.statusText = ServiceStatusText[ServiceStatusNumber.BuildImage]
+        await this.db.updateServiceJob(job)
+        const ram = job.resources.find((r) => r.id === 'ram')?.amount
+        const cpu = job.resources.find((r) => r.id === 'cpu')?.amount
+        await this.buildImageFromSpec(
+          job.containerImage,
+          job.dockerfile,
+          job.additionalDockerFiles ?? {},
+          sod?.maxDurationSeconds ?? job.duration,
+          ram,
+          cpu
+        )
+      } else {
+        job.status = ServiceStatusNumber.PullImage
+        job.statusText = ServiceStatusText[ServiceStatusNumber.PullImage]
+        await this.db.updateServiceJob(job)
+        await this.pullImageRef(job.containerImage)
+      }
+
+      // 3. Effective overrides: each REPLACES the stored value when supplied (even with an
+      // empty value), and falls back to the stored one when omitted (undefined).
+      const effectiveUserData = newUserData ?? job.userData
+      const effectiveDockerCmd = newDockerCmd !== undefined ? newDockerCmd : job.dockerCmd
+      const effectiveDockerEntrypoint =
+        newDockerEntrypoint !== undefined ? newDockerEntrypoint : job.dockerEntrypoint
+      const decryptedUserData = await decryptUserData(effectiveUserData, this.keyManager)
+
+      // 4. Rebuild env (from userData) + command/entrypoint
+      const env = userDataToEnv(decryptedUserData)
+      const cmd = effectiveDockerCmd?.length ? effectiveDockerCmd : undefined
+      const entrypoint = effectiveDockerEntrypoint?.length
+        ? effectiveDockerEntrypoint
+        : undefined
+
+      // 5. Rebuild port bindings — reuse already-allocated host ports
+      const PortBindings: Record<string, Array<{ HostPort: string }>> = {}
+      const ExposedPorts: Record<string, Record<string, never>> = {}
+      job.endpoints.forEach((ep) => {
+        PortBindings[`${ep.containerPort}/tcp`] = [{ HostPort: String(ep.hostPort) }]
+        ExposedPorts[`${ep.containerPort}/tcp`] = {}
+      })
+
+      // 6. New per-service network
+      network = await this.docker.createNetwork({ Name: `ocean-svc-${serviceId}` })
+
+      // 7. Resource constraints
+      const { Memory, NanoCpus, DeviceRequests, CpusetCpus } =
+        this.buildServiceResourceConstraints(
+          job.resources.map((r) => ({ id: r.id, amount: r.amount })),
+          serviceId,
+          job.environment
+        )
+
+      // 8. Create and start new container
+      container = await this.docker.createContainer({
+        Image: job.containerImage,
+        Cmd: cmd,
+        Entrypoint: entrypoint,
+        Env: Object.entries(env).map(([k, v]) => `${k}=${v}`),
+        ExposedPorts,
+        HostConfig: {
+          Memory,
+          NanoCpus,
+          DeviceRequests,
+          CpusetCpus,
+          PortBindings,
+          NetworkMode: network.id,
+          SecurityOpt: ['no-new-privileges'],
+          CapDrop: ['ALL'],
+          PidsLimit: 512
+        }
+      })
+      await container.start()
+
+      // 9. Update record — same expiresAt, same payment, new container/network.
+      job.containerId = container.id
+      job.networkId = network.id
+      job.userData = effectiveUserData
+      job.dockerCmd = effectiveDockerCmd
+      job.dockerEntrypoint = effectiveDockerEntrypoint
+      job.status = ServiceStatusNumber.Running
+      job.statusText = ServiceStatusText[ServiceStatusNumber.Running]
+      await this.db.updateServiceJob(job)
+      return job
+    } catch (err: any) {
+      await this.cleanupServiceDocker(container, network, serviceId)
+      job.status = ServiceStatusNumber.Error
+      job.statusText = String(err.message)
+      await this.db.updateServiceJob(job)
+      CORE_LOGGER.error(`restartService ${serviceId} failed: ${err.message}`)
+      throw err
+    }
+  }
+
+  public override async getServiceStatus(
+    consumerAddress?: string,
+    serviceId?: string
+  ): Promise<ServiceJob[]> {
+    const jobs = await this.db.getServiceJob(serviceId, consumerAddress)
+    return jobs.filter((j) => j.clusterHash === this.getC2DConfig().hash)
+  }
+
+  public override async getServiceStreamableLogs(
+    serviceId: string,
+    owner: string,
+    since?: number
+  ): Promise<NodeJS.ReadableStream | null> {
+    const [job] = await this.db.getServiceJob(serviceId, owner)
+    if (!job) return null
+    if (
+      job.status !== ServiceStatusNumber.Running &&
+      job.status !== ServiceStatusNumber.Error
+    ) {
+      return null
+    }
+    try {
+      const container = this.docker.getContainer(job.containerId)
+      await container.inspect() // throws if the container no longer exists
+      return (await container.logs({
+        stdout: true,
+        stderr: true,
+        follow: true,
+        ...(since !== undefined ? { since } : {})
+      })) as unknown as NodeJS.ReadableStream
+    } catch (e: any) {
+      CORE_LOGGER.error(
+        `getServiceStreamableLogs failed for ${serviceId}: ${e?.message ?? e}`
+      )
+      return null
     }
   }
 

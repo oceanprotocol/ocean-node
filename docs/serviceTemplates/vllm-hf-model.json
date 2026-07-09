@@ -1,0 +1,44 @@
+{
+  "id": "vllm-hf-model",
+  "name": "vLLM — any Hugging Face model (MODEL_ID)",
+  "description": "Local OpenAI-compatible LLM inference server (vLLM) that serves a Hugging Face model of the consumer's choice. The model id is supplied via MODEL_ID and substituted into the launch command (${MODEL_ID}); on startup vLLM downloads that model from the Hugging Face Hub, then serves it on port 8000 (e.g. POST /v1/chat/completions). Provide HF_TOKEN for gated/private models. Requires a CUDA GPU sized to the chosen model.",
+  "image": "vllm/vllm-openai",
+  "tag": "latest",
+  "exposedPorts": [8000],
+  "command": [
+    "--model",
+    "${MODEL_ID}",
+    "--host",
+    "0.0.0.0",
+    "--port",
+    "8000",
+    "--max-model-len",
+    "8192",
+    "--gpu-memory-utilization",
+    "0.9"
+  ],
+  "userConfigurableEnvVars": [
+    {
+      "key": "MODEL_ID",
+      "validation": "^[A-Za-z0-9][\\w.-]*(/[A-Za-z0-9][\\w.-]*)?$"
+    },
+    {
+      "key": "HF_TOKEN",
+      "validation": "^hf_[A-Za-z0-9]{20,}$",
+      "sensitive": true
+    }
+  ],
+  "requiredResources": [
+    { "id": "cpu", "min": 2, "recommended": 4, "unit": "cores" },
+    { "id": "ram", "min": 8, "recommended": 16, "unit": "GB" },
+    { "id": "disk", "min": 20, "recommended": 50, "unit": "GB" },
+    {
+      "kind": "discrete",
+      "type": "gpu",
+      "min": 1,
+      "recommended": 1,
+      "unit": "count",
+      "description": "CUDA-capable GPU; size VRAM to the chosen MODEL_ID"
+    }
+  ]
+}

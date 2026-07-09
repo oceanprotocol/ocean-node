@@ -1,6 +1,14 @@
 import { MetadataAlgorithm, ConsumerParameter } from '@oceanprotocol/ddo-js'
 import type { BaseFileObject, StorageObject, EncryptMethod } from '../fileObject.js'
 import type { AccessList } from '../AccessList.js'
+import type { ServiceOnDemandConfig } from './ServiceOnDemand.js'
+
+// Per-environment capability flags. Both default to true at config-parse and
+// at runtime construction; only an explicit false disables a capability.
+export interface ComputeEnvFeatures {
+  computeJobs: boolean // false → COMPUTE_START + FREE_COMPUTE_START rejected
+  services: boolean // false → SERVICE_START rejected; env hidden from service matching
+}
 export enum C2DClusterType {
   // eslint-disable-next-line no-unused-vars
   OPF_K8 = 0,
@@ -147,6 +155,7 @@ export interface ComputeEnvironmentBaseConfig {
   free?: ComputeEnvironmentFreeOptions
   platform: RunningPlatform
   enableNetwork?: boolean // whether network is enabled for algorithm containers
+  features?: ComputeEnvFeatures // always populated at runtime construction; gates compute/service starts
 }
 
 export interface ComputeRuntimes {
@@ -180,6 +189,7 @@ export interface C2DEnvironmentConfig {
   free?: C2DEnvironmentFreeConfig // config-time only; resolved to ComputeEnvironmentFreeOptions at startup
   resources?: EnvironmentResourceRef[] // lightweight refs to connection pool
   enableNetwork?: boolean // whether network is enabled for algorithm containers
+  features?: ComputeEnvFeatures // config-time, optional
 }
 
 export interface C2DDockerConfig {
@@ -197,6 +207,7 @@ export interface C2DDockerConfig {
   scanImageDBUpdateInterval?: number // Default: 12 hours
   resources?: ComputeResource[] // optional: cpu/ram/disk auto-detected; include for GPUs/NICs or to cap auto-detected totals
   environments: C2DEnvironmentConfig[]
+  serviceOnDemand?: ServiceOnDemandConfig // per-daemon Service-on-Demand operational config
 }
 
 export type ComputeResultType =

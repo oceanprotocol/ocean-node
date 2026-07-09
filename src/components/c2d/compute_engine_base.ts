@@ -16,6 +16,7 @@ import type {
   DBComputeJobMetadata,
   ComputeEnvFees
 } from '../../@types/C2D/C2D.js'
+import type { ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
@@ -76,6 +77,69 @@ export abstract class C2DEngine {
 
   // overwritten by classes for cleanup
   public stop(): Promise<void> {
+    return null
+  }
+
+  // ── Service on Demand (Docker-only for Stage 1; concrete no-ops here) ──
+  // Persists the initial Starting record and returns immediately. The heavy lifting
+  // (escrow lock/claim, image pull/build, container start) is done asynchronously by
+  // processServiceStart(), driven by the engine's background loop.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  public async createServiceJob(
+    environment: string,
+    image: string,
+    tag: string | undefined,
+    checksum: string | undefined,
+    dockerfile: string | undefined,
+    additionalDockerFiles: Record<string, string> | undefined,
+    dockerCmd: string[] | undefined,
+    dockerEntrypoint: string[] | undefined,
+    exposedPorts: number[],
+    resources: ComputeResourceRequest[],
+    duration: number,
+    owner: string,
+    payment: DBComputeJobPayment,
+    serviceId: string,
+    userData?: string // ECIES-encrypted; the engine decrypts it transiently into the container env
+  ): Promise<ServiceJob | null> {
+    return null
+  }
+
+  // Background pipeline that advances a Starting service job through locking → image →
+  // payment → container → Running. Never throws (terminal failures are persisted as status).
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  public async processServiceStart(job: ServiceJob): Promise<void> {}
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  public async stopService(serviceId: string, owner: string): Promise<ServiceJob | null> {
+    return null
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  public async restartService(
+    serviceId: string,
+    owner: string,
+    newUserData?: string,
+    newDockerCmd?: string[],
+    newDockerEntrypoint?: string[]
+  ): Promise<ServiceJob | null> {
+    return null
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  public async getServiceStatus(
+    consumerAddress?: string,
+    serviceId?: string
+  ): Promise<ServiceJob[]> {
+    return []
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  public async getServiceStreamableLogs(
+    serviceId: string,
+    owner: string,
+    since?: number
+  ): Promise<NodeJS.ReadableStream | null> {
     return null
   }
 
@@ -376,6 +440,32 @@ export abstract class C2DEngine {
             }
           }
         }
+      }
+    }
+
+    // Fold in on-demand services: they share the same physical resource pool as
+    // compute jobs, so a running service must occupy resources too. Services are
+    // always paid (no free tier) and always "running" while in the DB's running set,
+    // so we only tally their resources — job-slot/queue metrics stay compute-only.
+    // Do NOT swallow this failure: getUsedResources feeds the strict resource-availability
+    // gate (checkIfResourcesAreAvailable). Under-counting running services would let the
+    // engine overcommit shared GPU/CPU/RAM. Let it propagate so the allocation path defers
+    // the job (the caller already wraps getComputeEnvironments in try/catch) rather than
+    // proceeding with missing service data.
+    const serviceJobs: ServiceJob[] = await this.db.getRunningServiceJobs(
+      this.getC2DConfig().hash
+    )
+    for (const svc of serviceJobs) {
+      const isThisEnv = svc.environment === env.id
+      for (const resource of svc.resources) {
+        const envRes = envResourceMap.get(resource.id)
+        if (!envRes) continue
+        // discrete resources (GPUs, FPGAs, NICs) tracked globally across all envs;
+        // fungible resources (cpu, ram, disk) are per-env exclusive.
+        const isGloballyTracked = envRes.kind === 'discrete'
+        if (!isGloballyTracked && !isThisEnv) continue
+        if (!(resource.id in usedResources)) usedResources[resource.id] = 0
+        usedResources[resource.id] += resource.amount
       }
     }
     return {

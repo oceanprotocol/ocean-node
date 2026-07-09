@@ -398,3 +398,73 @@ export interface PersistentStorageDeleteFileCommand extends Command {
   bucketId: string
   fileName: string
 }
+
+// ── Service On Demand ─────────────────────────────────────────────────
+
+export interface ServiceGetTemplatesCommand extends Command {
+  chainId?: number
+}
+
+export interface ServiceStartCommand extends Command {
+  consumerAddress: string
+  nonce: string
+  signature: string
+  environment: string // required: the envId to run the service on (from GET_COMPUTE_ENVIRONMENTS)
+  // Image spec — exactly one of tag/checksum/dockerfile. `image` is always required.
+  image: string // base image name (or build label when dockerfile is set)
+  tag?: string // pull by name:tag
+  checksum?: string // pull by digest: "sha256:<64 hex>"
+  dockerfile?: string // build from inline Dockerfile; requires allowImageBuild on the env
+  additionalDockerFiles?: Record<string, string> // extra files in the build context
+  dockerCmd?: string[] // exact container command (Docker exec-form CMD override; no shell)
+  dockerEntrypoint?: string[] // container ENTRYPOINT override
+  exposedPorts?: number[] // container ports to forward
+  resources?: ComputeResourceRequest[]
+  duration: number // seconds; capped by serviceOnDemand.maxDurationSeconds
+  userData?: string // ECIES-encrypted (to the node's public key) JSON object → the container's env-var map
+  payment: { chainId: number; token: string }
+}
+
+export interface ServiceStopCommand extends Command {
+  consumerAddress: string
+  nonce: string
+  signature: string
+  serviceId: string
+}
+
+export interface ServiceGetStreamableLogsCommand extends Command {
+  consumerAddress: string
+  nonce: string
+  signature: string
+  serviceId: string
+  // Optional lower time bound for the returned logs: either a Unix timestamp in seconds
+  // (e.g. "1735689600"), or a relative duration counted back from now (e.g. "30s", "45m",
+  // "2h", "7d"). Omit to get the full history since container start, then follow live.
+  since?: string
+}
+
+export interface ServiceGetStatusCommand extends Command {
+  consumerAddress: string
+  nonce: string
+  signature: string
+  serviceId?: string
+}
+
+export interface ServiceRestartCommand extends Command {
+  consumerAddress: string
+  nonce: string
+  signature: string
+  serviceId: string
+  userData?: string // optional ECIES-encrypted userData. If provided it REPLACES the stored userData (send the complete set). If omitted, the stored userData is reused — no re-supply needed.
+  dockerCmd?: string[] // optional. If provided (even []) it REPLACES the stored CMD override. If omitted, the stored dockerCmd is reused.
+  dockerEntrypoint?: string[] // optional. If provided (even []) it REPLACES the stored ENTRYPOINT override. If omitted, the stored dockerEntrypoint is reused.
+}
+
+export interface ServiceExtendCommand extends Command {
+  consumerAddress: string
+  nonce: string
+  signature: string
+  serviceId: string
+  additionalDuration: number
+  payment: { chainId: number; token: string }
+}

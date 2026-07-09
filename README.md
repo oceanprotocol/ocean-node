@@ -156,3 +156,4 @@ Your node is now running. To start additional nodes, repeat these steps in a new
 - [Docker Deployment Guide](docs/dockerDeployment.md)
 - [C2D GPU Guide](docs/GPU.md)
 - [Compute pricing](docs/compute-pricing.md)
+- [Services (Service-on-Demand)](docs/services.md)
