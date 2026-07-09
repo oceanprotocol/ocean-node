@@ -60,7 +60,7 @@
     "@libp2p/crypto": "^5.1.13",
     "@libp2p/dcutr": "^3.0.9",
     "@libp2p/identify": "^4.0.9",
-    "@libp2p/kad-dht": "^16.1.2",
+    "@libp2p/kad-dht": "^16.2.6",
     "@libp2p/keychain": "^6.0.9",
     "@libp2p/mdns": "^12.0.10",
     "@libp2p/peer-id": "^6.0.4",
@@ -135,7 +135,7 @@
     "prettier": "^3.7.4",
     "release-it": "^20.0.0",
     "sinon": "^19.0.2",
-    "tsx": "^4.19.3",
+    "tsx": "^4.22.4",
     "typescript": "^5.9.3"
   },
   "overrides": {
