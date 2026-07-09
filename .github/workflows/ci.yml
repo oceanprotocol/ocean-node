@@ -129,6 +129,8 @@ jobs:
         working-directory: ${{ github.workspace }}/barge
         run: |
           bash -x start_ocean.sh --no-node --with-typesense 2>&1 > start_ocean.log &
+        env:
+          CONTRACTS_VERSION: '2.9.0'
       - run: npm ci
       - run: npm run build
       - run: docker image ls
