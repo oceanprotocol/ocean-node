@@ -16,6 +16,7 @@ import type {
   DBComputeJobMetadata,
   ComputeEnvFees
 } from '../../@types/C2D/C2D.js'
+import type { ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
@@ -76,6 +77,69 @@ export abstract class C2DEngine {
 
   // overwritten by classes for cleanup
   public stop(): Promise<void> {
+    return null
+  }
+
+  // ── Service on Demand (Docker-only for Stage 1; concrete no-ops here) ──
+  // Persists the initial Starting record and returns immediately. The heavy lifting
+  // (escrow lock/claim, image pull/build, container start) is done asynchronously by
+  // processServiceStart(), driven by the engine's background loop.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  public async createServiceJob(
+    environment: string,
+    image: string,
+    tag: string | undefined,
+    checksum: string | undefined,
+    dockerfile: string | undefined,
+    additionalDockerFiles: Record<string, string> | undefined,
+    dockerCmd: string[] | undefined,
+    dockerEntrypoint: string[] | undefined,
+    exposedPorts: number[],
+    resources: ComputeResourceRequest[],
+    duration: number,
+    owner: string,
+    payment: DBComputeJobPayment,
+    serviceId: string,
+    userData?: string // ECIES-encrypted; the engine decrypts it transiently into the container env
+  ): Promise<ServiceJob | null> {
+    return null
+  }
+
+  // Background pipeline that advances a Starting service job through locking → image →
+  // payment → container → Running. Never throws (terminal failures are persisted as status).
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  public async processServiceStart(job: ServiceJob): Promise<void> {}
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  public async stopService(serviceId: string, owner: string): Promise<ServiceJob | null> {
+    return null
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  public async restartService(
+    serviceId: string,
+    owner: string,
+    newUserData?: string,
+    newDockerCmd?: string[],
+    newDockerEntrypoint?: string[]
+  ): Promise<ServiceJob | null> {
+    return null
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  public async getServiceStatus(
+    consumerAddress?: string,
+    serviceId?: string
+  ): Promise<ServiceJob[]> {
+    return []
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  public async getServiceStreamableLogs(
+    serviceId: string,
+    owner: string,
+    since?: number
+  ): Promise<NodeJS.ReadableStream | null> {
     return null
   }
 
@@ -364,10 +428,10 @@ export abstract class C2DEngine {
         for (const resource of job.resources) {
           const envRes = envResourceMap.get(resource.id)
           if (envRes) {
-            // GPUs are shared-exclusive: inUse tracked globally across all envs
-            // Everything else (cpu, ram, disk) is per-env exclusive
-            const isSharedExclusive = envRes.type === 'gpu'
-            if (!isSharedExclusive && !isThisEnv) continue
+            // discrete resources (GPUs, FPGAs, NICs) tracked globally across all envs
+            // fungible resources (cpu, ram, disk) are per-env exclusive
+            const isGloballyTracked = envRes.kind === 'discrete'
+            if (!isGloballyTracked && !isThisEnv) continue
             if (!(resource.id in usedResources)) usedResources[resource.id] = 0
             usedResources[resource.id] += resource.amount
             if (job.isFree) {
@@ -376,6 +440,32 @@ export abstract class C2DEngine {
             }
           }
         }
+      }
+    }
+
+    // Fold in on-demand services: they share the same physical resource pool as
+    // compute jobs, so a running service must occupy resources too. Services are
+    // always paid (no free tier) and always "running" while in the DB's running set,
+    // so we only tally their resources — job-slot/queue metrics stay compute-only.
+    // Do NOT swallow this failure: getUsedResources feeds the strict resource-availability
+    // gate (checkIfResourcesAreAvailable). Under-counting running services would let the
+    // engine overcommit shared GPU/CPU/RAM. Let it propagate so the allocation path defers
+    // the job (the caller already wraps getComputeEnvironments in try/catch) rather than
+    // proceeding with missing service data.
+    const serviceJobs: ServiceJob[] = await this.db.getRunningServiceJobs(
+      this.getC2DConfig().hash
+    )
+    for (const svc of serviceJobs) {
+      const isThisEnv = svc.environment === env.id
+      for (const resource of svc.resources) {
+        const envRes = envResourceMap.get(resource.id)
+        if (!envRes) continue
+        // discrete resources (GPUs, FPGAs, NICs) tracked globally across all envs;
+        // fungible resources (cpu, ram, disk) are per-env exclusive.
+        const isGloballyTracked = envRes.kind === 'discrete'
+        if (!isGloballyTracked && !isThisEnv) continue
+        if (!(resource.id in usedResources)) usedResources[resource.id] = 0
+        usedResources[resource.id] += resource.amount
       }
     }
     return {
@@ -401,13 +491,21 @@ export abstract class C2DEngine {
   ) {
     let globalUsed = 0
     let globalTotal = 0
+    let discreteInUse: number | undefined
     for (const e of allEnvironments) {
       const res = this.getResource(e.resources, resourceId)
       if (res) {
         globalTotal += res.total || 0
-        globalUsed += res.inUse || 0
+        if (res.kind === 'discrete') {
+          // getUsedResources already aggregates discrete inUse globally across all envs,
+          // so each env carries the same global value — take the max to avoid N-fold counting.
+          discreteInUse = Math.max(discreteInUse ?? 0, res.inUse || 0)
+        } else {
+          globalUsed += res.inUse || 0
+        }
       }
     }
+    if (discreteInUse !== undefined) globalUsed += discreteInUse
     const physicalLimit = this.physicalLimits.get(resourceId)
     if (physicalLimit !== undefined && globalTotal > physicalLimit) {
       globalTotal = physicalLimit
@@ -434,12 +532,19 @@ export abstract class C2DEngine {
     for (const request of activeResources) {
       let envResource = this.getResource(env.resources, request.id)
       if (!envResource) throw new Error(`No such resource ${request.id}`)
-      if (envResource.total - envResource.inUse < request.amount)
-        throw new Error(`Not enough available ${request.id}`)
 
-      // Global check for non-GPU resources (cpu, ram, disk are per-env exclusive)
-      // GPUs are shared-exclusive so their inUse already reflects global usage
-      if (allEnvironments && envResource.type !== 'gpu') {
+      const isFungible = envResource.kind === 'fungible'
+      const isShareableDiscrete =
+        envResource.kind === 'discrete' && envResource.shareable === true
+
+      // Gate 1 (per-env ceiling) — fungible resources only.
+      // envResource.total = env aggregate ceiling (from EnvironmentResourceRef.total).
+      if (isFungible && envResource.total - (envResource.inUse ?? 0) < request.amount)
+        throw new Error(`Not enough available ${request.id} in this environment`)
+
+      // Gate 2 (engine-wide pool ceiling) — fungible + exclusive discrete.
+      // shareable discrete: tracked for visibility but never blocks allocation.
+      if (!isShareableDiscrete && allEnvironments) {
         this.checkGlobalResourceAvailability(allEnvironments, request.id, request.amount)
       }
 

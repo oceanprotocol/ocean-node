@@ -178,7 +178,8 @@ export const ComputeResourceSchema = z.object({
   total: z.number().optional(),
   description: z.string().optional(),
   type: z.string().optional(),
-  kind: z.string().optional(),
+  kind: z.enum(['discrete', 'fungible']).optional(),
+  shareable: z.boolean().optional(),
   min: z.number().optional(),
   max: z.number().optional(),
   inUse: z.number().optional(),
@@ -188,6 +189,146 @@ export const ComputeResourceSchema = z.object({
   driverVersion: z.string().optional(),
   constraints: z.array(ResourceConstraintSchema).optional()
 })
+
+export const EnvironmentResourceRefSchema = z
+  .object({
+    id: z.string(),
+    total: z.number().optional(),
+    min: z.number().optional(),
+    max: z.number().optional(),
+    constraints: z.array(ResourceConstraintSchema).optional()
+  })
+  .passthrough()
+
+// ── Per-environment capability flags ──────────────────────────────────
+
+const ComputeEnvFeaturesSchema = z
+  .object({
+    computeJobs: z.boolean().optional().default(true),
+    services: z.boolean().optional().default(true)
+  })
+  .strict() // reject unknown feature keys (catches typos like "computejobs")
+
+// ── Template resource requirements ────────────────────────────────────
+
+const TemplateResourceRequirementSchema = z
+  .object({
+    id: z.string().optional(),
+    kind: z.enum(['discrete', 'fungible']).optional(),
+    type: z.string().optional(),
+    min: z.number().min(0),
+    recommended: z.number().min(0).optional(),
+    unit: z.string().optional(),
+    description: z.string().optional()
+  })
+  .strict()
+  .refine((r) => r.id !== undefined || r.kind !== undefined, {
+    message: 'Each resource requirement must specify either "id" or "kind"'
+  })
+  .refine((r) => !(r.id !== undefined && r.kind !== undefined), {
+    message: '"id" and "kind" are mutually exclusive in a resource requirement'
+  })
+  .refine((r) => r.recommended === undefined || r.recommended >= r.min, {
+    message: '"recommended" must be >= "min"'
+  })
+
+// ── Template ──────────────────────────────────────────────────────────
+
+const UserConfigurableEnvVarSchema = z
+  .object({
+    key: z.string().min(1),
+    validation: z.string().optional(),
+    sensitive: z.boolean().optional()
+  })
+  .strict()
+
+export const ServiceTemplateSchema = z
+  .object({
+    id: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/, {
+      message: 'Template id must match [a-z0-9][a-z0-9_-]{0,63}'
+    }),
+    name: z.string().optional(),
+    description: z.string().optional(),
+    image: z.string().min(1),
+    tag: z.string().min(1).optional(),
+    checksum: z
+      .string()
+      .regex(/^sha256:[a-f0-9]{64}$/)
+      .optional(),
+    dockerfile: z.string().min(1).optional(),
+    additionalDockerFiles: z.record(z.string()).optional(),
+    exposedPorts: z.array(z.number().int().min(1).max(65535)).min(1),
+    envVars: z.record(z.string()).optional(),
+    userConfigurableEnvVars: z.array(UserConfigurableEnvVarSchema).optional(),
+    command: z.array(z.string()).optional(),
+    entrypoint: z.array(z.string()).optional(),
+    requiredResources: z.array(TemplateResourceRequirementSchema).optional(),
+    recommendedResources: z.array(TemplateResourceRequirementSchema).optional()
+  })
+  .strict()
+  .superRefine((tmpl, ctx) => {
+    // Validate each regex in userConfigurableEnvVars.validation compiles
+    ;(tmpl.userConfigurableEnvVars ?? []).forEach((uvar, i) => {
+      if (uvar.validation) {
+        try {
+          // eslint-disable-next-line no-new
+          new RegExp(uvar.validation)
+        } catch {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `userConfigurableEnvVars[${i}].validation is not a valid regex: "${uvar.validation}"`,
+            path: ['userConfigurableEnvVars', i, 'validation']
+          })
+        }
+      }
+    })
+    // Warn on shell-injection-prone command patterns (security plan #3)
+    ;(tmpl.command ?? []).forEach((arg, i) => {
+      if (/sh\s+-c|`/.test(arg)) {
+        CONFIG_LOGGER.warn(
+          `Template "${tmpl.id}" command[${i}] contains shell invocation. ` +
+            'This enables injection when userData values are substituted.'
+        )
+      }
+    })
+
+    // Image spec mutual exclusion
+    const imageModesSet = [!!tmpl.tag, !!tmpl.checksum, !!tmpl.dockerfile].filter(
+      Boolean
+    ).length
+    if (imageModesSet > 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          '"tag", "checksum", and "dockerfile" are mutually exclusive — set at most one',
+        path: ['image']
+      })
+    }
+    if (tmpl.additionalDockerFiles && !tmpl.dockerfile) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '"additionalDockerFiles" requires "dockerfile"',
+        path: ['additionalDockerFiles']
+      })
+    }
+  })
+
+// ── Per-daemon service config (no templates here) ─────────────────────
+
+export const ServiceOnDemandConfigSchema = z
+  .object({
+    enabled: z.boolean(),
+    nodeHost: z.string().min(1),
+    hostPortRange: z
+      .tuple([z.number().int().min(1024), z.number().int().max(65535)])
+      .refine((r) => !r || r[0] < r[1], {
+        message: 'hostPortRange[0] must be less than hostPortRange[1]'
+      })
+      .optional(),
+    maxDurationSeconds: z.number().int().min(60).optional().default(86400),
+    allowImageBuild: z.boolean().optional().default(false)
+  })
+  .strict()
 
 export const ComputeResourcesPricingInfoSchema = z.object({
   id: z.string(),
@@ -204,6 +345,24 @@ export const ComputeEnvironmentFreeOptionsSchema = z.object({
   maxJobDuration: z.number().int().optional().default(3600),
   maxJobs: z.number().int().optional().default(3),
   resources: z.array(ComputeResourceSchema).optional(),
+  access: z
+    .object({
+      addresses: z.array(z.string()),
+      accessLists: z
+        .array(z.record(z.string(), z.array(z.string())))
+        .nullable()
+        .optional()
+    })
+    .optional(),
+  allowImageBuild: z.boolean().optional().default(false)
+})
+
+// Config-time schema for the free block — resources are refs, not full ComputeResource objects.
+export const C2DEnvironmentFreeConfigSchema = z.object({
+  minJobDuration: z.number().int().optional().default(60),
+  maxJobDuration: z.number().int().optional().default(3600),
+  maxJobs: z.number().int().optional().default(3),
+  resources: z.array(EnvironmentResourceRefSchema).optional(),
   access: z
     .object({
       addresses: z.array(z.string()),
@@ -234,9 +393,13 @@ export const C2DEnvironmentConfigSchema = z
           .optional()
       })
       .optional(),
-    free: ComputeEnvironmentFreeOptionsSchema.optional(),
-    resources: z.array(ComputeResourceSchema).optional(),
-    enableNetwork: z.boolean().optional().default(false)
+    free: C2DEnvironmentFreeConfigSchema.optional(),
+    resources: z.array(EnvironmentResourceRefSchema).optional(),
+    enableNetwork: z.boolean().optional().default(false),
+    features: ComputeEnvFeaturesSchema.optional().default({
+      computeJobs: true,
+      services: true
+    })
   })
   .refine(
     (data) =>
@@ -250,29 +413,83 @@ export const C2DEnvironmentConfigSchema = z
   .refine((data) => data.storageExpiry >= data.maxJobDuration, {
     message: '"storageExpiry" should be greater than "maxJobDuration"'
   })
-  .refine(
-    (data) => {
-      if (!data.resources) return false
-      return data.resources.some((r) => r.id === 'disk' && r.total)
-    },
-    { message: 'There is no "disk" resource configured. This is mandatory' }
-  )
 
 export const C2DDockerConfigSchema = z.array(
-  z.object({
-    socketPath: z.string().optional(),
-    protocol: z.string().optional(),
-    host: z.string().optional(),
-    port: z.number().optional(),
-    caPath: z.string().optional(),
-    certPath: z.string().optional(),
-    keyPath: z.string().optional(),
-    imageRetentionDays: z.number().int().min(1).optional().default(7),
-    imageCleanupInterval: z.number().int().min(3600).optional().default(86400), // min 1 hour, default 24 hours
-    scanImages: z.boolean().optional().default(false),
-    scanImageDBUpdateInterval: z.number().int().min(3600).optional().default(43200), // default 43200 (12 hours)
-    environments: z.array(C2DEnvironmentConfigSchema).min(1)
-  })
+  z
+    .object({
+      socketPath: z.string().optional(),
+      protocol: z.string().optional(),
+      host: z.string().optional(),
+      port: z.number().optional(),
+      caPath: z.string().optional(),
+      certPath: z.string().optional(),
+      keyPath: z.string().optional(),
+      imageRetentionDays: z.number().int().min(1).optional().default(7),
+      imageCleanupInterval: z.number().int().min(3600).optional().default(86400),
+      paymentClaimInterval: z.number().int().min(60).optional().default(3600),
+      scanImages: z.boolean().optional().default(false),
+      scanImageDBUpdateInterval: z.number().int().min(3600).optional().default(43200),
+      resources: z.array(ComputeResourceSchema).optional(),
+      environments: z.array(C2DEnvironmentConfigSchema).min(1),
+      serviceOnDemand: ServiceOnDemandConfigSchema.optional()
+    })
+    .superRefine((dockerConfig, ctx) => {
+      // Reject old format: env-level resources with init/driverVersion/platform indicate full ComputeResource objects
+      // that should have been moved to connection-level resources.
+      dockerConfig.environments.forEach((env, envIdx) => {
+        ;(env.resources || []).forEach((ref, i) => {
+          if (
+            (ref as any).init !== undefined ||
+            (ref as any).driverVersion !== undefined
+          ) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `environments[${envIdx}].resources[${i}]: hardware fields (init, driverVersion, platform, etc.) must be defined at connection level in "resources", not inside an environment. See migration guide.`,
+              path: ['environments', envIdx, 'resources', i]
+            })
+          }
+        })
+      })
+
+      // Validate env resource refs point to known pool ids.
+      // cpu, ram, disk are always valid (auto-detected from host).
+      const autoDetected = new Set(['cpu', 'ram', 'disk'])
+      const poolIds = new Set([
+        ...autoDetected,
+        ...(dockerConfig.resources ?? []).map((r) => r.id)
+      ])
+      dockerConfig.environments.forEach((env, envIdx) => {
+        ;(env.resources || []).forEach((ref, i) => {
+          if (!poolIds.has(ref.id)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `environments[${envIdx}].resources[${i}].id "${ref.id}" not found in connection-level resources`,
+              path: ['environments', envIdx, 'resources', i, 'id']
+            })
+          }
+        })
+      })
+
+      // Reject shareable:true on gpu/fpga type resources — these require exclusive access.
+      ;(dockerConfig.resources ?? []).forEach((res, i) => {
+        if (res.shareable === true && (res.type === 'gpu' || res.type === 'fpga')) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Resource "${res.id}": shareable:true is not allowed for type "${res.type}" — GPUs and FPGAs require exclusive access per job`,
+            path: ['resources', i]
+          })
+        }
+      })
+
+      // Warn (not error) if shareable:true on a fungible resource — it has no effect.
+      ;(dockerConfig.resources ?? []).forEach((res) => {
+        if (res.shareable === true && res.kind === 'fungible') {
+          CONFIG_LOGGER.warn(
+            `Resource "${res.id}": shareable:true has no effect on fungible resources`
+          )
+        }
+      })
+    })
 )
 
 export const C2DClusterInfoSchema = z.object({
@@ -362,6 +579,8 @@ export const OceanNodeConfigSchema = z
     dockerComputeEnvironments: jsonFromString(C2DDockerConfigSchema)
       .optional()
       .default([]),
+
+    serviceTemplatesPath: z.string().optional().default('databases/serviceTemplates/'),
 
     dockerRegistrysAuth: jsonFromString(DockerRegistrysSchema).optional().default({}),
 

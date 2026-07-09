@@ -1,6 +1,14 @@
 import { MetadataAlgorithm, ConsumerParameter } from '@oceanprotocol/ddo-js'
 import type { BaseFileObject, StorageObject, EncryptMethod } from '../fileObject.js'
 import type { AccessList } from '../AccessList.js'
+import type { ServiceOnDemandConfig } from './ServiceOnDemand.js'
+
+// Per-environment capability flags. Both default to true at config-parse and
+// at runtime construction; only an explicit false disables a capability.
+export interface ComputeEnvFeatures {
+  computeJobs: boolean // false → COMPUTE_START + FREE_COMPUTE_START rejected
+  services: boolean // false → SERVICE_START rejected; env hidden from service matching
+}
 export enum C2DClusterType {
   // eslint-disable-next-line no-unused-vars
   OPF_K8 = 0,
@@ -22,6 +30,7 @@ export interface C2DClusterInfo {
 }
 
 export type ComputeResourceType = 'cpu' | 'ram' | 'disk' | any
+export type ComputeResourceKind = 'discrete' | 'fungible'
 
 export interface ResourceConstraint {
   id: ComputeResourceType // the resource being constrained
@@ -58,7 +67,10 @@ export interface ComputeResource {
   id: ComputeResourceType
   description?: string
   type?: string
-  kind?: string // discreet, named, etc
+  kind?: ComputeResourceKind // 'discrete' | 'fungible'. Auto-inferred if omitted.
+  shareable?: boolean // Only meaningful for kind:'discrete'. Default false.
+  // true  → multiple jobs may share the device simultaneously (NIC, TPM, HSM)
+  // false → exclusive: only one job at a time (GPU, FPGA)
   total: number // total number of specific resource
   min: number // min number of resource needed for a job
   max: number // max number of resource for a job
@@ -72,6 +84,15 @@ export interface ComputeResource {
   init?: dockerHwInit
   constraints?: ResourceConstraint[] // optional cross-resource constraints
 }
+export interface EnvironmentResourceRef {
+  id: ComputeResourceType // must match a resource id in C2DDockerConfig.resources or auto-detected (cpu/ram/disk)
+  total?: number // env aggregate ceiling; if omitted → defaults to pool total (no per-env restriction)
+  min?: number // per-job minimum
+  max?: number // per-job maximum (capped to total if both present)
+  constraints?: ResourceConstraint[] // per-env override: replaces pool constraints entirely
+  // Omit to inherit pool constraints. Set [] to remove all constraints for this env.
+}
+
 export interface ComputeResourceRequest {
   id: string
   amount: number
@@ -109,6 +130,19 @@ export interface ComputeEnvironmentFreeOptions {
   access: ComputeAccessList
   allowImageBuild?: boolean
 }
+
+// Config-time only — used in C2DEnvironmentConfig.free.
+// resources are EnvironmentResourceRef[] (refs to pool) and resolved to ComputeResource[] at startup.
+// Runtime free options live in ComputeEnvironmentFreeOptions (unchanged).
+export interface C2DEnvironmentFreeConfig {
+  storageExpiry?: number
+  maxJobDuration?: number
+  minJobDuration?: number
+  maxJobs?: number
+  resources?: EnvironmentResourceRef[]
+  access?: ComputeAccessList
+  allowImageBuild?: boolean
+}
 export interface ComputeEnvironmentBaseConfig {
   description?: string // v1
   storageExpiry?: number // amount of seconds for storage
@@ -121,6 +155,7 @@ export interface ComputeEnvironmentBaseConfig {
   free?: ComputeEnvironmentFreeOptions
   platform: RunningPlatform
   enableNetwork?: boolean // whether network is enabled for algorithm containers
+  features?: ComputeEnvFeatures // always populated at runtime construction; gates compute/service starts
 }
 
 export interface ComputeRuntimes {
@@ -151,9 +186,10 @@ export interface C2DEnvironmentConfig {
   maxJobs?: number
   fees?: ComputeEnvFeesStructure
   access?: ComputeAccessList
-  free?: ComputeEnvironmentFreeOptions
-  resources?: ComputeResource[]
+  free?: C2DEnvironmentFreeConfig // config-time only; resolved to ComputeEnvironmentFreeOptions at startup
+  resources?: EnvironmentResourceRef[] // lightweight refs to connection pool
   enableNetwork?: boolean // whether network is enabled for algorithm containers
+  features?: ComputeEnvFeatures // config-time, optional
 }
 
 export interface C2DDockerConfig {
@@ -169,7 +205,9 @@ export interface C2DDockerConfig {
   paymentClaimInterval?: number // Default: 3600 seconds (1 hours)
   scanImages?: boolean
   scanImageDBUpdateInterval?: number // Default: 12 hours
+  resources?: ComputeResource[] // optional: cpu/ram/disk auto-detected; include for GPUs/NICs or to cap auto-detected totals
   environments: C2DEnvironmentConfig[]
+  serviceOnDemand?: ServiceOnDemandConfig // per-daemon Service-on-Demand operational config
 }
 
 export type ComputeResultType =

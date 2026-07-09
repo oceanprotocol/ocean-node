@@ -106,6 +106,7 @@ export interface dockerRegistrysAuth {
 
 export interface OceanNodeConfig {
   dockerComputeEnvironments: C2DDockerConfig[]
+  serviceTemplatesPath?: string // folder of *.json service templates; defaults to 'databases/serviceTemplates/'
   dockerRegistrysAuth: dockerRegistrysAuth
   authorizedDecrypters: string[]
   authorizedDecryptersList: AccessListContract | null

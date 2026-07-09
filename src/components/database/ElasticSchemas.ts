@@ -165,7 +165,10 @@ export const elasticSchemas: ElasticsearchSchemas = {
           proof: { type: 'text' },
           maxLockedAmount: { type: 'text' },
           maxLockSeconds: { type: 'text' },
-          maxLockCounts: { type: 'text' }
+          maxLockCounts: { type: 'text' },
+          oldAmount: { type: 'text' },
+          newAmount: { type: 'text' },
+          newExpiry: { type: 'text' }
         }
       }
     }

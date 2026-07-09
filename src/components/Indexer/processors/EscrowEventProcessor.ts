@@ -57,6 +57,7 @@ export class EscrowEventProcessor extends BaseEventProcessor {
         case EVENTS.ESCROW_AUTH:
           record.payer = addr(args.payer)
           record.payee = addr(args.payee)
+          record.token = addr(args.token)
           record.maxLockedAmount = num(args.maxLockedAmount)
           record.maxLockSeconds = num(args.maxLockSeconds)
           record.maxLockCounts = num(args.maxLockCounts)
@@ -67,6 +68,15 @@ export class EscrowEventProcessor extends BaseEventProcessor {
           record.jobId = num(args.jobId)
           record.amount = num(args.amount)
           record.expiry = num(args.expiry)
+          record.token = addr(args.token)
+          break
+        case EVENTS.ESCROW_RELOCK:
+          record.payer = addr(args.payer)
+          record.payee = addr(args.payee)
+          record.jobId = num(args.jobId)
+          record.oldAmount = num(args.oldAmount)
+          record.newAmount = num(args.newAmount)
+          record.newExpiry = num(args.newExpiry)
           record.token = addr(args.token)
           break
         case EVENTS.ESCROW_CLAIMED:

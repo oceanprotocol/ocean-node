@@ -118,6 +118,7 @@ jobs:
         with:
           repository: 'oceanprotocol/barge'
           path: 'barge'
+          ref: '43cfdfd21154a2bae00770b779e7c39390ff5043'
       - name: Login to Docker Hub
         if: ${{ env.DOCKERHUB_PASSWORDNONO && env.DOCKERHUB_USERNAMENONO }}
         run: |
@@ -129,6 +130,8 @@ jobs:
         working-directory: ${{ github.workspace }}/barge
         run: |
           bash -x start_ocean.sh --no-node --with-typesense 2>&1 > start_ocean.log &
+        env:
+          CONTRACTS_VERSION: '2.9.0'
       - run: npm ci
       - run: npm run build
       - run: docker image ls
@@ -226,6 +229,8 @@ jobs:
         working-directory: ${{ github.workspace }}/barge
         run: |
           bash -x start_ocean.sh --no-node --with-typesense 2>&1 > start_ocean.log &
+        env:
+          CONTRACTS_VERSION: '2.9.0'
       - run: docker image ls
       - name: Delete default runner images
         run: |
