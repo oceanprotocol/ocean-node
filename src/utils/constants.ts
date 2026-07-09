@@ -146,6 +146,7 @@ export const EVENTS = {
   // Escrow contract events. Values must equal the on-chain event name.
   ESCROW_AUTH: 'Auth',
   ESCROW_LOCK: 'Lock',
+  ESCROW_RELOCK: 'ReLock',
   ESCROW_CLAIMED: 'Claimed',
   ESCROW_CANCELED: 'Canceled',
   ESCROW_DEPOSIT: 'Deposit',
@@ -155,6 +156,7 @@ export const EVENTS = {
 export const ESCROW_EVENTS = [
   EVENTS.ESCROW_AUTH,
   EVENTS.ESCROW_LOCK,
+  EVENTS.ESCROW_RELOCK,
   EVENTS.ESCROW_CLAIMED,
   EVENTS.ESCROW_CANCELED,
   EVENTS.ESCROW_DEPOSIT,
@@ -241,13 +243,17 @@ export const EVENT_HASHES: Hashes = {
     type: EVENTS.NEW_ACCESS_LIST,
     text: 'NewAccessList(address,address)'
   },
-  '0x118cb6c6a02e26bfdb39cab8d70573499942c4ee3f0d7616d3c4100fe9163d9d': {
+  '0x5a3021f46552b1ac3c96e967ff1ecfeb100603ccc2940941cad97db3ee2baec7': {
     type: EVENTS.ESCROW_AUTH,
-    text: 'Auth(address,address,uint256,uint256,uint256)'
+    text: 'Auth(address,address,address,uint256,uint256,uint256)'
   },
   '0xb746b0421b0b98debe76bb312ec9fb701603af22ddb107f7e639b0187e4ff880': {
     type: EVENTS.ESCROW_LOCK,
     text: 'Lock(address,address,uint256,uint256,uint256,address)'
+  },
+  '0x1ccec59cf72b2788d240da471a5a929af5babf4b9f1f5edafbe4ccb832d20211': {
+    type: EVENTS.ESCROW_RELOCK,
+    text: 'ReLock(address,address,uint256,uint256,uint256,uint256,address)'
   },
   '0x77aeb72af8b0efaf7fd8c746d2fb78653ae489dd88dea7a851cb354e4cdc4eed': {
     type: EVENTS.ESCROW_CLAIMED,

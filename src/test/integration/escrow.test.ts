@@ -196,6 +196,7 @@ describe('Indexer stores Escrow contract events', () => {
     const event = events[0]
     expect(event.payer).to.equal(payerAddress.toLowerCase())
     expect(event.payee).to.equal(payeeAddress.toLowerCase())
+    expect(event.token).to.equal(paymentToken.toLowerCase())
     expect(event.maxLockedAmount).to.equal(depositAmount.toString())
     expect(event.maxLockCounts).to.equal('10')
   })
@@ -223,6 +224,39 @@ describe('Indexer stores Escrow contract events', () => {
     expect(event.token).to.equal(paymentToken.toLowerCase())
   })
 
+  it('indexes a ReLock event', async function () {
+    if (!escrowAddress || !paymentToken) this.skip()
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+
+    // reLock adjusts the amount/expiry of the lock created in the previous test
+    // for the same jobId, preserving the original creation timestamp. The new
+    // expiry is a duration-from-now capped by (creationTimestamp + maxLockSeconds),
+    // so use a value well below `expiry` (== maxLockSeconds) to leave headroom for
+    // the wall-clock time spent waiting on the Lock event to be indexed above.
+    const newLockAmount = parseUnits('20', 18)
+    const reLockExpiry = Math.floor(expiry / 2)
+    const tx = await escrowContract
+      .connect(publisherAccount)
+      .reLock(jobId, paymentToken, payerAddress, newLockAmount, reLockExpiry)
+    const receipt = await tx.wait()
+    const reLockTxHash = receipt.hash
+
+    const events = await waitForEscrowEvents({
+      txHash: reLockTxHash,
+      eventType: EVENTS.ESCROW_RELOCK
+    })
+    assert(events && events.length > 0, 'ReLock event should be indexed')
+    const event = events[0]
+    expect(event.payer).to.equal(payerAddress.toLowerCase())
+    expect(event.payee).to.equal(payeeAddress.toLowerCase())
+    expect(event.jobId).to.equal(jobId.toString())
+    expect(event.oldAmount).to.equal(lockAmount.toString())
+    expect(event.newAmount).to.equal(newLockAmount.toString())
+    expect(event.token).to.equal(paymentToken.toLowerCase())
+    // expiry is emitted as an absolute timestamp; just assert it is populated
+    assert(event.newExpiry, 'newExpiry should be populated')
+  })
+
   it('returns indexed events through the EscrowEventsHandler (query command)', async function () {
     if (!escrowAddress || !paymentToken) this.skip()
     this.timeout(DEFAULT_TEST_TIMEOUT)
@@ -246,7 +280,7 @@ describe('Indexer stores Escrow contract events', () => {
 
   it('respects offset and size pagination', async function () {
     if (!escrowAddress || !paymentToken) this.skip()
-    // Deposit, Auth and Lock are all indexed for this chain by now (>= 2 rows).
+    // Deposit, Auth, Lock and ReLock are all indexed for this chain by now (>= 2 rows).
     const page = await database.escrow.search({ chainId }, 0, 2)
     assert(page && page.length === 2, 'size should cap the page to 2 rows')
 
