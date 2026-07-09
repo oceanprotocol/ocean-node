@@ -157,10 +157,15 @@ export class Auth {
     if (!p2p || p2p.isTargetPeerSelf(issuerPeerId)) {
       return null
     }
-    const response = await p2p.sendTo(
-      issuerPeerId,
-      JSON.stringify({ command: PROTOCOL_COMMANDS.VALIDATE_AUTH_TOKEN, token })
-    )
+    let response
+    try {
+      response = await p2p.sendTo(
+        issuerPeerId,
+        JSON.stringify({ command: PROTOCOL_COMMANDS.VALIDATE_AUTH_TOKEN, token })
+      )
+    } catch {
+      return null
+    }
     if (response?.status?.httpStatus !== 200 || !response.stream) {
       return null
     }
