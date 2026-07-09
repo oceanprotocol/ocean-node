@@ -32,4 +32,7 @@ export interface EscrowEvent {
   maxLockedAmount?: string
   maxLockSeconds?: string
   maxLockCounts?: string
+  oldAmount?: string
+  newAmount?: string
+  newExpiry?: string
 }
