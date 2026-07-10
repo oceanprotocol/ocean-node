@@ -633,6 +633,33 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     return schema
   }
 
+  private async deleteDDOFromOtherSchemas(
+    id: string,
+    currentSchema: ElasticsearchSchema
+  ): Promise<void> {
+    for (const schema of this.getSchemas()) {
+      if (schema.index === currentSchema.index) {
+        continue
+      }
+
+      try {
+        await this.client.delete({
+          index: schema.index,
+          id
+        })
+      } catch (error) {
+        if (error.statusCode !== 404) {
+          DATABASE_LOGGER.logMessageWithEmoji(
+            `Error when deleting stale DDO entry ${id} from schema ${schema.index}: ${error.message}`,
+            true,
+            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+            LOG_LEVELS_STR.LEVEL_ERROR
+          )
+        }
+      }
+    }
+  }
+
   async search(query: Record<string, any>): Promise<any> {
     const results = []
     const maxPerPage = query.size || 100
@@ -778,13 +805,12 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       if (ddo?.indexedMetadata?.nft) delete ddo.nft
       const validation = await validateDDO(ddo)
       if (validation === true) {
-        const response: any = await this.client.update({
+        const response: any = await this.client.index({
           index: schema.index,
           id: ddo.id,
-          body: {
-            doc: ddo
-          }
+          body: ddo
         })
+        await this.deleteDDOFromOtherSchemas(ddo.id, schema)
         // make sure we do not have different responses 4 between DBs
         // do the same thing on other methods
         if (response._id === ddo.id) {

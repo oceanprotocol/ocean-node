@@ -521,6 +521,31 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
     return schema
   }
 
+  private async deleteDDOFromOtherSchemas(
+    did: string,
+    currentSchema: TypesenseSchema
+  ): Promise<void> {
+    for (const schema of this.getSchemas()) {
+      if (schema.name === currentSchema.name) {
+        continue
+      }
+
+      try {
+        await this.provider.collections(schema.name).documents().delete(did)
+      } catch (error) {
+        if (!(error instanceof TypesenseError && error.httpStatus === 404)) {
+          DATABASE_LOGGER.logMessageWithEmoji(
+            `Error when deleting stale DDO entry ${did} from schema ${schema.name}: ` +
+              error.message,
+            true,
+            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+            LOG_LEVELS_STR.LEVEL_ERROR
+          )
+        }
+      }
+    }
+  }
+
   async search(
     query: Record<string, any>,
     maxResultsPerPage?: number,
@@ -643,10 +668,12 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
       if (ddo?.indexedMetadata?.nft) delete ddo.nft
       const validation = await validateDDO(ddo)
       if (validation === true) {
-        return await this.provider
+        const response = await this.provider
           .collections(schema.name)
           .documents()
-          .update(ddo.id, ddo)
+          .upsert(ddo)
+        await this.deleteDDOFromOtherSchemas(ddo.id, schema)
+        return response
       } else {
         throw new Error(
           `Validation of DDO with schema version ${ddo.version} failed with errors`
