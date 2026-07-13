@@ -173,22 +173,97 @@ const ResourceConstraintSchema = z.object({
   max: z.number().optional()
 })
 
-export const ComputeResourceSchema = z.object({
-  id: z.string(),
-  total: z.number().optional(),
-  description: z.string().optional(),
-  type: z.string().optional(),
-  kind: z.enum(['discrete', 'fungible']).optional(),
-  shareable: z.boolean().optional(),
-  min: z.number().optional(),
-  max: z.number().optional(),
-  inUse: z.number().optional(),
-  init: z.any().optional(),
-  platform: z.string().optional(),
-  memoryTotal: z.string().optional(),
-  driverVersion: z.string().optional(),
-  constraints: z.array(ResourceConstraintSchema).optional()
-})
+// cpuList shape: comma-separated core IDs and/or integer ranges ("3", "0-1,3") — no
+// spaces, signs or floats. Every dash-separated piece of a part must be a plain
+// integer; the semantic rules (range right > left, parts ascending and
+// non-overlapping) are checked in validateCpuList below.
+const CPU_ID_REGEX = /^\d+$/
+
+export function validateCpuList(
+  value: string,
+  ctx: z.RefinementCtx,
+  path: (string | number)[]
+): void {
+  let prevEnd = -1
+  let prevPart = ''
+  for (const part of value.split(',')) {
+    const pieces = part.split('-')
+    if (pieces.length > 2 || !pieces.every((p) => CPU_ID_REGEX.test(p))) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `cpuList "${value}" is invalid: expected comma-separated core IDs and/or integer ranges like "3", "0-1,3" or "0-15,32-47" (spaces, floats and negative values are not allowed)`,
+        path
+      })
+      return
+    }
+    const isRange = pieces.length === 2
+    const [start, end] = isRange
+      ? pieces.map(Number)
+      : [Number(pieces[0]), Number(pieces[0])]
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `cpuList range "${part}": core IDs are too large to be valid CPU IDs`,
+        path
+      })
+      continue
+    }
+    if (isRange && end <= start) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `cpuList range "${part}": right side must be strictly greater than left side`,
+        path
+      })
+    }
+    if (prevPart && start <= prevEnd) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `cpuList ranges "${prevPart}" and "${part}": ranges must be ascending and non-overlapping`,
+        path
+      })
+    }
+    prevEnd = Math.max(prevEnd, end)
+    prevPart = part
+  }
+}
+
+export const ComputeResourceSchema = z
+  .object({
+    id: z.string(),
+    total: z.number().optional(),
+    cpuList: z.string().optional(),
+    description: z.string().optional(),
+    type: z.string().optional(),
+    kind: z.enum(['discrete', 'fungible']).optional(),
+    shareable: z.boolean().optional(),
+    min: z.number().optional(),
+    max: z.number().optional(),
+    inUse: z.number().optional(),
+    init: z.any().optional(),
+    platform: z.string().optional(),
+    memoryTotal: z.string().optional(),
+    driverVersion: z.string().optional(),
+    constraints: z.array(ResourceConstraintSchema).optional()
+  })
+  .superRefine((res, ctx) => {
+    if (res.cpuList === undefined) return
+    if (res.id !== 'cpu') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Resource "${res.id}": "cpuList" is only valid on the cpu resource`,
+        path: ['cpuList']
+      })
+      return
+    }
+    if (res.total !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Resource "cpu": specify either "total" or "cpuList", not both`,
+        path: ['cpuList']
+      })
+    }
+    validateCpuList(res.cpuList, ctx, ['cpuList'])
+  })
 
 export const EnvironmentResourceRefSchema = z
   .object({
@@ -465,6 +540,32 @@ export const C2DDockerConfigSchema = z.array(
               code: z.ZodIssueCode.custom,
               message: `environments[${envIdx}].resources[${i}].id "${ref.id}" not found in connection-level resources`,
               path: ['environments', envIdx, 'resources', i, 'id']
+            })
+          }
+        })
+      })
+
+      // Connection-level cpu entry must define its size exactly one way: total or cpuList.
+      // (Having both is already rejected by ComputeResourceSchema.)
+      ;(dockerConfig.resources ?? []).forEach((res, i) => {
+        if (res.id === 'cpu' && res.total === undefined && res.cpuList === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `resources[${i}]: the cpu resource must specify either "total" or "cpuList"`,
+            path: ['resources', i]
+          })
+        }
+      })
+
+      // cpuList is a connection-level hardware field — reject it in env-level refs,
+      // same as init/driverVersion above.
+      dockerConfig.environments.forEach((env, envIdx) => {
+        ;(env.resources || []).forEach((ref, i) => {
+          if ((ref as any).cpuList !== undefined) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `environments[${envIdx}].resources[${i}]: "cpuList" must be defined at connection level in "resources", not inside an environment`,
+              path: ['environments', envIdx, 'resources', i]
             })
           }
         })

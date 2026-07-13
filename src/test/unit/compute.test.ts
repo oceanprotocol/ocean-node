@@ -983,6 +983,122 @@ describe('Schema validation (C2DDockerConfigSchema)', () => {
     const result = C2DDockerConfigSchema.safeParse(config)
     expect(result.success).to.equal(true)
   })
+
+  describe('cpuList validation', function () {
+    const withCpuResource = (cpuEntry: any) => [{ ...validBase, resources: [cpuEntry] }]
+
+    it('cpu resource with a single valid range parses successfully', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'cpu', cpuList: '32-63' })
+      )
+      expect(result.success).to.equal(true)
+    })
+
+    it('cpu resource with multiple ascending ranges parses successfully', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'cpu', cpuList: '0-15,32-47' })
+      )
+      expect(result.success).to.equal(true)
+    })
+
+    it('cpu resource with a single bare core ID parses successfully', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'cpu', cpuList: '0' })
+      )
+      expect(result.success).to.equal(true)
+    })
+
+    it('cpu resource mixing ranges and bare core IDs parses successfully', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'cpu', cpuList: '0-1,3' })
+      )
+      expect(result.success).to.equal(true)
+    })
+
+    it('cpu resource with a list of bare core IDs parses successfully', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'cpu', cpuList: '3,5,7' })
+      )
+      expect(result.success).to.equal(true)
+    })
+
+    it('cpu resource with only total still parses (existing behavior)', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'cpu', total: 6 })
+      )
+      expect(result.success).to.equal(true)
+    })
+
+    it('cpu resource with both total and cpuList is rejected', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'cpu', total: 32, cpuList: '32-63' })
+      )
+      expect(result.success).to.equal(false)
+      const msgs = result.error?.issues.map((i) => i.message).join(' ')
+      expect(msgs).to.include('not both')
+    })
+
+    it('cpu resource with neither total nor cpuList is rejected', function () {
+      const result = C2DDockerConfigSchema.safeParse(withCpuResource({ id: 'cpu' }))
+      expect(result.success).to.equal(false)
+      const msgs = result.error?.issues.map((i) => i.message).join(' ')
+      expect(msgs).to.include('must specify either "total" or "cpuList"')
+    })
+
+    it('cpuList on a non-cpu resource is rejected', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'ram', cpuList: '0-3' })
+      )
+      expect(result.success).to.equal(false)
+      const msgs = result.error?.issues.map((i) => i.message).join(' ')
+      expect(msgs).to.include('only valid on the cpu resource')
+    })
+
+    it('cpuList inside an env-level resource ref is rejected', function () {
+      const config = [
+        {
+          ...validBase,
+          environments: [
+            {
+              ...validBase.environments[0],
+              resources: [{ id: 'cpu', cpuList: '0-3' }]
+            }
+          ]
+        }
+      ]
+      const result = C2DDockerConfigSchema.safeParse(config)
+      expect(result.success).to.equal(false)
+      const msgs = result.error?.issues.map((i) => i.message).join(' ')
+      expect(msgs).to.include('must be defined at connection level')
+    })
+
+    // Format is strict: comma-separated core IDs and/or integer ranges, each range's
+    // right side strictly greater than the left, all parts ascending and non-overlapping.
+    const invalidLists: [string, string][] = [
+      ['15-15', 'strictly greater'], // right side equal — write "15" instead
+      ['20-10', 'strictly greater'], // right side lower
+      ['0-8,4-12', 'ascending and non-overlapping'], // overlapping ranges
+      ['8-11,0-3', 'ascending and non-overlapping'], // out of order
+      ['0-3,2', 'ascending and non-overlapping'], // bare ID inside a previous range
+      ['3,3', 'ascending and non-overlapping'], // duplicate bare ID
+      ['1.5-4', 'is invalid'], // floats
+      ['-1-4', 'is invalid'], // negative
+      ['0-3, 8-11', 'is invalid'], // space
+      ['0-3,,8-11', 'is invalid'], // empty part
+      ['0-3,', 'is invalid'], // trailing comma
+      ['', 'is invalid'] // empty string
+    ]
+    for (const [value, expectedFragment] of invalidLists) {
+      it(`cpuList "${value}" is rejected (${expectedFragment})`, function () {
+        const result = C2DDockerConfigSchema.safeParse(
+          withCpuResource({ id: 'cpu', cpuList: value })
+        )
+        expect(result.success).to.equal(false)
+        const msgs = result.error?.issues.map((i) => i.message).join(' ')
+        expect(msgs).to.include(expectedFragment)
+      })
+    }
+  })
 })
 
 describe('resolveResourceKind / resolveConnectionResourcePool / resolveEnvironmentResources', () => {
@@ -1063,6 +1179,17 @@ describe('resolveResourceKind / resolveConnectionResourcePool / resolveEnvironme
         { id: 'cpu', total: 20 }
       ])
       expect(pool.get('cpu').total).to.equal(8)
+    })
+
+    it('cpuList sets effective cpu total to the expanded core count', function () {
+      engine.physicalLimits.set('cpu', 64)
+      engine.physicalLimits.set('disk', 100)
+      const sysinfo = { NCPU: 64, MemTotal: 32 * 1024 * 1024 * 1024 }
+      const pool = engine.resolveConnectionResourcePool(sysinfo, [
+        { id: 'cpu', cpuList: '32-63' }
+      ])
+      expect(pool.get('cpu').total).to.equal(32)
+      expect(pool.get('cpu').max).to.equal(32)
     })
 
     it('custom GPU resource is added to pool and registered in physicalLimits', function () {
@@ -1253,6 +1380,97 @@ describe('resolveResourceKind / resolveConnectionResourcePool / resolveEnvironme
         'disk',
         'ram'
       ])
+    })
+  })
+})
+
+describe('CPU affinity restricted by cpuList', () => {
+  let engine: any
+
+  beforeEach(function () {
+    // Bypass the Docker-specific constructor but keep the prototype methods; seed the
+    // fields that constructor initializers would otherwise set.
+    engine = Object.create(C2DEngineDocker.prototype)
+    engine.physicalLimits = new Map<string, number>()
+    engine.cpuAllocations = new Map()
+    engine.envCpuCoresMap = new Map()
+    engine.configuredCpuList = null
+    engine.getC2DConfig = sinon.stub().returns({ hash: 'cluster-hash' })
+  })
+
+  describe('resolveConfiguredCpuList()', function () {
+    it('no cpu entry / cpu entry without cpuList → unrestricted (null pool)', function () {
+      expect(engine.resolveConfiguredCpuList({ resources: [] }, 8)).to.equal(true)
+      expect(engine.configuredCpuList).to.equal(null)
+      expect(
+        engine.resolveConfiguredCpuList({ resources: [{ id: 'cpu', total: 4 }] }, 8)
+      ).to.equal(true)
+      expect(engine.configuredCpuList).to.equal(null)
+    })
+
+    it('valid cpuList expands to the listed core IDs', function () {
+      expect(
+        engine.resolveConfiguredCpuList({ resources: [{ id: 'cpu', cpuList: '2-5' }] }, 8)
+      ).to.equal(true)
+      expect(engine.configuredCpuList).to.deep.equal([2, 3, 4, 5])
+    })
+
+    it('multi-range cpuList expands to all listed core IDs', function () {
+      expect(
+        engine.resolveConfiguredCpuList(
+          { resources: [{ id: 'cpu', cpuList: '0-1,4-6' }] },
+          8
+        )
+      ).to.equal(true)
+      expect(engine.configuredCpuList).to.deep.equal([0, 1, 4, 5, 6])
+    })
+
+    it('mixed ranges and bare core IDs expand to all listed core IDs', function () {
+      expect(
+        engine.resolveConfiguredCpuList(
+          { resources: [{ id: 'cpu', cpuList: '0-1,3' }] },
+          8
+        )
+      ).to.equal(true)
+      expect(engine.configuredCpuList).to.deep.equal([0, 1, 3])
+    })
+
+    it('single bare core ID works on a single-cpu host', function () {
+      expect(
+        engine.resolveConfiguredCpuList({ resources: [{ id: 'cpu', cpuList: '0' }] }, 1)
+      ).to.equal(true)
+      expect(engine.configuredCpuList).to.deep.equal([0])
+    })
+
+    it('core IDs the host does not have abort engine init (returns false)', function () {
+      expect(
+        engine.resolveConfiguredCpuList(
+          { resources: [{ id: 'cpu', cpuList: '0-15' }] },
+          8
+        )
+      ).to.equal(false)
+      expect(engine.configuredCpuList).to.equal(null)
+    })
+  })
+
+  describe('allocateCpus() with a restricted pool', function () {
+    beforeEach(function () {
+      engine.envCpuCoresMap.set('env1', [32, 33, 34, 35, 36, 37, 38, 39])
+    })
+
+    it('allocations only hand out cores from the restricted pool', function () {
+      expect(engine.allocateCpus('job1', 4, 'env1')).to.equal('32,33,34,35')
+      expect(engine.allocateCpus('job2', 2, 'env1')).to.equal('36,37')
+    })
+
+    it('released cores are reused from the restricted pool', function () {
+      engine.allocateCpus('job1', 4, 'env1')
+      engine.releaseCpus('job1')
+      expect(engine.allocateCpus('job2', 2, 'env1')).to.equal('32,33')
+    })
+
+    it('requests beyond the restricted pool return null instead of spilling to other cores', function () {
+      expect(engine.allocateCpus('job1', 9, 'env1')).to.equal(null)
     })
   })
 })

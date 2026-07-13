@@ -119,6 +119,9 @@ export class C2DEngineDocker extends C2DEngine {
   private trivyCachePath: string
   private cpuAllocations: Map<string, number[]> = new Map()
   private envCpuCoresMap: Map<string, number[]> = new Map()
+  // Host core IDs jobs may be pinned to, expanded from the cpu resource's `cpuList`
+  // config. null = no restriction (all host cores).
+  private configuredCpuList: number[] | null = null
   private activeBuildAborts: Map<string, AbortController> = new Map()
 
   public constructor(
@@ -271,6 +274,10 @@ export class C2DEngineDocker extends C2DEngine {
             `Resource "${res.id}": configured total ${res.total} exceeds physical ${cap}, capping`
           )
         if (res.total !== undefined) base.total = Math.min(res.total, cap)
+        // cpuList replaces total for the cpu resource (mutually exclusive by schema):
+        // the effective total is the number of allowed cores.
+        if (res.id === 'cpu' && res.cpuList)
+          base.total = Math.min(this.parseCpusetString(res.cpuList).length, cap)
         base.max = res.max !== undefined ? Math.min(res.max, base.total) : base.total
         if (res.min !== undefined) base.min = res.min
         if (res.constraints !== undefined)
@@ -400,6 +407,10 @@ export class C2DEngineDocker extends C2DEngine {
 
     this.physicalLimits.set('cpu', sysinfo.NCPU)
     this.physicalLimits.set('ram', Math.floor(sysinfo.MemTotal / 1024 / 1024 / 1024))
+
+    if (!this.resolveConfiguredCpuList(envConfig, sysinfo.NCPU)) {
+      return
+    }
     try {
       const diskStats = statfsSync(this.getC2DConfig().tempFolder)
       const diskGB = Math.floor((diskStats.bsize * diskStats.blocks) / 1024 / 1024 / 1024)
@@ -505,16 +516,22 @@ export class C2DEngineDocker extends C2DEngine {
       )
     }
 
-    // CPU affinity: all environments share the full physical core pool.
+    // CPU affinity: all environments share the same core pool — the configured cpuList
+    // when present, otherwise the full physical core range.
     // allocateCpus() dynamically assigns free cores per job across all envs.
     const physicalCpuCount = this.physicalLimits.get('cpu') || 0
-    const allCores = Array.from({ length: physicalCpuCount }, (_, i) => i)
+    const allCores =
+      this.configuredCpuList ?? Array.from({ length: physicalCpuCount }, (_, i) => i)
     for (const env of this.envs) {
       const cpuRes = this.getResource(env.resources ?? [], 'cpu')
       if (cpuRes && cpuRes.total > 0) {
         this.envCpuCoresMap.set(env.id, allCores)
         CORE_LOGGER.info(
-          `CPU affinity: environment ${env.id} shares pool of ${allCores.length} cores`
+          `CPU affinity: environment ${env.id} shares pool of ${allCores.length} cores${
+            this.configuredCpuList
+              ? ` (restricted by cpuList to [${allCores.join(',')}])`
+              : ''
+          }`
         )
       }
     }
@@ -2460,6 +2477,31 @@ export class C2DEngineDocker extends C2DEngine {
       }
     }
     return cores
+  }
+
+  /**
+   * Expands the cpu resource's cpuList config (format already schema-validated) into
+   * `configuredCpuList` and checks it against this host's CPU count. Returns false when
+   * the list references cores the host doesn't have — a config error; the engine must
+   * refuse to start rather than silently pin elsewhere.
+   */
+  private resolveConfiguredCpuList(
+    envConfig: { resources?: ComputeResource[] },
+    ncpu: number
+  ): boolean {
+    this.configuredCpuList = null
+    const cpuConfigEntry = (envConfig.resources ?? []).find((r) => r.id === 'cpu')
+    if (!cpuConfigEntry?.cpuList) return true
+    const cores = this.parseCpusetString(cpuConfigEntry.cpuList)
+    const outOfRange = cores.filter((c) => c >= ncpu)
+    if (outOfRange.length > 0) {
+      CORE_LOGGER.error(
+        `Skipping C2D Engine ${this.getC2DConfig().hash}: cpuList "${cpuConfigEntry.cpuList}" references core IDs [${outOfRange.join(',')}] but this host only has ${ncpu} CPUs (valid IDs: 0-${ncpu - 1})`
+      )
+      return false
+    }
+    this.configuredCpuList = cores
+    return true
   }
 
   private allocateCpus(jobId: string, count: number, envId: string): string | null {
