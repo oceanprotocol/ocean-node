@@ -1289,7 +1289,7 @@ describe('getAlgoChecksums', () => {
 
 describe('service start/restart Docker cleanup on failure', function () {
   let engine: any
-  let network: { id: string; remove: sinon.SinonStub }
+  let network: { id: string; inspect: sinon.SinonStub; remove: sinon.SinonStub }
 
   function makeContainer(startRejects: boolean) {
     return {
@@ -1309,7 +1309,13 @@ describe('service start/restart Docker cleanup on failure', function () {
     // pinning maps that releaseCpus/allocateCpus (called by cleanupServiceDocker) touch.
     engine.cpuAllocations = new Map()
     engine.envCpuCoresMap = new Map()
-    network = { id: 'net-1', remove: sinon.stub().resolves() }
+    // inspect is needed by removeServiceNetwork (cleanup resolves the network by
+    // deterministic name/id and checks for attached containers before removing).
+    network = {
+      id: 'net-1',
+      inspect: sinon.stub().resolves({ Containers: {} }),
+      remove: sinon.stub().resolves()
+    }
 
     engine.db = {
       newServiceJob: sinon.stub().resolves(),
@@ -1385,13 +1391,14 @@ describe('service start/restart Docker cleanup on failure', function () {
   it('processServiceStart removes the network and marks Error when createContainer fails', async function () {
     engine.docker = {
       createNetwork: sinon.stub().resolves(network),
-      createContainer: sinon.stub().rejects(new Error('createContainer failed'))
+      createContainer: sinon.stub().rejects(new Error('createContainer failed')),
+      getNetwork: sinon.stub().returns(network)
     }
     const job = makeStartingJob({ serviceId: 'svc-1' })
 
     await engine.processServiceStart(job) // never throws — failures are persisted as status
 
-    expect(network.remove.calledOnce, 'network.remove should be called').to.equal(true)
+    expect(network.remove.called, 'network.remove should be called').to.equal(true)
     expect(job.status).to.equal(ServiceStatusNumber.Error)
     // Funds were already claimed before the container step, so no refund here.
     expect(engine.escrow.claimLock.calledOnce).to.equal(true)
@@ -1402,7 +1409,8 @@ describe('service start/restart Docker cleanup on failure', function () {
     const container = makeContainer(true)
     engine.docker = {
       createNetwork: sinon.stub().resolves(network),
-      createContainer: sinon.stub().resolves(container)
+      createContainer: sinon.stub().resolves(container),
+      getNetwork: sinon.stub().returns(network)
     }
     const job = makeStartingJob({ serviceId: 'svc-2' })
 
@@ -1411,7 +1419,7 @@ describe('service start/restart Docker cleanup on failure', function () {
     expect(container.remove.calledOnce, 'container.remove should be called').to.equal(
       true
     )
-    expect(network.remove.calledOnce, 'network.remove should be called').to.equal(true)
+    expect(network.remove.called, 'network.remove should be called').to.equal(true)
     expect(job.status).to.equal(ServiceStatusNumber.Error)
   })
 
@@ -1419,7 +1427,8 @@ describe('service start/restart Docker cleanup on failure', function () {
     engine.pullImageRef = sinon.stub().rejects(new Error('pull failed'))
     engine.docker = {
       createNetwork: sinon.stub().resolves(network),
-      createContainer: sinon.stub().resolves(makeContainer(false))
+      createContainer: sinon.stub().resolves(makeContainer(false)),
+      getNetwork: sinon.stub().returns(network)
     }
     const job = makeStartingJob({ serviceId: 'svc-img' })
 
@@ -1439,7 +1448,11 @@ describe('service start/restart Docker cleanup on failure', function () {
 
   it('processServiceStart marks Error and skips the image when createLock fails', async function () {
     engine.escrow.createLock = sinon.stub().resolves(null)
-    engine.docker = { createNetwork: sinon.stub(), createContainer: sinon.stub() }
+    engine.docker = {
+      createNetwork: sinon.stub(),
+      createContainer: sinon.stub(),
+      getNetwork: sinon.stub().returns(network)
+    }
     const job = makeStartingJob({ serviceId: 'svc-lock' })
 
     await engine.processServiceStart(job)
@@ -1450,7 +1463,11 @@ describe('service start/restart Docker cleanup on failure', function () {
   })
 
   it('processServiceStart orphan recovery: cancels an unclaimed lock and marks Error', async function () {
-    engine.docker = { createNetwork: sinon.stub(), createContainer: sinon.stub() }
+    engine.docker = {
+      createNetwork: sinon.stub(),
+      createContainer: sinon.stub(),
+      getNetwork: sinon.stub().returns(network)
+    }
     // Resuming a job left in Locking from a previous process, with a lock but no claim.
     const job = makeStartingJob({
       serviceId: 'svc-orphan',
@@ -1500,7 +1517,8 @@ describe('service start/restart Docker cleanup on failure', function () {
     engine.db.getServiceJob = sinon.stub().resolves([existingJob])
     engine.docker = {
       createNetwork: sinon.stub().resolves(network),
-      createContainer: sinon.stub().rejects(new Error('createContainer failed'))
+      createContainer: sinon.stub().rejects(new Error('createContainer failed')),
+      getNetwork: sinon.stub().returns(network)
     }
 
     await expectRejects(
@@ -1508,7 +1526,7 @@ describe('service start/restart Docker cleanup on failure', function () {
       'createContainer failed'
     )
 
-    expect(network.remove.calledOnce, 'network.remove should be called').to.equal(true)
+    expect(network.remove.called, 'network.remove should be called').to.equal(true)
   })
 
   function makeRunningJobWithCmd(overrides: any = {}) {
@@ -1543,7 +1561,8 @@ describe('service start/restart Docker cleanup on failure', function () {
     const container = makeContainer(false)
     engine.docker = {
       createNetwork: sinon.stub().resolves(network),
-      createContainer: sinon.stub().resolves(container)
+      createContainer: sinon.stub().resolves(container),
+      getNetwork: sinon.stub().returns(network)
     }
 
     const result = await engine.restartService(
@@ -1567,7 +1586,8 @@ describe('service start/restart Docker cleanup on failure', function () {
     const container = makeContainer(false)
     engine.docker = {
       createNetwork: sinon.stub().resolves(network),
-      createContainer: sinon.stub().resolves(container)
+      createContainer: sinon.stub().resolves(container),
+      getNetwork: sinon.stub().returns(network)
     }
 
     const result = await engine.restartService('svc-cmd', '0xowner', undefined)
@@ -1585,7 +1605,8 @@ describe('service start/restart Docker cleanup on failure', function () {
     const container = makeContainer(false)
     engine.docker = {
       createNetwork: sinon.stub().resolves(network),
-      createContainer: sinon.stub().resolves(container)
+      createContainer: sinon.stub().resolves(container),
+      getNetwork: sinon.stub().returns(network)
     }
 
     const result = await engine.restartService('svc-cmd', '0xowner', undefined, [], [])

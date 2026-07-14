@@ -68,6 +68,22 @@ cpu/ram/gpu allocation and keeps its host ports held — until it is restarted, 
 stopped, or swept by the same expiry check once `expiresAt` passes (which then fully releases
 everything, same as a normal expiry).
 
+**Restart is self-healing with respect to leftover Docker state.** Each service gets a Docker
+network with the deterministic name `ocean-svc-<serviceId>`. Teardown (restart, stop, expiry
+sweep) removes that network by name — not just by the stored network id — force-removing any
+stale attached container first, so state leaked by a node crash mid-start cannot wedge the
+service. If network creation still hits a name conflict, the stale network is removed and
+creation is retried once.
+
+A leftover network is deliberately **removed and recreated rather than reused**. Reusing it
+would save nothing: a leaked network can still have a stale container attached (crashed after
+`container.start()` but before the job record was persisted), still bound to the service's
+host ports — so the old container must be inspected and force-removed either way, and at that
+point recreating the now-empty network is a single cheap API call. Recreating also guarantees
+the network always reflects the current code's configuration instead of silently inheriting
+whatever options a previous node version created it with, and it matches restart's overall
+tear-down-and-rebuild semantics (the container is never reused either).
+
 ## Configuration
 
 Service-on-demand is configured per Docker connection under `serviceOnDemand`:
