@@ -12,7 +12,12 @@ import {
 } from '../utils/findDdoHandler.js'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
-import { sleep, readStream, streamToUint8Array } from '../../../utils/util.js'
+import {
+  sleep,
+  readStream,
+  streamToUint8Array,
+  fetchEventFromTransaction
+} from '../../../utils/util.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
@@ -47,6 +52,26 @@ const MAX_NUM_PROVIDERS = 5
 const MAX_RESPONSE_WAIT_TIME_SECONDS = 60
 // wait time for reading the next getDDO command
 const MAX_WAIT_TIME_SECONDS_GET_DDO = 5
+
+// scans all receipt logs for a MetadataCreated/MetadataUpdated event emitted by the
+// given data NFT. The metadata event is not necessarily the first log of the
+// transaction (AA accounts, multisigs and relayers emit other events before it)
+export function findMetadataEventInLogs(
+  logs: readonly { address: string; topics: readonly string[]; data: string }[],
+  dataNftAddress: string
+): ethers.LogDescription | null {
+  const abiInterface = new ethers.Interface(ERC721Template.abi)
+  const nftLogs = logs.filter(
+    (log) => log.address.toLowerCase() === dataNftAddress.toLowerCase()
+  )
+  for (const eventName of [EVENTS.METADATA_CREATED, EVENTS.METADATA_UPDATED]) {
+    const events = fetchEventFromTransaction({ logs: nftLogs }, eventName, abiInterface)
+    if (events && events.length > 0) {
+      return events[0]
+    }
+  }
+  return null
+}
 
 export class DecryptDdoHandler extends CommandHandler {
   validate(command: DecryptDDOCommand): ValidateParams {
@@ -211,20 +236,14 @@ export class DecryptDdoHandler extends CommandHandler {
       if (transactionId) {
         try {
           const receipt = await provider.getTransactionReceipt(transactionId)
-          if (!receipt.logs.length) {
+          if (!receipt || !receipt.logs.length) {
             throw new Error('receipt logs 0')
           }
-          const abiInterface = new ethers.Interface(ERC721Template.abi)
-          const eventObject = {
-            topics: receipt.logs[0].topics as string[],
-            data: receipt.logs[0].data
-          }
-          const eventData = abiInterface.parseLog(eventObject)
-          if (
-            eventData.name !== EVENTS.METADATA_CREATED &&
-            eventData.name !== EVENTS.METADATA_UPDATED
-          ) {
-            throw new Error(`event name ${eventData.name}`)
+          const eventData = findMetadataEventInLogs(receipt.logs, dataNftAddress)
+          if (!eventData) {
+            throw new Error(
+              `transaction ${transactionId} does not contain a MetadataCreated or MetadataUpdated event emitted by ${dataNftAddress}`
+            )
           }
           flags = parseInt(eventData.args[3], 16)
           encryptedDocument = ethers.getBytes(eventData.args[4])
