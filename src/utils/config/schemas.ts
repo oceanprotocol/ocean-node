@@ -222,6 +222,13 @@ export function validateCpuList(
         path
       })
     }
+    if (end > 8192) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `cpuList range "${part}": core ID exceeds maximum supported limit`,
+        path
+      })
+    }
     prevEnd = Math.max(prevEnd, end)
     prevPart = part
   }

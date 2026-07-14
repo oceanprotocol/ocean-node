@@ -1082,6 +1082,7 @@ describe('Schema validation (C2DDockerConfigSchema)', () => {
       ['0-3,2', 'ascending and non-overlapping'], // bare ID inside a previous range
       ['3,3', 'ascending and non-overlapping'], // duplicate bare ID
       ['1.5-4', 'is invalid'], // floats
+      ['0-9000', 'maximum supported limit'], // core ID above the 8192 cap
       ['-1-4', 'is invalid'], // negative
       ['0-3, 8-11', 'is invalid'], // space
       ['0-3,,8-11', 'is invalid'], // empty part
@@ -1400,55 +1401,42 @@ describe('CPU affinity restricted by cpuList', () => {
 
   describe('resolveConfiguredCpuList()', function () {
     it('no cpu entry / cpu entry without cpuList → unrestricted (null pool)', function () {
-      expect(engine.resolveConfiguredCpuList({ resources: [] }, 8)).to.equal(true)
+      engine.resolveConfiguredCpuList({ resources: [] }, 8)
       expect(engine.configuredCpuList).to.equal(null)
-      expect(
-        engine.resolveConfiguredCpuList({ resources: [{ id: 'cpu', total: 4 }] }, 8)
-      ).to.equal(true)
+      engine.resolveConfiguredCpuList({ resources: [{ id: 'cpu', total: 4 }] }, 8)
       expect(engine.configuredCpuList).to.equal(null)
     })
 
     it('valid cpuList expands to the listed core IDs', function () {
-      expect(
-        engine.resolveConfiguredCpuList({ resources: [{ id: 'cpu', cpuList: '2-5' }] }, 8)
-      ).to.equal(true)
+      engine.resolveConfiguredCpuList({ resources: [{ id: 'cpu', cpuList: '2-5' }] }, 8)
       expect(engine.configuredCpuList).to.deep.equal([2, 3, 4, 5])
     })
 
     it('multi-range cpuList expands to all listed core IDs', function () {
-      expect(
-        engine.resolveConfiguredCpuList(
-          { resources: [{ id: 'cpu', cpuList: '0-1,4-6' }] },
-          8
-        )
-      ).to.equal(true)
+      engine.resolveConfiguredCpuList(
+        { resources: [{ id: 'cpu', cpuList: '0-1,4-6' }] },
+        8
+      )
       expect(engine.configuredCpuList).to.deep.equal([0, 1, 4, 5, 6])
     })
 
     it('mixed ranges and bare core IDs expand to all listed core IDs', function () {
-      expect(
-        engine.resolveConfiguredCpuList(
-          { resources: [{ id: 'cpu', cpuList: '0-1,3' }] },
-          8
-        )
-      ).to.equal(true)
+      engine.resolveConfiguredCpuList({ resources: [{ id: 'cpu', cpuList: '0-1,3' }] }, 8)
       expect(engine.configuredCpuList).to.deep.equal([0, 1, 3])
     })
 
     it('single bare core ID works on a single-cpu host', function () {
-      expect(
-        engine.resolveConfiguredCpuList({ resources: [{ id: 'cpu', cpuList: '0' }] }, 1)
-      ).to.equal(true)
+      engine.resolveConfiguredCpuList({ resources: [{ id: 'cpu', cpuList: '0' }] }, 1)
       expect(engine.configuredCpuList).to.deep.equal([0])
     })
 
-    it('core IDs the host does not have abort engine init (returns false)', function () {
-      expect(
+    it('core IDs the host does not have throw (fail fast at startup / config push)', function () {
+      expect(() =>
         engine.resolveConfiguredCpuList(
           { resources: [{ id: 'cpu', cpuList: '0-15' }] },
           8
         )
-      ).to.equal(false)
+      ).to.throw("don't exist on this host")
       expect(engine.configuredCpuList).to.equal(null)
     })
   })

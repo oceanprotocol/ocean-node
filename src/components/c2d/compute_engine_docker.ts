@@ -408,9 +408,7 @@ export class C2DEngineDocker extends C2DEngine {
     this.physicalLimits.set('cpu', sysinfo.NCPU)
     this.physicalLimits.set('ram', Math.floor(sysinfo.MemTotal / 1024 / 1024 / 1024))
 
-    if (!this.resolveConfiguredCpuList(envConfig, sysinfo.NCPU)) {
-      return
-    }
+    this.resolveConfiguredCpuList(envConfig, sysinfo.NCPU)
     try {
       const diskStats = statfsSync(this.getC2DConfig().tempFolder)
       const diskGB = Math.floor((diskStats.bsize * diskStats.blocks) / 1024 / 1024 / 1024)
@@ -525,7 +523,10 @@ export class C2DEngineDocker extends C2DEngine {
     for (const env of this.envs) {
       const cpuRes = this.getResource(env.resources ?? [], 'cpu')
       if (cpuRes && cpuRes.total > 0) {
-        this.envCpuCoresMap.set(env.id, allCores)
+        // Each env gets its own copy: the pool array must never alias
+        // this.configuredCpuList (or another env's pool), so a mutation of one can't
+        // corrupt the others.
+        this.envCpuCoresMap.set(env.id, [...allCores])
         CORE_LOGGER.info(
           `CPU affinity: environment ${env.id} shares pool of ${allCores.length} cores${
             this.configuredCpuList
@@ -2481,27 +2482,26 @@ export class C2DEngineDocker extends C2DEngine {
 
   /**
    * Expands the cpu resource's cpuList config (format already schema-validated) into
-   * `configuredCpuList` and checks it against this host's CPU count. Returns false when
-   * the list references cores the host doesn't have — a config error; the engine must
-   * refuse to start rather than silently pin elsewhere.
+   * `configuredCpuList` and checks it against this host's CPU count. Throws when the
+   * list references cores the host doesn't have — a config error; fail fast (abort node
+   * startup, or surface the error to the admin on a config push) rather than silently
+   * pin elsewhere or leave a half-initialized engine behind.
    */
   private resolveConfiguredCpuList(
     envConfig: { resources?: ComputeResource[] },
     ncpu: number
-  ): boolean {
+  ): void {
     this.configuredCpuList = null
     const cpuConfigEntry = (envConfig.resources ?? []).find((r) => r.id === 'cpu')
-    if (!cpuConfigEntry?.cpuList) return true
+    if (!cpuConfigEntry?.cpuList) return
     const cores = this.parseCpusetString(cpuConfigEntry.cpuList)
     const outOfRange = cores.filter((c) => c >= ncpu)
     if (outOfRange.length > 0) {
-      CORE_LOGGER.error(
-        `Skipping C2D Engine ${this.getC2DConfig().hash}: cpuList "${cpuConfigEntry.cpuList}" references core IDs [${outOfRange.join(',')}] but this host only has ${ncpu} CPUs (valid IDs: 0-${ncpu - 1})`
+      throw new Error(
+        `C2D Engine ${this.getC2DConfig().hash}: invalid cpuList "${cpuConfigEntry.cpuList}" — core IDs [${outOfRange.join(',')}] don't exist on this host (${ncpu} CPUs, valid IDs: 0-${ncpu - 1})`
       )
-      return false
     }
     this.configuredCpuList = cores
-    return true
   }
 
   private allocateCpus(jobId: string, count: number, envId: string): string | null {
