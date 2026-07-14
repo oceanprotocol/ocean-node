@@ -725,6 +725,63 @@ describe('**********         Service on Demand', () => {
     assert(res.status === 200, `expected nginx HTTP 200 after restart, got ${res.status}`)
   })
 
+  it('(l2) SERVICE_RESTART self-heals a network leaked by a crash mid-start', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 4)
+    // Simulate a node that died between createNetwork and persisting the docker refs:
+    // the DB record loses containerId/networkId while the real container + network keep
+    // running. Pre-fix, restart then failed forever with Docker 409 ("network with name
+    // ocean-svc-<id> already exists") because teardown only used the empty networkId.
+    const [raw] = await dbconn.c2d.getServiceJob(serviceId)
+    const oldContainerId = raw.containerId
+    raw.containerId = ''
+    raw.networkId = ''
+    raw.status = ServiceStatusNumber.Error
+    raw.statusText = 'simulated crash mid-start'
+    await dbconn.c2d.updateServiceJob(raw)
+
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_RESTART)
+    const task: ServiceRestartCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_RESTART,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      serviceId
+    }
+    const resp = await new ServiceRestartHandler(oceanNode).handle(task)
+    assert(
+      resp.status.httpStatus === 200,
+      `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
+    )
+    const running = await pollServiceStatus(serviceId, ServiceStatusNumber.Running)
+    expect(running.containerId).to.not.equal('')
+    expect(running.containerId).to.not.equal(oldContainerId)
+    expect(running.endpoints[0].hostPort).to.equal(hostPort)
+
+    const docker = new Dockerode()
+    // the stale container attached to the leaked network must have been force-removed
+    let staleGone = false
+    try {
+      await docker.getContainer(oldContainerId).inspect()
+    } catch {
+      staleGone = true
+    }
+    assert(staleGone, 'stale container should have been force-removed')
+    // exactly one network with the deterministic name survives
+    const nets = await docker.listNetworks()
+    const matching = nets.filter((n: any) => n.Name === `ocean-svc-${serviceId}`)
+    expect(matching.length).to.equal(1)
+
+    const res = await httpGetWithRetry(endpointUrl)
+    assert(
+      res.status === 200,
+      `expected nginx HTTP 200 after self-heal, got ${res.status}`
+    )
+  })
+
   it('(m) SERVICE_STOP → Stopped, container + network removed', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const before = await getServiceJob(serviceId)
@@ -759,6 +816,11 @@ describe('**********         Service on Demand', () => {
       inspectFailed = true
     }
     assert(inspectFailed, 'container should have been removed')
+
+    // network should be gone too (removed by deterministic name, independent of networkId)
+    const nets = await docker.listNetworks()
+    const matching = nets.filter((n: any) => n.Name === `ocean-svc-${serviceId}`)
+    expect(matching.length).to.equal(0)
   })
 
   it('(n) [slow] expiry cron marks a short-lived service Expired', async function () {

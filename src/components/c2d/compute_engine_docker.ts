@@ -85,6 +85,10 @@ const C2D_CONTAINER_GID = 1000
 
 const trivyImage = 'aquasec/trivy:0.69.3' // Use pinned versions for safety
 
+// "Already gone" Docker errors (404 missing, 304 already stopped) are the desired end
+// state of a teardown, so treat them as success.
+const isBenignDockerError = (e: any) => e?.statusCode === 404 || e?.statusCode === 304
+
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
 
@@ -3294,11 +3298,7 @@ export class C2DEngineDocker extends C2DEngine {
           null,
           serviceId
         )
-      if (job.networkId)
-        await this.docker
-          .getNetwork(job.networkId)
-          .remove()
-          .catch(() => {})
+      await this.removeServiceNetwork(serviceId, job.networkId).catch(() => {})
       for (const ep of job.endpoints) releaseHostPort(ep.hostPort)
       job.status = ServiceStatusNumber.Error
       job.statusText = 'Service start aborted (node restarted mid-start)'
@@ -3425,7 +3425,7 @@ export class C2DEngineDocker extends C2DEngine {
         url: `http://${nodeHost}:${hostPorts[i]}`
       }))
 
-      network = await this.docker.createNetwork({ Name: `ocean-svc-${serviceId}` })
+      network = await this.createServiceNetwork(serviceId)
 
       // Container env from the decrypted (in-memory) userData; command/entrypoint from the request.
       const decryptedUserData = await decryptUserData(job.userData, this.keyManager)
@@ -3509,7 +3509,9 @@ export class C2DEngineDocker extends C2DEngine {
 
   // Best-effort teardown of a half-created service container + network. Used by the
   // startService / restartService failure paths to avoid leaking Docker networks
-  // (which would exhaust the daemon's IPAM CIDR pool over repeated failures).
+  // (which would exhaust the daemon's IPAM CIDR pool over repeated failures). The network
+  // is removed by deterministic name too, so it is cleaned even when createNetwork itself
+  // threw and no live handle exists.
   private async cleanupServiceDocker(
     container: Dockerode.Container | null,
     network: Dockerode.Network | null,
@@ -3520,8 +3522,64 @@ export class C2DEngineDocker extends C2DEngine {
       await container.stop({ t: 5 }).catch(() => {})
       await container.remove({ force: true }).catch(() => {})
     }
-    if (network) {
-      await network.remove().catch(() => {})
+    await this.removeServiceNetwork(serviceId, network?.id).catch(() => {})
+  }
+
+  // Removes a service's Docker network by BOTH the persisted id (when set) and the
+  // deterministic name `ocean-svc-<serviceId>`: job.networkId is only persisted after the
+  // container starts, so a node crash mid-start leaves networkId='' in the DB while the
+  // named network still exists — removal must never depend solely on the persisted field.
+  // Any container still attached at this point is a stale leftover of the same service
+  // (every caller tears down the known container first), so it is force-removed to
+  // unblock network.remove(). Benign "already gone" errors resolve silently; anything
+  // else propagates so callers can decide whether teardown failure matters.
+  private async removeServiceNetwork(
+    serviceId: string,
+    networkId?: string
+  ): Promise<void> {
+    const refs = new Set<string>([`ocean-svc-${serviceId}`])
+    if (networkId) refs.add(networkId)
+    for (const ref of refs) {
+      const network = this.docker.getNetwork(ref) // dockerode accepts a name or an id
+      let info: any
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        info = await network.inspect()
+      } catch (e: any) {
+        if (isBenignDockerError(e)) continue
+        throw e
+      }
+      for (const containerId of Object.keys(info?.Containers ?? {})) {
+        // eslint-disable-next-line no-await-in-loop
+        await this.docker
+          .getContainer(containerId)
+          .remove({ force: true })
+          .catch((e) => {
+            if (!isBenignDockerError(e)) throw e
+          })
+      }
+      // eslint-disable-next-line no-await-in-loop
+      await network.remove().catch((e) => {
+        if (!isBenignDockerError(e)) throw e
+      })
+    }
+  }
+
+  // createNetwork with self-healing on a 409 name conflict: a conflict means a previous
+  // incarnation of this service leaked its network (e.g. the node died before networkId
+  // was persisted) — remove the stale one and retry once instead of failing the
+  // start/restart forever.
+  private async createServiceNetwork(serviceId: string): Promise<Dockerode.Network> {
+    const Name = `ocean-svc-${serviceId}`
+    try {
+      return await this.docker.createNetwork({ Name })
+    } catch (e: any) {
+      if (e?.statusCode !== 409) throw e
+      CORE_LOGGER.error(
+        `createNetwork conflict for ${Name} — removing stale network and retrying`
+      )
+      await this.removeServiceNetwork(serviceId)
+      return await this.docker.createNetwork({ Name })
     }
   }
 
@@ -3588,10 +3646,9 @@ export class C2DEngineDocker extends C2DEngine {
     await this.db.updateServiceJob(job)
     this.releaseCpus(serviceId)
 
-    // "Already gone" Docker errors (404 missing, 304 already stopped) are the desired end
-    // state, so treat them as success. Any other error means teardown genuinely failed —
-    // record it and keep the job OUT of Stopped so the persisted state stays accurate.
-    const isBenignDockerError = (e: any) => e?.statusCode === 404 || e?.statusCode === 304
+    // Benign "already gone" errors count as success. Any other error means teardown
+    // genuinely failed — record it and keep the job OUT of Stopped so the persisted
+    // state stays accurate.
     let cleanupError: Error | null = null
     try {
       if (job.containerId) {
@@ -3603,14 +3660,7 @@ export class C2DEngineDocker extends C2DEngine {
           if (!isBenignDockerError(e)) throw e
         })
       }
-      if (job.networkId) {
-        await this.docker
-          .getNetwork(job.networkId)
-          .remove()
-          .catch((e) => {
-            if (!isBenignDockerError(e)) throw e
-          })
-      }
+      await this.removeServiceNetwork(serviceId, job.networkId)
       // Only release the reserved host ports once the container is confirmed gone — a
       // port still bound by a not-removed container must not be handed to another service.
       for (const ep of job.endpoints) releaseHostPort(ep.hostPort)
@@ -3651,12 +3701,7 @@ export class C2DEngineDocker extends C2DEngine {
       await c.stop({ t: 10 }).catch(() => {})
       await c.remove({ force: true }).catch(() => {})
     }
-    if (job.networkId) {
-      await this.docker
-        .getNetwork(job.networkId)
-        .remove()
-        .catch(() => {})
-    }
+    await this.removeServiceNetwork(serviceId, job.networkId).catch(() => {})
 
     job.status = ServiceStatusNumber.Starting
     job.statusText = ServiceStatusText[ServiceStatusNumber.Starting]
@@ -3718,7 +3763,7 @@ export class C2DEngineDocker extends C2DEngine {
       })
 
       // 6. New per-service network
-      network = await this.docker.createNetwork({ Name: `ocean-svc-${serviceId}` })
+      network = await this.createServiceNetwork(serviceId)
 
       // 7. Resource constraints
       const { Memory, NanoCpus, DeviceRequests, CpusetCpus } =
