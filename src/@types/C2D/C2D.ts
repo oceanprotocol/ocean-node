@@ -72,6 +72,10 @@ export interface ComputeResource {
   // true  → multiple jobs may share the device simultaneously (NIC, TPM, HSM)
   // false → exclusive: only one job at a time (GPU, FPGA)
   total: number // total number of specific resource
+  cpuList?: string // connection-level cpu resource only: host core IDs jobs may be pinned to,
+  // as comma-separated core IDs and/or ranges, ascending and non-overlapping
+  // ("3", "0-1,3", "0-15,32-47"). Mutually exclusive with total; the effective
+  // total is the expanded list length.
   min: number // min number of resource needed for a job
   max: number // max number of resource for a job
   inUse?: number // for display purposes
