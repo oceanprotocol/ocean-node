@@ -3816,7 +3816,12 @@ export class C2DEngineDocker extends C2DEngine {
     if (job.status === ServiceStatusNumber.Expired || Date.now() >= job.expiresAt)
       throw new Error('Cannot restart an expired service')
 
-    // 1. Tear down existing container + network (best-effort)
+    // 1. Tear down existing container + network (best-effort). Deliberately BEFORE
+    // persisting Starting: a bare Starting record (cleared ids) is treated as a brand-new
+    // start by the boot-time loop, which would create+claim a SECOND escrow lock and
+    // allocate NEW host ports. Crashing here instead leaves the job Running with stale
+    // ids — benign: the boot health check flips it to Error and a re-issued restart
+    // recovers on the same ports/payment (teardown 404s are swallowed).
     if (job.containerId) {
       const c = this.docker.getContainer(job.containerId)
       await c.stop({ t: 10 }).catch(() => {})
