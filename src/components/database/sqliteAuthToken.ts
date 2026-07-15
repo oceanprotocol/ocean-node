@@ -1,5 +1,5 @@
 import { AuthToken } from './AuthTokenDatabase.js'
-import sqlite3 from 'sqlite3'
+import { SqliteClient } from './sqliteClient.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 
 interface AuthTokenDatabaseProvider {
@@ -15,14 +15,15 @@ interface AuthTokenDatabaseProvider {
 }
 
 export class SQLiteAuthToken implements AuthTokenDatabaseProvider {
-  private db: sqlite3.Database
+  private db: SqliteClient
 
   constructor(dbFilePath: string) {
-    this.db = new sqlite3.Database(dbFilePath)
+    this.db = new SqliteClient(dbFilePath)
   }
 
+  // eslint-disable-next-line require-await
   async createTable(): Promise<void> {
-    await this.db.exec(`
+    this.db.exec(`
       CREATE TABLE IF NOT EXISTS authTokens (
         token TEXT PRIMARY KEY,
         address TEXT NOT NULL,
@@ -33,16 +34,20 @@ export class SQLiteAuthToken implements AuthTokenDatabaseProvider {
       )
     `)
 
-    // Migration: Add chainId column if it doesn't exist
-    return new Promise<void>((resolve) => {
-      this.db.run(`ALTER TABLE authTokens ADD COLUMN chainId TEXT`, (_err) => {
-        // Ignore error if column already exists
-        resolve()
-      })
-    })
+    // Migration for DBs created before the chainId column existed: add it if missing.
+    // A fresh table already has the column, so ALTER throws "duplicate column name" —
+    // that's the only expected failure, so swallow it. With the synchronous exec above this
+    // now runs strictly after the CREATE TABLE, unlike the old callback-based `await exec`
+    // which never actually waited and let the CREATE race the ALTER.
+    try {
+      this.db.exec(`ALTER TABLE authTokens ADD COLUMN chainId TEXT`)
+    } catch {
+      // column already exists
+    }
   }
 
-  createToken(
+  // eslint-disable-next-line require-await
+  async createToken(
     token: string,
     address: string,
     createdAt: number,
@@ -52,73 +57,60 @@ export class SQLiteAuthToken implements AuthTokenDatabaseProvider {
     const insertSQL = `
           INSERT INTO authTokens (token, address, createdAt, validUntil, chainId) VALUES (?, ?, ?, ?, ?)
         `
-    return new Promise<void>((resolve, reject) => {
-      this.db.run(insertSQL, [token, address, createdAt, validUntil, chainId], (err) => {
-        if (err) {
-          DATABASE_LOGGER.error(`Error creating auth token: ${err}`)
-          reject(err)
-        } else {
-          resolve()
-        }
-      })
-    })
+    try {
+      this.db.run(insertSQL, [token, address, createdAt, validUntil, chainId])
+    } catch (err) {
+      DATABASE_LOGGER.error(`Error creating auth token: ${err}`)
+      throw err
+    }
   }
 
-  validateTokenEntry(token: string): Promise<AuthToken | null> {
+  async validateTokenEntry(token: string): Promise<AuthToken | null> {
     const selectSQL = `
           SELECT * FROM authTokens WHERE token = ?
         `
-    return new Promise<AuthToken | null>((resolve, reject) => {
-      this.db.get(selectSQL, [token], async (err, row: AuthToken) => {
-        if (err) {
-          DATABASE_LOGGER.error(`Error validating auth token: ${err}`)
-          reject(err)
-          return
-        }
+    let row: AuthToken | undefined
+    try {
+      row = this.db.get<AuthToken>(selectSQL, [token])
+    } catch (err) {
+      DATABASE_LOGGER.error(`Error validating auth token: ${err}`)
+      throw err
+    }
 
-        if (!row) {
-          resolve(null)
-          return
-        }
+    if (!row) {
+      return null
+    }
 
-        if (!row.isValid) {
-          resolve(null)
-          return
-        }
+    if (!row.isValid) {
+      return null
+    }
 
-        if (row.validUntil === null) {
-          resolve(row)
-          return
-        }
+    if (row.validUntil === null) {
+      return row
+    }
 
-        const validUntilDate = new Date(row.validUntil).getTime()
-        const now = Date.now()
+    const validUntilDate = new Date(row.validUntil).getTime()
+    const now = Date.now()
 
-        if (validUntilDate < now) {
-          resolve(null)
-          DATABASE_LOGGER.info(`Auth token ${token} is invalid`)
-          await this.invalidateTokenEntry(token)
-          return
-        }
+    if (validUntilDate < now) {
+      DATABASE_LOGGER.info(`Auth token ${token} is invalid`)
+      await this.invalidateTokenEntry(token)
+      return null
+    }
 
-        resolve(row)
-      })
-    })
+    return row
   }
 
-  invalidateTokenEntry(token: string): Promise<void> {
+  // eslint-disable-next-line require-await
+  async invalidateTokenEntry(token: string): Promise<void> {
     const deleteSQL = `
           UPDATE authTokens SET isValid = FALSE WHERE token = ?
         `
-    return new Promise<void>((resolve, reject) => {
-      this.db.run(deleteSQL, [token], (err) => {
-        if (err) {
-          DATABASE_LOGGER.error(`Error invalidating auth token: ${err}`)
-          reject(err)
-        } else {
-          resolve()
-        }
-      })
-    })
+    try {
+      this.db.run(deleteSQL, [token])
+    } catch (err) {
+      DATABASE_LOGGER.error(`Error invalidating auth token: ${err}`)
+      throw err
+    }
   }
 }

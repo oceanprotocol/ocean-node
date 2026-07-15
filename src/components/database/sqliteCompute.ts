@@ -5,7 +5,7 @@ import {
   type DBComputeJob
 } from '../../@types/C2D/C2D.js'
 import { ServiceStatusNumber, type ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
-import sqlite3, { RunResult } from 'sqlite3'
+import { SqliteClient } from './sqliteClient.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { create256Hash } from '../../utils/crypt.js'
 
@@ -61,7 +61,9 @@ export function generateBlobFromJSON(job: DBComputeJob): Buffer {
 }
 
 export function generateJSONFromBlob(blob: any): Promise<any> {
-  return JSON.parse(blob.toString())
+  // node:sqlite returns BLOB columns as Uint8Array (the old sqlite3 addon returned Buffer).
+  // Buffer.from() handles both, so decode through it before parsing.
+  return JSON.parse(Buffer.from(blob).toString())
 }
 
 // we cannot store array of strings, so we use string separators instead
@@ -84,27 +86,25 @@ export function convertStringToArray(str: string) {
 }
 
 export class SQLiteCompute implements ComputeDatabaseProvider {
-  private db: sqlite3.Database
+  private db: SqliteClient
   private schema: TypesenseSchema
 
   constructor(dbFilePath: string) {
-    this.db = new sqlite3.Database(dbFilePath)
+    this.db = new SqliteClient(dbFilePath)
     this.schema = typesenseSchemas.c2dSchemas
   }
 
-  deleteJob(jobId: string): Promise<boolean> {
+  // eslint-disable-next-line require-await
+  async deleteJob(jobId: string): Promise<boolean> {
     const deleteSQL = `
       DELETE FROM ${this.schema.name} WHERE jobId = ?
     `
-    return new Promise<boolean>((resolve, reject) => {
-      this.db.run(deleteSQL, [jobId], function (this: RunResult, err) {
-        if (err) reject(err)
-        else resolve(this.changes === 1)
-      })
-    })
+    const { changes } = this.db.run(deleteSQL, [jobId])
+    return changes === 1
   }
 
-  createTable() {
+  // eslint-disable-next-line require-await
+  async createTable() {
     /* although we have field called expiteTimestamp, we are actually storing maxJobDuration in it */
     const createTableSQL = `
       CREATE TABLE IF NOT EXISTS ${this.schema.name} (
@@ -124,36 +124,29 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
         body BLOB
       );
     `
-    return new Promise<void>((resolve, reject) => {
-      this.db.run(createTableSQL, (err) => {
-        if (err) reject(err)
-        else resolve()
-      })
-    })
+    this.db.exec(createTableSQL)
   }
 
-  createImageTable(): Promise<void> {
+  // eslint-disable-next-line require-await
+  async createImageTable(): Promise<void> {
     const createTableSQL = `
       CREATE TABLE IF NOT EXISTS docker_images (
         image TEXT PRIMARY KEY,
         lastUsedTimestamp INTEGER NOT NULL
       );
     `
-    return new Promise<void>((resolve, reject) => {
-      this.db.run(createTableSQL, (err) => {
-        if (err) {
-          DATABASE_LOGGER.error('Could not create docker_images table: ' + err.message)
-          reject(err)
-        } else {
-          resolve()
-        }
-      })
-    })
+    try {
+      this.db.exec(createTableSQL)
+    } catch (err) {
+      DATABASE_LOGGER.error('Could not create docker_images table: ' + err.message)
+      throw err
+    }
   }
 
   // ── Service-on-Demand jobs ──────────────────────────────────────────
 
-  createServiceTable(): Promise<void> {
+  // eslint-disable-next-line require-await
+  async createServiceTable(): Promise<void> {
     const createTableSQL = `
       CREATE TABLE IF NOT EXISTS service_jobs (
         serviceId TEXT PRIMARY KEY,
@@ -165,83 +158,68 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
         body BLOB
       );
     `
-    return new Promise<void>((resolve, reject) => {
-      this.db.run(createTableSQL, (err) => {
-        if (err) {
-          DATABASE_LOGGER.error('Could not create service_jobs table: ' + err.message)
-          reject(err)
-        } else {
-          resolve()
-        }
-      })
-    })
+    try {
+      this.db.exec(createTableSQL)
+    } catch (err) {
+      DATABASE_LOGGER.error('Could not create service_jobs table: ' + err.message)
+      throw err
+    }
   }
 
-  newServiceJob(job: ServiceJob): Promise<void> {
+  // eslint-disable-next-line require-await
+  async newServiceJob(job: ServiceJob): Promise<void> {
     const insertSQL = `
       INSERT INTO service_jobs
       (serviceId, owner, clusterHash, status, expiresAt, dateCreated, body)
       VALUES (?, ?, ?, ?, ?, ?, ?);
     `
-    return new Promise<void>((resolve, reject) => {
-      this.db.run(
-        insertSQL,
-        [
-          job.serviceId,
-          job.owner,
-          job.clusterHash,
-          job.status,
-          job.expiresAt,
-          job.dateCreated,
-          Buffer.from(JSON.stringify(job))
-        ],
-        (err) => {
-          if (err) {
-            DATABASE_LOGGER.error('Could not insert service job on DB: ' + err.message)
-            reject(err)
-          } else {
-            resolve()
-          }
-        }
-      )
-    })
+    try {
+      this.db.run(insertSQL, [
+        job.serviceId,
+        job.owner,
+        job.clusterHash,
+        job.status,
+        job.expiresAt,
+        job.dateCreated,
+        Buffer.from(JSON.stringify(job))
+      ])
+    } catch (err) {
+      DATABASE_LOGGER.error('Could not insert service job on DB: ' + err.message)
+      throw err
+    }
   }
 
-  updateServiceJob(job: ServiceJob): Promise<number> {
+  // eslint-disable-next-line require-await
+  async updateServiceJob(job: ServiceJob): Promise<number> {
     const updateSQL = `
       UPDATE service_jobs
       SET owner = ?, clusterHash = ?, status = ?, expiresAt = ?, body = ?
       WHERE serviceId = ?;
     `
-    return new Promise<number>((resolve, reject) => {
-      this.db.run(
-        updateSQL,
-        [
-          job.owner,
-          job.clusterHash,
-          job.status,
-          job.expiresAt,
-          Buffer.from(JSON.stringify(job)),
-          job.serviceId
-        ],
-        function (this: RunResult, err: Error | null) {
-          if (err) {
-            DATABASE_LOGGER.error(`Error while updating service job: ${err.message}`)
-            reject(err)
-          } else {
-            resolve(this.changes)
-          }
-        }
-      )
-    })
+    try {
+      const { changes } = this.db.run(updateSQL, [
+        job.owner,
+        job.clusterHash,
+        job.status,
+        job.expiresAt,
+        Buffer.from(JSON.stringify(job)),
+        job.serviceId
+      ])
+      return changes
+    } catch (err) {
+      DATABASE_LOGGER.error(`Error while updating service job: ${err.message}`)
+      throw err
+    }
   }
 
   private mapServiceRows(rows: any[] | undefined): ServiceJob[] {
     if (!rows || rows.length === 0) return []
-    return rows.map((row) => JSON.parse(row.body.toString()) as ServiceJob)
+    // BLOB comes back as Uint8Array from node:sqlite; decode through Buffer before parsing.
+    return rows.map((row) => JSON.parse(Buffer.from(row.body).toString()) as ServiceJob)
   }
 
-  getServiceJob(serviceId?: string, owner?: string): Promise<ServiceJob[]> {
+  // eslint-disable-next-line require-await
+  async getServiceJob(serviceId?: string, owner?: string): Promise<ServiceJob[]> {
     const params: any[] = []
     let selectSQL = `SELECT * FROM service_jobs WHERE 1=1`
     if (serviceId) {
@@ -252,19 +230,17 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       selectSQL += ` AND owner = ?`
       params.push(owner)
     }
-    return new Promise<ServiceJob[]>((resolve, reject) => {
-      this.db.all(selectSQL, params, (err, rows: any[] | undefined) => {
-        if (err) {
-          DATABASE_LOGGER.error(err.message)
-          reject(err)
-        } else {
-          resolve(this.mapServiceRows(rows))
-        }
-      })
-    })
+    try {
+      const rows = this.db.all(selectSQL, params)
+      return this.mapServiceRows(rows)
+    } catch (err) {
+      DATABASE_LOGGER.error(err.message)
+      throw err
+    }
   }
 
-  getRunningServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
+  // eslint-disable-next-line require-await
+  async getRunningServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
     // All pre-terminal statuses are "active": a service reserves its resources from the moment
     // its record is created (Starting) through the whole start pipeline (Locking, image, Claiming)
     // until it is Running, and while Stopping. Error is included too: a service whose container
@@ -287,19 +263,17 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       selectSQL += ` AND clusterHash = ?`
       params.push(clusterHash)
     }
-    return new Promise<ServiceJob[]>((resolve, reject) => {
-      this.db.all(selectSQL, params, (err, rows: any[] | undefined) => {
-        if (err) {
-          DATABASE_LOGGER.error(err.message)
-          reject(err)
-        } else {
-          resolve(this.mapServiceRows(rows))
-        }
-      })
-    })
+    try {
+      const rows = this.db.all(selectSQL, params)
+      return this.mapServiceRows(rows)
+    } catch (err) {
+      DATABASE_LOGGER.error(err.message)
+      throw err
+    }
   }
 
-  getExpiredServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
+  // eslint-disable-next-line require-await
+  async getExpiredServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
     // Running AND Error: an Error'd service (e.g. container died on its own) still holds its
     // resources/ports reserved for a possible restart, but once past expiresAt it must be
     // swept and released just like a normally-running one — otherwise an abandoned Error
@@ -312,22 +286,20 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       selectSQL += ` AND clusterHash = ?`
       params.push(clusterHash)
     }
-    return new Promise<ServiceJob[]>((resolve, reject) => {
-      this.db.all(selectSQL, params, (err, rows: any[] | undefined) => {
-        if (err) {
-          DATABASE_LOGGER.error(err.message)
-          reject(err)
-        } else {
-          resolve(this.mapServiceRows(rows))
-        }
-      })
-    })
+    try {
+      const rows = this.db.all(selectSQL, params)
+      return this.mapServiceRows(rows)
+    } catch (err) {
+      DATABASE_LOGGER.error(err.message)
+      throw err
+    }
   }
 
   // Service jobs that are mid-start and need the background loop to advance them.
   // Starting = fresh (handler just created it); the intermediate states are picked up too so
   // the loop can resume / orphan-recover them after a node restart.
-  getPendingServiceStarts(clusterHash?: string): Promise<ServiceJob[]> {
+  // eslint-disable-next-line require-await
+  async getPendingServiceStarts(clusterHash?: string): Promise<ServiceJob[]> {
     const startStatuses = [
       ServiceStatusNumber.Starting,
       ServiceStatusNumber.Locking,
@@ -342,125 +314,105 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       selectSQL += ` AND clusterHash = ?`
       params.push(clusterHash)
     }
-    return new Promise<ServiceJob[]>((resolve, reject) => {
-      this.db.all(selectSQL, params, (err, rows: any[] | undefined) => {
-        if (err) {
-          DATABASE_LOGGER.error(err.message)
-          reject(err)
-        } else {
-          resolve(this.mapServiceRows(rows))
-        }
-      })
-    })
+    try {
+      const rows = this.db.all(selectSQL, params)
+      return this.mapServiceRows(rows)
+    } catch (err) {
+      DATABASE_LOGGER.error(err.message)
+      throw err
+    }
   }
 
-  updateImage(image: string): Promise<void> {
+  // eslint-disable-next-line require-await
+  async updateImage(image: string): Promise<void> {
     const timestamp = Math.floor(Date.now() / 1000) // Unix timestamp in seconds
     const insertSQL = `
       INSERT OR REPLACE INTO docker_images (image, lastUsedTimestamp)
       VALUES (?, ?);
     `
-    return new Promise<void>((resolve, reject) => {
-      this.db.run(insertSQL, [image, timestamp], (err) => {
-        if (err) {
-          DATABASE_LOGGER.error(
-            `Could not update image usage for ${image}: ${err.message}`
-          )
-          reject(err)
-        } else {
-          DATABASE_LOGGER.debug(`Updated image usage timestamp for ${image}`)
-          resolve()
-        }
-      })
-    })
+    try {
+      this.db.run(insertSQL, [image, timestamp])
+      DATABASE_LOGGER.debug(`Updated image usage timestamp for ${image}`)
+    } catch (err) {
+      DATABASE_LOGGER.error(`Could not update image usage for ${image}: ${err.message}`)
+      throw err
+    }
   }
 
-  deleteImage(image: string): Promise<void> {
+  // eslint-disable-next-line require-await
+  async deleteImage(image: string): Promise<void> {
     const deleteSQL = `
       DELETE FROM docker_images WHERE image = ?;
     `
-    return new Promise<void>((resolve, reject) => {
-      this.db.run(deleteSQL, [image], (err) => {
-        if (err) {
-          DATABASE_LOGGER.error(`Could not delete image ${image}: ${err.message}`)
-          reject(err)
-        } else {
-          DATABASE_LOGGER.debug(`Deleted image ${image}`)
-          resolve()
-        }
-      })
-    })
+    try {
+      this.db.run(deleteSQL, [image])
+      DATABASE_LOGGER.debug(`Deleted image ${image}`)
+    } catch (err) {
+      DATABASE_LOGGER.error(`Could not delete image ${image}: ${err.message}`)
+      throw err
+    }
   }
 
-  getOldImages(retentionDays: number = 7): Promise<string[]> {
+  // eslint-disable-next-line require-await
+  async getOldImages(retentionDays: number = 7): Promise<string[]> {
     const cutoffTimestamp = Math.floor(Date.now() / 1000) - retentionDays * 24 * 60 * 60
     const selectSQL = `
       SELECT image FROM docker_images
       WHERE lastUsedTimestamp < ?
       ORDER BY lastUsedTimestamp ASC;
     `
-    return new Promise<string[]>((resolve, reject) => {
-      this.db.all(selectSQL, [cutoffTimestamp], (err, rows: any[] | undefined) => {
-        if (err) {
-          DATABASE_LOGGER.error(`Could not get old images: ${err.message}`)
-          reject(err)
-        } else {
-          const images = rows ? rows.map((row) => row.image) : []
-          resolve(images)
-        }
-      })
-    })
+    try {
+      const rows = this.db.all<{ image: string }>(selectSQL, [cutoffTimestamp])
+      return rows.map((row) => row.image)
+    } catch (err) {
+      DATABASE_LOGGER.error(`Could not get old images: ${err.message}`)
+      throw err
+    }
   }
 
-  newJob(job: DBComputeJob): Promise<string> {
+  // eslint-disable-next-line require-await
+  async newJob(job: DBComputeJob): Promise<string> {
     // TO DO C2D
     const insertSQL = `
-      INSERT INTO ${this.schema.name} 
+      INSERT INTO ${this.schema.name}
       (
-      owner, 
-      did, 
-      jobId, 
-      dateCreated, 
-      status, 
-      statusText, 
-      inputDID, 
-      algoDID, 
-      agreementId, 
-      expireTimestamp, 
-      environment, 
+      owner,
+      did,
+      jobId,
+      dateCreated,
+      status,
+      statusText,
+      inputDID,
+      algoDID,
+      agreementId,
+      expireTimestamp,
+      environment,
       body
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     `
 
-    return new Promise<string>((resolve, reject) => {
-      this.db.run(
-        insertSQL,
-        [
-          job.owner,
-          job.did,
-          job.jobId,
-          job.dateCreated || String(Date.now() / 1000), // seconds from epoch,
-          job.status || C2DStatusNumber.JobStarted,
-          job.statusText || C2DStatusText.JobStarted,
-          job.inputDID ? convertArrayToString(job.inputDID) : job.inputDID,
-          job.algoDID,
-          job.agreementId,
-          job.maxJobDuration,
-          job.environment,
-          generateBlobFromJSON(job)
-        ],
-        (err) => {
-          if (err) {
-            DATABASE_LOGGER.error('Could not insert C2D job on DB: ' + err.message)
-            reject(err)
-          } else {
-            DATABASE_LOGGER.info('Successfully inserted job with id:' + job.jobId)
-            resolve(job.jobId)
-          }
-        }
-      )
-    })
+    try {
+      this.db.run(insertSQL, [
+        job.owner,
+        job.did,
+        job.jobId,
+        job.dateCreated || String(Date.now() / 1000), // seconds from epoch,
+        job.status || C2DStatusNumber.JobStarted,
+        job.statusText || C2DStatusText.JobStarted,
+        job.inputDID ? convertArrayToString(job.inputDID) : job.inputDID,
+        job.algoDID,
+        job.agreementId,
+        job.maxJobDuration,
+        job.environment,
+        generateBlobFromJSON(job)
+      ])
+      DATABASE_LOGGER.info('Successfully inserted job with id:' + job.jobId)
+      return job.jobId
+    } catch (err) {
+      DATABASE_LOGGER.error('Could not insert C2D job on DB: ' + err.message)
+      throw err
+    }
   }
 
   /**
@@ -473,7 +425,12 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
    * @param owner the consumer address / job owner
    * @returns job(s)
    */
-  getJob(jobId?: string, agreementId?: string, owner?: string): Promise<DBComputeJob[]> {
+  // eslint-disable-next-line require-await
+  async getJob(
+    jobId?: string,
+    agreementId?: string,
+    owner?: string
+  ): Promise<DBComputeJob[]> {
     const params: any = []
     let selectSQL = `SELECT * FROM ${this.schema.name} WHERE 1=1`
     if (jobId) {
@@ -492,35 +449,33 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       params.push(owner)
     }
 
-    return new Promise<DBComputeJob[]>((resolve, reject) => {
-      this.db.all(selectSQL, params, (err, rows: any[] | undefined) => {
-        if (err) {
-          DATABASE_LOGGER.error(err.message)
-          reject(err)
-        } else {
-          // also decode the internal data into job data
-          if (rows && rows.length > 0) {
-            const all: DBComputeJob[] = rows.map((row) => {
-              const body = generateJSONFromBlob(row.body)
-              delete row.body
-              const maxJobDuration = row.expireTimestamp
-              delete row.expireTimestamp
-              const job: DBComputeJob = { ...row, ...body, maxJobDuration }
-              return job
-            })
-            resolve(all)
-          } else {
-            DATABASE_LOGGER.error(
-              `Could not find any job with jobId: ${jobId}, agreementId: ${agreementId}, or owner: ${owner} in database!`
-            )
-            resolve([])
-          }
-        }
+    let rows: any[]
+    try {
+      rows = this.db.all(selectSQL, params)
+    } catch (err) {
+      DATABASE_LOGGER.error(err.message)
+      throw err
+    }
+    // also decode the internal data into job data
+    if (rows && rows.length > 0) {
+      const all: DBComputeJob[] = rows.map((row) => {
+        const body = generateJSONFromBlob(row.body)
+        delete row.body
+        const maxJobDuration = row.expireTimestamp
+        delete row.expireTimestamp
+        const job: DBComputeJob = { ...row, ...body, maxJobDuration }
+        return job
       })
-    })
+      return all
+    }
+    DATABASE_LOGGER.error(
+      `Could not find any job with jobId: ${jobId}, agreementId: ${agreementId}, or owner: ${owner} in database!`
+    )
+    return []
   }
 
-  updateJob(job: DBComputeJob): Promise<number> {
+  // eslint-disable-next-line require-await
+  async updateJob(job: DBComputeJob): Promise<number> {
     // if (job.dateFinished && job.isRunning) {
     //  job.isRunning = false
     // }
@@ -535,76 +490,72 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       job.jobId
     ]
     const updateSQL = `
-      UPDATE ${this.schema.name} 
-      SET 
+      UPDATE ${this.schema.name}
+      SET
       owner = ?,
       status = ?,
       statusText = ?,
-      expireTimestamp = ?, 
+      expireTimestamp = ?,
       body = ?,
       dateFinished = ?
       WHERE jobId = ?;
     `
 
-    return new Promise((resolve, reject) => {
-      this.db.run(updateSQL, data, function (this: RunResult, err: Error | null) {
-        if (err) {
-          DATABASE_LOGGER.error(`Error while updating job: ${err.message}`)
-          reject(err)
-        } else {
-          // number of rows updated successfully
-          resolve(this.changes)
-        }
-      })
-    })
+    try {
+      // number of rows updated successfully
+      const { changes } = this.db.run(updateSQL, data)
+      return changes
+    } catch (err) {
+      DATABASE_LOGGER.error(`Error while updating job: ${err.message}`)
+      throw err
+    }
   }
 
-  getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]> {
+  // eslint-disable-next-line require-await
+  async getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]> {
     const selectSQL = `
       SELECT * FROM ${this.schema.name} WHERE dateFinished IS NULL ORDER by dateCreated
     `
-    return new Promise<DBComputeJob[]>((resolve, reject) => {
-      this.db.all(selectSQL, (err, rows: any[] | undefined) => {
-        if (err) {
-          DATABASE_LOGGER.error(err.message)
-          reject(err)
-        } else {
-          // also decode the internal data into job data
-          // get them all running
-          if (rows && rows.length > 0) {
-            const all: DBComputeJob[] = rows.map((row) => {
-              const body = generateJSONFromBlob(row.body)
-              delete row.body
-              const maxJobDuration = row.expireTimestamp
-              delete row.expireTimestamp
-              const job: DBComputeJob = { ...row, ...body, maxJobDuration }
-              return job
-            })
-            // filter them out
-            const filtered = all.filter((job) => {
-              let include = true
-              if (engine && engine !== job.clusterHash) {
-                include = false
-              }
-              if (environment && environment !== job.environment) {
-                include = false
-              }
-              if (job.dateFinished) {
-                include = false
-              }
-              return include
-            })
-            resolve(filtered)
-          } else {
-            // DATABASE_LOGGER.info('Could not find any running C2D jobs!')
-            resolve([])
-          }
-        }
+    let rows: any[]
+    try {
+      rows = this.db.all(selectSQL)
+    } catch (err) {
+      DATABASE_LOGGER.error(err.message)
+      throw err
+    }
+    // also decode the internal data into job data
+    // get them all running
+    if (rows && rows.length > 0) {
+      const all: DBComputeJob[] = rows.map((row) => {
+        const body = generateJSONFromBlob(row.body)
+        delete row.body
+        const maxJobDuration = row.expireTimestamp
+        delete row.expireTimestamp
+        const job: DBComputeJob = { ...row, ...body, maxJobDuration }
+        return job
       })
-    })
+      // filter them out
+      const filtered = all.filter((job) => {
+        let include = true
+        if (engine && engine !== job.clusterHash) {
+          include = false
+        }
+        if (environment && environment !== job.environment) {
+          include = false
+        }
+        if (job.dateFinished) {
+          include = false
+        }
+        return include
+      })
+      return filtered
+    }
+    // DATABASE_LOGGER.info('Could not find any running C2D jobs!')
+    return []
   }
 
-  getFinishedJobs(environments?: string[]): Promise<DBComputeJob[]> {
+  // eslint-disable-next-line require-await
+  async getFinishedJobs(environments?: string[]): Promise<DBComputeJob[]> {
     let selectSQL = `
     SELECT * FROM ${this.schema.name} WHERE (dateFinished IS NOT NULL OR results IS NOT NULL)
   `
@@ -617,35 +568,32 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
 
     selectSQL += ` ORDER BY dateFinished DESC`
 
-    return new Promise<DBComputeJob[]>((resolve, reject) => {
-      this.db.all(selectSQL, params, (err, rows: any[] | undefined) => {
-        if (err) {
-          DATABASE_LOGGER.error(err.message)
-          reject(err)
-        } else {
-          // also decode the internal data into job data
-          // get them all running
-          if (rows && rows.length > 0) {
-            const all: DBComputeJob[] = rows.map((row) => {
-              const body = generateJSONFromBlob(row.body)
-              delete row.body
-              const maxJobDuration = row.expireTimestamp
-              delete row.expireTimestamp
-              const job: DBComputeJob = { ...row, ...body, maxJobDuration }
-              return job
-            })
-            resolve(all)
-          } else {
-            environments
-              ? DATABASE_LOGGER.info(
-                  'No jobs found for the specified enviroments: ' + environments.join(',')
-                )
-              : DATABASE_LOGGER.info('No jobs found')
-            resolve([])
-          }
-        }
+    let rows: any[]
+    try {
+      rows = this.db.all(selectSQL, params)
+    } catch (err) {
+      DATABASE_LOGGER.error(err.message)
+      throw err
+    }
+    // also decode the internal data into job data
+    // get them all running
+    if (rows && rows.length > 0) {
+      const all: DBComputeJob[] = rows.map((row) => {
+        const body = generateJSONFromBlob(row.body)
+        delete row.body
+        const maxJobDuration = row.expireTimestamp
+        delete row.expireTimestamp
+        const job: DBComputeJob = { ...row, ...body, maxJobDuration }
+        return job
       })
-    })
+      return all
+    }
+    environments
+      ? DATABASE_LOGGER.info(
+          'No jobs found for the specified enviroments: ' + environments.join(',')
+        )
+      : DATABASE_LOGGER.info('No jobs found')
+    return []
   }
 
   async getJobs(
@@ -703,7 +651,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
   ): Promise<DBComputeJob[]> {
     let selectSQL = `SELECT * FROM ${this.schema.name}`
 
-    // sqlite3 bindings accept both strings and numbers; `status` is a numeric enum.
+    // node:sqlite bindings accept both strings and numbers; `status` is a numeric enum.
     const params: Array<string | number> = []
     const conditions: string[] = []
 
@@ -727,42 +675,40 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     return await this.doQuery(selectSQL, params, environments)
   }
 
-  private doQuery(
+  // eslint-disable-next-line require-await
+  private async doQuery(
     selectSQL: string,
     params: Array<string | number>,
     environments: string[]
-  ) {
-    return new Promise<DBComputeJob[]>((resolve, reject) => {
-      this.db.all(selectSQL, params, (err, rows: any[] | undefined) => {
-        if (err) {
-          DATABASE_LOGGER.error(err.message)
-          reject(err)
-        } else {
-          // also decode the internal data into job data
-          // get them all running
-          if (rows && rows.length > 0) {
-            const all: DBComputeJob[] = rows.map((row) => {
-              const body = generateJSONFromBlob(row.body)
-              delete row.body
-              const maxJobDuration = row.expireTimestamp
-              delete row.expireTimestamp
-              const job: DBComputeJob = { ...row, ...body, maxJobDuration }
-              if (!job.jobIdHash && job.jobId) {
-                job.jobIdHash = create256Hash(job.jobId)
-              }
-              return job
-            })
-            resolve(all)
-          } else {
-            environments
-              ? DATABASE_LOGGER.info(
-                  'No jobs found for the specified enviroments: ' + environments.join(',')
-                )
-              : DATABASE_LOGGER.info('No jobs found')
-            resolve([])
-          }
+  ): Promise<DBComputeJob[]> {
+    let rows: any[]
+    try {
+      rows = this.db.all(selectSQL, params)
+    } catch (err) {
+      DATABASE_LOGGER.error(err.message)
+      throw err
+    }
+    // also decode the internal data into job data
+    // get them all running
+    if (rows && rows.length > 0) {
+      const all: DBComputeJob[] = rows.map((row) => {
+        const body = generateJSONFromBlob(row.body)
+        delete row.body
+        const maxJobDuration = row.expireTimestamp
+        delete row.expireTimestamp
+        const job: DBComputeJob = { ...row, ...body, maxJobDuration }
+        if (!job.jobIdHash && job.jobId) {
+          job.jobIdHash = create256Hash(job.jobId)
         }
+        return job
       })
-    })
+      return all
+    }
+    environments
+      ? DATABASE_LOGGER.info(
+          'No jobs found for the specified enviroments: ' + environments.join(',')
+        )
+      : DATABASE_LOGGER.info('No jobs found')
+    return []
   }
 }

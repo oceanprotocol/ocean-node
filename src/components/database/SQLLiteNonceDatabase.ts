@@ -1,5 +1,3 @@
-import fs from 'fs'
-import path from 'path'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
@@ -15,11 +13,7 @@ export class SQLLiteNonceDatabase extends AbstractNonceDatabase {
     return (async (): Promise<SQLLiteNonceDatabase> => {
       DATABASE_LOGGER.info('Nonce Database initiated with SQLite provider')
 
-      // Ensure the directory exists before instantiating SQLiteProvider
-      const dbDir = path.dirname('databases/nonceDatabase.sqlite')
-      if (!fs.existsSync(dbDir)) {
-        fs.mkdirSync(dbDir, { recursive: true })
-      }
+      // SqliteClient creates the parent directory on construction.
       this.provider = new SQLiteProvider('databases/nonceDatabase.sqlite')
       await this.provider.createTableForNonce()
 

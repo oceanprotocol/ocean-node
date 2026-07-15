@@ -6,9 +6,7 @@ import type {
   PersistentStorageObject
 } from '../../@types/PersistentStorage.js'
 
-import sqlite3, { RunResult } from 'sqlite3'
-import path from 'path'
-import fs from 'fs'
+import { SqliteClient } from '../database/sqliteClient.js'
 import { getAddress } from 'ethers'
 import { OceanNode } from '../../OceanNode.js'
 import { checkAddressOnAccessList } from '../../utils/accessList.js'
@@ -69,19 +67,16 @@ export type PersistentStorageBucketRecord = {
 }
 
 export abstract class PersistentStorageFactory {
-  private db: sqlite3.Database
+  private db: SqliteClient
   private node: OceanNode
   private dbReady = false
   private dbReadyPromise: Promise<void>
 
   constructor(node: OceanNode) {
     this.node = node
-    const dbDir = path.dirname('databases/persistentStorage.sqlite')
-    if (!fs.existsSync(dbDir)) {
-      fs.mkdirSync(dbDir, { recursive: true })
-    }
-    this.db = new sqlite3.Database('databases/persistentStorage.sqlite')
-    const createBucketsSQL = `
+    // SqliteClient creates the parent directory on construction.
+    this.db = new SqliteClient('databases/persistentStorage.sqlite')
+    this.db.exec(`
       CREATE TABLE IF NOT EXISTS persistent_storage_buckets (
         bucketId TEXT PRIMARY KEY,
         owner TEXT NOT NULL,
@@ -89,29 +84,20 @@ export abstract class PersistentStorageFactory {
         createdAt INTEGER NOT NULL,
         label TEXT
       );
-    `
-    this.dbReadyPromise = new Promise<void>((resolve, reject) => {
-      this.db.run(createBucketsSQL, (err) => {
-        if (err) {
-          reject(err)
-          return
-        }
-        // Migration: add the label column if it doesn't exist
-        this.db.run(
-          `ALTER TABLE persistent_storage_buckets ADD COLUMN label TEXT`,
-          (alterErr) => {
-            // Ignore "duplicate column name" (expected once the column exists);
-            // surface any other failure instead of starting with a broken schema.
-            if (alterErr && !/duplicate column name/i.test(alterErr.message)) {
-              reject(alterErr)
-              return
-            }
-            this.dbReady = true
-            resolve()
-          }
-        )
-      })
-    })
+    `)
+    // Migration: add the label column if it doesn't exist. A fresh table already has it,
+    // so ALTER throws "duplicate column name" — swallow only that; surface any other
+    // failure instead of starting with a broken schema. Schema setup is synchronous now,
+    // so the DB is ready by the time the constructor returns.
+    try {
+      this.db.exec(`ALTER TABLE persistent_storage_buckets ADD COLUMN label TEXT`)
+    } catch (alterErr) {
+      if (!/duplicate column name/i.test(alterErr.message)) {
+        throw alterErr
+      }
+    }
+    this.dbReady = true
+    this.dbReadyPromise = Promise.resolve()
   }
 
   public isDbReady(): boolean {
@@ -261,7 +247,7 @@ export abstract class PersistentStorageFactory {
    * with constructor-time schema creation.
    */
 
-  dbUpsertBucket(
+  async dbUpsertBucket(
     bucketId: string,
     owner: string,
     accessListJson: string,
@@ -274,71 +260,39 @@ export abstract class PersistentStorageFactory {
       VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(bucketId) DO UPDATE SET accessListJson=excluded.accessListJson;
     `
-    return this.ensureDbReady().then(
-      () =>
-        new Promise<void>((resolve, reject) => {
-          this.db.run(sql, [bucketId, owner, accessListJson, createdAt, label], (err) => {
-            if (err) reject(err)
-            else resolve()
-          })
-        })
-    )
+    await this.ensureDbReady()
+    this.db.run(sql, [bucketId, owner, accessListJson, createdAt, label])
   }
 
-  dbGetBucket(bucketId: string): Promise<BucketRow | null> {
+  async dbGetBucket(bucketId: string): Promise<BucketRow | null> {
     const sql = `SELECT bucketId, owner, accessListJson, createdAt, label FROM persistent_storage_buckets WHERE bucketId = ?`
-    return this.ensureDbReady().then(
-      () =>
-        new Promise((resolve, reject) => {
-          this.db.get(sql, [bucketId], (err, row: BucketRow | undefined) => {
-            if (err) reject(err)
-            else resolve(row ?? null)
-          })
-        })
-    )
+    await this.ensureDbReady()
+    const row = this.db.get<BucketRow>(sql, [bucketId])
+    return row ?? null
   }
 
-  dbListBucketsByOwner(owner: string): Promise<BucketRow[]> {
+  async dbListBucketsByOwner(owner: string): Promise<BucketRow[]> {
     const sql = `SELECT bucketId, owner, accessListJson, createdAt, label FROM persistent_storage_buckets WHERE owner = ? ORDER BY createdAt ASC`
-    return this.ensureDbReady().then(
-      () =>
-        new Promise((resolve, reject) => {
-          this.db.all(sql, [owner], (err, rows: BucketRow[]) => {
-            if (err) reject(err)
-            else resolve(rows ?? [])
-          })
-        })
-    )
+    await this.ensureDbReady()
+    return this.db.all<BucketRow>(sql, [owner])
   }
 
-  dbDeleteBucket(bucketId: string): Promise<boolean> {
+  async dbDeleteBucket(bucketId: string): Promise<boolean> {
     const sql = `DELETE FROM persistent_storage_buckets WHERE bucketId = ?`
-    return this.ensureDbReady().then(
-      () =>
-        new Promise((resolve, reject) => {
-          this.db.run(sql, [bucketId], function (this: RunResult, err) {
-            if (err) reject(err)
-            else resolve(this.changes === 1)
-          })
-        })
-    )
+    await this.ensureDbReady()
+    const { changes } = this.db.run(sql, [bucketId])
+    return changes === 1
   }
 
-  dbUpdateBucketLabel(
+  async dbUpdateBucketLabel(
     bucketId: string,
     owner: string,
     label: string | null
   ): Promise<boolean> {
     const sql = `UPDATE persistent_storage_buckets SET label = ? WHERE bucketId = ? AND owner = ?`
-    return this.ensureDbReady().then(
-      () =>
-        new Promise((resolve, reject) => {
-          this.db.run(sql, [label, bucketId, owner], function (this: RunResult, err) {
-            if (err) reject(err)
-            else resolve(this.changes === 1)
-          })
-        })
-    )
+    await this.ensureDbReady()
+    const { changes } = this.db.run(sql, [label, bucketId, owner])
+    return changes === 1
   }
 
   isAllowed(consumerAddress: string, accessLists: AccessList[]): Promise<boolean> {

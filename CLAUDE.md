@@ -12,12 +12,12 @@ of which dispatch to the same set of command handlers.
 
 ## 1. Environment & tooling prerequisites
 
-- **Node.js 22 is required** (`.nvmrc` pins `22`). Always run `nvm use` (or
-  `source ~/.nvm/nvm.sh && nvm use`) before any `npm`, build, or test command. The wrong
-  Node version fails with errors like `Unexpected token 'with'` or missing `GLIBC_2.38`.
+- **Node.js ≥ 22.13 is required** (`.nvmrc` pins `22.22.2`, matching the Dockerfile and CI;
+  `package.json` `engines` requires `>=22.13.0`). Always run `nvm use` (or `source ~/.nvm/nvm.sh && nvm use`) before
+  any `npm`, build, or test command. The wrong Node version fails with errors like
+  `Unexpected token 'with'`, missing `GLIBC_2.38`, or — since the SQLite layer uses the
+  built-in `node:sqlite` module — `ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite` on Node < 22.13.
   This is enforced by `.cursor/rules/tests-nvm.mdc` and the in-repo `CLAUDE.md`.
-- If `sqlite3` native bindings break after switching to Node 22, rebuild from source:
-  `npm_config_build_from_source=true npm rebuild sqlite3`.
 - **`postinstall` runs `scripts/fix-libp2p-http-utils.js`** — a patch applied to a libp2p
   dependency. Expect it to run on every `npm install`; don't remove it.
 - **Docker + docker-compose** are needed for the metadata database (Typesense or
@@ -270,7 +270,8 @@ Handler source is grouped under `src/components/core/`:
   indexer state, logs, orders, ddoState, access lists, escrow events — behind the
   `Abstract*Database` interfaces in `BaseDatabase.ts`. **SQLite** is always used for the
   nonce DB, config DB, C2D job DB, and auth-token DB (works even with no metadata DB
-  configured). See `docs/database.md`.
+  configured) — via Node's built-in `node:sqlite` module (no native addon), wrapped by
+  `SqliteClient` in `src/components/database/sqliteClient.ts`. See `docs/database.md`.
 - **KeyManager/** — provider-abstraction over the node key (`docs/KeyManager.md`). Currently
   `RawPrivateKeyProvider` (from `PRIVATE_KEY`); derives the libp2p peerId/keys and the EVM
   address, and caches the ethers signer. Designed to add KMS providers (GCP/AWS) later.
