@@ -72,6 +72,7 @@ function makeEngine(): any {
     createNetwork: sinon.stub()
   }
   engine.cpuAllocations = new Map()
+  engine.serviceOpsInFlight = new Set()
   return engine
 }
 

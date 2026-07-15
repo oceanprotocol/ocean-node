@@ -84,6 +84,17 @@ the network always reflects the current code's configuration instead of silently
 whatever options a previous node version created it with, and it matches restart's overall
 tear-down-and-rebuild semantics (the container is never reused either).
 
+**Lifecycle operations are exclusive per service.** At most one lifecycle operation — the
+background start pipeline, `SERVICE_RESTART`, `SERVICE_STOP`, or the expiry sweep — runs per
+service at a time. A restart or stop issued while another operation is in flight (e.g. a
+restart still pulling the image) is rejected with
+`Service <id> has a start/stop/restart operation in progress — retry shortly`; simply retry
+once the in-flight operation settles. Without this exclusivity, the background loop's
+crash-orphan recovery could tear down the `ocean-svc-<serviceId>` network in the middle of a
+restart that had just created it, failing the restart with
+`network ocean-svc-<id> not found`. If a service expires while such an operation is in
+flight, the expiry sweep simply retries on a later tick.
+
 ## Configuration
 
 Service-on-demand is configured per Docker connection under `serviceOnDemand`:

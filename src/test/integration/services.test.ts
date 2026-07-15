@@ -782,6 +782,90 @@ describe('**********         Service on Demand', () => {
     )
   })
 
+  it('(l3) SERVICE_RESTART survives InternalLoop ticks mid-restart (orphan-recovery race)', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 4)
+    const engine: any = getDockerEngine()
+    const before = await getServiceJob(serviceId)
+    const oldContainerId = before.containerId
+
+    // Delay the image pull so the job sits in PullImage across several InternalLoop
+    // ticks (cronTime = 2 s) — the exact window in which the loop's orphan-recovery
+    // used to tear down the network the restart had just created, failing the restart
+    // with "network ocean-svc-<id> not found" (the live-node bug).
+    const originalPull = engine.pullImageRef
+    engine.pullImageRef = async (...args: any[]) => {
+      await sleep(5000)
+      return originalPull.apply(engine, args)
+    }
+    try {
+      const {
+        consumerAddress: addr,
+        nonce,
+        signature
+      } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_RESTART)
+      const task: ServiceRestartCommand = {
+        command: PROTOCOL_COMMANDS.SERVICE_RESTART,
+        consumerAddress: addr,
+        nonce,
+        signature,
+        serviceId
+      }
+      const restartPromise = new ServiceRestartHandler(oceanNode).handle(task)
+
+      // wait until the restart is actually mid-pull (deterministic, not sleep-based)
+      const deadline = Date.now() + 10_000
+      while (Date.now() < deadline) {
+        const j = await getServiceJob(serviceId)
+        if (j?.status === ServiceStatusNumber.PullImage) break
+        await sleep(250)
+      }
+
+      // concurrent lifecycle operations must be rejected while the restart holds the lock
+      const stopSig = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_STOP)
+      const stopResp = await new ServiceStopHandler(oceanNode).handle({
+        command: PROTOCOL_COMMANDS.SERVICE_STOP,
+        consumerAddress: stopSig.consumerAddress,
+        nonce: stopSig.nonce,
+        signature: stopSig.signature,
+        serviceId
+      } as ServiceStopCommand)
+      expect(stopResp.status.httpStatus).to.not.equal(200)
+      expect(String(stopResp.status.error)).to.contain('operation in progress')
+
+      const retrySig = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_RESTART)
+      const retryResp = await new ServiceRestartHandler(oceanNode).handle({
+        ...task,
+        nonce: retrySig.nonce,
+        signature: retrySig.signature
+      })
+      expect(retryResp.status.httpStatus).to.not.equal(200)
+      expect(String(retryResp.status.error)).to.contain('operation in progress')
+
+      // the original restart must complete unharmed by the loop ticks that fired mid-pull
+      const resp = await restartPromise
+      assert(
+        resp.status.httpStatus === 200,
+        `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
+      )
+    } finally {
+      engine.pullImageRef = originalPull
+    }
+
+    // pollServiceStatus throws if the job lands in Error — which is exactly what the
+    // pre-fix orphan-recovery race produced ("Service start aborted (node restarted
+    // mid-start)" / "network ocean-svc-<id> not found").
+    const running = await pollServiceStatus(serviceId, ServiceStatusNumber.Running)
+    expect(running.containerId).to.not.equal(oldContainerId)
+    expect(running.endpoints[0].hostPort).to.equal(hostPort)
+    expect(running.expiresAt).to.equal(expiresAt)
+
+    const res = await httpGetWithRetry(endpointUrl)
+    assert(
+      res.status === 200,
+      `expected nginx HTTP 200 after raced restart, got ${res.status}`
+    )
+  })
+
   it('(m) SERVICE_STOP → Stopped, container + network removed', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const before = await getServiceJob(serviceId)

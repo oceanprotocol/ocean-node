@@ -1512,9 +1512,11 @@ describe('service start/restart Docker cleanup on failure', function () {
     // Bypass the Docker-specific constructor but keep the prototype methods.
     engine = Object.create(C2DEngineDocker.prototype)
     // Constructor field initializers don't run via Object.create, so seed the CPU
-    // pinning maps that releaseCpus/allocateCpus (called by cleanupServiceDocker) touch.
+    // pinning maps that releaseCpus/allocateCpus (called by cleanupServiceDocker) touch,
+    // and the per-service lifecycle lock taken by stopService/restartService.
     engine.cpuAllocations = new Map()
     engine.envCpuCoresMap = new Map()
+    engine.serviceOpsInFlight = new Set()
     // inspect is needed by removeServiceNetwork (cleanup resolves the network by
     // deterministic name/id and checks for attached containers before removing).
     network = {
