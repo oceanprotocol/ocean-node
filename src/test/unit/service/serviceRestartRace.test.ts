@@ -76,7 +76,7 @@ function makeEngine(): any {
   }
   engine.cpuAllocations = new Map()
   engine.serviceOpsInFlight = new Set()
-  engine.serviceStartPromises = new Set()
+  engine.serviceOpPromises = new Set()
   engine.clusterConfig = {
     hash: CLUSTER_HASH,
     connection: { resources: [], serviceOnDemand: {} }
@@ -212,6 +212,33 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
     await engine.InternalLoop()
     await flush()
     expect(engine.processServiceStart.calledOnceWith(midRestart)).to.equal(true)
+  })
+
+  it('engine stop() drains an in-flight handler-driven stopService before returning', async () => {
+    const engine = makeEngine()
+    engine.db.getServiceJob.resolves([makeJob()])
+    let resolveStop: () => void
+    const pendingStop = new Promise<void>((resolve) => {
+      resolveStop = resolve
+    })
+    engine.docker.getContainer.returns(stubContainer({ stop: () => pendingStop }))
+
+    const serviceStop = engine.stopService(SERVICE_ID, OWNER)
+    await flush()
+    expect(engine.serviceOpPromises.size).to.equal(1)
+
+    let drained = false
+    const engineStop = engine.stop().then(() => {
+      drained = true
+    })
+    await flush()
+    expect(drained).to.equal(false) // must wait on the in-flight stopService
+
+    resolveStop!()
+    await engineStop
+    expect(drained).to.equal(true)
+    expect((await serviceStop).status).to.equal(ServiceStatusNumber.Stopped)
+    expect(engine.serviceOpPromises.size).to.equal(0)
   })
 
   it('the expiry sweep defers a locked service instead of marking it Expired without teardown', async () => {

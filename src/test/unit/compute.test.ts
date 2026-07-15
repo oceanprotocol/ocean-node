@@ -1517,6 +1517,7 @@ describe('service start/restart Docker cleanup on failure', function () {
     engine.cpuAllocations = new Map()
     engine.envCpuCoresMap = new Map()
     engine.serviceOpsInFlight = new Set()
+    engine.serviceOpPromises = new Set()
     // inspect is needed by removeServiceNetwork (cleanup resolves the network by
     // deterministic name/id and checks for attached containers before removing).
     network = {

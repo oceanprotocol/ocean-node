@@ -73,6 +73,7 @@ function makeEngine(): any {
   }
   engine.cpuAllocations = new Map()
   engine.serviceOpsInFlight = new Set()
+  engine.serviceOpPromises = new Set()
   return engine
 }
 

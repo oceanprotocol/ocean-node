@@ -112,10 +112,11 @@ export class C2DEngineDocker extends C2DEngine {
   // "network ocean-svc-<id> not found" failure) and start/stop/restart clobber each
   // other's docker resources and job status.
   private serviceOpsInFlight: Set<string> = new Set()
-  // The in-flight processServiceStart() promises (launched fire-and-forget by InternalLoop),
-  // so stop() can drain them before returning — otherwise a start could outlive stop() and
-  // race a restarted engine on the same shared DB.
-  private serviceStartPromises: Set<Promise<void>> = new Set()
+  // The in-flight service lifecycle promises — processServiceStart() launched
+  // fire-and-forget by InternalLoop, plus handler-driven stopService()/restartService()
+  // calls — so stop() can drain them before returning. Otherwise an op could outlive
+  // stop() and race a restarted engine on the same shared DB.
+  private serviceOpPromises: Set<Promise<unknown>> = new Set()
   private imageCleanupTimer: NodeJS.Timeout | null = null
   private paymentClaimTimer: NodeJS.Timeout | null = null
   private scanDBUpdateTimer: NodeJS.Timeout | null = null
@@ -661,11 +662,12 @@ export class C2DEngineDocker extends C2DEngine {
       await this.internalLoopPromise.catch(() => {})
       this.internalLoopPromise = null
     }
-    // Drain any in-flight service-start pipelines launched by the loop, so none continue
-    // (and touch escrow/Docker on the shared DB) after the engine is considered stopped.
-    if (this.serviceStartPromises.size > 0) {
-      await Promise.allSettled([...this.serviceStartPromises])
-      this.serviceStartPromises.clear()
+    // Drain any in-flight service lifecycle ops — start pipelines launched by the loop
+    // AND handler-driven stopService/restartService calls — so none continue (and touch
+    // escrow/Docker on the shared DB) after the engine is considered stopped.
+    if (this.serviceOpPromises.size > 0) {
+      await Promise.allSettled([...this.serviceOpPromises])
+      this.serviceOpPromises.clear()
     }
     this.isInternalLoopRunning = false
     // Stop image cleanup timer
@@ -1797,9 +1799,9 @@ export class C2DEngineDocker extends C2DEngine {
         // Track the promise so stop() can drain it; clean both trackers when it settles.
         const startPromise = this.processServiceStart(svc).finally(() => {
           this.serviceOpsInFlight.delete(svc.serviceId)
-          this.serviceStartPromises.delete(startPromise)
+          this.serviceOpPromises.delete(startPromise)
         })
-        this.serviceStartPromises.add(startPromise)
+        this.serviceOpPromises.add(startPromise)
       }
 
       // Service-on-Demand expiry: stop services whose paid window has elapsed.
@@ -3641,8 +3643,12 @@ export class C2DEngineDocker extends C2DEngine {
   // detected within ~cronTime instead of only at expiresAt.
   private async checkRunningServices(): Promise<void> {
     const services = await this.db.getRunningServiceJobs(this.getC2DConfig().hash)
+    // Skip services with a lifecycle op in flight: a restart intentionally kills the
+    // container mid-way, which must not be reported as an unexpected death.
     const runningOnly = services.filter(
-      (svc) => svc.status === ServiceStatusNumber.Running
+      (svc) =>
+        svc.status === ServiceStatusNumber.Running &&
+        !this.serviceOpsInFlight.has(svc.serviceId)
     )
     await Promise.all(runningOnly.map((svc) => this.checkServiceContainerHealth(svc)))
   }
@@ -3676,6 +3682,11 @@ export class C2DEngineDocker extends C2DEngine {
       // already moved on (stopped/restarted/expired) by another path — don't clobber it
       return
     }
+    if (fresh.containerId !== job.containerId) {
+      // the container we observed dead is no longer the job's container (a restart
+      // replaced it since our snapshot) — the current one is not known to be dead
+      return
+    }
     fresh.status = ServiceStatusNumber.Error
     fresh.statusText = `service container exited unexpectedly: ${reason}`
     await this.db.updateServiceJob(fresh)
@@ -3699,11 +3710,13 @@ export class C2DEngineDocker extends C2DEngine {
     owner: string
   ): Promise<ServiceJob | null> {
     this.acquireServiceLifecycleLock(serviceId)
-    try {
-      return await this.doStopService(serviceId, owner)
-    } finally {
+    // Tracked like loop-launched starts so engine stop() drains an in-flight stop too.
+    const op = this.doStopService(serviceId, owner).finally(() => {
       this.serviceOpsInFlight.delete(serviceId)
-    }
+      this.serviceOpPromises.delete(op)
+    })
+    this.serviceOpPromises.add(op)
+    return await op
   }
 
   // The actual stop. Must only run while holding the service lifecycle lock (see
@@ -3771,17 +3784,19 @@ export class C2DEngineDocker extends C2DEngine {
     // network created here mid-restart → container.start() fails with
     // "network ocean-svc-<id> not found".
     this.acquireServiceLifecycleLock(serviceId)
-    try {
-      return await this.doRestartService(
-        serviceId,
-        owner,
-        newUserData,
-        newDockerCmd,
-        newDockerEntrypoint
-      )
-    } finally {
+    // Tracked like loop-launched starts so engine stop() drains an in-flight restart too.
+    const op = this.doRestartService(
+      serviceId,
+      owner,
+      newUserData,
+      newDockerCmd,
+      newDockerEntrypoint
+    ).finally(() => {
       this.serviceOpsInFlight.delete(serviceId)
-    }
+      this.serviceOpPromises.delete(op)
+    })
+    this.serviceOpPromises.add(op)
+    return await op
   }
 
   // The actual restart. Must only run while holding the service lifecycle lock (see
