@@ -3921,7 +3921,9 @@ export class C2DEngineDocker extends C2DEngine {
       await this.releaseServiceLifecycleLock(serviceId)
       return false
     }
-    CORE_LOGGER.debug(`service lock ${serviceId}: acquired by ${this.serviceLockHolderId}`)
+    CORE_LOGGER.debug(
+      `service lock ${serviceId}: acquired by ${this.serviceLockHolderId}`
+    )
     return true
   }
 
