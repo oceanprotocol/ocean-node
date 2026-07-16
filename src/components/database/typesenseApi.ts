@@ -1,4 +1,3 @@
-import axios, { AxiosRequestConfig, AxiosResponse } from 'axios'
 import { setTimeout } from 'timers/promises'
 import { TypesenseConfig } from './typesenseConfig.js'
 import { TypesenseError } from './typesense.js'
@@ -96,60 +95,53 @@ export class TypesenseApi {
       )
 
       try {
-        const url = `${node.protocol}://${node.host}:${node.port}${endpoint}`
-        const requestOptions: AxiosRequestConfig = {
-          method: requestType,
-          url,
-          headers: { 'X-TYPESENSE-API-KEY': this.config.apiKey },
-          maxContentLength: Infinity,
-          maxBodyLength: Infinity,
-          validateStatus: (status) => {
-            return status > 0
-          },
-          transformResponse: [
-            (data, headers) => {
-              let transformedData = data
-              if (
-                headers !== undefined &&
-                typeof data === 'string' &&
-                headers['content-type'] &&
-                headers['content-type'].startsWith('application/json')
-              ) {
-                transformedData = JSON.parse(data)
-              }
-              return transformedData
+        const url = new URL(`${node.protocol}://${node.host}:${node.port}${endpoint}`)
+        if (queryParameters !== null) {
+          for (const [key, value] of Object.entries(queryParameters)) {
+            if (value !== undefined && value !== null) {
+              url.searchParams.set(key, String(value))
             }
-          ]
+          }
+        }
+
+        const init: RequestInit = {
+          method: requestType.toUpperCase(),
+          headers: {
+            'X-TYPESENSE-API-KEY': this.config.apiKey,
+            ...(bodyParameters !== null && { 'content-type': 'application/json' })
+          },
+          ...(bodyParameters !== null && { body: JSON.stringify(bodyParameters) })
         }
 
         if (skipConnectionTimeout !== true) {
-          requestOptions.timeout = this.config.connectionTimeoutSeconds * 1000
+          init.signal = AbortSignal.timeout(this.config.connectionTimeoutSeconds * 1000)
         }
 
-        if (queryParameters !== null) {
-          requestOptions.params = queryParameters
-        }
-
-        if (bodyParameters !== null) {
-          requestOptions.data = bodyParameters
-        }
-
-        const response = await axios(requestOptions)
+        const response = await fetch(url, init)
         this.config.logger.debug(
           `Request ${endpoint}: Request to Node ${node.host} was made. Response Code was ${response.status}.`
         )
 
+        // fetch never throws on HTTP status and doesn't auto-parse — replicate
+        // axios's old transformResponse (JSON only when content-type says so).
+        const contentType = response.headers.get('content-type') ?? ''
+        const data: any = contentType.startsWith('application/json')
+          ? await response.json()
+          : await response.text()
+
         if (response.status >= 200 && response.status < 300) {
-          return Promise.resolve(response.data)
+          return data
         } else if (response.status < 500) {
-          return Promise.reject(this.customError(response))
+          return Promise.reject(this.customError(response.status, data))
         } else {
-          throw new Error(response.data?.message)
+          throw new Error(data?.message)
         }
       } catch (error: any) {
         lastException = error
         this.config.logger.debug(
-          `Request ${endpoint}: Request to Node ${node.host} failed due to "${error.code} ${error.message}"`
+          `Request ${endpoint}: Request to Node ${node.host} failed due to "${
+            error.cause?.code ?? error.code
+          } ${error.message}"`
         )
         this.config.logger.debug(
           `Request ${endpoint}: Sleeping for ${this.config.retryIntervalSeconds}s and then retrying request...`
@@ -161,9 +153,9 @@ export class TypesenseApi {
     return Promise.reject(lastException)
   }
 
-  customError(response: AxiosResponse): TypesenseError {
-    const error = new TypesenseError(response.data?.message)
-    error.httpStatus = response.status
+  customError(status: number, data: any): TypesenseError {
+    const error = new TypesenseError(data?.message)
+    error.httpStatus = status
     return error
   }
 }

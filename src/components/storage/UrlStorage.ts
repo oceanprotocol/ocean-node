@@ -6,7 +6,7 @@ import {
 } from '../../@types/fileObject.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { fetchFileMetadata } from '../../utils/asset.js'
-import axios from 'axios'
+import { fetchStream, fetchHeadersTimeout, headersToObject } from '../../utils/http.js'
 
 import { Storage } from './Storage.js'
 
@@ -23,19 +23,8 @@ export class UrlStorage extends Storage {
     const input = this.getDownloadUrl()
     const file = this.getFile()
     const { headers } = file
-    const response = await axios({
-      method: 'get',
-      url: input,
-      headers,
-      responseType: 'stream',
-      timeout: 30000
-    })
-
-    return {
-      httpStatus: response.status,
-      stream: response.data,
-      headers: response.headers as any
-    }
+    // download always uses GET regardless of file.method (which applies to metadata fetch)
+    return await fetchStream(input, { method: 'GET', headers }, 30000)
   }
 
   /**
@@ -57,18 +46,26 @@ export class UrlStorage extends Storage {
       ...(fileHeaders ?? {}),
       'Content-Disposition': `attachment; filename="${filename.replace(/"/g, '\\"')}"`
     }
-    const response = await axios({
-      method: 'put',
+    const response = await fetchHeadersTimeout(
       url,
-      data: stream,
-      headers,
-      timeout: 30000,
-      maxBodyLength: Infinity,
-      maxContentLength: Infinity
-    })
+      {
+        method: 'PUT',
+        headers,
+        // streaming a Node Readable as the request body requires a web stream
+        // plus duplex: 'half' (mandatory in undici) — chunked, no content-length.
+        // duplex isn't in the DOM RequestInit type, so cast the whole init.
+        body: Readable.toWeb(stream) as any,
+        duplex: 'half'
+      } as RequestInit,
+      30000
+    )
+    if (!response.ok) {
+      // axios threw on non-2xx PUT; the caller relies on that to fail the job
+      throw new Error(`Upload failed with status code ${response.status} (${url})`)
+    }
     return {
       httpStatus: response.status,
-      headers: response.headers as Record<string, string | string[]>
+      headers: headersToObject(response.headers)
     }
   }
 

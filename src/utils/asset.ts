@@ -1,4 +1,3 @@
-import axios from 'axios'
 import { Service, DDOManager, DDO } from '@oceanprotocol/ddo-js'
 import { DDO_IDENTIFIER_PREFIX } from './constants.js'
 import { CORE_LOGGER } from './logging/common.js'
@@ -10,6 +9,7 @@ import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/interfac
 import ERC20Template4 from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template4.sol/ERC20Template4.json' with { type: 'json' }
 import { getContractAddress, getNFTFactory } from '../components/Indexer/utils.js'
 import { HeadersObject } from '../@types/fileObject.js'
+import { fetchHeadersTimeout } from './http.js'
 
 // Notes:
 // Asset as per asset.py on provider, is a class there, while on ocean.Js we only have a type
@@ -55,16 +55,20 @@ export async function fetchFileMetadata(
   const maxLength = isNaN(maxLengthInt) ? 10 * 1024 * 1024 : maxLengthInt
 
   try {
-    const response = await axios({
+    const response = await fetchHeadersTimeout(
       url,
-      method: method || 'get',
-      headers,
-      responseType: 'stream',
-      timeout: 30000
-    })
-    contentType = response.headers['content-type']
+      { method: method || 'GET', headers },
+      30000
+    )
+    if (!response.ok) {
+      // axios threw on non-2xx before hashing — avoid checksumming an error page
+      throw new Error(`Request failed with status code ${response.status} (${url})`)
+    }
+    contentType = response.headers.get('content-type') ?? ''
     let totalSize = 0
-    for await (const chunk of response.data) {
+    // web ReadableStream is async-iterable in Node 22; chunks are Uint8Array.
+    // break invokes the iterator's return() which cancels + releases the socket.
+    for await (const chunk of response.body ?? []) {
       totalSize += chunk.length
       contentChecksum.update(chunk)
       if (totalSize > maxLength && !forceChecksum) {

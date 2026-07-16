@@ -1,5 +1,4 @@
 import { VersionedDDO, DeprecatedDDO } from '@oceanprotocol/ddo-js'
-import axios from 'axios'
 import {
   ZeroAddress,
   Signer,
@@ -222,12 +221,13 @@ export abstract class BaseEventProcessor {
         INDEXER_LOGGER.logMessage(
           `decryptDDO: Making HTTP request for nonce. DecryptorURL: ${decryptorURL}`
         )
-        const nonceResponse = await axios.get(
+        const nonceResponse = await fetch(
           `${decryptorURL}/api/services/nonce?userAddress=${address}`,
-          { timeout: 20000 }
+          { signal: AbortSignal.timeout(20000) }
         )
-        return nonceResponse.status === 200 && nonceResponse.data
-          ? String(parseInt(nonceResponse.data.nonce) + 1)
+        const nonceData = nonceResponse.status === 200 ? await nonceResponse.json() : null
+        return nonceData?.nonce !== undefined
+          ? String(parseInt(nonceData.nonce) + 1)
           : Date.now().toString()
       } else {
         return Date.now().toString()
@@ -287,17 +287,23 @@ export abstract class BaseEventProcessor {
               nonce
             }
             try {
-              const res = await axios({
-                method: 'post',
-                url: `${decryptorURL}/api/services/decrypt`,
-                data: payload,
-                timeout: 30000,
-                validateStatus: (status) => {
-                  return (
-                    (status >= 200 && status < 300) || status === 400 || status === 403
-                  )
-                }
+              // fetch never throws on HTTP status; the manual status checks below
+              // reproduce the previous axios validateStatus contract (2xx/400/403
+              // handled here, everything else throws and is retried by withRetrial).
+              const fetchRes = await fetch(`${decryptorURL}/api/services/decrypt`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: AbortSignal.timeout(30000)
               })
+              const decryptContentType = fetchRes.headers.get('content-type') ?? ''
+              const res = {
+                status: fetchRes.status,
+                statusText: fetchRes.statusText,
+                data: decryptContentType.startsWith('application/json')
+                  ? await fetchRes.json()
+                  : await fetchRes.text()
+              }
 
               INDEXER_LOGGER.log(
                 LOG_LEVELS_STR.LEVEL_INFO,
@@ -320,9 +326,11 @@ export abstract class BaseEventProcessor {
               }
               return res
             } catch (err: any) {
-              // Retry ONLY on ECONNREFUSED
+              // Retry ONLY on ECONNREFUSED. fetch wraps the OS error in
+              // `err.cause`, so check both there and on the error itself.
               if (
                 err.code === 'ECONNREFUSED' ||
+                err.cause?.code === 'ECONNREFUSED' ||
                 (err.message && err.message.includes('ECONNREFUSED'))
               ) {
                 INDEXER_LOGGER.log(
