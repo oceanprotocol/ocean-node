@@ -105,7 +105,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
 
   // eslint-disable-next-line require-await
   async createTable() {
-    /* although we have field called expiteTimestamp, we are actually storing maxJobDuration in it */
+    /* although we have field called expireTimestamp, we are actually storing maxJobDuration in it */
     const createTableSQL = `
       CREATE TABLE IF NOT EXISTS ${this.schema.name} (
         owner TEXT,
@@ -124,7 +124,12 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
         body BLOB
       );
     `
-    this.db.exec(createTableSQL)
+    try {
+      this.db.exec(createTableSQL)
+    } catch (err) {
+      DATABASE_LOGGER.error(`Could not create ${this.schema.name} table: ${err.message}`)
+      throw err
+    }
   }
 
   // eslint-disable-next-line require-await
