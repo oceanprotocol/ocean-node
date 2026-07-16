@@ -343,7 +343,7 @@ export abstract class C2DEngine {
         const isGroup = constraint.type !== undefined
         const targetIds = isGroup
           ? this.getGroupResourceIds(env, constraint.type!, isFree)
-          : [constraint.id]
+          : [constraint.id as string]
         const targetLabel = isGroup
           ? `${constraint.type} resources`
           : String(constraint.id)
@@ -505,6 +505,10 @@ export abstract class C2DEngine {
   // having already inserted an entry for every declared resource, so setResourceAmount always
   // finds its target. inUse here is a point-in-time hint to reduce false deferrals; the
   // authoritative availability gate is checkIfResourcesAreAvailable.
+  // NOTE: inUse is read from env.resources (not env.free.resources) on purpose — group
+  // constraints target discrete resources (GPUs), whose inUse there is the GLOBAL count
+  // (paid + free, across all envs), i.e. the binding availability signal. The free list holds
+  // free-only usage and would under-count paid usage of the same physical device.
   protected bumpGroupToFloor(
     resources: ComputeResourceRequest[],
     env: ComputeEnvironment,

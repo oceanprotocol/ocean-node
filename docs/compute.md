@@ -134,7 +134,9 @@ Supporting GPUs comes down to:
 
 ### Key rules
 
-- Each physical GPU is its own resource with a unique `id` and exactly **one** `DeviceID`.
+- Each physical GPU is its own resource with a unique `id`. For NVIDIA (`init.deviceRequests`),
+  give each resource exactly **one** `DeviceID`; AMD/Intel instead map the device through
+  `init.advanced.Devices` (e.g. `/dev/dri/card0`, `/dev/dxg`, `/dev/dri/renderD128`).
 - `kind: "discrete"` (non-fungible): only one job at a time can use the device. This is the
   default when `init` is present.
 - `cpu`, `ram`, and `disk` are **auto-detected** — you do not need to declare them unless you
@@ -702,7 +704,8 @@ The response includes each environment's `resources` fully resolved (including `
 
 - [ ] `DOCKER_COMPUTE_ENVIRONMENTS` (or `dockerComputeEnvironments` in config) is a JSON array.
 - [ ] GPUs and other custom hardware are defined in the **connection-level** `resources`
-      array with `kind: "discrete"` and exactly one `DeviceID` each.
+      array with `kind: "discrete"` and a unique `id` each (NVIDIA: exactly one `DeviceID`;
+      AMD/Intel: the device mapped via `init.advanced.Devices`).
 - [ ] Each environment's `resources` array contains lightweight refs
       (`{ id, total?, min?, max?, constraints? }`).
 - [ ] `cpu`, `ram`, `disk` are auto-detected — declare them only to cap/override the value.
