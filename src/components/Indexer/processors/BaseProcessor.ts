@@ -296,13 +296,22 @@ export abstract class BaseEventProcessor {
                 body: JSON.stringify(payload),
                 signal: AbortSignal.timeout(30000)
               })
-              const decryptContentType = fetchRes.headers.get('content-type') ?? ''
+              // axios's default transformResponse parsed JSON regardless of the
+              // content-type, falling back to the raw string. The decrypt endpoint
+              // returns the DDO as JSON but with a text/plain content-type, so a
+              // content-type gate would wrongly keep it a string and downstream
+              // create256Hash would receive an object. Replicate axios here.
+              const rawBody = await fetchRes.text()
+              let parsedBody: any = rawBody
+              try {
+                parsedBody = JSON.parse(rawBody)
+              } catch {
+                // not JSON — keep the raw string, same as axios did
+              }
               const res = {
                 status: fetchRes.status,
                 statusText: fetchRes.statusText,
-                data: decryptContentType.startsWith('application/json')
-                  ? await fetchRes.json()
-                  : await fetchRes.text()
+                data: parsedBody
               }
 
               INDEXER_LOGGER.log(
