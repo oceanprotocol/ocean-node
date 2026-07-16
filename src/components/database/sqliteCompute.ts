@@ -408,7 +408,20 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
           DATABASE_LOGGER.error(err.message)
           reject(err)
         } else {
-          resolve(this.mapServiceRows(rows))
+          // The reservation is tied to PAYMENT: an Error/Stopped job whose payment was
+          // never claimed (escrow lock failed — e.g. insufficient funds — or refunded)
+          // must not hold resources, or anyone could squat a node's GPU for free by
+          // starting services against an empty escrow account. Mid-pipeline statuses
+          // keep reserving even without claimTx — they are en route to payment.
+          // JS-side filter because payment lives in the JSON body, not a SQL column.
+          resolve(
+            this.mapServiceRows(rows).filter(
+              (j) =>
+                (j.status !== ServiceStatusNumber.Error &&
+                  j.status !== ServiceStatusNumber.Stopped) ||
+                !!j.payment?.claimTx
+            )
+          )
         }
       })
     })

@@ -76,7 +76,10 @@ function buildFakes(opts: FakeOpts = {}) {
     claimLock: sinon.stub().resolves('0xclaim'),
     cancelExpiredLock: sinon.stub().resolves('0xcancel'),
     waitForTransaction: sinon.stub().resolves(undefined),
-    getMinLockTime: sinon.stub().returns(3600)
+    getMinLockTime: sinon.stub().returns(3600),
+    // the SERVICE_START handler's fail-fast funds pre-check — plentiful by default
+    getUserAvailableFunds: sinon.stub().resolves(1_000_000n),
+    getPaymentAmountInWei: sinon.stub().resolves(10n)
   }
 
   const engine: any = {
@@ -442,6 +445,24 @@ describe('Service handlers', () => {
       engines.getC2DByEnvId.rejects(new Error('not found'))
       const res = await new ServiceStartHandler(node).handle({ ...baseTask } as any)
       expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('400 with a clear message when the escrow cannot cover the cost (fail fast)', async () => {
+      const { node, engine } = buildFakes()
+      engine.escrow.getUserAvailableFunds.resolves(0n)
+      const res = await new ServiceStartHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(400)
+      expect(String(res.status.error)).to.contain('Insufficient escrow funds')
+      // no job record may be created for a start that was refused upfront
+      expect(engine.createServiceJob.called).to.equal(false)
+    })
+
+    it('the funds pre-check is best-effort: an RPC failure does not block the start', async () => {
+      const { node, engine } = buildFakes()
+      engine.escrow.getUserAvailableFunds.rejects(new Error('rpc down'))
+      const res = await new ServiceStartHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      expect(engine.createServiceJob.calledOnce).to.equal(true)
     })
 
     it('403 when services are disabled on the environment', async () => {

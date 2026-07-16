@@ -1735,7 +1735,7 @@ describe('service start/restart Docker cleanup on failure', function () {
       exposedPorts: [80],
       endpoints: [{ containerPort: 80, hostPort: 30001, url: 'http://localhost:30001' }],
       resources: [{ id: 'cpu', amount: 1 }],
-      payment: { chainId: 1, token: '0xtoken' }
+      payment: { chainId: 1, token: '0xtoken', claimTx: '0xclaim' }
     }
     engine.db.getServiceJob = sinon.stub().resolves([existingJob])
     engine.docker = {
@@ -1774,7 +1774,7 @@ describe('service start/restart Docker cleanup on failure', function () {
       exposedPorts: [80],
       endpoints: [{ containerPort: 80, hostPort: 30001, url: 'http://localhost:30001' }],
       resources: [{ id: 'cpu', amount: 1 }],
-      payment: { chainId: 1, token: '0xtoken' },
+      payment: { chainId: 1, token: '0xtoken', claimTx: '0xclaim' },
       dockerCmd: ['old', 'cmd'],
       dockerEntrypoint: ['/old-entrypoint'],
       ...overrides

@@ -42,8 +42,11 @@ terminal `*Failed` / `Error`).
 
 **Handler (synchronous, before responding):** signature check → environment + access-list +
 `features.services` check → `userData` decrypt (validity check) → duration cap → resource
-resolution & availability → cost computed from **server-side** environment pricing → persist the
-job as `Starting` (which also reserves its resources) → respond `200` with the `serviceId`.
+resolution & availability → cost computed from **server-side** environment pricing → escrow
+funds pre-check (fail fast with `400 Insufficient escrow funds` when the consumer's available
+escrow visibly can't cover the cost; best-effort — an RPC hiccup skips it and the background
+Locking step remains the authoritative check) → persist the job as `Starting` (which also
+reserves its resources) → respond `200` with the `serviceId`.
 
 **Background pipeline (per the start statuses below):**
 `Starting (10)` → **locking** `Locking (20)`: escrow `createLock` (+ wait for it to mine) →
@@ -62,15 +65,20 @@ locked-then-claimed up front.
 `Restarting (45)` and responds immediately — the teardown, image re-pull/rebuild and new
 container happen in the background under the same per-service lock. Poll `serviceStatus`
 and watch `Restarting` → `PullImage`/`BuildImage` → `Running` (or `Error` with the failure
-reason in `statusText`). A service whose start payment was **refunded** (lock cancelled
-before it was claimed) cannot be restarted — it was never paid for; start a new service.
+reason in `statusText`). A service whose start payment was **never claimed** — the escrow
+lock failed outright (e.g. insufficient funds) or was refunded before being claimed —
+cannot be restarted: it was never paid for, so restarting it would run the service for
+free. Start a new service instead.
 
 **The reservation lasts the whole paid window — only `Expired` releases it.** The consumer
 paid for the resources for a time interval and may use them as they please within it:
 running the service, stopping it, restarting it. An explicit `SERVICE_STOP` therefore tears
 down the container/network but **keeps** the resource amounts (cpu/ram/gpu) counted and the
 host ports reserved — another consumer cannot take them, and a restart resumes on the same
-endpoints. Once `expiresAt` passes, the expiry sweep tears down whatever is left, marks the
+endpoints. The reservation is tied to **payment**: an `Error`/`Stopped` job whose payment
+was never claimed (lock failed or refunded) does not reserve anything — otherwise anyone
+could squat a node's GPU for free by starting services against an empty escrow account.
+Once `expiresAt` passes, the expiry sweep tears down whatever is left, marks the
 job `Expired`, and only then releases everything. The sweep refuses to mark `Expired` while
 teardown fails (e.g. Docker unreachable) — the job stays `Error` and is retried every tick,
 so a resource release is never silently skipped.

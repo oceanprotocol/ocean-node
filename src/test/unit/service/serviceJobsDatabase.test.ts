@@ -228,6 +228,30 @@ describe('Service Jobs Database', () => {
     const restarting = makeServiceJob({ status: ServiceStatusNumber.Restarting })
     const error = makeServiceJob({ status: ServiceStatusNumber.Error })
     const stopped = makeServiceJob({ status: ServiceStatusNumber.Stopped })
+    // never paid: escrow lock failed outright (all payment fields empty)
+    const unpaidError = makeServiceJob({
+      status: ServiceStatusNumber.Error,
+      payment: {
+        chainId: 8996,
+        token: '0x123',
+        lockTx: '',
+        claimTx: '',
+        cancelTx: '',
+        cost: 5
+      }
+    })
+    // never paid: lock was refunded before being claimed
+    const refundedStopped = makeServiceJob({
+      status: ServiceStatusNumber.Stopped,
+      payment: {
+        chainId: 8996,
+        token: '0x123',
+        lockTx: '0xlock',
+        claimTx: '',
+        cancelTx: '0xcancel',
+        cost: 5
+      }
+    })
     const otherCluster = makeServiceJob({
       status: ServiceStatusNumber.Running,
       clusterHash: 'other-cluster'
@@ -239,6 +263,8 @@ describe('Service Jobs Database', () => {
     await db.newServiceJob(restarting)
     await db.newServiceJob(error)
     await db.newServiceJob(stopped)
+    await db.newServiceJob(unpaidError)
+    await db.newServiceJob(refundedStopped)
     await db.newServiceJob(otherCluster)
 
     const active = await db.getRunningServiceJobs(CLUSTER_HASH)
@@ -256,6 +282,10 @@ describe('Service Jobs Database', () => {
     // an explicitly-stopped service KEEPS its reservation too: the consumer paid for
     // the whole window and may restart it anytime — only Expired releases resources
     expect(ids).to.include(stopped.serviceId)
+    // …but the reservation is tied to PAYMENT: a terminal job whose payment was never
+    // claimed (lock failed / refunded) must not squat resources
+    expect(ids).to.not.include(unpaidError.serviceId)
+    expect(ids).to.not.include(refundedStopped.serviceId)
     expect(ids).to.not.include(otherCluster.serviceId)
   })
 

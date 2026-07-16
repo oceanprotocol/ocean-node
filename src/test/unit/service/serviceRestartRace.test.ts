@@ -182,6 +182,36 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
     expect(engine.docker.getContainer.called).to.equal(false)
   })
 
+  it('restartService rejects a service that was never paid at all (escrow lock failed)', async () => {
+    // The free-compute vector: start against an empty escrow account → createLock fails
+    // → Error with ALL payment fields empty → a restart must not run the service anyway.
+    const engine = makeEngine()
+    engine.db.getServiceJob.resolves([
+      makeJob({
+        status: ServiceStatusNumber.Error,
+        statusText: 'User 0x… does not have enough funds',
+        payment: {
+          chainId: 8996,
+          token: '0xtoken',
+          lockTx: '',
+          claimTx: '',
+          cancelTx: '',
+          cost: 5
+        }
+      })
+    ])
+
+    try {
+      await engine.restartService(SERVICE_ID, OWNER)
+      expect.fail('expected restartService to reject')
+    } catch (e: any) {
+      expect(e.message).to.contain('never claimed')
+    }
+    expect(engine.serviceOpsInFlight.has(SERVICE_ID)).to.equal(false)
+    expect(engine.docker.getContainer.called).to.equal(false)
+    expect(engine.docker.createNetwork.called).to.equal(false)
+  })
+
   it('rejects a concurrent restart/stop while the lock is held, without touching docker or the DB', async () => {
     const engine = makeEngine()
     engine.serviceOpsInFlight.add(SERVICE_ID)

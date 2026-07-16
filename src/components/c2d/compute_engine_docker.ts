@@ -4049,11 +4049,15 @@ export class C2DEngineDocker extends C2DEngine {
       // Expired. Restarting then would silently extend the service beyond what was paid for.
       if (job.status === ServiceStatusNumber.Expired || Date.now() >= job.expiresAt)
         throw new Error('Cannot restart an expired service')
-      // A refunded start (lock cancelled, never claimed) was never paid for — restarting
-      // it would run the service for free. The consumer must start a new service instead.
-      if (job.payment?.cancelTx && !job.payment?.claimTx)
+      // Only a CLAIMED payment makes a job restartable. Every legitimately restartable
+      // job (Running, container-died Error, Stopped) has claimTx set — claiming happens
+      // before the first container start. A job without it was never paid for: either
+      // the escrow lock failed outright (e.g. insufficient funds — all payment fields
+      // empty) or the lock was refunded (cancelTx set). Restarting either would run the
+      // service for free. The consumer must start a new service instead.
+      if (!job.payment?.claimTx)
         throw new Error(
-          'Cannot restart a service whose payment was refunded — start a new service'
+          'Cannot restart a service whose payment was never claimed (unpaid or refunded) — start a new service'
         )
       // Persist Restarting BEFORE returning: status polls flip immediately, and a crash
       // from here on leaves a pending-status record the boot loop orphan-recovers
