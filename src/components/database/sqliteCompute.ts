@@ -431,11 +431,16 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     // Running, Error AND Stopped all still hold their paid reservation (see activeStatuses
     // above), so all three must be swept once past expiresAt: the sweep is the ONLY place
     // the reservation is released. Without it an abandoned Error or Stopped service would
-    // keep its resources/ports forever and still read as restartable.
+    // keep its resources/ports forever and still read as restartable. Stopping is swept
+    // too: a process crash mid-stop persists that status and nothing else recovers it
+    // (it is not a pending-start status), so it would otherwise be stuck reserving
+    // resources forever — the sweep's doStopService handles a Stopping row like any
+    // other teardown (benign 404s for whatever the crashed stop already removed).
     const expirableStatuses = [
       ServiceStatusNumber.Running,
       ServiceStatusNumber.Error,
-      ServiceStatusNumber.Stopped
+      ServiceStatusNumber.Stopped,
+      ServiceStatusNumber.Stopping
     ]
     const placeholders = expirableStatuses.map(() => '?').join(',')
     const params: Array<string | number> = [...expirableStatuses, Date.now()]

@@ -1836,6 +1836,14 @@ export class C2DEngineDocker extends C2DEngine {
           return this.releaseServiceLifecycleLock(svc.serviceId)
         })
         this.serviceOpPromises.add(startPromise)
+        // processServiceStart persists every outcome, but its up-front DB re-read can
+        // still reject — consume it so the unawaited promise can't surface as an
+        // unhandled rejection (stop()'s allSettled drain never observes rejections).
+        startPromise.catch((e) =>
+          CORE_LOGGER.error(
+            `processServiceStart ${svc.serviceId} failed unexpectedly: ${e.message}`
+          )
+        )
       }
 
       // Service-on-Demand expiry: stop services whose paid window has elapsed.
@@ -1846,13 +1854,24 @@ export class C2DEngineDocker extends C2DEngine {
         CORE_LOGGER.info(`Service ${svc.serviceId} expired — stopping`)
         let stopped: ServiceJob | null
         try {
-          stopped = await this.stopService(svc.serviceId, svc.owner)
+          // onlyIfExpired: doStopService re-checks expiresAt on the FRESH row under the
+          // lifecycle lock — a SERVICE_EXTEND that landed after our expiredServices
+          // snapshot must not have its service torn down.
+          stopped = await this.stopService(svc.serviceId, svc.owner, true)
         } catch (e: any) {
           // Typically the lifecycle lock (a restart/stop already in flight). Marking
           // Expired without teardown would leak the container/ports, so defer the whole
           // sweep for this service to the next tick.
           CORE_LOGGER.error(
             `Failed to stop expired service ${svc.serviceId}: ${e.message} — retrying next tick`
+          )
+          continue
+        }
+        // Extended mid-sweep (expiresAt is in the future again on the fresh row) — not
+        // expired anymore, regardless of status. Leave it alone.
+        if (stopped && Date.now() < stopped.expiresAt) {
+          CORE_LOGGER.debug(
+            `Service ${svc.serviceId} was extended after the expiry snapshot — skipping expiry`
           )
           continue
         }
@@ -3843,9 +3862,11 @@ export class C2DEngineDocker extends C2DEngine {
     // A fresh DB lease means ANOTHER process is mid-operation on this service (its
     // teardown makes the container look dead); our in-memory serviceOpsInFlight can't
     // see that. Skip — if the container is genuinely dead, the next tick catches it.
+    // Fail CLOSED: when the lease state can't be read, assume locked and skip this
+    // tick rather than risk flipping a mid-restart service to Error.
     const lockedElsewhere = await this.db
       .isServiceLocked(job.serviceId, SERVICE_LOCK_STALE_MS)
-      .catch(() => false)
+      .catch(() => true)
     if (lockedElsewhere) {
       CORE_LOGGER.debug(
         `markServiceFailed ${job.serviceId}: skipped — a lifecycle lease is held elsewhere`
@@ -3889,12 +3910,19 @@ export class C2DEngineDocker extends C2DEngine {
       CORE_LOGGER.debug(
         `service lock ${serviceId}: DB lease held by another process — not acquired`
       )
-    } else {
-      CORE_LOGGER.debug(
-        `service lock ${serviceId}: acquired by ${this.serviceLockHolderId}`
-      )
+      return false
     }
-    return acquired
+    // Re-check stopped: the engine may have been stopped (and drained) while the async
+    // DB acquire was in flight — beginning work now would race the replacement engine.
+    if (this.stopped) {
+      CORE_LOGGER.debug(
+        `service lock ${serviceId}: engine stopped during acquire — releasing`
+      )
+      await this.releaseServiceLifecycleLock(serviceId)
+      return false
+    }
+    CORE_LOGGER.debug(`service lock ${serviceId}: acquired by ${this.serviceLockHolderId}`)
+    return true
   }
 
   // Takes the per-service lifecycle lock or throws: a stop must not run while the loop's
@@ -3929,11 +3957,29 @@ export class C2DEngineDocker extends C2DEngine {
 
   public override async stopService(
     serviceId: string,
-    owner: string
+    owner: string,
+    onlyIfExpired: boolean = false
   ): Promise<ServiceJob | null> {
     await this.acquireServiceLifecycleLock(serviceId)
     // Tracked like loop-launched starts so engine stop() drains an in-flight stop too.
-    const op = this.doStopService(serviceId, owner).finally(() => {
+    const op = this.doStopService(serviceId, owner, onlyIfExpired).finally(() => {
+      this.serviceOpPromises.delete(op)
+      return this.releaseServiceLifecycleLock(serviceId)
+    })
+    this.serviceOpPromises.add(op)
+    return await op
+  }
+
+  // Runs fn under the per-service lifecycle lock (in-memory + cross-process DB lease),
+  // serializing it with the start pipeline, restart, stop and the expiry sweep. Used by
+  // handlers whose read-mutate-write flows (e.g. SERVICE_EXTEND) must not interleave
+  // with a concurrent teardown — throws "operation in progress" when the lock is busy.
+  public override async runExclusive<T>(
+    serviceId: string,
+    fn: () => Promise<T>
+  ): Promise<T> {
+    await this.acquireServiceLifecycleLock(serviceId)
+    const op = fn().finally(() => {
       this.serviceOpPromises.delete(op)
       return this.releaseServiceLifecycleLock(serviceId)
     })
@@ -3945,12 +3991,24 @@ export class C2DEngineDocker extends C2DEngine {
   // stopService above).
   private async doStopService(
     serviceId: string,
-    owner: string
+    owner: string,
+    onlyIfExpired: boolean = false
   ): Promise<ServiceJob | null> {
     const [job] = await this.db.getServiceJob(serviceId, owner)
     if (!job) {
       CORE_LOGGER.debug(`stopService ${serviceId}: no job found for owner ${owner}`)
       return null
+    }
+    // Expiry-sweep mode: re-validate expiry on the FRESH row now that we hold the lock.
+    // The sweep's expiredServices snapshot predates the lock, so a SERVICE_EXTEND may
+    // have pushed expiresAt into the future since — tearing down then would destroy a
+    // service the consumer just paid to prolong. The caller sees the untouched job and
+    // skips (its own expiresAt check).
+    if (onlyIfExpired && Date.now() < job.expiresAt) {
+      CORE_LOGGER.debug(
+        `stopService ${serviceId}: expiry teardown requested but the job was extended (expiresAt in the future) — skipping`
+      )
+      return job
     }
     if (
       job.status === ServiceStatusNumber.Stopped ||
@@ -4037,6 +4095,9 @@ export class C2DEngineDocker extends C2DEngine {
       ;[job] = await this.db.getServiceJob(serviceId, owner)
       if (!job) {
         CORE_LOGGER.debug(`restartService ${serviceId}: no job found for owner ${owner}`)
+        // early return bypasses both the catch below and the background op's finally —
+        // the lock must be handed back explicitly or it leaks forever
+        await this.releaseServiceLifecycleLock(serviceId)
         return null
       }
       CORE_LOGGER.debug(

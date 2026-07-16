@@ -110,9 +110,23 @@ export abstract class C2DEngine {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
   public async processServiceStart(job: ServiceJob): Promise<void> {}
 
+  // onlyIfExpired: expiry-sweep mode — re-validate expiresAt on the fresh row under the
+  // lifecycle lock and skip the teardown when the service was extended in the meantime.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
-  public async stopService(serviceId: string, owner: string): Promise<ServiceJob | null> {
+  public async stopService(
+    serviceId: string,
+    owner: string,
+    onlyIfExpired?: boolean
+  ): Promise<ServiceJob | null> {
     return null
+  }
+
+  // Runs fn serialized with the engine's per-service lifecycle operations (start
+  // pipeline, restart, stop, expiry sweep). Engines without a lock implementation run
+  // fn directly; C2DEngineDocker overrides this with its lifecycle lock + DB lease.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  public async runExclusive<T>(serviceId: string, fn: () => Promise<T>): Promise<T> {
+    return await fn()
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await

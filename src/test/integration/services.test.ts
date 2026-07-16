@@ -813,13 +813,20 @@ describe('**********         Service on Demand', () => {
       }
       const restartPromise = new ServiceRestartHandler(oceanNode).handle(task)
 
-      // wait until the restart is actually mid-pull (deterministic, not sleep-based)
+      // wait until the restart is actually mid-pull (deterministic, not sleep-based) —
+      // and ASSERT it got there: silently timing out would run the concurrent-command
+      // checks against a restart in the wrong phase, proving nothing.
       const deadline = Date.now() + 10_000
+      let sawPullImage = false
       while (Date.now() < deadline) {
         const j = await getServiceJob(serviceId)
-        if (j?.status === ServiceStatusNumber.PullImage) break
+        if (j?.status === ServiceStatusNumber.PullImage) {
+          sawPullImage = true
+          break
+        }
         await sleep(250)
       }
+      assert(sawPullImage, 'restart must reach PullImage within the wait window')
 
       // concurrent lifecycle operations must be rejected while the restart holds the lock
       const stopSig = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_STOP)

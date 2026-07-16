@@ -1639,8 +1639,14 @@ describe('service start/restart Docker cleanup on failure', function () {
     // allocator must refuse to hand the port out again.
     expect(job.endpoints.length).to.be.greaterThan(0)
     const reservedPort = job.endpoints[0].hostPort
-    await expectRejects(allocateHostPort(reservedPort, reservedPort), 'No free host port')
-    releaseHostPort(reservedPort) // don't leak the reservation into other tests
+    try {
+      await expectRejects(
+        allocateHostPort(reservedPort, reservedPort),
+        'No free host port'
+      )
+    } finally {
+      releaseHostPort(reservedPort) // don't leak the reservation into other tests
+    }
   })
 
   it('processServiceStart refunds (cancelLock) and marks PullImageFailed when the image pull fails', async function () {
@@ -1753,6 +1759,12 @@ describe('service start/restart Docker cleanup on failure', function () {
     expect(network.remove.called, 'network.remove should be called').to.equal(true)
     expect(existingJob.status).to.equal(ServiceStatusNumber.Error)
     expect(existingJob.statusText).to.contain('createContainer failed')
+    // the Error outcome must be PERSISTED — status polls read the DB, not memory
+    expect(
+      engine.db.updateServiceJob.calledWith(
+        sinon.match({ serviceId: 'svc-3', status: ServiceStatusNumber.Error })
+      )
+    ).to.equal(true)
   })
 
   function makeRunningJobWithCmd(overrides: any = {}) {
@@ -1805,6 +1817,16 @@ describe('service start/restart Docker cleanup on failure', function () {
     expect(createArgs.Entrypoint).to.deep.equal(['/new-entrypoint'])
     expect(existingJob.dockerCmd).to.deep.equal(['new', 'cmd'])
     expect(existingJob.dockerEntrypoint).to.deep.equal(['/new-entrypoint'])
+    // the override must be PERSISTED so future restarts reuse it
+    expect(
+      engine.db.updateServiceJob.calledWith(
+        sinon.match({
+          status: ServiceStatusNumber.Running,
+          dockerCmd: ['new', 'cmd'],
+          dockerEntrypoint: ['/new-entrypoint']
+        })
+      )
+    ).to.equal(true)
   })
 
   it('restartService reuses the stored dockerCmd/dockerEntrypoint when none are supplied', async function () {
@@ -1825,6 +1847,15 @@ describe('service start/restart Docker cleanup on failure', function () {
     expect(createArgs.Entrypoint).to.deep.equal(['/old-entrypoint'])
     expect(existingJob.dockerCmd).to.deep.equal(['old', 'cmd'])
     expect(existingJob.dockerEntrypoint).to.deep.equal(['/old-entrypoint'])
+    expect(
+      engine.db.updateServiceJob.calledWith(
+        sinon.match({
+          status: ServiceStatusNumber.Running,
+          dockerCmd: ['old', 'cmd'],
+          dockerEntrypoint: ['/old-entrypoint']
+        })
+      )
+    ).to.equal(true)
   })
 
   it('restartService clears dockerCmd/dockerEntrypoint when explicitly given an empty array', async function () {
@@ -1845,5 +1876,14 @@ describe('service start/restart Docker cleanup on failure', function () {
     expect(createArgs.Entrypoint).to.equal(undefined)
     expect(existingJob.dockerCmd).to.deep.equal([])
     expect(existingJob.dockerEntrypoint).to.deep.equal([])
+    expect(
+      engine.db.updateServiceJob.calledWith(
+        sinon.match({
+          status: ServiceStatusNumber.Running,
+          dockerCmd: [],
+          dockerEntrypoint: []
+        })
+      )
+    ).to.equal(true)
   })
 })

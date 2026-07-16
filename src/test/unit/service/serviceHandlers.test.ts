@@ -142,7 +142,10 @@ function buildFakes(opts: FakeOpts = {}) {
         opts.streamableLogs === undefined
           ? Readable.from(['hello logs'])
           : opts.streamableLogs
-      )
+      ),
+    // handlers (SERVICE_EXTEND) serialize read-mutate-write flows through this; the
+    // fake just runs the callback (the real engine wraps it in the lifecycle lock)
+    runExclusive: sinon.stub().callsFake((_id: string, fn: () => Promise<any>) => fn())
   }
 
   const engines: any = {

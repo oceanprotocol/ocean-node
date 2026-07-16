@@ -154,6 +154,17 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
     expect(engine.serviceOpsInFlight.has(SERVICE_ID)).to.equal(false)
     expect(job.status).to.equal(ServiceStatusNumber.Error)
     expect(job.statusText).to.equal('pull failed')
+    // the failure must be PERSISTED, not just mutated in memory — status polls read the DB
+    expect(
+      engine.db.updateServiceJob.calledWith(
+        sinon.match({
+          serviceId: SERVICE_ID,
+          status: ServiceStatusNumber.Error,
+          statusText: 'pull failed'
+        })
+      ),
+      'Error status must be written to the DB'
+    ).to.equal(true)
   })
 
   it('restartService rejects a service whose payment was refunded (never claimed)', async () => {
@@ -392,26 +403,47 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
     engine.db.getServiceJob.resolves([job])
     engine.docker.getContainer.returns(stubContainer())
     reserveHostPort(PORT) // as the original start allocation did
-
-    const stopped = await engine.stopService(SERVICE_ID, OWNER)
-    expect(stopped.status).to.equal(ServiceStatusNumber.Stopped)
-    // "user B": the allocator must refuse the stopped service's port
-    let refused = false
     try {
-      await allocateHostPort(PORT, PORT)
-    } catch {
-      refused = true
-    }
-    expect(refused, "a stopped service's port must stay reserved").to.equal(true)
+      const stopped = await engine.stopService(SERVICE_ID, OWNER)
+      expect(stopped.status).to.equal(ServiceStatusNumber.Stopped)
+      // "user B": the allocator must refuse the stopped service's port
+      let refused = false
+      try {
+        await allocateHostPort(PORT, PORT)
+      } catch {
+        refused = true
+      }
+      expect(refused, "a stopped service's port must stay reserved").to.equal(true)
 
-    // past expiresAt the sweep flips it to Expired and releases the port
-    job.expiresAt = Date.now() - 1000
-    engine.db.getExpiredServiceJobs.resolves([job])
-    engine.isInternalLoopRunning = false
+      // past expiresAt the sweep flips it to Expired and releases the port
+      job.expiresAt = Date.now() - 1000
+      engine.db.getExpiredServiceJobs.resolves([job])
+      engine.isInternalLoopRunning = false
+      await engine.InternalLoop()
+      expect(job.status).to.equal(ServiceStatusNumber.Expired)
+      expect(await allocateHostPort(PORT, PORT)).to.equal(PORT)
+    } finally {
+      // idempotent — guarantees a failing assertion can't leak the reservation into
+      // other tests (the allocator set is module-level)
+      releaseHostPort(PORT)
+    }
+  })
+
+  it('the expiry sweep skips a service that was extended after the expiry snapshot', async () => {
+    const engine = makeEngine()
+    // the sweep's snapshot says "expired", but the FRESH row (re-read under the lock by
+    // doStopService) was extended in the meantime — teardown must not happen
+    const staleSnapshot = makeJob({ expiresAt: Date.now() - 1000 })
+    const extended = makeJob({ expiresAt: Date.now() + 3600_000 })
+    engine.db.getExpiredServiceJobs.resolves([staleSnapshot])
+    engine.db.getServiceJob.resolves([extended])
+    engine.docker.getContainer.returns(stubContainer())
+
     await engine.InternalLoop()
-    expect(job.status).to.equal(ServiceStatusNumber.Expired)
-    expect(await allocateHostPort(PORT, PORT)).to.equal(PORT)
-    releaseHostPort(PORT) // tidy up the test's own allocation
+
+    expect(extended.status).to.equal(ServiceStatusNumber.Running)
+    expect(engine.docker.getContainer.called, 'no teardown may happen').to.equal(false)
+    expect(engine.db.updateServiceJob.called, 'no state may be written').to.equal(false)
   })
 
   it('the expiry sweep does NOT mark Expired while teardown fails (no resource leak), then retries', async () => {
