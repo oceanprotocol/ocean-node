@@ -60,11 +60,23 @@ export async function fetchStream(
   if (!response.body) {
     throw new Error(`Empty response body (${url})`)
   }
+  const headers = headersToObject(response.headers)
+  // undici transparently decodes gzip/deflate/br but leaves the original
+  // content-encoding + (now-wrong, compressed) content-length on the headers.
+  // The stream we return is already decoded, so strip those stale headers —
+  // otherwise a consumer re-serving them (e.g. downloadHandler) makes the client
+  // try to decompress plain bytes ("incorrect header check"). axios's stream
+  // adapter deleted these on decompress too.
+  const encoding = headers['content-encoding']
+  if (encoding && encoding.toLowerCase() !== 'identity') {
+    delete headers['content-encoding']
+    delete headers['content-length']
+  }
   return {
     httpStatus: response.status,
     // `response.body` is typed as the DOM ReadableStream; Node's fromWeb wants
     // the node:stream/web ReadableStream — structurally identical, cast locally.
     stream: Readable.fromWeb(response.body as any),
-    headers: headersToObject(response.headers)
+    headers
   }
 }

@@ -2,6 +2,7 @@ import { expect } from 'chai'
 import http, { Server } from 'http'
 import { AddressInfo } from 'net'
 import { Readable } from 'stream'
+import { gzipSync } from 'zlib'
 import { fetchStream, fetchHeadersTimeout, headersToObject } from '../../utils/http.js'
 
 // spin up a throwaway local http server on an ephemeral port
@@ -68,6 +69,26 @@ describe('utils/http', () => {
       expect(headers['x-custom']).to.equal('yes')
       const body = await collect(stream)
       expect(body).to.equal('hello world')
+    })
+
+    it('decodes a gzip body and strips the stale content-encoding/length headers', async () => {
+      const payload = 'the quick brown fox '.repeat(50)
+      const gz = gzipSync(Buffer.from(payload))
+      server = await startServer((req, res) => {
+        res.writeHead(200, {
+          'content-type': 'text/plain',
+          'content-encoding': 'gzip',
+          'content-length': String(gz.length)
+        })
+        res.end(gz)
+      })
+      const { stream, headers } = await fetchStream(baseUrl(server))
+      // undici already decoded the body — the re-served headers must not still
+      // advertise gzip, or a downstream client double-decompresses and fails
+      expect(headers).to.not.have.property('content-encoding')
+      expect(headers).to.not.have.property('content-length')
+      const body = await collect(stream)
+      expect(body).to.equal(payload)
     })
 
     it('throws on a non-2xx status (axios throw-on-non-2xx contract)', async () => {
