@@ -110,7 +110,14 @@ export class TypesenseApi {
             'X-TYPESENSE-API-KEY': this.config.apiKey,
             ...(bodyParameters !== null && { 'content-type': 'application/json' })
           },
-          ...(bodyParameters !== null && { body: JSON.stringify(bodyParameters) })
+          // axios sent string bodies raw; only stringify non-string bodies so a
+          // pre-serialized payload (e.g. JSONL) isn't double-encoded
+          ...(bodyParameters !== null && {
+            body:
+              typeof bodyParameters === 'string'
+                ? bodyParameters
+                : JSON.stringify(bodyParameters)
+          })
         }
 
         if (skipConnectionTimeout !== true) {
@@ -134,7 +141,8 @@ export class TypesenseApi {
         } else if (response.status < 500) {
           return Promise.reject(this.customError(response.status, data))
         } else {
-          throw new Error(data?.message)
+          // non-json error bodies (e.g. a proxy 5xx) arrive as a plain string
+          throw new Error(typeof data === 'string' ? data : data?.message)
         }
       } catch (error: any) {
         lastException = error
@@ -154,7 +162,9 @@ export class TypesenseApi {
   }
 
   customError(status: number, data: any): TypesenseError {
-    const error = new TypesenseError(data?.message)
+    // non-json error bodies (e.g. a proxy 4xx) arrive as a plain string
+    const message = typeof data === 'string' ? data : data?.message
+    const error = new TypesenseError(message)
     error.httpStatus = status
     return error
   }

@@ -60,7 +60,9 @@ export class UrlStorage extends Storage {
       30000
     )
     if (!response.ok) {
-      // axios threw on non-2xx PUT; the caller relies on that to fail the job
+      // axios threw on non-2xx PUT; the caller relies on that to fail the job.
+      // cancel the undrained body so undici releases the socket back to the pool.
+      await response.body?.cancel().catch(() => {})
       throw new Error(`Upload failed with status code ${response.status} (${url})`)
     }
     return {

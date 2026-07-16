@@ -61,7 +61,9 @@ export async function fetchFileMetadata(
       30000
     )
     if (!response.ok) {
-      // axios threw on non-2xx before hashing — avoid checksumming an error page
+      // axios threw on non-2xx before hashing — avoid checksumming an error page.
+      // cancel the undrained body so undici releases the socket back to the pool.
+      await response.body?.cancel().catch(() => {})
       throw new Error(`Request failed with status code ${response.status} (${url})`)
     }
     contentType = response.headers.get('content-type') ?? ''
