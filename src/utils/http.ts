@@ -54,6 +54,7 @@ export async function fetchStream(
   const response = await fetchHeadersTimeout(url, init, timeoutMs)
   if (!response.ok) {
     // preserve axios's throw-on-non-2xx contract for all callers
+    await response.body?.cancel().catch(() => {})
     throw new Error(`Request failed with status code ${response.status} (${url})`)
   }
   if (!response.body) {
