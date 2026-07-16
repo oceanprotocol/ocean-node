@@ -2,6 +2,11 @@ import { expect, assert } from 'chai'
 import sinon from 'sinon'
 import { C2DEngineDocker } from '../../../components/c2d/compute_engine_docker.js'
 import { ServiceStatusNumber, ServiceJob } from '../../../@types/C2D/ServiceOnDemand.js'
+import {
+  allocateHostPort,
+  releaseHostPort,
+  reserveHostPort
+} from '../../../components/core/service/utils.js'
 
 const OWNER = '0x0000000000000000000000000000000000000001'
 const SERVICE_ID = 'svc-race-1'
@@ -72,8 +77,14 @@ function makeEngine(): any {
     updateServiceJob: sinon.stub().resolves(1),
     getRunningJobs: sinon.stub().resolves([]),
     getPendingServiceStarts: sinon.stub().resolves([]),
-    getExpiredServiceJobs: sinon.stub().resolves([])
+    getExpiredServiceJobs: sinon.stub().resolves([]),
+    // cross-process lifecycle lease (service_locks table) — free by default
+    acquireServiceLock: sinon.stub().resolves(true),
+    releaseServiceLock: sinon.stub().resolves(undefined),
+    refreshServiceLocks: sinon.stub().resolves(undefined),
+    isServiceLocked: sinon.stub().resolves(false)
   }
+  engine.serviceLockHolderId = 'test-holder'
   engine.cpuAllocations = new Map()
   engine.serviceOpsInFlight = new Set()
   engine.serviceOpPromises = new Set()
@@ -101,7 +112,7 @@ function stubContainer(overrides: Record<string, any> = {}) {
 describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
   afterEach(() => sinon.restore())
 
-  it('restartService holds the lock while the image pull is pending and releases it after', async () => {
+  it('restartService returns Restarting immediately and holds the lock until the background op settles', async () => {
     const engine = makeEngine()
     const job = makeJob()
     engine.db.getServiceJob.resolves([job])
@@ -116,30 +127,59 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
         resolvePull = resolve
       })
 
-    const restart = engine.restartService(SERVICE_ID, OWNER)
-    await flush()
+    // Non-blocking: resolves as soon as the job is validated + persisted Restarting,
+    // while the teardown/pull/start continue in the background under the lock.
+    const snapshot = await engine.restartService(SERVICE_ID, OWNER)
+    expect(snapshot.status).to.equal(ServiceStatusNumber.Restarting)
     expect(engine.serviceOpsInFlight.has(SERVICE_ID)).to.equal(true)
 
+    await flush() // let the background op reach the pending pull
     resolvePull!()
-    const restarted = await restart
+    await Promise.allSettled([...engine.serviceOpPromises])
     expect(engine.serviceOpsInFlight.has(SERVICE_ID)).to.equal(false)
-    expect(restarted.status).to.equal(ServiceStatusNumber.Running)
-    expect(restarted.containerId).to.equal('newc')
+    expect(job.status).to.equal(ServiceStatusNumber.Running)
+    expect(job.containerId).to.equal('newc')
   })
 
-  it('restartService releases the lock on the failure path too', async () => {
+  it('restartService releases the lock and persists Error on the failure path', async () => {
     const engine = makeEngine()
-    engine.db.getServiceJob.resolves([makeJob()])
+    const job = makeJob()
+    engine.db.getServiceJob.resolves([job])
     engine.docker.getContainer.returns(stubContainer())
     engine.pullImageRef = sinon.stub().rejects(new Error('pull failed'))
+
+    const snapshot = await engine.restartService(SERVICE_ID, OWNER)
+    expect(snapshot.status).to.equal(ServiceStatusNumber.Restarting)
+    await Promise.allSettled([...engine.serviceOpPromises])
+    expect(engine.serviceOpsInFlight.has(SERVICE_ID)).to.equal(false)
+    expect(job.status).to.equal(ServiceStatusNumber.Error)
+    expect(job.statusText).to.equal('pull failed')
+  })
+
+  it('restartService rejects a service whose payment was refunded (never claimed)', async () => {
+    const engine = makeEngine()
+    engine.db.getServiceJob.resolves([
+      makeJob({
+        status: ServiceStatusNumber.Error,
+        payment: {
+          chainId: 8996,
+          token: '0xtoken',
+          lockTx: '0xl',
+          claimTx: '',
+          cancelTx: '0xcancel',
+          cost: 5
+        }
+      })
+    ])
 
     try {
       await engine.restartService(SERVICE_ID, OWNER)
       expect.fail('expected restartService to reject')
     } catch (e: any) {
-      expect(e.message).to.equal('pull failed')
+      expect(e.message).to.contain('refunded')
     }
     expect(engine.serviceOpsInFlight.has(SERVICE_ID)).to.equal(false)
+    expect(engine.docker.getContainer.called).to.equal(false)
   })
 
   it('rejects a concurrent restart/stop while the lock is held, without touching docker or the DB', async () => {
@@ -260,5 +300,170 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
     engine.isInternalLoopRunning = false
     await engine.InternalLoop()
     expect(expired.status).to.equal(ServiceStatusNumber.Expired)
+  })
+
+  it('restartService rejects when another process holds the DB lease', async () => {
+    const engine = makeEngine()
+    engine.db.acquireServiceLock = sinon.stub().resolves(false) // held elsewhere
+
+    try {
+      await engine.restartService(SERVICE_ID, OWNER)
+      expect.fail('expected restartService to reject')
+    } catch (e: any) {
+      expect(e.message).to.contain('operation in progress')
+    }
+    // the in-memory reservation must be rolled back so a later acquire can succeed
+    expect(engine.serviceOpsInFlight.has(SERVICE_ID)).to.equal(false)
+    expect(engine.db.getServiceJob.called).to.equal(false)
+  })
+
+  it('InternalLoop skips a pending job whose DB lease is held by another process', async () => {
+    const engine = makeEngine()
+    engine.db.getPendingServiceStarts.resolves([
+      makeJob({ status: ServiceStatusNumber.PullImage, statusText: 'PullImage' })
+    ])
+    engine.db.acquireServiceLock = sinon.stub().resolves(false)
+    engine.processServiceStart = sinon.stub().resolves()
+
+    await engine.InternalLoop()
+    await flush()
+    expect(engine.processServiceStart.called).to.equal(false)
+    expect(engine.serviceOpsInFlight.has(SERVICE_ID)).to.equal(false)
+  })
+
+  it('restartService releases the DB lease once the operation settles', async () => {
+    const engine = makeEngine()
+    engine.db.getServiceJob.resolves([makeJob()])
+    engine.docker.getContainer.returns(stubContainer())
+    engine.docker.createNetwork.resolves({ id: 'newnet' })
+    const newContainer = stubContainer()
+    ;(newContainer as any).id = 'newc'
+    engine.docker.createContainer.resolves(newContainer)
+    engine.pullImageRef = sinon.stub().resolves()
+
+    await engine.restartService(SERVICE_ID, OWNER)
+    await Promise.allSettled([...engine.serviceOpPromises])
+    expect(
+      engine.db.releaseServiceLock.calledWith(SERVICE_ID, 'test-holder'),
+      'DB lease must be released with the holder id'
+    ).to.equal(true)
+  })
+
+  it('an explicit stop KEEPS the host ports reserved; only expiry releases them', async () => {
+    // The user-B scenario: A reserves for 1h, starts, stops after 30min. B must NOT be
+    // able to grab A's port/resources — A can restart anytime until expiresAt.
+    const PORT = 31555
+    const engine = makeEngine()
+    const job = makeJob({
+      endpoints: [
+        { containerPort: 8888, hostPort: PORT, url: `http://localhost:${PORT}` }
+      ]
+    })
+    engine.db.getServiceJob.resolves([job])
+    engine.docker.getContainer.returns(stubContainer())
+    reserveHostPort(PORT) // as the original start allocation did
+
+    const stopped = await engine.stopService(SERVICE_ID, OWNER)
+    expect(stopped.status).to.equal(ServiceStatusNumber.Stopped)
+    // "user B": the allocator must refuse the stopped service's port
+    let refused = false
+    try {
+      await allocateHostPort(PORT, PORT)
+    } catch {
+      refused = true
+    }
+    expect(refused, "a stopped service's port must stay reserved").to.equal(true)
+
+    // past expiresAt the sweep flips it to Expired and releases the port
+    job.expiresAt = Date.now() - 1000
+    engine.db.getExpiredServiceJobs.resolves([job])
+    engine.isInternalLoopRunning = false
+    await engine.InternalLoop()
+    expect(job.status).to.equal(ServiceStatusNumber.Expired)
+    expect(await allocateHostPort(PORT, PORT)).to.equal(PORT)
+    releaseHostPort(PORT) // tidy up the test's own allocation
+  })
+
+  it('the expiry sweep does NOT mark Expired while teardown fails (no resource leak), then retries', async () => {
+    const engine = makeEngine()
+    const expired = makeJob({ expiresAt: Date.now() - 1000 })
+    engine.db.getExpiredServiceJobs.resolves([expired])
+    engine.db.getServiceJob.resolves([expired])
+    // teardown fails hard (docker daemon down — NOT a benign 404)
+    engine.docker.getContainer.returns(
+      stubContainer({ stop: sinon.stub().rejects(benignError(500)) })
+    )
+
+    await engine.InternalLoop()
+    // Expired is terminal and never swept again — a failed stop must leave the job
+    // OUT of Expired (as Error "stop failed") so the container/ports aren't leaked.
+    expect(expired.status).to.not.equal(ServiceStatusNumber.Expired)
+    expect(String(expired.statusText)).to.contain('stop failed')
+
+    // docker recovers → the next tick completes the teardown and marks Expired
+    engine.docker.getContainer.returns(stubContainer())
+    engine.isInternalLoopRunning = false
+    await engine.InternalLoop()
+    expect(expired.status).to.equal(ServiceStatusNumber.Expired)
+  })
+
+  it('the expiry sweep flips a Stopped service past expiresAt to Expired without touching docker', async () => {
+    const engine = makeEngine()
+    const stopped = makeJob({
+      status: ServiceStatusNumber.Stopped,
+      statusText: 'Stopped',
+      containerId: '',
+      networkId: '',
+      expiresAt: Date.now() - 1000
+    })
+    engine.db.getExpiredServiceJobs.resolves([stopped])
+    engine.db.getServiceJob.resolves([stopped])
+
+    await engine.InternalLoop()
+
+    expect(stopped.status).to.equal(ServiceStatusNumber.Expired)
+    // resources were already released at stop time — no docker teardown must happen
+    expect(engine.docker.getContainer.called).to.equal(false)
+  })
+
+  it('processServiceStart ignores a stale pending snapshot (job already Running again)', async () => {
+    const engine = makeEngine()
+    // Snapshot captured while a restart was mid-pull...
+    const staleSnapshot = makeJob({
+      status: ServiceStatusNumber.PullImage,
+      statusText: 'PullImage',
+      containerId: '',
+      networkId: ''
+    })
+    // ...but by the time the loop processes it, the restart finished: the fresh DB row
+    // is Running with live docker refs. Pre-guard, orphan-recovery would tear that
+    // container + network down and clobber the status with Error.
+    engine.db.getServiceJob.resolves([
+      makeJob({
+        status: ServiceStatusNumber.Running,
+        containerId: 'c-live',
+        networkId: 'n-live'
+      })
+    ])
+
+    await engine.processServiceStart(staleSnapshot)
+
+    expect(engine.docker.getNetwork.called).to.equal(false)
+    expect(engine.docker.getContainer.called).to.equal(false)
+    expect(engine.db.updateServiceJob.called).to.equal(false)
+  })
+
+  it('a stopped engine refuses new lifecycle operations', async () => {
+    const engine = makeEngine()
+    engine.stopped = true
+
+    try {
+      await engine.restartService(SERVICE_ID, OWNER)
+      expect.fail('expected restartService to reject')
+    } catch (e: any) {
+      expect(e.message).to.contain('stopped')
+    }
+    expect(engine.db.getServiceJob.called).to.equal(false)
+    expect(engine.db.acquireServiceLock.called).to.equal(false)
   })
 })

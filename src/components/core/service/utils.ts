@@ -3,6 +3,27 @@ import type { ServiceJob } from '../../../@types/C2D/ServiceOnDemand.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import type { KeyManager } from '../../KeyManager/index.js'
 import type { C2DDatabase } from '../../database/C2DDatabase.js'
+import type { C2DEngine } from '../../c2d/compute_engine_base.js'
+import type { C2DEngines } from '../../c2d/compute_engines.js'
+
+// Looks up a service job and resolves the engine that OWNS it (by clusterHash). Every
+// engine shares the same C2DDatabase, so any engine's db returns the job — taking the
+// first engine that "finds" it (the old pattern) breaks on nodes with several docker
+// engines: the wrong engine's lifecycle lock and InternalLoop would not protect the
+// job, resurrecting the teardown-mid-restart race. engine === null with a non-null job
+// means no configured engine matches the job's clusterHash (node config changed).
+export async function findServiceJobAndEngine(
+  engines: C2DEngines,
+  serviceId: string,
+  owner?: string
+): Promise<{ job: ServiceJob | null; engine: C2DEngine | null }> {
+  const all = engines.getAllEngines()
+  if (all.length === 0) return { job: null, engine: null }
+  const [job] = await all[0].db.getServiceJob(serviceId, owner)
+  if (!job) return { job: null, engine: null }
+  const engine = all.find((e) => e.getC2DConfig().hash === job.clusterHash) ?? null
+  return { job, engine }
+}
 
 // Converts the decrypted userData object into a flat container env-var map (stringified values).
 export function userDataToEnv(userData: Record<string, unknown>): Record<string, string> {
@@ -102,6 +123,13 @@ export async function allocateHostPort(
 
 export function releaseHostPort(port: number): void {
   allocatedPorts.delete(port)
+}
+
+// Marks an already-assigned port as reserved (idempotent). Used by restart, which
+// re-binds the ports recorded on the job: after a stop (or an Error path) released
+// them, they must go back into the set before the container binds them again.
+export function reserveHostPort(port: number): void {
+  allocatedPorts.add(port)
 }
 
 function isPortFree(port: number): Promise<boolean> {

@@ -94,9 +94,11 @@ function buildFakes(opts: FakeOpts = {}) {
     },
     escrow,
     getComputeEnvironments: sinon.stub().resolves([env]),
-    getC2DConfig: sinon
-      .stub()
-      .returns({ connection: { serviceOnDemand: { maxDurationSeconds: 86400 } } }),
+    // hash must match makeJob's clusterHash: handlers resolve the owning engine by it
+    getC2DConfig: sinon.stub().returns({
+      hash: 'hash-1',
+      connection: { serviceOnDemand: { maxDurationSeconds: 86400 } }
+    }),
     calculateResourcesCost: sinon
       .stub()
       .returns(opts.cost === undefined ? 10 : opts.cost),

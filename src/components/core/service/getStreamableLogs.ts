@@ -9,9 +9,7 @@ import {
   buildInvalidRequestMessage
 } from '../../httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import type { C2DEngine } from '../../c2d/compute_engine_base.js'
-import type { ServiceJob } from '../../../@types/C2D/ServiceOnDemand.js'
-import { parseSinceParam } from './utils.js'
+import { findServiceJobAndEngine, parseSinceParam } from './utils.js'
 
 export class ServiceGetStreamableLogsHandler extends CommandHandler {
   validate(command: ServiceGetStreamableLogsCommand): ValidateParams {
@@ -50,21 +48,24 @@ export class ServiceGetStreamableLogsHandler extends CommandHandler {
         status: { httpStatus: 503, error: 'Compute engines not configured' }
       }
 
-    // Find job across all engines by serviceId + owner
-    let job: ServiceJob | null = null
-    let engine: C2DEngine | null = null
-    for (const eng of engines.getAllEngines()) {
-      const [found] = await eng.db.getServiceJob(task.serviceId, task.consumerAddress)
-      if (found) {
-        job = found
-        engine = eng
-        break
-      }
-    }
-    if (!job || !engine)
+    // Find the job and the engine that owns it (by clusterHash — see helper)
+    const { job, engine } = await findServiceJobAndEngine(
+      engines,
+      task.serviceId,
+      task.consumerAddress
+    )
+    if (!job)
       return buildInvalidParametersResponse(
         buildInvalidRequestMessage('Service job not found: ' + task.serviceId)
       )
+    if (!engine)
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500,
+          error: `No compute engine owns service ${task.serviceId} (cluster ${job.clusterHash}) — the node's compute configuration may have changed`
+        }
+      }
     if (job.owner.toLowerCase() !== task.consumerAddress.toLowerCase())
       return { stream: null, status: { httpStatus: 401, error: 'Not the service owner' } }
 

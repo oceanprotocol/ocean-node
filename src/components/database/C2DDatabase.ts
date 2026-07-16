@@ -32,6 +32,7 @@ export class C2DDatabase extends AbstractDatabase {
       await this.provider.createTable()
       await this.provider.createImageTable()
       await this.provider.createServiceTable()
+      await this.provider.createServiceLocksTable()
 
       return this
     })() as unknown as C2DDatabase
@@ -97,6 +98,28 @@ export class C2DDatabase extends AbstractDatabase {
 
   async getPendingServiceStarts(clusterHash?: string): Promise<ServiceJob[]> {
     return await this.provider.getPendingServiceStarts(clusterHash)
+  }
+
+  // ── Service lifecycle locks (cross-process; see sqliteCompute.ts) ───────
+
+  async acquireServiceLock(
+    serviceId: string,
+    holder: string,
+    staleMs: number
+  ): Promise<boolean> {
+    return await this.provider.acquireServiceLock(serviceId, holder, staleMs)
+  }
+
+  async releaseServiceLock(serviceId: string, holder: string): Promise<void> {
+    return await this.provider.releaseServiceLock(serviceId, holder)
+  }
+
+  async refreshServiceLocks(holder: string): Promise<void> {
+    return await this.provider.refreshServiceLocks(holder)
+  }
+
+  async isServiceLocked(serviceId: string, staleMs: number): Promise<boolean> {
+    return await this.provider.isServiceLocked(serviceId, staleMs)
   }
 
   async deleteJob(jobId: string): Promise<boolean> {

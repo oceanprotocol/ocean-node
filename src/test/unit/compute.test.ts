@@ -41,6 +41,7 @@ import {
   C2DEngineDocker
 } from '../../components/c2d/compute_engine_docker.js'
 import { ServiceStatusNumber } from '../../@types/C2D/ServiceOnDemand.js'
+import { allocateHostPort, releaseHostPort } from '../../components/core/service/utils.js'
 import { C2DDockerConfigSchema } from '../../utils/config/schemas.js'
 import { ValidateParams } from '../../components/httpRoutes/validateCommands.js'
 import { Readable } from 'stream'
@@ -1604,6 +1605,8 @@ describe('service start/restart Docker cleanup on failure', function () {
       getNetwork: sinon.stub().returns(network)
     }
     const job = makeStartingJob({ serviceId: 'svc-1' })
+    // the pipeline re-reads the job under the lifecycle lock before acting
+    engine.db.getServiceJob = sinon.stub().resolves([job])
 
     await engine.processServiceStart(job) // never throws — failures are persisted as status
 
@@ -1622,6 +1625,7 @@ describe('service start/restart Docker cleanup on failure', function () {
       getNetwork: sinon.stub().returns(network)
     }
     const job = makeStartingJob({ serviceId: 'svc-2' })
+    engine.db.getServiceJob = sinon.stub().resolves([job])
 
     await engine.processServiceStart(job)
 
@@ -1630,6 +1634,13 @@ describe('service start/restart Docker cleanup on failure', function () {
     )
     expect(network.remove.called, 'network.remove should be called').to.equal(true)
     expect(job.status).to.equal(ServiceStatusNumber.Error)
+    // The payment was claimed before the container step, so the Error job keeps its
+    // host ports reserved (restartable on the same endpoints until expiresAt): the
+    // allocator must refuse to hand the port out again.
+    expect(job.endpoints.length).to.be.greaterThan(0)
+    const reservedPort = job.endpoints[0].hostPort
+    await expectRejects(allocateHostPort(reservedPort, reservedPort), 'No free host port')
+    releaseHostPort(reservedPort) // don't leak the reservation into other tests
   })
 
   it('processServiceStart refunds (cancelLock) and marks PullImageFailed when the image pull fails', async function () {
@@ -1640,6 +1651,7 @@ describe('service start/restart Docker cleanup on failure', function () {
       getNetwork: sinon.stub().returns(network)
     }
     const job = makeStartingJob({ serviceId: 'svc-img' })
+    engine.db.getServiceJob = sinon.stub().resolves([job])
 
     await engine.processServiceStart(job)
 
@@ -1663,6 +1675,7 @@ describe('service start/restart Docker cleanup on failure', function () {
       getNetwork: sinon.stub().returns(network)
     }
     const job = makeStartingJob({ serviceId: 'svc-lock' })
+    engine.db.getServiceJob = sinon.stub().resolves([job])
 
     await engine.processServiceStart(job)
 
@@ -1691,6 +1704,7 @@ describe('service start/restart Docker cleanup on failure', function () {
         cancelTx: ''
       }
     })
+    engine.db.getServiceJob = sinon.stub().resolves([job])
 
     await engine.processServiceStart(job)
 
@@ -1730,12 +1744,15 @@ describe('service start/restart Docker cleanup on failure', function () {
       getNetwork: sinon.stub().returns(network)
     }
 
-    await expectRejects(
-      engine.restartService('svc-3', '0xowner', undefined),
-      'createContainer failed'
-    )
+    // restart is async: the call returns the Restarting snapshot; the failure surfaces
+    // on the persisted job status once the background op settles.
+    const snapshot = await engine.restartService('svc-3', '0xowner', undefined)
+    expect(snapshot.status).to.equal(ServiceStatusNumber.Restarting)
+    await Promise.allSettled([...engine.serviceOpPromises])
 
     expect(network.remove.called, 'network.remove should be called').to.equal(true)
+    expect(existingJob.status).to.equal(ServiceStatusNumber.Error)
+    expect(existingJob.statusText).to.contain('createContainer failed')
   })
 
   function makeRunningJobWithCmd(overrides: any = {}) {
@@ -1774,19 +1791,20 @@ describe('service start/restart Docker cleanup on failure', function () {
       getNetwork: sinon.stub().returns(network)
     }
 
-    const result = await engine.restartService(
+    await engine.restartService(
       'svc-cmd',
       '0xowner',
       undefined,
       ['new', 'cmd'],
       ['/new-entrypoint']
     )
+    await Promise.allSettled([...engine.serviceOpPromises])
 
     const createArgs = engine.docker.createContainer.firstCall.args[0]
     expect(createArgs.Cmd).to.deep.equal(['new', 'cmd'])
     expect(createArgs.Entrypoint).to.deep.equal(['/new-entrypoint'])
-    expect(result.dockerCmd).to.deep.equal(['new', 'cmd'])
-    expect(result.dockerEntrypoint).to.deep.equal(['/new-entrypoint'])
+    expect(existingJob.dockerCmd).to.deep.equal(['new', 'cmd'])
+    expect(existingJob.dockerEntrypoint).to.deep.equal(['/new-entrypoint'])
   })
 
   it('restartService reuses the stored dockerCmd/dockerEntrypoint when none are supplied', async function () {
@@ -1799,13 +1817,14 @@ describe('service start/restart Docker cleanup on failure', function () {
       getNetwork: sinon.stub().returns(network)
     }
 
-    const result = await engine.restartService('svc-cmd', '0xowner', undefined)
+    await engine.restartService('svc-cmd', '0xowner', undefined)
+    await Promise.allSettled([...engine.serviceOpPromises])
 
     const createArgs = engine.docker.createContainer.firstCall.args[0]
     expect(createArgs.Cmd).to.deep.equal(['old', 'cmd'])
     expect(createArgs.Entrypoint).to.deep.equal(['/old-entrypoint'])
-    expect(result.dockerCmd).to.deep.equal(['old', 'cmd'])
-    expect(result.dockerEntrypoint).to.deep.equal(['/old-entrypoint'])
+    expect(existingJob.dockerCmd).to.deep.equal(['old', 'cmd'])
+    expect(existingJob.dockerEntrypoint).to.deep.equal(['/old-entrypoint'])
   })
 
   it('restartService clears dockerCmd/dockerEntrypoint when explicitly given an empty array', async function () {
@@ -1818,12 +1837,13 @@ describe('service start/restart Docker cleanup on failure', function () {
       getNetwork: sinon.stub().returns(network)
     }
 
-    const result = await engine.restartService('svc-cmd', '0xowner', undefined, [], [])
+    await engine.restartService('svc-cmd', '0xowner', undefined, [], [])
+    await Promise.allSettled([...engine.serviceOpPromises])
 
     const createArgs = engine.docker.createContainer.firstCall.args[0]
     expect(createArgs.Cmd).to.equal(undefined)
     expect(createArgs.Entrypoint).to.equal(undefined)
-    expect(result.dockerCmd).to.deep.equal([])
-    expect(result.dockerEntrypoint).to.deep.equal([])
+    expect(existingJob.dockerCmd).to.deep.equal([])
+    expect(existingJob.dockerEntrypoint).to.deep.equal([])
   })
 })

@@ -9,12 +9,10 @@ import {
   buildInvalidRequestMessage
 } from '../../httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import type { C2DEngine } from '../../c2d/compute_engine_base.js'
 import type { ComputeEnvironment } from '../../../@types/C2D/C2D.js'
-import type { ServiceJob } from '../../../@types/C2D/ServiceOnDemand.js'
 import { ServiceStatusNumber } from '../../../@types/C2D/ServiceOnDemand.js'
 import { validateAccess } from '../compute/startCompute.js'
-import { decryptUserData, toPublicServiceJob } from './utils.js'
+import { decryptUserData, findServiceJobAndEngine, toPublicServiceJob } from './utils.js'
 
 export class ServiceRestartHandler extends CommandHandler {
   validate(command: ServiceRestartCommand): ValidateParams {
@@ -42,21 +40,24 @@ export class ServiceRestartHandler extends CommandHandler {
         status: { httpStatus: 503, error: 'Compute engines not configured' }
       }
 
-    // Find job across all engines
-    let job: ServiceJob | null = null
-    let engine: C2DEngine | null = null
-    for (const eng of engines.getAllEngines()) {
-      const [found] = await eng.db.getServiceJob(task.serviceId, task.consumerAddress)
-      if (found) {
-        job = found
-        engine = eng
-        break
-      }
-    }
-    if (!job || !engine)
+    // Find the job and the engine that owns it (by clusterHash — see helper)
+    const { job, engine } = await findServiceJobAndEngine(
+      engines,
+      task.serviceId,
+      task.consumerAddress
+    )
+    if (!job)
       return buildInvalidParametersResponse(
         buildInvalidRequestMessage('Service job not found: ' + task.serviceId)
       )
+    if (!engine)
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500,
+          error: `No compute engine owns service ${task.serviceId} (cluster ${job.clusterHash}) — the node's compute configuration may have changed`
+        }
+      }
 
     // Ownership check
     if (job.owner.toLowerCase() !== task.consumerAddress.toLowerCase())
@@ -107,6 +108,11 @@ export class ServiceRestartHandler extends CommandHandler {
     }
 
     try {
+      // Asynchronous, like SERVICE_START: engine.restartService validates, persists the
+      // job as Restarting and returns immediately — the teardown + image pull/build +
+      // new container run in the background (an image pull can take minutes and must
+      // not block the HTTP/P2P response). Clients poll SERVICE_GET_STATUS and watch
+      // Restarting → … → Running (or an Error status with the failure reason).
       const restarted = await engine.restartService(
         task.serviceId,
         task.consumerAddress,

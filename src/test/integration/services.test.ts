@@ -319,11 +319,12 @@ describe('**********         Service on Demand', () => {
     )
     dbconn = await Database.init(config.dbConfig)
 
-    // Clean stale running service jobs so prior runs don't consume shared resources.
+    // Clean stale service jobs so prior runs don't consume shared resources. Expired is
+    // the only status that releases the reservation (Stopped still counts as active).
     const staleServices = await dbconn.c2d.getRunningServiceJobs()
     for (const svc of staleServices) {
-      svc.status = ServiceStatusNumber.Stopped
-      svc.statusText = 'Stopped'
+      svc.status = ServiceStatusNumber.Expired
+      svc.statusText = 'Expired'
       await dbconn.c2d.updateServiceJob(svc)
     }
     const staleJobs = await dbconn.c2d.getRunningJobs()

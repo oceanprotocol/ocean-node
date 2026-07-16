@@ -4,7 +4,11 @@ import {
   C2DStatusText,
   type DBComputeJob
 } from '../../@types/C2D/C2D.js'
-import { ServiceStatusNumber, type ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
+import {
+  ServiceStatusNumber,
+  SERVICE_START_PENDING_STATUSES,
+  type ServiceJob
+} from '../../@types/C2D/ServiceOnDemand.js'
 import sqlite3, { RunResult } from 'sqlite3'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { create256Hash } from '../../utils/crypt.js'
@@ -153,6 +157,113 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
 
   // ── Service-on-Demand jobs ──────────────────────────────────────────
 
+  // Cross-process lifecycle locks for service jobs. A row = an exclusive start/stop/
+  // restart operation in flight on serviceId, held by `holder` (a per-process id). Rows
+  // are heartbeated (acquiredAt refreshed) while the operation runs; a row whose
+  // acquiredAt is older than the staleness window is a crashed holder and may be stolen.
+  // This extends the engine's in-memory serviceOpsInFlight guarantee to setups where
+  // several node processes share the same DB file + Docker daemon (e.g. a stale
+  // container still running during a redeploy) — in-memory sets cannot see each other.
+  createServiceLocksTable(): Promise<void> {
+    const createTableSQL = `
+      CREATE TABLE IF NOT EXISTS service_locks (
+        serviceId TEXT PRIMARY KEY,
+        holder TEXT NOT NULL,
+        acquiredAt INTEGER NOT NULL
+      );
+    `
+    return new Promise<void>((resolve, reject) => {
+      this.db.run(createTableSQL, (err) => {
+        if (err) {
+          DATABASE_LOGGER.error('Could not create service_locks table: ' + err.message)
+          reject(err)
+        } else {
+          resolve()
+        }
+      })
+    })
+  }
+
+  // Atomically takes the lock for serviceId: inserts a fresh row, or steals one whose
+  // acquiredAt is older than staleMs (crashed holder). The single upsert statement is
+  // the atomicity guarantee — two processes racing it can never both see success.
+  acquireServiceLock(
+    serviceId: string,
+    holder: string,
+    staleMs: number
+  ): Promise<boolean> {
+    const now = Date.now()
+    const upsertSQL = `
+      INSERT INTO service_locks (serviceId, holder, acquiredAt) VALUES (?, ?, ?)
+      ON CONFLICT(serviceId) DO UPDATE
+        SET holder = excluded.holder, acquiredAt = excluded.acquiredAt
+        WHERE service_locks.acquiredAt <= ?;
+    `
+    return new Promise<boolean>((resolve, reject) => {
+      this.db.run(
+        upsertSQL,
+        [serviceId, holder, now, now - staleMs],
+        function (this: RunResult, err: Error | null) {
+          if (err) {
+            DATABASE_LOGGER.error(`Could not acquire service lock: ${err.message}`)
+            reject(err)
+          } else {
+            resolve(this.changes === 1)
+          }
+        }
+      )
+    })
+  }
+
+  // Releases only a lock we still hold — a stale lock stolen by another process must
+  // not be deleted out from under its new holder.
+  releaseServiceLock(serviceId: string, holder: string): Promise<void> {
+    const deleteSQL = `DELETE FROM service_locks WHERE serviceId = ? AND holder = ?;`
+    return new Promise<void>((resolve, reject) => {
+      this.db.run(deleteSQL, [serviceId, holder], (err) => {
+        if (err) {
+          DATABASE_LOGGER.error(`Could not release service lock: ${err.message}`)
+          reject(err)
+        } else {
+          resolve()
+        }
+      })
+    })
+  }
+
+  // Heartbeat: re-stamps every lock this holder owns so long operations (multi-minute
+  // image pulls/builds) are not stolen as stale.
+  refreshServiceLocks(holder: string): Promise<void> {
+    const updateSQL = `UPDATE service_locks SET acquiredAt = ? WHERE holder = ?;`
+    return new Promise<void>((resolve, reject) => {
+      this.db.run(updateSQL, [Date.now(), holder], (err) => {
+        if (err) {
+          DATABASE_LOGGER.error(`Could not refresh service locks: ${err.message}`)
+          reject(err)
+        } else {
+          resolve()
+        }
+      })
+    })
+  }
+
+  // True while ANY process holds a fresh lock on serviceId — used by read-only
+  // observers (e.g. the container health check) to avoid judging a service that
+  // another process is mid-way through restarting.
+  isServiceLocked(serviceId: string, staleMs: number): Promise<boolean> {
+    const selectSQL = `SELECT acquiredAt FROM service_locks WHERE serviceId = ?;`
+    return new Promise<boolean>((resolve, reject) => {
+      this.db.get(selectSQL, [serviceId], (err, row: any) => {
+        if (err) {
+          DATABASE_LOGGER.error(`Could not read service lock: ${err.message}`)
+          reject(err)
+        } else {
+          resolve(!!row && row.acquiredAt > Date.now() - staleMs)
+        }
+      })
+    })
+  }
+
   createServiceTable(): Promise<void> {
     const createTableSQL = `
       CREATE TABLE IF NOT EXISTS service_jobs (
@@ -265,11 +376,13 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
   }
 
   getRunningServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
-    // All pre-terminal statuses are "active": a service reserves its resources from the moment
-    // its record is created (Starting) through the whole start pipeline (Locking, image, Claiming)
-    // until it is Running, and while Stopping. Error is included too: a service whose container
-    // died on its own keeps its resources/ports reserved (consumer already paid for them) until
-    // it is explicitly restarted/stopped, or swept by getExpiredServiceJobs once past expiresAt.
+    // Every status before Expired is "active": the consumer paid for the resources for a
+    // TIME WINDOW, so the reservation holds from the moment the record is created
+    // (Starting) through the whole start pipeline (Locking, image, Claiming), while
+    // Running/Restarting/Stopping, through Error (container died on its own) AND through
+    // an explicit Stopped — a stopped service can be restarted anytime on the same
+    // resources until expiresAt. Only the expiry sweep (→ Expired) releases the
+    // reservation; nothing else may free it inside the paid window.
     const activeStatuses = [
       ServiceStatusNumber.Starting,
       ServiceStatusNumber.Locking,
@@ -277,7 +390,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       ServiceStatusNumber.BuildImage,
       ServiceStatusNumber.Claiming,
       ServiceStatusNumber.Running,
+      ServiceStatusNumber.Restarting,
       ServiceStatusNumber.Stopping,
+      ServiceStatusNumber.Stopped,
       ServiceStatusNumber.Error
     ]
     const placeholders = activeStatuses.map(() => '?').join(',')
@@ -300,11 +415,15 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
   }
 
   getExpiredServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
-    // Running AND Error: an Error'd service (e.g. container died on its own) still holds its
-    // resources/ports reserved for a possible restart, but once past expiresAt it must be
-    // swept and released just like a normally-running one — otherwise an abandoned Error
-    // service would leak its reservation forever.
-    const expirableStatuses = [ServiceStatusNumber.Running, ServiceStatusNumber.Error]
+    // Running, Error AND Stopped all still hold their paid reservation (see activeStatuses
+    // above), so all three must be swept once past expiresAt: the sweep is the ONLY place
+    // the reservation is released. Without it an abandoned Error or Stopped service would
+    // keep its resources/ports forever and still read as restartable.
+    const expirableStatuses = [
+      ServiceStatusNumber.Running,
+      ServiceStatusNumber.Error,
+      ServiceStatusNumber.Stopped
+    ]
     const placeholders = expirableStatuses.map(() => '?').join(',')
     const params: Array<string | number> = [...expirableStatuses, Date.now()]
     let selectSQL = `SELECT * FROM service_jobs WHERE status IN (${placeholders}) AND expiresAt <= ?`
@@ -328,13 +447,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
   // Starting = fresh (handler just created it); the intermediate states are picked up too so
   // the loop can resume / orphan-recover them after a node restart.
   getPendingServiceStarts(clusterHash?: string): Promise<ServiceJob[]> {
-    const startStatuses = [
-      ServiceStatusNumber.Starting,
-      ServiceStatusNumber.Locking,
-      ServiceStatusNumber.PullImage,
-      ServiceStatusNumber.BuildImage,
-      ServiceStatusNumber.Claiming
-    ]
+    const startStatuses = SERVICE_START_PENDING_STATUSES
     const placeholders = startStatuses.map(() => '?').join(',')
     const params: Array<string | number> = [...startStatuses]
     let selectSQL = `SELECT * FROM service_jobs WHERE status IN (${placeholders})`
