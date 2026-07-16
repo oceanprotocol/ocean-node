@@ -33,9 +33,15 @@ export type ComputeResourceType = 'cpu' | 'ram' | 'disk' | any
 export type ComputeResourceKind = 'discrete' | 'fungible'
 
 export interface ResourceConstraint {
-  id: ComputeResourceType // the resource being constrained
-  min?: number // min units of this resource per unit of parent resource
-  max?: number // max units of this resource per unit of parent resource
+  // Exactly one of `id` | `type` must be set.
+  id?: ComputeResourceType // exact single-resource target (e.g. 'ram', 'gpu0')
+  type?: string // group target: aggregate across ALL env resources whose `type` matches (e.g. 'gpu')
+  min?: number // min units of the constrained resource; per unit of parent when `perUnit` (default), absolute aggregate when `perUnit:false`
+  max?: number // max units of the constrained resource; per unit of parent when `perUnit` (default), absolute aggregate when `perUnit:false`
+  perUnit?: boolean // undefined/true = RATIO (parentAmount * min); false = FLOOR (absolute min/max, only enforced when parent > 0)
+  aggregate?: boolean // when true, this constraint's contribution SUMS with matching aggregate
+  // constraints on other requested parents into one shared target (single `id` only). e.g. two
+  // per-device GPUs each with {id:'cpu',min:1,max:4,aggregate:true} → cpu in [2,8] when both rented.
 }
 
 export interface ComputeResourcesPricingInfo {

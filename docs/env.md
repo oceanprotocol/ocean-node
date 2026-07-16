@@ -131,7 +131,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 
 - `SERVICE_TEMPLATES_PATH`: Path to a folder of operator-published Service-on-Demand template files (`*.json`, validated against the template schema). The folder is re-read on every `serviceTemplates` request, so templates can be added, edited, or removed without restarting the node. Maps to the `serviceTemplatesPath` config field. Defaults to `databases/serviceTemplates/`. See the [Services guide](services.md). Example: `docs/serviceTemplates/`
 
-The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable is used to configure Docker-based compute environments in Ocean Node. For GPU setup and examples see [GPU Guide](GPU.md). For pricing configuration see [Compute pricing](compute-pricing.md).
+The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable is used to configure Docker-based compute environments in Ocean Node. For the full guide — resources, GPU setup, constraints and pricing — see [Compute Configuration](compute.md).
 
 `cpu`, `ram`, and `disk` resources are **auto-detected** from the host at startup. All resource values are expressed in natural units: CPU in cores, RAM and disk in GB.
 
@@ -211,7 +211,7 @@ The config has a two-level structure:
   - **cpuList** *(cpu resource only)*: Restricts which host core IDs compute containers may be pinned to. Comma-separated core IDs and/or integer ranges, e.g. `"3"`, `"0-1,3"` or `"32-63"`. Ranges `a-b` must have `b` strictly greater than `a`, all parts must be ascending and non-overlapping, core IDs may not exceed `8192`, and every core ID must exist on the host — otherwise the node fails to start with an error. Mutually exclusive with **total**: the cpu resource must specify exactly one of the two, and with `cpuList` the effective total is the number of listed cores.
   - **min** / **max**: Per-job minimum/maximum.
   - **description**, **platform**, **driverVersion**, **memoryTotal**: Informational metadata.
-  - **init**: Docker device configuration (`deviceRequests` for NVIDIA, `advanced` for AMD/Intel). See [GPU Guide](GPU.md).
+  - **init**: Docker device configuration (`deviceRequests` for NVIDIA, `advanced` for AMD/Intel). See [Compute Configuration](compute.md#configuring-gpus).
   - **constraints**: Cross-resource requirements. `{ "id": "ram", "min": 4 }` means renting this resource also requires 4 GB RAM.
 
 #### Environment-level fields

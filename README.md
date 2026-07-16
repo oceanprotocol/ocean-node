@@ -154,6 +154,5 @@ Your node is now running. To start additional nodes, repeat these steps in a new
 - [Network Configuration](docs/networking.md)
 - [Logging & accessing logs](docs/networking.md)
 - [Docker Deployment Guide](docs/dockerDeployment.md)
-- [C2D GPU Guide](docs/GPU.md)
-- [Compute pricing](docs/compute-pricing.md)
+- [Compute (C2D) Configuration — resources, GPUs, constraints, pricing](docs/compute.md)
 - [Services (Service-on-Demand)](docs/services.md)

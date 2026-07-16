@@ -167,11 +167,30 @@ export const DockerRegistryAuthSchema = z
 
 export const DockerRegistrysSchema = z.record(z.string(), DockerRegistryAuthSchema)
 
-const ResourceConstraintSchema = z.object({
-  id: z.string(),
-  min: z.number().optional(),
-  max: z.number().optional()
-})
+// A constraint targets EITHER a single resource by `id` OR a group of resources by `type`
+// (aggregated). `perUnit` (default true) keeps the historical ratio semantics
+// (requiredMin = parentAmount * min); `perUnit:false` makes min/max an absolute floor/ceiling
+// enforced only when the parent resource is requested.
+// NOTE: keep `perUnit` optional() with no .default() — a default would inject `perUnit:true`
+// into every parsed constraint and break existing deep-equal expectations on constraints.
+const ResourceConstraintSchema = z
+  .object({
+    id: z.string().optional(),
+    type: z.string().optional(),
+    min: z.number().optional(),
+    max: z.number().optional(),
+    perUnit: z.boolean().optional(),
+    aggregate: z.boolean().optional()
+  })
+  .refine((c) => c.id !== undefined || c.type !== undefined, {
+    message: 'Each resource constraint must specify either "id" or "type"'
+  })
+  .refine((c) => !(c.id !== undefined && c.type !== undefined), {
+    message: '"id" and "type" are mutually exclusive in a resource constraint'
+  })
+  .refine((c) => !(c.aggregate === true && c.type !== undefined), {
+    message: 'aggregate constraints must target a single "id", not a "type" group'
+  })
 
 // cpuList shape: comma-separated core IDs and/or integer ranges ("3", "0-1,3") — no
 // spaces, signs or floats. Every dash-separated piece of a part must be a plain

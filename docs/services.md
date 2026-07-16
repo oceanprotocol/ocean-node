@@ -14,8 +14,8 @@ consumer can connect to while it runs.
 The consumer supplies the container spec directly in the request: an `image`
 (referenced by `tag` or `checksum`, or an inline `dockerfile` when the operator allows
 building), optional `dockerCmd` / `dockerEntrypoint`, the container ports to expose, the
-requested resources (cpu/ram/disk/gpu), the duration, and encrypted `userData` that is
-injected as container environment variables.
+requested resources ([cpu/ram/disk/gpu](compute.md)), the duration, and encrypted `userData`
+that is injected as container environment variables.
 
 ## Lifecycle
 
@@ -101,6 +101,12 @@ and access can be restricted with the environment's `access` allow-list
 (`addresses` + on-chain `accessLists`). Operator-published **templates** are loaded from
 `serviceTemplatesPath` (default `databases/serviceTemplates/`); template secret values
 are never returned by the API (only the env-var keys are exposed).
+
+The compute environments a service can run on — and the resources (cpu/ram/disk/gpu) it may
+request — are the same ones configured at the node's Docker-connection level for compute jobs,
+and services draw from and are counted against the same shared resource pool. For how to
+declare resources, configure GPUs, set per-environment constraints, and price them, see the
+[Compute Configuration guide](compute.md).
 
 ## Security model & important notices
 
