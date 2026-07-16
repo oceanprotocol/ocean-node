@@ -3849,34 +3849,36 @@ export class C2DEngineDocker extends C2DEngine {
   // restartService() reuses them (and does its own best-effort teardown of the dead
   // container/network first).
   private async markServiceFailed(job: ServiceJob, reason: string): Promise<void> {
-    const [fresh] = await this.db.getServiceJob(job.serviceId, job.owner)
-    if (!fresh || fresh.status !== ServiceStatusNumber.Running) {
-      // already moved on (stopped/restarted/expired) by another path — don't clobber it
-      return
-    }
-    if (fresh.containerId !== job.containerId) {
-      // the container we observed dead is no longer the job's container (a restart
-      // replaced it since our snapshot) — the current one is not known to be dead
-      return
-    }
-    // A fresh DB lease means ANOTHER process is mid-operation on this service (its
-    // teardown makes the container look dead); our in-memory serviceOpsInFlight can't
-    // see that. Skip — if the container is genuinely dead, the next tick catches it.
-    // Fail CLOSED: when the lease state can't be read, assume locked and skip this
-    // tick rather than risk flipping a mid-restart service to Error.
-    const lockedElsewhere = await this.db
-      .isServiceLocked(job.serviceId, SERVICE_LOCK_STALE_MS)
-      .catch(() => true)
-    if (lockedElsewhere) {
+    // Take the SAME lifecycle lease every start/stop/restart holds, so the Error write
+    // is serialized with them — a check-then-write here could otherwise overwrite a
+    // Restarting state persisted between our lease check and our update. Failing to
+    // acquire (op in flight locally or in another process) fails CLOSED: skip this
+    // tick; a genuinely dead container is re-detected on the next one.
+    if (!(await this.tryAcquireServiceLifecycleLock(job.serviceId))) {
       CORE_LOGGER.debug(
-        `markServiceFailed ${job.serviceId}: skipped — a lifecycle lease is held elsewhere`
+        `markServiceFailed ${job.serviceId}: skipped — could not take the lifecycle lease`
       )
       return
     }
-    fresh.status = ServiceStatusNumber.Error
-    fresh.statusText = `service container exited unexpectedly: ${reason}`
-    await this.db.updateServiceJob(fresh)
-    CORE_LOGGER.error(`Service ${job.serviceId} container died — ${reason}`)
+    try {
+      // Re-read UNDER the lease: this snapshot cannot go stale before our write.
+      const [fresh] = await this.db.getServiceJob(job.serviceId, job.owner)
+      if (!fresh || fresh.status !== ServiceStatusNumber.Running) {
+        // already moved on (stopped/restarted/expired) by another path — don't clobber it
+        return
+      }
+      if (fresh.containerId !== job.containerId) {
+        // the container we observed dead is no longer the job's container (a restart
+        // replaced it since our snapshot) — the current one is not known to be dead
+        return
+      }
+      fresh.status = ServiceStatusNumber.Error
+      fresh.statusText = `service container exited unexpectedly: ${reason}`
+      await this.db.updateServiceJob(fresh)
+      CORE_LOGGER.error(`Service ${job.serviceId} container died — ${reason}`)
+    } finally {
+      await this.releaseServiceLifecycleLock(job.serviceId)
+    }
   }
 
   // Tries to take the per-service lifecycle lock: the in-memory set serializes callers
@@ -4030,7 +4032,6 @@ export class C2DEngineDocker extends C2DEngine {
     job.status = ServiceStatusNumber.Stopping
     job.statusText = ServiceStatusText[ServiceStatusNumber.Stopping]
     await this.db.updateServiceJob(job)
-    this.releaseCpus(serviceId)
 
     // Benign "already gone" errors count as success. Any other error means teardown
     // genuinely failed — record it and keep the job OUT of Stopped so the persisted
@@ -4069,6 +4070,10 @@ export class C2DEngineDocker extends C2DEngine {
       // mistakes them for live resources (a restart re-creates and re-persists both).
       job.containerId = ''
       job.networkId = ''
+      // Release the CPU pinning only now that the container is confirmed gone: on a
+      // failed teardown the old container may still be running on those cores, and
+      // handing them to another job would double-pin them.
+      this.releaseCpus(serviceId)
       CORE_LOGGER.debug(`stopService ${serviceId}: stopped, container + network removed`)
     }
     await this.db.updateServiceJob(job)

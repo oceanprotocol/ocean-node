@@ -179,9 +179,14 @@ describe('Service Jobs Database', () => {
     it('refreshServiceLocks re-stamps a holder’s rows so they stay unstealable', async () => {
       const serviceId = `lock-svc-${Date.now()}-d`
       expect(await db.acquireServiceLock(serviceId, 'proc-A', STALE_MS)).to.equal(true)
+      // age the ORIGINAL stamp past the staleness window B will use below, so the
+      // refusal can only be explained by the refresh re-stamping the row — without the
+      // aging, a freshly-acquired row would be "unstealable" even if refresh did nothing
+      await new Promise((resolve) => setTimeout(resolve, 150))
       await db.refreshServiceLocks('proc-A')
-      // B considers anything older than 5s stale — A's row was just re-stamped
-      expect(await db.acquireServiceLock(serviceId, 'proc-B', 5_000)).to.equal(false)
+      // B treats anything older than 100ms as stale: the original stamp (≥150ms old)
+      // would be stolen; the re-stamped one (a few ms old) must not be
+      expect(await db.acquireServiceLock(serviceId, 'proc-B', 100)).to.equal(false)
       await db.releaseServiceLock(serviceId, 'proc-A')
     })
   })

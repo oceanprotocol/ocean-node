@@ -165,6 +165,11 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
       ),
       'Error status must be written to the DB'
     ).to.equal(true)
+    // the DB lease must be handed back on the failure path too
+    expect(
+      engine.db.releaseServiceLock.calledWith(SERVICE_ID, 'test-holder'),
+      'DB lease must be released after the failed restart'
+    ).to.equal(true)
   })
 
   it('restartService rejects a service whose payment was refunded (never claimed)', async () => {

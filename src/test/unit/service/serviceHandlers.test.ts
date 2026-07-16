@@ -410,11 +410,60 @@ describe('Service handlers', () => {
       expect(res.status.httpStatus).to.equal(200)
       expect(escrow.createLock.calledOnce).to.equal(true)
       expect(escrow.claimLock.calledOnce).to.equal(true)
-      expect(engine.db.updateServiceJob.calledOnce).to.equal(true)
+      // two writes: the durable intent (before claim) + the finalized extension
+      expect(engine.db.updateServiceJob.calledTwice).to.equal(true)
       const out = await body(res)
       expect(out[0].expiresAt).to.equal(before + 3600 * 1000)
       expect(out[0].extendPayments).to.have.length(1)
+      expect(out[0].extendPayments[0].claimTx).to.equal('0xclaim')
       expect(out[0]).to.not.have.property('userData')
+    })
+
+    it('auto-refunds an unresolved extension intent from a previous crash, then proceeds', async () => {
+      const job = makeJob({
+        extendPayments: [
+          // lockTx set, neither claimTx nor cancelTx — a crash between claim and write
+          {
+            chainId: 8996,
+            token: '0xtoken',
+            lockTx: '0xoldlock',
+            claimTx: '',
+            cancelTx: '',
+            cost: 5
+          }
+        ]
+      })
+      const { node, escrow } = buildFakes({ serviceJobInDb: job })
+      const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      // the stale lock was refunded before charging again
+      expect(escrow.cancelExpiredLock.calledOnce).to.equal(true)
+      const out = await body(res)
+      expect(out[0].extendPayments).to.have.length(2)
+      expect(out[0].extendPayments[0].cancelTx).to.equal('0xcancel')
+      expect(out[0].extendPayments[1].claimTx).to.equal('0xclaim')
+    })
+
+    it('409 when an unresolved extension intent cannot be refunded (no double charge)', async () => {
+      const job = makeJob({
+        extendPayments: [
+          {
+            chainId: 8996,
+            token: '0xtoken',
+            lockTx: '0xoldlock',
+            claimTx: '',
+            cancelTx: '',
+            cost: 5
+          }
+        ]
+      })
+      const { node, escrow } = buildFakes({ serviceJobInDb: job })
+      escrow.cancelExpiredLock.rejects(new Error('lock already claimed'))
+      const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(409)
+      // no new charge may be attempted while the old intent is unresolved
+      expect(escrow.createLock.called).to.equal(false)
+      expect(escrow.claimLock.called).to.equal(false)
     })
   })
 

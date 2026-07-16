@@ -156,6 +156,43 @@ export class ServiceExtendHandler extends CommandHandler {
               )
             )
 
+          // An extendPayments entry with a lockTx but neither claimTx nor cancelTx is an
+          // UNRESOLVED intent from a previous crash (see below — the intent is persisted
+          // before claiming). Resolve it before charging again: try to cancel (refund)
+          // the old lock; if that fails the lock was most likely already claimed and a
+          // human must reconcile — reject rather than risk a double charge.
+          const unresolved = (freshJob.extendPayments ?? []).find(
+            (p) => p.lockTx && !p.claimTx && !p.cancelTx
+          )
+          if (unresolved) {
+            try {
+              const cancelTx = await engine.escrow.cancelExpiredLock(
+                unresolved.chainId,
+                task.serviceId,
+                unresolved.token,
+                task.consumerAddress
+              )
+              if (!cancelTx) throw new Error('cancelExpiredLock returned no tx')
+              unresolved.cancelTx = cancelTx
+              await engine.db.updateServiceJob(freshJob)
+              CORE_LOGGER.logMessage(
+                `Service ${task.serviceId}: refunded unresolved extension lock ${unresolved.lockTx} (${cancelTx})`,
+                true
+              )
+            } catch (e: any) {
+              CORE_LOGGER.error(
+                `Service ${task.serviceId}: unresolved extension intent (lock ${unresolved.lockTx}) could not be refunded: ${e.message}`
+              )
+              return {
+                stream: null,
+                status: {
+                  httpStatus: 409,
+                  error: `A previous extension of this service is unresolved (lock ${unresolved.lockTx}) and could not be auto-refunded — retry later or contact the node operator`
+                }
+              }
+            }
+          }
+
           // Escrow lock + immediate claim
           let lockTx: string | null
           try {
@@ -201,6 +238,21 @@ export class ServiceExtendHandler extends CommandHandler {
             }
           }
 
+          // Persist the extension INTENT (lockTx recorded, claim pending) BEFORE
+          // claiming: a crash between claim and the final write is then auditable — the
+          // consumer's money can never be taken without a durable record of why — and a
+          // retry finds the intent (unresolved branch above) instead of charging twice.
+          const intent = {
+            chainId: task.payment.chainId,
+            token: task.payment.token,
+            lockTx,
+            claimTx: '',
+            cancelTx: '',
+            cost: costExtend
+          }
+          freshJob.extendPayments = [...(freshJob.extendPayments ?? []), intent]
+          await engine.db.updateServiceJob(freshJob)
+
           let claimTx: string | null
           try {
             claimTx = await engine.escrow.claimLock(
@@ -216,34 +268,32 @@ export class ServiceExtendHandler extends CommandHandler {
             CORE_LOGGER.error(`Service extend claimLock failed: ${e.message}`)
           }
           if (!claimTx) {
-            await engine.escrow
+            const cancelTx = await engine.escrow
               .cancelExpiredLock(
                 task.payment.chainId,
                 task.serviceId,
                 task.payment.token,
                 task.consumerAddress
               )
-              .catch((e) => CORE_LOGGER.error(`cancelExpiredLock failed: ${e.message}`))
+              .catch((e): string | null => {
+                CORE_LOGGER.error(`cancelExpiredLock failed: ${e.message}`)
+                return null
+              })
+            // close the intent (refunded) — or leave it unresolved for the next attempt
+            if (cancelTx) {
+              intent.cancelTx = cancelTx
+              await engine.db.updateServiceJob(freshJob)
+            }
             return {
               stream: null,
               status: { httpStatus: 402, error: 'Escrow claim failed — lock cancelled' }
             }
           }
 
-          // Payment successful — push expiresAt forward and record extension payment
+          // Payment successful — finalize the intent and push expiresAt forward
+          intent.claimTx = claimTx
           freshJob.expiresAt += task.additionalDuration * 1000
           freshJob.duration += task.additionalDuration
-          freshJob.extendPayments = [
-            ...(freshJob.extendPayments ?? []),
-            {
-              chainId: task.payment.chainId,
-              token: task.payment.token,
-              lockTx,
-              claimTx,
-              cancelTx: '',
-              cost: costExtend
-            }
-          ]
           await engine.db.updateServiceJob(freshJob)
 
           CORE_LOGGER.logMessage(
