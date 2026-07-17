@@ -328,6 +328,24 @@ export abstract class C2DEngine {
     env: ComputeEnvironment,
     isFree: boolean
   ): void {
+    // Two-phase on purpose: a later parent's min bump can raise a target past an earlier
+    // parent's already-checked max (e.g. gpu1 {cpu min:8} bumping past gpu0 {cpu max:6}),
+    // so all floors settle first (direct, then aggregate) and every ceiling is validated
+    // afterwards against the final amounts — the outcome no longer depends on the order
+    // resources appear in the env definition.
+    this.enforceDirectConstraints(resources, env, isFree, 'min')
+    this.applyAggregateConstraints(resources, env, isFree)
+    this.enforceDirectConstraints(resources, env, isFree, 'max')
+  }
+
+  // Non-aggregate constraints, one phase at a time: 'min' raises targets to their floors
+  // (throwing when a floor exceeds the target's own max), 'max' rejects ceilings violations.
+  protected enforceDirectConstraints(
+    resources: ComputeResourceRequest[],
+    env: ComputeEnvironment,
+    isFree: boolean,
+    phase: 'min' | 'max'
+  ): void {
     const envResources = isFree ? (env.free?.resources ?? []) : (env.resources ?? [])
     for (const envResource of envResources) {
       if (!envResource.constraints || envResource.constraints.length === 0) continue
@@ -335,7 +353,7 @@ export abstract class C2DEngine {
       if (!parentAmount || parentAmount <= 0) continue
 
       for (const constraint of envResource.constraints) {
-        // Aggregate constraints sum across parents — handled in applyAggregateConstraints below.
+        // Aggregate constraints sum across parents — handled in applyAggregateConstraints.
         if (constraint.aggregate) continue
         // perUnit (default true) => RATIO (parentAmount * value); false => absolute FLOOR/ceiling.
         const perUnit = constraint.perUnit !== false
@@ -347,20 +365,17 @@ export abstract class C2DEngine {
         const targetLabel = isGroup
           ? `${constraint.type} resources`
           : String(constraint.id)
-        // Aggregate per-job ceiling of the target (single-resource max, or sum of group maxes).
-        const targetMax = isGroup
-          ? this.getGroupMax(env, targetIds, isFree)
-          : this.getMaxMinResource(constraint.id, env, isFree).max
-        // Re-read on each use — the min branch may have bumped it before the max check.
-        const currentAmount = (): number =>
-          isGroup
-            ? this.getGroupRequestedAmount(resources, targetIds)
-            : (this.getResourceRequest(resources, constraint.id) ?? 0)
+        const constrainedAmount = isGroup
+          ? this.getGroupRequestedAmount(resources, targetIds)
+          : (this.getResourceRequest(resources, constraint.id) ?? 0)
 
-        if (constraint.min !== undefined) {
+        if (phase === 'min' && constraint.min !== undefined) {
           const requiredMin = perUnit ? parentAmount * constraint.min : constraint.min
-          const constrainedAmount = currentAmount()
           if (constrainedAmount < requiredMin) {
+            // Aggregate per-job ceiling of the target (single max, or sum of group maxes).
+            const targetMax = isGroup
+              ? this.getGroupMax(env, targetIds, isFree)
+              : this.getMaxMinResource(constraint.id, env, isFree).max
             if (requiredMin > targetMax) {
               throw new Error(
                 `Cannot satisfy constraint: ${parentAmount} ${envResource.id} requires at least ${requiredMin} ${targetLabel}, but max is ${targetMax}`
@@ -380,9 +395,8 @@ export abstract class C2DEngine {
           }
         }
 
-        if (constraint.max !== undefined) {
+        if (phase === 'max' && constraint.max !== undefined) {
           const requiredMax = perUnit ? parentAmount * constraint.max : constraint.max
-          const constrainedAmount = currentAmount()
           if (constrainedAmount > requiredMax) {
             throw new Error(
               `Too much ${targetLabel} for ${parentAmount} ${envResource.id}. Max allowed: ${requiredMax}, requested: ${constrainedAmount}`
@@ -391,8 +405,6 @@ export abstract class C2DEngine {
         }
       }
     }
-
-    this.applyAggregateConstraints(resources, env, isFree)
   }
 
   // Aggregate constraints (`aggregate: true`) accumulate their per-parent contribution
@@ -400,8 +412,8 @@ export abstract class C2DEngine {
   // carries a matching aggregate constraint. This is how per-device GPUs (GPU1, GPU2, each
   // `max:1`) can jointly require e.g. cpu min = Σ(gpuAmount × min) and cpu max = Σ(gpuAmount ×
   // max) — 2 GPUs with a {min:1,max:4} per-GPU rule → cpu in [2, 8]. Non-aggregate constraints
-  // keep their independent per-parent behavior (handled in checkResourceConstraints); this runs
-  // after them and only ever raises the target's floor.
+  // keep their independent per-parent behavior (handled in enforceDirectConstraints); this runs
+  // between its min and max phases and only ever raises the target's floor.
   protected applyAggregateConstraints(
     resources: ComputeResourceRequest[],
     env: ComputeEnvironment,

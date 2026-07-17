@@ -1030,6 +1030,69 @@ describe('Compute Jobs Database', () => {
       )
       expect(r.find((x) => x.id === 'ram').amount).to.equal(32)
     })
+
+    // ── Contradictory per-GPU constraints must be rejected regardless of order ──
+    // gpu0 caps cpu at 6 while gpu1 requires at least 8: renting both is unsatisfiable.
+    // A single-pass check let this through when gpu0 appeared first (its max was validated
+    // before gpu1's min bumped cpu to 8); the max phase now re-validates ceilings against
+    // the settled amounts, so both orderings reject.
+    it('contradictory constraints (gpu0 cpu max:6 vs gpu1 cpu min:8) → rejected in both env orders', async function () {
+      const gpu0 = () => mkGpu('gpu0', [{ id: 'cpu', max: 6 }])
+      const gpu1 = () => mkGpu('gpu1', [{ id: 'cpu', min: 8 }])
+      const bothGpus: ComputeResourceRequest[] = [
+        { id: 'cpu', amount: 4 },
+        { id: 'gpu0', amount: 1 },
+        { id: 'gpu1', amount: 1 }
+      ]
+      for (const resources of [
+        [mkCpu(), mkRam, mkDisk, gpu0(), gpu1()],
+        [mkCpu(), mkRam, mkDisk, gpu1(), gpu0()]
+      ]) {
+        try {
+          await engine.checkAndFillMissingResources(
+            bothGpus.map((r) => ({ ...r })),
+            makeEnv(resources),
+            false
+          )
+          assert.fail('Expected error was not thrown')
+        } catch (err: any) {
+          expect(err.message).to.include('Too much cpu')
+          expect(err.message).to.include('1 gpu0')
+          expect(err.message).to.include('Max allowed: 6')
+          expect(err.message).to.include('requested: 8')
+        }
+      }
+    })
+
+    it('contradictory constraints: renting a single GPU still works', async function () {
+      const resources = [
+        mkCpu(),
+        mkRam,
+        mkDisk,
+        mkGpu('gpu0', [{ id: 'cpu', max: 6 }]),
+        mkGpu('gpu1', [{ id: 'cpu', min: 8 }])
+      ]
+      // gpu0 alone: cpu 4 ≤ 6 → untouched
+      const r0 = await engine.checkAndFillMissingResources(
+        [
+          { id: 'cpu', amount: 4 },
+          { id: 'gpu0', amount: 1 }
+        ],
+        makeEnv(resources),
+        false
+      )
+      expect(r0.find((x) => x.id === 'cpu').amount).to.equal(4)
+      // gpu1 alone: cpu bumped to its floor of 8
+      const r1 = await engine.checkAndFillMissingResources(
+        [
+          { id: 'cpu', amount: 4 },
+          { id: 'gpu1', amount: 1 }
+        ],
+        makeEnv(resources),
+        false
+      )
+      expect(r1.find((x) => x.id === 'cpu').amount).to.equal(8)
+    })
   })
 
   describe('testing checkIfResourcesAreAvailable', function () {
