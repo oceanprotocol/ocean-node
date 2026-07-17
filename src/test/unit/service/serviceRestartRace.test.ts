@@ -363,6 +363,33 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
     expect(engine.db.getServiceJob.called).to.equal(false)
   })
 
+  it('lease acquisition fails CLOSED when the lock DB errors (no docker/DB mutations)', async () => {
+    const engine = makeEngine()
+    engine.db.acquireServiceLock = sinon.stub().rejects(new Error('SQLITE_BUSY'))
+
+    try {
+      await engine.restartService(SERVICE_ID, OWNER)
+      expect.fail('expected restartService to reject')
+    } catch (e: any) {
+      expect(e.message).to.contain('operation in progress')
+    }
+    // rolled back, nothing touched — the operation is deferred, not run lock-less
+    expect(engine.serviceOpsInFlight.has(SERVICE_ID)).to.equal(false)
+    expect(engine.db.getServiceJob.called).to.equal(false)
+    expect(engine.db.updateServiceJob.called).to.equal(false)
+    expect(engine.docker.getContainer.called).to.equal(false)
+
+    // the loop's tryAcquire path defers too (skips the pending job this tick)
+    engine.db.getPendingServiceStarts.resolves([
+      makeJob({ status: ServiceStatusNumber.PullImage, statusText: 'PullImage' })
+    ])
+    engine.processServiceStart = sinon.stub().resolves()
+    await engine.InternalLoop()
+    await flush()
+    expect(engine.processServiceStart.called).to.equal(false)
+    expect(engine.serviceOpsInFlight.has(SERVICE_ID)).to.equal(false)
+  })
+
   it('InternalLoop skips a pending job whose DB lease is held by another process', async () => {
     const engine = makeEngine()
     engine.db.getPendingServiceStarts.resolves([

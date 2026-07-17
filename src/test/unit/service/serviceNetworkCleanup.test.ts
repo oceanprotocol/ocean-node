@@ -210,7 +210,10 @@ describe('service network cleanup (leaked ocean-svc-<id> networks)', () => {
       const job = makeJob({ containerId: '', networkId: '' })
       engine.db = {
         getServiceJob: sinon.stub().resolves([job]),
-        updateServiceJob: sinon.stub().resolves(1)
+        updateServiceJob: sinon.stub().resolves(1),
+        // lifecycle lease (fail-closed: stopService rejects without it)
+        acquireServiceLock: sinon.stub().resolves(true),
+        releaseServiceLock: sinon.stub().resolves(undefined)
       }
       const network = fakeNetwork({})
       engine.docker.getNetwork.returns(network)

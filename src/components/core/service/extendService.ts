@@ -251,7 +251,45 @@ export class ServiceExtendHandler extends CommandHandler {
             cost: costExtend
           }
           freshJob.extendPayments = [...(freshJob.extendPayments ?? []), intent]
-          await engine.db.updateServiceJob(freshJob)
+          try {
+            await engine.db.updateServiceJob(freshJob)
+          } catch (persistErr: any) {
+            // The lock is mined but we could NOT make it durable — without a record, the
+            // unresolved-intent recovery would never find it. Compensate: refund the
+            // lock now. If even that fails, funds are stranded on-chain → 409 so a
+            // human reconciles; nothing was claimed either way.
+            CORE_LOGGER.error(
+              `Service extend: intent persistence failed (${persistErr.message}) — refunding lock ${lockTx}`
+            )
+            freshJob.extendPayments = freshJob.extendPayments.filter((p) => p !== intent)
+            const cancelTx = await engine.escrow
+              .cancelExpiredLock(
+                task.payment.chainId,
+                task.serviceId,
+                task.payment.token,
+                task.consumerAddress
+              )
+              .catch((e): string | null => {
+                CORE_LOGGER.error(`cancelExpiredLock failed: ${e.message}`)
+                return null
+              })
+            if (!cancelTx)
+              return {
+                stream: null,
+                status: {
+                  httpStatus: 409,
+                  error: `Extension aborted: the payment intent could not be persisted AND the escrow lock ${lockTx} could not be refunded — contact the node operator`
+                }
+              }
+            return {
+              stream: null,
+              status: {
+                httpStatus: 402,
+                error:
+                  'Extension aborted before charging: the payment intent could not be persisted — the escrow lock was refunded'
+              }
+            }
+          }
 
           let claimTx: string | null
           try {

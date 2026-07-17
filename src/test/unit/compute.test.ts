@@ -1529,7 +1529,10 @@ describe('service start/restart Docker cleanup on failure', function () {
 
     engine.db = {
       newServiceJob: sinon.stub().resolves(),
-      updateServiceJob: sinon.stub().resolves()
+      updateServiceJob: sinon.stub().resolves(),
+      // lifecycle lease (fail-closed: restart/stop reject without it)
+      acquireServiceLock: sinon.stub().resolves(true),
+      releaseServiceLock: sinon.stub().resolves(undefined)
     }
     engine.getC2DConfig = sinon.stub().returns({
       hash: 'cluster-hash',

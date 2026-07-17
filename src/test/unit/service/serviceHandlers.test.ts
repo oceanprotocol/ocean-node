@@ -449,6 +449,28 @@ describe('Service handlers', () => {
       expect(out[0].extendPayments[1].claimTx).to.equal('0xclaim')
     })
 
+    it('402 and refunds the lock when the intent cannot be persisted (no unrecorded charge)', async () => {
+      const { node, escrow, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      // first write in the flow is the durable intent — make it fail
+      engine.db.updateServiceJob.onFirstCall().rejects(new Error('db down'))
+      const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(402)
+      expect(String(res.status.error)).to.contain('refunded')
+      // the mined lock was compensated, and the claim was never attempted
+      expect(escrow.cancelExpiredLock.calledOnce).to.equal(true)
+      expect(escrow.claimLock.called).to.equal(false)
+    })
+
+    it('409 when the intent cannot be persisted AND the lock refund fails (stranded funds)', async () => {
+      const { node, escrow, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      engine.db.updateServiceJob.onFirstCall().rejects(new Error('db down'))
+      escrow.cancelExpiredLock.rejects(new Error('rpc down'))
+      const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(409)
+      expect(String(res.status.error)).to.contain('could not be refunded')
+      expect(escrow.claimLock.called).to.equal(false)
+    })
+
     it('409 when an unresolved extension intent cannot be refunded (no double charge)', async () => {
       const job = makeJob({
         extendPayments: [
