@@ -78,6 +78,7 @@ export enum ServiceStatusNumber {
   Locking = 20, // escrow createLock in progress (funds locked, not yet claimed)
   Claiming = 30, // payment phase: claimLock on success, or cancelLock if the image step failed
   Running = 40,
+  Restarting = 45, // SERVICE_RESTART accepted; teardown + re-pull/build + new container in progress
   Stopping = 50,
   Stopped = 70,
   Expired = 75,
@@ -95,11 +96,26 @@ export const ServiceStatusText: Record<ServiceStatusNumber, string> = {
   [ServiceStatusNumber.Locking]: 'Locking',
   [ServiceStatusNumber.Claiming]: 'Claiming',
   [ServiceStatusNumber.Running]: 'Running',
+  [ServiceStatusNumber.Restarting]: 'Restarting',
   [ServiceStatusNumber.Stopping]: 'Stopping',
   [ServiceStatusNumber.Stopped]: 'Stopped',
   [ServiceStatusNumber.Expired]: 'Expired',
   [ServiceStatusNumber.Error]: 'Error'
 }
+
+// Statuses of a service job that is mid-start/restart and owned by an exclusive
+// lifecycle operation. Single source of truth for getPendingServiceStarts (DB query) and
+// the pipeline's staleness guard — the two MUST agree or a job can be picked up and then
+// ignored (or vice versa). Restarting is included so a job orphaned by a crash
+// mid-restart is recovered at boot exactly like a crash mid-start.
+export const SERVICE_START_PENDING_STATUSES: readonly ServiceStatusNumber[] = [
+  ServiceStatusNumber.Starting,
+  ServiceStatusNumber.Locking,
+  ServiceStatusNumber.PullImage,
+  ServiceStatusNumber.BuildImage,
+  ServiceStatusNumber.Claiming,
+  ServiceStatusNumber.Restarting
+]
 
 export interface ServiceJob {
   serviceId: string // unique id for a running service — distinct from a compute jobId

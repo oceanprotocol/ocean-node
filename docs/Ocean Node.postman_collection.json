@@ -1,1206 +1,2426 @@
 {
-  "info": {
-    "name": "Ocean Node API",
-    "_postman_id": "ocean-node-http-api",
-    "description": "Complete collection of HTTP endpoints exposed by an Ocean Node's HTTP server.\n\nSet the `baseUrl` collection variable to your node (default `http://localhost:8000`). Many endpoints are authenticated with a signature over `consumerAddress` + `nonce` + `command`, or with an auth-token `Authorization` header. Convenience variables (`consumerAddress`, `signature`, `nonce`, `chainId`, `did`, `serviceId`, `jobId`, `token`, `bucketId`, `wallet`, `owner`) are provided as placeholders.\n\nGenerated from the route definitions in `src/components/httpRoutes/` and their handler implementations.",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-  },
-  "variable": [
-    { "key": "baseUrl", "value": "http://localhost:8000", "type": "string" },
-    { "key": "consumerAddress", "value": "0x0000000000000000000000000000000000000000", "type": "string" },
-    { "key": "signature", "value": "0x", "type": "string" },
-    { "key": "nonce", "value": "1", "type": "string" },
-    { "key": "chainId", "value": "8996", "type": "string" },
-    { "key": "did", "value": "did:op:0000000000000000000000000000000000000000000000000000000000000000", "type": "string" },
-    { "key": "serviceId", "value": "", "type": "string" },
-    { "key": "jobId", "value": "", "type": "string" },
-    { "key": "token", "value": "", "type": "string" },
-    { "key": "bucketId", "value": "", "type": "string" },
-    { "key": "wallet", "value": "0x0000000000000000000000000000000000000000", "type": "string" },
-    { "key": "owner", "value": "0x0000000000000000000000000000000000000000", "type": "string" }
-  ],
-  "item": [
-    {
-      "name": "Node Info",
-      "item": [
-        {
-          "name": "Get Node Info",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/",
-              "host": ["{{baseUrl}}"],
-              "path": [""]
-            },
-            "description": "Returns node identity and the list of available service endpoints (nodeId, chainIds, providerAddress, nodePublicKey, serviceEndpoints, software, version)."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Aquarius (DDO)",
-      "item": [
-        {
-          "name": "Get DDO by DID",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/aquarius/assets/ddo/{{did}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "aquarius", "assets", "ddo", "{{did}}"]
-            },
-            "description": "Retrieve the full DDO for a DID. Append an optional `/true` path segment to force a fresh lookup."
-          }
-        },
-        {
-          "name": "Get DDO Metadata by DID",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/aquarius/assets/metadata/{{did}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "aquarius", "assets", "metadata", "{{did}}"]
-            },
-            "description": "Retrieve DDO metadata for a DID. Optional trailing `/true` forces a fresh lookup."
-          }
-        },
-        {
-          "name": "Query Assets",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"query\": {\n    \"match_all\": {}\n  },\n  \"from\": 0,\n  \"size\": 10\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/aquarius/assets/metadata/query",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "aquarius", "assets", "metadata", "query"]
-            },
-            "description": "Query indexed assets. Body is a search query object (filter/query/sort/from/size)."
-          }
-        },
-        {
-          "name": "Get DDO State",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/aquarius/state/ddo?did={{did}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "aquarius", "state", "ddo"],
-              "query": [
-                { "key": "did", "value": "{{did}}" },
-                { "key": "nft", "value": "", "disabled": true },
-                { "key": "txId", "value": "", "disabled": true }
-              ]
-            },
-            "description": "Query DDO state by `did`, `nft`, or `txId` (at least one required)."
-          }
-        },
-        {
-          "name": "Validate DDO",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "{{token}}", "disabled": true }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"ddo\": {},\n  \"publisherAddress\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/aquarius/assets/ddo/validate",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "aquarius", "assets", "ddo", "validate"]
-            },
-            "description": "Validate a DDO's schema and signature before publishing."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Provider",
-      "item": [
-        {
-          "name": "Get Nonce",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/services/nonce?userAddress={{consumerAddress}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "nonce"],
-              "query": [{ "key": "userAddress", "value": "{{consumerAddress}}" }]
-            },
-            "description": "Get the current nonce for a user address (used when signing requests)."
-          }
-        },
-        {
-          "name": "Initialize (get fees)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/services/initialize?documentId={{did}}&serviceId=&consumerAddress={{consumerAddress}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "initialize"],
-              "query": [
-                { "key": "documentId", "value": "{{did}}" },
-                { "key": "serviceId", "value": "" },
-                { "key": "consumerAddress", "value": "{{consumerAddress}}" },
-                { "key": "validUntil", "value": "", "disabled": true },
-                { "key": "policyServer", "value": "", "disabled": true }
-              ]
-            },
-            "description": "Get the fees required to access an asset service."
-          }
-        },
-        {
-          "name": "Encrypt",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/octet-stream" }],
-            "body": { "mode": "raw", "raw": "hello world" },
-            "url": {
-              "raw": "{{baseUrl}}/api/services/encrypt?nonce={{nonce}}&consumerAddress={{consumerAddress}}&signature={{signature}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "encrypt"],
-              "query": [
-                { "key": "nonce", "value": "{{nonce}}" },
-                { "key": "consumerAddress", "value": "{{consumerAddress}}" },
-                { "key": "signature", "value": "{{signature}}" }
-              ]
-            },
-            "description": "ECIES-encrypt the raw request body. Returns application/octet-stream. 25MB limit."
-          }
-        },
-        {
-          "name": "Encrypt File",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"files\": {\n    \"type\": \"url\",\n    \"url\": \"https://example.com/file.txt\",\n    \"method\": \"GET\"\n  }\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/services/encryptFile?nonce={{nonce}}&consumerAddress={{consumerAddress}}&signature={{signature}}&encryptMethod=ECIES",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "encryptFile"],
-              "query": [
-                { "key": "nonce", "value": "{{nonce}}" },
-                { "key": "consumerAddress", "value": "{{consumerAddress}}" },
-                { "key": "signature", "value": "{{signature}}" },
-                { "key": "encryptMethod", "value": "ECIES" }
-              ]
-            },
-            "description": "Encrypt a file (AES or ECIES). Accepts a StorageObject JSON, raw binary, or multipart. Returns encrypted bytes with X-Encrypted-By / X-Encrypted-Method headers."
-          }
-        },
-        {
-          "name": "Decrypt",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"decrypterAddress\": \"{{consumerAddress}}\",\n  \"chainId\": {{chainId}},\n  \"nonce\": \"{{nonce}}\",\n  \"signature\": \"{{signature}}\",\n  \"transactionId\": \"\",\n  \"dataNftAddress\": \"\",\n  \"encryptedDocument\": \"\",\n  \"flags\": 0,\n  \"documentHash\": \"\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/services/decrypt",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "decrypt"]
-            },
-            "description": "Decrypt a DDO document. Returns the decrypted payload as text/plain."
-          }
-        },
-        {
-          "name": "Download",
-          "request": {
-            "method": "GET",
-            "header": [{ "key": "Authorization", "value": "{{token}}", "disabled": true }],
-            "url": {
-              "raw": "{{baseUrl}}/api/services/download?fileIndex=0&documentId={{did}}&serviceId=&transferTxId=&nonce={{nonce}}&consumerAddress={{consumerAddress}}&signature={{signature}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "download"],
-              "query": [
-                { "key": "fileIndex", "value": "0" },
-                { "key": "documentId", "value": "{{did}}" },
-                { "key": "serviceId", "value": "" },
-                { "key": "transferTxId", "value": "" },
-                { "key": "nonce", "value": "{{nonce}}" },
-                { "key": "consumerAddress", "value": "{{consumerAddress}}" },
-                { "key": "signature", "value": "{{signature}}" },
-                { "key": "userdata", "value": "", "disabled": true },
-                { "key": "policyServer", "value": "", "disabled": true }
-              ]
-            },
-            "description": "Download an asset file after a valid transfer (order). Streams the file."
-          }
-        }
-      ]
-    },
-    {
-      "name": "File Info",
-      "item": [
-        {
-          "name": "File Info",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"did\": \"{{did}}\",\n  \"serviceId\": \"\",\n  \"consumerAddress\": \"{{consumerAddress}}\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/services/fileInfo",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "fileInfo"]
-            },
-            "description": "Get file info for an asset (by `did`+`serviceId`) or by a raw file `type` descriptor. `consumerAddress` is required for NODE_PERSISTENT_STORAGE ACL gating."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Compute",
-      "item": [
-        {
-          "name": "Get Compute Environments",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/services/computeEnvironments?chainId={{chainId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "computeEnvironments"],
-              "query": [
-                { "key": "chainId", "value": "{{chainId}}" },
-                { "key": "node", "value": "", "disabled": true }
-              ]
-            },
-            "description": "List available compute environments (optionally filtered by chain)."
-          }
-        },
-        {
-          "name": "Initialize Compute",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"algorithm\": { \"documentId\": \"{{did}}\", \"serviceId\": \"\" },\n  \"datasets\": [\n    { \"documentId\": \"{{did}}\", \"serviceId\": \"\" }\n  ]\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/services/initializeCompute",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "initializeCompute"]
-            },
-            "description": "Validate algorithm + datasets and return a price/initialization quote."
-          }
-        },
-        {
-          "name": "Start Compute (paid)",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "{{token}}", "disabled": true }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"environment\": \"\",\n  \"algorithm\": { \"documentId\": \"{{did}}\", \"serviceId\": \"\" },\n  \"datasets\": [ { \"documentId\": \"{{did}}\", \"serviceId\": \"\" } ],\n  \"maxJobDuration\": 3600,\n  \"resources\": [ { \"id\": \"cpu\", \"amount\": 1 }, { \"id\": \"ram\", \"amount\": 1 } ],\n  \"payment\": { \"chainId\": {{chainId}}, \"token\": \"0x...\" }\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/services/compute",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "compute"]
-            },
-            "description": "Start a paid compute job. Optional fields: policyServer, metadata, additionalViewers, queueMaxWaitTime, encryptedDockerRegistryAuth, output, outputBucketId."
-          }
-        },
-        {
-          "name": "Start Free Compute",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"environment\": \"\",\n  \"algorithm\": { \"documentId\": \"{{did}}\", \"serviceId\": \"\" },\n  \"datasets\": [],\n  \"resources\": [ { \"id\": \"cpu\", \"amount\": 1 }, { \"id\": \"ram\", \"amount\": 1 } ],\n  \"maxJobDuration\": 600\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/services/freeCompute",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "freeCompute"]
-            },
-            "description": "Start a free compute job (no payment) on a free-tier environment."
-          }
-        },
-        {
-          "name": "Get Compute Status",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/services/compute?consumerAddress={{consumerAddress}}&jobId={{jobId}}&agreementId=",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "compute"],
-              "query": [
-                { "key": "consumerAddress", "value": "{{consumerAddress}}" },
-                { "key": "jobId", "value": "{{jobId}}" },
-                { "key": "agreementId", "value": "" },
-                { "key": "node", "value": "", "disabled": true }
-              ]
-            },
-            "description": "Get the status of a compute job."
-          }
-        },
-        {
-          "name": "Stop Compute",
-          "request": {
-            "method": "PUT",
-            "header": [{ "key": "Authorization", "value": "{{token}}", "disabled": true }],
-            "url": {
-              "raw": "{{baseUrl}}/api/services/compute?consumerAddress={{consumerAddress}}&signature={{signature}}&nonce={{nonce}}&jobId={{jobId}}&agreementId=",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "compute"],
-              "query": [
-                { "key": "consumerAddress", "value": "{{consumerAddress}}" },
-                { "key": "signature", "value": "{{signature}}" },
-                { "key": "nonce", "value": "{{nonce}}" },
-                { "key": "jobId", "value": "{{jobId}}" },
-                { "key": "agreementId", "value": "" },
-                { "key": "node", "value": "", "disabled": true }
-              ]
-            },
-            "description": "Stop a running compute job (parameters are query strings)."
-          }
-        },
-        {
-          "name": "Get Compute Result",
-          "request": {
-            "method": "GET",
-            "header": [{ "key": "Authorization", "value": "{{token}}", "disabled": true }],
-            "url": {
-              "raw": "{{baseUrl}}/api/services/computeResult?consumerAddress={{consumerAddress}}&jobId={{jobId}}&index=0&signature={{signature}}&nonce={{nonce}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "computeResult"],
-              "query": [
-                { "key": "consumerAddress", "value": "{{consumerAddress}}" },
-                { "key": "jobId", "value": "{{jobId}}" },
-                { "key": "index", "value": "0" },
-                { "key": "signature", "value": "{{signature}}" },
-                { "key": "nonce", "value": "{{nonce}}" },
-                { "key": "node", "value": "", "disabled": true }
-              ]
-            },
-            "description": "Download a compute job result by index. Streams the result file."
-          }
-        },
-        {
-          "name": "Get Compute Streamable Logs",
-          "request": {
-            "method": "GET",
-            "header": [{ "key": "Authorization", "value": "{{token}}", "disabled": true }],
-            "url": {
-              "raw": "{{baseUrl}}/api/services/computeStreamableLogs?consumerAddress={{consumerAddress}}&jobId={{jobId}}&signature={{signature}}&nonce={{nonce}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "computeStreamableLogs"],
-              "query": [
-                { "key": "consumerAddress", "value": "{{consumerAddress}}" },
-                { "key": "jobId", "value": "{{jobId}}" },
-                { "key": "signature", "value": "{{signature}}" },
-                { "key": "nonce", "value": "{{nonce}}" },
-                { "key": "node", "value": "", "disabled": true }
-              ]
-            },
-            "description": "Stream real-time logs from a running compute job (404 if not running)."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Service on Demand",
-      "item": [
-        {
-          "name": "Get Service Templates",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/services/serviceTemplates?chainId={{chainId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "serviceTemplates"],
-              "query": [
-                { "key": "chainId", "value": "{{chainId}}" },
-                { "key": "node", "value": "", "disabled": true }
-              ]
-            },
-            "description": "List operator-published service templates (sanitized). Not authenticated."
-          }
-        },
-        {
-          "name": "Start Service",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "{{token}}", "disabled": true }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"signature\": \"{{signature}}\",\n  \"environment\": \"\",\n  \"image\": \"nginxinc/nginx-unprivileged\",\n  \"tag\": \"alpine\",\n  \"exposedPorts\": [8080],\n  \"resources\": [ { \"id\": \"cpu\", \"amount\": 1 }, { \"id\": \"ram\", \"amount\": 1 } ],\n  \"duration\": 3600,\n  \"userData\": \"\",\n  \"payment\": { \"chainId\": {{chainId}}, \"token\": \"0x...\" }\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/services/serviceStart",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "serviceStart"]
-            },
-            "description": "Launch a long-running service container, paid via escrow. Optional: checksum, dockerfile, additionalDockerFiles, dockerCmd, dockerEntrypoint. Services must listen on a high port (>1024)."
-          }
-        },
-        {
-          "name": "Get Service Status",
-          "request": {
-            "method": "GET",
-            "header": [{ "key": "Authorization", "value": "{{token}}", "disabled": true }],
-            "url": {
-              "raw": "{{baseUrl}}/api/services/serviceStatus?consumerAddress={{consumerAddress}}&nonce={{nonce}}&signature={{signature}}&serviceId={{serviceId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "serviceStatus"],
-              "query": [
-                { "key": "consumerAddress", "value": "{{consumerAddress}}" },
-                { "key": "nonce", "value": "{{nonce}}" },
-                { "key": "signature", "value": "{{signature}}" },
-                { "key": "serviceId", "value": "{{serviceId}}" },
-                { "key": "node", "value": "", "disabled": true }
-              ]
-            },
-            "description": "Read service status/endpoints. Authenticated and owner-scoped. Omit serviceId to list all owned services."
-          }
-        },
-        {
-          "name": "Extend Service",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "{{token}}", "disabled": true }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"signature\": \"{{signature}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"additionalDuration\": 1800,\n  \"payment\": { \"chainId\": {{chainId}}, \"token\": \"0x...\" }\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/services/serviceExtend",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "serviceExtend"]
-            },
-            "description": "Pay to push the service expiry further out (additionalDuration in seconds, must be positive)."
-          }
-        },
-        {
-          "name": "Restart Service",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "{{token}}", "disabled": true }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"signature\": \"{{signature}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"userData\": \"\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/services/serviceRestart",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "serviceRestart"]
-            },
-            "description": "Recreate the service container (no extra charge), keeping the same hostPort and expiresAt. Optional userData replaces stored env vars."
-          }
-        },
-        {
-          "name": "Stop Service",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "{{token}}", "disabled": true }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"signature\": \"{{signature}}\",\n  \"serviceId\": \"{{serviceId}}\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/services/serviceStop",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "serviceStop"]
-            },
-            "description": "Tear down the service container and network and release resources. Owner-gated."
-          }
-        },
-        {
-          "name": "Get Service Streamable Logs",
-          "request": {
-            "method": "GET",
-            "header": [{ "key": "Authorization", "value": "{{token}}", "disabled": true }],
-            "url": {
-              "raw": "{{baseUrl}}/api/services/serviceStreamableLogs?consumerAddress={{consumerAddress}}&serviceId={{serviceId}}&signature={{signature}}&nonce={{nonce}}&since=1h",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "serviceStreamableLogs"],
-              "query": [
-                { "key": "consumerAddress", "value": "{{consumerAddress}}" },
-                { "key": "serviceId", "value": "{{serviceId}}" },
-                { "key": "signature", "value": "{{signature}}" },
-                { "key": "nonce", "value": "{{nonce}}" },
-                {
-                  "key": "since",
-                  "value": "1h",
-                  "description": "Optional: Unix timestamp (seconds) or relative duration like 30s/45m/2h/7d. Omit for full history + live follow."
-                },
-                { "key": "node", "value": "", "disabled": true }
-              ]
-            },
-            "description": "Stream real-time stdout/stderr logs from a service container. Authenticated and owner-scoped (401 if consumerAddress is not the owner). Available while Running or Error; 404 otherwise. Optional `since` skips history and starts from a recent point (Unix timestamp or relative duration e.g. 1h)."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Persistent Storage",
-      "item": [
-        {
-          "name": "Create Bucket",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "{{token}}", "disabled": true }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"label\": \"my-bucket\",\n  \"accessLists\": []\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/services/persistentStorage/buckets",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "persistentStorage", "buckets"]
-            },
-            "description": "Create a new persistent storage bucket owned by consumerAddress."
-          }
-        },
-        {
-          "name": "Update Bucket",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "{{token}}", "disabled": true }
-            ],
-            "body": { "mode": "raw", "raw": "{\n  \"label\": \"renamed-bucket\"\n}" },
-            "url": {
-              "raw": "{{baseUrl}}/api/services/persistentStorage/buckets/{{bucketId}}?consumerAddress={{consumerAddress}}&signature={{signature}}&nonce={{nonce}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "persistentStorage", "buckets", "{{bucketId}}"],
-              "query": [
-                { "key": "consumerAddress", "value": "{{consumerAddress}}" },
-                { "key": "signature", "value": "{{signature}}" },
-                { "key": "nonce", "value": "{{nonce}}" }
-              ]
-            },
-            "description": "Update a bucket (e.g. set its label)."
-          }
-        },
-        {
-          "name": "List Buckets",
-          "request": {
-            "method": "GET",
-            "header": [{ "key": "Authorization", "value": "{{token}}", "disabled": true }],
-            "url": {
-              "raw": "{{baseUrl}}/api/services/persistentStorage/buckets?consumerAddress={{consumerAddress}}&signature={{signature}}&nonce={{nonce}}&owner={{owner}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "persistentStorage", "buckets"],
-              "query": [
-                { "key": "consumerAddress", "value": "{{consumerAddress}}" },
-                { "key": "signature", "value": "{{signature}}" },
-                { "key": "nonce", "value": "{{nonce}}" },
-                { "key": "owner", "value": "{{owner}}" }
-              ]
-            },
-            "description": "List buckets for an owner (filtered by access lists for the calling consumer)."
-          }
-        },
-        {
-          "name": "List Files in Bucket",
-          "request": {
-            "method": "GET",
-            "header": [{ "key": "Authorization", "value": "{{token}}", "disabled": true }],
-            "url": {
-              "raw": "{{baseUrl}}/api/services/persistentStorage/buckets/{{bucketId}}/files?consumerAddress={{consumerAddress}}&signature={{signature}}&nonce={{nonce}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "persistentStorage", "buckets", "{{bucketId}}", "files"],
-              "query": [
-                { "key": "consumerAddress", "value": "{{consumerAddress}}" },
-                { "key": "signature", "value": "{{signature}}" },
-                { "key": "nonce", "value": "{{nonce}}" }
-              ]
-            },
-            "description": "List all files in a bucket."
-          }
-        },
-        {
-          "name": "Get File Object",
-          "request": {
-            "method": "GET",
-            "header": [{ "key": "Authorization", "value": "{{token}}", "disabled": true }],
-            "url": {
-              "raw": "{{baseUrl}}/api/services/persistentStorage/buckets/{{bucketId}}/files/myfile.txt/object?consumerAddress={{consumerAddress}}&signature={{signature}}&nonce={{nonce}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "persistentStorage", "buckets", "{{bucketId}}", "files", "myfile.txt", "object"],
-              "query": [
-                { "key": "consumerAddress", "value": "{{consumerAddress}}" },
-                { "key": "signature", "value": "{{signature}}" },
-                { "key": "nonce", "value": "{{nonce}}" }
-              ]
-            },
-            "description": "Get the file object metadata for a file in a bucket."
-          }
-        },
-        {
-          "name": "Upload File",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/octet-stream" },
-              { "key": "Authorization", "value": "{{token}}", "disabled": true }
-            ],
-            "body": { "mode": "raw", "raw": "<raw file bytes>" },
-            "url": {
-              "raw": "{{baseUrl}}/api/services/persistentStorage/buckets/{{bucketId}}/files/myfile.txt?consumerAddress={{consumerAddress}}&signature={{signature}}&nonce={{nonce}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "persistentStorage", "buckets", "{{bucketId}}", "files", "myfile.txt"],
-              "query": [
-                { "key": "consumerAddress", "value": "{{consumerAddress}}" },
-                { "key": "signature", "value": "{{signature}}" },
-                { "key": "nonce", "value": "{{nonce}}" }
-              ]
-            },
-            "description": "Upload a file to a bucket. Body is the raw file bytes (supports chunked uploads)."
-          }
-        },
-        {
-          "name": "Delete File",
-          "request": {
-            "method": "DELETE",
-            "header": [{ "key": "Authorization", "value": "{{token}}", "disabled": true }],
-            "url": {
-              "raw": "{{baseUrl}}/api/services/persistentStorage/buckets/{{bucketId}}/files/myfile.txt?consumerAddress={{consumerAddress}}&signature={{signature}}&nonce={{nonce}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "persistentStorage", "buckets", "{{bucketId}}", "files", "myfile.txt"],
-              "query": [
-                { "key": "consumerAddress", "value": "{{consumerAddress}}" },
-                { "key": "signature", "value": "{{signature}}" },
-                { "key": "nonce", "value": "{{nonce}}" }
-              ]
-            },
-            "description": "Delete a file from a bucket. Returns { success: true }."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Escrow",
-      "item": [
-        {
-          "name": "Get Escrow Events",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/services/escrow/events?chainId={{chainId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "escrow", "events"],
-              "query": [
-                { "key": "chainId", "value": "{{chainId}}" },
-                { "key": "eventType", "value": "", "disabled": true },
-                { "key": "payer", "value": "", "disabled": true },
-                { "key": "payee", "value": "", "disabled": true },
-                { "key": "token", "value": "", "disabled": true },
-                { "key": "jobId", "value": "", "disabled": true },
-                { "key": "txId", "value": "", "disabled": true },
-                { "key": "offset", "value": "", "disabled": true },
-                { "key": "size", "value": "", "disabled": true }
-              ]
-            },
-            "description": "Query escrow contract events with optional filters (eventType e.g. Lock/Claimed/Canceled/Deposit/Withdraw/Auth)."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Access Lists",
-      "item": [
-        {
-          "name": "Search Access Lists by Wallet",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/services/accesslists?wallet={{wallet}}&chainId={{chainId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "accesslists"],
-              "query": [
-                { "key": "wallet", "value": "{{wallet}}" },
-                { "key": "chainId", "value": "{{chainId}}", "disabled": true }
-              ]
-            },
-            "description": "Search access lists that include a given wallet address."
-          }
-        },
-        {
-          "name": "Get Access List",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/services/accesslists/{{chainId}}/0xContractAddress",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "accesslists", "{{chainId}}", "0xContractAddress"]
-            },
-            "description": "Get a specific access list by chainId and contract address."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Auth",
-      "item": [
-        {
-          "name": "Create Auth Token",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"address\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"validUntil\": null,\n  \"chainId\": {{chainId}}\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/services/auth/token",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "auth", "token"]
-            },
-            "description": "Create an auth token (returned token can be used as the Authorization header on authenticated routes)."
-          }
-        },
-        {
-          "name": "Invalidate Auth Token",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"address\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"token\": \"{{token}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"chainId\": {{chainId}}\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/services/auth/token/invalidate",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "auth", "token", "invalidate"]
-            },
-            "description": "Invalidate an existing auth token."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Policy Server",
-      "item": [
-        {
-          "name": "Policy Server Passthrough",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"policyServerPassthrough\": {}\n}" },
-            "url": {
-              "raw": "{{baseUrl}}/api/services/PolicyServerPassthrough",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "PolicyServerPassthrough"]
-            },
-            "description": "Pass arbitrary data through to the configured policy server. Streams the response."
-          }
-        },
-        {
-          "name": "Initialize PS Verification",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"documentId\": \"{{did}}\",\n  \"serviceId\": \"\",\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"policyServer\": {}\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/services/initializePSVerification",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "initializePSVerification"]
-            },
-            "description": "Initialize a policy server verification flow. Streams the response."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Admin",
-      "item": [
-        {
-          "name": "Fetch Config",
-          "request": {
-            "method": "GET",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"address\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/admin/config",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "admin", "config"]
-            },
-            "description": "Fetch the node configuration (admin-only). Note: this GET reads auth fields from the JSON body."
-          }
-        },
-        {
-          "name": "Update Config",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"address\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"config\": {}\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/admin/config/update",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "admin", "config", "update"]
-            },
-            "description": "Update the node configuration (admin-only)."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Queue & Jobs",
-      "item": [
-        {
-          "name": "Get Index Queue",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/services/indexQueue",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "indexQueue"]
-            },
-            "description": "Get the current indexing queue."
-          }
-        },
-        {
-          "name": "Get Jobs for Identifier",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/services/jobs/{{jobId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "services", "jobs", "{{jobId}}"]
-            },
-            "description": "Get the indexer job pool for a given job identifier."
-          }
-        }
-      ]
-    },
-    {
-      "name": "P2P Peers",
-      "item": [
-        {
-          "name": "Get P2P Network Stats",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/getP2pNetworkStats",
-              "host": ["{{baseUrl}}"],
-              "path": ["getP2pNetworkStats"]
-            },
-            "description": "Get P2P network statistics."
-          }
-        },
-        {
-          "name": "Get P2P Peers",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/getP2PPeers",
-              "host": ["{{baseUrl}}"],
-              "path": ["getP2PPeers"]
-            },
-            "description": "List all connected P2P peers."
-          }
-        },
-        {
-          "name": "Get P2P Peer",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/getP2PPeer?peerId=",
-              "host": ["{{baseUrl}}"],
-              "path": ["getP2PPeer"],
-              "query": [{ "key": "peerId", "value": "" }]
-            },
-            "description": "Get details for a specific peer by peerId."
-          }
-        },
-        {
-          "name": "Find Peer",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/findPeer?peerId=&timeout=10000",
-              "host": ["{{baseUrl}}"],
-              "path": ["findPeer"],
-              "query": [
-                { "key": "peerId", "value": "" },
-                { "key": "timeout", "value": "10000", "disabled": true }
-              ]
-            },
-            "description": "Find a peer's multiaddress by peerId."
-          }
-        }
-      ]
-    },
-    {
-      "name": "DIDs / Providers",
-      "item": [
-        {
-          "name": "Get Providers for String",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/getProvidersForString?input={{did}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["getProvidersForString"],
-              "query": [{ "key": "input", "value": "{{did}}" }]
-            },
-            "description": "Get the providers (peers) that serve a single string/CID."
-          }
-        },
-        {
-          "name": "Get Providers for Strings",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "[\n  \"did:op:...\",\n  \"did:op:...\"\n]" },
-            "url": {
-              "raw": "{{baseUrl}}/getProvidersForStrings?timeout=10000",
-              "host": ["{{baseUrl}}"],
-              "path": ["getProvidersForStrings"],
-              "query": [{ "key": "timeout", "value": "10000", "disabled": true }]
-            },
-            "description": "Batch lookup: get providers for an array of strings/CIDs. Body is a JSON array of strings."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Logs",
-      "item": [
-        {
-          "name": "Get Logs",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"address\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/logs?maxLogs=100&page=1",
-              "host": ["{{baseUrl}}"],
-              "path": ["logs"],
-              "query": [
-                { "key": "maxLogs", "value": "100" },
-                { "key": "page", "value": "1" },
-                { "key": "moduleName", "value": "", "disabled": true },
-                { "key": "level", "value": "", "disabled": true },
-                { "key": "startTime", "value": "", "disabled": true },
-                { "key": "endTime", "value": "", "disabled": true }
-              ]
-            },
-            "description": "Retrieve node logs (admin auth via signed body). Filter/paginate with query params."
-          }
-        },
-        {
-          "name": "Get Log by ID",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"address\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"logId\": \"123\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/log/123",
-              "host": ["{{baseUrl}}"],
-              "path": ["log", "123"]
-            },
-            "description": "Retrieve a single log entry by id (logId in body must match the :id path param)."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Direct Command (P2P)",
-      "description": "POST /directCommand is a single endpoint that dispatches to a protocol command handler chosen by the `command` field. It can run locally or be forwarded to another peer via `node`/`multiAddrs`. Below are representative command bodies; any PROTOCOL_COMMANDS value is accepted (download, encrypt, encryptFile, decryptDDO, getDDO, query, nonce, status, detailedStatus, findDDO, getFees, fileInfo, validateDDO, getComputeEnvironments, startCompute, freeStartCompute, stopCompute, getComputeStatus, getComputeStreamableLogs, getComputeResult, initializeCompute, reindexTx, reindexChain, collectFees, PolicyServerPassthrough, getP2PPeer(s), getP2PNetworkStats, findPeer, createAuthToken, invalidateAuthToken, fetchConfig, pushConfig, getLogs, jobs, persistentStorage*, getAccessList, searchAccessList, getEscrowEvents, serviceGetTemplates, serviceStart, serviceStop, serviceRestart, serviceGetStatus, serviceExtend, serviceGetStreamableLogs, stopNode, ...).",
-      "item": [
-        {
-          "name": "getDDO",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"command\": \"getDDO\",\n  \"id\": \"{{did}}\"\n}" },
-            "url": { "raw": "{{baseUrl}}/directCommand", "host": ["{{baseUrl}}"], "path": ["directCommand"] },
-            "description": "Fetch a DDO by id over the command interface."
-          }
-        },
-        {
-          "name": "nonce",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"command\": \"nonce\",\n  \"address\": \"{{consumerAddress}}\"\n}" },
-            "url": { "raw": "{{baseUrl}}/directCommand", "host": ["{{baseUrl}}"], "path": ["directCommand"] },
-            "description": "Get the nonce for an address."
-          }
-        },
-        {
-          "name": "status",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"command\": \"status\"\n}" },
-            "url": { "raw": "{{baseUrl}}/directCommand", "host": ["{{baseUrl}}"], "path": ["directCommand"] },
-            "description": "Get node status. Use \"command\": \"detailedStatus\" for the extended report."
-          }
-        },
-        {
-          "name": "query",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"command\": \"query\",\n  \"query\": { \"query\": { \"match_all\": {} }, \"from\": 0, \"size\": 10 }\n}" },
-            "url": { "raw": "{{baseUrl}}/directCommand", "host": ["{{baseUrl}}"], "path": ["directCommand"] },
-            "description": "Query indexed assets."
-          }
-        },
-        {
-          "name": "getFees",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"command\": \"getFees\",\n  \"ddoId\": \"{{did}}\",\n  \"serviceId\": \"\",\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"validUntil\": 0\n}" },
-            "url": { "raw": "{{baseUrl}}/directCommand", "host": ["{{baseUrl}}"], "path": ["directCommand"] },
-            "description": "Get the provider fees for an asset service."
-          }
-        },
-        {
-          "name": "fileInfo",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"command\": \"fileInfo\",\n  \"did\": \"{{did}}\",\n  \"serviceId\": \"\"\n}" },
-            "url": { "raw": "{{baseUrl}}/directCommand", "host": ["{{baseUrl}}"], "path": ["directCommand"] },
-            "description": "Get file info for an asset or a raw file descriptor (type/url/...)."
-          }
-        },
-        {
-          "name": "download",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"command\": \"download\",\n  \"fileIndex\": 0,\n  \"documentId\": \"{{did}}\",\n  \"serviceId\": \"\",\n  \"transferTxId\": \"\",\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\"\n}" },
-            "url": { "raw": "{{baseUrl}}/directCommand", "host": ["{{baseUrl}}"], "path": ["directCommand"] },
-            "description": "Download an asset file (streams the response)."
-          }
-        },
-        {
-          "name": "encrypt",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"command\": \"encrypt\",\n  \"blob\": \"hello\",\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"encoding\": \"string\",\n  \"encryptionType\": \"ECIES\"\n}" },
-            "url": { "raw": "{{baseUrl}}/directCommand", "host": ["{{baseUrl}}"], "path": ["directCommand"] },
-            "description": "Encrypt a blob (AES or ECIES)."
-          }
-        },
-        {
-          "name": "decryptDDO",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"command\": \"decryptDDO\",\n  \"decrypterAddress\": \"{{consumerAddress}}\",\n  \"chainId\": {{chainId}},\n  \"nonce\": \"{{nonce}}\",\n  \"signature\": \"{{signature}}\",\n  \"transactionId\": \"\",\n  \"dataNftAddress\": \"\"\n}" },
-            "url": { "raw": "{{baseUrl}}/directCommand", "host": ["{{baseUrl}}"], "path": ["directCommand"] },
-            "description": "Decrypt a DDO document."
-          }
-        },
-        {
-          "name": "findDDO",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"command\": \"findDDO\",\n  \"id\": \"{{did}}\"\n}" },
-            "url": { "raw": "{{baseUrl}}/directCommand", "host": ["{{baseUrl}}"], "path": ["directCommand"] },
-            "description": "Find which peers can serve a DDO."
-          }
-        },
-        {
-          "name": "validateDDO",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"command\": \"validateDDO\",\n  \"ddo\": {}\n}" },
-            "url": { "raw": "{{baseUrl}}/directCommand", "host": ["{{baseUrl}}"], "path": ["directCommand"] },
-            "description": "Validate a DDO."
-          }
-        },
-        {
-          "name": "getComputeEnvironments",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"command\": \"getComputeEnvironments\",\n  \"chainId\": {{chainId}}\n}" },
-            "url": { "raw": "{{baseUrl}}/directCommand", "host": ["{{baseUrl}}"], "path": ["directCommand"] },
-            "description": "List compute environments over the command interface."
-          }
-        },
-        {
-          "name": "getEscrowEvents",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"command\": \"getEscrowEvents\",\n  \"chainId\": {{chainId}}\n}" },
-            "url": { "raw": "{{baseUrl}}/directCommand", "host": ["{{baseUrl}}"], "path": ["directCommand"] },
-            "description": "Query escrow events over the command interface."
-          }
-        }
-      ]
-    }
-  ]
+	"info": {
+		"name": "Ocean Node API",
+		"_postman_id": "ocean-node-http-api",
+		"description": "Complete collection of HTTP endpoints exposed by an Ocean Node's HTTP server.\n\nSet the `baseUrl` collection variable to your node (default `http://localhost:8000`). Many endpoints are authenticated with a signature over `consumerAddress` + `nonce` + `command`, or with an auth-token `Authorization` header. Convenience variables (`consumerAddress`, `signature`, `nonce`, `chainId`, `did`, `serviceId`, `jobId`, `token`, `bucketId`, `wallet`, `owner`) are provided as placeholders.\n\nGenerated from the route definitions in `src/components/httpRoutes/` and their handler implementations.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8000",
+			"type": "string"
+		},
+		{
+			"key": "consumerAddress",
+			"value": "0x0000000000000000000000000000000000000000",
+			"type": "string"
+		},
+		{
+			"key": "signature",
+			"value": "0x",
+			"type": "string"
+		},
+		{
+			"key": "nonce",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "chainId",
+			"value": "8996",
+			"type": "string"
+		},
+		{
+			"key": "did",
+			"value": "did:op:0000000000000000000000000000000000000000000000000000000000000000",
+			"type": "string"
+		},
+		{
+			"key": "serviceId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "jobId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "bucketId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "wallet",
+			"value": "0x0000000000000000000000000000000000000000",
+			"type": "string"
+		},
+		{
+			"key": "owner",
+			"value": "0x0000000000000000000000000000000000000000",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Node Info",
+			"item": [
+				{
+					"name": "Get Node Info",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								""
+							]
+						},
+						"description": "Returns node identity and the list of available service endpoints (nodeId, chainIds, providerAddress, nodePublicKey, serviceEndpoints, software, version)."
+					}
+				}
+			]
+		},
+		{
+			"name": "Aquarius (DDO)",
+			"item": [
+				{
+					"name": "Get DDO by DID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/aquarius/assets/ddo/{{did}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"aquarius",
+								"assets",
+								"ddo",
+								"{{did}}"
+							]
+						},
+						"description": "Retrieve the full DDO for a DID. Append an optional `/true` path segment to force a fresh lookup."
+					}
+				},
+				{
+					"name": "Get DDO Metadata by DID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/aquarius/assets/metadata/{{did}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"aquarius",
+								"assets",
+								"metadata",
+								"{{did}}"
+							]
+						},
+						"description": "Retrieve DDO metadata for a DID. Optional trailing `/true` forces a fresh lookup."
+					}
+				},
+				{
+					"name": "Query Assets",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"query\": {\n    \"match_all\": {}\n  },\n  \"from\": 0,\n  \"size\": 10\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/aquarius/assets/metadata/query",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"aquarius",
+								"assets",
+								"metadata",
+								"query"
+							]
+						},
+						"description": "Query indexed assets. Body is a search query object (filter/query/sort/from/size)."
+					}
+				},
+				{
+					"name": "Get DDO State",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/aquarius/state/ddo?did={{did}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"aquarius",
+								"state",
+								"ddo"
+							],
+							"query": [
+								{
+									"key": "did",
+									"value": "{{did}}"
+								},
+								{
+									"key": "nft",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "txId",
+									"value": "",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Query DDO state by `did`, `nft`, or `txId` (at least one required)."
+					}
+				},
+				{
+					"name": "Validate DDO",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"ddo\": {},\n  \"publisherAddress\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/aquarius/assets/ddo/validate",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"aquarius",
+								"assets",
+								"ddo",
+								"validate"
+							]
+						},
+						"description": "Validate a DDO's schema and signature before publishing."
+					}
+				}
+			]
+		},
+		{
+			"name": "Provider",
+			"item": [
+				{
+					"name": "Get Nonce",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/nonce?userAddress={{consumerAddress}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"nonce"
+							],
+							"query": [
+								{
+									"key": "userAddress",
+									"value": "{{consumerAddress}}"
+								}
+							]
+						},
+						"description": "Get the current nonce for a user address (used when signing requests)."
+					}
+				},
+				{
+					"name": "Initialize (get fees)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/initialize?documentId={{did}}&serviceId=&consumerAddress={{consumerAddress}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"initialize"
+							],
+							"query": [
+								{
+									"key": "documentId",
+									"value": "{{did}}"
+								},
+								{
+									"key": "serviceId",
+									"value": ""
+								},
+								{
+									"key": "consumerAddress",
+									"value": "{{consumerAddress}}"
+								},
+								{
+									"key": "validUntil",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "policyServer",
+									"value": "",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get the fees required to access an asset service."
+					}
+				},
+				{
+					"name": "Encrypt",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/octet-stream"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "hello world"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/services/encrypt?nonce={{nonce}}&consumerAddress={{consumerAddress}}&signature={{signature}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"encrypt"
+							],
+							"query": [
+								{
+									"key": "nonce",
+									"value": "{{nonce}}"
+								},
+								{
+									"key": "consumerAddress",
+									"value": "{{consumerAddress}}"
+								},
+								{
+									"key": "signature",
+									"value": "{{signature}}"
+								}
+							]
+						},
+						"description": "ECIES-encrypt the raw request body. Returns application/octet-stream. 25MB limit."
+					}
+				},
+				{
+					"name": "Encrypt File",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"files\": {\n    \"type\": \"url\",\n    \"url\": \"https://example.com/file.txt\",\n    \"method\": \"GET\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/services/encryptFile?nonce={{nonce}}&consumerAddress={{consumerAddress}}&signature={{signature}}&encryptMethod=ECIES",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"encryptFile"
+							],
+							"query": [
+								{
+									"key": "nonce",
+									"value": "{{nonce}}"
+								},
+								{
+									"key": "consumerAddress",
+									"value": "{{consumerAddress}}"
+								},
+								{
+									"key": "signature",
+									"value": "{{signature}}"
+								},
+								{
+									"key": "encryptMethod",
+									"value": "ECIES"
+								}
+							]
+						},
+						"description": "Encrypt a file (AES or ECIES). Accepts a StorageObject JSON, raw binary, or multipart. Returns encrypted bytes with X-Encrypted-By / X-Encrypted-Method headers."
+					}
+				},
+				{
+					"name": "Decrypt",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"decrypterAddress\": \"{{consumerAddress}}\",\n  \"chainId\": {{chainId}},\n  \"nonce\": \"{{nonce}}\",\n  \"signature\": \"{{signature}}\",\n  \"transactionId\": \"\",\n  \"dataNftAddress\": \"\",\n  \"encryptedDocument\": \"\",\n  \"flags\": 0,\n  \"documentHash\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/services/decrypt",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"decrypt"
+							]
+						},
+						"description": "Decrypt a DDO document. Returns the decrypted payload as text/plain."
+					}
+				},
+				{
+					"name": "Download",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"disabled": true
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/download?fileIndex=0&documentId={{did}}&serviceId=&transferTxId=&nonce={{nonce}}&consumerAddress={{consumerAddress}}&signature={{signature}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"download"
+							],
+							"query": [
+								{
+									"key": "fileIndex",
+									"value": "0"
+								},
+								{
+									"key": "documentId",
+									"value": "{{did}}"
+								},
+								{
+									"key": "serviceId",
+									"value": ""
+								},
+								{
+									"key": "transferTxId",
+									"value": ""
+								},
+								{
+									"key": "nonce",
+									"value": "{{nonce}}"
+								},
+								{
+									"key": "consumerAddress",
+									"value": "{{consumerAddress}}"
+								},
+								{
+									"key": "signature",
+									"value": "{{signature}}"
+								},
+								{
+									"key": "userdata",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "policyServer",
+									"value": "",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Download an asset file after a valid transfer (order). Streams the file."
+					}
+				}
+			]
+		},
+		{
+			"name": "File Info",
+			"item": [
+				{
+					"name": "File Info",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"did\": \"{{did}}\",\n  \"serviceId\": \"\",\n  \"consumerAddress\": \"{{consumerAddress}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/services/fileInfo",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"fileInfo"
+							]
+						},
+						"description": "Get file info for an asset (by `did`+`serviceId`) or by a raw file `type` descriptor. `consumerAddress` is required for NODE_PERSISTENT_STORAGE ACL gating."
+					}
+				}
+			]
+		},
+		{
+			"name": "Compute",
+			"item": [
+				{
+					"name": "Get Compute Environments",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/computeEnvironments?chainId={{chainId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"computeEnvironments"
+							],
+							"query": [
+								{
+									"key": "chainId",
+									"value": "{{chainId}}"
+								},
+								{
+									"key": "node",
+									"value": "",
+									"disabled": true
+								}
+							]
+						},
+						"description": "List available compute environments (optionally filtered by chain)."
+					}
+				},
+				{
+					"name": "Initialize Compute",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"algorithm\": { \"documentId\": \"{{did}}\", \"serviceId\": \"\" },\n  \"datasets\": [\n    { \"documentId\": \"{{did}}\", \"serviceId\": \"\" }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/services/initializeCompute",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"initializeCompute"
+							]
+						},
+						"description": "Validate algorithm + datasets and return a price/initialization quote."
+					}
+				},
+				{
+					"name": "Start Compute (paid)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"environment\": \"\",\n  \"algorithm\": { \"documentId\": \"{{did}}\", \"serviceId\": \"\" },\n  \"datasets\": [ { \"documentId\": \"{{did}}\", \"serviceId\": \"\" } ],\n  \"maxJobDuration\": 3600,\n  \"resources\": [ { \"id\": \"cpu\", \"amount\": 1 }, { \"id\": \"ram\", \"amount\": 1 } ],\n  \"payment\": { \"chainId\": {{chainId}}, \"token\": \"0x...\" }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/services/compute",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"compute"
+							]
+						},
+						"description": "Start a paid compute job. Optional fields: policyServer, metadata, additionalViewers, queueMaxWaitTime, encryptedDockerRegistryAuth, output, outputBucketId."
+					}
+				},
+				{
+					"name": "Start Free Compute",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"environment\": \"\",\n  \"algorithm\": { \"documentId\": \"{{did}}\", \"serviceId\": \"\" },\n  \"datasets\": [],\n  \"resources\": [ { \"id\": \"cpu\", \"amount\": 1 }, { \"id\": \"ram\", \"amount\": 1 } ],\n  \"maxJobDuration\": 600\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/services/freeCompute",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"freeCompute"
+							]
+						},
+						"description": "Start a free compute job (no payment) on a free-tier environment."
+					}
+				},
+				{
+					"name": "Get Compute Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/compute?consumerAddress={{consumerAddress}}&jobId={{jobId}}&agreementId=",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"compute"
+							],
+							"query": [
+								{
+									"key": "consumerAddress",
+									"value": "{{consumerAddress}}"
+								},
+								{
+									"key": "jobId",
+									"value": "{{jobId}}"
+								},
+								{
+									"key": "agreementId",
+									"value": ""
+								},
+								{
+									"key": "node",
+									"value": "",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get the status of a compute job."
+					}
+				},
+				{
+					"name": "Stop Compute",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"disabled": true
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/compute?consumerAddress={{consumerAddress}}&signature={{signature}}&nonce={{nonce}}&jobId={{jobId}}&agreementId=",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"compute"
+							],
+							"query": [
+								{
+									"key": "consumerAddress",
+									"value": "{{consumerAddress}}"
+								},
+								{
+									"key": "signature",
+									"value": "{{signature}}"
+								},
+								{
+									"key": "nonce",
+									"value": "{{nonce}}"
+								},
+								{
+									"key": "jobId",
+									"value": "{{jobId}}"
+								},
+								{
+									"key": "agreementId",
+									"value": ""
+								},
+								{
+									"key": "node",
+									"value": "",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Stop a running compute job (parameters are query strings)."
+					}
+				},
+				{
+					"name": "Get Compute Result",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"disabled": true
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/computeResult?consumerAddress={{consumerAddress}}&jobId={{jobId}}&index=0&signature={{signature}}&nonce={{nonce}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"computeResult"
+							],
+							"query": [
+								{
+									"key": "consumerAddress",
+									"value": "{{consumerAddress}}"
+								},
+								{
+									"key": "jobId",
+									"value": "{{jobId}}"
+								},
+								{
+									"key": "index",
+									"value": "0"
+								},
+								{
+									"key": "signature",
+									"value": "{{signature}}"
+								},
+								{
+									"key": "nonce",
+									"value": "{{nonce}}"
+								},
+								{
+									"key": "node",
+									"value": "",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Download a compute job result by index. Streams the result file."
+					}
+				},
+				{
+					"name": "Get Compute Streamable Logs",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"disabled": true
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/computeStreamableLogs?consumerAddress={{consumerAddress}}&jobId={{jobId}}&signature={{signature}}&nonce={{nonce}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"computeStreamableLogs"
+							],
+							"query": [
+								{
+									"key": "consumerAddress",
+									"value": "{{consumerAddress}}"
+								},
+								{
+									"key": "jobId",
+									"value": "{{jobId}}"
+								},
+								{
+									"key": "signature",
+									"value": "{{signature}}"
+								},
+								{
+									"key": "nonce",
+									"value": "{{nonce}}"
+								},
+								{
+									"key": "node",
+									"value": "",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Stream real-time logs from a running compute job (404 if not running)."
+					}
+				}
+			]
+		},
+		{
+			"name": "Service on Demand",
+			"item": [
+				{
+					"name": "Get Service Templates",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/serviceTemplates?chainId={{chainId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"serviceTemplates"
+							],
+							"query": [
+								{
+									"key": "chainId",
+									"value": "{{chainId}}"
+								},
+								{
+									"key": "node",
+									"value": "",
+									"disabled": true
+								}
+							]
+						},
+						"description": "List operator-published service templates (sanitized). Not authenticated."
+					}
+				},
+				{
+					"name": "Start Service",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"signature\": \"{{signature}}\",\n  \"environment\": \"\",\n  \"image\": \"nginxinc/nginx-unprivileged\",\n  \"tag\": \"alpine\",\n  \"exposedPorts\": [8080],\n  \"resources\": [ { \"id\": \"cpu\", \"amount\": 1 }, { \"id\": \"ram\", \"amount\": 1 } ],\n  \"duration\": 3600,\n  \"userData\": \"\",\n  \"payment\": { \"chainId\": {{chainId}}, \"token\": \"0x...\" }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/services/serviceStart",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"serviceStart"
+							]
+						},
+						"description": "Launch a long-running service container, paid via escrow. Optional: checksum, dockerfile, additionalDockerFiles, dockerCmd, dockerEntrypoint. Services must listen on a high port (>1024)."
+					}
+				},
+				{
+					"name": "Get Service Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"disabled": true
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/serviceStatus?consumerAddress={{consumerAddress}}&nonce={{nonce}}&signature={{signature}}&serviceId={{serviceId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"serviceStatus"
+							],
+							"query": [
+								{
+									"key": "consumerAddress",
+									"value": "{{consumerAddress}}"
+								},
+								{
+									"key": "nonce",
+									"value": "{{nonce}}"
+								},
+								{
+									"key": "signature",
+									"value": "{{signature}}"
+								},
+								{
+									"key": "serviceId",
+									"value": "{{serviceId}}"
+								},
+								{
+									"key": "node",
+									"value": "",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Read service status/endpoints. Authenticated and owner-scoped. Omit serviceId to list all owned services."
+					}
+				},
+				{
+					"name": "List Services",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"disabled": true
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/serviceList?consumerAddress={{consumerAddress}}&nonce={{nonce}}&signature={{signature}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"serviceList"
+							],
+							"query": [
+								{
+									"key": "consumerAddress",
+									"value": "{{consumerAddress}}"
+								},
+								{
+									"key": "nonce",
+									"value": "{{nonce}}"
+								},
+								{
+									"key": "signature",
+									"value": "{{signature}}"
+								},
+								{
+									"key": "status",
+									"value": "70",
+									"description": "one specific ServiceStatusNumber (e.g. 70 = Stopped, 75 = Expired); takes precedence over includeAllStatuses",
+									"disabled": true
+								},
+								{
+									"key": "includeAllStatuses",
+									"value": "true",
+									"description": "every status instead of only the resource-holding set",
+									"disabled": true
+								},
+								{
+									"key": "fromTimestamp",
+									"value": "2026-01-01T00:00:00Z",
+									"description": "only services created at/after this moment (ISO date or Unix timestamp)",
+									"disabled": true
+								},
+								{
+									"key": "node",
+									"value": "",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Node-wide service listing (authenticated, NOT owner-scoped). Default: only services currently holding a resource reservation (Running/Restarting/Stopping, mid-start states, paid Error, Stopped within the paid window). Filter with status / includeAllStatuses / fromTimestamp. Output is listing-sanitized: no userData, dockerCmd, dockerEntrypoint or Dockerfile."
+					}
+				},
+				{
+					"name": "Extend Service",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"signature\": \"{{signature}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"additionalDuration\": 1800,\n  \"payment\": { \"chainId\": {{chainId}}, \"token\": \"0x...\" }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/services/serviceExtend",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"serviceExtend"
+							]
+						},
+						"description": "Pay to push the service expiry further out (additionalDuration in seconds, must be positive)."
+					}
+				},
+				{
+					"name": "Restart Service",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"signature\": \"{{signature}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"userData\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/services/serviceRestart",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"serviceRestart"
+							]
+						},
+						"description": "Recreate the service container (no extra charge), keeping the same hostPort and expiresAt. Optional userData replaces stored env vars."
+					}
+				},
+				{
+					"name": "Stop Service",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"signature\": \"{{signature}}\",\n  \"serviceId\": \"{{serviceId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/services/serviceStop",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"serviceStop"
+							]
+						},
+						"description": "Tear down the service container and network and release resources. Owner-gated."
+					}
+				},
+				{
+					"name": "Get Service Streamable Logs",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"disabled": true
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/serviceStreamableLogs?consumerAddress={{consumerAddress}}&serviceId={{serviceId}}&signature={{signature}}&nonce={{nonce}}&since=1h",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"serviceStreamableLogs"
+							],
+							"query": [
+								{
+									"key": "consumerAddress",
+									"value": "{{consumerAddress}}"
+								},
+								{
+									"key": "serviceId",
+									"value": "{{serviceId}}"
+								},
+								{
+									"key": "signature",
+									"value": "{{signature}}"
+								},
+								{
+									"key": "nonce",
+									"value": "{{nonce}}"
+								},
+								{
+									"key": "since",
+									"value": "1h",
+									"description": "Optional: Unix timestamp (seconds) or relative duration like 30s/45m/2h/7d. Omit for full history + live follow."
+								},
+								{
+									"key": "node",
+									"value": "",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Stream real-time stdout/stderr logs from a service container. Authenticated and owner-scoped (401 if consumerAddress is not the owner). Available while Running or Error; 404 otherwise. Optional `since` skips history and starts from a recent point (Unix timestamp or relative duration e.g. 1h)."
+					}
+				}
+			]
+		},
+		{
+			"name": "Persistent Storage",
+			"item": [
+				{
+					"name": "Create Bucket",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"label\": \"my-bucket\",\n  \"accessLists\": []\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/services/persistentStorage/buckets",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"persistentStorage",
+								"buckets"
+							]
+						},
+						"description": "Create a new persistent storage bucket owned by consumerAddress."
+					}
+				},
+				{
+					"name": "Update Bucket",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"label\": \"renamed-bucket\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/services/persistentStorage/buckets/{{bucketId}}?consumerAddress={{consumerAddress}}&signature={{signature}}&nonce={{nonce}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"persistentStorage",
+								"buckets",
+								"{{bucketId}}"
+							],
+							"query": [
+								{
+									"key": "consumerAddress",
+									"value": "{{consumerAddress}}"
+								},
+								{
+									"key": "signature",
+									"value": "{{signature}}"
+								},
+								{
+									"key": "nonce",
+									"value": "{{nonce}}"
+								}
+							]
+						},
+						"description": "Update a bucket (e.g. set its label)."
+					}
+				},
+				{
+					"name": "List Buckets",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"disabled": true
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/persistentStorage/buckets?consumerAddress={{consumerAddress}}&signature={{signature}}&nonce={{nonce}}&owner={{owner}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"persistentStorage",
+								"buckets"
+							],
+							"query": [
+								{
+									"key": "consumerAddress",
+									"value": "{{consumerAddress}}"
+								},
+								{
+									"key": "signature",
+									"value": "{{signature}}"
+								},
+								{
+									"key": "nonce",
+									"value": "{{nonce}}"
+								},
+								{
+									"key": "owner",
+									"value": "{{owner}}"
+								}
+							]
+						},
+						"description": "List buckets for an owner (filtered by access lists for the calling consumer)."
+					}
+				},
+				{
+					"name": "List Files in Bucket",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"disabled": true
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/persistentStorage/buckets/{{bucketId}}/files?consumerAddress={{consumerAddress}}&signature={{signature}}&nonce={{nonce}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"persistentStorage",
+								"buckets",
+								"{{bucketId}}",
+								"files"
+							],
+							"query": [
+								{
+									"key": "consumerAddress",
+									"value": "{{consumerAddress}}"
+								},
+								{
+									"key": "signature",
+									"value": "{{signature}}"
+								},
+								{
+									"key": "nonce",
+									"value": "{{nonce}}"
+								}
+							]
+						},
+						"description": "List all files in a bucket."
+					}
+				},
+				{
+					"name": "Get File Object",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"disabled": true
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/persistentStorage/buckets/{{bucketId}}/files/myfile.txt/object?consumerAddress={{consumerAddress}}&signature={{signature}}&nonce={{nonce}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"persistentStorage",
+								"buckets",
+								"{{bucketId}}",
+								"files",
+								"myfile.txt",
+								"object"
+							],
+							"query": [
+								{
+									"key": "consumerAddress",
+									"value": "{{consumerAddress}}"
+								},
+								{
+									"key": "signature",
+									"value": "{{signature}}"
+								},
+								{
+									"key": "nonce",
+									"value": "{{nonce}}"
+								}
+							]
+						},
+						"description": "Get the file object metadata for a file in a bucket."
+					}
+				},
+				{
+					"name": "Upload File",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/octet-stream"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "<raw file bytes>"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/services/persistentStorage/buckets/{{bucketId}}/files/myfile.txt?consumerAddress={{consumerAddress}}&signature={{signature}}&nonce={{nonce}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"persistentStorage",
+								"buckets",
+								"{{bucketId}}",
+								"files",
+								"myfile.txt"
+							],
+							"query": [
+								{
+									"key": "consumerAddress",
+									"value": "{{consumerAddress}}"
+								},
+								{
+									"key": "signature",
+									"value": "{{signature}}"
+								},
+								{
+									"key": "nonce",
+									"value": "{{nonce}}"
+								}
+							]
+						},
+						"description": "Upload a file to a bucket. Body is the raw file bytes (supports chunked uploads)."
+					}
+				},
+				{
+					"name": "Delete File",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"disabled": true
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/persistentStorage/buckets/{{bucketId}}/files/myfile.txt?consumerAddress={{consumerAddress}}&signature={{signature}}&nonce={{nonce}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"persistentStorage",
+								"buckets",
+								"{{bucketId}}",
+								"files",
+								"myfile.txt"
+							],
+							"query": [
+								{
+									"key": "consumerAddress",
+									"value": "{{consumerAddress}}"
+								},
+								{
+									"key": "signature",
+									"value": "{{signature}}"
+								},
+								{
+									"key": "nonce",
+									"value": "{{nonce}}"
+								}
+							]
+						},
+						"description": "Delete a file from a bucket. Returns { success: true }."
+					}
+				}
+			]
+		},
+		{
+			"name": "Escrow",
+			"item": [
+				{
+					"name": "Get Escrow Events",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/escrow/events?chainId={{chainId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"escrow",
+								"events"
+							],
+							"query": [
+								{
+									"key": "chainId",
+									"value": "{{chainId}}"
+								},
+								{
+									"key": "eventType",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "payer",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "payee",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "token",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "jobId",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "txId",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "offset",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "size",
+									"value": "",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Query escrow contract events with optional filters (eventType e.g. Lock/Claimed/Canceled/Deposit/Withdraw/Auth)."
+					}
+				}
+			]
+		},
+		{
+			"name": "Access Lists",
+			"item": [
+				{
+					"name": "Search Access Lists by Wallet",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/accesslists?wallet={{wallet}}&chainId={{chainId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"accesslists"
+							],
+							"query": [
+								{
+									"key": "wallet",
+									"value": "{{wallet}}"
+								},
+								{
+									"key": "chainId",
+									"value": "{{chainId}}",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Search access lists that include a given wallet address."
+					}
+				},
+				{
+					"name": "Get Access List",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/accesslists/{{chainId}}/0xContractAddress",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"accesslists",
+								"{{chainId}}",
+								"0xContractAddress"
+							]
+						},
+						"description": "Get a specific access list by chainId and contract address."
+					}
+				}
+			]
+		},
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Create Auth Token",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"address\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"validUntil\": null,\n  \"chainId\": {{chainId}}\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/services/auth/token",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"auth",
+								"token"
+							]
+						},
+						"description": "Create an auth token (returned token can be used as the Authorization header on authenticated routes)."
+					}
+				},
+				{
+					"name": "Invalidate Auth Token",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"address\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"token\": \"{{token}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"chainId\": {{chainId}}\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/services/auth/token/invalidate",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"auth",
+								"token",
+								"invalidate"
+							]
+						},
+						"description": "Invalidate an existing auth token."
+					}
+				}
+			]
+		},
+		{
+			"name": "Policy Server",
+			"item": [
+				{
+					"name": "Policy Server Passthrough",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"policyServerPassthrough\": {}\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/services/PolicyServerPassthrough",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"PolicyServerPassthrough"
+							]
+						},
+						"description": "Pass arbitrary data through to the configured policy server. Streams the response."
+					}
+				},
+				{
+					"name": "Initialize PS Verification",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"documentId\": \"{{did}}\",\n  \"serviceId\": \"\",\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"policyServer\": {}\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/services/initializePSVerification",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"initializePSVerification"
+							]
+						},
+						"description": "Initialize a policy server verification flow. Streams the response."
+					}
+				}
+			]
+		},
+		{
+			"name": "Admin",
+			"item": [
+				{
+					"name": "Fetch Config",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"address\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/config",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"config"
+							]
+						},
+						"description": "Fetch the node configuration (admin-only). Note: this GET reads auth fields from the JSON body."
+					}
+				},
+				{
+					"name": "Update Config",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"address\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"config\": {}\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/config/update",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"config",
+								"update"
+							]
+						},
+						"description": "Update the node configuration (admin-only)."
+					}
+				}
+			]
+		},
+		{
+			"name": "Queue & Jobs",
+			"item": [
+				{
+					"name": "Get Index Queue",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/indexQueue",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"indexQueue"
+							]
+						},
+						"description": "Get the current indexing queue."
+					}
+				},
+				{
+					"name": "Get Jobs for Identifier",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/jobs/{{jobId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"jobs",
+								"{{jobId}}"
+							]
+						},
+						"description": "Get the indexer job pool for a given job identifier."
+					}
+				}
+			]
+		},
+		{
+			"name": "P2P Peers",
+			"item": [
+				{
+					"name": "Get P2P Network Stats",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/getP2pNetworkStats",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"getP2pNetworkStats"
+							]
+						},
+						"description": "Get P2P network statistics."
+					}
+				},
+				{
+					"name": "Get P2P Peers",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/getP2PPeers",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"getP2PPeers"
+							]
+						},
+						"description": "List all connected P2P peers."
+					}
+				},
+				{
+					"name": "Get P2P Peer",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/getP2PPeer?peerId=",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"getP2PPeer"
+							],
+							"query": [
+								{
+									"key": "peerId",
+									"value": ""
+								}
+							]
+						},
+						"description": "Get details for a specific peer by peerId."
+					}
+				},
+				{
+					"name": "Find Peer",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/findPeer?peerId=&timeout=10000",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"findPeer"
+							],
+							"query": [
+								{
+									"key": "peerId",
+									"value": ""
+								},
+								{
+									"key": "timeout",
+									"value": "10000",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Find a peer's multiaddress by peerId."
+					}
+				}
+			]
+		},
+		{
+			"name": "DIDs / Providers",
+			"item": [
+				{
+					"name": "Get Providers for String",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/getProvidersForString?input={{did}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"getProvidersForString"
+							],
+							"query": [
+								{
+									"key": "input",
+									"value": "{{did}}"
+								}
+							]
+						},
+						"description": "Get the providers (peers) that serve a single string/CID."
+					}
+				},
+				{
+					"name": "Get Providers for Strings",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "[\n  \"did:op:...\",\n  \"did:op:...\"\n]"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/getProvidersForStrings?timeout=10000",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"getProvidersForStrings"
+							],
+							"query": [
+								{
+									"key": "timeout",
+									"value": "10000",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Batch lookup: get providers for an array of strings/CIDs. Body is a JSON array of strings."
+					}
+				}
+			]
+		},
+		{
+			"name": "Logs",
+			"item": [
+				{
+					"name": "Get Logs",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"address\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/logs?maxLogs=100&page=1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"logs"
+							],
+							"query": [
+								{
+									"key": "maxLogs",
+									"value": "100"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "moduleName",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "level",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "startTime",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "endTime",
+									"value": "",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Retrieve node logs (admin auth via signed body). Filter/paginate with query params."
+					}
+				},
+				{
+					"name": "Get Log by ID",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"address\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"logId\": \"123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/log/123",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"log",
+								"123"
+							]
+						},
+						"description": "Retrieve a single log entry by id (logId in body must match the :id path param)."
+					}
+				}
+			]
+		},
+		{
+			"name": "Direct Command (P2P)",
+			"description": "POST /directCommand is a single endpoint that dispatches to a protocol command handler chosen by the `command` field. It can run locally or be forwarded to another peer via `node`/`multiAddrs`. Below are representative command bodies; any PROTOCOL_COMMANDS value is accepted (download, encrypt, encryptFile, decryptDDO, getDDO, query, nonce, status, detailedStatus, findDDO, getFees, fileInfo, validateDDO, getComputeEnvironments, startCompute, freeStartCompute, stopCompute, getComputeStatus, getComputeStreamableLogs, getComputeResult, initializeCompute, reindexTx, reindexChain, collectFees, PolicyServerPassthrough, getP2PPeer(s), getP2PNetworkStats, findPeer, createAuthToken, invalidateAuthToken, fetchConfig, pushConfig, getLogs, jobs, persistentStorage*, getAccessList, searchAccessList, getEscrowEvents, serviceGetTemplates, serviceStart, serviceStop, serviceRestart, serviceGetStatus, serviceExtend, serviceGetStreamableLogs, stopNode, ...).",
+			"item": [
+				{
+					"name": "getDDO",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"command\": \"getDDO\",\n  \"id\": \"{{did}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/directCommand",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"directCommand"
+							]
+						},
+						"description": "Fetch a DDO by id over the command interface."
+					}
+				},
+				{
+					"name": "nonce",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"command\": \"nonce\",\n  \"address\": \"{{consumerAddress}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/directCommand",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"directCommand"
+							]
+						},
+						"description": "Get the nonce for an address."
+					}
+				},
+				{
+					"name": "status",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"command\": \"status\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/directCommand",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"directCommand"
+							]
+						},
+						"description": "Get node status. Use \"command\": \"detailedStatus\" for the extended report."
+					}
+				},
+				{
+					"name": "query",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"command\": \"query\",\n  \"query\": { \"query\": { \"match_all\": {} }, \"from\": 0, \"size\": 10 }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/directCommand",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"directCommand"
+							]
+						},
+						"description": "Query indexed assets."
+					}
+				},
+				{
+					"name": "getFees",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"command\": \"getFees\",\n  \"ddoId\": \"{{did}}\",\n  \"serviceId\": \"\",\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"validUntil\": 0\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/directCommand",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"directCommand"
+							]
+						},
+						"description": "Get the provider fees for an asset service."
+					}
+				},
+				{
+					"name": "fileInfo",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"command\": \"fileInfo\",\n  \"did\": \"{{did}}\",\n  \"serviceId\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/directCommand",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"directCommand"
+							]
+						},
+						"description": "Get file info for an asset or a raw file descriptor (type/url/...)."
+					}
+				},
+				{
+					"name": "download",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"command\": \"download\",\n  \"fileIndex\": 0,\n  \"documentId\": \"{{did}}\",\n  \"serviceId\": \"\",\n  \"transferTxId\": \"\",\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/directCommand",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"directCommand"
+							]
+						},
+						"description": "Download an asset file (streams the response)."
+					}
+				},
+				{
+					"name": "encrypt",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"command\": \"encrypt\",\n  \"blob\": \"hello\",\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"encoding\": \"string\",\n  \"encryptionType\": \"ECIES\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/directCommand",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"directCommand"
+							]
+						},
+						"description": "Encrypt a blob (AES or ECIES)."
+					}
+				},
+				{
+					"name": "decryptDDO",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"command\": \"decryptDDO\",\n  \"decrypterAddress\": \"{{consumerAddress}}\",\n  \"chainId\": {{chainId}},\n  \"nonce\": \"{{nonce}}\",\n  \"signature\": \"{{signature}}\",\n  \"transactionId\": \"\",\n  \"dataNftAddress\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/directCommand",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"directCommand"
+							]
+						},
+						"description": "Decrypt a DDO document."
+					}
+				},
+				{
+					"name": "findDDO",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"command\": \"findDDO\",\n  \"id\": \"{{did}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/directCommand",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"directCommand"
+							]
+						},
+						"description": "Find which peers can serve a DDO."
+					}
+				},
+				{
+					"name": "validateDDO",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"command\": \"validateDDO\",\n  \"ddo\": {}\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/directCommand",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"directCommand"
+							]
+						},
+						"description": "Validate a DDO."
+					}
+				},
+				{
+					"name": "getComputeEnvironments",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"command\": \"getComputeEnvironments\",\n  \"chainId\": {{chainId}}\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/directCommand",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"directCommand"
+							]
+						},
+						"description": "List compute environments over the command interface."
+					}
+				},
+				{
+					"name": "getEscrowEvents",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"command\": \"getEscrowEvents\",\n  \"chainId\": {{chainId}}\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/directCommand",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"directCommand"
+							]
+						},
+						"description": "Query escrow events over the command interface."
+					}
+				}
+			]
+		}
+	]
 }

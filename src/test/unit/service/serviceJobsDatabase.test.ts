@@ -141,6 +141,56 @@ describe('Service Jobs Database', () => {
     await tearDownEnvironment(envOverrides)
   })
 
+  describe('service lifecycle locks (cross-process lease)', () => {
+    const STALE_MS = 60_000
+
+    it('grants the lock to exactly one holder and rejects a second acquire', async () => {
+      const serviceId = `lock-svc-${Date.now()}-a`
+      expect(await db.acquireServiceLock(serviceId, 'proc-A', STALE_MS)).to.equal(true)
+      // second process: fresh lock held by A → refused
+      expect(await db.acquireServiceLock(serviceId, 'proc-B', STALE_MS)).to.equal(false)
+      // A releasing frees it for B
+      await db.releaseServiceLock(serviceId, 'proc-A')
+      expect(await db.acquireServiceLock(serviceId, 'proc-B', STALE_MS)).to.equal(true)
+      await db.releaseServiceLock(serviceId, 'proc-B')
+    })
+
+    it('steals a stale lock (crashed holder) but not a fresh one', async () => {
+      const serviceId = `lock-svc-${Date.now()}-b`
+      // staleMs = 0 makes A's row instantly stale — simulates a dead process
+      expect(await db.acquireServiceLock(serviceId, 'proc-A', STALE_MS)).to.equal(true)
+      expect(await db.acquireServiceLock(serviceId, 'proc-B', 0)).to.equal(true)
+      // now B's row is fresh: A must not get it back with a normal window
+      expect(await db.acquireServiceLock(serviceId, 'proc-A', STALE_MS)).to.equal(false)
+      await db.releaseServiceLock(serviceId, 'proc-B')
+    })
+
+    it('release is holder-scoped: a stale-steal victim cannot delete the new lock', async () => {
+      const serviceId = `lock-svc-${Date.now()}-c`
+      expect(await db.acquireServiceLock(serviceId, 'proc-A', STALE_MS)).to.equal(true)
+      expect(await db.acquireServiceLock(serviceId, 'proc-B', 0)).to.equal(true) // steal
+      // A (which lost the lock) releasing must be a no-op for B's row
+      await db.releaseServiceLock(serviceId, 'proc-A')
+      expect(await db.isServiceLocked(serviceId, STALE_MS)).to.equal(true)
+      await db.releaseServiceLock(serviceId, 'proc-B')
+      expect(await db.isServiceLocked(serviceId, STALE_MS)).to.equal(false)
+    })
+
+    it('refreshServiceLocks re-stamps a holder’s rows so they stay unstealable', async () => {
+      const serviceId = `lock-svc-${Date.now()}-d`
+      expect(await db.acquireServiceLock(serviceId, 'proc-A', STALE_MS)).to.equal(true)
+      // age the ORIGINAL stamp past the staleness window B will use below, so the
+      // refusal can only be explained by the refresh re-stamping the row — without the
+      // aging, a freshly-acquired row would be "unstealable" even if refresh did nothing
+      await new Promise((resolve) => setTimeout(resolve, 150))
+      await db.refreshServiceLocks('proc-A')
+      // B treats anything older than 100ms as stale: the original stamp (≥150ms old)
+      // would be stolen; the re-stamped one (a few ms old) must not be
+      expect(await db.acquireServiceLock(serviceId, 'proc-B', 100)).to.equal(false)
+      await db.releaseServiceLock(serviceId, 'proc-A')
+    })
+  })
+
   it('inserts and reads back a service job by serviceId', async () => {
     const job = makeServiceJob()
     await db.newServiceJob(job)
@@ -180,8 +230,33 @@ describe('Service Jobs Database', () => {
     const starting = makeServiceJob({ status: ServiceStatusNumber.Starting })
     const locking = makeServiceJob({ status: ServiceStatusNumber.Locking })
     const claiming = makeServiceJob({ status: ServiceStatusNumber.Claiming })
+    const restarting = makeServiceJob({ status: ServiceStatusNumber.Restarting })
     const error = makeServiceJob({ status: ServiceStatusNumber.Error })
     const stopped = makeServiceJob({ status: ServiceStatusNumber.Stopped })
+    // never paid: escrow lock failed outright (all payment fields empty)
+    const unpaidError = makeServiceJob({
+      status: ServiceStatusNumber.Error,
+      payment: {
+        chainId: 8996,
+        token: '0x123',
+        lockTx: '',
+        claimTx: '',
+        cancelTx: '',
+        cost: 5
+      }
+    })
+    // never paid: lock was refunded before being claimed
+    const refundedStopped = makeServiceJob({
+      status: ServiceStatusNumber.Stopped,
+      payment: {
+        chainId: 8996,
+        token: '0x123',
+        lockTx: '0xlock',
+        claimTx: '',
+        cancelTx: '0xcancel',
+        cost: 5
+      }
+    })
     const otherCluster = makeServiceJob({
       status: ServiceStatusNumber.Running,
       clusterHash: 'other-cluster'
@@ -190,8 +265,11 @@ describe('Service Jobs Database', () => {
     await db.newServiceJob(starting)
     await db.newServiceJob(locking)
     await db.newServiceJob(claiming)
+    await db.newServiceJob(restarting)
     await db.newServiceJob(error)
     await db.newServiceJob(stopped)
+    await db.newServiceJob(unpaidError)
+    await db.newServiceJob(refundedStopped)
     await db.newServiceJob(otherCluster)
 
     const active = await db.getRunningServiceJobs(CLUSTER_HASH)
@@ -201,10 +279,18 @@ describe('Service Jobs Database', () => {
     // the new start-pipeline states must reserve resources too
     expect(ids).to.include(locking.serviceId)
     expect(ids).to.include(claiming.serviceId)
+    // a mid-restart service keeps holding its resources
+    expect(ids).to.include(restarting.serviceId)
     // a service whose container died on its own still reserves its resources until
-    // restarted/stopped/expired
+    // restarted or expired
     expect(ids).to.include(error.serviceId)
-    expect(ids).to.not.include(stopped.serviceId)
+    // an explicitly-stopped service KEEPS its reservation too: the consumer paid for
+    // the whole window and may restart it anytime — only Expired releases resources
+    expect(ids).to.include(stopped.serviceId)
+    // …but the reservation is tied to PAYMENT: a terminal job whose payment was never
+    // claimed (lock failed / refunded) must not squat resources
+    expect(ids).to.not.include(unpaidError.serviceId)
+    expect(ids).to.not.include(refundedStopped.serviceId)
     expect(ids).to.not.include(otherCluster.serviceId)
   })
 
@@ -212,6 +298,7 @@ describe('Service Jobs Database', () => {
     const starting = makeServiceJob({ status: ServiceStatusNumber.Starting })
     const locking = makeServiceJob({ status: ServiceStatusNumber.Locking })
     const claiming = makeServiceJob({ status: ServiceStatusNumber.Claiming })
+    const restarting = makeServiceJob({ status: ServiceStatusNumber.Restarting })
     const running = makeServiceJob({ status: ServiceStatusNumber.Running })
     const stopped = makeServiceJob({ status: ServiceStatusNumber.Stopped })
     const otherCluster = makeServiceJob({
@@ -221,6 +308,7 @@ describe('Service Jobs Database', () => {
     await db.newServiceJob(starting)
     await db.newServiceJob(locking)
     await db.newServiceJob(claiming)
+    await db.newServiceJob(restarting)
     await db.newServiceJob(running)
     await db.newServiceJob(stopped)
     await db.newServiceJob(otherCluster)
@@ -230,12 +318,14 @@ describe('Service Jobs Database', () => {
     expect(ids).to.include(starting.serviceId)
     expect(ids).to.include(locking.serviceId)
     expect(ids).to.include(claiming.serviceId)
+    // a crash mid-restart must be orphan-recovered at boot exactly like a crash mid-start
+    expect(ids).to.include(restarting.serviceId)
     expect(ids).to.not.include(running.serviceId) // already started
     expect(ids).to.not.include(stopped.serviceId)
     expect(ids).to.not.include(otherCluster.serviceId)
   })
 
-  it('getExpiredServiceJobs returns Running and Error jobs past expiry', async () => {
+  it('getExpiredServiceJobs returns Running, Error and Stopped jobs past expiry', async () => {
     const expired = makeServiceJob({
       status: ServiceStatusNumber.Running,
       expiresAt: Date.now() - 1000
@@ -248,14 +338,19 @@ describe('Service Jobs Database', () => {
       status: ServiceStatusNumber.Running,
       expiresAt: Date.now() + 3600_000
     })
-    const expiredButStopped = makeServiceJob({
+    const expiredStopped = makeServiceJob({
       status: ServiceStatusNumber.Stopped,
       expiresAt: Date.now() - 1000
+    })
+    const futureStopped = makeServiceJob({
+      status: ServiceStatusNumber.Stopped,
+      expiresAt: Date.now() + 3600_000
     })
     await db.newServiceJob(expired)
     await db.newServiceJob(expiredError)
     await db.newServiceJob(future)
-    await db.newServiceJob(expiredButStopped)
+    await db.newServiceJob(expiredStopped)
+    await db.newServiceJob(futureStopped)
 
     const expiredJobs = await db.getExpiredServiceJobs(CLUSTER_HASH)
     const ids = expiredJobs.map((j) => j.serviceId)
@@ -263,8 +358,11 @@ describe('Service Jobs Database', () => {
     // an abandoned Error'd service must still be swept once past expiresAt, or its
     // reserved resources/ports would leak forever
     expect(ids).to.include(expiredError.serviceId)
+    // a Stopped service past its paid window must flip to Expired instead of sitting
+    // at Stopped forever (where it would read as restartable)
+    expect(ids).to.include(expiredStopped.serviceId)
     expect(ids).to.not.include(future.serviceId)
-    expect(ids).to.not.include(expiredButStopped.serviceId)
+    expect(ids).to.not.include(futureStopped.serviceId)
   })
 
   describe('shared resource accounting (compute + service)', () => {
@@ -278,10 +376,11 @@ describe('Service Jobs Database', () => {
           ['gpu0', 2]
         ])
       )
-      // Clean slate: stop any leftover running jobs from earlier tests by marking them Stopped.
+      // Clean slate: retire any leftover jobs from earlier tests by marking them Expired —
+      // the only status that releases the reservation (Stopped still counts as active).
       const leftovers = await db.getRunningServiceJobs(CLUSTER_HASH)
       for (const j of leftovers) {
-        j.status = ServiceStatusNumber.Stopped
+        j.status = ServiceStatusNumber.Expired
         await db.updateServiceJob(j)
       }
     })

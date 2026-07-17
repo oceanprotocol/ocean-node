@@ -28,9 +28,10 @@ and `signature` as query parameters (or an auth-token `Authorization` header).
 | --- | --- | --- | --- |
 | `SERVICE_START` | `/api/services/serviceStart` | POST | Validate, persist a `Starting` record, and return the `serviceId` immediately (escrow + image + container happen in the background) |
 | `SERVICE_GET_STATUS` | `/api/services/serviceStatus` | GET | Read job status / endpoints — authenticated, owner-scoped (see notice below); poll this to follow a starting service |
+| `SERVICE_LIST` | `/api/services/serviceList` | GET | Node-wide service listing — authenticated, **not** owner-scoped. Default: only services currently holding a resource reservation; `status=<n>` filters to one specific status, `includeAllStatuses=true` returns everything, `fromTimestamp` keeps services created at/after that moment. Output is listing-sanitized (no `userData`, no `dockerCmd`/`dockerEntrypoint`, no Dockerfile) |
 | `SERVICE_EXTEND` | `/api/services/serviceExtend` | POST | Pay to push the expiry further out |
-| `SERVICE_RESTART` | `/api/services/serviceRestart` | POST | Recreate the container (no extra charge) |
-| `SERVICE_STOP` | `/api/services/serviceStop` | POST | Tear down the container and release resources |
+| `SERVICE_RESTART` | `/api/services/serviceRestart` | POST | Recreate the container (no extra charge); asynchronous like start — returns once the job is `Restarting`, poll `serviceStatus` |
+| `SERVICE_STOP` | `/api/services/serviceStop` | POST | Tear down the container; the paid resource reservation (cpu/ram/gpu + host ports) is kept until `expiresAt`, so the service can be restarted anytime on the same endpoints |
 | `SERVICE_GET_TEMPLATES` | `/api/services/serviceTemplates` | GET | List operator-published service templates |
 | `SERVICE_GET_STREAMABLE_LOGS` | `/api/services/serviceStreamableLogs` | GET | Stream the container's live stdout/stderr logs — authenticated, owner-scoped; available while `Running` or `Error`; optional `since` to skip history |
 
@@ -42,8 +43,11 @@ terminal `*Failed` / `Error`).
 
 **Handler (synchronous, before responding):** signature check → environment + access-list +
 `features.services` check → `userData` decrypt (validity check) → duration cap → resource
-resolution & availability → cost computed from **server-side** environment pricing → persist the
-job as `Starting` (which also reserves its resources) → respond `200` with the `serviceId`.
+resolution & availability → cost computed from **server-side** environment pricing → escrow
+funds pre-check (fail fast with `400 Insufficient escrow funds` when the consumer's available
+escrow visibly can't cover the cost; best-effort — an RPC hiccup skips it and the background
+Locking step remains the authoritative check) → persist the job as `Starting` (which also
+reserves its resources) → respond `200` with the `serviceId`.
 
 **Background pipeline (per the start statuses below):**
 `Starting (10)` → **locking** `Locking (20)`: escrow `createLock` (+ wait for it to mine) →
@@ -57,16 +61,72 @@ container creation fails before the claim, the lock is **cancelled (refunded)** 
 in a `*Failed` / `Error` status. This is a change from the previous synchronous flow, which
 locked-then-claimed up front.
 
+**Restart is asynchronous too.** `serviceRestart` performs only the fast validations
+(ownership, environment/access, not expired, payment not refunded), persists the job as
+`Restarting (45)` and responds immediately — the teardown, image re-pull/rebuild and new
+container happen in the background under the same per-service lock. Poll `serviceStatus`
+and watch `Restarting` → `PullImage`/`BuildImage` → `Running` (or `Error` with the failure
+reason in `statusText`). A service whose start payment was **never claimed** — the escrow
+lock failed outright (e.g. insufficient funds) or was refunded before being claimed —
+cannot be restarted: it was never paid for, so restarting it would run the service for
+free. Start a new service instead.
+
+**The reservation lasts the whole paid window — only `Expired` releases it.** The consumer
+paid for the resources for a time interval and may use them as they please within it:
+running the service, stopping it, restarting it. An explicit `SERVICE_STOP` therefore tears
+down the container/network but **keeps** the resource amounts (cpu/ram/gpu) counted and the
+host ports reserved — another consumer cannot take them, and a restart resumes on the same
+endpoints. The reservation is tied to **payment**: an `Error`/`Stopped` job whose payment
+was never claimed (lock failed or refunded) does not reserve anything — otherwise anyone
+could squat a node's GPU for free by starting services against an empty escrow account.
+Once `expiresAt` passes, the expiry sweep tears down whatever is left, marks the
+job `Expired`, and only then releases everything. The sweep refuses to mark `Expired` while
+teardown fails (e.g. Docker unreachable) — the job stays `Error` and is retried every tick,
+so a resource release is never silently skipped.
+
 **`Running` is monitored too.** The same background loop that advances a starting service also
 checks every `Running` service's container on each tick (~every few seconds). If the container
 exits on its own — crash, OOM, or the Docker daemon itself becoming unreachable — the job is
 moved to `Error` immediately instead of waiting for `expiresAt`. This health check does **not**
 release the service's reserved host ports/network/container record, since the consumer already
 paid for them; use `SERVICE_RESTART` to bring the service back on the same endpoints. `Error`
-counts as an active/resource-reserving status just like `Running` does — it still occupies its
-cpu/ram/gpu allocation and keeps its host ports held — until it is restarted, explicitly
-stopped, or swept by the same expiry check once `expiresAt` passes (which then fully releases
-everything, same as a normal expiry).
+counts as an active/resource-reserving status just like `Running` and `Stopped` do — it still
+occupies its cpu/ram/gpu allocation and keeps its host ports held — until it is restarted or
+swept by the expiry check once `expiresAt` passes (which then fully releases everything).
+
+**Restart is self-healing with respect to leftover Docker state.** Each service gets a Docker
+network with the deterministic name `ocean-svc-<serviceId>`. Teardown (restart, stop, expiry
+sweep) removes that network by name — not just by the stored network id — force-removing any
+stale attached container first, so state leaked by a node crash mid-start cannot wedge the
+service. If network creation still hits a name conflict, the stale network is removed and
+creation is retried once.
+
+A leftover network is deliberately **removed and recreated rather than reused**. Reusing it
+would save nothing: a leaked network can still have a stale container attached (crashed after
+`container.start()` but before the job record was persisted), still bound to the service's
+host ports — so the old container must be inspected and force-removed either way, and at that
+point recreating the now-empty network is a single cheap API call. Recreating also guarantees
+the network always reflects the current code's configuration instead of silently inheriting
+whatever options a previous node version created it with, and it matches restart's overall
+tear-down-and-rebuild semantics (the container is never reused either).
+
+**Lifecycle operations are exclusive per service.** At most one lifecycle operation — the
+background start pipeline, `SERVICE_RESTART`, `SERVICE_STOP`, or the expiry sweep — runs per
+service at a time. A restart or stop issued while another operation is in flight (e.g. a
+restart still pulling the image) is rejected with
+`Service <id> has a start/stop/restart operation in progress — retry shortly`; simply retry
+once the in-flight operation settles. Without this exclusivity, the background loop's
+crash-orphan recovery could tear down the `ocean-svc-<serviceId>` network in the middle of a
+restart that had just created it, failing the restart with
+`network ocean-svc-<id> not found`. If a service expires while such an operation is in
+flight, the expiry sweep simply retries on a later tick.
+
+Exclusivity holds **across node processes** too, not just within one: each operation also
+takes a lease row in the SQLite `service_locks` table, so two processes sharing the same
+`databases/` directory and Docker daemon (e.g. an old container still running during a
+redeploy) cannot run conflicting operations on the same service. Leases are heartbeated
+every 30 s while the operation runs; a lease not refreshed for 2 minutes belongs to a
+crashed process and is stolen automatically, so no manual cleanup is ever needed.
 
 ## Configuration
 

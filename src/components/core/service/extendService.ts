@@ -9,12 +9,10 @@ import {
   buildInvalidRequestMessage
 } from '../../httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import type { C2DEngine } from '../../c2d/compute_engine_base.js'
 import type { ComputeEnvironment } from '../../../@types/C2D/C2D.js'
-import type { ServiceJob } from '../../../@types/C2D/ServiceOnDemand.js'
 import { ServiceStatusNumber } from '../../../@types/C2D/ServiceOnDemand.js'
 import { validateAccess } from '../compute/startCompute.js'
-import { toPublicServiceJob } from './utils.js'
+import { findServiceJobAndEngine, toPublicServiceJob } from './utils.js'
 
 export class ServiceExtendHandler extends CommandHandler {
   validate(command: ServiceExtendCommand): ValidateParams {
@@ -51,21 +49,24 @@ export class ServiceExtendHandler extends CommandHandler {
         status: { httpStatus: 503, error: 'Compute engines not configured' }
       }
 
-    // Find job
-    let job: ServiceJob | null = null
-    let engine: C2DEngine | null = null
-    for (const eng of engines.getAllEngines()) {
-      const [found] = await eng.db.getServiceJob(task.serviceId, task.consumerAddress)
-      if (found) {
-        job = found
-        engine = eng
-        break
-      }
-    }
-    if (!job || !engine)
+    // Find the job and the engine that owns it (by clusterHash — see helper)
+    const { job, engine } = await findServiceJobAndEngine(
+      engines,
+      task.serviceId,
+      task.consumerAddress
+    )
+    if (!job)
       return buildInvalidParametersResponse(
         buildInvalidRequestMessage('Service job not found: ' + task.serviceId)
       )
+    if (!engine)
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500,
+          error: `No compute engine owns service ${task.serviceId} (cluster ${job.clusterHash}) — the node's compute configuration may have changed`
+        }
+      }
 
     // Ownership check
     if (job.owner.toLowerCase() !== task.consumerAddress.toLowerCase())
@@ -92,138 +93,262 @@ export class ServiceExtendHandler extends CommandHandler {
     if (!accessGranted)
       return { stream: null, status: { httpStatus: 403, error: 'Access denied' } }
 
-    // State check — only Starting or Running can be extended
-    if (
-      job.status !== ServiceStatusNumber.Starting &&
-      job.status !== ServiceStatusNumber.Running
-    )
-      return buildInvalidParametersResponse(
-        buildInvalidRequestMessage(
-          `Cannot extend a service in state "${job.statusText}". Only Starting or Running services can be extended.`
-        )
-      )
-
-    // Extension must not push total beyond maxDurationSeconds
-    const sod = engine.getC2DConfig().connection?.serviceOnDemand
-    const maxDuration = sod?.maxDurationSeconds ?? 86400
-    const remainingSeconds = Math.max(0, Math.floor((job.expiresAt - Date.now()) / 1000))
-    const newTotalDuration = remainingSeconds + task.additionalDuration
-    if (newTotalDuration > maxDuration)
-      return buildInvalidParametersResponse(
-        buildInvalidRequestMessage(
-          `Extension would result in ${newTotalDuration}s remaining, exceeding maximum ${maxDuration}s`
-        )
-      )
-
-    // Cost — same price formula as the start, priced off the env the service runs on.
-    // No fallback: pricing must use runEnv (resolved above); calculateResourcesCost returns
-    // null if that env has no pricing for the token, handled by the check below.
-    const costExtend = engine.calculateResourcesCost(
-      job.resources.map((r) => ({ id: r.id, amount: r.amount })),
-      runEnv,
-      task.payment.chainId,
-      task.payment.token,
-      task.additionalDuration
-    )
-    if (costExtend === null)
-      return buildInvalidParametersResponse(
-        buildInvalidRequestMessage(
-          `No pricing configured for token ${task.payment.token} on chain ${task.payment.chainId}`
-        )
-      )
-
-    // Escrow lock + immediate claim
-    let lockTx: string | null
+    // Everything from the state check to the final write runs under the per-service
+    // lifecycle lock: extend is a read-mutate-write of the job row, and without the lock
+    // its final updateServiceJob could overwrite a concurrent stop/restart/Expired state
+    // (and the expiry sweep could tear the service down between our payment and write).
+    // The lock is taken BEFORE any escrow operation, so a busy lock costs nothing.
     try {
-      lockTx = await engine.escrow.createLock(
-        task.payment.chainId,
+      return await engine.runExclusive(
         task.serviceId,
-        task.payment.token,
-        task.consumerAddress,
-        costExtend,
-        engine.escrow.getMinLockTime(task.additionalDuration)
+        async (): Promise<P2PCommandResponse> => {
+          // Re-read under the lock — every other mutator holds the same lock, so this
+          // snapshot cannot go stale before our write.
+          const [freshJob] = await engine.db.getServiceJob(
+            task.serviceId,
+            task.consumerAddress
+          )
+          if (!freshJob)
+            return buildInvalidParametersResponse(
+              buildInvalidRequestMessage('Service job not found: ' + task.serviceId)
+            )
+
+          // State check — only Starting or Running can be extended
+          if (
+            freshJob.status !== ServiceStatusNumber.Starting &&
+            freshJob.status !== ServiceStatusNumber.Running
+          )
+            return buildInvalidParametersResponse(
+              buildInvalidRequestMessage(
+                `Cannot extend a service in state "${freshJob.statusText}". Only Starting or Running services can be extended.`
+              )
+            )
+
+          // Extension must not push total beyond maxDurationSeconds
+          const sod = engine.getC2DConfig().connection?.serviceOnDemand
+          const maxDuration = sod?.maxDurationSeconds ?? 86400
+          const remainingSeconds = Math.max(
+            0,
+            Math.floor((freshJob.expiresAt - Date.now()) / 1000)
+          )
+          const newTotalDuration = remainingSeconds + task.additionalDuration
+          if (newTotalDuration > maxDuration)
+            return buildInvalidParametersResponse(
+              buildInvalidRequestMessage(
+                `Extension would result in ${newTotalDuration}s remaining, exceeding maximum ${maxDuration}s`
+              )
+            )
+
+          // Cost — same price formula as the start, priced off the env the service runs
+          // on. No fallback: pricing must use runEnv (resolved above);
+          // calculateResourcesCost returns null if that env has no pricing for the token.
+          const costExtend = engine.calculateResourcesCost(
+            freshJob.resources.map((r) => ({ id: r.id, amount: r.amount })),
+            runEnv,
+            task.payment.chainId,
+            task.payment.token,
+            task.additionalDuration
+          )
+          if (costExtend === null)
+            return buildInvalidParametersResponse(
+              buildInvalidRequestMessage(
+                `No pricing configured for token ${task.payment.token} on chain ${task.payment.chainId}`
+              )
+            )
+
+          // An extendPayments entry with a lockTx but neither claimTx nor cancelTx is an
+          // UNRESOLVED intent from a previous crash (see below — the intent is persisted
+          // before claiming). Resolve it before charging again: try to cancel (refund)
+          // the old lock; if that fails the lock was most likely already claimed and a
+          // human must reconcile — reject rather than risk a double charge.
+          const unresolved = (freshJob.extendPayments ?? []).find(
+            (p) => p.lockTx && !p.claimTx && !p.cancelTx
+          )
+          if (unresolved) {
+            try {
+              const cancelTx = await engine.escrow.cancelExpiredLock(
+                unresolved.chainId,
+                task.serviceId,
+                unresolved.token,
+                task.consumerAddress
+              )
+              if (!cancelTx) throw new Error('cancelExpiredLock returned no tx')
+              unresolved.cancelTx = cancelTx
+              await engine.db.updateServiceJob(freshJob)
+              CORE_LOGGER.logMessage(
+                `Service ${task.serviceId}: refunded unresolved extension lock ${unresolved.lockTx} (${cancelTx})`,
+                true
+              )
+            } catch (e: any) {
+              CORE_LOGGER.error(
+                `Service ${task.serviceId}: unresolved extension intent (lock ${unresolved.lockTx}) could not be refunded: ${e.message}`
+              )
+              return {
+                stream: null,
+                status: {
+                  httpStatus: 409,
+                  error: `A previous extension of this service is unresolved (lock ${unresolved.lockTx}) and could not be auto-refunded — retry later or contact the node operator`
+                }
+              }
+            }
+          }
+
+          // Escrow lock + immediate claim
+          let lockTx: string | null
+          try {
+            lockTx = await engine.escrow.createLock(
+              task.payment.chainId,
+              task.serviceId,
+              task.payment.token,
+              task.consumerAddress,
+              costExtend,
+              engine.escrow.getMinLockTime(task.additionalDuration)
+            )
+          } catch (e: any) {
+            CORE_LOGGER.error(`Service extend createLock failed: ${e.message}`)
+            return { stream: null, status: { httpStatus: 402, error: e.message } }
+          }
+          if (!lockTx)
+            return {
+              stream: null,
+              status: { httpStatus: 402, error: 'Escrow lock failed for extend' }
+            }
+
+          // Wait for the lock tx to be mined before claiming (same-signer back-to-back txs).
+          try {
+            await engine.escrow.waitForTransaction(task.payment.chainId, lockTx)
+          } catch (e: any) {
+            CORE_LOGGER.error(`Service extend lock not confirmed: ${e.message}`)
+            await engine.escrow
+              .cancelExpiredLock(
+                task.payment.chainId,
+                task.serviceId,
+                task.payment.token,
+                task.consumerAddress
+              )
+              .catch((err) =>
+                CORE_LOGGER.error(`cancelExpiredLock failed: ${err.message}`)
+              )
+            return {
+              stream: null,
+              status: {
+                httpStatus: 402,
+                error: 'Escrow lock not confirmed — lock cancelled'
+              }
+            }
+          }
+
+          // Persist the extension INTENT (lockTx recorded, claim pending) BEFORE
+          // claiming: a crash between claim and the final write is then auditable — the
+          // consumer's money can never be taken without a durable record of why — and a
+          // retry finds the intent (unresolved branch above) instead of charging twice.
+          const intent = {
+            chainId: task.payment.chainId,
+            token: task.payment.token,
+            lockTx,
+            claimTx: '',
+            cancelTx: '',
+            cost: costExtend
+          }
+          freshJob.extendPayments = [...(freshJob.extendPayments ?? []), intent]
+          try {
+            await engine.db.updateServiceJob(freshJob)
+          } catch (persistErr: any) {
+            // The lock is mined but we could NOT make it durable — without a record, the
+            // unresolved-intent recovery would never find it. Compensate: refund the
+            // lock now. If even that fails, funds are stranded on-chain → 409 so a
+            // human reconciles; nothing was claimed either way.
+            CORE_LOGGER.error(
+              `Service extend: intent persistence failed (${persistErr.message}) — refunding lock ${lockTx}`
+            )
+            freshJob.extendPayments = freshJob.extendPayments.filter((p) => p !== intent)
+            const cancelTx = await engine.escrow
+              .cancelExpiredLock(
+                task.payment.chainId,
+                task.serviceId,
+                task.payment.token,
+                task.consumerAddress
+              )
+              .catch((e): string | null => {
+                CORE_LOGGER.error(`cancelExpiredLock failed: ${e.message}`)
+                return null
+              })
+            if (!cancelTx)
+              return {
+                stream: null,
+                status: {
+                  httpStatus: 409,
+                  error: `Extension aborted: the payment intent could not be persisted AND the escrow lock ${lockTx} could not be refunded — contact the node operator`
+                }
+              }
+            return {
+              stream: null,
+              status: {
+                httpStatus: 402,
+                error:
+                  'Extension aborted before charging: the payment intent could not be persisted — the escrow lock was refunded'
+              }
+            }
+          }
+
+          let claimTx: string | null
+          try {
+            claimTx = await engine.escrow.claimLock(
+              task.payment.chainId,
+              task.serviceId,
+              task.payment.token,
+              task.consumerAddress,
+              costExtend,
+              `service-extend:${task.serviceId}`
+            )
+          } catch (e: any) {
+            claimTx = null
+            CORE_LOGGER.error(`Service extend claimLock failed: ${e.message}`)
+          }
+          if (!claimTx) {
+            const cancelTx = await engine.escrow
+              .cancelExpiredLock(
+                task.payment.chainId,
+                task.serviceId,
+                task.payment.token,
+                task.consumerAddress
+              )
+              .catch((e): string | null => {
+                CORE_LOGGER.error(`cancelExpiredLock failed: ${e.message}`)
+                return null
+              })
+            // close the intent (refunded) — or leave it unresolved for the next attempt
+            if (cancelTx) {
+              intent.cancelTx = cancelTx
+              await engine.db.updateServiceJob(freshJob)
+            }
+            return {
+              stream: null,
+              status: { httpStatus: 402, error: 'Escrow claim failed — lock cancelled' }
+            }
+          }
+
+          // Payment successful — finalize the intent and push expiresAt forward
+          intent.claimTx = claimTx
+          freshJob.expiresAt += task.additionalDuration * 1000
+          freshJob.duration += task.additionalDuration
+          await engine.db.updateServiceJob(freshJob)
+
+          CORE_LOGGER.logMessage(
+            `Service ${task.serviceId} extended by ${task.additionalDuration}s, new expiresAt: ${freshJob.expiresAt}`,
+            true
+          )
+          return {
+            stream: Readable.from(JSON.stringify([toPublicServiceJob(freshJob)])),
+            status: { httpStatus: 200 }
+          }
+        }
       )
-    } catch (e: any) {
-      CORE_LOGGER.error(`Service extend createLock failed: ${e.message}`)
-      return { stream: null, status: { httpStatus: 402, error: e.message } }
-    }
-    if (!lockTx)
-      return {
-        stream: null,
-        status: { httpStatus: 402, error: 'Escrow lock failed for extend' }
-      }
-
-    // Wait for the lock tx to be mined before claiming (same-signer back-to-back txs).
-    try {
-      await engine.escrow.waitForTransaction(task.payment.chainId, lockTx)
-    } catch (e: any) {
-      CORE_LOGGER.error(`Service extend lock not confirmed: ${e.message}`)
-      await engine.escrow
-        .cancelExpiredLock(
-          task.payment.chainId,
-          task.serviceId,
-          task.payment.token,
-          task.consumerAddress
-        )
-        .catch((err) => CORE_LOGGER.error(`cancelExpiredLock failed: ${err.message}`))
-      return {
-        stream: null,
-        status: { httpStatus: 402, error: 'Escrow lock not confirmed — lock cancelled' }
-      }
-    }
-
-    let claimTx: string | null
-    try {
-      claimTx = await engine.escrow.claimLock(
-        task.payment.chainId,
-        task.serviceId,
-        task.payment.token,
-        task.consumerAddress,
-        costExtend,
-        `service-extend:${task.serviceId}`
-      )
-    } catch (e: any) {
-      claimTx = null
-      CORE_LOGGER.error(`Service extend claimLock failed: ${e.message}`)
-    }
-    if (!claimTx) {
-      await engine.escrow
-        .cancelExpiredLock(
-          task.payment.chainId,
-          task.serviceId,
-          task.payment.token,
-          task.consumerAddress
-        )
-        .catch((e) => CORE_LOGGER.error(`cancelExpiredLock failed: ${e.message}`))
-      return {
-        stream: null,
-        status: { httpStatus: 402, error: 'Escrow claim failed — lock cancelled' }
-      }
-    }
-
-    // Payment successful — push expiresAt forward and record extension payment
-    job.expiresAt += task.additionalDuration * 1000
-    job.duration += task.additionalDuration
-    job.extendPayments = [
-      ...(job.extendPayments ?? []),
-      {
-        chainId: task.payment.chainId,
-        token: task.payment.token,
-        lockTx,
-        claimTx,
-        cancelTx: '',
-        cost: costExtend
-      }
-    ]
-    await engine.db.updateServiceJob(job)
-
-    CORE_LOGGER.logMessage(
-      `Service ${task.serviceId} extended by ${task.additionalDuration}s, new expiresAt: ${job.expiresAt}`,
-      true
-    )
-    return {
-      stream: Readable.from(JSON.stringify([toPublicServiceJob(job)])),
-      status: { httpStatus: 200 }
+    } catch (error: any) {
+      // Lifecycle lock busy (a stop/restart/expiry owns the service) or engine stopped —
+      // nothing was charged yet, the client simply retries shortly.
+      CORE_LOGGER.error(`ServiceExtend ${task.serviceId} rejected: ${error.message}`)
+      return { stream: null, status: { httpStatus: 400, error: error.message } }
     }
   }
 }

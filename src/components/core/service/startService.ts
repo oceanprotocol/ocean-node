@@ -167,6 +167,39 @@ export class ServiceStartHandler extends CommandHandler {
           )
         )
 
+      // 6b. Fail fast when the consumer's escrow visibly can't cover the cost, instead
+      // of returning a serviceId doomed to fail asynchronously at the Locking step.
+      // Best-effort UX only: balances can change before the background createLock runs,
+      // so the authoritative check stays in the pipeline — and an RPC hiccup here must
+      // not block starts (the pipeline check will catch a genuine shortfall anyway).
+      try {
+        const [availableWei, costWei] = await Promise.all([
+          engine.escrow.getUserAvailableFunds(
+            task.payment.chainId,
+            task.consumerAddress,
+            task.payment.token
+          ),
+          engine.escrow.getPaymentAmountInWei(
+            cost,
+            task.payment.chainId,
+            task.payment.token
+          )
+        ])
+        if (BigInt(availableWei.toString()) < BigInt(costWei.toString())) {
+          return buildInvalidParametersResponse(
+            buildInvalidRequestMessage(
+              `Insufficient escrow funds for token ${task.payment.token} on chain ` +
+                `${task.payment.chainId}: available ${availableWei}, required ${costWei} ` +
+                `wei — deposit and authorize escrow funds before starting the service`
+            )
+          )
+        }
+      } catch (e: any) {
+        CORE_LOGGER.debug(
+          `SERVICE_START: escrow funds pre-check skipped (${e.message}) — the background Locking step will verify`
+        )
+      }
+
       const serviceId = generateUniqueID({
         owner: task.consumerAddress,
         environment: task.environment,

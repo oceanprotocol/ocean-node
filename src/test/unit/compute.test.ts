@@ -41,6 +41,7 @@ import {
   C2DEngineDocker
 } from '../../components/c2d/compute_engine_docker.js'
 import { ServiceStatusNumber } from '../../@types/C2D/ServiceOnDemand.js'
+import { allocateHostPort, releaseHostPort } from '../../components/core/service/utils.js'
 import { C2DDockerConfigSchema } from '../../utils/config/schemas.js'
 import { ValidateParams } from '../../components/httpRoutes/validateCommands.js'
 import { Readable } from 'stream'
@@ -983,6 +984,123 @@ describe('Schema validation (C2DDockerConfigSchema)', () => {
     const result = C2DDockerConfigSchema.safeParse(config)
     expect(result.success).to.equal(true)
   })
+
+  describe('cpuList validation', function () {
+    const withCpuResource = (cpuEntry: any) => [{ ...validBase, resources: [cpuEntry] }]
+
+    it('cpu resource with a single valid range parses successfully', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'cpu', cpuList: '32-63' })
+      )
+      expect(result.success).to.equal(true)
+    })
+
+    it('cpu resource with multiple ascending ranges parses successfully', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'cpu', cpuList: '0-15,32-47' })
+      )
+      expect(result.success).to.equal(true)
+    })
+
+    it('cpu resource with a single bare core ID parses successfully', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'cpu', cpuList: '0' })
+      )
+      expect(result.success).to.equal(true)
+    })
+
+    it('cpu resource mixing ranges and bare core IDs parses successfully', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'cpu', cpuList: '0-1,3' })
+      )
+      expect(result.success).to.equal(true)
+    })
+
+    it('cpu resource with a list of bare core IDs parses successfully', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'cpu', cpuList: '3,5,7' })
+      )
+      expect(result.success).to.equal(true)
+    })
+
+    it('cpu resource with only total still parses (existing behavior)', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'cpu', total: 6 })
+      )
+      expect(result.success).to.equal(true)
+    })
+
+    it('cpu resource with both total and cpuList is rejected', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'cpu', total: 32, cpuList: '32-63' })
+      )
+      expect(result.success).to.equal(false)
+      const msgs = result.error?.issues.map((i) => i.message).join(' ')
+      expect(msgs).to.include('not both')
+    })
+
+    it('cpu resource with neither total nor cpuList is rejected', function () {
+      const result = C2DDockerConfigSchema.safeParse(withCpuResource({ id: 'cpu' }))
+      expect(result.success).to.equal(false)
+      const msgs = result.error?.issues.map((i) => i.message).join(' ')
+      expect(msgs).to.include('must specify either "total" or "cpuList"')
+    })
+
+    it('cpuList on a non-cpu resource is rejected', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'ram', cpuList: '0-3' })
+      )
+      expect(result.success).to.equal(false)
+      const msgs = result.error?.issues.map((i) => i.message).join(' ')
+      expect(msgs).to.include('only valid on the cpu resource')
+    })
+
+    it('cpuList inside an env-level resource ref is rejected', function () {
+      const config = [
+        {
+          ...validBase,
+          environments: [
+            {
+              ...validBase.environments[0],
+              resources: [{ id: 'cpu', cpuList: '0-3' }]
+            }
+          ]
+        }
+      ]
+      const result = C2DDockerConfigSchema.safeParse(config)
+      expect(result.success).to.equal(false)
+      const msgs = result.error?.issues.map((i) => i.message).join(' ')
+      expect(msgs).to.include('must be defined at connection level')
+    })
+
+    // Format is strict: comma-separated core IDs and/or integer ranges, each range's
+    // right side strictly greater than the left, all parts ascending and non-overlapping.
+    const invalidLists: [string, string][] = [
+      ['15-15', 'strictly greater'], // right side equal — write "15" instead
+      ['20-10', 'strictly greater'], // right side lower
+      ['0-8,4-12', 'ascending and non-overlapping'], // overlapping ranges
+      ['8-11,0-3', 'ascending and non-overlapping'], // out of order
+      ['0-3,2', 'ascending and non-overlapping'], // bare ID inside a previous range
+      ['3,3', 'ascending and non-overlapping'], // duplicate bare ID
+      ['1.5-4', 'is invalid'], // floats
+      ['0-9000', 'maximum supported limit'], // core ID above the 8192 cap
+      ['-1-4', 'is invalid'], // negative
+      ['0-3, 8-11', 'is invalid'], // space
+      ['0-3,,8-11', 'is invalid'], // empty part
+      ['0-3,', 'is invalid'], // trailing comma
+      ['', 'is invalid'] // empty string
+    ]
+    for (const [value, expectedFragment] of invalidLists) {
+      it(`cpuList "${value}" is rejected (${expectedFragment})`, function () {
+        const result = C2DDockerConfigSchema.safeParse(
+          withCpuResource({ id: 'cpu', cpuList: value })
+        )
+        expect(result.success).to.equal(false)
+        const msgs = result.error?.issues.map((i) => i.message).join(' ')
+        expect(msgs).to.include(expectedFragment)
+      })
+    }
+  })
 })
 
 describe('resolveResourceKind / resolveConnectionResourcePool / resolveEnvironmentResources', () => {
@@ -1063,6 +1181,17 @@ describe('resolveResourceKind / resolveConnectionResourcePool / resolveEnvironme
         { id: 'cpu', total: 20 }
       ])
       expect(pool.get('cpu').total).to.equal(8)
+    })
+
+    it('cpuList sets effective cpu total to the expanded core count', function () {
+      engine.physicalLimits.set('cpu', 64)
+      engine.physicalLimits.set('disk', 100)
+      const sysinfo = { NCPU: 64, MemTotal: 32 * 1024 * 1024 * 1024 }
+      const pool = engine.resolveConnectionResourcePool(sysinfo, [
+        { id: 'cpu', cpuList: '32-63' }
+      ])
+      expect(pool.get('cpu').total).to.equal(32)
+      expect(pool.get('cpu').max).to.equal(32)
     })
 
     it('custom GPU resource is added to pool and registered in physicalLimits', function () {
@@ -1257,6 +1386,84 @@ describe('resolveResourceKind / resolveConnectionResourcePool / resolveEnvironme
   })
 })
 
+describe('CPU affinity restricted by cpuList', () => {
+  let engine: any
+
+  beforeEach(function () {
+    // Bypass the Docker-specific constructor but keep the prototype methods; seed the
+    // fields that constructor initializers would otherwise set.
+    engine = Object.create(C2DEngineDocker.prototype)
+    engine.physicalLimits = new Map<string, number>()
+    engine.cpuAllocations = new Map()
+    engine.envCpuCoresMap = new Map()
+    engine.configuredCpuList = null
+    engine.getC2DConfig = sinon.stub().returns({ hash: 'cluster-hash' })
+  })
+
+  describe('resolveConfiguredCpuList()', function () {
+    it('no cpu entry / cpu entry without cpuList → unrestricted (null pool)', function () {
+      engine.resolveConfiguredCpuList({ resources: [] }, 8)
+      expect(engine.configuredCpuList).to.equal(null)
+      engine.resolveConfiguredCpuList({ resources: [{ id: 'cpu', total: 4 }] }, 8)
+      expect(engine.configuredCpuList).to.equal(null)
+    })
+
+    it('valid cpuList expands to the listed core IDs', function () {
+      engine.resolveConfiguredCpuList({ resources: [{ id: 'cpu', cpuList: '2-5' }] }, 8)
+      expect(engine.configuredCpuList).to.deep.equal([2, 3, 4, 5])
+    })
+
+    it('multi-range cpuList expands to all listed core IDs', function () {
+      engine.resolveConfiguredCpuList(
+        { resources: [{ id: 'cpu', cpuList: '0-1,4-6' }] },
+        8
+      )
+      expect(engine.configuredCpuList).to.deep.equal([0, 1, 4, 5, 6])
+    })
+
+    it('mixed ranges and bare core IDs expand to all listed core IDs', function () {
+      engine.resolveConfiguredCpuList({ resources: [{ id: 'cpu', cpuList: '0-1,3' }] }, 8)
+      expect(engine.configuredCpuList).to.deep.equal([0, 1, 3])
+    })
+
+    it('single bare core ID works on a single-cpu host', function () {
+      engine.resolveConfiguredCpuList({ resources: [{ id: 'cpu', cpuList: '0' }] }, 1)
+      expect(engine.configuredCpuList).to.deep.equal([0])
+    })
+
+    it('core IDs the host does not have throw (fail fast at startup / config push)', function () {
+      expect(() =>
+        engine.resolveConfiguredCpuList(
+          { resources: [{ id: 'cpu', cpuList: '0-15' }] },
+          8
+        )
+      ).to.throw("don't exist on this host")
+      expect(engine.configuredCpuList).to.equal(null)
+    })
+  })
+
+  describe('allocateCpus() with a restricted pool', function () {
+    beforeEach(function () {
+      engine.envCpuCoresMap.set('env1', [32, 33, 34, 35, 36, 37, 38, 39])
+    })
+
+    it('allocations only hand out cores from the restricted pool', function () {
+      expect(engine.allocateCpus('job1', 4, 'env1')).to.equal('32,33,34,35')
+      expect(engine.allocateCpus('job2', 2, 'env1')).to.equal('36,37')
+    })
+
+    it('released cores are reused from the restricted pool', function () {
+      engine.allocateCpus('job1', 4, 'env1')
+      engine.releaseCpus('job1')
+      expect(engine.allocateCpus('job2', 2, 'env1')).to.equal('32,33')
+    })
+
+    it('requests beyond the restricted pool return null instead of spilling to other cores', function () {
+      expect(engine.allocateCpus('job1', 9, 'env1')).to.equal(null)
+    })
+  })
+})
+
 describe('getAlgoChecksums', () => {
   let findDdoStub: sinon.SinonStub
   let loggerErrorSpy: sinon.SinonSpy
@@ -1289,7 +1496,7 @@ describe('getAlgoChecksums', () => {
 
 describe('service start/restart Docker cleanup on failure', function () {
   let engine: any
-  let network: { id: string; remove: sinon.SinonStub }
+  let network: { id: string; inspect: sinon.SinonStub; remove: sinon.SinonStub }
 
   function makeContainer(startRejects: boolean) {
     return {
@@ -1306,14 +1513,26 @@ describe('service start/restart Docker cleanup on failure', function () {
     // Bypass the Docker-specific constructor but keep the prototype methods.
     engine = Object.create(C2DEngineDocker.prototype)
     // Constructor field initializers don't run via Object.create, so seed the CPU
-    // pinning maps that releaseCpus/allocateCpus (called by cleanupServiceDocker) touch.
+    // pinning maps that releaseCpus/allocateCpus (called by cleanupServiceDocker) touch,
+    // and the per-service lifecycle lock taken by stopService/restartService.
     engine.cpuAllocations = new Map()
     engine.envCpuCoresMap = new Map()
-    network = { id: 'net-1', remove: sinon.stub().resolves() }
+    engine.serviceOpsInFlight = new Set()
+    engine.serviceOpPromises = new Set()
+    // inspect is needed by removeServiceNetwork (cleanup resolves the network by
+    // deterministic name/id and checks for attached containers before removing).
+    network = {
+      id: 'net-1',
+      inspect: sinon.stub().resolves({ Containers: {} }),
+      remove: sinon.stub().resolves()
+    }
 
     engine.db = {
       newServiceJob: sinon.stub().resolves(),
-      updateServiceJob: sinon.stub().resolves()
+      updateServiceJob: sinon.stub().resolves(),
+      // lifecycle lease (fail-closed: restart/stop reject without it)
+      acquireServiceLock: sinon.stub().resolves(true),
+      releaseServiceLock: sinon.stub().resolves(undefined)
     }
     engine.getC2DConfig = sinon.stub().returns({
       hash: 'cluster-hash',
@@ -1385,13 +1604,16 @@ describe('service start/restart Docker cleanup on failure', function () {
   it('processServiceStart removes the network and marks Error when createContainer fails', async function () {
     engine.docker = {
       createNetwork: sinon.stub().resolves(network),
-      createContainer: sinon.stub().rejects(new Error('createContainer failed'))
+      createContainer: sinon.stub().rejects(new Error('createContainer failed')),
+      getNetwork: sinon.stub().returns(network)
     }
     const job = makeStartingJob({ serviceId: 'svc-1' })
+    // the pipeline re-reads the job under the lifecycle lock before acting
+    engine.db.getServiceJob = sinon.stub().resolves([job])
 
     await engine.processServiceStart(job) // never throws — failures are persisted as status
 
-    expect(network.remove.calledOnce, 'network.remove should be called').to.equal(true)
+    expect(network.remove.called, 'network.remove should be called').to.equal(true)
     expect(job.status).to.equal(ServiceStatusNumber.Error)
     // Funds were already claimed before the container step, so no refund here.
     expect(engine.escrow.claimLock.calledOnce).to.equal(true)
@@ -1402,26 +1624,43 @@ describe('service start/restart Docker cleanup on failure', function () {
     const container = makeContainer(true)
     engine.docker = {
       createNetwork: sinon.stub().resolves(network),
-      createContainer: sinon.stub().resolves(container)
+      createContainer: sinon.stub().resolves(container),
+      getNetwork: sinon.stub().returns(network)
     }
     const job = makeStartingJob({ serviceId: 'svc-2' })
+    engine.db.getServiceJob = sinon.stub().resolves([job])
 
     await engine.processServiceStart(job)
 
     expect(container.remove.calledOnce, 'container.remove should be called').to.equal(
       true
     )
-    expect(network.remove.calledOnce, 'network.remove should be called').to.equal(true)
+    expect(network.remove.called, 'network.remove should be called').to.equal(true)
     expect(job.status).to.equal(ServiceStatusNumber.Error)
+    // The payment was claimed before the container step, so the Error job keeps its
+    // host ports reserved (restartable on the same endpoints until expiresAt): the
+    // allocator must refuse to hand the port out again.
+    expect(job.endpoints.length).to.be.greaterThan(0)
+    const reservedPort = job.endpoints[0].hostPort
+    try {
+      await expectRejects(
+        allocateHostPort(reservedPort, reservedPort),
+        'No free host port'
+      )
+    } finally {
+      releaseHostPort(reservedPort) // don't leak the reservation into other tests
+    }
   })
 
   it('processServiceStart refunds (cancelLock) and marks PullImageFailed when the image pull fails', async function () {
     engine.pullImageRef = sinon.stub().rejects(new Error('pull failed'))
     engine.docker = {
       createNetwork: sinon.stub().resolves(network),
-      createContainer: sinon.stub().resolves(makeContainer(false))
+      createContainer: sinon.stub().resolves(makeContainer(false)),
+      getNetwork: sinon.stub().returns(network)
     }
     const job = makeStartingJob({ serviceId: 'svc-img' })
+    engine.db.getServiceJob = sinon.stub().resolves([job])
 
     await engine.processServiceStart(job)
 
@@ -1439,8 +1678,13 @@ describe('service start/restart Docker cleanup on failure', function () {
 
   it('processServiceStart marks Error and skips the image when createLock fails', async function () {
     engine.escrow.createLock = sinon.stub().resolves(null)
-    engine.docker = { createNetwork: sinon.stub(), createContainer: sinon.stub() }
+    engine.docker = {
+      createNetwork: sinon.stub(),
+      createContainer: sinon.stub(),
+      getNetwork: sinon.stub().returns(network)
+    }
     const job = makeStartingJob({ serviceId: 'svc-lock' })
+    engine.db.getServiceJob = sinon.stub().resolves([job])
 
     await engine.processServiceStart(job)
 
@@ -1450,7 +1694,11 @@ describe('service start/restart Docker cleanup on failure', function () {
   })
 
   it('processServiceStart orphan recovery: cancels an unclaimed lock and marks Error', async function () {
-    engine.docker = { createNetwork: sinon.stub(), createContainer: sinon.stub() }
+    engine.docker = {
+      createNetwork: sinon.stub(),
+      createContainer: sinon.stub(),
+      getNetwork: sinon.stub().returns(network)
+    }
     // Resuming a job left in Locking from a previous process, with a lock but no claim.
     const job = makeStartingJob({
       serviceId: 'svc-orphan',
@@ -1465,6 +1713,7 @@ describe('service start/restart Docker cleanup on failure', function () {
         cancelTx: ''
       }
     })
+    engine.db.getServiceJob = sinon.stub().resolves([job])
 
     await engine.processServiceStart(job)
 
@@ -1495,20 +1744,30 @@ describe('service start/restart Docker cleanup on failure', function () {
       exposedPorts: [80],
       endpoints: [{ containerPort: 80, hostPort: 30001, url: 'http://localhost:30001' }],
       resources: [{ id: 'cpu', amount: 1 }],
-      payment: { chainId: 1, token: '0xtoken' }
+      payment: { chainId: 1, token: '0xtoken', claimTx: '0xclaim' }
     }
     engine.db.getServiceJob = sinon.stub().resolves([existingJob])
     engine.docker = {
       createNetwork: sinon.stub().resolves(network),
-      createContainer: sinon.stub().rejects(new Error('createContainer failed'))
+      createContainer: sinon.stub().rejects(new Error('createContainer failed')),
+      getNetwork: sinon.stub().returns(network)
     }
 
-    await expectRejects(
-      engine.restartService('svc-3', '0xowner', undefined),
-      'createContainer failed'
-    )
+    // restart is async: the call returns the Restarting snapshot; the failure surfaces
+    // on the persisted job status once the background op settles.
+    const snapshot = await engine.restartService('svc-3', '0xowner', undefined)
+    expect(snapshot.status).to.equal(ServiceStatusNumber.Restarting)
+    await Promise.allSettled([...engine.serviceOpPromises])
 
-    expect(network.remove.calledOnce, 'network.remove should be called').to.equal(true)
+    expect(network.remove.called, 'network.remove should be called').to.equal(true)
+    expect(existingJob.status).to.equal(ServiceStatusNumber.Error)
+    expect(existingJob.statusText).to.contain('createContainer failed')
+    // the Error outcome must be PERSISTED — status polls read the DB, not memory
+    expect(
+      engine.db.updateServiceJob.calledWith(
+        sinon.match({ serviceId: 'svc-3', status: ServiceStatusNumber.Error })
+      )
+    ).to.equal(true)
   })
 
   function makeRunningJobWithCmd(overrides: any = {}) {
@@ -1530,7 +1789,7 @@ describe('service start/restart Docker cleanup on failure', function () {
       exposedPorts: [80],
       endpoints: [{ containerPort: 80, hostPort: 30001, url: 'http://localhost:30001' }],
       resources: [{ id: 'cpu', amount: 1 }],
-      payment: { chainId: 1, token: '0xtoken' },
+      payment: { chainId: 1, token: '0xtoken', claimTx: '0xclaim' },
       dockerCmd: ['old', 'cmd'],
       dockerEntrypoint: ['/old-entrypoint'],
       ...overrides
@@ -1543,22 +1802,34 @@ describe('service start/restart Docker cleanup on failure', function () {
     const container = makeContainer(false)
     engine.docker = {
       createNetwork: sinon.stub().resolves(network),
-      createContainer: sinon.stub().resolves(container)
+      createContainer: sinon.stub().resolves(container),
+      getNetwork: sinon.stub().returns(network)
     }
 
-    const result = await engine.restartService(
+    await engine.restartService(
       'svc-cmd',
       '0xowner',
       undefined,
       ['new', 'cmd'],
       ['/new-entrypoint']
     )
+    await Promise.allSettled([...engine.serviceOpPromises])
 
     const createArgs = engine.docker.createContainer.firstCall.args[0]
     expect(createArgs.Cmd).to.deep.equal(['new', 'cmd'])
     expect(createArgs.Entrypoint).to.deep.equal(['/new-entrypoint'])
-    expect(result.dockerCmd).to.deep.equal(['new', 'cmd'])
-    expect(result.dockerEntrypoint).to.deep.equal(['/new-entrypoint'])
+    expect(existingJob.dockerCmd).to.deep.equal(['new', 'cmd'])
+    expect(existingJob.dockerEntrypoint).to.deep.equal(['/new-entrypoint'])
+    // the override must be PERSISTED so future restarts reuse it
+    expect(
+      engine.db.updateServiceJob.calledWith(
+        sinon.match({
+          status: ServiceStatusNumber.Running,
+          dockerCmd: ['new', 'cmd'],
+          dockerEntrypoint: ['/new-entrypoint']
+        })
+      )
+    ).to.equal(true)
   })
 
   it('restartService reuses the stored dockerCmd/dockerEntrypoint when none are supplied', async function () {
@@ -1567,16 +1838,27 @@ describe('service start/restart Docker cleanup on failure', function () {
     const container = makeContainer(false)
     engine.docker = {
       createNetwork: sinon.stub().resolves(network),
-      createContainer: sinon.stub().resolves(container)
+      createContainer: sinon.stub().resolves(container),
+      getNetwork: sinon.stub().returns(network)
     }
 
-    const result = await engine.restartService('svc-cmd', '0xowner', undefined)
+    await engine.restartService('svc-cmd', '0xowner', undefined)
+    await Promise.allSettled([...engine.serviceOpPromises])
 
     const createArgs = engine.docker.createContainer.firstCall.args[0]
     expect(createArgs.Cmd).to.deep.equal(['old', 'cmd'])
     expect(createArgs.Entrypoint).to.deep.equal(['/old-entrypoint'])
-    expect(result.dockerCmd).to.deep.equal(['old', 'cmd'])
-    expect(result.dockerEntrypoint).to.deep.equal(['/old-entrypoint'])
+    expect(existingJob.dockerCmd).to.deep.equal(['old', 'cmd'])
+    expect(existingJob.dockerEntrypoint).to.deep.equal(['/old-entrypoint'])
+    expect(
+      engine.db.updateServiceJob.calledWith(
+        sinon.match({
+          status: ServiceStatusNumber.Running,
+          dockerCmd: ['old', 'cmd'],
+          dockerEntrypoint: ['/old-entrypoint']
+        })
+      )
+    ).to.equal(true)
   })
 
   it('restartService clears dockerCmd/dockerEntrypoint when explicitly given an empty array', async function () {
@@ -1585,15 +1867,26 @@ describe('service start/restart Docker cleanup on failure', function () {
     const container = makeContainer(false)
     engine.docker = {
       createNetwork: sinon.stub().resolves(network),
-      createContainer: sinon.stub().resolves(container)
+      createContainer: sinon.stub().resolves(container),
+      getNetwork: sinon.stub().returns(network)
     }
 
-    const result = await engine.restartService('svc-cmd', '0xowner', undefined, [], [])
+    await engine.restartService('svc-cmd', '0xowner', undefined, [], [])
+    await Promise.allSettled([...engine.serviceOpPromises])
 
     const createArgs = engine.docker.createContainer.firstCall.args[0]
     expect(createArgs.Cmd).to.equal(undefined)
     expect(createArgs.Entrypoint).to.equal(undefined)
-    expect(result.dockerCmd).to.deep.equal([])
-    expect(result.dockerEntrypoint).to.deep.equal([])
+    expect(existingJob.dockerCmd).to.deep.equal([])
+    expect(existingJob.dockerEntrypoint).to.deep.equal([])
+    expect(
+      engine.db.updateServiceJob.calledWith(
+        sinon.match({
+          status: ServiceStatusNumber.Running,
+          dockerCmd: [],
+          dockerEntrypoint: []
+        })
+      )
+    ).to.equal(true)
   })
 })
