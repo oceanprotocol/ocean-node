@@ -68,13 +68,15 @@ import {
 import { getAddress, ZeroAddress } from 'ethers'
 import {
   ServiceStatusNumber,
-  ServiceStatusText
+  ServiceStatusText,
+  SERVICE_START_PENDING_STATUSES
 } from '../../@types/C2D/ServiceOnDemand.js'
 import type { ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
 import { resolveServiceImage } from './serviceResourceMatching.js'
 import {
   allocateHostPort,
   releaseHostPort,
+  reserveHostPort,
   seedAllocatedPorts,
   userDataToEnv,
   decryptUserData
@@ -84,6 +86,19 @@ const C2D_CONTAINER_UID = 1000
 const C2D_CONTAINER_GID = 1000
 
 const trivyImage = 'aquasec/trivy:0.69.3' // Use pinned versions for safety
+
+// Cross-process service lifecycle lock timing: locks are heartbeated every
+// SERVICE_LOCK_HEARTBEAT_MS while an operation runs, and a lock not refreshed within
+// SERVICE_LOCK_STALE_MS belongs to a crashed process and may be stolen. Staleness must
+// be a comfortable multiple of the heartbeat so one missed beat (GC pause, busy DB)
+// doesn't get a live operation's resources torn down under it.
+const SERVICE_LOCK_HEARTBEAT_MS = 30_000
+const SERVICE_LOCK_STALE_MS = 120_000
+
+// Identifies one engine instance as a service-lock holder across processes. pid alone is
+// not enough: pids are reused, and one process can host several engine instances.
+const makeServiceLockHolderId = () =>
+  `${process.pid}:${Math.random().toString(36).slice(2, 10)}`
 
 // "Already gone" Docker errors (404 missing, 304 already stopped) are the desired end
 // state of a teardown, so treat them as success.
@@ -104,13 +119,23 @@ export class C2DEngineDocker extends C2DEngine {
   private stopped: boolean = false
   // The currently-running InternalLoop pass, so stop() can drain it before returning.
   private internalLoopPromise: Promise<void> | null = null
-  // serviceIds currently being advanced by processServiceStart, so the InternalLoop doesn't
-  // launch a second pipeline for the same service while one is already in flight.
-  private servicesBeingStarted: Set<string> = new Set()
-  // The in-flight processServiceStart() promises (launched fire-and-forget by InternalLoop),
-  // so stop() can drain them before returning — otherwise a start could outlive stop() and
-  // race a restarted engine on the same shared DB.
-  private serviceStartPromises: Set<Promise<void>> = new Set()
+  // Per-service lifecycle lock: serviceIds with an exclusive operation in flight — the
+  // loop-driven start pipeline (processServiceStart), restartService or stopService. At
+  // most one such operation may run per service: the InternalLoop skips locked ids
+  // (including its expiry sweep), restart/stop throw. Without this, the loop's
+  // orphan-recovery tears down the network a concurrent restart just created (the
+  // "network ocean-svc-<id> not found" failure) and start/stop/restart clobber each
+  // other's docker resources and job status. The in-memory set serializes within this
+  // process; the service_locks DB lease (acquired alongside it) extends the guarantee
+  // across processes sharing the same DB file + Docker daemon.
+  private serviceOpsInFlight: Set<string> = new Set()
+  private readonly serviceLockHolderId: string = makeServiceLockHolderId()
+  private serviceLockHeartbeatTimer: NodeJS.Timeout | null = null
+  // The in-flight service lifecycle promises — processServiceStart() launched
+  // fire-and-forget by InternalLoop, plus handler-driven stopService()/restartService()
+  // calls — so stop() can drain them before returning. Otherwise an op could outlive
+  // stop() and race a restarted engine on the same shared DB.
+  private serviceOpPromises: Set<Promise<unknown>> = new Set()
   private imageCleanupTimer: NodeJS.Timeout | null = null
   private paymentClaimTimer: NodeJS.Timeout | null = null
   private scanDBUpdateTimer: NodeJS.Timeout | null = null
@@ -566,6 +591,17 @@ export class C2DEngineDocker extends C2DEngine {
       return
     }
 
+    // Heartbeat the DB rows of every service lifecycle lock this instance holds, so a
+    // multi-minute image pull/build isn't stolen as a stale lock by another process.
+    if (!this.serviceLockHeartbeatTimer) {
+      this.serviceLockHeartbeatTimer = setInterval(() => {
+        if (this.serviceOpsInFlight.size === 0) return
+        this.db.refreshServiceLocks(this.serviceLockHolderId).catch((e) => {
+          CORE_LOGGER.warn(`service lock heartbeat failed: ${e.message}`)
+        })
+      }, SERVICE_LOCK_HEARTBEAT_MS)
+    }
+
     // Start image cleanup timer
     if (this.cleanupInterval) {
       if (this.imageCleanupTimer) {
@@ -656,11 +692,12 @@ export class C2DEngineDocker extends C2DEngine {
       await this.internalLoopPromise.catch(() => {})
       this.internalLoopPromise = null
     }
-    // Drain any in-flight service-start pipelines launched by the loop, so none continue
-    // (and touch escrow/Docker on the shared DB) after the engine is considered stopped.
-    if (this.serviceStartPromises.size > 0) {
-      await Promise.allSettled([...this.serviceStartPromises])
-      this.serviceStartPromises.clear()
+    // Drain any in-flight service lifecycle ops — start pipelines launched by the loop
+    // AND handler-driven stopService/restartService calls — so none continue (and touch
+    // escrow/Docker on the shared DB) after the engine is considered stopped.
+    if (this.serviceOpPromises.size > 0) {
+      await Promise.allSettled([...this.serviceOpPromises])
+      this.serviceOpPromises.clear()
     }
     this.isInternalLoopRunning = false
     // Stop image cleanup timer
@@ -673,6 +710,10 @@ export class C2DEngineDocker extends C2DEngine {
       clearInterval(this.paymentClaimTimer)
       this.paymentClaimTimer = null
       CORE_LOGGER.debug('Payment claim timer stopped')
+    }
+    if (this.serviceLockHeartbeatTimer) {
+      clearInterval(this.serviceLockHeartbeatTimer)
+      this.serviceLockHeartbeatTimer = null
     }
   }
 
@@ -1787,14 +1828,22 @@ export class C2DEngineDocker extends C2DEngine {
         this.getC2DConfig().hash
       )
       for (const svc of pendingStarts) {
-        if (this.servicesBeingStarted.has(svc.serviceId)) continue
-        this.servicesBeingStarted.add(svc.serviceId)
+        // eslint-disable-next-line no-await-in-loop
+        if (!(await this.tryAcquireServiceLifecycleLock(svc.serviceId))) continue
         // Track the promise so stop() can drain it; clean both trackers when it settles.
         const startPromise = this.processServiceStart(svc).finally(() => {
-          this.servicesBeingStarted.delete(svc.serviceId)
-          this.serviceStartPromises.delete(startPromise)
+          this.serviceOpPromises.delete(startPromise)
+          return this.releaseServiceLifecycleLock(svc.serviceId)
         })
-        this.serviceStartPromises.add(startPromise)
+        this.serviceOpPromises.add(startPromise)
+        // processServiceStart persists every outcome, but its up-front DB re-read can
+        // still reject — consume it so the unawaited promise can't surface as an
+        // unhandled rejection (stop()'s allSettled drain never observes rejections).
+        startPromise.catch((e) =>
+          CORE_LOGGER.error(
+            `processServiceStart ${svc.serviceId} failed unexpectedly: ${e.message}`
+          )
+        )
       }
 
       // Service-on-Demand expiry: stop services whose paid window has elapsed.
@@ -1803,17 +1852,60 @@ export class C2DEngineDocker extends C2DEngine {
       )
       for (const svc of expiredServices) {
         CORE_LOGGER.info(`Service ${svc.serviceId} expired — stopping`)
-        await this.stopService(svc.serviceId, svc.owner).catch((e) => {
+        let stopped: ServiceJob | null
+        try {
+          // onlyIfExpired: doStopService re-checks expiresAt on the FRESH row under the
+          // lifecycle lock — a SERVICE_EXTEND that landed after our expiredServices
+          // snapshot must not have its service torn down.
+          stopped = await this.stopService(svc.serviceId, svc.owner, true)
+        } catch (e: any) {
+          // Typically the lifecycle lock (a restart/stop already in flight). Marking
+          // Expired without teardown would leak the container/ports, so defer the whole
+          // sweep for this service to the next tick.
           CORE_LOGGER.error(
-            `Failed to stop expired service ${svc.serviceId}: ${e.message}`
+            `Failed to stop expired service ${svc.serviceId}: ${e.message} — retrying next tick`
           )
-        })
+          continue
+        }
+        // Extended mid-sweep (expiresAt is in the future again on the fresh row) — not
+        // expired anymore, regardless of status. Leave it alone.
+        if (stopped && Date.now() < stopped.expiresAt) {
+          CORE_LOGGER.debug(
+            `Service ${svc.serviceId} was extended after the expiry snapshot — skipping expiry`
+          )
+          continue
+        }
+        // Flip to Expired ONLY once teardown actually completed. Expired is terminal —
+        // it is never swept again — so marking it while the stop failed mid-way (the
+        // job comes back as Error "stop failed: …" with its container possibly still
+        // running and its ports still reserved) would leak those resources forever.
+        // Left as Error, the job stays in the expirable set and is retried next tick.
+        if (
+          !stopped ||
+          (stopped.status !== ServiceStatusNumber.Stopped &&
+            stopped.status !== ServiceStatusNumber.Expired)
+        ) {
+          CORE_LOGGER.error(
+            `Expired service ${svc.serviceId} teardown did not complete ` +
+              `(status "${stopped?.statusText ?? 'gone'}") — retrying next tick`
+          )
+          continue
+        }
         // mark the (now stopped) record as Expired so it is not picked up again
         const [stoppedJob] = await this.db.getServiceJob(svc.serviceId, svc.owner)
         if (stoppedJob) {
           stoppedJob.status = ServiceStatusNumber.Expired
           stoppedJob.statusText = ServiceStatusText[ServiceStatusNumber.Expired]
           await this.db.updateServiceJob(stoppedJob)
+          // Expired is the ONLY transition that releases the reservation: amounts stop
+          // counting (Expired is not an active status) and the host ports are freed
+          // here. Everywhere else — including an explicit user stop — the paid-for
+          // reservation survives so the service can be restarted on the same endpoints.
+          for (const ep of stoppedJob.endpoints ?? []) releaseHostPort(ep.hostPort)
+          CORE_LOGGER.debug(
+            `Service ${svc.serviceId} marked Expired — all resources released ` +
+              `(ports [${(stoppedJob.endpoints ?? []).map((ep) => ep.hostPort).join(',')}])`
+          )
         }
       }
     } catch (e) {
@@ -3315,16 +3407,42 @@ export class C2DEngineDocker extends C2DEngine {
   // Claiming → Running. Escrow is reordered vs. the old sync flow: createLock first, claimLock
   // only AFTER the image succeeds, cancelLock (refund) if the image step fails. Never throws —
   // every terminal outcome is persisted as the job status so clients see it via serviceStatus.
-  public override async processServiceStart(job: ServiceJob): Promise<void> {
+  public override async processServiceStart(snapshot: ServiceJob): Promise<void> {
+    // Re-read the job under the lifecycle lock: the loop's pendingStarts snapshot was
+    // queried BEFORE the lock was acquired, so it can be stale — e.g. captured while a
+    // restart was mid-pull and processed after that restart completed and released the
+    // lock. Acting on the stale row would tear down the freshly created container +
+    // network (and redo escrow ops) of a service that is actually fine.
+    const [job] = await this.db.getServiceJob(snapshot.serviceId, snapshot.owner)
+    if (!job || !SERVICE_START_PENDING_STATUSES.includes(job.status)) {
+      CORE_LOGGER.debug(
+        `processServiceStart ${snapshot.serviceId}: stale snapshot ` +
+          `(snapshot status "${snapshot.statusText}", fresh status ` +
+          `"${job?.statusText ?? 'row gone'}") — nothing to do`
+      )
+      return
+    }
+
     const { serviceId } = job
     const { chainId, token } = job.payment
+    CORE_LOGGER.debug(
+      `processServiceStart ${serviceId}: picked up in status "${job.statusText}" ` +
+        `(image=${job.containerImage}, owner=${job.owner})`
+    )
 
-    // Orphan recovery: a previous process died mid-start (after a restart the in-memory loop
-    // guard is empty, so an intermediate-state record reaches here). Refund any unclaimed lock,
-    // tear down partial docker, release ports, and mark Error — never resume on-chain ops.
+    // Orphan recovery: a previous process died mid-start/mid-restart (after a node
+    // restart the in-memory loop guard is empty, so an intermediate-state record reaches
+    // here). Refund any unclaimed lock, tear down partial docker, and mark Error — never
+    // resume on-chain ops. A PAID (claimed) job keeps its host ports reserved: it stays
+    // restartable on the same endpoints until expiresAt (the expiry sweep releases them,
+    // and seedAllocatedPorts re-seeds them at boot). An unpaid one frees them.
     if (job.status !== ServiceStatusNumber.Starting) {
       CORE_LOGGER.error(
         `processServiceStart: orphaned service ${serviceId} in state "${job.statusText}" — cleaning up`
+      )
+      await this.logServiceDockerState(
+        `orphan recovery ${serviceId} (state "${job.statusText}")`,
+        serviceId
       )
       if (job.payment.lockTx && !job.payment.claimTx && !job.payment.cancelTx) {
         job.payment.cancelTx = await this.safeCancelLock(
@@ -3340,8 +3458,12 @@ export class C2DEngineDocker extends C2DEngine {
           null,
           serviceId
         )
-      await this.removeServiceNetwork(serviceId, job.networkId).catch(() => {})
-      for (const ep of job.endpoints) releaseHostPort(ep.hostPort)
+      await this.removeServiceNetwork(serviceId, job.networkId).catch((e) => {
+        CORE_LOGGER.debug(`orphan recovery ${serviceId}: network removal: ${e.message}`)
+      })
+      if (!job.payment.claimTx) {
+        for (const ep of job.endpoints) releaseHostPort(ep.hostPort)
+      }
       job.status = ServiceStatusNumber.Error
       job.statusText = 'Service start aborted (node restarted mid-start)'
       await this.db.updateServiceJob(job)
@@ -3507,6 +3629,9 @@ export class C2DEngineDocker extends C2DEngine {
           PidsLimit: 512
         }
       })
+      CORE_LOGGER.debug(
+        `start ${serviceId}: created container ${container.id} on network ${network.id} — starting`
+      )
       await container.start()
 
       job.containerId = container.id
@@ -3514,9 +3639,16 @@ export class C2DEngineDocker extends C2DEngine {
       job.status = ServiceStatusNumber.Running
       job.statusText = ServiceStatusText[ServiceStatusNumber.Running]
       await this.db.updateServiceJob(job)
+      CORE_LOGGER.info(
+        `start ${serviceId}: completed — container ${container.id} Running on ` +
+          `ports [${job.endpoints.map((ep) => ep.hostPort).join(',')}]`
+      )
     } catch (err: any) {
+      await this.logServiceDockerState(
+        `start ${serviceId}: FAILED (${err.message}) — docker state at failure`,
+        serviceId
+      )
       await this.cleanupServiceDocker(container, network, serviceId)
-      for (const ep of job.endpoints) releaseHostPort(ep.hostPort)
       // Refund if funds were locked but never claimed (e.g. container creation failed).
       if (job.payment.lockTx && !job.payment.claimTx && !job.payment.cancelTx) {
         job.payment.cancelTx = await this.safeCancelLock(
@@ -3526,6 +3658,13 @@ export class C2DEngineDocker extends C2DEngine {
           job.owner
         )
       }
+      if (!job.payment.claimTx) {
+        // Never paid (lock refunded): the job is not restartable, so free its ports.
+        for (const ep of job.endpoints) releaseHostPort(ep.hostPort)
+      }
+      // Paid (claimed) failures keep their host ports reserved: the consumer paid until
+      // expiresAt and may SERVICE_RESTART on the same endpoints anytime — the expiry
+      // sweep releases them once the window elapses.
       job.status = ServiceStatusNumber.Error
       job.statusText = String(err.message)
       await this.db.updateServiceJob(job)
@@ -3546,6 +3685,37 @@ export class C2DEngineDocker extends C2DEngine {
     } catch (e: any) {
       CORE_LOGGER.error(`cancelExpiredLock failed for ${serviceId}: ${e.message}`)
       return ''
+    }
+  }
+
+  // DEBUG-level dump of the Docker daemon state relevant to services: every container
+  // (docker ps -a, compacted) and every ocean-svc-* network. Pure diagnostics so a
+  // lifecycle failure on a remote node can be reconstructed from its logs — never throws.
+  private async logServiceDockerState(context: string, serviceId?: string) {
+    try {
+      const [containers, networks] = await Promise.all([
+        this.docker.listContainers({ all: true }),
+        this.docker.listNetworks()
+      ])
+      const cs = containers.map((c: any) => ({
+        id: c.Id?.slice(0, 12),
+        names: c.Names,
+        state: c.State,
+        status: c.Status,
+        networks: Object.keys(c.NetworkSettings?.Networks ?? {})
+      }))
+      const ns = networks
+        .filter(
+          (n: any) =>
+            n.Name?.startsWith('ocean-svc-') || (serviceId && n.Name?.includes(serviceId))
+        )
+        .map((n: any) => ({ id: n.Id?.slice(0, 12), name: n.Name }))
+      CORE_LOGGER.debug(
+        `[docker state] ${context}: ocean-svc networks=${JSON.stringify(ns)} ` +
+          `containers=${JSON.stringify(cs)}`
+      )
+    } catch (e: any) {
+      CORE_LOGGER.debug(`[docker state] ${context}: unavailable (${e.message})`)
     }
   }
 
@@ -3588,10 +3758,18 @@ export class C2DEngineDocker extends C2DEngine {
         // eslint-disable-next-line no-await-in-loop
         info = await network.inspect()
       } catch (e: any) {
-        if (isBenignDockerError(e)) continue
+        if (isBenignDockerError(e)) {
+          CORE_LOGGER.debug(`removeServiceNetwork ${serviceId}: "${ref}" already gone`)
+          continue
+        }
         throw e
       }
-      for (const containerId of Object.keys(info?.Containers ?? {})) {
+      const attached = Object.keys(info?.Containers ?? {})
+      CORE_LOGGER.debug(
+        `removeServiceNetwork ${serviceId}: removing "${ref}" (id=${info?.Id?.slice(0, 12)}, ` +
+          `attached containers=[${attached.map((c) => c.slice(0, 12)).join(',')}])`
+      )
+      for (const containerId of attached) {
         // eslint-disable-next-line no-await-in-loop
         await this.docker
           .getContainer(containerId)
@@ -3604,6 +3782,7 @@ export class C2DEngineDocker extends C2DEngine {
       await network.remove().catch((e) => {
         if (!isBenignDockerError(e)) throw e
       })
+      CORE_LOGGER.debug(`removeServiceNetwork ${serviceId}: "${ref}" removed`)
     }
   }
 
@@ -3614,11 +3793,17 @@ export class C2DEngineDocker extends C2DEngine {
   private async createServiceNetwork(serviceId: string): Promise<Dockerode.Network> {
     const Name = `ocean-svc-${serviceId}`
     try {
-      return await this.docker.createNetwork({ Name })
+      const network = await this.docker.createNetwork({ Name })
+      CORE_LOGGER.debug(`createServiceNetwork ${serviceId}: created "${Name}"`)
+      return network
     } catch (e: any) {
       if (e?.statusCode !== 409) throw e
       CORE_LOGGER.error(
         `createNetwork conflict for ${Name} — removing stale network and retrying`
+      )
+      await this.logServiceDockerState(
+        `createServiceNetwork ${serviceId}: 409 conflict`,
+        serviceId
       )
       await this.removeServiceNetwork(serviceId)
       return await this.docker.createNetwork({ Name })
@@ -3630,8 +3815,12 @@ export class C2DEngineDocker extends C2DEngine {
   // detected within ~cronTime instead of only at expiresAt.
   private async checkRunningServices(): Promise<void> {
     const services = await this.db.getRunningServiceJobs(this.getC2DConfig().hash)
+    // Skip services with a lifecycle op in flight: a restart intentionally kills the
+    // container mid-way, which must not be reported as an unexpected death.
     const runningOnly = services.filter(
-      (svc) => svc.status === ServiceStatusNumber.Running
+      (svc) =>
+        svc.status === ServiceStatusNumber.Running &&
+        !this.serviceOpsInFlight.has(svc.serviceId)
     )
     await Promise.all(runningOnly.map((svc) => this.checkServiceContainerHealth(svc)))
   }
@@ -3660,33 +3849,194 @@ export class C2DEngineDocker extends C2DEngine {
   // restartService() reuses them (and does its own best-effort teardown of the dead
   // container/network first).
   private async markServiceFailed(job: ServiceJob, reason: string): Promise<void> {
-    const [fresh] = await this.db.getServiceJob(job.serviceId, job.owner)
-    if (!fresh || fresh.status !== ServiceStatusNumber.Running) {
-      // already moved on (stopped/restarted/expired) by another path — don't clobber it
+    // Take the SAME lifecycle lease every start/stop/restart holds, so the Error write
+    // is serialized with them — a check-then-write here could otherwise overwrite a
+    // Restarting state persisted between our lease check and our update. Failing to
+    // acquire (op in flight locally or in another process) fails CLOSED: skip this
+    // tick; a genuinely dead container is re-detected on the next one.
+    if (!(await this.tryAcquireServiceLifecycleLock(job.serviceId))) {
+      CORE_LOGGER.debug(
+        `markServiceFailed ${job.serviceId}: skipped — could not take the lifecycle lease`
+      )
       return
     }
-    fresh.status = ServiceStatusNumber.Error
-    fresh.statusText = `service container exited unexpectedly: ${reason}`
-    await this.db.updateServiceJob(fresh)
-    CORE_LOGGER.error(`Service ${job.serviceId} container died — ${reason}`)
+    try {
+      // Re-read UNDER the lease: this snapshot cannot go stale before our write.
+      const [fresh] = await this.db.getServiceJob(job.serviceId, job.owner)
+      if (!fresh || fresh.status !== ServiceStatusNumber.Running) {
+        // already moved on (stopped/restarted/expired) by another path — don't clobber it
+        return
+      }
+      if (fresh.containerId !== job.containerId) {
+        // the container we observed dead is no longer the job's container (a restart
+        // replaced it since our snapshot) — the current one is not known to be dead
+        return
+      }
+      fresh.status = ServiceStatusNumber.Error
+      fresh.statusText = `service container exited unexpectedly: ${reason}`
+      await this.db.updateServiceJob(fresh)
+      CORE_LOGGER.error(`Service ${job.serviceId} container died — ${reason}`)
+    } finally {
+      await this.releaseServiceLifecycleLock(job.serviceId)
+    }
+  }
+
+  // Tries to take the per-service lifecycle lock: the in-memory set serializes callers
+  // inside this process, the service_locks DB lease serializes across processes sharing
+  // the DB + Docker daemon. Returns false when someone else owns the service.
+  private async tryAcquireServiceLifecycleLock(serviceId: string): Promise<boolean> {
+    // A stopped engine must not begin new lifecycle work: a replacement engine (config
+    // push, restart) may already be running against the same DB and daemon.
+    if (this.stopped) return false
+    if (this.serviceOpsInFlight.has(serviceId)) return false
+    // Reserve in-memory first — the synchronous has()→add() pair keeps concurrent local
+    // callers out while the async DB acquire below is in flight.
+    this.serviceOpsInFlight.add(serviceId)
+    let acquired = false
+    try {
+      acquired = await this.db.acquireServiceLock(
+        serviceId,
+        this.serviceLockHolderId,
+        SERVICE_LOCK_STALE_MS
+      )
+    } catch (e: any) {
+      // Fail CLOSED: proceeding without the SQLite lease would disable cross-process
+      // exclusion exactly when it matters most — SQLITE_BUSY-style errors are most
+      // likely precisely when two processes contend. Deferring costs little: every
+      // lifecycle operation writes to the same SQLite file moments later anyway, so it
+      // could not complete with a broken DB regardless. Callers reject with "retry
+      // shortly" (handlers) or retry on the next tick (the loop).
+      CORE_LOGGER.warn(
+        `service lock DB acquire failed for ${serviceId} — deferring the operation (fail closed): ${e.message}`
+      )
+      this.serviceOpsInFlight.delete(serviceId)
+      return false
+    }
+    if (!acquired) {
+      this.serviceOpsInFlight.delete(serviceId)
+      CORE_LOGGER.debug(
+        `service lock ${serviceId}: DB lease held by another process — not acquired`
+      )
+      return false
+    }
+    // Re-check stopped: the engine may have been stopped (and drained) while the async
+    // DB acquire was in flight — beginning work now would race the replacement engine.
+    if (this.stopped) {
+      CORE_LOGGER.debug(
+        `service lock ${serviceId}: engine stopped during acquire — releasing`
+      )
+      await this.releaseServiceLifecycleLock(serviceId)
+      return false
+    }
+    CORE_LOGGER.debug(
+      `service lock ${serviceId}: acquired by ${this.serviceLockHolderId}`
+    )
+    return true
+  }
+
+  // Takes the per-service lifecycle lock or throws: a stop must not run while the loop's
+  // start pipeline or a restart owns the service — its by-name network removal would tear
+  // down the docker resources the other operation is creating (and vice versa).
+  private async acquireServiceLifecycleLock(serviceId: string): Promise<void> {
+    if (this.stopped) {
+      throw new Error(
+        `C2D engine is stopped — cannot run a service operation for ${serviceId}, retry shortly`
+      )
+    }
+    if (!(await this.tryAcquireServiceLifecycleLock(serviceId))) {
+      throw new Error(
+        `Service ${serviceId} has a start/stop/restart operation in progress — retry shortly`
+      )
+    }
+  }
+
+  // Releases both lock layers. Never throws: a failed DB delete only leaves a row that
+  // expires via SERVICE_LOCK_STALE_MS.
+  private async releaseServiceLifecycleLock(serviceId: string): Promise<void> {
+    this.serviceOpsInFlight.delete(serviceId)
+    try {
+      await this.db.releaseServiceLock(serviceId, this.serviceLockHolderId)
+      CORE_LOGGER.debug(
+        `service lock ${serviceId}: released by ${this.serviceLockHolderId}`
+      )
+    } catch (e: any) {
+      CORE_LOGGER.warn(`service lock DB release failed for ${serviceId}: ${e.message}`)
+    }
   }
 
   public override async stopService(
     serviceId: string,
-    owner: string
+    owner: string,
+    onlyIfExpired: boolean = false
+  ): Promise<ServiceJob | null> {
+    await this.acquireServiceLifecycleLock(serviceId)
+    // Tracked like loop-launched starts so engine stop() drains an in-flight stop too.
+    const op = this.doStopService(serviceId, owner, onlyIfExpired).finally(() => {
+      this.serviceOpPromises.delete(op)
+      return this.releaseServiceLifecycleLock(serviceId)
+    })
+    this.serviceOpPromises.add(op)
+    return await op
+  }
+
+  // Runs fn under the per-service lifecycle lock (in-memory + cross-process DB lease),
+  // serializing it with the start pipeline, restart, stop and the expiry sweep. Used by
+  // handlers whose read-mutate-write flows (e.g. SERVICE_EXTEND) must not interleave
+  // with a concurrent teardown — throws "operation in progress" when the lock is busy.
+  public override async runExclusive<T>(
+    serviceId: string,
+    fn: () => Promise<T>
+  ): Promise<T> {
+    await this.acquireServiceLifecycleLock(serviceId)
+    const op = fn().finally(() => {
+      this.serviceOpPromises.delete(op)
+      return this.releaseServiceLifecycleLock(serviceId)
+    })
+    this.serviceOpPromises.add(op)
+    return await op
+  }
+
+  // The actual stop. Must only run while holding the service lifecycle lock (see
+  // stopService above).
+  private async doStopService(
+    serviceId: string,
+    owner: string,
+    onlyIfExpired: boolean = false
   ): Promise<ServiceJob | null> {
     const [job] = await this.db.getServiceJob(serviceId, owner)
-    if (!job) return null
+    if (!job) {
+      CORE_LOGGER.debug(`stopService ${serviceId}: no job found for owner ${owner}`)
+      return null
+    }
+    // Expiry-sweep mode: re-validate expiry on the FRESH row now that we hold the lock.
+    // The sweep's expiredServices snapshot predates the lock, so a SERVICE_EXTEND may
+    // have pushed expiresAt into the future since — tearing down then would destroy a
+    // service the consumer just paid to prolong. The caller sees the untouched job and
+    // skips (its own expiresAt check).
+    if (onlyIfExpired && Date.now() < job.expiresAt) {
+      CORE_LOGGER.debug(
+        `stopService ${serviceId}: expiry teardown requested but the job was extended (expiresAt in the future) — skipping`
+      )
+      return job
+    }
     if (
       job.status === ServiceStatusNumber.Stopped ||
       job.status === ServiceStatusNumber.Expired
-    )
+    ) {
+      CORE_LOGGER.debug(
+        `stopService ${serviceId}: already "${job.statusText}" — nothing to tear down`
+      )
       return job
+    }
 
+    CORE_LOGGER.debug(
+      `stopService ${serviceId}: stopping (status=${job.statusText}, ` +
+        `containerId=${job.containerId || '-'}, networkId=${job.networkId || '-'})`
+    )
+    await this.logServiceDockerState(`stop ${serviceId}: before teardown`, serviceId)
     job.status = ServiceStatusNumber.Stopping
     job.statusText = ServiceStatusText[ServiceStatusNumber.Stopping]
     await this.db.updateServiceJob(job)
-    this.releaseCpus(serviceId)
 
     // Benign "already gone" errors count as success. Any other error means teardown
     // genuinely failed — record it and keep the job OUT of Stopped so the persisted
@@ -3703,20 +4053,33 @@ export class C2DEngineDocker extends C2DEngine {
         })
       }
       await this.removeServiceNetwork(serviceId, job.networkId)
-      // Only release the reserved host ports once the container is confirmed gone — a
-      // port still bound by a not-removed container must not be handed to another service.
-      for (const ep of job.endpoints) releaseHostPort(ep.hostPort)
+      // Host ports deliberately NOT released: the consumer paid for the reservation
+      // until expiresAt and a Stopped service must be restartable anytime on the SAME
+      // endpoints. Only the expiry sweep releases them (after marking Expired).
     } catch (err: any) {
       cleanupError = err
       CORE_LOGGER.error(`stopService ${serviceId} cleanup error: ${err.message}`)
     }
 
     if (cleanupError) {
+      await this.logServiceDockerState(
+        `stop ${serviceId}: FAILED (${cleanupError.message}) — docker state at failure`,
+        serviceId
+      )
       job.status = ServiceStatusNumber.Error
       job.statusText = `stop failed: ${cleanupError.message}`
     } else {
       job.status = ServiceStatusNumber.Stopped
       job.statusText = ServiceStatusText[ServiceStatusNumber.Stopped]
+      // The docker objects are confirmed gone — drop the stale ids so nothing later
+      // mistakes them for live resources (a restart re-creates and re-persists both).
+      job.containerId = ''
+      job.networkId = ''
+      // Release the CPU pinning only now that the container is confirmed gone: on a
+      // failed teardown the old container may still be running on those cores, and
+      // handing them to another job would double-pin them.
+      this.releaseCpus(serviceId)
+      CORE_LOGGER.debug(`stopService ${serviceId}: stopped, container + network removed`)
     }
     await this.db.updateServiceJob(job)
     return job
@@ -3729,24 +4092,116 @@ export class C2DEngineDocker extends C2DEngine {
     newDockerCmd?: string[],
     newDockerEntrypoint?: string[]
   ): Promise<ServiceJob | null> {
-    const [job] = await this.db.getServiceJob(serviceId, owner)
-    if (!job) return null
-    // Reject on the expiry timestamp too, not just the status: the expiry cron flips the
-    // status asynchronously, so a service can be past its paid window before it reads Expired.
-    // Restarting then would silently extend the service beyond what was paid for.
-    if (job.status === ServiceStatusNumber.Expired || Date.now() >= job.expiresAt)
-      throw new Error('Cannot restart an expired service')
+    // Lifecycle lock: without it the InternalLoop's orphan-recovery (which sees the
+    // intermediate Restarting/PullImage/BuildImage status this method persists) tears
+    // down the network created here mid-restart → container.start() fails with
+    // "network ocean-svc-<id> not found".
+    await this.acquireServiceLifecycleLock(serviceId)
 
-    // 1. Tear down existing container + network (best-effort)
-    if (job.containerId) {
-      const c = this.docker.getContainer(job.containerId)
-      await c.stop({ t: 10 }).catch(() => {})
-      await c.remove({ force: true }).catch(() => {})
+    // Validate + persist Restarting synchronously so the caller gets immediate errors
+    // (not found / expired / refunded), then continue in the background: the image
+    // pull/build can take minutes and must not block the HTTP/P2P response. Clients
+    // poll SERVICE_GET_STATUS and watch Restarting → … → Running (or Error).
+    let job: ServiceJob
+    try {
+      ;[job] = await this.db.getServiceJob(serviceId, owner)
+      if (!job) {
+        CORE_LOGGER.debug(`restartService ${serviceId}: no job found for owner ${owner}`)
+        // early return bypasses both the catch below and the background op's finally —
+        // the lock must be handed back explicitly or it leaks forever
+        await this.releaseServiceLifecycleLock(serviceId)
+        return null
+      }
+      CORE_LOGGER.debug(
+        `restartService ${serviceId}: accepted (status=${job.statusText}, ` +
+          `containerId=${job.containerId || '-'}, networkId=${job.networkId || '-'}, ` +
+          `expiresAt=${new Date(job.expiresAt).toISOString()})`
+      )
+      // Reject on the expiry timestamp too, not just the status: the expiry cron flips the
+      // status asynchronously, so a service can be past its paid window before it reads
+      // Expired. Restarting then would silently extend the service beyond what was paid for.
+      if (job.status === ServiceStatusNumber.Expired || Date.now() >= job.expiresAt)
+        throw new Error('Cannot restart an expired service')
+      // Only a CLAIMED payment makes a job restartable. Every legitimately restartable
+      // job (Running, container-died Error, Stopped) has claimTx set — claiming happens
+      // before the first container start. A job without it was never paid for: either
+      // the escrow lock failed outright (e.g. insufficient funds — all payment fields
+      // empty) or the lock was refunded (cancelTx set). Restarting either would run the
+      // service for free. The consumer must start a new service instead.
+      if (!job.payment?.claimTx)
+        throw new Error(
+          'Cannot restart a service whose payment was never claimed (unpaid or refunded) — start a new service'
+        )
+      // Persist Restarting BEFORE returning: status polls flip immediately, and a crash
+      // from here on leaves a pending-status record the boot loop orphan-recovers
+      // (Restarting is in SERVICE_START_PENDING_STATUSES) instead of a bare Starting
+      // record that would be double-started with a second escrow lock.
+      job.status = ServiceStatusNumber.Restarting
+      job.statusText = ServiceStatusText[ServiceStatusNumber.Restarting]
+      await this.db.updateServiceJob(job)
+    } catch (e) {
+      await this.releaseServiceLifecycleLock(serviceId)
+      throw e
     }
-    await this.removeServiceNetwork(serviceId, job.networkId).catch(() => {})
 
-    job.status = ServiceStatusNumber.Starting
-    job.statusText = ServiceStatusText[ServiceStatusNumber.Starting]
+    // Tracked like loop-launched starts so engine stop() drains an in-flight restart too.
+    const op = this.doRestartService(
+      job,
+      newUserData,
+      newDockerCmd,
+      newDockerEntrypoint
+    ).finally(() => {
+      this.serviceOpPromises.delete(op)
+      return this.releaseServiceLifecycleLock(serviceId)
+    })
+    this.serviceOpPromises.add(op)
+    // The outcome is persisted on the job status (Running or Error + statusText); nobody
+    // awaits the background op, so swallow its rejection to avoid an unhandled rejection.
+    op.catch((e) =>
+      CORE_LOGGER.debug(`restartService ${serviceId}: background op failed: ${e.message}`)
+    )
+    // Snapshot for the immediate response — the DB record already says Restarting.
+    return job
+  }
+
+  // The actual restart (teardown onwards). Runs in the background after restartService
+  // returned; must only run while holding the service lifecycle lock, with the job
+  // already validated and persisted as Restarting (see restartService above).
+  private async doRestartService(
+    job: ServiceJob,
+    newUserData?: string,
+    newDockerCmd?: string[],
+    newDockerEntrypoint?: string[]
+  ): Promise<ServiceJob | null> {
+    const { serviceId } = job
+
+    // Re-reserve the job's host ports in the in-memory allocator: a Stopped service
+    // released them, so without this a concurrent start could be handed the same port
+    // this restart is about to re-bind. For a Running service the adds are no-ops (the
+    // ports are still reserved).
+    for (const ep of job.endpoints) reserveHostPort(ep.hostPort)
+
+    await this.logServiceDockerState(`restart ${serviceId}: before teardown`, serviceId)
+
+    // 1. Tear down existing container + network (best-effort). The job is already
+    // persisted as Restarting, so a crash anywhere in this method leaves a pending-status
+    // record that the boot loop orphan-recovers (refund-safe: the original payment's
+    // claimTx is set, so recovery never touches escrow for a restart).
+    if (job.containerId) {
+      CORE_LOGGER.debug(`restart ${serviceId}: removing old container ${job.containerId}`)
+      const c = this.docker.getContainer(job.containerId)
+      await c.stop({ t: 10 }).catch((e) => {
+        CORE_LOGGER.debug(`restart ${serviceId}: old container stop: ${e.message}`)
+      })
+      await c.remove({ force: true }).catch((e) => {
+        CORE_LOGGER.debug(`restart ${serviceId}: old container remove: ${e.message}`)
+      })
+    }
+    await this.removeServiceNetwork(serviceId, job.networkId).catch((e) => {
+      CORE_LOGGER.debug(`restart ${serviceId}: old network removal: ${e.message}`)
+    })
+    await this.logServiceDockerState(`restart ${serviceId}: after teardown`, serviceId)
+
     job.containerId = ''
     job.networkId = ''
     await this.db.updateServiceJob(job)
@@ -3806,6 +4261,7 @@ export class C2DEngineDocker extends C2DEngine {
 
       // 6. New per-service network
       network = await this.createServiceNetwork(serviceId)
+      CORE_LOGGER.debug(`restart ${serviceId}: created network ${network.id}`)
 
       // 7. Resource constraints
       const { Memory, NanoCpus, DeviceRequests, CpusetCpus } =
@@ -3834,7 +4290,11 @@ export class C2DEngineDocker extends C2DEngine {
           PidsLimit: 512
         }
       })
+      CORE_LOGGER.debug(
+        `restart ${serviceId}: created container ${container.id} on network ${network.id} — starting`
+      )
       await container.start()
+      CORE_LOGGER.debug(`restart ${serviceId}: container ${container.id} started`)
 
       // 9. Update record — same expiresAt, same payment, new container/network.
       job.containerId = container.id
@@ -3845,9 +4305,21 @@ export class C2DEngineDocker extends C2DEngine {
       job.status = ServiceStatusNumber.Running
       job.statusText = ServiceStatusText[ServiceStatusNumber.Running]
       await this.db.updateServiceJob(job)
+      CORE_LOGGER.info(
+        `restart ${serviceId}: completed — container ${container.id} Running on ` +
+          `ports [${job.endpoints.map((ep) => ep.hostPort).join(',')}]`
+      )
       return job
     } catch (err: any) {
+      // Dump the daemon state BEFORE cleanup, so the log shows what the failure saw
+      // (e.g. whether ocean-svc-<id> actually existed when container.start() ran).
+      await this.logServiceDockerState(
+        `restart ${serviceId}: FAILED (${err.message}) — docker state at failure`,
+        serviceId
+      )
       await this.cleanupServiceDocker(container, network, serviceId)
+      // Ports deliberately stay reserved: the consumer paid until expiresAt and may
+      // restart again — the expiry sweep releases them when the window elapses.
       job.status = ServiceStatusNumber.Error
       job.statusText = String(err.message)
       await this.db.updateServiceJob(job)

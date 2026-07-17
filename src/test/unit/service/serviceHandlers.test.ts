@@ -6,6 +6,7 @@ import { PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { ServiceStatusNumber, ServiceJob } from '../../../@types/C2D/ServiceOnDemand.js'
 import { ServiceGetTemplatesHandler } from '../../../components/core/service/getTemplates.js'
 import { ServiceGetStatusHandler } from '../../../components/core/service/getStatus.js'
+import { GetServicesHandler } from '../../../components/core/service/getServices.js'
 import { ServiceStartHandler } from '../../../components/core/service/startService.js'
 import { ServiceStopHandler } from '../../../components/core/service/stopService.js'
 import { ServiceExtendHandler } from '../../../components/core/service/extendService.js'
@@ -76,7 +77,10 @@ function buildFakes(opts: FakeOpts = {}) {
     claimLock: sinon.stub().resolves('0xclaim'),
     cancelExpiredLock: sinon.stub().resolves('0xcancel'),
     waitForTransaction: sinon.stub().resolves(undefined),
-    getMinLockTime: sinon.stub().returns(3600)
+    getMinLockTime: sinon.stub().returns(3600),
+    // the SERVICE_START handler's fail-fast funds pre-check — plentiful by default
+    getUserAvailableFunds: sinon.stub().resolves(1_000_000n),
+    getPaymentAmountInWei: sinon.stub().resolves(10n)
   }
 
   const engine: any = {
@@ -90,13 +94,19 @@ function buildFakes(opts: FakeOpts = {}) {
               ? [opts.serviceJobInDb]
               : []
         ),
-      updateServiceJob: sinon.stub().resolves(1)
+      updateServiceJob: sinon.stub().resolves(1),
+      // SERVICE_LIST: the engine's cluster-scoped resource-holding set
+      getRunningServiceJobs: sinon
+        .stub()
+        .resolves(opts.serviceJobInDb ? [opts.serviceJobInDb] : [])
     },
     escrow,
     getComputeEnvironments: sinon.stub().resolves([env]),
-    getC2DConfig: sinon
-      .stub()
-      .returns({ connection: { serviceOnDemand: { maxDurationSeconds: 86400 } } }),
+    // hash must match makeJob's clusterHash: handlers resolve the owning engine by it
+    getC2DConfig: sinon.stub().returns({
+      hash: 'hash-1',
+      connection: { serviceOnDemand: { maxDurationSeconds: 86400 } }
+    }),
     calculateResourcesCost: sinon
       .stub()
       .returns(opts.cost === undefined ? 10 : opts.cost),
@@ -137,7 +147,10 @@ function buildFakes(opts: FakeOpts = {}) {
         opts.streamableLogs === undefined
           ? Readable.from(['hello logs'])
           : opts.streamableLogs
-      )
+      ),
+    // handlers (SERVICE_EXTEND) serialize read-mutate-write flows through this; the
+    // fake just runs the callback (the real engine wraps it in the lifecycle lock)
+    runExclusive: sinon.stub().callsFake((_id: string, fn: () => Promise<any>) => fn())
   }
 
   const engines: any = {
@@ -402,11 +415,203 @@ describe('Service handlers', () => {
       expect(res.status.httpStatus).to.equal(200)
       expect(escrow.createLock.calledOnce).to.equal(true)
       expect(escrow.claimLock.calledOnce).to.equal(true)
-      expect(engine.db.updateServiceJob.calledOnce).to.equal(true)
+      // two writes: the durable intent (before claim) + the finalized extension
+      expect(engine.db.updateServiceJob.calledTwice).to.equal(true)
       const out = await body(res)
       expect(out[0].expiresAt).to.equal(before + 3600 * 1000)
       expect(out[0].extendPayments).to.have.length(1)
+      expect(out[0].extendPayments[0].claimTx).to.equal('0xclaim')
       expect(out[0]).to.not.have.property('userData')
+    })
+
+    it('auto-refunds an unresolved extension intent from a previous crash, then proceeds', async () => {
+      const job = makeJob({
+        extendPayments: [
+          // lockTx set, neither claimTx nor cancelTx — a crash between claim and write
+          {
+            chainId: 8996,
+            token: '0xtoken',
+            lockTx: '0xoldlock',
+            claimTx: '',
+            cancelTx: '',
+            cost: 5
+          }
+        ]
+      })
+      const { node, escrow } = buildFakes({ serviceJobInDb: job })
+      const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      // the stale lock was refunded before charging again
+      expect(escrow.cancelExpiredLock.calledOnce).to.equal(true)
+      const out = await body(res)
+      expect(out[0].extendPayments).to.have.length(2)
+      expect(out[0].extendPayments[0].cancelTx).to.equal('0xcancel')
+      expect(out[0].extendPayments[1].claimTx).to.equal('0xclaim')
+    })
+
+    it('402 and refunds the lock when the intent cannot be persisted (no unrecorded charge)', async () => {
+      const { node, escrow, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      // first write in the flow is the durable intent — make it fail
+      engine.db.updateServiceJob.onFirstCall().rejects(new Error('db down'))
+      const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(402)
+      expect(String(res.status.error)).to.contain('refunded')
+      // the mined lock was compensated, and the claim was never attempted
+      expect(escrow.cancelExpiredLock.calledOnce).to.equal(true)
+      expect(escrow.claimLock.called).to.equal(false)
+    })
+
+    it('409 when the intent cannot be persisted AND the lock refund fails (stranded funds)', async () => {
+      const { node, escrow, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      engine.db.updateServiceJob.onFirstCall().rejects(new Error('db down'))
+      escrow.cancelExpiredLock.rejects(new Error('rpc down'))
+      const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(409)
+      expect(String(res.status.error)).to.contain('could not be refunded')
+      expect(escrow.claimLock.called).to.equal(false)
+    })
+
+    it('409 when an unresolved extension intent cannot be refunded (no double charge)', async () => {
+      const job = makeJob({
+        extendPayments: [
+          {
+            chainId: 8996,
+            token: '0xtoken',
+            lockTx: '0xoldlock',
+            claimTx: '',
+            cancelTx: '',
+            cost: 5
+          }
+        ]
+      })
+      const { node, escrow } = buildFakes({ serviceJobInDb: job })
+      escrow.cancelExpiredLock.rejects(new Error('lock already claimed'))
+      const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(409)
+      // no new charge may be attempted while the old intent is unresolved
+      expect(escrow.createLock.called).to.equal(false)
+      expect(escrow.claimLock.called).to.equal(false)
+    })
+  })
+
+  describe('GetServicesHandler (SERVICE_LIST)', () => {
+    const baseTask = {
+      command: PROTOCOL_COMMANDS.SERVICE_LIST,
+      consumerAddress: OWNER,
+      nonce: '1',
+      signature: '0xsig'
+    }
+
+    it('400 when consumerAddress is missing', async () => {
+      const { node } = buildFakes()
+      const { consumerAddress, ...noAddress } = baseTask
+      const res = await new GetServicesHandler(node).handle({ ...noAddress } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('400 on an unknown status number or an unparseable fromTimestamp', async () => {
+      const { node } = buildFakes()
+      const badStatus = await new GetServicesHandler(node).handle({
+        ...baseTask,
+        status: 1234
+      } as any)
+      expect(badStatus.status.httpStatus).to.equal(400)
+      const badTs = await new GetServicesHandler(node).handle({
+        ...baseTask,
+        fromTimestamp: 'not-a-date'
+      } as any)
+      expect(badTs.status.httpStatus).to.equal(400)
+    })
+
+    it('200 default: the node-wide resource-holding set (any owner), listing-sanitized', async () => {
+      // a service owned by SOMEONE ELSE must be listed too — SERVICE_LIST is not
+      // owner-scoped like SERVICE_GET_STATUS
+      const job = makeJob({
+        owner: '0xsomeoneelse',
+        status: ServiceStatusNumber.Stopped,
+        dockerCmd: ['secret', '--key=abc'],
+        dockerEntrypoint: ['/entry.sh'],
+        dockerfile: 'FROM x\nENV SECRET=1'
+      })
+      const { node, engine } = buildFakes({ serviceJobInDb: job })
+      const res = await new GetServicesHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      // the engine is queried for ITS cluster's resource-holding set
+      expect(engine.db.getRunningServiceJobs.calledWith('hash-1')).to.equal(true)
+      const out = await body(res)
+      expect(out).to.have.length(1)
+      expect(out[0].serviceId).to.equal(job.serviceId)
+      expect(out[0].owner).to.equal('0xsomeoneelse')
+      expect(out[0].status).to.equal(ServiceStatusNumber.Stopped)
+      // listing-grade sanitization: no env blob, no CMD/ENTRYPOINT, no Dockerfile
+      expect(out[0]).to.not.have.property('userData')
+      expect(out[0]).to.not.have.property('dockerCmd')
+      expect(out[0]).to.not.have.property('dockerEntrypoint')
+      expect(out[0]).to.not.have.property('dockerfile')
+      // identity/resource fields survive
+      expect(out[0].resources).to.deep.equal(job.resources)
+      expect(out[0].endpoints).to.deep.equal(job.endpoints)
+    })
+
+    it('status filter: returns only that status (incl. Expired, outside the resource set)', async () => {
+      const expired = makeJob({ status: ServiceStatusNumber.Expired })
+      const { node, engine } = buildFakes({ serviceJobInDb: expired })
+      const res = await new GetServicesHandler(node).handle({
+        ...baseTask,
+        status: ServiceStatusNumber.Expired
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      // status-explicit listing reads ALL jobs, not the resource-holding query
+      expect(engine.db.getRunningServiceJobs.called).to.equal(false)
+      const out = await body(res)
+      expect(out).to.have.length(1)
+      expect(out[0].status).to.equal(ServiceStatusNumber.Expired)
+
+      // a status nothing matches → empty list
+      const none = await new GetServicesHandler(node).handle({
+        ...baseTask,
+        status: ServiceStatusNumber.Running
+      } as any)
+      expect(await body(none)).to.deep.equal([])
+    })
+
+    it('includeAllStatuses: returns every status; fromTimestamp narrows by creation date', async () => {
+      const job = makeJob({
+        status: ServiceStatusNumber.Expired,
+        dateCreated: new Date('2026-01-15T00:00:00Z').toISOString()
+      })
+      const { node } = buildFakes({ serviceJobInDb: job })
+      const all = await new GetServicesHandler(node).handle({
+        ...baseTask,
+        includeAllStatuses: true
+      } as any)
+      expect(await body(all)).to.have.length(1)
+
+      // created before the cutoff → filtered out (ISO form)
+      const afterIso = await new GetServicesHandler(node).handle({
+        ...baseTask,
+        includeAllStatuses: true,
+        fromTimestamp: '2026-02-01T00:00:00Z'
+      } as any)
+      expect(await body(afterIso)).to.deep.equal([])
+
+      // created after the cutoff → kept (Unix-seconds form)
+      const beforeUnix = await new GetServicesHandler(node).handle({
+        ...baseTask,
+        includeAllStatuses: true,
+        fromTimestamp: String(
+          Math.floor(new Date('2026-01-01T00:00:00Z').getTime() / 1000)
+        )
+      } as any)
+      expect(await body(beforeUnix)).to.have.length(1)
+    })
+
+    it('200 with an empty list when nothing holds resources', async () => {
+      const { node } = buildFakes({ serviceJobInDb: null })
+      const res = await new GetServicesHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      const out = await body(res)
+      expect(out).to.deep.equal([])
     })
   })
 
@@ -440,6 +645,24 @@ describe('Service handlers', () => {
       engines.getC2DByEnvId.rejects(new Error('not found'))
       const res = await new ServiceStartHandler(node).handle({ ...baseTask } as any)
       expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('400 with a clear message when the escrow cannot cover the cost (fail fast)', async () => {
+      const { node, engine } = buildFakes()
+      engine.escrow.getUserAvailableFunds.resolves(0n)
+      const res = await new ServiceStartHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(400)
+      expect(String(res.status.error)).to.contain('Insufficient escrow funds')
+      // no job record may be created for a start that was refused upfront
+      expect(engine.createServiceJob.called).to.equal(false)
+    })
+
+    it('the funds pre-check is best-effort: an RPC failure does not block the start', async () => {
+      const { node, engine } = buildFakes()
+      engine.escrow.getUserAvailableFunds.rejects(new Error('rpc down'))
+      const res = await new ServiceStartHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      expect(engine.createServiceJob.calledOnce).to.equal(true)
     })
 
     it('403 when services are disabled on the environment', async () => {

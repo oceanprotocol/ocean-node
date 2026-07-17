@@ -6,6 +6,7 @@ import {
   ServiceExtendHandler,
   ServiceRestartHandler,
   ServiceGetStatusHandler,
+  GetServicesHandler,
   ServiceGetStreamableLogsHandler
 } from '../../components/core/service/index.js'
 import { ComputeGetEnvironmentsHandler } from '../../components/core/compute/index.js'
@@ -16,6 +17,7 @@ import type {
   ServiceExtendCommand,
   ServiceRestartCommand,
   ServiceGetStatusCommand,
+  GetServicesCommand,
   ServiceGetStreamableLogsCommand
 } from '../../@types/commands.js'
 import {
@@ -319,11 +321,12 @@ describe('**********         Service on Demand', () => {
     )
     dbconn = await Database.init(config.dbConfig)
 
-    // Clean stale running service jobs so prior runs don't consume shared resources.
+    // Clean stale service jobs so prior runs don't consume shared resources. Expired is
+    // the only status that releases the reservation (Stopped still counts as active).
     const staleServices = await dbconn.c2d.getRunningServiceJobs()
     for (const svc of staleServices) {
-      svc.status = ServiceStatusNumber.Stopped
-      svc.statusText = 'Stopped'
+      svc.status = ServiceStatusNumber.Expired
+      svc.statusText = 'Expired'
       await dbconn.c2d.updateServiceJob(svc)
     }
     const staleJobs = await dbconn.c2d.getRunningJobs()
@@ -482,6 +485,82 @@ describe('**********         Service on Demand', () => {
       consumerAddress,
       serviceId
     } as ServiceGetStatusCommand)
+    expect(unauth.status.httpStatus).to.not.equal(200)
+  })
+
+  it('(e2) SERVICE_LIST returns the node-wide resource-holding set (not owner-scoped)', async () => {
+    // authenticated as the NON-owner: the running service must still be listed
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(nonOwnerAccount, PROTOCOL_COMMANDS.SERVICE_LIST)
+    const resp = await new GetServicesHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_LIST,
+      consumerAddress: addr,
+      nonce,
+      signature
+    } as GetServicesCommand)
+    assert(
+      resp.status.httpStatus === 200,
+      `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
+    )
+    const jobs = (await streamToObject(resp.stream as Readable)) as ServiceJob[]
+    const listed = jobs.find((j) => j.serviceId === serviceId)
+    assert(listed, 'the running service must appear in the node-wide list')
+    expect(listed.owner.toLowerCase()).to.equal(consumerAddress.toLowerCase())
+    // listing-grade sanitization: no env blob, no CMD/ENTRYPOINT overrides
+    expect((listed as any).userData).to.equal(undefined)
+    expect((listed as any).dockerCmd).to.equal(undefined)
+    expect((listed as any).dockerEntrypoint).to.equal(undefined)
+
+    // status filter: Running includes the service, Expired does not
+    const sig2 = await signFor(nonOwnerAccount, PROTOCOL_COMMANDS.SERVICE_LIST)
+    const runningOnly = await new GetServicesHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_LIST,
+      consumerAddress: sig2.consumerAddress,
+      nonce: sig2.nonce,
+      signature: sig2.signature,
+      status: ServiceStatusNumber.Running
+    } as GetServicesCommand)
+    const runningJobs = (await streamToObject(
+      runningOnly.stream as Readable
+    )) as ServiceJob[]
+    assert(
+      runningJobs.find((j) => j.serviceId === serviceId),
+      'status=Running must include the service'
+    )
+    const sig3 = await signFor(nonOwnerAccount, PROTOCOL_COMMANDS.SERVICE_LIST)
+    const expiredOnly = await new GetServicesHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_LIST,
+      consumerAddress: sig3.consumerAddress,
+      nonce: sig3.nonce,
+      signature: sig3.signature,
+      status: ServiceStatusNumber.Expired
+    } as GetServicesCommand)
+    const expiredJobs = (await streamToObject(
+      expiredOnly.stream as Readable
+    )) as ServiceJob[]
+    expect(expiredJobs.find((j) => j.serviceId === serviceId)).to.equal(undefined)
+
+    // fromTimestamp in the future excludes everything
+    const sig4 = await signFor(nonOwnerAccount, PROTOCOL_COMMANDS.SERVICE_LIST)
+    const future = await new GetServicesHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_LIST,
+      consumerAddress: sig4.consumerAddress,
+      nonce: sig4.nonce,
+      signature: sig4.signature,
+      includeAllStatuses: true,
+      fromTimestamp: String(Date.now() + 3600_000)
+    } as GetServicesCommand)
+    const futureJobs = (await streamToObject(future.stream as Readable)) as ServiceJob[]
+    expect(futureJobs.find((j) => j.serviceId === serviceId)).to.equal(undefined)
+
+    // unauthenticated requests are rejected
+    const unauth = await new GetServicesHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_LIST,
+      consumerAddress: addr
+    } as GetServicesCommand)
     expect(unauth.status.httpStatus).to.not.equal(200)
   })
 
@@ -779,6 +858,97 @@ describe('**********         Service on Demand', () => {
     assert(
       res.status === 200,
       `expected nginx HTTP 200 after self-heal, got ${res.status}`
+    )
+  })
+
+  it('(l3) SERVICE_RESTART survives InternalLoop ticks mid-restart (orphan-recovery race)', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 4)
+    const engine: any = getDockerEngine()
+    const before = await getServiceJob(serviceId)
+    const oldContainerId = before.containerId
+
+    // Delay the image pull so the job sits in PullImage across several InternalLoop
+    // ticks (cronTime = 2 s) — the exact window in which the loop's orphan-recovery
+    // used to tear down the network the restart had just created, failing the restart
+    // with "network ocean-svc-<id> not found" (the live-node bug).
+    const originalPull = engine.pullImageRef
+    engine.pullImageRef = async (...args: any[]) => {
+      await sleep(5000)
+      return originalPull.apply(engine, args)
+    }
+    try {
+      const {
+        consumerAddress: addr,
+        nonce,
+        signature
+      } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_RESTART)
+      const task: ServiceRestartCommand = {
+        command: PROTOCOL_COMMANDS.SERVICE_RESTART,
+        consumerAddress: addr,
+        nonce,
+        signature,
+        serviceId
+      }
+      const restartPromise = new ServiceRestartHandler(oceanNode).handle(task)
+
+      // wait until the restart is actually mid-pull (deterministic, not sleep-based) —
+      // and ASSERT it got there: silently timing out would run the concurrent-command
+      // checks against a restart in the wrong phase, proving nothing.
+      const deadline = Date.now() + 10_000
+      let sawPullImage = false
+      while (Date.now() < deadline) {
+        const j = await getServiceJob(serviceId)
+        if (j?.status === ServiceStatusNumber.PullImage) {
+          sawPullImage = true
+          break
+        }
+        await sleep(250)
+      }
+      assert(sawPullImage, 'restart must reach PullImage within the wait window')
+
+      // concurrent lifecycle operations must be rejected while the restart holds the lock
+      const stopSig = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_STOP)
+      const stopResp = await new ServiceStopHandler(oceanNode).handle({
+        command: PROTOCOL_COMMANDS.SERVICE_STOP,
+        consumerAddress: stopSig.consumerAddress,
+        nonce: stopSig.nonce,
+        signature: stopSig.signature,
+        serviceId
+      } as ServiceStopCommand)
+      expect(stopResp.status.httpStatus).to.not.equal(200)
+      expect(String(stopResp.status.error)).to.contain('operation in progress')
+
+      const retrySig = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_RESTART)
+      const retryResp = await new ServiceRestartHandler(oceanNode).handle({
+        ...task,
+        nonce: retrySig.nonce,
+        signature: retrySig.signature
+      })
+      expect(retryResp.status.httpStatus).to.not.equal(200)
+      expect(String(retryResp.status.error)).to.contain('operation in progress')
+
+      // the original restart must complete unharmed by the loop ticks that fired mid-pull
+      const resp = await restartPromise
+      assert(
+        resp.status.httpStatus === 200,
+        `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
+      )
+    } finally {
+      engine.pullImageRef = originalPull
+    }
+
+    // pollServiceStatus throws if the job lands in Error — which is exactly what the
+    // pre-fix orphan-recovery race produced ("Service start aborted (node restarted
+    // mid-start)" / "network ocean-svc-<id> not found").
+    const running = await pollServiceStatus(serviceId, ServiceStatusNumber.Running)
+    expect(running.containerId).to.not.equal(oldContainerId)
+    expect(running.endpoints[0].hostPort).to.equal(hostPort)
+    expect(running.expiresAt).to.equal(expiresAt)
+
+    const res = await httpGetWithRetry(endpointUrl)
+    assert(
+      res.status === 200,
+      `expected nginx HTTP 200 after raced restart, got ${res.status}`
     )
   })
 
