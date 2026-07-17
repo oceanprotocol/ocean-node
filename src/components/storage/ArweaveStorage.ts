@@ -5,8 +5,8 @@ import {
 } from '../../@types/fileObject.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { fetchFileMetadata } from '../../utils/asset.js'
+import { fetchStream } from '../../utils/http.js'
 import urlJoin from 'url-join'
-import axios from 'axios'
 import { Storage } from './Storage.js'
 
 export class ArweaveStorage extends Storage {
@@ -55,18 +55,7 @@ export class ArweaveStorage extends Storage {
 
   override async getReadableStream(): Promise<StorageReadable> {
     const input = this.getDownloadUrl()
-    const response = await axios({
-      method: 'get',
-      url: input,
-      responseType: 'stream',
-      timeout: 30000
-    })
-
-    return {
-      httpStatus: response.status,
-      stream: response.data,
-      headers: response.headers as any
-    }
+    return await fetchStream(input, { method: 'GET' }, 30000)
   }
 
   async fetchSpecificFileMetadata(
