@@ -264,7 +264,7 @@ Handler source is grouped under `src/components/core/`:
   `getComputeResult` (+ `getComputeStreamableLogs`) → `stopCompute`. Paid compute settles via
   the `Escrow` component; `serviceResourceMatching.ts` maps requested cpu/ram/disk/gpu against
   environment pools (dual-gate: per-env ceiling + engine-wide pool; GPUs tracked globally).
-  See `docs/compute-pricing.md`, `docs/GPU.md`.
+  See `docs/compute.md`.
 - **database/** — `Database.init()` factory (`index.ts`, `DatabaseFactory.ts`). The metadata
   DB backend is pluggable: **Typesense or Elasticsearch** (chosen by `DB_TYPE`) for DDOs,
   indexer state, logs, orders, ddoState, access lists, escrow events — behind the
@@ -318,5 +318,5 @@ can talk to `/var/run/docker.sock`. Deployment options (Docker, local Docker bui
 `Arhitecture.md` (note the spelling), `API.md` (full HTTP API reference — very large, plus a
 Postman collection), `env.md` (authoritative env-var reference), `database.md`,
 `Storage.md` / `persistentStorage.md`, `KeyManager.md`, `PolicyServer.md`, `services.md`
-(Service-on-Demand), `compute-pricing.md` / `GPU.md` (C2D), `networking.md`, `Logs.md`,
+(Service-on-Demand), `compute.md` (C2D configuration: resources, GPUs, constraints, pricing), `networking.md`, `Logs.md`,
 `Publishing.md`, `testing.md`, `dockerDeployment.md`.
