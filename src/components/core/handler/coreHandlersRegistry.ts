@@ -70,6 +70,7 @@ import {
   ServiceExtendHandler,
   ServiceRestartHandler,
   ServiceGetStatusHandler,
+  GetServicesHandler,
   ServiceGetStreamableLogsHandler
 } from '../service/index.js'
 
@@ -180,6 +181,7 @@ export class CoreHandlersRegistry {
       PROTOCOL_COMMANDS.SERVICE_GET_STATUS,
       new ServiceGetStatusHandler(node)
     )
+    this.registerCoreHandler(PROTOCOL_COMMANDS.SERVICE_LIST, new GetServicesHandler(node))
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,
       new ServiceGetStreamableLogsHandler(node)

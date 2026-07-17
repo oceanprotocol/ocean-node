@@ -2015,6 +2015,39 @@ Array of `ServiceJob` (with `userData` stripped).
 
 ---
 
+### `HTTP` GET /api/services/serviceList
+
+### `P2P` command: serviceList
+
+#### Description
+
+Node-wide service listing. **Authenticated but NOT owner-scoped** — any authenticated
+consumer identity sees every owner's services. By default it returns only the services
+**currently holding a resource reservation** (exactly what the engines count against the
+shared pools): `Running`/`Restarting`/`Stopping`, the mid-start pipeline states, paid
+`Error` (container died, restartable), and explicitly `Stopped` within the paid window.
+`Expired` and never-paid jobs hold nothing and are not listed by default.
+
+#### Query Parameters
+
+| name              | type    | required | description |
+| ----------------- | ------- | -------- | ----------- |
+| consumerAddress   | string  | v        | caller identity (any consumer) |
+| nonce             | string  | v        | request nonce |
+| signature         | string  | v        | signed message (or use an `Authorization` auth-token header) |
+| status            | number  |          | filter to ONE specific `ServiceStatusNumber` (any status, incl. `75` Expired); takes precedence over `includeAllStatuses` |
+| includeAllStatuses | boolean |         | `true` returns services in every status instead of only the resource-holding set |
+| fromTimestamp     | string  |          | only services created at/after this moment — ISO date (`2026-01-15T00:00:00Z`) or Unix timestamp (seconds or milliseconds) |
+
+#### Response (200)
+
+Array of `ServiceJob`, **listing-sanitized**: `userData`, `dockerCmd`, `dockerEntrypoint`,
+`dockerfile` and `additionalDockerFiles` are stripped (identity, status, resources,
+endpoints and payment metadata are kept). Use the owner-scoped `serviceStatus` to see a
+service's own configuration.
+
+---
+
 ### `HTTP` POST /api/services/serviceExtend
 
 ### `P2P` command: serviceExtend

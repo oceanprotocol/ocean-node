@@ -62,6 +62,30 @@ export function toPublicServiceJob(
   return pub
 }
 
+// Listing-grade sanitization for SERVICE_LIST, which is NOT owner-scoped: on top of the
+// always-stripped userData (the encrypted env blob), it removes everything that reveals
+// HOW a service is configured — CMD/ENTRYPOINT overrides and any inline Dockerfile —
+// keeping identity, status, resources, endpoints and payment metadata. The owner-scoped
+// SERVICE_GET_STATUS keeps those fields (the owner set them).
+export function toListedServiceJob(
+  job: ServiceJob | null
+): Omit<
+  ServiceJob,
+  'userData' | 'dockerCmd' | 'dockerEntrypoint' | 'dockerfile' | 'additionalDockerFiles'
+> | null {
+  if (!job) return null
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const {
+    userData,
+    dockerCmd,
+    dockerEntrypoint,
+    dockerfile,
+    additionalDockerFiles,
+    ...pub
+  } = job
+  return pub
+}
+
 const SINCE_DURATION_RE = /^(\d+)(s|m|h|d)$/
 const SINCE_DURATION_UNIT_SECONDS: Record<string, number> = {
   s: 1,

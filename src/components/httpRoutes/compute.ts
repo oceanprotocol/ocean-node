@@ -28,6 +28,7 @@ import type {
   ServiceExtendCommand,
   ServiceRestartCommand,
   ServiceGetStatusCommand,
+  GetServicesCommand,
   ServiceGetStreamableLogsCommand
 } from '../../@types/commands.js'
 import {
@@ -37,6 +38,7 @@ import {
   ServiceExtendHandler,
   ServiceRestartHandler,
   ServiceGetStatusHandler,
+  GetServicesHandler,
   ServiceGetStreamableLogsHandler
 } from '../core/service/index.js'
 
@@ -472,6 +474,25 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/serviceStatus`, async (req, res) =>
     caller: req.caller
   }
   await runServiceCommand(ServiceGetStatusHandler, task, res)
+})
+
+// node-wide service listing (any owner). Default: only services currently holding a
+// resource reservation; `status` filters to one specific status, `includeAllStatuses`
+// returns everything, `fromTimestamp` keeps services created at/after that moment.
+computeRoutes.get(`${SERVICES_API_BASE_PATH}/serviceList`, async (req, res) => {
+  const task: GetServicesCommand = {
+    command: PROTOCOL_COMMANDS.SERVICE_LIST,
+    consumerAddress: req.query.consumerAddress as string,
+    nonce: req.query.nonce as string,
+    signature: req.query.signature as string,
+    status: req.query.status !== undefined ? Number(req.query.status) : undefined,
+    includeAllStatuses: req.query.includeAllStatuses === 'true',
+    fromTimestamp: (req.query.fromTimestamp as string) || undefined,
+    node: (req.query.node as string) || null,
+    authorization: req.headers?.authorization,
+    caller: req.caller
+  }
+  await runServiceCommand(GetServicesHandler, task, res)
 })
 
 // streaming logs for services

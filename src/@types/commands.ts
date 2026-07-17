@@ -450,6 +450,24 @@ export interface ServiceGetStatusCommand extends Command {
   serviceId?: string
 }
 
+// Node-wide service listing (SERVICE_LIST), shaped like GetJobsCommand. Authenticated
+// like every other service command (consumerAddress + signature/token), but NOT
+// owner-scoped: it returns every consumer's services. Default (no filters): only the
+// services currently holding a resource reservation.
+export interface GetServicesCommand extends Command {
+  consumerAddress: string
+  nonce: string
+  signature: string
+  // filter to ONE specific status (any ServiceStatusNumber, incl. Expired); takes
+  // precedence over includeAllStatuses
+  status?: number
+  // return services in EVERY status instead of only the resource-holding set
+  includeAllStatuses?: boolean
+  // only services created at/after this moment: ISO date string, or a Unix timestamp
+  // (seconds or milliseconds) as a string
+  fromTimestamp?: string
+}
+
 export interface ServiceRestartCommand extends Command {
   consumerAddress: string
   nonce: string

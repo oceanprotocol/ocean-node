@@ -28,6 +28,7 @@ and `signature` as query parameters (or an auth-token `Authorization` header).
 | --- | --- | --- | --- |
 | `SERVICE_START` | `/api/services/serviceStart` | POST | Validate, persist a `Starting` record, and return the `serviceId` immediately (escrow + image + container happen in the background) |
 | `SERVICE_GET_STATUS` | `/api/services/serviceStatus` | GET | Read job status / endpoints — authenticated, owner-scoped (see notice below); poll this to follow a starting service |
+| `SERVICE_LIST` | `/api/services/serviceList` | GET | Node-wide service listing — authenticated, **not** owner-scoped. Default: only services currently holding a resource reservation; `status=<n>` filters to one specific status, `includeAllStatuses=true` returns everything, `fromTimestamp` keeps services created at/after that moment. Output is listing-sanitized (no `userData`, no `dockerCmd`/`dockerEntrypoint`, no Dockerfile) |
 | `SERVICE_EXTEND` | `/api/services/serviceExtend` | POST | Pay to push the expiry further out |
 | `SERVICE_RESTART` | `/api/services/serviceRestart` | POST | Recreate the container (no extra charge); asynchronous like start — returns once the job is `Restarting`, poll `serviceStatus` |
 | `SERVICE_STOP` | `/api/services/serviceStop` | POST | Tear down the container; the paid resource reservation (cpu/ram/gpu + host ports) is kept until `expiresAt`, so the service can be restarted anytime on the same endpoints |

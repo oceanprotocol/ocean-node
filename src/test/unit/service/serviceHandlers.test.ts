@@ -6,6 +6,7 @@ import { PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { ServiceStatusNumber, ServiceJob } from '../../../@types/C2D/ServiceOnDemand.js'
 import { ServiceGetTemplatesHandler } from '../../../components/core/service/getTemplates.js'
 import { ServiceGetStatusHandler } from '../../../components/core/service/getStatus.js'
+import { GetServicesHandler } from '../../../components/core/service/getServices.js'
 import { ServiceStartHandler } from '../../../components/core/service/startService.js'
 import { ServiceStopHandler } from '../../../components/core/service/stopService.js'
 import { ServiceExtendHandler } from '../../../components/core/service/extendService.js'
@@ -93,7 +94,11 @@ function buildFakes(opts: FakeOpts = {}) {
               ? [opts.serviceJobInDb]
               : []
         ),
-      updateServiceJob: sinon.stub().resolves(1)
+      updateServiceJob: sinon.stub().resolves(1),
+      // SERVICE_LIST: the engine's cluster-scoped resource-holding set
+      getRunningServiceJobs: sinon
+        .stub()
+        .resolves(opts.serviceJobInDb ? [opts.serviceJobInDb] : [])
     },
     escrow,
     getComputeEnvironments: sinon.stub().resolves([env]),
@@ -464,6 +469,127 @@ describe('Service handlers', () => {
       // no new charge may be attempted while the old intent is unresolved
       expect(escrow.createLock.called).to.equal(false)
       expect(escrow.claimLock.called).to.equal(false)
+    })
+  })
+
+  describe('GetServicesHandler (SERVICE_LIST)', () => {
+    const baseTask = {
+      command: PROTOCOL_COMMANDS.SERVICE_LIST,
+      consumerAddress: OWNER,
+      nonce: '1',
+      signature: '0xsig'
+    }
+
+    it('400 when consumerAddress is missing', async () => {
+      const { node } = buildFakes()
+      const { consumerAddress, ...noAddress } = baseTask
+      const res = await new GetServicesHandler(node).handle({ ...noAddress } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('400 on an unknown status number or an unparseable fromTimestamp', async () => {
+      const { node } = buildFakes()
+      const badStatus = await new GetServicesHandler(node).handle({
+        ...baseTask,
+        status: 1234
+      } as any)
+      expect(badStatus.status.httpStatus).to.equal(400)
+      const badTs = await new GetServicesHandler(node).handle({
+        ...baseTask,
+        fromTimestamp: 'not-a-date'
+      } as any)
+      expect(badTs.status.httpStatus).to.equal(400)
+    })
+
+    it('200 default: the node-wide resource-holding set (any owner), listing-sanitized', async () => {
+      // a service owned by SOMEONE ELSE must be listed too — SERVICE_LIST is not
+      // owner-scoped like SERVICE_GET_STATUS
+      const job = makeJob({
+        owner: '0xsomeoneelse',
+        status: ServiceStatusNumber.Stopped,
+        dockerCmd: ['secret', '--key=abc'],
+        dockerEntrypoint: ['/entry.sh'],
+        dockerfile: 'FROM x\nENV SECRET=1'
+      })
+      const { node, engine } = buildFakes({ serviceJobInDb: job })
+      const res = await new GetServicesHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      // the engine is queried for ITS cluster's resource-holding set
+      expect(engine.db.getRunningServiceJobs.calledWith('hash-1')).to.equal(true)
+      const out = await body(res)
+      expect(out).to.have.length(1)
+      expect(out[0].serviceId).to.equal(job.serviceId)
+      expect(out[0].owner).to.equal('0xsomeoneelse')
+      expect(out[0].status).to.equal(ServiceStatusNumber.Stopped)
+      // listing-grade sanitization: no env blob, no CMD/ENTRYPOINT, no Dockerfile
+      expect(out[0]).to.not.have.property('userData')
+      expect(out[0]).to.not.have.property('dockerCmd')
+      expect(out[0]).to.not.have.property('dockerEntrypoint')
+      expect(out[0]).to.not.have.property('dockerfile')
+      // identity/resource fields survive
+      expect(out[0].resources).to.deep.equal(job.resources)
+      expect(out[0].endpoints).to.deep.equal(job.endpoints)
+    })
+
+    it('status filter: returns only that status (incl. Expired, outside the resource set)', async () => {
+      const expired = makeJob({ status: ServiceStatusNumber.Expired })
+      const { node, engine } = buildFakes({ serviceJobInDb: expired })
+      const res = await new GetServicesHandler(node).handle({
+        ...baseTask,
+        status: ServiceStatusNumber.Expired
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      // status-explicit listing reads ALL jobs, not the resource-holding query
+      expect(engine.db.getRunningServiceJobs.called).to.equal(false)
+      const out = await body(res)
+      expect(out).to.have.length(1)
+      expect(out[0].status).to.equal(ServiceStatusNumber.Expired)
+
+      // a status nothing matches → empty list
+      const none = await new GetServicesHandler(node).handle({
+        ...baseTask,
+        status: ServiceStatusNumber.Running
+      } as any)
+      expect(await body(none)).to.deep.equal([])
+    })
+
+    it('includeAllStatuses: returns every status; fromTimestamp narrows by creation date', async () => {
+      const job = makeJob({
+        status: ServiceStatusNumber.Expired,
+        dateCreated: new Date('2026-01-15T00:00:00Z').toISOString()
+      })
+      const { node } = buildFakes({ serviceJobInDb: job })
+      const all = await new GetServicesHandler(node).handle({
+        ...baseTask,
+        includeAllStatuses: true
+      } as any)
+      expect(await body(all)).to.have.length(1)
+
+      // created before the cutoff → filtered out (ISO form)
+      const afterIso = await new GetServicesHandler(node).handle({
+        ...baseTask,
+        includeAllStatuses: true,
+        fromTimestamp: '2026-02-01T00:00:00Z'
+      } as any)
+      expect(await body(afterIso)).to.deep.equal([])
+
+      // created after the cutoff → kept (Unix-seconds form)
+      const beforeUnix = await new GetServicesHandler(node).handle({
+        ...baseTask,
+        includeAllStatuses: true,
+        fromTimestamp: String(
+          Math.floor(new Date('2026-01-01T00:00:00Z').getTime() / 1000)
+        )
+      } as any)
+      expect(await body(beforeUnix)).to.have.length(1)
+    })
+
+    it('200 with an empty list when nothing holds resources', async () => {
+      const { node } = buildFakes({ serviceJobInDb: null })
+      const res = await new GetServicesHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      const out = await body(res)
+      expect(out).to.deep.equal([])
     })
   })
 
