@@ -613,6 +613,71 @@ describe('Service handlers', () => {
       const out = await body(res)
       expect(out).to.deep.equal([])
     })
+
+    it('400 on an updatedSince that is unparseable, empty, or overflows', async () => {
+      const { node } = buildFakes()
+      // an explicit empty string and an overflowing digit-only value (→ Infinity) must
+      // be rejected, not fall through to an unfiltered all-statuses dump
+      for (const updatedSince of ['not-a-date', '', '9'.repeat(400)]) {
+        const res = await new GetServicesHandler(node).handle({
+          ...baseTask,
+          updatedSince
+        } as any)
+        expect(
+          res.status.httpStatus,
+          `updatedSince=${JSON.stringify(updatedSince)}`
+        ).to.equal(400)
+      }
+    })
+
+    it('updatedSince: returns every status changed at/after the cursor, from the all-jobs read', async () => {
+      // realistic epoch-ms so parseFromTimestamp treats the values as ms, not seconds
+      const base = 1_700_000_000_000
+      const older = makeJob({
+        serviceId: 'svc-old',
+        status: ServiceStatusNumber.Running,
+        updatedAt: base
+      })
+      const failed = makeJob({
+        serviceId: 'svc-fail',
+        status: ServiceStatusNumber.PullImageFailed,
+        updatedAt: base + 5000
+      })
+      const expired = makeJob({
+        serviceId: 'svc-exp',
+        status: ServiceStatusNumber.Expired,
+        updatedAt: base + 6000
+      })
+      const { node, engine } = buildFakes()
+      engine.db.getServiceJob.resolves([older, failed, expired])
+
+      const res = await new GetServicesHandler(node).handle({
+        ...baseTask,
+        updatedSince: String(base + 3000)
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      // incremental read uses the all-jobs path, not the resource-holding query
+      expect(engine.db.getServiceJob.called).to.equal(true)
+      expect(engine.db.getRunningServiceJobs.called).to.equal(false)
+
+      const out = await body(res)
+      const ids = out.map((s: any) => s.serviceId)
+      // older is before the cursor → excluded; both changed-since are returned,
+      // proving all statuses (incl. the resource-set-hidden PullImageFailed/Expired) pass
+      expect(ids).to.have.members(['svc-fail', 'svc-exp'])
+      expect(ids).to.not.include('svc-old')
+    })
+
+    it('updatedSince: a record with no updatedAt is treated as 0 and excluded once the cursor advances', async () => {
+      const legacy = makeJob({ serviceId: 'svc-legacy', updatedAt: undefined })
+      const { node, engine } = buildFakes()
+      engine.db.getServiceJob.resolves([legacy])
+      const res = await new GetServicesHandler(node).handle({
+        ...baseTask,
+        updatedSince: String(1_700_000_000_000)
+      } as any)
+      expect(await body(res)).to.deep.equal([])
+    })
   })
 
   describe('ServiceStartHandler', () => {

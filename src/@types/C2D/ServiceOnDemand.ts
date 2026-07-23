@@ -135,6 +135,7 @@ export interface ServiceJob {
   status: ServiceStatusNumber
   statusText: string
   dateCreated: string // ISO timestamp
+  updatedAt?: number
   expiresAt: number // Unix ms timestamp
   duration: number // requested seconds
   exposedPorts: number[]

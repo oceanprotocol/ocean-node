@@ -280,7 +280,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
         job.status,
         job.expiresAt,
         job.dateCreated,
-        Buffer.from(JSON.stringify(job))
+        Buffer.from(JSON.stringify({ ...job, updatedAt: Date.now() }))
       ])
     } catch (err) {
       DATABASE_LOGGER.error('Could not insert service job on DB: ' + err.message)
@@ -301,7 +301,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
         job.clusterHash,
         job.status,
         job.expiresAt,
-        Buffer.from(JSON.stringify(job)),
+        Buffer.from(JSON.stringify({ ...job, updatedAt: Date.now() })),
         job.serviceId
       ])
       return changes
