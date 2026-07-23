@@ -2639,7 +2639,47 @@ describe('service start/restart Docker cleanup on failure', function () {
     }
   }
 
-  it('restartService overrides dockerCmd/dockerEntrypoint when new ones are supplied', async function () {
+  // engine.restartService signature:
+  // (serviceId, owner, image, tag, checksum, dockerfile, additionalDockerFiles,
+  //  userData, dockerCmd, dockerEntrypoint)
+  it('restartService (RESPEC) applies a new image tag and persists the whole spec', async function () {
+    const existingJob = makeRunningJobWithCmd() // started on nginx:latest
+    engine.db.getServiceJob = sinon.stub().resolves([existingJob])
+    const container = makeContainer(false)
+    engine.docker = {
+      createNetwork: sinon.stub().resolves(network),
+      createContainer: sinon.stub().resolves(container),
+      getNetwork: sinon.stub().returns(network)
+    }
+
+    // RESPEC: same image name, freshly-published tag; no cmd/entrypoint re-supplied ⇒ they
+    // are dropped (empty), since RESPEC takes the container spec entirely from the request.
+    await engine.restartService('svc-cmd', '0xowner', 'nginx', '1.27-alpine')
+    await Promise.allSettled([...engine.serviceOpPromises])
+
+    // the pull + the new container use the recomputed reference
+    expect(engine.pullImageRef.calledWith('nginx:1.27-alpine')).to.equal(true)
+    const createArgs = engine.docker.createContainer.firstCall.args[0]
+    expect(createArgs.Image).to.equal('nginx:1.27-alpine')
+    // omitted cmd/entrypoint are NOT carried over from the stored job in RESPEC mode
+    expect(createArgs.Cmd).to.equal(undefined)
+    expect(createArgs.Entrypoint).to.equal(undefined)
+    // the new image spec is persisted on the job
+    expect(existingJob.tag).to.equal('1.27-alpine')
+    expect(existingJob.containerImage).to.equal('nginx:1.27-alpine')
+    expect(existingJob.dockerCmd).to.equal(undefined)
+    expect(
+      engine.db.updateServiceJob.calledWith(
+        sinon.match({
+          status: ServiceStatusNumber.Running,
+          tag: '1.27-alpine',
+          containerImage: 'nginx:1.27-alpine'
+        })
+      )
+    ).to.equal(true)
+  })
+
+  it('restartService (RESPEC) overrides dockerCmd/dockerEntrypoint alongside the image', async function () {
     const existingJob = makeRunningJobWithCmd()
     engine.db.getServiceJob = sinon.stub().resolves([existingJob])
     const container = makeContainer(false)
@@ -2652,7 +2692,12 @@ describe('service start/restart Docker cleanup on failure', function () {
     await engine.restartService(
       'svc-cmd',
       '0xowner',
-      undefined,
+      'nginx', // image (RESPEC — required to change cmd/entrypoint)
+      'latest', // tag
+      undefined, // checksum
+      undefined, // dockerfile
+      undefined, // additionalDockerFiles
+      undefined, // userData
       ['new', 'cmd'],
       ['/new-entrypoint']
     )
@@ -2675,7 +2720,7 @@ describe('service start/restart Docker cleanup on failure', function () {
     ).to.equal(true)
   })
 
-  it('restartService reuses the stored dockerCmd/dockerEntrypoint when none are supplied', async function () {
+  it('restartService (REUSE) reuses the whole stored spec when no container params are supplied', async function () {
     const existingJob = makeRunningJobWithCmd()
     engine.db.getServiceJob = sinon.stub().resolves([existingJob])
     const container = makeContainer(false)
@@ -2685,10 +2730,12 @@ describe('service start/restart Docker cleanup on failure', function () {
       getNetwork: sinon.stub().returns(network)
     }
 
-    await engine.restartService('svc-cmd', '0xowner', undefined)
+    // no image ⇒ REUSE mode: image, cmd and entrypoint all come from the stored job
+    await engine.restartService('svc-cmd', '0xowner')
     await Promise.allSettled([...engine.serviceOpPromises])
 
     const createArgs = engine.docker.createContainer.firstCall.args[0]
+    expect(createArgs.Image).to.equal('nginx:latest') // stored image reused
     expect(createArgs.Cmd).to.deep.equal(['old', 'cmd'])
     expect(createArgs.Entrypoint).to.deep.equal(['/old-entrypoint'])
     expect(existingJob.dockerCmd).to.deep.equal(['old', 'cmd'])
@@ -2704,7 +2751,7 @@ describe('service start/restart Docker cleanup on failure', function () {
     ).to.equal(true)
   })
 
-  it('restartService clears dockerCmd/dockerEntrypoint when explicitly given an empty array', async function () {
+  it('restartService (RESPEC) clears dockerCmd/dockerEntrypoint when explicitly given an empty array', async function () {
     const existingJob = makeRunningJobWithCmd()
     engine.db.getServiceJob = sinon.stub().resolves([existingJob])
     const container = makeContainer(false)
@@ -2714,7 +2761,19 @@ describe('service start/restart Docker cleanup on failure', function () {
       getNetwork: sinon.stub().returns(network)
     }
 
-    await engine.restartService('svc-cmd', '0xowner', undefined, [], [])
+    // RESPEC (image supplied) with empty cmd/entrypoint arrays ⇒ explicitly cleared
+    await engine.restartService(
+      'svc-cmd',
+      '0xowner',
+      'nginx',
+      'latest',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [],
+      []
+    )
     await Promise.allSettled([...engine.serviceOpPromises])
 
     const createArgs = engine.docker.createContainer.firstCall.args[0]

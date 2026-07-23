@@ -129,10 +129,17 @@ export abstract class C2DEngine {
     return await fn()
   }
 
+  // Restart is atomic: when an image spec is supplied (RESPEC mode) the whole container is
+  // rebuilt from these params; when it is absent (REUSE mode) the stored spec is reused.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
   public async restartService(
     serviceId: string,
     owner: string,
+    newImage?: string,
+    newTag?: string,
+    newChecksum?: string,
+    newDockerfile?: string,
+    newAdditionalDockerFiles?: Record<string, string>,
     newUserData?: string,
     newDockerCmd?: string[],
     newDockerEntrypoint?: string[]

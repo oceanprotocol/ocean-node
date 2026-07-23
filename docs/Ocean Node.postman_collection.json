@@ -1065,7 +1065,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"signature\": \"{{signature}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"userData\": \"\"\n}"
+							"raw": "{\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"signature\": \"{{signature}}\",\n  \"serviceId\": \"{{serviceId}}\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/services/serviceRestart",
@@ -1078,7 +1078,7 @@
 								"serviceRestart"
 							]
 						},
-						"description": "Recreate the service container (no extra charge), keeping the same hostPort and expiresAt. Optional userData replaces stored env vars."
+						"description": "Recreate the service container (no extra charge), keeping the same hostPort, resources and expiresAt. Restart is ATOMIC — all-old or all-new. REUSE mode (body above): send no container params to restart on the stored spec. RESPEC mode: send ANY container param and the container is rebuilt entirely from the request — `image` becomes required plus at most one of tag/checksum/dockerfile (validated like serviceStart), and userData/dockerCmd/dockerEntrypoint are taken as-sent (omitted means empty, NOT inherited). Bug-fix flow example: add \\\"image\\\":\\\"myrepo/myservice\\\",\\\"tag\\\":\\\"v2\\\" to the body. A container param without `image` returns 400; a dockerfile respec where allowImageBuild=false returns 403."
 					}
 				},
 				{

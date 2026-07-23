@@ -469,14 +469,34 @@ export interface GetServicesCommand extends Command {
   updatedSince?: string
 }
 
+// Restart is ATOMIC — all-old or all-new, never a mix of new params over the stored job:
+//
+//  • REUSE mode  — the request carries NONE of the container params below. The service
+//    restarts on exactly its stored spec (image, userData, dockerCmd, dockerEntrypoint).
+//  • RESPEC mode — the request carries ANY container param. The container is rebuilt
+//    entirely from the request: `image` becomes REQUIRED and exactly one of
+//    tag/checksum/dockerfile applies (validated like SERVICE_START). userData/dockerCmd/
+//    dockerEntrypoint are taken as-sent; any omitted here is empty/unset — it is NOT
+//    pulled from the stored job. This is what makes mixing impossible: a request that
+//    changes only userData still has to re-supply the full image spec.
+//
+// Requiring `image` whenever any container param is present is the discriminator between
+// the two modes, so there is no way to ride a new userData/cmd on top of the old image.
 export interface ServiceRestartCommand extends Command {
   consumerAddress: string
   nonce: string
   signature: string
   serviceId: string
-  userData?: string // optional ECIES-encrypted userData. If provided it REPLACES the stored userData (send the complete set). If omitted, the stored userData is reused — no re-supply needed.
-  dockerCmd?: string[] // optional. If provided (even []) it REPLACES the stored CMD override. If omitted, the stored dockerCmd is reused.
-  dockerEntrypoint?: string[] // optional. If provided (even []) it REPLACES the stored ENTRYPOINT override. If omitted, the stored dockerEntrypoint is reused.
+  // Image spec (RESPEC mode). `image` is required as soon as any container param is sent;
+  // provide at most one of tag/checksum/dockerfile.
+  image?: string // base image name (or build label when dockerfile is set)
+  tag?: string // pull by name:tag
+  checksum?: string // pull by digest: "sha256:<64 hex>"
+  dockerfile?: string // build from inline Dockerfile; requires allowImageBuild on the env
+  additionalDockerFiles?: Record<string, string> // extra files in the build context
+  userData?: string // ECIES-encrypted (to the node's public key) JSON → container env-var map
+  dockerCmd?: string[] // exact container command (Docker exec-form CMD override; no shell)
+  dockerEntrypoint?: string[] // container ENTRYPOINT override
 }
 
 export interface ServiceExtendCommand extends Command {

@@ -453,6 +453,12 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/serviceRestart`, async (req, res) 
     nonce: (req.body.nonce as string) || null,
     signature: (req.body.signature as string) || null,
     serviceId: (req.body.serviceId as string) || null,
+    image: (req.body.image as string) || undefined,
+    tag: (req.body.tag as string) || undefined,
+    checksum: (req.body.checksum as string) || undefined,
+    dockerfile: (req.body.dockerfile as string) || undefined,
+    additionalDockerFiles:
+      (req.body.additionalDockerFiles as Record<string, string>) || undefined,
     userData: (req.body.userData as string) || undefined,
     dockerCmd: (req.body.dockerCmd as string[]) || undefined,
     dockerEntrypoint: (req.body.dockerEntrypoint as string[]) || undefined,

@@ -312,27 +312,107 @@ describe('Service handlers', () => {
       expect(jobs[0]).to.not.have.property('userData')
     })
 
-    it('forwards dockerCmd and dockerEntrypoint overrides to engine.restartService', async () => {
+    // engine.restartService arg order:
+    // (serviceId, owner, image, tag, checksum, dockerfile, additionalDockerFiles,
+    //  userData, dockerCmd, dockerEntrypoint)
+    it('RESPEC: forwards the full image spec (image+tag) + cmd/entrypoint to engine.restartService', async () => {
       const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
-      await new ServiceRestartHandler(node).handle({
+      const res = await new ServiceRestartHandler(node).handle({
         ...baseTask,
+        image: 'myrepo/app',
+        tag: 'v2',
         dockerCmd: ['python', 'new_script.py'],
         dockerEntrypoint: ['/bin/new-entrypoint']
       } as any)
+      expect(res.status.httpStatus).to.equal(200)
       expect(engine.restartService.calledOnce).to.equal(true)
       const callArgs = engine.restartService.firstCall.args
       expect(callArgs[0]).to.equal('svc-1')
       expect(callArgs[1]).to.equal(OWNER)
-      expect(callArgs[3]).to.deep.equal(['python', 'new_script.py'])
-      expect(callArgs[4]).to.deep.equal(['/bin/new-entrypoint'])
+      expect(callArgs[2]).to.equal('myrepo/app') // image
+      expect(callArgs[3]).to.equal('v2') // tag
+      expect(callArgs[8]).to.deep.equal(['python', 'new_script.py']) // dockerCmd
+      expect(callArgs[9]).to.deep.equal(['/bin/new-entrypoint']) // dockerEntrypoint
     })
 
-    it('forwards undefined dockerCmd/dockerEntrypoint when not supplied, so the engine reuses stored values', async () => {
+    it('REUSE: no container params → every spec field forwarded as undefined so the engine reuses the stored spec', async () => {
       const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
       await new ServiceRestartHandler(node).handle({ ...baseTask } as any)
       const callArgs = engine.restartService.firstCall.args
-      expect(callArgs[3]).to.equal(undefined)
-      expect(callArgs[4]).to.equal(undefined)
+      expect(callArgs[2]).to.equal(undefined) // image
+      expect(callArgs[3]).to.equal(undefined) // tag
+      expect(callArgs[7]).to.equal(undefined) // userData
+      expect(callArgs[8]).to.equal(undefined) // dockerCmd
+      expect(callArgs[9]).to.equal(undefined) // dockerEntrypoint
+    })
+
+    it('400 RESPEC without image — a lone dockerCmd is a partial change, which is rejected', async () => {
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      const res = await new ServiceRestartHandler(node).handle({
+        ...baseTask,
+        dockerCmd: ['python', 'x.py']
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+      expect(engine.restartService.called).to.equal(false)
+    })
+
+    it('400 RESPEC without image — a lone tag is rejected', async () => {
+      const { node } = buildFakes({ serviceJobInDb: makeJob() })
+      const res = await new ServiceRestartHandler(node).handle({
+        ...baseTask,
+        tag: 'v2'
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('400 RESPEC without image — a lone userData is rejected', async () => {
+      const { node } = buildFakes({ serviceJobInDb: makeJob() })
+      const res = await new ServiceRestartHandler(node).handle({
+        ...baseTask,
+        userData: 'ENCRYPTED'
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('400 RESPEC with more than one image mode (tag + checksum)', async () => {
+      const { node } = buildFakes({ serviceJobInDb: makeJob() })
+      const res = await new ServiceRestartHandler(node).handle({
+        ...baseTask,
+        image: 'myrepo/app',
+        tag: 'v2',
+        checksum: 'sha256:deadbeef'
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it('403 RESPEC dockerfile when the environment forbids image builds', async () => {
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      const res = await new ServiceRestartHandler(node).handle({
+        ...baseTask,
+        image: 'myrepo/app',
+        dockerfile: 'FROM nginx'
+      } as any)
+      expect(res.status.httpStatus).to.equal(403)
+      expect(engine.restartService.called).to.equal(false)
+    })
+
+    it('200 RESPEC dockerfile when allowImageBuild is enabled — forwards the dockerfile', async () => {
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      engine.getC2DConfig.returns({
+        hash: 'hash-1',
+        connection: {
+          serviceOnDemand: { maxDurationSeconds: 86400, allowImageBuild: true }
+        }
+      })
+      const res = await new ServiceRestartHandler(node).handle({
+        ...baseTask,
+        image: 'myrepo/app',
+        dockerfile: 'FROM nginx'
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      expect(engine.restartService.calledOnce).to.equal(true)
+      const callArgs = engine.restartService.firstCall.args
+      expect(callArgs[5]).to.equal('FROM nginx') // dockerfile
     })
   })
 
