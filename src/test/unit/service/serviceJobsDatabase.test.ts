@@ -225,6 +225,22 @@ describe('Service Jobs Database', () => {
     expect(found.expiresAt).to.equal(123456)
   })
 
+  it('stamps updatedAt on insert and bumps it on every status change', async () => {
+    const before = Date.now()
+    const job = makeServiceJob()
+    await db.newServiceJob(job)
+    const [inserted] = await db.getServiceJob(job.serviceId)
+    expect(inserted.updatedAt).to.be.a('number')
+    expect(inserted.updatedAt).to.be.at.least(before)
+
+    // a later transition must advance updatedAt — this is the incremental-sync cursor
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    job.status = ServiceStatusNumber.Stopped
+    await db.updateServiceJob(job)
+    const [updated] = await db.getServiceJob(job.serviceId)
+    expect(updated.updatedAt).to.be.greaterThan(inserted.updatedAt)
+  })
+
   it('getRunningServiceJobs returns only active statuses for the cluster', async () => {
     const running = makeServiceJob({ status: ServiceStatusNumber.Running })
     const starting = makeServiceJob({ status: ServiceStatusNumber.Starting })

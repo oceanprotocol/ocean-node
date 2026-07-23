@@ -60,6 +60,16 @@ export class GetServicesHandler extends CommandHandler {
           `Parameter "fromTimestamp" is not a valid date: "${command.fromTimestamp}" — use an ISO date or a Unix timestamp`
         )
     }
+    if (command.updatedSince !== undefined) {
+      if (typeof command.updatedSince !== 'string')
+        return buildInvalidRequestMessage(
+          'Parameter : "updatedSince" is not a valid string'
+        )
+      if (parseFromTimestamp(command.updatedSince) === null)
+        return buildInvalidRequestMessage(
+          `Parameter "updatedSince" is not a valid date: "${command.updatedSince}" — use an ISO date or a Unix timestamp`
+        )
+    }
     return validation
   }
 
@@ -86,10 +96,11 @@ export class GetServicesHandler extends CommandHandler {
     const jobs: ServiceJob[] = []
     for (const eng of engines.getAllEngines()) {
       const { hash } = eng.getC2DConfig()
-      if (task.status !== undefined || task.includeAllStatuses) {
-        // status-explicit listing: read ALL of this cluster's jobs (getServiceJob has no
-        // cluster column filter, so scope by clusterHash here), then narrow to the one
-        // status when given — `status` takes precedence over `includeAllStatuses`
+      if (
+        task.updatedSince !== undefined ||
+        task.status !== undefined ||
+        task.includeAllStatuses
+      ) {
         const all = (await eng.db.getServiceJob()).filter(
           (j: ServiceJob) => j.clusterHash === hash
         )
@@ -105,10 +116,16 @@ export class GetServicesHandler extends CommandHandler {
     }
 
     const fromMs = parseFromTimestamp(task.fromTimestamp)
-    const filtered =
-      fromMs === undefined || fromMs === null
-        ? jobs
-        : jobs.filter((j) => Date.parse(j.dateCreated) >= fromMs)
+    const updatedSinceMs = parseFromTimestamp(task.updatedSince)
+    const filtered = jobs.filter(
+      (j) =>
+        (fromMs === undefined || fromMs === null
+          ? true
+          : Date.parse(j.dateCreated) >= fromMs) &&
+        (updatedSinceMs === undefined || updatedSinceMs === null
+          ? true
+          : (j.updatedAt ?? 0) >= updatedSinceMs)
+    )
 
     return {
       stream: Readable.from(JSON.stringify(filtered.map(toListedServiceJob))),

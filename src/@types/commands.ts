@@ -466,6 +466,7 @@ export interface GetServicesCommand extends Command {
   // only services created at/after this moment: ISO date string, or a Unix timestamp
   // (seconds or milliseconds) as a string
   fromTimestamp?: string
+  updatedSince?: string
 }
 
 export interface ServiceRestartCommand extends Command {
