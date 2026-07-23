@@ -53,9 +53,9 @@ export class GetServicesHandler extends CommandHandler {
     if (command.fromTimestamp !== undefined) {
       if (typeof command.fromTimestamp !== 'string')
         return buildInvalidRequestMessage(
-          'Parameter : "fromTimestamp" is not a valid string'
+          'Parameter "fromTimestamp" is not a valid string'
         )
-      if (parseFromTimestamp(command.fromTimestamp) === null)
+      if (!Number.isFinite(parseFromTimestamp(command.fromTimestamp)))
         return buildInvalidRequestMessage(
           `Parameter "fromTimestamp" is not a valid date: "${command.fromTimestamp}" — use an ISO date or a Unix timestamp`
         )
@@ -63,9 +63,9 @@ export class GetServicesHandler extends CommandHandler {
     if (command.updatedSince !== undefined) {
       if (typeof command.updatedSince !== 'string')
         return buildInvalidRequestMessage(
-          'Parameter : "updatedSince" is not a valid string'
+          'Parameter "updatedSince" is not a valid string'
         )
-      if (parseFromTimestamp(command.updatedSince) === null)
+      if (!Number.isFinite(parseFromTimestamp(command.updatedSince)))
         return buildInvalidRequestMessage(
           `Parameter "updatedSince" is not a valid date: "${command.updatedSince}" — use an ISO date or a Unix timestamp`
         )

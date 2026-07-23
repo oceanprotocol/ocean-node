@@ -614,13 +614,19 @@ describe('Service handlers', () => {
       expect(out).to.deep.equal([])
     })
 
-    it('400 on an unparseable updatedSince', async () => {
+    it('400 on an updatedSince that is unparseable, empty, or overflows', async () => {
       const { node } = buildFakes()
-      const res = await new GetServicesHandler(node).handle({
-        ...baseTask,
-        updatedSince: 'not-a-date'
-      } as any)
-      expect(res.status.httpStatus).to.equal(400)
+      // an explicit empty string and an overflowing digit-only value (→ Infinity) must
+      // be rejected, not fall through to an unfiltered all-statuses dump
+      for (const updatedSince of ['not-a-date', '', '9'.repeat(400)]) {
+        const res = await new GetServicesHandler(node).handle({
+          ...baseTask,
+          updatedSince
+        } as any)
+        expect(res.status.httpStatus, `updatedSince=${JSON.stringify(updatedSince)}`).to.equal(
+          400
+        )
+      }
     })
 
     it('updatedSince: returns every status changed at/after the cursor, from the all-jobs read', async () => {
