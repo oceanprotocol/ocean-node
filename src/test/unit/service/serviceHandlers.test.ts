@@ -623,9 +623,10 @@ describe('Service handlers', () => {
           ...baseTask,
           updatedSince
         } as any)
-        expect(res.status.httpStatus, `updatedSince=${JSON.stringify(updatedSince)}`).to.equal(
-          400
-        )
+        expect(
+          res.status.httpStatus,
+          `updatedSince=${JSON.stringify(updatedSince)}`
+        ).to.equal(400)
       }
     })
 
