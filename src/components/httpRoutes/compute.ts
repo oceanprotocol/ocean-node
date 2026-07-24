@@ -21,8 +21,26 @@ import type {
   ComputeStopCommand,
   ComputeGetResultCommand,
   ComputeGetStatusCommand,
-  ComputeGetStreamableLogsCommand
+  ComputeGetStreamableLogsCommand,
+  ServiceGetTemplatesCommand,
+  ServiceStartCommand,
+  ServiceStopCommand,
+  ServiceExtendCommand,
+  ServiceRestartCommand,
+  ServiceGetStatusCommand,
+  GetServicesCommand,
+  ServiceGetStreamableLogsCommand
 } from '../../@types/commands.js'
+import {
+  ServiceGetTemplatesHandler,
+  ServiceStartHandler,
+  ServiceStopHandler,
+  ServiceExtendHandler,
+  ServiceRestartHandler,
+  ServiceGetStatusHandler,
+  GetServicesHandler,
+  ServiceGetStreamableLogsHandler
+} from '../core/service/index.js'
 
 import { streamToObject, streamToString } from '../../utils/util.js'
 import { PROTOCOL_COMMANDS, SERVICES_API_BASE_PATH } from '../../utils/constants.js'
@@ -337,4 +355,189 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/initializeCompute`, async (req, re
 
 computeRoutes.delete(`${SERVICES_API_BASE_PATH}/compute`, (req, res) => {
   res.status(404).send('Not yet implemented!')
+})
+
+// ── Service on Demand ─────────────────────────────────────────────────
+
+async function runServiceCommand(
+  HandlerClass: any,
+  task: any,
+  res: express.Response
+): Promise<void> {
+  try {
+    const response = await new HandlerClass(res.req.oceanNode).handle(task)
+    if (response?.status?.httpStatus === 200) {
+      const result = await streamToObject(response.stream as Readable)
+      res.status(200).json(result)
+    } else {
+      HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_INFO, `Error: ${response?.status?.error}`)
+      res.status(response?.status?.httpStatus || 500).json(response?.status?.error)
+    }
+  } catch (error) {
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    res.status(500).send('Internal Server Error')
+  }
+}
+
+computeRoutes.get(`${SERVICES_API_BASE_PATH}/serviceTemplates`, async (req, res) => {
+  const task: ServiceGetTemplatesCommand = {
+    command: PROTOCOL_COMMANDS.SERVICE_GET_TEMPLATES,
+    chainId: parseInt(req.query.chainId as string) || undefined,
+    node: (req.query.node as string) || null,
+    caller: req.caller
+  }
+  await runServiceCommand(ServiceGetTemplatesHandler, task, res)
+})
+
+computeRoutes.post(`${SERVICES_API_BASE_PATH}/serviceStart`, async (req, res) => {
+  const task: ServiceStartCommand = {
+    command: PROTOCOL_COMMANDS.SERVICE_START,
+    node: (req.body.node as string) || null,
+    consumerAddress: (req.body.consumerAddress as string) || null,
+    nonce: (req.body.nonce as string) || null,
+    signature: (req.body.signature as string) || null,
+    environment: (req.body.environment as string) || null,
+    image: (req.body.image as string) || null,
+    tag: (req.body.tag as string) || undefined,
+    checksum: (req.body.checksum as string) || undefined,
+    dockerfile: (req.body.dockerfile as string) || undefined,
+    additionalDockerFiles: req.body.additionalDockerFiles || undefined,
+    dockerCmd: (req.body.dockerCmd as string[]) || undefined,
+    dockerEntrypoint: (req.body.dockerEntrypoint as string[]) || undefined,
+    exposedPorts: (req.body.exposedPorts as number[]) || undefined,
+    resources: (req.body.resources as ComputeResourceRequest[]) || undefined,
+    duration: req.body.duration as number,
+    userData: (req.body.userData as string) || undefined,
+    payment: req.body.payment,
+    authorization: req.headers?.authorization,
+    caller: req.caller
+  }
+  await runServiceCommand(ServiceStartHandler, task, res)
+})
+
+computeRoutes.post(`${SERVICES_API_BASE_PATH}/serviceStop`, async (req, res) => {
+  const task: ServiceStopCommand = {
+    command: PROTOCOL_COMMANDS.SERVICE_STOP,
+    node: (req.body.node as string) || null,
+    consumerAddress: (req.body.consumerAddress as string) || null,
+    nonce: (req.body.nonce as string) || null,
+    signature: (req.body.signature as string) || null,
+    serviceId: (req.body.serviceId as string) || null,
+    authorization: req.headers?.authorization,
+    caller: req.caller
+  }
+  await runServiceCommand(ServiceStopHandler, task, res)
+})
+
+computeRoutes.post(`${SERVICES_API_BASE_PATH}/serviceExtend`, async (req, res) => {
+  const task: ServiceExtendCommand = {
+    command: PROTOCOL_COMMANDS.SERVICE_EXTEND,
+    node: (req.body.node as string) || null,
+    consumerAddress: (req.body.consumerAddress as string) || null,
+    nonce: (req.body.nonce as string) || null,
+    signature: (req.body.signature as string) || null,
+    serviceId: (req.body.serviceId as string) || null,
+    additionalDuration: req.body.additionalDuration as number,
+    payment: req.body.payment,
+    authorization: req.headers?.authorization,
+    caller: req.caller
+  }
+  await runServiceCommand(ServiceExtendHandler, task, res)
+})
+
+computeRoutes.post(`${SERVICES_API_BASE_PATH}/serviceRestart`, async (req, res) => {
+  const task: ServiceRestartCommand = {
+    command: PROTOCOL_COMMANDS.SERVICE_RESTART,
+    node: (req.body.node as string) || null,
+    consumerAddress: (req.body.consumerAddress as string) || null,
+    nonce: (req.body.nonce as string) || null,
+    signature: (req.body.signature as string) || null,
+    serviceId: (req.body.serviceId as string) || null,
+    image: (req.body.image as string) || undefined,
+    tag: (req.body.tag as string) || undefined,
+    checksum: (req.body.checksum as string) || undefined,
+    dockerfile: (req.body.dockerfile as string) || undefined,
+    additionalDockerFiles:
+      (req.body.additionalDockerFiles as Record<string, string>) || undefined,
+    userData: (req.body.userData as string) || undefined,
+    dockerCmd: (req.body.dockerCmd as string[]) || undefined,
+    dockerEntrypoint: (req.body.dockerEntrypoint as string[]) || undefined,
+    authorization: req.headers?.authorization,
+    caller: req.caller
+  }
+  await runServiceCommand(ServiceRestartHandler, task, res)
+})
+
+computeRoutes.get(`${SERVICES_API_BASE_PATH}/serviceStatus`, async (req, res) => {
+  const task: ServiceGetStatusCommand = {
+    command: PROTOCOL_COMMANDS.SERVICE_GET_STATUS,
+    consumerAddress: req.query.consumerAddress as string,
+    nonce: req.query.nonce as string,
+    signature: req.query.signature as string,
+    serviceId: (req.query.serviceId as string) || undefined,
+    node: (req.query.node as string) || null,
+    authorization: req.headers?.authorization,
+    caller: req.caller
+  }
+  await runServiceCommand(ServiceGetStatusHandler, task, res)
+})
+
+// node-wide service listing (any owner). Default: only services currently holding a
+// resource reservation; `status` filters to one specific status, `includeAllStatuses`
+// returns everything, `fromTimestamp` keeps services created at/after that moment.
+computeRoutes.get(`${SERVICES_API_BASE_PATH}/serviceList`, async (req, res) => {
+  const task: GetServicesCommand = {
+    command: PROTOCOL_COMMANDS.SERVICE_LIST,
+    consumerAddress: req.query.consumerAddress as string,
+    nonce: req.query.nonce as string,
+    signature: req.query.signature as string,
+    status: req.query.status !== undefined ? Number(req.query.status) : undefined,
+    includeAllStatuses: req.query.includeAllStatuses === 'true',
+    fromTimestamp: (req.query.fromTimestamp as string) || undefined,
+    node: (req.query.node as string) || null,
+    authorization: req.headers?.authorization,
+    caller: req.caller
+  }
+  await runServiceCommand(GetServicesHandler, task, res)
+})
+
+// streaming logs for services
+computeRoutes.get(`${SERVICES_API_BASE_PATH}/serviceStreamableLogs`, async (req, res) => {
+  try {
+    HTTP_LOGGER.logMessage(
+      `ServiceGetStreamableLogsCommand request received with query: ${JSON.stringify(
+        req.query
+      )}`,
+      true
+    )
+
+    const task: ServiceGetStreamableLogsCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,
+      node: (req.query.node as string) || null,
+      consumerAddress: (req.query.consumerAddress as string) || null,
+      serviceId: (req.query.serviceId as string) || null,
+      signature: (req.query.signature as string) || null,
+      nonce: (req.query.nonce as string) || null,
+      since: (req.query.since as string) || undefined,
+      authorization: req.headers?.authorization,
+      caller: req.caller
+    }
+
+    const response = await new ServiceGetStreamableLogsHandler(req.oceanNode).handle(task)
+    if (response.stream) {
+      res.status(response.status.httpStatus)
+      res.set(response.status.headers)
+      response.stream.pipe(res)
+    } else {
+      const body =
+        response.status.error ??
+        (response.status.httpStatus === 404
+          ? 'Service not found or not running'
+          : 'Error')
+      res.status(response.status.httpStatus).send(body)
+    }
+  } catch (error) {
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    res.status(500).send('Internal Server Error')
+  }
 })

@@ -25,6 +25,7 @@
     "jest": true
   },
   "globals": {
-    "NodeJS": true
+    "NodeJS": true,
+    "RequestInit": true
   }
 }

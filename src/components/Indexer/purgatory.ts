@@ -1,4 +1,3 @@
-import axios from 'axios'
 import { PurgatoryAccounts, PurgatoryAssets } from '../../@types/Purgatory.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
@@ -43,16 +42,15 @@ export class Purgatory {
     const purgatoryAssets: Array<PurgatoryAssets> = []
     if (this.isAssetsPurgatoryEnabled()) {
       try {
-        const response = await axios({
-          method: 'get',
-          url: this.assetPurgatoryUrl,
-          timeout: 2000
+        const response = await fetch(this.assetPurgatoryUrl, {
+          method: 'GET',
+          signal: AbortSignal.timeout(2000)
         })
         if (response.status !== 200) {
           INDEXER_LOGGER.log(
             LOG_LEVELS_STR.LEVEL_ERROR,
             `PURGATORY: Failure when retrieving new purgatory list from ASSET_PURGATORY_URL env var.
-                Response: ${response.data}, status: ${
+                Response: ${await response.text()}, status: ${
                   response.status + response.statusText
                 }`,
             true
@@ -63,7 +61,8 @@ export class Purgatory {
           `PURGATORY: Successfully retrieved new purgatory list from ASSET_PURGATORY_URL env var.`
         )
 
-        for (const asset of response.data) {
+        const assets = await response.json()
+        for (const asset of assets) {
           if (asset && 'did' in asset) {
             purgatoryAssets.push({ did: asset.did, reason: asset.reason })
           }
@@ -86,16 +85,15 @@ export class Purgatory {
     const purgatoryAccounts: Array<PurgatoryAccounts> = []
     if (this.isAccountsPurgatoryEnabled()) {
       try {
-        const response = await axios({
-          method: 'get',
-          url: this.accountPurgatoryUrl,
-          timeout: 2000 // small increase
+        const response = await fetch(this.accountPurgatoryUrl, {
+          method: 'GET',
+          signal: AbortSignal.timeout(2000) // small increase
         })
         if (response.status !== 200) {
           INDEXER_LOGGER.log(
             LOG_LEVELS_STR.LEVEL_ERROR,
             `PURGATORY: Failure when retrieving new purgatory list from ACCOUNT_PURGATORY_URL env var.
-              Response: ${response.data}, status: ${
+              Response: ${await response.text()}, status: ${
                 response.status + response.statusText
               }`,
             true
@@ -105,7 +103,8 @@ export class Purgatory {
         INDEXER_LOGGER.logMessage(
           `PURGATORY: Successfully retrieved new purgatory list from ACCOUNT_PURGATORY_URL env var.`
         )
-        for (const account of response.data) {
+        const accounts = await response.json()
+        for (const account of accounts) {
           if (account && 'address' in account) {
             purgatoryAccounts.push({ address: account.address, reason: account.reason })
           }

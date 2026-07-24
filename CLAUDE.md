@@ -2,7 +2,6 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-
 Ocean Node is the all-in-one backend for the Ocean Protocol stack. A single Node process
 replaces three legacy components: **Provider** (data access / encryption / compute),
 **Aquarius** (metadata cache) and the **subgraph** (on-chain event indexing). It is a
@@ -13,12 +12,12 @@ of which dispatch to the same set of command handlers.
 
 ## 1. Environment & tooling prerequisites
 
-- **Node.js 22 is required** (`.nvmrc` pins `22`). Always run `nvm use` (or
-  `source ~/.nvm/nvm.sh && nvm use`) before any `npm`, build, or test command. The wrong
-  Node version fails with errors like `Unexpected token 'with'` or missing `GLIBC_2.38`.
+- **Node.js ≥ 22.13 is required** (`.nvmrc` pins `22.22.2`, matching the Dockerfile and CI;
+  `package.json` `engines` requires `>=22.13.0`). Always run `nvm use` (or `source ~/.nvm/nvm.sh && nvm use`) before
+  any `npm`, build, or test command. The wrong Node version fails with errors like
+  `Unexpected token 'with'`, missing `GLIBC_2.38`, or — since the SQLite layer uses the
+  built-in `node:sqlite` module — `ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite` on Node < 22.13.
   This is enforced by `.cursor/rules/tests-nvm.mdc` and the in-repo `CLAUDE.md`.
-- If `sqlite3` native bindings break after switching to Node 22, rebuild from source:
-  `npm_config_build_from_source=true npm rebuild sqlite3`.
 - **`postinstall` runs `scripts/fix-libp2p-http-utils.js`** — a patch applied to a libp2p
   dependency. Expect it to run on every `npm install`; don't remove it.
 - **Docker + docker-compose** are needed for the metadata database (Typesense or
@@ -77,6 +76,7 @@ no semicolons, single quotes, `printWidth: 90`, no trailing commas, 2-space tabs
 
 **Tests run against compiled JS in `dist/test/`, not the TypeScript source.** The
 `test:*` scripts all call `npm run build-tests` first, which:
+
 - compiles `src/` (incl. `src/test`) into `dist/`,
 - copies `src/test/.env.test` and `.env.test2` into `dist/test`,
 - copies `src/test/config.json` to `$HOME/config.json`.
@@ -189,7 +189,7 @@ the command, looks up the handler by `task.command`, and calls `handler.handle(t
 Two front doors, one dispatcher:
 
 - **HTTP `POST /directCommand`** (`src/components/httpRoutes/commands.ts`): validates the
-  body, then decides *local vs remote*. If the command targets this node (or no P2P), it
+  body, then decides _local vs remote_. If the command targets this node (or no P2P), it
   calls `oceanNode.handleDirectProtocolCommand(...)`. If it targets another peer and P2P is
   enabled, it forwards via `oceanNode.getP2PNode().sendTo(node, msg, multiAddrs)`. Responses
   are streamed back to the client (binary or text).
@@ -225,6 +225,7 @@ register it in the `CoreHandlersRegistry` constructor; add param validation; opt
 REST route in `src/components/httpRoutes/` and mount it in `httpRoutes/index.ts`.
 
 Handler source is grouped under `src/components/core/`:
+
 - `handler/` — general handlers (ddo, download, encrypt, fees, nonce, query, status, p2p,
   auth, accessList, escrow, fileInfo, persistentStorage, policyServer, getJobs).
 - `compute/` — C2D command handlers: `initialize`, `startCompute` (paid), `freeStartCompute`,
@@ -263,13 +264,14 @@ Handler source is grouped under `src/components/core/`:
   `getComputeResult` (+ `getComputeStreamableLogs`) → `stopCompute`. Paid compute settles via
   the `Escrow` component; `serviceResourceMatching.ts` maps requested cpu/ram/disk/gpu against
   environment pools (dual-gate: per-env ceiling + engine-wide pool; GPUs tracked globally).
-  See `docs/compute-pricing.md`, `docs/GPU.md`.
+  See `docs/compute.md`.
 - **database/** — `Database.init()` factory (`index.ts`, `DatabaseFactory.ts`). The metadata
   DB backend is pluggable: **Typesense or Elasticsearch** (chosen by `DB_TYPE`) for DDOs,
   indexer state, logs, orders, ddoState, access lists, escrow events — behind the
   `Abstract*Database` interfaces in `BaseDatabase.ts`. **SQLite** is always used for the
   nonce DB, config DB, C2D job DB, and auth-token DB (works even with no metadata DB
-  configured). See `docs/database.md`.
+  configured) — via Node's built-in `node:sqlite` module (no native addon), wrapped by
+  `SqliteClient` in `src/components/database/sqliteClient.ts`. See `docs/database.md`.
 - **KeyManager/** — provider-abstraction over the node key (`docs/KeyManager.md`). Currently
   `RawPrivateKeyProvider` (from `PRIVATE_KEY`); derives the libp2p peerId/keys and the EVM
   address, and caches the ethers signer. Designed to add KMS providers (GCP/AWS) later.
@@ -316,5 +318,5 @@ can talk to `/var/run/docker.sock`. Deployment options (Docker, local Docker bui
 `Arhitecture.md` (note the spelling), `API.md` (full HTTP API reference — very large, plus a
 Postman collection), `env.md` (authoritative env-var reference), `database.md`,
 `Storage.md` / `persistentStorage.md`, `KeyManager.md`, `PolicyServer.md`, `services.md`
-(Service-on-Demand), `compute-pricing.md` / `GPU.md` (C2D), `networking.md`, `Logs.md`,
+(Service-on-Demand), `compute.md` (C2D configuration: resources, GPUs, constraints, pricing), `networking.md`, `Logs.md`,
 `Publishing.md`, `testing.md`, `dockerDeployment.md`.

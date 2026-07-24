@@ -1819,3 +1819,415 @@ Delete a file from a bucket.
 ```json
 { "success": true }
 ```
+
+---
+
+## Service on Demand
+
+Service-on-Demand lets a consumer launch a long-running Docker container (e.g. JupyterLab, a
+vLLM inference server, VS Code) on a compute environment, pay up front via on-chain escrow for
+a requested `duration`, and reach it over forwarded network endpoints
+(`http://<nodeHost>:<hostPort>`) while it runs. Unlike a compute job, a service stays up until
+it expires, is stopped, or is extended. See [`services.md`](./services.md) for the full design
+and security model.
+
+All routes live under `/api/services`. Every command except `serviceTemplates` is
+authenticated by a signature over `consumerAddress` + `nonce` + `command` (or an auth-token
+`Authorization` header). Cost is computed only from the environment's server-side pricing and
+charged to the authenticated `consumerAddress`.
+
+> **Note:** service containers run hardened (`no-new-privileges`, `CapDrop: ['ALL']`), so a
+> process inside the container cannot bind to a port below 1024 — have your service listen on a
+> **high port** (the published host port is allocated by the node regardless).
+
+### Service object definitions
+
+#### `ServiceTemplatePublic` (returned by `serviceTemplates`)
+
+Operator-published blueprint. Secret `envVars` values are never returned — only their keys via
+`envVarKeys`.
+
+| property                  | type                          | description |
+| ------------------------- | ----------------------------- | ----------- |
+| id                        | string                        | template id (`[a-z0-9][a-z0-9_-]{0,63}`) |
+| name / description        | string                        | human-readable labels |
+| image                     | string                        | base image |
+| tag / checksum / dockerfile | string                      | image spec — exactly one |
+| exposedPorts              | number[]                      | container ports to forward |
+| envVarKeys                | string[]                      | keys of operator-set env vars (values never returned) |
+| userConfigurableEnvVars   | object[]                      | `{ key, validation?, sensitive? }` passed via `userData` |
+| command / entrypoint      | string[]                      | Docker CMD / ENTRYPOINT overrides |
+| requiredResources         | object[]                      | resources the service MUST have to run |
+| recommendedResources      | object[]                      | resources for best performance |
+
+#### `ServiceJob` (returned by start / status / extend / restart / stop)
+
+The encrypted `userData` is never returned. Key fields:
+
+| property      | type     | description |
+| ------------- | -------- | ----------- |
+| serviceId     | string   | unique id of the running service |
+| environment   | string   | envId the service runs on |
+| owner         | string   | consumerAddress |
+| status        | number   | `10` Starting, `20` Locking, `11` PullImage, `13` BuildImage, `30` Claiming, `40` Running, `12` PullImageFailed, `14` BuildImageFailed, `15` VulnerableImage, `50` Stopping, `70` Stopped, `75` Expired, `99` Error |
+| statusText    | string   | human-readable status |
+| dateCreated   | string   | ISO timestamp |
+| expiresAt     | number   | Unix ms timestamp when the paid window ends |
+| duration      | number   | requested seconds |
+| endpoints     | object[] | `{ containerPort, hostPort, url }` per exposed port |
+| resources     | object[] | `{ id, amount, price }` |
+| payment       | object   | initial start payment record |
+| extendPayments | object[] | one entry per successful extend |
+
+---
+
+### `HTTP` GET /api/services/serviceTemplates
+
+### `P2P` command: serviceGetTemplates
+
+#### Description
+
+List the operator-published service templates (sanitized). Not authenticated.
+
+#### Query Parameters
+
+| name    | type   | required | description |
+| ------- | ------ | -------- | ----------- |
+| chainId | number |          | filter to templates whose envs price on this chain |
+
+#### Response (200)
+
+```json
+[
+  {
+    "id": "jupyter-cpu",
+    "name": "JupyterLab (CPU)",
+    "image": "quay.io/jupyter/datascience-notebook",
+    "tag": "latest",
+    "exposedPorts": [8888],
+    "userConfigurableEnvVars": [{ "key": "JUPYTER_TOKEN", "sensitive": true }],
+    "requiredResources": [{ "id": "cpu", "min": 1 }, { "id": "ram", "min": 2 }]
+  }
+]
+```
+
+---
+
+### `HTTP` POST /api/services/serviceStart
+
+### `P2P` command: serviceStart
+
+#### Description
+
+Validate the request, persist the job, and **return immediately** with the `serviceId` — the
+response does **not** wait for escrow or the image pull/build. The consumer supplies the
+container spec directly (an `image` referenced by `tag`/`checksum`, or an inline `dockerfile`
+when the operator allows building).
+
+The returned job has `status: 10` (`Starting`) and no `endpoints` yet. A background loop then
+advances it: `Starting → Locking` (escrow lock) `→ PullImage`/`BuildImage` (image + scan) `→
+Claiming` (claim on success, or refund/cancel the lock on failure) `→ Running`. **Poll
+`serviceStatus`** until `status` is `40` (`Running`, with `endpoints` populated) or a terminal
+`*Failed` / `Error` status. Note that `Running` is not a final resting state for a poller to stop
+at: the same background loop keeps checking the container's health afterward, and can move an
+already-`Running` service to `Error` later if the container dies on its own — long-lived clients
+should keep watching `serviceStatus`, not just stop once they first see `Running`.
+
+#### Request Body
+
+```json
+{
+  "consumerAddress": "0x...",
+  "nonce": "123",
+  "signature": "0x...",
+  "environment": "env-1",
+  "image": "nginxinc/nginx-unprivileged",
+  "tag": "alpine",
+  "exposedPorts": [8080],
+  "resources": [{ "id": "cpu", "amount": 1 }, { "id": "ram", "amount": 1 }],
+  "duration": 3600,
+  "userData": "<ECIES-encrypted-to-node-pubkey hex>",
+  "payment": { "chainId": 8996, "token": "0x..." }
+}
+```
+
+| field                 | type     | required | description |
+| --------------------- | -------- | -------- | ----------- |
+| environment           | string   | v        | envId to run on (services must be enabled on it) |
+| image                 | string   | v        | base image |
+| tag / checksum / dockerfile | string |        | image spec — at most one; `dockerfile` requires `allowImageBuild` |
+| additionalDockerFiles | object   |          | filename → content; only with `dockerfile` |
+| dockerCmd / dockerEntrypoint | string[] |    | container CMD / ENTRYPOINT overrides |
+| exposedPorts          | number[] |          | container ports to publish |
+| resources             | object[] |          | `{ id, amount }` requested resources |
+| duration              | number   | v        | seconds; capped by `serviceOnDemand.maxDurationSeconds` |
+| userData              | string   |          | ECIES-encrypted (to the node pubkey) JSON of env vars |
+| payment               | object   | v        | `{ chainId, token }` |
+
+#### Response (200)
+
+The immediate response — `Starting`, no endpoints yet. Poll `serviceStatus` for the rest.
+
+```json
+[
+  {
+    "serviceId": "0x...",
+    "environment": "env-1",
+    "owner": "0x...",
+    "status": 10,
+    "statusText": "Starting",
+    "expiresAt": 1735689600000,
+    "duration": 3600,
+    "endpoints": [],
+    "payment": { "chainId": 8996, "token": "0x...", "cost": 10 }
+  }
+]
+```
+
+Errors: `403` services disabled on the env / access denied, `400` invalid params (bad address,
+duration, image spec, unavailable resources, or no pricing for the token). Escrow lock/claim now
+happens in the background, so escrow failures surface as the job ending in an `Error` / `*Failed`
+status (observed via `serviceStatus`), not as a synchronous `402`.
+
+---
+
+### `HTTP` GET /api/services/serviceStatus
+
+### `P2P` command: serviceGetStatus
+
+#### Description
+
+Read service job status and endpoints. **Authenticated and owner-scoped** — only services owned
+by the authenticated `consumerAddress` are returned.
+
+#### Query Parameters
+
+| name            | type   | required | description |
+| --------------- | ------ | -------- | ----------- |
+| consumerAddress | string | v        | owner address |
+| nonce           | string | v        | request nonce |
+| signature       | string | v        | signed message (or use an `Authorization` auth-token header) |
+| serviceId       | string |          | filter to a single service; omit to list all owned services |
+
+#### Response (200)
+
+Array of `ServiceJob` (with `userData` stripped).
+
+---
+
+### `HTTP` GET /api/services/serviceList
+
+### `P2P` command: serviceList
+
+#### Description
+
+Node-wide service listing. **Authenticated but NOT owner-scoped** — any authenticated
+consumer identity sees every owner's services. By default it returns only the services
+**currently holding a resource reservation** (exactly what the engines count against the
+shared pools): `Running`/`Restarting`/`Stopping`, the mid-start pipeline states, paid
+`Error` (container died, restartable), and explicitly `Stopped` within the paid window.
+`Expired` and never-paid jobs hold nothing and are not listed by default.
+
+#### Query Parameters
+
+| name              | type    | required | description |
+| ----------------- | ------- | -------- | ----------- |
+| consumerAddress   | string  | v        | caller identity (any consumer) |
+| nonce             | string  | v        | request nonce |
+| signature         | string  | v        | signed message (or use an `Authorization` auth-token header) |
+| status            | number  |          | filter to ONE specific `ServiceStatusNumber` (any status, incl. `75` Expired); takes precedence over `includeAllStatuses` |
+| includeAllStatuses | boolean |         | `true` returns services in every status instead of only the resource-holding set |
+| fromTimestamp     | string  |          | only services created at/after this moment — ISO date (`2026-01-15T00:00:00Z`) or Unix timestamp (seconds or milliseconds) |
+
+#### Response (200)
+
+Array of `ServiceJob`, **listing-sanitized**: `userData`, `dockerCmd`, `dockerEntrypoint`,
+`dockerfile` and `additionalDockerFiles` are stripped (identity, status, resources,
+endpoints and payment metadata are kept). Use the owner-scoped `serviceStatus` to see a
+service's own configuration.
+
+---
+
+### `HTTP` POST /api/services/serviceExtend
+
+### `P2P` command: serviceExtend
+
+#### Description
+
+Pay to push the service expiry further out. The total remaining duration must not exceed
+`maxDurationSeconds`. Re-checks the environment access list.
+
+#### Request Body
+
+```json
+{
+  "consumerAddress": "0x...",
+  "nonce": "123",
+  "signature": "0x...",
+  "serviceId": "0x...",
+  "additionalDuration": 1800,
+  "payment": { "chainId": 8996, "token": "0x..." }
+}
+```
+
+`additionalDuration` must be a positive number of seconds.
+
+#### Response (200)
+
+The updated `ServiceJob` (advanced `expiresAt`, new entry in `extendPayments`).
+
+---
+
+### `HTTP` POST /api/services/serviceRestart
+
+### `P2P` command: serviceRestart
+
+#### Description
+
+Recreate the service container (no extra charge), keeping the same `expiresAt`, resources and
+host ports. Re-checks the environment service gate and access list; rejected if the service has
+expired. This is the recommended recovery path after a service lands in `Error` because its
+container died on its own (the background health check leaves host ports/network/container
+record reserved specifically so restart can reuse them), in addition to recovering from an
+explicit `serviceStop` or any other terminal failure.
+
+**Restart is atomic — either all-old or all-new, never a mix of new params over the stored job:**
+
+- **REUSE mode** — the request carries **none** of the container params below. The service
+  restarts on exactly its stored spec (image, `userData`, `dockerCmd`, `dockerEntrypoint`). Use
+  this to simply bounce a service back to `Running`.
+- **RESPEC mode** — the request carries **any** container param. The container is rebuilt
+  entirely from the request: `image` becomes **required** and exactly one of `tag`/`checksum`/
+  `dockerfile` applies (validated exactly like `serviceStart`). `userData`/`dockerCmd`/
+  `dockerEntrypoint` are taken **as-sent** — anything omitted here is empty/unset, it is **not**
+  pulled from the stored job. This is the bug-fix flow: publish a fixed image under a new tag,
+  then restart re-supplying the full spec (e.g. same `image`, new `tag`).
+
+Because `image` is mandatory whenever any container param is present, you cannot ride a new
+`userData`/`dockerCmd` on top of the stored image — a partial change is rejected (400). Payment,
+resources and duration are always preserved; only the container spec can change. A service whose
+start payment was **never claimed** (escrow lock failed or was refunded) cannot be restarted —
+start a new service instead.
+
+#### Request Body
+
+REUSE mode (bounce the service on its stored spec):
+
+```json
+{
+  "consumerAddress": "0x...",
+  "nonce": "123",
+  "signature": "0x...",
+  "serviceId": "0x..."
+}
+```
+
+RESPEC mode (restart on a new image spec — `image` required, plus at most one of
+`tag`/`checksum`/`dockerfile`):
+
+```json
+{
+  "consumerAddress": "0x...",
+  "nonce": "123",
+  "signature": "0x...",
+  "serviceId": "0x...",
+  "image": "myrepo/myservice",
+  "tag": "v2",
+  "userData": "<optional ECIES-encrypted hex; the new container env — omitted ⇒ none>",
+  "dockerCmd": ["<optional; the new CMD override — omitted ⇒ none>"],
+  "dockerEntrypoint": ["<optional; the new ENTRYPOINT override — omitted ⇒ none>"]
+}
+```
+
+| name | type | required | description |
+| --- | --- | --- | --- |
+| serviceId | string | v | the service to restart |
+| image | string | RESPEC | base image name (build label when `dockerfile` is set). Required as soon as any container param is present |
+| tag | string | | pull by `name:tag`; mutually exclusive with `checksum`/`dockerfile` |
+| checksum | string | | pull by digest `sha256:<64 hex>`; mutually exclusive with `tag`/`dockerfile` |
+| dockerfile | string | | build from an inline Dockerfile; requires `allowImageBuild` on the environment; mutually exclusive with `tag`/`checksum` |
+| additionalDockerFiles | object | | extra `filename → content` files for the build context (only with `dockerfile`) |
+| userData | string | | ECIES-encrypted (to the node public key) JSON → the container's env-var map |
+| dockerCmd | string[] | | exact container command (Docker exec-form CMD override) |
+| dockerEntrypoint | string[] | | container ENTRYPOINT override |
+
+#### Response (200)
+
+The `ServiceJob` with a new `containerId` (same `hostPort` and `expiresAt`; the `image`/`tag`/
+`checksum`/`dockerfile`/`containerImage` fields reflect the new spec in RESPEC mode).
+
+#### Response (400)
+
+Not found, expired, payment never claimed, or an invalid respec — a container param was sent
+without `image`, or more than one of `tag`/`checksum`/`dockerfile` was provided.
+
+#### Response (403)
+
+`dockerfile` was supplied but the environment has `allowImageBuild=false`.
+
+---
+
+### `HTTP` POST /api/services/serviceStop
+
+### `P2P` command: serviceStop
+
+#### Description
+
+Tear down the service container and network and release its resources. Owner-gated.
+
+#### Request Body
+
+```json
+{
+  "consumerAddress": "0x...",
+  "nonce": "123",
+  "signature": "0x...",
+  "serviceId": "0x..."
+}
+```
+
+#### Response (200)
+
+The `ServiceJob` with `status: 70` (Stopped).
+
+---
+
+### `HTTP` GET /api/services/serviceStreamableLogs
+
+### `P2P` command: serviceGetStreamableLogs
+
+#### Description
+
+Stream the service container's stdout/stderr logs live. **Authenticated and owner-scoped**
+— only the service's owner (`consumerAddress`, proven by signature/nonce or auth token) can
+read its logs. Available while the service is `Running` (`40`) or `Error` (`99`) — a crashed
+container is kept around until `stop`/`restart`, so its logs remain fetchable for diagnosis.
+
+#### Query Parameters
+
+| name            | type   | required | description |
+| --------------- | ------ | -------- | ----------- |
+| consumerAddress | string | v        | owner address |
+| nonce           | string | v        | request nonce |
+| signature       | string | v        | signed message (or use an `Authorization` auth-token header) |
+| serviceId       | string | v        | the service to stream logs for |
+| since           | string |          | lower time bound for returned logs. Either a Unix timestamp in seconds (e.g. `1735689600`), or a relative duration counted back from now (e.g. `30s`, `45m`, `2h`, `7d`). Omit to get the full history since container start, then follow live. |
+
+#### Response (200)
+
+Raw `stdout`/`stderr` byte stream from the container, connection kept open and followed live.
+With `since` set, historical output before that point is skipped — useful for a long-lived
+service where fetching the full history would otherwise dump days/weeks of buffered logs
+before reaching the live tail (e.g. `since=1h` for just the last hour).
+
+#### Response (400)
+
+`since` is present but not a valid Unix timestamp or duration (`<number><s|m|h|d>`).
+
+#### Response (404)
+
+Service not found, or not `Running`/`Error`.
+
+#### Response (401)
+
+Missing/invalid auth, or `consumerAddress` is not the service owner.

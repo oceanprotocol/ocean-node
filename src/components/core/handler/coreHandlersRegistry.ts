@@ -46,7 +46,11 @@ import {
   GetP2PNetworkStatsHandler,
   FindPeerHandler
 } from './p2p.js'
-import { CreateAuthTokenHandler, InvalidateAuthTokenHandler } from './authHandler.js'
+import {
+  CreateAuthTokenHandler,
+  InvalidateAuthTokenHandler,
+  ValidateAuthTokenHandler
+} from './authHandler.js'
 import { GetJobsHandler } from './getJobs.js'
 import {
   PersistentStorageCreateBucketHandler,
@@ -59,6 +63,16 @@ import {
 } from './persistentStorage.js'
 import { GetAccessListHandler, SearchAccessListHandler } from './accessListHandler.js'
 import { EscrowEventsHandler } from './escrowHandler.js'
+import {
+  ServiceGetTemplatesHandler,
+  ServiceStartHandler,
+  ServiceStopHandler,
+  ServiceExtendHandler,
+  ServiceRestartHandler,
+  ServiceGetStatusHandler,
+  GetServicesHandler,
+  ServiceGetStreamableLogsHandler
+} from '../service/index.js'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler
@@ -146,6 +160,32 @@ export class CoreHandlersRegistry {
       PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
       new ComputeInitializeHandler(node)
     )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.SERVICE_GET_TEMPLATES,
+      new ServiceGetTemplatesHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.SERVICE_START,
+      new ServiceStartHandler(node)
+    )
+    this.registerCoreHandler(PROTOCOL_COMMANDS.SERVICE_STOP, new ServiceStopHandler(node))
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.SERVICE_EXTEND,
+      new ServiceExtendHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.SERVICE_RESTART,
+      new ServiceRestartHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.SERVICE_GET_STATUS,
+      new ServiceGetStatusHandler(node)
+    )
+    this.registerCoreHandler(PROTOCOL_COMMANDS.SERVICE_LIST, new GetServicesHandler(node))
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,
+      new ServiceGetStreamableLogsHandler(node)
+    )
     this.registerCoreHandler(PROTOCOL_COMMANDS.STOP_NODE, new StopNodeHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.STOP_JOB, new StopJobHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.REINDEX_TX, new ReindexTxHandler(node))
@@ -175,6 +215,10 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
       new InvalidateAuthTokenHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.VALIDATE_AUTH_TOKEN,
+      new ValidateAuthTokenHandler(node)
     )
     this.registerCoreHandler(PROTOCOL_COMMANDS.FETCH_CONFIG, new FetchConfigHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.PUSH_CONFIG, new PushConfigHandler(node))

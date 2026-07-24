@@ -36,6 +36,7 @@ export const PROTOCOL_COMMANDS = {
   FIND_PEER: 'findPeer',
   CREATE_AUTH_TOKEN: 'createAuthToken',
   INVALIDATE_AUTH_TOKEN: 'invalidateAuthToken',
+  VALIDATE_AUTH_TOKEN: 'validateAuthToken',
   FETCH_CONFIG: 'fetchConfig',
   PUSH_CONFIG: 'pushConfig',
   GET_LOGS: 'getLogs',
@@ -49,7 +50,15 @@ export const PROTOCOL_COMMANDS = {
   PERSISTENT_STORAGE_DELETE_FILE: 'persistentStorageDeleteFile',
   GET_ACCESS_LIST: 'getAccessList',
   SEARCH_ACCESS_LIST: 'searchAccessList',
-  GET_ESCROW_EVENTS: 'getEscrowEvents'
+  GET_ESCROW_EVENTS: 'getEscrowEvents',
+  SERVICE_GET_TEMPLATES: 'serviceGetTemplates',
+  SERVICE_START: 'serviceStart',
+  SERVICE_STOP: 'serviceStop',
+  SERVICE_RESTART: 'serviceRestart',
+  SERVICE_GET_STATUS: 'serviceGetStatus',
+  SERVICE_LIST: 'serviceList',
+  SERVICE_EXTEND: 'serviceExtend',
+  SERVICE_GET_STREAMABLE_LOGS: 'serviceGetStreamableLogs'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -87,6 +96,7 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.FIND_PEER,
   PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
   PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
+  PROTOCOL_COMMANDS.VALIDATE_AUTH_TOKEN,
   PROTOCOL_COMMANDS.FETCH_CONFIG,
   PROTOCOL_COMMANDS.PUSH_CONFIG,
   PROTOCOL_COMMANDS.GET_LOGS,
@@ -100,7 +110,15 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DELETE_FILE,
   PROTOCOL_COMMANDS.GET_ACCESS_LIST,
   PROTOCOL_COMMANDS.SEARCH_ACCESS_LIST,
-  PROTOCOL_COMMANDS.GET_ESCROW_EVENTS
+  PROTOCOL_COMMANDS.GET_ESCROW_EVENTS,
+  PROTOCOL_COMMANDS.SERVICE_GET_TEMPLATES,
+  PROTOCOL_COMMANDS.SERVICE_START,
+  PROTOCOL_COMMANDS.SERVICE_STOP,
+  PROTOCOL_COMMANDS.SERVICE_RESTART,
+  PROTOCOL_COMMANDS.SERVICE_GET_STATUS,
+  PROTOCOL_COMMANDS.SERVICE_LIST,
+  PROTOCOL_COMMANDS.SERVICE_EXTEND,
+  PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS
 ]
 
 export const MetadataStates = {
@@ -132,6 +150,7 @@ export const EVENTS = {
   // Escrow contract events. Values must equal the on-chain event name.
   ESCROW_AUTH: 'Auth',
   ESCROW_LOCK: 'Lock',
+  ESCROW_RELOCK: 'ReLock',
   ESCROW_CLAIMED: 'Claimed',
   ESCROW_CANCELED: 'Canceled',
   ESCROW_DEPOSIT: 'Deposit',
@@ -141,6 +160,7 @@ export const EVENTS = {
 export const ESCROW_EVENTS = [
   EVENTS.ESCROW_AUTH,
   EVENTS.ESCROW_LOCK,
+  EVENTS.ESCROW_RELOCK,
   EVENTS.ESCROW_CLAIMED,
   EVENTS.ESCROW_CANCELED,
   EVENTS.ESCROW_DEPOSIT,
@@ -227,13 +247,17 @@ export const EVENT_HASHES: Hashes = {
     type: EVENTS.NEW_ACCESS_LIST,
     text: 'NewAccessList(address,address)'
   },
-  '0x118cb6c6a02e26bfdb39cab8d70573499942c4ee3f0d7616d3c4100fe9163d9d': {
+  '0x5a3021f46552b1ac3c96e967ff1ecfeb100603ccc2940941cad97db3ee2baec7': {
     type: EVENTS.ESCROW_AUTH,
-    text: 'Auth(address,address,uint256,uint256,uint256)'
+    text: 'Auth(address,address,address,uint256,uint256,uint256)'
   },
   '0xb746b0421b0b98debe76bb312ec9fb701603af22ddb107f7e639b0187e4ff880': {
     type: EVENTS.ESCROW_LOCK,
     text: 'Lock(address,address,uint256,uint256,uint256,address)'
+  },
+  '0x1ccec59cf72b2788d240da471a5a929af5babf4b9f1f5edafbe4ccb832d20211': {
+    type: EVENTS.ESCROW_RELOCK,
+    text: 'ReLock(address,address,uint256,uint256,uint256,uint256,address)'
   },
   '0x77aeb72af8b0efaf7fd8c746d2fb78653ae489dd88dea7a851cb354e4cdc4eed': {
     type: EVENTS.ESCROW_CLAIMED,
@@ -470,6 +494,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   DOCKER_COMPUTE_ENVIRONMENTS: {
     name: 'DOCKER_COMPUTE_ENVIRONMENTS',
     value: process.env.DOCKER_COMPUTE_ENVIRONMENTS,
+    required: false
+  },
+  SERVICE_TEMPLATES_PATH: {
+    name: 'SERVICE_TEMPLATES_PATH',
+    value: process.env.SERVICE_TEMPLATES_PATH,
     required: false
   },
   DOCKER_REGISTRY_AUTHS: {

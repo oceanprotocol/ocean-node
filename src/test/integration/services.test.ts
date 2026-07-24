@@ -1,0 +1,1152 @@
+import { expect, assert } from 'chai'
+import {
+  ServiceGetTemplatesHandler,
+  ServiceStartHandler,
+  ServiceStopHandler,
+  ServiceExtendHandler,
+  ServiceRestartHandler,
+  ServiceGetStatusHandler,
+  GetServicesHandler,
+  ServiceGetStreamableLogsHandler
+} from '../../components/core/service/index.js'
+import { ComputeGetEnvironmentsHandler } from '../../components/core/compute/index.js'
+import type {
+  ServiceGetTemplatesCommand,
+  ServiceStartCommand,
+  ServiceStopCommand,
+  ServiceExtendCommand,
+  ServiceRestartCommand,
+  ServiceGetStatusCommand,
+  GetServicesCommand,
+  ServiceGetStreamableLogsCommand
+} from '../../@types/commands.js'
+import {
+  ServiceStatusNumber,
+  type ServiceJob,
+  type ServiceTemplatePublic
+} from '../../@types/C2D/ServiceOnDemand.js'
+import type { ComputeEnvironment } from '../../@types/C2D/C2D.js'
+import {
+  ENVIRONMENT_VARIABLES,
+  PROTOCOL_COMMANDS,
+  getConfiguration
+} from '../../utils/index.js'
+import { Database } from '../../components/database/index.js'
+import { OceanNode } from '../../OceanNode.js'
+import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { Readable } from 'stream'
+import { streamToObject } from '../../utils/util.js'
+import { ethers, JsonRpcProvider, Signer } from 'ethers'
+import { RPCS } from '../../@types/blockchain.js'
+import {
+  DEFAULT_TEST_TIMEOUT,
+  OverrideEnvConfig,
+  TEST_ENV_CONFIG_FILE,
+  buildEnvOverrideConfig,
+  getMockSupportedNetworks,
+  setupEnvironment,
+  tearDownEnvironment,
+  sleep
+} from '../utils/utils.js'
+import { DEVELOPMENT_CHAIN_ID, getOceanArtifactsAdresses } from '../../utils/address.js'
+import OceanToken from '@oceanprotocol/contracts/artifacts/contracts/utils/OceanToken.sol/OceanToken.json' with { type: 'json' }
+import EscrowJson from '@oceanprotocol/contracts/artifacts/contracts/escrow/Escrow.sol/Escrow.json' with { type: 'json' }
+import { EncryptMethod } from '../../@types/fileObject.js'
+import { createHashForSignature, safeSign } from '../utils/signature.js'
+import { C2DEngineDocker } from '../../components/c2d/compute_engine_docker.js'
+import Dockerode from 'dockerode'
+import fsp from 'fs/promises'
+import path from 'path'
+import { tmpdir } from 'os'
+
+const TEMPLATE_ID = 'nginx-demo'
+const MAX_DURATION = 600 // serviceOnDemand.maxDurationSeconds
+const SERVICE_DURATION = 300 // long-lived service used through tests (d)→(l)
+const EXPIRY_DURATION = 60 // short service for the expiry-cron test
+const PORT_RANGE_START = 39000
+const PORT_RANGE_END = 39500
+
+const TEMPLATE_JSON = {
+  id: TEMPLATE_ID,
+  name: 'Nginx demo',
+  image: 'nginxinc/nginx-unprivileged',
+  tag: 'alpine',
+  exposedPorts: [8080],
+  requiredResources: [
+    { id: 'cpu', min: 1 },
+    { id: 'ram', min: 1 }
+  ],
+  userConfigurableEnvVars: [{ key: 'EXTRA', validation: '^[a-zA-Z0-9]{1,20}$' }]
+}
+
+describe('**********         Service on Demand', () => {
+  let previousConfiguration: OverrideEnvConfig[]
+  let config: OceanNodeConfig
+  let dbconn: Database
+  let oceanNode: OceanNode
+  let provider: JsonRpcProvider
+  let publisherAccount: Signer
+  let consumerAccount: Signer
+  let nonOwnerAccount: Signer
+  let consumerAddress: string
+  let paymentToken: any
+  let paymentTokenContract: any
+  let escrowContract: any
+  let artifactsAddresses: any
+  let serviceTemplatesPath: string
+  let servicesEnv: ComputeEnvironment
+  let noServicesEnv: ComputeEnvironment
+
+  // state threaded through the lifecycle tests
+  let serviceId: string
+  let hostPort: number
+  let expiresAt: number
+  let endpointUrl: string
+  const startedServices: string[] = []
+
+  const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
+
+  // ── helpers ──────────────────────────────────────────────────────────
+
+  async function signFor(signer: Signer, command: string) {
+    const addr = await signer.getAddress()
+    const nonce = Date.now().toString()
+    const hash = createHashForSignature(addr, nonce, command)
+    const signature = await safeSign(signer, hash)
+    return { consumerAddress: addr, nonce, signature }
+  }
+
+  async function encryptUserData(obj: Record<string, unknown>): Promise<string> {
+    const enc = await oceanNode
+      .getKeyManager()
+      .encrypt(new Uint8Array(Buffer.from(JSON.stringify(obj))), EncryptMethod.ECIES)
+    return Buffer.from(enc).toString('hex')
+  }
+
+  async function fundEscrow(beneficiaryNodeAddr: string, durationForLock: number) {
+    // Always mint a large top-up rather than only when the balance is 0. Integration suites
+    // share one dev chain and run in sequence; by the time this suite runs, earlier suites
+    // (e.g. compute) have left locked funds against the same (token, payer, node beneficiary)
+    // and drained the wallet. Setting maxLockedAmount from a small leftover balance would push
+    // it below the already-accumulated currentLockedAmount → "will go over limit". A large
+    // deposit + authorization ceiling clears that leftover and covers all locks in (d)→(l).
+    const mintTx = await paymentTokenContract.mint(
+      consumerAddress,
+      ethers.parseUnits('1000000', 18)
+    )
+    await mintTx.wait()
+    const balance = await paymentTokenContract.balanceOf(consumerAddress)
+    await (
+      await paymentTokenContract
+        .connect(consumerAccount)
+        .approve(artifactsAddresses.development.Escrow, balance)
+    ).wait()
+    await (
+      await escrowContract.connect(consumerAccount).deposit(paymentToken, balance)
+    ).wait()
+    const minLockSeconds = oceanNode.escrow.getMinLockTime(durationForLock)
+    await (
+      await escrowContract
+        .connect(consumerAccount)
+        .authorize(paymentToken, beneficiaryNodeAddr, balance, minLockSeconds, 100)
+    ).wait()
+    return await oceanNode.escrow.getUserAvailableFunds(
+      DEVELOPMENT_CHAIN_ID,
+      consumerAddress,
+      paymentToken
+    )
+  }
+
+  async function getServiceJob(id: string): Promise<ServiceJob | undefined> {
+    const { nonce, signature } = await signFor(
+      consumerAccount,
+      PROTOCOL_COMMANDS.SERVICE_GET_STATUS
+    )
+    const r = await new ServiceGetStatusHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_GET_STATUS,
+      serviceId: id,
+      consumerAddress,
+      nonce,
+      signature
+    } as ServiceGetStatusCommand)
+    const jobs = (await streamToObject(r.stream as Readable)) as ServiceJob[]
+    return jobs.find((j) => j.serviceId === id)
+  }
+
+  async function pollServiceStatus(
+    id: string,
+    target: ServiceStatusNumber,
+    timeoutMs = DEFAULT_TEST_TIMEOUT * 3
+  ): Promise<ServiceJob> {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      const job = await getServiceJob(id)
+      if (job && job.status === target) return job
+      if (
+        job &&
+        (job.status === ServiceStatusNumber.Error ||
+          job.status === ServiceStatusNumber.PullImageFailed ||
+          job.status === ServiceStatusNumber.BuildImageFailed)
+      ) {
+        throw new Error(
+          `service ${id} entered failure state ${job.status}: ${job.statusText}`
+        )
+      }
+      await sleep(3000)
+    }
+    throw new Error(`pollServiceStatus(${id}) timed out waiting for status ${target}`)
+  }
+
+  async function httpGetWithRetry(
+    url: string,
+    tries = 4
+  ): Promise<{ ok: boolean; status: number; body: string }> {
+    let lastErr: any
+    for (let i = 0; i < tries; i++) {
+      try {
+        const res = await fetch(url)
+        const body = await res.text()
+        return { ok: res.ok, status: res.status, body }
+      } catch (e) {
+        lastErr = e
+        await sleep(1500)
+      }
+    }
+    throw lastErr
+  }
+
+  function getDockerEngine(): C2DEngineDocker {
+    const engines = (oceanNode.getC2DEngines() as any).engines as C2DEngineDocker[]
+    return engines.find((e) => e instanceof C2DEngineDocker) as C2DEngineDocker
+  }
+
+  // container.logs({follow: true}) never ends on its own, so read for a bounded
+  // window and always destroy the stream afterwards to release the docker log socket.
+  // eslint-disable-next-line require-await
+  async function readLogsWithTimeout(
+    stream: Readable,
+    timeoutMs = 5000
+  ): Promise<string> {
+    return new Promise((resolve) => {
+      let data = ''
+      const finish = () => {
+        stream.removeAllListeners()
+        stream.destroy()
+        resolve(data)
+      }
+      const timer = setTimeout(finish, timeoutMs)
+      stream.on('data', (chunk) => {
+        data += chunk.toString()
+      })
+      stream.on('end', () => {
+        clearTimeout(timer)
+        finish()
+      })
+      stream.on('error', () => {
+        clearTimeout(timer)
+        finish()
+      })
+    })
+  }
+
+  // ── setup / teardown ─────────────────────────────────────────────────
+
+  before(async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+    artifactsAddresses = getOceanArtifactsAdresses()
+    paymentToken = artifactsAddresses.development.Ocean
+
+    // Write the template file BEFORE building the configuration.
+    serviceTemplatesPath = await fsp.mkdtemp(path.join(tmpdir(), 'ocean-svc-tmpl-'))
+    await fsp.writeFile(
+      path.join(serviceTemplatesPath, 'nginx-demo.json'),
+      JSON.stringify(TEMPLATE_JSON),
+      'utf8'
+    )
+
+    const dockerEnvs =
+      '[{"socketPath":"/var/run/docker.sock",' +
+      '"serviceOnDemand":{"enabled":true,"nodeHost":"localhost","hostPortRange":[' +
+      PORT_RANGE_START +
+      ',' +
+      PORT_RANGE_END +
+      '],"maxDurationSeconds":' +
+      MAX_DURATION +
+      ',"allowImageBuild":true},' +
+      '"environments":[' +
+      '{"storageExpiry":604800,"maxJobDuration":3600,"minJobDuration":60,"features":{"computeJobs":true,"services":true},' +
+      '"resources":[{"id":"cpu","total":4,"max":4,"min":1,"type":"cpu"},{"id":"ram","total":10,"max":10,"min":1,"type":"ram"},{"id":"disk","total":10,"max":10,"min":0,"type":"disk"}],' +
+      '"fees":{"' +
+      DEVELOPMENT_CHAIN_ID +
+      '":[{"feeToken":"' +
+      paymentToken +
+      '","prices":[{"id":"cpu","price":1},{"id":"ram","price":1}]}]}},' +
+      '{"storageExpiry":604800,"maxJobDuration":3600,"minJobDuration":60,"features":{"computeJobs":true,"services":false},' +
+      '"resources":[{"id":"cpu","total":2,"max":2,"min":1,"type":"cpu"},{"id":"ram","total":4,"max":4,"min":1,"type":"ram"},{"id":"disk","total":4,"max":4,"min":0,"type":"disk"}],' +
+      '"fees":{"' +
+      DEVELOPMENT_CHAIN_ID +
+      '":[{"feeToken":"' +
+      paymentToken +
+      '","prices":[{"id":"cpu","price":1},{"id":"ram","price":1}]}]}}' +
+      ']}]'
+
+    previousConfiguration = await setupEnvironment(
+      TEST_ENV_CONFIG_FILE,
+      buildEnvOverrideConfig(
+        [
+          ENVIRONMENT_VARIABLES.RPCS,
+          ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
+          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
+          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE,
+          ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS,
+          ENVIRONMENT_VARIABLES.SERVICE_TEMPLATES_PATH
+        ],
+        [
+          JSON.stringify(mockSupportedNetworks),
+          JSON.stringify([DEVELOPMENT_CHAIN_ID]),
+          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
+          `${process.env.HOME}/.ocean/ocean-contracts/artifacts/address.json`,
+          dockerEnvs,
+          serviceTemplatesPath
+        ]
+      )
+    )
+
+    config = await getConfiguration(true)
+    assert(
+      config.serviceTemplatesPath === serviceTemplatesPath,
+      'serviceTemplatesPath not applied to config'
+    )
+    dbconn = await Database.init(config.dbConfig)
+
+    // Clean stale service jobs so prior runs don't consume shared resources. Expired is
+    // the only status that releases the reservation (Stopped still counts as active).
+    const staleServices = await dbconn.c2d.getRunningServiceJobs()
+    for (const svc of staleServices) {
+      svc.status = ServiceStatusNumber.Expired
+      svc.statusText = 'Expired'
+      await dbconn.c2d.updateServiceJob(svc)
+    }
+    const staleJobs = await dbconn.c2d.getRunningJobs()
+    for (const job of staleJobs) {
+      await dbconn.c2d.deleteJob(job.jobId)
+    }
+
+    oceanNode = OceanNode.getInstance(config, dbconn, null, null, null, null, null, true)
+    await oceanNode.addC2DEngines()
+
+    provider = new JsonRpcProvider('http://127.0.0.1:8545')
+    publisherAccount = (await provider.getSigner(0)) as Signer
+    consumerAccount = (await provider.getSigner(1)) as Signer
+    nonOwnerAccount = (await provider.getSigner(3)) as Signer
+    consumerAddress = await consumerAccount.getAddress()
+
+    paymentTokenContract = new ethers.Contract(
+      paymentToken,
+      OceanToken.abi,
+      publisherAccount
+    )
+    escrowContract = new ethers.Contract(
+      artifactsAddresses.development.Escrow,
+      EscrowJson.abi,
+      publisherAccount
+    )
+  })
+
+  after(async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    // Best-effort: stop every service this suite started so no container/network/port leaks.
+    try {
+      const engine = getDockerEngine()
+      if (engine) {
+        for (const id of startedServices) {
+          await engine.stopService(id, consumerAddress).catch(() => {})
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    if (oceanNode) await oceanNode.tearDownAll()
+    await tearDownEnvironment(previousConfiguration)
+    if (serviceTemplatesPath) {
+      await fsp.rm(serviceTemplatesPath, { recursive: true, force: true })
+    }
+  })
+
+  // ── tests ────────────────────────────────────────────────────────────
+
+  it('(a) sets up the service environment', () => {
+    assert(oceanNode, 'Failed to instantiate OceanNode')
+    assert(config.c2dClusters, 'Failed to get c2dClusters')
+    assert(config.serviceTemplatesPath === serviceTemplatesPath, 'wrong templates path')
+    assert(getDockerEngine(), 'No docker engine configured')
+  })
+
+  it('(b) SERVICE_GET_TEMPLATES returns the sanitized template catalogue', async () => {
+    const resp = await new ServiceGetTemplatesHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_GET_TEMPLATES
+    } as ServiceGetTemplatesCommand)
+    assert(resp.status.httpStatus === 200, 'expected 200')
+    const templates = (await streamToObject(
+      resp.stream as Readable
+    )) as ServiceTemplatePublic[]
+    const tmpl = templates.find((t) => t.id === TEMPLATE_ID)
+    assert(tmpl, 'nginx-demo template not returned')
+    // compatibleEnvironments was removed — picking an env is the client's job.
+    expect((tmpl as any).compatibleEnvironments).to.equal(undefined)
+
+    // Classify the two environments by their own features.services flag.
+    const envResp = await new ComputeGetEnvironmentsHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS
+    })
+    const envs = (await streamToObject(
+      envResp.stream as Readable
+    )) as ComputeEnvironment[]
+    assert(envs.length >= 2, 'expected at least 2 environments')
+    servicesEnv = envs.find((e) => e.features?.services === true)
+    noServicesEnv = envs.find((e) => e.features?.services === false)
+    assert(servicesEnv, 'services-enabled env not found')
+    assert(noServicesEnv, 'services-disabled env not found')
+  })
+
+  it('(c) funds the escrow for the consumer', async () => {
+    const funds = await fundEscrow(servicesEnv.consumerAddress, MAX_DURATION)
+    assert(BigInt(funds.toString()) > BigInt(0), 'Should have funds in escrow')
+  })
+
+  it('(d) SERVICE_START (nginx) → Running, endpoint reachable over HTTP', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 4)
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_START)
+    const task: ServiceStartCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_START,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      environment: servicesEnv.id,
+      // Rootless nginx: runs as UID 101 and listens on 8080. The standard nginx image
+      // cannot start under the service hardening (CapDrop: ['ALL']) — it needs
+      // NET_BIND_SERVICE to bind :80 and CAP_SETUID/SETGID to drop workers to the nginx
+      // user. Services must use a high port and not rely on dropped capabilities.
+      image: 'nginxinc/nginx-unprivileged',
+      tag: 'alpine',
+      exposedPorts: [8080],
+      duration: SERVICE_DURATION,
+      resources: [
+        { id: 'cpu', amount: 1 },
+        { id: 'ram', amount: 1 }
+      ],
+      userData: await encryptUserData({ EXTRA: 'hello123' }),
+      payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken }
+    }
+    const resp = await new ServiceStartHandler(oceanNode).handle(task)
+    assert(
+      resp.status.httpStatus === 200,
+      `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
+    )
+    const [job] = (await streamToObject(resp.stream as Readable)) as ServiceJob[]
+    assert(job.serviceId, 'no serviceId returned')
+    serviceId = job.serviceId
+    startedServices.push(serviceId)
+
+    // serviceStart is async: the immediate response is a Starting record with no endpoints.
+    // The background loop then drives it (locking → image → claiming → running).
+    expect(job.status).to.equal(ServiceStatusNumber.Starting)
+    expect(job.endpoints).to.have.length(0)
+
+    const running = await pollServiceStatus(serviceId, ServiceStatusNumber.Running)
+    assert(running.endpoints.length === 1, 'expected one endpoint')
+    hostPort = running.endpoints[0].hostPort
+    endpointUrl = running.endpoints[0].url
+    expiresAt = running.expiresAt
+    expect(hostPort).to.be.within(PORT_RANGE_START, PORT_RANGE_END)
+    expect(endpointUrl).to.equal(`http://localhost:${hostPort}`)
+
+    const res = await httpGetWithRetry(endpointUrl)
+    assert(res.status === 200, `expected nginx HTTP 200, got ${res.status}`)
+    assert(res.body.toLowerCase().includes('nginx'), 'body should be the nginx page')
+  })
+
+  it('(e) SERVICE_GET_STATUS returns the job with userData stripped', async () => {
+    const job = await getServiceJob(serviceId)
+    assert(job, 'job not found')
+    expect(job.serviceId).to.equal(serviceId)
+    expect((job as any).userData).to.equal(undefined)
+    assert(job.payment, 'payment should be present')
+
+    // an unauthenticated status request (no nonce/signature) is rejected
+    const unauth = await new ServiceGetStatusHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_GET_STATUS,
+      consumerAddress,
+      serviceId
+    } as ServiceGetStatusCommand)
+    expect(unauth.status.httpStatus).to.not.equal(200)
+  })
+
+  it('(e2) SERVICE_LIST returns the node-wide resource-holding set (not owner-scoped)', async () => {
+    // authenticated as the NON-owner: the running service must still be listed
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(nonOwnerAccount, PROTOCOL_COMMANDS.SERVICE_LIST)
+    const resp = await new GetServicesHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_LIST,
+      consumerAddress: addr,
+      nonce,
+      signature
+    } as GetServicesCommand)
+    assert(
+      resp.status.httpStatus === 200,
+      `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
+    )
+    const jobs = (await streamToObject(resp.stream as Readable)) as ServiceJob[]
+    const listed = jobs.find((j) => j.serviceId === serviceId)
+    assert(listed, 'the running service must appear in the node-wide list')
+    expect(listed.owner.toLowerCase()).to.equal(consumerAddress.toLowerCase())
+    // listing-grade sanitization: no env blob, no CMD/ENTRYPOINT overrides
+    expect((listed as any).userData).to.equal(undefined)
+    expect((listed as any).dockerCmd).to.equal(undefined)
+    expect((listed as any).dockerEntrypoint).to.equal(undefined)
+
+    // status filter: Running includes the service, Expired does not
+    const sig2 = await signFor(nonOwnerAccount, PROTOCOL_COMMANDS.SERVICE_LIST)
+    const runningOnly = await new GetServicesHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_LIST,
+      consumerAddress: sig2.consumerAddress,
+      nonce: sig2.nonce,
+      signature: sig2.signature,
+      status: ServiceStatusNumber.Running
+    } as GetServicesCommand)
+    const runningJobs = (await streamToObject(
+      runningOnly.stream as Readable
+    )) as ServiceJob[]
+    assert(
+      runningJobs.find((j) => j.serviceId === serviceId),
+      'status=Running must include the service'
+    )
+    const sig3 = await signFor(nonOwnerAccount, PROTOCOL_COMMANDS.SERVICE_LIST)
+    const expiredOnly = await new GetServicesHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_LIST,
+      consumerAddress: sig3.consumerAddress,
+      nonce: sig3.nonce,
+      signature: sig3.signature,
+      status: ServiceStatusNumber.Expired
+    } as GetServicesCommand)
+    const expiredJobs = (await streamToObject(
+      expiredOnly.stream as Readable
+    )) as ServiceJob[]
+    expect(expiredJobs.find((j) => j.serviceId === serviceId)).to.equal(undefined)
+
+    // fromTimestamp in the future excludes everything
+    const sig4 = await signFor(nonOwnerAccount, PROTOCOL_COMMANDS.SERVICE_LIST)
+    const future = await new GetServicesHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_LIST,
+      consumerAddress: sig4.consumerAddress,
+      nonce: sig4.nonce,
+      signature: sig4.signature,
+      includeAllStatuses: true,
+      fromTimestamp: String(Date.now() + 3600_000)
+    } as GetServicesCommand)
+    const futureJobs = (await streamToObject(future.stream as Readable)) as ServiceJob[]
+    expect(futureJobs.find((j) => j.serviceId === serviceId)).to.equal(undefined)
+
+    // unauthenticated requests are rejected
+    const unauth = await new GetServicesHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_LIST,
+      consumerAddress: addr
+    } as GetServicesCommand)
+    expect(unauth.status.httpStatus).to.not.equal(200)
+  })
+
+  it('(f) SERVICE_GET_STREAMABLE_LOGS streams the real container logs (owner-only)', async () => {
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS)
+    const task: ServiceGetStreamableLogsCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      serviceId
+    }
+    const resp = await new ServiceGetStreamableLogsHandler(oceanNode).handle(task)
+    assert(
+      resp.status.httpStatus === 200,
+      `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
+    )
+    // follow:true keeps the stream open indefinitely, so read for a bounded window
+    // and destroy it afterwards — nginx logs its startup banner to stdout on boot.
+    const logs = await readLogsWithTimeout(resp.stream as Readable)
+    assert(typeof logs === 'string', 'expected log output to be a string')
+
+    // `since` accepts a relative duration (converted to a Unix timestamp before
+    // reaching dockerode) — e.g. "1h" to skip straight to the last hour's output.
+    const sinceSigned = await signFor(
+      consumerAccount,
+      PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS
+    )
+    const sinceResp = await new ServiceGetStreamableLogsHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,
+      consumerAddress: sinceSigned.consumerAddress,
+      nonce: sinceSigned.nonce,
+      signature: sinceSigned.signature,
+      serviceId,
+      since: '1h'
+    } as ServiceGetStreamableLogsCommand)
+    assert(
+      sinceResp.status.httpStatus === 200,
+      `expected 200 with since=1h, got ${sinceResp.status.httpStatus}: ${sinceResp.status?.error ?? ''}`
+    )
+    await readLogsWithTimeout(sinceResp.stream as Readable, 1000)
+
+    // an invalid `since` format is rejected before any docker call is made
+    const badSinceSigned = await signFor(
+      consumerAccount,
+      PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS
+    )
+    const badSinceResp = await new ServiceGetStreamableLogsHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,
+      consumerAddress: badSinceSigned.consumerAddress,
+      nonce: badSinceSigned.nonce,
+      signature: badSinceSigned.signature,
+      serviceId,
+      since: 'not-a-valid-since'
+    } as ServiceGetStreamableLogsCommand)
+    expect(badSinceResp.status.httpStatus).to.equal(400)
+
+    // an unauthenticated request (no nonce/signature) is rejected
+    const unauth = await new ServiceGetStreamableLogsHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,
+      consumerAddress,
+      serviceId
+    } as ServiceGetStreamableLogsCommand)
+    expect(unauth.status.httpStatus).to.not.equal(200)
+
+    // a non-owner request is rejected too
+    const {
+      consumerAddress: otherAddr,
+      nonce: otherNonce,
+      signature: otherSignature
+    } = await signFor(nonOwnerAccount, PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS)
+    const nonOwnerResp = await new ServiceGetStreamableLogsHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,
+      consumerAddress: otherAddr,
+      nonce: otherNonce,
+      signature: otherSignature,
+      serviceId
+    } as ServiceGetStreamableLogsCommand)
+    expect(nonOwnerResp.status.httpStatus).to.not.equal(200)
+  })
+
+  it('(g) SERVICE_START on a services-disabled environment → 403', async () => {
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_START)
+    const task: ServiceStartCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_START,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      environment: noServicesEnv.id,
+      // Rootless nginx: runs as UID 101 and listens on 8080. The standard nginx image
+      // cannot start under the service hardening (CapDrop: ['ALL']) — it needs
+      // NET_BIND_SERVICE to bind :80 and CAP_SETUID/SETGID to drop workers to the nginx
+      // user. Services must use a high port and not rely on dropped capabilities.
+      image: 'nginxinc/nginx-unprivileged',
+      tag: 'alpine',
+      exposedPorts: [8080],
+      duration: SERVICE_DURATION,
+      payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken }
+    }
+    const resp = await new ServiceStartHandler(oceanNode).handle(task)
+    expect(resp.status.httpStatus).to.equal(403)
+  })
+
+  it('(h) SERVICE_START with duration > maxDurationSeconds → 400', async () => {
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_START)
+    const task: ServiceStartCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_START,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      environment: servicesEnv.id,
+      // Rootless nginx: runs as UID 101 and listens on 8080. The standard nginx image
+      // cannot start under the service hardening (CapDrop: ['ALL']) — it needs
+      // NET_BIND_SERVICE to bind :80 and CAP_SETUID/SETGID to drop workers to the nginx
+      // user. Services must use a high port and not rely on dropped capabilities.
+      image: 'nginxinc/nginx-unprivileged',
+      tag: 'alpine',
+      exposedPorts: [8080],
+      duration: MAX_DURATION + 1,
+      payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken }
+    }
+    const resp = await new ServiceStartHandler(oceanNode).handle(task)
+    expect(resp.status.httpStatus).to.equal(400)
+  })
+
+  it('(i) SERVICE_START with undecryptable userData → 400', async () => {
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_START)
+    const task: ServiceStartCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_START,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      environment: servicesEnv.id,
+      // Rootless nginx: runs as UID 101 and listens on 8080. The standard nginx image
+      // cannot start under the service hardening (CapDrop: ['ALL']) — it needs
+      // NET_BIND_SERVICE to bind :80 and CAP_SETUID/SETGID to drop workers to the nginx
+      // user. Services must use a high port and not rely on dropped capabilities.
+      image: 'nginxinc/nginx-unprivileged',
+      tag: 'alpine',
+      exposedPorts: [8080],
+      duration: SERVICE_DURATION,
+      // not ECIES-encrypted to the node key → decrypt must fail
+      userData: Buffer.from('not-encrypted-userData').toString('hex'),
+      payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken }
+    }
+    const resp = await new ServiceStartHandler(oceanNode).handle(task)
+    expect(resp.status.httpStatus).to.equal(400)
+  })
+
+  it('(j) SERVICE_EXTEND advances expiresAt and records an extendPayment', async () => {
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_EXTEND)
+    const task: ServiceExtendCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_EXTEND,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      serviceId,
+      additionalDuration: 30,
+      payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken }
+    }
+    const resp = await new ServiceExtendHandler(oceanNode).handle(task)
+    assert(
+      resp.status.httpStatus === 200,
+      `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
+    )
+    const [job] = (await streamToObject(resp.stream as Readable)) as ServiceJob[]
+    expect(job.expiresAt).to.equal(expiresAt + 30 * 1000)
+    expect(job.extendPayments?.length).to.equal(1)
+    expiresAt = job.expiresAt
+  })
+
+  it('(k) SERVICE_EXTEND by a non-owner is rejected (non-200)', async () => {
+    // In a real DB, getServiceJob filters by owner, so a non-owner lookup returns
+    // "not found" (400) rather than reaching the 401 ownership branch.
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(nonOwnerAccount, PROTOCOL_COMMANDS.SERVICE_EXTEND)
+    const task: ServiceExtendCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_EXTEND,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      serviceId,
+      additionalDuration: 30,
+      payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken }
+    }
+    const resp = await new ServiceExtendHandler(oceanNode).handle(task)
+    expect(resp.status.httpStatus).to.not.equal(200)
+  })
+
+  it('(l) SERVICE_RESTART → new container, same hostPort + expiresAt', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 4)
+    const before = await getServiceJob(serviceId)
+    const oldContainerId = before.containerId
+
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_RESTART)
+    const task: ServiceRestartCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_RESTART,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      serviceId
+    }
+    const resp = await new ServiceRestartHandler(oceanNode).handle(task)
+    assert(
+      resp.status.httpStatus === 200,
+      `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
+    )
+    const running = await pollServiceStatus(serviceId, ServiceStatusNumber.Running)
+    expect(running.containerId).to.not.equal(oldContainerId)
+    expect(running.endpoints[0].hostPort).to.equal(hostPort)
+    expect(running.expiresAt).to.equal(expiresAt)
+
+    const res = await httpGetWithRetry(endpointUrl)
+    assert(res.status === 200, `expected nginx HTTP 200 after restart, got ${res.status}`)
+  })
+
+  it('(l2) SERVICE_RESTART self-heals a network leaked by a crash mid-start', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 4)
+    // Simulate a node that died between createNetwork and persisting the docker refs:
+    // the DB record loses containerId/networkId while the real container + network keep
+    // running. Pre-fix, restart then failed forever with Docker 409 ("network with name
+    // ocean-svc-<id> already exists") because teardown only used the empty networkId.
+    const [raw] = await dbconn.c2d.getServiceJob(serviceId)
+    const oldContainerId = raw.containerId
+    raw.containerId = ''
+    raw.networkId = ''
+    raw.status = ServiceStatusNumber.Error
+    raw.statusText = 'simulated crash mid-start'
+    await dbconn.c2d.updateServiceJob(raw)
+
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_RESTART)
+    const task: ServiceRestartCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_RESTART,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      serviceId
+    }
+    const resp = await new ServiceRestartHandler(oceanNode).handle(task)
+    assert(
+      resp.status.httpStatus === 200,
+      `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
+    )
+    const running = await pollServiceStatus(serviceId, ServiceStatusNumber.Running)
+    expect(running.containerId).to.not.equal('')
+    expect(running.containerId).to.not.equal(oldContainerId)
+    expect(running.endpoints[0].hostPort).to.equal(hostPort)
+
+    const docker = new Dockerode()
+    // the stale container attached to the leaked network must have been force-removed
+    let staleGone = false
+    try {
+      await docker.getContainer(oldContainerId).inspect()
+    } catch {
+      staleGone = true
+    }
+    assert(staleGone, 'stale container should have been force-removed')
+    // exactly one network with the deterministic name survives
+    const nets = await docker.listNetworks()
+    const matching = nets.filter((n: any) => n.Name === `ocean-svc-${serviceId}`)
+    expect(matching.length).to.equal(1)
+
+    const res = await httpGetWithRetry(endpointUrl)
+    assert(
+      res.status === 200,
+      `expected nginx HTTP 200 after self-heal, got ${res.status}`
+    )
+  })
+
+  it('(l3) SERVICE_RESTART survives InternalLoop ticks mid-restart (orphan-recovery race)', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 4)
+    const engine: any = getDockerEngine()
+    const before = await getServiceJob(serviceId)
+    const oldContainerId = before.containerId
+
+    // Delay the image pull so the job sits in PullImage across several InternalLoop
+    // ticks (cronTime = 2 s) — the exact window in which the loop's orphan-recovery
+    // used to tear down the network the restart had just created, failing the restart
+    // with "network ocean-svc-<id> not found" (the live-node bug).
+    const originalPull = engine.pullImageRef
+    engine.pullImageRef = async (...args: any[]) => {
+      await sleep(5000)
+      return originalPull.apply(engine, args)
+    }
+    try {
+      const {
+        consumerAddress: addr,
+        nonce,
+        signature
+      } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_RESTART)
+      const task: ServiceRestartCommand = {
+        command: PROTOCOL_COMMANDS.SERVICE_RESTART,
+        consumerAddress: addr,
+        nonce,
+        signature,
+        serviceId
+      }
+      const restartPromise = new ServiceRestartHandler(oceanNode).handle(task)
+
+      // wait until the restart is actually mid-pull (deterministic, not sleep-based) —
+      // and ASSERT it got there: silently timing out would run the concurrent-command
+      // checks against a restart in the wrong phase, proving nothing.
+      const deadline = Date.now() + 10_000
+      let sawPullImage = false
+      while (Date.now() < deadline) {
+        const j = await getServiceJob(serviceId)
+        if (j?.status === ServiceStatusNumber.PullImage) {
+          sawPullImage = true
+          break
+        }
+        await sleep(250)
+      }
+      assert(sawPullImage, 'restart must reach PullImage within the wait window')
+
+      // concurrent lifecycle operations must be rejected while the restart holds the lock
+      const stopSig = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_STOP)
+      const stopResp = await new ServiceStopHandler(oceanNode).handle({
+        command: PROTOCOL_COMMANDS.SERVICE_STOP,
+        consumerAddress: stopSig.consumerAddress,
+        nonce: stopSig.nonce,
+        signature: stopSig.signature,
+        serviceId
+      } as ServiceStopCommand)
+      expect(stopResp.status.httpStatus).to.not.equal(200)
+      expect(String(stopResp.status.error)).to.contain('operation in progress')
+
+      const retrySig = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_RESTART)
+      const retryResp = await new ServiceRestartHandler(oceanNode).handle({
+        ...task,
+        nonce: retrySig.nonce,
+        signature: retrySig.signature
+      })
+      expect(retryResp.status.httpStatus).to.not.equal(200)
+      expect(String(retryResp.status.error)).to.contain('operation in progress')
+
+      // the original restart must complete unharmed by the loop ticks that fired mid-pull
+      const resp = await restartPromise
+      assert(
+        resp.status.httpStatus === 200,
+        `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
+      )
+    } finally {
+      engine.pullImageRef = originalPull
+    }
+
+    // pollServiceStatus throws if the job lands in Error — which is exactly what the
+    // pre-fix orphan-recovery race produced ("Service start aborted (node restarted
+    // mid-start)" / "network ocean-svc-<id> not found").
+    const running = await pollServiceStatus(serviceId, ServiceStatusNumber.Running)
+    expect(running.containerId).to.not.equal(oldContainerId)
+    expect(running.endpoints[0].hostPort).to.equal(hostPort)
+    expect(running.expiresAt).to.equal(expiresAt)
+
+    const res = await httpGetWithRetry(endpointUrl)
+    assert(
+      res.status === 200,
+      `expected nginx HTTP 200 after raced restart, got ${res.status}`
+    )
+  })
+
+  it('(l4) SERVICE_RESTART RESPEC → new image tag applied, same hostPort + expiresAt', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 4)
+    const before = await getServiceJob(serviceId)
+    const oldContainerId = before.containerId
+    expect(before.tag).to.equal('alpine') // service was started on :alpine
+
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_RESTART)
+    // The bug-fix flow: same image name, a freshly-published tag. Restart is atomic, so
+    // the FULL spec is re-supplied — `image` is mandatory whenever the image changes.
+    const task: ServiceRestartCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_RESTART,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      serviceId,
+      image: 'nginxinc/nginx-unprivileged',
+      tag: 'alpine-slim'
+    }
+    const resp = await new ServiceRestartHandler(oceanNode).handle(task)
+    assert(
+      resp.status.httpStatus === 200,
+      `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
+    )
+    const running = await pollServiceStatus(serviceId, ServiceStatusNumber.Running)
+    expect(running.containerId).to.not.equal(oldContainerId)
+    // the new image spec is persisted on the job (a later restart must see the new tag)
+    expect(running.tag).to.equal('alpine-slim')
+    expect(running.containerImage).to.equal('nginxinc/nginx-unprivileged:alpine-slim')
+    // identity preserved: same paid window + same forwarded host port
+    expect(running.endpoints[0].hostPort).to.equal(hostPort)
+    expect(running.expiresAt).to.equal(expiresAt)
+
+    const res = await httpGetWithRetry(endpointUrl)
+    assert(
+      res.status === 200,
+      `expected nginx HTTP 200 after image-swap restart, got ${res.status}`
+    )
+  })
+
+  it('(l5) SERVICE_RESTART with a container param but no image → 400 (no partial change)', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT)
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_RESTART)
+    // A lone `tag` is a partial change (mixing a new tag onto the stored image) — rejected.
+    const task = {
+      command: PROTOCOL_COMMANDS.SERVICE_RESTART,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      serviceId,
+      tag: 'alpine'
+    } as ServiceRestartCommand
+    const resp = await new ServiceRestartHandler(oceanNode).handle(task)
+    expect(resp.status.httpStatus).to.equal(400)
+  })
+
+  it('(m) SERVICE_STOP → Stopped, container + network removed', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    const before = await getServiceJob(serviceId)
+    const { containerId } = before
+
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_STOP)
+    const task: ServiceStopCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_STOP,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      serviceId
+    }
+    const resp = await new ServiceStopHandler(oceanNode).handle(task)
+    assert(
+      resp.status.httpStatus === 200,
+      `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
+    )
+    const [job] = (await streamToObject(resp.stream as Readable)) as ServiceJob[]
+    expect(job.status).to.equal(ServiceStatusNumber.Stopped)
+
+    // container should be gone
+    const docker = new Dockerode()
+    let inspectFailed = false
+    try {
+      await docker.getContainer(containerId).inspect()
+    } catch {
+      inspectFailed = true
+    }
+    assert(inspectFailed, 'container should have been removed')
+
+    // network should be gone too (removed by deterministic name, independent of networkId)
+    const nets = await docker.listNetworks()
+    const matching = nets.filter((n: any) => n.Name === `ocean-svc-${serviceId}`)
+    expect(matching.length).to.equal(0)
+  })
+
+  it('(n) [slow] expiry cron marks a short-lived service Expired', async function () {
+    this.timeout(150000)
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_START)
+    const task: ServiceStartCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_START,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      environment: servicesEnv.id,
+      // Rootless nginx: runs as UID 101 and listens on 8080. The standard nginx image
+      // cannot start under the service hardening (CapDrop: ['ALL']) — it needs
+      // NET_BIND_SERVICE to bind :80 and CAP_SETUID/SETGID to drop workers to the nginx
+      // user. Services must use a high port and not rely on dropped capabilities.
+      image: 'nginxinc/nginx-unprivileged',
+      tag: 'alpine',
+      exposedPorts: [8080],
+      duration: EXPIRY_DURATION,
+      resources: [
+        { id: 'cpu', amount: 1 },
+        { id: 'ram', amount: 1 }
+      ],
+      payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken }
+    }
+    const resp = await new ServiceStartHandler(oceanNode).handle(task)
+    assert(resp.status.httpStatus === 200, `start failed: ${resp.status?.error ?? ''}`)
+    const [job] = (await streamToObject(resp.stream as Readable)) as ServiceJob[]
+    startedServices.push(job.serviceId)
+    await pollServiceStatus(job.serviceId, ServiceStatusNumber.Running)
+    // wait out the duration; the InternalLoop cron (~2s) stops+expires it
+    const expired = await pollServiceStatus(
+      job.serviceId,
+      ServiceStatusNumber.Expired,
+      (EXPIRY_DURATION + 40) * 1000
+    )
+    expect(expired.status).to.equal(ServiceStatusNumber.Expired)
+  })
+
+  it('(o) [build] Dockerfile-based custom service builds and serves', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 8)
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_START)
+    // Rootless nginx base (listens on 8080 as UID 101) so it runs under the service
+    // hardening (CapDrop: ['ALL']). USER root only to write the file into the root-owned
+    // docroot, then back to 101 so the runtime nginx matches the image's unprivileged user.
+    const dockerfile =
+      'FROM nginxinc/nginx-unprivileged:alpine\n' +
+      'USER root\n' +
+      'RUN echo built > /usr/share/nginx/html/built.txt\n' +
+      'USER 101\n'
+    const task: ServiceStartCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_START,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      environment: servicesEnv.id,
+      image: 'custom-svc',
+      dockerfile,
+      dockerCmd: ['nginx', '-g', 'daemon off;'],
+      exposedPorts: [8080],
+      duration: SERVICE_DURATION,
+      resources: [
+        { id: 'cpu', amount: 1 },
+        { id: 'ram', amount: 1 }
+      ],
+      payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken }
+    }
+    const resp = await new ServiceStartHandler(oceanNode).handle(task)
+    assert(
+      resp.status.httpStatus === 200,
+      `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
+    )
+    const [job] = (await streamToObject(resp.stream as Readable)) as ServiceJob[]
+    startedServices.push(job.serviceId)
+    const running = await pollServiceStatus(
+      job.serviceId,
+      ServiceStatusNumber.Running,
+      DEFAULT_TEST_TIMEOUT * 8
+    )
+    const { url } = running.endpoints[0]
+    const res = await httpGetWithRetry(`${url}/built.txt`)
+    assert(res.status === 200, `expected built.txt HTTP 200, got ${res.status}`)
+    assert(res.body.includes('built'), 'built.txt should contain "built"')
+
+    // stop it
+    await getDockerEngine().stopService(job.serviceId, consumerAddress)
+  })
+})

@@ -398,3 +398,112 @@ export interface PersistentStorageDeleteFileCommand extends Command {
   bucketId: string
   fileName: string
 }
+
+// ── Service On Demand ─────────────────────────────────────────────────
+
+export interface ServiceGetTemplatesCommand extends Command {
+  chainId?: number
+}
+
+export interface ServiceStartCommand extends Command {
+  consumerAddress: string
+  nonce: string
+  signature: string
+  environment: string // required: the envId to run the service on (from GET_COMPUTE_ENVIRONMENTS)
+  // Image spec — exactly one of tag/checksum/dockerfile. `image` is always required.
+  image: string // base image name (or build label when dockerfile is set)
+  tag?: string // pull by name:tag
+  checksum?: string // pull by digest: "sha256:<64 hex>"
+  dockerfile?: string // build from inline Dockerfile; requires allowImageBuild on the env
+  additionalDockerFiles?: Record<string, string> // extra files in the build context
+  dockerCmd?: string[] // exact container command (Docker exec-form CMD override; no shell)
+  dockerEntrypoint?: string[] // container ENTRYPOINT override
+  exposedPorts?: number[] // container ports to forward
+  resources?: ComputeResourceRequest[]
+  duration: number // seconds; capped by serviceOnDemand.maxDurationSeconds
+  userData?: string // ECIES-encrypted (to the node's public key) JSON object → the container's env-var map
+  payment: { chainId: number; token: string }
+}
+
+export interface ServiceStopCommand extends Command {
+  consumerAddress: string
+  nonce: string
+  signature: string
+  serviceId: string
+}
+
+export interface ServiceGetStreamableLogsCommand extends Command {
+  consumerAddress: string
+  nonce: string
+  signature: string
+  serviceId: string
+  // Optional lower time bound for the returned logs: either a Unix timestamp in seconds
+  // (e.g. "1735689600"), or a relative duration counted back from now (e.g. "30s", "45m",
+  // "2h", "7d"). Omit to get the full history since container start, then follow live.
+  since?: string
+}
+
+export interface ServiceGetStatusCommand extends Command {
+  consumerAddress: string
+  nonce: string
+  signature: string
+  serviceId?: string
+}
+
+// Node-wide service listing (SERVICE_LIST), shaped like GetJobsCommand. Authenticated
+// like every other service command (consumerAddress + signature/token), but NOT
+// owner-scoped: it returns every consumer's services. Default (no filters): only the
+// services currently holding a resource reservation.
+export interface GetServicesCommand extends Command {
+  consumerAddress: string
+  nonce: string
+  signature: string
+  // filter to ONE specific status (any ServiceStatusNumber, incl. Expired); takes
+  // precedence over includeAllStatuses
+  status?: number
+  // return services in EVERY status instead of only the resource-holding set
+  includeAllStatuses?: boolean
+  // only services created at/after this moment: ISO date string, or a Unix timestamp
+  // (seconds or milliseconds) as a string
+  fromTimestamp?: string
+  updatedSince?: string
+}
+
+// Restart is ATOMIC — all-old or all-new, never a mix of new params over the stored job:
+//
+//  • REUSE mode  — the request carries NONE of the container params below. The service
+//    restarts on exactly its stored spec (image, userData, dockerCmd, dockerEntrypoint).
+//  • RESPEC mode — the request carries ANY container param. The container is rebuilt
+//    entirely from the request: `image` becomes REQUIRED and exactly one of
+//    tag/checksum/dockerfile applies (validated like SERVICE_START). userData/dockerCmd/
+//    dockerEntrypoint are taken as-sent; any omitted here is empty/unset — it is NOT
+//    pulled from the stored job. This is what makes mixing impossible: a request that
+//    changes only userData still has to re-supply the full image spec.
+//
+// Requiring `image` whenever any container param is present is the discriminator between
+// the two modes, so there is no way to ride a new userData/cmd on top of the old image.
+export interface ServiceRestartCommand extends Command {
+  consumerAddress: string
+  nonce: string
+  signature: string
+  serviceId: string
+  // Image spec (RESPEC mode). `image` is required as soon as any container param is sent;
+  // provide at most one of tag/checksum/dockerfile.
+  image?: string // base image name (or build label when dockerfile is set)
+  tag?: string // pull by name:tag
+  checksum?: string // pull by digest: "sha256:<64 hex>"
+  dockerfile?: string // build from inline Dockerfile; requires allowImageBuild on the env
+  additionalDockerFiles?: Record<string, string> // extra files in the build context
+  userData?: string // ECIES-encrypted (to the node's public key) JSON → container env-var map
+  dockerCmd?: string[] // exact container command (Docker exec-form CMD override; no shell)
+  dockerEntrypoint?: string[] // container ENTRYPOINT override
+}
+
+export interface ServiceExtendCommand extends Command {
+  consumerAddress: string
+  nonce: string
+  signature: string
+  serviceId: string
+  additionalDuration: number
+  payment: { chainId: number; token: string }
+}

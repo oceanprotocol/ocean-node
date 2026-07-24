@@ -6,6 +6,9 @@
   "license": "Apache-2.0",
   "type": "module",
   "main": "index.js",
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "bugs": {
     "url": "https://github.com/oceanprotocol/ocean-node/issues"
   },
@@ -32,6 +35,7 @@
     "test:integration": "npm run build-tests && npm run mocha \"./dist/test/integration/**/*.test.js\"",
     "test:computeunit": "npm run build-tests && npm run mocha \"./dist/test/unit/compute.test.js\"",
     "test:computeintegration": "npm run build-tests && npm run mocha \"./dist/test/integration/compute.test.js\"",
+    "test:servicesintegration": "npm run build-tests && npm run mocha \"./dist/test/integration/services.test.js\"",
     "test:indexer": "npm run build-tests && npm run mocha \"./dist/test/integration/indexer.test.js\"",
     "test:integration:light": "npm run build-tests && npm run mocha-light \"./dist/test/integration/**/*.test.js\"",
     "test:unit:cover": "nyc --report-dir coverage/unit npm run test:unit",
@@ -73,9 +77,8 @@
     "@libp2p/upnp-nat": "^4.0.9",
     "@libp2p/websockets": "^10.1.2",
     "@multiformats/multiaddr": "^12.2.3",
-    "@oceanprotocol/contracts": "^2.7.0",
+    "@oceanprotocol/contracts": "^2.9.0",
     "@oceanprotocol/ddo-js": "^0.4.0",
-    "axios": "^1.15.0",
     "base58-js": "^2.0.0",
     "basic-ftp": "^5.3.1",
     "cors": "^2.8.5",
@@ -96,7 +99,6 @@
     "lodash": "^4.18.1",
     "lzma-purejs-requirejs": "^1.0.0",
     "node-cron": "^3.0.3",
-    "sqlite3": "^6.0.1",
     "stream-concat": "^1.0.0",
     "tar": "^7.5.16",
     "uint8arrays": "^4.0.6",

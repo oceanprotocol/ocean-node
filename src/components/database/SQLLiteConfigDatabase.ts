@@ -1,5 +1,3 @@
-import fs from 'fs'
-import path from 'path'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { SQLiteProvider } from './sqlite.js'
@@ -11,11 +9,7 @@ export class SQLLiteConfigDatabase {
     return (async (): Promise<SQLLiteConfigDatabase> => {
       DATABASE_LOGGER.info('Config Database initiated with SQLite provider')
 
-      // Ensure the directory exists before instantiating SQLiteProvider
-      const dbDir = path.dirname('databases/config.sqlite')
-      if (!fs.existsSync(dbDir)) {
-        fs.mkdirSync(dbDir, { recursive: true })
-      }
+      // SqliteClient creates the parent directory on construction.
       this.provider = new SQLiteProvider('databases/config.sqlite')
       await this.provider.createTableForConfig()
 

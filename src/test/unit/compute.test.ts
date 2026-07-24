@@ -9,6 +9,7 @@ import {
   ComputeAsset,
   ComputeEnvironment,
   ComputeJob,
+  ComputeResource,
   ComputeResourceRequest,
   DBComputeJob,
   RunningPlatform
@@ -35,7 +36,13 @@ import {
   C2DEngine,
   omitDBComputeFieldsFromComputeJob
 } from '../../components/c2d/index.js'
-import { checkManifestPlatform } from '../../components/c2d/compute_engine_docker.js'
+import {
+  checkManifestPlatform,
+  C2DEngineDocker
+} from '../../components/c2d/compute_engine_docker.js'
+import { ServiceStatusNumber } from '../../@types/C2D/ServiceOnDemand.js'
+import { allocateHostPort, releaseHostPort } from '../../components/core/service/utils.js'
+import { C2DDockerConfigSchema } from '../../utils/config/schemas.js'
 import { ValidateParams } from '../../components/httpRoutes/validateCommands.js'
 import { Readable } from 'stream'
 import sinon from 'sinon'
@@ -47,6 +54,10 @@ import { CORE_LOGGER } from '../../utils/logging/common.js'
 class TestC2DEngine extends C2DEngine {
   constructor() {
     super(null, null, null, null, null)
+  }
+
+  setPhysicalLimits(limits: Map<string, number>) {
+    this.physicalLimits = limits
   }
 
   async getComputeEnvironments(): Promise<ComputeEnvironment[]> {
@@ -342,9 +353,9 @@ describe('Compute Jobs Database', () => {
     })
 
     const baseResources = [
-      { id: 'cpu', total: 8, min: 1, max: 8, inUse: 0 },
-      { id: 'ram', total: 32, min: 1, max: 32, inUse: 0 },
-      { id: 'disk', total: 500, min: 10, max: 500, inUse: 0 }
+      { id: 'cpu', kind: 'fungible', total: 8, min: 1, max: 8, inUse: 0 },
+      { id: 'ram', kind: 'fungible', total: 32, min: 1, max: 32, inUse: 0 },
+      { id: 'disk', kind: 'fungible', total: 500, min: 10, max: 500, inUse: 0 }
     ]
 
     it('satisfies constraints exactly → passes without modification', async function () {
@@ -445,6 +456,644 @@ describe('Compute Jobs Database', () => {
       expect(cpuEntry.amount).to.equal(1) // bumped to min
       expect(diskEntry.amount).to.equal(10) // bumped to min
     })
+
+    it('per-env constraint override: premium env uses 8 GB RAM, standard env uses 4 GB RAM', async function () {
+      // Pool default: gpu0 requires ram min:4.
+      // premium env overrides to ram min:8.
+      // standard env inherits pool default (ram min:4).
+      const gpuWithOverrideConstraint = {
+        id: 'gpu0',
+        kind: 'discrete',
+        total: 1,
+        min: 0,
+        max: 1,
+        inUse: 0,
+        constraints: [{ id: 'ram', min: 8 }] // premium override
+      }
+      const gpuWithPoolConstraint = {
+        id: 'gpu0',
+        kind: 'discrete',
+        total: 1,
+        min: 0,
+        max: 1,
+        inUse: 0,
+        constraints: [{ id: 'ram', min: 4 }] // pool default inherited by standard
+      }
+      const premiumEnv = makeEnv([
+        { id: 'ram', kind: 'fungible', total: 32, min: 1, max: 32, inUse: 0 },
+        gpuWithOverrideConstraint
+      ])
+      const standardEnv = makeEnv([
+        { id: 'ram', kind: 'fungible', total: 32, min: 1, max: 32, inUse: 0 },
+        gpuWithPoolConstraint
+      ])
+
+      const premiumReq: ComputeResourceRequest[] = [
+        { id: 'ram', amount: 1 },
+        { id: 'gpu0', amount: 1 }
+      ]
+      const standardReq: ComputeResourceRequest[] = [
+        { id: 'ram', amount: 1 },
+        { id: 'gpu0', amount: 1 }
+      ]
+
+      const premiumResult = await engine.checkAndFillMissingResources(
+        premiumReq,
+        premiumEnv,
+        false
+      )
+      const standardResult = await engine.checkAndFillMissingResources(
+        standardReq,
+        standardEnv,
+        false
+      )
+
+      expect(premiumResult.find((r) => r.id === 'ram').amount).to.equal(8)
+      expect(standardResult.find((r) => r.id === 'ram').amount).to.equal(4)
+    })
+
+    it('ref.constraints: [] removes all constraints for env — GPU job admitted with only resource min', async function () {
+      const gpuNoConstraints = {
+        id: 'gpu0',
+        kind: 'discrete',
+        total: 1,
+        min: 0,
+        max: 1,
+        inUse: 0,
+        constraints: [] as any[] // no constraints for this env
+      }
+      const env = makeEnv([
+        { id: 'ram', kind: 'fungible', total: 32, min: 1, max: 32, inUse: 0 },
+        gpuNoConstraints
+      ])
+      const req: ComputeResourceRequest[] = [
+        { id: 'ram', amount: 1 },
+        { id: 'gpu0', amount: 1 }
+      ]
+      // No constraints → ram stays at 1 (not bumped to any min)
+      const result = await engine.checkAndFillMissingResources(req, env, false)
+      expect(result.find((r) => r.id === 'ram').amount).to.equal(1)
+    })
+
+    it('constraint-driven exhaustion: GPU becomes unrentable when RAM nearly depleted', async function () {
+      // gpu0 requires min:4 GB RAM. Env has 10 GB RAM total, 9 GB in use → only 1 GB remaining.
+      // Requesting gpu0 triggers checkAndFillMissingResources to bump RAM to 4 GB.
+      // checkIfResourcesAreAvailable should then reject at Gate 1 (only 1 GB remaining).
+      const resources = [
+        { id: 'ram', kind: 'fungible', total: 10, min: 1, max: 10, inUse: 9 },
+        {
+          id: 'gpu0',
+          kind: 'discrete',
+          total: 1,
+          min: 0,
+          max: 1,
+          inUse: 0,
+          constraints: [{ id: 'ram', min: 4 }]
+        }
+      ]
+      const env = makeEnv(resources)
+      const req: ComputeResourceRequest[] = [
+        { id: 'ram', amount: 1 },
+        { id: 'gpu0', amount: 1 }
+      ]
+
+      // Step 1: auto-bump RAM from 1 to 4 (constraint min per gpu unit)
+      const filled = await engine.checkAndFillMissingResources(req, env, false)
+      expect(filled.find((r) => r.id === 'ram').amount).to.equal(4)
+
+      // Step 2: 10 - 9 = 1 available < 4 requested → Gate 1 blocks
+      try {
+        await engine.checkIfResourcesAreAvailable(filled, env, false)
+        assert.fail('Expected error was not thrown')
+      } catch (err: any) {
+        expect(err.message).to.include('ram')
+      }
+    })
+
+    // ── Group (type) + FLOOR (perUnit:false) constraints ──────────────────
+    // "if any cpu is selected, the job needs at least 1 GPU — no matter which id".
+    // The constraint lives on the env's cpu ref and targets the `type:'gpu'` group.
+    const cpuFloorConstraint: any[] = [{ type: 'gpu', min: 1, perUnit: false }]
+    const twoGpuResources = (inUse1 = 0, inUse2 = 0): any[] => [
+      {
+        id: 'cpu',
+        type: 'cpu',
+        kind: 'fungible',
+        total: 8,
+        min: 1,
+        max: 8,
+        inUse: 0,
+        constraints: cpuFloorConstraint
+      },
+      { id: 'ram', type: 'ram', kind: 'fungible', total: 32, min: 1, max: 32, inUse: 0 },
+      {
+        id: 'disk',
+        type: 'disk',
+        kind: 'fungible',
+        total: 500,
+        min: 0,
+        max: 500,
+        inUse: 0
+      },
+      {
+        id: 'GPU1',
+        type: 'gpu',
+        kind: 'discrete',
+        total: 1,
+        min: 0,
+        max: 1,
+        inUse: inUse1
+      },
+      {
+        id: 'GPU2',
+        type: 'gpu',
+        kind: 'discrete',
+        total: 1,
+        min: 0,
+        max: 1,
+        inUse: inUse2
+      }
+    ]
+
+    it('group floor (type:gpu): satisfied by any one GPU → no change', async function () {
+      const env = makeEnv(twoGpuResources())
+      const req: ComputeResourceRequest[] = [
+        { id: 'cpu', amount: 2 },
+        { id: 'GPU2', amount: 1 }
+      ]
+      const result = await engine.checkAndFillMissingResources(req, env, false)
+      // aggregate gpu (0 + 1) already meets floor 1 → nothing bumped
+      expect(result.find((r) => r.id === 'GPU1').amount).to.equal(0)
+      expect(result.find((r) => r.id === 'GPU2').amount).to.equal(1)
+    })
+
+    it('group floor: cpu selected, no GPU requested → exactly one GPU auto-bumped to 1', async function () {
+      const env = makeEnv(twoGpuResources())
+      // 8 cpu but floor is absolute (perUnit:false) → still only 1 GPU total needed
+      const req: ComputeResourceRequest[] = [{ id: 'cpu', amount: 8 }]
+      const result = await engine.checkAndFillMissingResources(req, env, false)
+      const g1 = result.find((r) => r.id === 'GPU1').amount
+      const g2 = result.find((r) => r.id === 'GPU2').amount
+      expect(g1 + g2).to.equal(1)
+    })
+
+    it('group floor: prefers the GPU with lower inUse when auto-bumping', async function () {
+      // GPU1 already globally in use, GPU2 free → GPU2 should be the one bumped
+      const env = makeEnv(twoGpuResources(1, 0))
+      const req: ComputeResourceRequest[] = [{ id: 'cpu', amount: 1 }]
+      const result = await engine.checkAndFillMissingResources(req, env, false)
+      expect(result.find((r) => r.id === 'GPU1').amount).to.equal(0)
+      expect(result.find((r) => r.id === 'GPU2').amount).to.equal(1)
+    })
+
+    it('group floor: required floor exceeds aggregate group max → throws Cannot satisfy', async function () {
+      const resources = twoGpuResources()
+      resources[0].constraints = [{ type: 'gpu', min: 3, perUnit: false }]
+      const env = makeEnv(resources)
+      const req: ComputeResourceRequest[] = [{ id: 'cpu', amount: 1 }]
+      try {
+        await engine.checkAndFillMissingResources(req, env, false)
+        assert.fail('Expected error was not thrown')
+      } catch (err: any) {
+        expect(err.message).to.include('Cannot satisfy')
+        expect(err.message).to.include('gpu resources')
+      }
+    })
+
+    it('group floor: constraint skipped when parent (cpu) not requested', async function () {
+      const resources = twoGpuResources()
+      resources[0].min = 0 // allow cpu to stay 0 so the parent is truly absent
+      const env = makeEnv(resources)
+      const req: ComputeResourceRequest[] = [{ id: 'ram', amount: 2 }]
+      const result = await engine.checkAndFillMissingResources(req, env, false)
+      expect(result.find((r) => r.id === 'GPU1').amount).to.equal(0)
+      expect(result.find((r) => r.id === 'GPU2').amount).to.equal(0)
+    })
+
+    it('group ceiling (type:gpu, max, perUnit:false): total group above max → throws Too much', async function () {
+      const resources = twoGpuResources()
+      resources[0].constraints = [{ type: 'gpu', max: 1, perUnit: false }]
+      const env = makeEnv(resources)
+      const req: ComputeResourceRequest[] = [
+        { id: 'cpu', amount: 1 },
+        { id: 'GPU1', amount: 1 },
+        { id: 'GPU2', amount: 1 }
+      ]
+      try {
+        await engine.checkAndFillMissingResources(req, env, false)
+        assert.fail('Expected error was not thrown')
+      } catch (err: any) {
+        expect(err.message).to.include('Too much gpu resources')
+        expect(err.message).to.include('Max allowed: 1')
+      }
+    })
+
+    it('back-compat: exact-id constraint with no perUnit still uses ratio semantics', async function () {
+      const resources = [
+        { ...baseResources[0], constraints: [{ id: 'ram', min: 2, max: 8 }] },
+        ...baseResources.slice(1)
+      ]
+      const env = makeEnv(resources)
+      const req: ComputeResourceRequest[] = [
+        { id: 'cpu', amount: 4 },
+        { id: 'ram', amount: 4 },
+        { id: 'disk', amount: 50 }
+      ]
+      const result = await engine.checkAndFillMissingResources(req, env, false)
+      // 4 cpu * 2 (ratio) = 8
+      expect(result.find((r) => r.id === 'ram').amount).to.equal(8)
+    })
+
+    it('exact-id constraint with perUnit:false → absolute floor, not multiplied by parent', async function () {
+      const resources = [
+        { ...baseResources[0], constraints: [{ id: 'ram', min: 8, perUnit: false }] },
+        ...baseResources.slice(1)
+      ]
+      const env = makeEnv(resources)
+      const req: ComputeResourceRequest[] = [
+        { id: 'cpu', amount: 4 },
+        { id: 'ram', amount: 4 },
+        { id: 'disk', amount: 50 }
+      ]
+      const result = await engine.checkAndFillMissingResources(req, env, false)
+      // absolute floor 8, NOT 4*8=32
+      expect(result.find((r) => r.id === 'ram').amount).to.equal(8)
+    })
+
+    // ── Aggregate constraints (sum across per-device siblings) ────────────
+    // Two per-device GPUs, each { id:'cpu', min:1, max:4, aggregate:true }. Renting both
+    // sums to cpu in [2, 8]; renting one gives [1, 4].
+    const aggCpuConstraint = [{ id: 'cpu', min: 1, max: 4, aggregate: true }]
+    const twoAggGpuResources = (): any[] => [
+      { id: 'cpu', type: 'cpu', kind: 'fungible', total: 16, min: 1, max: 16, inUse: 0 },
+      { id: 'ram', type: 'ram', kind: 'fungible', total: 64, min: 1, max: 64, inUse: 0 },
+      {
+        id: 'GPU1',
+        type: 'gpu',
+        kind: 'discrete',
+        total: 1,
+        min: 0,
+        max: 1,
+        inUse: 0,
+        constraints: aggCpuConstraint
+      },
+      {
+        id: 'GPU2',
+        type: 'gpu',
+        kind: 'discrete',
+        total: 1,
+        min: 0,
+        max: 1,
+        inUse: 0,
+        constraints: aggCpuConstraint
+      }
+    ]
+
+    it('aggregate min sums across two GPUs → cpu bumped to 2 (1+1)', async function () {
+      const env = makeEnv(twoAggGpuResources())
+      const req: ComputeResourceRequest[] = [
+        { id: 'GPU1', amount: 1 },
+        { id: 'GPU2', amount: 1 }
+      ]
+      const result = await engine.checkAndFillMissingResources(req, env, false)
+      expect(result.find((r) => r.id === 'cpu').amount).to.equal(2)
+    })
+
+    it('aggregate max sums across two GPUs → cpu 8 allowed', async function () {
+      const env = makeEnv(twoAggGpuResources())
+      const req: ComputeResourceRequest[] = [
+        { id: 'GPU1', amount: 1 },
+        { id: 'GPU2', amount: 1 },
+        { id: 'cpu', amount: 8 }
+      ]
+      const result = await engine.checkAndFillMissingResources(req, env, false)
+      expect(result.find((r) => r.id === 'cpu').amount).to.equal(8)
+    })
+
+    it('aggregate max sums across two GPUs → cpu above 8 throws', async function () {
+      const env = makeEnv(twoAggGpuResources())
+      const req: ComputeResourceRequest[] = [
+        { id: 'GPU1', amount: 1 },
+        { id: 'GPU2', amount: 1 },
+        { id: 'cpu', amount: 10 }
+      ]
+      try {
+        await engine.checkAndFillMissingResources(req, env, false)
+        assert.fail('Expected error was not thrown')
+      } catch (err: any) {
+        expect(err.message).to.include('Too much cpu')
+        expect(err.message).to.include('Max allowed: 8')
+      }
+    })
+
+    it('aggregate with a single GPU → cpu bumped to 1 (only one contributes)', async function () {
+      const env = makeEnv(twoAggGpuResources())
+      const req: ComputeResourceRequest[] = [{ id: 'GPU1', amount: 1 }]
+      const result = await engine.checkAndFillMissingResources(req, env, false)
+      expect(result.find((r) => r.id === 'cpu').amount).to.equal(1)
+      expect(result.find((r) => r.id === 'GPU2').amount).to.equal(0)
+    })
+
+    it('without aggregate the same per-GPU constraint does NOT sum (contrast)', async function () {
+      const resources = twoAggGpuResources()
+      // drop the aggregate flag → independent per-GPU constraints
+      resources[2].constraints = [{ id: 'cpu', min: 1, max: 4 }]
+      resources[3].constraints = [{ id: 'cpu', min: 1, max: 4 }]
+      const env = makeEnv(resources)
+      const result = await engine.checkAndFillMissingResources(
+        [
+          { id: 'GPU1', amount: 1 },
+          { id: 'GPU2', amount: 1 }
+        ],
+        env,
+        false
+      )
+      // per-GPU: cpu floor is 1 (not 2)
+      expect(result.find((r) => r.id === 'cpu').amount).to.equal(1)
+      // per-GPU max is 4 (not 8): cpu:5 already throws
+      try {
+        await engine.checkAndFillMissingResources(
+          [
+            { id: 'GPU1', amount: 1 },
+            { id: 'GPU2', amount: 1 },
+            { id: 'cpu', amount: 5 }
+          ],
+          makeEnv(resources),
+          false
+        )
+        assert.fail('Expected error was not thrown')
+      } catch (err: any) {
+        expect(err.message).to.include('Max allowed: 4')
+      }
+    })
+
+    // ── More constraint recipes (mirrors docs/compute.md "More constraint recipes") ──
+    const mkCpu = (constraints?: any[]) => ({
+      id: 'cpu',
+      type: 'cpu',
+      kind: 'fungible',
+      total: 32,
+      min: 1,
+      max: 32,
+      inUse: 0,
+      ...(constraints ? { constraints } : {})
+    })
+    const mkRam = {
+      id: 'ram',
+      type: 'ram',
+      kind: 'fungible',
+      total: 128,
+      min: 1,
+      max: 128,
+      inUse: 0
+    }
+    const mkDisk = {
+      id: 'disk',
+      type: 'disk',
+      kind: 'fungible',
+      total: 2000,
+      min: 0,
+      max: 2000,
+      inUse: 0
+    }
+    const mkGpu = (id: string, constraints?: any[]) => ({
+      id,
+      type: 'gpu',
+      kind: 'discrete',
+      total: 1,
+      min: 0,
+      max: 1,
+      inUse: 0,
+      ...(constraints ? { constraints } : {})
+    })
+
+    it('recipe 1: companion range {id:ram,min:8,max:16} bounds RAM per GPU', async function () {
+      const resources = [
+        mkCpu(),
+        mkRam,
+        mkDisk,
+        mkGpu('GPU1', [{ id: 'ram', min: 8, max: 16 }])
+      ]
+      const bumped = await engine.checkAndFillMissingResources(
+        [{ id: 'GPU1', amount: 1 }],
+        makeEnv(resources),
+        false
+      )
+      expect(bumped.find((r) => r.id === 'ram').amount).to.equal(8)
+      try {
+        await engine.checkAndFillMissingResources(
+          [
+            { id: 'GPU1', amount: 1 },
+            { id: 'ram', amount: 20 }
+          ],
+          makeEnv(resources),
+          false
+        )
+        assert.fail('Expected error was not thrown')
+      } catch (err: any) {
+        expect(err.message).to.include('Too much ram')
+        expect(err.message).to.include('Max allowed: 16')
+      }
+    })
+
+    it('recipe 2: group ratio {type:gpu,min:1} → one GPU per CPU', async function () {
+      const resources = [
+        mkCpu([{ type: 'gpu', min: 1 }]),
+        mkRam,
+        mkDisk,
+        mkGpu('GPU1'),
+        mkGpu('GPU2')
+      ]
+      const r = await engine.checkAndFillMissingResources(
+        [{ id: 'cpu', amount: 2 }],
+        makeEnv(resources),
+        false
+      )
+      // 2 CPUs (ratio, perUnit default) → 2 GPUs auto-assigned
+      const total =
+        r.find((x) => x.id === 'GPU1').amount + r.find((x) => x.id === 'GPU2').amount
+      expect(total).to.equal(2)
+    })
+
+    it('recipe 2b: group ratio requiring more GPUs than exposed → Cannot satisfy', async function () {
+      const resources = [
+        mkCpu([{ type: 'gpu', min: 1 }]),
+        mkRam,
+        mkDisk,
+        mkGpu('GPU1'),
+        mkGpu('GPU2')
+      ]
+      try {
+        await engine.checkAndFillMissingResources(
+          [{ id: 'cpu', amount: 3 }],
+          makeEnv(resources),
+          false
+        )
+        assert.fail('Expected error was not thrown')
+      } catch (err: any) {
+        expect(err.message).to.include('Cannot satisfy')
+        expect(err.message).to.include('at least 3 gpu resources')
+        expect(err.message).to.include('max is 2')
+      }
+    })
+
+    it('recipe 3: group ceiling {type:gpu,max:2,perUnit:false} caps total GPUs', async function () {
+      const resources = [
+        mkCpu([{ type: 'gpu', max: 2, perUnit: false }]),
+        mkRam,
+        mkDisk,
+        mkGpu('GPU1'),
+        mkGpu('GPU2'),
+        mkGpu('GPU3')
+      ]
+      // 2 GPUs is fine
+      const ok = await engine.checkAndFillMissingResources(
+        [
+          { id: 'cpu', amount: 1 },
+          { id: 'GPU1', amount: 1 },
+          { id: 'GPU2', amount: 1 }
+        ],
+        makeEnv(resources),
+        false
+      )
+      expect(ok.find((r) => r.id === 'GPU3').amount).to.equal(0)
+      // 3 GPUs exceeds the cap
+      try {
+        await engine.checkAndFillMissingResources(
+          [
+            { id: 'cpu', amount: 1 },
+            { id: 'GPU1', amount: 1 },
+            { id: 'GPU2', amount: 1 },
+            { id: 'GPU3', amount: 1 }
+          ],
+          makeEnv(resources),
+          false
+        )
+        assert.fail('Expected error was not thrown')
+      } catch (err: any) {
+        expect(err.message).to.include('Too much gpu resources')
+        expect(err.message).to.include('Max allowed: 2')
+      }
+    })
+
+    it('recipe 4: aggregate {id:ram,min:8,aggregate:true} sums RAM across GPUs', async function () {
+      const agg = [{ id: 'ram', min: 8, aggregate: true }]
+      const resources = [mkCpu(), mkRam, mkDisk, mkGpu('GPU1', agg), mkGpu('GPU2', agg)]
+      const two = await engine.checkAndFillMissingResources(
+        [
+          { id: 'GPU1', amount: 1 },
+          { id: 'GPU2', amount: 1 }
+        ],
+        makeEnv(resources),
+        false
+      )
+      expect(two.find((r) => r.id === 'ram').amount).to.equal(16)
+      const one = await engine.checkAndFillMissingResources(
+        [{ id: 'GPU1', amount: 1 }],
+        makeEnv(resources),
+        false
+      )
+      expect(one.find((r) => r.id === 'ram').amount).to.equal(8)
+    })
+
+    it('recipe 5: multiple companion constraints on one GPU bump each target', async function () {
+      const resources = [
+        mkCpu(),
+        mkRam,
+        mkDisk,
+        mkGpu('GPU1', [
+          { id: 'ram', min: 8 },
+          { id: 'cpu', min: 2 },
+          { id: 'disk', min: 20 }
+        ])
+      ]
+      const r = await engine.checkAndFillMissingResources(
+        [{ id: 'GPU1', amount: 1 }],
+        makeEnv(resources),
+        false
+      )
+      expect(r.find((x) => x.id === 'ram').amount).to.equal(8)
+      expect(r.find((x) => x.id === 'cpu').amount).to.equal(2)
+      expect(r.find((x) => x.id === 'disk').amount).to.equal(20)
+    })
+
+    it('recipe 6: absolute RAM floor {id:ram,min:32,perUnit:false} on a GPU', async function () {
+      const resources = [
+        mkCpu(),
+        mkRam,
+        mkDisk,
+        mkGpu('GPU1', [{ id: 'ram', min: 32, perUnit: false }])
+      ]
+      const r = await engine.checkAndFillMissingResources(
+        [{ id: 'GPU1', amount: 1 }],
+        makeEnv(resources),
+        false
+      )
+      expect(r.find((x) => x.id === 'ram').amount).to.equal(32)
+    })
+
+    // ── Contradictory per-GPU constraints must be rejected regardless of order ──
+    // gpu0 caps cpu at 6 while gpu1 requires at least 8: renting both is unsatisfiable.
+    // A single-pass check let this through when gpu0 appeared first (its max was validated
+    // before gpu1's min bumped cpu to 8); the max phase now re-validates ceilings against
+    // the settled amounts, so both orderings reject.
+    it('contradictory constraints (gpu0 cpu max:6 vs gpu1 cpu min:8) → rejected in both env orders', async function () {
+      const gpu0 = () => mkGpu('gpu0', [{ id: 'cpu', max: 6 }])
+      const gpu1 = () => mkGpu('gpu1', [{ id: 'cpu', min: 8 }])
+      const bothGpus: ComputeResourceRequest[] = [
+        { id: 'cpu', amount: 4 },
+        { id: 'gpu0', amount: 1 },
+        { id: 'gpu1', amount: 1 }
+      ]
+      for (const resources of [
+        [mkCpu(), mkRam, mkDisk, gpu0(), gpu1()],
+        [mkCpu(), mkRam, mkDisk, gpu1(), gpu0()]
+      ]) {
+        try {
+          await engine.checkAndFillMissingResources(
+            bothGpus.map((r) => ({ ...r })),
+            makeEnv(resources),
+            false
+          )
+          assert.fail('Expected error was not thrown')
+        } catch (err: any) {
+          expect(err.message).to.include('Too much cpu')
+          expect(err.message).to.include('1 gpu0')
+          expect(err.message).to.include('Max allowed: 6')
+          expect(err.message).to.include('requested: 8')
+        }
+      }
+    })
+
+    it('contradictory constraints: renting a single GPU still works', async function () {
+      const resources = [
+        mkCpu(),
+        mkRam,
+        mkDisk,
+        mkGpu('gpu0', [{ id: 'cpu', max: 6 }]),
+        mkGpu('gpu1', [{ id: 'cpu', min: 8 }])
+      ]
+      // gpu0 alone: cpu 4 ≤ 6 → untouched
+      const r0 = await engine.checkAndFillMissingResources(
+        [
+          { id: 'cpu', amount: 4 },
+          { id: 'gpu0', amount: 1 }
+        ],
+        makeEnv(resources),
+        false
+      )
+      expect(r0.find((x) => x.id === 'cpu').amount).to.equal(4)
+      // gpu1 alone: cpu bumped to its floor of 8
+      const r1 = await engine.checkAndFillMissingResources(
+        [
+          { id: 'cpu', amount: 4 },
+          { id: 'gpu1', amount: 1 }
+        ],
+        makeEnv(resources),
+        false
+      )
+      expect(r1.find((x) => x.id === 'cpu').amount).to.equal(8)
+    })
   })
 
   describe('testing checkIfResourcesAreAvailable', function () {
@@ -452,13 +1101,22 @@ describe('Compute Jobs Database', () => {
 
     before(function () {
       engine = new TestC2DEngine()
+      engine.setPhysicalLimits(
+        new Map([
+          ['cpu', 10],
+          ['ram', 32],
+          ['disk', 100],
+          ['gpu0', 1],
+          ['nic0', 1]
+        ])
+      )
     })
 
     it('resources within env limits → passes', async function () {
       const env = makeEnv([
-        { id: 'cpu', total: 8, min: 1, max: 8, inUse: 2 },
-        { id: 'ram', total: 32, min: 1, max: 32, inUse: 4 },
-        { id: 'disk', total: 500, min: 10, max: 500, inUse: 50 }
+        { id: 'cpu', kind: 'fungible', total: 8, min: 1, max: 8, inUse: 2 },
+        { id: 'ram', kind: 'fungible', total: 32, min: 1, max: 32, inUse: 4 },
+        { id: 'disk', kind: 'fungible', total: 500, min: 10, max: 500, inUse: 50 }
       ])
       const req: ComputeResourceRequest[] = [
         { id: 'cpu', amount: 4 },
@@ -471,9 +1129,9 @@ describe('Compute Jobs Database', () => {
 
     it('resources exceed env availability → throws', async function () {
       const env = makeEnv([
-        { id: 'cpu', total: 4, min: 1, max: 4, inUse: 3 },
-        { id: 'ram', total: 32, min: 1, max: 32, inUse: 0 },
-        { id: 'disk', total: 500, min: 10, max: 500, inUse: 0 }
+        { id: 'cpu', kind: 'fungible', total: 4, min: 1, max: 4, inUse: 3 },
+        { id: 'ram', kind: 'fungible', total: 32, min: 1, max: 32, inUse: 0 },
+        { id: 'disk', kind: 'fungible', total: 500, min: 10, max: 500, inUse: 0 }
       ])
       const req: ComputeResourceRequest[] = [
         { id: 'cpu', amount: 4 }, // only 1 available (4-3)
@@ -491,15 +1149,15 @@ describe('Compute Jobs Database', () => {
     it('free resource limit exceeded → throws', async function () {
       const env = makeEnv(
         [
-          { id: 'cpu', total: 8, min: 1, max: 8, inUse: 0 },
-          { id: 'ram', total: 32, min: 1, max: 32, inUse: 0 },
-          { id: 'disk', total: 500, min: 10, max: 500, inUse: 0 }
+          { id: 'cpu', kind: 'fungible', total: 8, min: 1, max: 8, inUse: 0 },
+          { id: 'ram', kind: 'fungible', total: 32, min: 1, max: 32, inUse: 0 },
+          { id: 'disk', kind: 'fungible', total: 500, min: 10, max: 500, inUse: 0 }
         ],
         {
           freeResources: [
-            { id: 'cpu', total: 2, min: 1, max: 2, inUse: 2 }, // fully used
-            { id: 'ram', total: 4, min: 1, max: 4, inUse: 0 },
-            { id: 'disk', total: 20, min: 10, max: 20, inUse: 0 }
+            { id: 'cpu', kind: 'fungible', total: 2, min: 1, max: 2, inUse: 2 }, // fully used
+            { id: 'ram', kind: 'fungible', total: 4, min: 1, max: 4, inUse: 0 },
+            { id: 'disk', kind: 'fungible', total: 20, min: 10, max: 20, inUse: 0 }
           ]
         }
       )
@@ -515,10 +1173,1137 @@ describe('Compute Jobs Database', () => {
         expect(err.message).to.include('cpu')
       }
     })
+
+    it('Gate 1 (per-env ceiling, fungible) blocks when env capacity exhausted', async function () {
+      const env = makeEnv([
+        { id: 'cpu', kind: 'fungible', total: 6, min: 1, max: 6, inUse: 6 }
+      ])
+      const req: ComputeResourceRequest[] = [{ id: 'cpu', amount: 1 }]
+      try {
+        await engine.checkIfResourcesAreAvailable(req, env, false)
+        assert.fail('Expected error was not thrown')
+      } catch (err: any) {
+        expect(err.message).to.include('Not enough available cpu')
+        expect(err.message).to.include('environment')
+      }
+    })
+
+    it('Gate 2 (engine-wide pool, fungible) blocks when global capacity exhausted across two envs', async function () {
+      // Pool: 10 physical CPUs. env1 uses 6, env2 uses 4 → 10 total in-use.
+      const env1 = makeEnv([
+        { id: 'cpu', kind: 'fungible', total: 6, min: 1, max: 6, inUse: 6 }
+      ])
+      env1.id = 'env1'
+      const env2 = makeEnv([
+        { id: 'cpu', kind: 'fungible', total: 6, min: 1, max: 6, inUse: 4 }
+      ])
+      env2.id = 'env2'
+      // env2 Gate 1: 6 - 4 = 2 >= 1 → passes. Gate 2: total 12 capped to 10, used 10, remaining 0 < 1 → blocks.
+      const req: ComputeResourceRequest[] = [{ id: 'cpu', amount: 1 }]
+      try {
+        await engine.checkIfResourcesAreAvailable(req, env2, false, [env1, env2])
+        assert.fail('Expected error was not thrown')
+      } catch (err: any) {
+        expect(err.message).to.include('globally')
+      }
+    })
+
+    it('Gate 2 passes when global capacity is available (env1 partially used)', async function () {
+      const env1 = makeEnv([
+        { id: 'cpu', kind: 'fungible', total: 6, min: 1, max: 6, inUse: 3 }
+      ])
+      env1.id = 'env1'
+      const env2 = makeEnv([
+        { id: 'cpu', kind: 'fungible', total: 6, min: 1, max: 6, inUse: 2 }
+      ])
+      env2.id = 'env2'
+      // Gate 2: total 12 capped to 10, used 5, remaining 5 >= 1 → passes
+      const req: ComputeResourceRequest[] = [{ id: 'cpu', amount: 1 }]
+      await engine.checkIfResourcesAreAvailable(req, env2, false, [env1, env2])
+      // no throw = pass
+    })
+
+    it('discrete exclusive (GPU) globally tracked — second job blocked when total:1 in use', async function () {
+      // gpu0 is a discrete exclusive resource (total:1). env1 has it in-use.
+      const env1 = makeEnv([
+        {
+          id: 'gpu0',
+          kind: 'discrete',
+          shareable: false,
+          total: 1,
+          min: 0,
+          max: 1,
+          inUse: 1
+        }
+      ])
+      env1.id = 'env1'
+      const env2 = makeEnv([
+        {
+          id: 'gpu0',
+          kind: 'discrete',
+          shareable: false,
+          total: 1,
+          min: 0,
+          max: 1,
+          inUse: 0
+        }
+      ])
+      env2.id = 'env2'
+      // Gate 2: globalTotal = 2 capped to physicalLimits['gpu0']=1, globalUsed=1, remaining=0 < 1 → blocks
+      const req: ComputeResourceRequest[] = [{ id: 'gpu0', amount: 1 }]
+      try {
+        await engine.checkIfResourcesAreAvailable(req, env2, false, [env1, env2])
+        assert.fail('Expected error was not thrown')
+      } catch (err: any) {
+        expect(err.message).to.include('gpu0')
+        expect(err.message).to.include('globally')
+      }
+    })
+
+    it('discrete shareable (NIC) never blocks allocation — both jobs admitted', async function () {
+      // nic0 is shareable discrete. env1 already has it in-use.
+      const env1 = makeEnv([
+        {
+          id: 'nic0',
+          kind: 'discrete',
+          shareable: true,
+          total: 1,
+          min: 0,
+          max: 1,
+          inUse: 1
+        }
+      ])
+      env1.id = 'env1'
+      const env2 = makeEnv([
+        {
+          id: 'nic0',
+          kind: 'discrete',
+          shareable: true,
+          total: 1,
+          min: 0,
+          max: 1,
+          inUse: 0
+        }
+      ])
+      env2.id = 'env2'
+      // isShareableDiscrete = true → Gate 2 skipped → no throw
+      const req: ComputeResourceRequest[] = [{ id: 'nic0', amount: 1 }]
+      await engine.checkIfResourcesAreAvailable(req, env2, false, [env1, env2])
+      // no throw = pass
+    })
+
+    it('non-GPU discrete resource is globally tracked (kind drives tracking, not type)', async function () {
+      // An FPGA with kind:'discrete' but type:'fpga' must be globally tracked just like a GPU.
+      const env1 = makeEnv([
+        {
+          id: 'fpga0',
+          kind: 'discrete',
+          type: 'fpga',
+          total: 1,
+          min: 0,
+          max: 1,
+          inUse: 1
+        }
+      ])
+      env1.id = 'env1'
+      const env2 = makeEnv([
+        {
+          id: 'fpga0',
+          kind: 'discrete',
+          type: 'fpga',
+          total: 1,
+          min: 0,
+          max: 1,
+          inUse: 0
+        }
+      ])
+      env2.id = 'env2'
+      ;(engine as any).physicalLimits.set('fpga0', 1)
+      const req: ComputeResourceRequest[] = [{ id: 'fpga0', amount: 1 }]
+      try {
+        await engine.checkIfResourcesAreAvailable(req, env2, false, [env1, env2])
+        assert.fail('Expected error was not thrown')
+      } catch (err: any) {
+        expect(err.message).to.include('fpga0')
+        expect(err.message).to.include('globally')
+      }
+    })
+
+    it('discrete GPU — double-counting across envs does not block when capacity remains', async function () {
+      // Setup: 2 physical GPUs (physicalLimits gpu0=2), two environments each advertising
+      // total:2. A single job consumes 1 GPU on env1. getUsedResources aggregates discrete
+      // usage globally, so both env1 and env2 receive inUse:1. Without the max-vs-sum fix,
+      // checkGlobalResourceAvailability would compute globalUsed = 1+1 = 2, exhausting
+      // the physical pool and incorrectly blocking the next allocation.
+      engine.setPhysicalLimits(
+        new Map([
+          ['cpu', 10],
+          ['ram', 32],
+          ['disk', 100],
+          ['gpu0', 2],
+          ['nic0', 1]
+        ])
+      )
+      const env1 = makeEnv([
+        {
+          id: 'gpu0',
+          kind: 'discrete',
+          shareable: false,
+          total: 2,
+          min: 0,
+          max: 2,
+          inUse: 1
+        }
+      ])
+      env1.id = 'env1'
+      // env2 carries the same global inUse value because getUsedResources tracks discrete globally
+      const env2 = makeEnv([
+        {
+          id: 'gpu0',
+          kind: 'discrete',
+          shareable: false,
+          total: 2,
+          min: 0,
+          max: 2,
+          inUse: 1
+        }
+      ])
+      env2.id = 'env2'
+      // 1 GPU in use, 1 remaining — this request must succeed, not be double-blocked
+      const req: ComputeResourceRequest[] = [{ id: 'gpu0', amount: 1 }]
+      await engine.checkIfResourcesAreAvailable(req, env2, false, [env1, env2])
+      // no throw = pass (double-counting would have thrown "Not enough gpu0 globally")
+    })
   })
 
   after(async () => {
     await tearDownEnvironment(envOverrides)
+  })
+})
+
+describe('Schema validation (C2DDockerConfigSchema)', () => {
+  const validBase = {
+    socketPath: '/var/run/docker.sock',
+    environments: [
+      {
+        storageExpiry: 604800,
+        maxJobDuration: 3600,
+        minJobDuration: 60,
+        fees: { '1': [{ feeToken: '0x123', prices: [{ id: 'cpu', price: 1 }] }] }
+      }
+    ]
+  }
+
+  it('old format (env resources with init) is rejected — clean break enforced', function () {
+    const config = [
+      {
+        ...validBase,
+        environments: [
+          {
+            ...validBase.environments[0],
+            resources: [
+              {
+                id: 'gpu0',
+                total: 1,
+                init: {
+                  deviceRequests: {
+                    Driver: 'nvidia',
+                    DeviceIDs: ['uuid-a'],
+                    Capabilities: [['gpu']]
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+    const result = C2DDockerConfigSchema.safeParse(config)
+    expect(result.success).to.equal(false)
+    const msgs = result.error?.issues.map((i) => i.message).join(' ')
+    expect(msgs).to.include('migration guide')
+  })
+
+  it('env ref pointing to unknown pool id is rejected', function () {
+    const config = [
+      {
+        ...validBase,
+        environments: [
+          {
+            ...validBase.environments[0],
+            resources: [{ id: 'unknown-gpu' }]
+          }
+        ]
+      }
+    ]
+    const result = C2DDockerConfigSchema.safeParse(config)
+    expect(result.success).to.equal(false)
+    const msgs = result.error?.issues.map((i) => i.message).join(' ')
+    expect(msgs).to.include('not found in connection-level resources')
+  })
+
+  it('shareable:true on type:gpu resource is rejected', function () {
+    const config = [
+      {
+        ...validBase,
+        resources: [
+          {
+            id: 'gpu0',
+            type: 'gpu',
+            kind: 'discrete',
+            total: 1,
+            shareable: true,
+            init: {
+              deviceRequests: {
+                Driver: 'nvidia',
+                DeviceIDs: ['uuid-a'],
+                Capabilities: [['gpu']]
+              }
+            }
+          }
+        ],
+        environments: [
+          {
+            ...validBase.environments[0],
+            resources: [{ id: 'gpu0' }]
+          }
+        ]
+      }
+    ]
+    const result = C2DDockerConfigSchema.safeParse(config)
+    expect(result.success).to.equal(false)
+    const msgs = result.error?.issues.map((i) => i.message).join(' ')
+    expect(msgs).to.include('shareable:true is not allowed')
+  })
+
+  it('valid two-level config with GPU pool and env refs parses successfully', function () {
+    const config = [
+      {
+        socketPath: '/var/run/docker.sock',
+        resources: [
+          {
+            id: 'gpu0',
+            kind: 'discrete',
+            type: 'gpu',
+            total: 1,
+            init: {
+              deviceRequests: {
+                Driver: 'nvidia',
+                DeviceIDs: ['uuid-a'],
+                Capabilities: [['gpu']]
+              }
+            }
+          }
+        ],
+        environments: [
+          {
+            storageExpiry: 604800,
+            maxJobDuration: 3600,
+            minJobDuration: 60,
+            resources: [{ id: 'cpu' }, { id: 'ram' }, { id: 'disk' }, { id: 'gpu0' }],
+            fees: { '1': [{ feeToken: '0x123', prices: [{ id: 'gpu0', price: 5 }] }] }
+          }
+        ]
+      }
+    ]
+    const result = C2DDockerConfigSchema.safeParse(config)
+    expect(result.success).to.equal(true)
+  })
+
+  const gpuPool = [
+    {
+      id: 'gpu0',
+      kind: 'discrete',
+      type: 'gpu',
+      total: 1,
+      init: {
+        deviceRequests: {
+          Driver: 'nvidia',
+          DeviceIDs: ['uuid-a'],
+          Capabilities: [['gpu']]
+        }
+      }
+    }
+  ]
+
+  it('resource constraint with both id and type is rejected', function () {
+    const config = [
+      {
+        ...validBase,
+        resources: gpuPool,
+        environments: [
+          {
+            ...validBase.environments[0],
+            resources: [
+              { id: 'cpu', constraints: [{ id: 'ram', type: 'gpu', min: 1 }] },
+              { id: 'ram' },
+              { id: 'disk' },
+              { id: 'gpu0' }
+            ]
+          }
+        ]
+      }
+    ]
+    const result = C2DDockerConfigSchema.safeParse(config)
+    expect(result.success).to.equal(false)
+    const msgs = result.error?.issues.map((i) => i.message).join(' ')
+    expect(msgs).to.include('mutually exclusive')
+  })
+
+  it('resource constraint with neither id nor type is rejected', function () {
+    const config = [
+      {
+        ...validBase,
+        resources: gpuPool,
+        environments: [
+          {
+            ...validBase.environments[0],
+            resources: [
+              { id: 'cpu', constraints: [{ min: 1 }] },
+              { id: 'ram' },
+              { id: 'disk' },
+              { id: 'gpu0' }
+            ]
+          }
+        ]
+      }
+    ]
+    const result = C2DDockerConfigSchema.safeParse(config)
+    expect(result.success).to.equal(false)
+    const msgs = result.error?.issues.map((i) => i.message).join(' ')
+    expect(msgs).to.include('either "id" or "type"')
+  })
+
+  it('valid group+floor constraint (type:gpu, perUnit:false) parses successfully', function () {
+    const config = [
+      {
+        ...validBase,
+        resources: gpuPool,
+        environments: [
+          {
+            ...validBase.environments[0],
+            resources: [
+              { id: 'cpu', constraints: [{ type: 'gpu', min: 1, perUnit: false }] },
+              { id: 'ram' },
+              { id: 'disk' },
+              { id: 'gpu0' }
+            ]
+          }
+        ]
+      }
+    ]
+    const result = C2DDockerConfigSchema.safeParse(config)
+    expect(result.success).to.equal(true)
+  })
+
+  it('aggregate constraint targeting a type group is rejected', function () {
+    const config = [
+      {
+        ...validBase,
+        resources: gpuPool,
+        environments: [
+          {
+            ...validBase.environments[0],
+            resources: [
+              { id: 'cpu' },
+              { id: 'ram' },
+              { id: 'disk' },
+              { id: 'gpu0', constraints: [{ type: 'gpu', min: 1, aggregate: true }] }
+            ]
+          }
+        ]
+      }
+    ]
+    const result = C2DDockerConfigSchema.safeParse(config)
+    expect(result.success).to.equal(false)
+    const msgs = result.error?.issues.map((i) => i.message).join(' ')
+    expect(msgs).to.include('aggregate constraints must target a single "id"')
+  })
+
+  it('valid aggregate constraint (single id) parses successfully', function () {
+    const config = [
+      {
+        ...validBase,
+        resources: gpuPool,
+        environments: [
+          {
+            ...validBase.environments[0],
+            resources: [
+              { id: 'cpu' },
+              { id: 'ram' },
+              { id: 'disk' },
+              {
+                id: 'gpu0',
+                constraints: [{ id: 'cpu', min: 1, max: 4, aggregate: true }]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+    const result = C2DDockerConfigSchema.safeParse(config)
+    expect(result.success).to.equal(true)
+  })
+
+  // Keeps the "Full example" config in docs/compute.md honest — if the schema changes in a way
+  // that would break the documented example, this test fails.
+  it('the docs/compute.md full example config parses successfully', function () {
+    const config: any = [
+      {
+        socketPath: '/var/run/docker.sock',
+        resources: [
+          { id: 'cpu', type: 'cpu', total: 16 },
+          { id: 'ram', type: 'ram', total: 64 },
+          { id: 'disk', type: 'disk', total: 2000 },
+          {
+            id: 'GPU1',
+            kind: 'discrete',
+            type: 'gpu',
+            total: 1,
+            description: 'NVIDIA A100 40GB (slot 0)',
+            platform: 'nvidia',
+            driverVersion: '570.195.03',
+            memoryTotal: '40960 MiB',
+            init: {
+              deviceRequests: {
+                Driver: 'nvidia',
+                DeviceIDs: ['GPU-uuid-1'],
+                Capabilities: [['gpu']]
+              }
+            },
+            constraints: [
+              { id: 'ram', min: 8 },
+              { id: 'cpu', min: 2 }
+            ]
+          },
+          {
+            id: 'GPU2',
+            kind: 'discrete',
+            type: 'gpu',
+            total: 1,
+            description: 'NVIDIA A100 40GB (slot 1)',
+            platform: 'nvidia',
+            driverVersion: '570.195.03',
+            memoryTotal: '40960 MiB',
+            init: {
+              deviceRequests: {
+                Driver: 'nvidia',
+                DeviceIDs: ['GPU-uuid-2'],
+                Capabilities: [['gpu']]
+              }
+            },
+            constraints: [
+              { id: 'ram', min: 8 },
+              { id: 'cpu', min: 2 }
+            ]
+          }
+        ],
+        environments: [
+          {
+            id: 'gpu-premium',
+            description: 'Paid GPU environment — any CPU job is guaranteed a GPU',
+            storageExpiry: 604800,
+            maxJobDuration: 3600,
+            minJobDuration: 60,
+            maxJobs: 2,
+            enableNetwork: true,
+            resources: [
+              {
+                id: 'cpu',
+                min: 1,
+                max: 8,
+                constraints: [{ type: 'gpu', min: 1, perUnit: false }]
+              },
+              { id: 'ram', min: 1, max: 32 },
+              { id: 'disk', min: 1, max: 500 },
+              { id: 'GPU1' },
+              { id: 'GPU2' }
+            ],
+            access: { addresses: [], accessLists: null },
+            fees: {
+              '1': [
+                {
+                  feeToken: '0x967da4048cD07aB37855c090aAF366e4ce1b9F48',
+                  prices: [
+                    { id: 'cpu', price: 1 },
+                    { id: 'ram', price: 0.5 },
+                    { id: 'disk', price: 0.1 },
+                    { id: 'GPU1', price: 10 },
+                    { id: 'GPU2', price: 10 }
+                  ]
+                }
+              ],
+              '137': [
+                {
+                  feeToken: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
+                  prices: [
+                    { id: 'cpu', price: 0.5 },
+                    { id: 'ram', price: 0.2 },
+                    { id: 'GPU1', price: 5 },
+                    { id: 'GPU2', price: 5 }
+                  ]
+                }
+              ]
+            },
+            free: {
+              maxJobDuration: 300,
+              minJobDuration: 10,
+              maxJobs: 1,
+              access: { addresses: [], accessLists: null },
+              resources: [
+                {
+                  id: 'cpu',
+                  max: 2,
+                  constraints: [{ type: 'gpu', min: 1, perUnit: false }]
+                },
+                { id: 'ram', max: 8 },
+                { id: 'disk', max: 10 },
+                {
+                  id: 'GPU1',
+                  constraints: [
+                    { id: 'ram', min: 4 },
+                    { id: 'cpu', min: 1 }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            id: 'cpu-standard',
+            description: 'CPU-only environment — cheaper, no GPU',
+            storageExpiry: 604800,
+            maxJobDuration: 1800,
+            minJobDuration: 60,
+            maxJobs: 10,
+            enableNetwork: false,
+            resources: [
+              { id: 'cpu', total: 8, min: 1, max: 4 },
+              { id: 'ram', total: 16, min: 1, max: 8 },
+              { id: 'disk', max: 100 }
+            ],
+            access: { addresses: [], accessLists: null },
+            fees: {
+              '1': [
+                {
+                  feeToken: '0x967da4048cD07aB37855c090aAF366e4ce1b9F48',
+                  prices: [
+                    { id: 'cpu', price: 0.3 },
+                    { id: 'ram', price: 0.1 },
+                    { id: 'disk', price: 0.05 }
+                  ]
+                }
+              ]
+            },
+            free: {
+              maxJobDuration: 120,
+              minJobDuration: 10,
+              maxJobs: 3,
+              access: { addresses: [], accessLists: null },
+              resources: [
+                { id: 'cpu', max: 1 },
+                { id: 'ram', max: 2 },
+                { id: 'disk', max: 5 }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+    const result = C2DDockerConfigSchema.safeParse(config)
+    expect(result.success).to.equal(true)
+  })
+
+  describe('cpuList validation', function () {
+    const withCpuResource = (cpuEntry: any) => [{ ...validBase, resources: [cpuEntry] }]
+
+    it('cpu resource with a single valid range parses successfully', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'cpu', cpuList: '32-63' })
+      )
+      expect(result.success).to.equal(true)
+    })
+
+    it('cpu resource with multiple ascending ranges parses successfully', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'cpu', cpuList: '0-15,32-47' })
+      )
+      expect(result.success).to.equal(true)
+    })
+
+    it('cpu resource with a single bare core ID parses successfully', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'cpu', cpuList: '0' })
+      )
+      expect(result.success).to.equal(true)
+    })
+
+    it('cpu resource mixing ranges and bare core IDs parses successfully', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'cpu', cpuList: '0-1,3' })
+      )
+      expect(result.success).to.equal(true)
+    })
+
+    it('cpu resource with a list of bare core IDs parses successfully', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'cpu', cpuList: '3,5,7' })
+      )
+      expect(result.success).to.equal(true)
+    })
+
+    it('cpu resource with only total still parses (existing behavior)', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'cpu', total: 6 })
+      )
+      expect(result.success).to.equal(true)
+    })
+
+    it('cpu resource with both total and cpuList is rejected', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'cpu', total: 32, cpuList: '32-63' })
+      )
+      expect(result.success).to.equal(false)
+      const msgs = result.error?.issues.map((i) => i.message).join(' ')
+      expect(msgs).to.include('not both')
+    })
+
+    it('cpu resource with neither total nor cpuList is rejected', function () {
+      const result = C2DDockerConfigSchema.safeParse(withCpuResource({ id: 'cpu' }))
+      expect(result.success).to.equal(false)
+      const msgs = result.error?.issues.map((i) => i.message).join(' ')
+      expect(msgs).to.include('must specify either "total" or "cpuList"')
+    })
+
+    it('cpuList on a non-cpu resource is rejected', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withCpuResource({ id: 'ram', cpuList: '0-3' })
+      )
+      expect(result.success).to.equal(false)
+      const msgs = result.error?.issues.map((i) => i.message).join(' ')
+      expect(msgs).to.include('only valid on the cpu resource')
+    })
+
+    it('cpuList inside an env-level resource ref is rejected', function () {
+      const config = [
+        {
+          ...validBase,
+          environments: [
+            {
+              ...validBase.environments[0],
+              resources: [{ id: 'cpu', cpuList: '0-3' }]
+            }
+          ]
+        }
+      ]
+      const result = C2DDockerConfigSchema.safeParse(config)
+      expect(result.success).to.equal(false)
+      const msgs = result.error?.issues.map((i) => i.message).join(' ')
+      expect(msgs).to.include('must be defined at connection level')
+    })
+
+    // Format is strict: comma-separated core IDs and/or integer ranges, each range's
+    // right side strictly greater than the left, all parts ascending and non-overlapping.
+    const invalidLists: [string, string][] = [
+      ['15-15', 'strictly greater'], // right side equal — write "15" instead
+      ['20-10', 'strictly greater'], // right side lower
+      ['0-8,4-12', 'ascending and non-overlapping'], // overlapping ranges
+      ['8-11,0-3', 'ascending and non-overlapping'], // out of order
+      ['0-3,2', 'ascending and non-overlapping'], // bare ID inside a previous range
+      ['3,3', 'ascending and non-overlapping'], // duplicate bare ID
+      ['1.5-4', 'is invalid'], // floats
+      ['0-9000', 'maximum supported limit'], // core ID above the 8192 cap
+      ['-1-4', 'is invalid'], // negative
+      ['0-3, 8-11', 'is invalid'], // space
+      ['0-3,,8-11', 'is invalid'], // empty part
+      ['0-3,', 'is invalid'], // trailing comma
+      ['', 'is invalid'] // empty string
+    ]
+    for (const [value, expectedFragment] of invalidLists) {
+      it(`cpuList "${value}" is rejected (${expectedFragment})`, function () {
+        const result = C2DDockerConfigSchema.safeParse(
+          withCpuResource({ id: 'cpu', cpuList: value })
+        )
+        expect(result.success).to.equal(false)
+        const msgs = result.error?.issues.map((i) => i.message).join(' ')
+        expect(msgs).to.include(expectedFragment)
+      })
+    }
+  })
+})
+
+describe('resolveResourceKind / resolveConnectionResourcePool / resolveEnvironmentResources', () => {
+  let engine: any
+
+  beforeEach(function () {
+    // Use Object.create to bypass the Docker-specific constructor while retaining the prototype chain.
+    engine = Object.create(C2DEngineDocker.prototype)
+    engine.physicalLimits = new Map<string, number>()
+  })
+
+  describe('resolveResourceKind()', function () {
+    it('explicit kind:"discrete" wins over init presence', function () {
+      const res: Partial<ComputeResource> = {
+        id: 'cpu',
+        kind: 'discrete',
+        init: undefined
+      }
+      expect(engine.resolveResourceKind(res)).to.equal('discrete')
+    })
+
+    it('explicit kind:"fungible" wins even when init is present', function () {
+      const res: Partial<ComputeResource> = {
+        id: 'cpu',
+        kind: 'fungible',
+        init: {
+          deviceRequests: { Driver: 'nvidia', DeviceIDs: ['x'], Capabilities: [['gpu']] }
+        }
+      }
+      expect(engine.resolveResourceKind(res)).to.equal('fungible')
+    })
+
+    it('no kind + init present → inferred as discrete', function () {
+      const res: Partial<ComputeResource> = {
+        id: 'gpu0',
+        init: {
+          deviceRequests: { Driver: 'nvidia', DeviceIDs: ['x'], Capabilities: [['gpu']] }
+        }
+      }
+      expect(engine.resolveResourceKind(res)).to.equal('discrete')
+    })
+
+    it('no kind, no init → inferred as fungible', function () {
+      const res: Partial<ComputeResource> = { id: 'cpu' }
+      expect(engine.resolveResourceKind(res)).to.equal('fungible')
+    })
+  })
+
+  describe('resolveConnectionResourcePool()', function () {
+    it('auto-detects cpu and ram from sysinfo; disk from physicalLimits', function () {
+      engine.physicalLimits.set('disk', 200)
+      const sysinfo = { NCPU: 8, MemTotal: 32 * 1024 * 1024 * 1024 } // 32 GB
+      const pool = engine.resolveConnectionResourcePool(sysinfo, [])
+      expect(pool.get('cpu').total).to.equal(8)
+      expect(pool.get('ram').total).to.equal(32)
+      expect(pool.get('disk').total).to.equal(200)
+      expect(pool.get('cpu').kind).to.equal('fungible')
+      expect(pool.get('ram').kind).to.equal('fungible')
+    })
+
+    it('configured total caps cpu at physical limit', function () {
+      engine.physicalLimits.set('cpu', 8)
+      engine.physicalLimits.set('disk', 100)
+      const sysinfo = { NCPU: 8, MemTotal: 32 * 1024 * 1024 * 1024 }
+      // Config requests 6 cores (cap below physical) → should use 6.
+      const pool = engine.resolveConnectionResourcePool(sysinfo, [
+        { id: 'cpu', total: 6, min: 1 }
+      ])
+      expect(pool.get('cpu').total).to.equal(6)
+    })
+
+    it('configured total exceeding physical is capped at physical', function () {
+      engine.physicalLimits.set('cpu', 8)
+      engine.physicalLimits.set('disk', 100)
+      const sysinfo = { NCPU: 8, MemTotal: 16 * 1024 * 1024 * 1024 }
+      // Config requests 20 cores on an 8-core host → capped to 8.
+      const pool = engine.resolveConnectionResourcePool(sysinfo, [
+        { id: 'cpu', total: 20 }
+      ])
+      expect(pool.get('cpu').total).to.equal(8)
+    })
+
+    it('cpuList sets effective cpu total to the expanded core count', function () {
+      engine.physicalLimits.set('cpu', 64)
+      engine.physicalLimits.set('disk', 100)
+      const sysinfo = { NCPU: 64, MemTotal: 32 * 1024 * 1024 * 1024 }
+      const pool = engine.resolveConnectionResourcePool(sysinfo, [
+        { id: 'cpu', cpuList: '32-63' }
+      ])
+      expect(pool.get('cpu').total).to.equal(32)
+      expect(pool.get('cpu').max).to.equal(32)
+    })
+
+    it('custom GPU resource is added to pool and registered in physicalLimits', function () {
+      engine.physicalLimits.set('disk', 100)
+      const sysinfo = { NCPU: 4, MemTotal: 8 * 1024 * 1024 * 1024 }
+      const gpu = {
+        id: 'gpu0',
+        type: 'gpu',
+        total: 1,
+        init: {
+          deviceRequests: {
+            Driver: 'nvidia',
+            DeviceIDs: ['uuid-a'],
+            Capabilities: [['gpu']]
+          }
+        }
+      }
+      const pool = engine.resolveConnectionResourcePool(sysinfo, [gpu])
+      expect(pool.has('gpu0')).to.equal(true)
+      expect(pool.get('gpu0').kind).to.equal('discrete') // inferred from init
+      expect(pool.get('gpu0').total).to.equal(1)
+      expect(engine.physicalLimits.get('gpu0')).to.equal(1)
+    })
+  })
+
+  describe('resolveEnvironmentResources()', function () {
+    let pool: Map<string, ComputeResource>
+
+    beforeEach(function () {
+      pool = new Map([
+        ['cpu', { id: 'cpu', kind: 'fungible', type: 'cpu', total: 10, min: 1, max: 10 }],
+        ['ram', { id: 'ram', kind: 'fungible', type: 'ram', total: 32, min: 1, max: 32 }],
+        [
+          'disk',
+          { id: 'disk', kind: 'fungible', type: 'disk', total: 100, min: 1, max: 100 }
+        ],
+        [
+          'gpu0',
+          {
+            id: 'gpu0',
+            kind: 'discrete',
+            type: 'gpu',
+            total: 1,
+            min: 0,
+            max: 1,
+            constraints: [{ id: 'ram', min: 4 }],
+            init: {
+              deviceRequests: {
+                Driver: 'nvidia',
+                DeviceIDs: ['uuid-a'],
+                Capabilities: [['gpu']]
+              }
+            }
+          }
+        ]
+      ])
+    })
+
+    it('ref.total becomes env aggregate ceiling for fungible (capped at pool.total)', function () {
+      const envDef = { resources: [{ id: 'cpu', total: 6 }] }
+      const result = engine.resolveEnvironmentResources(envDef, pool)
+      expect(result[0].total).to.equal(6)
+    })
+
+    it('ref.total exceeding pool.total is capped at pool.total', function () {
+      const envDef = { resources: [{ id: 'cpu', total: 999 }] }
+      const result = engine.resolveEnvironmentResources(envDef, pool)
+      expect(result[0].total).to.equal(10) // pool.total = 10
+    })
+
+    it('omitting ref.total inherits pool total for fungible', function () {
+      const envDef = { resources: [{ id: 'cpu' }] }
+      const result = engine.resolveEnvironmentResources(envDef, pool)
+      expect(result[0].total).to.equal(10)
+    })
+
+    it('ref.max is capped to resolved.total', function () {
+      const envDef = { resources: [{ id: 'cpu', total: 6, max: 99 }] }
+      const result = engine.resolveEnvironmentResources(envDef, pool)
+      expect(result[0].max).to.equal(6) // capped to total
+    })
+
+    it('warns when ref.max exceeds resolved.total, so the operator can fix their config', function () {
+      const warnSpy = sinon.spy(CORE_LOGGER, 'warn')
+      try {
+        const envDef = {
+          description: 'gpu-restricted',
+          resources: [{ id: 'cpu', total: 1, max: 10, min: 1 }]
+        }
+        const result = engine.resolveEnvironmentResources(envDef, pool)
+        expect(result[0].max).to.equal(1) // still clamped to total
+        expect(
+          warnSpy.calledWithMatch(sinon.match(/cpu.*max \(10\) greater than total \(1\)/))
+        ).to.equal(true)
+        expect(warnSpy.calledWithMatch(sinon.match(/gpu-restricted/))).to.equal(true)
+      } finally {
+        warnSpy.restore()
+      }
+    })
+
+    it('does not warn when ref.max is within resolved.total', function () {
+      const warnSpy = sinon.spy(CORE_LOGGER, 'warn')
+      try {
+        const envDef = { resources: [{ id: 'cpu', total: 6, max: 6 }] }
+        engine.resolveEnvironmentResources(envDef, pool)
+        expect(warnSpy.called).to.equal(false)
+      } finally {
+        warnSpy.restore()
+      }
+    })
+
+    it('ref.min overrides pool min', function () {
+      const envDef = { resources: [{ id: 'cpu', min: 2 }] }
+      const result = engine.resolveEnvironmentResources(envDef, pool)
+      expect(result[0].min).to.equal(2)
+    })
+
+    it('ref.constraints replaces pool constraints entirely', function () {
+      const envDef = {
+        resources: [
+          {
+            id: 'gpu0',
+            constraints: [
+              { id: 'ram', min: 8 },
+              { id: 'cpu', min: 4 }
+            ]
+          }
+        ]
+      }
+      const result = engine.resolveEnvironmentResources(envDef, pool)
+      const gpuRes = result.find((r: ComputeResource) => r.id === 'gpu0')
+      expect(gpuRes.constraints).to.have.length(2)
+      expect(gpuRes.constraints[0]).to.deep.equal({ id: 'ram', min: 8 })
+    })
+
+    it('per-env group+floor constraint (type/perUnit) is carried through and deep-cloned', function () {
+      const envDef: any = {
+        resources: [
+          { id: 'cpu', constraints: [{ type: 'gpu', min: 1, perUnit: false }] },
+          { id: 'gpu0' }
+        ]
+      }
+      const result = engine.resolveEnvironmentResources(envDef, pool)
+      const cpuRes = result.find((r: ComputeResource) => r.id === 'cpu')
+      expect(cpuRes.constraints).to.deep.equal([{ type: 'gpu', min: 1, perUnit: false }])
+      // deep-cloned: mutating the resolved constraint must not affect the envDef source
+      cpuRes.constraints[0].min = 99
+      expect(envDef.resources[0].constraints[0].min).to.equal(1)
+    })
+
+    it('ref.constraints: [] removes all constraints for this env', function () {
+      const envDef = { resources: [{ id: 'gpu0', constraints: [] as any[] }] }
+      const result = engine.resolveEnvironmentResources(envDef, pool)
+      const gpuRes = result.find((r: ComputeResource) => r.id === 'gpu0')
+      expect(gpuRes.constraints).to.deep.equal([])
+    })
+
+    it('omitting ref.constraints inherits pool constraints (deep-cloned)', function () {
+      const envDef = { resources: [{ id: 'gpu0' }] }
+      const result = engine.resolveEnvironmentResources(envDef, pool)
+      const gpuRes = result.find((r: ComputeResource) => r.id === 'gpu0')
+      expect(gpuRes.constraints).to.deep.equal([{ id: 'ram', min: 4 }])
+      // Mutating the resolved constraints must not affect the pool
+      gpuRes.constraints[0].min = 99
+      expect(pool.get('gpu0').constraints[0].min).to.equal(4)
+    })
+
+    it('init is deep-cloned: mutating resolved.init does not corrupt pool', function () {
+      const envDef = { resources: [{ id: 'gpu0' }] }
+      const result = engine.resolveEnvironmentResources(envDef, pool)
+      const gpuRes = result.find((r: ComputeResource) => r.id === 'gpu0')
+      gpuRes.init.deviceRequests.DeviceIDs[0] = 'mutated'
+      expect(pool.get('gpu0').init.deviceRequests.DeviceIDs[0]).to.equal('uuid-a')
+    })
+
+    it('unknown ref.id is skipped silently, baseline cpu/ram/disk still resolved', function () {
+      const envDef = { resources: [{ id: 'nonexistent' }] }
+      const result = engine.resolveEnvironmentResources(envDef, pool)
+      expect(result.map((r: ComputeResource) => r.id).sort()).to.deep.equal([
+        'cpu',
+        'disk',
+        'ram'
+      ])
+    })
+
+    it('cpu/ram/disk are always resolved even when the config references none of them', function () {
+      const envDef = { resources: [] as any[] }
+      const result = engine.resolveEnvironmentResources(envDef, pool)
+      expect(result.map((r: ComputeResource) => r.id).sort()).to.deep.equal([
+        'cpu',
+        'disk',
+        'ram'
+      ])
+    })
+
+    it('an explicit baseline override is preserved, not clobbered by the auto-filled default', function () {
+      const envDef = { resources: [{ id: 'ram', max: 4 }] }
+      const result = engine.resolveEnvironmentResources(envDef, pool)
+      const ramRes = result.find((r: ComputeResource) => r.id === 'ram')
+      expect(ramRes.max).to.equal(4)
+      expect(result.map((r: ComputeResource) => r.id).sort()).to.deep.equal([
+        'cpu',
+        'disk',
+        'ram'
+      ])
+    })
+  })
+})
+
+describe('CPU affinity restricted by cpuList', () => {
+  let engine: any
+
+  beforeEach(function () {
+    // Bypass the Docker-specific constructor but keep the prototype methods; seed the
+    // fields that constructor initializers would otherwise set.
+    engine = Object.create(C2DEngineDocker.prototype)
+    engine.physicalLimits = new Map<string, number>()
+    engine.cpuAllocations = new Map()
+    engine.envCpuCoresMap = new Map()
+    engine.configuredCpuList = null
+    engine.getC2DConfig = sinon.stub().returns({ hash: 'cluster-hash' })
+  })
+
+  describe('resolveConfiguredCpuList()', function () {
+    it('no cpu entry / cpu entry without cpuList → unrestricted (null pool)', function () {
+      engine.resolveConfiguredCpuList({ resources: [] }, 8)
+      expect(engine.configuredCpuList).to.equal(null)
+      engine.resolveConfiguredCpuList({ resources: [{ id: 'cpu', total: 4 }] }, 8)
+      expect(engine.configuredCpuList).to.equal(null)
+    })
+
+    it('valid cpuList expands to the listed core IDs', function () {
+      engine.resolveConfiguredCpuList({ resources: [{ id: 'cpu', cpuList: '2-5' }] }, 8)
+      expect(engine.configuredCpuList).to.deep.equal([2, 3, 4, 5])
+    })
+
+    it('multi-range cpuList expands to all listed core IDs', function () {
+      engine.resolveConfiguredCpuList(
+        { resources: [{ id: 'cpu', cpuList: '0-1,4-6' }] },
+        8
+      )
+      expect(engine.configuredCpuList).to.deep.equal([0, 1, 4, 5, 6])
+    })
+
+    it('mixed ranges and bare core IDs expand to all listed core IDs', function () {
+      engine.resolveConfiguredCpuList({ resources: [{ id: 'cpu', cpuList: '0-1,3' }] }, 8)
+      expect(engine.configuredCpuList).to.deep.equal([0, 1, 3])
+    })
+
+    it('single bare core ID works on a single-cpu host', function () {
+      engine.resolveConfiguredCpuList({ resources: [{ id: 'cpu', cpuList: '0' }] }, 1)
+      expect(engine.configuredCpuList).to.deep.equal([0])
+    })
+
+    it('core IDs the host does not have throw (fail fast at startup / config push)', function () {
+      expect(() =>
+        engine.resolveConfiguredCpuList(
+          { resources: [{ id: 'cpu', cpuList: '0-15' }] },
+          8
+        )
+      ).to.throw("don't exist on this host")
+      expect(engine.configuredCpuList).to.equal(null)
+    })
+  })
+
+  describe('allocateCpus() with a restricted pool', function () {
+    beforeEach(function () {
+      engine.envCpuCoresMap.set('env1', [32, 33, 34, 35, 36, 37, 38, 39])
+    })
+
+    it('allocations only hand out cores from the restricted pool', function () {
+      expect(engine.allocateCpus('job1', 4, 'env1')).to.equal('32,33,34,35')
+      expect(engine.allocateCpus('job2', 2, 'env1')).to.equal('36,37')
+    })
+
+    it('released cores are reused from the restricted pool', function () {
+      engine.allocateCpus('job1', 4, 'env1')
+      engine.releaseCpus('job1')
+      expect(engine.allocateCpus('job2', 2, 'env1')).to.equal('32,33')
+    })
+
+    it('requests beyond the restricted pool return null instead of spilling to other cores', function () {
+      expect(engine.allocateCpus('job1', 9, 'env1')).to.equal(null)
+    })
   })
 })
 
@@ -549,5 +2334,461 @@ describe('getAlgoChecksums', () => {
     expect(findDdoStub.called).to.equal(false)
     // and therefore no "Algorithm with id: undefined not found!" error is logged
     expect(loggerErrorSpy.called).to.equal(false)
+  })
+})
+
+describe('service start/restart Docker cleanup on failure', function () {
+  let engine: any
+  let network: { id: string; inspect: sinon.SinonStub; remove: sinon.SinonStub }
+
+  function makeContainer(startRejects: boolean) {
+    return {
+      id: 'container-1',
+      start: startRejects
+        ? sinon.stub().rejects(new Error('start failed'))
+        : sinon.stub().resolves(),
+      stop: sinon.stub().resolves(),
+      remove: sinon.stub().resolves()
+    }
+  }
+
+  beforeEach(function () {
+    // Bypass the Docker-specific constructor but keep the prototype methods.
+    engine = Object.create(C2DEngineDocker.prototype)
+    // Constructor field initializers don't run via Object.create, so seed the CPU
+    // pinning maps that releaseCpus/allocateCpus (called by cleanupServiceDocker) touch,
+    // and the per-service lifecycle lock taken by stopService/restartService.
+    engine.cpuAllocations = new Map()
+    engine.envCpuCoresMap = new Map()
+    engine.serviceOpsInFlight = new Set()
+    engine.serviceOpPromises = new Set()
+    // inspect is needed by removeServiceNetwork (cleanup resolves the network by
+    // deterministic name/id and checks for attached containers before removing).
+    network = {
+      id: 'net-1',
+      inspect: sinon.stub().resolves({ Containers: {} }),
+      remove: sinon.stub().resolves()
+    }
+
+    engine.db = {
+      newServiceJob: sinon.stub().resolves(),
+      updateServiceJob: sinon.stub().resolves(),
+      // lifecycle lease (fail-closed: restart/stop reject without it)
+      acquireServiceLock: sinon.stub().resolves(true),
+      releaseServiceLock: sinon.stub().resolves(undefined)
+    }
+    engine.getC2DConfig = sinon.stub().returns({
+      hash: 'cluster-hash',
+      connection: {
+        serviceOnDemand: { hostPortRange: [30000, 32767], nodeHost: 'localhost' }
+      }
+    })
+    // Image pull succeeds; the failure we exercise is later, at container create/start.
+    engine.pullImageRef = sinon.stub().resolves()
+    engine.buildServiceResourceConstraints = sinon
+      .stub()
+      .returns({ Memory: 0, NanoCpus: 0, DeviceRequests: [] })
+    // Escrow succeeds (lock + claim) so the pipeline reaches the container phase.
+    engine.escrow = {
+      createLock: sinon.stub().resolves('0xlock'),
+      waitForTransaction: sinon.stub().resolves(),
+      claimLock: sinon.stub().resolves('0xclaim'),
+      cancelExpiredLock: sinon.stub().resolves('0xcancel'),
+      getMinLockTime: sinon.stub().returns(3600)
+    }
+    engine.keyManager = { decrypt: sinon.stub().resolves(Buffer.from('{}')) }
+  })
+
+  afterEach(() => sinon.restore())
+
+  async function expectRejects(promise: Promise<unknown>, messagePart: string) {
+    let thrown: Error | null = null
+    try {
+      await promise
+    } catch (err: any) {
+      thrown = err
+    }
+    expect(thrown, 'expected the call to reject').to.not.equal(null)
+    expect(thrown!.message).to.contain(messagePart)
+  }
+
+  // A fresh Starting job, as createServiceJob would have persisted it.
+  function makeStartingJob(overrides: any = {}) {
+    return {
+      serviceId: 'svc-1',
+      clusterHash: 'cluster-hash',
+      environment: 'env-1',
+      owner: '0xowner',
+      image: 'nginx',
+      tag: 'latest',
+      containerImage: 'nginx:latest',
+      containerId: '',
+      networkId: '',
+      status: 10, // Starting
+      statusText: 'Starting',
+      dateCreated: new Date().toISOString(),
+      expiresAt: Date.now() + 60000,
+      duration: 60,
+      exposedPorts: [80],
+      endpoints: [],
+      resources: [{ id: 'cpu', amount: 1 }],
+      payment: {
+        chainId: 1,
+        token: '0xtoken',
+        cost: 10,
+        lockTx: '',
+        claimTx: '',
+        cancelTx: ''
+      },
+      ...overrides
+    }
+  }
+
+  it('processServiceStart removes the network and marks Error when createContainer fails', async function () {
+    engine.docker = {
+      createNetwork: sinon.stub().resolves(network),
+      createContainer: sinon.stub().rejects(new Error('createContainer failed')),
+      getNetwork: sinon.stub().returns(network)
+    }
+    const job = makeStartingJob({ serviceId: 'svc-1' })
+    // the pipeline re-reads the job under the lifecycle lock before acting
+    engine.db.getServiceJob = sinon.stub().resolves([job])
+
+    await engine.processServiceStart(job) // never throws — failures are persisted as status
+
+    expect(network.remove.called, 'network.remove should be called').to.equal(true)
+    expect(job.status).to.equal(ServiceStatusNumber.Error)
+    // Funds were already claimed before the container step, so no refund here.
+    expect(engine.escrow.claimLock.calledOnce).to.equal(true)
+    expect(engine.escrow.cancelExpiredLock.called).to.equal(false)
+  })
+
+  it('processServiceStart removes container and network when container.start fails', async function () {
+    const container = makeContainer(true)
+    engine.docker = {
+      createNetwork: sinon.stub().resolves(network),
+      createContainer: sinon.stub().resolves(container),
+      getNetwork: sinon.stub().returns(network)
+    }
+    const job = makeStartingJob({ serviceId: 'svc-2' })
+    engine.db.getServiceJob = sinon.stub().resolves([job])
+
+    await engine.processServiceStart(job)
+
+    expect(container.remove.calledOnce, 'container.remove should be called').to.equal(
+      true
+    )
+    expect(network.remove.called, 'network.remove should be called').to.equal(true)
+    expect(job.status).to.equal(ServiceStatusNumber.Error)
+    // The payment was claimed before the container step, so the Error job keeps its
+    // host ports reserved (restartable on the same endpoints until expiresAt): the
+    // allocator must refuse to hand the port out again.
+    expect(job.endpoints.length).to.be.greaterThan(0)
+    const reservedPort = job.endpoints[0].hostPort
+    try {
+      await expectRejects(
+        allocateHostPort(reservedPort, reservedPort),
+        'No free host port'
+      )
+    } finally {
+      releaseHostPort(reservedPort) // don't leak the reservation into other tests
+    }
+  })
+
+  it('processServiceStart refunds (cancelLock) and marks PullImageFailed when the image pull fails', async function () {
+    engine.pullImageRef = sinon.stub().rejects(new Error('pull failed'))
+    engine.docker = {
+      createNetwork: sinon.stub().resolves(network),
+      createContainer: sinon.stub().resolves(makeContainer(false)),
+      getNetwork: sinon.stub().returns(network)
+    }
+    const job = makeStartingJob({ serviceId: 'svc-img' })
+    engine.db.getServiceJob = sinon.stub().resolves([job])
+
+    await engine.processServiceStart(job)
+
+    expect(engine.escrow.claimLock.called, 'must not claim when image failed').to.equal(
+      false
+    )
+    expect(engine.escrow.cancelExpiredLock.calledOnce, 'must refund the lock').to.equal(
+      true
+    )
+    expect(job.status).to.equal(ServiceStatusNumber.PullImageFailed)
+    expect(engine.docker.createContainer.called, 'must not create a container').to.equal(
+      false
+    )
+  })
+
+  it('processServiceStart marks Error and skips the image when createLock fails', async function () {
+    engine.escrow.createLock = sinon.stub().resolves(null)
+    engine.docker = {
+      createNetwork: sinon.stub(),
+      createContainer: sinon.stub(),
+      getNetwork: sinon.stub().returns(network)
+    }
+    const job = makeStartingJob({ serviceId: 'svc-lock' })
+    engine.db.getServiceJob = sinon.stub().resolves([job])
+
+    await engine.processServiceStart(job)
+
+    expect(engine.pullImageRef.called, 'must not pull when lock failed').to.equal(false)
+    expect(engine.escrow.claimLock.called).to.equal(false)
+    expect(job.status).to.equal(ServiceStatusNumber.Error)
+  })
+
+  it('processServiceStart orphan recovery: cancels an unclaimed lock and marks Error', async function () {
+    engine.docker = {
+      createNetwork: sinon.stub(),
+      createContainer: sinon.stub(),
+      getNetwork: sinon.stub().returns(network)
+    }
+    // Resuming a job left in Locking from a previous process, with a lock but no claim.
+    const job = makeStartingJob({
+      serviceId: 'svc-orphan',
+      status: ServiceStatusNumber.Locking,
+      statusText: 'Locking',
+      payment: {
+        chainId: 1,
+        token: '0xtoken',
+        cost: 10,
+        lockTx: '0xlock',
+        claimTx: '',
+        cancelTx: ''
+      }
+    })
+    engine.db.getServiceJob = sinon.stub().resolves([job])
+
+    await engine.processServiceStart(job)
+
+    expect(
+      engine.escrow.cancelExpiredLock.calledOnce,
+      'orphan lock must be refunded'
+    ).to.equal(true)
+    expect(engine.escrow.createLock.called, 'must not re-lock an orphan').to.equal(false)
+    expect(job.status).to.equal(ServiceStatusNumber.Error)
+  })
+
+  it('restartService removes the newly created network when createContainer fails', async function () {
+    const existingJob = {
+      serviceId: 'svc-3',
+      clusterHash: 'cluster-hash',
+      environment: 'env-1',
+      owner: '0xowner',
+      image: 'nginx',
+      tag: 'latest',
+      containerImage: 'nginx:latest',
+      containerId: '', // empty → skip pre-teardown
+      networkId: '',
+      status: 40, // Running
+      statusText: 'Running',
+      dateCreated: new Date().toISOString(),
+      expiresAt: Date.now() + 60000,
+      duration: 60,
+      exposedPorts: [80],
+      endpoints: [{ containerPort: 80, hostPort: 30001, url: 'http://localhost:30001' }],
+      resources: [{ id: 'cpu', amount: 1 }],
+      payment: { chainId: 1, token: '0xtoken', claimTx: '0xclaim' }
+    }
+    engine.db.getServiceJob = sinon.stub().resolves([existingJob])
+    engine.docker = {
+      createNetwork: sinon.stub().resolves(network),
+      createContainer: sinon.stub().rejects(new Error('createContainer failed')),
+      getNetwork: sinon.stub().returns(network)
+    }
+
+    // restart is async: the call returns the Restarting snapshot; the failure surfaces
+    // on the persisted job status once the background op settles.
+    const snapshot = await engine.restartService('svc-3', '0xowner', undefined)
+    expect(snapshot.status).to.equal(ServiceStatusNumber.Restarting)
+    await Promise.allSettled([...engine.serviceOpPromises])
+
+    expect(network.remove.called, 'network.remove should be called').to.equal(true)
+    expect(existingJob.status).to.equal(ServiceStatusNumber.Error)
+    expect(existingJob.statusText).to.contain('createContainer failed')
+    // the Error outcome must be PERSISTED — status polls read the DB, not memory
+    expect(
+      engine.db.updateServiceJob.calledWith(
+        sinon.match({ serviceId: 'svc-3', status: ServiceStatusNumber.Error })
+      )
+    ).to.equal(true)
+  })
+
+  function makeRunningJobWithCmd(overrides: any = {}) {
+    return {
+      serviceId: 'svc-cmd',
+      clusterHash: 'cluster-hash',
+      environment: 'env-1',
+      owner: '0xowner',
+      image: 'nginx',
+      tag: 'latest',
+      containerImage: 'nginx:latest',
+      containerId: '',
+      networkId: '',
+      status: 40, // Running
+      statusText: 'Running',
+      dateCreated: new Date().toISOString(),
+      expiresAt: Date.now() + 60000,
+      duration: 60,
+      exposedPorts: [80],
+      endpoints: [{ containerPort: 80, hostPort: 30001, url: 'http://localhost:30001' }],
+      resources: [{ id: 'cpu', amount: 1 }],
+      payment: { chainId: 1, token: '0xtoken', claimTx: '0xclaim' },
+      dockerCmd: ['old', 'cmd'],
+      dockerEntrypoint: ['/old-entrypoint'],
+      ...overrides
+    }
+  }
+
+  // engine.restartService signature:
+  // (serviceId, owner, image, tag, checksum, dockerfile, additionalDockerFiles,
+  //  userData, dockerCmd, dockerEntrypoint)
+  it('restartService (RESPEC) applies a new image tag and persists the whole spec', async function () {
+    const existingJob = makeRunningJobWithCmd() // started on nginx:latest
+    engine.db.getServiceJob = sinon.stub().resolves([existingJob])
+    const container = makeContainer(false)
+    engine.docker = {
+      createNetwork: sinon.stub().resolves(network),
+      createContainer: sinon.stub().resolves(container),
+      getNetwork: sinon.stub().returns(network)
+    }
+
+    // RESPEC: same image name, freshly-published tag; no cmd/entrypoint re-supplied ⇒ they
+    // are dropped (empty), since RESPEC takes the container spec entirely from the request.
+    await engine.restartService('svc-cmd', '0xowner', 'nginx', '1.27-alpine')
+    await Promise.allSettled([...engine.serviceOpPromises])
+
+    // the pull + the new container use the recomputed reference
+    expect(engine.pullImageRef.calledWith('nginx:1.27-alpine')).to.equal(true)
+    const createArgs = engine.docker.createContainer.firstCall.args[0]
+    expect(createArgs.Image).to.equal('nginx:1.27-alpine')
+    // omitted cmd/entrypoint are NOT carried over from the stored job in RESPEC mode
+    expect(createArgs.Cmd).to.equal(undefined)
+    expect(createArgs.Entrypoint).to.equal(undefined)
+    // the new image spec is persisted on the job
+    expect(existingJob.tag).to.equal('1.27-alpine')
+    expect(existingJob.containerImage).to.equal('nginx:1.27-alpine')
+    expect(existingJob.dockerCmd).to.equal(undefined)
+    expect(
+      engine.db.updateServiceJob.calledWith(
+        sinon.match({
+          status: ServiceStatusNumber.Running,
+          tag: '1.27-alpine',
+          containerImage: 'nginx:1.27-alpine'
+        })
+      )
+    ).to.equal(true)
+  })
+
+  it('restartService (RESPEC) overrides dockerCmd/dockerEntrypoint alongside the image', async function () {
+    const existingJob = makeRunningJobWithCmd()
+    engine.db.getServiceJob = sinon.stub().resolves([existingJob])
+    const container = makeContainer(false)
+    engine.docker = {
+      createNetwork: sinon.stub().resolves(network),
+      createContainer: sinon.stub().resolves(container),
+      getNetwork: sinon.stub().returns(network)
+    }
+
+    await engine.restartService(
+      'svc-cmd',
+      '0xowner',
+      'nginx', // image (RESPEC — required to change cmd/entrypoint)
+      'latest', // tag
+      undefined, // checksum
+      undefined, // dockerfile
+      undefined, // additionalDockerFiles
+      undefined, // userData
+      ['new', 'cmd'],
+      ['/new-entrypoint']
+    )
+    await Promise.allSettled([...engine.serviceOpPromises])
+
+    const createArgs = engine.docker.createContainer.firstCall.args[0]
+    expect(createArgs.Cmd).to.deep.equal(['new', 'cmd'])
+    expect(createArgs.Entrypoint).to.deep.equal(['/new-entrypoint'])
+    expect(existingJob.dockerCmd).to.deep.equal(['new', 'cmd'])
+    expect(existingJob.dockerEntrypoint).to.deep.equal(['/new-entrypoint'])
+    // the override must be PERSISTED so future restarts reuse it
+    expect(
+      engine.db.updateServiceJob.calledWith(
+        sinon.match({
+          status: ServiceStatusNumber.Running,
+          dockerCmd: ['new', 'cmd'],
+          dockerEntrypoint: ['/new-entrypoint']
+        })
+      )
+    ).to.equal(true)
+  })
+
+  it('restartService (REUSE) reuses the whole stored spec when no container params are supplied', async function () {
+    const existingJob = makeRunningJobWithCmd()
+    engine.db.getServiceJob = sinon.stub().resolves([existingJob])
+    const container = makeContainer(false)
+    engine.docker = {
+      createNetwork: sinon.stub().resolves(network),
+      createContainer: sinon.stub().resolves(container),
+      getNetwork: sinon.stub().returns(network)
+    }
+
+    // no image ⇒ REUSE mode: image, cmd and entrypoint all come from the stored job
+    await engine.restartService('svc-cmd', '0xowner')
+    await Promise.allSettled([...engine.serviceOpPromises])
+
+    const createArgs = engine.docker.createContainer.firstCall.args[0]
+    expect(createArgs.Image).to.equal('nginx:latest') // stored image reused
+    expect(createArgs.Cmd).to.deep.equal(['old', 'cmd'])
+    expect(createArgs.Entrypoint).to.deep.equal(['/old-entrypoint'])
+    expect(existingJob.dockerCmd).to.deep.equal(['old', 'cmd'])
+    expect(existingJob.dockerEntrypoint).to.deep.equal(['/old-entrypoint'])
+    expect(
+      engine.db.updateServiceJob.calledWith(
+        sinon.match({
+          status: ServiceStatusNumber.Running,
+          dockerCmd: ['old', 'cmd'],
+          dockerEntrypoint: ['/old-entrypoint']
+        })
+      )
+    ).to.equal(true)
+  })
+
+  it('restartService (RESPEC) clears dockerCmd/dockerEntrypoint when explicitly given an empty array', async function () {
+    const existingJob = makeRunningJobWithCmd()
+    engine.db.getServiceJob = sinon.stub().resolves([existingJob])
+    const container = makeContainer(false)
+    engine.docker = {
+      createNetwork: sinon.stub().resolves(network),
+      createContainer: sinon.stub().resolves(container),
+      getNetwork: sinon.stub().returns(network)
+    }
+
+    // RESPEC (image supplied) with empty cmd/entrypoint arrays ⇒ explicitly cleared
+    await engine.restartService(
+      'svc-cmd',
+      '0xowner',
+      'nginx',
+      'latest',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [],
+      []
+    )
+    await Promise.allSettled([...engine.serviceOpPromises])
+
+    const createArgs = engine.docker.createContainer.firstCall.args[0]
+    expect(createArgs.Cmd).to.equal(undefined)
+    expect(createArgs.Entrypoint).to.equal(undefined)
+    expect(existingJob.dockerCmd).to.deep.equal([])
+    expect(existingJob.dockerEntrypoint).to.deep.equal([])
+    expect(
+      engine.db.updateServiceJob.calledWith(
+        sinon.match({
+          status: ServiceStatusNumber.Running,
+          dockerCmd: [],
+          dockerEntrypoint: []
+        })
+      )
+    ).to.equal(true)
   })
 })
