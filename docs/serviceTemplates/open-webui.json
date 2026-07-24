@@ -1,0 +1,21 @@
+{
+  "id": "open-webui",
+  "name": "Open WebUI — chat UI + local LLMs (Ollama)",
+  "description": "ChatGPT-style web UI wired to a bundled Ollama runtime (the `:ollama` image ships Ollama in-container), so it runs local LLMs out of the box — pull a model (e.g. llama3.1:8b, mistral) from the model dropdown. Binds 0.0.0.0 on port 8080 by default. First visit prompts you to create an admin account. Needs a CUDA GPU for usable token speed. NOTE: standalone Open WebUI is only a frontend — the `:ollama` tag is what makes it self-contained.",
+  "image": "ghcr.io/open-webui/open-webui",
+  "tag": "ollama",
+  "exposedPorts": [8080],
+  "requiredResources": [
+    { "id": "cpu", "min": 4, "recommended": 8, "unit": "cores" },
+    { "id": "ram", "min": 8, "recommended": 16, "unit": "GB" },
+    { "id": "disk", "min": 20, "recommended": 40, "unit": "GB" },
+    {
+      "kind": "discrete",
+      "type": "gpu",
+      "min": 1,
+      "recommended": 1,
+      "unit": "count",
+      "description": "CUDA GPU for local LLM inference"
+    }
+  ]
+}

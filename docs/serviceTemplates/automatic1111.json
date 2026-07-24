@@ -1,0 +1,26 @@
+{
+  "id": "automatic1111",
+  "name": "Stable Diffusion WebUI (A1111) — image generation",
+  "description": "The classic AUTOMATIC1111 web UI for Stable Diffusion / SDXL: txt2img, img2img, inpainting, upscaling, extensions and a built-in model browser. Serves on port 7860 — open the returned URL in a browser. No models ship in the image; download checkpoints from the UI or set HF_TOKEN / CIVITAI_TOKEN for gated downloads. Needs ~8 GB VRAM for SDXL.",
+  "image": "universonic/stable-diffusion-webui",
+  "tag": "nightly-20250518032354-full",
+  "exposedPorts": [7860],
+  "command": ["--listen", "--port", "7860"],
+  "userConfigurableEnvVars": [
+    { "key": "HF_TOKEN", "validation": "^hf_[A-Za-z0-9]{20,}$", "sensitive": true },
+    { "key": "CIVITAI_TOKEN", "validation": "^[A-Za-z0-9]{20,}$", "sensitive": true }
+  ],
+  "requiredResources": [
+    { "id": "cpu", "min": 4, "recommended": 8, "unit": "cores" },
+    { "id": "ram", "min": 16, "recommended": 32, "unit": "GB" },
+    { "id": "disk", "min": 30, "recommended": 60, "unit": "GB" },
+    {
+      "kind": "discrete",
+      "type": "gpu",
+      "min": 1,
+      "recommended": 1,
+      "unit": "count",
+      "description": "CUDA GPU; ~8 GB VRAM for SDXL, more for large models"
+    }
+  ]
+}
