@@ -2084,17 +2084,46 @@ The updated `ServiceJob` (advanced `expiresAt`, new entry in `extendPayments`).
 
 #### Description
 
-Recreate the service container (no extra charge), keeping the same `expiresAt` and host ports.
-Re-checks the environment service gate and access list; rejected if the service has expired.
-Optionally pass `userData` to replace the stored env vars, and/or `dockerCmd`/`dockerEntrypoint`
-to replace the stored CMD/ENTRYPOINT overrides — each is independent: supply it (even as `[]`)
-to replace the stored value, or omit it to reuse what the service already has. This is the
-recommended recovery path after a service lands in `Error` because its container died on its own
-(the background health check leaves host ports/network/container record reserved specifically so
-restart can reuse them), in addition to recovering from an explicit `serviceStop` or any other
-terminal failure.
+Recreate the service container (no extra charge), keeping the same `expiresAt`, resources and
+host ports. Re-checks the environment service gate and access list; rejected if the service has
+expired. This is the recommended recovery path after a service lands in `Error` because its
+container died on its own (the background health check leaves host ports/network/container
+record reserved specifically so restart can reuse them), in addition to recovering from an
+explicit `serviceStop` or any other terminal failure.
+
+**Restart is atomic — either all-old or all-new, never a mix of new params over the stored job:**
+
+- **REUSE mode** — the request carries **none** of the container params below. The service
+  restarts on exactly its stored spec (image, `userData`, `dockerCmd`, `dockerEntrypoint`). Use
+  this to simply bounce a service back to `Running`.
+- **RESPEC mode** — the request carries **any** container param. The container is rebuilt
+  entirely from the request: `image` becomes **required** and exactly one of `tag`/`checksum`/
+  `dockerfile` applies (validated exactly like `serviceStart`). `userData`/`dockerCmd`/
+  `dockerEntrypoint` are taken **as-sent** — anything omitted here is empty/unset, it is **not**
+  pulled from the stored job. This is the bug-fix flow: publish a fixed image under a new tag,
+  then restart re-supplying the full spec (e.g. same `image`, new `tag`).
+
+Because `image` is mandatory whenever any container param is present, you cannot ride a new
+`userData`/`dockerCmd` on top of the stored image — a partial change is rejected (400). Payment,
+resources and duration are always preserved; only the container spec can change. A service whose
+start payment was **never claimed** (escrow lock failed or was refunded) cannot be restarted —
+start a new service instead.
 
 #### Request Body
+
+REUSE mode (bounce the service on its stored spec):
+
+```json
+{
+  "consumerAddress": "0x...",
+  "nonce": "123",
+  "signature": "0x...",
+  "serviceId": "0x..."
+}
+```
+
+RESPEC mode (restart on a new image spec — `image` required, plus at most one of
+`tag`/`checksum`/`dockerfile`):
 
 ```json
 {
@@ -2102,15 +2131,39 @@ terminal failure.
   "nonce": "123",
   "signature": "0x...",
   "serviceId": "0x...",
-  "userData": "<optional ECIES-encrypted hex; replaces stored userData>",
-  "dockerCmd": ["<optional; replaces stored CMD override>"],
-  "dockerEntrypoint": ["<optional; replaces stored ENTRYPOINT override>"]
+  "image": "myrepo/myservice",
+  "tag": "v2",
+  "userData": "<optional ECIES-encrypted hex; the new container env — omitted ⇒ none>",
+  "dockerCmd": ["<optional; the new CMD override — omitted ⇒ none>"],
+  "dockerEntrypoint": ["<optional; the new ENTRYPOINT override — omitted ⇒ none>"]
 }
 ```
 
+| name | type | required | description |
+| --- | --- | --- | --- |
+| serviceId | string | v | the service to restart |
+| image | string | RESPEC | base image name (build label when `dockerfile` is set). Required as soon as any container param is present |
+| tag | string | | pull by `name:tag`; mutually exclusive with `checksum`/`dockerfile` |
+| checksum | string | | pull by digest `sha256:<64 hex>`; mutually exclusive with `tag`/`dockerfile` |
+| dockerfile | string | | build from an inline Dockerfile; requires `allowImageBuild` on the environment; mutually exclusive with `tag`/`checksum` |
+| additionalDockerFiles | object | | extra `filename → content` files for the build context (only with `dockerfile`) |
+| userData | string | | ECIES-encrypted (to the node public key) JSON → the container's env-var map |
+| dockerCmd | string[] | | exact container command (Docker exec-form CMD override) |
+| dockerEntrypoint | string[] | | container ENTRYPOINT override |
+
 #### Response (200)
 
-The `ServiceJob` with a new `containerId` (same `hostPort` and `expiresAt`).
+The `ServiceJob` with a new `containerId` (same `hostPort` and `expiresAt`; the `image`/`tag`/
+`checksum`/`dockerfile`/`containerImage` fields reflect the new spec in RESPEC mode).
+
+#### Response (400)
+
+Not found, expired, payment never claimed, or an invalid respec — a container param was sent
+without `image`, or more than one of `tag`/`checksum`/`dockerfile` was provided.
+
+#### Response (403)
+
+`dockerfile` was supplied but the environment has `allowImageBuild=false`.
 
 ---
 

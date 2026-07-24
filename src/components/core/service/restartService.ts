@@ -16,7 +16,40 @@ import { decryptUserData, findServiceJobAndEngine, toPublicServiceJob } from './
 
 export class ServiceRestartHandler extends CommandHandler {
   validate(command: ServiceRestartCommand): ValidateParams {
-    return validateCommandParameters(command, ['consumerAddress', 'serviceId'])
+    const commandValidation = validateCommandParameters(command, [
+      'consumerAddress',
+      'serviceId'
+    ])
+    if (!commandValidation.valid) return commandValidation
+    // Any container param present ⇒ RESPEC mode (the container is rebuilt entirely from
+    // this request). In that mode `image` is mandatory — this is the discriminator that
+    // makes a partial change impossible: you cannot send a new userData/dockerCmd on top
+    // of the stored image, you must re-supply the whole spec. When no container param is
+    // present the service restarts on its stored spec (REUSE mode) and no image is needed.
+    const respec =
+      command.image !== undefined ||
+      command.tag !== undefined ||
+      command.checksum !== undefined ||
+      command.dockerfile !== undefined ||
+      command.additionalDockerFiles !== undefined ||
+      command.userData !== undefined ||
+      command.dockerCmd !== undefined ||
+      command.dockerEntrypoint !== undefined
+    if (respec) {
+      if (!command.image)
+        return buildInvalidRequestMessage(
+          'Restarting with new parameters requires "image": send the full container spec, ' +
+            'not a partial change (restart is all-old or all-new)'
+        )
+      const imageModes = [command.tag, command.checksum, command.dockerfile].filter(
+        Boolean
+      ).length
+      if (imageModes > 1)
+        return buildInvalidRequestMessage(
+          'Provide at most one of "tag", "checksum", "dockerfile"'
+        )
+    }
+    return commandValidation
   }
 
   async handle(task: ServiceRestartCommand): Promise<P2PCommandResponse> {
@@ -93,8 +126,25 @@ export class ServiceRestartHandler extends CommandHandler {
         buildInvalidRequestMessage('Cannot restart an expired service')
       )
 
-    // If newUserData is provided it REPLACES the stored userData (must be the complete set).
-    // Decrypt it as a validity check before touching the container.
+    // RESPEC mode with a Dockerfile: fast-fail if this daemon forbids image builds, so the
+    // caller gets an immediate 403 instead of an async BuildImage failure. The engine's
+    // doRestartService re-checks this as the authoritative backstop.
+    if (task.dockerfile) {
+      const sod = engine.getC2DConfig().connection?.serviceOnDemand
+      if (!sod?.allowImageBuild)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 403,
+            error:
+              'Dockerfile-based services are not allowed on this environment (allowImageBuild=false)'
+          }
+        }
+    }
+
+    // In RESPEC mode userData (if sent) becomes the new container env — decrypt it as a
+    // validity check before touching the container. In REUSE mode task.userData is absent
+    // and the stored userData is reused untouched.
     if (task.userData) {
       try {
         await decryptUserData(task.userData, node.getKeyManager())
@@ -116,6 +166,11 @@ export class ServiceRestartHandler extends CommandHandler {
       const restarted = await engine.restartService(
         task.serviceId,
         task.consumerAddress,
+        task.image,
+        task.tag,
+        task.checksum,
+        task.dockerfile,
+        task.additionalDockerFiles,
         task.userData,
         task.dockerCmd,
         task.dockerEntrypoint

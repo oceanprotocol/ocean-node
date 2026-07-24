@@ -4088,6 +4088,11 @@ export class C2DEngineDocker extends C2DEngine {
   public override async restartService(
     serviceId: string,
     owner: string,
+    newImage?: string,
+    newTag?: string,
+    newChecksum?: string,
+    newDockerfile?: string,
+    newAdditionalDockerFiles?: Record<string, string>,
     newUserData?: string,
     newDockerCmd?: string[],
     newDockerEntrypoint?: string[]
@@ -4147,6 +4152,11 @@ export class C2DEngineDocker extends C2DEngine {
     // Tracked like loop-launched starts so engine stop() drains an in-flight restart too.
     const op = this.doRestartService(
       job,
+      newImage,
+      newTag,
+      newChecksum,
+      newDockerfile,
+      newAdditionalDockerFiles,
       newUserData,
       newDockerCmd,
       newDockerEntrypoint
@@ -4169,6 +4179,11 @@ export class C2DEngineDocker extends C2DEngine {
   // already validated and persisted as Restarting (see restartService above).
   private async doRestartService(
     job: ServiceJob,
+    newImage?: string,
+    newTag?: string,
+    newChecksum?: string,
+    newDockerfile?: string,
+    newAdditionalDockerFiles?: Record<string, string>,
     newUserData?: string,
     newDockerCmd?: string[],
     newDockerEntrypoint?: string[]
@@ -4213,18 +4228,45 @@ export class C2DEngineDocker extends C2DEngine {
     try {
       const sod = this.getC2DConfig().connection?.serviceOnDemand
 
-      // 2. Pull or rebuild image based on how the service was originally started
-      //    (the original Dockerfile + build files are stored on the job).
-      if (job.dockerfile) {
+      // Atomic restart. An image spec on the request (RESPEC mode) rebuilds the whole
+      // container from these params; without one (REUSE mode) EVERY container param falls
+      // back to the stored job as a group — the two are never mixed. `newImage` presence is
+      // the discriminator (the handler makes `image` mandatory whenever any container param
+      // is sent), so a new userData/cmd can never ride on top of the stored image.
+      const respec = newImage !== undefined
+      const effImage = respec ? newImage : job.image
+      const effTag = respec ? newTag : job.tag
+      const effChecksum = respec ? newChecksum : job.checksum
+      const effDockerfile = respec ? newDockerfile : job.dockerfile
+      const effAdditionalDockerFiles = respec
+        ? newAdditionalDockerFiles
+        : job.additionalDockerFiles
+      const effContainerImage = respec
+        ? resolveServiceImage(effImage, effTag, effChecksum, effDockerfile, serviceId)
+        : job.containerImage
+      const effUserData = respec ? newUserData : job.userData
+      const effDockerCmd = respec ? newDockerCmd : job.dockerCmd
+      const effDockerEntrypoint = respec ? newDockerEntrypoint : job.dockerEntrypoint
+
+      // 2. Pull or rebuild the effective image. In REUSE mode this is the original spec; in
+      //    RESPEC mode it is whatever the caller re-supplied (e.g. a freshly-pushed tag).
+      if (effDockerfile) {
+        // Authoritative build gate (the handler fast-fails too). A REUSE-mode dockerfile
+        // service was already allowed at start, but re-checking is cheap and correct if the
+        // daemon config changed in the meantime.
+        if (!sod?.allowImageBuild)
+          throw new Error(
+            'Dockerfile-based services are not allowed on this environment (allowImageBuild=false)'
+          )
         job.status = ServiceStatusNumber.BuildImage
         job.statusText = ServiceStatusText[ServiceStatusNumber.BuildImage]
         await this.db.updateServiceJob(job)
         const ram = job.resources.find((r) => r.id === 'ram')?.amount
         const cpu = job.resources.find((r) => r.id === 'cpu')?.amount
         await this.buildImageFromSpec(
-          job.containerImage,
-          job.dockerfile,
-          job.additionalDockerFiles ?? {},
+          effContainerImage,
+          effDockerfile,
+          effAdditionalDockerFiles ?? {},
           sod?.maxDurationSeconds ?? job.duration,
           ram,
           cpu
@@ -4233,23 +4275,16 @@ export class C2DEngineDocker extends C2DEngine {
         job.status = ServiceStatusNumber.PullImage
         job.statusText = ServiceStatusText[ServiceStatusNumber.PullImage]
         await this.db.updateServiceJob(job)
-        await this.pullImageRef(job.containerImage)
+        await this.pullImageRef(effContainerImage)
       }
 
-      // 3. Effective overrides: each REPLACES the stored value when supplied (even with an
-      // empty value), and falls back to the stored one when omitted (undefined).
-      const effectiveUserData = newUserData ?? job.userData
-      const effectiveDockerCmd = newDockerCmd !== undefined ? newDockerCmd : job.dockerCmd
-      const effectiveDockerEntrypoint =
-        newDockerEntrypoint !== undefined ? newDockerEntrypoint : job.dockerEntrypoint
-      const decryptedUserData = await decryptUserData(effectiveUserData, this.keyManager)
+      // 3. Decrypt the effective userData (empty in RESPEC mode when the caller omitted it).
+      const decryptedUserData = await decryptUserData(effUserData, this.keyManager)
 
       // 4. Rebuild env (from userData) + command/entrypoint
       const env = userDataToEnv(decryptedUserData)
-      const cmd = effectiveDockerCmd?.length ? effectiveDockerCmd : undefined
-      const entrypoint = effectiveDockerEntrypoint?.length
-        ? effectiveDockerEntrypoint
-        : undefined
+      const cmd = effDockerCmd?.length ? effDockerCmd : undefined
+      const entrypoint = effDockerEntrypoint?.length ? effDockerEntrypoint : undefined
 
       // 5. Rebuild port bindings — reuse already-allocated host ports
       const PortBindings: Record<string, Array<{ HostPort: string }>> = {}
@@ -4273,7 +4308,7 @@ export class C2DEngineDocker extends C2DEngine {
 
       // 8. Create and start new container
       container = await this.docker.createContainer({
-        Image: job.containerImage,
+        Image: effContainerImage,
         Cmd: cmd,
         Entrypoint: entrypoint,
         Env: Object.entries(env).map(([k, v]) => `${k}=${v}`),
@@ -4296,12 +4331,20 @@ export class C2DEngineDocker extends C2DEngine {
       await container.start()
       CORE_LOGGER.debug(`restart ${serviceId}: container ${container.id} started`)
 
-      // 9. Update record — same expiresAt, same payment, new container/network.
+      // 9. Update record — same expiresAt, same payment, new container/network. In RESPEC
+      //    mode the persisted image spec is overwritten too, so the row reflects what is
+      //    actually running and a later restart's orphan-recovery sees the current image.
+      job.image = effImage
+      job.tag = effTag
+      job.checksum = effChecksum
+      job.dockerfile = effDockerfile
+      job.additionalDockerFiles = effAdditionalDockerFiles
+      job.containerImage = effContainerImage
       job.containerId = container.id
       job.networkId = network.id
-      job.userData = effectiveUserData
-      job.dockerCmd = effectiveDockerCmd
-      job.dockerEntrypoint = effectiveDockerEntrypoint
+      job.userData = effUserData
+      job.dockerCmd = effDockerCmd
+      job.dockerEntrypoint = effDockerEntrypoint
       job.status = ServiceStatusNumber.Running
       job.statusText = ServiceStatusText[ServiceStatusNumber.Running]
       await this.db.updateServiceJob(job)

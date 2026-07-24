@@ -952,6 +952,69 @@ describe('**********         Service on Demand', () => {
     )
   })
 
+  it('(l4) SERVICE_RESTART RESPEC → new image tag applied, same hostPort + expiresAt', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 4)
+    const before = await getServiceJob(serviceId)
+    const oldContainerId = before.containerId
+    expect(before.tag).to.equal('alpine') // service was started on :alpine
+
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_RESTART)
+    // The bug-fix flow: same image name, a freshly-published tag. Restart is atomic, so
+    // the FULL spec is re-supplied — `image` is mandatory whenever the image changes.
+    const task: ServiceRestartCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_RESTART,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      serviceId,
+      image: 'nginxinc/nginx-unprivileged',
+      tag: 'alpine-slim'
+    }
+    const resp = await new ServiceRestartHandler(oceanNode).handle(task)
+    assert(
+      resp.status.httpStatus === 200,
+      `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
+    )
+    const running = await pollServiceStatus(serviceId, ServiceStatusNumber.Running)
+    expect(running.containerId).to.not.equal(oldContainerId)
+    // the new image spec is persisted on the job (a later restart must see the new tag)
+    expect(running.tag).to.equal('alpine-slim')
+    expect(running.containerImage).to.equal('nginxinc/nginx-unprivileged:alpine-slim')
+    // identity preserved: same paid window + same forwarded host port
+    expect(running.endpoints[0].hostPort).to.equal(hostPort)
+    expect(running.expiresAt).to.equal(expiresAt)
+
+    const res = await httpGetWithRetry(endpointUrl)
+    assert(
+      res.status === 200,
+      `expected nginx HTTP 200 after image-swap restart, got ${res.status}`
+    )
+  })
+
+  it('(l5) SERVICE_RESTART with a container param but no image → 400 (no partial change)', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT)
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_RESTART)
+    // A lone `tag` is a partial change (mixing a new tag onto the stored image) — rejected.
+    const task = {
+      command: PROTOCOL_COMMANDS.SERVICE_RESTART,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      serviceId,
+      tag: 'alpine'
+    } as ServiceRestartCommand
+    const resp = await new ServiceRestartHandler(oceanNode).handle(task)
+    expect(resp.status.httpStatus).to.equal(400)
+  })
+
   it('(m) SERVICE_STOP → Stopped, container + network removed', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const before = await getServiceJob(serviceId)
