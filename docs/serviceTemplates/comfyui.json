@@ -1,0 +1,25 @@
+{
+  "id": "comfyui",
+  "name": "ComfyUI — image & video generation",
+  "description": "Node-graph web UI for diffusion models (Stable Diffusion / SDXL / Flux, video via AnimateDiff/SVD). The image's default launch already binds 0.0.0.0 on port 8188 — open the returned URL in a browser. Bundles ComfyUI-Manager so checkpoints and custom nodes install from the UI at runtime; set HF_TOKEN / CIVITAI_TOKEN for gated downloads. No models ship in the image. Needs ~10 GB VRAM for SDXL.",
+  "image": "yanwk/comfyui-boot",
+  "tag": "cu126-megapak",
+  "exposedPorts": [8188],
+  "userConfigurableEnvVars": [
+    { "key": "HF_TOKEN", "validation": "^hf_[A-Za-z0-9]{20,}$", "sensitive": true },
+    { "key": "CIVITAI_TOKEN", "validation": "^[A-Za-z0-9]{20,}$", "sensitive": true }
+  ],
+  "requiredResources": [
+    { "id": "cpu", "min": 4, "recommended": 8, "unit": "cores" },
+    { "id": "ram", "min": 16, "recommended": 32, "unit": "GB" },
+    { "id": "disk", "min": 30, "recommended": 60, "unit": "GB" },
+    {
+      "kind": "discrete",
+      "type": "gpu",
+      "min": 1,
+      "recommended": 1,
+      "unit": "count",
+      "description": "CUDA GPU; ~10 GB VRAM for SDXL, more for Flux/video"
+    }
+  ]
+}

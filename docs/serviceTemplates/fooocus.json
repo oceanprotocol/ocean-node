@@ -1,0 +1,22 @@
+{
+  "id": "fooocus",
+  "name": "Fooocus — simplified SDXL image generation",
+  "description": "Streamlined SDXL image generator (Midjourney-style): minimal settings, quality-focused defaults, no prompt engineering required. Serves on port 7865 — open the returned URL in a browser. Downloads its base SDXL checkpoint on first run, so the first launch is slow. Needs ~8 GB VRAM.",
+  "image": "ghcr.io/lllyasviel/fooocus",
+  "tag": "latest",
+  "exposedPorts": [7865],
+  "command": ["/content/entrypoint.sh", "--listen", "--port", "7865"],
+  "requiredResources": [
+    { "id": "cpu", "min": 4, "recommended": 8, "unit": "cores" },
+    { "id": "ram", "min": 16, "recommended": 32, "unit": "GB" },
+    { "id": "disk", "min": 30, "recommended": 60, "unit": "GB" },
+    {
+      "kind": "discrete",
+      "type": "gpu",
+      "min": 1,
+      "recommended": 1,
+      "unit": "count",
+      "description": "CUDA GPU; ~8 GB VRAM for SDXL"
+    }
+  ]
+}

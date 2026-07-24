@@ -93,6 +93,41 @@ Each process gets a 2 GiB CPU KV cache (`VLLM_CPU_KVCACHE_SPACE=2`, exported in 
 launch script) and `--max-model-len 4096`; both share the CPU cores, so expect modest
 throughput.
 
+### `comfyui.json` — ComfyUI, image & video generation (GPU)
+
+Node-graph web UI for diffusion models (SD/SDXL/Flux, video via AnimateDiff/SVD),
+`yanwk/comfyui-boot:cu126-megapak`. The image already launches bound to `0.0.0.0:8188`,
+so no `command` override is needed. Bundles ComfyUI-Manager for installing checkpoints /
+custom nodes from the UI; `HF_TOKEN` / `CIVITAI_TOKEN` are optional user env vars for gated
+downloads. ~10 GB VRAM for SDXL.
+
+### `automatic1111.json` — Stable Diffusion WebUI (A1111) (GPU)
+
+The classic AUTOMATIC1111 UI (`universonic/stable-diffusion-webui`). The image entrypoint
+forwards `command` args to `webui.sh`, so the template sets `command` to
+`["--listen","--port","7860"]` (last `--port` wins over the image's baked-in default),
+binding `0.0.0.0:7860`. Optional `HF_TOKEN` / `CIVITAI_TOKEN`. ~8 GB VRAM for SDXL.
+
+### `fooocus.json` — Fooocus, simplified SDXL (GPU)
+
+Streamlined SDXL generator (`ghcr.io/lllyasviel/fooocus`). No ENTRYPOINT, so the template's
+`command` runs the image's own setup script directly:
+`["/content/entrypoint.sh","--listen","--port","7865"]` → `0.0.0.0:7865`. Downloads its base
+SDXL checkpoint on first run (slow first launch). ~8 GB VRAM.
+
+### `jupyterlab.json` — JupyterLab notebooks (CPU)
+
+JupyterLab on the scipy stack (`quay.io/jupyter/scipy-notebook`). `command` runs
+`start-notebook.sh` with token/password auth disabled and `--NotebookApp.ip=0.0.0.0`,
+serving port 8888. NOTE: the endpoint is an unauthenticated port-forward — anyone with the
+URL gets full notebook (code-exec) access. CPU-only.
+
+### `open-webui.json` — Open WebUI + Ollama (GPU)
+
+ChatGPT-style UI wired to a bundled Ollama runtime (`ghcr.io/open-webui/open-webui:ollama`),
+so it runs local LLMs out of the box. Binds `0.0.0.0:8080` by default (no `command`). First
+visit creates an admin account. Needs a CUDA GPU for usable token speed.
+
 ## The dual-model pattern
 
 One vLLM process serves exactly one model, so the two dual templates override
