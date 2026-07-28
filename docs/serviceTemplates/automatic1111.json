@@ -5,7 +5,7 @@
   "image": "universonic/stable-diffusion-webui",
   "tag": "nightly-20250518032354-full",
   "exposedPorts": [7860],
-  "command": ["--listen", "--port", "7860"],
+  "command": ["--listen", "--port", "7860", "--data-dir", "/app/data"],
   "userConfigurableEnvVars": [
     { "key": "HF_TOKEN", "validation": "^hf_[A-Za-z0-9]{20,}$", "sensitive": true },
     { "key": "CIVITAI_TOKEN", "validation": "^[A-Za-z0-9]{20,}$", "sensitive": true }
