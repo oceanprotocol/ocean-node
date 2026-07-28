@@ -113,24 +113,38 @@ export class ServiceExtendHandler extends CommandHandler {
               buildInvalidRequestMessage('Service job not found: ' + task.serviceId)
             )
 
-          // State check — only Starting or Running can be extended
+          // Payment-phase check — Locking and Claiming are the start's own escrow phases:
+          // funds are locked but not yet settled. Charging a second, independent
+          // lock+claim for the same service while that is in flight risks tangling the two
+          // escrow flows (and the start may still cancel its lock and fail), so extension
+          // must wait until the start has settled into a stable state.
           if (
-            freshJob.status !== ServiceStatusNumber.Starting &&
-            freshJob.status !== ServiceStatusNumber.Running
+            freshJob.status === ServiceStatusNumber.Locking ||
+            freshJob.status === ServiceStatusNumber.Claiming
           )
             return buildInvalidParametersResponse(
               buildInvalidRequestMessage(
-                `Cannot extend a service in state "${freshJob.statusText}". Only Starting or Running services can be extended.`
+                `Cannot extend service ${task.serviceId} while its payment is in progress (state "${freshJob.statusText}") — retry once the service has started`
+              )
+            )
+
+          // Expiry check — every remaining state can be extended except an expired one:
+          // once the service's window is over there is nothing left to prolong (a new
+          // start is required). The others still have a live/pending job row whose
+          // expiresAt is meaningful. A passed expiresAt counts as expired even when the
+          // status still says otherwise: the expiry sweep runs on a cron, so there is
+          // always a window in which a de-facto expired job has not been relabelled yet.
+          const remainingSeconds = Math.floor((freshJob.expiresAt - Date.now()) / 1000)
+          if (freshJob.status === ServiceStatusNumber.Expired || remainingSeconds <= 0)
+            return buildInvalidParametersResponse(
+              buildInvalidRequestMessage(
+                `Cannot extend service ${task.serviceId}: it has expired (state "${freshJob.statusText}", expiresAt ${freshJob.expiresAt}). Expired services cannot be extended.`
               )
             )
 
           // Extension must not push total beyond maxDurationSeconds
           const sod = engine.getC2DConfig().connection?.serviceOnDemand
           const maxDuration = sod?.maxDurationSeconds ?? 86400
-          const remainingSeconds = Math.max(
-            0,
-            Math.floor((freshJob.expiresAt - Date.now()) / 1000)
-          )
           const newTotalDuration = remainingSeconds + task.additionalDuration
           if (newTotalDuration > maxDuration)
             return buildInvalidParametersResponse(
