@@ -2173,7 +2173,9 @@ without `image`, or more than one of `tag`/`checksum`/`dockerfile` was provided.
 
 #### Description
 
-Tear down the service container and network and release its resources. Owner-gated.
+Tear down the service container and network. Owner-gated. The paid reservation is kept until
+`expiresAt`; optional `release: true` ends the paid window now so the expiry sweep frees it
+instead — no refund, no restart.
 
 #### Request Body
 
@@ -2182,7 +2184,8 @@ Tear down the service container and network and release its resources. Owner-gat
   "consumerAddress": "0x...",
   "nonce": "123",
   "signature": "0x...",
-  "serviceId": "0x..."
+  "serviceId": "0x...",
+  "release": false
 }
 ```
 

@@ -1098,7 +1098,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"signature\": \"{{signature}}\",\n  \"serviceId\": \"{{serviceId}}\"\n}"
+							"raw": "{\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"signature\": \"{{signature}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"release\": false\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/services/serviceStop",
@@ -1111,7 +1111,7 @@
 								"serviceStop"
 							]
 						},
-						"description": "Tear down the service container and network and release resources. Owner-gated."
+						"description": "Tear down the service container and network. Owner-gated. The paid reservation is kept until expiresAt; release=true frees it now (no refund, no restart)."
 					}
 				},
 				{

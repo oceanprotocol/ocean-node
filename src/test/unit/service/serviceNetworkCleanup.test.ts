@@ -62,6 +62,16 @@ function fakeNetwork(opts: {
   }
 }
 
+// acquireServiceLock is fail-closed: stopService rejects without the lifecycle lease.
+function makeDb(job: ServiceJob): any {
+  return {
+    getServiceJob: sinon.stub().resolves([job]),
+    updateServiceJob: sinon.stub().resolves(1),
+    acquireServiceLock: sinon.stub().resolves(true),
+    releaseServiceLock: sinon.stub().resolves(undefined)
+  }
+}
+
 // Bypass the Docker-specific constructor while retaining the prototype chain (same
 // pattern as compute.test.ts) so private methods can be exercised with a stubbed docker.
 function makeEngine(): any {
@@ -207,14 +217,7 @@ describe('service network cleanup (leaked ocean-svc-<id> networks)', () => {
   describe('stopService() with a leaked network (empty networkId)', () => {
     it('removes the network by deterministic name and ends Stopped', async () => {
       const engine = makeEngine()
-      const job = makeJob({ containerId: '', networkId: '' })
-      engine.db = {
-        getServiceJob: sinon.stub().resolves([job]),
-        updateServiceJob: sinon.stub().resolves(1),
-        // lifecycle lease (fail-closed: stopService rejects without it)
-        acquireServiceLock: sinon.stub().resolves(true),
-        releaseServiceLock: sinon.stub().resolves(undefined)
-      }
+      engine.db = makeDb(makeJob({ containerId: '', networkId: '' }))
       const network = fakeNetwork({})
       engine.docker.getNetwork.returns(network)
 
@@ -223,6 +226,44 @@ describe('service network cleanup (leaked ocean-svc-<id> networks)', () => {
       expect(engine.docker.getNetwork.calledWith(NETWORK_NAME)).to.equal(true)
       expect(network.remove.calledOnce).to.equal(true)
       expect(result.status).to.equal(ServiceStatusNumber.Stopped)
+    })
+  })
+
+  // Ending the paid window is what makes the expiry sweep free the reservation.
+  describe('stopService(release)', () => {
+    function setup(job: ServiceJob) {
+      const engine = makeEngine()
+      engine.db = makeDb(job)
+      engine.docker.getContainer.returns({
+        stop: sinon.stub().resolves(undefined),
+        remove: sinon.stub().resolves(undefined)
+      })
+      engine.docker.getNetwork.returns(fakeNetwork({}))
+      return engine
+    }
+
+    it('ends the paid window on a running service', async () => {
+      const engine = setup(makeJob())
+      const result = await engine.stopService(SERVICE_ID, OWNER, false, true)
+      expect(result.status).to.equal(ServiceStatusNumber.Stopped)
+      expect(result.expiresAt).to.be.at.most(Date.now())
+    })
+
+    it('ends the paid window on an already-stopped service', async () => {
+      const engine = setup(
+        makeJob({ status: ServiceStatusNumber.Stopped, statusText: 'Stopped' })
+      )
+      const result = await engine.stopService(SERVICE_ID, OWNER, false, true)
+      expect(result.expiresAt).to.be.at.most(Date.now())
+      expect(engine.db.updateServiceJob.calledOnce).to.equal(true)
+    })
+
+    it('without release the reservation is kept until the original expiresAt', async () => {
+      const job = makeJob()
+      const originalExpiry = job.expiresAt
+      const engine = setup(job)
+      const result = await engine.stopService(SERVICE_ID, OWNER)
+      expect(result.expiresAt).to.equal(originalExpiry)
     })
   })
 })

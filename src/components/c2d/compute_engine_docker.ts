@@ -3967,16 +3967,12 @@ export class C2DEngineDocker extends C2DEngine {
   public override async stopService(
     serviceId: string,
     owner: string,
-    onlyIfExpired: boolean = false
+    onlyIfExpired: boolean = false,
+    release: boolean = false
   ): Promise<ServiceJob | null> {
-    await this.acquireServiceLifecycleLock(serviceId)
-    // Tracked like loop-launched starts so engine stop() drains an in-flight stop too.
-    const op = this.doStopService(serviceId, owner, onlyIfExpired).finally(() => {
-      this.serviceOpPromises.delete(op)
-      return this.releaseServiceLifecycleLock(serviceId)
-    })
-    this.serviceOpPromises.add(op)
-    return await op
+    return await this.runExclusive(serviceId, () =>
+      this.doStopService(serviceId, owner, onlyIfExpired, release)
+    )
   }
 
   // Runs fn under the per-service lifecycle lock (in-memory + cross-process DB lease),
@@ -4001,7 +3997,8 @@ export class C2DEngineDocker extends C2DEngine {
   private async doStopService(
     serviceId: string,
     owner: string,
-    onlyIfExpired: boolean = false
+    onlyIfExpired: boolean = false,
+    release: boolean = false
   ): Promise<ServiceJob | null> {
     const [job] = await this.db.getServiceJob(serviceId, owner)
     if (!job) {
@@ -4019,6 +4016,11 @@ export class C2DEngineDocker extends C2DEngine {
       )
       return job
     }
+    // Early release: end the paid window so the expiry sweep frees the reservation
+    // (→ Expired, ports released, resources stop counting) on its next tick.
+    const released = release && job.status !== ServiceStatusNumber.Expired
+    if (released) job.expiresAt = Date.now()
+
     if (
       job.status === ServiceStatusNumber.Stopped ||
       job.status === ServiceStatusNumber.Expired
@@ -4026,6 +4028,7 @@ export class C2DEngineDocker extends C2DEngine {
       CORE_LOGGER.debug(
         `stopService ${serviceId}: already "${job.statusText}" — nothing to tear down`
       )
+      if (released) await this.db.updateServiceJob(job)
       return job
     }
 
