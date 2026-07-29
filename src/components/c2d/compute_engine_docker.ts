@@ -712,8 +712,9 @@ export class C2DEngineDocker extends C2DEngine {
       this.serviceOpPromises.clear()
     }
     this.isInternalLoopRunning = false
-    // Release any GPU metrics backends (e.g. nvmlShutdown). Best-effort, never throws.
-    this.gpuMetrics.dispose()
+    // Release any GPU metrics backends (e.g. nvmlShutdown). Best-effort, never throws; the
+    // optional chain also covers engines built without the constructor (e.g. test doubles).
+    this.gpuMetrics?.dispose()
     // Stop image cleanup timer
     if (this.imageCleanupTimer) {
       clearInterval(this.imageCleanupTimer)
