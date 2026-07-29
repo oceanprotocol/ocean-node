@@ -864,6 +864,9 @@ export class C2DEngineDocker extends C2DEngine {
           }
 
           const cost = this.getTotalCostOfJob(job.resources, minDuration, fee)
+          // INVARIANT: the claim proof MUST use the default (metrics-free) omit shape so it
+          // stays deterministic. Never pass { includeMetrics: true } here — runtimeMetrics is
+          // volatile and would make the signed proof unstable.
           const proof = JSON.stringify(omitDBComputeFieldsFromComputeJob(job))
           jobsToClaim.push({ job, cost, proof })
         } else {
@@ -1651,7 +1654,8 @@ export class C2DEngineDocker extends C2DEngine {
   public override async getComputeJobStatus(
     consumerAddress?: string,
     agreementId?: string,
-    jobId?: string
+    jobId?: string,
+    includeMetrics: boolean = false
   ): Promise<ComputeJob[]> {
     const jobs = await this.db.getJob(jobId, agreementId, consumerAddress)
     if (jobs.length === 0) {
@@ -1659,7 +1663,16 @@ export class C2DEngineDocker extends C2DEngine {
     }
     const statusResults = []
     for (const job of jobs) {
-      const res: ComputeJob = omitDBComputeFieldsFromComputeJob(job)
+      // Runtime metrics are attached ONLY when the caller opted in AND is the verified owner
+      // (or an additional viewer) — the same ownership rule getComputeJobResult enforces. The
+      // handler verifies the signature for consumerAddress before setting includeMetrics.
+      const isOwner =
+        !!consumerAddress &&
+        (job.owner === consumerAddress ||
+          (job.additionalViewers?.includes(consumerAddress) ?? false))
+      const res: ComputeJob = omitDBComputeFieldsFromComputeJob(job, {
+        includeMetrics: includeMetrics && isOwner
+      })
       // add results for algoLogs
       res.results = await this.getResults(job.jobId)
       statusResults.push(res)

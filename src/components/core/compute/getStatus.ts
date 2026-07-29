@@ -34,6 +34,31 @@ export class ComputeGetStatusHandler extends CommandHandler {
       return validationResponse
     }
     try {
+      // Runtime metrics are owner-only. If the caller opted in, require consumerAddress and a
+      // valid signature/token; only the verified owner's jobs then carry runtimeMetrics. When
+      // the flag is absent this stays the existing unauthenticated, metrics-free status path.
+      let includeMetrics = false
+      if (task.includeMetrics) {
+        if (!task.consumerAddress) {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: 'includeMetrics requires consumerAddress'
+            }
+          }
+        }
+        const auth = await this.validateTokenOrSignature(
+          task.authorization,
+          task.consumerAddress,
+          task.nonce,
+          task.signature,
+          task.command
+        )
+        if (auth.status.httpStatus !== 200) return auth
+        includeMetrics = true
+      }
+
       const response: ComputeJob[] = []
       // two scenarios here:
       // 1. if we have a jobId, then we know what C2D Cluster to query
@@ -59,7 +84,8 @@ export class ComputeGetStatusHandler extends CommandHandler {
         const jobs = await engine.getComputeJobStatus(
           task.consumerAddress,
           task.agreementId,
-          jobId
+          jobId,
+          includeMetrics
         )
 
         if (jobs && jobs.length > 0) response.push(...jobs)

@@ -3,6 +3,7 @@ import { deleteKeysFromObject, sanitizeServiceFiles } from '../../utils/util.js'
 import { BaseFileObject, EncryptMethod } from '../../@types/fileObject.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { ComputeJob, DBComputeJob } from '../../@types/index.js'
+import type { ContainerMetricsSnapshot } from '../../@types/C2D/C2D.js'
 import { OceanNode } from '../../OceanNode.js'
 export { C2DEngine } from './compute_engine_base.js'
 
@@ -31,8 +32,28 @@ export async function decryptFilesObject(
   }
 }
 
-export function omitDBComputeFieldsFromComputeJob(dbCompute: DBComputeJob): ComputeJob {
-  const job: ComputeJob = deleteKeysFromObject(dbCompute, [
+// Returns a runtime-metrics snapshot safe to expose in a response: drops the internal `prev`
+// accumulator (delta bookkeeping meaningless to callers). Returns undefined for a missing snapshot.
+export function sanitizePublicMetrics(
+  snapshot: ContainerMetricsSnapshot | undefined
+): ContainerMetricsSnapshot | undefined {
+  if (!snapshot) return undefined
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { prev, ...pub } = snapshot
+  return pub as ContainerMetricsSnapshot
+}
+
+// Maps a DBComputeJob to the public ComputeJob shape by stripping node-internal fields.
+//
+// By DEFAULT `runtimeMetrics` is stripped — this same default-shape is serialized into the
+// on-chain escrow claim proof (compute_engine_docker.ts), which MUST stay deterministic and
+// metrics-free. Pass { includeMetrics: true } ONLY on the authenticated owner status path to
+// keep a sanitized snapshot; never for the proof.
+export function omitDBComputeFieldsFromComputeJob(
+  dbCompute: DBComputeJob,
+  opts: { includeMetrics?: boolean } = {}
+): ComputeJob {
+  const keysToOmit = [
     'clusterHash',
     'configlogURL',
     'publishlogURL',
@@ -45,10 +66,12 @@ export function omitDBComputeFieldsFromComputeJob(dbCompute: DBComputeJob): Comp
     'containerImage',
     'encryptedDockerRegistryAuth',
     'output',
-    'outputBucketId',
-    // Node-internal runtime metrics: must never reach a status response OR the escrow
-    // claim proof (built from this same omitted shape at compute_engine_docker.ts).
-    'runtimeMetrics'
-  ]) as ComputeJob
+    'outputBucketId'
+  ]
+  if (!opts.includeMetrics) keysToOmit.push('runtimeMetrics')
+  const job: ComputeJob = deleteKeysFromObject(dbCompute, keysToOmit) as ComputeJob
+  if (opts.includeMetrics && dbCompute.runtimeMetrics) {
+    ;(job as any).runtimeMetrics = sanitizePublicMetrics(dbCompute.runtimeMetrics)
+  }
   return job
 }

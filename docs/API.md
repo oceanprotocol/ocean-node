@@ -1577,11 +1577,22 @@ returns job status
 
 Required at least one of the following parameters:
 
-| name            | type   | required | description                          |
-| --------------- | ------ | -------- | ------------------------------------ |
-| consumerAddress | string |          | consumer address to use as filter    |
-| jobId           | string |          | jobId address to use as filter       |
-| agreementId     | string |          | agreementId address to use as filter |
+| name            | type    | required | description                                                                                                  |
+| --------------- | ------- | -------- | ------------------------------------------------------------------------------------------------------------ |
+| consumerAddress | string  |          | consumer address to use as filter                                                                            |
+| jobId           | string  |          | jobId address to use as filter                                                                               |
+| agreementId     | string  |          | agreementId address to use as filter                                                                         |
+| includeMetrics  | boolean |          | opt-in: include node-internal runtime metrics (`runtimeMetrics`) on owned jobs. See note below.              |
+| signature       | string  |          | required when `includeMetrics=true`: signature over `consumerAddress` + `nonce` + `command` (or auth token)  |
+| nonce           | string  |          | required when `includeMetrics=true`                                                                          |
+
+**`includeMetrics` (owner-only).** By default the response never contains `runtimeMetrics`
+(node-internal Docker/NVML stats). When `includeMetrics=true`, the caller must authenticate as the
+owner (`consumerAddress` + `signature`/`nonce`, or an `Authorization` header token); metrics are then
+attached **only** to jobs owned by (or shared with) that address. An unauthenticated or non-owner
+request is rejected (`400`/`401`) rather than silently returning no metrics. The metrics are
+best-effort and up to one sampling interval stale (see [compute.md](compute.md) and `C2D_METRICS_INTERVAL_SECONDS`
+in [env.md](env.md)).
 
 #### Response
 
@@ -1619,6 +1630,146 @@ Required at least one of the following parameters:
     "metadata": { "key": "value" }
   }
 ]
+```
+
+When called with `includeMetrics=true` by the authenticated owner, each owned job additionally
+carries a `runtimeMetrics` object (see [The `runtimeMetrics` object](#the-runtimemetrics-object)
+below).
+
+---
+
+### The `runtimeMetrics` object
+
+`runtimeMetrics` is an optional, **node-internal** snapshot of live container stats, returned only
+on `COMPUTE_GET_STATUS` / `SERVICE_GET_STATUS` when the authenticated owner passes
+`includeMetrics=true`. It is **absent** by default, and clients MUST treat every part as optional —
+render a field only when present.
+
+**Semantics clients should surface to users:**
+
+- **Best-effort & slightly stale.** Sampled on a fixed cadence (`C2D_METRICS_INTERVAL_SECONDS`,
+  default 10s), so values can be up to one interval old. `collectedAt` is the sample time — show it
+  (e.g. "as of 8s ago").
+- **May be missing entirely.** No snapshot yet (job just started), collection disabled on the node
+  (`C2D_METRICS_INTERVAL_SECONDS=0`), or a transient sampling failure ⇒ no `runtimeMetrics` field.
+  This is normal, not an error.
+- **`null` vs absent for GPU numbers.** Inside a `gpu[]` entry, a `null` metric means "the backend
+  could not read it" — display as "n/a", never as `0`.
+- **Bytes are raw bytes**; percents are already `0–100` (one decimal); durations are seconds; the
+  final snapshot after a job/service ends carries the peak/exit values.
+
+#### Top-level fields
+
+| field           | type    | unit / notes                                                                                     |
+| --------------- | ------- | ------------------------------------------------------------------------------------------------ |
+| collectedAt     | string  | ISO-8601 timestamp of the sample                                                                 |
+| containerState  | object  | see below — status + structured exit info                                                        |
+| cpu             | object  | see below                                                                                        |
+| memory          | object  | see below                                                                                        |
+| disk            | object  | see below                                                                                        |
+| network         | object? | `{ rxBytes, txBytes }`; **absent** when the container runs with no network (`NetworkMode: none`)  |
+| blockIO         | object  | `{ readBytes, writeBytes }` — cumulative disk I/O in bytes                                        |
+| pids            | object  | `{ current, limit }` — process/thread count vs the container PID limit (512)                      |
+| gpu             | array?  | one entry per GPU the job/service holds; **absent** for CPU-only jobs or when GPU metrics are off |
+
+`containerState`:
+
+| field        | type     | notes                                                                    |
+| ------------ | -------- | ------------------------------------------------------------------------ |
+| status       | string   | e.g. `running`, `exited`                                                 |
+| startedAt    | string?  | ISO-8601                                                                 |
+| finishedAt   | string?  | ISO-8601; present once the container has stopped                         |
+| exitCode     | number?  | process exit code (present after exit)                                   |
+| oomKilled    | boolean  | `true` if the kernel OOM-killed the container                            |
+| error        | string?  | Docker-reported error string, if any                                     |
+| restartCount | number   | container restarts                                                       |
+| health       | string?  | Docker HEALTHCHECK status when the image defines one (e.g. `healthy`)    |
+
+`cpu`:
+
+| field                  | type   | unit / notes                                                                    |
+| ---------------------- | ------ | ------------------------------------------------------------------------------- |
+| usagePercent           | number | % of one host CPU-second per wall-second (docker-stats formula), `0–N×100`       |
+| allocated              | number | CPU cores requested by the job (`0` when unconstrained)                          |
+| usagePercentOfAllocated| number | `usagePercent / allocated` — "how saturated is what you paid for" (`0` if alloc 0)|
+| cumulativeSeconds      | number | total CPU-seconds consumed since start (monotonic; billing-grade)                |
+| throttledPeriods       | number | CFS quota throttling events — high ⇒ the CPU request is too small                |
+| throttledSeconds       | number | total time throttled, seconds                                                    |
+
+`memory`:
+
+| field          | type   | unit / notes                                             |
+| -------------- | ------ | -------------------------------------------------------- |
+| usageBytes     | number | working-set bytes (`usage − inactive_file`, cgroup v2)   |
+| limitBytes     | number | memory limit (= allocated RAM) in bytes                  |
+| usagePercent   | number | `usageBytes / limitBytes × 100`                          |
+| peakUsageBytes | number | max `usageBytes` observed across samples                 |
+
+`disk`:
+
+| field        | type    | unit / notes                                                                       |
+| ------------ | ------- | ---------------------------------------------------------------------------------- |
+| usedBytes    | number  | compute jobs: bytes written under `/` (excludes base image); services: writable layer |
+| quotaBytes   | number? | present only for jobs with a `disk` resource                                        |
+| usagePercent | number? | present only when `quotaBytes` is known                                             |
+
+`gpu[]` entry:
+
+| field              | type            | unit / notes                                                          |
+| ------------------ | --------------- | --------------------------------------------------------------------- |
+| resourceId         | string          | the requested resource id (`gpu0`, `gpu1`, …) — maps the entry to a device |
+| vendor             | string          | `nvidia` (only NVIDIA is emitted today; `amd`/`intel` reserved)        |
+| utilizationPercent | number \| null  | GPU busy % (`null` = unreadable)                                       |
+| memoryUsedBytes    | number \| null  | VRAM used                                                              |
+| memoryTotalBytes   | number \| null  | total VRAM                                                             |
+| temperatureC       | number?         | °C, when available                                                    |
+| powerWatts         | number?         | current draw, W, when available                                       |
+| shared             | boolean?        | `true` ⇒ device is shareable and the number may include other jobs    |
+
+> Note: the node also keeps an internal delta accumulator on the stored snapshot; it is stripped
+> from the response and clients will never see it.
+
+#### Example `runtimeMetrics`
+
+```json
+{
+  "collectedAt": "2026-07-29T12:00:10.000Z",
+  "containerState": {
+    "status": "running",
+    "startedAt": "2026-07-29T11:59:30.000Z",
+    "oomKilled": false,
+    "restartCount": 0
+  },
+  "cpu": {
+    "usagePercent": 182.4,
+    "allocated": 2,
+    "usagePercentOfAllocated": 91.2,
+    "cumulativeSeconds": 73.1,
+    "throttledPeriods": 12,
+    "throttledSeconds": 0.4
+  },
+  "memory": {
+    "usageBytes": 734003200,
+    "limitBytes": 1073741824,
+    "usagePercent": 68.36,
+    "peakUsageBytes": 812345678
+  },
+  "disk": { "usedBytes": 524288000, "quotaBytes": 10737418240, "usagePercent": 4.88 },
+  "network": { "rxBytes": 10485760, "txBytes": 2097152 },
+  "blockIO": { "readBytes": 41943040, "writeBytes": 8388608 },
+  "pids": { "current": 24, "limit": 512 },
+  "gpu": [
+    {
+      "resourceId": "gpu0",
+      "vendor": "nvidia",
+      "utilizationPercent": 77,
+      "memoryUsedBytes": 1073741824,
+      "memoryTotalBytes": 3221225472,
+      "temperatureC": 55,
+      "powerWatts": 90
+    }
+  ]
+}
 ```
 
 ### `HTTP` GET /api/services/computeResult
@@ -2002,16 +2153,22 @@ by the authenticated `consumerAddress` are returned.
 
 #### Query Parameters
 
-| name            | type   | required | description |
-| --------------- | ------ | -------- | ----------- |
-| consumerAddress | string | v        | owner address |
-| nonce           | string | v        | request nonce |
-| signature       | string | v        | signed message (or use an `Authorization` auth-token header) |
-| serviceId       | string |          | filter to a single service; omit to list all owned services |
+| name            | type    | required | description |
+| --------------- | ------- | -------- | ----------- |
+| consumerAddress | string  | v        | owner address |
+| nonce           | string  | v        | request nonce |
+| signature       | string  | v        | signed message (or use an `Authorization` auth-token header) |
+| serviceId       | string  |          | filter to a single service; omit to list all owned services |
+| includeMetrics  | boolean |          | opt-in: include node-internal runtime metrics (`runtimeMetrics`) on the returned services |
 
 #### Response (200)
 
-Array of `ServiceJob` (with `userData` stripped).
+Array of `ServiceJob` (with `userData` stripped). When `includeMetrics=true`, each entry also
+carries a sanitized `runtimeMetrics` object — see
+[The `runtimeMetrics` object](#the-runtimemetrics-object) for its full structure. Safe here because
+this command is already authenticated and owner-scoped; the node-wide `serviceList` never returns
+metrics. Metrics are best-effort (see [compute.md](compute.md) and `C2D_METRICS_INTERVAL_SECONDS`
+in [env.md](env.md)).
 
 ---
 

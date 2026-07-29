@@ -222,6 +222,11 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       consumerAddress: (req.query.consumerAddress as string) || null,
       jobId: (req.query.jobId as string) || null,
       agreementId: (req.query.agreementId as string) || null,
+      // Opt-in owner-only runtime metrics (authenticated via signature/nonce or auth header).
+      includeMetrics: req.query.includeMetrics === 'true',
+      nonce: (req.query.nonce as string) || null,
+      signature: (req.query.signature as string) || null,
+      authorization: req.headers?.authorization || null,
       caller: req.caller
     }
     const response = await new ComputeGetStatusHandler(req.oceanNode).handle(
@@ -475,6 +480,7 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/serviceStatus`, async (req, res) =>
     nonce: req.query.nonce as string,
     signature: req.query.signature as string,
     serviceId: (req.query.serviceId as string) || undefined,
+    includeMetrics: req.query.includeMetrics === 'true',
     node: (req.query.node as string) || null,
     authorization: req.headers?.authorization,
     caller: req.caller

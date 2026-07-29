@@ -1325,11 +1325,25 @@ describe('**********         Compute', () => {
     const jobs = await streamToObject(response.stream as Readable)
     console.log('Checking FREE job status...')
     console.log(jobs[0])
-    // Backward-compat guard: runtime metrics are node-internal and must NEVER appear in a
-    // COMPUTE_GET_STATUS response (stripped by omitDBComputeFieldsFromComputeJob).
+    // Backward-compat guard: without includeMetrics, runtime metrics are node-internal and
+    // must NEVER appear in a COMPUTE_GET_STATUS response (stripped by omitDBComputeFieldsFromComputeJob).
     assert(
       !('runtimeMetrics' in jobs[0]),
-      'COMPUTE_GET_STATUS must not expose runtimeMetrics'
+      'COMPUTE_GET_STATUS must not expose runtimeMetrics by default'
+    )
+
+    // Opt-in metrics are owner-only: requesting them without an authenticated consumerAddress
+    // is rejected (never silently downgraded).
+    const gated = await new ComputeGetStatusHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
+      consumerAddress: null,
+      agreementId: null,
+      jobId: freeJobId,
+      includeMetrics: true
+    } as ComputeGetStatusCommand)
+    assert(
+      gated.status.httpStatus === 400,
+      'includeMetrics without consumerAddress must be rejected'
     )
   })
   // algo and checksums related

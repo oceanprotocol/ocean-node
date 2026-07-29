@@ -8,7 +8,10 @@ import {
 } from '../../components/c2d/containerMetrics.js'
 import { parseMemoryTotalToBytes } from '../../components/c2d/gpu/types.js'
 import { NvmlGpuCollector } from '../../components/c2d/gpu/nvml.js'
-import { omitDBComputeFieldsFromComputeJob } from '../../components/c2d/index.js'
+import {
+  omitDBComputeFieldsFromComputeJob,
+  sanitizePublicMetrics
+} from '../../components/c2d/index.js'
 import {
   toPublicServiceJob,
   toListedServiceJob
@@ -331,13 +334,23 @@ describe('gpu NVML multi-GPU resolution + sampling', () => {
   })
 })
 
-describe('runtimeMetrics is stripped from every public shape', () => {
+describe('runtimeMetrics is stripped from every public shape (default)', () => {
+  // A snapshot carrying the internal `prev` accumulator, which must never surface publicly.
   const snapshot = {
     collectedAt: '2026-07-28T10:00:00Z',
-    containerState: { status: 'running', oomKilled: false, restartCount: 0 }
+    containerState: { status: 'running', oomKilled: false, restartCount: 0 },
+    cpu: {
+      usagePercent: 40,
+      allocated: 2,
+      usagePercentOfAllocated: 20,
+      cumulativeSeconds: 1,
+      throttledPeriods: 0,
+      throttledSeconds: 0
+    },
+    prev: { cpuTotal: 1e9, systemCpu: 10e9, sampledAt: '2026-07-28T10:00:00Z' }
   } as ContainerMetricsSnapshot
 
-  it('omitDBComputeFieldsFromComputeJob drops runtimeMetrics (status + escrow proof)', () => {
+  it('omitDBComputeFieldsFromComputeJob drops runtimeMetrics by default (status + escrow proof)', () => {
     const dbJob = {
       jobId: 'job-1',
       owner: '0xabc',
@@ -351,7 +364,7 @@ describe('runtimeMetrics is stripped from every public shape', () => {
     expect(JSON.stringify(pub)).to.not.contain('runtimeMetrics')
   })
 
-  it('toPublicServiceJob and toListedServiceJob drop runtimeMetrics', () => {
+  it('toPublicServiceJob and toListedServiceJob drop runtimeMetrics by default', () => {
     const svc = {
       serviceId: 's-1',
       owner: '0xabc',
@@ -362,5 +375,72 @@ describe('runtimeMetrics is stripped from every public shape', () => {
     const listed = toListedServiceJob(svc)
     expect('runtimeMetrics' in (pub as any)).to.equal(false)
     expect('runtimeMetrics' in (listed as any)).to.equal(false)
+  })
+})
+
+describe('runtimeMetrics opt-in exposure (owner status path)', () => {
+  const snapshot = {
+    collectedAt: '2026-07-28T10:00:00Z',
+    containerState: { status: 'running', oomKilled: false, restartCount: 0 },
+    cpu: {
+      usagePercent: 40,
+      allocated: 2,
+      usagePercentOfAllocated: 20,
+      cumulativeSeconds: 1,
+      throttledPeriods: 0,
+      throttledSeconds: 0
+    },
+    prev: { cpuTotal: 1e9, systemCpu: 10e9, sampledAt: '2026-07-28T10:00:00Z' }
+  } as ContainerMetricsSnapshot
+
+  it('sanitizePublicMetrics drops the internal prev accumulator', () => {
+    const pub = sanitizePublicMetrics(snapshot)
+    expect(pub).to.not.equal(undefined)
+    expect('prev' in (pub as any)).to.equal(false)
+    expect(pub!.cpu.usagePercent).to.equal(40) // real metrics retained
+  })
+
+  it('omitDBComputeFieldsFromComputeJob keeps sanitized metrics with { includeMetrics: true }', () => {
+    const dbJob = {
+      jobId: 'job-1',
+      owner: '0xabc',
+      runtimeMetrics: snapshot,
+      clusterHash: 'h',
+      resources: []
+    } as unknown as DBComputeJob
+    const pub = omitDBComputeFieldsFromComputeJob(dbJob, { includeMetrics: true })
+    expect((pub as any).runtimeMetrics).to.not.equal(undefined)
+    // still strips other internal fields, and the exposed snapshot drops `prev`
+    expect('clusterHash' in (pub as any)).to.equal(false)
+    expect('prev' in (pub as any).runtimeMetrics).to.equal(false)
+    expect((pub as any).runtimeMetrics.cpu.usagePercent).to.equal(40)
+  })
+
+  it('the escrow-proof (default) shape stays metrics-free regardless', () => {
+    const dbJob = {
+      jobId: 'job-1',
+      owner: '0xabc',
+      runtimeMetrics: snapshot,
+      resources: []
+    } as unknown as DBComputeJob
+    // Default call = the proof shape at compute_engine_docker.ts
+    const proof = JSON.stringify(omitDBComputeFieldsFromComputeJob(dbJob))
+    expect(proof).to.not.contain('runtimeMetrics')
+    expect(proof).to.not.contain('"prev"')
+  })
+
+  it('toPublicServiceJob keeps sanitized metrics with { includeMetrics: true } but still strips userData', () => {
+    const svc = {
+      serviceId: 's-1',
+      owner: '0xabc',
+      userData: 'enc',
+      runtimeMetrics: snapshot
+    } as unknown as ServiceJob
+    const pub = toPublicServiceJob(svc, { includeMetrics: true }) as any
+    expect(pub.runtimeMetrics).to.not.equal(undefined)
+    expect('prev' in pub.runtimeMetrics).to.equal(false)
+    expect('userData' in pub).to.equal(false)
+    // the node-wide listing shape never exposes metrics, even now
+    expect('runtimeMetrics' in (toListedServiceJob(svc) as any)).to.equal(false)
   })
 })

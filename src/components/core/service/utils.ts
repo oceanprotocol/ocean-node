@@ -5,6 +5,7 @@ import type { KeyManager } from '../../KeyManager/index.js'
 import type { C2DDatabase } from '../../database/C2DDatabase.js'
 import type { C2DEngine } from '../../c2d/compute_engine_base.js'
 import type { C2DEngines } from '../../c2d/compute_engines.js'
+import { sanitizePublicMetrics } from '../../c2d/index.js'
 
 // Looks up a service job and resolves the engine that OWNS it (by clusterHash). Every
 // engine shares the same C2DDatabase, so any engine's db returns the job — taking the
@@ -54,11 +55,17 @@ export async function decryptUserData(
 // can pass engine results straight through. EVERY handler returning service jobs
 // (SERVICE_START / STOP / EXTEND / RESTART / GET_STATUS) must map results through this.
 export function toPublicServiceJob(
-  job: ServiceJob | null
+  job: ServiceJob | null,
+  opts: { includeMetrics?: boolean } = {}
 ): Omit<ServiceJob, 'userData' | 'runtimeMetrics'> | null {
   if (!job) return null
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { userData, runtimeMetrics, ...pub } = job
+  // Owner-scoped status may opt in to the sanitized runtime metrics (prev accumulator dropped).
+  // userData is ALWAYS stripped. SERVICE_LIST uses toListedServiceJob, which never includes metrics.
+  if (opts.includeMetrics && runtimeMetrics) {
+    ;(pub as any).runtimeMetrics = sanitizePublicMetrics(runtimeMetrics)
+  }
   return pub
 }
 

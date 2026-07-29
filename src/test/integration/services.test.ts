@@ -488,6 +488,28 @@ describe('**********         Service on Demand', () => {
       serviceId
     } as ServiceGetStatusCommand)
     expect(unauth.status.httpStatus).to.not.equal(200)
+
+    // opt-in: the authenticated owner may request runtimeMetrics. The call succeeds and,
+    // when a snapshot has been sampled, it is exposed WITHOUT the internal `prev` accumulator.
+    const { nonce, signature } = await signFor(
+      consumerAccount,
+      PROTOCOL_COMMANDS.SERVICE_GET_STATUS
+    )
+    const withMetrics = await new ServiceGetStatusHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_GET_STATUS,
+      serviceId,
+      consumerAddress,
+      nonce,
+      signature,
+      includeMetrics: true
+    } as ServiceGetStatusCommand)
+    expect(withMetrics.status.httpStatus).to.equal(200)
+    const [withMetricsJob] = (await streamToObject(
+      withMetrics.stream as Readable
+    )) as ServiceJob[]
+    if ((withMetricsJob as any)?.runtimeMetrics) {
+      expect('prev' in (withMetricsJob as any).runtimeMetrics).to.equal(false)
+    }
   })
 
   it('(e2) SERVICE_LIST returns the node-wide resource-holding set (not owner-scoped)', async () => {

@@ -45,8 +45,15 @@ export class ServiceGetStatusHandler extends CommandHandler {
       jobs.push(...(await eng.getServiceStatus(task.consumerAddress, task.serviceId)))
     }
 
+    // Owner already proven above, so the caller may opt in to node-internal runtime metrics.
     return {
-      stream: Readable.from(JSON.stringify(jobs.map(toPublicServiceJob))),
+      stream: Readable.from(
+        JSON.stringify(
+          jobs.map((job) =>
+            toPublicServiceJob(job, { includeMetrics: task.includeMetrics === true })
+          )
+        )
+      ),
       status: { httpStatus: 200 }
     }
   }
