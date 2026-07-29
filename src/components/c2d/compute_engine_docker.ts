@@ -3963,11 +3963,11 @@ export class C2DEngineDocker extends C2DEngine {
   //
   // Deliberately does NOT take the service lifecycle lease: that lease is user-facing (stop /
   // restart / extend throw "operation in progress" when it is held), so acquiring it for a
-  // metrics sample could make a real lifecycle operation fail. Instead we re-read the job fresh
-  // and only persist when it is still the SAME Running container, aborting if a lifecycle op is
-  // in flight locally — a metrics write must never block or fail a lifecycle operation. The
-  // residual (tiny) window where our write races a concurrent lifecycle write is acceptable for
-  // best-effort telemetry.
+  // metrics sample could make a real lifecycle operation fail. Instead it: (1) skips when a
+  // lifecycle op is in flight locally or cross-process (the shared DB lease), and (2) persists
+  // via a guarded, metrics-ONLY write that leaves lifecycle fields untouched and no-ops unless the
+  // row still matches the sampled owner/clusterHash/status/containerId. So a metrics write can
+  // never block, fail, or clobber a lifecycle transition — even across processes sharing the DB.
   private async sampleAndPersistServiceMetrics(job: ServiceJob): Promise<void> {
     try {
       if (!isMetricsCollectionEnabled()) return
@@ -3995,11 +3995,22 @@ export class C2DEngineDocker extends C2DEngine {
         this.getC2DConfig().connection?.resources ?? []
       const gpu = await this.gpuMetrics.collect(fresh.resources, connResources)
       if (gpu) snap.gpu = gpu
-      // Re-check right before writing: narrows the window where a lifecycle op started after our
-      // fresh read. We never take the lease, so a lifecycle op is never blocked or failed by this.
+      // Skip if a lifecycle op is in flight — locally (this process) or cross-process (the shared
+      // DB lease). A metrics sample must never race a stop/restart/extend.
       if (this.serviceOpsInFlight.has(job.serviceId)) return
-      fresh.runtimeMetrics = snap
-      await this.db.updateServiceJob(fresh)
+      if (await this.db.isServiceLocked(job.serviceId, SERVICE_LOCK_STALE_MS)) return
+      // Persist ONLY runtimeMetrics, guarded on the unchanged serviceId + owner/clusterHash/
+      // status/containerId, so we never overwrite a lifecycle transition made by another process.
+      await this.db.updateServiceJobMetrics(
+        job.serviceId,
+        {
+          owner: fresh.owner,
+          clusterHash: fresh.clusterHash,
+          status: ServiceStatusNumber.Running,
+          containerId: fresh.containerId
+        },
+        snap
+      )
     } catch (e: any) {
       CORE_LOGGER.debug(
         `sampleAndPersistServiceMetrics failed for ${job.serviceId}: ${e?.message}`

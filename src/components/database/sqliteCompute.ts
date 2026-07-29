@@ -2,7 +2,8 @@ import { typesenseSchemas, TypesenseSchema } from './TypesenseSchemas.js'
 import {
   C2DStatusNumber,
   C2DStatusText,
-  type DBComputeJob
+  type DBComputeJob,
+  type ContainerMetricsSnapshot
 } from '../../@types/C2D/C2D.js'
 import {
   ServiceStatusNumber,
@@ -308,6 +309,55 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     } catch (err) {
       DATABASE_LOGGER.error(`Error while updating service job: ${err.message}`)
       throw err
+    }
+  }
+
+  // Persists ONLY runtimeMetrics onto a service job — best-effort telemetry that must NOT clobber
+  // lifecycle fields another process may have changed. It re-reads the CURRENT row, verifies it is
+  // still the same owner/clusterHash/status/containerId the caller sampled, merges the snapshot
+  // into that current body, and writes back ONLY the `body` column guarded on the unchanged status
+  // column (leaving owner/clusterHash/status/expiresAt columns untouched). node:sqlite runs the
+  // read and the write synchronously on one thread, so no in-process await can interleave between
+  // them. Returns true when a row was written.
+  // eslint-disable-next-line require-await
+  async updateServiceJobMetrics(
+    serviceId: string,
+    expected: {
+      owner: string
+      clusterHash: string
+      status: number
+      containerId: string
+    },
+    runtimeMetrics: ContainerMetricsSnapshot
+  ): Promise<boolean> {
+    try {
+      const row = this.db.get<{ body: Uint8Array }>(
+        `SELECT body FROM service_jobs WHERE serviceId = ?;`,
+        [serviceId]
+      )
+      if (!row) return false
+      const body = JSON.parse(Buffer.from(row.body).toString()) as ServiceJob
+      if (
+        body.owner !== expected.owner ||
+        body.clusterHash !== expected.clusterHash ||
+        body.status !== expected.status ||
+        body.containerId !== expected.containerId
+      ) {
+        return false
+      }
+      body.runtimeMetrics = runtimeMetrics
+      const { changes } = this.db.run(
+        `UPDATE service_jobs SET body = ? WHERE serviceId = ? AND status = ?;`,
+        [
+          Buffer.from(JSON.stringify({ ...body, updatedAt: Date.now() })),
+          serviceId,
+          expected.status
+        ]
+      )
+      return changes > 0
+    } catch (err) {
+      DATABASE_LOGGER.error(`Error while updating service job metrics: ${err.message}`)
+      return false
     }
   }
 

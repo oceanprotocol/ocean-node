@@ -1655,8 +1655,9 @@ render a field only when present.
   This is normal, not an error.
 - **`null` vs absent for GPU numbers.** Inside a `gpu[]` entry, a `null` metric means "the backend
   could not read it" — display as "n/a", never as `0`.
-- **Bytes are raw bytes**; percents are already `0–100` (one decimal); durations are seconds; the
-  final snapshot after a job/service ends carries the peak/exit values.
+- **Bytes are raw bytes**; percentages are rounded to two decimals — memory/disk/GPU are `0–100`,
+  but CPU `usagePercent` can exceed `100` across multiple cores (see the CPU table); durations are
+  seconds; the final snapshot after a job/service ends carries the peak/exit values.
 
 #### Top-level fields
 

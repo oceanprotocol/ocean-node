@@ -57,14 +57,16 @@ export async function decryptUserData(
 export function toPublicServiceJob(
   job: ServiceJob | null,
   opts: { includeMetrics?: boolean } = {}
-): Omit<ServiceJob, 'userData' | 'runtimeMetrics'> | null {
+): Omit<ServiceJob, 'userData'> | null {
   if (!job) return null
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { userData, runtimeMetrics, ...pub } = job
-  // Owner-scoped status may opt in to the sanitized runtime metrics (prev accumulator dropped).
-  // userData is ALWAYS stripped. SERVICE_LIST uses toListedServiceJob, which never includes metrics.
+  const { userData, runtimeMetrics, ...rest } = job
+  // userData is ALWAYS stripped. The owner-scoped status path may opt in to the sanitized
+  // runtime metrics (internal `prev` accumulator dropped); otherwise they stay absent.
+  // SERVICE_LIST uses toListedServiceJob, which never includes metrics.
+  const pub: Omit<ServiceJob, 'userData'> = { ...rest }
   if (opts.includeMetrics && runtimeMetrics) {
-    ;(pub as any).runtimeMetrics = sanitizePublicMetrics(runtimeMetrics)
+    pub.runtimeMetrics = sanitizePublicMetrics(runtimeMetrics)
   }
   return pub
 }

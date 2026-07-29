@@ -2,8 +2,8 @@ import { deleteKeysFromObject, sanitizeServiceFiles } from '../../utils/util.js'
 
 import { BaseFileObject, EncryptMethod } from '../../@types/fileObject.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
-import { ComputeJob, DBComputeJob } from '../../@types/index.js'
-import type { ContainerMetricsSnapshot } from '../../@types/C2D/C2D.js'
+import { DBComputeJob } from '../../@types/index.js'
+import type { ContainerMetricsSnapshot, PublicComputeJob } from '../../@types/C2D/C2D.js'
 import { OceanNode } from '../../OceanNode.js'
 export { C2DEngine } from './compute_engine_base.js'
 
@@ -52,7 +52,7 @@ export function sanitizePublicMetrics(
 export function omitDBComputeFieldsFromComputeJob(
   dbCompute: DBComputeJob,
   opts: { includeMetrics?: boolean } = {}
-): ComputeJob {
+): PublicComputeJob {
   const keysToOmit = [
     'clusterHash',
     'configlogURL',
@@ -69,9 +69,9 @@ export function omitDBComputeFieldsFromComputeJob(
     'outputBucketId'
   ]
   if (!opts.includeMetrics) keysToOmit.push('runtimeMetrics')
-  const job: ComputeJob = deleteKeysFromObject(dbCompute, keysToOmit) as ComputeJob
+  const job = deleteKeysFromObject(dbCompute, keysToOmit) as PublicComputeJob
   if (opts.includeMetrics && dbCompute.runtimeMetrics) {
-    ;(job as any).runtimeMetrics = sanitizePublicMetrics(dbCompute.runtimeMetrics)
+    job.runtimeMetrics = sanitizePublicMetrics(dbCompute.runtimeMetrics)
   }
   return job
 }

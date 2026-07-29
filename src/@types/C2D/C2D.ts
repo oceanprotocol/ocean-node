@@ -328,6 +328,14 @@ export interface ComputeJob {
   queueMaxWaitTime: number // max time in seconds a job can wait in the queue before being started
 }
 
+// Public compute-job response shape: the base ComputeJob plus the OPTIONAL, sanitized runtime
+// metrics that the owner status path may attach (never present by default, and never in the
+// escrow proof). Keeps ComputeJob itself free of the field while giving the status path a typed
+// return instead of an `any` cast.
+export interface PublicComputeJob extends ComputeJob {
+  runtimeMetrics?: ContainerMetricsSnapshot
+}
+
 export interface ComputeOutputEncryption {
   encryptMethod: EncryptMethod.AES // in future we will support more ciphers
   key: string // AES symetric key

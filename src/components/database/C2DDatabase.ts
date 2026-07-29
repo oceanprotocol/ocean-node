@@ -3,7 +3,8 @@ import fs from 'fs'
 import {
   ComputeEnvironment,
   DBComputeJob,
-  C2DStatusNumber
+  C2DStatusNumber,
+  ContainerMetricsSnapshot
 } from '../../@types/C2D/C2D.js'
 import { ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
 import { SQLiteCompute } from './sqliteCompute.js'
@@ -86,6 +87,25 @@ export class C2DDatabase extends AbstractDatabase {
 
   async updateServiceJob(job: ServiceJob): Promise<number> {
     return await this.provider.updateServiceJob(job)
+  }
+
+  // Guarded, metrics-only write: persists runtimeMetrics without touching lifecycle fields, and
+  // only when the row still matches the expected owner/clusterHash/status/containerId. Best-effort.
+  async updateServiceJobMetrics(
+    serviceId: string,
+    expected: {
+      owner: string
+      clusterHash: string
+      status: number
+      containerId: string
+    },
+    runtimeMetrics: ContainerMetricsSnapshot
+  ): Promise<boolean> {
+    return await this.provider.updateServiceJobMetrics(
+      serviceId,
+      expected,
+      runtimeMetrics
+    )
   }
 
   async getRunningServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
