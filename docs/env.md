@@ -129,6 +129,10 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 
 - `C2D_DOWNLOAD_TIMEOUT`: Timeout (in seconds) for pulling the algorithm docker image during a C2D job. If the pull exceeds this timeout, the job fails with `PullImageFailed` instead of getting stuck. Defaults to `900` (15 minutes). Example: `900`
 
+- `C2D_METRICS_INTERVAL_SECONDS`: How often (in seconds) the node samples live Docker runtime metrics (CPU, RAM, disk, network, block I/O, PIDs, exit info — plus NVIDIA GPU utilization/memory) for running compute jobs and services, persisting a snapshot onto the job record in the C2D database. These metrics are **node-internal only**: they are stripped from every API response and from the escrow claim proof, so responses are unchanged. Set to `0` to disable collection entirely. Metrics are best-effort (up to one interval of staleness). Defaults to `10`. Example: `10`
+
+- `GPU_METRICS`: Controls the GPU metrics collector. `auto` (default) detects and enables the NVIDIA (NVML) backend when a GPU host is available; `off` disables GPU collection. Requires the optional `koffi` dependency and `libnvidia-ml.so.1` reachable on the host — if either is missing, GPU metrics are silently skipped (no `gpu` field) while container-level metrics continue. AMD and Intel backends are not yet implemented. Cadence reuses `C2D_METRICS_INTERVAL_SECONDS`. Defaults to `auto`. Example: `auto`
+
 - `SERVICE_TEMPLATES_PATH`: Path to a folder of operator-published Service-on-Demand template files (`*.json`, validated against the template schema). The folder is re-read on every `serviceTemplates` request, so templates can be added, edited, or removed without restarting the node. Maps to the `serviceTemplatesPath` config field. Defaults to `databases/serviceTemplates/`. See the [Services guide](services.md). Example: `docs/serviceTemplates/`
 
 The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable is used to configure Docker-based compute environments in Ocean Node. For the full guide — resources, GPU setup, constraints and pricing — see [Compute Configuration](compute.md).

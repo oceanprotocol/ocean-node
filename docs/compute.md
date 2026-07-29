@@ -215,6 +215,16 @@ The environment references it by `id`.
 ]
 ```
 
+> **GPU runtime metrics (NVIDIA).** When `GPU_METRICS` is `auto` (the default), the node
+> records per-GPU utilization and memory for running jobs/services alongside their container
+> metrics, sampled every `C2D_METRICS_INTERVAL_SECONDS`. This uses NVML via the optional
+> `koffi` dependency and requires `libnvidia-ml.so.1` to be reachable by the node process (the
+> NVIDIA driver provides it; in a containerized node, mount it or use the NVIDIA container
+> toolkit). A job holding several GPUs gets one metrics entry per device, keyed by the
+> resource id it requested. If NVML is unavailable, GPU metrics are silently skipped while
+> container metrics continue. AMD and Intel GPU metrics are not yet collected. These metrics
+> are node-internal (never returned in API responses). Set `GPU_METRICS=off` to disable.
+
 ### AMD Radeon (ROCm)
 
 Install [ROCm](https://rocm.docs.amd.com/projects/radeon/en/latest/docs/install/wsl/install-radeon.html),

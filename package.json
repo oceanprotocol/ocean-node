@@ -109,6 +109,9 @@
     "winston-transport": "^4.6.0",
     "zod": "^3.25.76"
   },
+  "optionalDependencies": {
+    "koffi": "^2.9.0"
+  },
   "devDependencies": {
     "@types/chai": "^4.3.10",
     "@types/cors": "^2.8.17",

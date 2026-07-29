@@ -24,7 +24,8 @@ import type {
   ComputeResourceKind,
   C2DEnvironmentConfig,
   ComputeResourcesPricingInfo,
-  EnvironmentResourceRef
+  EnvironmentResourceRef,
+  ContainerMetricsSnapshot
 } from '../../@types/C2D/C2D.js'
 import { BASE_CHAIN_ID, USDC_TOKEN_ADDRESS_BASE } from '../../utils/config.js'
 import { C2DEngine } from './compute_engine_base.js'
@@ -74,6 +75,14 @@ import {
 import type { ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
 import { resolveServiceImage } from './serviceResourceMatching.js'
 import {
+  buildSnapshot,
+  getMetricsIntervalSeconds,
+  isMetricsCollectionEnabled,
+  isSnapshotStale,
+  sampleContainerMetrics
+} from './containerMetrics.js'
+import { GpuMetricsService } from './gpu/index.js'
+import {
   allocateHostPort,
   releaseHostPort,
   reserveHostPort,
@@ -111,6 +120,9 @@ export class C2DEngineDocker extends C2DEngine {
   private cronTimer: any
   private cronTime: number = 2000
   private jobImageSizes: Map<string, number> = new Map()
+  // Best-effort GPU metrics collector (NVIDIA/NVML today). Lazily initializes its vendor
+  // backends on first use by a GPU job; a pure-CPU node never loads any GPU code.
+  private gpuMetrics: GpuMetricsService = new GpuMetricsService()
   private isInternalLoopRunning: boolean = false
   // Set true by stop() so a stopped engine cannot reschedule or run another InternalLoop pass.
   // Without this, an in-flight loop's finally → setNewTimer() resurrects the timer on a stopped
@@ -700,6 +712,8 @@ export class C2DEngineDocker extends C2DEngine {
       this.serviceOpPromises.clear()
     }
     this.isInternalLoopRunning = false
+    // Release any GPU metrics backends (e.g. nvmlShutdown). Best-effort, never throws.
+    this.gpuMetrics.dispose()
     // Stop image cleanup timer
     if (this.imageCleanupTimer) {
       clearInterval(this.imageCleanupTimer)
@@ -2397,11 +2411,16 @@ export class C2DEngineDocker extends C2DEngine {
           }
         }
       } else {
-        const canContinue = await this.monitorDiskUsage(job)
+        const { canContinue, usedBytes } = await this.monitorDiskUsage(job)
         if (!canContinue) {
           // Job was terminated due to disk quota exceeded
           return
         }
+
+        // Sample live runtime metrics (throttled to C2D_METRICS_INTERVAL_SECONDS). Reuses
+        // the du(/) bytes just measured; transition paths below persist it via their own
+        // db.updateJob(), and the still-running path persists only when a new sample was taken.
+        const metricsSampled = await this.collectJobMetrics(job, usedBytes)
 
         const timeNow = Date.now() / 1000
         let expiry
@@ -2448,6 +2467,9 @@ export class C2DEngineDocker extends C2DEngine {
             await this.db.updateJob(job)
             return
           }
+          // Container still running and not transitioning this tick: persist the fresh
+          // metrics snapshot if one was just taken (piggybacks on no other write here).
+          if (metricsSampled) await this.db.updateJob(job)
         }
       }
     }
@@ -2481,6 +2503,9 @@ export class C2DEngineDocker extends C2DEngine {
         job.terminationDetails.OOMKilled = null
         job.terminationDetails.exitCode = null
       }
+      // Final runtime-metrics snapshot before the container is removed by cleanup: captures
+      // last CPU seconds, peak memory, final disk usage and exit/OOM info for postmortems.
+      await this.collectJobMetrics(job, undefined, true)
       const outputsArchivePath =
         this.getStoragePath() + '/' + job.jobId + '/data/outputs/outputs.tar'
 
@@ -2867,9 +2892,14 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
-  private async monitorDiskUsage(job: DBComputeJob): Promise<boolean> {
+  // Returns whether the job may keep running, plus the measured algorithm disk usage in
+  // bytes (undefined when there is no disk quota to measure against). The byte figure is
+  // reused by the metrics collector so it does not run a second `du`.
+  private async monitorDiskUsage(
+    job: DBComputeJob
+  ): Promise<{ canContinue: boolean; usedBytes?: number }> {
     const diskQuota = this.getDiskQuota(job)
-    if (diskQuota <= 0) return true
+    if (diskQuota <= 0) return { canContinue: true }
 
     const containerName = job.jobId + '-algoritm'
     const totalUsage = await this.getContainerDiskUsage(containerName, '/')
@@ -2907,14 +2937,66 @@ export class C2DEngineDocker extends C2DEngine {
       job.algoStopTimestamp = String(Date.now() / 1000)
       job.dateFinished = String(Date.now() / 1000)
 
+      // Final metrics snapshot before the container is torn down (records the last CPU
+      // seconds, peak memory, final disk usage and exit info for postmortems).
+      await this.collectJobMetrics(job, algorithmUsage, true)
       await this.db.updateJob(job)
       await this.cleanupJob(job)
       CORE_LOGGER.info(`Job ${job.jobId} terminated - DISK QUOTA EXCEEDED`)
 
-      return false
+      return { canContinue: false, usedBytes: algorithmUsage }
     }
 
-    return true
+    return { canContinue: true, usedBytes: algorithmUsage }
+  }
+
+  // Resolves the container's requested allocation as bytes/cores for the metrics snapshot.
+  private getJobMetricsAllocation(job: DBComputeJob): {
+    cpu: number
+    ramBytes: number
+    diskBytes: number
+  } {
+    const cpu = this.getResourceRequest(job.resources, 'cpu') || 0
+    const ramGb = this.getResourceRequest(job.resources, 'ram') || 0
+    const diskGb = this.getDiskQuota(job)
+    return {
+      cpu,
+      ramBytes: ramGb * 1024 * 1024 * 1024,
+      diskBytes: diskGb * 1024 * 1024 * 1024
+    }
+  }
+
+  // Best-effort: samples the running algorithm container (+ its GPUs) and stores the snapshot
+  // on job.runtimeMetrics. NEVER throws — a metrics failure must not touch the state machine.
+  // Does not persist by itself; callers let their existing db.updateJob() write it. Reuses the
+  // du(/) result from monitorDiskUsage. `force` writes a final snapshot regardless of staleness.
+  private async collectJobMetrics(
+    job: DBComputeJob,
+    diskUsedBytes?: number,
+    force: boolean = false
+  ): Promise<boolean> {
+    try {
+      if (!isMetricsCollectionEnabled()) return false
+      if (!force && !isSnapshotStale(job.runtimeMetrics, getMetricsIntervalSeconds())) {
+        return false
+      }
+      const raw = await sampleContainerMetrics(this.docker, job.jobId + '-algoritm')
+      if (!raw) return false
+      const snap = buildSnapshot(
+        raw,
+        job.runtimeMetrics,
+        this.getJobMetricsAllocation(job),
+        diskUsedBytes
+      )
+      const env = this.envs.find((e) => e.id === job.environment)
+      const gpu = await this.gpuMetrics.collect(job.resources, env?.resources ?? [])
+      if (gpu) snap.gpu = gpu
+      job.runtimeMetrics = snap
+      return true
+    } catch (e: any) {
+      CORE_LOGGER.debug(`collectJobMetrics failed for ${job.jobId}: ${e?.message}`)
+      return false
+    }
   }
 
   private async pullImage(originaljob: DBComputeJob) {
@@ -3840,7 +3922,117 @@ export class C2DEngineDocker extends C2DEngine {
         : details.State.Error
           ? `error: ${details.State.Error}`
           : `exited with code ${details.State.ExitCode}`
-      await this.markServiceFailed(job, reason)
+      await this.markServiceFailed(job, reason, details.State)
+      return
+    }
+    // Container healthy: sample live runtime metrics (throttled + lock-guarded, best-effort).
+    await this.sampleAndPersistServiceMetrics(job)
+  }
+
+  // Resolves a service's requested allocation as bytes/cores for the metrics snapshot.
+  // Services have no /data volume, so disk usage comes from the container writable layer
+  // (SizeRw) rather than a quota — diskBytes is left 0 (no quota to report a % against).
+  private getServiceMetricsAllocation(job: ServiceJob): {
+    cpu: number
+    ramBytes: number
+    diskBytes: number
+  } {
+    const cpu = job.resources?.find((r) => r.id === 'cpu')?.amount || 0
+    const ramGb = job.resources?.find((r) => r.id === 'ram')?.amount || 0
+    return { cpu, ramBytes: ramGb * 1024 * 1024 * 1024, diskBytes: 0 }
+  }
+
+  // Samples a running service container (+ its GPUs) and persists the snapshot. Throttled to
+  // C2D_METRICS_INTERVAL_SECONDS and guarded by the SAME lifecycle lease every start/stop/
+  // restart holds, re-reading fresh under the lease so a concurrent restart is never clobbered
+  // by a stale Running snapshot. Fully best-effort: any failure is swallowed at debug.
+  private async sampleAndPersistServiceMetrics(job: ServiceJob): Promise<void> {
+    try {
+      if (!isMetricsCollectionEnabled()) return
+      if (!isSnapshotStale(job.runtimeMetrics, getMetricsIntervalSeconds())) return
+      const raw = await sampleContainerMetrics(this.docker, job.containerId, {
+        size: true
+      })
+      if (!raw) return
+      if (!(await this.tryAcquireServiceLifecycleLock(job.serviceId))) return
+      try {
+        const [fresh] = await this.db.getServiceJob(job.serviceId, job.owner)
+        if (
+          !fresh ||
+          fresh.status !== ServiceStatusNumber.Running ||
+          fresh.containerId !== job.containerId
+        ) {
+          return
+        }
+        const snap = buildSnapshot(
+          raw,
+          fresh.runtimeMetrics,
+          this.getServiceMetricsAllocation(fresh),
+          undefined
+        )
+        const connResources: ComputeResource[] =
+          this.getC2DConfig().connection?.resources ?? []
+        const gpu = await this.gpuMetrics.collect(fresh.resources, connResources)
+        if (gpu) snap.gpu = gpu
+        fresh.runtimeMetrics = snap
+        await this.db.updateServiceJob(fresh)
+      } finally {
+        await this.releaseServiceLifecycleLock(job.serviceId)
+      }
+    } catch (e: any) {
+      CORE_LOGGER.debug(
+        `sampleAndPersistServiceMetrics failed for ${job.serviceId}: ${e?.message}`
+      )
+    }
+  }
+
+  // Stamps a dead container's exit info (status / exitCode / OOM / restart count) onto the
+  // job's LAST snapshot without overwriting the live cpu/memory/peak figures already captured
+  // while it ran. Used by markServiceFailed so the structured containerState survives (today
+  // the reason lives only in free-text statusText). Returns the previous snapshot unchanged
+  // when no state is available.
+  private stampServiceExitInfo(
+    prev: ContainerMetricsSnapshot | undefined,
+    state: any
+  ): ContainerMetricsSnapshot | undefined {
+    if (!state) return prev
+    const base: ContainerMetricsSnapshot =
+      prev ??
+      ({
+        collectedAt: new Date().toISOString(),
+        containerState: { status: 'exited', oomKilled: false, restartCount: 0 },
+        cpu: {
+          usagePercent: 0,
+          allocated: 0,
+          usagePercentOfAllocated: 0,
+          cumulativeSeconds: 0,
+          throttledPeriods: 0,
+          throttledSeconds: 0
+        },
+        memory: { usageBytes: 0, limitBytes: 0, usagePercent: 0, peakUsageBytes: 0 },
+        disk: { usedBytes: 0 },
+        blockIO: { readBytes: 0, writeBytes: 0 },
+        pids: { current: 0, limit: 512 }
+      } as ContainerMetricsSnapshot)
+    return {
+      ...base,
+      collectedAt: new Date().toISOString(),
+      containerState: {
+        status: String(state.Status ?? 'exited'),
+        startedAt: state.StartedAt ?? base.containerState.startedAt,
+        finishedAt:
+          state.FinishedAt && !String(state.FinishedAt).startsWith('0001-01-01')
+            ? state.FinishedAt
+            : base.containerState.finishedAt,
+        exitCode: state.ExitCode,
+        oomKilled: Boolean(state.OOMKilled),
+        error: state.Error || undefined,
+        restartCount:
+          typeof state.RestartCount === 'number'
+            ? state.RestartCount
+            : base.containerState.restartCount,
+        health: state.Health?.Status ?? base.containerState.health
+      }
     }
   }
 
@@ -3848,7 +4040,11 @@ export class C2DEngineDocker extends C2DEngine {
   // touch Docker or release host ports/network — the consumer already paid for those and
   // restartService() reuses them (and does its own best-effort teardown of the dead
   // container/network first).
-  private async markServiceFailed(job: ServiceJob, reason: string): Promise<void> {
+  private async markServiceFailed(
+    job: ServiceJob,
+    reason: string,
+    exitState?: any
+  ): Promise<void> {
     // Take the SAME lifecycle lease every start/stop/restart holds, so the Error write
     // is serialized with them — a check-then-write here could otherwise overwrite a
     // Restarting state persisted between our lease check and our update. Failing to
@@ -3874,10 +4070,42 @@ export class C2DEngineDocker extends C2DEngine {
       }
       fresh.status = ServiceStatusNumber.Error
       fresh.statusText = `service container exited unexpectedly: ${reason}`
+      // Preserve the last live metrics and stamp the structured exit info onto them.
+      if (isMetricsCollectionEnabled()) {
+        fresh.runtimeMetrics = this.stampServiceExitInfo(fresh.runtimeMetrics, exitState)
+      }
       await this.db.updateServiceJob(fresh)
       CORE_LOGGER.error(`Service ${job.serviceId} container died — ${reason}`)
     } finally {
       await this.releaseServiceLifecycleLock(job.serviceId)
+    }
+  }
+
+  // Best-effort final metrics snapshot of a still-running service container, taken before a
+  // stop tears it down. Must be called while holding the service lifecycle lock; does not
+  // persist — the caller's own updateServiceJob() writes job.runtimeMetrics. Never throws.
+  private async captureFinalServiceSnapshot(job: ServiceJob): Promise<void> {
+    try {
+      if (!isMetricsCollectionEnabled() || !job.containerId) return
+      const raw = await sampleContainerMetrics(this.docker, job.containerId, {
+        size: true
+      })
+      if (!raw) return
+      const snap = buildSnapshot(
+        raw,
+        job.runtimeMetrics,
+        this.getServiceMetricsAllocation(job),
+        undefined
+      )
+      const connResources: ComputeResource[] =
+        this.getC2DConfig().connection?.resources ?? []
+      const gpu = await this.gpuMetrics.collect(job.resources, connResources)
+      if (gpu) snap.gpu = gpu
+      job.runtimeMetrics = snap
+    } catch (e: any) {
+      CORE_LOGGER.debug(
+        `captureFinalServiceSnapshot failed for ${job.serviceId}: ${e?.message}`
+      )
     }
   }
 
@@ -4034,6 +4262,8 @@ export class C2DEngineDocker extends C2DEngine {
         `containerId=${job.containerId || '-'}, networkId=${job.networkId || '-'})`
     )
     await this.logServiceDockerState(`stop ${serviceId}: before teardown`, serviceId)
+    // Final runtime-metrics snapshot while the container is still up (best-effort).
+    await this.captureFinalServiceSnapshot(job)
     job.status = ServiceStatusNumber.Stopping
     job.statusText = ServiceStatusText[ServiceStatusNumber.Stopping]
     await this.db.updateServiceJob(job)
@@ -4204,6 +4434,8 @@ export class C2DEngineDocker extends C2DEngine {
     // claimTx is set, so recovery never touches escrow for a restart).
     if (job.containerId) {
       CORE_LOGGER.debug(`restart ${serviceId}: removing old container ${job.containerId}`)
+      // Final snapshot of the outgoing container before it is torn down (best-effort).
+      await this.captureFinalServiceSnapshot(job)
       const c = this.docker.getContainer(job.containerId)
       await c.stop({ t: 10 }).catch((e) => {
         CORE_LOGGER.debug(`restart ${serviceId}: old container stop: ${e.message}`)
@@ -4219,6 +4451,9 @@ export class C2DEngineDocker extends C2DEngine {
 
     job.containerId = ''
     job.networkId = ''
+    // Reset the metrics accumulators: the new container is a fresh process, so peak memory
+    // and CPU deltas must not carry over from the outgoing one.
+    job.runtimeMetrics = undefined
     await this.db.updateServiceJob(job)
 
     // Live Docker handles for the newly-created container/network, tracked so the

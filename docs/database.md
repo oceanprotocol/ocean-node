@@ -41,3 +41,19 @@ To run Ocean Node with the appropriate database, you need to start Barge with sp
 ```
 
 By specifying these flags, you can configure Ocean Node to work with either Typesense or Elasticsearch databases, depending on your requirements.
+
+## Runtime metrics on C2D job records
+
+While a compute job or Service-on-Demand container runs, the node periodically samples live
+Docker (and, on NVIDIA hosts, NVML) metrics — CPU, RAM, disk usage vs quota, network, block
+I/O, PID count, CPU throttling, memory peak, exit/OOM info, and per-GPU utilization/memory —
+and stores the latest snapshot on the job record (inside the existing JSON `body` blob of the
+SQLite `c2djobs` / `service_jobs` tables). A **final** snapshot is written at termination
+(publishing results, quota kill, service stop/restart, or unexpected container death) so
+peak/exit metrics remain queryable after the container is gone. No schema migration is needed;
+pre-upgrade records simply lack the field.
+
+These snapshots are **node-internal**: they are stripped from every API response and from the
+escrow claim proof, so responses are byte-identical to before. Sampling cadence is controlled
+by `C2D_METRICS_INTERVAL_SECONDS` (`0` disables it) and GPU collection by `GPU_METRICS` — see
+[env.md](env.md).

@@ -55,10 +55,10 @@ export async function decryptUserData(
 // (SERVICE_START / STOP / EXTEND / RESTART / GET_STATUS) must map results through this.
 export function toPublicServiceJob(
   job: ServiceJob | null
-): Omit<ServiceJob, 'userData'> | null {
+): Omit<ServiceJob, 'userData' | 'runtimeMetrics'> | null {
   if (!job) return null
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { userData, ...pub } = job
+  const { userData, runtimeMetrics, ...pub } = job
   return pub
 }
 
@@ -71,12 +71,18 @@ export function toListedServiceJob(
   job: ServiceJob | null
 ): Omit<
   ServiceJob,
-  'userData' | 'dockerCmd' | 'dockerEntrypoint' | 'dockerfile' | 'additionalDockerFiles'
+  | 'userData'
+  | 'runtimeMetrics'
+  | 'dockerCmd'
+  | 'dockerEntrypoint'
+  | 'dockerfile'
+  | 'additionalDockerFiles'
 > | null {
   if (!job) return null
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const {
     userData,
+    runtimeMetrics,
     dockerCmd,
     dockerEntrypoint,
     dockerfile,

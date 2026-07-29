@@ -1325,6 +1325,12 @@ describe('**********         Compute', () => {
     const jobs = await streamToObject(response.stream as Readable)
     console.log('Checking FREE job status...')
     console.log(jobs[0])
+    // Backward-compat guard: runtime metrics are node-internal and must NEVER appear in a
+    // COMPUTE_GET_STATUS response (stripped by omitDBComputeFieldsFromComputeJob).
+    assert(
+      !('runtimeMetrics' in jobs[0]),
+      'COMPUTE_GET_STATUS must not expose runtimeMetrics'
+    )
   })
   // algo and checksums related
   describe('C2D algo and checksums related', () => {

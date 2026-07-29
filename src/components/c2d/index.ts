@@ -45,7 +45,10 @@ export function omitDBComputeFieldsFromComputeJob(dbCompute: DBComputeJob): Comp
     'containerImage',
     'encryptedDockerRegistryAuth',
     'output',
-    'outputBucketId'
+    'outputBucketId',
+    // Node-internal runtime metrics: must never reach a status response OR the escrow
+    // claim proof (built from this same omitted shape at compute_engine_docker.ts).
+    'runtimeMetrics'
   ]) as ComputeJob
   return job
 }

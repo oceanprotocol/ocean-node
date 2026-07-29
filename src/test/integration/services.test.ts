@@ -477,6 +477,8 @@ describe('**********         Service on Demand', () => {
     assert(job, 'job not found')
     expect(job.serviceId).to.equal(serviceId)
     expect((job as any).userData).to.equal(undefined)
+    // Runtime metrics are node-internal and must never appear in a status response.
+    expect((job as any).runtimeMetrics).to.equal(undefined)
     assert(job.payment, 'payment should be present')
 
     // an unauthenticated status request (no nonce/signature) is rejected
@@ -513,6 +515,7 @@ describe('**********         Service on Demand', () => {
     expect((listed as any).userData).to.equal(undefined)
     expect((listed as any).dockerCmd).to.equal(undefined)
     expect((listed as any).dockerEntrypoint).to.equal(undefined)
+    expect((listed as any).runtimeMetrics).to.equal(undefined)
 
     // status filter: Running includes the service, Expired does not
     const sig2 = await signFor(nonOwnerAccount, PROTOCOL_COMMANDS.SERVICE_LIST)
