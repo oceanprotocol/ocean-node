@@ -2518,7 +2518,9 @@ export class C2DEngineDocker extends C2DEngine {
       }
       // Final runtime-metrics snapshot before the container is removed by cleanup: captures
       // last CPU seconds, peak memory, final disk usage and exit/OOM info for postmortems.
-      await this.collectJobMetrics(job, undefined, true)
+      // Reuse the last du(/)-measured disk usage (jobs don't inspect size:true, so buildSnapshot
+      // would otherwise fall back to an unset SizeRw and report 0).
+      await this.collectJobMetrics(job, job.runtimeMetrics?.disk?.usedBytes, true)
       const outputsArchivePath =
         this.getStoragePath() + '/' + job.jobId + '/data/outputs/outputs.tar'
 
@@ -3938,7 +3940,7 @@ export class C2DEngineDocker extends C2DEngine {
       await this.markServiceFailed(job, reason, details.State)
       return
     }
-    // Container healthy: sample live runtime metrics (throttled + lock-guarded, best-effort).
+    // Container healthy: sample live runtime metrics (throttled, best-effort, lease-free).
     await this.sampleAndPersistServiceMetrics(job)
   }
 
@@ -3956,42 +3958,47 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   // Samples a running service container (+ its GPUs) and persists the snapshot. Throttled to
-  // C2D_METRICS_INTERVAL_SECONDS and guarded by the SAME lifecycle lease every start/stop/
-  // restart holds, re-reading fresh under the lease so a concurrent restart is never clobbered
-  // by a stale Running snapshot. Fully best-effort: any failure is swallowed at debug.
+  // C2D_METRICS_INTERVAL_SECONDS and strictly best-effort.
+  //
+  // Deliberately does NOT take the service lifecycle lease: that lease is user-facing (stop /
+  // restart / extend throw "operation in progress" when it is held), so acquiring it for a
+  // metrics sample could make a real lifecycle operation fail. Instead we re-read the job fresh
+  // and only persist when it is still the SAME Running container, aborting if a lifecycle op is
+  // in flight locally — a metrics write must never block or fail a lifecycle operation. The
+  // residual (tiny) window where our write races a concurrent lifecycle write is acceptable for
+  // best-effort telemetry.
   private async sampleAndPersistServiceMetrics(job: ServiceJob): Promise<void> {
     try {
       if (!isMetricsCollectionEnabled()) return
       if (!isSnapshotStale(job.runtimeMetrics, getMetricsIntervalSeconds())) return
+      if (this.serviceOpsInFlight.has(job.serviceId)) return
       const raw = await sampleContainerMetrics(this.docker, job.containerId, {
         size: true
       })
       if (!raw) return
-      if (!(await this.tryAcquireServiceLifecycleLock(job.serviceId))) return
-      try {
-        const [fresh] = await this.db.getServiceJob(job.serviceId, job.owner)
-        if (
-          !fresh ||
-          fresh.status !== ServiceStatusNumber.Running ||
-          fresh.containerId !== job.containerId
-        ) {
-          return
-        }
-        const snap = buildSnapshot(
-          raw,
-          fresh.runtimeMetrics,
-          this.getServiceMetricsAllocation(fresh),
-          undefined
-        )
-        const connResources: ComputeResource[] =
-          this.getC2DConfig().connection?.resources ?? []
-        const gpu = await this.gpuMetrics.collect(fresh.resources, connResources)
-        if (gpu) snap.gpu = gpu
-        fresh.runtimeMetrics = snap
-        await this.db.updateServiceJob(fresh)
-      } finally {
-        await this.releaseServiceLifecycleLock(job.serviceId)
+      const [fresh] = await this.db.getServiceJob(job.serviceId, job.owner)
+      if (
+        !fresh ||
+        fresh.status !== ServiceStatusNumber.Running ||
+        fresh.containerId !== job.containerId
+      ) {
+        return
       }
+      const snap = buildSnapshot(
+        raw,
+        fresh.runtimeMetrics,
+        this.getServiceMetricsAllocation(fresh),
+        undefined
+      )
+      const connResources: ComputeResource[] =
+        this.getC2DConfig().connection?.resources ?? []
+      const gpu = await this.gpuMetrics.collect(fresh.resources, connResources)
+      if (gpu) snap.gpu = gpu
+      // Re-check right before writing: narrows the window where a lifecycle op started after our
+      // fresh read. We never take the lease, so a lifecycle op is never blocked or failed by this.
+      if (this.serviceOpsInFlight.has(job.serviceId)) return
+      fresh.runtimeMetrics = snap
+      await this.db.updateServiceJob(fresh)
     } catch (e: any) {
       CORE_LOGGER.debug(
         `sampleAndPersistServiceMetrics failed for ${job.serviceId}: ${e?.message}`

@@ -192,5 +192,10 @@ export class NvmlGpuCollector implements GpuVendorCollector {
       // best-effort
     }
     this.initialized = false
+    // Clear the cached probe result and release the (now shut-down) bindings so a later
+    // detect() re-initializes from scratch and sample()/sampleOne() can never use a torn-down
+    // NVML handle.
+    this.detected = null
+    this.bindings = null
   }
 }
