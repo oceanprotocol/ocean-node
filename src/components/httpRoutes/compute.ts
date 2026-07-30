@@ -423,6 +423,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/serviceStop`, async (req, res) => 
     nonce: (req.body.nonce as string) || null,
     signature: (req.body.signature as string) || null,
     serviceId: (req.body.serviceId as string) || null,
+    release: req.body.release,
     authorization: req.headers?.authorization,
     caller: req.caller
   }

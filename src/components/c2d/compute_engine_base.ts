@@ -112,11 +112,13 @@ export abstract class C2DEngine {
 
   // onlyIfExpired: expiry-sweep mode — re-validate expiresAt on the fresh row under the
   // lifecycle lock and skip the teardown when the service was extended in the meantime.
+  // release: end the paid window now so the expiry sweep frees the reservation.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
   public async stopService(
     serviceId: string,
     owner: string,
-    onlyIfExpired?: boolean
+    onlyIfExpired?: boolean,
+    release?: boolean
   ): Promise<ServiceJob | null> {
     return null
   }

@@ -430,6 +430,8 @@ export interface ServiceStopCommand extends Command {
   nonce: string
   signature: string
   serviceId: string
+  // give up the rest of the paid window so the reservation is freed (no refund, no restart)
+  release?: boolean
 }
 
 export interface ServiceGetStreamableLogsCommand extends Command {
