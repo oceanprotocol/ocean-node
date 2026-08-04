@@ -113,8 +113,15 @@ script (inlined as `command[0]`) that downloads the ~38 GiB weight set (LTX-2.3 
 checkpoint, Gemma-3-12B text encoder, two LoRAs, the x2 spatial upscaler) on first launch.
 Pick a persistent-storage bucket for this template — weights and generated clips both live
 there, so only the first launch pays the download; without a bucket the weights land inside
-the container and are lost on stop. When a bucket is mounted, `ComfyUI/models` is a symlink
-into it rather than a real directory.
+the container and are lost on stop (in `/tmp`, not the bucket).
+
+The bootstrap runs `main.py` directly from the image's read-only bundle with ComfyUI's own
+`--base-directory` flag, pointed at the bucket, so models/output/input/user/custom_nodes all
+live there and nothing is written under `/root`. This deliberately bypasses the image's
+entrypoint, which copies its bundle into `/root/ComfyUI` and therefore fails on hosts where the
+service container is not uid 0. Relocating `custom_nodes` also means the image's bundled
+ComfyUI-Manager is not loaded — this template ships fixed workflows and installs no nodes at
+runtime.
 
 The consumer selects a workflow via userData: `COMFY_WORKFLOW_ID` (`ocean_ugc_product` or
 `ocean_ugc_testimonial`, used only for the `[ocean] installed workflow …` log line) plus
