@@ -422,6 +422,7 @@ export interface ServiceStartCommand extends Command {
   resources?: ComputeResourceRequest[]
   duration: number // seconds; capped by serviceOnDemand.maxDurationSeconds
   userData?: string // ECIES-encrypted (to the node's public key) JSON object → the container's env-var map
+  outputBucketId?: string // persistent-storage bucket bind-mounted at /data/outputs
   payment: { chainId: number; token: string }
 }
 

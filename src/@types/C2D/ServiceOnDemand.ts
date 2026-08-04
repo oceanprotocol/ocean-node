@@ -22,6 +22,14 @@ export interface UserConfigurableEnvVar {
   sensitive?: boolean // advisory hint for clients/UI (e.g. mask on input). The node receives ALL userData ECIES-encrypted, so this does not change node-side storage.
 }
 
+export interface ServiceTemplateWorkflow {
+  id: string // [A-Za-z0-9_.-]+ — becomes a filename and a ?template= value
+  name: string
+  description?: string
+  file?: string // path relative to the templates dir; inlined into `graph` at load time
+  graph?: unknown // the workflow JSON itself
+}
+
 export interface ServiceTemplate {
   id: string // [a-z0-9][a-z0-9_-]{0,63}
   name?: string
@@ -39,6 +47,7 @@ export interface ServiceTemplate {
   entrypoint?: string[] // Docker ENTRYPOINT override
   requiredResources?: TemplateResourceRequirement[] // MUST satisfy — gates SERVICE_START
   recommendedResources?: TemplateResourceRequirement[] // SHOULD satisfy — used for scoring + UI
+  workflows?: ServiceTemplateWorkflow[] // client-selectable graphs; no operator secrets, so public
 }
 
 // ── Public / sanitized types ──────────────────────────────────────────
@@ -141,6 +150,7 @@ export interface ServiceJob {
   exposedPorts: number[]
   endpoints: ServiceEndpoint[]
   userData?: string // ECIES(node key) string sent by the client; stored as-is, decrypted only at start/restart; never returned
+  outputBucketId?: string // persistent-storage bucket bind-mounted at /data/outputs
   resources: ComputeResourceRequestWithPrice[]
   payment: DBComputeJobPayment // initial start payment
   extendPayments?: DBComputeJobPayment[] // one entry per successful SERVICE_EXTEND

@@ -1,0 +1,68 @@
+{
+  "id": "ltx-video-ugc",
+  "name": "ComfyUI \u2014 UGC short-form video (LTX-2.3)",
+  "description": "ComfyUI preloaded with LTX-2.3 for vertical short-form product video. Two workflows: a product photo becomes a 9:16 clip with ambient audio, or a creator photo plus a voice clip becomes a lip-synced testimonial (the clip is capped at the graph's 5.8s, so trim longer voiceovers or raise the frame count). Weights (38 GiB) download on first launch into the selected persistent-storage bucket and are reused after that; generated clips are written to the same bucket. Needs a CUDA GPU with 48 GB+ VRAM.",
+  "image": "yanwk/comfyui-boot",
+  "tag": "cu130-megapak-pt211-20260803",
+  "exposedPorts": [
+    8188
+  ],
+  "entrypoint": [
+    "/bin/bash",
+    "-c"
+  ],
+  "command": [
+    "#!/bin/bash\n# Bootstrap for the ltx-video-ugc service template. Runs as the container command with\n# entrypoint [\"/bin/bash\",\"-c\"] \u2014 a shell entrypoint is mandatory because ocean-node passes\n# dockerCmd to Docker verbatim and performs no ${VAR} expansion of its own.\nset -euo pipefail\n\nWF_ID=\"${COMFY_WORKFLOW_ID:-}\"\n# COMFY_WORKFLOW_ID is client-supplied and becomes a filename. ServiceStartHandler never\n# loads templates, so userConfigurableEnvVars.validation is NOT enforced node-side \u2014 this\n# check is the only thing standing between userData and a path traversal.\nif [ -n \"$WF_ID\" ] && ! [[ \"$WF_ID\" =~ ^[A-Za-z0-9_.-]{1,64}$ ]]; then\n  echo \"[ocean] invalid COMFY_WORKFLOW_ID\" >&2\n  exit 1\nfi\n\nmkdir -p /root/ComfyUI\nif [ -d /data/outputs ]; then\n  # Bucket is mounted: keep both weights and generated clips in it, so they survive the\n  # container. The image's entrypoint rsyncs with --ignore-existing, so the symlink stands.\n  mkdir -p /data/outputs/models /data/outputs/comfy-output\n  # /root/ComfyUI/models normally does not exist yet: this image empties /root at build and its\n  # entrypoint copies ComfyUI in only after we exec it. Handle a real directory anyway, so a\n  # future image that does ship one cannot abort the bootstrap under set -e.\n  if [ -d /root/ComfyUI/models ] && [ ! -L /root/ComfyUI/models ]; then\n    mv /root/ComfyUI/models /root/ComfyUI/models.image-default\n  fi\n  ln -sfn /data/outputs/models /root/ComfyUI/models\n  export CLI_ARGS=\"--output-directory /data/outputs/comfy-output ${CLI_ARGS:-}\"\nelse\n  echo \"[ocean] no bucket mounted \u2014 models download to the container and are lost on stop\"\nfi\n\nMODELS=/root/ComfyUI/models\nmkdir -p \"$MODELS/checkpoints\" \"$MODELS/loras\" \"$MODELS/text_encoders\" \"$MODELS/latent_upscale_models\"\n\n# Download to .part then rename: a truncated file in a persistent bucket would be treated as\n# cached by every future launch.\nget() {\n  if [ -f \"$2\" ]; then\n    echo \"[ocean] cached $(basename \"$2\")\"\n    return 0\n  fi\n  echo \"[ocean] downloading $(basename \"$2\")\"\n  # No -f: a complete .part from a container that died between the download landing and the\n  # mv makes `curl -C -` ask HuggingFace to resume a finished file, which answers 416. Check the\n  # status ourselves so that specific case can recover instead of wedging every future launch.\n  http_code=$(curl -L --retry 5 --retry-delay 5 -C - -o \"$2.part\" -w '%{http_code}' \"$1\")\n  if [ \"$http_code\" = \"416\" ] && [ -f \"$2.part\" ]; then\n    echo \"[ocean] $(basename \"$2\").part already complete\"\n  elif [ \"$http_code\" -lt 200 ] || [ \"$http_code\" -ge 300 ]; then\n    echo \"[ocean] download failed for $(basename \"$2\") (HTTP $http_code)\" >&2\n    return 22\n  fi\n  mv \"$2.part\" \"$2\"\n}\n\nHF=https://huggingface.co\nget \"$HF/Lightricks/LTX-2.3-fp8/resolve/main/ltx-2.3-22b-dev-fp8.safetensors\" \\\n  \"$MODELS/checkpoints/ltx-2.3-22b-dev-fp8.safetensors\"\nget \"$HF/Comfy-Org/ltx-2/resolve/main/split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors\" \\\n  \"$MODELS/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors\"\nget \"$HF/Comfy-Org/ltx-2.3/resolve/main/split_files/loras/ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors\" \\\n  \"$MODELS/loras/ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors\"\nget \"$HF/Comfy-Org/ltx-2/resolve/main/split_files/loras/gemma-3-12b-it-abliterated_lora_rank64_bf16.safetensors\" \\\n  \"$MODELS/loras/gemma-3-12b-it-abliterated_lora_rank64_bf16.safetensors\"\nget \"$HF/Lightricks/LTX-2.3/resolve/main/ltx-2.3-spatial-upscaler-x2-1.1.safetensors\" \\\n  \"$MODELS/latent_upscale_models/ltx-2.3-spatial-upscaler-x2-1.1.safetensors\"\n\n# Minimal custom-node pack: ComfyUI serves example_workflows at\n# /api/workflow_templates/ocean_ugc/ocean_ugc.json, which is what ?template=ocean_ugc&source=all\n# loads. Exactly one graph is ever installed per container, so the filename is a constant, not\n# keyed by WF_ID \u2014 WF_ID is only used below for the log line, the in-container record of which\n# graph was picked.\nPACK=/root/ComfyUI/custom_nodes/ocean_ugc\nmkdir -p \"$PACK/example_workflows\"\necho 'NODE_CLASS_MAPPINGS = {}' > \"$PACK/__init__.py\"\nif [ -n \"$WF_ID\" ] && [ -n \"${COMFY_WORKFLOW:-}\" ]; then\n  # Escrow is already claimed by the time this runs \u2014 a corrupt/undecodable payload must not take\n  # the whole container down with it. Degrade to an empty pack and keep going; base64/gunzip's own\n  # stderr plus the line below land in the container logs either way.\n  if printf '%s' \"$COMFY_WORKFLOW\" | base64 -d | gunzip > \"$PACK/example_workflows/ocean_ugc.json\"; then\n    echo \"[ocean] installed workflow $WF_ID\"\n  else\n    echo \"[ocean] failed to decode COMFY_WORKFLOW \u2014 starting ComfyUI with an empty workflow pack\" >&2\n    rm -f \"$PACK/example_workflows/ocean_ugc.json\"\n  fi\nfi\n\nexec bash /runner-scripts/entrypoint.sh\n"
+  ],
+  "workflows": [
+    {
+      "id": "ocean_ugc_product",
+      "name": "Product \u2192 vertical clip",
+      "description": "Upload a product photo, get a 9:16 clip with camera motion and ambient audio.",
+      "file": "workflows/ocean_ugc_product.json"
+    },
+    {
+      "id": "ocean_ugc_testimonial",
+      "name": "Creator testimonial (lip-sync)",
+      "description": "Upload a person photo and a voice clip, get a lip-synced 9:16 testimonial.",
+      "file": "workflows/ocean_ugc_testimonial.json"
+    }
+  ],
+  "userConfigurableEnvVars": [
+    {
+      "key": "COMFY_WORKFLOW_ID",
+      "validation": "^[A-Za-z0-9_.-]+$"
+    },
+    {
+      "key": "COMFY_WORKFLOW"
+    }
+  ],
+  "requiredResources": [
+    {
+      "id": "cpu",
+      "min": 8,
+      "recommended": 16,
+      "unit": "cores"
+    },
+    {
+      "id": "ram",
+      "min": 32,
+      "recommended": 64,
+      "unit": "GB"
+    },
+    {
+      "id": "disk",
+      "min": 40,
+      "recommended": 80,
+      "unit": "GB"
+    },
+    {
+      "kind": "discrete",
+      "type": "gpu",
+      "min": 1,
+      "recommended": 1,
+      "unit": "count",
+      "description": "CUDA GPU, 48 GB+ VRAM recommended (LTX-2.3 22B fp8 + Gemma-3-12B encoder)"
+    }
+  ]
+}

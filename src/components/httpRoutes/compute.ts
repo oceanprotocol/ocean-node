@@ -408,6 +408,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/serviceStart`, async (req, res) =>
     resources: (req.body.resources as ComputeResourceRequest[]) || undefined,
     duration: req.body.duration as number,
     userData: (req.body.userData as string) || undefined,
+    outputBucketId: (req.body.outputBucketId as string) || undefined,
     payment: req.body.payment,
     authorization: req.headers?.authorization,
     caller: req.caller

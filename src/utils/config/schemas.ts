@@ -343,6 +343,21 @@ const UserConfigurableEnvVarSchema = z
   })
   .strict()
 
+export const ServiceTemplateWorkflowSchema = z
+  .object({
+    id: z.string().regex(/^[A-Za-z0-9_.-]+$/, {
+      message: 'Workflow id must match [A-Za-z0-9_.-]+'
+    }),
+    name: z.string().min(1),
+    description: z.string().optional(),
+    file: z.string().min(1).optional(),
+    graph: z.unknown().optional()
+  })
+  .strict()
+  .refine((w) => !!w.file !== !!w.graph, {
+    message: 'A workflow must set exactly one of "file" or "graph"'
+  })
+
 export const ServiceTemplateSchema = z
   .object({
     id: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/, {
@@ -364,7 +379,8 @@ export const ServiceTemplateSchema = z
     command: z.array(z.string()).optional(),
     entrypoint: z.array(z.string()).optional(),
     requiredResources: z.array(TemplateResourceRequirementSchema).optional(),
-    recommendedResources: z.array(TemplateResourceRequirementSchema).optional()
+    recommendedResources: z.array(TemplateResourceRequirementSchema).optional(),
+    workflows: z.array(ServiceTemplateWorkflowSchema).optional()
   })
   .strict()
   .superRefine((tmpl, ctx) => {

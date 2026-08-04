@@ -1,4 +1,6 @@
 import { expect } from 'chai'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import {
   ServiceTemplateSchema,
   ServiceOnDemandConfigSchema,
@@ -83,6 +85,11 @@ describe('ServiceTemplateSchema', () => {
         recommendedResources: [{ kind: 'discrete', type: 'gpu', min: 1, recommended: 2 }]
       }).success
     ).to.equal(true)
+  })
+  it('ltx-video-ugc: template matches ServiceTemplateSchema', () => {
+    const dir = join(process.cwd(), 'docs', 'serviceTemplates')
+    const tmpl = JSON.parse(readFileSync(join(dir, 'ltx-video-ugc.json'), 'utf8'))
+    expect(ServiceTemplateSchema.safeParse(tmpl).success).to.equal(true)
   })
 })
 

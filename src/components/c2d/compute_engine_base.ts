@@ -100,7 +100,8 @@ export abstract class C2DEngine {
     owner: string,
     payment: DBComputeJobPayment,
     serviceId: string,
-    userData?: string // ECIES-encrypted; the engine decrypts it transiently into the container env
+    userData?: string, // ECIES-encrypted; the engine decrypts it transiently into the container env
+    outputBucketId?: string
   ): Promise<ServiceJob | null> {
     return null
   }

@@ -1,6 +1,6 @@
 import { expect } from 'chai'
-import { mkdtempSync, writeFileSync, rmSync } from 'fs'
-import { join } from 'path'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs'
+import { join, relative } from 'path'
 import { tmpdir } from 'os'
 import { loadServiceTemplates } from '../../../components/core/service/templateLoader.js'
 
@@ -82,5 +82,48 @@ describe('loadServiceTemplates', () => {
     expect(await loadServiceTemplates(dir)).to.have.length(1)
     writeFileSync(join(dir, 'b.json'), JSON.stringify(valid('b')))
     expect(await loadServiceTemplates(dir)).to.have.length(2)
+  })
+
+  it('10. workflows[].file is inlined into graph and file is dropped', async () => {
+    mkdirSync(join(dir, 'workflows'))
+    writeFileSync(
+      join(dir, 'workflows', 'w.json'),
+      JSON.stringify({ nodes: [{ id: 1 }] })
+    )
+    writeFileSync(
+      join(dir, 'a.json'),
+      JSON.stringify({
+        ...valid('tmpl-wf'),
+        workflows: [
+          { id: 'ocean_ugc_product', name: 'Product', file: 'workflows/w.json' }
+        ]
+      })
+    )
+    const [tmpl] = await loadServiceTemplates(dir)
+    expect(tmpl.workflows[0].graph).to.deep.equal({ nodes: [{ id: 1 }] })
+    expect(tmpl.workflows[0]).to.not.have.property('file')
+  })
+
+  it('11. workflows[].file escaping the templates dir via ../ is dropped, template survives', async () => {
+    const outsideDir = mkdtempSync(join(tmpdir(), 'svc-templates-outside-'))
+    try {
+      const secretPath = join(outsideDir, 'secret.json')
+      writeFileSync(secretPath, JSON.stringify({ secret: true }))
+      writeFileSync(
+        join(dir, 'a.json'),
+        JSON.stringify({
+          ...valid('tmpl-escape'),
+          workflows: [
+            { id: 'escape', name: 'Escape', file: relative(dir, secretPath) },
+            { id: 'inline', name: 'Inline', graph: { nodes: [] } }
+          ]
+        })
+      )
+      const [tmpl] = await loadServiceTemplates(dir)
+      expect(tmpl.id).to.equal('tmpl-escape')
+      expect(tmpl.workflows.map((w) => w.id)).to.deep.equal(['inline'])
+    } finally {
+      rmSync(outsideDir, { recursive: true, force: true })
+    }
   })
 })

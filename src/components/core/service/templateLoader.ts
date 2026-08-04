@@ -1,6 +1,9 @@
 import { readdir, readFile } from 'fs/promises'
-import { join } from 'path'
-import type { ServiceTemplate } from '../../../@types/C2D/ServiceOnDemand.js'
+import { join, resolve, sep } from 'path'
+import type {
+  ServiceTemplate,
+  ServiceTemplateWorkflow
+} from '../../../@types/C2D/ServiceOnDemand.js'
 import { ServiceTemplateSchema } from '../../../utils/config/schemas.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
@@ -25,6 +28,7 @@ export async function loadServiceTemplates(dir?: string): Promise<ServiceTemplat
     return []
   }
 
+  const resolvedDir = resolve(dir)
   const byId = new Map<string, ServiceTemplate>()
   for (const file of files) {
     let raw: unknown
@@ -53,6 +57,33 @@ export async function loadServiceTemplates(dir?: string): Promise<ServiceTemplat
           `Duplicate service template id "${tmpl.id}" (in "${file}") — keeping the first occurrence`
         )
         continue
+      }
+      if (tmpl.workflows?.length) {
+        // A workflow with a missing/malformed file is dropped, not the whole template.
+        const resolved: ServiceTemplateWorkflow[] = []
+        for (const wf of tmpl.workflows) {
+          if (!wf.file) {
+            resolved.push(wf)
+            continue
+          }
+          const target = resolve(resolvedDir, wf.file)
+          if (target !== resolvedDir && !target.startsWith(resolvedDir + sep)) {
+            CORE_LOGGER.warn(
+              `Template "${tmpl.id}": dropping workflow "${wf.id}" — "${wf.file}" resolves outside the templates dir`
+            )
+            continue
+          }
+          try {
+            const graph = JSON.parse(await readFile(target, 'utf8'))
+            const { file, ...rest } = wf
+            resolved.push({ ...rest, graph })
+          } catch (e) {
+            CORE_LOGGER.warn(
+              `Template "${tmpl.id}": dropping workflow "${wf.id}" — cannot read "${wf.file}" (${e.message})`
+            )
+          }
+        }
+        tmpl.workflows = resolved
       }
       byId.set(tmpl.id, tmpl)
     }

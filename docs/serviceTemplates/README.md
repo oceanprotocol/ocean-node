@@ -31,6 +31,7 @@ Templates are validated against `ServiceTemplateSchema`
 | `envVars`                                                  | Fixed operator-set env vars (values never returned to callers)                                                   |
 | `userConfigurableEnvVars`                                  | Env vars the consumer supplies via ECIES-encrypted `userData` (optional regex `validation`, `sensitive` UI hint) |
 | `requiredResources` / `recommendedResources`               | Gate/score environment selection (`min` is enforced at `SERVICE_START`)                                          |
+| `workflows`                                                 | Selectable graphs for UI-driven templates; each entry is `id` / `name` / `file` (a path to the graph JSON, resolved relative to this directory and inlined into `graph` at load time) |
 
 ## Templates in this folder
 
@@ -100,6 +101,30 @@ Node-graph web UI for diffusion models (SD/SDXL/Flux, video via AnimateDiff/SVD)
 so no `command` override is needed. Bundles ComfyUI-Manager for installing checkpoints /
 custom nodes from the UI; `HF_TOKEN` / `CIVITAI_TOKEN` are optional user env vars for gated
 downloads. ~10 GB VRAM for SDXL.
+
+### `ltx-video-ugc.json` — ComfyUI, LTX-2.3 UGC video (GPU)
+
+ComfyUI preloaded with LTX-2.3 for vertical short-form product video, with two ready-made
+workflow graphs (`workflows/ocean_ugc_product.json`, `workflows/ocean_ugc_testimonial.json`):
+a product photo becomes a 9:16 clip with camera motion and ambient audio, or a creator photo
+plus a voice clip becomes a lip-synced testimonial (capped at the graph's 5.8s — trim longer
+voiceovers or raise the frame count). `entrypoint`/`command` override to a bootstrap
+script (inlined as `command[0]`) that downloads the ~38 GiB weight set (LTX-2.3 22B fp8
+checkpoint, Gemma-3-12B text encoder, two LoRAs, the x2 spatial upscaler) on first launch.
+Pick a persistent-storage bucket for this template — weights and generated clips both live
+there, so only the first launch pays the download; without a bucket the weights land inside
+the container and are lost on stop. When a bucket is mounted, `ComfyUI/models` is a symlink
+into it rather than a real directory.
+
+The consumer selects a workflow via userData: `COMFY_WORKFLOW_ID` (`ocean_ugc_product` or
+`ocean_ugc_testimonial`, used only for the `[ocean] installed workflow …` log line) plus
+`COMFY_WORKFLOW` (that workflow's graph JSON, gzipped then base64-encoded). The bootstrap
+writes it into a minimal custom-node pack at the constant path
+`custom_nodes/ocean_ugc/example_workflows/ocean_ugc.json` — exactly one graph is ever
+installed per container, so the filename doesn't vary — which ComfyUI serves at
+`/api/workflow_templates/ocean_ugc/ocean_ugc.json`. Open the ComfyUI URL with
+`?template=ocean_ugc&source=all` to load it directly instead of building the graph by hand.
+Needs a CUDA GPU with 48 GB+ VRAM (LTX-2.3 22B fp8 + Gemma-3-12B encoder).
 
 ### `automatic1111.json` — Stable Diffusion WebUI (A1111) (GPU)
 
