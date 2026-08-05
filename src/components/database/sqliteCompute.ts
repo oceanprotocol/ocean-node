@@ -313,12 +313,15 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
   }
 
   // Persists ONLY runtimeMetrics onto a service job — best-effort telemetry that must NOT clobber
-  // lifecycle fields another process may have changed. It re-reads the CURRENT row, verifies it is
-  // still the same owner/clusterHash/status/containerId the caller sampled, merges the snapshot
-  // into that current body, and writes back ONLY the `body` column guarded on the unchanged status
-  // column (leaving owner/clusterHash/status/expiresAt columns untouched). node:sqlite runs the
-  // read and the write synchronously on one thread, so no in-process await can interleave between
-  // them. Returns true when a row was written.
+  // lifecycle fields another process may have changed. The read + validate + merge + write run
+  // inside a single `BEGIN IMMEDIATE` transaction so the sequence is atomic even across processes
+  // sharing the SQLite file: IMMEDIATE takes the write lock up front (waiting up to busy_timeout),
+  // so no other process can commit a lifecycle change (status, expiry, container) between our read
+  // and our write. Inside the transaction it re-reads the CURRENT row, re-validates
+  // owner/clusterHash/status/containerId, merges ONLY runtimeMetrics into that current body, and
+  // writes back ONLY the `body` column guarded on the unchanged status — leaving every lifecycle
+  // field (incl. expiresAt, in both column and body) exactly as last committed. Returns true when a
+  // row was written; any mismatch/error rolls back and returns false.
   // eslint-disable-next-line require-await
   async updateServiceJobMetrics(
     serviceId: string,
@@ -331,11 +334,20 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     runtimeMetrics: ContainerMetricsSnapshot
   ): Promise<boolean> {
     try {
+      this.db.exec('BEGIN IMMEDIATE;')
+    } catch (err) {
+      DATABASE_LOGGER.error(`metrics update: could not begin transaction: ${err.message}`)
+      return false
+    }
+    try {
       const row = this.db.get<{ body: Uint8Array }>(
         `SELECT body FROM service_jobs WHERE serviceId = ?;`,
         [serviceId]
       )
-      if (!row) return false
+      if (!row) {
+        this.db.exec('ROLLBACK;')
+        return false
+      }
       const body = JSON.parse(Buffer.from(row.body).toString()) as ServiceJob
       if (
         body.owner !== expected.owner ||
@@ -343,6 +355,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
         body.status !== expected.status ||
         body.containerId !== expected.containerId
       ) {
+        this.db.exec('ROLLBACK;')
         return false
       }
       body.runtimeMetrics = runtimeMetrics
@@ -354,9 +367,15 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
           expected.status
         ]
       )
+      this.db.exec('COMMIT;')
       return changes > 0
     } catch (err) {
       DATABASE_LOGGER.error(`Error while updating service job metrics: ${err.message}`)
+      try {
+        this.db.exec('ROLLBACK;')
+      } catch {
+        // best-effort: transaction may already be closed
+      }
       return false
     }
   }

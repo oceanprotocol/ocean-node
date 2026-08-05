@@ -475,4 +475,86 @@ describe('Service Jobs Database', () => {
       expect(threw).to.equal(true)
     })
   })
+
+  describe('updateServiceJobMetrics (guarded, metrics-only write)', () => {
+    const snapshot: any = {
+      collectedAt: '2026-07-29T12:00:00Z',
+      containerState: { status: 'running', oomKilled: false, restartCount: 0 },
+      cpu: {
+        usagePercent: 40,
+        allocated: 2,
+        usagePercentOfAllocated: 20,
+        cumulativeSeconds: 1,
+        throttledPeriods: 0,
+        throttledSeconds: 0
+      }
+    }
+
+    it('persists runtimeMetrics and preserves lifecycle fields when the row still matches', async () => {
+      const expiresAt = Date.now() + 7200_000
+      const job = makeServiceJob({ status: ServiceStatusNumber.Running, expiresAt })
+      await db.newServiceJob(job)
+
+      const wrote = await db.updateServiceJobMetrics(
+        job.serviceId,
+        {
+          owner: job.owner,
+          clusterHash: job.clusterHash,
+          status: ServiceStatusNumber.Running,
+          containerId: job.containerId
+        },
+        snapshot
+      )
+      expect(wrote).to.equal(true)
+
+      const [fresh] = await db.getServiceJob(job.serviceId, job.owner)
+      expect(fresh.runtimeMetrics?.collectedAt).to.equal('2026-07-29T12:00:00Z')
+      // lifecycle fields untouched
+      expect(fresh.status).to.equal(ServiceStatusNumber.Running)
+      expect(fresh.expiresAt).to.equal(expiresAt)
+      expect(fresh.containerId).to.equal(job.containerId)
+    })
+
+    it('is a no-op when status changed (guards against clobbering a lifecycle transition)', async () => {
+      const job = makeServiceJob({ status: ServiceStatusNumber.Running })
+      await db.newServiceJob(job)
+
+      const wrote = await db.updateServiceJobMetrics(
+        job.serviceId,
+        {
+          owner: job.owner,
+          clusterHash: job.clusterHash,
+          status: ServiceStatusNumber.Stopped, // does not match the persisted Running
+          containerId: job.containerId
+        },
+        snapshot
+      )
+      expect(wrote).to.equal(false)
+
+      const [fresh] = await db.getServiceJob(job.serviceId, job.owner)
+      expect(fresh.runtimeMetrics).to.equal(undefined)
+    })
+
+    it('is a no-op when the container was replaced (restart)', async () => {
+      const job = makeServiceJob({
+        status: ServiceStatusNumber.Running,
+        containerId: 'container-old'
+      })
+      await db.newServiceJob(job)
+
+      const wrote = await db.updateServiceJobMetrics(
+        job.serviceId,
+        {
+          owner: job.owner,
+          clusterHash: job.clusterHash,
+          status: ServiceStatusNumber.Running,
+          containerId: 'container-new' // differs from persisted
+        },
+        snapshot
+      )
+      expect(wrote).to.equal(false)
+      const [fresh] = await db.getServiceJob(job.serviceId, job.owner)
+      expect(fresh.runtimeMetrics).to.equal(undefined)
+    })
+  })
 })
