@@ -126,4 +126,15 @@ describe('loadServiceTemplates', () => {
       rmSync(outsideDir, { recursive: true, force: true })
     }
   })
+
+  it('12. commandFile is inlined into command[0] and the key is dropped', async () => {
+    writeFileSync(join(dir, 'boot.sh'), '#!/bin/bash\necho hi\n')
+    writeFileSync(
+      join(dir, 'a.json'),
+      JSON.stringify({ ...valid('tmpl-cmd'), commandFile: 'boot.sh' })
+    )
+    const [tmpl] = await loadServiceTemplates(dir)
+    expect(tmpl.command[0]).to.equal('#!/bin/bash\necho hi\n')
+    expect(tmpl).to.not.have.property('commandFile')
+  })
 })

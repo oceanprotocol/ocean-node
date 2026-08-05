@@ -28,6 +28,7 @@ Templates are validated against `ServiceTemplateSchema`
 | `image` + exactly one of `tag` / `checksum` / `dockerfile` | Image spec (`dockerfile` triggers a build and is gated per daemon by `allowImageBuild`)                          |
 | `exposedPorts`                                             | Container ports forwarded to host ports and returned as service endpoints                                        |
 | `command` / `entrypoint`                                   | Docker CMD / ENTRYPOINT overrides                                                                                |
+| `commandFile`                                               | Path to a script, resolved relative to this directory and inlined as `command[0]` at load time (mutually exclusive with `command`) |
 | `envVars`                                                  | Fixed operator-set env vars (values never returned to callers)                                                   |
 | `userConfigurableEnvVars`                                  | Env vars the consumer supplies via ECIES-encrypted `userData` (optional regex `validation`, `sensitive` UI hint) |
 | `requiredResources` / `recommendedResources`               | Gate/score environment selection (`min` is enforced at `SERVICE_START`)                                          |
@@ -102,35 +103,47 @@ so no `command` override is needed. Bundles ComfyUI-Manager for installing check
 custom nodes from the UI; `HF_TOKEN` / `CIVITAI_TOKEN` are optional user env vars for gated
 downloads. ~10 GB VRAM for SDXL.
 
-### `ltx-video-ugc.json` — ComfyUI, LTX-2.3 UGC video (GPU)
+### `ltx-video-ugc-product.json` — ComfyUI, LTX-2.3 product video (GPU)
 
-ComfyUI preloaded with LTX-2.3 for vertical short-form product video, with two ready-made
-workflow graphs (`workflows/ocean_ugc_product.json`, `workflows/ocean_ugc_testimonial.json`):
-a product photo becomes a 9:16 clip with camera motion and ambient audio, or a creator photo
-plus a voice clip becomes a lip-synced testimonial (capped at the graph's 5.8s — trim longer
-voiceovers or raise the frame count). `entrypoint`/`command` override to a bootstrap
-script (inlined as `command[0]`) that downloads the ~38 GiB weight set (LTX-2.3 22B fp8
-checkpoint, Gemma-3-12B text encoder, two LoRAs, the x2 spatial upscaler) on first launch.
-Pick a persistent-storage bucket for this template — weights and generated clips both live
-there, so only the first launch pays the download; without a bucket the weights land inside
-the container and are lost on stop (in `/tmp`, not the bucket).
+ComfyUI preloaded with LTX-2.3 for one fixed workflow (`workflows/ocean_ugc_product.json`): a
+product photo becomes a vertical 9:16 (720×1280) clip with camera motion and ambient audio,
+capped at the graph's 5 seconds (126 frames at 25 fps — trim longer voiceovers or raise the
+frame count). `entrypoint`/`commandFile` override to a bootstrap script
+(`ltx-video-ugc-bootstrap.sh`, inlined as `command[0]` at load time) that downloads the
+~38 GiB weight set (LTX-2.3 22B fp8 checkpoint, Gemma-3-12B text encoder, two LoRAs, the x2
+spatial upscaler) on first launch. Pick a persistent-storage bucket for this template: weights
+live under the bucket, so only the first launch pays the download, and generated clips are
+written to the bucket root (via ComfyUI's `--output-directory`) so the storage API's
+`listFiles` — which only lists the bucket's top-level files — can see them. Without a bucket
+the weights land inside the container and are lost on stop (in `/tmp`, not the bucket).
 
 The bootstrap runs `main.py` directly from the image's read-only bundle with ComfyUI's own
-`--base-directory` flag, pointed at the bucket, so models/output/input/user/custom_nodes all
-live there and nothing is written under `/root`. This deliberately bypasses the image's
-entrypoint, which copies its bundle into `/root/ComfyUI` and therefore fails on hosts where the
-service container is not uid 0. Relocating `custom_nodes` also means the image's bundled
-ComfyUI-Manager is not loaded — this template ships fixed workflows and installs no nodes at
+`--base-directory` flag, pointed at the bucket, so models/input/user/custom_nodes all live
+there and nothing is written under `/root`. This deliberately bypasses the image's entrypoint,
+which copies its bundle into `/root/ComfyUI` and therefore fails on hosts where the service
+container is not uid 0. Relocating `custom_nodes` also means the image's bundled
+ComfyUI-Manager is not loaded — this template ships one fixed workflow and installs no nodes at
 runtime.
 
-The consumer selects a workflow via userData: `COMFY_WORKFLOW_ID` (`ocean_ugc_product` or
-`ocean_ugc_testimonial`, used only for the `[ocean] installed workflow …` log line) plus
-`COMFY_WORKFLOW` (that workflow's graph JSON, gzipped then base64-encoded). The bootstrap
-writes it into a minimal custom-node pack at the constant path
-`custom_nodes/ocean_ugc/example_workflows/ocean_ugc.json` — exactly one graph is ever
-installed per container, so the filename doesn't vary — which ComfyUI serves at
-`/api/workflow_templates/ocean_ugc/ocean_ugc.json`. Open the ComfyUI URL with
-`?template=ocean_ugc&source=all` to load it directly instead of building the graph by hand.
+The workflow graph is delivered via userData: `COMFY_WORKFLOW_ID` (`ocean_ugc_product`, used
+only for the `[ocean] installed workflow …` log line) plus `COMFY_WORKFLOW` (the graph JSON,
+gzipped then base64-encoded). The bootstrap writes it into a minimal custom-node pack at the
+constant path `custom_nodes/ocean_ugc/example_workflows/ocean_ugc.json`, which ComfyUI serves
+at `/api/workflow_templates/ocean_ugc/ocean_ugc.json`. Open the ComfyUI URL with
+`?template=ocean_ugc&source=ocean_ugc` to load it directly instead of building the graph by
+hand. The same graph is also copied into `user/default/workflows/`, so it appears in ComfyUI's
+Workflows sidebar as an ordinary saved workflow — that path needs no template-browser
+resolution or URL parameters, and is the fallback when the deep link does not fire.
+Needs a CUDA GPU with 48 GB+ VRAM (LTX-2.3 22B fp8 + Gemma-3-12B encoder).
+
+### `ltx-video-ugc-testimonial.json` — ComfyUI, LTX-2.3 creator testimonial (GPU)
+
+Same image, bootstrap script, and bucket/weight-download behavior as
+`ltx-video-ugc-product.json` above (see that section for details), but with a different fixed
+workflow (`workflows/ocean_ugc_testimonial.json`, delivered via `COMFY_WORKFLOW_ID=
+ocean_ugc_testimonial` + `COMFY_WORKFLOW`): a creator photo plus a voice clip becomes a
+lip-synced vertical 9:16 (720×1280) testimonial, capped at the same 5 seconds (126 frames at
+25 fps). Generated clips likewise land in the bucket root so the storage API can list them.
 Needs a CUDA GPU with 48 GB+ VRAM (LTX-2.3 22B fp8 + Gemma-3-12B encoder).
 
 ### `automatic1111.json` — Stable Diffusion WebUI (A1111) (GPU)

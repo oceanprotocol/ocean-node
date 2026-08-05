@@ -7,6 +7,17 @@ import type {
 import { ServiceTemplateSchema } from '../../../utils/config/schemas.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
+// Resolves `relPath` against `resolvedDir` (an already-resolved absolute dir), rejecting any
+// path that escapes it (e.g. via `../`). Returns the resolved absolute path, or null if it
+// would land outside `resolvedDir`.
+function resolveInTemplatesDir(resolvedDir: string, relPath: string): string | null {
+  const target = resolve(resolvedDir, relPath)
+  if (target !== resolvedDir && !target.startsWith(resolvedDir + sep)) {
+    return null
+  }
+  return target
+}
+
 // Re-reads on every call so operators can add/edit/remove template files without a restart.
 // (If profiling ever shows this is hot, add an mtime-keyed cache — semantics stay identical.)
 export async function loadServiceTemplates(dir?: string): Promise<ServiceTemplate[]> {
@@ -58,6 +69,25 @@ export async function loadServiceTemplates(dir?: string): Promise<ServiceTemplat
         )
         continue
       }
+      if (tmpl.commandFile) {
+        const target = resolveInTemplatesDir(resolvedDir, tmpl.commandFile)
+        if (!target) {
+          CORE_LOGGER.warn(
+            `Skipping service template "${tmpl.id}": "${tmpl.commandFile}" resolves outside the templates dir`
+          )
+          continue
+        }
+        try {
+          const content = await readFile(target, 'utf8')
+          delete tmpl.commandFile
+          tmpl.command = [content]
+        } catch (e) {
+          CORE_LOGGER.warn(
+            `Skipping service template "${tmpl.id}": cannot read commandFile "${tmpl.commandFile}" (${e.message})`
+          )
+          continue
+        }
+      }
       if (tmpl.workflows?.length) {
         // A workflow with a missing/malformed file is dropped, not the whole template.
         const resolved: ServiceTemplateWorkflow[] = []
@@ -66,8 +96,8 @@ export async function loadServiceTemplates(dir?: string): Promise<ServiceTemplat
             resolved.push(wf)
             continue
           }
-          const target = resolve(resolvedDir, wf.file)
-          if (target !== resolvedDir && !target.startsWith(resolvedDir + sep)) {
+          const target = resolveInTemplatesDir(resolvedDir, wf.file)
+          if (!target) {
             CORE_LOGGER.warn(
               `Template "${tmpl.id}": dropping workflow "${wf.id}" — "${wf.file}" resolves outside the templates dir`
             )

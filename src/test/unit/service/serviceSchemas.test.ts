@@ -86,10 +86,12 @@ describe('ServiceTemplateSchema', () => {
       }).success
     ).to.equal(true)
   })
-  it('ltx-video-ugc: template matches ServiceTemplateSchema', () => {
+  it('ltx-video-ugc-product/testimonial: templates match ServiceTemplateSchema', () => {
     const dir = join(process.cwd(), 'docs', 'serviceTemplates')
-    const tmpl = JSON.parse(readFileSync(join(dir, 'ltx-video-ugc.json'), 'utf8'))
-    expect(ServiceTemplateSchema.safeParse(tmpl).success).to.equal(true)
+    for (const file of ['ltx-video-ugc-product.json', 'ltx-video-ugc-testimonial.json']) {
+      const tmpl = JSON.parse(readFileSync(join(dir, file), 'utf8'))
+      expect(ServiceTemplateSchema.safeParse(tmpl).success).to.equal(true)
+    }
   })
 })
 

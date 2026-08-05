@@ -1,0 +1,60 @@
+{
+  "id": "ltx-video-ugc-testimonial",
+  "name": "ComfyUI — UGC creator testimonial (LTX-2.3)",
+  "description": "ComfyUI preloaded with LTX-2.3 for vertical short-form UGC video: a creator photo plus a voice clip becomes a lip-synced 9:16 testimonial, capped at the graph's 5 seconds (126 frames at 25 fps). Select a persistent-storage bucket: it holds ComfyUI's whole base directory, so the 38 GiB of weights download once and are reused, and generated clips land in the bucket root. Needs a CUDA GPU with 48 GB+ VRAM.",
+  "image": "yanwk/comfyui-boot",
+  "tag": "cu130-megapak-pt211-20260803",
+  "exposedPorts": [
+    8188
+  ],
+  "entrypoint": [
+    "/bin/bash",
+    "-c"
+  ],
+  "commandFile": "ltx-video-ugc-bootstrap.sh",
+  "workflows": [
+    {
+      "id": "ocean_ugc_testimonial",
+      "name": "Creator testimonial (lip-sync)",
+      "description": "Upload a person photo and a voice clip, get a lip-synced 9:16 testimonial.",
+      "file": "workflows/ocean_ugc_testimonial.json"
+    }
+  ],
+  "userConfigurableEnvVars": [
+    {
+      "key": "COMFY_WORKFLOW_ID",
+      "validation": "^[A-Za-z0-9_.-]+$"
+    },
+    {
+      "key": "COMFY_WORKFLOW"
+    }
+  ],
+  "requiredResources": [
+    {
+      "id": "cpu",
+      "min": 8,
+      "recommended": 16,
+      "unit": "cores"
+    },
+    {
+      "id": "ram",
+      "min": 32,
+      "recommended": 64,
+      "unit": "GB"
+    },
+    {
+      "id": "disk",
+      "min": 40,
+      "recommended": 80,
+      "unit": "GB"
+    },
+    {
+      "kind": "discrete",
+      "type": "gpu",
+      "min": 1,
+      "recommended": 1,
+      "unit": "count",
+      "description": "CUDA GPU, 48 GB+ VRAM recommended (LTX-2.3 22B fp8 + Gemma-3-12B encoder)"
+    }
+  ]
+}

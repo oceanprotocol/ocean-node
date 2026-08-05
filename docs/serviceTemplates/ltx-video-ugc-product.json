@@ -1,0 +1,60 @@
+{
+  "id": "ltx-video-ugc-product",
+  "name": "ComfyUI — UGC product video (LTX-2.3)",
+  "description": "ComfyUI preloaded with LTX-2.3 for vertical short-form product video: a product photo becomes a 9:16 clip with camera motion and ambient audio, capped at the graph's 5 seconds (126 frames at 25 fps). Select a persistent-storage bucket: it holds ComfyUI's whole base directory, so the 38 GiB of weights download once and are reused, and generated clips land in the bucket root. Needs a CUDA GPU with 48 GB+ VRAM.",
+  "image": "yanwk/comfyui-boot",
+  "tag": "cu130-megapak-pt211-20260803",
+  "exposedPorts": [
+    8188
+  ],
+  "entrypoint": [
+    "/bin/bash",
+    "-c"
+  ],
+  "commandFile": "ltx-video-ugc-bootstrap.sh",
+  "workflows": [
+    {
+      "id": "ocean_ugc_product",
+      "name": "Product → vertical clip",
+      "description": "Upload a product photo, get a 9:16 clip with camera motion and ambient audio.",
+      "file": "workflows/ocean_ugc_product.json"
+    }
+  ],
+  "userConfigurableEnvVars": [
+    {
+      "key": "COMFY_WORKFLOW_ID",
+      "validation": "^[A-Za-z0-9_.-]+$"
+    },
+    {
+      "key": "COMFY_WORKFLOW"
+    }
+  ],
+  "requiredResources": [
+    {
+      "id": "cpu",
+      "min": 8,
+      "recommended": 16,
+      "unit": "cores"
+    },
+    {
+      "id": "ram",
+      "min": 32,
+      "recommended": 64,
+      "unit": "GB"
+    },
+    {
+      "id": "disk",
+      "min": 40,
+      "recommended": 80,
+      "unit": "GB"
+    },
+    {
+      "kind": "discrete",
+      "type": "gpu",
+      "min": 1,
+      "recommended": 1,
+      "unit": "count",
+      "description": "CUDA GPU, 48 GB+ VRAM recommended (LTX-2.3 22B fp8 + Gemma-3-12B encoder)"
+    }
+  ]
+}

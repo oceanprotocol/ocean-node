@@ -133,7 +133,7 @@
     }
    },
    "widgets_values": [
-    "video/ocean_ugc_product",
+    "ocean_ugc_product",
     "auto",
     "auto"
    ]
@@ -1832,9 +1832,9 @@
        }
       },
       "widgets_values": [
-       576,
-       1024,
-       145,
+       768,
+       512,
+       97,
        1
       ]
      },
@@ -2105,7 +2105,7 @@
        }
       },
       "widgets_values": [
-       720,
+       1280,
        "fixed"
       ]
      },
@@ -2484,7 +2484,7 @@
        }
       },
       "widgets_values": [
-       145,
+       97,
        25,
        1
       ]
@@ -2923,7 +2923,7 @@
        }
       },
       "widgets_values": [
-       1280,
+       720,
        "fixed"
       ]
      },

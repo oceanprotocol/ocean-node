@@ -377,6 +377,7 @@ export const ServiceTemplateSchema = z
     envVars: z.record(z.string()).optional(),
     userConfigurableEnvVars: z.array(UserConfigurableEnvVarSchema).optional(),
     command: z.array(z.string()).optional(),
+    commandFile: z.string().min(1).optional(),
     entrypoint: z.array(z.string()).optional(),
     requiredResources: z.array(TemplateResourceRequirementSchema).optional(),
     recommendedResources: z.array(TemplateResourceRequirementSchema).optional(),
@@ -426,6 +427,14 @@ export const ServiceTemplateSchema = z
         code: z.ZodIssueCode.custom,
         message: '"additionalDockerFiles" requires "dockerfile"',
         path: ['additionalDockerFiles']
+      })
+    }
+
+    if (tmpl.command && tmpl.commandFile) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '"command" and "commandFile" are mutually exclusive — set at most one',
+        path: ['commandFile']
       })
     }
   })

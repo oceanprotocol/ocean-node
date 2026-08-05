@@ -148,7 +148,7 @@
     "Node name for S&R": "SaveVideo"
    },
    "widgets_values": [
-    "video/ocean_ugc_testimonial",
+    "ocean_ugc_testimonial",
     "auto",
     "auto"
    ]
@@ -2027,7 +2027,7 @@
        "Node name for S&R": "PrimitiveInt"
       },
       "widgets_values": [
-       1280,
+       720,
        "fixed"
       ]
      },
@@ -2755,9 +2755,9 @@
        "Node name for S&R": "EmptyLTXVLatentVideo"
       },
       "widgets_values": [
-       576,
-       1024,
-       145,
+       768,
+       512,
+       97,
        1
       ]
      },
@@ -2891,7 +2891,7 @@
        "Node name for S&R": "PrimitiveInt"
       },
       "widgets_values": [
-       720,
+       1280,
        "fixed"
       ]
      },
