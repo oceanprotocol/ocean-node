@@ -7,9 +7,7 @@ import type {
 import { ServiceTemplateSchema } from '../../../utils/config/schemas.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
-// Resolves `relPath` against `resolvedDir` (an already-resolved absolute dir), rejecting any
-// path that escapes it (e.g. via `../`). Returns the resolved absolute path, or null if it
-// would land outside `resolvedDir`.
+// Null when `relPath` escapes `resolvedDir` — template paths are author-controlled.
 function resolveInTemplatesDir(resolvedDir: string, relPath: string): string | null {
   const target = resolve(resolvedDir, relPath)
   if (target !== resolvedDir && !target.startsWith(resolvedDir + sep)) {

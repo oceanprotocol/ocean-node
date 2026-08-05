@@ -1,14 +1,12 @@
 #!/bin/bash
-# The image's own entrypoint copies its ComfyUI bundle into /root/ComfyUI, which fails on
-# hosts where the service container is not uid 0 — bypassed here in favor of running ComfyUI
-# straight from the read-only bundle via --base-directory.
+# Bypasses the image entrypoint, which writes to /root/ComfyUI and fails where the container
+# is not uid 0.
 set -euo pipefail
 
 WF_ID="${COMFY_WORKFLOW_ID:-}"
-# COMFY_WORKFLOW_ID is client-supplied and becomes both a directory and a filename.
-# ServiceStartHandler never loads templates, so userConfigurableEnvVars.validation is NOT enforced
-# node-side — this check is the only thing standing between userData and a path traversal. No dots:
-# the directory becomes a Python module name that ComfyUI imports.
+# Client-supplied, and becomes a directory + filename. userConfigurableEnvVars.validation is not
+# enforced node-side, so this is the only guard against traversal. No dots: it becomes a Python
+# module name.
 if [ -n "$WF_ID" ] && ! [[ "$WF_ID" =~ ^[A-Za-z0-9_-]{1,64}$ ]]; then
   echo "[ocean] invalid COMFY_WORKFLOW_ID" >&2
   exit 1
@@ -31,8 +29,7 @@ MODELS="$BASE/models"
 mkdir -p "$MODELS/checkpoints" "$MODELS/loras" "$MODELS/text_encoders" \
   "$MODELS/latent_upscale_models" "$BASE/output" "$BASE/input" "$BASE/temp" "$BASE/user"
 
-# Download to .part then rename: a truncated file in a persistent bucket would be treated as
-# cached by every future launch.
+# .part then rename: a truncated file in a persistent bucket would look cached forever.
 get() {
   if [ -f "$2" ]; then
     echo "[ocean] cached $(basename "$2")"
@@ -46,9 +43,8 @@ get() {
     echo "[ocean] download failed for $(basename "$2") (HTTP $http_code)" >&2
     return 22
   fi
-  # HTTP 200 is not proof of a model file: a proxy or HF error page returns a few hundred bytes
-  # with a success status. Without this floor that body gets renamed into place and every later
-  # launch treats it as cached. The smallest real file here is ~300 MB, so 10 MB is unambiguous.
+  # A proxy or HF error page returns a few hundred bytes with HTTP 200; without this floor that
+  # body would be cached as a model. Smallest real file is ~300 MB.
   size=$(wc -c < "$2.part")
   if [ "$size" -lt 10485760 ]; then
     echo "[ocean] $(basename "$2") is only $size bytes — not a model file. First bytes:" >&2
@@ -60,35 +56,65 @@ get() {
   mv "$2.part" "$2"
 }
 
-HF=https://huggingface.co
-get "$HF/Lightricks/LTX-2.3-fp8/resolve/main/ltx-2.3-22b-dev-fp8.safetensors" \
-  "$MODELS/checkpoints/ltx-2.3-22b-dev-fp8.safetensors"
-get "$HF/Comfy-Org/ltx-2/resolve/main/split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors" \
-  "$MODELS/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors"
-get "$HF/Comfy-Org/ltx-2.3/resolve/main/split_files/loras/ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors" \
-  "$MODELS/loras/ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors"
-get "$HF/Comfy-Org/ltx-2/resolve/main/split_files/loras/gemma-3-12b-it-abliterated_lora_rank64_bf16.safetensors" \
-  "$MODELS/loras/gemma-3-12b-it-abliterated_lora_rank64_bf16.safetensors"
-get "$HF/Lightricks/LTX-2.3/resolve/main/ltx-2.3-spatial-upscaler-x2-1.1.safetensors" \
-  "$MODELS/latent_upscale_models/ltx-2.3-spatial-upscaler-x2-1.1.safetensors"
-
+WORKFLOW_JSON=""
 if [ -n "$WF_ID" ] && [ -n "${COMFY_WORKFLOW:-}" ]; then
-  # Pack directory and graph filename are both $WF_ID, so the client's deep link
-  # (?template=<id>&source=<id>) resolves without either side hard-coding a name.
+  # Pack dir and filename are both $WF_ID, so ?template=<id>&source=<id> resolves with no
+  # hard-coded name on either side.
   PACK="$BASE/custom_nodes/$WF_ID"
   SAVED="$BASE/user/default/workflows"
   mkdir -p "$PACK/example_workflows" "$SAVED"
   echo 'NODE_CLASS_MAPPINGS = {}' > "$PACK/__init__.py"
-  # Escrow is already claimed by the time this runs — a corrupt payload must not take the container
-  # down with it. Degrade to no workflow and keep going; the decode's stderr lands in the logs.
+  # Escrow is already claimed: a corrupt payload must not kill the container.
   if printf '%s' "$COMFY_WORKFLOW" | base64 -d | gunzip > "$PACK/example_workflows/$WF_ID.json"; then
-    # Also a saved workflow, so it appears in ComfyUI's sidebar without the template browser.
     cp "$PACK/example_workflows/$WF_ID.json" "$SAVED/$WF_ID.json"
+    WORKFLOW_JSON="$PACK/example_workflows/$WF_ID.json"
     echo "[ocean] installed workflow $WF_ID (template pack + Workflows sidebar)"
   else
     echo "[ocean] failed to decode COMFY_WORKFLOW — starting ComfyUI without a workflow" >&2
     rm -f "$PACK/example_workflows/$WF_ID.json"
   fi
+fi
+
+# The graph carries the HuggingFace URLs for everything it loads, so each template fetches only
+# what it uses and a new workflow needs no edit here. Template envVars can't drive this: nothing
+# merges them into a service container.
+if [ -n "$WORKFLOW_JSON" ]; then
+  # `|| true` and the except are both needed: a payload that gunzips but isn't a graph must not
+  # abort the bootstrap after escrow is claimed.
+  MODEL_URLS=$(python3.13 - "$WORKFLOW_JSON" <<'PY' || true
+import json, re, sys
+seen = []
+def walk(o):
+    if isinstance(o, dict):
+        for v in o.values(): walk(v)
+    elif isinstance(o, list):
+        for v in o: walk(v)
+    elif isinstance(o, str):
+        for m in re.findall(r'https://huggingface\.co/[^\s\)\]"]+?\.safetensors', o):
+            if m not in seen: seen.append(m)
+try:
+    walk(json.load(open(sys.argv[1])))
+except Exception as e:
+    print(f'[ocean] cannot read model URLs from the workflow: {e}', file=sys.stderr)
+print('\n'.join(seen))
+PY
+)
+  if [ -z "$MODEL_URLS" ]; then
+    echo "[ocean] no model URLs found in the workflow — ComfyUI will start without weights" >&2
+  fi
+  for url in $MODEL_URLS; do
+    case "$url" in
+      */text_encoders/*) sub=text_encoders ;;
+      */loras/*)         sub=loras ;;
+      *upscaler*)        sub=latent_upscale_models ;;
+      *)                 sub=checkpoints ;;
+    esac
+    # One renamed file must not cost the whole paid session.
+    get "$url" "$MODELS/$sub/$(basename "$url")" ||
+      echo "[ocean] could not fetch $(basename "$url") — ComfyUI will start without it" >&2
+  done
+else
+  echo "[ocean] no workflow supplied — skipping model download" >&2
 fi
 
 export HOME="$BASE"

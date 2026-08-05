@@ -86,9 +86,9 @@ describe('ServiceTemplateSchema', () => {
       }).success
     ).to.equal(true)
   })
-  it('ltx-video-ugc-product/testimonial: templates match ServiceTemplateSchema', () => {
+  it('ltx-video-ugc-product/multishot: templates match ServiceTemplateSchema', () => {
     const dir = join(process.cwd(), 'docs', 'serviceTemplates')
-    for (const file of ['ltx-video-ugc-product.json', 'ltx-video-ugc-testimonial.json']) {
+    for (const file of ['ltx-video-ugc-product.json', 'ltx-video-ugc-multishot.json']) {
       const tmpl = JSON.parse(readFileSync(join(dir, file), 'utf8'))
       expect(ServiceTemplateSchema.safeParse(tmpl).success).to.equal(true)
     }

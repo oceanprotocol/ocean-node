@@ -1,0 +1,60 @@
+{
+  "id": "ltx-video-ugc-multishot",
+  "name": "ComfyUI — UGC multishot reel (LTX-2.3)",
+  "description": "ComfyUI preloaded with LTX-2.3 (IC-LoRA Ingredients) for a 15-shot vertical UGC product reel with one consistent character. Usage: upload a character reference sheet as the workflow's image input, type one prompt per line in its shot-list text box (each line a distinct camera angle/action, e.g. close-up on the product, hands unboxing, walking outdoors), then set ComfyUI's Queue batch count to 15 and hit Queue — each shot runs as its own separate queue item, individually cancellable, and the shot index advances automatically between them. Clips are 9:16 vertical (704×1280, both divisible by 32 as LTX requires) at 5 seconds each (125 frames at 25 fps), saved to the bucket root as shot_00.mp4 .. shot_14.mp4 in order for you to assemble in your own editor — there is no in-container concatenation. Select a persistent-storage bucket: it holds ComfyUI's whole base directory, so the ~39 GiB of weights download once and are reused, and the numbered shot clips land in the bucket root where the storage API's listFiles can see them. Needs a CUDA GPU with 48 GB+ VRAM.",
+  "image": "yanwk/comfyui-boot",
+  "tag": "cu130-megapak-pt211-20260803",
+  "exposedPorts": [
+    8188
+  ],
+  "entrypoint": [
+    "/bin/bash",
+    "-c"
+  ],
+  "commandFile": "ltx-video-ugc-bootstrap.sh",
+  "workflows": [
+    {
+      "id": "ocean_ugc_multishot",
+      "name": "Multishot reel (15 shots)",
+      "description": "Upload a character reference sheet and a 15-line shot list, set Queue batch count to 15, get 15 numbered 9:16 clips (shot_00..shot_14) with one consistent character.",
+      "file": "workflows/ocean_ugc_multishot.json"
+    }
+  ],
+  "userConfigurableEnvVars": [
+    {
+      "key": "COMFY_WORKFLOW_ID",
+      "validation": "^[A-Za-z0-9_-]+$"
+    },
+    {
+      "key": "COMFY_WORKFLOW"
+    }
+  ],
+  "requiredResources": [
+    {
+      "id": "cpu",
+      "min": 8,
+      "recommended": 16,
+      "unit": "cores"
+    },
+    {
+      "id": "ram",
+      "min": 32,
+      "recommended": 64,
+      "unit": "GB"
+    },
+    {
+      "id": "disk",
+      "min": 45,
+      "recommended": 85,
+      "unit": "GB"
+    },
+    {
+      "kind": "discrete",
+      "type": "gpu",
+      "min": 1,
+      "recommended": 1,
+      "unit": "count",
+      "description": "CUDA GPU, 48 GB+ VRAM recommended (LTX-2.3 22B distilled fp8 + Gemma-3-12B encoder)"
+    }
+  ]
+}

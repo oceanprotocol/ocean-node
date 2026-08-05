@@ -137,4 +137,23 @@ describe('loadServiceTemplates', () => {
     expect(tmpl.command[0]).to.equal('#!/bin/bash\necho hi\n')
     expect(tmpl).to.not.have.property('commandFile')
   })
+
+  it('13. commandFile escaping the templates dir skips the whole template', async () => {
+    const outsideDir = mkdtempSync(join(tmpdir(), 'svc-templates-outside-'))
+    try {
+      const secret = join(outsideDir, 'secret.sh')
+      writeFileSync(secret, 'echo pwned\n')
+      writeFileSync(
+        join(dir, 'a.json'),
+        JSON.stringify({
+          ...valid('tmpl-escape-cmd'),
+          commandFile: relative(dir, secret)
+        })
+      )
+      // A bad workflow is dropped on its own; a template with no command is not servable.
+      expect(await loadServiceTemplates(dir)).to.deep.equal([])
+    } finally {
+      rmSync(outsideDir, { recursive: true, force: true })
+    }
+  })
 })
