@@ -310,7 +310,7 @@ describe('C2DEngine.getUsedResources', () => {
   })
 })
 
-describe('C2DEngine.checkIfResourcesAreAvailable free-tier gate', () => {
+describe('C2DEngine.checkIfResourcesAreAvailable availability gates', () => {
   function envWithFree(freeResources: any[]): ComputeEnvironment {
     const env = makeEnv()
     env.resources[0].inUse = 0
@@ -330,6 +330,27 @@ describe('C2DEngine.checkIfResourcesAreAvailable free-tier gate', () => {
       return e.message
     }
   }
+
+  it('rejects an oversized paid request when the env resource has no total/inUse', async () => {
+    // Gate 1 has the same NaN-admits hazard as the free gate below: unguarded,
+    // `undefined - 0 < amount` is false and the request is silently admitted.
+    const engine = new TestEngine([])
+    for (const cpu of [
+      { id: 'cpu', kind: 'fungible' },
+      { id: 'cpu', kind: 'fungible', inUse: 4 }
+    ]) {
+      const env = makeEnv()
+      ;(env as any).resources = [cpu]
+      const message = await rejectionOf(
+        // no allEnvironments → only gate 1 applies
+        engine.checkIfResourcesAreAvailable([{ id: 'cpu', amount: 8 }], env, false)
+      )
+      assert(
+        message === 'Not enough available cpu in this environment',
+        `expected gate 1 to reject ${JSON.stringify(cpu)}, got ${message}`
+      )
+    }
+  })
 
   it('rejects an oversized free request when the free resource has no total/inUse', async () => {
     // A sparse free-resource entry made `undefined - undefined < amount` evaluate to NaN <
