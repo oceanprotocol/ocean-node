@@ -23,7 +23,7 @@
   "userConfigurableEnvVars": [
     {
       "key": "COMFY_WORKFLOW_ID",
-      "validation": "^[A-Za-z0-9_.-]+$"
+      "validation": "^[A-Za-z0-9_-]+$"
     },
     {
       "key": "COMFY_WORKFLOW"

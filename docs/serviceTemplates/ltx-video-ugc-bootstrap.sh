@@ -5,10 +5,11 @@
 set -euo pipefail
 
 WF_ID="${COMFY_WORKFLOW_ID:-}"
-# COMFY_WORKFLOW_ID is client-supplied and becomes a filename. ServiceStartHandler never
-# loads templates, so userConfigurableEnvVars.validation is NOT enforced node-side — this
-# check is the only thing standing between userData and a path traversal.
-if [ -n "$WF_ID" ] && ! [[ "$WF_ID" =~ ^[A-Za-z0-9_.-]{1,64}$ ]]; then
+# COMFY_WORKFLOW_ID is client-supplied and becomes both a directory and a filename.
+# ServiceStartHandler never loads templates, so userConfigurableEnvVars.validation is NOT enforced
+# node-side — this check is the only thing standing between userData and a path traversal. No dots:
+# the directory becomes a Python module name that ComfyUI imports.
+if [ -n "$WF_ID" ] && ! [[ "$WF_ID" =~ ^[A-Za-z0-9_-]{1,64}$ ]]; then
   echo "[ocean] invalid COMFY_WORKFLOW_ID" >&2
   exit 1
 fi
@@ -71,20 +72,22 @@ get "$HF/Comfy-Org/ltx-2/resolve/main/split_files/loras/gemma-3-12b-it-abliterat
 get "$HF/Lightricks/LTX-2.3/resolve/main/ltx-2.3-spatial-upscaler-x2-1.1.safetensors" \
   "$MODELS/latent_upscale_models/ltx-2.3-spatial-upscaler-x2-1.1.safetensors"
 
-PACK="$BASE/custom_nodes/ocean_ugc"
-SAVED="$BASE/user/default/workflows"
-mkdir -p "$PACK/example_workflows" "$SAVED"
-echo 'NODE_CLASS_MAPPINGS = {}' > "$PACK/__init__.py"
 if [ -n "$WF_ID" ] && [ -n "${COMFY_WORKFLOW:-}" ]; then
-  # Escrow is already claimed by the time this runs — a corrupt/undecodable payload must not take
-  # the whole container down with it. Degrade to an empty pack and keep going; base64/gunzip's own
-  # stderr plus the line below land in the container logs either way.
-  if printf '%s' "$COMFY_WORKFLOW" | base64 -d | gunzip > "$PACK/example_workflows/ocean_ugc.json"; then
-    cp "$PACK/example_workflows/ocean_ugc.json" "$SAVED/ocean_ugc.json"
+  # Pack directory and graph filename are both $WF_ID, so the client's deep link
+  # (?template=<id>&source=<id>) resolves without either side hard-coding a name.
+  PACK="$BASE/custom_nodes/$WF_ID"
+  SAVED="$BASE/user/default/workflows"
+  mkdir -p "$PACK/example_workflows" "$SAVED"
+  echo 'NODE_CLASS_MAPPINGS = {}' > "$PACK/__init__.py"
+  # Escrow is already claimed by the time this runs — a corrupt payload must not take the container
+  # down with it. Degrade to no workflow and keep going; the decode's stderr lands in the logs.
+  if printf '%s' "$COMFY_WORKFLOW" | base64 -d | gunzip > "$PACK/example_workflows/$WF_ID.json"; then
+    # Also a saved workflow, so it appears in ComfyUI's sidebar without the template browser.
+    cp "$PACK/example_workflows/$WF_ID.json" "$SAVED/$WF_ID.json"
     echo "[ocean] installed workflow $WF_ID (template pack + Workflows sidebar)"
   else
-    echo "[ocean] failed to decode COMFY_WORKFLOW — starting ComfyUI with an empty workflow pack" >&2
-    rm -f "$PACK/example_workflows/ocean_ugc.json"
+    echo "[ocean] failed to decode COMFY_WORKFLOW — starting ComfyUI without a workflow" >&2
+    rm -f "$PACK/example_workflows/$WF_ID.json"
   fi
 fi
 

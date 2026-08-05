@@ -125,15 +125,18 @@ container is not uid 0. Relocating `custom_nodes` also means the image's bundled
 ComfyUI-Manager is not loaded — this template ships one fixed workflow and installs no nodes at
 runtime.
 
-The workflow graph is delivered via userData: `COMFY_WORKFLOW_ID` (`ocean_ugc_product`, used
-only for the `[ocean] installed workflow …` log line) plus `COMFY_WORKFLOW` (the graph JSON,
-gzipped then base64-encoded). The bootstrap writes it into a minimal custom-node pack at the
-constant path `custom_nodes/ocean_ugc/example_workflows/ocean_ugc.json`, which ComfyUI serves
-at `/api/workflow_templates/ocean_ugc/ocean_ugc.json`. Open the ComfyUI URL with
-`?template=ocean_ugc&source=ocean_ugc` to load it directly instead of building the graph by
-hand. The same graph is also copied into `user/default/workflows/`, so it appears in ComfyUI's
-Workflows sidebar as an ordinary saved workflow — that path needs no template-browser
-resolution or URL parameters, and is the fallback when the deep link does not fire.
+The workflow graph is delivered via userData: `COMFY_WORKFLOW_ID` (the workflow's id, e.g.
+`ocean_ugc_product`) plus `COMFY_WORKFLOW` (the graph JSON, gzipped then base64-encoded). The
+bootstrap writes it into a minimal custom-node pack named after that id —
+`custom_nodes/<id>/example_workflows/<id>.json` — which ComfyUI serves at
+`/api/workflow_templates/<id>/<id>.json`, so `?template=<id>&source=<id>` on the ComfyUI URL loads
+it directly. Naming the pack after the id is what lets the client build that link from the template
+alone, without either side hard-coding a path; `source` must be the module name, since ComfyUI
+resolves `source=all` only against its own core templates. The id therefore becomes a directory
+name, so its validation excludes dots (it is imported as a Python module). The graph is also copied
+into `user/default/workflows/`, where it appears in ComfyUI's Workflows sidebar as an ordinary saved
+workflow — no template-browser resolution or URL parameters needed, and the fallback if the deep
+link does not fire.
 Needs a CUDA GPU with 48 GB+ VRAM (LTX-2.3 22B fp8 + Gemma-3-12B encoder).
 
 ### `ltx-video-ugc-testimonial.json` — ComfyUI, LTX-2.3 creator testimonial (GPU)
