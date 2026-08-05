@@ -786,7 +786,15 @@ export abstract class C2DEngine {
 
       // Gate 1 (per-env ceiling) — fungible resources only.
       // envResource.total = env aggregate ceiling (from EnvironmentResourceRef.total).
-      if (isFungible && envResource.total - (envResource.inUse ?? 0) < request.amount)
+      // Both operands are defaulted: a resource object missing either field would make the
+      // subtraction NaN, and `NaN < amount` is false, i.e. the gate would silently admit the
+      // request. Missing must deny, not admit. (`total` is required by the type, but these
+      // objects also arrive from JSON config and older persisted shapes, which the compiler
+      // cannot vouch for — free-resource entries with no `total` have been seen in the field.)
+      if (
+        isFungible &&
+        (envResource.total ?? 0) - (envResource.inUse ?? 0) < request.amount
+      )
         throw new Error(`Not enough available ${request.id} in this environment`)
 
       // Gate 2 (engine-wide pool ceiling) — fungible + exclusive discrete.
@@ -799,11 +807,10 @@ export abstract class C2DEngine {
         if (!env.free) throw new Error(`No free resources`)
         envResource = this.getResource(env.free?.resources, request.id)
         if (!envResource) throw new Error(`No such free resource ${request.id}`)
-        // `total` and `inUse` are both optional on ComputeResource: a sparse config (or an
-        // unresolved free-resource ref) makes the subtraction NaN, and `NaN < amount` is
-        // false, which would silently pass the gate and allow unlimited free allocation.
-        // Default both to 0 so a missing value denies instead of admitting — same shape as
-        // gate 1 above.
+        // Same NaN-admits hazard as gate 1, and more reachable here: `inUse` is optional on
+        // ComputeResource, and free-resource entries carrying `max`/`inUse` but no `total`
+        // have been observed on live nodes (builds predating free-resource pool resolution).
+        // Unguarded, that yields NaN and allows unlimited free allocation.
         if ((envResource.total ?? 0) - (envResource.inUse ?? 0) < request.amount)
           throw new Error(`Not enough available ${request.id} for free`)
       }
