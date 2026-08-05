@@ -27,7 +27,7 @@ import type {
   EnvironmentResourceRef
 } from '../../@types/C2D/C2D.js'
 import { BASE_CHAIN_ID, USDC_TOKEN_ADDRESS_BASE } from '../../utils/config.js'
-import { C2DEngine } from './compute_engine_base.js'
+import { C2DEngine, parseJobTimestamp } from './compute_engine_base.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
 import { create256Hash } from '../../utils/crypt.js'
@@ -2417,10 +2417,15 @@ export class C2DEngineDocker extends C2DEngine {
         let expiry
 
         const buildDuration = this.getValidBuildDurationSeconds(job)
+        // Never measure from the '0' sentinel: parseFloat('0') would place the start at the
+        // Unix epoch and make an otherwise healthy container look instantly expired. If the
+        // algo start is not recorded yet, treat the clock as starting now — the next sweep
+        // will see the real timestamp.
+        const algoStart = parseJobTimestamp(job.algoStartTimestamp) || timeNow
         if (buildDuration > 0) {
           // if job has build time, reduce the remaining algorithm runtime budget
-          expiry = parseFloat(job.algoStartTimestamp) + job.maxJobDuration - buildDuration
-        } else expiry = parseFloat(job.algoStartTimestamp) + job.maxJobDuration
+          expiry = algoStart + job.maxJobDuration - buildDuration
+        } else expiry = algoStart + job.maxJobDuration
         CORE_LOGGER.debug(
           'container running since timeNow: ' + timeNow + ' , Expiry: ' + expiry
         )
@@ -4822,13 +4827,11 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   private getValidBuildDurationSeconds(job: DBComputeJob): number {
-    const startRaw = job.buildStartTimestamp
-    const stopRaw = job.buildStopTimestamp
-    if (!startRaw || !stopRaw) return 0
-    const start = Number.parseFloat(startRaw)
-    const stop = Number.parseFloat(stopRaw)
-    if (!Number.isFinite(start) || !Number.isFinite(stop)) return 0
-    if (start <= 0) return 0
+    // parseJobTimestamp returns 0 for the '0' sentinel, empty/missing values and anything
+    // non-finite, so a job that never built an image reports no build duration.
+    const start = parseJobTimestamp(job.buildStartTimestamp)
+    const stop = parseJobTimestamp(job.buildStopTimestamp)
+    if (start === 0 || stop === 0) return 0
     if (stop < start) return 0
     return stop - start
   }

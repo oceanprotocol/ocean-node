@@ -181,9 +181,25 @@ export interface ComputeEnvironment extends ComputeEnvironmentBaseConfig {
   consumerAddress: string // v1
   queuedJobs: number
   queuedFreeJobs: number
+  /**
+   * Seconds of remaining queue wait, **summed across every queued job** in this environment
+   * (not a per-job maximum, despite the name). Each job contributes
+   * `max(0, queueMaxWaitTime - elapsed since it was created)`.
+   */
   queMaxWaitTime: number
+  /** As `queMaxWaitTime`, summed over queued *free* jobs only. */
   queMaxWaitTimeFree: number
+  /**
+   * Seconds of remaining runtime, **summed across every running job** in this environment
+   * (not a per-job maximum, despite the name). Each job contributes
+   * `max(0, maxJobDuration - elapsed since it started)`; a job that has been allocated but
+   * has not started executing yet contributes its full `maxJobDuration`.
+   *
+   * Because it is a sum, a client cannot derive "when does capacity free up" from this field:
+   * 15 jobs with 1 second left each report 15, the same as one job with 15 seconds left.
+   */
   runMaxWaitTime: number
+  /** As `runMaxWaitTime`, summed over running *free* jobs only. */
   runMaxWaitTimeFree: number
 }
 
