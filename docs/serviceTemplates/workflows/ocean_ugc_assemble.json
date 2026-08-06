@@ -2,7 +2,7 @@
   "id": "f0a7b59b-e37f-4ce2-9564-e772ecd7d9c2",
   "revision": 0,
   "last_node_id": 62,
-  "last_link_id": 64,
+  "last_link_id": 65,
   "nodes": [
     {
       "id": 1,
@@ -22,7 +22,7 @@
       "outputs": [],
       "properties": {},
       "widgets_values": [
-        "## Assemble reel\n\nPick a rendered `shot_…mp4` in each slot's **file** dropdown below (the dropdown lists what's been generated in the bucket — hit ComfyUI's refresh icon if a clip you just rendered isn't listed yet). The numbering is ComfyUI's own save counter, so re-takes never overwrite: just don't select the ones you didn't like.\n\n**Bypass (Ctrl+B) any slot you don't need.** The chain concatenates whichever slots stay active, in order, so an unused tail slot just needs bypassing — no rewiring.\n\nClick **Run** once. The stitched reel saves as `reel_00001…` in the bucket root.\n\n### Voice\n\nLTX generates each clip's audio from scratch — there is no speaker to carry across a cut — so the stitched track changes voice every 5 seconds. **Voice Changer** fixes that: it converts every line to one target speaker while leaving the words, the timing and the room tone alone, so the picture stays in sync and the lips still match.\n\nUpload a few seconds of clean speech in **Reference voice** — that is the voice the whole reel ends up in. Anything works: your own recording, a clip you like, or one shot's audio you thought sounded right.\n\n- *refinement_passes* — 1 is usually right. Raise it if the conversion sounds half-applied; above ~5 it distorts.\n- *max_chunk_duration* — chunks long audio to avoid running out of VRAM, then rejoins preserving timing. Leave at 30.\n\n**If the Voice Changer and Voice engine nodes show up red**, their node pack failed to install on launch (check the container log for `[ocean]`). Delete both, then drag the last **Audio Concat**'s output onto **Create reel**'s `audio` input — you are back to the raw stitched audio and everything else still works.\n\nOnly 8 slots: each 5 s clip is ~126 frames at 720×1280 in float32, about 1.4 GB as a tensor. 8 slots gives a ~40 s reel and stays comfortably inside this template's 128 GB."
+        "## Assemble reel\n\nPick a rendered `shot_…mp4` in each slot's **file** dropdown below (the dropdown lists what's been generated in the bucket — hit ComfyUI's refresh icon if a clip you just rendered isn't listed yet). The numbering is ComfyUI's own save counter, so re-takes never overwrite: just don't select the ones you didn't like.\n\n**Bypass (Ctrl+B) any slot you don't need.** The chain concatenates whichever slots stay active, in order, so an unused tail slot just needs bypassing — no rewiring.\n\nClick **Run** once. The stitched reel saves as `reel_00001…` in the bucket root.\n\n### Voice — nothing to upload, nothing to type\n\nLTX generates each clip's audio from scratch, so the stitched track changes speaker every 5 seconds. **Voice Changer** converts the whole track to a single voice — and it takes that voice from **Shot 1's own audio**, which is already in the graph.\n\nThis is speech-to-speech, not transcription: the words, their timing and the room tone are left exactly as they are, only the speaker identity is remapped. Nothing is re-read, nothing is retyped, and because no phoneme moves, the picture stays in sync and the lips still match.\n\n**Want a different voice?** Drag any other shot's **Get Video Components** `audio` output onto Voice Changer's `narrator_target` — that shot's voice becomes the reel's. Or upload a clean sample in **Reference voice override** and drag that in instead. A shot with clear speech and little background makes the best reference; a shot with no speech at all makes a poor one, so if Shot 1 is a silent product beauty shot, point this at a talking shot instead.\n\n- *refinement_passes* — 1 is usually right. Raise it if the conversion sounds half-applied; above ~5 it distorts.\n- *max_chunk_duration* — bounds VRAM on long audio, rejoining chunks with timing preserved. Leave at 30.\n\n**If the Voice Changer and Voice engine nodes show up red**, their node pack failed to install on launch (check the container log for `[ocean]`). Delete both, then drag the last **Audio Concat**'s output onto **Create reel**'s `audio` input — you are back to the raw stitched audio and everything else still works.\n\nOnly 8 slots: each 5 s clip is ~126 frames at 720×1280 in float32, about 1.4 GB as a tensor. 8 slots gives a ~40 s reel and stays comfortably inside this template's 128 GB."
       ],
       "title": "How to use"
     },
@@ -92,7 +92,8 @@
           "name": "audio",
           "type": "AUDIO",
           "links": [
-            23
+            23,
+            65
           ]
         },
         {
@@ -1437,9 +1438,7 @@
         {
           "name": "AUDIO",
           "type": "AUDIO",
-          "links": [
-            62
-          ]
+          "links": null
         }
       ],
       "properties": {
@@ -1450,7 +1449,7 @@
         null,
         null
       ],
-      "title": "Reference voice — every line is converted to this"
+      "title": "Reference voice override (optional — not wired)"
     },
     {
       "id": 61,
@@ -1517,7 +1516,7 @@
         {
           "name": "narrator_target",
           "type": "AUDIO",
-          "link": 62
+          "link": 65
         }
       ],
       "outputs": [
@@ -1867,14 +1866,6 @@
       "AUDIO"
     ],
     [
-      62,
-      60,
-      0,
-      62,
-      2,
-      "AUDIO"
-    ],
-    [
       63,
       61,
       0,
@@ -1887,6 +1878,14 @@
       62,
       0,
       50,
+      2,
+      "AUDIO"
+    ],
+    [
+      65,
+      20,
+      1,
+      62,
       2,
       "AUDIO"
     ]
