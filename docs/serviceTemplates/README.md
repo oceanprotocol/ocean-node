@@ -117,16 +117,24 @@ goes to `/tmp` and is lost on stop.
 ### `ltx-video-ugc-multishot.json` — ComfyUI, LTX-2.3 multishot UGC reel (GPU)
 
 Same image and bucket behavior, but builds a 15-shot vertical reel (704×1280, 5 s per shot)
-with one consistent character, using `workflows/ocean_ugc_multishot.json`.
+with one consistent character. Ships two workflows:
 
-Upload a character reference sheet, type one prompt per line into the shot-list box, then set
-ComfyUI's Queue **batch count to 15**. Each shot becomes its own queue item, cancellable
-individually from the queue panel. Clips save to the bucket root as `shot_00.mp4` ..
-`shot_14.mp4` for assembly in your own editor.
+- `workflows/ocean_ugc_multishot.json` — renders one shot per Run.
+- `workflows/ocean_ugc_assemble.json` — concatenates rendered shots into one reel.
 
-The shot index wraps at the shot count, so a second batch in the same session starts again at
-line 0 rather than running off the end of the list. Update that count if you change the number
-of lines.
+Upload a character reference sheet, type one prompt per line into the shot-list box, then click
+**Run**. Each Run renders the shot at the current shot index and the index advances
+automatically, so review the clip before running the next. Don't like a take? Set the index back
+to that shot's number and Run again — SaveVideo appends a counter rather than overwriting, so
+both takes land in the bucket and you choose which to use at assembly time.
+
+Clips save to the bucket root as `shot_00.mp4`, `shot_01.mp4`, etc. Once every shot looks good,
+switch to the **Assemble reel** workflow, pick the shots to use in its `LoadVideo` slots, and
+Run — it concatenates them (image + audio) into one clip inside ComfyUI, no external editor
+needed.
+
+The shot index wraps at the shot count, so a run past the last line starts again at line 0.
+Update *Shots in list* if you change how many lines are in the shot list.
 
 ## The shared bootstrap (`ltx-video-ugc-bootstrap.sh`)
 

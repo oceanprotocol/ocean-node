@@ -1,15 +1,15 @@
 {
   "id": "0112e9af-5129-48ba-af78-92c40ac40b40",
   "revision": 0,
-  "last_node_id": 731,
+  "last_node_id": 732,
   "last_link_id": 1833,
   "nodes": [
     {
       "id": 68,
       "type": "SaveVideo",
       "pos": [
-        1480,
-        2270
+        2160.0,
+        0.0
       ],
       "size": [
         910,
@@ -61,44 +61,15 @@
         "shot",
         "auto",
         "auto"
-      ]
-    },
-    {
-      "id": 79,
-      "type": "MarkdownNote",
-      "pos": [
-        -2210,
-        2270
       ],
-      "size": [
-        720,
-        1320
-      ],
-      "flags": {},
-      "order": 0,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [],
-      "title": "Model Links",
-      "properties": {
-        "ue_properties": {
-          "input_ue_unconnectable": {},
-          "version": "7.7",
-          "widget_ue_connectable": {}
-        }
-      },
-      "widgets_values": [
-        "- Hugging Face (base): [Lightricks/LTX-2.3](https://huggingface.co/Lightricks/LTX-2.3/)\n- Hugging Face (Ingredients IC-LoRA): [Lightricks/LTX-2.3-22b-IC-LoRA-Ingredients](https://huggingface.co/Comfy-Org/ltx-2.3/resolve/main/split_files/loras/ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors)\n- [gemma-3-12b-it-abliterated_lora_rank64_bf16.safetensors](https://huggingface.co/Comfy-Org/ltx-2/resolve/main/split_files/loras/gemma-3-12b-it-abliterated_lora_rank64_bf16.safetensors)\n\n\n## Model Storage Location\n\n```\n📂 ComfyUI/\n├── 📂 models/\n│   ├── 📂 checkpoints/\n│   │   └── ltx-2.3-22b-distilled-fp8.safetensors\n│   ├── 📂 text_encoders/\n│   │   └── gemma_3_12B_it_fp4_mixed.safetensors\n│   └── 📂 loras/\n│       ├── ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors\n│       └── gemma-3-12b-it-abliterated_lora_rank64_bf16.safetensors\n```\n\n## Report Issue\n\nNote: Please update ComfyUI first ([guide](https://docs.comfy.org/installation/update_comfyui)) and prepare required models. Desktop/Cloud updates follow stable releases, so some nightly-supported models may not be available yet.\n\n- Cannot run / runtime errors: [ComfyUI/issues](https://github.com/comfyanonymous/ComfyUI/issues)\n- UI / frontend issues: [ComfyUI_frontend/issues](https://github.com/Comfy-Org/ComfyUI_frontend/issues)\n- Workflow issues: [workflow_templates/issues](https://github.com/Comfy-Org/workflow_templates/issues)\n"
-      ],
-      "color": "#222",
-      "bgcolor": "#000"
+      "title": "Output clips"
     },
     {
       "id": 129,
       "type": "f9f61b10-b689-4d67-b4fa-0acc1d9b5390",
       "pos": [
-        890,
-        2270
+        1560.0,
+        0.0
       ],
       "size": [
         540,
@@ -304,52 +275,23 @@
         },
         "ver": "0.18.1"
       },
-      "widgets_values": []
-    },
-    {
-      "id": 698,
-      "type": "MarkdownNote",
-      "pos": [
-        -1450,
-        2270
-      ],
-      "size": [
-        720,
-        2630
-      ],
-      "flags": {
-        "collapsed": false
-      },
-      "order": 1,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [],
-      "title": "Note: IC-LoRA",
-      "properties": {
-        "ue_properties": {
-          "input_ue_unconnectable": {},
-          "version": "7.7",
-          "widget_ue_connectable": {}
-        }
-      },
-      "widgets_values": [
-        "## IC-LoRA Ingredients\n\nSources (official only):\n- Model card: [Lightricks/LTX-2.3-22b-IC-LoRA-Ingredients](https://huggingface.co/Lightricks/LTX-2.3-22b-IC-LoRA-Ingredients)\n- IC-LoRA docs: [docs.ltx.video — IC-LoRA usage guide](https://docs.ltx.video/open-source-model/usage-guides/ic-lo-ra)\n\n### What This Model Is\nFrom the model card:\n\n> This is an IC-LoRA trained on top of LTX-2.3-22B, which conditions video generation on a reference sheet — a single composite image inventorying the characters, props, and location of a scene — so that generated videos keep those elements visually consistent.\n\n\n**Model details (model card):**\n- Base Model: LTX-2.3-22B (dev)\n- Training Type: IC-LoRA (in-context LoRA)\n- Control Type: Reference-sheet conditioning — character / prop / location identity carried into the generated video\n- Reference Downscale Factor: `1` (the reference is provided at the same resolution as the output)\n- Pipeline: the reference sheet is supplied as a static video (the still sheet looped to the output's length and frame rate). Trained with a `video_to_video` strategy over reference latents; no extra color/space transforms are applied at inference.\n\n### Intended Use & Out-of-Scope\nFrom the model card:\n\n- **Intended use:** Generating short video clips that stay faithful to a supplied reference sheet — keeping recurring characters (face and costume), handled props, and the set/location consistent with the sheet while following an action described in the prompt.\n- **Out of scope:** This is not a general text-to-video model — it expects a reference sheet as conditioning. It was trained at a single resolution / length bucket (**768×448**, **121 frames**, **24 fps**); other resolutions, much longer clips, or use without a reference sheet are out of distribution. It does not reproduce identities that are absent from the supplied sheet.\n\n### Control Signal Requirements\nFrom the model card:\n\n- **Control signal type:** Reference sheet — a single composite image with one clean panel per distinct visual element (each character as a face close-up + body turnaround, each prop as a product-style render, and one clean location panel), laid out on a **black background with no text**.\n- **Expected input:** A static video built from the reference sheet, looped to match the output clip's length and frame rate, at the output resolution (downscale factor 1).\n- **Preprocessing:** Author the reference sheet, then loop the still into a static video. Frame count must be **≥ 121** so the reference-encoding / 121-frame read bucket is satisfied; all targets in training were ≥ 121 frames.\n- **Alignment:** The reference video should match the output resolution and frame rate; its frame count must be at least the output length (clamped to ≥ 121).\n\n### Prompt Format\nFrom the model card — the prompt is split into two labeled parts, matching how the model was trained:\n\n```text\nReference sheet: <description of the panels in the sheet — characters, props, location>\n\nGenerated video: <description of the action / shot you want generated>\n```\n\nAt inference, the reference sheet (as a static video) supplies *what things look like*, and the `Generated video:` portion supplies *what happens*. The model reads the reference latents in-context and renders a new clip whose characters, props, and setting match the sheet.\n\nModel-card gallery examples also show prompts labeled as `### Reference Sheet Description` / `### Target Description`.\n\n### ComfyUI Usage\nFrom the model card:\n\n1. Copy the LoRA weights into `models/loras`.\n2. Load the LTX-2.3-22B base model and add the Ingredients LoRA.\n3. Start at strength `1.0` and adjust to taste.\n4. Use an IC-LoRA / reference workflow from the LTX-2 ComfyUI repository, which already wires the reference (control) input. Connect the reference-sheet static video as the control/reference input; a generic LoRA loader that ignores the reference path will not apply the conditioning.\n\n### Recommended Settings\nFrom the model card:\n\n- LoRA strength / weight: **1.4**\n- Inference steps: **30**\n- Guidance scale: **4.0**\n- Resolution & frames: **768×448**, **121 frames**, **24 fps** (the trained bucket — best results here)\n- Prompting: use the two-part `Reference sheet: … / Generated video: …` structure. The `Reference sheet:` text should describe the panels present; the `Generated video:` text drives the action.\n- Suggested negative prompt: `worst quality, inconsistent motion, blurry, jittery, distorted`\n- Validation used spatiotemporal guidance (STG, mode `stg_v`, block 29, scale 1.0), which can help motion stability.\n\n### Tips & Troubleshooting\nFrom the model card only:\n\n- **Bigger panels carry over better:** The more space an element takes up in the reference image, the more faithfully it carries over into the generated video. Give important characters/props larger, more prominent panels rather than small or crowded ones.\n- **Identity drift:** If a character's face or costume drifts, make sure the reference sheet has a clean, front-facing close-up and full turnaround for that character, and that its panel isn't cluttered or text-laden.\n- **Element not appearing:** The model only reproduces elements present on the sheet — add a dedicated panel for any prop/character you need to persist, and describe it in the `Reference sheet:` portion of the prompt.\n- **Reference too short:** The reference static video must be ≥ 121 frames; shorter references break the reference-encoding bucket.\n"
-      ],
-      "color": "#222",
-      "bgcolor": "#000"
+      "widgets_values": [],
+      "title": "Generate video"
     },
     {
       "id": 709,
       "type": "RepeatImageBatch",
       "pos": [
-        150,
-        2750
+        1180.0,
+        360.0
       ],
       "size": [
         270,
         110
       ],
-      "flags": {},
+      "flags": {
+        "collapsed": true
+      },
       "order": 7,
       "mode": 0,
       "inputs": [
@@ -387,8 +329,8 @@
       "id": 712,
       "type": "EmptyImage",
       "pos": [
-        550,
-        2830
+        1180.0,
+        290.0
       ],
       "size": [
         225,
@@ -423,8 +365,8 @@
       "id": 715,
       "type": "PrimitiveInt",
       "pos": [
-        140,
-        2310
+        820.0,
+        300.0
       ],
       "size": [
         270,
@@ -443,7 +385,7 @@
           ]
         }
       ],
-      "title": "Int (duration)",
+      "title": "Seconds per shot",
       "properties": {
         "Node name for S&R": "PrimitiveInt"
       },
@@ -456,8 +398,8 @@
       "id": 716,
       "type": "PrimitiveInt",
       "pos": [
-        150,
-        2480
+        820.0,
+        450.0
       ],
       "size": [
         270,
@@ -477,7 +419,7 @@
           ]
         }
       ],
-      "title": "Int (fps)",
+      "title": "FPS",
       "properties": {
         "Node name for S&R": "PrimitiveInt"
       },
@@ -490,8 +432,8 @@
       "id": 717,
       "type": "ComfyMathExpression",
       "pos": [
-        170,
-        2670
+        820.0,
+        920.0
       ],
       "size": [
         225,
@@ -554,8 +496,8 @@
       "id": 721,
       "type": "GetImageSize",
       "pos": [
-        540,
-        2610
+        1180.0,
+        220.0
       ],
       "size": [
         225,
@@ -603,14 +545,16 @@
       "id": 722,
       "type": "ResizeAndPadImage",
       "pos": [
-        530,
-        2370
+        1180.0,
+        0.0
       ],
       "size": [
         280,
         170
       ],
-      "flags": {},
+      "flags": {
+        "collapsed": true
+      },
       "order": 8,
       "mode": 0,
       "showAdvanced": false,
@@ -647,8 +591,8 @@
       "id": 723,
       "type": "PreviewImage",
       "pos": [
-        140,
-        2980
+        1180.0,
+        500.0
       ],
       "size": [
         650,
@@ -680,8 +624,8 @@
       "id": 724,
       "type": "LoadImage",
       "pos": [
-        -680,
-        2280
+        0.0,
+        0.0
       ],
       "size": [
         730,
@@ -711,14 +655,15 @@
       "widgets_values": [
         "german_shepherd_news_anchor_ref.png",
         "image"
-      ]
+      ],
+      "title": "Character reference"
     },
     {
       "id": 725,
       "type": "PrimitiveStringMultiline",
       "pos": [
-        -1700,
-        2150
+        0.0,
+        720.0
       ],
       "size": [
         400,
@@ -737,7 +682,7 @@
           ]
         }
       ],
-      "title": "Shot List (one prompt per line)",
+      "title": "Shot list (one prompt per line)",
       "properties": {
         "Node name for S&R": "PrimitiveStringMultiline"
       },
@@ -749,8 +694,8 @@
       "id": 726,
       "type": "PrimitiveInt",
       "pos": [
-        -1700,
-        2560
+        820.0,
+        0.0
       ],
       "size": [
         270,
@@ -769,7 +714,7 @@
           ]
         }
       ],
-      "title": "Int (shot index)",
+      "title": "Shot index (auto-increments)",
       "properties": {
         "Node name for S&R": "PrimitiveInt"
       },
@@ -782,14 +727,16 @@
       "id": 727,
       "type": "StringFormat",
       "pos": [
-        -1300,
-        2560
+        820.0,
+        620.0
       ],
       "size": [
         320,
         150
       ],
-      "flags": {},
+      "flags": {
+        "collapsed": true
+      },
       "order": 15,
       "mode": 0,
       "inputs": [
@@ -821,14 +768,16 @@
       "id": 728,
       "type": "RegexExtract",
       "pos": [
-        -900,
-        2150
+        820.0,
+        700.0
       ],
       "size": [
         320,
         250
       ],
-      "flags": {},
+      "flags": {
+        "collapsed": true
+      },
       "order": 16,
       "mode": 0,
       "inputs": [
@@ -868,14 +817,16 @@
       "id": 729,
       "type": "StringFormat",
       "pos": [
-        1050,
-        2650
+        820.0,
+        780.0
       ],
       "size": [
         320,
         150
       ],
-      "flags": {},
+      "flags": {
+        "collapsed": true
+      },
       "order": 17,
       "mode": 0,
       "inputs": [
@@ -907,8 +858,8 @@
       "id": 730,
       "type": "PrimitiveInt",
       "pos": [
-        150,
-        2860
+        820.0,
+        150.0
       ],
       "size": [
         270,
@@ -927,7 +878,7 @@
           ]
         }
       ],
-      "title": "Int (shots in list)",
+      "title": "Shots in list",
       "properties": {
         "Node name for S&R": "PrimitiveInt"
       },
@@ -940,8 +891,8 @@
       "id": 731,
       "type": "ComfyMathExpression",
       "pos": [
-        470,
-        2860
+        820.0,
+        860.0
       ],
       "size": [
         225,
@@ -1000,6 +951,28 @@
       },
       "widgets_values": [
         "a % b"
+      ]
+    },
+    {
+      "id": 732,
+      "type": "MarkdownNote",
+      "pos": [
+        0.0,
+        -280.0
+      ],
+      "size": [
+        1180.0,
+        220.0
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "How to use",
+      "properties": {},
+      "widgets_values": [
+        "## 15-shot vertical reel\n\n**1.** Upload your character reference sheet in *Character reference*.\n\n**2.** Type one prompt per line in *Shot list* — one shot each. If you change how many lines there are, set *Shots in list* to match.\n\n**3.** Click **Run** once. It renders the shot at the current *Shot index*, then the index advances automatically — watch it change in the node.\n\n**4.** Review the clip, then Run again for the next shot.\n\n**5.** Don't like a take? Set *Shot index* back to that shot's number and Run again. SaveVideo appends a counter instead of overwriting, so the earlier take is still there — you pick which one to use when you assemble.\n\n**6.** Once every shot looks good, switch to the **Assemble reel** workflow to stitch them into one clip.\n\nClips save as `shot_00.mp4`, `shot_01.mp4`, … — 704×1280, 5 s each."
       ]
     }
   ],

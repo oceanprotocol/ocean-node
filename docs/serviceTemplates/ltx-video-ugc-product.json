@@ -38,8 +38,8 @@
     },
     {
       "id": "ram",
-      "min": 32,
-      "recommended": 64,
+      "min": 48,
+      "recommended": 128,
       "unit": "GB"
     },
     {
