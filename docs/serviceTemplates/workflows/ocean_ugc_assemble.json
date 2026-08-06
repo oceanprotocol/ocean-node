@@ -22,7 +22,7 @@
       "outputs": [],
       "properties": {},
       "widgets_values": [
-        "## Assemble reel\n\nPick a rendered `shot_NN.mp4` in each slot's **file** dropdown below (the dropdown lists what's been generated in the bucket — hit ComfyUI's refresh icon if a clip you just rendered isn't listed yet).\n\n**Bypass (Ctrl+B) any slot you don't need.** The chain concatenates whichever slots stay active, in order, so an unused tail slot just needs bypassing — no rewiring.\n\nClick **Run** once. The stitched reel saves as `reel_00001.mp4` in the bucket root.\n\nOnly 8 slots: each 5 s clip is ~125 frames at 704×1280 in float32, about 1.3 GB as a tensor — 15 slots (the multishot template's shot count) would need ~20 GB of RAM just to hold the frames. 8 slots gives a ~40 s reel and stays comfortably inside this template's 128 GB."
+        "## Assemble reel\n\nPick a rendered `shot_000NN.mp4` in each slot's **file** dropdown below (the dropdown lists what's been generated in the bucket — hit ComfyUI's refresh icon if a clip you just rendered isn't listed yet). The numbering is ComfyUI's own save counter, so re-takes never overwrite: just don't select the ones you didn't like.\n\n**Bypass (Ctrl+B) any slot you don't need.** The chain concatenates whichever slots stay active, in order, so an unused tail slot just needs bypassing — no rewiring.\n\nClick **Run** once. The stitched reel saves as `reel_00001.mp4` in the bucket root.\n\nOnly 8 slots: each 5 s clip is ~126 frames at 720×1280 in float32, about 1.4 GB as a tensor. 8 slots gives a ~40 s reel and stays comfortably inside this template's 128 GB."
       ],
       "title": "How to use"
     },
@@ -55,7 +55,7 @@
         "Node name for S&R": "LoadVideo"
       },
       "widgets_values": [
-        "shot_00.mp4"
+        "shot_00001.mp4"
       ],
       "title": "Shot 1"
     },
@@ -143,7 +143,7 @@
         "Node name for S&R": "LoadVideo"
       },
       "widgets_values": [
-        "shot_01.mp4"
+        "shot_00002.mp4"
       ],
       "title": "Shot 2"
     },
@@ -229,7 +229,7 @@
         "Node name for S&R": "LoadVideo"
       },
       "widgets_values": [
-        "shot_02.mp4"
+        "shot_00003.mp4"
       ],
       "title": "Shot 3"
     },
@@ -315,7 +315,7 @@
         "Node name for S&R": "LoadVideo"
       },
       "widgets_values": [
-        "shot_03.mp4"
+        "shot_00004.mp4"
       ],
       "title": "Shot 4"
     },
@@ -401,7 +401,7 @@
         "Node name for S&R": "LoadVideo"
       },
       "widgets_values": [
-        "shot_04.mp4"
+        "shot_00005.mp4"
       ],
       "title": "Shot 5"
     },
@@ -487,7 +487,7 @@
         "Node name for S&R": "LoadVideo"
       },
       "widgets_values": [
-        "shot_05.mp4"
+        "shot_00006.mp4"
       ],
       "title": "Shot 6"
     },
@@ -573,7 +573,7 @@
         "Node name for S&R": "LoadVideo"
       },
       "widgets_values": [
-        "shot_06.mp4"
+        "shot_00007.mp4"
       ],
       "title": "Shot 7"
     },
@@ -659,7 +659,7 @@
         "Node name for S&R": "LoadVideo"
       },
       "widgets_values": [
-        "shot_07.mp4"
+        "shot_00008.mp4"
       ],
       "title": "Shot 8"
     },

@@ -1,7 +1,7 @@
 {
   "id": "ltx-video-ugc-multishot",
   "name": "ComfyUI — UGC multishot reel (LTX-2.3)",
-  "description": "ComfyUI preloaded with LTX-2.3 (IC-LoRA Ingredients) for a 15-shot vertical UGC product reel with one consistent character. Usage: optionally upload a person photo and/or a product photo as the workflow's two image inputs — both are optional, so leaving both empty renders from the prompt alone — then type one prompt per line in its shot-list text box (each line a distinct camera angle/action, e.g. close-up on the product, hands unboxing, walking outdoors), then click Run once — it renders the shot at the current shot index and the index advances automatically, so review each clip before running the next; set the index back to a shot number and Run again to redo one you don't like. Clips are 9:16 vertical (704×1280, both divisible by 32 as LTX requires) at 5 seconds each (125 frames at 25 fps), saved to the bucket root as shot_00.mp4, shot_01.mp4, etc. Once every shot is good, switch to the Assemble reel workflow to concatenate them into one clip inside ComfyUI — no external editor needed. Select a persistent-storage bucket: it holds ComfyUI's whole base directory, so the ~39 GiB of weights download once and are reused, and the numbered shot clips land in the bucket root where the storage API's listFiles can see them. Needs a CUDA GPU with 48 GB+ VRAM.",
+  "description": "ComfyUI preloaded with LTX-2.3 for a vertical UGC reel built one shot at a time, with the same character in every shot. It runs the same two-stage generator as the product-video template (22B dev fp8, base pass then a spatial-upscaler refine pass), so shot quality matches. Usage: optionally upload a character photo as the first frame — with no photo you turn on 'No character image' and the style prompt builds the character instead. Then fill two text boxes: 'Style — every shot' holds everything that must stay identical (who the character is, wardrobe, room, lighting, palette, camera look) and you never touch it again; 'Scene — this shot' holds only what changes (action, camera move, dialogue, ambient sound). Click Run for a clip, edit the scene box, Run again. Every run also saves that clip's last frame beside it as lastframe_….png, so you chain the next shot by picking it as the first frame — shot 2 then starts exactly where shot 1 ended and identity carries in pixels rather than in prose, the trick that holds a multi-shot reel together. Clips are 9:16 vertical (720×1280) at 5 seconds each (126 frames at 25 fps) with audio, saved to the bucket root; ComfyUI's save counter never overwrites, so re-takes accumulate and you pick the good ones later. Once every shot is good, switch to the Assemble reel workflow to concatenate up to 8 of them into one clip inside ComfyUI — no external editor needed. Select a persistent-storage bucket: it holds ComfyUI's whole base directory, so the 38 GiB of weights download once and are reused, and the numbered shot clips land in the bucket root where the storage API's listFiles can see them. Needs a CUDA GPU with 48 GB+ VRAM.",
   "image": "yanwk/comfyui-boot",
   "tag": "cu130-megapak-pt211-20260803",
   "exposedPorts": [
@@ -15,14 +15,14 @@
   "workflows": [
     {
       "id": "ocean_ugc_multishot",
-      "name": "Multishot reel (15 shots)",
-      "description": "Upload an optional person photo and/or product photo (both optional — prompt-only also works) and a 15-line shot list, then click Run once per shot — the shot index advances automatically and you review each clip before the next. Produces numbered 9:16 clips (shot_00.mp4, shot_01.mp4, …).",
+      "name": "Multishot reel — one shot per Run",
+      "description": "A first-frame image plus two prompt boxes — a style box reused by every shot and a scene box you retype between runs. One Run renders one 9:16 clip and saves its last frame as lastframe_….png; pick that as the next shot's first frame to chain shots together. With no character photo at all, the style prompt builds the character instead.",
       "file": "workflows/ocean_ugc_multishot.json"
     },
     {
       "id": "ocean_ugc_assemble",
       "name": "Assemble reel",
-      "description": "Concatenates up to 8 rendered shot_NN.mp4 clips (video + audio) into a single reel using core ComfyUI video nodes — pick clips in the LoadVideo dropdowns, bypass any slots you don't need, and Run.",
+      "description": "Concatenates up to 8 rendered shot_000NN.mp4 clips (video + audio) into a single reel using core ComfyUI video nodes — pick clips in the LoadVideo dropdowns, bypass any slots you don't need, and Run.",
       "file": "workflows/ocean_ugc_assemble.json"
     }
   ],
@@ -50,8 +50,8 @@
     },
     {
       "id": "disk",
-      "min": 45,
-      "recommended": 85,
+      "min": 40,
+      "recommended": 80,
       "unit": "GB"
     },
     {
@@ -60,7 +60,7 @@
       "min": 1,
       "recommended": 1,
       "unit": "count",
-      "description": "CUDA GPU, 48 GB+ VRAM recommended (LTX-2.3 22B distilled fp8 + Gemma-3-12B encoder)"
+      "description": "CUDA GPU, 48 GB+ VRAM recommended (LTX-2.3 22B fp8 + Gemma-3-12B encoder)"
     }
   ]
 }
