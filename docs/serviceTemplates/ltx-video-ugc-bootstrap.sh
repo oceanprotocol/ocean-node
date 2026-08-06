@@ -73,17 +73,21 @@ if [ -n "$WF_ID" ] && [ -n "${COMFY_WORKFLOW:-}" ]; then
   # Escrow is already claimed: a corrupt payload must not kill the container.
   if printf '%s' "$COMFY_WORKFLOW" | base64 -d | gunzip > "$RAW"; then
     # `|| true`: a decoded-but-malformed payload (wrong shape, bad ids) must not abort either.
-    INSTALLED=$(python3.13 - "$RAW" "$PACK/example_workflows" "$SAVED" <<'PY' || true
+    INSTALLED=$(python3.13 - "$RAW" "$PACK/example_workflows" "$SAVED" "$WF_ID" <<'PY' || true
 import json, re, sys
 raw_path, pack_dir, saved_dir = sys.argv[1:4]
 try:
-    workflows = json.load(open(raw_path, encoding='utf-8'))
-    if not isinstance(workflows, dict) or not workflows:
-        raise ValueError('expected a non-empty object of "<id>": <graph>')
+    payload = json.load(open(raw_path, encoding='utf-8'))
+    if not isinstance(payload, dict) or not payload:
+        raise ValueError('expected a non-empty object')
 except Exception as e:
-    print(f'[ocean] COMFY_WORKFLOW did not decode to an id -> graph object: {e}', file=sys.stderr)
+    print(f'[ocean] COMFY_WORKFLOW did not decode to an object: {e}', file=sys.stderr)
     sys.exit(0)
-for wf_id, graph in workflows.items():
+# A bare graph has a top-level "nodes" list; an id -> graph map does not. Without this check a
+# bare graph installs one junk file per dict-valued key it happens to have (config, extra, ...).
+if isinstance(payload.get('nodes'), list):
+    payload = {sys.argv[4]: payload}
+for wf_id, graph in payload.items():
     if not re.fullmatch(r'[A-Za-z0-9_.-]{1,64}', wf_id):
         print(f'[ocean] skipping workflow with unsafe id {wf_id!r}', file=sys.stderr)
         continue

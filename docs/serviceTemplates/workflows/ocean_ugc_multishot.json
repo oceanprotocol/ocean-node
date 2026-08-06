@@ -1,8 +1,8 @@
 {
   "id": "0112e9af-5129-48ba-af78-92c40ac40b40",
   "revision": 0,
-  "last_node_id": 732,
-  "last_link_id": 1833,
+  "last_node_id": 735,
+  "last_link_id": 1838,
   "nodes": [
     {
       "id": 68,
@@ -298,7 +298,7 @@
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 1825
+          "link": 1838
         },
         {
           "name": "amount",
@@ -347,7 +347,8 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            1805
+            1805,
+            1835
           ]
         }
       ],
@@ -355,8 +356,8 @@
         "Node name for S&R": "EmptyImage"
       },
       "widgets_values": [
-        512,
-        512,
+        704,
+        1280,
         1,
         0
       ]
@@ -653,17 +654,17 @@
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "german_shepherd_news_anchor_ref.png",
+        "subject-girl-holding-skincare-bottle.png",
         "image"
       ],
-      "title": "Character reference"
+      "title": "Person (optional)"
     },
     {
       "id": 725,
       "type": "PrimitiveStringMultiline",
       "pos": [
         0.0,
-        720.0
+        1120.0
       ],
       "size": [
         400,
@@ -784,12 +785,18 @@
         {
           "name": "string",
           "type": "STRING",
-          "link": 1828
+          "link": 1828,
+          "widget": {
+            "name": "string"
+          }
         },
         {
           "name": "regex_pattern",
           "type": "STRING",
-          "link": 1829
+          "link": 1829,
+          "widget": {
+            "name": "regex_pattern"
+          }
         }
       ],
       "outputs": [
@@ -806,6 +813,8 @@
         "Node name for S&R": "RegexExtract"
       },
       "widgets_values": [
+        "",
+        "",
         "First Group",
         true,
         false,
@@ -957,12 +966,12 @@
       "id": 732,
       "type": "MarkdownNote",
       "pos": [
-        0.0,
-        -280.0
+        -1300.0,
+        0.0
       ],
       "size": [
-        1180.0,
-        220.0
+        900,
+        340
       ],
       "flags": {},
       "order": 0,
@@ -972,8 +981,135 @@
       "title": "How to use",
       "properties": {},
       "widgets_values": [
-        "## 15-shot vertical reel\n\n**1.** Upload your character reference sheet in *Character reference*.\n\n**2.** Type one prompt per line in *Shot list* — one shot each. If you change how many lines there are, set *Shots in list* to match.\n\n**3.** Click **Run** once. It renders the shot at the current *Shot index*, then the index advances automatically — watch it change in the node.\n\n**4.** Review the clip, then Run again for the next shot.\n\n**5.** Don't like a take? Set *Shot index* back to that shot's number and Run again. SaveVideo appends a counter instead of overwriting, so the earlier take is still there — you pick which one to use when you assemble.\n\n**6.** Once every shot looks good, switch to the **Assemble reel** workflow to stitch them into one clip.\n\nClips save as `shot_00.mp4`, `shot_01.mp4`, … — 704×1280, 5 s each."
+        "## 15-shot vertical reel\n\n*Person* and *Product* are both optional — leave both empty and it renders from the prompt alone.\n\n| Want | Do |\n|---|---|\n| Both images | Leave everything as-is |\n| Person only | Bypass (Ctrl+B) **Product (optional)** |\n| Product only | Set the switch on **Use person image? (else blank)** to false — don't bypass **Person (optional)** itself, it feeds a required input |\n| Neither (prompt-only) | Bypass **Product (optional)** *and* set that switch to false |\n\n**1.** One prompt per line in *Shot list*; match *Shots in list* to the count.\n\n**2.** Click **Run** once. It renders the current *Shot index*, then the index auto-advances.\n\n**3.** Redo a shot: set *Shot index* back to that number and Run again — SaveVideo appends a counter, so the earlier take is still there.\n\n**4.** Once every shot looks good, switch to the **Assemble reel** workflow to stitch them.\n\nClips save as `shot_00.mp4`, `shot_01.mp4`, … — 704×1280, 5 s each."
       ]
+    },
+    {
+      "id": 733,
+      "type": "LoadImage",
+      "pos": [
+        0.0,
+        680.0
+      ],
+      "size": [
+        730,
+        420
+      ],
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            1837
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "brown_moisturizer_bottle.jpg",
+        "image"
+      ],
+      "title": "Product (optional)"
+    },
+    {
+      "id": 734,
+      "type": "ComfySwitchNode",
+      "pos": [
+        440.0,
+        1120.0
+      ],
+      "size": [
+        270,
+        130
+      ],
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "on_false",
+          "type": "IMAGE",
+          "link": 1835
+        },
+        {
+          "name": "on_true",
+          "type": "IMAGE",
+          "link": 1834
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "IMAGE",
+          "links": [
+            1836
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ComfySwitchNode"
+      },
+      "widgets_values": [
+        true
+      ],
+      "title": "Use person image? (else blank)"
+    },
+    {
+      "id": 735,
+      "type": "ImageStitch",
+      "pos": [
+        440.0,
+        1270.0
+      ],
+      "size": [
+        270,
+        150
+      ],
+      "flags": {},
+      "order": 20,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image1",
+          "type": "IMAGE",
+          "link": 1836
+        },
+        {
+          "name": "image2",
+          "type": "IMAGE",
+          "link": 1837
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            1838
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageStitch"
+      },
+      "widgets_values": [
+        "right",
+        true,
+        0,
+        "white"
+      ],
+      "title": "Combine reference images"
     }
   ],
   "links": [
@@ -1074,14 +1210,6 @@
       "IMAGE"
     ],
     [
-      1825,
-      724,
-      0,
-      709,
-      0,
-      "IMAGE"
-    ],
-    [
       1826,
       731,
       1,
@@ -1144,6 +1272,46 @@
       731,
       1,
       "INT"
+    ],
+    [
+      1834,
+      724,
+      0,
+      734,
+      1,
+      "IMAGE"
+    ],
+    [
+      1835,
+      712,
+      0,
+      734,
+      0,
+      "IMAGE"
+    ],
+    [
+      1836,
+      734,
+      0,
+      735,
+      0,
+      "IMAGE"
+    ],
+    [
+      1837,
+      733,
+      0,
+      735,
+      1,
+      "IMAGE"
+    ],
+    [
+      1838,
+      735,
+      0,
+      709,
+      0,
+      "IMAGE"
     ]
   ],
   "groups": [

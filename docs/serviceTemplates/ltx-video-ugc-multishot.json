@@ -1,7 +1,7 @@
 {
   "id": "ltx-video-ugc-multishot",
   "name": "ComfyUI — UGC multishot reel (LTX-2.3)",
-  "description": "ComfyUI preloaded with LTX-2.3 (IC-LoRA Ingredients) for a 15-shot vertical UGC product reel with one consistent character. Usage: upload a character reference sheet as the workflow's image input, type one prompt per line in its shot-list text box (each line a distinct camera angle/action, e.g. close-up on the product, hands unboxing, walking outdoors), then click Run once — it renders the shot at the current shot index and the index advances automatically, so review each clip before running the next; set the index back to a shot number and Run again to redo one you don't like. Clips are 9:16 vertical (704×1280, both divisible by 32 as LTX requires) at 5 seconds each (125 frames at 25 fps), saved to the bucket root as shot_00.mp4, shot_01.mp4, etc. Once every shot is good, switch to the Assemble reel workflow to concatenate them into one clip inside ComfyUI — no external editor needed. Select a persistent-storage bucket: it holds ComfyUI's whole base directory, so the ~39 GiB of weights download once and are reused, and the numbered shot clips land in the bucket root where the storage API's listFiles can see them. Needs a CUDA GPU with 48 GB+ VRAM.",
+  "description": "ComfyUI preloaded with LTX-2.3 (IC-LoRA Ingredients) for a 15-shot vertical UGC product reel with one consistent character. Usage: optionally upload a person photo and/or a product photo as the workflow's two image inputs — both are optional, so leaving both empty renders from the prompt alone — then type one prompt per line in its shot-list text box (each line a distinct camera angle/action, e.g. close-up on the product, hands unboxing, walking outdoors), then click Run once — it renders the shot at the current shot index and the index advances automatically, so review each clip before running the next; set the index back to a shot number and Run again to redo one you don't like. Clips are 9:16 vertical (704×1280, both divisible by 32 as LTX requires) at 5 seconds each (125 frames at 25 fps), saved to the bucket root as shot_00.mp4, shot_01.mp4, etc. Once every shot is good, switch to the Assemble reel workflow to concatenate them into one clip inside ComfyUI — no external editor needed. Select a persistent-storage bucket: it holds ComfyUI's whole base directory, so the ~39 GiB of weights download once and are reused, and the numbered shot clips land in the bucket root where the storage API's listFiles can see them. Needs a CUDA GPU with 48 GB+ VRAM.",
   "image": "yanwk/comfyui-boot",
   "tag": "cu130-megapak-pt211-20260803",
   "exposedPorts": [
@@ -16,7 +16,7 @@
     {
       "id": "ocean_ugc_multishot",
       "name": "Multishot reel (15 shots)",
-      "description": "Upload a character reference sheet and a 15-line shot list, then click Run once per shot — the shot index advances automatically and you review each clip before the next. Produces numbered 9:16 clips (shot_00.mp4, shot_01.mp4, …) with one consistent character.",
+      "description": "Upload an optional person photo and/or product photo (both optional — prompt-only also works) and a 15-line shot list, then click Run once per shot — the shot index advances automatically and you review each clip before the next. Produces numbered 9:16 clips (shot_00.mp4, shot_01.mp4, …).",
       "file": "workflows/ocean_ugc_multishot.json"
     },
     {

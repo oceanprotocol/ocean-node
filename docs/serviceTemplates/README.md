@@ -122,8 +122,8 @@ with one consistent character. Ships two workflows:
 - `workflows/ocean_ugc_multishot.json` — renders one shot per Run.
 - `workflows/ocean_ugc_assemble.json` — concatenates rendered shots into one reel.
 
-Upload a character reference sheet, type one prompt per line into the shot-list box, then click
-**Run**. Each Run renders the shot at the current shot index and the index advances
+Upload a person photo and/or a product photo — both optional, prompt-only also works — type one
+prompt per line into the shot-list box, then click **Run**. Each Run renders the shot at the current shot index and the index advances
 automatically, so review the clip before running the next. Don't like a take? Set the index back
 to that shot's number and Run again — SaveVideo appends a counter rather than overwriting, so
 both takes land in the bucket and you choose which to use at assembly time.
