@@ -150,8 +150,29 @@ bootstrap points ComfyUI's `--input-directory` and `--output-directory` at the s
 root, the PNG shows up in `LoadImage`'s dropdown with no copying.
 
 Once every shot looks good, switch to the **Assemble reel** workflow, pick the clips in its
-`LoadVideo` slots, bypass the slots you don't need, and Run — it concatenates them
-(image + audio) into one clip inside ComfyUI, no external editor needed.
+`LoadVideo` slots, bypass the slots you don't need, and Run — it concatenates them into one
+clip inside ComfyUI, no external editor needed.
+
+**Voice.** LTX builds each clip's audio from a fresh `LTXVEmptyLatentAudio` conditioned only
+on the text — there is no speaker embedding, so a spoken line is a different person on every
+cut and no amount of prompting locks it. Frame chaining carries the face; nothing carries the
+voice.
+
+Assemble concatenates the clips' own audio, which keeps ambience and picture in sync, then
+runs the stitched track through **voice conversion** — the same thing dubbing pipelines do.
+`UnifiedVoiceChangerNode` remaps every line to one reference speaker while leaving the words,
+their timing and the room tone alone. That is why conversion beats dubbing a voiceover over
+the footage: the phonemes never move, so ambience survives and the lips still match. Upload a
+few seconds of clean speech as the reference voice; `refinement_passes` 1 is usually right
+(above ~5 it distorts) and `max_chunk_duration` bounds VRAM, rejoining chunks with
+timing-preserving concatenation.
+
+Scripting still helps and costs nothing: dialogue in one or two shots, action and ambience in
+the rest, means fewer conversions to get right.
+
+If the voice nodes load red, the pack failed to install — delete both and wire the last
+`AudioConcat` straight into `CreateVideo`, which is the plain stitched audio the workflow
+used before. The node's own how-to says so too.
 
 ## The shared bootstrap (`ltx-video-ugc-bootstrap.sh`)
 
@@ -169,6 +190,16 @@ Weights are not listed here: the script downloads the HuggingFace URLs carried b
 graph itself, so each template fetches only what it loads and a new workflow needs no change
 here. A template's `envVars` cannot drive this — nothing merges them into a service container
 (`SERVICE_START` has no template id; the container env comes only from `userData`).
+
+Custom nodes follow the same graph-driven rule. The script installs
+[TTS-Audio-Suite](https://github.com/diodiogod/TTS-Audio-Suite) — for the assemble workflow's
+voice conversion — only when an installed graph mentions `UnifiedVoiceChangerNode`, so the
+product template never pays for it. The clone lands in the bucket's `custom_nodes`, but pip
+installs into the container and is lost on stop, hence the unconditional reinstall on every
+launch; it is cheap because `XDG_CACHE_HOME` puts pip's wheel cache in the bucket too. It
+installs into the container's own site-packages rather than `--target` + `PYTHONPATH`: a
+second `numpy`/`torch` ahead of the container's would break ComfyUI itself. Every step is
+non-fatal — escrow is already claimed by then, and the video workflows need none of it.
 
 ### `automatic1111.json` — Stable Diffusion WebUI (A1111) (GPU)
 

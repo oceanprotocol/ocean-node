@@ -184,8 +184,36 @@ fi
 
 export HOME="$BASE"
 export PYTHONPYCACHEPREFIX="$BASE/.cache/pycache"
+# Set before the pip install below, not just for ComfyUI: it puts pip's wheel cache in the
+# bucket, so the reinstall on every later launch resolves from disk instead of the network.
 export XDG_CACHE_HOME="$BASE/.cache"
 export HF_HOME="$BASE/.cache/huggingface"
+
+# Voice conversion for the assemble workflow: LTX re-rolls the speaker on every clip, so a
+# stitched reel changes voice at each cut. The node pack that fixes it is not in the image.
+# Driven by the graph, like the model URLs are — a template that doesn't use the node pays
+# nothing. Cloned code lands in the bucket; pip installs land in the container and are lost
+# on stop, hence the unconditional reinstall (cheap, cache is in the bucket). Plain install,
+# NOT --target: a second numpy/torch ahead of the container's on PYTHONPATH would break
+# ComfyUI itself. Every failure here is non-fatal — escrow is claimed and the video
+# workflows need none of this.
+if [ -n "${PACK:-}" ] && grep -qls UnifiedVoiceChangerNode "$PACK"/example_workflows/*.json 2>/dev/null; then
+  VC_DIR="$BASE/custom_nodes/TTS-Audio-Suite"
+  if ! command -v git >/dev/null 2>&1; then
+    echo "[ocean] no git in the image — skipping voice-conversion nodes" >&2
+  elif [ -d "$VC_DIR/.git" ] || git clone --depth 1 \
+      https://github.com/diodiogod/TTS-Audio-Suite.git "$VC_DIR"; then
+    echo "[ocean] installing voice-conversion dependencies (first launch is slow)"
+    python3.13 -m pip install --no-input --disable-pip-version-check \
+      -r "$VC_DIR/requirements.txt" ||
+      echo "[ocean] voice-conversion dependencies failed to install — the Voice Changer node" \
+        "will be missing; delete it in the assemble workflow and wire Audio Concat straight" \
+        "into Create reel" >&2
+  else
+    echo "[ocean] could not clone TTS-Audio-Suite — the Voice Changer node will be missing" >&2
+    rm -rf "$VC_DIR"
+  fi
+fi
 
 echo "[ocean] starting ComfyUI with base directory $BASE"
 exec python3.13 /default-comfyui-bundle/ComfyUI/main.py \
