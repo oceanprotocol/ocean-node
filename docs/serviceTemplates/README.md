@@ -30,9 +30,30 @@ Templates are validated against `ServiceTemplateSchema`
 | `command` / `entrypoint`                                   | Docker CMD / ENTRYPOINT overrides                                                                                |
 | `commandFile`                                               | Path to a script, resolved relative to this directory and inlined as `command[0]` at load time (mutually exclusive with `command`) |
 | `envVars`                                                  | Fixed operator-set env vars (values never returned to callers)                                                   |
-| `userConfigurableEnvVars`                                  | Env vars the consumer supplies via ECIES-encrypted `userData` (optional regex `validation`, `sensitive` UI hint) |
+| `userConfigurableEnvVars`                                  | Env vars the consumer supplies via ECIES-encrypted `userData` (optional regex `validation`, `sensitive` UI hint, `required` hint — advisory, never enforced node-side) |
 | `requiredResources` / `recommendedResources`               | Gate/score environment selection (`min` is enforced at `SERVICE_START`)                                          |
 | `workflows`                                                 | Selectable graphs for UI-driven templates; each entry is `id` / `name` / `file` (a path to the graph JSON, resolved relative to this directory and inlined into `graph` at load time) |
+
+### Catalogue metadata (services vs bundles)
+
+Optional, purely descriptive fields. They change nothing about how the container runs —
+they travel to clients through the `getServiceTemplates` sanitizer and only affect how the
+entry is presented in a catalogue. A template that omits all of them is a plain **service**.
+
+| Field      | Meaning                                                                                                          |
+| ---------- | ---------------------------------------------------------------------------------------------------------------- |
+| `kind`     | `service` (bare app, the default when absent) or `bundle` (the same app whose command pre-downloads a curated model set) |
+| `service`  | Bundles only, **required on them**: `id` of the service template this is a variant of (may not exist on this node) |
+| `outcome`  | Bundles only: the one concrete thing this gets done, one sentence                                                 |
+| `category` | One of `image` / `video` / `llm` / `serving` / `notebook` / `embeddings` / `app`                                  |
+| `includes` | Bundles only: manifest of what the command downloads — `name`, `kind` (`model` / `workflow` / `customnode` / `other`), optional `sizeGb`, `repoId`, `url`. Display metadata; nothing here is fetched or verified by the node |
+
+Keep `includes` in step with what the script actually downloads: clients use its length as
+the denominator for a "preparing models — N of M" progress line, driven by `[models]`
+markers on the container's stdout (`downloading <name>` / `ready: <name>` /
+`already present: <name>` / `WARNING: could not download <name>` / `bundle complete`). The
+markers are a convention, not a protocol — a script that prints none simply shows no
+progress.
 
 ## Templates in this folder
 

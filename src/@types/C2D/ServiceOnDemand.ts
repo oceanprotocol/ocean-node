@@ -20,6 +20,32 @@ export interface UserConfigurableEnvVar {
   key: string // env var name, passed in userData
   validation?: string // optional regex; validated at SERVICE_START time
   sensitive?: boolean // advisory hint for clients/UI (e.g. mask on input). The node receives ALL userData ECIES-encrypted, so this does not change node-side storage.
+  required?: boolean // advisory hint: the app cannot do its job without it (e.g. HF_TOKEN for a gated model). Not enforced node-side.
+}
+
+// ── Catalogue classification (advisory; consumed by UIs) ───────────────
+
+// How an entry presents itself. Absent means 'service' — every template published before this field.
+export type ServiceTemplateKind = 'service' | 'bundle'
+
+// Closed set so catalogue buckets stay consistent across nodes.
+export type ServiceTemplateCategory =
+  | 'image'
+  | 'video'
+  | 'llm'
+  | 'serving'
+  | 'notebook'
+  | 'embeddings'
+  | 'app'
+
+// One thing a bundle pre-downloads. Display metadata only: the template's own
+// `command`/`commandFile` does the fetching, and nothing here is verified node-side.
+export interface TemplateIncludedItem {
+  name: string
+  kind: 'model' | 'workflow' | 'customnode' | 'other'
+  sizeGb?: number // download size — drives the "N models, X GB" line and setup-time hints
+  repoId?: string // Hugging Face repo id, when the item is a plain HF repo
+  url?: string // direct download URL for anything that isn't a plain HF repo
 }
 
 export interface ServiceTemplateWorkflow {
@@ -34,6 +60,12 @@ export interface ServiceTemplate {
   id: string // [a-z0-9][a-z0-9_-]{0,63}
   name?: string
   description?: string
+  // ── Catalogue metadata — advisory, never affects how the container runs ──
+  kind?: ServiceTemplateKind // default 'service'
+  service?: string // bundles only: id of the service template this is a variant of
+  outcome?: string // bundles only: the one concrete thing this gets done
+  category?: ServiceTemplateCategory
+  includes?: TemplateIncludedItem[] // bundles only: manifest of what the command downloads
   // Image specification — exactly one of (tag | checksum | dockerfile) must be set:
   image: string // base image name
   tag?: string // e.g. "latest" — mutually exclusive with checksum/dockerfile
