@@ -204,8 +204,11 @@ if [ -n "${PACK:-}" ] && grep -qls UnifiedVoiceChangerNode "$PACK"/example_workf
   elif [ -d "$VC_DIR/.git" ] || git clone --depth 1 \
       https://github.com/diodiogod/TTS-Audio-Suite.git "$VC_DIR"; then
     echo "[ocean] installing voice-conversion dependencies (first launch is slow)"
-    python3.13 -m pip install --no-input --disable-pip-version-check \
-      -r "$VC_DIR/requirements.txt" ||
+    # install.py, not `pip install -r requirements.txt`: that file deliberately omits librosa
+    # and descript-audio-codec, which install.py adds with --no-deps so pip cannot downgrade
+    # numpy/torch under ComfyUI. Installing the requirements alone leaves ChatterboxVC
+    # unimportable ("ChatterboxVC not available - check installation").
+    ( cd "$VC_DIR" && python3.13 install.py ) ||
       echo "[ocean] voice-conversion dependencies failed to install — the Voice Changer node" \
         "will be missing; delete it in the assemble workflow and wire Audio Concat straight" \
         "into Create reel" >&2

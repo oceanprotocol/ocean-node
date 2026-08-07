@@ -8,12 +8,12 @@
       "id": 1,
       "type": "MarkdownNote",
       "pos": [
-        -2000.0,
+        -1000.0,
         0.0
       ],
       "size": [
-        1600,
-        260
+        900,
+        760
       ],
       "flags": {},
       "order": 0,
@@ -22,7 +22,7 @@
       "outputs": [],
       "properties": {},
       "widgets_values": [
-        "## Assemble reel\n\nPick a rendered `shot_…mp4` in each slot's **file** dropdown below (the dropdown lists what's been generated in the bucket — hit ComfyUI's refresh icon if a clip you just rendered isn't listed yet). The numbering is ComfyUI's own save counter, so re-takes never overwrite: just don't select the ones you didn't like.\n\n**Bypass (Ctrl+B) any slot you don't need.** The chain concatenates whichever slots stay active, in order, so an unused tail slot just needs bypassing — no rewiring.\n\nClick **Run** once. The stitched reel saves as `reel_00001…` in the bucket root.\n\n### Voice — nothing to upload, nothing to type\n\nLTX generates each clip's audio from scratch, so the stitched track changes speaker every 5 seconds. **Voice Changer** converts the whole track to a single voice — and it takes that voice from **Shot 1's own audio**, which is already in the graph.\n\nThis is speech-to-speech, not transcription: the words, their timing and the room tone are left exactly as they are, only the speaker identity is remapped. Nothing is re-read, nothing is retyped, and because no phoneme moves, the picture stays in sync and the lips still match.\n\n**Want a different voice?** Drag any other shot's **Get Video Components** `audio` output onto Voice Changer's `narrator_target` — that shot's voice becomes the reel's. Or upload a clean sample in **Reference voice override** and drag that in instead. A shot with clear speech and little background makes the best reference; a shot with no speech at all makes a poor one, so if Shot 1 is a silent product beauty shot, point this at a talking shot instead.\n\n- *refinement_passes* — 1 is usually right. Raise it if the conversion sounds half-applied; above ~5 it distorts.\n- *max_chunk_duration* — bounds VRAM on long audio, rejoining chunks with timing preserved. Leave at 30.\n\n**If the Voice Changer and Voice engine nodes show up red**, their node pack failed to install on launch (check the container log for `[ocean]`). Delete both, then drag the last **Audio Concat**'s output onto **Create reel**'s `audio` input — you are back to the raw stitched audio and everything else still works.\n\nOnly 8 slots: each 5 s clip is ~126 frames at 720×1280 in float32, about 1.4 GB as a tensor. 8 slots gives a ~40 s reel and stays comfortably inside this template's 128 GB."
+        "## Assemble reel\n\nEach **Shot** group is one slot: pick a rendered `shot_…mp4` in its **file** dropdown. The dropdown lists what is in the bucket — hit ComfyUI's refresh icon if a clip you just rendered is not there yet. Re-takes never overwrite, so just don't select the ones you didn't like.\n\n### Using fewer than 8 shots\n\nRight-click the group → **Bypass Group Nodes**. Do this for every shot slot you are not using.\n\nBypassing only the *Load Video* node is not enough — the Image Batch and Audio Concat in that row still demand a second input and the run fails validation with `Required input is missing: image2`. That is why each row is grouped: bypassing the group takes out all four nodes at once, and the batch/concat nodes then pass their first input straight through, so the chain closes over the gap.\n\n**Shot 1 cannot be bypassed.** It heads both chains and supplies the reference voice.\n\nClick **Run** once. The reel saves as `reel_00001…` in the bucket root.\n\n### Voice — nothing to upload, nothing to type\n\nLTX generates each clip's audio from scratch, so the stitched track changes speaker every 5 seconds. **Voice Changer** converts the whole track to a single voice, taken from **Shot 1's own audio** — already in the graph.\n\nThis is speech-to-speech, not transcription: words, timing and room tone are left exactly as they are and only speaker identity is remapped. Nothing is re-read, nothing is retyped, and because no phoneme moves, the picture stays in sync and the lips still match.\n\n**A different voice?** Drag any other shot's **Get Video Components** `audio` output onto Voice Changer's `narrator_target`. Or upload a clean sample in **Reference voice override** and drag that in. Pick a shot with clear speech — a silent product shot makes a poor reference.\n\n- *refinement_passes* — 1 is usually right. Raise it if the conversion sounds half-applied; above ~5 it distorts.\n- *max_chunk_duration* — bounds VRAM on long audio, rejoining chunks with timing preserved. Leave at 30.\n\n**If Voice Changer / Voice engine load red or throw `ChatterboxVC not available`**, the node pack failed to install on launch — check the container log for `[ocean]`. Delete both nodes, then drag the last **Audio Concat** onto **Create reel**'s `audio` input: raw stitched audio, everything else unaffected."
       ],
       "title": "How to use"
     },
@@ -34,8 +34,8 @@
         0.0
       ],
       "size": [
-        270,
-        100
+        340,
+        380
       ],
       "flags": {},
       "order": 1,
@@ -63,7 +63,7 @@
       "id": 20,
       "type": "GetVideoComponents",
       "pos": [
-        350.0,
+        400.0,
         0.0
       ],
       "size": [
@@ -120,11 +120,11 @@
       "type": "LoadVideo",
       "pos": [
         0.0,
-        150.0
+        480.0
       ],
       "size": [
-        270,
-        100
+        340,
+        380
       ],
       "flags": {},
       "order": 3,
@@ -152,8 +152,8 @@
       "id": 21,
       "type": "GetVideoComponents",
       "pos": [
-        350.0,
-        150.0
+        400.0,
+        480.0
       ],
       "size": [
         270,
@@ -206,11 +206,11 @@
       "type": "LoadVideo",
       "pos": [
         0.0,
-        300.0
+        960.0
       ],
       "size": [
-        270,
-        100
+        340,
+        380
       ],
       "flags": {},
       "order": 5,
@@ -238,8 +238,8 @@
       "id": 22,
       "type": "GetVideoComponents",
       "pos": [
-        350.0,
-        300.0
+        400.0,
+        960.0
       ],
       "size": [
         270,
@@ -292,11 +292,11 @@
       "type": "LoadVideo",
       "pos": [
         0.0,
-        450.0
+        1440.0
       ],
       "size": [
-        270,
-        100
+        340,
+        380
       ],
       "flags": {},
       "order": 7,
@@ -324,8 +324,8 @@
       "id": 23,
       "type": "GetVideoComponents",
       "pos": [
-        350.0,
-        450.0
+        400.0,
+        1440.0
       ],
       "size": [
         270,
@@ -378,11 +378,11 @@
       "type": "LoadVideo",
       "pos": [
         0.0,
-        600.0
+        1920.0
       ],
       "size": [
-        270,
-        100
+        340,
+        380
       ],
       "flags": {},
       "order": 9,
@@ -410,8 +410,8 @@
       "id": 24,
       "type": "GetVideoComponents",
       "pos": [
-        350.0,
-        600.0
+        400.0,
+        1920.0
       ],
       "size": [
         270,
@@ -464,11 +464,11 @@
       "type": "LoadVideo",
       "pos": [
         0.0,
-        750.0
+        2400.0
       ],
       "size": [
-        270,
-        100
+        340,
+        380
       ],
       "flags": {},
       "order": 11,
@@ -496,8 +496,8 @@
       "id": 25,
       "type": "GetVideoComponents",
       "pos": [
-        350.0,
-        750.0
+        400.0,
+        2400.0
       ],
       "size": [
         270,
@@ -550,11 +550,11 @@
       "type": "LoadVideo",
       "pos": [
         0.0,
-        900.0
+        2880.0
       ],
       "size": [
-        270,
-        100
+        340,
+        380
       ],
       "flags": {},
       "order": 13,
@@ -582,8 +582,8 @@
       "id": 26,
       "type": "GetVideoComponents",
       "pos": [
-        350.0,
-        900.0
+        400.0,
+        2880.0
       ],
       "size": [
         270,
@@ -636,11 +636,11 @@
       "type": "LoadVideo",
       "pos": [
         0.0,
-        1050.0
+        3360.0
       ],
       "size": [
-        270,
-        100
+        340,
+        380
       ],
       "flags": {},
       "order": 15,
@@ -668,8 +668,8 @@
       "id": 27,
       "type": "GetVideoComponents",
       "pos": [
-        350.0,
-        1050.0
+        400.0,
+        3360.0
       ],
       "size": [
         270,
@@ -721,8 +721,8 @@
       "id": 30,
       "type": "ImageBatch",
       "pos": [
-        760.0,
-        260.0
+        740.0,
+        480.0
       ],
       "size": [
         210,
@@ -763,8 +763,8 @@
       "id": 31,
       "type": "ImageBatch",
       "pos": [
-        950.0,
-        260.0
+        740.0,
+        960.0
       ],
       "size": [
         210,
@@ -805,8 +805,8 @@
       "id": 32,
       "type": "ImageBatch",
       "pos": [
-        1140.0,
-        260.0
+        740.0,
+        1440.0
       ],
       "size": [
         210,
@@ -847,8 +847,8 @@
       "id": 33,
       "type": "ImageBatch",
       "pos": [
-        1330.0,
-        260.0
+        740.0,
+        1920.0
       ],
       "size": [
         210,
@@ -889,8 +889,8 @@
       "id": 34,
       "type": "ImageBatch",
       "pos": [
-        1520.0,
-        260.0
+        740.0,
+        2400.0
       ],
       "size": [
         210,
@@ -931,8 +931,8 @@
       "id": 35,
       "type": "ImageBatch",
       "pos": [
-        1710.0,
-        260.0
+        740.0,
+        2880.0
       ],
       "size": [
         210,
@@ -973,8 +973,8 @@
       "id": 36,
       "type": "ImageBatch",
       "pos": [
-        1900.0,
-        260.0
+        740.0,
+        3360.0
       ],
       "size": [
         210,
@@ -1015,7 +1015,7 @@
       "id": 40,
       "type": "AudioConcat",
       "pos": [
-        760.0,
+        990.0,
         480.0
       ],
       "size": [
@@ -1060,8 +1060,8 @@
       "id": 41,
       "type": "AudioConcat",
       "pos": [
-        950.0,
-        480.0
+        990.0,
+        960.0
       ],
       "size": [
         210,
@@ -1105,8 +1105,8 @@
       "id": 42,
       "type": "AudioConcat",
       "pos": [
-        1140.0,
-        480.0
+        990.0,
+        1440.0
       ],
       "size": [
         210,
@@ -1150,8 +1150,8 @@
       "id": 43,
       "type": "AudioConcat",
       "pos": [
-        1330.0,
-        480.0
+        990.0,
+        1920.0
       ],
       "size": [
         210,
@@ -1195,8 +1195,8 @@
       "id": 44,
       "type": "AudioConcat",
       "pos": [
-        1520.0,
-        480.0
+        990.0,
+        2400.0
       ],
       "size": [
         210,
@@ -1240,8 +1240,8 @@
       "id": 45,
       "type": "AudioConcat",
       "pos": [
-        1710.0,
-        480.0
+        990.0,
+        2880.0
       ],
       "size": [
         210,
@@ -1285,8 +1285,8 @@
       "id": 46,
       "type": "AudioConcat",
       "pos": [
-        1900.0,
-        480.0
+        990.0,
+        3360.0
       ],
       "size": [
         210,
@@ -1330,8 +1330,8 @@
       "id": 50,
       "type": "CreateVideo",
       "pos": [
-        2180.0,
-        350.0
+        1720.0,
+        0.0
       ],
       "size": [
         270,
@@ -1384,8 +1384,8 @@
       "id": 51,
       "type": "SaveVideo",
       "pos": [
-        2520.0,
-        350.0
+        1720.0,
+        210.0
       ],
       "size": [
         400,
@@ -1423,8 +1423,8 @@
       "id": 60,
       "type": "LoadAudio",
       "pos": [
-        2180.0,
-        560.0
+        1300.0,
+        490.0
       ],
       "size": [
         330,
@@ -1455,8 +1455,8 @@
       "id": 61,
       "type": "ChatterBoxEngineNode",
       "pos": [
-        2180.0,
-        760.0
+        1300.0,
+        0.0
       ],
       "size": [
         340,
@@ -1492,8 +1492,8 @@
       "id": 62,
       "type": "UnifiedVoiceChangerNode",
       "pos": [
-        2560.0,
-        560.0
+        1300.0,
+        250.0
       ],
       "size": [
         340,
@@ -1890,7 +1890,112 @@
       "AUDIO"
     ]
   ],
-  "groups": [],
+  "groups": [
+    {
+      "id": 1,
+      "title": "Shot 1 — chain head, keep",
+      "bounding": [
+        -20.0,
+        -50.0,
+        1250.0,
+        450.0
+      ],
+      "color": "#88A",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "Shot 2",
+      "bounding": [
+        -20.0,
+        430.0,
+        1250.0,
+        450.0
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 3,
+      "title": "Shot 3",
+      "bounding": [
+        -20.0,
+        910.0,
+        1250.0,
+        450.0
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 4,
+      "title": "Shot 4",
+      "bounding": [
+        -20.0,
+        1390.0,
+        1250.0,
+        450.0
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 5,
+      "title": "Shot 5",
+      "bounding": [
+        -20.0,
+        1870.0,
+        1250.0,
+        450.0
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 6,
+      "title": "Shot 6",
+      "bounding": [
+        -20.0,
+        2350.0,
+        1250.0,
+        450.0
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 7,
+      "title": "Shot 7",
+      "bounding": [
+        -20.0,
+        2830.0,
+        1250.0,
+        450.0
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 8,
+      "title": "Shot 8",
+      "bounding": [
+        -20.0,
+        3310.0,
+        1250.0,
+        450.0
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
   "definitions": {
     "subgraphs": []
   },
