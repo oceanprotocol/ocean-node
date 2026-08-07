@@ -159,10 +159,21 @@ ComfyUI's own save counter — `shot_00001…`, `shot_00002…` — so re-takes 
 you pick the good ones at assembly time.
 
 **Frame chaining.** Every run also drops that clip's last frame beside it as
-`lastframe_…png`. Refresh, pick it in *First frame*, and the next shot starts exactly where
+`lastframe_…png`. Refresh, pick it in the image slot, and the next shot starts exactly where
 the last one ended — identity carried in pixels rather than in prose, which is what the
-reference-image tools rely on and what text-only character descriptions cannot do. Re-pick
-the original photo instead whenever you want a hard cut to a new setup.
+reference-image tools rely on and what text-only character descriptions cannot do.
+
+**Hard cuts.** The *Shot start* dial controls how literally that image is taken. It drives
+the `strength` of both `LTXVImgToVideoInplace` passes, promoted out of the subgraph: the
+refine pass directly, the base pass through `a * 0.7` so the dial at **1.0** reproduces the
+strengths the graph shipped with (1.0 refine / 0.7 base) exactly. At **1.0** frame 0 *is* the
+image and the take continues seamlessly. Around **0.35** the image only guides look and
+character while the model composes a new frame — a hard cut to a new scene with the same
+face and wardrobe. The separate *No character image* toggle still bypasses the image
+entirely (`Switch to Text to Video?` inside the subgraph) for a shot built from the prompt
+alone.
+
+Three ways to start a shot, then: continue it, cut to it, or generate it fresh.
 
 Mechanically: the generator subgraph exposes its decoded frames as a second `IMAGE` output
 alongside `VIDEO`; `GetImageSize` → `a - 1` → `ImageFromBatch` takes the final frame and

@@ -1,8 +1,8 @@
 {
   "id": "0112e9af-5129-48ba-af78-92c40ac40b40",
   "revision": 0,
-  "last_node_id": 742,
-  "last_link_id": 1909,
+  "last_node_id": 744,
+  "last_link_id": 1912,
   "nodes": [
     {
       "id": 732,
@@ -13,7 +13,7 @@
       ],
       "size": [
         900,
-        460
+        560
       ],
       "flags": {},
       "order": 0,
@@ -23,7 +23,7 @@
       "title": "How to use",
       "properties": {},
       "widgets_values": [
-        "## Multishot reel — one shot per Run\n\n**1.** Upload your creator photo in *First frame*. No photo? Turn on *No character image* and the style prompt builds them instead — describe them in detail so every shot matches.\n\n**2.** *Style — every shot* is the part you never touch again: who the character is, what they wear, the room, the light, the palette, the camera look. Keeping this identical is what keeps the reel consistent.\n\n**3.** *Scene — this shot* is the only box you edit between runs: the action, the camera move, what they say, the ambient sound.\n\n**4.** Run. Each clip lands in your bucket as `shot_…mp4`, and its **last frame is saved next to it** as `lastframe_…png` — automatically, every run.\n\n**5.** **Chain the next shot.** Hit the refresh icon, then pick that `lastframe_…png` in *First frame*. Shot 2 now starts exactly where shot 1 ended: same face, same wardrobe, same room, same light — carried by the pixels, not by the prompt. Edit the scene box, Run. Repeat.\n\nSkip the chaining and re-pick the original photo instead whenever you want a hard cut to a new setup — the style box still holds the look together.\n\n**6.** When you have every shot, switch to the **Assemble reel** workflow, pick the clips in its dropdowns, and Run.\n\n720×1280 · 5 s · 25 fps · with audio."
+        "## Multishot reel — one shot per Run\n\n**1.** *Style — every shot* is the part you never touch again: who the character is, what they wear, the room, the light, the palette, the camera look. Keeping this identical is what holds the reel together.\n\n**2.** *Scene — this shot* is the only box you edit between runs: the action, the camera move, what they say, the ambient sound.\n\n**3.** Run. Each clip lands in your bucket as `shot_…mp4`, and its **last frame is saved beside it** as `lastframe_…png`, automatically, every run.\n\n### How the next shot starts — the *Shot start* dial\n\n| Setting | What happens | Use it for |\n|---|---|---|\n| **1.0** | Frame 0 *is* the image. The shot continues seamlessly. | Staying in one continuous take |\n| **~0.35** | The image guides look and character, but the model composes a new frame. | **Hard cut to a new scene**, same character |\n| *No character image* ON | The image is ignored; everything comes from the style prompt. | Shot 1, or a deliberate fresh start |\n\nSo a **hard cut** is: pick a `lastframe_…png` of the character you want to keep, drop *Shot start* to about 0.35, and write the new scene. You get a new angle, new staging, new location — with the same face and wardrobe carried over. Push toward 0.5 if the character drifts; toward 0.25 if the old composition is still bleeding through.\n\nAt **1.0** the two sampler passes run at exactly the strengths this graph shipped with, so leaving the dial alone changes nothing.\n\n**4.** Repeat. Re-takes never overwrite, so bad ones are just skipped later.\n\n**5.** When every shot is good, switch to **Assemble reel**, pick the clips, and Run.\n\n720×1280 · 25 fps · with audio · duration is the *duration* widget on **Generate video**."
       ]
     },
     {
@@ -62,7 +62,7 @@
         "subject-girl-holding-skincare-bottle.png",
         "image"
       ],
-      "title": "First frame — character photo, or the previous shot's lastframe_….png"
+      "title": "Image — first frame, or character reference on a hard cut"
     },
     {
       "id": 725,
@@ -333,6 +333,24 @@
             "name": "value_6"
           },
           "link": 1904
+        },
+        {
+          "label": "first_frame_strength",
+          "name": "value_7",
+          "type": "FLOAT",
+          "widget": {
+            "name": "value_7"
+          },
+          "link": 1910
+        },
+        {
+          "label": "base_strength",
+          "name": "value_8",
+          "type": "FLOAT",
+          "widget": {
+            "name": "value_8"
+          },
+          "link": 1912
         }
       ],
       "outputs": [
@@ -405,6 +423,14 @@
           [
             "302",
             "value"
+          ],
+          [
+            "288",
+            "strength"
+          ],
+          [
+            "296",
+            "strength"
           ]
         ],
         "cnr_id": "comfy-core",
@@ -673,6 +699,104 @@
         "lastframe"
       ],
       "title": "Last frame → pick this in First frame for the next shot"
+    },
+    {
+      "id": 743,
+      "type": "PrimitiveFloat",
+      "pos": [
+        820.0,
+        1020.0
+      ],
+      "size": [
+        320,
+        90
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "FLOAT",
+          "type": "FLOAT",
+          "links": [
+            1910,
+            1911
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PrimitiveFloat"
+      },
+      "widgets_values": [
+        1.0
+      ],
+      "title": "Shot start — 1.0 continue from image · 0.35 hard cut"
+    },
+    {
+      "id": 744,
+      "type": "ComfyMathExpression",
+      "pos": [
+        820.0,
+        1140.0
+      ],
+      "size": [
+        225,
+        8
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "a",
+          "name": "values.a",
+          "type": "FLOAT,INT,BOOLEAN",
+          "link": 1911
+        },
+        {
+          "label": "b",
+          "name": "values.b",
+          "shape": 7,
+          "type": "FLOAT,INT,BOOLEAN",
+          "link": null
+        },
+        {
+          "label": "c",
+          "name": "values.c",
+          "shape": 7,
+          "type": "FLOAT,INT,BOOLEAN",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "FLOAT",
+          "type": "FLOAT",
+          "links": [
+            1912
+          ]
+        },
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "BOOL",
+          "type": "BOOLEAN",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ComfyMathExpression"
+      },
+      "widgets_values": [
+        "a * 0.7"
+      ],
+      "title": "Base pass strength"
     }
   ],
   "links": [
@@ -763,6 +887,30 @@
       742,
       0,
       "IMAGE"
+    ],
+    [
+      1910,
+      743,
+      0,
+      129,
+      13,
+      "FLOAT"
+    ],
+    [
+      1911,
+      743,
+      0,
+      744,
+      0,
+      "FLOAT"
+    ],
+    [
+      1912,
+      744,
+      0,
+      129,
+      14,
+      "FLOAT"
     ]
   ],
   "groups": [],
@@ -813,7 +961,7 @@
             6590,
             4360,
             128,
-            88
+            128
           ]
         },
         "inputs": [
@@ -999,6 +1147,32 @@
             "pos": [
               876.162109375,
               4394
+            ]
+          },
+          {
+            "id": "1bd79e1f-321b-5084-bbb3-840859ae93c5",
+            "name": "value_7",
+            "type": "FLOAT",
+            "linkIds": [
+              649
+            ],
+            "label": "first_frame_strength",
+            "pos": [
+              876.162109375,
+              4414
+            ]
+          },
+          {
+            "id": "6110e041-ae6e-59fa-9b41-6c51aaeafe1a",
+            "name": "value_8",
+            "type": "FLOAT",
+            "linkIds": [
+              650
+            ],
+            "label": "base_strength",
+            "pos": [
+              876.162109375,
+              4434
             ]
           }
         ],
@@ -1804,6 +1978,15 @@
                   "name": "bypass"
                 },
                 "link": 543
+              },
+              {
+                "localized_name": "strength",
+                "name": "strength",
+                "type": "FLOAT",
+                "widget": {
+                  "name": "strength"
+                },
+                "link": 649
               }
             ],
             "outputs": [
@@ -2325,6 +2508,15 @@
                   "name": "bypass"
                 },
                 "link": 542
+              },
+              {
+                "localized_name": "strength",
+                "name": "strength",
+                "type": "FLOAT",
+                "widget": {
+                  "name": "strength"
+                },
+                "link": 650
               }
             ],
             "outputs": [
@@ -5114,6 +5306,22 @@
             "target_id": -20,
             "target_slot": 1,
             "type": "IMAGE"
+          },
+          {
+            "id": 649,
+            "origin_id": -10,
+            "origin_slot": 14,
+            "target_id": 288,
+            "target_slot": 4,
+            "type": "FLOAT"
+          },
+          {
+            "id": 650,
+            "origin_id": -10,
+            "origin_slot": 15,
+            "target_id": 296,
+            "target_slot": 4,
+            "type": "FLOAT"
           }
         ],
         "extra": {
