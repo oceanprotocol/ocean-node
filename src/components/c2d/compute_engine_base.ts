@@ -17,7 +17,7 @@ import type {
   ComputeEnvFees
 } from '../../@types/C2D/C2D.js'
 import type { ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
-import { C2DClusterType } from '../../@types/C2D/C2D.js'
+import { C2DClusterType, C2DStatusNumber } from '../../@types/C2D/C2D.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
 import { KeyManager } from '../KeyManager/index.js'
@@ -30,6 +30,24 @@ import { ValidateParams } from '../httpRoutes/validateCommands.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { DockerRegistryAuthSchema } from '../../utils/config/schemas.js'
+
+/**
+ * Parse a job timestamp stored as decimal seconds in a string column.
+ *
+ * Job timestamps are initialized to the *string* `'0'` (not null/empty) and only get a real
+ * value once the corresponding phase starts. `'0'` is truthy, so a truthiness check happily
+ * accepts it and `Number.parseFloat('0')` then places the job's start at the Unix epoch,
+ * producing ~56 years of "elapsed" time. Always go through this helper: it returns 0 for the
+ * `'0'` sentinel, for null/undefined/empty, and for anything non-finite or negative, so
+ * callers only have to test `> 0` to know whether a real timestamp is present.
+ */
+export function parseJobTimestamp(raw?: string): number {
+  if (!raw) return 0
+  const parsed = Number.parseFloat(raw)
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0
+  return parsed
+}
+
 export abstract class C2DEngine {
   private clusterConfig: C2DClusterInfo
   public db: C2DDatabase
@@ -570,6 +588,36 @@ export abstract class C2DEngine {
     }
   }
 
+  /**
+   * Seconds of runtime budget a job still has, clamped to [0, maxJobDuration].
+   *
+   * Build time counts against `maxJobDuration`, consistent with the runtime-expiry check in
+   * the docker engine, so `buildStartTimestamp` wins when both are set. A job that has been
+   * allocated but has not started ticking yet (no valid timestamp on either field — e.g. it
+   * is still in PullImage/BuildImage/ConfiguringVolumes) still has its whole budget ahead of
+   * it, so report the full `maxJobDuration` rather than measuring from the epoch.
+   */
+  protected getJobRemainingRuntimeSeconds(job: DBComputeJob, nowSec: number): number {
+    const budget = Number.isFinite(job?.maxJobDuration) ? job.maxJobDuration : 0
+    const buildStart = parseJobTimestamp(job?.buildStartTimestamp)
+    const start = buildStart > 0 ? buildStart : parseJobTimestamp(job?.algoStartTimestamp)
+    if (start === 0) return budget
+    return Math.max(0, budget - (nowSec - start))
+  }
+
+  /**
+   * Seconds a queued job may still wait before its queue request expires, clamped to
+   * [0, queueMaxWaitTime]. Mirrors the queue-expiry check in the docker engine. As with the
+   * runtime helper, a missing/sentinel `dateCreated` means "not measurable yet", so report the
+   * full requested wait instead of measuring from the epoch.
+   */
+  protected getJobRemainingQueueWaitSeconds(job: DBComputeJob, nowSec: number): number {
+    const requested = Number.isFinite(job?.queueMaxWaitTime) ? job.queueMaxWaitTime : 0
+    const created = parseJobTimestamp(job?.dateCreated)
+    if (created === 0) return requested
+    return Math.max(0, requested - (nowSec - created))
+  }
+
   public async getUsedResources(env: ComputeEnvironment): Promise<any> {
     const usedResources: { [x: string]: any } = {}
     const usedFreeResources: { [x: string]: any } = {}
@@ -591,32 +639,38 @@ export abstract class C2DEngine {
     let maxRunningTime = 0
     let maxRunningTimeFree = 0
 
+    // one instant for the whole response, so every job in it is measured against the same clock
+    const nowSec = Date.now() / 1000
+
     for (const job of jobs) {
       const isThisEnv = job.environment === env.id
-      const isRunning = job.queueMaxWaitTime === 0
+      // A job holds resources from the moment it leaves the queue. JobQueued is the only
+      // pre-allocation state; every later state means volumes/containers exist or are being
+      // created. queueMaxWaitTime is the caller's *requested* wait, not live state, and is
+      // never reset on release — do not use it as a liveness flag.
+      const isQueued = job.status === C2DStatusNumber.JobQueued
 
       if (isThisEnv) {
-        if (isRunning) {
-          const timeElapsed = job.buildStartTimestamp
-            ? new Date().getTime() / 1000 - Number.parseFloat(job?.buildStartTimestamp)
-            : new Date().getTime() / 1000 - Number.parseFloat(job?.algoStartTimestamp)
-          totalJobs++
-          maxRunningTime += job.maxJobDuration - timeElapsed
-          if (job.isFree) {
-            totalFreeJobs++
-            maxRunningTimeFree += job.maxJobDuration - timeElapsed
-          }
-        } else {
+        if (isQueued) {
+          const waitLeft = this.getJobRemainingQueueWaitSeconds(job, nowSec)
           queuedJobs++
-          maxWaitTime += job.maxJobDuration
+          maxWaitTime += waitLeft
           if (job.isFree) {
             queuedFreeJobs++
-            maxWaitTimeFree += job.maxJobDuration
+            maxWaitTimeFree += waitLeft
+          }
+        } else {
+          const runtimeLeft = this.getJobRemainingRuntimeSeconds(job, nowSec)
+          totalJobs++
+          maxRunningTime += runtimeLeft
+          if (job.isFree) {
+            totalFreeJobs++
+            maxRunningTimeFree += runtimeLeft
           }
         }
       }
 
-      if (isRunning) {
+      if (!isQueued) {
         for (const resource of job.resources) {
           const envRes = envResourceMap.get(resource.id)
           if (envRes) {
@@ -731,7 +785,15 @@ export abstract class C2DEngine {
 
       // Gate 1 (per-env ceiling) — fungible resources only.
       // envResource.total = env aggregate ceiling (from EnvironmentResourceRef.total).
-      if (isFungible && envResource.total - (envResource.inUse ?? 0) < request.amount)
+      // Both operands are defaulted: a resource object missing either field would make the
+      // subtraction NaN, and `NaN < amount` is false, i.e. the gate would silently admit the
+      // request. Missing must deny, not admit. (`total` is required by the type, but these
+      // objects also arrive from JSON config and older persisted shapes, which the compiler
+      // cannot vouch for — free-resource entries with no `total` have been seen in the field.)
+      if (
+        isFungible &&
+        (envResource.total ?? 0) - (envResource.inUse ?? 0) < request.amount
+      )
         throw new Error(`Not enough available ${request.id} in this environment`)
 
       // Gate 2 (engine-wide pool ceiling) — fungible + exclusive discrete.
@@ -744,7 +806,11 @@ export abstract class C2DEngine {
         if (!env.free) throw new Error(`No free resources`)
         envResource = this.getResource(env.free?.resources, request.id)
         if (!envResource) throw new Error(`No such free resource ${request.id}`)
-        if (envResource.total - envResource.inUse < request.amount)
+        // Same NaN-admits hazard as gate 1, and more reachable here: `inUse` is optional on
+        // ComputeResource, and free-resource entries carrying `max`/`inUse` but no `total`
+        // have been observed on live nodes (builds predating free-resource pool resolution).
+        // Unguarded, that yields NaN and allows unlimited free allocation.
+        if ((envResource.total ?? 0) - (envResource.inUse ?? 0) < request.amount)
           throw new Error(`Not enough available ${request.id} for free`)
       }
     }

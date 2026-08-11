@@ -4,13 +4,24 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { buildInvalidRequestMessage } from '../../httpRoutes/validateCommands.js'
 import { CommandHandler } from './handler.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
+import { parseFromTimestampSeconds } from '../utils/timestamps.js'
 
 export class GetJobsHandler extends CommandHandler {
   validate(command: GetJobsCommand) {
-    if (command.fromTimestamp && typeof command.fromTimestamp !== 'string') {
-      return buildInvalidRequestMessage(
-        'Parameter : "fromTimestamp" is not a valid string'
-      )
+    // absent / empty means "no filter", as before
+    if (command.fromTimestamp) {
+      if (typeof command.fromTimestamp !== 'string') {
+        return buildInvalidRequestMessage(
+          'Parameter : "fromTimestamp" is not a valid string'
+        )
+      }
+      // Reject unparseable values instead of passing them to SQL, where they used to match
+      // nothing and return 200 + [] — indistinguishable from "no jobs in that window".
+      if (!Number.isFinite(parseFromTimestampSeconds(command.fromTimestamp))) {
+        return buildInvalidRequestMessage(
+          `Parameter "fromTimestamp" is not a valid date: "${command.fromTimestamp}" — use an ISO date or a Unix timestamp`
+        )
+      }
     }
     return { valid: true }
   }
@@ -27,9 +38,14 @@ export class GetJobsHandler extends CommandHandler {
         throw new Error('C2D database not initialized')
       }
 
+      // The DB columns store decimal seconds; validate() has already rejected anything
+      // unparseable, so this is either a finite seconds value or undefined (no filter).
+      const fromTimestamp = task.fromTimestamp
+        ? parseFromTimestampSeconds(task.fromTimestamp)
+        : undefined
       const jobs = await c2d.getJobs(
         task.environments,
-        task.fromTimestamp,
+        fromTimestamp ?? undefined,
         task.consumerAddrs,
         undefined,
         task.runningJobs
