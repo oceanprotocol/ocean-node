@@ -3346,6 +3346,16 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
+  // Bind-mount for the job's output bucket, when it has one. Throws instead of returning an
+  // empty list: an unmounted container silently re-downloads its models and writes results
+  // nowhere, so a mount failure must fail the start/restart.
+  private async serviceOutputMounts(job: ServiceJob): Promise<DockerMountObject[]> {
+    if (!job.outputBucketId) return []
+    const ps = OceanNode.getInstance().getPersistentStorage()
+    if (!ps) throw new Error('Persistent storage is not configured on this node')
+    return [await ps.getDockerOutputMountObject(job.outputBucketId, job.owner)]
+  }
+
   // Handler-facing: persist the initial Starting record and return immediately so the HTTP
   // response carries the serviceId without waiting for escrow/image/container. The background
   // loop then calls processServiceStart() to advance it. Persisting Starting also reserves the
@@ -3614,14 +3624,6 @@ export class C2DEngineDocker extends C2DEngine {
           job.environment
         )
 
-      // Mount failure must fail the start: an unmounted container silently re-downloads its models.
-      const Mounts: DockerMountObject[] = []
-      if (job.outputBucketId) {
-        const ps = OceanNode.getInstance().getPersistentStorage()
-        if (!ps) throw new Error('Persistent storage is not configured on this node')
-        Mounts.push(await ps.getDockerOutputMountObject(job.outputBucketId, job.owner))
-      }
-
       container = await this.docker.createContainer({
         Image: job.containerImage,
         Cmd: cmd,
@@ -3638,7 +3640,7 @@ export class C2DEngineDocker extends C2DEngine {
           SecurityOpt: ['no-new-privileges'], // security plan #5
           CapDrop: ['ALL'],
           PidsLimit: 512,
-          Mounts
+          Mounts: await this.serviceOutputMounts(job)
         }
       })
       CORE_LOGGER.debug(
@@ -4322,14 +4324,6 @@ export class C2DEngineDocker extends C2DEngine {
         )
 
       // 8. Create and start new container
-      // Same bind-mount as service start (see above).
-      const Mounts: DockerMountObject[] = []
-      if (job.outputBucketId) {
-        const ps = OceanNode.getInstance().getPersistentStorage()
-        if (!ps) throw new Error('Persistent storage is not configured on this node')
-        Mounts.push(await ps.getDockerOutputMountObject(job.outputBucketId, job.owner))
-      }
-
       container = await this.docker.createContainer({
         Image: effContainerImage,
         Cmd: cmd,
@@ -4346,7 +4340,7 @@ export class C2DEngineDocker extends C2DEngine {
           SecurityOpt: ['no-new-privileges'],
           CapDrop: ['ALL'],
           PidsLimit: 512,
-          Mounts
+          Mounts: await this.serviceOutputMounts(job)
         }
       })
       CORE_LOGGER.debug(

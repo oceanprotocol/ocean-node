@@ -7,13 +7,25 @@ import type {
 import { ServiceTemplateSchema } from '../../../utils/config/schemas.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
-// Null when `relPath` escapes `resolvedDir` — template paths are author-controlled.
-function resolveInTemplatesDir(resolvedDir: string, relPath: string): string | null {
+// Reads a file a template points at. Null (with a warning naming `what`) when the path
+// escapes the templates dir or cannot be read — template paths are author-controlled, so
+// both are authoring mistakes rather than node failures.
+async function readTemplateFile(
+  resolvedDir: string,
+  relPath: string,
+  what: string
+): Promise<string | null> {
   const target = resolve(resolvedDir, relPath)
   if (target !== resolvedDir && !target.startsWith(resolvedDir + sep)) {
+    CORE_LOGGER.warn(`${what}: "${relPath}" resolves outside the templates dir`)
     return null
   }
-  return target
+  try {
+    return await readFile(target, 'utf8')
+  } catch (e) {
+    CORE_LOGGER.warn(`${what}: cannot read "${relPath}" (${e.message})`)
+    return null
+  }
 }
 
 // Re-reads on every call so operators can add/edit/remove template files without a restart.
@@ -68,23 +80,15 @@ export async function loadServiceTemplates(dir?: string): Promise<ServiceTemplat
         continue
       }
       if (tmpl.commandFile) {
-        const target = resolveInTemplatesDir(resolvedDir, tmpl.commandFile)
-        if (!target) {
-          CORE_LOGGER.warn(
-            `Skipping service template "${tmpl.id}": "${tmpl.commandFile}" resolves outside the templates dir`
-          )
-          continue
-        }
-        try {
-          const content = await readFile(target, 'utf8')
-          delete tmpl.commandFile
-          tmpl.command = [content]
-        } catch (e) {
-          CORE_LOGGER.warn(
-            `Skipping service template "${tmpl.id}": cannot read commandFile "${tmpl.commandFile}" (${e.message})`
-          )
-          continue
-        }
+        // No command means nothing to run, so an unreadable file skips the whole template.
+        const content = await readTemplateFile(
+          resolvedDir,
+          tmpl.commandFile,
+          `Skipping service template "${tmpl.id}"`
+        )
+        if (content === null) continue
+        delete tmpl.commandFile
+        tmpl.command = [content]
       }
       if (tmpl.workflows?.length) {
         // A workflow with a missing/malformed file is dropped, not the whole template.
@@ -94,21 +98,14 @@ export async function loadServiceTemplates(dir?: string): Promise<ServiceTemplat
             resolved.push(wf)
             continue
           }
-          const target = resolveInTemplatesDir(resolvedDir, wf.file)
-          if (!target) {
-            CORE_LOGGER.warn(
-              `Template "${tmpl.id}": dropping workflow "${wf.id}" — "${wf.file}" resolves outside the templates dir`
-            )
-            continue
-          }
+          const dropping = `Template "${tmpl.id}": dropping workflow "${wf.id}"`
+          const content = await readTemplateFile(resolvedDir, wf.file, dropping)
+          if (content === null) continue
           try {
-            const graph = JSON.parse(await readFile(target, 'utf8'))
             const { file, ...rest } = wf
-            resolved.push({ ...rest, graph })
+            resolved.push({ ...rest, graph: JSON.parse(content) })
           } catch (e) {
-            CORE_LOGGER.warn(
-              `Template "${tmpl.id}": dropping workflow "${wf.id}" — cannot read "${wf.file}" (${e.message})`
-            )
+            CORE_LOGGER.warn(`${dropping} — invalid JSON in "${wf.file}" (${e.message})`)
           }
         }
         tmpl.workflows = resolved

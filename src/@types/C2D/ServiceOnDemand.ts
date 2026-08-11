@@ -76,8 +76,9 @@ export interface ServiceTemplate {
   envVars?: Record<string, string> // fixed env vars — operator-set, never returned to callers
   userConfigurableEnvVars?: UserConfigurableEnvVar[]
   command?: string[] // Docker CMD override; ${KEY} expanded from userData
-  commandFile?: string // path relative to the templates dir; inlined into command[0] at load
-  // time and dropped (mutually exclusive with `command`)
+  // path relative to the templates dir; inlined into command[0] at load time and dropped
+  // (mutually exclusive with `command`)
+  commandFile?: string
   entrypoint?: string[] // Docker ENTRYPOINT override
   requiredResources?: TemplateResourceRequirement[] // MUST satisfy — gates SERVICE_START
   recommendedResources?: TemplateResourceRequirement[] // SHOULD satisfy — used for scoring + UI

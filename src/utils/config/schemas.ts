@@ -358,7 +358,7 @@ const TemplateIncludedItemSchema = z
   })
   .strict()
 
-export const ServiceTemplateWorkflowSchema = z
+const ServiceTemplateWorkflowSchema = z
   .object({
     id: z.string().regex(/^[A-Za-z0-9_.-]+$/, {
       message: 'Workflow id must match [A-Za-z0-9_.-]+'

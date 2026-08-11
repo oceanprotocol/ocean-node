@@ -122,15 +122,16 @@ export class ServiceStartHandler extends CommandHandler {
         }
       }
 
-      // Must run before createServiceJob claims escrow, or a bad bucket burns the user's payment.
-      const isValidOutputBucket = await validateOutputBucket(
+      // Must run before createServiceJob claims escrow, or a bad bucket burns the user's
+      // payment. No-op when the task carries no bucket. '' = no `output` dir to conflict with.
+      const outputBucketCheck = await validateOutputBucket(
         node,
         task.outputBucketId,
         '',
         task.consumerAddress
       )
-      if (isValidOutputBucket.status.httpStatus !== 200) {
-        return isValidOutputBucket
+      if (outputBucketCheck.status.httpStatus !== 200) {
+        return outputBucketCheck
       }
 
       // 4. Duration limit
