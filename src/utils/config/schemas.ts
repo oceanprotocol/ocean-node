@@ -352,6 +352,7 @@ const TemplateIncludedItemSchema = z
   .object({
     name: z.string().min(1),
     kind: z.enum(['model', 'workflow', 'customnode', 'other']),
+    sizeGb: z.number().positive().optional(),
     repoId: z.string().min(1).optional(),
     url: z.string().url().optional()
   })

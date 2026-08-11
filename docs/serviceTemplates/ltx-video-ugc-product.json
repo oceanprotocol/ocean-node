@@ -10,26 +10,31 @@
     {
       "name": "LTX-2.3 22B dev (fp8)",
       "kind": "model",
+      "sizeGb": 29.2,
       "repoId": "Lightricks/LTX-2.3-fp8"
     },
     {
       "name": "Gemma-3-12B-it text encoder (fp4 mixed)",
       "kind": "model",
+      "sizeGb": 9.5,
       "repoId": "Comfy-Org/ltx-2"
     },
     {
       "name": "LTX-2.3 22B distilled LoRA (rank 111)",
       "kind": "model",
+      "sizeGb": 2.7,
       "repoId": "Comfy-Org/ltx-2.3"
     },
     {
       "name": "LTX-2.3 spatial upscaler x2",
       "kind": "model",
+      "sizeGb": 1.0,
       "repoId": "Lightricks/LTX-2.3"
     },
     {
       "name": "Gemma-3-12B-it abliterated LoRA (rank 64)",
       "kind": "model",
+      "sizeGb": 0.6,
       "repoId": "Comfy-Org/ltx-2"
     }
   ],

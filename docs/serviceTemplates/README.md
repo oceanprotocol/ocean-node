@@ -46,7 +46,7 @@ entry is presented in a catalogue. A template that omits all of them is a plain 
 | `service`  | Bundles only, **required on them**: `id` of the service template this is a variant of (may not exist on this node) |
 | `outcome`  | Bundles only: the one concrete thing this gets done, one sentence                                                 |
 | `category` | One of `image` / `video` / `llm` / `serving` / `notebook` / `embeddings` / `app`                                  |
-| `includes` | Bundles only: manifest of what the command downloads — `name`, `kind` (`model` / `workflow` / `customnode` / `other`), optional `repoId`, `url`. Display metadata; nothing here is fetched or verified by the node |
+| `includes` | Bundles only: manifest of what the command downloads — `name`, `kind` (`model` / `workflow` / `customnode` / `other`), optional `sizeGb`, `repoId`, `url`. Display metadata; nothing here is fetched or verified by the node |
 
 Keep `includes` in step with what the script actually downloads: clients use its length as
 the denominator for a "preparing models — N of M" progress line, driven by `[models]`

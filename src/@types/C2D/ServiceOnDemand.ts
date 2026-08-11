@@ -43,6 +43,7 @@ export type ServiceTemplateCategory =
 export interface TemplateIncludedItem {
   name: string
   kind: 'model' | 'workflow' | 'customnode' | 'other'
+  sizeGb?: number // download size — drives the "N models, X GB" line and setup-time hints
   repoId?: string // Hugging Face repo id, when the item is a plain HF repo
   url?: string // direct download URL for anything that isn't a plain HF repo
 }
