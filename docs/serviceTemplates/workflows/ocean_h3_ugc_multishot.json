@@ -25,7 +25,7 @@
       },
       "title": "How to use",
       "widgets_values": [
-        "# MiniMax H3 — 30 s UGC reel, one Run\n\nOne Run renders **two 15-second beats and joins them**: beat 1 starts from your\nphoto, beat 2 inherits the character from beat 1 automatically, and you get one\n~30 s clip with one face, one wardrobe, one room and one voice.\n\n## The one switch\n\n**Second beat — 30 s total** is a boolean at the bottom of the `Controls`\ngroup on the canvas.\n\n- **on** (default) — both beats render, ~30 s out.\n- **off** — only beat 1 renders, ~15 s out. The switches are lazy, so beat 2's\n  checkpoint is never loaded and its sampling pass never runs. Use this while\n  you are still iterating on beat 1; it costs about half the time.\n\n## The four boxes\n\n| Box | When | Sections it carries |\n|---|---|---|\n| **A · Cast & references** | set once | `subject_definitions` |\n| **B · Beat 1** | per beat | `integrated_multimodal_description` |\n| **C · Beat 2** | per beat | `summary`, `retention_analysis`, `detailed_description` |\n| **D · Audio & music** | set once | `overall_soundscape`, `non_diegetic_music` |\n\nTwo `StringFormat` nodes join them, one per stage, because the two H3 modes take\ndifferent contracts. Beat 1 (FL2VA) gets a fixed instruction line + B + D. Beat 2\n(Ref2VA) gets A + C + D, which lands the six sections in H3's mandated order:\n\n    subject_definitions → summary → retention_analysis →\n    detailed_description → overall_soundscape → non_diegetic_music\n\n**Never delete the first line of a box** — that line is the section label.\n\nWrite **350–500 words** in the body of B (`integrated_multimodal_description`)\nand of C (`detailed_description`). That range is the guide's figure for the body\nfield, not for the whole prompt, and an under-written body is the single most\ncommon cause of identity drift. Each body carries three timecoded shots:\n`[Shot 1]` with no timestamp, then `[Shot 2] At 00:05.000,` and\n`[Shot 3] At 00:10.000,` — keep the comma.\n\nCamera moves use **motion type + amplitude + speed** (\"pushes in with small\namplitude at slow speed\"). Leave medium amplitude and normal speed unstated.\nDialogue is `The woman with a warm, low voice (S1) says: <d>[English] ...</d>`,\nand speaker ids are assigned in order of first vocal event, then reused.\n`retention_analysis` never uses `(Sx)`.\n\n## The seam is a hard cut\n\n15 s is H3's ceiling **per generation** and no wiring changes that. Beat 2 is a\nnew pass that references beat 1, not a continuation of the same take, so the\njoin at 00:15 is a **hard cut**: same person, same room, same voice, but a new\ncamera setup. Write beat 2 as a deliberate cut — a new angle or a new position\nin the room — and it reads as editing rather than as a glitch.\n\n## References\n\nEverything except <Picture 1> ships **bypassed**, and bypassed is safe: an\nunwired reference socket is natively valid and the model simply does not use it.\nThe four optional ones are stacked in one column in the group titled\n**Optional references — select a node and press Ctrl+B to toggle**; `<Picture 1>`\nsits above them on its own, because it is not optional.\n\n- `<Picture 1>` · **active** — your character. It is frame 0 of beat 1 and\n  reference image 0 of beat 2, so it is the one photo that decides the face.\n- `<Picture 2>` · product, `<Picture 3>` · location — optional.\n- `<Video 2>` · style / motion reference — optional. It is *2* because\n  `<Video 1>` is taken: that tag belongs to the automatic 3-second tail of beat 1\n  that the graph feeds into beat 2. Tags follow connection order, and the titles\n  here match what you type in the prompt.\n- `<Audio 1>` · voice lock — optional, 5–10 s of clean speech.\n\nH3's own limits, across all of them: **≤9 images · ≤3 videos (2–15 s each,\n≤15 s total) · ≤3 audio · ≤12 files total.**\n\n## Controls — one panel, both beats\n\nThe `Controls` group, directly under the reference column, holds every dial, and\neach one drives **both** beats. There is deliberately only one of each: two\nresolutions that drifted apart would make `ImageBatch` silently rescale beat 2\nto beat 1's size, and you would notice it only as softness.\n\n**Resolution** ships at megapixels **1.0** / 9:16, which the node rounds to\n**768×1344** — H3's native cap, and the sharpest size the open weights produce.\nIt is the default because the target card is an H200: at 1.0 MP the whole\n59.1 GB weight set still sits in VRAM with nothing offloaded. On a 24 GB card\ndrop to **0.4** before you shorten a beat.\n\n**Beat length (seconds)** feeds the frame-grid expression right below it. 15 s\nlands on length 362, the top of H3's trained 124–362 range, and 15 s is also\nH3's ceiling per beat. **Steps** is 20 — lower is faster and softer. **Seed** is\nshared on purpose: the two beats have different prompts and different\nconditioning, so one seed never means one clip twice, it just makes a whole Run\nreproducible while you iterate.\n\n`ref_image_size` is the only dial still promoted onto a beat — it is beat-2 only\nand ships as **max**, because UGC lives on face and product-label fidelity;\nswitch it to **match** for drafts. Sampler `res_multistep`, scheduler `beta` —\nbeta and normal outperform simple on reference-heavy prompts, which both beats\nare by design.\n\n**fps is not a dial.** `Join beats — 24 fps (H3 is fixed at 24, do not change)`.\nH3 generates at exactly 24 fps and the frame-grid expression already hard-codes\n`a * 24`, so any other value only desyncs the audio from the picture.\n\n## Hardware\n\nBuilt for **one H200 (141 GB)**, which is why 1.0 MP is the shipped default: the\nwhole weight set is 59.1 GB, so both checkpoints, the text encoder and both VAEs\nstay resident and nothing is offloaded.\n\n**Launch with `CLI_ARGS = --highvram`.** `CLI_ARGS` is a field on the launch\nform and this is the single most effective setting on a card this size — ComfyUI\nkeeps models in VRAM instead of unloading them to system RAM after each use.\n`--highvram --fast` is a reasonable optional extra.\n\n**The second GPU does not make one Run faster**, and booking two does not change\nwhat a single Run does. H3 is CFG-distilled, so the CFG-split node has one\nconditioning to hand out and nothing left for a second card, and core ComfyUI\nhas no tensor parallelism — one sampling pass runs on one device. Beat 1 and\nbeat 2 cannot be split across cards either: beat 2 consumes beat 1's frames, so\nthey are strictly sequential. A second card is a second job, not a faster job.\n\n**The three device nodes inside each beat** — text encoder, video VAE, audio VAE\n— ship **bypassed** on `default` and do nothing on an H200. They exist for\n2×24 GB: un-bypass the text-encoder one (Ctrl+B) and set it to `gpu:1`, and the\n14.6 GB encoder stops evicting the diffusion model. `gpu:1` only appears in the\ndropdown on a machine that really has two cards, which is why nothing is\nhard-coded.\n\n**A third or fourth beat is available today.** 141 GB removes the memory\nceiling, so run the graph again with the emitted `lastframe_….png` loaded into\n`<Picture 1>`, write the next beat, and stitch the clips in the **Assemble\nreel** workflow. The graph itself stays at two beats on purpose.\n\n## Outputs\n\n`beat` — the joined clip. `lastframe` — its final frame as a PNG, written on\nevery Run. Feed that PNG into `<Picture 1>` if you want to hand-start a third\nbeat from where this one ended.\n"
+        "# MiniMax H3 — 30 s UGC reel, one Run\n\nOne Run renders **two 15-second beats and joins them**: beat 1 starts from your\nphoto, beat 2 inherits the character from beat 1 automatically, and you get one\n~30 s clip with one face, one wardrobe, one room and one voice.\n\n## The one switch\n\n**Second beat — 30 s total** is a boolean at the bottom of the `Controls`\ngroup on the canvas.\n\n- **on** (default) — both beats render, ~30 s out.\n- **off** — only beat 1 renders, ~15 s out. The switches are lazy, so beat 2's\n  checkpoint is never loaded and its sampling pass never runs. Use this while\n  you are still iterating on beat 1; it costs about half the time.\n\n## The four boxes\n\n| Box | When | Sections it carries |\n|---|---|---|\n| **A · Cast & references** | set once | `subject_definitions` |\n| **B · Beat 1** | per beat | `integrated_multimodal_description` |\n| **C · Beat 2** | per beat | `summary`, `retention_analysis`, `detailed_description` |\n| **D · Audio & music** | set once | `overall_soundscape`, `non_diegetic_music` |\n\nTwo `StringFormat` nodes join them, one per stage, because the two H3 modes take\ndifferent contracts. Beat 1 (FL2VA) gets a fixed instruction line + B + D. Beat 2\n(Ref2VA) gets A + C + D, which lands the six sections in H3's mandated order:\n\n    subject_definitions → summary → retention_analysis →\n    detailed_description → overall_soundscape → non_diegetic_music\n\n**Never delete the first line of a box** — that line is the section label.\n\nWrite **350–500 words** in the body of B (`integrated_multimodal_description`)\nand of C (`detailed_description`). That range is the guide's figure for the body\nfield, not for the whole prompt, and an under-written body is the single most\ncommon cause of identity drift. Each body carries three timecoded shots:\n`[Shot 1]` with no timestamp, then `[Shot 2] At 00:05.000,` and\n`[Shot 3] At 00:10.000,` — keep the comma.\n\nCamera moves use **motion type + amplitude + speed** (\"pushes in with small\namplitude at slow speed\"). Leave medium amplitude and normal speed unstated.\nDialogue is `The woman with a warm, low voice (S1) says: <d>[English] ...</d>`,\nand speaker ids are assigned in order of first vocal event, then reused.\n`retention_analysis` never uses `(Sx)`.\n\n## The seam is a hard cut\n\n15 s is H3's ceiling **per generation** and no wiring changes that. Beat 2 is a\nnew pass that references beat 1, not a continuation of the same take, so the\njoin at 00:15 is a **hard cut**: same person, same room, same voice, but a new\ncamera setup. Write beat 2 as a deliberate cut — a new angle or a new position\nin the room — and it reads as editing rather than as a glitch.\n\n## References\n\nEverything except <Picture 1> ships **bypassed**, and bypassed is safe: an\nunwired reference socket is natively valid and the model simply does not use it.\nThe four optional ones are stacked in one column in the group titled\n**Optional references — select a node and press Ctrl+B to toggle**; `<Picture 1>`\nsits above them on its own, because it is not optional.\n\n- `<Picture 1>` · **active** — your character. It is frame 0 of beat 1 and\n  reference image 0 of beat 2, so it is the one photo that decides the face.\n- `<Picture 2>` · product — ships with `brown_moisturizer_bottle.jpg`.\n- `<Picture 3>` · location — ships with `warm_living_room.png`.\n- `<Audio 1>` · voice lock — ships with `audio_speaker1_woman.mp3`. Replace it\n  with 5–10 s of clean speech in the voice you want.\n- `<Video 2>` · style / motion reference — optional, and the one slot with no\n  default, because video is not seeded. It is *2* because `<Video 1>` is taken:\n  that tag belongs to the automatic 3-second tail of beat 1 that the graph feeds\n  into beat 2. Tags follow connection order, and the titles here match what you\n  type in the prompt.\n\nThe three defaults are real files that the launch script downloads on first\nstart, so un-bypassing any of them works immediately with no upload — they are\nplaceholders matched to the shipped skincare example, meant to be swapped for\nyour own. Un-bypassing is only half the job: **name the tag in box A or C** or\nthe model has no idea what the file is for, e.g. `<Picture 2> is the moisturizer\nbottle she holds; keep its label legible.`\n\nH3's own limits, across all of them: **≤9 images · ≤3 videos (2–15 s each,\n≤15 s total) · ≤3 audio · ≤12 files total.**\n\n## Controls — one panel, both beats\n\nThe `Controls` group, directly under the reference column, holds every dial, and\neach one drives **both** beats. There is deliberately only one of each: two\nresolutions that drifted apart would make `ImageBatch` silently rescale beat 2\nto beat 1's size, and you would notice it only as softness.\n\n**Resolution** ships at megapixels **1.0** / 9:16, which the node rounds to\n**768×1344** — H3's native cap, and the sharpest size the open weights produce.\nIt is the default because the target card is an H200: at 1.0 MP the whole\n59.1 GB weight set still sits in VRAM with nothing offloaded. On a 24 GB card\ndrop to **0.4** before you shorten a beat.\n\n**Beat length (seconds)** feeds the frame-grid expression right below it. 15 s\nlands on length 362, the top of H3's trained 124–362 range, and 15 s is also\nH3's ceiling per beat. **Steps** is 20 — lower is faster and softer. **Seed** is\nshared on purpose: the two beats have different prompts and different\nconditioning, so one seed never means one clip twice, it just makes a whole Run\nreproducible while you iterate.\n\n`ref_image_size` is the only dial still promoted onto a beat — it is beat-2 only\nand ships as **max**, because UGC lives on face and product-label fidelity;\nswitch it to **match** for drafts. Sampler `res_multistep`, scheduler `beta` —\nbeta and normal outperform simple on reference-heavy prompts, which both beats\nare by design.\n\n**fps is not a dial.** `Join beats — 24 fps (H3 is fixed at 24, do not change)`.\nH3 generates at exactly 24 fps and the frame-grid expression already hard-codes\n`a * 24`, so any other value only desyncs the audio from the picture.\n\n## Hardware\n\nBuilt for **one H200 (141 GB)**, which is why 1.0 MP is the shipped default: the\nwhole weight set is 59.1 GB, so both checkpoints, the text encoder and both VAEs\nstay resident and nothing is offloaded.\n\n**Launch with `CLI_ARGS = --highvram`.** `CLI_ARGS` is a field on the launch\nform and this is the single most effective setting on a card this size — ComfyUI\nkeeps models in VRAM instead of unloading them to system RAM after each use.\n`--highvram --fast` is a reasonable optional extra.\n\n**The second GPU does not make one Run faster**, and booking two does not change\nwhat a single Run does. H3 is CFG-distilled, so the CFG-split node has one\nconditioning to hand out and nothing left for a second card, and core ComfyUI\nhas no tensor parallelism — one sampling pass runs on one device. Beat 1 and\nbeat 2 cannot be split across cards either: beat 2 consumes beat 1's frames, so\nthey are strictly sequential. A second card is a second job, not a faster job.\n\n**The three device nodes inside each beat** — text encoder, video VAE, audio VAE\n— ship **bypassed** on `default` and do nothing on an H200. They exist for\n2×24 GB: un-bypass the text-encoder one (Ctrl+B) and set it to `gpu:1`, and the\n14.6 GB encoder stops evicting the diffusion model. `gpu:1` only appears in the\ndropdown on a machine that really has two cards, which is why nothing is\nhard-coded.\n\n**A third or fourth beat is available today.** 141 GB removes the memory\nceiling, so run the graph again with the emitted `lastframe_….png` loaded into\n`<Picture 1>`, write the next beat, and stitch the clips in the **Assemble\nreel** workflow. The graph itself stays at two beats on purpose.\n\n## Outputs\n\n`beat` — the joined clip. `lastframe` — its final frame as a PNG, written on\nevery Run. Feed that PNG into `<Picture 1>` if you want to hand-start a third\nbeat from where this one ended.\n"
       ],
       "color": "#222",
       "bgcolor": "#000"
@@ -64,8 +64,8 @@
         -60
       ],
       "size": [
-        520,
-        460
+        560,
+        560
       ],
       "flags": {},
       "order": 0,
@@ -95,11 +95,11 @@
       "type": "PrimitiveStringMultiline",
       "pos": [
         20,
-        440
+        580
       ],
       "size": [
-        520,
-        900
+        560,
+        1180
       ],
       "flags": {},
       "order": 1,
@@ -129,11 +129,11 @@
       "type": "PrimitiveStringMultiline",
       "pos": [
         20,
-        1360
+        1840
       ],
       "size": [
-        520,
-        1100
+        560,
+        1560
       ],
       "flags": {},
       "order": 2,
@@ -163,11 +163,11 @@
       "type": "PrimitiveStringMultiline",
       "pos": [
         20,
-        2480
+        3480
       ],
       "size": [
-        520,
-        460
+        560,
+        520
       ],
       "flags": {},
       "order": 3,
@@ -333,7 +333,7 @@
       "type": "LoadImage",
       "pos": [
         1000,
-        440
+        480
       ],
       "size": [
         340,
@@ -362,7 +362,7 @@
       },
       "title": "<Picture 2> · Product (optional — un-bypass)",
       "widgets_values": [
-        "subject-girl-holding-skincare-bottle.png",
+        "brown_moisturizer_bottle.jpg",
         "image"
       ]
     },
@@ -371,7 +371,7 @@
       "type": "LoadImage",
       "pos": [
         1000,
-        840
+        920
       ],
       "size": [
         340,
@@ -400,7 +400,7 @@
       },
       "title": "<Picture 3> · Location (optional — un-bypass)",
       "widgets_values": [
-        "subject-girl-holding-skincare-bottle.png",
+        "warm_living_room.png",
         "image"
       ]
     },
@@ -409,7 +409,7 @@
       "type": "LoadVideo",
       "pos": [
         1000,
-        1240
+        1360
       ],
       "size": [
         340,
@@ -442,7 +442,7 @@
       "type": "GetVideoComponents",
       "pos": [
         1000,
-        1360
+        1520
       ],
       "size": [
         340,
@@ -495,7 +495,7 @@
       "type": "LoadAudio",
       "pos": [
         1000,
-        1500
+        1700
       ],
       "size": [
         340,
@@ -519,7 +519,7 @@
       },
       "title": "<Audio 1> · Voice lock (optional — un-bypass)",
       "widgets_values": [
-        "reference_voice.mp3",
+        "audio_speaker1_woman.mp3",
         null,
         null
       ]
@@ -731,7 +731,7 @@
       "type": "PrimitiveBoolean",
       "pos": [
         1000,
-        2330
+        2790
       ],
       "size": [
         340,
@@ -1167,7 +1167,7 @@
       "type": "ResolutionSelector",
       "pos": [
         1000,
-        1760
+        2020
       ],
       "size": [
         340,
@@ -1210,7 +1210,7 @@
       "type": "PrimitiveFloat",
       "pos": [
         1000,
-        1910
+        2210
       ],
       "size": [
         340,
@@ -1242,7 +1242,7 @@
       "type": "ComfyMathExpression",
       "pos": [
         1000,
-        2000
+        2340
       ],
       "size": [
         340,
@@ -1299,7 +1299,7 @@
       "type": "PrimitiveInt",
       "pos": [
         1000,
-        2150
+        2530
       ],
       "size": [
         340,
@@ -1333,7 +1333,7 @@
       "type": "PrimitiveInt",
       "pos": [
         1000,
-        2240
+        2660
       ],
       "size": [
         340,
@@ -1738,10 +1738,10 @@
       "id": 1,
       "title": "Prompt — A and D are set once, B and C are the two beats",
       "bounding": [
-        0,
-        -140,
-        560,
-        3120
+        -20,
+        -160,
+        640,
+        4200
       ],
       "color": "#3f789e",
       "flags": {}
@@ -1750,10 +1750,10 @@
       "id": 2,
       "title": "Subject — required",
       "bounding": [
-        980,
-        -140,
-        380,
-        500
+        960,
+        -160,
+        420,
+        520
       ],
       "color": "#3f789e",
       "flags": {}
@@ -1762,10 +1762,10 @@
       "id": 3,
       "title": "Optional references — select a node and press Ctrl+B to toggle",
       "bounding": [
-        980,
-        360,
+        960,
         380,
-        1320
+        420,
+        1500
       ],
       "color": "#3f789e",
       "flags": {}
@@ -1774,10 +1774,10 @@
       "id": 4,
       "title": "Controls",
       "bounding": [
-        980,
-        1680,
-        380,
-        750
+        960,
+        1920,
+        420,
+        970
       ],
       "color": "#3f789e",
       "flags": {}
@@ -1786,10 +1786,10 @@
       "id": 5,
       "title": "Chained beats — beat 2 reads beat 1 directly, no file in between",
       "bounding": [
-        1380,
-        -140,
-        460,
-        1180
+        1360,
+        -160,
+        500,
+        1220
       ],
       "color": "#88A",
       "flags": {}
@@ -1798,10 +1798,10 @@
       "id": 6,
       "title": "30 s / 15 s — off means beat 2 never runs at all",
       "bounding": [
-        1880,
-        -140,
-        780,
-        610
+        1860,
+        -160,
+        820,
+        630
       ],
       "color": "#3f789e",
       "flags": {}
