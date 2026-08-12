@@ -211,8 +211,8 @@ used before. The node's own how-to says so too.
 Same image and bucket behavior as the LTX templates, but a different generator — MiniMax H3
 (open-weights, int8) — and a different unit of work: **one Run produces ~30 s with six shots and
 one consistent character**, versus LTX's one continuous take per Run. Needs a CUDA GPU; see
-**VRAM** below — 24 GB runs it, 48 GB stops the swapping, 80 GB holds the whole chain. Ships
-two workflows:
+**Hardware** below — it is built for one 80 GB+ card (H200/H100 class), which holds the whole
+chain resident, and 24 GB still runs it at a lower resolution. Ships two workflows:
 
 - `workflows/ocean_h3_ugc_multishot.json` — one Run, two chained beats, ~30 s out.
 - `workflows/ocean_h3_ugc_assemble.json` — concatenates up to 8 rendered clips into one reel.
@@ -288,8 +288,9 @@ speed, with medium amplitude and normal speed left unstated.
 
 **Two subgraphs, 31 canvas nodes.** Everything that is plumbing rather than a decision lives in
 `Beat 1 · FL2VA (starts from your photo)` and `Beat 2 · Ref2VA (carries the character forward)`.
-Each holds its own `UNETLoader`, `CLIPLoader`, both `VAELoader`s, its H3 conditioning node, the
-sampler chain and the decoders; beat 2 adds the tail slicer and the final-frame extractor. The
+Each holds its own `UNETLoader`, `CLIPLoader`, both `VAELoader`s, three bypassed device-placement
+nodes on those loaders (see **Hardware**), its H3 conditioning node, the sampler chain and the
+decoders; beat 2 adds the tail slicer and the final-frame extractor. The
 loaders are duplicated on purpose — ComfyUI caches loaded models by filename, so the duplicates
 cost no VRAM and each stage stays self-contained. The canvas itself is the four prompt boxes,
 the reference loaders, the shared `Controls` panel, the two instances, the boolean and its
@@ -333,11 +334,12 @@ the official templates rely on, apply.
 **Sampling and size.** `res_multistep` at 20 steps with the **`beta`** scheduler — Comfy's own
 R2V note is that beta and normal outperform simple on reference-heavy prompts, which both beats
 are by design. `ref_image_size` is `max`, because UGC lives on face and product-label fidelity.
-Default size is **672×1184 at 0.8 MP / 9:16, 24 fps**, 15 s per beat, which the frame-grid
-expression lands on length 362 — the top of H3's trained 124–362 range. A 1.0 MP setting reaches
-H3's native 768×1344 cap and is visibly sharper, but 15 s at that size is the heaviest ask on a
-24 GB card. MiniMax's 2K mode (hosted `H3-Regenerate-2K`) is absent from the open-weights
-release, so there is no 2K path here.
+Default size is **768×1344 at 1.0 MP / 9:16, 24 fps**, 15 s per beat, which the frame-grid
+expression lands on length 362 — the top of H3's trained 124–362 range. 1.0 MP is H3's native
+cap (768 px short edge) and therefore the sharpest the open weights go; it is the default
+because the target card is an H200, where nothing has to be offloaded to reach it. Small cards
+drop the megapixels widget to 0.4 rather than shortening a beat. MiniMax's 2K mode (hosted
+`H3-Regenerate-2K`) is absent from the open-weights release, so there is no 2K path here.
 
 **fps is a model constant, not a setting.** `CreateVideo.fps` is a required FLOAT whose ComfyUI
 default is 30.0, but H3 generates at exactly 24 and the frame-grid expression already hard-codes
@@ -345,14 +347,45 @@ default is 30.0, but H3 generates at exactly 24 and the frame-grid expression al
 `Join beats — 24 fps (H3 is fixed at 24, do not change)` rather than promoted into the control
 panel, and the how-to note repeats the sentence.
 
-**VRAM.** Weights total 59.1 GB (19.5 + 19.5 + 14.6 + 4.9 + 0.6) and the chained design loads
-both checkpoints per Run. 24 GB works but offloads heavily and swaps checkpoints mid-Run; 48 GB
-keeps one checkpoint plus the text encoder resident (~34 GB) so a beat samples without swapping;
-80 GB holds both checkpoints plus the encoder (~54 GB) so the beat-1 → beat-2 handoff is free
-too. GPU class matters directly here and CPU cores do not — sampling is GPU-bound — which is why
-the `gpu` resource carries the guidance in its `description` and the `min` / `recommended`
-counts stay at 1 (`gpu` is a discrete count, not a size, and `ServiceTemplateSchema` is
-`.strict()`, so there is no VRAM field to invent).
+**Hardware.** Weights total 59.1 GB (19.5 + 19.5 + 14.6 + 4.9 + 0.6) and the chained design
+loads both checkpoints per Run, so one 80 GB+ card — an H200 at 141 GB, or an H100 — holds the
+whole chain resident and offloads nothing, which is what the 1.0 MP default assumes. 24 GB still
+works at 0.4 MP but offloads heavily and swaps checkpoints mid-Run. GPU class matters directly
+here and CPU cores do not — sampling is GPU-bound — which is why the `gpu` resource carries the
+guidance in its `description` (`gpu` is a discrete count, not a size, and `ServiceTemplateSchema`
+is `.strict()`, so there is no VRAM field to invent). `ram` is `min` 128 / `recommended` 256 GB:
+weights stream through host memory on every load, and `--highvram` trades host RAM for keeping
+them on the card.
+
+**`CLI_ARGS`.** The bootstrap's last line already ends `… --port 8188 ${CLI_ARGS:-}`, but
+template `envVars` never reach a service container — only `userConfigurableEnvVars` do, through
+`userData` — so the manifest now declares `CLI_ARGS` as a third user-configurable variable, with
+no `validation` regex, because it is a free-form argument string and a wrong regex would silently
+reject valid input. On an H200 launch with `CLI_ARGS = --highvram`: ComfyUI then keeps models in
+VRAM instead of unloading them to system RAM after each use, which is the single most effective
+setting on a card that size. `--fast` is an optional extra.
+
+**One GPU is booked on purpose.** `gpu` is `min` 1 / `recommended` 1, and the dashboard books
+`recommended` floored at `min`, so a launch takes exactly one card. Asking for two would bill a
+second device that this workflow leaves idle. Core
+ComfyUI has no tensor parallelism: one sampling pass runs on one device. Its CFG-split node
+(`MultiGPU_WorkUnits`) distributes *conditionings*, and H3 is CFG-distilled, so `BasicGuider`
+hands it a single conditioning and the second device gets nothing. Beats cannot be split either,
+since beat 2 consumes beat 1's frames. What multi-GPU core ComfyUI does have is *placement*, so
+each subgraph carries a `SelectCLIPDevice` and two `SelectVAEDevice` nodes (core,
+`comfy_extras.nodes_multigpu`) wired as passthroughs on the text-encoder and VAE loaders. They
+ship `mode: 4` on `default`, which is a plain passthrough, so today the graph behaves exactly as
+it did without them. They earn their place on something like 2×24 GB: un-bypass the text-encoder
+one and set it to `gpu:1` and the 14.6 GB encoder stops evicting the diffusion model. `default`
+is hard-coded rather than `gpu:1` because `gpu:1` only appears in the combo options on a machine
+that actually has two cards, and a value absent from the options makes the graph invalid. Using
+them means raising `recommended` on the `gpu` resource to 2 in your copy of the manifest — the
+booked count is pinned by the template, not chosen at launch.
+
+**A third or fourth beat needs no new wiring.** With the memory ceiling gone, run the multishot
+workflow again with the emitted `lastframe_….png` loaded into `<Picture 1>`, then concatenate the
+beats in the `Assemble reel` workflow. Building a third stage into the graph would triple the
+prompt boxes for something the two-beat chain plus a re-run already does.
 
 Pick a persistent-storage bucket on launch: it holds ComfyUI's whole base directory, and
 without one the roughly 59 GB of weights (two 19.5 GB checkpoints, a 14.6 GB text encoder,
