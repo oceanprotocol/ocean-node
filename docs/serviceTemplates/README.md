@@ -224,12 +224,28 @@ LTX templates' `UnifiedVoiceChangerNode` pass. The bootstrap's TTS-Audio-Suite i
 on the installed graph containing `UnifiedVoiceChangerNode`; this workflow never does, so the
 install never runs for this template — no custom node pack rides along.
 
-**Six prompt boxes, two lifecycles.** Three are casting — `subject_definitions`,
-`retention_analysis`, `non_diegetic_music` — filled once and never retyped. Three are per-beat
-— `summary`, `detailed_description`, `overall_soundscape` — retyped every Run. `retention_analysis`
-is the box actually holding the character's face across a beat's internal cuts: a
-`fully_preserved` / `attribute_transfer` line per subject. It plays the same role here that the
-style box plays for LTX — keep it byte-identical across Runs rather than retyping it.
+**Three prompt boxes, and why not two.** H3 mandates this section order:
+
+    subject_definitions → summary → retention_analysis →
+    detailed_description → overall_soundscape → non_diegetic_music
+
+The set-once sections are the 1st, 3rd and 6th and the per-beat ones the 2nd, 4th and 5th, so
+they interleave: a two-box `{casting}\n\n{beat}` join would emit 1,3,6,2,4,5 and break the
+order. Splitting at the order-preserving boundaries gives three boxes — **Casting**
+(`subject_definitions`), **This beat** (`summary`, `retention_analysis`,
+`detailed_description`, `overall_soundscape`) and **Music bed** (`non_diegetic_music`) — joined
+top to bottom by two `StringFormat` nodes. `retention_analysis` is the section actually holding
+the character's face across a beat's internal cuts (a `fully_preserved` / `attribute_transfer`
+line per subject), and it sits in **This beat** rather than with the casting text because it
+names which shots each subject appears in, so it changes with the beat.
+
+**One subgraph, 17 canvas nodes.** Like the LTX generator, everything that is plumbing rather
+than a decision — both checkpoints, the mode switch, the CLIP and VAE loaders, the two H3
+conditioning nodes, resolution/duration/frame-grid, the sampler chain, decode, `CreateVideo`
+and the last-frame picker — lives inside one collapsed subgraph, `Generate audio + video
+(MiniMax H3)`. Six widgets are promoted onto its face: mode, megapixels, duration, steps, seed,
+`ref_image_size`. The canvas itself is the three prompt boxes, the image/video/audio inputs, the
+subgraph instance and the two save nodes.
 
 **Hero-beat referencing.** The Continuity group (`LoadVideo` + `GetVideoComponents`, pointed at
 a rendered beat) ships bypassed. From beat 2 on, un-bypass it and point `LoadVideo` at
@@ -243,10 +259,12 @@ B-roll only. The switch is lazy, so only the selected 19.5 GB checkpoint is ever
 is how both fit in one graph. FL2VA has no reference-audio path, so it re-rolls the speaker on
 every beat — never use it for a beat with dialogue.
 
-**Turbo LoRA, present but bypassed.** The graph ships a 4-step turbo LoRA node, off by default:
-at 4 steps the audio path clips and gets noisy, so full-step (20-step) sampling is the default.
-The graph's own note recommends un-bypassing at **8 steps** (not 4) with the `euler` sampler —
-about 2.5x faster than the default and usable, though slightly below 20-step quality.
+**No turbo LoRA.** The 4-step turbo LoRA is about 2.5x faster but clips and noises the audio
+path, which is this template's headline feature, so it is not installed and full-step (20-step)
+sampling is the only shipped path — H3's built-in 12-video / 3-audio sigma-shift defaults, which
+the official templates rely on, apply. The how-to note says how to add the LoRA by hand
+(download into `models/loras/`, add a `LoraLoaderModelOnly` after the model switch inside the
+subgraph, `steps` 8) for roughly 2.5x speed at a real cost in audio quality.
 
 **Size.** Default is **672×1184 at 0.8 MP / 9:16, 24 fps**, 12 s beats (5–15 s range). A 1.0 MP
 setting is available, capping at H3's native 768×1344 — the model's 768 px short edge is the
@@ -254,8 +272,8 @@ ceiling at 1.0 MP, not at the 0.8 MP default. MiniMax's 2K mode (hosted `H3-Rege
 absent from the open-weights release, so there is no 2K path here.
 
 Pick a persistent-storage bucket on launch: it holds ComfyUI's whole base directory, and
-without one the roughly 60 GB of weights (two 19.5 GB checkpoints, a 14.6 GB text encoder,
-video and audio VAEs, the turbo LoRA) re-downloads every launch and is discarded on stop; with
+without one the roughly 59 GB of weights (two 19.5 GB checkpoints, a 14.6 GB text encoder,
+video and audio VAEs) re-downloads every launch and is discarded on stop; with
 a bucket selected, beat and reel clips land in the bucket root where the storage API's
 `listFiles` can see them.
 
@@ -278,10 +296,12 @@ Weights are not listed here: the script downloads the HuggingFace URLs carried b
 graph itself, so each template fetches only what it loads and a new workflow needs no change
 here. Each URL is routed into the matching `models/` subdirectory by pattern-matching its path —
 `checkpoints`, `text_encoders`, `loras`, `latent_upscale_models`, plus `diffusion_models` and
-`vae` for the MiniMax H3 template's weights. The H3 turbo LoRA's URL has no `/loras/` path
-segment (the file sits at the repo root), so a bare `*[Ll]ora*` pattern arm catches it before
-the catch-all default of `checkpoints` — without that arm the LoRA would land in `checkpoints`
-and its `LoraLoaderModelOnly` node would show red. A template's `envVars` cannot drive this —
+`vae` for the MiniMax H3 template's weights. A bare `*[Ll]ora*` arm sits just before the
+catch-all default of `checkpoints`, because a LoRA is not always published under a `/loras/`
+path — the MiniMax H3 turbo LoRA, for instance, sits at its repo root, and without that arm it
+would land in `checkpoints` and its loader node would show red. No template ships that LoRA
+today; the arm is what lets you add one to a graph without touching this script. A template's
+`envVars` cannot drive this —
 nothing merges them into a service container (`SERVICE_START` has no template id; the container
 env comes only from `userData`).
 
