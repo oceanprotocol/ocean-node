@@ -206,9 +206,62 @@ If the voice nodes load red, the pack failed to install — delete both and wire
 `AudioConcat` straight into `CreateVideo`, which is the plain stitched audio the workflow
 used before. The node's own how-to says so too.
 
-## The shared bootstrap (`ltx-video-ugc-bootstrap.sh`)
+### `minimax-h3-video-ugc-multishot.json` — ComfyUI, MiniMax H3 UGC reel (GPU)
 
-Both templates inline this script via `commandFile`. It runs ComfyUI from the image's
+Same image and bucket behavior as the LTX templates, but a different generator — MiniMax H3
+(open-weights, int8) — and a different unit of work: one Run here is a ~12 s **beat** that can
+itself contain several internal cuts (the shipped example prompt holds two shots in one beat),
+rather than LTX's one continuous take per Run. A 30 s reel is 2–3 Runs of this template versus
+the 6–8 Runs LTX multishot needs for the same length. Needs a CUDA GPU, 24 GB+ VRAM recommended
+(12 GB works with offloading). Ships two workflows:
+
+- `workflows/ocean_h3_ugc_multishot.json` — renders one beat per Run.
+- `workflows/ocean_h3_ugc_assemble.json` — concatenates up to 8 rendered beats into one reel.
+
+**Native audio, no voice-conversion pass.** H3 generates voice, room tone and music in the
+same forward pass as the video, so there is no separate TTS step and nothing analogous to the
+LTX templates' `UnifiedVoiceChangerNode` pass. The bootstrap's TTS-Audio-Suite install is gated
+on the installed graph containing `UnifiedVoiceChangerNode`; this workflow never does, so the
+install never runs for this template — no custom node pack rides along.
+
+**Six prompt boxes, two lifecycles.** Three are casting — `subject_definitions`,
+`retention_analysis`, `non_diegetic_music` — filled once and never retyped. Three are per-beat
+— `summary`, `detailed_description`, `overall_soundscape` — retyped every Run. `retention_analysis`
+is the box actually holding the character's face across a beat's internal cuts: a
+`fully_preserved` / `attribute_transfer` line per subject. It plays the same role here that the
+style box plays for LTX — keep it byte-identical across Runs rather than retyping it.
+
+**Hero-beat referencing.** The Continuity group (`LoadVideo` + `GetVideoComponents`, pointed at
+a rendered beat) ships bypassed. From beat 2 on, un-bypass it and point `LoadVideo` at
+**beat 1**, never at the newest beat: chaining beat N off beat N−1 compounds artifacts on every
+generation, while every beat referencing the same hero beat does not.
+
+**Ref2VA / FL2VA toggle.** A single switch picks the checkpoint: off (default) is Ref2VA —
+reference images, and optionally a reference video and voice clip, feed the model — for
+anything with dialogue; on is FL2VA — first-frame/last-frame interpolation for action and
+B-roll only. The switch is lazy, so only the selected 19.5 GB checkpoint is ever loaded, which
+is how both fit in one graph. FL2VA has no reference-audio path, so it re-rolls the speaker on
+every beat — never use it for a beat with dialogue.
+
+**Turbo LoRA, present but bypassed.** The graph ships a 4-step turbo LoRA node, off by default:
+at 4 steps the audio path clips and gets noisy, so full-step (20-step) sampling is the default.
+The graph's own note recommends un-bypassing at **8 steps** (not 4) with the `euler` sampler —
+about 2.5x faster than the default and usable, though slightly below 20-step quality.
+
+**Size.** Default is **672×1184 at 0.8 MP / 9:16, 24 fps**, 12 s beats (5–15 s range). A 1.0 MP
+setting is available, capping at H3's native 768×1344 — the model's 768 px short edge is the
+ceiling at 1.0 MP, not at the 0.8 MP default. MiniMax's 2K mode (hosted `H3-Regenerate-2K`) is
+absent from the open-weights release, so there is no 2K path here.
+
+Pick a persistent-storage bucket on launch: it holds ComfyUI's whole base directory, and
+without one the roughly 60 GB of weights (two 19.5 GB checkpoints, a 14.6 GB text encoder,
+video and audio VAEs, the turbo LoRA) re-downloads every launch and is discarded on stop; with
+a bucket selected, beat and reel clips land in the bucket root where the storage API's
+`listFiles` can see them.
+
+## The shared bootstrap (`comfyui-ugc-bootstrap.sh`)
+
+All three templates inline this script via `commandFile`. It runs ComfyUI from the image's
 read-only bundle with `--base-directory` pointed at the bucket, bypassing the image entrypoint,
 which writes to `/root/ComfyUI` and fails wherever the container is not uid 0.
 
@@ -216,17 +269,31 @@ The workflow arrives as userData (`COMFY_WORKFLOW_ID` + gzipped `COMFY_WORKFLOW`
 installed at `custom_nodes/<id>/example_workflows/<id>.json`, which ComfyUI serves at
 `/api/workflow_templates/<id>/<id>.json` — so `?template=<id>&source=<id>` deep-links it.
 `source` must name the module; `source=all` only searches ComfyUI's own templates. It is also
-copied into `user/default/workflows/` so it appears in the Workflows sidebar.
+copied into `user/default/workflows/` so it appears in the Workflows sidebar. For a template
+with more than one `workflows[]` entry, `COMFY_WORKFLOW_ID` — and so the weight download and
+the deep link — always comes from the first entry that carries a `graph`, so that entry must
+stay first.
 
 Weights are not listed here: the script downloads the HuggingFace URLs carried by the installed
 graph itself, so each template fetches only what it loads and a new workflow needs no change
-here. A template's `envVars` cannot drive this — nothing merges them into a service container
-(`SERVICE_START` has no template id; the container env comes only from `userData`).
+here. Each URL is routed into the matching `models/` subdirectory by pattern-matching its path —
+`checkpoints`, `text_encoders`, `loras`, `latent_upscale_models`, plus `diffusion_models` and
+`vae` for the MiniMax H3 template's weights. The H3 turbo LoRA's URL has no `/loras/` path
+segment (the file sits at the repo root), so a bare `*[Ll]ora*` pattern arm catches it before
+the catch-all default of `checkpoints` — without that arm the LoRA would land in `checkpoints`
+and its `LoraLoaderModelOnly` node would show red. A template's `envVars` cannot drive this —
+nothing merges them into a service container (`SERVICE_START` has no template id; the container
+env comes only from `userData`).
 
 Custom nodes follow the same graph-driven rule. The script installs
 [TTS-Audio-Suite](https://github.com/diodiogod/TTS-Audio-Suite) — for the assemble workflow's
-voice conversion — only when an installed graph mentions `UnifiedVoiceChangerNode`, so the
-product template never pays for it. The clone lands in the bucket's `custom_nodes`, but pip
+voice conversion — only when an installed graph mentions `UnifiedVoiceChangerNode`. The grep
+covers *every* workflow the template installs, not just the deep-linked one, so
+`ltx-video-ugc-multishot` pays for the install on account of its assemble workflow even though
+its generator never mentions the node. `ltx-video-ugc-product` skips it because it ships one
+workflow that has no voice conversion, and `minimax-h3-video-ugc-multishot` skips it because
+H3 generates the voice natively and its assemble workflow is a plain stitcher. The clone lands
+in the bucket's `custom_nodes`, but pip
 installs into the container and is lost on stop, hence the unconditional reinstall on every
 launch; it is cheap because `XDG_CACHE_HOME` puts pip's wheel cache in the bucket too. It
 installs into the container's own site-packages rather than `--target` + `PYTHONPATH`: a

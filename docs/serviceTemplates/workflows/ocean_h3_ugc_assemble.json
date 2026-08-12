@@ -22,7 +22,7 @@
       "outputs": [],
       "properties": {},
       "widgets_values": [
-        "## Assemble reel\n\nEach **Shot** group is one slot: pick a rendered `shot_…mp4` in its **file** dropdown. The dropdown lists what is in the bucket — hit ComfyUI's refresh icon if a clip you just rendered is not there yet. Re-takes never overwrite, so just don't select the ones you didn't like.\n\n### Using fewer than 8 shots\n\nRight-click the group → **Bypass Group Nodes**. Do this for every shot slot you are not using.\n\nBypassing only the *Load Video* node is not enough — the Image Batch and Audio Concat in that row still demand a second input and the run fails validation with `Required input is missing: image2`. That is why each row is grouped: bypassing the group takes out all four nodes at once, and the batch/concat nodes then pass their first input straight through, so the chain closes over the gap.\n\n**Shot 1 cannot be bypassed.** It heads both chains and supplies the reference voice.\n\nClick **Run** once. The reel saves as `reel_00001…` in the bucket root.\n\n### Voice — nothing to upload, nothing to type\n\nLTX generates each clip's audio from scratch, so the stitched track changes speaker every 5 seconds. **Voice Changer** converts the whole track to a single voice, taken from **Shot 1's own audio** — already in the graph.\n\nThis is speech-to-speech, not transcription: words, timing and room tone are left exactly as they are and only speaker identity is remapped. Nothing is re-read, nothing is retyped, and because no phoneme moves, the picture stays in sync and the lips still match.\n\n**A different voice?** Drag any other shot's **Get Video Components** `audio` output onto Voice Changer's `narrator_target`. Or upload a clean sample in **Reference voice override** and drag that in. Pick a shot with clear speech — a silent product shot makes a poor reference.\n\n- *refinement_passes* — 1 is usually right. Raise it if the conversion sounds half-applied; above ~5 it distorts.\n- *max_chunk_duration* — bounds VRAM on long audio, rejoining chunks with timing preserved. Leave at 30.\n\n**If Voice Changer / Voice engine load red or throw `ChatterboxVC not available`**, the node pack failed to install on launch — check the container log for `[ocean]`. Delete both nodes, then drag the last **Audio Concat** onto **Create reel**'s `audio` input: raw stitched audio, everything else unaffected."
+        "## Assemble reel\n\nEach **Beat** group is one slot: pick a rendered `beat_\u2026mp4` in its **file** dropdown. The dropdown lists what is in the bucket \u2014 hit ComfyUI's refresh icon if a clip you just rendered is not there yet. Re-takes never overwrite, so just don't select the ones you didn't like.\n\n### Using fewer than 8 beats\n\nRight-click the group \u2192 **Bypass Group Nodes**. Do this for every beat slot you are not using.\n\nBypassing only the *Load Video* node is not enough \u2014 the Image Batch and Audio Concat in that row still demand a second input and the run fails validation with `Required input is missing: image2`. That is why each row is grouped: bypassing the group takes out all four nodes at once, and the batch/concat nodes then pass their first input straight through, so the chain closes over the gap.\n\n**Beat 1 cannot be bypassed.** It heads both the image and audio chains.\n\nClick **Run** once. The reel saves as `reel_00001\u2026` in the bucket root.\n\n### Voice\n\nMiniMax H3 generates each clip's voice from the reference inputs, so the stitched track is already one consistent speaker across beats \u2014 no conversion step needed. The last **Audio Concat** feeds **Create reel**'s `audio` input directly.\n\n### Memory\n\n8 \u00d7 12 s at 768\u00d71344 is ~2300 frames batched in RAM. If it OOMs, assemble in two passes \u2014 the output of one assemble is a valid input to the next."
       ],
       "title": "How to use"
     },
@@ -55,9 +55,9 @@
         "Node name for S&R": "LoadVideo"
       },
       "widgets_values": [
-        "shot_00001_.mp4"
+        "beat_00001_.mp4"
       ],
-      "title": "Shot 1"
+      "title": "Beat 1"
     },
     {
       "id": 20,
@@ -92,8 +92,7 @@
           "name": "audio",
           "type": "AUDIO",
           "links": [
-            23,
-            65
+            23
           ]
         },
         {
@@ -113,7 +112,7 @@
         "cnr_id": "comfy-core",
         "Node name for S&R": "GetVideoComponents"
       },
-      "title": "Shot 1 components"
+      "title": "Beat 1 components"
     },
     {
       "id": 11,
@@ -144,9 +143,9 @@
         "Node name for S&R": "LoadVideo"
       },
       "widgets_values": [
-        "shot_00002_.mp4"
+        "beat_00002_.mp4"
       ],
-      "title": "Shot 2"
+      "title": "Beat 2"
     },
     {
       "id": 21,
@@ -199,7 +198,7 @@
         "cnr_id": "comfy-core",
         "Node name for S&R": "GetVideoComponents"
       },
-      "title": "Shot 2 components"
+      "title": "Beat 2 components"
     },
     {
       "id": 12,
@@ -230,9 +229,9 @@
         "Node name for S&R": "LoadVideo"
       },
       "widgets_values": [
-        "shot_00003_.mp4"
+        "beat_00003_.mp4"
       ],
-      "title": "Shot 3"
+      "title": "Beat 3"
     },
     {
       "id": 22,
@@ -285,7 +284,7 @@
         "cnr_id": "comfy-core",
         "Node name for S&R": "GetVideoComponents"
       },
-      "title": "Shot 3 components"
+      "title": "Beat 3 components"
     },
     {
       "id": 13,
@@ -316,9 +315,9 @@
         "Node name for S&R": "LoadVideo"
       },
       "widgets_values": [
-        "shot_00004_.mp4"
+        "beat_00004_.mp4"
       ],
-      "title": "Shot 4"
+      "title": "Beat 4"
     },
     {
       "id": 23,
@@ -371,7 +370,7 @@
         "cnr_id": "comfy-core",
         "Node name for S&R": "GetVideoComponents"
       },
-      "title": "Shot 4 components"
+      "title": "Beat 4 components"
     },
     {
       "id": 14,
@@ -402,9 +401,9 @@
         "Node name for S&R": "LoadVideo"
       },
       "widgets_values": [
-        "shot_00005_.mp4"
+        "beat_00005_.mp4"
       ],
-      "title": "Shot 5"
+      "title": "Beat 5"
     },
     {
       "id": 24,
@@ -457,7 +456,7 @@
         "cnr_id": "comfy-core",
         "Node name for S&R": "GetVideoComponents"
       },
-      "title": "Shot 5 components"
+      "title": "Beat 5 components"
     },
     {
       "id": 15,
@@ -488,9 +487,9 @@
         "Node name for S&R": "LoadVideo"
       },
       "widgets_values": [
-        "shot_00006_.mp4"
+        "beat_00006_.mp4"
       ],
-      "title": "Shot 6"
+      "title": "Beat 6"
     },
     {
       "id": 25,
@@ -543,7 +542,7 @@
         "cnr_id": "comfy-core",
         "Node name for S&R": "GetVideoComponents"
       },
-      "title": "Shot 6 components"
+      "title": "Beat 6 components"
     },
     {
       "id": 16,
@@ -574,9 +573,9 @@
         "Node name for S&R": "LoadVideo"
       },
       "widgets_values": [
-        "shot_00007_.mp4"
+        "beat_00007_.mp4"
       ],
-      "title": "Shot 7"
+      "title": "Beat 7"
     },
     {
       "id": 26,
@@ -629,7 +628,7 @@
         "cnr_id": "comfy-core",
         "Node name for S&R": "GetVideoComponents"
       },
-      "title": "Shot 7 components"
+      "title": "Beat 7 components"
     },
     {
       "id": 17,
@@ -660,9 +659,9 @@
         "Node name for S&R": "LoadVideo"
       },
       "widgets_values": [
-        "shot_00008_.mp4"
+        "beat_00008_.mp4"
       ],
-      "title": "Shot 8"
+      "title": "Beat 8"
     },
     {
       "id": 27,
@@ -715,7 +714,7 @@
         "cnr_id": "comfy-core",
         "Node name for S&R": "GetVideoComponents"
       },
-      "title": "Shot 8 components"
+      "title": "Beat 8 components"
     },
     {
       "id": 30,
@@ -1358,7 +1357,7 @@
           "name": "audio",
           "type": "AUDIO",
           "shape": 7,
-          "link": 64
+          "link": 61
         }
       ],
       "outputs": [
@@ -1375,7 +1374,7 @@
         "Node name for S&R": "CreateVideo"
       },
       "widgets_values": [
-        25.0,
+        24,
         8
       ],
       "title": "Create reel"
@@ -1418,130 +1417,6 @@
         "auto"
       ],
       "title": "Output reel"
-    },
-    {
-      "id": 60,
-      "type": "LoadAudio",
-      "pos": [
-        1300.0,
-        490.0
-      ],
-      "size": [
-        330,
-        140
-      ],
-      "flags": {},
-      "order": 20,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "AUDIO",
-          "type": "AUDIO",
-          "links": null
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "LoadAudio"
-      },
-      "widgets_values": [
-        "reference_voice.mp3",
-        null,
-        null
-      ],
-      "title": "Reference voice override (optional — not wired)"
-    },
-    {
-      "id": 61,
-      "type": "ChatterBoxEngineNode",
-      "pos": [
-        1300.0,
-        0.0
-      ],
-      "size": [
-        340,
-        190
-      ],
-      "flags": {},
-      "order": 21,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "TTS_engine",
-          "type": "TTS_ENGINE",
-          "links": [
-            63
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "ChatterBoxEngineNode"
-      },
-      "widgets_values": [
-        "English",
-        "auto",
-        0.5,
-        0.8,
-        0.5,
-        "hmm ,, {seg} hmm ,,"
-      ],
-      "title": "Voice engine (ChatterBox)"
-    },
-    {
-      "id": 62,
-      "type": "UnifiedVoiceChangerNode",
-      "pos": [
-        1300.0,
-        250.0
-      ],
-      "size": [
-        340,
-        180
-      ],
-      "flags": {},
-      "order": 22,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "TTS_engine",
-          "type": "TTS_ENGINE",
-          "link": 63
-        },
-        {
-          "name": "source_audio",
-          "type": "AUDIO",
-          "link": 61
-        },
-        {
-          "name": "narrator_target",
-          "type": "AUDIO",
-          "link": 65
-        }
-      ],
-      "outputs": [
-        {
-          "name": "converted_audio",
-          "type": "AUDIO",
-          "links": [
-            64
-          ]
-        },
-        {
-          "name": "conversion_info",
-          "type": "STRING",
-          "links": null
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "UnifiedVoiceChangerNode"
-      },
-      "widgets_values": [
-        1,
-        30,
-        "smart"
-      ],
-      "title": "Voice Changer — one speaker for the whole reel"
     }
   ],
   "links": [
@@ -1861,31 +1736,7 @@
       61,
       46,
       0,
-      62,
-      1,
-      "AUDIO"
-    ],
-    [
-      63,
-      61,
-      0,
-      62,
-      0,
-      "TTS_ENGINE"
-    ],
-    [
-      64,
-      62,
-      0,
       50,
-      2,
-      "AUDIO"
-    ],
-    [
-      65,
-      20,
-      1,
-      62,
       2,
       "AUDIO"
     ]
@@ -1893,7 +1744,7 @@
   "groups": [
     {
       "id": 1,
-      "title": "Shot 1 — chain head, keep",
+      "title": "Beat 1 \u2014 chain head, keep",
       "bounding": [
         -20.0,
         -50.0,
@@ -1906,7 +1757,7 @@
     },
     {
       "id": 2,
-      "title": "Shot 2",
+      "title": "Beat 2",
       "bounding": [
         -20.0,
         430.0,
@@ -1919,7 +1770,7 @@
     },
     {
       "id": 3,
-      "title": "Shot 3",
+      "title": "Beat 3",
       "bounding": [
         -20.0,
         910.0,
@@ -1932,7 +1783,7 @@
     },
     {
       "id": 4,
-      "title": "Shot 4",
+      "title": "Beat 4",
       "bounding": [
         -20.0,
         1390.0,
@@ -1945,7 +1796,7 @@
     },
     {
       "id": 5,
-      "title": "Shot 5",
+      "title": "Beat 5",
       "bounding": [
         -20.0,
         1870.0,
@@ -1958,7 +1809,7 @@
     },
     {
       "id": 6,
-      "title": "Shot 6",
+      "title": "Beat 6",
       "bounding": [
         -20.0,
         2350.0,
@@ -1971,7 +1822,7 @@
     },
     {
       "id": 7,
-      "title": "Shot 7",
+      "title": "Beat 7",
       "bounding": [
         -20.0,
         2830.0,
@@ -1984,7 +1835,7 @@
     },
     {
       "id": 8,
-      "title": "Shot 8",
+      "title": "Beat 8",
       "bounding": [
         -20.0,
         3310.0,

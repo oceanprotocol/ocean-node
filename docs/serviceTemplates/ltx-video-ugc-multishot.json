@@ -52,7 +52,7 @@
     "/bin/bash",
     "-c"
   ],
-  "commandFile": "ltx-video-ugc-bootstrap.sh",
+  "commandFile": "comfyui-ugc-bootstrap.sh",
   "workflows": [
     {
       "id": "ocean_ugc_multishot",

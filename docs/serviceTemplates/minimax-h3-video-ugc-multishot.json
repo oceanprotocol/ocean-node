@@ -1,0 +1,108 @@
+{
+  "id": "minimax-h3-video-ugc-multishot",
+  "name": "ComfyUI — UGC multishot reel (MiniMax H3)",
+  "description": "ComfyUI preloaded with MiniMax H3 (open-weights, int8) for a vertical UGC reel where every beat carries native stereo audio — voice, room tone and music generated in the same forward pass, so there is no TTS step and no voice-conversion node pack riding along the way the LTX UGC templates need. One Run renders one ~12-second beat that can itself contain several internal cuts, not one continuous take, so a 30-second reel is 2–3 Runs here versus the 6–8 shot-by-shot Runs the LTX multishot template needs for the same length. Six prompt boxes split into what you set once — subject_definitions, retention_analysis, non_diegetic_music — and what you retype every beat — summary, detailed_description, overall_soundscape; retention_analysis is the box actually doing the work of holding the character's face steady across the internal cuts, so treat it the way the LTX template treats its style box. Continuity between beats ships bypassed: from beat 2 onward, un-bypass it and always point LoadVideo at beat 1, never at the newest beat — chaining beat N off beat N−1 compounds artifacts on every generation, while every beat referencing the same hero beat does not. A green Mode switch picks the checkpoint: off is Ref2VA (default; reference images, and optionally a reference video and voice clip — use for anything with dialogue), on is FL2VA (first-frame/last-frame interpolation for action and B-roll only, since it has no reference-audio path and re-rolls the speaker every beat). The switch is lazy, so only one of the two 19.5 GB checkpoints is ever loaded — that is how both fit in one graph. The turbo 4-step LoRA ships bypassed on purpose: it is about 2.5x faster, but at 4 steps the audio path clips and gets noisy, so full-step sampling is the default and un-bypassing it is a deliberate quality tradeoff, not a missing feature. Beats render at 24 fps, 5–15 s each (12 s default); the shipped Resolution default is 0.8 MP at 9:16, which the node rounds to 672×1184, with a 1.0 MP setting available up to H3's native 768×1344 / 768 px short edge cap. Select a persistent-storage bucket on launch: it holds ComfyUI's whole base directory, and without one the roughly 60 GB of weights (two 19.5 GB checkpoints, a 14.6 GB text encoder, video and audio VAEs, the turbo LoRA) re-downloads every launch and is discarded on stop; with a bucket selected, beat and reel clips land in the bucket root where the storage API's listFiles can see them. This template tops out at H3's native resolution: MiniMax's 2K mode (hosted `H3-Regenerate-2K`) is a hosted-only feature, absent from the open-weights release, so there is no 2K path here.",
+  "kind": "bundle",
+  "service": "comfyui",
+  "outcome": "Build a multi-shot 9:16 UGC reel with native synced audio, one character and one voice throughout.",
+  "category": "video",
+  "includes": [
+    {
+      "name": "MiniMax H3 Ref2VA (int8)",
+      "kind": "model",
+      "sizeGb": 19.5,
+      "repoId": "Comfy-Org/MiniMax-H3"
+    },
+    {
+      "name": "MiniMax H3 FL2VA (int8)",
+      "kind": "model",
+      "sizeGb": 19.5,
+      "repoId": "Comfy-Org/MiniMax-H3"
+    },
+    {
+      "name": "Qwen3-VL-32B text encoder (nvfp4 awq)",
+      "kind": "model",
+      "sizeGb": 14.6,
+      "repoId": "Comfy-Org/MiniMax-H3"
+    },
+    {
+      "name": "H3 video VAE (fp16)",
+      "kind": "model",
+      "sizeGb": 4.9,
+      "repoId": "Comfy-Org/MiniMax-H3"
+    },
+    {
+      "name": "H3 audio VAE (fp32, stereo)",
+      "kind": "model",
+      "sizeGb": 0.6,
+      "repoId": "Comfy-Org/MiniMax-H3"
+    },
+    {
+      "name": "H3 Turbo 4-step LoRA (optional, bypassed by default)",
+      "kind": "model",
+      "sizeGb": 0.6,
+      "repoId": "drbaph/MiniMax-H3-Turbo-Lora-ComfyUI"
+    }
+  ],
+  "image": "yanwk/comfyui-boot",
+  "tag": "cu130-megapak-pt211-20260812",
+  "exposedPorts": [
+    8188
+  ],
+  "entrypoint": [
+    "/bin/bash",
+    "-c"
+  ],
+  "commandFile": "comfyui-ugc-bootstrap.sh",
+  "workflows": [
+    {
+      "id": "ocean_h3_ugc_multishot",
+      "name": "Multishot beat — one Run, several shots",
+      "description": "One Run renders one ~12 s beat with native synced voice, room tone and music — no separate TTS or voice-conversion step. Casting boxes (subject_definitions, retention_analysis, non_diegetic_music) are set once; This-beat boxes (summary, detailed_description, overall_soundscape) are retyped every Run. A lazy Mode switch picks Ref2VA (reference-driven, for dialogue) or FL2VA (interpolation only, for action/B-roll — no reference-audio path, so it re-rolls the speaker). Continuity ships bypassed; from beat 2 on, point it at beat 1, never the newest beat, or artifacts compound.",
+      "file": "workflows/ocean_h3_ugc_multishot.json"
+    },
+    {
+      "id": "ocean_h3_ugc_assemble",
+      "name": "Assemble reel",
+      "description": "Concatenates up to 8 rendered beat clips (video + audio, already final) into a single reel using core ComfyUI video nodes — no external editor and no voice-conversion pass, since every beat already carries its own synced audio. Pick clips in the Beat 1–8 LoadVideo dropdowns, bypass any slots you don't need, and Run.",
+      "file": "workflows/ocean_h3_ugc_assemble.json"
+    }
+  ],
+  "userConfigurableEnvVars": [
+    {
+      "key": "COMFY_WORKFLOW_ID",
+      "validation": "^[A-Za-z0-9_-]+$"
+    },
+    {
+      "key": "COMFY_WORKFLOW"
+    }
+  ],
+  "requiredResources": [
+    {
+      "id": "cpu",
+      "min": 8,
+      "recommended": 16,
+      "unit": "cores"
+    },
+    {
+      "id": "ram",
+      "min": 64,
+      "recommended": 128,
+      "unit": "GB"
+    },
+    {
+      "id": "disk",
+      "min": 70,
+      "recommended": 140,
+      "unit": "GB"
+    },
+    {
+      "kind": "discrete",
+      "type": "gpu",
+      "min": 1,
+      "recommended": 1,
+      "unit": "count",
+      "description": "CUDA GPU, 24 GB+ VRAM recommended; runs on 12 GB with offloading"
+    }
+  ]
+}

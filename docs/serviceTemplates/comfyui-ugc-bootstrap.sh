@@ -31,7 +31,8 @@ fi
 
 MODELS="$BASE/models"
 mkdir -p "$MODELS/checkpoints" "$MODELS/loras" "$MODELS/text_encoders" \
-  "$MODELS/latent_upscale_models" "$BASE/output" "$INPUT_DIR" "$BASE/temp" "$BASE/user"
+  "$MODELS/latent_upscale_models" "$MODELS/diffusion_models" "$MODELS/vae" \
+  "$BASE/output" "$INPUT_DIR" "$BASE/temp" "$BASE/user"
 
 # .part then rename: a truncated file in a persistent bucket would look cached forever.
 get() {
@@ -146,10 +147,13 @@ PY
   fi
   for url in $MODEL_URLS; do
     case "$url" in
-      */text_encoders/*) sub=text_encoders ;;
-      */loras/*)         sub=loras ;;
-      *upscaler*)        sub=latent_upscale_models ;;
-      *)                 sub=checkpoints ;;
+      */diffusion_models/*) sub=diffusion_models ;;
+      */text_encoders/*)    sub=text_encoders ;;
+      */vae/*)              sub=vae ;;
+      */loras/*)            sub=loras ;;
+      *[Ll]ora*)            sub=loras ;;
+      *upscaler*)           sub=latent_upscale_models ;;
+      *)                    sub=checkpoints ;;
     esac
     # One renamed file must not cost the whole paid session.
     get "$url" "$MODELS/$sub/$(basename "$url")" ||
@@ -159,26 +163,74 @@ else
   echo "[ocean] no workflow supplied — skipping model download" >&2
 fi
 
-# The graph's LoadImage/LoadAudio widgets name example assets that ship inside the
-# comfyui-workflow-templates package. Copying them into input/ is what makes the first Queue
-# work without the user uploading anything.
+# The graph's LoadImage/LoadAudio widgets name example assets. Putting them in input/ is what
+# makes the first Queue work without the user uploading anything — without it ComfyUI rejects
+# the prompt with "Value not in list: image", because it validates combo widgets across the
+# whole reachable graph even for nodes the selected branch never runs.
 if [ -n "$WORKFLOW_JSON" ]; then
   python3.13 - "$WORKFLOW_JSON" "$INPUT_DIR" <<'PY' || true
-import json, shutil, sys
+import json, shutil, sys, urllib.parse, urllib.request
 from pathlib import Path
+
+# These assets live at input/ in Comfy-Org/workflow_templates. The pip package used to vendor
+# them, but every release since 0.11.26 is a ~10 KB meta-package carrying none — so the local
+# lookup below is a fast path that currently always misses, and the download is what actually
+# seeds. Both are kept: the package may start shipping assets again.
+RAW = 'https://raw.githubusercontent.com/Comfy-Org/workflow_templates/main/input/'
+
+dirs = []
 try:
     import comfyui_workflow_templates as pkg
-    src = Path(pkg.__file__).parent / 'templates'
+    base = Path(pkg.__file__).parent
+    dirs = [base / 'templates' / 'input', base / 'templates', base / 'input']
+except Exception:
+    pass
+
+try:
     graph = json.load(open(sys.argv[1]))
-    dest = Path(sys.argv[2])
-    for node in graph.get('nodes', []):
-        if node.get('type') in ('LoadImage', 'LoadAudio'):
-            name = (node.get('widgets_values') or [None])[0]
-            if name and (src / name).is_file() and not (dest / name).exists():
-                shutil.copy2(src / name, dest / name)
-                print(f'[ocean] seeded input {name}')
 except Exception as e:
-    print(f'[ocean] could not seed example inputs: {e}', file=sys.stderr)
+    print(f'[ocean] could not read the workflow for seeding: {e}', file=sys.stderr)
+    raise SystemExit(0)
+dest = Path(sys.argv[2])
+
+for node in graph.get('nodes', []):
+  # Per-node, because the graph is client-supplied: a name with a NUL or over 255 bytes makes
+  # even the cleanup below raise, and one malformed node must not stop the rest from seeding.
+  try:
+    if not isinstance(node, dict) or node.get('type') not in ('LoadImage', 'LoadAudio'):
+        continue
+    widgets = node.get('widgets_values')
+    name = widgets[0] if isinstance(widgets, list) and widgets else None
+    # The graph arrives from the client, so `name` is untrusted and becomes both a URL segment
+    # and a write path. Basename only: Path('../x').name and Path('/etc/x').name both differ
+    # from the original, and Path('..').name is '', so traversal cannot survive this.
+    if not isinstance(name, str) or not name or Path(name).name != name or name[0] == '.':
+        continue
+    if (dest / name).exists():
+        continue
+    local = next((d / name for d in dirs if (d / name).is_file()), None)
+    if local:
+        shutil.copy2(local, dest / name)
+        print(f'[ocean] seeded input {name}')
+        continue
+    # .part then rename, like the model downloads above: a truncated asset in a persistent
+    # bucket would look seeded forever and fail at Queue time instead of here.
+    part = dest / (name + '.part')
+    try:
+        url = RAW + urllib.parse.quote(name)
+        with urllib.request.urlopen(url, timeout=30) as r, open(part, 'wb') as f:
+            shutil.copyfileobj(r, f)
+        part.rename(dest / name)
+        print(f'[ocean] fetched example input {name}')
+    except Exception as e:
+        try:
+            part.unlink(missing_ok=True)
+        except Exception:
+            pass
+        # Non-fatal: escrow is claimed, and the user can always upload their own.
+        print(f'[ocean] no example input for {name} ({e}) — upload one in the UI', file=sys.stderr)
+  except Exception as e:
+    print(f'[ocean] skipped an input node while seeding: {e}', file=sys.stderr)
 PY
 fi
 
