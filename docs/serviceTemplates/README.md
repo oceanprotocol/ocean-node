@@ -334,12 +334,14 @@ the official templates rely on, apply.
 **Sampling and size.** `res_multistep` at 20 steps with the **`beta`** scheduler — Comfy's own
 R2V note is that beta and normal outperform simple on reference-heavy prompts, which both beats
 are by design. `ref_image_size` is `max`, because UGC lives on face and product-label fidelity.
-Default size is **768×1344 at 1.0 MP / 9:16, 24 fps**, 15 s per beat, which the frame-grid
-expression lands on length 362 — the top of H3's trained 124–362 range. 1.0 MP is H3's native
-cap (768 px short edge) and therefore the sharpest the open weights go; it is the default
-because the target card is an H200, where nothing has to be offloaded to reach it. Small cards
-drop the megapixels widget to 0.4 rather than shortening a beat. MiniMax's 2K mode (hosted
-`H3-Regenerate-2K`) is absent from the open-weights release, so there is no 2K path here.
+Default size is **768x1344 at 0.97 MP / 9:16, 24 fps**, 15 s per beat, which the frame-grid
+expression lands on length 362 — the top of H3's trained 124–362 range. 0.97 rather than 1.0
+because the node's formula (`round(ratio * sqrt(mp*1024*1024/(w*h)) / 32) * 32`) turns 1.0 MP
+into 768x1376, one 32 px step past H3's documented 768x1344 cap; 0.97 lands on the cap exactly.
+Steps ship at 15, the practical floor below which quality drops noticeably, with 20 for a final
+render. Sampling cost is dominated by latent tokens — `(w/16) * (h/16) * video_latent_t`, 431,424
+at this size — and attention is quadratic in them, so shorter beats and lower megapixels are the
+two levers that actually move the clock.
 
 **fps is a model constant, not a setting.** `CreateVideo.fps` is a required FLOAT whose ComfyUI
 default is 30.0, but H3 generates at exactly 24 and the frame-grid expression already hard-codes
@@ -349,7 +351,7 @@ panel, and the how-to note repeats the sentence.
 
 **Hardware.** Weights total 59.1 GB (19.5 + 19.5 + 14.6 + 4.9 + 0.6) and the chained design
 loads both checkpoints per Run, so one 80 GB+ card — an H200 at 141 GB, or an H100 — holds the
-whole chain resident and offloads nothing, which is what the 1.0 MP default assumes. 24 GB still
+whole chain resident and offloads nothing, which is what the native-canvas default assumes. 24 GB still
 works at 0.4 MP but offloads heavily and swaps checkpoints mid-Run. GPU class matters directly
 here and CPU cores do not — sampling is GPU-bound — which is why the `gpu` resource carries the
 guidance in its `description` (`gpu` is a discrete count, not a size, and `ServiceTemplateSchema`
