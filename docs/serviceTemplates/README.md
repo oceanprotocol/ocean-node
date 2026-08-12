@@ -209,14 +209,12 @@ used before. The node's own how-to says so too.
 ### `minimax-h3-video-ugc-multishot.json` — ComfyUI, MiniMax H3 UGC reel (GPU)
 
 Same image and bucket behavior as the LTX templates, but a different generator — MiniMax H3
-(open-weights, int8) — and a different unit of work: one Run here is a ~12 s **beat** that can
-itself contain several internal cuts (the shipped example prompt holds two shots in one beat),
-rather than LTX's one continuous take per Run. A 30 s reel is 2–3 Runs of this template versus
-the 6–8 Runs LTX multishot needs for the same length. Needs a CUDA GPU, 24 GB+ VRAM recommended
-(12 GB works with offloading). Ships two workflows:
+(open-weights, int8) — and a different unit of work: **one Run produces ~30 s with six shots and
+one consistent character**, versus LTX's one continuous take per Run. Needs a CUDA GPU, 24 GB+
+VRAM recommended (12 GB works with offloading). Ships two workflows:
 
-- `workflows/ocean_h3_ugc_multishot.json` — renders one beat per Run.
-- `workflows/ocean_h3_ugc_assemble.json` — concatenates up to 8 rendered beats into one reel.
+- `workflows/ocean_h3_ugc_multishot.json` — one Run, two chained beats, ~30 s out.
+- `workflows/ocean_h3_ugc_assemble.json` — concatenates up to 8 rendered clips into one reel.
 
 **Native audio, no voice-conversion pass.** H3 generates voice, room tone and music in the
 same forward pass as the video, so there is no separate TTS step and nothing analogous to the
@@ -224,52 +222,101 @@ LTX templates' `UnifiedVoiceChangerNode` pass. The bootstrap's TTS-Audio-Suite i
 on the installed graph containing `UnifiedVoiceChangerNode`; this workflow never does, so the
 install never runs for this template — no custom node pack rides along.
 
-**Three prompt boxes, and why not two.** H3 mandates this section order:
+**Two chained stages, not two Runs.** H3 caps at 15 s per generation, so 30 s needs two passes.
+The graph chains them. Beat 1 is **FL2VA**, the only mode whose `first_frame` literally becomes
+frame 0, so the user's photo opens the video. Beat 2 is **Ref2VA**, the only mode that takes a
+reference *video* — which is what carries face, wardrobe, room, camera style and voice into the
+second half. Chaining beats two manual Runs because `ref_video_0` is typed `IMAGE` and
+`ref_video_audio_0` is `AUDIO`: beat 1's `VAEDecode` / `VAEDecodeAudio` feed beat 2 **directly**,
+with no file, no re-encode and strictly higher fidelity than referencing a saved MP4. ComfyUI
+caches by input hash, so once beat 1 is good, editing only beat 2's text leaves beat 1's subtree
+untouched and it is not recomputed.
+
+H3 truncates an over-long reference batch **from the start** (`frames[:frame_count]`), so a raw
+pass-through would reference beat 1's opening rather than its end. Beat 2 slices the tail
+explicitly: `GetImageSize` → `ComfyMathExpression("a - 72")` → `ImageFromBatch(length 72)` for
+the frames, and `TrimAudioDuration(start_index -3, duration 3)` for the audio. 72 frames is 3 s
+at 24 fps, inside H3's documented 2–15 s reference window and far cheaper than referencing all
+362 — reference tokens ride every sampling step. Both values are derived rather than pinned
+(the frame index from the actual batch size, the audio offset from the end of the clip), so
+changing the duration widget cannot break the slice.
+
+**The seam is a hard cut.** 15 s is the model's ceiling per pass and no wiring changes that.
+Beat 2 is a new generation that *references* beat 1, not a continuation of the same take, so the
+join at 00:15 is a hard cut — same person, same room, same voice, new camera setup. The how-to
+note says to write beat 2 as a deliberate cut, which reads as editing rather than as a glitch.
+
+**One boolean, and it really does skip beat 2.** `Second beat — 30 s total` drives two
+`ComfySwitchNode`s (video and audio) plus the last-frame picker. `ComfySwitchNode` is **lazy**,
+so `false` means the `ImageBatch` / `AudioConcat` branch never evaluates and **beat 2 never runs
+at all** — no ref2va checkpoint loaded, no second sampling pass. That is the fast-iteration
+path: a 15 s beat in about half the time. The `SaveImage` last-frame output hangs off the
+*switched* stream for the same reason; wiring it straight to beat 2 would make it an output
+dependency and force the second pass even with the boolean off.
+
+**Four prompt boxes, one per contract.** H3 mandates this section order:
 
     subject_definitions → summary → retention_analysis →
     detailed_description → overall_soundscape → non_diegetic_music
 
-The set-once sections are the 1st, 3rd and 6th and the per-beat ones the 2nd, 4th and 5th, so
-they interleave: a two-box `{casting}\n\n{beat}` join would emit 1,3,6,2,4,5 and break the
-order. Splitting at the order-preserving boundaries gives three boxes — **Casting**
-(`subject_definitions`), **This beat** (`summary`, `retention_analysis`,
-`detailed_description`, `overall_soundscape`) and **Music bed** (`non_diegetic_music`) — joined
-top to bottom by two `StringFormat` nodes. `retention_analysis` is the section actually holding
-the character's face across a beat's internal cuts (a `fully_preserved` / `attribute_transfer`
-line per subject), and it sits in **This beat** rather than with the casting text because it
-names which shots each subject appears in, so it changes with the beat.
+but the two modes do not take the same sections, so the boxes split by *stage* as well as by
+set-once/per-beat:
 
-**One subgraph, 17 canvas nodes.** Like the LTX generator, everything that is plumbing rather
-than a decision — both checkpoints, the mode switch, the CLIP and VAE loaders, the two H3
-conditioning nodes, resolution/duration/frame-grid, the sampler chain, decode, `CreateVideo`
-and the last-frame picker — lives inside one collapsed subgraph, `Generate audio + video
-(MiniMax H3)`. Six widgets are promoted onto its face: mode, megapixels, duration, steps, seed,
-`ref_image_size`. The canvas itself is the three prompt boxes, the image/video/audio inputs, the
-subgraph instance and the two save nodes.
+| Box | When | Sections | Used by |
+|---|---|---|---|
+| **A · Cast & references** | set once | `subject_definitions` | beat 2 |
+| **B · Beat 1** | per beat | `integrated_multimodal_description` | beat 1 |
+| **C · Beat 2** | per beat | `summary`, `retention_analysis`, `detailed_description` | beat 2 |
+| **D · Audio & music** | set once | `overall_soundscape`, `non_diegetic_music` | both |
 
-**Hero-beat referencing.** The Continuity group (`LoadVideo` + `GetVideoComponents`, pointed at
-a rendered beat) ships bypassed. From beat 2 on, un-bypass it and point `LoadVideo` at
-**beat 1**, never at the newest beat: chaining beat N off beat N−1 compounds artifacts on every
-generation, while every beat referencing the same hero beat does not.
+Two `StringFormat` nodes join them, one per stage, each a pure join because every section label
+is already written literally in its box. Beat 1's `f_string` bakes in the base guide's fixed
+I2VA instruction line (`For the target video, at 0.00 seconds …`), which is constant and so gets
+no box, then `{a}` = B and `{b}` = D. Beat 2's is `{a}\n\n{b}\n\n{c}` = A, C, D, which lands all
+six sections in the mandated order. `retention_analysis` is the section actually holding the
+character's face steady; it names the chained tail as `<Video 1>` and never uses `(Sx)`, which
+the guide forbids in that section.
 
-**Ref2VA / FL2VA toggle.** A single switch picks the checkpoint: off (default) is Ref2VA —
-reference images, and optionally a reference video and voice clip, feed the model — for
-anything with dialogue; on is FL2VA — first-frame/last-frame interpolation for action and
-B-roll only. The switch is lazy, so only the selected 19.5 GB checkpoint is ever loaded, which
-is how both fit in one graph. FL2VA has no reference-audio path, so it re-rolls the speaker on
-every beat — never use it for a beat with dialogue.
+The shipped seed is a worked skincare-UGC example. Box B's and box C's **bodies are 350–500
+words each** — that range is the guide's figure for the body field
+(`integrated_multimodal_description` / `detailed_description`), not for the whole prompt, and an
+under-written body is the main cause of identity drift. Each body opens `Live-action, cinematic`
+and carries three timecoded shots: `[Shot 1]` with no timestamp, then `[Shot 2] At 00:05.000,`
+and `[Shot 3] At 00:10.000,`. Camera moves use the closed vocabulary — motion type + amplitude +
+speed, with medium amplitude and normal speed left unstated.
+
+**Two subgraphs, 26 canvas nodes.** Everything that is plumbing rather than a decision lives in
+`Beat 1 · FL2VA (starts from your photo)` and `Beat 2 · Ref2VA (carries the character forward)`.
+Each holds its own `UNETLoader`, `CLIPLoader`, both `VAELoader`s, its H3 conditioning node, the
+sampler chain and the decoders; beat 2 adds the tail slicer and the final-frame extractor. The
+loaders are duplicated on purpose — ComfyUI caches loaded models by filename, so the duplicates
+cost no VRAM and each stage stays self-contained. Promoted onto each instance: `megapixels`,
+duration seconds, `steps`, seed, plus `ref_image_size` on beat 2. The canvas itself is the four
+prompt boxes, the reference loaders, the two instances, the boolean and its switches,
+`CreateVideo` / `SaveVideo` / `SaveImage`.
+
+**References ship bypassed, and that is safe.** Only `<Picture 1>` (the subject) is active — it
+is frame 0 of beat 1 *and* reference image 0 of beat 2, so one photo decides the face.
+`<Picture 2>` (product), `<Picture 3>` (location), `<Video 2>` (style/motion) and `<Audio 1>`
+(voice lock) are `mode: 4`. All four reference autogrows are `min: 0`, so an unwired socket is
+natively valid and needs no guard. The external video is `<Video 2>`, not `<Video 1>`, because
+`ref_video_0` is reserved for the automatic chain — tags follow connection order and the node
+titles match what the user types in the prompt. H3's limits across all of them: **≤9 images ·
+≤3 videos (2–15 s each, ≤15 s total) · ≤3 audio · ≤12 files total.**
 
 **No turbo LoRA.** The 4-step turbo LoRA is about 2.5x faster but clips and noises the audio
 path, which is this template's headline feature, so it is not installed and full-step (20-step)
 sampling is the only shipped path — H3's built-in 12-video / 3-audio sigma-shift defaults, which
-the official templates rely on, apply. The how-to note says how to add the LoRA by hand
-(download into `models/loras/`, add a `LoraLoaderModelOnly` after the model switch inside the
-subgraph, `steps` 8) for roughly 2.5x speed at a real cost in audio quality.
+the official templates rely on, apply.
 
-**Size.** Default is **672×1184 at 0.8 MP / 9:16, 24 fps**, 12 s beats (5–15 s range). A 1.0 MP
-setting is available, capping at H3's native 768×1344 — the model's 768 px short edge is the
-ceiling at 1.0 MP, not at the 0.8 MP default. MiniMax's 2K mode (hosted `H3-Regenerate-2K`) is
-absent from the open-weights release, so there is no 2K path here.
+**Sampling and size.** `res_multistep` at 20 steps with the **`beta`** scheduler — Comfy's own
+R2V note is that beta and normal outperform simple on reference-heavy prompts, which both beats
+are by design. `ref_image_size` is `max`, because UGC lives on face and product-label fidelity.
+Default size is **672×1184 at 0.8 MP / 9:16, 24 fps**, 15 s per beat, which the frame-grid
+expression lands on length 362 — the top of H3's trained 124–362 range. A 1.0 MP setting reaches
+H3's native 768×1344 cap and is visibly sharper, but 15 s at that size is the heaviest ask on a
+24 GB card. MiniMax's 2K mode (hosted `H3-Regenerate-2K`) is absent from the open-weights
+release, so there is no 2K path here.
 
 Pick a persistent-storage bucket on launch: it holds ComfyUI's whole base directory, and
 without one the roughly 59 GB of weights (two 19.5 GB checkpoints, a 14.6 GB text encoder,
