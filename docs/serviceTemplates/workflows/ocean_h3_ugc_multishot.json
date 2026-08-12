@@ -1,8 +1,8 @@
 {
   "id": "9c1a4d2e-7b58-4f36-a0d1-3e6b52f7c418",
   "revision": 0,
-  "last_node_id": 202,
-  "last_link_id": 35,
+  "last_node_id": 207,
+  "last_link_id": 46,
   "nodes": [
     {
       "id": 200,
@@ -16,7 +16,7 @@
         3060
       ],
       "flags": {},
-      "order": 0,
+      "order": 13,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -25,7 +25,7 @@
       },
       "title": "How to use",
       "widgets_values": [
-        "# MiniMax H3 — 30 s UGC reel, one Run\n\nOne Run renders **two 15-second beats and joins them**: beat 1 starts from your\nphoto, beat 2 inherits the character from beat 1 automatically, and you get one\n~30 s clip with one face, one wardrobe, one room and one voice.\n\n## The one switch\n\n**Second beat — 30 s total** is a boolean on the canvas.\n\n- **on** (default) — both beats render, ~30 s out.\n- **off** — only beat 1 renders, ~15 s out. The switches are lazy, so beat 2's\n  checkpoint is never loaded and its sampling pass never runs. Use this while\n  you are still iterating on beat 1; it costs about half the time.\n\n## The four boxes\n\n| Box | When | Sections it carries |\n|---|---|---|\n| **A · Cast & references** | set once | `subject_definitions` |\n| **B · Beat 1** | per beat | `integrated_multimodal_description` |\n| **C · Beat 2** | per beat | `summary`, `retention_analysis`, `detailed_description` |\n| **D · Audio & music** | set once | `overall_soundscape`, `non_diegetic_music` |\n\nTwo `StringFormat` nodes join them, one per stage, because the two H3 modes take\ndifferent contracts. Beat 1 (FL2VA) gets a fixed instruction line + B + D. Beat 2\n(Ref2VA) gets A + C + D, which lands the six sections in H3's mandated order:\n\n    subject_definitions → summary → retention_analysis →\n    detailed_description → overall_soundscape → non_diegetic_music\n\n**Never delete the first line of a box** — that line is the section label.\n\nWrite **350–500 words** in the body of B (`integrated_multimodal_description`)\nand of C (`detailed_description`). That range is the guide's figure for the body\nfield, not for the whole prompt, and an under-written body is the single most\ncommon cause of identity drift. Each body carries three timecoded shots:\n`[Shot 1]` with no timestamp, then `[Shot 2] At 00:05.000,` and\n`[Shot 3] At 00:10.000,` — keep the comma.\n\nCamera moves use **motion type + amplitude + speed** (\"pushes in with small\namplitude at slow speed\"). Leave medium amplitude and normal speed unstated.\nDialogue is `The woman with a warm, low voice (S1) says: <d>[English] ...</d>`,\nand speaker ids are assigned in order of first vocal event, then reused.\n`retention_analysis` never uses `(Sx)`.\n\n## The seam is a hard cut\n\n15 s is H3's ceiling **per generation** and no wiring changes that. Beat 2 is a\nnew pass that references beat 1, not a continuation of the same take, so the\njoin at 00:15 is a **hard cut**: same person, same room, same voice, but a new\ncamera setup. Write beat 2 as a deliberate cut — a new angle or a new position\nin the room — and it reads as editing rather than as a glitch.\n\n## References\n\nEverything except <Picture 1> ships **bypassed**, and bypassed is safe: an\nunwired reference socket is natively valid and the model simply does not use it.\nSelect the node and press Ctrl+B to un-bypass.\n\n- `<Picture 1>` · **active** — your character. It is frame 0 of beat 1 and\n  reference image 0 of beat 2, so it is the one photo that decides the face.\n- `<Picture 2>` · product, `<Picture 3>` · location — optional.\n- `<Video 2>` · style / motion reference — optional. It is *2* because\n  `<Video 1>` is taken: that tag belongs to the automatic 3-second tail of beat 1\n  that the graph feeds into beat 2. Tags follow connection order, and the titles\n  here match what you type in the prompt.\n- `<Audio 1>` · voice lock — optional, 5–10 s of clean speech.\n\nH3's own limits, across all of them: **≤9 images · ≤3 videos (2–15 s each,\n≤15 s total) · ≤3 audio · ≤12 files total.**\n\n## Size and length\n\n**megapixels 0.8** at 9:16 gives 672×1184 — the shipped default, and the one\nthat fits 15 s on a 24 GB card. **1.0** reaches H3's native cap of 768×1344 and\nis visibly sharper, but 15 s at that size is the heaviest ask the model takes;\nexpect offloading, or drop to a single beat while you test it. On OOM go to\n**0.4** before you shorten a beat.\n\n**duration 15 s** feeds the frame-grid expression and lands on length 362, the\ntop of H3's trained 124–362 range. **steps 20**, sampler `res_multistep`,\nscheduler `beta` — beta and normal outperform simple on reference-heavy\nprompts, which both beats are by design. `ref_image_size` is **max** because UGC\nlives on face and product-label fidelity; switch it to **match** for drafts.\n\n## Outputs\n\n`beat` — the joined clip. `lastframe` — its final frame as a PNG, written on\nevery Run. Feed that PNG into `<Picture 1>` if you want to hand-start a third\nbeat from where this one ended.\n"
+        "# MiniMax H3 — 30 s UGC reel, one Run\n\nOne Run renders **two 15-second beats and joins them**: beat 1 starts from your\nphoto, beat 2 inherits the character from beat 1 automatically, and you get one\n~30 s clip with one face, one wardrobe, one room and one voice.\n\n## The one switch\n\n**Second beat — 30 s total** is a boolean at the bottom of the `Controls`\ngroup on the canvas.\n\n- **on** (default) — both beats render, ~30 s out.\n- **off** — only beat 1 renders, ~15 s out. The switches are lazy, so beat 2's\n  checkpoint is never loaded and its sampling pass never runs. Use this while\n  you are still iterating on beat 1; it costs about half the time.\n\n## The four boxes\n\n| Box | When | Sections it carries |\n|---|---|---|\n| **A · Cast & references** | set once | `subject_definitions` |\n| **B · Beat 1** | per beat | `integrated_multimodal_description` |\n| **C · Beat 2** | per beat | `summary`, `retention_analysis`, `detailed_description` |\n| **D · Audio & music** | set once | `overall_soundscape`, `non_diegetic_music` |\n\nTwo `StringFormat` nodes join them, one per stage, because the two H3 modes take\ndifferent contracts. Beat 1 (FL2VA) gets a fixed instruction line + B + D. Beat 2\n(Ref2VA) gets A + C + D, which lands the six sections in H3's mandated order:\n\n    subject_definitions → summary → retention_analysis →\n    detailed_description → overall_soundscape → non_diegetic_music\n\n**Never delete the first line of a box** — that line is the section label.\n\nWrite **350–500 words** in the body of B (`integrated_multimodal_description`)\nand of C (`detailed_description`). That range is the guide's figure for the body\nfield, not for the whole prompt, and an under-written body is the single most\ncommon cause of identity drift. Each body carries three timecoded shots:\n`[Shot 1]` with no timestamp, then `[Shot 2] At 00:05.000,` and\n`[Shot 3] At 00:10.000,` — keep the comma.\n\nCamera moves use **motion type + amplitude + speed** (\"pushes in with small\namplitude at slow speed\"). Leave medium amplitude and normal speed unstated.\nDialogue is `The woman with a warm, low voice (S1) says: <d>[English] ...</d>`,\nand speaker ids are assigned in order of first vocal event, then reused.\n`retention_analysis` never uses `(Sx)`.\n\n## The seam is a hard cut\n\n15 s is H3's ceiling **per generation** and no wiring changes that. Beat 2 is a\nnew pass that references beat 1, not a continuation of the same take, so the\njoin at 00:15 is a **hard cut**: same person, same room, same voice, but a new\ncamera setup. Write beat 2 as a deliberate cut — a new angle or a new position\nin the room — and it reads as editing rather than as a glitch.\n\n## References\n\nEverything except <Picture 1> ships **bypassed**, and bypassed is safe: an\nunwired reference socket is natively valid and the model simply does not use it.\nThe four optional ones are stacked in one column in the group titled\n**Optional references — select a node and press Ctrl+B to toggle**; `<Picture 1>`\nsits above them on its own, because it is not optional.\n\n- `<Picture 1>` · **active** — your character. It is frame 0 of beat 1 and\n  reference image 0 of beat 2, so it is the one photo that decides the face.\n- `<Picture 2>` · product, `<Picture 3>` · location — optional.\n- `<Video 2>` · style / motion reference — optional. It is *2* because\n  `<Video 1>` is taken: that tag belongs to the automatic 3-second tail of beat 1\n  that the graph feeds into beat 2. Tags follow connection order, and the titles\n  here match what you type in the prompt.\n- `<Audio 1>` · voice lock — optional, 5–10 s of clean speech.\n\nH3's own limits, across all of them: **≤9 images · ≤3 videos (2–15 s each,\n≤15 s total) · ≤3 audio · ≤12 files total.**\n\n## Controls — one panel, both beats\n\nThe `Controls` group, directly under the reference column, holds every dial, and\neach one drives **both** beats. There is deliberately only one of each: two\nresolutions that drifted apart would make `ImageBatch` silently rescale beat 2\nto beat 1's size, and you would notice it only as softness.\n\n**Resolution** at megapixels 0.8 / 9:16 gives 672×1184 — the shipped default,\nand the one that fits 15 s on a 24 GB card. **1.0** reaches H3's native cap of\n768×1344 and is visibly sharper, but 15 s at that size is the heaviest ask the\nmodel takes; expect offloading, or drop to a single beat while you test it. On\nOOM go to **0.4** before you shorten a beat.\n\n**Beat length (seconds)** feeds the frame-grid expression right below it. 15 s\nlands on length 362, the top of H3's trained 124–362 range, and 15 s is also\nH3's ceiling per beat. **Steps** is 20 — lower is faster and softer. **Seed** is\nshared on purpose: the two beats have different prompts and different\nconditioning, so one seed never means one clip twice, it just makes a whole Run\nreproducible while you iterate.\n\n`ref_image_size` is the only dial still promoted onto a beat — it is beat-2 only\nand ships as **max**, because UGC lives on face and product-label fidelity;\nswitch it to **match** for drafts. Sampler `res_multistep`, scheduler `beta` —\nbeta and normal outperform simple on reference-heavy prompts, which both beats\nare by design.\n\n**fps is not a dial.** `Join beats — 24 fps (H3 is fixed at 24, do not change)`.\nH3 generates at exactly 24 fps and the frame-grid expression already hard-codes\n`a * 24`, so any other value only desyncs the audio from the picture.\n\n## Outputs\n\n`beat` — the joined clip. `lastframe` — its final frame as a PNG, written on\nevery Run. Feed that PNG into `<Picture 1>` if you want to hand-start a third\nbeat from where this one ended.\n"
       ],
       "color": "#222",
       "bgcolor": "#000"
@@ -42,7 +42,7 @@
         900
       ],
       "flags": {},
-      "order": 1,
+      "order": 14,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -68,7 +68,7 @@
         460
       ],
       "flags": {},
-      "order": 2,
+      "order": 0,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -102,7 +102,7 @@
         900
       ],
       "flags": {},
-      "order": 3,
+      "order": 1,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -136,7 +136,7 @@
         1100
       ],
       "flags": {},
-      "order": 4,
+      "order": 2,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -170,7 +170,7 @@
         460
       ],
       "flags": {},
-      "order": 5,
+      "order": 3,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -205,7 +205,7 @@
         200
       ],
       "flags": {},
-      "order": 12,
+      "order": 4,
       "mode": 0,
       "inputs": [
         {
@@ -250,7 +250,7 @@
         200
       ],
       "flags": {},
-      "order": 13,
+      "order": 5,
       "mode": 0,
       "inputs": [
         {
@@ -301,7 +301,7 @@
         380
       ],
       "flags": {},
-      "order": 6,
+      "order": 7,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -333,14 +333,14 @@
       "type": "LoadImage",
       "pos": [
         1000,
-        360
+        440
       ],
       "size": [
         340,
         380
       ],
       "flags": {},
-      "order": 7,
+      "order": 8,
       "mode": 4,
       "inputs": [],
       "outputs": [
@@ -371,14 +371,14 @@
       "type": "LoadImage",
       "pos": [
         1000,
-        780
+        840
       ],
       "size": [
         340,
         380
       ],
       "flags": {},
-      "order": 8,
+      "order": 9,
       "mode": 4,
       "inputs": [],
       "outputs": [
@@ -409,14 +409,14 @@
       "type": "LoadVideo",
       "pos": [
         1000,
-        1200
+        1240
       ],
       "size": [
         340,
         100
       ],
       "flags": {},
-      "order": 9,
+      "order": 10,
       "mode": 4,
       "inputs": [],
       "outputs": [
@@ -449,7 +449,7 @@
         120
       ],
       "flags": {},
-      "order": 14,
+      "order": 11,
       "mode": 4,
       "inputs": [
         {
@@ -495,14 +495,14 @@
       "type": "LoadAudio",
       "pos": [
         1000,
-        1540
+        1500
       ],
       "size": [
         340,
         140
       ],
       "flags": {},
-      "order": 10,
+      "order": 12,
       "mode": 4,
       "inputs": [],
       "outputs": [
@@ -536,7 +536,7 @@
         460
       ],
       "flags": {},
-      "order": 15,
+      "order": 20,
       "mode": 0,
       "inputs": [
         {
@@ -548,6 +548,31 @@
           "name": "first_frame",
           "type": "IMAGE",
           "link": 7
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "link": 36
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "link": 38
+        },
+        {
+          "name": "length",
+          "type": "INT",
+          "link": 41
+        },
+        {
+          "name": "steps",
+          "type": "INT",
+          "link": 43
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 45
         }
       ],
       "outputs": [
@@ -572,24 +597,7 @@
         }
       ],
       "properties": {
-        "proxyWidgets": [
-          [
-            "50",
-            "megapixels"
-          ],
-          [
-            "51",
-            "value"
-          ],
-          [
-            "102",
-            "steps"
-          ],
-          [
-            "100",
-            "noise_seed"
-          ]
-        ]
+        "proxyWidgets": []
       },
       "widgets_values": [],
       "title": "Beat 1 · FL2VA (starts from your photo)",
@@ -608,7 +616,7 @@
         560
       ],
       "flags": {},
-      "order": 16,
+      "order": 22,
       "mode": 0,
       "inputs": [
         {
@@ -655,6 +663,31 @@
           "name": "ref_audio_0",
           "type": "AUDIO",
           "link": 17
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "link": 37
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "link": 39
+        },
+        {
+          "name": "length",
+          "type": "INT",
+          "link": 42
+        },
+        {
+          "name": "steps",
+          "type": "INT",
+          "link": 44
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 46
         }
       ],
       "outputs": [
@@ -683,22 +716,6 @@
       "properties": {
         "proxyWidgets": [
           [
-            "50",
-            "megapixels"
-          ],
-          [
-            "51",
-            "value"
-          ],
-          [
-            "102",
-            "steps"
-          ],
-          [
-            "100",
-            "noise_seed"
-          ],
-          [
             "70",
             "ref_image_size"
           ]
@@ -713,15 +730,15 @@
       "id": 40,
       "type": "PrimitiveBoolean",
       "pos": [
-        1900,
-        -60
+        1000,
+        2330
       ],
       "size": [
-        320,
+        340,
         60
       ],
       "flags": {},
-      "order": 11,
+      "order": 6,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -738,7 +755,7 @@
       "properties": {
         "Node name for S&R": "PrimitiveBoolean"
       },
-      "title": "Second beat — 30 s total",
+      "title": "Second beat — 30 s total (off = 15 s, ~half the time)",
       "widgets_values": [
         true
       ],
@@ -757,7 +774,7 @@
         60
       ],
       "flags": {},
-      "order": 18,
+      "order": 23,
       "mode": 0,
       "inputs": [
         {
@@ -797,7 +814,7 @@
         90
       ],
       "flags": {},
-      "order": 19,
+      "order": 24,
       "mode": 0,
       "inputs": [
         {
@@ -840,7 +857,7 @@
         110
       ],
       "flags": {},
-      "order": 17,
+      "order": 21,
       "mode": 0,
       "inputs": [
         {
@@ -887,7 +904,7 @@
         90
       ],
       "flags": {},
-      "order": 21,
+      "order": 25,
       "mode": 0,
       "inputs": [
         {
@@ -939,7 +956,7 @@
         90
       ],
       "flags": {},
-      "order": 22,
+      "order": 26,
       "mode": 0,
       "inputs": [
         {
@@ -991,7 +1008,7 @@
         90
       ],
       "flags": {},
-      "order": 20,
+      "order": 27,
       "mode": 0,
       "inputs": [
         {
@@ -1043,7 +1060,7 @@
         110
       ],
       "flags": {},
-      "order": 24,
+      "order": 28,
       "mode": 0,
       "inputs": [
         {
@@ -1074,7 +1091,7 @@
         24,
         8
       ],
-      "title": "Assemble clip"
+      "title": "Join beats — 24 fps (H3 is fixed at 24, do not change)"
     },
     {
       "id": 113,
@@ -1088,7 +1105,7 @@
         660
       ],
       "flags": {},
-      "order": 25,
+      "order": 29,
       "mode": 0,
       "inputs": [
         {
@@ -1127,7 +1144,7 @@
         660
       ],
       "flags": {},
-      "order": 23,
+      "order": 30,
       "mode": 0,
       "inputs": [
         {
@@ -1144,6 +1161,206 @@
       "widgets_values": [
         "lastframe"
       ]
+    },
+    {
+      "id": 203,
+      "type": "ResolutionSelector",
+      "pos": [
+        1000,
+        1760
+      ],
+      "size": [
+        340,
+        130
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "width",
+          "type": "INT",
+          "links": [
+            36,
+            37
+          ]
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": [
+            38,
+            39
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ResolutionSelector"
+      },
+      "widgets_values": [
+        "9:16 (Portrait Widescreen)",
+        0.8,
+        32
+      ],
+      "title": "Resolution — 0.8 MP = 672x1184 · 1.0 = 768x1344 (H3 cap, heaviest)"
+    },
+    {
+      "id": 204,
+      "type": "PrimitiveFloat",
+      "pos": [
+        1000,
+        1910
+      ],
+      "size": [
+        340,
+        70
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "FLOAT",
+          "type": "FLOAT",
+          "links": [
+            40
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PrimitiveFloat"
+      },
+      "widgets_values": [
+        15
+      ],
+      "title": "Beat length (seconds) — 15 is H3's max per beat"
+    },
+    {
+      "id": 205,
+      "type": "ComfyMathExpression",
+      "pos": [
+        1000,
+        2000
+      ],
+      "size": [
+        340,
+        130
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "a",
+          "name": "values.a",
+          "type": "FLOAT,INT,BOOLEAN",
+          "link": 40
+        },
+        {
+          "label": "b",
+          "name": "values.b",
+          "shape": 7,
+          "type": "FLOAT,INT,BOOLEAN",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "FLOAT",
+          "type": "FLOAT",
+          "links": []
+        },
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            41,
+            42
+          ]
+        },
+        {
+          "name": "BOOL",
+          "type": "BOOLEAN",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ComfyMathExpression"
+      },
+      "widgets_values": [
+        "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17"
+      ],
+      "title": "Beat length → frame grid (15 s = length 362)"
+    },
+    {
+      "id": 206,
+      "type": "PrimitiveInt",
+      "pos": [
+        1000,
+        2150
+      ],
+      "size": [
+        340,
+        70
+      ],
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            43,
+            44
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PrimitiveInt"
+      },
+      "widgets_values": [
+        20,
+        "fixed"
+      ],
+      "title": "Steps — 20 (lower is faster and softer)"
+    },
+    {
+      "id": 207,
+      "type": "PrimitiveInt",
+      "pos": [
+        1000,
+        2240
+      ],
+      "size": [
+        340,
+        70
+      ],
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            45,
+            46
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PrimitiveInt"
+      },
+      "widgets_values": [
+        157368968253448,
+        "fixed"
+      ],
+      "title": "Seed — same seed + same text = same clip"
     }
   ],
   "links": [
@@ -1426,6 +1643,94 @@
       123,
       0,
       "IMAGE"
+    ],
+    [
+      36,
+      203,
+      0,
+      130,
+      2,
+      "INT"
+    ],
+    [
+      37,
+      203,
+      0,
+      131,
+      9,
+      "INT"
+    ],
+    [
+      38,
+      203,
+      1,
+      130,
+      3,
+      "INT"
+    ],
+    [
+      39,
+      203,
+      1,
+      131,
+      10,
+      "INT"
+    ],
+    [
+      40,
+      204,
+      0,
+      205,
+      0,
+      "FLOAT"
+    ],
+    [
+      41,
+      205,
+      1,
+      130,
+      4,
+      "INT"
+    ],
+    [
+      42,
+      205,
+      1,
+      131,
+      11,
+      "INT"
+    ],
+    [
+      43,
+      206,
+      0,
+      130,
+      5,
+      "INT"
+    ],
+    [
+      44,
+      206,
+      0,
+      131,
+      12,
+      "INT"
+    ],
+    [
+      45,
+      207,
+      0,
+      130,
+      6,
+      "INT"
+    ],
+    [
+      46,
+      207,
+      0,
+      131,
+      13,
+      "INT"
     ]
   ],
   "groups": [
@@ -1443,18 +1748,42 @@
     },
     {
       "id": 2,
-      "title": "References — only <Picture 1> is active; Ctrl+B to un-bypass the rest",
+      "title": "Subject — required",
       "bounding": [
         980,
         -140,
         380,
-        1840
+        500
       ],
       "color": "#3f789e",
       "flags": {}
     },
     {
       "id": 3,
+      "title": "Optional references — select a node and press Ctrl+B to toggle",
+      "bounding": [
+        980,
+        360,
+        380,
+        1320
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 4,
+      "title": "Controls",
+      "bounding": [
+        980,
+        1680,
+        380,
+        750
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 5,
       "title": "Chained beats — beat 2 reads beat 1 directly, no file in between",
       "bounding": [
         1380,
@@ -1466,13 +1795,13 @@
       "flags": {}
     },
     {
-      "id": 4,
+      "id": 6,
       "title": "30 s / 15 s — off means beat 2 never runs at all",
       "bounding": [
         1880,
         -140,
         780,
-        600
+        610
       ],
       "color": "#3f789e",
       "flags": {}
@@ -1490,7 +1819,7 @@
         "state": {
           "lastGroupId": 5,
           "lastNodeId": 111,
-          "lastLinkId": 22,
+          "lastLinkId": 27,
           "lastRerouteId": 0
         },
         "inputNode": {
@@ -1499,7 +1828,7 @@
             -340,
             40,
             200,
-            84
+            184
           ]
         },
         "outputNode": {
@@ -1538,6 +1867,76 @@
             "pos": [
               -164,
               84
+            ]
+          },
+          {
+            "id": "b090f1c5-fc73-5e4c-81bd-c38ed5543caf",
+            "name": "width",
+            "type": "INT",
+            "linkIds": [
+              23
+            ],
+            "localized_name": "width",
+            "label": "width",
+            "pos": [
+              -164,
+              104
+            ]
+          },
+          {
+            "id": "acc1b95c-5d0a-507a-a84a-46929e9beba8",
+            "name": "height",
+            "type": "INT",
+            "linkIds": [
+              24
+            ],
+            "localized_name": "height",
+            "label": "height",
+            "pos": [
+              -164,
+              124
+            ]
+          },
+          {
+            "id": "eb401b2b-fe3e-5f29-af82-10a27505ce3e",
+            "name": "length",
+            "type": "INT",
+            "linkIds": [
+              25
+            ],
+            "localized_name": "length",
+            "label": "length",
+            "pos": [
+              -164,
+              144
+            ]
+          },
+          {
+            "id": "56ba371b-677f-5482-b3c0-5d67eac7189f",
+            "name": "steps",
+            "type": "INT",
+            "linkIds": [
+              26
+            ],
+            "localized_name": "steps",
+            "label": "steps",
+            "pos": [
+              -164,
+              164
+            ]
+          },
+          {
+            "id": "c6969c4a-fe6d-580c-8a6d-6c7ef6a1e926",
+            "name": "seed",
+            "type": "INT",
+            "linkIds": [
+              27
+            ],
+            "localized_name": "seed",
+            "label": "seed",
+            "pos": [
+              -164,
+              184
             ]
           }
         ],
@@ -1579,18 +1978,6 @@
               -40,
               560,
               620
-            ],
-            "color": "#3f789e",
-            "flags": {}
-          },
-          {
-            "id": 2,
-            "title": "Size · length",
-            "bounding": [
-              600,
-              -40,
-              440,
-              500
             ],
             "color": "#3f789e",
             "flags": {}
@@ -1794,140 +2181,6 @@
             ]
           },
           {
-            "id": 50,
-            "type": "ResolutionSelector",
-            "pos": [
-              620,
-              40
-            ],
-            "size": [
-              400,
-              130
-            ],
-            "flags": {},
-            "order": 4,
-            "mode": 0,
-            "inputs": [],
-            "outputs": [
-              {
-                "name": "width",
-                "type": "INT",
-                "links": [
-                  7
-                ]
-              },
-              {
-                "name": "height",
-                "type": "INT",
-                "links": [
-                  8
-                ]
-              }
-            ],
-            "properties": {
-              "Node name for S&R": "ResolutionSelector"
-            },
-            "title": "Resolution",
-            "widgets_values": [
-              "9:16 (Portrait Widescreen)",
-              0.8,
-              32
-            ],
-            "color": "#322",
-            "bgcolor": "#533",
-            "showAdvanced": false
-          },
-          {
-            "id": 51,
-            "type": "PrimitiveFloat",
-            "pos": [
-              620,
-              210
-            ],
-            "size": [
-              400,
-              70
-            ],
-            "flags": {},
-            "order": 5,
-            "mode": 0,
-            "inputs": [],
-            "outputs": [
-              {
-                "name": "FLOAT",
-                "type": "FLOAT",
-                "links": [
-                  9
-                ]
-              }
-            ],
-            "properties": {
-              "Node name for S&R": "PrimitiveFloat"
-            },
-            "title": "Duration (seconds)",
-            "widgets_values": [
-              15
-            ],
-            "color": "#322",
-            "bgcolor": "#533"
-          },
-          {
-            "id": 52,
-            "type": "ComfyMathExpression",
-            "pos": [
-              620,
-              320
-            ],
-            "size": [
-              400,
-              110
-            ],
-            "flags": {},
-            "order": 9,
-            "mode": 0,
-            "inputs": [
-              {
-                "label": "a",
-                "name": "values.a",
-                "type": "FLOAT,INT,BOOLEAN",
-                "link": 9
-              },
-              {
-                "label": "b",
-                "name": "values.b",
-                "shape": 7,
-                "type": "FLOAT,INT,BOOLEAN",
-                "link": null
-              }
-            ],
-            "outputs": [
-              {
-                "name": "FLOAT",
-                "type": "FLOAT",
-                "links": []
-              },
-              {
-                "name": "INT",
-                "type": "INT",
-                "links": [
-                  10
-                ]
-              },
-              {
-                "name": "BOOL",
-                "type": "BOOLEAN",
-                "links": []
-              }
-            ],
-            "properties": {
-              "Node name for S&R": "ComfyMathExpression"
-            },
-            "title": "Duration → length",
-            "widgets_values": [
-              "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17"
-            ]
-          },
-          {
             "id": 82,
             "type": "MiniMaxH3ImageToVideo",
             "pos": [
@@ -1978,7 +2231,7 @@
                 "widget": {
                   "name": "width"
                 },
-                "link": 7
+                "link": 23
               },
               {
                 "name": "height",
@@ -1986,7 +2239,7 @@
                 "widget": {
                   "name": "height"
                 },
-                "link": 8
+                "link": 24
               },
               {
                 "name": "length",
@@ -1994,7 +2247,7 @@
                 "widget": {
                   "name": "length"
                 },
-                "link": 10
+                "link": 25
               }
             ],
             "outputs": [
@@ -2038,7 +2291,16 @@
             "flags": {},
             "order": 6,
             "mode": 0,
-            "inputs": [],
+            "inputs": [
+              {
+                "name": "noise_seed",
+                "type": "INT",
+                "widget": {
+                  "name": "noise_seed"
+                },
+                "link": 27
+              }
+            ],
             "outputs": [
               {
                 "name": "NOISE",
@@ -2053,7 +2315,7 @@
             },
             "widgets_values": [
               157368968253448,
-              "randomize"
+              "fixed"
             ]
           },
           {
@@ -2106,6 +2368,14 @@
                 "name": "model",
                 "type": "MODEL",
                 "link": 1
+              },
+              {
+                "name": "steps",
+                "type": "INT",
+                "widget": {
+                  "name": "steps"
+                },
+                "link": 26
               }
             ],
             "outputs": [
@@ -2354,38 +2624,6 @@
             "type": "VAE"
           },
           {
-            "id": 7,
-            "origin_id": 50,
-            "origin_slot": 0,
-            "target_id": 82,
-            "target_slot": 5,
-            "type": "INT"
-          },
-          {
-            "id": 8,
-            "origin_id": 50,
-            "origin_slot": 1,
-            "target_id": 82,
-            "target_slot": 6,
-            "type": "INT"
-          },
-          {
-            "id": 9,
-            "origin_id": 51,
-            "origin_slot": 0,
-            "target_id": 52,
-            "target_slot": 0,
-            "type": "FLOAT"
-          },
-          {
-            "id": 10,
-            "origin_id": 52,
-            "origin_slot": 1,
-            "target_id": 82,
-            "target_slot": 7,
-            "type": "INT"
-          },
-          {
             "id": 11,
             "origin_id": -10,
             "origin_slot": 0,
@@ -2480,6 +2718,46 @@
             "target_id": -20,
             "target_slot": 1,
             "type": "AUDIO"
+          },
+          {
+            "id": 23,
+            "origin_id": -10,
+            "origin_slot": 2,
+            "target_id": 82,
+            "target_slot": 5,
+            "type": "INT"
+          },
+          {
+            "id": 24,
+            "origin_id": -10,
+            "origin_slot": 3,
+            "target_id": 82,
+            "target_slot": 6,
+            "type": "INT"
+          },
+          {
+            "id": 25,
+            "origin_id": -10,
+            "origin_slot": 4,
+            "target_id": 82,
+            "target_slot": 7,
+            "type": "INT"
+          },
+          {
+            "id": 26,
+            "origin_id": -10,
+            "origin_slot": 5,
+            "target_id": 102,
+            "target_slot": 1,
+            "type": "INT"
+          },
+          {
+            "id": 27,
+            "origin_id": -10,
+            "origin_slot": 6,
+            "target_id": 100,
+            "target_slot": 0,
+            "type": "INT"
           }
         ]
       },
@@ -2493,7 +2771,7 @@
         "state": {
           "lastGroupId": 5,
           "lastNodeId": 122,
-          "lastLinkId": 40,
+          "lastLinkId": 45,
           "lastRerouteId": 0
         },
         "inputNode": {
@@ -2502,7 +2780,7 @@
             -340,
             40,
             200,
-            224
+            324
           ]
         },
         "outputNode": {
@@ -2641,6 +2919,76 @@
               -164,
               224
             ]
+          },
+          {
+            "id": "079085a5-af9c-54a3-b6b2-a28fb61df013",
+            "name": "width",
+            "type": "INT",
+            "linkIds": [
+              41
+            ],
+            "localized_name": "width",
+            "label": "width",
+            "pos": [
+              -164,
+              244
+            ]
+          },
+          {
+            "id": "5924400b-adc1-5f1e-b2cc-993fcfdc7d08",
+            "name": "height",
+            "type": "INT",
+            "linkIds": [
+              42
+            ],
+            "localized_name": "height",
+            "label": "height",
+            "pos": [
+              -164,
+              264
+            ]
+          },
+          {
+            "id": "1f0272a4-d4e4-5a33-b92b-051f1ca587f0",
+            "name": "length",
+            "type": "INT",
+            "linkIds": [
+              43
+            ],
+            "localized_name": "length",
+            "label": "length",
+            "pos": [
+              -164,
+              284
+            ]
+          },
+          {
+            "id": "9aae2ed7-1e8f-5942-b8c6-b575ab3f1975",
+            "name": "steps",
+            "type": "INT",
+            "linkIds": [
+              44
+            ],
+            "localized_name": "steps",
+            "label": "steps",
+            "pos": [
+              -164,
+              304
+            ]
+          },
+          {
+            "id": "c457cfef-4974-5fe2-85e4-6d0bbb88dd72",
+            "name": "seed",
+            "type": "INT",
+            "linkIds": [
+              45
+            ],
+            "localized_name": "seed",
+            "label": "seed",
+            "pos": [
+              -164,
+              324
+            ]
           }
         ],
         "outputs": [
@@ -2700,12 +3048,12 @@
           },
           {
             "id": 2,
-            "title": "Size · length · beat 1 tail (H3 truncates a long reference from the start)",
+            "title": "Beat 1 tail (H3 truncates a long reference from the start)",
             "bounding": [
               600,
-              -40,
+              400,
               440,
-              1060
+              630
             ],
             "color": "#3f789e",
             "flags": {}
@@ -2907,140 +3255,6 @@
             "title": "Audio VAE",
             "widgets_values": [
               "minimax_h3_audio_vae_fp32.safetensors"
-            ]
-          },
-          {
-            "id": 50,
-            "type": "ResolutionSelector",
-            "pos": [
-              620,
-              40
-            ],
-            "size": [
-              400,
-              130
-            ],
-            "flags": {},
-            "order": 4,
-            "mode": 0,
-            "inputs": [],
-            "outputs": [
-              {
-                "name": "width",
-                "type": "INT",
-                "links": [
-                  8
-                ]
-              },
-              {
-                "name": "height",
-                "type": "INT",
-                "links": [
-                  9
-                ]
-              }
-            ],
-            "properties": {
-              "Node name for S&R": "ResolutionSelector"
-            },
-            "title": "Resolution",
-            "widgets_values": [
-              "9:16 (Portrait Widescreen)",
-              0.8,
-              32
-            ],
-            "color": "#322",
-            "bgcolor": "#533",
-            "showAdvanced": false
-          },
-          {
-            "id": 51,
-            "type": "PrimitiveFloat",
-            "pos": [
-              620,
-              210
-            ],
-            "size": [
-              400,
-              70
-            ],
-            "flags": {},
-            "order": 5,
-            "mode": 0,
-            "inputs": [],
-            "outputs": [
-              {
-                "name": "FLOAT",
-                "type": "FLOAT",
-                "links": [
-                  10
-                ]
-              }
-            ],
-            "properties": {
-              "Node name for S&R": "PrimitiveFloat"
-            },
-            "title": "Duration (seconds)",
-            "widgets_values": [
-              15
-            ],
-            "color": "#322",
-            "bgcolor": "#533"
-          },
-          {
-            "id": 52,
-            "type": "ComfyMathExpression",
-            "pos": [
-              620,
-              320
-            ],
-            "size": [
-              400,
-              110
-            ],
-            "flags": {},
-            "order": 11,
-            "mode": 0,
-            "inputs": [
-              {
-                "label": "a",
-                "name": "values.a",
-                "type": "FLOAT,INT,BOOLEAN",
-                "link": 10
-              },
-              {
-                "label": "b",
-                "name": "values.b",
-                "shape": 7,
-                "type": "FLOAT,INT,BOOLEAN",
-                "link": null
-              }
-            ],
-            "outputs": [
-              {
-                "name": "FLOAT",
-                "type": "FLOAT",
-                "links": []
-              },
-              {
-                "name": "INT",
-                "type": "INT",
-                "links": [
-                  11
-                ]
-              },
-              {
-                "name": "BOOL",
-                "type": "BOOLEAN",
-                "links": []
-              }
-            ],
-            "properties": {
-              "Node name for S&R": "ComfyMathExpression"
-            },
-            "title": "Duration → length",
-            "widgets_values": [
-              "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17"
             ]
           },
           {
@@ -3337,7 +3551,7 @@
                 "widget": {
                   "name": "width"
                 },
-                "link": 8
+                "link": 41
               },
               {
                 "name": "height",
@@ -3345,7 +3559,7 @@
                 "widget": {
                   "name": "height"
                 },
-                "link": 9
+                "link": 42
               },
               {
                 "name": "length",
@@ -3353,7 +3567,7 @@
                 "widget": {
                   "name": "length"
                 },
-                "link": 11
+                "link": 43
               }
             ],
             "outputs": [
@@ -3398,7 +3612,16 @@
             "flags": {},
             "order": 8,
             "mode": 0,
-            "inputs": [],
+            "inputs": [
+              {
+                "name": "noise_seed",
+                "type": "INT",
+                "widget": {
+                  "name": "noise_seed"
+                },
+                "link": 45
+              }
+            ],
             "outputs": [
               {
                 "name": "NOISE",
@@ -3413,7 +3636,7 @@
             },
             "widgets_values": [
               157368968253448,
-              "randomize"
+              "fixed"
             ]
           },
           {
@@ -3466,6 +3689,14 @@
                 "name": "model",
                 "type": "MODEL",
                 "link": 1
+              },
+              {
+                "name": "steps",
+                "type": "INT",
+                "widget": {
+                  "name": "steps"
+                },
+                "link": 44
               }
             ],
             "outputs": [
@@ -3879,38 +4110,6 @@
             "type": "VAE"
           },
           {
-            "id": 8,
-            "origin_id": 50,
-            "origin_slot": 0,
-            "target_id": 70,
-            "target_slot": 12,
-            "type": "INT"
-          },
-          {
-            "id": 9,
-            "origin_id": 50,
-            "origin_slot": 1,
-            "target_id": 70,
-            "target_slot": 13,
-            "type": "INT"
-          },
-          {
-            "id": 10,
-            "origin_id": 51,
-            "origin_slot": 0,
-            "target_id": 52,
-            "target_slot": 0,
-            "type": "FLOAT"
-          },
-          {
-            "id": 11,
-            "origin_id": 52,
-            "origin_slot": 1,
-            "target_id": 70,
-            "target_slot": 14,
-            "type": "INT"
-          },
-          {
             "id": 12,
             "origin_id": -10,
             "origin_slot": 1,
@@ -4141,6 +4340,46 @@
             "target_id": -20,
             "target_slot": 2,
             "type": "IMAGE"
+          },
+          {
+            "id": 41,
+            "origin_id": -10,
+            "origin_slot": 9,
+            "target_id": 70,
+            "target_slot": 12,
+            "type": "INT"
+          },
+          {
+            "id": 42,
+            "origin_id": -10,
+            "origin_slot": 10,
+            "target_id": 70,
+            "target_slot": 13,
+            "type": "INT"
+          },
+          {
+            "id": 43,
+            "origin_id": -10,
+            "origin_slot": 11,
+            "target_id": 70,
+            "target_slot": 14,
+            "type": "INT"
+          },
+          {
+            "id": 44,
+            "origin_id": -10,
+            "origin_slot": 12,
+            "target_id": 102,
+            "target_slot": 1,
+            "type": "INT"
+          },
+          {
+            "id": 45,
+            "origin_id": -10,
+            "origin_slot": 13,
+            "target_id": 100,
+            "target_slot": 0,
+            "type": "INT"
           }
         ]
       }

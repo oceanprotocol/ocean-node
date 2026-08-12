@@ -210,8 +210,9 @@ used before. The node's own how-to says so too.
 
 Same image and bucket behavior as the LTX templates, but a different generator — MiniMax H3
 (open-weights, int8) — and a different unit of work: **one Run produces ~30 s with six shots and
-one consistent character**, versus LTX's one continuous take per Run. Needs a CUDA GPU, 24 GB+
-VRAM recommended (12 GB works with offloading). Ships two workflows:
+one consistent character**, versus LTX's one continuous take per Run. Needs a CUDA GPU; see
+**VRAM** below — 24 GB runs it, 48 GB stops the swapping, 80 GB holds the whole chain. Ships
+two workflows:
 
 - `workflows/ocean_h3_ugc_multishot.json` — one Run, two chained beats, ~30 s out.
 - `workflows/ocean_h3_ugc_assemble.json` — concatenates up to 8 rendered clips into one reel.
@@ -285,21 +286,41 @@ and carries three timecoded shots: `[Shot 1]` with no timestamp, then `[Shot 2] 
 and `[Shot 3] At 00:10.000,`. Camera moves use the closed vocabulary — motion type + amplitude +
 speed, with medium amplitude and normal speed left unstated.
 
-**Two subgraphs, 26 canvas nodes.** Everything that is plumbing rather than a decision lives in
+**Two subgraphs, 31 canvas nodes.** Everything that is plumbing rather than a decision lives in
 `Beat 1 · FL2VA (starts from your photo)` and `Beat 2 · Ref2VA (carries the character forward)`.
 Each holds its own `UNETLoader`, `CLIPLoader`, both `VAELoader`s, its H3 conditioning node, the
 sampler chain and the decoders; beat 2 adds the tail slicer and the final-frame extractor. The
 loaders are duplicated on purpose — ComfyUI caches loaded models by filename, so the duplicates
-cost no VRAM and each stage stays self-contained. Promoted onto each instance: `megapixels`,
-duration seconds, `steps`, seed, plus `ref_image_size` on beat 2. The canvas itself is the four
-prompt boxes, the reference loaders, the two instances, the boolean and its switches,
-`CreateVideo` / `SaveVideo` / `SaveImage`.
+cost no VRAM and each stage stays self-contained. The canvas itself is the four prompt boxes,
+the reference loaders, the shared `Controls` panel, the two instances, the boolean and its
+switches, `CreateVideo` / `SaveVideo` / `SaveImage`.
+
+**One control panel, both beats.** Resolution, beat length, steps and seed are single canvas
+nodes wired into `width` / `height` / `length` boundary inputs on both subgraph instances, into
+both `BasicScheduler.steps` and into both `RandomNoise.noise_seed`. They used to be duplicated
+inside each subgraph and promoted twice, which was a real bug rather than clutter: nothing kept
+the two `ResolutionSelector`s in step, and if they disagreed the joining `ImageBatch` (core,
+`image1` + `image2`) rescaled beat 2 to beat 1's dimensions — silent quality loss, no error.
+Duration had the same shape of problem, two `PrimitiveFloat`s feeding two frame-grid
+expressions. One seed for both stages is correct, not a collision: the stages take different
+prompts and different conditioning, so they never render the same clip, and a single seed makes
+a whole Run reproducible while you iterate. `ref_image_size` is the only widget still promoted
+onto an instance (beat 2's), because it is genuinely stage-2-specific — beat 1's `proxyWidgets`
+is now `[]`.
 
 **References ship bypassed, and that is safe.** Only `<Picture 1>` (the subject) is active — it
 is frame 0 of beat 1 *and* reference image 0 of beat 2, so one photo decides the face.
 `<Picture 2>` (product), `<Picture 3>` (location), `<Video 2>` (style/motion) and `<Audio 1>`
 (voice lock) are `mode: 4`. All four reference autogrows are `min: 0`, so an unwired socket is
-natively valid and needs no guard. The external video is `<Video 2>`, not `<Video 1>`, because
+natively valid and needs no guard. They are stacked in one column under the group
+`Optional references — select a node and press Ctrl+B to toggle`, with `<Picture 1>` in its own
+`Subject — required` group above them so it never reads as optional. Real on/off switches are
+not buildable here with core nodes: `ComfySwitchNode` requires **both** `on_false` and `on_true`
+(both `required` `COMFY_MATCHTYPE_V3`) and there is no core way to synthesize an empty
+IMAGE/AUDIO for the off branch, while `ComfySoftSwitchNode`, which does take optional branches,
+is absent from ComfyUI 0.32.0. Feeding a blank or 1×1 image would be worse than bypass — the
+model would take it as a real reference. So bypass stays the mechanism and the group title says
+so. The external video is `<Video 2>`, not `<Video 1>`, because
 `ref_video_0` is reserved for the automatic chain — tags follow connection order and the node
 titles match what the user types in the prompt. H3's limits across all of them: **≤9 images ·
 ≤3 videos (2–15 s each, ≤15 s total) · ≤3 audio · ≤12 files total.**
@@ -317,6 +338,21 @@ expression lands on length 362 — the top of H3's trained 124–362 range. A 1.
 H3's native 768×1344 cap and is visibly sharper, but 15 s at that size is the heaviest ask on a
 24 GB card. MiniMax's 2K mode (hosted `H3-Regenerate-2K`) is absent from the open-weights
 release, so there is no 2K path here.
+
+**fps is a model constant, not a setting.** `CreateVideo.fps` is a required FLOAT whose ComfyUI
+default is 30.0, but H3 generates at exactly 24 and the frame-grid expression already hard-codes
+`a * 24`, so a wrong value desyncs audio from picture. The node ships at 24 and is titled
+`Join beats — 24 fps (H3 is fixed at 24, do not change)` rather than promoted into the control
+panel, and the how-to note repeats the sentence.
+
+**VRAM.** Weights total 59.1 GB (19.5 + 19.5 + 14.6 + 4.9 + 0.6) and the chained design loads
+both checkpoints per Run. 24 GB works but offloads heavily and swaps checkpoints mid-Run; 48 GB
+keeps one checkpoint plus the text encoder resident (~34 GB) so a beat samples without swapping;
+80 GB holds both checkpoints plus the encoder (~54 GB) so the beat-1 → beat-2 handoff is free
+too. GPU class matters directly here and CPU cores do not — sampling is GPU-bound — which is why
+the `gpu` resource carries the guidance in its `description` and the `min` / `recommended`
+counts stay at 1 (`gpu` is a discrete count, not a size, and `ServiceTemplateSchema` is
+`.strict()`, so there is no VRAM field to invent).
 
 Pick a persistent-storage bucket on launch: it holds ComfyUI's whole base directory, and
 without one the roughly 59 GB of weights (two 19.5 GB checkpoints, a 14.6 GB text encoder,
