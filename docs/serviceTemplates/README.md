@@ -334,7 +334,8 @@ the official templates rely on, apply.
 **Sampling and size.** `res_multistep` at 20 steps with the **`beta`** scheduler — Comfy's own
 R2V note is that beta and normal outperform simple on reference-heavy prompts, which both beats
 are by design. `ref_image_size` is `max`, because UGC lives on face and product-label fidelity.
-Default size is **768x1344 at 0.97 MP / 9:16, 24 fps**, 15 s per beat, which the frame-grid
+Default size is **608x1056 at 0.6 MP / 9:16, 24 fps** — chosen so the first Run finishes
+quickly; 0.97 MP gives 768x1344, 15 s per beat, which the frame-grid
 expression lands on length 362 — the top of H3's trained 124–362 range. 0.97 rather than 1.0
 because the node's formula (`round(ratio * sqrt(mp*1024*1024/(w*h)) / 32) * 32`) turns 1.0 MP
 into 768x1376, one 32 px step past H3's documented 768x1344 cap; 0.97 lands on the cap exactly.

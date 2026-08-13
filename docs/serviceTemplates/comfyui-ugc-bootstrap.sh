@@ -42,6 +42,7 @@ get() {
   fi
   echo "[ocean] downloading $(basename "$2")"
   http_code=$(curl -L --retry 5 --retry-delay 5 -C - -o "$2.part" -w '%{http_code}' "$1")
+  http_code="${http_code:-000}"
   if [ "$http_code" = "416" ] && [ -f "$2.part" ]; then
     echo "[ocean] $(basename "$2").part already complete"
   elif [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
