@@ -31,7 +31,7 @@ const app: Express = express()
 // connections than the node itself takes to boot (docker compose without a
 // healthcheck gate, k8s pod startup, cold shard recovery). Database.init() gives
 // up after a single failed attempt, which leaves the node running permanently
-// without Indexer and without C2D. Retry with exponential backoff instead.
+// without Indexer and without C2D.
 // ~2.6 min total window: 2s, 4s, 8s, 16s, then 30s per attempt.
 const DB_INIT_MAX_ATTEMPTS = 10
 const DB_INIT_RETRY_DELAY = 2000
