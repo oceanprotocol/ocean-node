@@ -31,13 +31,12 @@ const app: Express = express()
 // connections than the node itself takes to boot. Database.init() gives
 // up after a single failed attempt, which leaves the node running permanently
 // without Indexer and without C2D.
-const DB_INIT_MAX_ATTEMPTS = parseInt(process.env.DB_INIT_MAX_ATTEMPTS || '10')
-const DB_INIT_RETRY_DELAY = parseInt(process.env.DB_INIT_RETRY_DELAY || '2000')
-const DB_INIT_MAX_RETRY_DELAY = parseInt(process.env.DB_INIT_MAX_RETRY_DELAY || '30000')
 
 async function initDatabaseWithRetry(
   dbConfig: OceanNodeDBConfig,
-  maxAttempts: number = DB_INIT_MAX_ATTEMPTS
+  maxAttempts: number,
+  retryDelay: number,
+  maxRetryDelay: number
 ): Promise<Database> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const isLastAttempt = attempt === maxAttempts
@@ -58,10 +57,7 @@ async function initDatabaseWithRetry(
     if (isLastAttempt) {
       break
     }
-    const delay = Math.min(
-      DB_INIT_RETRY_DELAY * 2 ** (attempt - 1),
-      DB_INIT_MAX_RETRY_DELAY
-    )
+    const delay = Math.min(retryDelay * 2 ** (attempt - 1), maxRetryDelay)
     OCEAN_NODE_LOGGER.warn(
       `Database ${
         notReachable ? 'not reachable yet' : 'initialization failed'
@@ -123,7 +119,12 @@ let node: OceanP2P = null
 let indexer = null
 let provider = null
 // If there is no DB URL only the nonce database will be available
-const dbconn: Database = await initDatabaseWithRetry(config.dbConfig)
+const dbconn: Database = await initDatabaseWithRetry(
+  config.dbConfig,
+  config.dbInitMaxAttempts,
+  config.dbInitRetryDelay,
+  config.dbInitMaxRetryDelay
+)
 if (!dbconn) {
   OCEAN_NODE_LOGGER.error('Database failed to initialize')
 }

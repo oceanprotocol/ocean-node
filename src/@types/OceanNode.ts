@@ -120,6 +120,10 @@ export interface OceanNodeConfig {
   hasIndexer: boolean
   hasHttp: boolean
   dbConfig?: OceanNodeDBConfig
+  // startup database-init retry: attempts, initial backoff (ms) and backoff ceiling (ms)
+  dbInitMaxAttempts: number
+  dbInitRetryDelay: number
+  dbInitMaxRetryDelay: number
   httpPort: number
   feeStrategy: FeeStrategy
   ipfsGateway?: string | null
