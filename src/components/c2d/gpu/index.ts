@@ -62,11 +62,13 @@ export class GpuMetricsService {
 
     // Group the held GPU resources by vendor so each backend samples its devices in one sweep.
     const byVendor = new Map<GpuVendor, GpuDeviceHandle[]>()
+    let gpusHeld = 0
     try {
       for (const req of jobResources) {
         if (!req || req.amount <= 0) continue
         const res = envResources.find((r) => r.id === req.id)
         if (!res || String(res.type).toLowerCase() !== 'gpu') continue
+        gpusHeld++
         const vendor = inferVendor(res)
         if (!vendor) continue
         const collector = this.getCollector(vendor)
@@ -74,7 +76,7 @@ export class GpuMetricsService {
           if (!this.unsupportedWarned.has(vendor)) {
             this.unsupportedWarned.add(vendor)
             CORE_LOGGER.debug(
-              `GPU metrics: ${vendor} backend not implemented yet — skipping ${res.id}`
+              `[metrics] gpu: ${vendor} backend not implemented yet — skipping ${res.id}`
             )
           }
           continue
@@ -105,9 +107,18 @@ export class GpuMetricsService {
           })
         }
       }
+      if (gpusHeld > 0 && !out.length) {
+        // The workload holds GPUs but nothing came back — the snapshot will simply have no
+        // gpu[]. Usually a missing/unreadable vendor backend on the host, or a resource whose
+        // `platform` could not be inferred; say so instead of silently omitting the field.
+        CORE_LOGGER.debug(
+          `[metrics] gpu: ${gpusHeld} GPU resource(s) held but no device metrics resolved — ` +
+            'snapshot carries no gpu[] (check the resource platform and the host driver/tooling)'
+        )
+      }
       return out.length ? out : undefined
     } catch (e: any) {
-      CORE_LOGGER.debug(`GPU metrics: collection failed: ${e?.message}`)
+      CORE_LOGGER.debug(`[metrics] gpu: collection failed: ${e?.message}`)
       return undefined
     }
   }

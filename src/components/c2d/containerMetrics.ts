@@ -32,6 +32,62 @@ export function isMetricsCollectionEnabled(): boolean {
   return getMetricsIntervalSeconds() > 0
 }
 
+// Compact byte formatting for log lines ("1.4 GiB", "512 B") — raw byte counts are unreadable
+// when scanning metrics debug output.
+export function formatBytes(bytes: number): string {
+  const value = toNum(bytes)
+  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB']
+  let idx = 0
+  let scaled = value
+  while (scaled >= 1024 && idx < units.length - 1) {
+    scaled /= 1024
+    idx++
+  }
+  return `${idx === 0 ? scaled : scaled.toFixed(1)} ${units[idx]}`
+}
+
+// One-line, human-scannable rendering of a snapshot for CORE_LOGGER.debug — the whole
+// `docker stats` view of the container plus what the CLI does not show (throttling, peak
+// memory, disk vs quota, GPU). Keep it single-line so operators can grep a job id and read
+// the series of samples top to bottom.
+export function describeSnapshot(snapshot: ContainerMetricsSnapshot): string {
+  const { cpu, memory, disk, pids, network, blockIO, containerState, gpu } = snapshot
+  const parts = [
+    `cpu ${cpu.usagePercent}% (${cpu.usagePercentOfAllocated}% of ${cpu.allocated} core(s), ` +
+      `${cpu.cumulativeSeconds}s used, throttled ${cpu.throttledPeriods} periods/${cpu.throttledSeconds}s)`,
+    `mem ${formatBytes(memory.usageBytes)}/${formatBytes(memory.limitBytes)} ` +
+      `(${memory.usagePercent}%, peak ${formatBytes(memory.peakUsageBytes)})`,
+    `disk ${formatBytes(disk.usedBytes)}${
+      disk.quotaBytes ? `/${formatBytes(disk.quotaBytes)} (${disk.usagePercent}%)` : ''
+    }`,
+    `pids ${pids.current}/${pids.limit}`,
+    `net rx ${network ? formatBytes(network.rxBytes) : 'n/a'} tx ${
+      network ? formatBytes(network.txBytes) : 'n/a'
+    }`,
+    `blkio r ${formatBytes(blockIO.readBytes)} w ${formatBytes(blockIO.writeBytes)}`,
+    `state ${containerState.status}${containerState.oomKilled ? ' OOMKilled' : ''}${
+      containerState.exitCode !== undefined && containerState.exitCode !== null
+        ? ` exit=${containerState.exitCode}`
+        : ''
+    }${containerState.health ? ` health=${containerState.health}` : ''}`
+  ]
+  if (gpu?.length) {
+    parts.push(
+      `gpu ${gpu
+        .map(
+          (g) =>
+            `${g.resourceId}=${g.utilizationPercent ?? 'n/a'}%/${
+              g.memoryUsedBytes !== null && g.memoryUsedBytes !== undefined
+                ? formatBytes(g.memoryUsedBytes)
+                : 'n/a'
+            }`
+        )
+        .join(' ')}`
+    )
+  }
+  return parts.join(', ')
+}
+
 // True when the previous snapshot is older than the sampling interval (or there is none).
 // Kept a pure helper so the engine wiring and unit tests share one staleness rule. `now`
 // is injectable for deterministic tests.
@@ -66,7 +122,7 @@ export async function sampleContainerMetrics(
     return { stats, state: { ...info.State, SizeRw: info.SizeRw } }
   } catch (e: any) {
     CORE_LOGGER.debug(
-      `sampleContainerMetrics: could not sample container ${containerId}: ${e?.message}`
+      `[metrics] could not sample container ${containerId}: ${e?.message}`
     )
     return null
   }

@@ -1,6 +1,8 @@
 import { expect } from 'chai'
 import {
   buildSnapshot,
+  describeSnapshot,
+  formatBytes,
   getMetricsIntervalSeconds,
   isMetricsCollectionEnabled,
   isSnapshotStale,
@@ -202,6 +204,102 @@ describe('containerMetrics.buildSnapshot', () => {
     expect(snap.memory.usageBytes).to.equal(150 * MB) // 200 - 50 cache
     expect(snap.blockIO).to.deep.equal({ readBytes: 0, writeBytes: 0 })
     expect(snap.network).to.equal(undefined)
+  })
+})
+
+describe('containerMetrics debug formatting (formatBytes / describeSnapshot)', () => {
+  it('formats bytes with binary units', () => {
+    expect(formatBytes(0)).to.equal('0 B')
+    expect(formatBytes(512)).to.equal('512 B')
+    expect(formatBytes(1024)).to.equal('1.0 KiB')
+    expect(formatBytes(1536)).to.equal('1.5 KiB')
+    expect(formatBytes(4 * 1024 * MB)).to.equal('4.0 GiB')
+    // non-numbers must not produce NaN in a log line
+    expect(formatBytes(undefined as any)).to.equal('0 B')
+  })
+
+  it('renders a full snapshot as one greppable line', () => {
+    const snapshot = {
+      collectedAt: '2026-07-28T10:00:00Z',
+      containerState: {
+        status: 'running',
+        startedAt: '2026-07-28T09:00:00Z',
+        oomKilled: false,
+        restartCount: 0,
+        health: 'healthy'
+      },
+      cpu: {
+        usagePercent: 42.5,
+        allocated: 2,
+        usagePercentOfAllocated: 21.25,
+        cumulativeSeconds: 12.5,
+        throttledPeriods: 3,
+        throttledSeconds: 0.25
+      },
+      memory: {
+        usageBytes: 150 * MB,
+        limitBytes: 512 * MB,
+        usagePercent: 29.3,
+        peakUsageBytes: 200 * MB
+      },
+      disk: { usedBytes: 100 * MB, quotaBytes: 1024 * MB, usagePercent: 9.77 },
+      network: { rxBytes: 2048, txBytes: 1024 },
+      blockIO: { readBytes: 0, writeBytes: 4096 },
+      pids: { current: 7, limit: 512 },
+      gpu: [
+        {
+          resourceId: 'gpu0',
+          vendor: 'nvidia' as const,
+          utilizationPercent: 88,
+          memoryUsedBytes: 1024 * MB,
+          memoryTotalBytes: 3072 * MB
+        }
+      ]
+    } as ContainerMetricsSnapshot
+
+    const line = describeSnapshot(snapshot)
+    expect(line).to.not.contain('\n')
+    expect(line).to.contain('cpu 42.5% (21.25% of 2 core(s)')
+    expect(line).to.contain('throttled 3 periods/0.25s')
+    expect(line).to.contain('mem 150.0 MiB/512.0 MiB (29.3%, peak 200.0 MiB)')
+    expect(line).to.contain('disk 100.0 MiB/1.0 GiB (9.77%)')
+    expect(line).to.contain('pids 7/512')
+    expect(line).to.contain('net rx 2.0 KiB tx 1.0 KiB')
+    expect(line).to.contain('blkio r 0 B w 4.0 KiB')
+    expect(line).to.contain('state running')
+    expect(line).to.contain('health=healthy')
+    expect(line).to.contain('gpu gpu0=88%/1.0 GiB')
+  })
+
+  it('never throws on a minimal snapshot (a debug line must not break collection)', () => {
+    const minimal = {
+      collectedAt: '2026-07-28T10:00:00Z',
+      containerState: {
+        status: 'exited',
+        oomKilled: true,
+        exitCode: 137,
+        restartCount: 0
+      },
+      cpu: {
+        usagePercent: 0,
+        allocated: 0,
+        usagePercentOfAllocated: 0,
+        cumulativeSeconds: 0,
+        throttledPeriods: 0,
+        throttledSeconds: 0
+      },
+      memory: { usageBytes: 0, limitBytes: 0, usagePercent: 0, peakUsageBytes: 0 },
+      disk: { usedBytes: 0 },
+      blockIO: { readBytes: 0, writeBytes: 0 },
+      pids: { current: 0, limit: 512 }
+    } as ContainerMetricsSnapshot
+
+    const line = describeSnapshot(minimal)
+    // no network → "n/a" rather than a crash or a fake 0; no quota → no "/quota" part
+    expect(line).to.contain('net rx n/a tx n/a')
+    expect(line).to.contain('disk 0 B,')
+    expect(line).to.contain('state exited OOMKilled exit=137')
+    expect(line).to.not.contain('gpu ')
   })
 })
 
