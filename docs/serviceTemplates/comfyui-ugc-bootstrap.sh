@@ -34,13 +34,32 @@ mkdir -p "$MODELS/checkpoints" "$MODELS/loras" "$MODELS/text_encoders" \
   "$MODELS/latent_upscale_models" "$MODELS/diffusion_models" "$MODELS/vae" \
   "$BASE/output" "$INPUT_DIR" "$BASE/temp" "$BASE/user"
 
-# .part then rename: a truncated file in a persistent bucket would look cached forever.
+# Byte count the server promises, after following HuggingFace's redirect to its CDN. The last
+# content-length in the chain is the real one. Prints 0 when the server won't say.
+remote_size() {
+  curl -sIL --retry 3 --retry-delay 2 --max-time 60 "$1" 2>/dev/null |
+    tr -d '\r' | awk 'BEGIN{IGNORECASE=1} /^content-length:/{n=$2} END{print n+0}'
+}
+
+# .part then rename, and the finished file is checked against the server's size — on both the
+# download and the cache-hit path. A size floor alone is not an integrity check: these files run
+# 0.6-20 GB, so a download that died at 1% clears any floor, gets renamed, and is then trusted
+# forever by the -f test. safetensors only notices later, at load time, as
+# "Error while deserializing header: incomplete metadata, file not fully covered".
 get() {
+  want=$(remote_size "$1" || echo 0); want="${want:-0}"
   if [ -f "$2" ]; then
-    echo "[ocean] cached $(basename "$2")"
-    return 0
+    have=$(wc -c < "$2" | tr -dc '0-9'); have="${have:-0}"
+    if [ "$want" -gt 0 ] && [ "$have" -ne "$want" ]; then
+      echo "[ocean] $(basename "$2") is $have bytes but the server says $want —" \
+        "the cached copy is truncated, refetching" >&2
+      rm -f "$2"
+    else
+      echo "[ocean] cached $(basename "$2")"
+      return 0
+    fi
   fi
-  echo "[ocean] downloading $(basename "$2")"
+  echo "[ocean] downloading $(basename "$2") ($want bytes)"
   http_code=$(curl -L --retry 5 --retry-delay 5 -C - -o "$2.part" -w '%{http_code}' "$1")
   http_code="${http_code:-000}"
   if [ "$http_code" = "416" ] && [ -f "$2.part" ]; then
@@ -49,11 +68,16 @@ get() {
     echo "[ocean] download failed for $(basename "$2") (HTTP $http_code)" >&2
     return 22
   fi
-  # A proxy or HF error page returns a few hundred bytes with HTTP 200; without this floor that
-  # body would be cached as a model. Smallest real file is ~300 MB.
-  size=$(wc -c < "$2.part")
-  if [ "$size" -lt 10485760 ]; then
-    echo "[ocean] $(basename "$2") is only $size bytes — not a model file. First bytes:" >&2
+  have=$(wc -c < "$2.part" | tr -dc '0-9'); have="${have:-0}"
+  if [ "$want" -gt 0 ] && [ "$have" -ne "$want" ]; then
+    echo "[ocean] $(basename "$2") got $have of $want bytes — discarding the partial file" >&2
+    rm -f "$2.part"
+    return 22
+  fi
+  # Only reachable when the server refused a content-length. A proxy or HF error page returns a
+  # few hundred bytes with HTTP 200; without this floor that body would be cached as a model.
+  if [ "$want" -eq 0 ] && [ "$have" -lt 10485760 ]; then
+    echo "[ocean] $(basename "$2") is only $have bytes — not a model file. First bytes:" >&2
     head -c 300 "$2.part" >&2 || true
     echo >&2
     rm -f "$2.part"
