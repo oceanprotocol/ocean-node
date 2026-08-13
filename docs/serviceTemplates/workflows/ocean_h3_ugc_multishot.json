@@ -3500,7 +3500,7 @@
             },
             "title": "Tail start = count − 72",
             "widgets_values": [
-              "a - 72"
+              "a - 120"
             ]
           },
           {
@@ -3546,7 +3546,7 @@
             },
             "widgets_values": [
               0,
-              72
+              120
             ],
             "title": "Beat 1 tail — last 72 frames"
           },
@@ -3584,10 +3584,10 @@
               "Node name for S&R": "TrimAudioDuration"
             },
             "widgets_values": [
-              -3,
-              3
+              -8,
+              8
             ],
-            "title": "Beat 1 tail audio — last 3 s"
+            "title": "Beat 1 tail audio — last 8 s, long enough to always contain speech"
           },
           {
             "id": 70,
