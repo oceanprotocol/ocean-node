@@ -481,6 +481,21 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.DB_TYPE,
     required: false
   },
+  DB_INIT_MAX_ATTEMPTS: {
+    name: 'DB_INIT_MAX_ATTEMPTS',
+    value: process.env.DB_INIT_MAX_ATTEMPTS,
+    required: false
+  },
+  DB_INIT_RETRY_DELAY: {
+    name: 'DB_INIT_RETRY_DELAY',
+    value: process.env.DB_INIT_RETRY_DELAY,
+    required: false
+  },
+  DB_INIT_MAX_RETRY_DELAY: {
+    name: 'DB_INIT_MAX_RETRY_DELAY',
+    value: process.env.DB_INIT_MAX_RETRY_DELAY,
+    required: false
+  },
   CRON_DELETE_DB_LOGS: {
     name: 'CRON_DELETE_DB_LOGS',
     value: process.env.CRON_DELETE_DB_LOGS,
