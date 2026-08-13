@@ -53,7 +53,10 @@ SQLite `c2djobs` / `service_jobs` tables). A **final** snapshot is written at te
 peak/exit metrics remain queryable after the container is gone. No schema migration is needed;
 pre-upgrade records simply lack the field.
 
-These snapshots are **node-internal**: they are stripped from every API response and from the
-escrow claim proof, so responses are byte-identical to before. Sampling cadence is controlled
-by `C2D_METRICS_INTERVAL_SECONDS` (`0` disables it) and GPU collection by `GPU_METRICS` — see
-[env.md](env.md).
+These snapshots are **owner-only**: they are stripped from the escrow claim proof and from every
+response except the authenticated owner's own `COMPUTE_GET_STATUS` / `SERVICE_GET_STATUS` (where
+they are included by default — see [API.md](API.md)). Sampling cadence is controlled by
+`C2D_METRICS_INTERVAL_SECONDS` (`0` disables it) and GPU collection by `GPU_METRICS` — see
+[env.md](env.md). When metrics are missing, [Logs.md](Logs.md#when-a-status-response-has-no-runtimemetrics)
+covers how to inspect what is actually stored, and [compute.md](compute.md#troubleshooting-gpu-metrics)
+covers the GPU-specific warnings.

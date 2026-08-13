@@ -3166,10 +3166,30 @@ export class C2DEngineDocker extends C2DEngine {
         // One-shot stats carry no previous CPU counters, so the very first sample cannot
         // compute a rate — worth saying out loud, since "cpu 0%" right after a job starts
         // looks like broken collection rather than a missing baseline.
-        CORE_LOGGER.debug(
-          `[metrics] job ${job.jobId}: first snapshot — cpu usagePercent stays 0 until the next ` +
-            `sample (~${getMetricsIntervalSeconds()}s), it needs two samples to compute a delta`
-        )
+        //
+        // Seeing this repeatedly for the SAME job is a different story: the snapshot is not
+        // surviving the round-trip to the DB, so CPU % can never be computed and the owner's
+        // status response will never carry runtimeMetrics. Call that out explicitly instead of
+        // leaving an admin to notice that "first snapshot" keeps reappearing.
+        const runtimeSeconds =
+          Date.now() / 1000 - parseFloat(job.algoStartTimestamp || '0')
+        if (
+          Number.isFinite(runtimeSeconds) &&
+          runtimeSeconds > getMetricsIntervalSeconds() * 2
+        ) {
+          CORE_LOGGER.warn(
+            `[metrics] job ${job.jobId}: no previous snapshot after ${runtimeSeconds.toFixed(
+              0
+            )}s of runtime — the snapshot is not being persisted, so cpu usagePercent stays 0 ` +
+              'and the owner status response carries no runtimeMetrics. Check that this node runs ' +
+              'a build where runtimeMetrics is part of the c2djobs body blob.'
+          )
+        } else {
+          CORE_LOGGER.debug(
+            `[metrics] job ${job.jobId}: first snapshot — cpu usagePercent stays 0 until the next ` +
+              `sample (~${getMetricsIntervalSeconds()}s), it needs two samples to compute a delta`
+          )
+        }
       }
       return true
     } catch (e: any) {

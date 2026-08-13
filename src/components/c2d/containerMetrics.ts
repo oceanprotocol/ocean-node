@@ -65,8 +65,13 @@ export function describeSnapshot(snapshot: ContainerMetricsSnapshot): string {
       network ? formatBytes(network.txBytes) : 'n/a'
     }`,
     `blkio r ${formatBytes(blockIO.readBytes)} w ${formatBytes(blockIO.writeBytes)}`,
+    // Docker reports ExitCode 0 on a RUNNING container, so only show it once the container is
+    // actually finished — otherwise the line reads "state running exit=0", which looks like a
+    // container that both is and is not running.
     `state ${containerState.status}${containerState.oomKilled ? ' OOMKilled' : ''}${
-      containerState.exitCode !== undefined && containerState.exitCode !== null
+      containerState.status !== 'running' &&
+      containerState.exitCode !== undefined &&
+      containerState.exitCode !== null
         ? ` exit=${containerState.exitCode}`
         : ''
     }${containerState.health ? ` health=${containerState.health}` : ''}`
