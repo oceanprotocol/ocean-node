@@ -477,9 +477,13 @@ describe('**********         Service on Demand', () => {
     assert(job, 'job not found')
     expect(job.serviceId).to.equal(serviceId)
     expect((job as any).userData).to.equal(undefined)
-    // Runtime metrics are node-internal and must never appear in a status response.
-    expect((job as any).runtimeMetrics).to.equal(undefined)
     assert(job.payment, 'payment should be present')
+    // This command is always authenticated + owner-scoped, so runtime metrics come back BY
+    // DEFAULT — and when a snapshot has been sampled it is exposed WITHOUT the internal
+    // `prev` accumulator.
+    if ((job as any).runtimeMetrics) {
+      expect('prev' in (job as any).runtimeMetrics).to.equal(false)
+    }
 
     // an unauthenticated status request (no nonce/signature) is rejected
     const unauth = await new ServiceGetStatusHandler(oceanNode).handle({
@@ -489,27 +493,24 @@ describe('**********         Service on Demand', () => {
     } as ServiceGetStatusCommand)
     expect(unauth.status.httpStatus).to.not.equal(200)
 
-    // opt-in: the authenticated owner may request runtimeMetrics. The call succeeds and,
-    // when a snapshot has been sampled, it is exposed WITHOUT the internal `prev` accumulator.
+    // opt-OUT: includeMetrics=false keeps metrics off the response entirely
     const { nonce, signature } = await signFor(
       consumerAccount,
       PROTOCOL_COMMANDS.SERVICE_GET_STATUS
     )
-    const withMetrics = await new ServiceGetStatusHandler(oceanNode).handle({
+    const noMetrics = await new ServiceGetStatusHandler(oceanNode).handle({
       command: PROTOCOL_COMMANDS.SERVICE_GET_STATUS,
       serviceId,
       consumerAddress,
       nonce,
       signature,
-      includeMetrics: true
+      includeMetrics: false
     } as ServiceGetStatusCommand)
-    expect(withMetrics.status.httpStatus).to.equal(200)
-    const [withMetricsJob] = (await streamToObject(
-      withMetrics.stream as Readable
+    expect(noMetrics.status.httpStatus).to.equal(200)
+    const [noMetricsJob] = (await streamToObject(
+      noMetrics.stream as Readable
     )) as ServiceJob[]
-    if ((withMetricsJob as any)?.runtimeMetrics) {
-      expect('prev' in (withMetricsJob as any).runtimeMetrics).to.equal(false)
-    }
+    expect((noMetricsJob as any).runtimeMetrics).to.equal(undefined)
   })
 
   it('(e2) SERVICE_LIST returns the node-wide resource-holding set (not owner-scoped)', async () => {

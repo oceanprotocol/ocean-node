@@ -22,7 +22,8 @@ import type {
   ComputeResource
 } from '../../@types/C2D/C2D.js'
 import type { ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
-import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { resolveMetricsRequestMode } from '../../components/core/compute/getStatus.js'
 
 const MB = 1024 * 1024
 const GB = 1024 * MB
@@ -442,5 +443,60 @@ describe('runtimeMetrics opt-in exposure (owner status path)', () => {
     expect('userData' in pub).to.equal(false)
     // the node-wide listing shape never exposes metrics, even now
     expect('runtimeMetrics' in (toListedServiceJob(svc) as any)).to.equal(false)
+  })
+})
+
+describe('resolveMetricsRequestMode (COMPUTE_GET_STATUS default)', () => {
+  const consumerAddress = '0x7C8226E267Cd509bCBE12B4e69fbE07052422Dbd'
+  const base = { command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS, jobId: 'job-1' }
+
+  it('defaults to best-effort when the caller carries signature credentials', () => {
+    const task = { ...base, consumerAddress, nonce: '1', signature: '0xsig' } as any
+    expect(resolveMetricsRequestMode(task)).to.equal('best-effort')
+  })
+
+  it('defaults to best-effort when the caller carries an auth token', () => {
+    const task = { ...base, consumerAddress, authorization: 'Bearer tok' } as any
+    expect(resolveMetricsRequestMode(task)).to.equal('best-effort')
+  })
+
+  it('stays off for the unauthenticated status call (no credentials to check)', () => {
+    expect(resolveMetricsRequestMode({ ...base } as any)).to.equal('off')
+    // consumerAddress alone proves nothing
+    expect(resolveMetricsRequestMode({ ...base, consumerAddress } as any)).to.equal('off')
+    // a half-supplied signature pair is not credentials either
+    expect(
+      resolveMetricsRequestMode({ ...base, consumerAddress, nonce: '1' } as any)
+    ).to.equal('off')
+    expect(
+      resolveMetricsRequestMode({ ...base, consumerAddress, signature: '0xsig' } as any)
+    ).to.equal('off')
+  })
+
+  it('is required when explicitly requested, even with nothing to authenticate with', () => {
+    expect(resolveMetricsRequestMode({ ...base, includeMetrics: true } as any)).to.equal(
+      'required'
+    )
+    expect(
+      resolveMetricsRequestMode({
+        ...base,
+        consumerAddress,
+        nonce: '1',
+        signature: '0xsig',
+        includeMetrics: true
+      } as any)
+    ).to.equal('required')
+  })
+
+  it('is off when explicitly opted out, whatever credentials are present', () => {
+    expect(
+      resolveMetricsRequestMode({
+        ...base,
+        consumerAddress,
+        nonce: '1',
+        signature: '0xsig',
+        includeMetrics: false
+      } as any)
+    ).to.equal('off')
   })
 })

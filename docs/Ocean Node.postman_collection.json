@@ -653,7 +653,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/services/compute?consumerAddress={{consumerAddress}}&jobId={{jobId}}&agreementId=&includeMetrics=false&signature={{signature}}&nonce={{nonce}}",
+							"raw": "{{baseUrl}}/api/services/compute?consumerAddress={{consumerAddress}}&jobId={{jobId}}&agreementId=&signature={{signature}}&nonce={{nonce}}",
 							"host": [
 								"{{baseUrl}}"
 							],
@@ -678,18 +678,19 @@
 								{
 									"key": "includeMetrics",
 									"value": "false",
-									"description": "Set to 'true' to include node-internal runtime metrics (runtimeMetrics) on jobs you own. Requires signature+nonce (or an Authorization token) proving control of consumerAddress; only owned jobs carry metrics. Omit/false = default, no metrics."
+									"description": "Runtime metrics (runtimeMetrics) come back BY DEFAULT on jobs you own — provide consumerAddress + signature/nonce (or an Authorization token). Set 'true' to require them (400/401 when unauthenticated instead of no metrics), 'false' to omit them.",
+									"disabled": true
 								},
 								{
 									"key": "signature",
 									"value": "{{signature}}",
-									"description": "Required only when includeMetrics=true: signature over consumerAddress + nonce + command.",
+									"description": "Authenticates the owner: signature over consumerAddress + nonce + command. Supply it (with nonce) to receive runtimeMetrics; required when includeMetrics=true.",
 									"disabled": true
 								},
 								{
 									"key": "nonce",
 									"value": "{{nonce}}",
-									"description": "Required only when includeMetrics=true.",
+									"description": "Request nonce, paired with signature. Required when includeMetrics=true.",
 									"disabled": true
 								},
 								{
@@ -699,7 +700,7 @@
 								}
 							]
 						},
-						"description": "Get the status of a compute job.\n\nBy default the response never contains `runtimeMetrics` (node-internal Docker/NVML stats). Set `includeMetrics=true` AND authenticate (signature+nonce, or an `Authorization` token header) to receive a sanitized `runtimeMetrics` object on jobs owned by `consumerAddress`. See the API docs for the field structure."
+						"description": "Get the status of a compute job.\n\n`runtimeMetrics` (Docker/NVML stats) is owner-only and returned BY DEFAULT: authenticate as the owner (signature+nonce, or an `Authorization` token header, together with `consumerAddress`) and every job you own comes back with a sanitized `runtimeMetrics` object. An unauthenticated status call returns no metrics. Use `includeMetrics=true` to make them mandatory (400/401 instead of a silently trimmed response), or `includeMetrics=false` to opt out. See the API docs for the field structure."
 					}
 				},
 				{
@@ -934,7 +935,7 @@
 							}
 						],
 						"url": {
-							"raw": "{{baseUrl}}/api/services/serviceStatus?consumerAddress={{consumerAddress}}&nonce={{nonce}}&signature={{signature}}&serviceId={{serviceId}}&includeMetrics=false",
+							"raw": "{{baseUrl}}/api/services/serviceStatus?consumerAddress={{consumerAddress}}&nonce={{nonce}}&signature={{signature}}&serviceId={{serviceId}}",
 							"host": [
 								"{{baseUrl}}"
 							],
@@ -963,7 +964,8 @@
 								{
 									"key": "includeMetrics",
 									"value": "false",
-									"description": "Set to 'true' to include a sanitized runtimeMetrics object (node-internal Docker/NVML stats) on each returned service. Safe here because this call is already authenticated + owner-scoped. Omit/false = default, no metrics."
+									"description": "A sanitized runtimeMetrics object (Docker/NVML stats) is included on each returned service BY DEFAULT — safe because this call is already authenticated + owner-scoped. Set 'false' to omit it.",
+									"disabled": true
 								},
 								{
 									"key": "node",
@@ -972,7 +974,7 @@
 								}
 							]
 						},
-						"description": "Read service status/endpoints. Authenticated and owner-scoped. Omit serviceId to list all owned services.\n\nSet `includeMetrics=true` to also receive a sanitized `runtimeMetrics` object per service. See the API docs for the field structure."
+						"description": "Read service status/endpoints. Authenticated and owner-scoped. Omit serviceId to list all owned services.\n\nA sanitized `runtimeMetrics` object per service is included BY DEFAULT (this command is already authenticated and owner-scoped); pass `includeMetrics=false` to omit it. See the API docs for the field structure."
 					}
 				},
 				{

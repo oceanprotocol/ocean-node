@@ -13,12 +13,16 @@ import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import { CommonValidation } from '../../../utils/validators.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { normalizeCommandAddresses } from '../../../utils/evmAddress.js'
 
 export abstract class AdminCommandHandler
   extends BaseHandler
   implements IValidateAdminCommandHandler
 {
   async verifyParamsAndRateLimits(task: SignedCommand): Promise<P2PCommandResponse> {
+    // Same ingress normalization as CommandHandler: the admin `address` is matched against
+    // ALLOWED_ADMINS / access lists, so its casing must not decide whether a call is admin.
+    normalizeCommandAddresses(task)
     if (!(await this.checkRateLimit(task.caller))) {
       return buildRateLimitReachedResponse()
     }

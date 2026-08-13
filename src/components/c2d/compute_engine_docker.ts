@@ -60,6 +60,7 @@ import { decryptFilesObject, omitDBComputeFieldsFromComputeJob } from './index.j
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
 import { Service } from '@oceanprotocol/ddo-js'
 import { getOceanTokenAddressForChain } from '../../utils/address.js'
+import { includesAddress, sameAddress } from '../../utils/evmAddress.js'
 import { dockerRegistryAuth, OceanNodeConfig } from '../../@types/OceanNode.js'
 import {
   BaseFileObject,
@@ -1668,9 +1669,8 @@ export class C2DEngineDocker extends C2DEngine {
       // (or an additional viewer) — the same ownership rule getComputeJobResult enforces. The
       // handler verifies the signature for consumerAddress before setting includeMetrics.
       const isOwner =
-        !!consumerAddress &&
-        (job.owner === consumerAddress ||
-          (job.additionalViewers?.includes(consumerAddress) ?? false))
+        sameAddress(job.owner, consumerAddress) ||
+        includesAddress(job.additionalViewers, consumerAddress)
       const res: ComputeJob = omitDBComputeFieldsFromComputeJob(job, {
         includeMetrics: includeMetrics && isOwner
       })
@@ -1694,8 +1694,8 @@ export class C2DEngineDocker extends C2DEngine {
       throw new Error(`Cannot find job with id ${jobId}`)
     }
     if (
-      jobs[0].owner !== consumerAddress &&
-      (!jobs[0].additionalViewers || !jobs[0].additionalViewers.includes(consumerAddress))
+      !sameAddress(jobs[0].owner, consumerAddress) &&
+      !includesAddress(jobs[0].additionalViewers, consumerAddress)
     ) {
       // consumerAddress is not the owner and not in additionalViewers
       throw new Error(

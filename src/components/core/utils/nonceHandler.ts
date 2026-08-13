@@ -10,6 +10,7 @@ import { PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { NonceCommand } from '../../../@types/commands.js'
 import { streamToString } from '../../../utils/util.js'
 import { Readable } from 'node:stream'
+import { addressCasingVariants } from '../../../utils/evmAddress.js'
 
 export function getDefaultErrorResponse(errorMessage: string): P2PCommandResponse {
   return {
@@ -219,6 +220,38 @@ async function validateNonceAndSignature(
 }
 
 export async function verifyConsumerSignature(
+  consumer: string,
+  nonce: string | number,
+  signature: string,
+  issuerPeerId: string,
+  command: string = null,
+  config?: OceanNodeConfig,
+  chainId?: string | null
+): Promise<boolean> {
+  // The signed message embeds the consumer address as a STRING, so its casing is part of what
+  // was signed. Addresses are checksum-normalized on ingress (utils/evmAddress.ts), which would
+  // otherwise reject clients that built and signed the message from the lowercase form — so
+  // try every plausible casing. Deduped, canonical form first: one attempt for most callers.
+  for (const candidate of addressCasingVariants(consumer)) {
+    // eslint-disable-next-line no-await-in-loop
+    if (
+      await verifySignatureForConsumer(
+        candidate,
+        nonce,
+        signature,
+        issuerPeerId,
+        command,
+        config,
+        chainId
+      )
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+async function verifySignatureForConsumer(
   consumer: string,
   nonce: string | number,
   signature: string,

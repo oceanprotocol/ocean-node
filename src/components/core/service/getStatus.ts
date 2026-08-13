@@ -45,12 +45,13 @@ export class ServiceGetStatusHandler extends CommandHandler {
       jobs.push(...(await eng.getServiceStatus(task.consumerAddress, task.serviceId)))
     }
 
-    // Owner already proven above, so the caller may opt in to node-internal runtime metrics.
+    // Ownership is already proven above (this command is always authenticated), so runtime
+    // metrics are included BY DEFAULT here — only an explicit includeMetrics=false opts out.
     return {
       stream: Readable.from(
         JSON.stringify(
           jobs.map((job) =>
-            toPublicServiceJob(job, { includeMetrics: task.includeMetrics === true })
+            toPublicServiceJob(job, { includeMetrics: task.includeMetrics !== false })
           )
         )
       ),

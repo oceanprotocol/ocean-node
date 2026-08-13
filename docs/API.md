@@ -1,5 +1,16 @@
 # Ocean Node Api
 
+## Address casing
+
+Every EVM address you send (`consumerAddress`, `owner`, `address`, `decrypterAddress`,
+`dataNftAddress`, `publisherAddress`, `consumerAddrs`, `additionalViewers`) is accepted in **any
+casing** — checksummed (EIP-55), all-lowercase, all-uppercase — and canonicalized to its checksummed
+form by the node before it is used as a lookup key or compared against an owner. A lowercased
+address therefore matches the same jobs, services and buckets as the checksummed one.
+
+Signatures are unaffected: the node verifies the signed message against the casing you actually
+signed, so clients that build the message from a lowercase address keep working.
+
 ---
 
 ## State DDO
@@ -1582,17 +1593,25 @@ Required at least one of the following parameters:
 | consumerAddress | string  |          | consumer address to use as filter                                                                            |
 | jobId           | string  |          | jobId address to use as filter                                                                               |
 | agreementId     | string  |          | agreementId address to use as filter                                                                         |
-| includeMetrics  | boolean |          | opt-in: include node-internal runtime metrics (`runtimeMetrics`) on owned jobs. See note below.              |
-| signature       | string  |          | required when `includeMetrics=true`: signature over `consumerAddress` + `nonce` + `command` (or auth token)  |
-| nonce           | string  |          | required when `includeMetrics=true`                                                                          |
+| includeMetrics  | boolean |          | override the runtime-metrics default (`true` = require them, `false` = never). See note below. |
+| signature       | string  |          | signature over `consumerAddress` + `nonce` + `command` (or an auth token) — authenticates the owner |
+| nonce           | string  |          | request nonce, paired with `signature`                                                             |
 
-**`includeMetrics` (owner-only).** By default the response never contains `runtimeMetrics`
-(node-internal Docker/NVML stats). When `includeMetrics=true`, the caller must authenticate as the
-owner (`consumerAddress` + `signature`/`nonce`, or an `Authorization` header token); metrics are then
-attached **only** to jobs owned by (or shared with) that address. An unauthenticated or non-owner
-request is rejected (`400`/`401`) rather than silently returning no metrics. The metrics are
-best-effort and up to one sampling interval stale (see [compute.md](compute.md) and `C2D_METRICS_INTERVAL_SECONDS`
-in [env.md](env.md)).
+**Runtime metrics are owner-only and returned BY DEFAULT.** If the request carries owner credentials
+(`consumerAddress` plus `signature`/`nonce`, or an `Authorization` header token), each job owned by
+(or shared with) that address comes back with a `runtimeMetrics` object — no flag needed.
+
+`includeMetrics` only overrides that default:
+
+| `includeMetrics` | behavior |
+| --- | --- |
+| omitted (default) | Metrics attached when owner credentials are present and valid. A request without credentials — the plain, unauthenticated status call — returns `200` with no metrics, exactly as before. Invalid credentials likewise just mean no metrics. |
+| `true` | Metrics are **required**: missing `consumerAddress` answers `400`, failed authentication `401`. Use it when you want to know *why* metrics are absent instead of getting a silently trimmed response. |
+| `false` | Metrics are never attached (and the node skips the auth round-trip). |
+
+Metrics never reach a non-owner, and are never part of the on-chain escrow claim proof. They are
+best-effort and up to one sampling interval stale (see [compute.md](compute.md) and
+`C2D_METRICS_INTERVAL_SECONDS` in [env.md](env.md)).
 
 #### Response
 
@@ -1632,18 +1651,17 @@ in [env.md](env.md)).
 ]
 ```
 
-When called with `includeMetrics=true` by the authenticated owner, each owned job additionally
-carries a `runtimeMetrics` object (see [The `runtimeMetrics` object](#the-runtimemetrics-object)
-below).
+When called with owner credentials, each owned job additionally carries a `runtimeMetrics` object
+(see [The `runtimeMetrics` object](#the-runtimemetrics-object) below).
 
 ---
 
 ### The `runtimeMetrics` object
 
-`runtimeMetrics` is an optional, **node-internal** snapshot of live container stats, returned only
-on `COMPUTE_GET_STATUS` / `SERVICE_GET_STATUS` when the authenticated owner passes
-`includeMetrics=true`. It is **absent** by default, and clients MUST treat every part as optional —
-render a field only when present.
+`runtimeMetrics` is an optional snapshot of live container stats, returned on
+`COMPUTE_GET_STATUS` / `SERVICE_GET_STATUS` to the **authenticated owner** of the job or service —
+by default, without asking for it. It never reaches anyone else, and `includeMetrics=false` opts out.
+Clients MUST treat every part as optional and render a field only when present.
 
 **Semantics clients should surface to users:**
 
@@ -2160,16 +2178,15 @@ by the authenticated `consumerAddress` are returned.
 | nonce           | string  | v        | request nonce |
 | signature       | string  | v        | signed message (or use an `Authorization` auth-token header) |
 | serviceId       | string  |          | filter to a single service; omit to list all owned services |
-| includeMetrics  | boolean |          | opt-in: include node-internal runtime metrics (`runtimeMetrics`) on the returned services |
+| includeMetrics  | boolean |          | runtime metrics (`runtimeMetrics`) are included by default; pass `false` to omit them |
 
 #### Response (200)
 
-Array of `ServiceJob` (with `userData` stripped). When `includeMetrics=true`, each entry also
-carries a sanitized `runtimeMetrics` object — see
-[The `runtimeMetrics` object](#the-runtimemetrics-object) for its full structure. Safe here because
-this command is already authenticated and owner-scoped; the node-wide `serviceList` never returns
-metrics. Metrics are best-effort (see [compute.md](compute.md) and `C2D_METRICS_INTERVAL_SECONDS`
-in [env.md](env.md)).
+Array of `ServiceJob` (with `userData` stripped). Each entry also carries a sanitized
+`runtimeMetrics` object — see [The `runtimeMetrics` object](#the-runtimemetrics-object) for its full
+structure. Included by default here because this command is already authenticated and owner-scoped
+(pass `includeMetrics=false` to omit); the node-wide `serviceList` never returns metrics. Metrics are
+best-effort (see [compute.md](compute.md) and `C2D_METRICS_INTERVAL_SECONDS` in [env.md](env.md)).
 
 ---
 

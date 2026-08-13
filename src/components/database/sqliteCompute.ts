@@ -395,7 +395,10 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       params.push(serviceId)
     }
     if (owner) {
-      selectSQL += ` AND owner = ?`
+      // COLLATE NOCASE: callers are checksum-normalized on ingress (utils/evmAddress.ts), but
+      // rows written before that may hold another casing of the same address — and a missed
+      // match here reads as "no such service" rather than an error.
+      selectSQL += ` AND owner = ? COLLATE NOCASE`
       params.push(owner)
     }
     try {
@@ -631,7 +634,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       params.push(agreementId)
     }
     if (owner) {
-      selectSQL += ` AND owner = ?`
+      // COLLATE NOCASE — see getServiceJob: an owner casing mismatch must not read as
+      // "job not found".
+      selectSQL += ` AND owner = ? COLLATE NOCASE`
       params.push(owner)
     }
 
@@ -820,7 +825,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
 
     if (consumerAddrs && consumerAddrs.length > 0) {
       const placeholders = consumerAddrs.map(() => '?').join(',')
-      conditions.push(`owner IN (${placeholders})`)
+      // COLLATE NOCASE for the same reason as getJob/getServiceJob: match an owner whatever
+      // casing the row was written with.
+      conditions.push(`owner COLLATE NOCASE IN (${placeholders})`)
       params.push(...consumerAddrs)
     }
 
