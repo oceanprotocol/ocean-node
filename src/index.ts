@@ -37,7 +37,7 @@ async function initDatabaseWithRetry(
   maxAttempts: number,
   retryDelay: number,
   maxRetryDelay: number
-): Promise<Database> {
+): Promise<Database | null> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const isLastAttempt = attempt === maxAttempts
     const notReachable =
