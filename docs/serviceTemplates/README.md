@@ -364,9 +364,12 @@ them on the card.
 template `envVars` never reach a service container — only `userConfigurableEnvVars` do, through
 `userData` — so the manifest now declares `CLI_ARGS` as a third user-configurable variable, with
 no `validation` regex, because it is a free-form argument string and a wrong regex would silently
-reject valid input. On an H200 launch with `CLI_ARGS = --highvram`: ComfyUI then keeps models in
-VRAM instead of unloading them to system RAM after each use, which is the single most effective
-setting on a card that size. `--fast` is an optional extra.
+reject valid input. `--highvram` is applied automatically: before `exec`, the script reads the card's total VRAM from
+`nvidia-smi` and `du -sm` of the models directory, and adds the flag when VRAM covers the weights
+with 3/2 headroom (an H200 with H3's 59 GB set qualifies; a 48 GB card does not). It logs the
+decision. `CLI_ARGS` is therefore an override, not a requirement — whatever it contains replaces
+the automatic flag, so include `--highvram` yourself if you set it. `--use-sage-attention` and
+`--fast` are optional extras worth trying there.
 
 **One GPU is booked on purpose.** `gpu` is `min` 1 / `recommended` 1, and the dashboard books
 `recommended` floored at `min`, so a launch takes exactly one card. Asking for two would bill a

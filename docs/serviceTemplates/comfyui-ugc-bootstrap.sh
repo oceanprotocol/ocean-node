@@ -271,6 +271,26 @@ if [ -n "${PACK:-}" ] && grep -qls UnifiedVoiceChangerNode "$PACK"/example_workf
   fi
 fi
 
+# ComfyUI unloads a model to system RAM after every use unless told otherwise, so on a card that
+# could simply hold everything it re-stages the whole checkpoint each step — visible in the log as
+# "N MB Staged ... Force pre-loaded 210 weights: 1175 KB" and a VAE that re-stages per decode.
+# --highvram stops that, but it is only safe when the card really fits the weight set, so decide
+# from what was actually downloaded rather than hard-coding a threshold per template. 3/2 leaves
+# room for activations, which at these latent sizes are not small. CLI_ARGS replaces this entirely
+# when the caller sets it, so an operator can still force or suppress any flag.
+AUTO_ARGS=""
+if command -v nvidia-smi >/dev/null 2>&1; then
+  VRAM_MB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null |
+    head -1 | tr -dc '0-9')
+  MODELS_MB=$(du -sm "$MODELS" 2>/dev/null | cut -f1 | tr -dc '0-9')
+  if [ -n "$VRAM_MB" ] && [ -n "$MODELS_MB" ] && [ "$MODELS_MB" -gt 0 ] &&
+     [ "$VRAM_MB" -ge $(( MODELS_MB * 3 / 2 )) ]; then
+    AUTO_ARGS="--highvram"
+  fi
+  echo "[ocean] ${VRAM_MB:-?} MB VRAM, ${MODELS_MB:-?} MB of weights ->" \
+    "auto args: ${AUTO_ARGS:-none (models are large relative to VRAM; letting ComfyUI offload)}"
+fi
+
 echo "[ocean] starting ComfyUI with base directory $BASE"
 exec python3.13 /default-comfyui-bundle/ComfyUI/main.py \
-  --base-directory "$BASE" ${OUTPUT_DIR_ARGS} --listen --port 8188 ${CLI_ARGS:-}
+  --base-directory "$BASE" ${OUTPUT_DIR_ARGS} --listen --port 8188 ${CLI_ARGS:-$AUTO_ARGS}
