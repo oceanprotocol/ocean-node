@@ -203,15 +203,31 @@ export function buildSnapshot(
   }
   usagePercent = Math.max(0, Number(usagePercent.toFixed(2)))
 
+  // Cumulative counters can only grow. A container that has already exited reports zeros
+  // (its cgroup is gone), which must NOT wipe what it consumed while it ran — the final
+  // snapshot is exactly the one a postmortem reads. So every monotonic figure keeps the
+  // highest value seen. `monotonic()` also covers a daemon returning a partial stats blob.
+  const monotonic = (current: number, previous: number | undefined): number =>
+    Math.max(toNum(current), toNum(previous))
+
   const throttling = cpuStats.throttling_data ?? {}
   const cpu = {
     usagePercent,
     allocated: alloc.cpu,
     usagePercentOfAllocated:
       alloc.cpu > 0 ? Number((usagePercent / alloc.cpu).toFixed(2)) : 0,
-    cumulativeSeconds: Number((totalUsage / 1e9).toFixed(3)),
-    throttledPeriods: toNum(throttling.throttled_periods),
-    throttledSeconds: Number((toNum(throttling.throttled_time) / 1e9).toFixed(3))
+    cumulativeSeconds: monotonic(
+      Number((totalUsage / 1e9).toFixed(3)),
+      prev?.cpu?.cumulativeSeconds
+    ),
+    throttledPeriods: monotonic(
+      toNum(throttling.throttled_periods),
+      prev?.cpu?.throttledPeriods
+    ),
+    throttledSeconds: monotonic(
+      Number((toNum(throttling.throttled_time) / 1e9).toFixed(3)),
+      prev?.cpu?.throttledSeconds
+    )
   }
 
   // ---- Memory ----
@@ -229,7 +245,15 @@ export function buildSnapshot(
   }
 
   // ---- Disk ----
-  const resolvedDisk = diskUsedBytes !== undefined ? diskUsedBytes : toNum(state.SizeRw)
+  // Order of preference: the caller's fresh measurement (jobs: `du` minus base image) →
+  // the writable-layer size from inspect (services) → the last known figure. Disk is a gauge,
+  // not a counter, but "unmeasurable" (the container is gone) must not read as "0 bytes used".
+  const measuredDisk =
+    diskUsedBytes !== undefined && diskUsedBytes !== null
+      ? diskUsedBytes
+      : toNum(state.SizeRw)
+  const resolvedDisk =
+    measuredDisk > 0 ? measuredDisk : toNum(prev?.disk?.usedBytes) || measuredDisk
   const disk: ContainerMetricsSnapshot['disk'] = { usedBytes: Math.max(0, resolvedDisk) }
   if (alloc.diskBytes > 0) {
     disk.quotaBytes = alloc.diskBytes
@@ -237,11 +261,21 @@ export function buildSnapshot(
   }
 
   // ---- Network / Block IO / PIDs ----
-  const network = sumNetworks(stats.networks)
+  // Network and block I/O are cumulative byte counters, so they get the same monotonic
+  // treatment as CPU seconds: an exited container reports nothing, and losing the totals it
+  // transferred would defeat the point of the final snapshot.
+  const sampledNetwork = sumNetworks(stats.networks)
+  const network =
+    sampledNetwork || prev?.network
+      ? {
+          rxBytes: monotonic(sampledNetwork?.rxBytes ?? 0, prev?.network?.rxBytes),
+          txBytes: monotonic(sampledNetwork?.txBytes ?? 0, prev?.network?.txBytes)
+        }
+      : undefined
   const blkio = stats.blkio_stats?.io_service_bytes_recursive
   const blockIO = {
-    readBytes: sumBlkio(blkio, 'Read'),
-    writeBytes: sumBlkio(blkio, 'Write')
+    readBytes: monotonic(sumBlkio(blkio, 'Read'), prev?.blockIO?.readBytes),
+    writeBytes: monotonic(sumBlkio(blkio, 'Write'), prev?.blockIO?.writeBytes)
   }
   const pids = {
     current: toNum(stats.pids_stats?.current),

@@ -207,6 +207,85 @@ describe('containerMetrics.buildSnapshot', () => {
   })
 })
 
+describe('containerMetrics.buildSnapshot on a container that already exited', () => {
+  // An exited container's cgroup is gone: Docker reports zeros for everything. That is the
+  // moment the FINAL snapshot is taken, so cumulative counters must keep what the container
+  // actually consumed instead of resetting to 0.
+  const deadStats = {
+    cpu_stats: { cpu_usage: { total_usage: 0 }, system_cpu_usage: 0, online_cpus: 0 },
+    memory_stats: {},
+    blkio_stats: {},
+    pids_stats: { current: 0 }
+  }
+  const prev = {
+    collectedAt: '2026-07-28T10:00:00Z',
+    cpu: {
+      usagePercent: 95,
+      allocated: 3,
+      usagePercentOfAllocated: 31.6,
+      cumulativeSeconds: 111.5,
+      throttledPeriods: 7,
+      throttledSeconds: 1.25
+    },
+    memory: {
+      usageBytes: 900 * MB,
+      limitBytes: 4 * GB,
+      usagePercent: 22,
+      peakUsageBytes: 1200 * MB
+    },
+    disk: { usedBytes: 700 * MB, quotaBytes: GB, usagePercent: 68.4 },
+    network: { rxBytes: 5000, txBytes: 6000 },
+    blockIO: { readBytes: 7000, writeBytes: 8000 },
+    pids: { current: 12, limit: 512 },
+    prev: { cpuTotal: 111.5e9, systemCpu: 500e9, sampledAt: '2026-07-28T10:00:00Z' }
+  } as ContainerMetricsSnapshot
+
+  const raw: RawContainerSample = {
+    stats: deadStats,
+    state: { Status: 'exited', Running: false, ExitCode: 0, OOMKilled: false }
+  }
+
+  it('keeps cumulative cpu seconds, throttling, network and block IO', () => {
+    const snap = buildSnapshot(raw, prev, { cpu: 3, ramBytes: 4 * GB, diskBytes: GB }, 0)
+    expect(snap.cpu.cumulativeSeconds).to.equal(111.5)
+    expect(snap.cpu.throttledPeriods).to.equal(7)
+    expect(snap.cpu.throttledSeconds).to.equal(1.25)
+    expect(snap.network).to.deep.equal({ rxBytes: 5000, txBytes: 6000 })
+    expect(snap.blockIO).to.deep.equal({ readBytes: 7000, writeBytes: 8000 })
+  })
+
+  it('keeps the memory peak and the last known disk figure', () => {
+    // diskUsedBytes 0 = "unmeasurable" (the container is gone, `du` cannot run)
+    const snap = buildSnapshot(raw, prev, { cpu: 3, ramBytes: 4 * GB, diskBytes: GB }, 0)
+    expect(snap.memory.peakUsageBytes).to.equal(1200 * MB)
+    expect(snap.disk.usedBytes).to.equal(700 * MB)
+    expect(snap.disk.usagePercent).to.equal(68.36)
+  })
+
+  it('still reports the live gauges as 0 and records the exit info', () => {
+    const snap = buildSnapshot(raw, prev, { cpu: 3, ramBytes: 4 * GB, diskBytes: GB }, 0)
+    // nothing is running any more: instantaneous values are genuinely zero
+    expect(snap.cpu.usagePercent).to.equal(0)
+    expect(snap.memory.usageBytes).to.equal(0)
+    expect(snap.pids.current).to.equal(0)
+    expect(snap.containerState.status).to.equal('exited')
+    expect(snap.containerState.exitCode).to.equal(0)
+  })
+
+  it('takes a fresh measurement over the previous one when it is available', () => {
+    const snap = buildSnapshot(
+      { stats: cgroupV2Stats(), state: runningState() },
+      prev,
+      { cpu: 3, ramBytes: 4 * GB, diskBytes: GB },
+      900 * MB
+    )
+    expect(snap.disk.usedBytes).to.equal(900 * MB)
+    // cumulative CPU grew past the previous sample, so the new value wins
+    expect(snap.cpu.cumulativeSeconds).to.equal(111.5)
+    expect(snap.blockIO.readBytes).to.equal(7000)
+  })
+})
+
 describe('containerMetrics debug formatting (formatBytes / describeSnapshot)', () => {
   it('formats bytes with binary units', () => {
     expect(formatBytes(0)).to.equal('0 B')

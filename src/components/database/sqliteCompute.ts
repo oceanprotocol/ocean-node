@@ -57,7 +57,14 @@ function getInternalStructure(job: DBComputeJob): any {
     outputBucketId: job.outputBucketId,
     jobIdHash: job.jobIdHash,
     buildStartTimestamp: job.buildStartTimestamp,
-    buildStopTimestamp: job.buildStopTimestamp
+    buildStopTimestamp: job.buildStopTimestamp,
+    // Runtime metrics snapshot. It MUST round-trip through the body blob: it is what the owner
+    // reads back on COMPUTE_GET_STATUS, and it is also the previous-sample accumulator every
+    // next sample needs — without it persisted, every sample is a "first sample", so CPU % can
+    // never be computed (no delta) and the memory peak never accumulates. Still node-internal
+    // on the way out: omitDBComputeFieldsFromComputeJob strips it unless the verified owner
+    // asked for it, so it stays out of the escrow claim proof.
+    runtimeMetrics: job.runtimeMetrics
   }
   return internalBlob
 }

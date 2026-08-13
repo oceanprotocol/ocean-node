@@ -226,6 +226,49 @@ describe('Compute Jobs Database', () => {
     expect(updatedJob.statusText).to.be.equal(C2DStatusText.PullImage)
   })
 
+  it('round-trips runtimeMetrics through updateJob/getJob', async () => {
+    // The snapshot MUST survive the body blob. It is what the owner reads back on
+    // COMPUTE_GET_STATUS, and it is the previous-sample accumulator the next sample needs to
+    // compute CPU % — if it is dropped on write, every sample is a "first sample" and CPU is
+    // permanently 0.
+    const [job] = await db.getJob(jobId)
+    job.runtimeMetrics = {
+      collectedAt: '2026-08-13T18:31:03.083Z',
+      containerState: { status: 'running', oomKilled: false, restartCount: 0 },
+      cpu: {
+        usagePercent: 97.5,
+        allocated: 3,
+        usagePercentOfAllocated: 32.5,
+        cumulativeSeconds: 42.25,
+        throttledPeriods: 2,
+        throttledSeconds: 0.5
+      },
+      memory: {
+        usageBytes: 1024,
+        limitBytes: 4096,
+        usagePercent: 25,
+        peakUsageBytes: 2048
+      },
+      disk: { usedBytes: 512, quotaBytes: 1024, usagePercent: 50 },
+      blockIO: { readBytes: 10, writeBytes: 20 },
+      pids: { current: 3, limit: 512 },
+      prev: {
+        cpuTotal: 42_250_000_000,
+        systemCpu: 100e9,
+        sampledAt: '2026-08-13T18:31:03.083Z'
+      }
+    }
+    expect(await db.updateJob(job)).to.be.equal(1)
+
+    const [reloaded] = await db.getJob(jobId)
+    assert(reloaded.runtimeMetrics, 'runtimeMetrics must be persisted on the job record')
+    expect(reloaded.runtimeMetrics.cpu.cumulativeSeconds).to.be.equal(42.25)
+    expect(reloaded.runtimeMetrics.memory.peakUsageBytes).to.be.equal(2048)
+    expect(reloaded.runtimeMetrics.disk.usedBytes).to.be.equal(512)
+    // the delta accumulator has to survive too, otherwise CPU % can never be computed
+    expect(reloaded.runtimeMetrics.prev?.cpuTotal).to.be.equal(42_250_000_000)
+  })
+
   it('should get running jobs', async () => {
     const job: DBComputeJob = {
       owner: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947261',

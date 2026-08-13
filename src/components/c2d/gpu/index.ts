@@ -40,6 +40,8 @@ function inferVendor(res: ComputeResource): GpuVendor | null {
 export class GpuMetricsService {
   private collectors: Map<GpuVendor, GpuVendorCollector> = new Map()
   private unsupportedWarned = new Set<GpuVendor>()
+  // Resource ids whose vendor could not be determined — logged once each, not every sample.
+  private unresolvedWarned = new Set<string>()
 
   private getCollector(vendor: GpuVendor): GpuVendorCollector | null {
     if (this.collectors.has(vendor)) return this.collectors.get(vendor)!
@@ -70,7 +72,19 @@ export class GpuMetricsService {
         if (!res || String(res.type).toLowerCase() !== 'gpu') continue
         gpusHeld++
         const vendor = inferVendor(res)
-        if (!vendor) continue
+        if (!vendor) {
+          // The single most likely reason an operator sees no GPU numbers: the resource does
+          // not say which vendor it is. Name the resource and the fix, once per resource.
+          if (!this.unresolvedWarned.has(res.id)) {
+            this.unresolvedWarned.add(res.id)
+            CORE_LOGGER.debug(
+              `[metrics] gpu: cannot determine the vendor of resource "${res.id}" — it has no ` +
+                '"platform" ("nvidia" | "amd" | "intel") and no init.deviceRequests.Driver. Set ' +
+                '"platform" on that resource in DOCKER_COMPUTE_ENVIRONMENTS to get GPU metrics.'
+            )
+          }
+          continue
+        }
         const collector = this.getCollector(vendor)
         if (!collector) {
           if (!this.unsupportedWarned.has(vendor)) {

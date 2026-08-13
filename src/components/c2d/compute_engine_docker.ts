@@ -2871,7 +2871,8 @@ export class C2DEngineDocker extends C2DEngine {
       // Wait for container filesystem to stabilize
       await new Promise((resolve) => setTimeout(resolve, 3000))
 
-      const actualBaseSize = await this.getContainerDiskUsage(container.id, '/')
+      // null (unmeasurable) → cache 0 so the quota check counts the whole container, as before.
+      const actualBaseSize = (await this.getContainerDiskUsage(container.id, '/')) ?? 0
       this.jobImageSizes.set(job.jobId, actualBaseSize)
 
       CORE_LOGGER.info(
@@ -2888,10 +2889,13 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
+  // Returns the measured bytes, or null when the container cannot be measured (not running,
+  // gone, unreadable `du` output). null means "unknown" — distinct from a real 0 — so callers
+  // never report an unmeasurable container as "0 bytes used".
   private async getContainerDiskUsage(
     containerName: string,
     path: string = '/data'
-  ): Promise<number> {
+  ): Promise<number | null> {
     try {
       const container = this.docker.getContainer(containerName)
       const containerInfo = await container.inspect()
@@ -2899,7 +2903,7 @@ export class C2DEngineDocker extends C2DEngine {
         CORE_LOGGER.debug(
           `Container ${containerName} is not running, cannot check disk usage`
         )
-        return 0
+        return null
       }
 
       const exec = await container.exec({
@@ -2918,12 +2922,12 @@ export class C2DEngineDocker extends C2DEngine {
       const output = Buffer.concat(chunks).toString()
 
       const match = output.match(/(\d+)\s/)
-      return match ? parseInt(match[1], 10) : 0
+      return match ? parseInt(match[1], 10) : null
     } catch (error) {
       CORE_LOGGER.error(
         `Failed to get container disk usage for ${containerName}: ${error.message}`
       )
-      return 0
+      return null
     }
   }
 
@@ -2938,6 +2942,15 @@ export class C2DEngineDocker extends C2DEngine {
 
     const containerName = job.jobId + '-algoritm'
     const totalUsage = await this.getContainerDiskUsage(containerName, '/')
+    if (totalUsage === null) {
+      // Unmeasurable this tick (container already exited, or `du` unreadable). Enforcing a
+      // quota on a number we do not have would be wrong, and reporting it as 0 would wipe the
+      // last known figure off the snapshot — so report "unknown" and let the job continue.
+      CORE_LOGGER.debug(
+        `[metrics] job ${job.jobId}: disk usage unmeasurable this tick — keeping the last known figure`
+      )
+      return { canContinue: true }
+    }
     const baseImageSize = this.jobImageSizes.get(job.jobId) || 0
     const algorithmUsage = Math.max(0, totalUsage - baseImageSize)
 
