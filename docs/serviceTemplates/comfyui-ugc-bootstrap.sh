@@ -197,10 +197,11 @@ if [ -n "$WORKFLOW_JSON" ]; then
 import json, shutil, sys, urllib.parse, urllib.request
 from pathlib import Path
 
-# These assets live at input/ in Comfy-Org/workflow_templates. The pip package used to vendor
-# them, but every release since 0.11.26 is a ~10 KB meta-package carrying none — so the local
-# lookup below is a fast path that currently always misses, and the download is what actually
-# seeds. Both are kept: the package may start shipping assets again.
+# Three sources, in order: a per-node properties.inputUrl the graph carries itself, then the
+# installed comfyui_workflow_templates package, then Comfy-Org's input/ directory by filename.
+# The package used to vendor these assets, but every release since 0.11.26 is a ~10 KB
+# meta-package carrying none, so that middle lookup currently always misses and is kept only in
+# case it starts shipping them again.
 RAW = 'https://raw.githubusercontent.com/Comfy-Org/workflow_templates/main/input/'
 
 dirs = []
@@ -222,7 +223,7 @@ for node in graph.get('nodes', []):
   # Per-node, because the graph is client-supplied: a name with a NUL or over 255 bytes makes
   # even the cleanup below raise, and one malformed node must not stop the rest from seeding.
   try:
-    if not isinstance(node, dict) or node.get('type') not in ('LoadImage', 'LoadAudio'):
+    if not isinstance(node, dict) or node.get('type') not in ('LoadImage', 'LoadAudio', 'LoadVideo'):
         continue
     widgets = node.get('widgets_values')
     name = widgets[0] if isinstance(widgets, list) and widgets else None
@@ -232,6 +233,32 @@ for node in graph.get('nodes', []):
     if not isinstance(name, str) or not name or Path(name).name != name or name[0] == '.':
         continue
     if (dest / name).exists():
+        continue
+    # A graph may carry its own source for an input, the way loader nodes carry model URLs, so a
+    # template can ship an asset that does not exist in Comfy-Org's input/ directory. https only,
+    # and the filename still comes from the widget, so this widens where bytes come from without
+    # widening where they land.
+    override = None
+    props = node.get('properties')
+    if isinstance(props, dict):
+        cand = props.get('inputUrl')
+        if isinstance(cand, str) and cand.startswith('https://'):
+            override = cand
+    if override:
+        part = dest / (name + '.part')
+        try:
+            # Several image CDNs (Pexels among them) 403 a bare urllib request, so identify.
+            req = urllib.request.Request(override, headers={'User-Agent': 'ocean-node/1.0'})
+            with urllib.request.urlopen(req, timeout=60) as r, open(part, 'wb') as f:
+                shutil.copyfileobj(r, f)
+            part.rename(dest / name)
+            print(f'[ocean] fetched example input {name}')
+        except Exception as e:
+            try:
+                part.unlink(missing_ok=True)
+            except Exception:
+                pass
+            print(f'[ocean] could not fetch {name} from its inputUrl ({e})', file=sys.stderr)
         continue
     local = next((d / name for d in dirs if (d / name).is_file()), None)
     if local:

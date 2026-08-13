@@ -412,6 +412,15 @@ with more than one `workflows[]` entry, `COMFY_WORKFLOW_ID` — and so the weigh
 the deep link — always comes from the first entry that carries a `graph`, so that entry must
 stay first.
 
+Example inputs follow the same graph-driven idea as the weights. The seeder walks the installed
+graph for `LoadImage` / `LoadAudio` / `LoadVideo` nodes and fills the input directory so the first
+Queue works with no upload. It resolves each filename against, in order, a per-node
+`properties.inputUrl` the graph carries itself, the installed `comfyui_workflow_templates` package,
+and finally Comfy-Org's `input/` directory. `inputUrl` is https-only and the write path still comes
+from the widget's basename, so a template can ship an asset from anywhere without widening where
+bytes land; a failed fetch is non-fatal. Note some image CDNs reject a bare urllib request, so the
+fetch identifies itself with a User-Agent.
+
 Weights are not listed here: the script downloads the HuggingFace URLs carried by the installed
 graph itself, so each template fetches only what it loads and a new workflow needs no change
 here. Each URL is routed into the matching `models/` subdirectory by pattern-matching its path —
