@@ -49,6 +49,9 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `ELASTICSEARCH_SNIFF_INTERVAL`: Interval in milliseconds for periodic cluster health monitoring and node discovery. Set to 'false' to disable. Default is `30000`. Example: `30000`
 - `ELASTICSEARCH_SNIFF_ON_CONNECTION_FAULT`: Enable automatic cluster node discovery when connection faults occur. Default is `true`. Example: `true`
 - `ELASTICSEARCH_HEALTH_CHECK_INTERVAL`: Interval in milliseconds for proactive connection health monitoring. Default is `60000`. Example: `60000`
+- `DB_INIT_MAX_ATTEMPTS`: Maximum number of database initialization attempts at node startup. Raise it when the database container/pod starts slower than the node. Set to `1` to disable retrying. Default is `10`. Example: `10`
+- `DB_INIT_RETRY_DELAY`: Initial delay in milliseconds before retrying a failed database initialization. Doubles after each attempt. Default is `2000`. Example: `2000`
+- `DB_INIT_MAX_RETRY_DELAY`: Upper bound in milliseconds for the database initialization retry backoff. Default is `30000`. Example: `30000`
 
 ## Payments
 
