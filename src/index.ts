@@ -23,8 +23,46 @@ import cors from 'cors'
 import { scheduleCronJobs } from './utils/cronjobs/scheduleCronJobs.js'
 import { requestValidator } from './components/httpRoutes/requestValidator.js'
 import { hasValidDBConfiguration } from './utils/database.js'
+import type { OceanNodeDBConfig } from './@types/OceanNode.js'
 
 const app: Express = express()
+
+// Database services (Elasticsearch/Typesense) frequently take longer to accept
+// connections than the node itself takes to boot (docker compose without a
+// healthcheck gate, k8s pod startup, cold shard recovery). Database.init() gives
+// up after a single failed attempt, which leaves the node running permanently
+// without Indexer and without C2D. Retry with exponential backoff instead.
+// ~2.6 min total window: 2s, 4s, 8s, 16s, then 30s per attempt.
+const DB_INIT_MAX_ATTEMPTS = 10
+const DB_INIT_RETRY_DELAY = 2000
+const DB_INIT_MAX_RETRY_DELAY = 30000
+
+async function initDatabaseWithRetry(
+  dbConfig: OceanNodeDBConfig,
+  maxAttempts: number = DB_INIT_MAX_ATTEMPTS
+): Promise<Database> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const database = await Database.init(dbConfig)
+    if (database) {
+      if (attempt > 1) {
+        OCEAN_NODE_LOGGER.info(`Database initialized after ${attempt} attempts`)
+      }
+      return database
+    }
+    if (attempt === maxAttempts) {
+      break
+    }
+    const delay = Math.min(
+      DB_INIT_RETRY_DELAY * 2 ** (attempt - 1),
+      DB_INIT_MAX_RETRY_DELAY
+    )
+    OCEAN_NODE_LOGGER.warn(
+      `Database initialization failed (attempt ${attempt}/${maxAttempts}), retrying in ${delay}ms`
+    )
+    await new Promise((resolve) => setTimeout(resolve, delay))
+  }
+  return null
+}
 
 process.on('uncaughtException', (err) => {
   OCEAN_NODE_LOGGER.error(`Uncaught exception: ${err.message}`)
@@ -77,7 +115,7 @@ let node: OceanP2P = null
 let indexer = null
 let provider = null
 // If there is no DB URL only the nonce database will be available
-const dbconn: Database = await Database.init(config.dbConfig)
+const dbconn: Database = await initDatabaseWithRetry(config.dbConfig)
 if (!dbconn) {
   OCEAN_NODE_LOGGER.error('Database failed to initialize')
 }
