@@ -119,7 +119,7 @@ let node: OceanP2P = null
 let indexer = null
 let provider = null
 // If there is no DB URL only the nonce database will be available
-const dbconn: Database = await initDatabaseWithRetry(
+const dbconn: Database | null = await initDatabaseWithRetry(
   config.dbConfig,
   config.dbInitMaxAttempts,
   config.dbInitRetryDelay,
