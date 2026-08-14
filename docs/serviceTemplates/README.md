@@ -428,9 +428,53 @@ video and audio VAEs, plus the 17.5 GB prompt-writer encoder) re-downloads every
 discarded on stop; with a bucket selected, beat and reel clips land in the bucket root where
 the storage API's `listFiles` can see them.
 
+### `minimax-music3.json` — ComfyUI, MiniMax Music 3 text-to-music (GPU)
+
+Same image, bucket behavior and bootstrap as the video templates, but audio out: a caption plus
+lyrics become a complete 32 kHz stereo song — vocals and arrangement generated together in one
+pass — up to about 5 minutes. One workflow, `workflows/ocean_music3_song.json`, adapted from
+Comfy-Org's own `audio_minimax_music_3` template. Needs a CUDA GPU with 24 GB+ VRAM.
+
+**Two boxes, two different jobs.** The **caption** is the entire sound and takes three sections
+in a fixed order — `Global Metadata:` (genre, BPM, key, mood, use case, production texture),
+`Vocal Details:` (voice type, delivery, harmonies), `Arrangement:` (instruments, and what happens
+across intro / verses / instrumentals / bridge / outro). Specific beats poetic: "78 BPM, D flat
+major, jazzy extensions" lands where "dreamy" alone does not, which is why the shipped lo-fi
+hip-hop caption is a worked example meant to be edited rather than an empty box. The **lyrics**
+box carries the words plus `[Intro]` `[Verse]` `[Chorus]` `[Bridge]` `[Instrumental]` `[Outro]`
+tags, and **those tags are the only structural instruction the model executes** — the lyric text
+itself only conveys mood. An `[Instrumental]` tag with nothing under it is how you get a stretch
+with no singing.
+
+**Dials.** `max_duration` ships at 60 s so the first Run finishes quickly; the model supports up
+to ~300 s and may end a song early on its own, and longer costs both time and VRAM. Tiled audio
+VAE decode ships **on** — it decodes in overlapping tiles and is what keeps a long song's decode
+inside a 24 GB card, at a small risk of a seam at a tile boundary; turn it off on a big card for
+the last of the quality. The seed is fixed per take, so the same caption and lyrics with a new
+seed is a new performance rather than a variation on the old one. `cfg_scale` / `top_k` sit
+inside the subgraph as advanced inputs.
+
+**Weights are 14.3 GB** — `minimax_music3_dit_fp16` (4.9 GB), the pruned int8 text encoder
+(9.2 GB) and the DAV audio VAE (0.2 GB) — small enough that the bootstrap's 3/2 rule adds
+`--highvram` on anything from 24 GB up. The three loader nodes carry their own HuggingFace URLs,
+so the script fetches exactly what the graph loads. Comfy-Org also publishes
+`minimax_music3_dit_int8_convrot.safetensors` (2.5 GB) for lower-VRAM cards; the workflow's model
+note names it but deliberately does **not** link it, because the URL scan would then download
+2.5 GB this graph never loads.
+
+Songs save to the bucket root as `song_00001_.mp3`, `song_00002_.mp3` — the prefix is `song`
+rather than Comfy's default `audio/audio_minimax_music3` precisely because that default writes
+into a subfolder, where the storage API's `listFiles` (top-level files only) would not see them.
+The save counter never overwrites, so every take is kept.
+
+Not to be confused with running the upstream checkpoint directly: `MiniMaxAI/MiniMax-Music3` is a
+modular diffusion pipeline whose `model_type` (`minimax_music3`, library `sglang-omni`)
+Transformers does not recognise, so vLLM exits at config parse and `vllm-hf-model.json` cannot
+serve it. Comfy-Org's repackaging of the same weights is what runs here.
+
 ## The shared bootstrap (`comfyui-ugc-bootstrap.sh`)
 
-All three templates inline this script via `commandFile`. It runs ComfyUI from the image's
+All four templates inline this script via `commandFile`. It runs ComfyUI from the image's
 read-only bundle with `--base-directory` pointed at the bucket, bypassing the image entrypoint,
 which writes to `/root/ComfyUI` and fails wherever the container is not uid 0.
 
@@ -482,8 +526,10 @@ voice conversion — only when an installed graph mentions `UnifiedVoiceChangerN
 covers *every* workflow the template installs, not just the deep-linked one, so
 `ltx-video-ugc-multishot` pays for the install on account of its assemble workflow even though
 its generator never mentions the node. `ltx-video-ugc-product` skips it because it ships one
-workflow that has no voice conversion, and `minimax-h3-video-ugc-multishot` skips it because
-H3 generates the voice natively and its assemble workflow is a plain stitcher. The clone lands
+workflow that has no voice conversion, `minimax-h3-video-ugc-multishot` skips it because
+H3 generates the voice natively and its assemble workflow is a plain stitcher, and
+`minimax-music3` skips it because its one workflow sings from the caption and has nothing to
+convert. The clone lands
 in the bucket's `custom_nodes`, but pip
 installs into the container and is lost on stop, hence the unconditional reinstall on every
 launch; it is cheap because `XDG_CACHE_HOME` puts pip's wheel cache in the bucket too. It
