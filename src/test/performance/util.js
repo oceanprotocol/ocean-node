@@ -6,7 +6,7 @@ import exec from 'k6/execution'
 // LIST OF TESTS TO EXECUTE
 // -----------------------------------------------------------------
 
-// - Call node root enpoint (get a list of all endpoints)
+// - Call node root enpoint (health check before targeting the known endpoints)
 // - Call all HTTP endpoints (with & without proper params)
 // - Execute requests with & without RATE limits on the node instance
 // - Call directCommand enpoint with all supported commands
@@ -115,21 +115,109 @@ export async function targetEndpoint(api, method, path) {
   })
 }
 
-// 1st step - get root enpoint and call all paths
+// static list of the HTTP endpoints mounted by the node
+// (see src/components/httpRoutes/index.ts). The node root endpoint no longer
+// advertises the available routes, so the paths are hardcoded here.
+const SERVICE_ENDPOINTS = [
+  // p2p
+  ['getP2pNetworkStats', 'GET', '/getP2pNetworkStats'],
+  ['findPeer', 'GET', '/findPeer'],
+  ['getP2PPeers', 'GET', '/getP2PPeers'],
+  ['getP2PPeer', 'GET', '/getP2PPeer'],
+  // p2p / did
+  ['getProvidersForString', 'GET', '/getProvidersForString'],
+  ['getProvidersForStrings', 'POST', '/getProvidersForStrings'],
+  // direct commands (http + p2p)
+  ['directCommand', 'POST', '/directCommand'],
+  // logs
+  ['logs', 'POST', '/logs'],
+  ['log', 'POST', '/log/:id'],
+  // fileInfo
+  ['fileInfo', 'POST', '/api/services/fileInfo'],
+  // provider
+  ['decrypt', 'POST', '/api/services/decrypt'],
+  ['encrypt', 'POST', '/api/services/encrypt'],
+  ['encryptFile', 'POST', '/api/services/encryptFile'],
+  ['initialize', 'GET', '/api/services/initialize'],
+  ['nonce', 'GET', '/api/services/nonce'],
+  ['download', 'GET', '/api/services/download'],
+  // aquarius / assets / ddo
+  ['getDDO', 'GET', '/api/aquarius/assets/ddo/:did/:force?'],
+  ['getDDOMetadata', 'GET', '/api/aquarius/assets/metadata/:did/:force?'],
+  ['ddoMetadataQuery', 'POST', '/api/aquarius/assets/metadata/query'],
+  ['getDDOState', 'GET', '/api/aquarius/state/ddo'],
+  ['validateDDO', 'POST', '/api/aquarius/assets/ddo/validate'],
+  // compute
+  ['computeEnvironments', 'GET', '/api/services/computeEnvironments'],
+  ['computeStart', 'POST', '/api/services/compute'],
+  ['freeCompute', 'POST', '/api/services/freeCompute'],
+  ['computeStop', 'PUT', '/api/services/compute'],
+  ['computeStatus', 'GET', '/api/services/compute'],
+  ['computeResult', 'GET', '/api/services/computeResult'],
+  ['computeStreamableLogs', 'GET', '/api/services/computeStreamableLogs'],
+  ['initializeCompute', 'POST', '/api/services/initializeCompute'],
+  ['computeDelete', 'DELETE', '/api/services/compute'],
+  // service on demand
+  ['serviceTemplates', 'GET', '/api/services/serviceTemplates'],
+  ['serviceStart', 'POST', '/api/services/serviceStart'],
+  ['serviceStop', 'POST', '/api/services/serviceStop'],
+  ['serviceExtend', 'POST', '/api/services/serviceExtend'],
+  ['serviceRestart', 'POST', '/api/services/serviceRestart'],
+  ['serviceStatus', 'GET', '/api/services/serviceStatus'],
+  ['serviceList', 'GET', '/api/services/serviceList'],
+  ['serviceStreamableLogs', 'GET', '/api/services/serviceStreamableLogs'],
+  // queue
+  ['indexQueue', 'GET', '/api/services/indexQueue'],
+  // jobs
+  ['jobs', 'GET', '/api/services/jobs/:jobId'],
+  // policy server passthrough
+  ['PolicyServerPassthrough', 'POST', '/api/services/PolicyServerPassthrough'],
+  ['initializePSVerification', 'POST', '/api/services/initializePSVerification'],
+  // auth
+  ['generateAuthToken', 'POST', '/api/services/auth/token'],
+  ['invalidateAuthToken', 'POST', '/api/services/auth/token/invalidate'],
+  // admin config
+  ['adminConfig', 'GET', '/api/admin/config'],
+  ['adminConfigUpdate', 'POST', '/api/admin/config/update'],
+  // persistent storage
+  ['createBucket', 'POST', '/api/services/persistentStorage/buckets'],
+  ['updateBucket', 'PATCH', '/api/services/persistentStorage/buckets/:bucketId'],
+  ['listBuckets', 'GET', '/api/services/persistentStorage/buckets'],
+  ['listBucketFiles', 'GET', '/api/services/persistentStorage/buckets/:bucketId/files'],
+  [
+    'getBucketFileObject',
+    'GET',
+    '/api/services/persistentStorage/buckets/:bucketId/files/:fileName/object'
+  ],
+  [
+    'uploadBucketFile',
+    'POST',
+    '/api/services/persistentStorage/buckets/:bucketId/files/:fileName'
+  ],
+  [
+    'deleteBucketFile',
+    'DELETE',
+    '/api/services/persistentStorage/buckets/:bucketId/files/:fileName'
+  ],
+  // access list
+  ['accessLists', 'GET', '/api/services/accesslists'],
+  ['accessList', 'GET', '/api/services/accesslists/:chainId/:contractAddress'],
+  // escrow events
+  ['escrowEvents', 'GET', '/api/services/escrow/events']
+]
+
+// 1st step - check the node is up and call all known paths
 export async function stepRootEndpoint() {
   const response = http.get(TARGET_URL)
+  if (response.status !== 200) {
+    exec.test.abort('Check if your node is running before calling this script!')
+    return
+  }
   try {
-    if (response.status === 200) {
-      const data = JSON.parse(response.body)
-      const endpoints = Object.keys(data.serviceEndpoints)
-      //query all endpoints, exclude params
-      for (const endpointName of endpoints) {
-        const apiData = data.serviceEndpoints[endpointName]
-        console.log('Targeting endpoint: ', endpointName, 'Method/path:', apiData)
-        await targetEndpoint(endpointName, apiData[0], apiData[1])
-      }
-    } else {
-      exec.test.abort('Check if your node is running before calling this script!')
+    // query all endpoints, exclude params
+    for (const [endpointName, method, path] of SERVICE_ENDPOINTS) {
+      console.log('Targeting endpoint: ', endpointName, 'Method/path:', method, path)
+      await targetEndpoint(endpointName, method, path)
     }
   } catch (error) {
     console.error('Endpoint error:', error)
