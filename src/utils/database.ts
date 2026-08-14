@@ -24,12 +24,9 @@ export function hasValidDBConfiguration(configuration: OceanNodeDBConfig): boole
 }
 
 // we can use this to check if DB connection is available
-export async function isReachableConnection(
-  url: string,
-  timeout: number = 3000
-): Promise<boolean> {
+export async function isReachableConnection(url: string): Promise<boolean> {
   try {
-    await fetch(url, { signal: AbortSignal.timeout(timeout) })
+    await fetch(url)
     return true
   } catch (error) {
     return false
