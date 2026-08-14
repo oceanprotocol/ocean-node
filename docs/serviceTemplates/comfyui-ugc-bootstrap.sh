@@ -147,9 +147,10 @@ fi
 # what it uses and a new workflow needs no edit here. Template envVars can't drive this: nothing
 # merges them into a service container.
 if [ -n "$WORKFLOW_JSON" ]; then
-  # `|| true` and the except are both needed: a payload that gunzips but isn't a graph must not
-  # abort the bootstrap after escrow is claimed.
-  MODEL_URLS=$(python3.13 - "$WORKFLOW_JSON" <<'PY' || true
+  # Every installed workflow, not just the deep-linked one: a template can ship a second
+  # workflow with its own weights (the H3 prompt generator's text encoder), and scanning only
+  # the deep link would leave it without them. Ordered + deduplicated across files.
+  MODEL_URLS=$(python3.13 - "$PACK"/example_workflows/*.json <<'PY' || true
 import json, re, sys
 seen = []
 def walk(o):
@@ -160,10 +161,11 @@ def walk(o):
     elif isinstance(o, str):
         for m in re.findall(r'https://huggingface\.co/[^\s\)\]"]+?\.safetensors', o):
             if m not in seen: seen.append(m)
-try:
-    walk(json.load(open(sys.argv[1])))
-except Exception as e:
-    print(f'[ocean] cannot read model URLs from the workflow: {e}', file=sys.stderr)
+for path in sys.argv[1:]:
+    try:
+        walk(json.load(open(path)))
+    except Exception as e:
+        print(f'[ocean] cannot read model URLs from {path}: {e}', file=sys.stderr)
 print('\n'.join(seen))
 PY
 )

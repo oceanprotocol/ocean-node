@@ -212,10 +212,11 @@ Same image and bucket behavior as the LTX templates, but a different generator �
 (open-weights, int8) — and a different unit of work: **one Run produces ~30 s with six shots and
 one consistent character**, versus LTX's one continuous take per Run. Needs a CUDA GPU; see
 **Hardware** below — it is built for one 80 GB+ card (H200/H100 class), which holds the whole
-chain resident, and 24 GB still runs it at a lower resolution. Ships two workflows:
+chain resident, and 24 GB still runs it at a lower resolution. Ships three workflows:
 
 - `workflows/ocean_h3_ugc_multishot.json` — one Run, two chained beats, ~30 s out.
 - `workflows/ocean_h3_ugc_assemble.json` — concatenates up to 8 rendered clips into one reel.
+- `workflows/ocean_h3_ugc_prompts.json` — writes the four prompt boxes from your photos and a brief.
 
 **Native audio, no voice-conversion pass.** H3 generates voice, room tone and music in the
 same forward pass as the video, so there is no separate TTS step and nothing analogous to the
@@ -286,6 +287,34 @@ and carries three timecoded shots: `[Shot 1]` with no timestamp, then `[Shot 2] 
 and `[Shot 3] At 00:10.000,`. Camera moves use the closed vocabulary — motion type + amplitude +
 speed, with medium amplitude and normal speed left unstated.
 
+**The prompt writer is a second model, and it has to be.** The obvious move — reuse the
+14.6 GB Qwen3-VL-32B already on disk as H3's text encoder — does not work.
+`comfy/text_encoders/llama.py`'s `Qwen3VL_32BConfig` is explicit: the H3 conditioning
+checkpoint is *"truncated to the first 50 of 64 layers, consumed as the unnormalized hidden
+state after layer 50 (no final norm, no lm_head)"*. `BaseGenerate.logits` would fall back to
+`embed_tokens` and emit noise rather than raise, and `minimax.py` further documents that the
+H3 presentation is not chat-templated at all. Nor is a full-size 32B an option:
+`detect_te_model` routes every 32B state dict to that same truncated path.
+
+So the generator loads its own encoder — `qwen3vl_8b_bf16.safetensors` (17.5 GB,
+Comfy-Org/Qwen3-VL), a full Qwen3-VL-8B — through a plain `CLIPLoader` typed
+`stable_diffusion`. The type matters: `ideogram4`, `boogu`, `krea2`, `mage`, `joyimage`,
+`flux` and `flux2` each hijack a Qwen3-VL-8B file into an image-model conditioning path.
+Core's generic `TextGenerate` node drives it; `Qwen3VLClipModel.generate` is overridden to
+carry vision positions and deepstack features, so the photos genuinely ground the writing.
+
+**One vision pass per photo.** `TextGenerate` takes a single `image`, so two photos would
+have to go through core `ImageBatch` — which rescales image 2 to image 1's dimensions and
+would squash a wide product shot into the subject portrait's aspect. Each photo gets its own
+pass instead, and a `StringFormat` joins the two paragraphs into `subject_definitions`. The
+product pass sits behind a `ComfySwitchNode` against an empty string primitive, driven by a
+`Product photo` boolean; the switch is lazy, so off means that pass never runs. The README
+notes elsewhere that this trick is not buildable for IMAGE/AUDIO because core cannot
+synthesize an empty one — for STRING it is a one-node primitive.
+
+Both `LoadImage` nodes reuse the filenames the multishot workflow already causes the
+bootstrap to seed, so the generator Runs out of the box with nothing uploaded.
+
 **Two subgraphs, 31 canvas nodes.** Everything that is plumbing rather than a decision lives in
 `Beat 1 · FL2VA (starts from your photo)` and `Beat 2 · Ref2VA (carries the character forward)`.
 Each holds its own `UNETLoader`, `CLIPLoader`, both `VAELoader`s, three bypassed device-placement
@@ -350,10 +379,12 @@ default is 30.0, but H3 generates at exactly 24 and the frame-grid expression al
 `Join beats — 24 fps (H3 is fixed at 24, do not change)` rather than promoted into the control
 panel, and the how-to note repeats the sentence.
 
-**Hardware.** Weights total 59.1 GB (19.5 + 19.5 + 14.6 + 4.9 + 0.6) and the chained design
-loads both checkpoints per Run, so one 80 GB+ card — an H200 at 141 GB, or an H100 — holds the
-whole chain resident and offloads nothing, which is what the native-canvas default assumes. 24 GB still
-works at 0.4 MP but offloads heavily and swaps checkpoints mid-Run. GPU class matters directly
+**Hardware.** Weights total 76.6 GB — 59.1 GB of H3 (19.5 + 19.5 + 14.6 + 4.9 + 0.6) plus the
+17.5 GB prompt-writer encoder — and the chained design loads both checkpoints per Run, so one
+80 GB+ card — an H200 at 141 GB, or an H100 — holds the whole chain resident and offloads
+nothing, which is what the native-canvas default assumes. `--highvram` still engages at this
+total: 76.6 × 3/2 = 114.9 GB against an H200's 141 GB. 24 GB still works at 0.4 MP but
+offloads heavily and swaps checkpoints mid-Run. GPU class matters directly
 here and CPU cores do not — sampling is GPU-bound — which is why the `gpu` resource carries the
 guidance in its `description` (`gpu` is a discrete count, not a size, and `ServiceTemplateSchema`
 is `.strict()`, so there is no VRAM field to invent). `ram` is `min` 128 / `recommended` 256 GB:
@@ -364,8 +395,8 @@ them on the card.
 template `envVars` never reach a service container — only `userConfigurableEnvVars` do, through
 `userData` — `--highvram` is applied automatically: before `exec`, the script reads the card's total VRAM from
 `nvidia-smi` and `du -sm` of the models directory, and adds the flag when VRAM covers the weights
-with 3/2 headroom (an H200 with H3's 59 GB set qualifies; a 48 GB card does not). It logs the
-decision. The template deliberately exposes no flag input: that decision needs the card and the weight set,
+with 3/2 headroom (an H200 with the template's 76.6 GB weight set qualifies; a 48 GB card
+does not). It logs the decision. The template deliberately exposes no flag input: that decision needs the card and the weight set,
 both of which the script can see and the launching user cannot. The shared `${CLI_ARGS:-...}` hook
 stays in the script for operators who copy it, but no template declares the variable.
 
@@ -392,10 +423,10 @@ beats in the `Assemble reel` workflow. Building a third stage into the graph wou
 prompt boxes for something the two-beat chain plus a re-run already does.
 
 Pick a persistent-storage bucket on launch: it holds ComfyUI's whole base directory, and
-without one the roughly 59 GB of weights (two 19.5 GB checkpoints, a 14.6 GB text encoder,
-video and audio VAEs) re-downloads every launch and is discarded on stop; with
-a bucket selected, beat and reel clips land in the bucket root where the storage API's
-`listFiles` can see them.
+without one the roughly 77 GB of weights (two 19.5 GB checkpoints, a 14.6 GB text encoder,
+video and audio VAEs, plus the 17.5 GB prompt-writer encoder) re-downloads every launch and is
+discarded on stop; with a bucket selected, beat and reel clips land in the bucket root where
+the storage API's `listFiles` can see them.
 
 ## The shared bootstrap (`comfyui-ugc-bootstrap.sh`)
 
@@ -433,6 +464,17 @@ today; the arm is what lets you add one to a graph without touching this script.
 `envVars` cannot drive this —
 nothing merges them into a service container (`SERVICE_START` has no template id; the container
 env comes only from `userData`).
+
+**Model URLs come from every installed workflow, not just the deep-linked one.** The scan
+walks all of `$PACK/example_workflows/*.json` and deduplicates, because a template can ship a
+second workflow with weights of its own — the H3 prompt generator's text encoder is the first
+case. Scanning only the deep link would leave it without them. This costs the LTX templates
+nothing: neither assemble workflow references a `.safetensors` URL, and
+`src/test/unit/service/serviceTemplateWorkflows.test.ts` asserts that it stays that way.
+
+The example-input seeding block below it deliberately still reads only the deep-link
+workflow. Any new workflow should reuse `LoadImage` filenames the deep-linked one already
+names — the H3 prompt generator does, and the same test file enforces it.
 
 Custom nodes follow the same graph-driven rule. The script installs
 [TTS-Audio-Suite](https://github.com/diodiogod/TTS-Audio-Suite) — for the assemble workflow's
