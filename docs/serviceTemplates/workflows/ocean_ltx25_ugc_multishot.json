@@ -8,12 +8,12 @@
       "id": 5514,
       "type": "792f0fd8-129e-48eb-9904-8d1aa82154d1",
       "pos": [
-        -2573.9592793216225,
+        -2620,
         3230
       ],
       "size": [
-        266.73809728007427,
-        258.4331309403351
+        280,
+        258
       ],
       "flags": {},
       "order": 15,
@@ -114,41 +114,15 @@
       ]
     },
     {
-      "id": 5532,
-      "type": "MarkdownNote",
-      "pos": [
-        -817.4601198544997,
-        3058.283422746538
-      ],
-      "size": [
-        523.0556530433919,
-        88
-      ],
-      "flags": {
-        "collapsed": false
-      },
-      "order": 0,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [],
-      "title": "Save video",
-      "properties": {},
-      "widgets_values": [
-        "## Save video\n\nThis is you output preview 🎉🥳"
-      ],
-      "color": "#432",
-      "bgcolor": "#653"
-    },
-    {
       "id": 5527,
       "type": "MarkdownNote",
       "pos": [
-        -3592.570577768467,
-        2843.283422746538
+        -3600,
+        2500
       ],
       "size": [
-        902.2025827135853,
-        282
+        620,
+        700
       ],
       "flags": {
         "collapsed": false
@@ -157,62 +131,10 @@
       "mode": 0,
       "inputs": [],
       "outputs": [],
-      "title": "Inputs",
+      "title": "How this workflow runs",
       "properties": {},
       "widgets_values": [
-        "## Inputs\n\n### Box A — Cast & look (set once)\nWho the character is, wardrobe, location, lighting, palette, camera style. Leave this\nalone between re-takes; it is what holds identity across Runs.\n\n### Box B — Shots this Run (chronological)\nThe whole reel as **one prose paragraph**. LTX-2.5 cuts between shots natively — there\nare no tags and no numbered lists. Mark each cut in prose (\"A hard cut transitions\nto...\", \"The view cuts to...\"), and at every cut restate the character's look and say\nwhat the audio does (\"the guitar track continues across the cut\"). Dialogue goes in\nquotation marks. Prefer 2-4 shots per Run.\n\n### Character photo\nOptional. Drives the opening frame via `img_strength` on Preprocess (0.7 default) -\nlower it toward 0.35 to treat the photo as a look reference rather than frame 0.\n\n### Duration\n20 s at 24 fps = 481 frames. Frame count must stay `1 + a multiple of 8`; the graph\ncomputes it for you from duration and fps.\n"
-      ],
-      "color": "#432",
-      "bgcolor": "#653"
-    },
-    {
-      "id": 5528,
-      "type": "MarkdownNote",
-      "pos": [
-        -2573.9592793216225,
-        2959.283422746538
-      ],
-      "size": [
-        266.73809728007427,
-        166
-      ],
-      "flags": {
-        "collapsed": false
-      },
-      "order": 2,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [],
-      "title": "Preprocess",
-      "properties": {},
-      "widgets_values": [
-        "## Preprocess\n\n**Video dimensions**\n\nadjust video width and video height to determine the output dimensions.\n\n\n**Image conditioning**\n\nAdjust img_strength and img_compression to change the strength of the input image in case you provided one. "
-      ],
-      "color": "#432",
-      "bgcolor": "#653"
-    },
-    {
-      "id": 5529,
-      "type": "MarkdownNote",
-      "pos": [
-        -2167.221182041548,
-        3015.283422746538
-      ],
-      "size": [
-        305.4220901853274,
-        110
-      ],
-      "flags": {
-        "collapsed": false
-      },
-      "order": 3,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [],
-      "title": "Generate - stage 1",
-      "properties": {},
-      "widgets_values": [
-        "## Generate - stage 1\n\n**Sampler - Distilled (8 steps)**\n\nThis takes the distilled ltx-2.5 model and runs the diffusion in 8 steps. You can change the noise seed, the guider cfg (used for both video and audio) and select the sampler. "
+        "## UGC multishot reel — LTX-2.5\n\nOne Run renders the whole reel. LTX-2.5 cuts between shots inside a single generation\nand holds character, wardrobe, room, lighting and voice across those cuts.\n\n### Multishot prompt\nThe whole reel as **one chronological prose paragraph**. There are no tags and no\nnumbered lists — mark each cut in prose (\"A hard cut transitions to...\", \"The view cuts\nto...\"), and at every cut restate the character's look and say what the audio does\n(\"the guitar track continues across the cut\"). Dialogue goes in quotation marks.\nOpen with who the character is, wardrobe, location, lighting, palette and camera style,\nthen the shots. Prefer 2-4 shots per Run.\n\n### Character photo\nOptional. Drives the opening frame via `img_strength` on Preprocess (0.7 default) —\nlower it toward 0.35 to treat the photo as a look reference rather than frame 0.\n\n### Duration\n20 s at 24 fps = 481 frames. Frame count must stay `1 + a multiple of 8`; the graph\ncomputes it for you from duration and fps.\n\n### The pipeline, left to right\n**Preprocess** sets output dimensions and how strongly your photo conditions frame 0 ·\n**Stage 1** samples the distilled model in 8 steps · **Stage 2** upscales 2x and adds\n3 more steps · **Decode** turns latents into video · **Save video** is your preview.\n\nSeeds, guider CFG and sampler choice live inside the stage subgraphs.\n\n### Decode tiling\nFewer tiles run faster but need more memory.\n\n| node settings (pixels)  | resolved latent geometry          |\n| ----------------------- | --------------------------------- |\n| `512 / 64 / 128 / 32`   | 16x16, ov 2 | 16f, ov 4           |\n| `768 / 192 / 128 / 32`  | 24x24, ov 6 | 16f, ov 4           |\n| `1024 / 256 / 128 / 48` | 32x32, ov 8 | 16f, ov 6           |\n| `1536 / 384 / 192 / 48` | 48x48, ov 12 | 24f, ov 6          |\n"
       ],
       "color": "#432",
       "bgcolor": "#653"
@@ -221,12 +143,12 @@
       "id": 5516,
       "type": "f9337bd7-ca7a-4a59-99f1-65b664bed7e7",
       "pos": [
-        -2167.221182041548,
+        -2260,
         3230
       ],
       "size": [
-        305.4220901853274,
-        261.0261211902389
+        310,
+        261
       ],
       "flags": {},
       "order": 16,
@@ -299,41 +221,15 @@
       ]
     },
     {
-      "id": 5531,
-      "type": "MarkdownNote",
-      "pos": [
-        -1264.2628423791107,
-        2872.283422746538
-      ],
-      "size": [
-        406.802722524611,
-        253
-      ],
-      "flags": {
-        "collapsed": false
-      },
-      "order": 4,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [],
-      "title": "Decode",
-      "properties": {},
-      "widgets_values": [
-        "## Decode\n\nMake sure to adjust the number of tiles and overlap to fit your hardware.\n(fewer tiles will result in faster execution, but will require more memory).\n\n### Recommended settings\n\n| node settings (pixels)                     | resolved latent geometry        |\n| ------------------------------------------ | ------------------------------- |\n| `512 / 64 / 128 / 32`                      | 16×16, ov 2 | 16f, ov 4         |\n| `768 / 192 / 128 / 32`                     | 24×24, ov 6 | 16f, ov 4         |\n| `1024 / 256 / 128 / 48`                    | 32×32, ov 8 | 16f, ov 6         |\n| `1536 / 384 / 192 / 48`                    | 48×48, ov 12 | 24f, ov 6        |\n| `768 / 192 / spatial-only`                 | 24×24, ov 6 | no temporal split |"
-      ],
-      "color": "#432",
-      "bgcolor": "#653"
-    },
-    {
       "id": 5518,
       "type": "bee43e38-9234-4e41-86ff-63874164f482",
       "pos": [
-        -1264.2628423791107,
+        -1470,
         3230
       ],
       "size": [
-        319.2758675018076,
-        245.80179373843475
+        330,
+        246
       ],
       "flags": {},
       "order": 18,
@@ -397,12 +293,12 @@
       "id": 5509,
       "type": "PrimitiveStringMultiline",
       "pos": [
-        -3566.570577768467,
-        3549.228800307116
+        -3600,
+        3570
       ],
       "size": [
-        343.59614112612917,
-        109.43487405985934
+        400,
+        120
       ],
       "flags": {},
       "order": 5,
@@ -433,11 +329,11 @@
       "id": 5511,
       "type": "PrimitiveFloat",
       "pos": [
-        -3566.570577768467,
-        4064.9068587458983
+        -3600,
+        4100
       ],
       "size": [
-        343.59614112612917,
+        400,
         58
       ],
       "flags": {},
@@ -469,12 +365,12 @@
       "id": 5544,
       "type": "PreviewAny",
       "pos": [
-        -3128.841341594478,
-        3953.1701343986797
+        -3135,
+        3953
       ],
       "size": [
-        407.5146365057376,
-        257.9423935704458
+        418,
+        258
       ],
       "flags": {},
       "order": 14,
@@ -505,12 +401,12 @@
       "id": 2004,
       "type": "LoadImage",
       "pos": [
-        -3566.570577768467,
-        3697.4634417871353
+        -3600,
+        3730
       ],
       "size": [
-        343.59614112612917,
-        326
+        400,
+        330
       ],
       "flags": {},
       "order": 7,
@@ -547,12 +443,12 @@
       "id": 5014,
       "type": "c28230e9-b195-4ec2-9679-39e1e920f733",
       "pos": [
-        -3134.7996356798817,
-        3232.0617877399186
+        -3135,
+        3230
       ],
       "size": [
-        418.431640625,
-        683.441800056156
+        418,
+        683
       ],
       "flags": {},
       "order": 13,
@@ -739,40 +635,14 @@
       ]
     },
     {
-      "id": 5530,
-      "type": "MarkdownNote",
-      "pos": [
-        -1721.799091856221,
-        2991.283422746538
-      ],
-      "size": [
-        323,
-        134
-      ],
-      "flags": {
-        "collapsed": false
-      },
-      "order": 8,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [],
-      "title": "Generate - stage 2",
-      "properties": {},
-      "widgets_values": [
-        "## Generate - stage 2\n\n**Upscale and re-sampler (3 steps)**\n\nThis subgraph node upscales the result of the first stage by 2 (width & height) and runs another 3 steps of diffusion after adding noise on the input latent. You can adjust the noise seed and the sampler/guider used in this diffusion stage. The original image is used here again for conditioning, if you entered one."
-      ],
-      "color": "#432",
-      "bgcolor": "#653"
-    },
-    {
       "id": 4852,
       "type": "SaveVideo",
       "pos": [
-        -817.4601198544997,
+        -1060,
         3230
       ],
       "size": [
-        523.0556530433919,
+        523,
         106
       ],
       "flags": {},
@@ -806,12 +676,12 @@
       "id": 5576,
       "type": "MarkdownNote",
       "pos": [
-        -4275.353677081669,
-        2629.670112550645
+        -4280,
+        2500
       ],
       "size": [
-        572.4350512445894,
-        548.211594128375
+        572,
+        548
       ],
       "flags": {
         "collapsed": false
@@ -832,11 +702,11 @@
       "id": 5575,
       "type": "f007aab9-e7ad-4b10-974c-4d7cc55001a9",
       "pos": [
-        -4275.520955036268,
-        3233.480452901378
+        -4280,
+        3230
       ],
       "size": [
-        575.5086440715122,
+        576,
         318
       ],
       "flags": {
@@ -967,12 +837,12 @@
       "id": 5517,
       "type": "cf7c664d-af7e-4a9e-9f19-9f93cfd2476e",
       "pos": [
-        -1721.799091856221,
+        -1870,
         3230
       ],
       "size": [
-        317.5362494771101,
-        294.4737149063599
+        320,
+        294
       ],
       "flags": {},
       "order": 17,
@@ -1080,11 +950,11 @@
       "id": 5512,
       "type": "PrimitiveFloat",
       "pos": [
-        -3566.570577768467,
-        4164.413032963737
+        -3600,
+        4198
       ],
       "size": [
-        343.59614112612917,
+        400,
         58
       ],
       "flags": {},
@@ -1115,92 +985,19 @@
     {
       "id": 9001,
       "type": "PrimitiveStringMultiline",
-      "title": "Box A — Cast & look (set once)",
+      "title": "Multishot prompt",
       "pos": [
-        -3566.570577768467,
-        2975.283422746538
+        -3600,
+        3230
       ],
       "size": [
         400,
-        200
+        300
       ],
       "flags": {},
       "order": 0,
       "mode": 0,
       "inputs": [],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "links": [
-            13841
-          ]
-        }
-      ],
-      "properties": {},
-      "widgets_values": [
-        "Maya, a woman in her late twenties with freckles and shoulder-length dark curls, wearing a mustard corduroy jacket over a white tee. A small sunlit apartment kitchen with pale green tiles, a window over the sink and a cluttered wooden counter. Warm late-afternoon light, soft shadows, muted retro palette. Handheld camera, shallow depth of field."
-      ]
-    },
-    {
-      "id": 9002,
-      "type": "PrimitiveStringMultiline",
-      "title": "Box B — Shots this Run (chronological)",
-      "pos": [
-        -3566.570577768467,
-        3335.283422746538
-      ],
-      "size": [
-        400,
-        200
-      ],
-      "flags": {},
-      "order": 0,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "links": [
-            13842
-          ]
-        }
-      ],
-      "properties": {},
-      "widgets_values": [
-        "A wide shot frames Maya at the counter grinding coffee beans by hand, steam rising from a kettle beside her; a low acoustic guitar track plays under the grinder's rattle. She looks up and says, \"Third try today.\" A hard cut transitions to a medium close-up of Maya — freckles, dark curls, mustard jacket — tilting the grinder into a paper filter, her eyes narrowed in concentration; the guitar track continues across the cut, the grinder noise gone. The view cuts to a tight overhead shot of water spiralling into the grounds, the bloom rising; the music drops to a single sustained note and the pour hisses. A final hard cut returns to Maya in the mustard jacket, lifting the cup toward the window light and smiling; the guitar returns at full volume as she says, \"That's the one.\""
-      ]
-    },
-    {
-      "id": 9003,
-      "type": "StringFormat",
-      "title": "A + B → one multishot prompt",
-      "pos": [
-        -3136.570577768467,
-        3265.283422746538
-      ],
-      "size": [
-        300,
-        100
-      ],
-      "flags": {},
-      "order": 0,
-      "mode": 0,
-      "inputs": [
-        {
-          "label": "a",
-          "name": "values.a",
-          "type": "*",
-          "link": 13841
-        },
-        {
-          "label": "b",
-          "name": "values.b",
-          "type": "*",
-          "link": 13842
-        }
-      ],
       "outputs": [
         {
           "name": "STRING",
@@ -1212,7 +1009,7 @@
       ],
       "properties": {},
       "widgets_values": [
-        "{a}\n\n{b}"
+        "Maya, a woman in her late twenties with freckles and shoulder-length dark curls, wearing a mustard corduroy jacket over a white tee. A small sunlit apartment kitchen with pale green tiles, a window over the sink and a cluttered wooden counter. Warm late-afternoon light, soft shadows, muted retro palette. Handheld camera, shallow depth of field.\n\nA wide shot frames Maya at the counter grinding coffee beans by hand, steam rising from a kettle beside her; a low acoustic guitar track plays under the grinder's rattle. She looks up and says, \"Third try today.\" A hard cut transitions to a medium close-up of Maya — freckles, dark curls, mustard jacket — tilting the grinder into a paper filter, her eyes narrowed in concentration; the guitar track continues across the cut, the grinder noise gone. The view cuts to a tight overhead shot of water spiralling into the grounds, the bloom rising; the music drops to a single sustained note and the pour hisses. A final hard cut returns to Maya in the mustard jacket, lifting the cup toward the window light and smiling; the guitar returns at full volume as she says, \"That's the one.\""
       ]
     }
   ],
@@ -1474,24 +1271,8 @@
       "LATENT_UPSCALE_MODEL"
     ],
     [
-      13841,
-      9001,
-      0,
-      9003,
-      0,
-      "STRING"
-    ],
-    [
-      13842,
-      9002,
-      0,
-      9003,
-      1,
-      "STRING"
-    ],
-    [
       13843,
-      9003,
+      9001,
       0,
       5014,
       4,
@@ -1503,10 +1284,10 @@
       "id": 1,
       "title": "Inputs",
       "bounding": [
-        -3592.570577768467,
-        3149.283422746538,
-        902.2025827135853,
-        1187.8291052225882
+        -3630,
+        3170,
+        943,
+        1116
       ],
       "color": "#3f789e",
       "flags": {}
@@ -1515,10 +1296,10 @@
       "id": 2,
       "title": "Generate",
       "bounding": [
-        -2193.221182041548,
-        3164,
-        814.9583396624375,
-        386.4737149063599
+        -2290,
+        3170,
+        770,
+        384
       ],
       "color": "#3f789e",
       "flags": {}
@@ -3142,7 +2923,7 @@
           },
           {
             "id": 5000,
-            "type": "LTXFloatToInt",
+            "type": "ComfyMathExpression",
             "pos": [
               -2479.839240504694,
               3699.6873486876134
@@ -3159,16 +2940,27 @@
             "inputs": [
               {
                 "label": "fps",
-                "localized_name": "a",
-                "name": "a",
-                "type": "FLOAT",
-                "widget": {
-                  "name": "a"
-                },
+                "localized_name": "values.a",
+                "name": "values.a",
+                "type": "FLOAT,INT,BOOLEAN",
                 "link": 13476
+              },
+              {
+                "label": "b",
+                "localized_name": "values.b",
+                "name": "values.b",
+                "shape": 7,
+                "type": "FLOAT,INT,BOOLEAN",
+                "link": null
               }
             ],
             "outputs": [
+              {
+                "localized_name": "FLOAT",
+                "name": "FLOAT",
+                "type": "FLOAT",
+                "links": null
+              },
               {
                 "localized_name": "INT",
                 "name": "INT",
@@ -3176,13 +2968,21 @@
                 "links": [
                   13424
                 ]
+              },
+              {
+                "localized_name": "BOOL",
+                "name": "BOOL",
+                "type": "BOOLEAN",
+                "links": null
               }
             ],
             "properties": {
-              "Node name for S&R": "LTXFloatToInt"
+              "cnr_id": "comfy-core",
+              "ver": "0.16.3",
+              "Node name for S&R": "ComfyMathExpression"
             },
             "widgets_values": [
-              0
+              "a"
             ]
           },
           {
@@ -3384,7 +3184,7 @@
           {
             "id": 13424,
             "origin_id": 5000,
-            "origin_slot": 0,
+            "origin_slot": 1,
             "target_id": 3980,
             "target_slot": 2,
             "type": "INT"

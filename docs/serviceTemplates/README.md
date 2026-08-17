@@ -439,8 +439,8 @@ drifting speaker.
 example workflow upstream. You write the reel as one chronological prose paragraph and mark
 each cut in words — "A hard cut transitions to a medium close-up of her face" — restating the
 character's look and the audio's continuity at every cut. LTX's guidance is 2-4 shots per
-generation. Two boxes feed that one paragraph: box A (cast and look, set once) and box B
-(this Run's shots), joined by a `StringFormat` node.
+generation. One prompt box holds the whole paragraph: open with the cast and the look, then
+the shots.
 
 **Requires `HF_TOKEN`.** Every LTX-2.5 weight is gated. Open each model page once, click
 "Agree and Access" with the account owning the token, then set `HF_TOKEN` on the service.
