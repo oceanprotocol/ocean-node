@@ -446,11 +446,21 @@ the shots.
 "Agree and Access" with the account owning the token, then set `HF_TOKEN` on the service.
 Without it nothing downloads and ComfyUI starts empty.
 
-**Settings ship at the top of the range**: stage 1 at 768x1344, upscaled and resampled to
-1536x2688, 481 frames (20 s at 24 fps). Stage 2 carries 245,952 latent tokens against 63,240
-for a 1080p ten-second reel, and attention time grows with the square of that — Runs take
-minutes. Duration and stage-1 resolution are dials on the canvas; lower either for a cheaper
-Run.
+**Settings track Lightricks' own operating point**, which is what quality depends on here.
+`ltx-pipelines`' `DistilledPipeline` defaults to 121 frames (5 s at 24 fps) at stage-1
+768x512, with sigma schedules of 8 steps then 3; their ComfyUI API template ships 8 s. This
+template ships **8 s / 193 frames**, stage 1 at 576x1024 upscaled to 1152x2048, which is
+2.3x the official token count — enough headroom for a 9:16 frame, and 1152x2048 still clears
+1080x1920 delivery.
+
+It did not always. Until this was corrected it ran 481 frames (20 s) at stage-1 768x1344 into
+1536x2688 — 10x the official token count on the *same* 8-plus-3 steps, because raising
+duration and resolution spreads a fixed step budget thinner rather than adding steps. That is
+why it looked worse than `ltx-video-ugc-multishot.json`: the 2.3 template renders 97-frame
+clips and chains them, landing almost exactly on the official default. The stage-2 schedule
+had also drifted to `0.85, 0.7250, 0.4219, 0.0`; the published values are
+`0.909375, 0.725, 0.421875, 0.0`. For a longer reel, render two Runs and join them rather
+than stretching one.
 
 **Five weight files, ~71 GB, bf16 throughout**: 42.02 GB transformer + 26.26 GB text encoder
 + 1.47 GB video VAE + 0.36 GB audio VAE + 1.00 GB spatial upscaler. Deliberately absent: the
