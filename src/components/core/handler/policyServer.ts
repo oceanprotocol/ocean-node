@@ -21,8 +21,12 @@ export class PolicyServerPassthroughHandler extends CommandHandler {
       return buildInvalidRequestMessage(
         'Invalid Request: missing policyServerPassthrough field!'
       )
-    // we inject fields into this object below, so it has to be an object
-    if (typeof command.policyServerPassthrough !== 'object')
+    // we inject fields into this object below, so it has to be a keyed object. arrays are
+    // objects too, and would be forwarded as {"0":..,"1":..} with no action
+    if (
+      typeof command.policyServerPassthrough !== 'object' ||
+      Array.isArray(command.policyServerPassthrough)
+    )
       return buildInvalidRequestMessage(
         'Invalid Request: "policyServerPassthrough" must be an object!'
       )

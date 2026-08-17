@@ -86,6 +86,21 @@ describe('PolicyServerPassthroughHandler', () => {
       expect(response.status.error).to.contain('must be an object')
     })
 
+    it('rejects an array policyServerPassthrough (400)', async () => {
+      // typeof [] === 'object', so an array would otherwise be forwarded as
+      // {"0":..,"1":..} with no action
+      const { node } = buildFakes()
+      const passThrough = sinon.stub(PolicyServer.prototype, 'passThrough')
+
+      const response = await new PolicyServerPassthroughHandler(node).handle(
+        passthroughTask({ policyServerPassthrough: ['a', 'b'] })
+      )
+
+      expect(response.status.httpStatus).to.equal(400)
+      expect(response.status.error).to.contain('must be an object')
+      assert(passThrough.notCalled, 'must not reach the policy server')
+    })
+
     it('rejects a missing consumerAddress (400)', async () => {
       const { node } = buildFakes()
       const response = await new PolicyServerPassthroughHandler(node).handle(

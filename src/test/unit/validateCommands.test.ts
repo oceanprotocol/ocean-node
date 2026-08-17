@@ -88,6 +88,104 @@ describe('validateCommandParameters credential redaction', () => {
     expect(loggedCommand()).to.contain(ERC20)
   })
 
+  it('redacts credentials nested inside the policyServerPassthrough blob', () => {
+    validateCommandParameters(
+      {
+        command: PROTOCOL_COMMANDS.POLICY_SERVER_PASSTHROUGH,
+        consumerAddress: ERC20,
+        policyServerPassthrough: {
+          action: 'download',
+          documentId: 'did:op:1234',
+          authorization: TOKEN,
+          signature: SIGNATURE
+        }
+      },
+      []
+    )
+    const logged = loggedCommand()
+    expect(logged).to.not.contain(TOKEN)
+    expect(logged).to.not.contain(SIGNATURE)
+    // the rest of the blob is still logged
+    expect(logged).to.contain('did:op:1234')
+    expect(logged).to.contain('download')
+  })
+
+  it('redacts credentials nested inside the policyServer blob', () => {
+    validateCommandParameters(
+      {
+        command: PROTOCOL_COMMANDS.POLICY_SERVER_INITIALIZE,
+        documentId: 'did:op:1234',
+        serviceId: '0',
+        consumerAddress: ERC20,
+        policyServer: { authorization: TOKEN, signature: SIGNATURE }
+      },
+      []
+    )
+    const logged = loggedCommand()
+    expect(logged).to.not.contain(TOKEN)
+    expect(logged).to.not.contain(SIGNATURE)
+  })
+
+  it('redacts credentials nested arbitrarily deep, including inside arrays', () => {
+    validateCommandParameters(
+      {
+        command: PROTOCOL_COMMANDS.POLICY_SERVER_PASSTHROUGH,
+        consumerAddress: ERC20,
+        policyServerPassthrough: {
+          nested: { deeper: [{ authorization: TOKEN }, { signature: SIGNATURE }] }
+        }
+      },
+      []
+    )
+    const logged = loggedCommand()
+    expect(logged).to.not.contain(TOKEN)
+    expect(logged).to.not.contain(SIGNATURE)
+  })
+
+  it('does not mutate nested objects it shares with the caller', () => {
+    // the shallow-clone fallback path shares nested references with the original, so
+    // redaction must never write into them - handlers still need the real credentials
+    const nested = { action: 'download', authorization: TOKEN, signature: SIGNATURE }
+    const command: any = {
+      command: PROTOCOL_COMMANDS.POLICY_SERVER_PASSTHROUGH,
+      consumerAddress: ERC20,
+      policyServerPassthrough: nested,
+      notCloneable: () => 'boom' // forces the shallow-clone fallback
+    }
+    validateCommandParameters(command, [])
+    expect(loggedCommand()).to.not.contain(TOKEN)
+    expect(nested.authorization).to.equal(TOKEN)
+    expect(nested.signature).to.equal(SIGNATURE)
+  })
+
+  it('survives a circular payload', () => {
+    const blob: any = { authorization: TOKEN }
+    blob.self = blob
+    validateCommandParameters(
+      {
+        command: PROTOCOL_COMMANDS.POLICY_SERVER_PASSTHROUGH,
+        consumerAddress: ERC20,
+        policyServerPassthrough: blob
+      },
+      []
+    )
+    const logged = loggedCommand()
+    expect(logged).to.not.contain(TOKEN)
+    expect(logged).to.contain('[CIRCULAR]')
+  })
+
+  it('keeps "token" readable when nested as an ERC20 payment address', () => {
+    validateCommandParameters(
+      {
+        command: PROTOCOL_COMMANDS.COMPUTE_START,
+        consumerAddress: ERC20,
+        payment: { chainId: 8996, token: ERC20 }
+      },
+      []
+    )
+    expect(loggedCommand()).to.contain(ERC20)
+  })
+
   it('does not mutate the command it was given', () => {
     const command = {
       command: PROTOCOL_COMMANDS.DOWNLOAD,

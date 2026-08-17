@@ -29,6 +29,51 @@ const SENSITIVE_TOKEN_COMMANDS: string[] = [
 
 const REDACTED = '[REDACTED]'
 
+/**
+ * Returns a copy of the payload with every credential field redacted, at any depth.
+ *
+ * This must not mutate its input: the clone the caller hands us can be a *shallow* copy
+ * (the fallback path below), so nested objects are still shared with the real command and
+ * the handlers still need the actual credentials. So we rebuild containers instead of
+ * writing into them.
+ *
+ * Only plain objects and arrays are walked - Buffers, typed arrays, Dates, streams and the
+ * like are passed through untouched.
+ */
+function redactSensitiveFields(
+  value: any,
+  redactToken: boolean,
+  seen: WeakSet<object>
+): any {
+  if (value === null || typeof value !== 'object') {
+    return value
+  }
+  if (seen.has(value)) {
+    return '[CIRCULAR]'
+  }
+  if (Array.isArray(value)) {
+    seen.add(value)
+    const copy = value.map((item) => redactSensitiveFields(item, redactToken, seen))
+    seen.delete(value)
+    return copy
+  }
+  const proto = Object.getPrototypeOf(value)
+  if (proto !== Object.prototype && proto !== null) {
+    return value
+  }
+  seen.add(value)
+  const copy: any = {}
+  for (const [key, item] of Object.entries(value)) {
+    if (SENSITIVE_COMMAND_FIELDS.includes(key) || (redactToken && key === 'token')) {
+      copy[key] = isDefined(item) ? REDACTED : item
+    } else {
+      copy[key] = redactSensitiveFields(item, redactToken, seen)
+    }
+  }
+  seen.delete(value)
+  return copy
+}
+
 // add others when we add suppor
 
 // request level validation, just check if we have a "command" field and its a supported one
@@ -75,15 +120,14 @@ export function validateCommandParameters(
     logCommandData.rawData = []
   }
 
-  // never log the caller's credentials, whatever the command is
-  for (const field of SENSITIVE_COMMAND_FIELDS) {
-    if (isDefined(logCommandData[field])) {
-      logCommandData[field] = REDACTED
-    }
-  }
-  if (SENSITIVE_TOKEN_COMMANDS.includes(commandStr) && isDefined(logCommandData.token)) {
-    logCommandData.token = REDACTED
-  }
+  // never log the caller's credentials, whatever the command is. credentials also show up
+  // nested (the free-form "policyServer" / "policyServerPassthrough" blobs), so this walks
+  // the whole payload
+  logCommandData = redactSensitiveFields(
+    logCommandData,
+    SENSITIVE_TOKEN_COMMANDS.includes(commandStr),
+    new WeakSet()
+  )
 
   CORE_LOGGER.info(
     `Checking received command data for Command "${commandStr}": ${JSON.stringify(
