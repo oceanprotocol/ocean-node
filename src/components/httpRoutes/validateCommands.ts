@@ -2,6 +2,7 @@ import { PROTOCOL_COMMANDS, SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/cons
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { Command } from '../../@types/commands.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
+import { isDefined } from '../../utils/util.js'
 import { ReadableString } from '../P2P/handlers.js'
 
 export type ValidateParams = {
@@ -9,6 +10,24 @@ export type ValidateParams = {
   reason?: string
   status?: number
 }
+
+// credentials present on (almost) any command. these must never reach the logs, on any
+// command, since they are what authorizes the request in the first place
+const SENSITIVE_COMMAND_FIELDS = [
+  'authorization', // auth token (JWT), usually taken from the Authorization header
+  'signature', // consumer signature authorizing this command
+  'aes_encrypted_key', // download: encrypted key material
+  'encryptedDockerRegistryAuth' // compute: encrypted docker registry credentials
+]
+
+// "token" is an ERC20 address on most commands (escrow, compute payment) and only a
+// credential on the auth-token commands, so it is redacted per-command instead
+const SENSITIVE_TOKEN_COMMANDS: string[] = [
+  PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
+  PROTOCOL_COMMANDS.VALIDATE_AUTH_TOKEN
+]
+
+const REDACTED = '[REDACTED]'
 
 // add others when we add suppor
 
@@ -54,6 +73,16 @@ export function validateCommandParameters(
     logCommandData.files = [] // hide files data (sensitive) + rawData (long buffer) from logging
   } else if (commandStr === PROTOCOL_COMMANDS.ENCRYPT_FILE && commandData.rawData) {
     logCommandData.rawData = []
+  }
+
+  // never log the caller's credentials, whatever the command is
+  for (const field of SENSITIVE_COMMAND_FIELDS) {
+    if (isDefined(logCommandData[field])) {
+      logCommandData[field] = REDACTED
+    }
+  }
+  if (SENSITIVE_TOKEN_COMMANDS.includes(commandStr) && isDefined(logCommandData.token)) {
+    logCommandData.token = REDACTED
   }
 
   CORE_LOGGER.info(

@@ -323,6 +323,11 @@ export interface JobStatus {
 
 export interface PolicyServerPassthroughCommand extends Command {
   policyServerPassthrough?: any
+  // caller identity, verified by this node before anything is forwarded to the policy server.
+  // either the inherited "authorization" token, or consumerAddress + nonce + signature
+  consumerAddress?: string
+  nonce?: string
+  signature?: string
 }
 
 export interface PolicyServerInitializeCommand extends Command {
@@ -330,6 +335,8 @@ export interface PolicyServerInitializeCommand extends Command {
   serviceId?: string
   consumerAddress?: string
   policyServer?: any
+  nonce?: string
+  signature?: string
 }
 
 export interface CreateAuthTokenCommand extends Command {

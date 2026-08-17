@@ -134,3 +134,49 @@ Called whenever a new decrypt command is received by Ocean Node
   "policyServer": {}
 }
 ```
+
+## Passthrough and caller identity
+
+`POST /api/services/PolicyServerPassthrough` lets a caller send an arbitrary payload
+straight to the PolicyServer, and `POST /api/services/initializePSVerification` starts an
+`initiate` flow. Both are **authenticated by Ocean Node**: the caller must supply either an
+`Authorization` header carrying an auth token, or a `nonce` + `signature` pair, together
+with `consumerAddress`. Unauthenticated requests get a `401` and never reach the
+PolicyServer.
+
+Because the passthrough body is forwarded verbatim, Ocean Node **overwrites** the identity
+fields after it has verified the caller. The payload the PolicyServer receives therefore
+always carries:
+
+| field           | set by     | meaning                                                            |
+| --------------- | ---------- | ------------------------------------------------------------------ |
+| consumerAddress | Ocean Node | the address this node verified — trustworthy, not caller-controlled |
+| authorization   | Ocean Node | the caller's auth token, relayed as received                       |
+| nonce           | Ocean Node | the caller's nonce (already consumed by this node)                 |
+| signature       | Ocean Node | the caller's signature, so the PolicyServer can re-verify it       |
+| ddo             | Ocean Node | the DDO resolved from `documentId`, or `null` if not found         |
+| nodeAddress     | Ocean Node | the address of the node making the request                         |
+
+Everything else in the payload — including `action` — is caller-supplied and must be
+treated as untrusted input.
+
+Each endpoint is its own command, and the command string is part of the signed message, so a
+signature is scoped to one endpoint and cannot be replayed against the other:
+
+| endpoint                              | command                    | signed message                                        |
+| ------------------------------------- | -------------------------- | ----------------------------------------------------- |
+| `/api/services/PolicyServerPassthrough`  | `PolicyServerPassthrough`  | `consumerAddress + nonce + "PolicyServerPassthrough"` |
+| `/api/services/initializePSVerification` | `PolicyServerInitialize`   | `consumerAddress + nonce + "PolicyServerInitialize"`  |
+
+A PolicyServer can independently recompute and verify either one. Note that for
+`initializePSVerification` the credentials arrive nested inside the `policyServer` object
+rather than at the top level.
+
+> **A caller controls `action`.** A passthrough payload can claim `"action": "download"` or
+> `"action": "startCompute"` and look much like the ones Ocean Node itself sends for those
+> commands. The `consumerAddress` is trustworthy, but the action is not — do not grant a
+> passthrough request the same authority as a node-initiated one.
+
+> **The caller's auth token leaves the node.** `authorization` is relayed to the
+> PolicyServer so it can run its own checks, so `POLICY_SERVER_URL` should be an HTTPS
+> endpoint the operator controls.
