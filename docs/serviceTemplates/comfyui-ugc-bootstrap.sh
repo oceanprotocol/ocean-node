@@ -34,10 +34,23 @@ mkdir -p "$MODELS/checkpoints" "$MODELS/loras" "$MODELS/text_encoders" \
   "$MODELS/latent_upscale_models" "$MODELS/diffusion_models" "$MODELS/vae" \
   "$BASE/output" "$INPUT_DIR" "$BASE/temp" "$BASE/user"
 
+# LTX-2.5 and other gated repos 401 without a token. An array, not a string: under
+# `set -u` an unquoted empty string would still hand curl an empty argument, and the
+# ${x[@]+"${x[@]}"} form below is what keeps an empty array safe on older bash.
+# if/then rather than `[ -n ... ] && ...`: under `set -e` a failing && chain at top
+# level exits the script, which would break every ungated template.
+HF_AUTH=()
+if [ -n "${HF_TOKEN:-}" ]; then
+  HF_AUTH=(-H "Authorization: Bearer $HF_TOKEN")
+  echo "[ocean] HF_TOKEN set — gated repositories are reachable"
+else
+  echo "[ocean] no HF_TOKEN — gated repositories (LTX-2.5 among them) will 401"
+fi
+
 # Byte count the server promises, after following HuggingFace's redirect to its CDN. The last
 # content-length in the chain is the real one. Prints 0 when the server won't say.
 remote_size() {
-  curl -sIL --retry 3 --retry-delay 2 --max-time 60 "$1" 2>/dev/null |
+  curl -sIL ${HF_AUTH[@]+"${HF_AUTH[@]}"} --retry 3 --retry-delay 2 --max-time 60 "$1" 2>/dev/null |
     tr -d '\r' | awk 'BEGIN{IGNORECASE=1} /^content-length:/{n=$2} END{print n+0}'
 }
 
@@ -60,10 +73,20 @@ get() {
     fi
   fi
   echo "[ocean] downloading $(basename "$2") ($want bytes)"
-  http_code=$(curl -L --retry 5 --retry-delay 5 -C - -o "$2.part" -w '%{http_code}' "$1")
+  # Unverified without a real token: curl resends -H across cross-host redirects, and HF
+  # redirects LFS to a presigned CDN URL. If that CDN rejects the doubled auth, switch to
+  # resolve-then-fetch — a -I carrying the header to learn the CDN URL, then a clean GET
+  # of that URL. Test on first real launch before assuming this path works.
+  http_code=$(curl -L ${HF_AUTH[@]+"${HF_AUTH[@]}"} --retry 5 --retry-delay 5 -C - -o "$2.part" -w '%{http_code}' "$1")
   http_code="${http_code:-000}"
   if [ "$http_code" = "416" ] && [ -f "$2.part" ]; then
     echo "[ocean] $(basename "$2").part already complete"
+  elif [ "$http_code" = "401" ] || [ "$http_code" = "403" ]; then
+    echo "[ocean] $(basename "$2"): HTTP $http_code — this repository is gated." \
+      "Open the model page, click 'Agree and Access' with the same account that owns" \
+      "your token, then set HF_TOKEN on this service and relaunch." >&2
+    rm -f "$2.part"
+    return 22
   elif [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
     echo "[ocean] download failed for $(basename "$2") (HTTP $http_code)" >&2
     return 22

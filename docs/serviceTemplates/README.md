@@ -428,9 +428,52 @@ video and audio VAEs, plus the 17.5 GB prompt-writer encoder) re-downloads every
 discarded on stop; with a bucket selected, beat and reel clips land in the bucket root where
 the storage API's `listFiles` can see them.
 
+### `ltx-2.5-video-ugc-multishot.json` — ComfyUI, LTX-2.5 multishot UGC reel (GPU)
+
+One Run renders the whole reel. LTX-2.5 cuts between shots inside a single generation and
+holds character, wardrobe, room, lighting and voice across those cuts, which retires the
+shot-at-a-time chaining the 2.3 template needs and the voice-conversion pass that fixed its
+drifting speaker.
+
+**Multishot is a prompt format, not a node.** There is no multishot node and no multishot
+example workflow upstream. You write the reel as one chronological prose paragraph and mark
+each cut in words — "A hard cut transitions to a medium close-up of her face" — restating the
+character's look and the audio's continuity at every cut. LTX's guidance is 2-4 shots per
+generation. Two boxes feed that one paragraph: box A (cast and look, set once) and box B
+(this Run's shots), joined by a `StringFormat` node.
+
+**Requires `HF_TOKEN`.** Every LTX-2.5 weight is gated. Open each model page once, click
+"Agree and Access" with the account owning the token, then set `HF_TOKEN` on the service.
+Without it nothing downloads and ComfyUI starts empty.
+
+**Settings ship at the top of the range**: stage 1 at 768x1344, upscaled and resampled to
+1536x2688, 481 frames (20 s at 24 fps). Stage 2 carries 245,952 latent tokens against 63,240
+for a 1080p ten-second reel, and attention time grows with the square of that — Runs take
+minutes. Duration and stage-1 resolution are dials on the canvas; lower either for a cheaper
+Run.
+
+**Five weight files, ~71 GB, bf16 throughout**: 42.02 GB transformer + 26.26 GB text encoder
++ 1.47 GB video VAE + 0.36 GB audio VAE + 1.00 GB spatial upscaler. Deliberately absent: the
+prompt enhancer (it flattens the cuts that make a paragraph multishot, and its encoder is
+another 10.28 GB), the duration head (no ComfyUI node exists — it is a `ltx-pipelines` CLI
+flag), and the temporal upscaler (unused by the graph). The enhancer is *deleted* rather than
+bypassed because ComfyUI validates combo widgets across the whole reachable graph, so a
+bypassed branch would still force its weights to download.
+
+Wants an H200-class card: the weights alone are ~71 GB, and the launch script adds
+`--highvram` only when VRAM covers them with 3/2 headroom (~107 GB), which an H200 clears and
+an 80 GB H100 does not. On the H100 ComfyUI offloads between stages instead of failing —
+slower, not broken. Ask for one GPU and not two: the two stages run sequentially and the
+distilled model is CFG=1, so the CFG-split node has a single conditioning and nothing to hand
+a second device, and core ComfyUI has no tensor parallelism.
+
+Pick a persistent-storage bucket on launch: it holds ComfyUI's whole base directory, so the
+~71 GB of weights downloads once instead of on every launch, and finished reels land in the
+bucket root where the storage API's `listFiles` can see them.
+
 ## The shared bootstrap (`comfyui-ugc-bootstrap.sh`)
 
-All three templates inline this script via `commandFile`. It runs ComfyUI from the image's
+All four templates inline this script via `commandFile`. It runs ComfyUI from the image's
 read-only bundle with `--base-directory` pointed at the bucket, bypassing the image entrypoint,
 which writes to `/root/ComfyUI` and fails wherever the container is not uid 0.
 
@@ -464,6 +507,14 @@ today; the arm is what lets you add one to a graph without touching this script.
 `envVars` cannot drive this —
 nothing merges them into a service container (`SERVICE_START` has no template id; the container
 env comes only from `userData`).
+
+**Gated repositories.** `get()` and `remote_size()` both send
+`Authorization: Bearer $HF_TOKEN` when `HF_TOKEN` is set. Both matter: without the header on
+`remote_size()` a gated file reports no content-length, which silently downgrades the
+integrity check from an exact byte-count match to the 10 MB floor, so a truncated download
+would be cached and trusted. A 401 or 403 is reported with a message naming the "Agree and
+Access" button rather than as a generic HTTP failure. Templates whose weights are ungated
+(everything on LTX-2.3 and earlier) are unaffected and need no token.
 
 **Model URLs come from every installed workflow, not just the deep-linked one.** The scan
 walks all of `$PACK/example_workflows/*.json` and deduplicates, because a template can ship a
