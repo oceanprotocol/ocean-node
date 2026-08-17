@@ -1,8 +1,8 @@
 {
   "id": "394ed254-7306-42a2-9ae6-aa880ce4456d",
   "revision": 0,
-  "last_node_id": 9003,
-  "last_link_id": 13844,
+  "last_node_id": 9013,
+  "last_link_id": 13854,
   "nodes": [
     {
       "id": 5514,
@@ -68,7 +68,7 @@
           "widget": {
             "name": "width"
           },
-          "link": null
+          "link": 13852
         },
         {
           "label": "video height",
@@ -76,6 +76,15 @@
           "type": "INT",
           "widget": {
             "name": "height"
+          },
+          "link": 13853
+        },
+        {
+          "label": "img_compression",
+          "name": "img_compression",
+          "type": "INT",
+          "widget": {
+            "name": "img_compression"
           },
           "link": null
         },
@@ -134,7 +143,7 @@
       "title": "How this workflow runs",
       "properties": {},
       "widgets_values": [
-        "## UGC multishot reel — LTX-2.5\n\nOne Run renders the whole reel. LTX-2.5 cuts between shots inside a single generation\nand holds character, wardrobe, room, lighting and voice across those cuts.\n\n### Multishot prompt\nThe whole reel as **one chronological prose paragraph**. There are no tags and no\nnumbered lists — mark each cut in prose (\"A hard cut transitions to...\", \"The view cuts\nto...\"), and at every cut restate the character's look and say what the audio does\n(\"the guitar track continues across the cut\"). Dialogue goes in quotation marks.\nOpen with who the character is, wardrobe, location, lighting, palette and camera style,\nthen the shots. Prefer 2-4 shots per Run.\n\n### Character photo\nOptional. Drives the opening frame via `img_strength` on Preprocess (0.7 default) —\nlower it toward 0.35 to treat the photo as a look reference rather than frame 0.\n\n### Duration\n20 s at 24 fps = 481 frames. Frame count must stay `1 + a multiple of 8`; the graph\ncomputes it for you from duration and fps.\n\n### The pipeline, left to right\n**Preprocess** sets output dimensions and how strongly your photo conditions frame 0 ·\n**Stage 1** samples the distilled model in 8 steps · **Stage 2** upscales 2x and adds\n3 more steps · **Decode** turns latents into video · **Save video** is your preview.\n\nSeeds, guider CFG and sampler choice live inside the stage subgraphs.\n\n### Decode tiling\nFewer tiles run faster but need more memory.\n\n| node settings (pixels)  | resolved latent geometry          |\n| ----------------------- | --------------------------------- |\n| `512 / 64 / 128 / 32`   | 16x16, ov 2 | 16f, ov 4           |\n| `768 / 192 / 128 / 32`  | 24x24, ov 6 | 16f, ov 4           |\n| `1024 / 256 / 128 / 48` | 32x32, ov 8 | 16f, ov 6           |\n| `1536 / 384 / 192 / 48` | 48x48, ov 12 | 24f, ov 6          |\n"
+        "## UGC multishot reel — LTX-2.5\n\nOne Run renders the whole reel. LTX-2.5 cuts between shots inside a single generation\nand holds character, wardrobe, room, lighting and voice across those cuts.\n\n### Multishot prompt\nThe whole reel as **one chronological prose paragraph**. There are no tags and no\nnumbered lists — mark each cut in prose (\"A hard cut transitions to...\", \"The view cuts\nto...\"), and at every cut restate the character's look and say what the audio does\n(\"the guitar track continues across the cut\"). Dialogue goes in quotation marks.\nOpen with who the character is, wardrobe, location, lighting, palette and camera style,\nthen the shots. Prefer 2-4 shots per Run.\n\n### Character photo\nOn by default, and the template ships one. `img_strength` on Preprocess (0.7) decides how\nliterally it becomes frame 0 — lower it toward 0.35 to treat the photo as a look reference\ninstead. `img_compression` (18) is a separate dial and is not the strength.\nUntick **use image input** to generate from the prompt alone.\n\n### Model weights\nThe five gated LTX-2.5 URLs now travel in the workflow's `extra` metadata rather than a note\non this canvas. The bootstrap still reads them from there — don't strip `extra`.\n\n### Duration\n20 s at 24 fps = 481 frames. Frame count must stay `1 + a multiple of 8`; the graph\ncomputes it for you from duration and fps.\n\n### Aspect ratio\nOne number picks both dimensions — stage 2 doubles them:\n`0` 9:16 vertical (768x1344 -> 1536x2688) · `1` 1:1 square (1024 -> 2048) ·\n`2` 16:9 landscape (1344x768 -> 2688x1536) · `3` 2.35:1 cinematic (1440x608 -> 2880x1216).\n\n### Seed\nA new number is a new take. Same prompt and same seed reproduces a Run exactly.\n\n### Everything else\nThe three boxes under **Advanced** — sampler, upscale, decode — ship tuned for an\nH200 and a basic Run never needs them. Open one only to change steps, guider CFG or\ndecode tiling.\n\n### The pipeline, left to right\n**Preprocess** sets output dimensions and how strongly your photo conditions frame 0 ·\n**Stage 1** samples the distilled model in 8 steps · **Stage 2** upscales 2x and adds\n3 more steps · **Decode** turns latents into video · **Save video** is your preview.\n\nSeeds, guider CFG and sampler choice live inside the stage subgraphs.\n\n### Decode tiling\nFewer tiles run faster but need more memory.\n\n| node settings (pixels)  | resolved latent geometry          |\n| ----------------------- | --------------------------------- |\n| `512 / 64 / 128 / 32`   | 16x16, ov 2 | 16f, ov 4           |\n| `768 / 192 / 128 / 32`  | 24x24, ov 6 | 16f, ov 4           |\n| `1024 / 256 / 128 / 48` | 32x32, ov 8 | 16f, ov 6           |\n| `1536 / 384 / 192 / 48` | 48x48, ov 12 | 24f, ov 6          |\n"
       ],
       "color": "#432",
       "bgcolor": "#653"
@@ -181,7 +190,7 @@
           "widget": {
             "name": "noise_seed"
           },
-          "link": null
+          "link": 13854
         },
         {
           "label": "guider cfg",
@@ -362,42 +371,6 @@
       "bgcolor": "#3f5159"
     },
     {
-      "id": 5544,
-      "type": "PreviewAny",
-      "pos": [
-        -3135,
-        3953
-      ],
-      "size": [
-        418,
-        258
-      ],
-      "flags": {},
-      "order": 14,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "source",
-          "type": "*",
-          "link": 13793
-        }
-      ],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "links": []
-        }
-      ],
-      "title": "Effective positive prompt (enhanced if enabled)",
-      "properties": {
-        "Node name for S&R": "PreviewAny"
-      },
-      "widgets_values": [],
-      "color": "#232",
-      "bgcolor": "#353"
-    },
-    {
       "id": 2004,
       "type": "LoadImage",
       "pos": [
@@ -430,10 +403,10 @@
         "Node name for S&R": "LoadImage",
         "cnr_id": "comfy-core",
         "ver": "0.3.56",
-        "inputUrl": "https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=1200"
+        "inputUrl": "https://images.pexels.com/photos/1858175/pexels-photo-1858175.jpeg?auto=compress&cs=tinysrgb&w=1200"
       },
       "widgets_values": [
-        "ocean_ltx25_character.jpg",
+        "ocean_ltx25_character_v2.jpg",
         "image"
       ],
       "color": "#232",
@@ -536,15 +509,6 @@
           "link": null
         },
         {
-          "label": "LTX API key (use api for text encoding to save memory)",
-          "name": "value_4",
-          "type": "STRING",
-          "widget": {
-            "name": "value_4"
-          },
-          "link": null
-        },
-        {
           "label": "ltx model ckpt path",
           "name": "ckpt_name",
           "type": "COMBO",
@@ -571,14 +535,6 @@
           "links": [
             13638,
             13797
-          ]
-        },
-        {
-          "label": "effective_positive_prompt",
-          "name": "enhanced_prompt",
-          "type": "STRING",
-          "links": [
-            13793
           ]
         },
         {
@@ -623,14 +579,13 @@
         "previewExposures": []
       },
       "widgets_values": [
-        false,
+        true,
         "",
         true,
         "",
         24,
         5,
         457289196,
-        "",
         "ltx-2.3-22b-dev.safetensors"
       ]
     },
@@ -671,32 +626,6 @@
         "auto",
         "auto"
       ]
-    },
-    {
-      "id": 5576,
-      "type": "MarkdownNote",
-      "pos": [
-        -4280,
-        2500
-      ],
-      "size": [
-        572,
-        548
-      ],
-      "flags": {
-        "collapsed": false
-      },
-      "order": 10,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [],
-      "title": "Model Links",
-      "properties": {},
-      "widgets_values": [
-        "## Model Links\n\nEvery LTX-2.5 file below is **gated**. Open each page once, click \"Agree and Access\"\nwith the account that owns your token, then set `HF_TOKEN` on this service.\n\n- [Distilled transformer](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-bf16.safetensors)\n- [Text encoder](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/text_encoders/gemma4-12b-with-proj-ltx-2.5-bf16.safetensors)\n- [Video VAE (DiffVAE)](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-video-vae-bf16.safetensors)\n- [Audio VAE](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-audio-vae-bf16.safetensors)\n- [Spatial upscaler](https://huggingface.co/Lightricks/LTX-2.3/resolve/main/ltx-2.3-spatial-upscaler-x2-1.1.safetensors)\n\nThe bootstrap reads these URLs to decide what to download, so they must stay\n`/resolve/` — a `/blob/` URL returns an HTML page, not a model.\n"
-      ],
-      "color": "#432",
-      "bgcolor": "#653"
     },
     {
       "id": 5575,
@@ -908,6 +837,15 @@
           "link": null
         },
         {
+          "label": "sampler",
+          "name": "sampler_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "sampler_name"
+          },
+          "link": null
+        },
+        {
           "label": "guider cfg",
           "name": "cfg",
           "type": "FLOAT",
@@ -1009,8 +947,227 @@
       ],
       "properties": {},
       "widgets_values": [
-        "Maya, a woman in her late twenties with freckles and shoulder-length dark curls, wearing a mustard corduroy jacket over a white tee. A small sunlit apartment kitchen with pale green tiles, a window over the sink and a cluttered wooden counter. Warm late-afternoon light, soft shadows, muted retro palette. Handheld camera, shallow depth of field.\n\nA wide shot frames Maya at the counter grinding coffee beans by hand, steam rising from a kettle beside her; a low acoustic guitar track plays under the grinder's rattle. She looks up and says, \"Third try today.\" A hard cut transitions to a medium close-up of Maya — freckles, dark curls, mustard jacket — tilting the grinder into a paper filter, her eyes narrowed in concentration; the guitar track continues across the cut, the grinder noise gone. The view cuts to a tight overhead shot of water spiralling into the grounds, the bloom rising; the music drops to a single sustained note and the pour hisses. A final hard cut returns to Maya in the mustard jacket, lifting the cup toward the window light and smiling; the guitar returns at full volume as she says, \"That's the one.\""
+        "Nadia, a woman in her late twenties with a voluminous curly afro lit from behind, warm brown skin, a small gold nose ring and deep red lipstick, wearing a fitted black tank top. A bright minimalist loft with white walls, a wire-frame chair and a tall window throwing warm golden late-afternoon light. Editorial styling, glossy highlights, soft shadows, shallow depth of field, handheld camera.\n\nA wide shot frames Nadia perched on the wire chair by the window, laughing with both hands framing her face as golden light rims her curls; a slow soul groove plays under the room tone. She looks into the lens and says, \"Okay, take four.\" A hard cut transitions to a medium close-up of Nadia — curly afro, gold nose ring, black tank top — turning her chin toward the window, her smile softening into something quieter; the soul groove continues across the cut, the room tone gone. The view cuts to a tight shot of her hand sweeping a curl back from her temple, backlight blowing out behind her fingers; the music drops to a single warm bass note. A final hard cut returns to Nadia in the black tank top, leaning back in the chair and grinning straight down the lens; the groove returns at full volume as she says, \"That's the one.\""
       ]
+    },
+    {
+      "id": 9010,
+      "type": "PrimitiveInt",
+      "pos": [
+        -3600,
+        4296
+      ],
+      "size": [
+        400,
+        82
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "value",
+          "name": "value",
+          "type": "INT",
+          "widget": {
+            "name": "value"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "INT",
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            13850,
+            13851
+          ]
+        }
+      ],
+      "title": "Aspect ratio — 0: 9:16 · 1: 1:1 · 2: 16:9 · 3: 2.35:1",
+      "properties": {
+        "Node name for S&R": "PrimitiveInt",
+        "cnr_id": "comfy-core",
+        "ver": "0.16.0"
+      },
+      "widgets_values": [
+        0,
+        "fixed"
+      ],
+      "color": "#2a363b",
+      "bgcolor": "#3f5159"
+    },
+    {
+      "id": 9011,
+      "type": "ComfyMathExpression",
+      "pos": [
+        -3135,
+        3953
+      ],
+      "size": [
+        300,
+        130
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "a",
+          "localized_name": "values.a",
+          "name": "values.a",
+          "type": "FLOAT,INT,BOOLEAN",
+          "link": 13850
+        },
+        {
+          "label": "b",
+          "localized_name": "values.b",
+          "name": "values.b",
+          "shape": 7,
+          "type": "FLOAT,INT,BOOLEAN",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "FLOAT",
+          "name": "FLOAT",
+          "type": "FLOAT",
+          "links": []
+        },
+        {
+          "localized_name": "INT",
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            13852
+          ]
+        },
+        {
+          "localized_name": "BOOL",
+          "name": "BOOL",
+          "type": "BOOLEAN",
+          "links": []
+        }
+      ],
+      "title": "video width",
+      "properties": {
+        "Node name for S&R": "ComfyMathExpression"
+      },
+      "widgets_values": [
+        "768 if a==0 else 1024 if a==1 else 1344 if a==2 else 1440"
+      ]
+    },
+    {
+      "id": 9012,
+      "type": "ComfyMathExpression",
+      "pos": [
+        -3135,
+        4123
+      ],
+      "size": [
+        300,
+        130
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "a",
+          "localized_name": "values.a",
+          "name": "values.a",
+          "type": "FLOAT,INT,BOOLEAN",
+          "link": 13851
+        },
+        {
+          "label": "b",
+          "localized_name": "values.b",
+          "name": "values.b",
+          "shape": 7,
+          "type": "FLOAT,INT,BOOLEAN",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "FLOAT",
+          "name": "FLOAT",
+          "type": "FLOAT",
+          "links": []
+        },
+        {
+          "localized_name": "INT",
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            13853
+          ]
+        },
+        {
+          "localized_name": "BOOL",
+          "name": "BOOL",
+          "type": "BOOLEAN",
+          "links": []
+        }
+      ],
+      "title": "video height",
+      "properties": {
+        "Node name for S&R": "ComfyMathExpression"
+      },
+      "widgets_values": [
+        "1344 if a==0 else 1024 if a==1 else 768 if a==2 else 608"
+      ]
+    },
+    {
+      "id": 9013,
+      "type": "PrimitiveInt",
+      "pos": [
+        -3600,
+        4418
+      ],
+      "size": [
+        400,
+        82
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "value",
+          "name": "value",
+          "type": "INT",
+          "widget": {
+            "name": "value"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "INT",
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            13854
+          ]
+        }
+      ],
+      "title": "Seed — new number, new take",
+      "properties": {
+        "Node name for S&R": "PrimitiveInt",
+        "cnr_id": "comfy-core",
+        "ver": "0.16.0"
+      },
+      "widgets_values": [
+        42,
+        "fixed"
+      ],
+      "color": "#2a363b",
+      "bgcolor": "#3f5159"
     }
   ],
   "links": [
@@ -1049,7 +1206,7 @@
     [
       13639,
       5014,
-      6,
+      5,
       5514,
       1,
       "INT"
@@ -1057,7 +1214,7 @@
     [
       13640,
       5014,
-      5,
+      4,
       5514,
       2,
       "FLOAT"
@@ -1073,7 +1230,7 @@
     [
       13654,
       5014,
-      3,
+      2,
       5516,
       1,
       "CONDITIONING"
@@ -1081,7 +1238,7 @@
     [
       13655,
       5014,
-      4,
+      3,
       5516,
       2,
       "CONDITIONING"
@@ -1097,7 +1254,7 @@
     [
       13674,
       5014,
-      5,
+      4,
       5518,
       4,
       "FLOAT"
@@ -1135,14 +1292,6 @@
       "IMAGE"
     ],
     [
-      13793,
-      5014,
-      2,
-      5544,
-      0,
-      "STRING"
-    ],
-    [
       13794,
       5516,
       0,
@@ -1177,7 +1326,7 @@
     [
       13801,
       5014,
-      3,
+      2,
       5517,
       7,
       "CONDITIONING"
@@ -1185,7 +1334,7 @@
     [
       13802,
       5014,
-      4,
+      3,
       5517,
       8,
       "CONDITIONING"
@@ -1259,7 +1408,7 @@
       5575,
       3,
       5014,
-      11,
+      10,
       "COMBO"
     ],
     [
@@ -1277,6 +1426,46 @@
       5014,
       4,
       "STRING"
+    ],
+    [
+      13850,
+      9010,
+      0,
+      9011,
+      0,
+      "INT"
+    ],
+    [
+      13851,
+      9010,
+      0,
+      9012,
+      0,
+      "INT"
+    ],
+    [
+      13852,
+      9011,
+      1,
+      5514,
+      6,
+      "INT"
+    ],
+    [
+      13853,
+      9012,
+      1,
+      5514,
+      7,
+      "INT"
+    ],
+    [
+      13854,
+      9013,
+      0,
+      5516,
+      4,
+      "INT"
     ]
   ],
   "groups": [
@@ -1287,18 +1476,18 @@
         -3630,
         3170,
         943,
-        1116
+        1360
       ],
       "color": "#3f789e",
       "flags": {}
     },
     {
       "id": 2,
-      "title": "Generate",
+      "title": "Advanced — sampler, upscale, decode (rarely needed)",
       "bounding": [
         -2290,
         3170,
-        770,
+        1180,
         384
       ],
       "color": "#3f789e",
@@ -1480,21 +1669,6 @@
             ]
           },
           {
-            "id": "244b3603-4c49-4df4-ac66-4bf2fab9ac10",
-            "name": "value_4",
-            "type": "STRING",
-            "linkIds": [
-              13617,
-              13618,
-              13783
-            ],
-            "label": "LTX API key",
-            "pos": [
-              -4190.724727430894,
-              3955.8063836028455
-            ]
-          },
-          {
             "id": "869c2ef8-7a5c-46d1-bbeb-0d3fee52ec49",
             "name": "ckpt_name",
             "type": "COMBO",
@@ -1535,19 +1709,6 @@
             "pos": [
               -2000.4822429247856,
               4020.1544743507775
-            ]
-          },
-          {
-            "id": "2e98124e-b012-43e6-9ddc-550f40cbe9d4",
-            "name": "enhanced_prompt",
-            "type": "STRING",
-            "linkIds": [
-              13798
-            ],
-            "label": "effective_positive_prompt",
-            "pos": [
-              -2000.4822429247856,
-              4040.1544743507775
             ]
           },
           {
@@ -2124,7 +2285,7 @@
               "ver": "0.25.0"
             },
             "widgets_values": [
-              false
+              true
             ]
           }
         ],
@@ -2221,7 +2382,7 @@
             "origin_id": 4988,
             "origin_slot": 0,
             "target_id": -20,
-            "target_slot": 6,
+            "target_slot": 5,
             "type": "INT",
             "parentId": 606
           },
@@ -2263,7 +2424,7 @@
             "origin_id": 5017,
             "origin_slot": 0,
             "target_id": -20,
-            "target_slot": 5,
+            "target_slot": 4,
             "type": "FLOAT"
           },
           {
@@ -2324,19 +2485,11 @@
             "type": "STRING"
           },
           {
-            "id": 13798,
-            "origin_id": -10,
-            "origin_slot": 4,
-            "target_id": -20,
-            "target_slot": 2,
-            "type": "STRING"
-          },
-          {
             "id": 13799,
             "origin_id": 1241,
             "origin_slot": 0,
             "target_id": -20,
-            "target_slot": 3,
+            "target_slot": 2,
             "type": "CONDITIONING"
           },
           {
@@ -2344,7 +2497,7 @@
             "origin_id": 1241,
             "origin_slot": 1,
             "target_id": -20,
-            "target_slot": 4,
+            "target_slot": 3,
             "type": "CONDITIONING"
           },
           {
@@ -6723,6 +6876,13 @@
         "id": 13840,
         "parentId": 5012
       }
+    ],
+    "ocean_model_urls": [
+      "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-bf16.safetensors",
+      "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/text_encoders/gemma4-12b-with-proj-ltx-2.5-bf16.safetensors",
+      "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-video-vae-bf16.safetensors",
+      "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-audio-vae-bf16.safetensors",
+      "https://huggingface.co/Lightricks/LTX-2.3/resolve/main/ltx-2.3-spatial-upscaler-x2-1.1.safetensors"
     ]
   },
   "version": 0.4
