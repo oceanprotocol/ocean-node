@@ -1,8 +1,8 @@
 {
   "id": "394ed254-7306-42a2-9ae6-aa880ce4456d",
   "revision": 0,
-  "last_node_id": 9013,
-  "last_link_id": 13854,
+  "last_node_id": 9015,
+  "last_link_id": 13856,
   "nodes": [
     {
       "id": 5514,
@@ -86,7 +86,7 @@
           "widget": {
             "name": "img_compression"
           },
-          "link": null
+          "link": 13855
         },
         {
           "label": "img_strength",
@@ -95,7 +95,7 @@
           "widget": {
             "name": "strength"
           },
-          "link": null
+          "link": 13856
         }
       ],
       "outputs": [
@@ -143,7 +143,7 @@
       "title": "How this workflow runs",
       "properties": {},
       "widgets_values": [
-        "## UGC multishot reel — LTX-2.5\n\nOne Run renders the whole reel. LTX-2.5 cuts between shots inside a single generation\nand holds character, wardrobe, room, lighting and voice across those cuts.\n\n### Multishot prompt\nThe whole reel as **one chronological prose paragraph**. There are no tags and no\nnumbered lists — mark each cut in prose (\"A hard cut transitions to...\", \"The view cuts\nto...\"), and at every cut restate the character's look and say what the audio does\n(\"the guitar track continues across the cut\"). Dialogue goes in quotation marks.\nOpen with who the character is, wardrobe, location, lighting, palette and camera style,\nthen the shots. Prefer 2-4 shots per Run.\n\n### Character photo\nOn by default, and the template ships one. `img_strength` on Preprocess (0.7) decides how\nliterally it becomes frame 0 — lower it toward 0.35 to treat the photo as a look reference\ninstead. `img_compression` (18) is a separate dial and is not the strength.\nUntick **use image input** to generate from the prompt alone.\n\n### Model weights\nThe five gated LTX-2.5 URLs now travel in the workflow's `extra` metadata rather than a note\non this canvas. The bootstrap still reads them from there — don't strip `extra`.\n\n### Duration\n20 s at 24 fps = 481 frames. Frame count must stay `1 + a multiple of 8`; the graph\ncomputes it for you from duration and fps.\n\n### Aspect ratio\nOne number picks both dimensions — stage 2 doubles them:\n`0` 9:16 vertical (768x1344 -> 1536x2688) · `1` 1:1 square (1024 -> 2048) ·\n`2` 16:9 landscape (1344x768 -> 2688x1536) · `3` 2.35:1 cinematic (1440x608 -> 2880x1216).\n\n### Seed\nA new number is a new take. Same prompt and same seed reproduces a Run exactly.\n\n### Everything else\nThe three boxes under **Advanced** — sampler, upscale, decode — ship tuned for an\nH200 and a basic Run never needs them. Open one only to change steps, guider CFG or\ndecode tiling.\n\n### The pipeline, left to right\n**Preprocess** sets output dimensions and how strongly your photo conditions frame 0 ·\n**Stage 1** samples the distilled model in 8 steps · **Stage 2** upscales 2x and adds\n3 more steps · **Decode** turns latents into video · **Save video** is your preview.\n\nSeeds, guider CFG and sampler choice live inside the stage subgraphs.\n\n### Decode tiling\nFewer tiles run faster but need more memory.\n\n| node settings (pixels)  | resolved latent geometry          |\n| ----------------------- | --------------------------------- |\n| `512 / 64 / 128 / 32`   | 16x16, ov 2 | 16f, ov 4           |\n| `768 / 192 / 128 / 32`  | 24x24, ov 6 | 16f, ov 4           |\n| `1024 / 256 / 128 / 48` | 32x32, ov 8 | 16f, ov 6           |\n| `1536 / 384 / 192 / 48` | 48x48, ov 12 | 24f, ov 6          |\n"
+        "## UGC multishot reel — LTX-2.5\n\nOne Run renders the whole reel. LTX-2.5 cuts between shots inside a single generation\nand holds character, wardrobe, room, lighting and voice across those cuts.\n\n### Multishot prompt\nThe whole reel as **one chronological prose paragraph**. There are no tags and no\nnumbered lists — mark each cut in prose (\"A hard cut transitions to...\", \"The view cuts\nto...\"), and at every cut restate the character's look and say what the audio does\n(\"the guitar track continues across the cut\"). Dialogue goes in quotation marks.\nOpen with who the character is, wardrobe, location, lighting, palette and camera style,\nthen the shots. Prefer 2-4 shots per Run.\n\n### Character photo\nOn by default, and the template ships one. Two separate dials sit in this column:\n**img_strength** (0.7, range 0-1) decides how literally the photo becomes frame 0 — lower it\ntoward 0.35 to treat it as a look reference instead — and **img_compression** (18, range\n0-100) is unrelated to strength. Both feed Preprocess by wire rather than by its own\nwidgets, which is deliberate: a subgraph's unlinked controls are resolved by position and\nthese two were landing on each other's values. Untick **use image input** to generate from\nthe prompt alone.\n\n### Model weights\nThe five gated LTX-2.5 URLs now travel in the workflow's `extra` metadata rather than a note\non this canvas. The bootstrap still reads them from there — don't strip `extra`.\n\n### Duration\n20 s at 24 fps = 481 frames. Frame count must stay `1 + a multiple of 8`; the graph\ncomputes it for you from duration and fps.\n\n### Aspect ratio\nOne number picks both dimensions — stage 2 doubles them:\n`0` 9:16 vertical (768x1344 -> 1536x2688) · `1` 1:1 square (1024 -> 2048) ·\n`2` 16:9 landscape (1344x768 -> 2688x1536) · `3` 2.35:1 cinematic (1440x608 -> 2880x1216).\n\n### Seed\nA new number is a new take. Same prompt and same seed reproduces a Run exactly.\n\n### Everything else\nThe three boxes under **Advanced** — sampler, upscale, decode — ship tuned for an\nH200 and a basic Run never needs them. Open one only to change steps, guider CFG or\ndecode tiling.\n\n### The pipeline, left to right\n**Preprocess** sets output dimensions and how strongly your photo conditions frame 0 ·\n**Stage 1** samples the distilled model in 8 steps · **Stage 2** upscales 2x and adds\n3 more steps · **Decode** turns latents into video · **Save video** is your preview.\n\nSeeds, guider CFG and sampler choice live inside the stage subgraphs.\n\n### Decode tiling\nFewer tiles run faster but need more memory.\n\n| node settings (pixels)  | resolved latent geometry          |\n| ----------------------- | --------------------------------- |\n| `512 / 64 / 128 / 32`   | 16x16, ov 2 | 16f, ov 4           |\n| `768 / 192 / 128 / 32`  | 24x24, ov 6 | 16f, ov 4           |\n| `1024 / 256 / 128 / 48` | 32x32, ov 8 | 16f, ov 6           |\n| `1536 / 384 / 192 / 48` | 48x48, ov 12 | 24f, ov 6          |\n"
       ],
       "color": "#432",
       "bgcolor": "#653"
@@ -1168,6 +1168,101 @@
       ],
       "color": "#2a363b",
       "bgcolor": "#3f5159"
+    },
+    {
+      "id": 9014,
+      "type": "PrimitiveInt",
+      "pos": [
+        -3600,
+        4540
+      ],
+      "size": [
+        400,
+        82
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "value",
+          "name": "value",
+          "type": "INT",
+          "widget": {
+            "name": "value"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "INT",
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            13855
+          ]
+        }
+      ],
+      "title": "img_compression — 0-100, lower is cleaner",
+      "properties": {
+        "Node name for S&R": "PrimitiveInt",
+        "cnr_id": "comfy-core",
+        "ver": "0.16.0"
+      },
+      "widgets_values": [
+        18,
+        "fixed"
+      ],
+      "color": "#2a363b",
+      "bgcolor": "#3f5159"
+    },
+    {
+      "id": 9015,
+      "type": "PrimitiveFloat",
+      "pos": [
+        -3600,
+        4662
+      ],
+      "size": [
+        400,
+        82
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "value",
+          "name": "value",
+          "type": "FLOAT",
+          "widget": {
+            "name": "value"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "FLOAT",
+          "name": "FLOAT",
+          "type": "FLOAT",
+          "links": [
+            13856
+          ]
+        }
+      ],
+      "title": "img_strength — 0-1, how literally the photo is frame 0",
+      "properties": {
+        "Node name for S&R": "PrimitiveFloat",
+        "cnr_id": "comfy-core",
+        "ver": "0.16.0"
+      },
+      "widgets_values": [
+        0.7
+      ],
+      "color": "#2a363b",
+      "bgcolor": "#3f5159"
     }
   ],
   "links": [
@@ -1466,6 +1561,22 @@
       5516,
       4,
       "INT"
+    ],
+    [
+      13855,
+      9014,
+      0,
+      5514,
+      8,
+      "INT"
+    ],
+    [
+      13856,
+      9015,
+      0,
+      5514,
+      9,
+      "FLOAT"
     ]
   ],
   "groups": [
@@ -1476,7 +1587,7 @@
         -3630,
         3170,
         943,
-        1360
+        1604
       ],
       "color": "#3f789e",
       "flags": {}
