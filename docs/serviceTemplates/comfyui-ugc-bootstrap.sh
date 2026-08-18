@@ -378,8 +378,8 @@ if [ -n "${PACK:-}" ] && grep -qls H3OneNode "$PACK"/example_workflows/*.json 2>
     for repo in LeonQ8/ComfyUI-ALLinONE-MinimaxH3 \
                 seitanism/ComfyUI-H3-Motion-Context-MultiRef \
                 kijai/ComfyUI-SolAttn_triton \
-                lihaoyun6/ComfyUI-MiniMaxH3-Cache \
-                kijai/ComfyUI-KJNodes; do
+                kijai/ComfyUI-KJNodes \
+                Larryvrh/ComfyUI-MiniMax-H3-Turbo; do
       H3_DIR="$BASE/custom_nodes/${repo##*/}"
       if [ ! -d "$H3_DIR/.git" ]; then
         git clone --depth 1 "https://github.com/$repo.git" "$H3_DIR" || {
@@ -389,6 +389,18 @@ if [ -n "${PACK:-}" ] && grep -qls H3OneNode "$PACK"/example_workflows/*.json 2>
         }
       fi
     done
+    # ComfyUI core removed time_shift_slope on 2026-08-06 (PR #15243), and ComfyUI-MiniMaxH3-Cache
+    # still calls it — HEAD is 8a45e09, untouched since 2026-08-03, its fix PR #6 still open. The
+    # pack patches the diffusion model at import, so merely being installed fails EVERY generation,
+    # not just the Speed preset that wants it; the pack's own COMPATIBILITY.md documents this. It is
+    # no longer cloned above, and is deleted here because a bucket from an earlier launch still
+    # carries it. Guarded on the broken call, so a fixed copy installed by hand survives.
+    if grep -qs time_shift_slope "$BASE/custom_nodes/ComfyUI-MiniMaxH3-Cache/__init__.py"; then
+      echo "[ocean] removing ComfyUI-MiniMaxH3-Cache: it calls time_shift_slope, which this" \
+        "ComfyUI no longer has, and it breaks every H3 generation. Speed's other half (SolAttn)" \
+        "is unaffected — switch the H3 Cache chip off under the Quality dropdown." >&2
+      rm -rf "$BASE/custom_nodes/ComfyUI-MiniMaxH3-Cache"
+    fi
     # KJNodes powers the node's Live Preview (Model Preview Override), which ships ON — without it
     # the first Generate stops with a missing-decoder message on a card the consumer is paying for,
     # the same reason SolAttn is cloned for the default Balanced preset. It is the one pack here
@@ -401,6 +413,73 @@ if [ -n "${PACK:-}" ] && grep -qls H3OneNode "$PACK"/example_workflows/*.json 2>
         echo "[ocean] KJNodes dependencies failed to install — turn Live Preview off in the" \
           "node's Settings; generation itself is unaffected" >&2
     fi
+    # These packs work by monkey-patching comfy.ldm.minimax.model, so a core release that renames
+    # or drops a name breaks them at sampling time — after the consumer has paid for the GPU and
+    # waited out a 59 GB launch. That is exactly how MiniMaxH3-Cache failed (time_shift_slope,
+    # removed 2026-08-06). This checks every name the installed packs reach for on that module
+    # against what the image's core actually defines, and says so up front. Names only: it cannot
+    # catch a changed signature or a changed tensor shape, which is the other half of the risk.
+    python3.13 - "$BASE/custom_nodes" <<'PROBE' || true
+import ast, re, sys
+from pathlib import Path
+
+core = Path('/default-comfyui-bundle/ComfyUI/comfy/ldm/minimax/model.py')
+if not core.is_file():
+    print('[ocean] no comfy.ldm.minimax.model in this image — skipping the pack compatibility check',
+          file=sys.stderr)
+    raise SystemExit(0)
+have = set()
+for n in ast.parse(core.read_text(encoding='utf-8')).body:
+    if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        have.add(n.name)
+    elif isinstance(n, ast.Assign):
+        have.update(t.id for t in n.targets if isinstance(t, ast.Name))
+    elif isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name):
+        have.add(n.target.id)
+    elif isinstance(n, (ast.Import, ast.ImportFrom)):
+        # `import comfy.ldm.common_dit` binds `comfy`, and packs do reach through it.
+        have.update((a.asname or a.name.split('.')[0]) for a in n.names)
+
+REF = re.compile(r'(?:comfy\.ldm\.minimax\.model|minimax\.model|minimax_model|h3m)\.([A-Za-z_]\w*)')
+root = Path(sys.argv[1])
+missing = {}
+for f in sorted(root.rglob('*.py')):
+    try:
+        src = f.read_text(encoding='utf-8', errors='replace')
+    except OSError:
+        continue
+    gone = set(REF.findall(src)) - have
+    if gone:
+        missing.setdefault(f.relative_to(root).parts[0], set()).update(gone)
+for pack, names in sorted(missing.items()):
+    print(f'[ocean] {pack} calls {", ".join(sorted(names))}, which this ComfyUI does not define —'
+          f' expect an AttributeError mid-generation. Remove the pack or turn off the feature'
+          f' that uses it.', file=sys.stderr)
+if not missing:
+    print('[ocean] pack compatibility check: no missing core names')
+PROBE
+    # The pack ships model_defaults.speed_lora empty, so the Turbo preset renders without its LoRA
+    # — 6 steps and no distillation, which looks broken rather than fast — until someone picks the
+    # file in Settings. We download exactly one Turbo LoRA, so name it here instead. Written into
+    # the pack's own config.json, which _load_config() treats as the built-in default layer; a user
+    # who later changes any model setting saves their own model_defaults and that wins, as it
+    # should. Idempotent, and skipped silently if the pack did not clone.
+    python3.13 - "$BASE/custom_nodes/ComfyUI-ALLinONE-MinimaxH3/config.json" <<'LORA' || true
+import json, sys
+from pathlib import Path
+cfg = Path(sys.argv[1])
+if not cfg.is_file():
+    raise SystemExit(0)
+try:
+    data = json.loads(cfg.read_text(encoding='utf-8'))
+    md = data.setdefault('model_defaults', {})
+    if not md.get('speed_lora'):
+        md['speed_lora'] = 'minimax_h3_turbo_v4_step600_ema.safetensors'
+        cfg.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+        print('[ocean] Turbo preset LoRA selected by default')
+except Exception as e:
+    print(f'[ocean] could not preselect the Turbo LoRA ({e}) — pick it under Settings', file=sys.stderr)
+LORA
     # ComfyUI saves as <filename_prefix>_00001_.mp4, and every graph template in the pack prefixes
     # its save node with one-node-minimax-h3/, which puts finished clips in a subfolder the storage
     # API's listFiles (top-level files only) cannot see — the same reason the music template saves

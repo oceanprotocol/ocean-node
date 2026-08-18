@@ -525,9 +525,80 @@ modular diffusion pipeline whose `model_type` (`minimax_music3`, library `sglang
 Transformers does not recognise, so vLLM exits at config parse and `vllm-hf-model.json` cannot
 serve it. Comfy-Org's repackaging of the same weights is what runs here.
 
+### `minimax-h3-allinone.json` — ComfyUI, ALL in ONE MiniMax H3 (GPU)
+
+The same H3 weights as `minimax-h3-video-ugc-multishot.json`, but no graph: the canvas holds a
+single node — [ALL in ONE MiniMaxH3](https://github.com/LeonQ8/ComfyUI-ALLinONE-MinimaxH3) — whose
+own UI assembles the real H3 workflow and queues it. Pick a mode in the tab bar, fill the boxes,
+press **Generate**. One workflow, `workflows/ocean_h3_allinone.json`, carrying that node and two
+notes. Needs a CUDA GPU; 48 GB+ is comfortable, 24 GB runs the lower resolution presets.
+
+**Six modes run here.** T2V (text to video with native voice, room tone and music in one forward
+pass), I2V (animate a start frame, optionally morphing to an end frame), R2V (reference images,
+video or audio drive the clip), Keyframes (pin stills at chosen frame positions), Extend (continue
+an existing clip) and Chain (multi-clip continuation through H3 Motion Context, which hands the
+latent path forward rather than re-encoding a file). **Audio Drive**, **Image** and the RTX /
+SeedVR2 upscale hooks appear in the tab bar but are not installed — they need packs with heavy pip
+dependencies (`comfyui-vrgamedevgirl` pulls demucs, voxcpm and llama-cpp-python) or two more
+models, and selecting one reports a missing node rather than failing a paid Run halfway.
+
+**Four packs.** The bootstrap clones the ALL-in-ONE node itself,
+[H3-Motion-Context-MultiRef](https://github.com/seitanism/ComfyUI-H3-Motion-Context-MultiRef) for
+keyframes / extend / chain, [SolAttn_triton](https://github.com/kijai/ComfyUI-SolAttn_triton) for the
+quality presets, and
+[KJNodes](https://github.com/kijai/ComfyUI-KJNodes) for Live Preview. Only KJNodes ships a
+`requirements.txt`, so it is the only one with a pip step (reinstalled each launch from the bucket's
+wheel cache; its `opencv-python-headless` replaces `cv2` where the image has full opencv, which is
+harmless because ComfyUI makes no GUI cv2 calls). None of the four extras is optional polish — they
+back settings that ship **on**: Quality defaults to Balanced, which *is* SolAttn, and Live Preview
+defaults on and needs KJNodes plus the TAE decoder. Without them the first Generate reports a
+missing node on a card the consumer is already paying for.
+
+**One pack is deliberately absent, and actively removed.** The pack's own `COMPATIBILITY.md` — read
+it before adding any of these, it is the file that documents exactly this class of breakage —
+records that ComfyUI core dropped `time_shift_slope` on 2026-08-06 (PR #15243) while
+`ComfyUI-MiniMaxH3-Cache` still calls it. Its HEAD is `8a45e09`, unchanged since 2026-08-03, and its
+fix (PR #6) is still open. Because it patches the diffusion model at import, having it installed
+fails **every** generation with
+`module 'comfy.ldm.minimax.model' has no attribute 'time_shift_slope'` — not only the Speed preset
+that wants it. So it is not cloned, and the bootstrap deletes it from the bucket if an earlier
+launch left it there, guarded on the broken call so a fixed copy survives. Speed still runs with its
+H3 Cache chip switched off; SolAttn and the 20 steps are the rest of that preset.
+
+**R2V may be broken on the pinned image.** A core shape-mismatch bug on H3 reference video
+(`all_video_rows[~img_update] = cond_video_rows`) was fixed upstream in commit `e01fb4c`, which is
+*not* an ancestor of the v0.33.1 tag this image ships — the release was cut two commits short of it.
+T2V and I2V are unaffected. Bump `tag` when yanwk publishes an image on a newer core, and re-check
+`COMPATIBILITY.md`'s "Known issues on newer ComfyUI cores" section at the same time.
+
+**Weights are 59.1 GB plus a 9.3 MB decoder** — both diffusion models (FL2VA and Ref2VA, 19.5 GB each, because the mode
+tabs switch between them freely and only one is resident per generation), the 14.6 GB Qwen3-VL-32B
+text encoder and 5.5 GB of video and audio VAEs. This is the one template whose URLs are **not**
+carried by loader nodes, because the graph has none — they sit in the workflow's model note
+instead, which the bootstrap's scan reads exactly the same way, and the filenames match the pack's
+`model_defaults` so the node finds them with no configuration. `taeh3.safetensors`, the Live Preview
+decoder, is the sixth URL and routes through a `*/vae_approx/*` arm added to the download loop for
+it. It is also the smallest file any template fetches, at 9.3 MB — close enough to `get()`'s 10 MB
+floor that if HuggingFace ever stopped reporting a content-length for it, it would be discarded as
+"not a model file" rather than cached.
+
+**Output prefixes are flattened at install time.** Every graph template in the pack saves under
+`one-node-minimax-h3/`, a subfolder the storage API's `listFiles` (top-level files only) would not
+see — the same problem `minimax-music3` solves by saving as `song`. Here the bootstrap `sed`s the
+prefix out of the pack's `workflows/*.json` after cloning, so clips land in the bucket root as
+`h3_00001_.mp4`. It is idempotent, and Chain is the exception: its prefix is built in the pack's
+JavaScript at queue time, so chained clips stay under `chain/<session>/` and have to be pulled from
+the node's Library tab before the service stops.
+
+**Prompts** take three labelled sections in order — `integrated_multimodal_description`,
+`overall_soundscape`, `non_diegetic_music` — with dialogue inline as
+`(S1) <character> speaks: <d>[English] line</d>`. The node's Discover tab ships fill-in templates
+per mode, so none of that has to be memorised. History, favourites and settings are written to
+`user/default/` inside the bucket and come back on the next launch with the same bucket.
+
 ## The shared bootstrap (`comfyui-ugc-bootstrap.sh`)
 
-All four templates inline this script via `commandFile`. It runs ComfyUI from the image's
+Every ComfyUI bundle in this folder inlines this script via `commandFile`. It runs ComfyUI from the image's
 read-only bundle with `--base-directory` pointed at the bucket, bypassing the image entrypoint,
 which writes to `/root/ComfyUI` and fails wherever the container is not uid 0.
 
@@ -597,6 +668,16 @@ launch; it is cheap because `XDG_CACHE_HOME` puts pip's wheel cache in the bucke
 installs into the container's own site-packages rather than `--target` + `PYTHONPATH`: a
 second `numpy`/`torch` ahead of the container's would break ComfyUI itself. Every step is
 non-fatal — escrow is already claimed by then, and the video workflows need none of it.
+
+A second gate follows the same shape for `minimax-h3-allinone`: a graph mentioning `H3OneNode`
+gets four pack clones — the ALL-in-ONE node, the Motion Context fork, the accelerator pack its
+Balanced and Speed presets need, and KJNodes for Live Preview. Three are pure Python, so the clone
+is the whole install; KJNodes alone gets a pip step, which follows the loop and behaves like the
+voice-conversion one above. Immediately before it, a stale `ComfyUI-MiniMaxH3-Cache` left in the
+bucket by an earlier launch is deleted — see that template's section for why. A clone that fails is cleaned up and costs that mode or preset, not the
+session. Immediately after, a `sed`
+strips the `one-node-minimax-h3/` prefix out of the cloned pack's own graph templates so saved
+clips land in the bucket root where `listFiles` can see them.
 
 ### `automatic1111.json` — Stable Diffusion WebUI (A1111) (GPU)
 
