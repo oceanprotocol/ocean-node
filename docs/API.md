@@ -1206,41 +1206,22 @@ returns the current indexing queue, as an array of objects
 
 Forwards request to PolicyServer (if any).
 
-This endpoint is authenticated. The caller must provide either an `Authorization` header
-carrying an auth token, or a `nonce` + `signature` pair. `consumerAddress` is always required. Requests without valid credentials
-are rejected with `401`.
-
-The node verifies the caller, then injects the **verified** `consumerAddress` (overwriting
-any value present inside `policyServerPassthrough`), along with `authorization`, `nonce`,
-`signature`, the resolved `ddo` and the node's own `nodeAddress`, into the payload it
-forwards to the PolicyServer.
-
-#### Request Headers
-
-| name          | required | description                                                    |
-| ------------- | -------- | -------------------------------------------------------------- |
-| Authorization |          | auth token; required unless `nonce` + `signature` are supplied |
+This endpoint is not authenticated. The node forwards the caller-supplied payload and adds
+the resolved `ddo` plus its own `nodeAddress`. Caller-supplied identity fields are not
+verified.
 
 #### Parameters
 
-| name                    | type   | required | description                                          |
-| ----------------------- | ------ | -------- | ---------------------------------------------------- |
-| command                 | string | v        | command name                                         |
-| node                    | string |          | if not present it means current node                 |
-| policyServerPassthrough | object | v        | command and params for PolicyServer (see docs)       |
-| consumerAddress         | string | v        | the caller's address                                 |
-| nonce                   | string |          | required unless an `Authorization` token is supplied |
-| signature               | string |          | required unless an `Authorization` token is supplied |
-
-The signed message is `consumerAddress + nonce + "PolicyServerPassthrough"`.
+| name                    | type   | required | description                                    |
+| ----------------------- | ------ | -------- | ---------------------------------------------- |
+| command                 | string | v        | command name                                   |
+| node                    | string |          | if not present it means current node           |
+| policyServerPassthrough | object | v        | command and params for PolicyServer (see docs) |
 
 #### HTTP Example
 
 ```json
 {
-  "consumerAddress": "0x9876543210fedcba9876543210fedcba98765432",
-  "nonce": "1",
-  "signature": "0x123",
   "policyServerPassthrough": {
     "action": "newDDO",
     "rawDDO": {},
@@ -1257,9 +1238,6 @@ The signed message is `consumerAddress + nonce + "PolicyServerPassthrough"`.
 {
   "command": "PolicyServerPassthrough",
   "node": "PeerId",
-  "consumerAddress": "0x9876543210fedcba9876543210fedcba98765432",
-  "nonce": "1",
-  "signature": "0x123",
   "policyServerPassthrough": {
     "action": "newDDO",
     "rawDDO": {},
@@ -1276,7 +1254,6 @@ The signed message is `consumerAddress + nonce + "PolicyServerPassthrough"`.
 | ---- | --------------------------------------------------------------- |
 | 200  | PolicyServer allowed the request; its response body is returned |
 | 400  | missing/invalid parameters                                      |
-| 401  | missing or invalid authentication                               |
 
 ---
 
@@ -1289,8 +1266,8 @@ The signed message is `consumerAddress + nonce + "PolicyServerPassthrough"`.
 #### Description
 
 Asks the PolicyServer to start a verification flow (`initiate` action) for a given
-asset/service and consumer. Authenticated the same way as `PolicyServerPassthrough`: an
-`Authorization` header or a `nonce` + `signature` pair.
+asset/service and consumer. This endpoint requires an `Authorization` header or a
+`nonce` + `signature` pair.
 
 This is a distinct command from `PolicyServerPassthrough`, so the signed message uses its
 own command string: `consumerAddress + nonce + "PolicyServerInitialize"`.

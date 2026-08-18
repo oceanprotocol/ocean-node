@@ -30,30 +30,13 @@ export class PolicyServerPassthroughHandler extends CommandHandler {
       return buildInvalidRequestMessage(
         'Invalid Request: "policyServerPassthrough" must be an object!'
       )
-    const validation = validateCommandParameters(command, ['consumerAddress'])
-    if (validation.valid && !isAddress(command.consumerAddress)) {
-      return buildInvalidRequestMessage(
-        'Parameter : "consumerAddress" is not a valid web3 address'
-      )
-    }
-    return validation
+    return validateCommandParameters(command, [])
   }
 
   async handle(task: PolicyServerPassthroughCommand): Promise<P2PCommandResponse> {
     const validationResponse = await this.verifyParamsAndRateLimits(task)
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
-    }
-    // same auth contract as startCompute: an authorization token, or nonce + signature
-    const authValidationResponse = await this.validateTokenOrSignature(
-      task.authorization,
-      task.consumerAddress,
-      task.nonce,
-      task.signature,
-      task.command
-    )
-    if (authValidationResponse.status.httpStatus !== 200) {
-      return authValidationResponse
     }
     task.policyServerPassthrough.ddo = null
     // resolve DDO first
@@ -67,13 +50,6 @@ export class PolicyServerPassthroughHandler extends CommandHandler {
         `PolicyServerPassthroughHandler: DDO not found for documentId ${task.policyServerPassthrough.documentId}: ${error.message}`
       )
     }
-    // the passthrough payload is forwarded verbatim, so every identity field has to be
-    // (re)written here, after validation. otherwise a caller could forge consumerAddress
-    // and impersonate the typed actions (download, startCompute, ...)
-    task.policyServerPassthrough.consumerAddress = authValidationResponse.consumerAddress
-    task.policyServerPassthrough.authorization = task.authorization
-    task.policyServerPassthrough.nonce = task.nonce
-    task.policyServerPassthrough.signature = task.signature
     // policyServer check
     const policyServer = new PolicyServer()
     const policyStatus = await policyServer.passThrough(task.policyServerPassthrough)
