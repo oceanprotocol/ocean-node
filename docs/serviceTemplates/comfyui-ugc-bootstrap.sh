@@ -223,8 +223,13 @@ fi
 # empty ("A required media input has no file selected") whenever they named different files.
 if [ -n "$WORKFLOW_JSON" ]; then
   python3.13 - "$INPUT_DIR" "$PACK"/example_workflows/*.json <<'PY' || true
-import json, shutil, sys, urllib.parse, urllib.request
+import json, re, shutil, sys, urllib.parse, urllib.request
 from pathlib import Path
+
+# ComfyUI writes outputs as <prefix>_00001_.<ext>. A template's assemble workflow loads the
+# clips its multishot workflow produced, so those names are generated, never seedable. Now
+# that every installed workflow is scanned they would be eight guaranteed 404s per launch.
+OUTPUT_NAME = re.compile(r'.+_\d{5}_\.\w+$')
 
 # Three sources, in order: a per-node properties.inputUrl the graph carries itself, then the
 # installed comfyui_workflow_templates package, then Comfy-Org's input/ directory by filename.
@@ -264,6 +269,8 @@ for node in nodes:
     # and a write path. Basename only: Path('../x').name and Path('/etc/x').name both differ
     # from the original, and Path('..').name is '', so traversal cannot survive this.
     if not isinstance(name, str) or not name or Path(name).name != name or name[0] == '.':
+        continue
+    if OUTPUT_NAME.match(name):
         continue
     if (dest / name).exists():
         continue
