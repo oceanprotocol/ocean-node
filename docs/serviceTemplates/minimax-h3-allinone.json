@@ -1,0 +1,96 @@
+{
+  "id": "minimax-h3-allinone",
+  "name": "ComfyUI — ALL in ONE MiniMax H3 (one node, every mode)",
+  "description": "ComfyUI preloaded with MiniMax H3 (open-weights, int8) behind a single node that replaces the graph entirely: pick a mode in the tab bar, fill the boxes, press Generate, and the node builds the real workflow and queues it for you. Six modes run here — T2V (text to video with native voice, room tone and music in the same forward pass), I2V (animate a start frame, optionally morphing to an end frame), R2V (reference images, video or audio drive the clip), Keyframes (pin stills at chosen frame positions), Extend (continue an existing clip) and Chain (multi-clip continuation through H3 Motion Context, which hands the latent path forward instead of re-encoding a file). Audio Drive, Image and the RTX/SeedVR2 upscale hooks are present in the tab bar but deliberately not installed: they need node packs carrying heavy pip dependencies, or two more models, and selecting one reports a missing node rather than failing a paid Run halfway. Prompts take three labelled sections in a fixed order — integrated_multimodal_description (style, subject, setting, the action start to finish), overall_soundscape (ambience and physical sounds) and non_diegetic_music — with dialogue written inline as (S1) <character> speaks: <d>[English] line</d>, and the node's Discover tab ships fill-in templates per mode so none of that has to be memorised. The Quality dropdown ships on Balanced (SolAttn, 30 steps); Speed adds the H3 cache at 20 steps and Native runs the sampler with no accelerator, and all three work out of the box because both accelerator packs are pure Python and are cloned at launch. Turbo and High Quality need packs this bundle does not pull. Weights are 59.1 GB (two 19.5 GB diffusion models, since the mode tabs switch between FL2VA and Ref2VA freely, plus the 14.6 GB Qwen3-VL-32B text encoder and 5.5 GB of video and audio VAEs); only one diffusion model is resident per generation. Select a persistent-storage bucket on launch: it holds ComfyUI's whole base directory, so those 59.1 GB download once instead of on every launch, and the node's history, favourites and settings come back on the next launch with the same bucket. Clips are saved flat to the bucket root as h3_00001_.mp4, h3_00002_.mp4, where the storage API's listFiles (top-level files only) can find them; Chain is the exception and writes into chain/<session>/, so pull those from the node's Library tab before stopping. Without a bucket everything lands in /tmp and is discarded on stop. Needs a CUDA GPU; 48 GB+ holds a generation comfortably and 24 GB runs it at a lower resolution with offloading.",
+  "kind": "bundle",
+  "service": "comfyui",
+  "outcome": "Generate H3 video with native synced audio from text, a photo or references — pick a mode, type, press Generate.",
+  "category": "video",
+  "includes": [
+    {
+      "name": "MiniMax H3 FL2VA (int8)",
+      "kind": "model",
+      "sizeGb": 19.5,
+      "repoId": "Comfy-Org/MiniMax-H3"
+    },
+    {
+      "name": "MiniMax H3 Ref2VA (int8)",
+      "kind": "model",
+      "sizeGb": 19.5,
+      "repoId": "Comfy-Org/MiniMax-H3"
+    },
+    {
+      "name": "Qwen3-VL-32B text encoder (nvfp4 awq)",
+      "kind": "model",
+      "sizeGb": 14.6,
+      "repoId": "Comfy-Org/MiniMax-H3"
+    },
+    {
+      "name": "H3 video VAE (fp16)",
+      "kind": "model",
+      "sizeGb": 4.9,
+      "repoId": "Comfy-Org/MiniMax-H3"
+    },
+    {
+      "name": "H3 audio VAE (fp32, stereo)",
+      "kind": "model",
+      "sizeGb": 0.6,
+      "repoId": "Comfy-Org/MiniMax-H3"
+    },
+    {
+      "name": "ALL in ONE MiniMaxH3 node",
+      "kind": "customnode",
+      "url": "https://github.com/LeonQ8/ComfyUI-ALLinONE-MinimaxH3"
+    },
+    {
+      "name": "H3 Motion Context MultiRef (keyframes, extend, chain)",
+      "kind": "customnode",
+      "url": "https://github.com/seitanism/ComfyUI-H3-Motion-Context-MultiRef"
+    },
+    {
+      "name": "SolAttn triton (Balanced and Speed presets)",
+      "kind": "customnode",
+      "url": "https://github.com/kijai/ComfyUI-SolAttn_triton"
+    },
+    {
+      "name": "MiniMaxH3 Cache (Speed preset)",
+      "kind": "customnode",
+      "url": "https://github.com/lihaoyun6/ComfyUI-MiniMaxH3-Cache"
+    }
+  ],
+  "image": "yanwk/comfyui-boot",
+  "tag": "cu130-megapak-pt211-20260814",
+  "exposedPorts": [8188],
+  "entrypoint": ["/bin/bash", "-c"],
+  "commandFile": "comfyui-ugc-bootstrap.sh",
+  "workflows": [
+    {
+      "id": "ocean_h3_allinone",
+      "name": "ALL in ONE — pick a mode, press Generate",
+      "description": "One canvas, one node. The tab bar switches between T2V, I2V, R2V, Keyframes, Extend and Chain; the node assembles the matching H3 graph and queues it, so there is nothing to wire and no second workflow to switch to. Two notes flank it: how to write the three prompt sections and which quality presets are installed, and what the 59.1 GB of weights are. Clips land in the bucket root as h3_00001_.mp4.",
+      "file": "workflows/ocean_h3_allinone.json"
+    }
+  ],
+  "userConfigurableEnvVars": [
+    {
+      "key": "COMFY_WORKFLOW_ID",
+      "validation": "^[A-Za-z0-9_-]+$"
+    },
+    {
+      "key": "COMFY_WORKFLOW"
+    }
+  ],
+  "requiredResources": [
+    { "id": "cpu", "min": 8, "recommended": 16, "unit": "cores" },
+    { "id": "ram", "min": 64, "recommended": 128, "unit": "GB" },
+    { "id": "disk", "min": 90, "recommended": 160, "unit": "GB" },
+    {
+      "kind": "discrete",
+      "type": "gpu",
+      "min": 1,
+      "recommended": 1,
+      "unit": "count",
+      "description": "One CUDA GPU. A generation holds one diffusion model (19.5 GB), the text encoder (14.6 GB) and both VAEs (5.5 GB) — about 40 GB — so a 48 GB card runs it with room for activations and an 80 GB card runs it at full resolution without offloading. 24 GB works at the lower resolution presets, with ComfyUI paging the text encoder out between passes. Don't set CLI_ARGS yourself: the launch script measures the card against the 59.1 GB actually downloaded and adds --highvram only when VRAM covers it with 3/2 headroom, which on this weight set means it declines the flag on anything below ~90 GB rather than pinning more than the card can back. Ask for one card and not two: core ComfyUI has no tensor parallelism, a single sampling pass runs on one device, and H3 is CFG-distilled so there is no second conditioning branch to hand a second card. A second GPU would be billed while idle."
+    }
+  ]
+}

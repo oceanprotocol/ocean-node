@@ -362,6 +362,43 @@ if [ -n "${PACK:-}" ] && grep -qls UnifiedVoiceChangerNode "$PACK"/example_workf
   fi
 fi
 
+# The ALL-in-ONE MiniMax H3 node is a UI that assembles and queues H3's real graph itself, so the
+# workflow it ships carries only that one node — which also means the model URLs come from the
+# graph's model note rather than from loader widgets, and the packs below cannot be inferred from
+# node class names the way the weights are. Gated on the graph exactly like TTS-Audio-Suite above:
+# a template that doesn't mention H3OneNode pays nothing. All four are pure Python with no
+# requirements.txt, so the clone is the whole install — nothing to reinstall after a stop, unlike
+# the pip step above. Non-fatal throughout: escrow is already claimed, and a missing accelerator
+# pack costs a quality preset, not the session.
+if [ -n "${PACK:-}" ] && grep -qls H3OneNode "$PACK"/example_workflows/*.json 2>/dev/null; then
+  if ! command -v git >/dev/null 2>&1; then
+    echo "[ocean] no git in the image — skipping the ALL-in-ONE H3 node packs" >&2
+  else
+    for repo in LeonQ8/ComfyUI-ALLinONE-MinimaxH3 \
+                seitanism/ComfyUI-H3-Motion-Context-MultiRef \
+                kijai/ComfyUI-SolAttn_triton \
+                lihaoyun6/ComfyUI-MiniMaxH3-Cache; do
+      H3_DIR="$BASE/custom_nodes/${repo##*/}"
+      if [ ! -d "$H3_DIR/.git" ]; then
+        git clone --depth 1 "https://github.com/$repo.git" "$H3_DIR" || {
+          echo "[ocean] could not clone $repo — its modes or quality presets will report" \
+            "a missing node in the UI" >&2
+          rm -rf "$H3_DIR"
+        }
+      fi
+    done
+    # ComfyUI saves as <filename_prefix>_00001_.mp4, and every graph template in the pack prefixes
+    # its save node with one-node-minimax-h3/, which puts finished clips in a subfolder the storage
+    # API's listFiles (top-level files only) cannot see — the same reason the music template saves
+    # as `song` rather than Comfy's default. Flatten it so a clip is downloadable from the bucket
+    # without opening ComfyUI. Idempotent: the second launch finds nothing left to match. Chain
+    # mode is not covered — its prefix is built in the pack's JS at queue time, so those clips stay
+    # under chain/<session>/ and have to be fetched from the node's Library tab.
+    sed -i 's#one-node-minimax-h3/##g' \
+      "$BASE/custom_nodes/ComfyUI-ALLinONE-MinimaxH3/workflows/"*.json 2>/dev/null || true
+  fi
+fi
+
 # ComfyUI unloads a model to system RAM after every use unless told otherwise, so on a card that
 # could simply hold everything it re-stages the whole checkpoint each step — visible in the log as
 # "N MB Staged ... Force pre-loaded 210 weights: 1175 KB" and a VAE that re-stages per decode.
