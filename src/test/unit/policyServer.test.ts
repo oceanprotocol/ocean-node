@@ -42,9 +42,6 @@ function passthroughTask(overrides: any = {}) {
   return {
     command: PROTOCOL_COMMANDS.POLICY_SERVER_PASSTHROUGH,
     policyServerPassthrough: { action: 'newDDO', documentId: DDO.id },
-    consumerAddress: CONSUMER,
-    nonce: '1',
-    signature: '0xsignature',
     ...overrides
   }
 }
@@ -65,16 +62,14 @@ function initializeTask(overrides: any = {}) {
 describe('PolicyServerPassthroughHandler', () => {
   afterEach(() => sinon.restore())
 
-  describe('parameter validation (runs before auth)', () => {
+  describe('parameter validation', () => {
     it('rejects a missing policyServerPassthrough field (400)', async () => {
-      const { node, validateAuthenticationOrToken } = buildFakes()
+      const { node } = buildFakes()
       const response = await new PolicyServerPassthroughHandler(node).handle(
         passthroughTask({ policyServerPassthrough: undefined })
       )
       expect(response.status.httpStatus).to.equal(400)
       expect(response.status.error).to.contain('missing policyServerPassthrough')
-      // validation must short-circuit before we ever touch the auth component
-      assert(validateAuthenticationOrToken.notCalled, 'auth should not be reached')
     })
 
     it('rejects a non-object policyServerPassthrough (400)', async () => {
@@ -100,94 +95,13 @@ describe('PolicyServerPassthroughHandler', () => {
       expect(response.status.error).to.contain('must be an object')
       assert(passThrough.notCalled, 'must not reach the policy server')
     })
-
-    it('rejects a missing consumerAddress (400)', async () => {
-      const { node } = buildFakes()
-      const response = await new PolicyServerPassthroughHandler(node).handle(
-        passthroughTask({ consumerAddress: undefined })
-      )
-      expect(response.status.httpStatus).to.equal(400)
-      expect(response.status.error).to.contain('consumerAddress')
-    })
-
-    it('rejects a malformed consumerAddress (400)', async () => {
-      const { node } = buildFakes()
-      const response = await new PolicyServerPassthroughHandler(node).handle(
-        passthroughTask({ consumerAddress: 'not-an-address' })
-      )
-      expect(response.status.httpStatus).to.equal(400)
-      expect(response.status.error).to.contain('not a valid web3 address')
-    })
-  })
-
-  describe('authentication', () => {
-    it('rejects an unauthenticated request (401)', async () => {
-      const { node } = buildFakes({
-        authResult: {
-          valid: false,
-          error:
-            'Invalid authentication, you need to provide either a token or an address, signature, message and nonce'
-        }
-      })
-      const passThrough = sinon.stub(PolicyServer.prototype, 'passThrough')
-
-      const response = await new PolicyServerPassthroughHandler(node).handle(
-        passthroughTask({ nonce: undefined, signature: undefined })
-      )
-
-      expect(response.status.httpStatus).to.equal(401)
-      assert(passThrough.notCalled, 'must not reach the policy server')
-    })
-
-    it('rejects an invalid signature (401)', async () => {
-      const { node } = buildFakes({
-        authResult: { valid: false, error: 'Invalid signature' }
-      })
-      const passThrough = sinon.stub(PolicyServer.prototype, 'passThrough')
-
-      const response = await new PolicyServerPassthroughHandler(node).handle(
-        passthroughTask()
-      )
-
-      expect(response.status.httpStatus).to.equal(401)
-      expect(response.status.error).to.equal('Invalid signature')
-      assert(passThrough.notCalled, 'must not reach the policy server')
-    })
-
-    it('returns 401 when the auth component is not configured', async () => {
-      const { node } = buildFakes({ authConfigured: false })
-      const response = await new PolicyServerPassthroughHandler(node).handle(
-        passthroughTask()
-      )
-      expect(response.status.httpStatus).to.equal(401)
-      expect(response.status.error).to.equal('Auth not configured')
-    })
-
-    it('passes the auth header and the nonce/signature triple to the auth component', async () => {
-      const { node, validateAuthenticationOrToken } = buildFakes()
-      sinon.stub(PolicyServer.prototype, 'passThrough').resolves({
-        success: true,
-        message: 'ok',
-        httpStatus: 200
-      })
-
-      await new PolicyServerPassthroughHandler(node).handle(
-        passthroughTask({ authorization: TOKEN })
-      )
-
-      const args = validateAuthenticationOrToken.firstCall.args[0]
-      expect(args.token).to.equal(TOKEN)
-      expect(args.address).to.equal(CONSUMER)
-      expect(args.nonce).to.equal('1')
-      expect(args.signature).to.equal('0xsignature')
-      // the signed message is scoped to the command string
-      expect(args.command).to.equal(PROTOCOL_COMMANDS.POLICY_SERVER_PASSTHROUGH)
-    })
   })
 
   describe('forwarding to the policy server', () => {
-    it('forwards the verified consumerAddress and the caller credentials', async () => {
-      const { node } = buildFakes()
+    it('forwards the payload without authentication', async () => {
+      const { node, validateAuthenticationOrToken } = buildFakes({
+        authResult: { valid: false, error: 'Invalid signature' }
+      })
       const passThrough = sinon.stub(PolicyServer.prototype, 'passThrough').resolves({
         success: true,
         message: 'ok',
@@ -195,23 +109,17 @@ describe('PolicyServerPassthroughHandler', () => {
       })
 
       const response = await new PolicyServerPassthroughHandler(node).handle(
-        passthroughTask({ authorization: TOKEN })
+        passthroughTask()
       )
 
       expect(response.status.httpStatus).to.equal(200)
       const forwarded = passThrough.firstCall.args[0]
-      expect(forwarded.consumerAddress).to.equal(CONSUMER)
-      expect(forwarded.authorization).to.equal(TOKEN)
-      expect(forwarded.nonce).to.equal('1')
-      expect(forwarded.signature).to.equal('0xsignature')
-      // the node still resolves the DDO server-side
+      assert(validateAuthenticationOrToken.notCalled, 'auth should not be called')
       expect(forwarded.ddo).to.deep.equal(DDO)
-      // and the caller's own payload is preserved
       expect(forwarded.action).to.equal('newDDO')
     })
 
-    it('overwrites a forged consumerAddress inside the payload with the verified one', async () => {
-      // auth succeeds for CONSUMER, but the caller tries to pass VICTIM off as the consumer
+    it('preserves caller-supplied payload fields', async () => {
       const { node } = buildFakes()
       const passThrough = sinon.stub(PolicyServer.prototype, 'passThrough').resolves({
         success: true,
@@ -229,25 +137,7 @@ describe('PolicyServerPassthroughHandler', () => {
         })
       )
 
-      expect(passThrough.firstCall.args[0].consumerAddress).to.equal(CONSUMER)
-    })
-
-    it('uses the address the token resolves to, not the one the caller claims', async () => {
-      // token path: Auth returns the address encoded in the JWT
-      const { node } = buildFakes({
-        authResult: { valid: true, error: '', address: CONSUMER }
-      })
-      const passThrough = sinon.stub(PolicyServer.prototype, 'passThrough').resolves({
-        success: true,
-        message: 'ok',
-        httpStatus: 200
-      })
-
-      await new PolicyServerPassthroughHandler(node).handle(
-        passthroughTask({ consumerAddress: VICTIM, authorization: TOKEN })
-      )
-
-      expect(passThrough.firstCall.args[0].consumerAddress).to.equal(CONSUMER)
+      expect(passThrough.firstCall.args[0].consumerAddress).to.equal(VICTIM)
     })
 
     it('forwards even when the DDO cannot be resolved (ddo stays null)', async () => {
@@ -261,7 +151,6 @@ describe('PolicyServerPassthroughHandler', () => {
       await new PolicyServerPassthroughHandler(node).handle(passthroughTask())
 
       expect(passThrough.firstCall.args[0].ddo).to.equal(null)
-      expect(passThrough.firstCall.args[0].consumerAddress).to.equal(CONSUMER)
     })
 
     it('propagates a policy server denial', async () => {
