@@ -458,12 +458,14 @@ for pack, names in sorted(missing.items()):
 if not missing:
     print('[ocean] pack compatibility check: no missing core names')
 PROBE
-    # The pack ships model_defaults.speed_lora empty, so the Turbo preset renders without its LoRA
-    # — 6 steps and no distillation, which looks broken rather than fast — until someone picks the
-    # file in Settings. We download exactly one Turbo LoRA, so name it here instead. Written into
-    # the pack's own config.json, which _load_config() treats as the built-in default layer; a user
-    # who later changes any model setting saves their own model_defaults and that wins, as it
-    # should. Idempotent, and skipped silently if the pack did not clone.
+    # Two defaults in the pack's shipped config point at things this bundle does not have, and both
+    # only surface after the consumer has paid and waited: model_defaults.speed_lora is empty, so
+    # Turbo renders 6 undistilled steps (broken-looking rather than fast) until someone picks the
+    # file in Settings, and quality_presets.speed.cache is true, so Speed asks for the H3 Cache node
+    # that is deliberately not installed and fails with "Node 'H3 Cache' not found". Both are fixed
+    # in the pack's own config.json, which _load_config() treats as the built-in default layer; a
+    # user who later changes either setting saves their own copy and that wins, as it should.
+    # Idempotent, and skipped silently if the pack did not clone.
     python3.13 - "$BASE/custom_nodes/ComfyUI-ALLinONE-MinimaxH3/config.json" <<'LORA' || true
 import json, sys
 from pathlib import Path
@@ -472,13 +474,40 @@ if not cfg.is_file():
     raise SystemExit(0)
 try:
     data = json.loads(cfg.read_text(encoding='utf-8'))
+    changed = []
     md = data.setdefault('model_defaults', {})
     if not md.get('speed_lora'):
         md['speed_lora'] = 'minimax_h3_turbo_v4_step600_ema.safetensors'
+        changed.append('Turbo LoRA selected')
+    # Every preset that asks for an accelerator this bundle does not install. Driven by a table so
+    # dropping or adding a pack is one line here, not another round of whack-a-mole. `high` wants
+    # SageAttention: KJNodes provides the node, but the kernels come from the `sageattention` wheel,
+    # whose compiled extension is absent here — it surfaces as a NoneType with a
+    # qk_int8_sv_f8_... attribute, and its prebuilt kernels target SM89 rather than the SM90 cards
+    # this template asks for anyway. Switching it off costs speed, not quality: Sage is quantized
+    # (int8/fp8) attention, so 40 steps without it is slower and slightly more precise, not worse.
+    for preset, flag in (('speed', 'cache'), ('high', 'sage')):
+        if data.get('quality_presets', {}).get(preset, {}).get(flag):
+            data['quality_presets'][preset][flag] = False
+            changed.append(f'{preset} preset: {flag} off')
+    # The pack ships landscape only, and the reason this template exists is vertical short-form.
+    # Flipped copies of its own presets, so every shape is one it already validates, plus one exact
+    # 9:16. H3 needs both axes on a multiple of 32; all of these are. Matched on label, so a rerun
+    # adds nothing and a user's own edits are never duplicated.
+    rp = data.setdefault('resolution_presets', [])
+    for w, h, tag in ((352, 608, '0.2MP Vertical Preview'), (480, 864, '0.4MP Vertical Speed'),
+                      (544, 960, '0.5MP Vertical Balanced'), (576, 1024, '0.6MP Vertical 9:16'),
+                      (768, 1344, '0.98MP Vertical Max')):
+        label = f'{w}x{h} ({tag})'
+        if not any(p.get('label') == label for p in rp):
+            rp.append({'label': label, 'width': w, 'height': h})
+            changed.append(label)
+    if changed:
         cfg.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
-        print('[ocean] Turbo preset LoRA selected by default')
+        print('[ocean] pack defaults adjusted — ' + '; '.join(changed))
 except Exception as e:
-    print(f'[ocean] could not preselect the Turbo LoRA ({e}) — pick it under Settings', file=sys.stderr)
+    print(f'[ocean] could not adjust the pack defaults ({e}) — pick the Turbo LoRA under Settings'
+          ' and switch the H3 Cache chip off before using Speed', file=sys.stderr)
 LORA
     # ComfyUI saves as <filename_prefix>_00001_.mp4, and every graph template in the pack prefixes
     # its save node with one-node-minimax-h3/, which puts finished clips in a subfolder the storage
