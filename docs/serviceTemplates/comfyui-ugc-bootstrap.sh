@@ -217,8 +217,12 @@ fi
 # makes the first Queue work without the user uploading anything — without it ComfyUI rejects
 # the prompt with "Value not in list: image", because it validates combo widgets across the
 # whole reachable graph even for nodes the selected branch never runs.
+# Every installed workflow, not just the deep-linked one, exactly like the model-URL scan
+# above: a template can ship several graphs and the user switches between them in the tab
+# bar without relaunching. Seeding only the deep link left the others' LoadImage widgets
+# empty ("A required media input has no file selected") whenever they named different files.
 if [ -n "$WORKFLOW_JSON" ]; then
-  python3.13 - "$WORKFLOW_JSON" "$INPUT_DIR" <<'PY' || true
+  python3.13 - "$INPUT_DIR" "$PACK"/example_workflows/*.json <<'PY' || true
 import json, shutil, sys, urllib.parse, urllib.request
 from pathlib import Path
 
@@ -237,14 +241,18 @@ try:
 except Exception:
     pass
 
-try:
-    graph = json.load(open(sys.argv[1]))
-except Exception as e:
-    print(f'[ocean] could not read the workflow for seeding: {e}', file=sys.stderr)
+dest = Path(sys.argv[1])
+nodes = []
+for path in sys.argv[2:]:
+    try:
+        nodes.extend(json.load(open(path)).get('nodes', []))
+    except Exception as e:
+        # One unreadable graph must not stop the others from seeding.
+        print(f'[ocean] could not read {path} for seeding: {e}', file=sys.stderr)
+if not nodes:
     raise SystemExit(0)
-dest = Path(sys.argv[2])
 
-for node in graph.get('nodes', []):
+for node in nodes:
   # Per-node, because the graph is client-supplied: a name with a NUL or over 255 bytes makes
   # even the cleanup below raise, and one malformed node must not stop the rest from seeding.
   try:
