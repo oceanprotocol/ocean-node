@@ -31,7 +31,7 @@ fi
 
 MODELS="$BASE/models"
 mkdir -p "$MODELS/checkpoints" "$MODELS/loras" "$MODELS/text_encoders" \
-  "$MODELS/latent_upscale_models" "$MODELS/diffusion_models" "$MODELS/vae" \
+  "$MODELS/latent_upscale_models" "$MODELS/diffusion_models" "$MODELS/vae" "$MODELS/vae_approx" \
   "$BASE/output" "$INPUT_DIR" "$BASE/temp" "$BASE/user"
 
 # LTX-2.5 and other gated repos 401 without a token. An array, not a string: under
@@ -199,6 +199,7 @@ PY
     case "$url" in
       */diffusion_models/*) sub=diffusion_models ;;
       */text_encoders/*)    sub=text_encoders ;;
+      */vae_approx/*)       sub=vae_approx ;;
       */vae/*)              sub=vae ;;
       */loras/*)            sub=loras ;;
       *[Ll]ora*)            sub=loras ;;
@@ -366,10 +367,10 @@ fi
 # workflow it ships carries only that one node — which also means the model URLs come from the
 # graph's model note rather than from loader widgets, and the packs below cannot be inferred from
 # node class names the way the weights are. Gated on the graph exactly like TTS-Audio-Suite above:
-# a template that doesn't mention H3OneNode pays nothing. All four are pure Python with no
-# requirements.txt, so the clone is the whole install — nothing to reinstall after a stop, unlike
-# the pip step above. Non-fatal throughout: escrow is already claimed, and a missing accelerator
-# pack costs a quality preset, not the session.
+# a template that doesn't mention H3OneNode pays nothing. Four of the five are pure Python, so the
+# clone is the whole install; only KJNodes has dependencies, and its pip step is handled after the
+# loop. Non-fatal throughout: escrow is already claimed, and a missing pack costs one mode or
+# preset, not the session.
 if [ -n "${PACK:-}" ] && grep -qls H3OneNode "$PACK"/example_workflows/*.json 2>/dev/null; then
   if ! command -v git >/dev/null 2>&1; then
     echo "[ocean] no git in the image — skipping the ALL-in-ONE H3 node packs" >&2
@@ -377,7 +378,8 @@ if [ -n "${PACK:-}" ] && grep -qls H3OneNode "$PACK"/example_workflows/*.json 2>
     for repo in LeonQ8/ComfyUI-ALLinONE-MinimaxH3 \
                 seitanism/ComfyUI-H3-Motion-Context-MultiRef \
                 kijai/ComfyUI-SolAttn_triton \
-                lihaoyun6/ComfyUI-MiniMaxH3-Cache; do
+                lihaoyun6/ComfyUI-MiniMaxH3-Cache \
+                kijai/ComfyUI-KJNodes; do
       H3_DIR="$BASE/custom_nodes/${repo##*/}"
       if [ ! -d "$H3_DIR/.git" ]; then
         git clone --depth 1 "https://github.com/$repo.git" "$H3_DIR" || {
@@ -387,6 +389,18 @@ if [ -n "${PACK:-}" ] && grep -qls H3OneNode "$PACK"/example_workflows/*.json 2>
         }
       fi
     done
+    # KJNodes powers the node's Live Preview (Model Preview Override), which ships ON — without it
+    # the first Generate stops with a missing-decoder message on a card the consumer is paying for,
+    # the same reason SolAttn is cloned for the default Balanced preset. It is the one pack here
+    # with a requirements.txt, and pip installs into the container and is lost on stop, hence the
+    # unconditional reinstall; XDG_CACHE_HOME already puts the wheel cache in the bucket, so later
+    # launches resolve from disk. Known wrinkle: opencv-python-headless replaces cv2 where the
+    # image ships full opencv-python — harmless here, ComfyUI uses no GUI cv2 calls.
+    if [ -f "$BASE/custom_nodes/ComfyUI-KJNodes/requirements.txt" ]; then
+      python3.13 -m pip install -q -r "$BASE/custom_nodes/ComfyUI-KJNodes/requirements.txt" ||
+        echo "[ocean] KJNodes dependencies failed to install — turn Live Preview off in the" \
+          "node's Settings; generation itself is unaffected" >&2
+    fi
     # ComfyUI saves as <filename_prefix>_00001_.mp4, and every graph template in the pack prefixes
     # its save node with one-node-minimax-h3/, which puts finished clips in a subfolder the storage
     # API's listFiles (top-level files only) cannot see — the same reason the music template saves
