@@ -1,0 +1,77 @@
+{
+  "id": "muse-glimmer-openwebui",
+  "name": "Muse-Glimmer-30B + Open WebUI — private Apache-2.0 coding assistant",
+  "description": "A private ChatGPT-style workspace in your browser, backed by Meta's Muse-Glimmer-30B running on the GPU next to it. Open the service URL, sign in with the admin account you set at launch, and chat — nothing to install locally and no third party sees the conversation. Muse-Glimmer is the permissively licensed option: Apache-2.0, so anything you build on top of it is unencumbered. It scores 76.0 on SWE-bench Verified, 51.2 on SWE-bench Pro and 75.5 on MCP Atlas — that last figure is the interesting one, because it is a tool-use benchmark, and reliable tool calling across long workflows is what its card leads with. Use it when your work runs through Open WebUI's tools and MCP connections rather than through raw code generation; for pure coding strength, the sibling Qwen3.8-27B template scores higher. Context is 131K tokens, and the model is natively multimodal, so screenshots, diagrams and photographed stack traces go straight into the chat. Reasoning is graded through the system prompt rather than a parameter: put a line reading 'Reasoning strength: high' (or low, medium, xhigh) in Open WebUI's system prompt, and the card recommends high or xhigh for coding and agentic work. Sampling wants temperature 1.0, top_p 0.95, top_k 64. HOW IT IS PUT TOGETHER: one container, one payment. vLLM serves the model on 127.0.0.1 only — the raw OpenAI-compatible API is never published, so there is no unauthenticated endpoint to find — and Open WebUI is the single exposed port. Open WebUI is installed at first launch into an isolated virtualenv on your bucket, deliberately separate from vLLM's own Python so its dependency pins cannot break the inference server, and it runs pinned to the CPU so the entire GPU stays with the model. AT LAUNCH you must set WEBUI_ADMIN_EMAIL and WEBUI_ADMIN_PASSWORD, and select a persistent-storage bucket. The admin account is created before the port is ever exposed publicly, and public signup is then switched off — which closes the hole every naked Open WebUI deployment has, where whoever visits first becomes the administrator. The bucket holds the 34 GB of weights, the Open WebUI virtualenv and Open WebUI's database, so chat history, prompts, settings and account all return on the next launch with the same bucket. Without a bucket the container refuses to start rather than re-download everything and then throw your history away on stop. Ask for exactly ONE GPU: the model runs with tensor-parallel size 1 and cannot use a second card, which would simply be billed while idle.",
+  "kind": "bundle",
+  "service": "open-webui",
+  "outcome": "Open a browser and chat with Apache-2.0 Muse-Glimmer-30B on your own GPU — strong tool use, history persists across launches.",
+  "category": "llm",
+  "includes": [
+    {
+      "name": "Muse-Glimmer-30B (FP8 block) — Apache-2.0, 131K context, vision",
+      "kind": "model",
+      "sizeGb": 34.4,
+      "repoId": "RedHatAI/Muse-Glimmer-30B-FP8-block"
+    },
+    {
+      "name": "Open WebUI — chat interface, accounts, chat history, tools/MCP",
+      "kind": "other",
+      "url": "https://github.com/open-webui/open-webui"
+    }
+  ],
+  "image": "vllm/vllm-openai",
+  "tag": "latest",
+  "exposedPorts": [8080],
+  "entrypoint": ["/bin/bash", "-c"],
+  "commandFile": "muse-glimmer-openwebui-bootstrap.sh",
+  "workflows": [
+    {
+      "id": "weights-cache",
+      "name": "Weights and history bucket",
+      "description": "Not a workflow. This entry exists so the launch wizard offers the bucket picker: nodes-dashboard gates that picker on workflows[].length > 0 (templateNeedsBucketPicker in src/services/template-launch.ts). The bucket holds the model weights, the Open WebUI virtualenv and Open WebUI's database — without it the container refuses to start. The graph is deliberately empty and the container ignores COMFY_WORKFLOW entirely. Delete this once the node exposes a declarative persistence field.",
+      "graph": {}
+    }
+  ],
+  "userConfigurableEnvVars": [
+    {
+      "key": "WEBUI_ADMIN_EMAIL",
+      "validation": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+      "required": true
+    },
+    {
+      "key": "WEBUI_ADMIN_PASSWORD",
+      "validation": "^.{12,128}$",
+      "sensitive": true,
+      "required": true
+    },
+    {
+      "key": "WEBUI_SECRET_KEY",
+      "sensitive": true
+    },
+    {
+      "key": "HF_TOKEN",
+      "validation": "^hf_[A-Za-z0-9]{20,}$",
+      "sensitive": true
+    },
+    {
+      "key": "COMFY_WORKFLOW_ID",
+      "validation": "^[A-Za-z0-9_-]+$"
+    },
+    {
+      "key": "COMFY_WORKFLOW"
+    }
+  ],
+  "requiredResources": [
+    { "id": "cpu", "min": 8, "recommended": 16, "unit": "cores" },
+    { "id": "ram", "min": 48, "recommended": 96, "unit": "GB" },
+    { "id": "disk", "min": 120, "recommended": 200, "unit": "GB" },
+    {
+      "kind": "discrete",
+      "type": "gpu",
+      "min": 1,
+      "recommended": 1,
+      "unit": "count",
+      "description": "ONE CUDA GPU with at least 40 GB of VRAM. The model is 29.8 GB in FP8 and the launch script gives vLLM 90% of the card. KV cache is unusually cheap here — only 13 of the 52 layers use full attention and the other 39 are capped by a 2048-token sliding window — so a 48 GB card comfortably holds the full 131K context, and a 141 GB H200 holds many long conversations at once. Open WebUI and its retrieval embedding model are pinned to the CPU on purpose, so nothing competes with the model for VRAM. Ask for one card and not several: the model runs tensor-parallel size 1, a single-GPU process cannot spill onto a second device, and the extra card would be billed while idle. Staying on one GPU also keeps this template clear of the node's multi-GPU gap, where service containers get Docker's default 64 MB /dev/shm and no ipc=host."
+    }
+  ]
+}

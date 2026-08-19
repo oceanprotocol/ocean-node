@@ -1,0 +1,69 @@
+{
+  "id": "qwen-muse-coding",
+  "name": "Coding endpoints — Qwen3.8-27B + Muse-Glimmer-30B (OpenAI-compatible)",
+  "description": "Two agentic coding models served side by side from a single GPU as OpenAI-compatible endpoints, for a coding agent that runs on YOUR machine — opencode, Claude Code, Cline, Continue — pointed at this service. Your repository never leaves your laptop: the container holds model weights and nothing else, so there is no workspace to sync, no git credentials to hand over and nothing of yours left behind when the service stops. Qwen/Qwen3.8-27B-FP8 answers on port 8000 as `qwen3.8-27b` and RedHatAI/Muse-Glimmer-30B-FP8-block on port 8001 as `muse-glimmer-30b`; point your agent at http://<host>:<port>/v1 and send the API key as a bearer token. Qwen3.8 is the stronger coder of the two — 61.7 on SWE-bench Pro, 90.3 on LiveCodeBench v6, 73.0 on Terminal-Bench 2.1 — with a 262K native context, and it is worth noting it scores within half a point of models thirty times its size. Muse-Glimmer (Apache-2.0, 51.2 SWE-bench Pro, 76.0 SWE-bench Verified, 75.5 MCP Atlas) is the cheaper second opinion and the better MCP tool user; run your main loop on 8000 and hand side quests to 8001, or A/B the same task against both. Both are natively multimodal, so a screenshot of a broken UI or a stack trace photographed off another screen goes straight into the prompt. Both also do graded reasoning: Qwen3.8 takes `reasoning_effort` of low/medium/xhigh per request and Muse-Glimmer reads `Reasoning strength: low|medium|high|xhigh` from the system prompt — its card recommends high or xhigh for coding and agentic work. Tool calling is wired up for both (`--enable-auto-tool-choice` with the matching parser), which is the part an agent actually depends on. Sampling: Qwen3.8 in thinking mode wants temperature 1.0 / top_p 0.95 / top_k 20, or 0.7 / 0.80 / 20 with `chat_template_kwargs: {\"enable_thinking\": false}`; Muse-Glimmer wants 1.0 / 0.95 / top_k 64. TWO REQUIREMENTS AT LAUNCH, both enforced by the startup script rather than discovered later. First, set VLLM_API_KEY: the node publishes these ports directly on its public host with no proxy and no authentication of its own, so an unset key means anyone who finds the address uses your GPU for the rest of the paid window; with it set, every /v1 request needs `Authorization: Bearer <key>`. Second, select a persistent-storage bucket: it holds the Hugging Face cache, so the 65 GB of weights download once instead of on every launch, and a relaunch reuses them because the node builds a fresh container each time. Without either, the container exits immediately with an explanatory log line instead of burning your window. Both repositories are ungated — HF_TOKEN is only needed if you edit this template to serve something gated. Ask for exactly ONE GPU: each model runs with tensor-parallel size 1, so neither can use a second card and it would be billed sitting idle.",
+  "kind": "bundle",
+  "service": "vllm-hf-model",
+  "outcome": "Point your local opencode / Claude Code / Cline at a private OpenAI-compatible endpoint running two agentic coding models.",
+  "category": "serving",
+  "includes": [
+    {
+      "name": "Qwen3.8-27B (FP8) — primary coder, 262K context, vision",
+      "kind": "model",
+      "sizeGb": 30.9,
+      "repoId": "Qwen/Qwen3.8-27B-FP8"
+    },
+    {
+      "name": "Muse-Glimmer-30B (FP8 block) — second opinion, Apache-2.0, vision",
+      "kind": "model",
+      "sizeGb": 34.4,
+      "repoId": "RedHatAI/Muse-Glimmer-30B-FP8-block"
+    }
+  ],
+  "image": "vllm/vllm-openai",
+  "tag": "latest",
+  "exposedPorts": [8000, 8001],
+  "entrypoint": ["/bin/bash", "-c"],
+  "commandFile": "qwen-muse-coding-bootstrap.sh",
+  "workflows": [
+    {
+      "id": "weights-cache",
+      "name": "Weights cache bucket",
+      "description": "Not a workflow. This entry exists so the launch wizard offers the bucket picker: nodes-dashboard gates that picker on workflows[].length > 0 (templateNeedsBucketPicker in src/services/template-launch.ts), and a serving template has no real workflows to declare. The bucket is what makes the 65 GB of weights survive a stop and relaunch. The graph is deliberately empty and the container ignores COMFY_WORKFLOW entirely. Delete this once the node exposes a declarative persistence field.",
+      "graph": {}
+    }
+  ],
+  "userConfigurableEnvVars": [
+    {
+      "key": "VLLM_API_KEY",
+      "validation": "^[A-Za-z0-9_-]{16,128}$",
+      "sensitive": true,
+      "required": true
+    },
+    {
+      "key": "HF_TOKEN",
+      "validation": "^hf_[A-Za-z0-9]{20,}$",
+      "sensitive": true
+    },
+    {
+      "key": "COMFY_WORKFLOW_ID",
+      "validation": "^[A-Za-z0-9_-]+$"
+    },
+    {
+      "key": "COMFY_WORKFLOW"
+    }
+  ],
+  "requiredResources": [
+    { "id": "cpu", "min": 8, "recommended": 16, "unit": "cores" },
+    { "id": "ram", "min": 64, "recommended": 128, "unit": "GB" },
+    { "id": "disk", "min": 150, "recommended": 250, "unit": "GB" },
+    {
+      "kind": "discrete",
+      "type": "gpu",
+      "min": 1,
+      "recommended": 1,
+      "unit": "count",
+      "description": "ONE CUDA GPU with at least 100 GB of VRAM, sized for a 141 GB H200. The two models are resident together: 27.8 GB of Qwen weights plus 29.8 GB of Muse weights, with the rest split into two KV caches by the --gpu-memory-utilization fractions the launch script sets (0.55 and 0.35, leaving ~10% for two CUDA contexts, both vision towers and fragmentation). An 80 GB card does not fit both at those fractions — serve one model, or lower the fractions and the context lengths. Ask for one card and not several: each model runs tensor-parallel size 1, a single-GPU process cannot spill onto a second device, and the extra card would be billed while idle. Requesting one GPU also keeps this template on the single-GPU path, where Docker's default 64 MB /dev/shm is harmless — multi-GPU vLLM needs a large /dev/shm and ipc=host, which the node's service path does not yet pass through."
+    }
+  ]
+}
