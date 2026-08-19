@@ -363,14 +363,7 @@ if [ -n "${PACK:-}" ] && grep -qls UnifiedVoiceChangerNode "$PACK"/example_workf
   fi
 fi
 
-# The ALL-in-ONE MiniMax H3 node is a UI that assembles and queues H3's real graph itself, so the
-# workflow it ships carries only that one node — which also means the model URLs come from the
-# graph's model note rather than from loader widgets, and the packs below cannot be inferred from
-# node class names the way the weights are. Gated on the graph exactly like TTS-Audio-Suite above:
-# a template that doesn't mention H3OneNode pays nothing. Four of the five are pure Python, so the
-# clone is the whole install; only KJNodes has dependencies, and its pip step is handled after the
-# loop. Non-fatal throughout: escrow is already claimed, and a missing pack costs one mode or
-# preset, not the session.
+# Node packs for the ALL-in-ONE MiniMax H3 template, gated on its graph like the block above.
 if [ -n "${PACK:-}" ] && grep -qls H3OneNode "$PACK"/example_workflows/*.json 2>/dev/null; then
   if ! command -v git >/dev/null 2>&1; then
     echo "[ocean] no git in the image — skipping the ALL-in-ONE H3 node packs" >&2
@@ -389,36 +382,23 @@ if [ -n "${PACK:-}" ] && grep -qls H3OneNode "$PACK"/example_workflows/*.json 2>
         }
       fi
     done
-    # ComfyUI core removed time_shift_slope on 2026-08-06 (PR #15243), and ComfyUI-MiniMaxH3-Cache
-    # still calls it — HEAD is 8a45e09, untouched since 2026-08-03, its fix PR #6 still open. The
-    # pack patches the diffusion model at import, so merely being installed fails EVERY generation,
-    # not just the Speed preset that wants it; the pack's own COMPATIBILITY.md documents this. It is
-    # no longer cloned above, and is deleted here because a bucket from an earlier launch still
-    # carries it. Guarded on the broken call, so a fixed copy installed by hand survives.
+    # MiniMaxH3-Cache calls time_shift_slope, gone from core since 2026-08-06, and patches the
+    # model at import — so its presence alone fails every generation. Delete a stale clone.
     if grep -qs time_shift_slope "$BASE/custom_nodes/ComfyUI-MiniMaxH3-Cache/__init__.py"; then
       echo "[ocean] removing ComfyUI-MiniMaxH3-Cache: it calls time_shift_slope, which this" \
         "ComfyUI no longer has, and it breaks every H3 generation. Speed's other half (SolAttn)" \
         "is unaffected — switch the H3 Cache chip off under the Quality dropdown." >&2
       rm -rf "$BASE/custom_nodes/ComfyUI-MiniMaxH3-Cache"
     fi
-    # KJNodes powers the node's Live Preview (Model Preview Override), which ships ON — without it
-    # the first Generate stops with a missing-decoder message on a card the consumer is paying for,
-    # the same reason SolAttn is cloned for the default Balanced preset. It is the one pack here
-    # with a requirements.txt, and pip installs into the container and is lost on stop, hence the
-    # unconditional reinstall; XDG_CACHE_HOME already puts the wheel cache in the bucket, so later
-    # launches resolve from disk. Known wrinkle: opencv-python-headless replaces cv2 where the
-    # image ships full opencv-python — harmless here, ComfyUI uses no GUI cv2 calls.
+    # KJNodes is the only pack with dependencies; pip lands in the container, so reinstall each
+    # launch (cheap — XDG_CACHE_HOME keeps the wheel cache in the bucket).
     if [ -f "$BASE/custom_nodes/ComfyUI-KJNodes/requirements.txt" ]; then
       python3.13 -m pip install -q -r "$BASE/custom_nodes/ComfyUI-KJNodes/requirements.txt" ||
         echo "[ocean] KJNodes dependencies failed to install — turn Live Preview off in the" \
           "node's Settings; generation itself is unaffected" >&2
     fi
-    # These packs work by monkey-patching comfy.ldm.minimax.model, so a core release that renames
-    # or drops a name breaks them at sampling time — after the consumer has paid for the GPU and
-    # waited out a 59 GB launch. That is exactly how MiniMaxH3-Cache failed (time_shift_slope,
-    # removed 2026-08-06). This checks every name the installed packs reach for on that module
-    # against what the image's core actually defines, and says so up front. Names only: it cannot
-    # catch a changed signature or a changed tensor shape, which is the other half of the risk.
+    # These packs monkey-patch comfy.ldm.minimax.model; report names core no longer defines
+    # before a paid Run hits the AttributeError. Names only — not signatures or shapes.
     python3.13 - "$BASE/custom_nodes" <<'PROBE' || true
 import ast, re, sys
 from pathlib import Path
@@ -458,64 +438,67 @@ for pack, names in sorted(missing.items()):
 if not missing:
     print('[ocean] pack compatibility check: no missing core names')
 PROBE
-    # Two defaults in the pack's shipped config point at things this bundle does not have, and both
-    # only surface after the consumer has paid and waited: model_defaults.speed_lora is empty, so
-    # Turbo renders 6 undistilled steps (broken-looking rather than fast) until someone picks the
-    # file in Settings, and quality_presets.speed.cache is true, so Speed asks for the H3 Cache node
-    # that is deliberately not installed and fails with "Node 'H3 Cache' not found". Both are fixed
-    # in the pack's own config.json, which _load_config() treats as the built-in default layer; a
-    # user who later changes either setting saves their own copy and that wins, as it should.
-    # Idempotent, and skipped silently if the pack did not clone.
-    python3.13 - "$BASE/custom_nodes/ComfyUI-ALLinONE-MinimaxH3/config.json" <<'LORA' || true
+    # Make the pack's shipped defaults match what is actually installed.
+    python3.13 - "$BASE/custom_nodes/ComfyUI-ALLinONE-MinimaxH3/config.json" \
+      "$BASE/user/default/one-node-minimax-h3/config.json" <<'LORA' || true
 import json, sys
 from pathlib import Path
-cfg = Path(sys.argv[1])
-if not cfg.is_file():
-    raise SystemExit(0)
-try:
-    data = json.loads(cfg.read_text(encoding='utf-8'))
-    changed = []
-    md = data.setdefault('model_defaults', {})
-    if not md.get('speed_lora'):
-        md['speed_lora'] = 'minimax_h3_turbo_v4_step600_ema.safetensors'
-        changed.append('Turbo LoRA selected')
-    # Every preset that asks for an accelerator this bundle does not install. Driven by a table so
-    # dropping or adding a pack is one line here, not another round of whack-a-mole. `high` wants
-    # SageAttention: KJNodes provides the node, but the kernels come from the `sageattention` wheel,
-    # whose compiled extension is absent here — it surfaces as a NoneType with a
-    # qk_int8_sv_f8_... attribute, and its prebuilt kernels target SM89 rather than the SM90 cards
-    # this template asks for anyway. Switching it off costs speed, not quality: Sage is quantized
-    # (int8/fp8) attention, so 40 steps without it is slower and slightly more precise, not worse.
-    for preset, flag in (('speed', 'cache'), ('high', 'sage')):
-        if data.get('quality_presets', {}).get(preset, {}).get(flag):
-            data['quality_presets'][preset][flag] = False
-            changed.append(f'{preset} preset: {flag} off')
-    # The pack ships landscape only, and the reason this template exists is vertical short-form.
-    # Flipped copies of its own presets, so every shape is one it already validates, plus one exact
-    # 9:16. H3 needs both axes on a multiple of 32; all of these are. Matched on label, so a rerun
-    # adds nothing and a user's own edits are never duplicated.
-    rp = data.setdefault('resolution_presets', [])
-    for w, h, tag in ((352, 608, '0.2MP Vertical Preview'), (480, 864, '0.4MP Vertical Speed'),
-                      (544, 960, '0.5MP Vertical Balanced'), (576, 1024, '0.6MP Vertical 9:16'),
-                      (768, 1344, '0.98MP Vertical Max')):
-        label = f'{w}x{h} ({tag})'
-        if not any(p.get('label') == label for p in rp):
-            rp.append({'label': label, 'width': w, 'height': h})
-            changed.append(label)
-    if changed:
-        cfg.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
-        print('[ocean] pack defaults adjusted — ' + '; '.join(changed))
-except Exception as e:
-    print(f'[ocean] could not adjust the pack defaults ({e}) — pick the Turbo LoRA under Settings'
-          ' and switch the H3 Cache chip off before using Speed', file=sys.stderr)
+
+# Both layers: _load_config() does merged.update(user), so a saved user config shadows the pack's.
+# .get() and never setdefault — a partial dict in the user layer replaces the built-in wholesale.
+# speed needs the H3 Cache node and high needs sageattention; neither is installed, so drop them
+# rather than ship them degraded under names that promise otherwise.
+REMOVE = ('speed', 'high')
+FALLBACK = 'balanced'
+# Discover-tab templates for modes whose node packs are not installed.
+REMOVE_MODES = ('audio_drive', 'image')
+
+# Vertical presets: flipped copies of the pack's own shapes, plus one exact 9:16. All /32.
+VERTICAL = ((352, 608, '0.2MP Vertical Preview'), (480, 864, '0.4MP Vertical Speed'),
+            (544, 960, '0.5MP Vertical Balanced'), (576, 1024, '0.6MP Vertical 9:16'),
+            (768, 1344, '0.98MP Vertical Max'))
+
+for arg in sys.argv[1:]:
+    cfg = Path(arg)
+    if not cfg.is_file():
+        continue
+    try:
+        data = json.loads(cfg.read_text(encoding='utf-8'))
+        changed = []
+        md = data.get('model_defaults')
+        if isinstance(md, dict) and not md.get('speed_lora'):
+            md['speed_lora'] = 'minimax_h3_turbo_v4_step600_ema.safetensors'
+            changed.append('Turbo LoRA selected')
+        qp = data.get('quality_presets')
+        if isinstance(qp, dict):
+            for preset in REMOVE:
+                if qp.pop(preset, None) is not None:
+                    changed.append(f'{preset} preset removed')
+        # A saved `quality` naming a removed preset would point at nothing on load.
+        if data.get('quality') in REMOVE:
+            data['quality'] = FALLBACK
+            changed.append(f'quality reset to {FALLBACK}')
+        pt = data.get('prompt_templates')
+        if isinstance(pt, dict):
+            for mode in REMOVE_MODES:
+                if pt.pop(mode, None) is not None:
+                    changed.append(f'{mode} prompts removed')
+        rp = data.get('resolution_presets')
+        if isinstance(rp, list):
+            for w, h, tag in VERTICAL:
+                label = f'{w}x{h} ({tag})'
+                if not any(p.get('label') == label for p in rp):
+                    rp.append({'label': label, 'width': w, 'height': h})
+                    changed.append(label)
+        if changed:
+            cfg.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+            print(f'[ocean] {cfg.name} adjusted — ' + '; '.join(changed))
+    except Exception as e:
+        print(f'[ocean] could not adjust {cfg} ({e}) — pick the Turbo LoRA under Settings and'
+              ' switch the H3 Cache chip off before using Speed', file=sys.stderr)
 LORA
-    # ComfyUI saves as <filename_prefix>_00001_.mp4, and every graph template in the pack prefixes
-    # its save node with one-node-minimax-h3/, which puts finished clips in a subfolder the storage
-    # API's listFiles (top-level files only) cannot see — the same reason the music template saves
-    # as `song` rather than Comfy's default. Flatten it so a clip is downloadable from the bucket
-    # without opening ComfyUI. Idempotent: the second launch finds nothing left to match. Chain
-    # mode is not covered — its prefix is built in the pack's JS at queue time, so those clips stay
-    # under chain/<session>/ and have to be fetched from the node's Library tab.
+    # The pack saves under one-node-minimax-h3/, a subfolder listFiles cannot see. Flatten it so
+    # clips land in the bucket root. Chain is not covered — its prefix is built in the JS.
     sed -i 's#one-node-minimax-h3/##g' \
       "$BASE/custom_nodes/ComfyUI-ALLinONE-MinimaxH3/workflows/"*.json 2>/dev/null || true
   fi

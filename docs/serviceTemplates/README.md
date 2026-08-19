@@ -537,16 +537,20 @@ notes. Needs a CUDA GPU; 48 GB+ is comfortable, 24 GB runs the lower resolution 
 pass), I2V (animate a start frame, optionally morphing to an end frame), R2V (reference images,
 video or audio drive the clip), Keyframes (pin stills at chosen frame positions), Extend (continue
 an existing clip) and Chain (multi-clip continuation through H3 Motion Context, which hands the
-latent path forward rather than re-encoding a file). **Audio Drive**, **Image** and the RTX /
-SeedVR2 upscale hooks appear in the tab bar but are not installed — they need packs with heavy pip
-dependencies (`comfyui-vrgamedevgirl` pulls demucs, voxcpm and llama-cpp-python) or two more
-models, and selecting one reports a missing node rather than failing a paid Run halfway.
+latent path forward rather than re-encoding a file). **Image**, **Audio Drive** and the RTX /
+SeedVR2 upscale hooks appear in the tab bar but are not installed. Image mode makes stills, not
+video — I2V is the image-to-video one — and its two Qwen3.5 prompt models are 12.9 GB a video
+bundle has no other use for. Audio Drive needs `comfyui-vrgamedevgirl`, which pulls demucs, voxcpm
+and a llama-cpp-python that compiles on every launch. RTX Video Super Resolution wants a consumer
+RTX card and will not run on a data-centre GPU. Selecting any of them reports a missing node
+rather than failing a paid Run halfway.
 
-**Four packs.** The bootstrap clones the ALL-in-ONE node itself,
+**Five packs.** The bootstrap clones the ALL-in-ONE node itself,
 [H3-Motion-Context-MultiRef](https://github.com/seitanism/ComfyUI-H3-Motion-Context-MultiRef) for
 keyframes / extend / chain, [SolAttn_triton](https://github.com/kijai/ComfyUI-SolAttn_triton) for the
-quality presets, and
-[KJNodes](https://github.com/kijai/ComfyUI-KJNodes) for Live Preview. Only KJNodes ships a
+Balanced preset, [KJNodes](https://github.com/kijai/ComfyUI-KJNodes) for Live Preview, and
+[MiniMax-H3-Turbo](https://github.com/Larryvrh/ComfyUI-MiniMax-H3-Turbo) for the
+Turbo preset. Only KJNodes ships a
 `requirements.txt`, so it is the only one with a pip step (reinstalled each launch from the bucket's
 wheel cache; its `opencv-python-headless` replaces `cv2` where the image has full opencv, which is
 harmless because ComfyUI makes no GUI cv2 calls). None of the four extras is optional polish — they
@@ -562,23 +566,61 @@ fix (PR #6) is still open. Because it patches the diffusion model at import, hav
 fails **every** generation with
 `module 'comfy.ldm.minimax.model' has no attribute 'time_shift_slope'` — not only the Speed preset
 that wants it. So it is not cloned, and the bootstrap deletes it from the bucket if an earlier
-launch left it there, guarded on the broken call so a fixed copy survives. Speed still runs with its
-H3 Cache chip switched off; SolAttn and the 20 steps are the rest of that preset.
+launch left it there, guarded on the broken call so a fixed copy survives.
 
-**R2V may be broken on the pinned image.** A core shape-mismatch bug on H3 reference video
-(`all_video_rows[~img_update] = cond_video_rows`) was fixed upstream in commit `e01fb4c`, which is
-*not* an ancestor of the v0.33.1 tag this image ships — the release was cut two commits short of it.
-T2V and I2V are unaffected. Bump `tag` when yanwk publishes an image on a newer core, and re-check
-`COMPATIBILITY.md`'s "Known issues on newer ComfyUI cores" section at the same time.
+**Presets that lost their accelerator are removed, not degraded.** Speed (H3 Cache) and High Quality
+(SageAttention, whose kernels are absent from this image and surface as a NoneType with a
+`qk_int8_sv_f8_...` attribute) are deleted from `quality_presets` on launch, and a saved `quality`
+naming either is reset to `balanced`. Left in place they would be a slower Balanced and a slower
+Native under names promising the opposite, and one wrong click costs a paid Run. Nothing is lost on
+output: SolAttn and Sage are quantized-attention throughput trades, not quality knobs. What ships is
+Turbo, Balanced and Native.
 
-**Weights are 59.1 GB plus a 9.3 MB decoder** — both diffusion models (FL2VA and Ref2VA, 19.5 GB each, because the mode
+**Both config layers are repaired, not just the pack's.** `_load_config()` does
+`merged.update(user)` — a top-level replace — so a consumer who has touched any quality setting has
+a saved `user/default/one-node-minimax-h3/config.json` whose `quality_presets` shadows the pack's
+entirely. Patching only the built-in layer left Speed still asking for the missing node. The script
+walks both, using `.get()` and never `setdefault`: creating a key in the user layer would make that
+partial dict replace the built-in one wholesale and take the unet/vae filenames or the landscape
+resolutions with it. The same pass preselects the Turbo LoRA and appends five vertical resolution
+presets (352x608, 480x864, 544x960, 576x1024 exact 9:16, 768x1344 — all axes on a multiple of 32,
+flipped from the pack's own validated shapes). Idempotent: a second launch prints nothing.
+
+**R2V is unverified, not known-broken.** `COMPATIBILITY.md` reports a core shape-mismatch on H3
+reference video (`all_video_rows[~img_update] = cond_video_rows`) fixed by commit `e01fb4c` on
+2026-08-13. Whether the `v0.33.1` tag this image ships contains it could not be established: the
+commit lands two hours *before* the release, yet the tag's `comfy/ldm/minimax/model.py` is not that
+commit's file — GitHub reports the two refs as diverged, and the tag carries a `frame_count`
+parameter `e01fb4c` lacks while missing a helper `e01fb4c` adds. So treat R2V as untested here;
+T2V and I2V are unaffected either way. The probe below will not catch this one — it is a tensor
+shape, not a missing name. Re-check that section of `COMPATIBILITY.md` whenever `tag` moves.
+
+**A launch-time probe guards the rest of this class.** All of these packs work by monkey-patching
+`comfy.ldm.minimax.model`, so any core release that renames or drops a name breaks them at sampling
+time — after the consumer paid for the GPU and sat through a 59 GB launch. After the clones, the
+bootstrap parses that core module with `ast`, collects every top-level name it defines (imports
+included, since packs reach through `minimax_model.comfy`), and greps the installed packs for names
+they access on it. Anything missing is named on stdout as an `[ocean]` line before ComfyUI starts.
+Run against ComfyUI 0.33.1 it flags exactly one thing — `MiniMaxH3-Cache` calling `time_shift_slope`
+— and clears MultiRef and SolAttn, which reference only `time_shift_sigma`, `VISUAL_COND_TIMESTEP`
+and `AUDIO_COND_TIMESTEP`. It checks names only: a changed signature or a changed tensor shape (the
+R2V case above) passes it silently.
+
+**Weights are 59.8 GB** — both diffusion models (FL2VA and Ref2VA, 19.5 GB each, because the mode
 tabs switch between them freely and only one is resident per generation), the 14.6 GB Qwen3-VL-32B
-text encoder and 5.5 GB of video and audio VAEs. This is the one template whose URLs are **not**
+text encoder 5.5 GB of video and audio VAEs, the 9.3 MB live-preview decoder and a 0.73 GB Turbo LoRA. That
+LoRA is the first use of the download loop's bare `*[Ll]ora*` arm, which exists precisely because it
+sits at its repo root rather than under a `/loras/` path. It also needs selecting, not just
+downloading: the pack ships `model_defaults.speed_lora` empty, so Turbo would render six
+undistilled steps — looking broken rather than fast — until someone picked the file in Settings. The
+bootstrap writes the filename into the pack's own `config.json`, which `_load_config()` treats as
+the built-in default layer, so a user who later changes any model setting still wins. This is the
+one template whose URLs are **not**
 carried by loader nodes, because the graph has none — they sit in the workflow's model note
 instead, which the bootstrap's scan reads exactly the same way, and the filenames match the pack's
 `model_defaults` so the node finds them with no configuration. `taeh3.safetensors`, the Live Preview
 decoder, is the sixth URL and routes through a `*/vae_approx/*` arm added to the download loop for
-it. It is also the smallest file any template fetches, at 9.3 MB — close enough to `get()`'s 10 MB
+it, and the Turbo LoRA is the seventh. It is also the smallest file any template fetches, at 9.3 MB — close enough to `get()`'s 10 MB
 floor that if HuggingFace ever stopped reporting a content-length for it, it would be discarded as
 "not a model file" rather than cached.
 
@@ -627,8 +669,8 @@ here. Each URL is routed into the matching `models/` subdirectory by pattern-mat
 `vae` for the MiniMax H3 template's weights. A bare `*[Ll]ora*` arm sits just before the
 catch-all default of `checkpoints`, because a LoRA is not always published under a `/loras/`
 path — the MiniMax H3 turbo LoRA, for instance, sits at its repo root, and without that arm it
-would land in `checkpoints` and its loader node would show red. No template ships that LoRA
-today; the arm is what lets you add one to a graph without touching this script. A template's
+would land in `checkpoints` and its loader node would show red. `minimax-h3-allinone` is the first
+template to actually ship it, so that arm is now load-bearing rather than provisional. A template's
 `envVars` cannot drive this —
 nothing merges them into a service container (`SERVICE_START` has no template id; the container
 env comes only from `userData`).
@@ -670,14 +712,16 @@ second `numpy`/`torch` ahead of the container's would break ComfyUI itself. Ever
 non-fatal — escrow is already claimed by then, and the video workflows need none of it.
 
 A second gate follows the same shape for `minimax-h3-allinone`: a graph mentioning `H3OneNode`
-gets four pack clones — the ALL-in-ONE node, the Motion Context fork, the accelerator pack its
-Balanced and Speed presets need, and KJNodes for Live Preview. Three are pure Python, so the clone
-is the whole install; KJNodes alone gets a pip step, which follows the loop and behaves like the
+gets five pack clones — the ALL-in-ONE node, the Motion Context fork, SolAttn for the Balanced
+preset, KJNodes for Live Preview, and the Turbo pack. Four are pure Python, so the clone is the
+whole install; KJNodes alone gets a pip step, which follows the loop and behaves like the
 voice-conversion one above. Immediately before it, a stale `ComfyUI-MiniMaxH3-Cache` left in the
-bucket by an earlier launch is deleted — see that template's section for why. A clone that fails is cleaned up and costs that mode or preset, not the
-session. Immediately after, a `sed`
-strips the `one-node-minimax-h3/` prefix out of the cloned pack's own graph templates so saved
-clips land in the bucket root where `listFiles` can see them.
+bucket by an earlier launch is deleted — see that template's section for why. A clone that fails is
+cleaned up and costs that mode or preset, not the session. Then three fixups run: a `sed` strips the
+`one-node-minimax-h3/` prefix out of the cloned pack's own graph templates so saved clips land in
+the bucket root where `listFiles` can see them; a static probe reports any name the packs reach for
+on `comfy.ldm.minimax.model` that this core no longer defines; and both config layers are reconciled
+with what is actually installed.
 
 ### `automatic1111.json` — Stable Diffusion WebUI (A1111) (GPU)
 
