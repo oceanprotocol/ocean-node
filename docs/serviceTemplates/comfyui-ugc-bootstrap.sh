@@ -510,6 +510,45 @@ LORA
     # clips land in the bucket root. Chain is not covered — its prefix is built in the JS.
     sed -i 's#one-node-minimax-h3/##g' \
       "$BASE/custom_nodes/ComfyUI-ALLinONE-MinimaxH3/workflows/"*.json 2>/dev/null || true
+    # ...which leaves the node's own Library tab empty: it only walks output/one-node-minimax-h3/.
+    # Scan the output root as well — one level, not recursively, because that root IS the bucket
+    # and models/ and custom_nodes/ hang off it. The original walk stays for chain, which still
+    # writes to the subfolder. relpath of the root against itself is ".", and a "." subfolder in
+    # the media key would not match the history's "", losing the seed and prompt in the lightbox.
+    python3.13 - "$BASE/custom_nodes/ComfyUI-ALLinONE-MinimaxH3/nodes.py" <<'GALLERY' || true
+import sys
+from pathlib import Path
+
+OLD_WALK = """    if not out_dir.is_dir():
+        return []
+    found = []
+    for root, _dirs, files in os.walk(str(out_dir)):
+"""
+NEW_WALK = """    scans = [(str(base), [], sorted(f.name for f in base.iterdir() if f.is_file()))]
+    if out_dir.is_dir():
+        scans += list(os.walk(str(out_dir)))
+    found = []
+    for root, _dirs, files in scans:
+"""
+OLD_SUB = '            sub = os.path.relpath(os.path.dirname(full), str(base)).replace("\\\\", "/")\n'
+NEW_SUB = OLD_SUB + '            sub = "" if sub == "." else sub\n'
+
+src = Path(sys.argv[1])
+try:
+    text = src.read_text(encoding="utf-8")
+    for old, new in ((OLD_WALK, NEW_WALK), (OLD_SUB, NEW_SUB)):
+        if new in text:
+            continue
+        if text.count(old) != 1:
+            raise LookupError("_scan_output_videos no longer looks like the patched version")
+        text = text.replace(old, new)
+    src.write_text(text, encoding="utf-8")
+    print("[ocean] Library tab pointed at the output root")
+except Exception as e:
+    print(f"[ocean] could not patch the Library scan ({e}) — generated clips still land in the"
+          " bucket root and download fine, but the node's Library tab will look empty."
+          " Use the History tab, or the storage API's listFiles.", file=sys.stderr)
+GALLERY
   fi
 fi
 
