@@ -20,7 +20,7 @@
     }
   ],
   "image": "vllm/vllm-openai",
-  "tag": "latest",
+  "tag": "muse-glimmer",
   "exposedPorts": [8080],
   "entrypoint": ["/bin/bash", "-c"],
   "commandFile": "muse-glimmer-openwebui-bootstrap.sh",

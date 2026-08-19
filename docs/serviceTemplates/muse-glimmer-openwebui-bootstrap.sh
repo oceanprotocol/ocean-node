@@ -5,6 +5,14 @@
 # answers anyone who reaches it — is not exposed at all, and Open WebUI's own login is the
 # single front door. The model runs tensor-parallel size 1, so nothing here needs a large
 # /dev/shm or ipc=host, neither of which the node passes through on the service path.
+#
+# The template pins the image to vllm/vllm-openai:muse-glimmer, NOT :latest. Muse-Glimmer
+# support — the muse_glimmer tool-call and reasoning parsers the model card asks for — merged
+# on 2026-08-14, after v0.27.1 was cut on 2026-08-11, so :latest rejects both flags with
+# "KeyError: invalid tool call parser: muse_glimmer" and the container dies before loading a
+# single weight. The pinned tag is vLLM's model-launch build for this model (commit 99a1030)
+# and does carry both parsers. Move back to :latest once a release after v0.27.1 ships with
+# them; do not use :nightly, which changes under you inside a paid window.
 set -euo pipefail
 
 MODEL="RedHatAI/Muse-Glimmer-30B-FP8-block"
