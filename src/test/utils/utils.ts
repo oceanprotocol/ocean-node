@@ -129,6 +129,9 @@ export async function tearDownEnvironment(overrideVars?: OverrideEnvConfig[]) {
         } else {
           delete process.env[element.name]
         }
+        if (ENVIRONMENT_VARIABLES[element.name]) {
+          ENVIRONMENT_VARIABLES[element.name].value = element.originalValue
+        }
         forceReload = true
       }
     })

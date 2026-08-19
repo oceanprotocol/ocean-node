@@ -22,9 +22,51 @@ import { fileURLToPath } from 'url'
 import cors from 'cors'
 import { scheduleCronJobs } from './utils/cronjobs/scheduleCronJobs.js'
 import { requestValidator } from './components/httpRoutes/requestValidator.js'
-import { hasValidDBConfiguration } from './utils/database.js'
+import { hasValidDBConfiguration, isReachableConnection } from './utils/database.js'
+import type { OceanNodeDBConfig } from './@types/OceanNode.js'
 
 const app: Express = express()
+
+// Database services (Elasticsearch/Typesense) frequently take longer to accept
+// connections than the node itself takes to boot. Database.init() gives
+// up after a single failed attempt, which leaves the node running permanently
+// without Indexer and without C2D.
+
+async function initDatabaseWithRetry(
+  dbConfig: OceanNodeDBConfig,
+  maxAttempts: number,
+  retryDelay: number,
+  maxRetryDelay: number
+): Promise<Database | null> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const isLastAttempt = attempt === maxAttempts
+    const notReachable =
+      !isLastAttempt &&
+      hasValidDBConfiguration(dbConfig) &&
+      !(await isReachableConnection(dbConfig.url))
+
+    if (!notReachable) {
+      const database = await Database.init(dbConfig)
+      if (database) {
+        if (attempt > 1) {
+          OCEAN_NODE_LOGGER.info(`Database initialized after ${attempt} attempts`)
+        }
+        return database
+      }
+    }
+    if (isLastAttempt) {
+      break
+    }
+    const delay = Math.min(retryDelay * 2 ** (attempt - 1), maxRetryDelay)
+    OCEAN_NODE_LOGGER.warn(
+      `Database ${
+        notReachable ? 'not reachable yet' : 'initialization failed'
+      } (attempt ${attempt}/${maxAttempts}), retrying in ${delay}ms`
+    )
+    await new Promise((resolve) => setTimeout(resolve, delay))
+  }
+  return null
+}
 
 process.on('uncaughtException', (err) => {
   OCEAN_NODE_LOGGER.error(`Uncaught exception: ${err.message}`)
@@ -77,7 +119,12 @@ let node: OceanP2P = null
 let indexer = null
 let provider = null
 // If there is no DB URL only the nonce database will be available
-const dbconn: Database = await Database.init(config.dbConfig)
+const dbconn: Database | null = await initDatabaseWithRetry(
+  config.dbConfig,
+  config.dbInitMaxAttempts,
+  config.dbInitRetryDelay,
+  config.dbInitMaxRetryDelay
+)
 if (!dbconn) {
   OCEAN_NODE_LOGGER.error('Database failed to initialize')
 }

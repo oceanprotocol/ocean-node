@@ -8,7 +8,10 @@ import {
   DEFAULT_BOOTSTRAP_ADDRESSES,
   DEFAULT_RATE_LIMIT_PER_MINUTE,
   DEFAULT_UNSAFE_URLS,
-  DEFAULT_FILTER_ANNOUNCED_ADDRESSES
+  DEFAULT_FILTER_ANNOUNCED_ADDRESSES,
+  DEFAULT_DB_INIT_MAX_ATTEMPTS,
+  DEFAULT_DB_INIT_RETRY_DELAY,
+  DEFAULT_DB_INIT_MAX_RETRY_DELAY
 } from './constants.js'
 
 function isValidUrl(urlString: string): boolean {
@@ -777,6 +780,30 @@ export const OceanNodeConfigSchema = z
 
     httpPort: z.coerce.number().optional().default(3000),
     rateLimit: z.coerce.number().optional().default(DEFAULT_RATE_LIMIT_PER_MINUTE),
+
+    // Startup database-init retry knobs. int().min(1) is load-bearing, not decoration:
+    // maxAttempts of 0 would skip Database.init() altogether and boot the node with no
+    // database, and a 0 delay would turn the backoff into a hot loop. A non-numeric or
+    // out-of-range value fails validation, so the node refuses to start instead of silently
+    // running with retrying disabled.
+    dbInitMaxAttempts: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .default(DEFAULT_DB_INIT_MAX_ATTEMPTS),
+    dbInitRetryDelay: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .default(DEFAULT_DB_INIT_RETRY_DELAY),
+    dbInitMaxRetryDelay: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .default(DEFAULT_DB_INIT_MAX_RETRY_DELAY),
 
     ipfsGateway: z.string().nullable().optional(),
     arweaveGateway: z.string().nullable().optional(),
