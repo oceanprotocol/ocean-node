@@ -374,12 +374,21 @@ if [ -n "${PACK:-}" ] && grep -qls H3OneNode "$PACK"/example_workflows/*.json 2>
                 kijai/ComfyUI-KJNodes \
                 Larryvrh/ComfyUI-MiniMax-H3-Turbo; do
       H3_DIR="$BASE/custom_nodes/${repo##*/}"
-      if [ ! -d "$H3_DIR/.git" ]; then
-        git clone --depth 1 "https://github.com/$repo.git" "$H3_DIR" || {
-          echo "[ocean] could not clone $repo — its modes or quality presets will report" \
-            "a missing node in the UI" >&2
-          rm -rf "$H3_DIR"
-        }
+      if [ -d "$H3_DIR/.git" ]; then
+        # The clones live in the bucket and outlive the container, so without this they stay on
+        # whatever was HEAD the first time this bucket launched — and these packs are only
+        # compatible at matching versions. Motion Context added a required audio_feather_ticks
+        # input that an older ALL-in-ONE never sends, which fails Extend at queue time with
+        # "Required input is missing". reset --hard, not pull: the config and workflow edits
+        # below are re-applied on every launch, so local modifications are expendable here.
+        git -C "$H3_DIR" fetch -q --depth 1 origin HEAD &&
+          git -C "$H3_DIR" reset -q --hard FETCH_HEAD ||
+          echo "[ocean] could not update ${repo##*/} — staying on the installed version; if" \
+            "Extend or Chain report a missing input, delete $H3_DIR and relaunch" >&2
+      elif ! git clone --depth 1 "https://github.com/$repo.git" "$H3_DIR"; then
+        echo "[ocean] could not clone $repo — its modes or quality presets will report" \
+          "a missing node in the UI" >&2
+        rm -rf "$H3_DIR"
       fi
     done
     # MiniMaxH3-Cache calls time_shift_slope, gone from core since 2026-08-06, and patches the
