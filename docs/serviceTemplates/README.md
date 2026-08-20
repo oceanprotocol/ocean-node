@@ -647,53 +647,50 @@ tab bar, upload a photo, press Queue.
 | --- | --- | --- |
 | `ocean_ecom_background` | packshot on a plain background | the product in a generated scene, `ecom_background_00001_.png` |
 | `ocean_ecom_relight` | product + a photo whose lighting you want | the product re-lit to match, `ecom_relight_00001_.png` |
-| `ocean_ecom_multiview` | one photo | eight angles `ecom_angle_<name>_00001_.png` plus a turntable loop `ecom_turntable_00001_.webp` |
-| `ocean_ecom_creative` | product photo + a headline in the prompt | an ad with copy and the real product composited in, `ecom_creative_00001_.png` |
-| `ocean_ecom_motion` | one photo + a description of the motion | `ecom_motion_00001_.mp4` and `ecom_motion_webp_00001_.webp`, 121 frames at 24 fps |
+| `ocean_ecom_multiview` | one photo | a full 360: 7 steps at 45 degrees, a close-up, and a loop `ecom_turntable_00001_.webp` |
+| `ocean_ecom_creative` | product photo + a headline in the prompt | an ad with copy and the real product put into it, `ecom_creative_00001_.png` |
+| `ocean_ecom_motion` | one photo + a description of the motion | `ecom_motion_00001_.mp4`, 9:16, up to 5 seconds |
 
 **Why 2509 and not 2511.** The edit backbone is Qwen-Image-Edit **2509**, not the newer 2511,
-because the five LoRAs this template is built on — `White_to_Scene`, `Fusion`, `Relight`,
-`Light-Migration` and `Multiple-angles` — are published only for 2509, and every official
-ComfyUI template that uses them pairs them with it. 2511 scores better on generic edit
-benchmarks and has no product LoRAs at all.
+because the four LoRAs this template uses — `White_to_Scene`, `Relight`, `Light-Migration`
+and `Multiple-angles` — exist only for 2509. 2511 scores better on generic edit benchmarks
+and has no product LoRAs.
 
-**Weights — 58.7 GB.** Sharing is what keeps that number down:
+**Why LTX-2.3 for Motion.** It is a 22B model, so it holds product detail and label text.
+Small video models do not. It is also the same 43 GB weight set as `ltx-video-ugc-product`.
+Launch with the bucket you already used for that template and the files are on disk. LTX-2.3
+is not gated; LTX-2.5 is, which is why this uses 2.3.
+
+**Weights — 96.2 GB.**
 
 | | GB | used by |
 | --- | ---: | --- |
-| Qwen2.5-VL 7B text encoder (fp8) | 9.38 | all five |
-| Qwen-Image VAE | 0.25 | four |
-| Qwen-Image-Edit 2509 (fp8) | 20.43 | four |
-| five product LoRAs + Lightning (bf16) | 2.05 | four |
+| Qwen2.5-VL 7B text encoder (fp8) | 9.38 | the 4 image workflows |
+| Qwen-Image VAE | 0.25 | 4 |
+| Qwen-Image-Edit 2509 (fp8) | 20.43 | 3 |
+| four product LoRAs + Lightning (bf16) | 1.81 | 3 |
 | Qwen-Image 2512 (fp8) + Lightning (bf16) | 21.28 | creative, stage A |
-| Kandinsky 5.0 I2V Lite + Hunyuan VAE + CLIP-L | 5.31 | motion |
+| LTX-2.3 set (model, Gemma encoder, 2 LoRAs, upscaler) | 43.0 | motion |
 
-Kandinsky was chosen over a 14B video model specifically because it reuses the same Qwen2.5-VL
-encoder the image workflows already load: it adds ~5 GB where Wan 2.2 I2V 14B would have added
-~38 GB, and a product clip is short and small by nature.
+**VRAM is not the disk number.** The image workflows hold one 20.4 GB backbone plus the
+encoder — about 30 GB. Motion holds LTX-2.3 plus the Gemma encoder — about 40 GB. A 48 GB
+card runs everything. A 24 GB card runs the image workflows only.
 
-**VRAM is not the disk number.** A generation holds one 20.4 GB backbone plus the encoder and
-VAE — about 30 GB. The two image backbones never co-reside: the Creative workflow runs its two
-stages as separate passes and ComfyUI unloads between them. A 32 GB card runs every workflow;
-24 GB works with the encoder paged out between passes.
+**Quality toggles.** Each edit workflow ships at 20 steps and cfg 4 with its Lightning LoRA
+switched off. Turning the toggle on switches the model, the steps and the cfg together, to
+4 steps at cfg 1.
 
-**Quality toggles.** Both image backbones ship undistilled with their Lightning LoRA present but
-switched off — inside the Creative workflow, `Enable 4 Steps LoRA?` flips model, sampler steps
-and cfg together for roughly a 12x speedup at the cost of softer text. The LoRAs are shipped
-separately rather than pre-merged precisely so those toggles exist.
+**The task LoRAs are single-image specialists.** `White_to_Scene` puts one packshot into a
+scene. `Light-Migration` and `Relight` re-light one image. `Fusion` repairs one image where
+the product is already composited in. None of them composites two separate images, so the
+Creative workflow bypasses the task LoRA and lets base 2509 do the two-image edit.
 
-**White_to_Scene vs Fusion.** These are a matched pair and each ships with the prompt it was
-trained for. Background wires one image and uses `White_to_Scene` with a prompt that
-*describes a target scene*. Creative's stage B wires two — the generated layout plus your
-product — and uses `Fusion` with a prompt that *blends* the second into the first. Swapping
-either LoRA without swapping its prompt gives noticeably worse results.
+**Relight has two modes.** It ships wired for reference-image relighting via the
+Light-Migration LoRA. The `Relight` LoRA is downloaded too — its URL travels in the
+workflow's note, which the bootstrap's scanner picks up like any other — so switching to
+prompt-driven relighting is one widget change with no missing file.
 
-**Relight has two modes.** It ships wired for reference-image relighting via the Light-Migration
-LoRA. The `Relight` LoRA is downloaded too — its URL travels in the workflow's note, which the
-bootstrap's scanner picks up like any other — so switching to prompt-driven relighting is one
-widget change with no missing file.
-
-Select a persistent-storage bucket on launch or the 58.7 GB downloads every time and the renders
+Select a persistent-storage bucket on launch or the 96.2 GB downloads every time and the renders
 are discarded on stop.
 
 ## The shared bootstrap (`comfyui-ugc-bootstrap.sh`)

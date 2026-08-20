@@ -53,7 +53,7 @@
       "title": "Note for prompting",
       "properties": {},
       "widgets_values": [
-        "The prompt's first line tells the model to copy the lighting and color tone from your reference photo onto your product photo \u2014 leave it in place.\n\nAdd your own instructions after it, for example to call out a specific light direction or mood."
+        "The prompt's first two sentences tell the model to take the lighting from your reference photo \u2014 leave them in place.\n\nAdd your own instructions after them, for example a light direction or a mood."
       ],
       "color": "#222",
       "bgcolor": "#000"
@@ -967,7 +967,7 @@
               "secondTabWidth": 65
             },
             "widgets_values": [
-              "\u53c2\u8003\u8272\u8c03\uff0c\u79fb\u9664\u56fe1\u539f\u6709\u7684\u5149\u7167\u5e76\u53c2\u8003\u56fe2\u7684\u5149\u7167\u548c\u8272\u8c03\u5bf9\u56fe1\u91cd\u65b0\u7167\u660e, keep the product's shape, edges, and label text unchanged."
+              "Remove the original lighting from image 1. Relight image 1 with the lighting direction, intensity and colour tone of image 2. Keep the product's shape, edges, colour and label text unchanged."
             ],
             "color": "#232",
             "bgcolor": "#353"
