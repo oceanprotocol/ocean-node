@@ -424,9 +424,7 @@ if [ -n "${PACK:-}" ] && grep -qls H3OneNode "$PACK"/example_workflows/*.json 2>
   else
     for repo in LeonQ8/ComfyUI-ALLinONE-MinimaxH3 \
                 seitanism/ComfyUI-H3-Motion-Context-MultiRef \
-                kijai/ComfyUI-SolAttn_triton \
-                kijai/ComfyUI-KJNodes \
-                Larryvrh/ComfyUI-MiniMax-H3-Turbo; do
+                kijai/ComfyUI-SolAttn_triton; do
       H3_DIR="$BASE/custom_nodes/${repo##*/}"
       if [ -d "$H3_DIR/.git" ]; then
         # The clones live in the bucket and outlive the container, so without this they stay on
@@ -449,16 +447,9 @@ if [ -n "${PACK:-}" ] && grep -qls H3OneNode "$PACK"/example_workflows/*.json 2>
     # model at import — so its presence alone fails every generation. Delete a stale clone.
     if grep -qs time_shift_slope "$BASE/custom_nodes/ComfyUI-MiniMaxH3-Cache/__init__.py"; then
       echo "[ocean] removing ComfyUI-MiniMaxH3-Cache: it calls time_shift_slope, which this" \
-        "ComfyUI no longer has, and it breaks every H3 generation. Speed's other half (SolAttn)" \
-        "is unaffected — switch the H3 Cache chip off under the Quality dropdown." >&2
+        "ComfyUI no longer has, and it breaks every H3 generation. Nothing in the trimmed UI" \
+        "uses it — the Speed preset it belonged to is gone." >&2
       rm -rf "$BASE/custom_nodes/ComfyUI-MiniMaxH3-Cache"
-    fi
-    # KJNodes is the only pack with dependencies; pip lands in the container, so reinstall each
-    # launch (cheap — XDG_CACHE_HOME keeps the wheel cache in the bucket).
-    if [ -f "$BASE/custom_nodes/ComfyUI-KJNodes/requirements.txt" ]; then
-      python3.13 -m pip install -q -r "$BASE/custom_nodes/ComfyUI-KJNodes/requirements.txt" ||
-        echo "[ocean] KJNodes dependencies failed to install — turn Live Preview off in the" \
-          "node's Settings; generation itself is unaffected" >&2
     fi
     # These packs monkey-patch comfy.ldm.minimax.model; report names core no longer defines
     # before a paid Run hits the AttributeError. Names only — not signatures or shapes.
@@ -501,20 +492,18 @@ for pack, names in sorted(missing.items()):
 if not missing:
     print('[ocean] pack compatibility check: no missing core names')
 PROBE
-    # Make the pack's shipped defaults match what is actually installed.
+    # Discover-tab templates and the resolution list, the only two config keys the node reads
+    # at runtime (quality_presets in config.json is read by nothing — the presets live in the
+    # node's JS, which the block below edits).
     python3.13 - "$BASE/custom_nodes/ComfyUI-ALLinONE-MinimaxH3/config.json" \
-      "$BASE/user/default/one-node-minimax-h3/config.json" <<'LORA' || true
+      "$BASE/user/default/one-node-minimax-h3/config.json" <<'CONFIG' || true
 import json, sys
 from pathlib import Path
 
 # Both layers: _load_config() does merged.update(user), so a saved user config shadows the pack's.
 # .get() and never setdefault — a partial dict in the user layer replaces the built-in wholesale.
-# speed needs the H3 Cache node and high needs sageattention; neither is installed, so drop them
-# rather than ship them degraded under names that promise otherwise.
-REMOVE = ('speed', 'high')
-FALLBACK = 'balanced'
-# Discover-tab templates for modes whose node packs are not installed.
-REMOVE_MODES = ('audio_drive', 'image')
+# Prompt templates for the modes taken out of the tab bar.
+REMOVE_MODES = ('audio_drive', 'image', 'keyframes')
 
 # Vertical presets: flipped copies of the pack's own shapes, plus one exact 9:16. All /32.
 VERTICAL = ((352, 608, '0.2MP Vertical Preview'), (480, 864, '0.4MP Vertical Speed'),
@@ -528,19 +517,6 @@ for arg in sys.argv[1:]:
     try:
         data = json.loads(cfg.read_text(encoding='utf-8'))
         changed = []
-        md = data.get('model_defaults')
-        if isinstance(md, dict) and not md.get('speed_lora'):
-            md['speed_lora'] = 'minimax_h3_turbo_v4_step600_ema.safetensors'
-            changed.append('Turbo LoRA selected')
-        qp = data.get('quality_presets')
-        if isinstance(qp, dict):
-            for preset in REMOVE:
-                if qp.pop(preset, None) is not None:
-                    changed.append(f'{preset} preset removed')
-        # A saved `quality` naming a removed preset would point at nothing on load.
-        if data.get('quality') in REMOVE:
-            data['quality'] = FALLBACK
-            changed.append(f'quality reset to {FALLBACK}')
         pt = data.get('prompt_templates')
         if isinstance(pt, dict):
             for mode in REMOVE_MODES:
@@ -557,9 +533,111 @@ for arg in sys.argv[1:]:
             cfg.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
             print(f'[ocean] {cfg.name} adjusted — ' + '; '.join(changed))
     except Exception as e:
-        print(f'[ocean] could not adjust {cfg} ({e}) — pick the Turbo LoRA under Settings and'
-              ' switch the H3 Cache chip off before using Speed', file=sys.stderr)
-LORA
+        print(f'[ocean] could not adjust {cfg} ({e}) — the Discover tab will list templates for'
+              ' modes this template does not install, and the vertical resolution presets will'
+              ' be missing (use Custom).', file=sys.stderr)
+CONFIG
+    # Trim the node's own UI down to what this image can actually run. The tab bar, the quality
+    # presets and the sampler/scheduler pickers are hardcoded in the pack's JS, not in config.json,
+    # so they are edited here — otherwise every one of them stays clickable and fails a paid Run:
+    # Audio Drive, Keyframes and Image need packs and weights this template does not install,
+    # upscale needs SeedVR2 weights or a consumer RTX card, Live Preview needs KJNodes and the
+    # TAEH3 decoder, and Turbo needs the LoRA. The clone is reset --hard above on every launch,
+    # so this re-applies each time.
+    python3.13 - "$BASE/custom_nodes/ComfyUI-ALLinONE-MinimaxH3/web/one_node_minimax_h3.js" <<'TRIM' || true
+import sys
+from pathlib import Path
+
+# (old, new) applied in order, each exactly once. A pair whose `new` is already present is
+# treated as done — the clone is reset --hard on every launch, but a partially patched file
+# should still converge.
+PATCHES = [
+    # Tab bar: only the modes whose packs are installed and whose output is video.
+    ('''const MODES = [
+  { key:"t2v",         label:"T2V" },
+  { key:"i2v",         label:"I2V" },
+  { key:"r2v",         label:"R2V" },
+  { key:"audio_drive", label:"Audio Drive" },
+  { key:"keyframes",   label:"Keyframes" },
+  { key:"extend",      label:"Extend" },
+  { key:"chain",       label:"Chain" },
+  { key:"image",       label:"Image" },
+];''',
+     '''const MODES = [
+  { key:"t2v",         label:"T2V" },
+  { key:"i2v",         label:"I2V" },
+  { key:"r2v",         label:"R2V" },
+  { key:"extend",      label:"Extend" },
+  { key:"chain",       label:"Chain" },
+];'''),
+    # Quality: Balanced (SolAttn) and Native. Turbo needs a LoRA this template no longer
+    # downloads, Speed the H3 Cache node, High Quality SageAttention kernels.
+    ('''const QUALITY_PRESET_FLAGS={
+  turbo:{sol:false,sage:false,kitchen:false},
+  speed:{sol:true,sage:false,kitchen:false},
+  balanced:{sol:true,sage:false,kitchen:false},
+  high:{sol:false,sage:true,kitchen:false},
+  native:{sol:false,sage:false,kitchen:false},
+};
+const QUALITY_PRESET_ORDER=["speed","balanced","high","native"];''',
+     '''const QUALITY_PRESET_FLAGS={
+  balanced:{sol:true,sage:false,kitchen:false},
+  native:{sol:false,sage:false,kitchen:false},
+};
+const QUALITY_PRESET_ORDER=["balanced","native"];'''),
+    ('      const _QL={balanced:"Balanced",speed:"Speed",high:"High Quality",turbo:"Turbo (Speed LoRA)",native:"Native",custom:"Custom"};',
+     '      const _QL={balanced:"Balanced",native:"Native"};'),
+    ('      const qualDD=DD(["Turbo (Speed LoRA)","Speed","Balanced","High Quality","Native","Custom"],_QL[S.quality]||"Custom",v=>{',
+     '      const qualDD=DD(["Balanced","Native"],_QL[S.quality]||"Balanced",v=>{'),
+    # The caption tooltip still described the removed presets and the chips.
+    (r'''      qualCapRow.append(qualCap,infoIcon("The sampling pipeline, not the pixel size. Use the chips below to switch each accelerator on or off - Quality follows, and any manual mix shows as Custom.\nTurbo: Turbo LoRA + 6-step distilled sampler. Fastest, visibly lower quality - needs the Turbo LoRA set in Settings.\nSpeed: SolAttn sparse attention only. Fastest normal pipeline, tiny quality tradeoff.\nBalanced: SolAttn sparse attention only.\nHigh Quality: full SageAttention only - slowest, maximum fidelity.\nKitchen: ComfyUI's built-in Comfy Kitchen attention (pip install comfy-kitchen) - can run alone or with SolAttn, never with SageAttention.\nNative: core ComfyUI H3 pipeline, no accelerators - needs no extra packs."));''',
+     r'''      qualCapRow.append(qualCap,infoIcon("The attention path, not the pixel size and not the step count - Steps is the field beside this one.\nBalanced: SolAttn sparse attention. The default.\nNative: core ComfyUI H3 pipeline, no accelerator at all.\nTurbo, Speed and High Quality are not in this image - the packs and the LoRA behind them are not installed."));'''),
+    # A bucket saved by an earlier launch can name a mode or a preset that is gone now.
+    ('        const _sq=(saved.quality==="custom"||(saved.quality&&_QF[saved.quality]))?saved.quality:"balanced";',
+     '        const _sq=(saved.quality&&_QF[saved.quality])?saved.quality:"balanced";'),
+    ('          mode:            saved.mode||"t2v",',
+     '          mode:            MODES.some(m=>m.key===saved.mode)?saved.mode:"t2v",'),
+    ('''        if(ms.quality!==undefined){
+          S.quality=ms.quality;''',
+     '''        if(ms.quality!==undefined){
+          if(!_QF[ms.quality]) ms.quality="balanced";
+          S.quality=ms.quality;'''),
+    # Accelerator chips out with the presets: SageAttn and Kitchen are not installed, and a
+    # click on either costs a paid Run. Sampler and Scheduler out — H3 has one native pair.
+    ('      params.append(resRow,qualRow,optRow,durFpsCell,stepsRow,samplerRow,schedRow);',
+     '      params.append(resRow,qualRow,durFpsCell,stepsRow);'),
+    ('''        chip("Sampler",S.samplerName||"res_multistep",(rect)=>samplerDD.open(rect),true);
+        chip("Sched",S.schedulerName||"simple",(rect)=>schedDD.open(rect),true);
+''', '        // ocean: sampler and scheduler chips removed\n'),
+    # Upscale: SeedVR2 downloads its own weights mid-run and RTX VSR needs a consumer RTX card.
+    ('''        upBtn,upFactorWrap,
+''', '        // ocean: upscale button removed\n'),
+    # Live Preview: KJNodes and the TAEH3 decoder are not installed.
+    ('      genRow.append(genBtn,liveTogWrap,stopBtn);',
+     '      genRow.append(genBtn,stopBtn);'),
+    ('          livePreview:     saved.livePreview===true,',
+     '          livePreview:     false,'),
+    ('      settingsOverlay.append(settHdr,unetT2VRow,unetR2VRow,clipRow,vaeVRow,vaeARow,taeRow,upMethodWrap,upDitRow,upVaeRow,upHint,speedLoraWrap,audioToggle.el,soundToggle.el,playOnFinishToggle.el,sndWrap,accWrap,supWrap);',
+     '      settingsOverlay.append(settHdr,unetT2VRow,unetR2VRow,clipRow,vaeVRow,vaeARow,audioToggle.el,soundToggle.el,playOnFinishToggle.el,sndWrap,accWrap,supWrap);'),
+]
+
+src = Path(sys.argv[1])
+try:
+    text = src.read_text(encoding="utf-8")
+    for old, new in PATCHES:
+        if new and new in text:
+            continue
+        if text.count(old) != 1:
+            raise LookupError(f"{old.strip().splitlines()[0][:60]}... no longer appears exactly once")
+        text = text.replace(old, new)
+    src.write_text(text, encoding="utf-8")
+    print("[ocean] node UI trimmed — T2V/I2V/R2V/Extend/Chain, Balanced and Native")
+except Exception as e:
+    print(f"[ocean] could not trim the ALL-in-ONE node UI ({e}) — the node pack changed."
+          " Audio Drive, Keyframes and Image tabs, the upscale button, the Live Preview toggle"
+          " and the sampler/scheduler pickers will be visible and will fail on use, since their"
+          " packs and weights are not installed.", file=sys.stderr)
+TRIM
     # The pack saves under one-node-minimax-h3/, a subfolder listFiles cannot see. Flatten it so
     # clips land in the bucket root. Chain is not covered — its prefix is built in the JS.
     sed -i 's#one-node-minimax-h3/##g' \
