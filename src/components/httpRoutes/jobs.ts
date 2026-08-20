@@ -5,11 +5,11 @@ import { SERVICES_API_BASE_PATH } from '../../utils/constants.js'
 
 export const jobsRoutes = express.Router()
 
-jobsRoutes.get(`${SERVICES_API_BASE_PATH}/jobs/:job`, (req, res) => {
+jobsRoutes.get(`${SERVICES_API_BASE_PATH}/jobs/:jobId`, (req, res) => {
   try {
     const indexer: OceanIndexer = req.oceanNode.getIndexer()
     if (indexer) {
-      const jobs = indexer.getJobsPool((req.params.job as string) || null)
+      const jobs = indexer.getJobsPool((req.params.jobId as string) || null)
       res.header('Content-Type', 'application/json')
       res.status(200).send(JSON.stringify({ jobs }))
     } else {

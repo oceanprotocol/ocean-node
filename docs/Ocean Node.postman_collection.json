@@ -85,7 +85,7 @@
 								""
 							]
 						},
-						"description": "Returns node identity and the list of available service endpoints (nodeId, chainIds, providerAddress, nodePublicKey, serviceEndpoints, software, version)."
+						"description": "Returns node identity (nodeId, chainIds, providerAddress, nodePublicKey, software, version)."
 					}
 				}
 			]
