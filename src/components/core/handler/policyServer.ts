@@ -4,6 +4,7 @@ import {
   PolicyServerInitializeCommand
 } from '../../../@types/commands.js'
 import { Readable } from 'stream'
+import { isAddress } from 'ethers'
 import { CommandHandler } from './handler.js'
 import {
   ValidateParams,
@@ -20,8 +21,16 @@ export class PolicyServerPassthroughHandler extends CommandHandler {
       return buildInvalidRequestMessage(
         'Invalid Request: missing policyServerPassthrough field!'
       )
-    const validation = validateCommandParameters(command, []) // all optional? weird
-    return validation
+    // we inject fields into this object below, so it has to be a keyed object. arrays are
+    // objects too, and would be forwarded as {"0":..,"1":..} with no action
+    if (
+      typeof command.policyServerPassthrough !== 'object' ||
+      Array.isArray(command.policyServerPassthrough)
+    )
+      return buildInvalidRequestMessage(
+        'Invalid Request: "policyServerPassthrough" must be an object!'
+      )
+    return validateCommandParameters(command, [])
   }
 
   async handle(task: PolicyServerPassthroughCommand): Promise<P2PCommandResponse> {
@@ -71,7 +80,12 @@ export class PolicyServerInitializeHandler extends CommandHandler {
       'documentId',
       'serviceId',
       'consumerAddress'
-    ]) // all optional? weird
+    ])
+    if (validation.valid && !isAddress(command.consumerAddress)) {
+      return buildInvalidRequestMessage(
+        'Parameter : "consumerAddress" is not a valid web3 address'
+      )
+    }
     return validation
   }
 
@@ -79,6 +93,17 @@ export class PolicyServerInitializeHandler extends CommandHandler {
     const validationResponse = await this.verifyParamsAndRateLimits(task)
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
+    }
+    // same auth contract as startCompute: an authorization token, or nonce + signature
+    const authValidationResponse = await this.validateTokenOrSignature(
+      task.authorization,
+      task.consumerAddress,
+      task.nonce,
+      task.signature,
+      task.command
+    )
+    if (authValidationResponse.status.httpStatus !== 200) {
+      return authValidationResponse
     }
     // resolve DDO first
     try {
@@ -98,12 +123,19 @@ export class PolicyServerInitializeHandler extends CommandHandler {
       }
       // policyServer check
       const policyServer = new PolicyServer()
+      // forward the address this node actually verified, plus the caller credentials,
+      // so the policy server can run its own additional checks
       const policyStatus = await policyServer.initializePSVerification(
         task.documentId,
         ddo,
         task.serviceId,
-        task.consumerAddress,
-        task.policyServer
+        authValidationResponse.consumerAddress,
+        {
+          ...task.policyServer,
+          authorization: task.authorization,
+          nonce: task.nonce,
+          signature: task.signature
+        }
       )
       if (!policyStatus.success) {
         return {

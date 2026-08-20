@@ -330,6 +330,8 @@ export interface PolicyServerInitializeCommand extends Command {
   serviceId?: string
   consumerAddress?: string
   policyServer?: any
+  nonce?: string
+  signature?: string
 }
 
 export interface CreateAuthTokenCommand extends Command {
