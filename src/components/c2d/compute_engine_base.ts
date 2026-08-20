@@ -906,10 +906,6 @@ export abstract class C2DEngine {
     const activeResources = requests.filter((r) => r.amount > 0)
 
     for (const resource of activeResources) {
-      // getResource() returns null for ids absent from the pool it was handed (the service
-      // path passes the raw connection-level resources, where cpu/ram/disk may be
-      // auto-detected rather than configured). Optional chaining, not res.init, or a
-      // request for an unlisted id throws before any container is created.
       const res = this.getResource(resources, resource.id)
       if (res.init && res.init.advanced) {
         for (const [key, value] of Object.entries(res.init.advanced)) {
