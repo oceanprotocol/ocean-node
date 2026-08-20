@@ -2277,8 +2277,6 @@ export class C2DEngineDocker extends C2DEngine {
         containerInfo.HostConfig.IpcMode = advancedConfig.IpcMode
       if (advancedConfig.ShmSize)
         containerInfo.HostConfig.ShmSize = advancedConfig.ShmSize
-      // Same override the service path gets, so one init.advanced block behaves identically
-      // whether the operator's hardware is used by a compute job or a service.
       if (advancedConfig.PidsLimit)
         containerInfo.HostConfig.PidsLimit = advancedConfig.PidsLimit
       if (job.algorithm?.meta.container.entrypoint) {
