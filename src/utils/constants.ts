@@ -513,6 +513,16 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.DOCKER_COMPUTE_ENVIRONMENTS,
     required: false
   },
+  C2D_METRICS_INTERVAL_SECONDS: {
+    name: 'C2D_METRICS_INTERVAL_SECONDS',
+    value: process.env.C2D_METRICS_INTERVAL_SECONDS,
+    required: false
+  },
+  GPU_METRICS: {
+    name: 'GPU_METRICS',
+    value: process.env.GPU_METRICS,
+    required: false
+  },
   SERVICE_TEMPLATES_PATH: {
     name: 'SERVICE_TEMPLATES_PATH',
     value: process.env.SERVICE_TEMPLATES_PATH,

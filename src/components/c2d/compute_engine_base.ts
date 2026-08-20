@@ -217,7 +217,8 @@ export abstract class C2DEngine {
   public abstract getComputeJobStatus(
     consumerAddress?: string,
     agreementId?: string,
-    jobId?: string
+    jobId?: string,
+    includeMetrics?: boolean
   ): Promise<ComputeJob[]>
 
   public abstract getComputeJobResult(

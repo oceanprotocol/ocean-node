@@ -478,6 +478,12 @@ describe('**********         Service on Demand', () => {
     expect(job.serviceId).to.equal(serviceId)
     expect((job as any).userData).to.equal(undefined)
     assert(job.payment, 'payment should be present')
+    // This command is always authenticated + owner-scoped, so runtime metrics come back BY
+    // DEFAULT — and when a snapshot has been sampled it is exposed WITHOUT the internal
+    // `prev` accumulator.
+    if ((job as any).runtimeMetrics) {
+      expect('prev' in (job as any).runtimeMetrics).to.equal(false)
+    }
 
     // an unauthenticated status request (no nonce/signature) is rejected
     const unauth = await new ServiceGetStatusHandler(oceanNode).handle({
@@ -486,6 +492,25 @@ describe('**********         Service on Demand', () => {
       serviceId
     } as ServiceGetStatusCommand)
     expect(unauth.status.httpStatus).to.not.equal(200)
+
+    // opt-OUT: includeMetrics=false keeps metrics off the response entirely
+    const { nonce, signature } = await signFor(
+      consumerAccount,
+      PROTOCOL_COMMANDS.SERVICE_GET_STATUS
+    )
+    const noMetrics = await new ServiceGetStatusHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_GET_STATUS,
+      serviceId,
+      consumerAddress,
+      nonce,
+      signature,
+      includeMetrics: false
+    } as ServiceGetStatusCommand)
+    expect(noMetrics.status.httpStatus).to.equal(200)
+    const [noMetricsJob] = (await streamToObject(
+      noMetrics.stream as Readable
+    )) as ServiceJob[]
+    expect((noMetricsJob as any).runtimeMetrics).to.equal(undefined)
   })
 
   it('(e2) SERVICE_LIST returns the node-wide resource-holding set (not owner-scoped)', async () => {
@@ -513,6 +538,7 @@ describe('**********         Service on Demand', () => {
     expect((listed as any).userData).to.equal(undefined)
     expect((listed as any).dockerCmd).to.equal(undefined)
     expect((listed as any).dockerEntrypoint).to.equal(undefined)
+    expect((listed as any).runtimeMetrics).to.equal(undefined)
 
     // status filter: Running includes the service, Expired does not
     const sig2 = await signFor(nonOwnerAccount, PROTOCOL_COMMANDS.SERVICE_LIST)

@@ -2,7 +2,8 @@ import { typesenseSchemas, TypesenseSchema } from './TypesenseSchemas.js'
 import {
   C2DStatusNumber,
   C2DStatusText,
-  type DBComputeJob
+  type DBComputeJob,
+  type ContainerMetricsSnapshot
 } from '../../@types/C2D/C2D.js'
 import {
   ServiceStatusNumber,
@@ -58,7 +59,14 @@ function getInternalStructure(job: DBComputeJob): any {
     outputBucketId: job.outputBucketId,
     jobIdHash: job.jobIdHash,
     buildStartTimestamp: job.buildStartTimestamp,
-    buildStopTimestamp: job.buildStopTimestamp
+    buildStopTimestamp: job.buildStopTimestamp,
+    // Runtime metrics snapshot. It MUST round-trip through the body blob: it is what the owner
+    // reads back on COMPUTE_GET_STATUS, and it is also the previous-sample accumulator every
+    // next sample needs — without it persisted, every sample is a "first sample", so CPU % can
+    // never be computed (no delta) and the memory peak never accumulates. Still node-internal
+    // on the way out: omitDBComputeFieldsFromComputeJob strips it unless the verified owner
+    // asked for it, so it stays out of the escrow claim proof.
+    runtimeMetrics: job.runtimeMetrics
   }
   return internalBlob
 }
@@ -313,6 +321,74 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     }
   }
 
+  // Persists ONLY runtimeMetrics onto a service job — best-effort telemetry that must NOT clobber
+  // lifecycle fields another process may have changed. The read + validate + merge + write run
+  // inside a single `BEGIN IMMEDIATE` transaction so the sequence is atomic even across processes
+  // sharing the SQLite file: IMMEDIATE takes the write lock up front (waiting up to busy_timeout),
+  // so no other process can commit a lifecycle change (status, expiry, container) between our read
+  // and our write. Inside the transaction it re-reads the CURRENT row, re-validates
+  // owner/clusterHash/status/containerId, merges ONLY runtimeMetrics into that current body, and
+  // writes back ONLY the `body` column guarded on the unchanged status — leaving every lifecycle
+  // field (incl. expiresAt, in both column and body) exactly as last committed. Returns true when a
+  // row was written; any mismatch/error rolls back and returns false.
+  // eslint-disable-next-line require-await
+  async updateServiceJobMetrics(
+    serviceId: string,
+    expected: {
+      owner: string
+      clusterHash: string
+      status: number
+      containerId: string
+    },
+    runtimeMetrics: ContainerMetricsSnapshot
+  ): Promise<boolean> {
+    try {
+      this.db.exec('BEGIN IMMEDIATE;')
+    } catch (err) {
+      DATABASE_LOGGER.error(`metrics update: could not begin transaction: ${err.message}`)
+      return false
+    }
+    try {
+      const row = this.db.get<{ body: Uint8Array }>(
+        `SELECT body FROM service_jobs WHERE serviceId = ?;`,
+        [serviceId]
+      )
+      if (!row) {
+        this.db.exec('ROLLBACK;')
+        return false
+      }
+      const body = JSON.parse(Buffer.from(row.body).toString()) as ServiceJob
+      if (
+        body.owner !== expected.owner ||
+        body.clusterHash !== expected.clusterHash ||
+        body.status !== expected.status ||
+        body.containerId !== expected.containerId
+      ) {
+        this.db.exec('ROLLBACK;')
+        return false
+      }
+      body.runtimeMetrics = runtimeMetrics
+      const { changes } = this.db.run(
+        `UPDATE service_jobs SET body = ? WHERE serviceId = ? AND status = ?;`,
+        [
+          Buffer.from(JSON.stringify({ ...body, updatedAt: Date.now() })),
+          serviceId,
+          expected.status
+        ]
+      )
+      this.db.exec('COMMIT;')
+      return changes > 0
+    } catch (err) {
+      DATABASE_LOGGER.error(`Error while updating service job metrics: ${err.message}`)
+      try {
+        this.db.exec('ROLLBACK;')
+      } catch {
+        // best-effort: transaction may already be closed
+      }
+      return false
+    }
+  }
+
   private mapServiceRows(rows: any[] | undefined): ServiceJob[] {
     if (!rows || rows.length === 0) return []
     // BLOB comes back as Uint8Array from node:sqlite; decode through Buffer before parsing.
@@ -328,7 +404,10 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       params.push(serviceId)
     }
     if (owner) {
-      selectSQL += ` AND owner = ?`
+      // COLLATE NOCASE: callers are checksum-normalized on ingress (utils/evmAddress.ts), but
+      // rows written before that may hold another casing of the same address — and a missed
+      // match here reads as "no such service" rather than an error.
+      selectSQL += ` AND owner = ? COLLATE NOCASE`
       params.push(owner)
     }
     try {
@@ -564,7 +643,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       params.push(agreementId)
     }
     if (owner) {
-      selectSQL += ` AND owner = ?`
+      // COLLATE NOCASE — see getServiceJob: an owner casing mismatch must not read as
+      // "job not found".
+      selectSQL += ` AND owner = ? COLLATE NOCASE`
       params.push(owner)
     }
 
@@ -765,7 +846,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
 
     if (consumerAddrs && consumerAddrs.length > 0) {
       const placeholders = consumerAddrs.map(() => '?').join(',')
-      conditions.push(`owner IN (${placeholders})`)
+      // COLLATE NOCASE for the same reason as getJob/getServiceJob: match an owner whatever
+      // casing the row was written with.
+      conditions.push(`owner COLLATE NOCASE IN (${placeholders})`)
       params.push(...consumerAddrs)
     }
 

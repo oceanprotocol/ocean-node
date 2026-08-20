@@ -1,4 +1,8 @@
-import type { DBComputeJobPayment, ComputeResourceRequestWithPrice } from './C2D.js'
+import type {
+  DBComputeJobPayment,
+  ComputeResourceRequestWithPrice,
+  ContainerMetricsSnapshot
+} from './C2D.js'
 
 // ── Resource requirements ─────────────────────────────────────────────
 
@@ -144,4 +148,7 @@ export interface ServiceJob {
   resources: ComputeResourceRequestWithPrice[]
   payment: DBComputeJobPayment // initial start payment
   extendPayments?: DBComputeJobPayment[] // one entry per successful SERVICE_EXTEND
+  // Best-effort Docker/NVML runtime metrics sampled while the service container runs.
+  // DB-only: stripped from every public response by toPublicServiceJob / toListedServiceJob.
+  runtimeMetrics?: ContainerMetricsSnapshot
 }
