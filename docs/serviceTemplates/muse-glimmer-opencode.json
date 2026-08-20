@@ -28,7 +28,7 @@
     {
       "id": "weights-cache",
       "name": "Weights, workspace and history bucket",
-      "description": "Not a workflow. This entry exists so the launch wizard offers the bucket picker: nodes-dashboard gates that picker on workflows[].length > 0 (templateNeedsBucketPicker in src/services/template-launch.ts). The bucket holds the model weights, the OpenCode binary, OpenCode's session history and the workspace the agent edits — without it the container refuses to start. The graph is deliberately empty and the container ignores COMFY_WORKFLOW entirely. Delete this once the node exposes a declarative persistence field.",
+      "description": "The graph is deliberately empty and the container ignores COMFY_WORKFLOW entirely. Delete this once the node exposes a declarative persistence field.",
       "graph": {}
     }
   ],
