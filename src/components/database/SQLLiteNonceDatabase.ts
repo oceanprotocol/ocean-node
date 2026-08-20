@@ -1,6 +1,7 @@
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { addressCasingVariants, normalizeAddress } from '../../utils/evmAddress.js'
 import { AbstractNonceDatabase } from './BaseDatabase.js'
 import { SQLiteProvider } from './sqlite.js'
 import { TypesenseSchema } from './TypesenseSchemas.js'
@@ -23,7 +24,7 @@ export class SQLLiteNonceDatabase extends AbstractNonceDatabase {
 
   async create(address: string, nonce: number) {
     try {
-      return await this.provider.createNonce(address, nonce)
+      return await this.provider.createNonce(normalizeAddress(address), nonce)
     } catch (error) {
       const errorMsg =
         `Error when creating new nonce entry ${nonce} for address ${address}: ` +
@@ -38,9 +39,22 @@ export class SQLLiteNonceDatabase extends AbstractNonceDatabase {
     }
   }
 
+  // Rows are keyed by the checksummed address. Pre-normalization rows may be keyed by another
+  // casing of the SAME address, so read every variant and keep the HIGHEST nonce: the row id
+  // may migrate, but the nonce must stay monotonic — dropping back to 0 would briefly re-open
+  // the replay window that the nonce exists to close.
   async retrieve(address: string) {
+    const id = normalizeAddress(address)
     try {
-      return await this.provider.retrieveNonce(address)
+      let highest: number | null = null
+      for (const variant of addressCasingVariants(address)) {
+        // eslint-disable-next-line no-await-in-loop
+        const row = await this.provider.retrieveNonce(variant)
+        if (row && row.nonce !== null && (highest === null || row.nonce > highest)) {
+          highest = row.nonce
+        }
+      }
+      return { id, nonce: highest }
     } catch (error) {
       const errorMsg =
         `Error when retrieving nonce entry for address ${address}: ` + error.message

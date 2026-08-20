@@ -13,7 +13,9 @@ import { ServiceExtendHandler } from '../../../components/core/service/extendSer
 import { ServiceRestartHandler } from '../../../components/core/service/restartService.js'
 import { ServiceGetStreamableLogsHandler } from '../../../components/core/service/getStreamableLogs.js'
 
-const OWNER = '0x0000000000000000000000000000000000000abc'
+// Checksummed (EIP-55): commands are canonicalized on ingress, so this is the form handlers
+// see and forward, whatever casing the caller sent (see the lowercase-address test below).
+const OWNER = '0x0000000000000000000000000000000000000aBc'
 
 function makeJob(overrides: Partial<ServiceJob> = {}): ServiceJob {
   return {
@@ -231,6 +233,26 @@ describe('Service handlers', () => {
       expect(res.status.httpStatus).to.equal(401)
     })
 
+    it('401 when an auth token belongs to a different address than the one claimed', async () => {
+      // An auth token authenticates whoever it was ISSUED to. Claiming someone else's
+      // consumerAddress while presenting your own token must not read their services.
+      const { node } = buildFakes({ serviceJobInDb: makeJob() })
+      node.getAuth = () => ({
+        validateAuthenticationOrToken: () =>
+          Promise.resolve({
+            valid: true,
+            address: '0x000000000000000000000000000000000000dEaD'
+          })
+      })
+      const res = await new ServiceGetStatusHandler(node).handle({
+        command: PROTOCOL_COMMANDS.SERVICE_GET_STATUS,
+        consumerAddress: OWNER,
+        authorization: 'Bearer someone-elses-token',
+        serviceId: 'svc-1'
+      } as any)
+      expect(res.status.httpStatus).to.equal(401)
+    })
+
     it('returns jobs by serviceId with userData stripped (authenticated)', async () => {
       const { node } = buildFakes({ serviceJobInDb: makeJob() })
       const res = await new ServiceGetStatusHandler(node).handle({
@@ -277,6 +299,19 @@ describe('Service handlers', () => {
       const jobs = await body(res)
       expect(jobs[0].status).to.equal(ServiceStatusNumber.Stopped)
       expect(jobs[0]).to.not.have.property('userData')
+    })
+
+    it('accepts a non-checksummed consumerAddress and queries with the canonical form', async () => {
+      // An address is an identity KEY here (the `owner` filter on the job lookup), so a
+      // lowercase address must not read as "service not found".
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      const res = await new ServiceStopHandler(node).handle({
+        ...baseTask,
+        consumerAddress: OWNER.toLowerCase()
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      expect(engine.stopService.calledOnce).to.equal(true)
+      expect(engine.db.getServiceJob.firstCall.args[1]).to.equal(OWNER)
     })
   })
 

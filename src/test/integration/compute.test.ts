@@ -1325,6 +1325,64 @@ describe('**********         Compute', () => {
     const jobs = await streamToObject(response.stream as Readable)
     console.log('Checking FREE job status...')
     console.log(jobs[0])
+    // Backward-compat guard: an UNAUTHENTICATED status call (no consumerAddress credentials)
+    // never carries runtime metrics, even though metrics are on by default for owners — they
+    // stay node-internal until ownership is proven.
+    assert(
+      !('runtimeMetrics' in jobs[0]),
+      'unauthenticated COMPUTE_GET_STATUS must not expose runtimeMetrics'
+    )
+
+    // Explicitly requesting metrics is strict: without an authenticated consumerAddress it is
+    // rejected (never silently downgraded), so the caller learns WHY they are missing.
+    const gated = await new ComputeGetStatusHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
+      consumerAddress: null,
+      agreementId: null,
+      jobId: freeJobId,
+      includeMetrics: true
+    } as ComputeGetStatusCommand)
+    assert(
+      gated.status.httpStatus === 400,
+      'includeMetrics without consumerAddress must be rejected'
+    )
+  })
+
+  it('should get job status (with metrics, by default) for the authenticated owner', async () => {
+    // Deliberately LOWERCASED: addresses are canonicalized on ingress, so a non-checksummed
+    // address must resolve to the same job — and the signature, built over the lowercase form
+    // the client actually used, must still verify.
+    const lowercasedOwner = (await consumerAccount.getAddress()).toLowerCase()
+    const nonce = Date.now().toString()
+    const messageHashBytes = createHashForSignature(
+      lowercasedOwner,
+      nonce,
+      PROTOCOL_COMMANDS.COMPUTE_GET_STATUS
+    )
+    const signature = await safeSign(consumerAccount, messageHashBytes)
+    const response = await new ComputeGetStatusHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
+      consumerAddress: lowercasedOwner,
+      agreementId: null,
+      jobId: freeJobId,
+      nonce,
+      signature
+    } as ComputeGetStatusCommand)
+    assert(
+      response.status.httpStatus === 200,
+      `expected 200, got ${response.status.httpStatus}: ${response.status?.error ?? ''}`
+    )
+    const ownedJobs = await streamToObject(response.stream as Readable)
+    assert(
+      ownedJobs.length === 1,
+      'a lowercased consumerAddress must still match the owner of the job'
+    )
+    // Metrics need no flag for the verified owner. The snapshot appears once the container has
+    // been sampled at least once (C2D_METRICS_INTERVAL_SECONDS), and never carries the
+    // node-internal delta accumulator.
+    if (ownedJobs[0].runtimeMetrics) {
+      expect('prev' in ownedJobs[0].runtimeMetrics).to.equal(false)
+    }
   })
   // algo and checksums related
   describe('C2D algo and checksums related', () => {

@@ -226,6 +226,49 @@ describe('Compute Jobs Database', () => {
     expect(updatedJob.statusText).to.be.equal(C2DStatusText.PullImage)
   })
 
+  it('round-trips runtimeMetrics through updateJob/getJob', async () => {
+    // The snapshot MUST survive the body blob. It is what the owner reads back on
+    // COMPUTE_GET_STATUS, and it is the previous-sample accumulator the next sample needs to
+    // compute CPU % — if it is dropped on write, every sample is a "first sample" and CPU is
+    // permanently 0.
+    const [job] = await db.getJob(jobId)
+    job.runtimeMetrics = {
+      collectedAt: '2026-08-13T18:31:03.083Z',
+      containerState: { status: 'running', oomKilled: false, restartCount: 0 },
+      cpu: {
+        usagePercent: 97.5,
+        allocated: 3,
+        usagePercentOfAllocated: 32.5,
+        cumulativeSeconds: 42.25,
+        throttledPeriods: 2,
+        throttledSeconds: 0.5
+      },
+      memory: {
+        usageBytes: 1024,
+        limitBytes: 4096,
+        usagePercent: 25,
+        peakUsageBytes: 2048
+      },
+      disk: { usedBytes: 512, quotaBytes: 1024, usagePercent: 50 },
+      blockIO: { readBytes: 10, writeBytes: 20 },
+      pids: { current: 3, limit: 512 },
+      prev: {
+        cpuTotal: 42_250_000_000,
+        systemCpu: 100e9,
+        sampledAt: '2026-08-13T18:31:03.083Z'
+      }
+    }
+    expect(await db.updateJob(job)).to.be.equal(1)
+
+    const [reloaded] = await db.getJob(jobId)
+    assert(reloaded.runtimeMetrics, 'runtimeMetrics must be persisted on the job record')
+    expect(reloaded.runtimeMetrics.cpu.cumulativeSeconds).to.be.equal(42.25)
+    expect(reloaded.runtimeMetrics.memory.peakUsageBytes).to.be.equal(2048)
+    expect(reloaded.runtimeMetrics.disk.usedBytes).to.be.equal(512)
+    // the delta accumulator has to survive too, otherwise CPU % can never be computed
+    expect(reloaded.runtimeMetrics.prev?.cpuTotal).to.be.equal(42_250_000_000)
+  })
+
   it('should get running jobs', async () => {
     const job: DBComputeJob = {
       owner: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947261',
@@ -2790,5 +2833,157 @@ describe('service start/restart Docker cleanup on failure', function () {
         })
       )
     ).to.equal(true)
+  })
+})
+
+// The admin-facing view of the metrics: one roll-up line per sampling interval, plus a
+// "pressure" line per workload close to a limit. Worth testing because it is pure formatting
+// inside a try/catch — a throw here would be swallowed and the admin would just see nothing.
+describe('engine-wide metrics summary logging', function () {
+  let engine: any
+  let debugSpy: sinon.SinonSpy
+
+  function snapshot(overrides: any = {}): any {
+    return {
+      collectedAt: new Date().toISOString(),
+      containerState: { status: 'running', oomKilled: false, restartCount: 0 },
+      cpu: {
+        usagePercent: 50,
+        allocated: 2,
+        usagePercentOfAllocated: 25,
+        cumulativeSeconds: 10,
+        throttledPeriods: 0,
+        throttledSeconds: 0
+      },
+      memory: {
+        usageBytes: 100 * 1024 * 1024,
+        limitBytes: 1024 * 1024 * 1024,
+        usagePercent: 9.77,
+        peakUsageBytes: 120 * 1024 * 1024
+      },
+      disk: { usedBytes: 50 * 1024 * 1024 },
+      blockIO: { readBytes: 0, writeBytes: 0 },
+      pids: { current: 5, limit: 512 },
+      ...overrides
+    }
+  }
+
+  beforeEach(function () {
+    // Same pattern as the other engine unit tests: prototype without the Docker constructor.
+    engine = Object.create(C2DEngineDocker.prototype)
+    engine.getC2DConfig = sinon.stub().returns({ hash: 'cluster-hash' })
+    engine.physicalLimits = new Map([['cpu', 8]])
+    engine.lastMetricsSummaryAt = 0
+    debugSpy = sinon.spy(CORE_LOGGER, 'debug')
+  })
+
+  afterEach(function () {
+    debugSpy.restore()
+  })
+
+  const summaryLines = () =>
+    debugSpy
+      .getCalls()
+      .map((c) => String(c.args[0]))
+      .filter((m) => m.includes('[metrics] summary'))
+
+  const pressureLines = () =>
+    debugSpy
+      .getCalls()
+      .map((c) => String(c.args[0]))
+      .filter((m) => m.includes('[metrics] pressure'))
+
+  it('rolls every sampled job and service into one line', function () {
+    engine.logMetricsSummary(
+      [
+        { jobId: 'job-1', runtimeMetrics: snapshot() },
+        { jobId: 'job-2', runtimeMetrics: snapshot() }
+      ],
+      [{ serviceId: 'svc-1', runtimeMetrics: snapshot() }]
+    )
+    const [line] = summaryLines()
+    expect(line, 'a summary line must be logged').to.not.equal(undefined)
+    expect(line).to.contain('engine cluster-hash')
+    expect(line).to.contain('2 job(s) / 1 service(s), 3 sampled')
+    expect(line).to.contain('cpu 150.0% of host (8 core(s))') // 3 x 50%
+    expect(line).to.contain('6 core(s) allocated') // 3 x 2
+    expect(line).to.contain('mem 300.0 MiB/3.0 GiB allocated') // 3 x 100MiB / 3 x 1GiB
+    expect(line).to.contain('disk 150.0 MiB')
+    expect(pressureLines()).to.deep.equal([])
+  })
+
+  it('reports running-but-not-yet-sampled instead of staying silent', function () {
+    engine.logMetricsSummary([{ jobId: 'job-1' }], [])
+    const [line] = summaryLines()
+    expect(line).to.contain('1 job(s) / 0 service(s) running, none sampled yet')
+  })
+
+  it('logs nothing at all when nothing is running', function () {
+    engine.logMetricsSummary([], [])
+    expect(summaryLines()).to.deep.equal([])
+  })
+
+  it('flags workloads near their limits', function () {
+    engine.logMetricsSummary(
+      [
+        {
+          jobId: 'job-hot',
+          runtimeMetrics: snapshot({
+            memory: {
+              usageBytes: 990 * 1024 * 1024,
+              limitBytes: 1024 * 1024 * 1024,
+              usagePercent: 96.7,
+              peakUsageBytes: 1000 * 1024 * 1024
+            },
+            disk: {
+              usedBytes: 95 * 1024 * 1024,
+              quotaBytes: 100 * 1024 * 1024,
+              usagePercent: 95
+            },
+            pids: { current: 500, limit: 512 },
+            cpu: {
+              usagePercent: 199,
+              allocated: 2,
+              usagePercentOfAllocated: 99.5,
+              cumulativeSeconds: 30,
+              throttledPeriods: 42,
+              throttledSeconds: 1.5
+            }
+          })
+        }
+      ],
+      []
+    )
+    const [line] = pressureLines()
+    expect(line, 'a pressure line must be logged').to.not.equal(undefined)
+    expect(line).to.contain('pressure job job-hot')
+    expect(line).to.contain('mem 96.7% of limit')
+    expect(line).to.contain('disk 95% of quota')
+    expect(line).to.contain('pids 500/512')
+    expect(line).to.contain('cpu throttled 42 periods / 1.5s')
+  })
+
+  it('is throttled to the sampling interval (the loop ticks far more often)', function () {
+    const jobs = [{ jobId: 'job-1', runtimeMetrics: snapshot() }]
+    engine.logMetricsSummary(jobs, [])
+    engine.logMetricsSummary(jobs, [])
+    engine.logMetricsSummary(jobs, [])
+    expect(summaryLines().length).to.equal(1)
+  })
+
+  it('survives a stubbed-out service list (undefined) without throwing', function () {
+    engine.logMetricsSummary([{ jobId: 'job-1', runtimeMetrics: snapshot() }], undefined)
+    expect(summaryLines().length).to.equal(1)
+  })
+
+  it('logs nothing when collection is disabled', function () {
+    const original = ENVIRONMENT_VARIABLES.C2D_METRICS_INTERVAL_SECONDS.value
+    ENVIRONMENT_VARIABLES.C2D_METRICS_INTERVAL_SECONDS.value = '0'
+    try {
+      engine.logMetricsSummary([{ jobId: 'job-1', runtimeMetrics: snapshot() }], [])
+      expect(summaryLines()).to.deep.equal([])
+    } finally {
+      ENVIRONMENT_VARIABLES.C2D_METRICS_INTERVAL_SECONDS.value = original
+    }
   })
 })

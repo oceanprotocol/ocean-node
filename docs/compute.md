@@ -221,6 +221,7 @@ The environment references it by `id`.
 ]
 ```
 
+<<<<<<< HEAD
 ### Multi-GPU workloads (shared memory)
 
 A workload that spans **more than one GPU** needs two extra settings that Docker does not
@@ -272,6 +273,20 @@ are resolved from the resources a given job or service asks for:
 
 Both compute jobs and services honour these. When they are absent, containers keep Docker's
 defaults and the 512-process cap.
+=======
+> **GPU runtime metrics (NVIDIA).** When `GPU_METRICS` is `auto` (the default), the node
+> records per-GPU utilization and memory for running jobs/services alongside their container
+> metrics, sampled every `C2D_METRICS_INTERVAL_SECONDS`. This uses NVML via the optional
+> `koffi` dependency and requires `libnvidia-ml.so.1` to be reachable by the node process (the
+> NVIDIA driver provides it; in a containerized node, mount it or use the NVIDIA container
+> toolkit). A job holding several GPUs gets one metrics entry per device, keyed by the
+> resource id it requested. If NVML is unavailable, GPU metrics are skipped (one warning, then
+> silence) while container metrics continue — see
+> [Troubleshooting GPU metrics](#troubleshooting-gpu-metrics) for what each warning means and
+> how to fix it. AMD and Intel GPU metrics are not yet collected. GPU metrics are returned only
+> to the owner of the job/service, alongside its container metrics. Set `GPU_METRICS=off` to
+> disable.
+>>>>>>> c5837360 (Feature/docker stats (#1436))
 
 ### AMD Radeon (ROCm)
 
@@ -366,6 +381,76 @@ simultaneously. The engine tracks `inUse` for visibility but never blocks alloca
 
 > `shareable: true` is **not** allowed on `type: "gpu"` or `type: "fpga"` — the node refuses
 > to start. GPUs and FPGAs require exclusive per-job access.
+
+### Troubleshooting GPU metrics
+
+GPU metrics are strictly best-effort. When they cannot be collected, jobs and services are
+never affected and container-level metrics (cpu, memory, disk, network, block I/O, PIDs) keep
+being collected — the snapshot just has no `gpu[]` entry.
+
+All messages come from the `CORE` module. The NVML load/init failures below are logged at
+**warn**, so they are visible at the default log level, and only once per process (the probe
+result is cached). The `[metrics] gpu:` lines are **debug**, so they need `LOG_LEVEL=debug`;
+their frequency is noted per message.
+
+#### `could not bind libnvidia-ml.so.1 — NVIDIA GPU metrics disabled (Failed to load shared library: cannot open shared object file: No such file or directory)`
+
+The node found the `koffi` FFI but the **dynamic loader could not find the NVIDIA driver's NVML
+library** anywhere in its search path. The message text after the dash comes straight from
+`dlopen`. Causes, most common first:
+
+| # | Cause | Fix |
+|---|---|---|
+| 1 | **The node itself runs in a container without the driver injected.** The node does not need GPU access to *run* GPU jobs — it drives the Docker socket, and the NVIDIA Container Toolkit injects driver libraries into the **job** containers it starts, not into the node's own container. So `nvidia-smi` works on the host, GPU jobs run fine, and NVML is still missing inside the node container. | Give the node container the driver's `utility` capability — see the snippet below |
+| 2 | **Host install the loader does not know about.** Driver present but in a non-standard prefix, so `ldconfig` never cached it. | Add an `/etc/ld.so.conf.d/*.conf` entry and run `ldconfig`, or set `LD_LIBRARY_PATH` in the node's process environment (e.g. the pm2 / systemd unit) |
+| 3 | **WSL2.** The driver libraries live in `/usr/lib/wsl/lib`, which is not always on the loader path of the node's process. | `LD_LIBRARY_PATH=/usr/lib/wsl/lib`. Note that on WSL some NVML queries return NOT_SUPPORTED — utilization and memory usually work, power and temperature often do not, and are reported as `null` |
+| 4 | **Missing soname symlink.** Only `libnvidia-ml.so.<version>` exists, without the `libnvidia-ml.so.1` link — typical after a manual driver copy. | Run `ldconfig` to recreate it |
+| 5 | **The host has no NVIDIA driver at all** — e.g. an AMD/Intel GPU whose resource is declared `"platform": "nvidia"`, or a leftover `gpu` resource on a CPU-only machine. | Fix the resource's `platform`, or set `GPU_METRICS=off` to stop probing |
+
+Giving a containerized node access to NVML (cause 1) — `utility` is the capability that injects
+NVML and `nvidia-smi`; it does **not** reserve the GPU for the node or take it away from jobs:
+
+```yaml
+# docker compose
+services:
+  ocean-node:
+    runtime: nvidia # or deploy.resources.reservations.devices with capabilities: [gpu]
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: utility
+```
+
+```bash
+# docker run
+docker run --gpus all -e NVIDIA_DRIVER_CAPABILITIES=utility ...
+```
+
+Triage — if the host commands succeed and the in-container ones come back empty, it is cause 1:
+
+```bash
+# on the host
+nvidia-smi
+ldconfig -p | grep libnvidia-ml
+ls -l /usr/lib/x86_64-linux-gnu/libnvidia-ml.so* /usr/lib/wsl/lib/libnvidia-ml.so* 2>/dev/null
+
+# inside the node's container
+docker exec <node-container> sh -lc 'ldconfig -p | grep nvidia-ml; nvidia-smi || echo "no nvidia-smi here"'
+```
+
+#### Other GPU metrics messages
+
+| Message | Meaning |
+|---|---|
+| `koffi FFI not available — NVIDIA GPU metrics disabled` | The optional `koffi` dependency is not installed. `npm install` in the node directory installs it; a `--omit=optional` install skips it |
+| `nvmlInit failed (code N)` / `nvmlInit threw` | The library loaded but NVML would not initialize — usually a driver/library version mismatch (reinstall the driver so userspace matches the kernel module), or missing permission on `/dev/nvidia*` |
+| `[metrics] gpu: cannot determine the vendor of resource "<id>"` | That GPU resource has neither `"platform"` (`nvidia` \| `amd` \| `intel`) nor `init.deviceRequests.Driver`, so no backend could be chosen. Set `platform` on the resource. Logged once per resource id |
+| `[metrics] gpu: <vendor> backend not implemented yet` | AMD and Intel GPU metrics are not collected yet. The GPUs still work for compute; only their metrics are missing. Logged once per vendor |
+| `[metrics] gpu: N GPU resource(s) held but no device metrics resolved` | The workload holds GPUs but nothing came back — the follow-on symptom of any of the above. Logged per sample, so it is the line to grep when GPU numbers are missing |
+| `[metrics] gpu: collection failed: …` | An unexpected error during a sweep; logged per sweep. The previous sample is kept |
+
+Set `GPU_METRICS=off` to disable GPU collection entirely (see [env.md](env.md)); container-level
+metrics are unaffected. For where these lines appear and how to filter them, see
+[Logs.md](Logs.md#computeservice-runtime-metrics-in-the-logs).
 
 ### Migration from the old format
 

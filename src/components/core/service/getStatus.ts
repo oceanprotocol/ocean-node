@@ -45,8 +45,16 @@ export class ServiceGetStatusHandler extends CommandHandler {
       jobs.push(...(await eng.getServiceStatus(task.consumerAddress, task.serviceId)))
     }
 
+    // Ownership is already proven above (this command is always authenticated), so runtime
+    // metrics are included BY DEFAULT here — only an explicit includeMetrics=false opts out.
     return {
-      stream: Readable.from(JSON.stringify(jobs.map(toPublicServiceJob))),
+      stream: Readable.from(
+        JSON.stringify(
+          jobs.map((job) =>
+            toPublicServiceJob(job, { includeMetrics: task.includeMetrics !== false })
+          )
+        )
+      ),
       status: { httpStatus: 200 }
     }
   }
