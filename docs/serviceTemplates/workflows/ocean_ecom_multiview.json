@@ -2,7 +2,7 @@
   "id": "b64170b7-3044-4fbd-9bcf-8de3a2207f54",
   "revision": 0,
   "last_node_id": 208,
-  "last_link_id": 215,
+  "last_link_id": 181,
   "nodes": [
     {
       "id": 43,
@@ -32,14 +32,14 @@
           "links": null
         }
       ],
-      "title": "Save Image - Low angle",
+      "title": "Save 225",
       "properties": {
         "Node name for S&R": "SaveImage",
         "cnr_id": "comfy-core",
         "ver": "0.3.76"
       },
       "widgets_values": [
-        "ecom_angle_low_angle"
+        "ecom_angle_225"
       ]
     },
     {
@@ -70,14 +70,14 @@
           "links": null
         }
       ],
-      "title": "Save Image - 90 left",
+      "title": "Save 315",
       "properties": {
         "Node name for S&R": "SaveImage",
         "cnr_id": "comfy-core",
         "ver": "0.3.76"
       },
       "widgets_values": [
-        "ecom_angle_90_left"
+        "ecom_angle_315"
       ]
     },
     {
@@ -108,14 +108,14 @@
           "links": null
         }
       ],
-      "title": "Save Image - 45 left",
+      "title": "Save 270",
       "properties": {
         "Node name for S&R": "SaveImage",
         "cnr_id": "comfy-core",
         "ver": "0.3.76"
       },
       "widgets_values": [
-        "ecom_angle_45_left"
+        "ecom_angle_270"
       ]
     },
     {
@@ -146,14 +146,14 @@
           "links": null
         }
       ],
-      "title": "Save Image - Aerial view",
+      "title": "Save 180 (back)",
       "properties": {
         "Node name for S&R": "SaveImage",
         "cnr_id": "comfy-core",
         "ver": "0.3.76"
       },
       "widgets_values": [
-        "ecom_angle_aerial_view"
+        "ecom_angle_180"
       ]
     },
     {
@@ -184,14 +184,14 @@
           "links": null
         }
       ],
-      "title": "Save Image - Close up",
+      "title": "Save close-up",
       "properties": {
         "Node name for S&R": "SaveImage",
         "cnr_id": "comfy-core",
         "ver": "0.3.76"
       },
       "widgets_values": [
-        "ecom_angle_close_up"
+        "ecom_closeup"
       ]
     },
     {
@@ -222,14 +222,14 @@
           "links": null
         }
       ],
-      "title": "Save Image - Wide shot",
+      "title": "Save 45",
       "properties": {
         "Node name for S&R": "SaveImage",
         "cnr_id": "comfy-core",
         "ver": "0.3.76"
       },
       "widgets_values": [
-        "ecom_angle_wide_shot"
+        "ecom_angle_045"
       ]
     },
     {
@@ -260,14 +260,14 @@
           "links": null
         }
       ],
-      "title": "Save Image - 45 right",
+      "title": "Save 90",
       "properties": {
         "Node name for S&R": "SaveImage",
         "cnr_id": "comfy-core",
         "ver": "0.3.76"
       },
       "widgets_values": [
-        "ecom_angle_45_right"
+        "ecom_angle_090"
       ]
     },
     {
@@ -298,14 +298,14 @@
           "links": null
         }
       ],
-      "title": "Save Image - 90 right",
+      "title": "Save 135",
       "properties": {
         "Node name for S&R": "SaveImage",
         "cnr_id": "comfy-core",
         "ver": "0.3.76"
       },
       "widgets_values": [
-        "ecom_angle_90_right"
+        "ecom_angle_135"
       ]
     },
     {
@@ -383,7 +383,7 @@
           ]
         }
       ],
-      "title": "Prompt Close up",
+      "title": "Prompt close-up",
       "properties": {
         "Node name for S&R": "PrimitiveStringMultiline"
       },
@@ -417,12 +417,12 @@
           ]
         }
       ],
-      "title": "Prompt Wide angle",
+      "title": "Prompt 45",
       "properties": {
         "Node name for S&R": "PrimitiveStringMultiline"
       },
       "widgets_values": [
-        "Wide shot of the product, more space around it, same lighting and background."
+        "Rotate the camera 45 degrees to the right around the product."
       ],
       "color": "#232",
       "bgcolor": "#353"
@@ -451,12 +451,12 @@
           ]
         }
       ],
-      "title": "Prompt 90deg right",
+      "title": "Prompt 135",
       "properties": {
         "Node name for S&R": "PrimitiveStringMultiline"
       },
       "widgets_values": [
-        "Rotate the camera 90 degrees to the right around the product."
+        "Rotate the camera 135 degrees to the right around the product."
       ],
       "color": "#232",
       "bgcolor": "#353"
@@ -485,12 +485,12 @@
           ]
         }
       ],
-      "title": "Prompt Low angle",
+      "title": "Prompt 225",
       "properties": {
         "Node name for S&R": "PrimitiveStringMultiline"
       },
       "widgets_values": [
-        "Low-angle view of the product, camera near the surface looking up."
+        "Rotate the camera 135 degrees to the left around the product."
       ],
       "color": "#232",
       "bgcolor": "#353"
@@ -519,12 +519,12 @@
           ]
         }
       ],
-      "title": "Prompt 90deg",
+      "title": "Prompt 315",
       "properties": {
         "Node name for S&R": "PrimitiveStringMultiline"
       },
       "widgets_values": [
-        "Rotate the camera 90 degrees to the left around the product."
+        "Rotate the camera 45 degrees to the left around the product."
       ],
       "color": "#232",
       "bgcolor": "#353"
@@ -553,12 +553,12 @@
           ]
         }
       ],
-      "title": "Prompt Left 45deg",
+      "title": "Prompt 270",
       "properties": {
         "Node name for S&R": "PrimitiveStringMultiline"
       },
       "widgets_values": [
-        "Rotate the camera 45 degrees to the left around the product."
+        "Rotate the camera 90 degrees to the left around the product."
       ],
       "color": "#232",
       "bgcolor": "#353"
@@ -587,12 +587,12 @@
           ]
         }
       ],
-      "title": "Prompt Aerial view",
+      "title": "Prompt 180 (back)",
       "properties": {
         "Node name for S&R": "PrimitiveStringMultiline"
       },
       "widgets_values": [
-        "Top-down view of the product, looking straight down."
+        "Rotate the camera 180 degrees to show the back of the product."
       ],
       "color": "#232",
       "bgcolor": "#353"
@@ -621,12 +621,12 @@
           ]
         }
       ],
-      "title": "Prompt 45deg right",
+      "title": "Prompt 90",
       "properties": {
         "Node name for S&R": "PrimitiveStringMultiline"
       },
       "widgets_values": [
-        "Rotate the camera 45 degrees to the right around the product."
+        "Rotate the camera 90 degrees to the right around the product."
       ],
       "color": "#232",
       "bgcolor": "#353"
@@ -751,8 +751,7 @@
           "type": "IMAGE",
           "links": [
             151,
-            204,
-            212
+            168
           ]
         },
         {
@@ -767,22 +766,23 @@
           "type": "IMAGE",
           "links": [
             153,
-            206,
-            210
+            170
           ]
         },
         {
           "name": "IMAGE_3",
           "type": "IMAGE",
           "links": [
-            154
+            154,
+            176
           ]
         },
         {
           "name": "IMAGE_4",
           "type": "IMAGE",
           "links": [
-            155
+            155,
+            174
           ]
         },
         {
@@ -790,7 +790,7 @@
           "type": "IMAGE",
           "links": [
             156,
-            201
+            180
           ]
         },
         {
@@ -798,8 +798,7 @@
           "type": "IMAGE",
           "links": [
             157,
-            202,
-            214
+            178
           ]
         },
         {
@@ -807,7 +806,7 @@
           "type": "IMAGE",
           "links": [
             158,
-            208
+            172
           ]
         }
       ],
@@ -913,7 +912,8 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            149
+            149,
+            167
           ]
         },
         {
@@ -967,7 +967,7 @@
       "title": "How to use",
       "properties": {},
       "widgets_values": [
-        "## Product angles\n\n**1.** Upload one photo of your product in *Load Product Image* \u2014 a clean packshot, product centered, works best.\n\n**2.** Queue the prompt. One Run produces all eight angles plus a turntable loop; there is nothing to configure.\n\n**3.** To change an angle, edit its *Prompt ...* box on the canvas. Each box drives exactly one output.\n\nEight stills save to your bucket as `ecom_angle_<name>_00001_.png` \u2014 wide shot, close-up, 45 and 90 degrees left and right, aerial and low angle.\n\nThe turntable saves as `ecom_turntable_00001_.webp`: an animated WEBP that sweeps 90 left to 90 right and back, so it loops without a cut. Drop it straight onto a product page.\n\nEvery angle is invented by the model from your one photo. Check the label and any small text before you publish \u2014 a rotated view is a plausible guess at what the back of your product looks like, not a photograph of it."
+        "## Product 360\n\n**1.** Upload one photo of your product in *Load Product Image*. This photo is the 0 degree view.\n\n**2.** Queue the prompt. One Run makes 7 rotation steps, a close-up, and a 360 loop.\n\n**3.** To change a step, edit its *Prompt ...* box. Each box drives one output.\n\nThe stills save as `ecom_angle_045` to `ecom_angle_315`, plus `ecom_closeup`.\n\nThe loop saves as `ecom_turntable_00001_.webp`. It starts on your real photo and turns a full circle, so it repeats without a cut.\n\n**Check the back views before you publish.** The model can see only the side you gave it. At 135, 180 and 225 degrees it invents the surfaces it cannot see, including the back label."
       ],
       "color": "#432",
       "bgcolor": "#653"
@@ -992,12 +992,12 @@
         {
           "name": "image1",
           "type": "IMAGE",
-          "link": 201
+          "link": 167
         },
         {
           "name": "image2",
           "type": "IMAGE",
-          "link": 202
+          "link": 168
         }
       ],
       "outputs": [
@@ -1005,7 +1005,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            203
+            169
           ]
         }
       ],
@@ -1036,12 +1036,12 @@
         {
           "name": "image1",
           "type": "IMAGE",
-          "link": 203
+          "link": 169
         },
         {
           "name": "image2",
           "type": "IMAGE",
-          "link": 204
+          "link": 170
         }
       ],
       "outputs": [
@@ -1049,7 +1049,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            205
+            171
           ]
         }
       ],
@@ -1080,12 +1080,12 @@
         {
           "name": "image1",
           "type": "IMAGE",
-          "link": 205
+          "link": 171
         },
         {
           "name": "image2",
           "type": "IMAGE",
-          "link": 206
+          "link": 172
         }
       ],
       "outputs": [
@@ -1093,7 +1093,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            207
+            173
           ]
         }
       ],
@@ -1124,12 +1124,12 @@
         {
           "name": "image1",
           "type": "IMAGE",
-          "link": 207
+          "link": 173
         },
         {
           "name": "image2",
           "type": "IMAGE",
-          "link": 208
+          "link": 174
         }
       ],
       "outputs": [
@@ -1137,7 +1137,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            209
+            175
           ]
         }
       ],
@@ -1168,12 +1168,12 @@
         {
           "name": "image1",
           "type": "IMAGE",
-          "link": 209
+          "link": 175
         },
         {
           "name": "image2",
           "type": "IMAGE",
-          "link": 210
+          "link": 176
         }
       ],
       "outputs": [
@@ -1181,7 +1181,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            211
+            177
           ]
         }
       ],
@@ -1212,12 +1212,12 @@
         {
           "name": "image1",
           "type": "IMAGE",
-          "link": 211
+          "link": 177
         },
         {
           "name": "image2",
           "type": "IMAGE",
-          "link": 212
+          "link": 178
         }
       ],
       "outputs": [
@@ -1225,7 +1225,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            213
+            179
           ]
         }
       ],
@@ -1256,12 +1256,12 @@
         {
           "name": "image1",
           "type": "IMAGE",
-          "link": 213
+          "link": 179
         },
         {
           "name": "image2",
           "type": "IMAGE",
-          "link": 214
+          "link": 180
         }
       ],
       "outputs": [
@@ -1269,7 +1269,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            215
+            181
           ]
         }
       ],
@@ -1298,7 +1298,7 @@
         {
           "name": "images",
           "type": "IMAGE",
-          "link": 215
+          "link": 181
         }
       ],
       "outputs": [],
@@ -1478,23 +1478,23 @@
       "STRING"
     ],
     [
-      201,
-      65,
-      5,
+      167,
+      25,
+      0,
       201,
       0,
       "IMAGE"
     ],
     [
-      202,
+      168,
       65,
-      6,
+      0,
       201,
       1,
       "IMAGE"
     ],
     [
-      203,
+      169,
       201,
       0,
       202,
@@ -1502,47 +1502,47 @@
       "IMAGE"
     ],
     [
-      204,
-      65,
-      0,
-      202,
-      1,
-      "IMAGE"
-    ],
-    [
-      205,
-      202,
-      0,
-      203,
-      0,
-      "IMAGE"
-    ],
-    [
-      206,
+      170,
       65,
       2,
-      203,
+      202,
       1,
       "IMAGE"
     ],
     [
-      207,
-      203,
+      171,
+      202,
       0,
-      204,
+      203,
       0,
       "IMAGE"
     ],
     [
-      208,
+      172,
       65,
       7,
+      203,
+      1,
+      "IMAGE"
+    ],
+    [
+      173,
+      203,
+      0,
+      204,
+      0,
+      "IMAGE"
+    ],
+    [
+      174,
+      65,
+      4,
       204,
       1,
       "IMAGE"
     ],
     [
-      209,
+      175,
       204,
       0,
       205,
@@ -1550,15 +1550,15 @@
       "IMAGE"
     ],
     [
-      210,
+      176,
       65,
-      2,
+      3,
       205,
       1,
       "IMAGE"
     ],
     [
-      211,
+      177,
       205,
       0,
       206,
@@ -1566,31 +1566,31 @@
       "IMAGE"
     ],
     [
-      212,
-      65,
-      0,
-      206,
-      1,
-      "IMAGE"
-    ],
-    [
-      213,
-      206,
-      0,
-      207,
-      0,
-      "IMAGE"
-    ],
-    [
-      214,
+      178,
       65,
       6,
+      206,
+      1,
+      "IMAGE"
+    ],
+    [
+      179,
+      206,
+      0,
+      207,
+      0,
+      "IMAGE"
+    ],
+    [
+      180,
+      65,
+      5,
       207,
       1,
       "IMAGE"
     ],
     [
-      215,
+      181,
       207,
       0,
       208,

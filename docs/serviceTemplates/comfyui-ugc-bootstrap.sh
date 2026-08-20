@@ -47,7 +47,7 @@ if [ -n "${HF_TOKEN:-}" ]; then
   HF_AUTH=(-H "Authorization: Bearer $HF_TOKEN")
   echo "[ocean] HF_TOKEN set — gated repositories are reachable"
 else
-  echo "[ocean] no HF_TOKEN — gated repositories (LTX-2.5 among them) will 401"
+  echo "[ocean] no HF_TOKEN — any gated repository this template needs will 401"
 fi
 
 # Byte count the server promises, after following HuggingFace's redirect to its CDN. The last

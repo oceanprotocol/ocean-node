@@ -3582,7 +3582,7 @@
               "collapsed": false
             },
             "order": 21,
-            "mode": 0,
+            "mode": 4,
             "inputs": [
               {
                 "localized_name": "model",
@@ -3636,19 +3636,13 @@
                   "lora_name": true,
                   "strength_model": true
                 }
-              },
-              "models": [
-                {
-                  "name": "Qwen-Image-Edit-2509-Fusion.safetensors",
-                  "url": "https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI/resolve/main/split_files/loras/Qwen-Image-Edit-2509-Fusion.safetensors",
-                  "directory": "loras"
-                }
-              ]
+              }
             },
             "widgets_values": [
-              "Qwen-Image-Edit-2509-Fusion.safetensors",
+              "Qwen-Image-Edit-2509-White_to_Scene.safetensors",
               1
-            ]
+            ],
+            "title": "Task LoRA (bypassed \u2014 base 2509 does the composite)"
           }
         ],
         "groups": [
