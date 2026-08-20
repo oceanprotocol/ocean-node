@@ -1,0 +1,174 @@
+{
+  "id": "ecommerce-studio",
+  "name": "ComfyUI \u2014 E-commerce studio (product images, angles, creatives, motion)",
+  "description": "ComfyUI preloaded with Qwen-Image-Edit 2509, Qwen-Image 2512 and Kandinsky 5.0 I2V Lite behind five workflows that turn one product photo into the asset set a listing needs. Background swaps a packshot into a generated scene; Relight re-lights the product from a reference image or a prompt; Angles produces eight camera views plus a seamless turntable loop; Creative paints an ad layout with headline copy and composites the product into it; Motion renders a five-second clip as both mp4 and animated WEBP. Pick a workflow in the tab bar, upload one photo, press Queue. The edit backbone is 2509 rather than the newer 2511 deliberately: the five product LoRAs this template depends on \u2014 White_to_Scene, Fusion, Relight, Light-Migration and Multiple-angles \u2014 exist only for 2509, and every official ComfyUI template that uses them pairs them with it. Weights total 58.7 GB, of which the 9.4 GB Qwen2.5-VL text encoder is shared by all five workflows and the 0.25 GB Qwen VAE by four of them (Motion uses the 0.49 GB HunyuanVideo VAE), and one 20.4 GB edit backbone is shared by four; Kandinsky adds only about 5 GB because it reuses that same text encoder, where a 14B video model would have added 38 GB. Only one diffusion model is resident per generation \u2014 ComfyUI unloads between passes \u2014 so the two image backbones never co-reside. Select a persistent-storage bucket on launch: it holds ComfyUI's whole base directory, so those 58.7 GB download once instead of on every launch, and your renders come back on the next launch with the same bucket. Outputs save flat to the bucket root with ecom_ prefixes (ecom_background_00001_.png, ecom_angle_wide_shot_00001_.png, ecom_turntable_00001_.webp, ecom_creative_00001_.png, ecom_motion_00001_.mp4 and ecom_motion_webp_00001_.webp), where the storage API's listFiles finds them. Without a bucket everything lands in /tmp and is discarded on stop. Needs a CUDA GPU; 32 GB holds a generation comfortably and 24 GB runs it with offloading. Every image these workflows produce is invented by a model \u2014 check labels, small print and prices before publishing.",
+  "kind": "bundle",
+  "service": "comfyui",
+  "outcome": "Turn one product photo into scene shots, relights, eight angles, an ad creative and a short clip.",
+  "category": "image",
+  "includes": [
+    {
+      "name": "Qwen2.5-VL 7B text encoder (fp8 scaled)",
+      "kind": "model",
+      "sizeGb": 9.38,
+      "repoId": "Comfy-Org/Qwen-Image_ComfyUI"
+    },
+    {
+      "name": "Qwen-Image VAE",
+      "kind": "model",
+      "sizeGb": 0.25,
+      "repoId": "Comfy-Org/Qwen-Image_ComfyUI"
+    },
+    {
+      "name": "Qwen-Image-Edit 2509 (fp8 e4m3fn)",
+      "kind": "model",
+      "sizeGb": 20.43,
+      "repoId": "Comfy-Org/Qwen-Image-Edit_ComfyUI"
+    },
+    {
+      "name": "Qwen-Image-Edit 2509 White-to-Scene LoRA",
+      "kind": "model",
+      "sizeGb": 0.24,
+      "repoId": "Comfy-Org/Qwen-Image-Edit_ComfyUI"
+    },
+    {
+      "name": "Qwen-Image-Edit 2509 Fusion LoRA",
+      "kind": "model",
+      "sizeGb": 0.24,
+      "repoId": "Comfy-Org/Qwen-Image-Edit_ComfyUI"
+    },
+    {
+      "name": "Qwen-Image-Edit 2509 Relight LoRA",
+      "kind": "model",
+      "sizeGb": 0.24,
+      "repoId": "Comfy-Org/Qwen-Image-Edit_ComfyUI"
+    },
+    {
+      "name": "Qwen-Image-Edit 2509 Light-Migration LoRA",
+      "kind": "model",
+      "sizeGb": 0.24,
+      "repoId": "Comfy-Org/Qwen-Image-Edit_ComfyUI"
+    },
+    {
+      "name": "Qwen-Image-Edit 2509 Multiple-Angles LoRA",
+      "kind": "model",
+      "sizeGb": 0.24,
+      "repoId": "Comfy-Org/Qwen-Image-Edit_ComfyUI"
+    },
+    {
+      "name": "Qwen-Image-Edit 2509 Lightning 4-step LoRA (bf16)",
+      "kind": "model",
+      "sizeGb": 0.85,
+      "repoId": "lightx2v/Qwen-Image-Lightning"
+    },
+    {
+      "name": "Qwen-Image 2512 (fp8 e4m3fn)",
+      "kind": "model",
+      "sizeGb": 20.43,
+      "repoId": "Comfy-Org/Qwen-Image_ComfyUI"
+    },
+    {
+      "name": "Qwen-Image 2512 Lightning 4-step LoRA (bf16)",
+      "kind": "model",
+      "sizeGb": 0.85,
+      "repoId": "lightx2v/Qwen-Image-2512-Lightning"
+    },
+    {
+      "name": "Kandinsky 5.0 I2V Lite 5s",
+      "kind": "model",
+      "sizeGb": 4.57,
+      "repoId": "kandinskylab/Kandinsky-5.0-I2V-Lite-5s"
+    },
+    {
+      "name": "HunyuanVideo VAE (bf16)",
+      "kind": "model",
+      "sizeGb": 0.49,
+      "repoId": "Kijai/HunyuanVideo_comfy"
+    },
+    {
+      "name": "CLIP-L text encoder",
+      "kind": "model",
+      "sizeGb": 0.25,
+      "repoId": "comfyanonymous/flux_text_encoders"
+    }
+  ],
+  "image": "yanwk/comfyui-boot",
+  "tag": "cu130-megapak-pt211-20260814",
+  "exposedPorts": [
+    8188
+  ],
+  "entrypoint": [
+    "/bin/bash",
+    "-c"
+  ],
+  "commandFile": "comfyui-ugc-bootstrap.sh",
+  "workflows": [
+    {
+      "id": "ocean_ecom_background",
+      "name": "Background \u2014 packshot into a scene",
+      "description": "Upload a product photo on a plain background and describe the scene you want. The model keeps the product's shape, label and detail and rebuilds everything around it. Saves as ecom_background_00001_.png.",
+      "file": "workflows/ocean_ecom_background.json"
+    },
+    {
+      "id": "ocean_ecom_relight",
+      "name": "Relight \u2014 match the light to a reference",
+      "description": "Upload your product plus a photo whose lighting you want, and the product is re-lit to match. Swap one widget to switch to prompt-driven relighting instead. Saves as ecom_relight_00001_.png.",
+      "file": "workflows/ocean_ecom_relight.json"
+    },
+    {
+      "id": "ocean_ecom_multiview",
+      "name": "Angles \u2014 eight views and a turntable",
+      "description": "Upload one photo and get eight camera angles in a single Run \u2014 wide, close-up, 45 and 90 degrees each way, aerial and low \u2014 plus a turntable loop that sweeps and returns so it plays seamlessly. Saves as ecom_angle_<name>_00001_.png and ecom_turntable_00001_.webp.",
+      "file": "workflows/ocean_ecom_multiview.json"
+    },
+    {
+      "id": "ocean_ecom_creative",
+      "name": "Creative \u2014 ad layout with headline copy",
+      "description": "Two stages: Qwen-Image 2512 paints the ad including your headline text, then the edit model composites your real product into it. Switch off the first stage to start from a background you already have \u2014 it is skipped entirely, not just discarded. Saves as ecom_creative_00001_.png.",
+      "file": "workflows/ocean_ecom_creative.json"
+    },
+    {
+      "id": "ocean_ecom_motion",
+      "name": "Motion \u2014 five-second product clip",
+      "description": "Upload one photo and describe the motion you want; the model already sees the product. Renders 121 frames at 24 fps as both an mp4 for embedding and an animated WEBP for galleries. Saves as ecom_motion_00001_.mp4 and ecom_motion_webp_00001_.webp \u2014 separate prefixes, because ComfyUI's counter is per-prefix and a shared one would interleave the indices.",
+      "file": "workflows/ocean_ecom_motion.json"
+    }
+  ],
+  "userConfigurableEnvVars": [
+    {
+      "key": "COMFY_WORKFLOW_ID",
+      "validation": "^[A-Za-z0-9_-]+$"
+    },
+    {
+      "key": "COMFY_WORKFLOW"
+    }
+  ],
+  "requiredResources": [
+    {
+      "id": "cpu",
+      "min": 8,
+      "recommended": 16,
+      "unit": "cores"
+    },
+    {
+      "id": "ram",
+      "min": 48,
+      "recommended": 96,
+      "unit": "GB"
+    },
+    {
+      "id": "disk",
+      "min": 80,
+      "recommended": 140,
+      "unit": "GB"
+    },
+    {
+      "kind": "discrete",
+      "type": "gpu",
+      "min": 1,
+      "recommended": 1,
+      "unit": "count",
+      "description": "One CUDA GPU. A generation holds one 20.4 GB diffusion backbone plus the 9.4 GB text encoder and a 0.25 GB VAE \u2014 about 30 GB \u2014 so a 32 GB card runs every workflow comfortably and 24 GB works with ComfyUI paging the text encoder out between passes. The two image backbones never co-reside: the Creative workflow runs its two stages as separate passes and ComfyUI unloads between them, so the 58.5 GB on disk is not a VRAM figure. The Motion workflow is the lightest, at 4.6 GB of weights plus the shared encoder. Ask for one card and not two: core ComfyUI has no tensor parallelism, a single sampling pass runs on one device, and a second GPU would be billed while idle."
+    }
+  ]
+}

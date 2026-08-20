@@ -30,9 +30,12 @@ else
 fi
 
 MODELS="$BASE/models"
-mkdir -p "$MODELS/checkpoints" "$MODELS/loras" "$MODELS/text_encoders" \
-  "$MODELS/latent_upscale_models" "$MODELS/diffusion_models" "$MODELS/vae" "$MODELS/vae_approx" \
-  "$BASE/output" "$INPUT_DIR" "$BASE/temp" "$BASE/user"
+# Model subdirectories are created on demand, next to each download, since the graph now
+# says which ones it needs. $MODELS itself still has to exist unconditionally: the
+# no-workflow path skips the download loop entirely, and without this the bucket would have
+# no models/ for a user uploading weights through the UI, while the `du -sm "$MODELS"`
+# VRAM heuristic further down could never fire.
+mkdir -p "$MODELS" "$BASE/output" "$INPUT_DIR" "$BASE/temp" "$BASE/user"
 
 # LTX-2.5 and other gated repos 401 without a token. An array, not a string: under
 # `set -u` an unquoted empty string would still hand curl an empty argument, and the
@@ -173,43 +176,94 @@ if [ -n "$WORKFLOW_JSON" ]; then
   # Every installed workflow, not just the deep-linked one: a template can ship a second
   # workflow with its own weights (the H3 prompt generator's text encoder), and scanning only
   # the deep link would leave it without them. Ordered + deduplicated across files.
+  # Emits "directory<TAB>url" per line: directory comes from the same node's properties.models[]
+  # entry ComfyUI itself reads to know where a file goes, not guessed from the URL's shape —
+  # the guess was wrong for files whose HuggingFace repo path doesn't match ComfyUI's layout
+  # (e.g. a LoRA with neither "loras" nor "lora" in its path or filename).
   MODEL_URLS=$(python3.13 - "$PACK"/example_workflows/*.json <<'PY' || true
 import json, re, sys
-seen = []
+
+URL_RE = re.compile(r'https://huggingface\.co/[^\s\)\]"]+?\.safetensors')
+# A directory value that doesn't look like a bare subdirectory name is rejected outright: it is
+# graph content from the client (COMFY_WORKFLOW) and becomes a path segment in "$MODELS/$sub",
+# so an unvalidated "../../etc" would write outside $MODELS.
+# No ^/$ anchors, checked with fullmatch() instead of match(): Python's $ matches before a
+# trailing newline, so "loras\n" would pass a match()-based ^...$ check. fullmatch() has no
+# such gap. Do not "simplify" this to the WF_ID-style ^...$ + match() idiom above — that would
+# silently reopen the bypass.
+DIR_RE = re.compile(r'[a-z0-9_]{1,32}')
+
+def guess_dir(url):
+    # Fallback for a URL with no properties.models[] entry (a MarkdownNote link, for example) or
+    # an invalid directory — the same shape-based guess this script always used.
+    if '/diffusion_models/' in url: return 'diffusion_models'
+    if '/text_encoders/' in url: return 'text_encoders'
+    if '/vae_approx/' in url: return 'vae_approx'
+    if '/vae/' in url: return 'vae'
+    if '/loras/' in url: return 'loras'
+    if re.search(r'[Ll]ora', url): return 'loras'
+    if 'upscaler' in url: return 'latent_upscale_models'
+    return 'checkpoints'
+
+seen = []           # ordered, deduplicated URLs, in the order first seen
+directories = {}     # normalised url -> directory, from properties.models[] entries
+
+# URL_RE stops at '.safetensors', so a graph URL written as
+# '.../clip_l.safetensors?download=true' -- a shape Comfy-Org templates do emit -- is
+# collected truncated while properties.models[] stores it whole. Keying the map on the
+# raw string then misses every such entry and silently falls back to the shape guess,
+# which is how clip_l.safetensors was routed to checkpoints/ instead of text_encoders/
+# and broke the Motion workflow at queue time. Normalise both sides.
+def norm(url):
+    return url.split('?', 1)[0].split('#', 1)[0]
+
 def walk(o):
     if isinstance(o, dict):
+        props = o.get('properties')
+        if isinstance(props, dict) and isinstance(props.get('models'), list):
+            for m in props['models']:
+                if isinstance(m, dict) and isinstance(m.get('url'), str) and isinstance(m.get('directory'), str):
+                    directories.setdefault(norm(m['url']), m['directory'])
         for v in o.values(): walk(v)
     elif isinstance(o, list):
         for v in o: walk(v)
     elif isinstance(o, str):
-        for m in re.findall(r'https://huggingface\.co/[^\s\)\]"]+?\.safetensors', o):
+        for m in URL_RE.findall(o):
             if m not in seen: seen.append(m)
+
 for path in sys.argv[1:]:
     try:
         walk(json.load(open(path)))
     except Exception as e:
         print(f'[ocean] cannot read model URLs from {path}: {e}', file=sys.stderr)
-print('\n'.join(seen))
+
+for url in seen:
+    d = directories.get(norm(url))
+    if d is None:
+        # No properties.models[] entry -- a MarkdownNote link, say. Expected; the shape
+        # guess is the documented fallback for it, so this is not worth a warning.
+        d = guess_dir(url)
+    elif not DIR_RE.fullmatch(d):
+        # An entry that HAS a directory we refused is a different story: either a broken
+        # template or a traversal attempt from a client-supplied graph. Say so, because
+        # the misroute only surfaces much later as a red loader node, after escrow is
+        # claimed.
+        print(f'[ocean] {url.rsplit("/", 1)[-1]}: ignoring unusable directory {d!r} in the '
+              f'graph, falling back to the URL shape', file=sys.stderr)
+        d = guess_dir(url)
+    print(f'{d}\t{url}')
 PY
 )
   if [ -z "$MODEL_URLS" ]; then
     echo "[ocean] no model URLs found in the workflow — ComfyUI will start without weights" >&2
   fi
-  for url in $MODEL_URLS; do
-    case "$url" in
-      */diffusion_models/*) sub=diffusion_models ;;
-      */text_encoders/*)    sub=text_encoders ;;
-      */vae_approx/*)       sub=vae_approx ;;
-      */vae/*)              sub=vae ;;
-      */loras/*)            sub=loras ;;
-      *[Ll]ora*)            sub=loras ;;
-      *upscaler*)           sub=latent_upscale_models ;;
-      *)                    sub=checkpoints ;;
-    esac
+  while IFS=$'\t' read -r sub url; do
+    [ -n "$url" ] || continue
+    mkdir -p "$MODELS/$sub"
     # One renamed file must not cost the whole paid session.
     get "$url" "$MODELS/$sub/$(basename "$url")" ||
       echo "[ocean] could not fetch $(basename "$url") — ComfyUI will start without it" >&2
-  done
+  done <<< "$MODEL_URLS"
 else
   echo "[ocean] no workflow supplied — skipping model download" >&2
 fi
