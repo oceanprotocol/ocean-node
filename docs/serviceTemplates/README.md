@@ -638,6 +638,64 @@ the node's Library tab before the service stops.
 per mode, so none of that has to be memorised. History, favourites and settings are written to
 `user/default/` inside the bucket and come back on the next launch with the same bucket.
 
+### `ecommerce-studio.json` — ComfyUI, e-commerce studio (GPU)
+
+Five workflows that turn one product photo into the asset set a listing needs. Pick one in the
+tab bar, upload a photo, press Queue.
+
+| Workflow | Upload | Get back |
+| --- | --- | --- |
+| `ocean_ecom_background` | packshot on a plain background | the product in a generated scene, `ecom_background_00001_.png` |
+| `ocean_ecom_relight` | product + a photo whose lighting you want | the product re-lit to match, `ecom_relight_00001_.png` |
+| `ocean_ecom_multiview` | one photo | eight angles `ecom_angle_<name>_00001_.png` plus a turntable loop `ecom_turntable_00001_.webp` |
+| `ocean_ecom_creative` | product photo + a headline in the prompt | an ad with copy and the real product composited in, `ecom_creative_00001_.png` |
+| `ocean_ecom_motion` | one photo + a description of the motion | `ecom_motion_00001_.mp4` and `ecom_motion_webp_00001_.webp`, 121 frames at 24 fps |
+
+**Why 2509 and not 2511.** The edit backbone is Qwen-Image-Edit **2509**, not the newer 2511,
+because the five LoRAs this template is built on — `White_to_Scene`, `Fusion`, `Relight`,
+`Light-Migration` and `Multiple-angles` — are published only for 2509, and every official
+ComfyUI template that uses them pairs them with it. 2511 scores better on generic edit
+benchmarks and has no product LoRAs at all.
+
+**Weights — 58.7 GB.** Sharing is what keeps that number down:
+
+| | GB | used by |
+| --- | ---: | --- |
+| Qwen2.5-VL 7B text encoder (fp8) | 9.38 | all five |
+| Qwen-Image VAE | 0.25 | four |
+| Qwen-Image-Edit 2509 (fp8) | 20.43 | four |
+| five product LoRAs + Lightning (bf16) | 2.05 | four |
+| Qwen-Image 2512 (fp8) + Lightning (bf16) | 21.28 | creative, stage A |
+| Kandinsky 5.0 I2V Lite + Hunyuan VAE + CLIP-L | 5.31 | motion |
+
+Kandinsky was chosen over a 14B video model specifically because it reuses the same Qwen2.5-VL
+encoder the image workflows already load: it adds ~5 GB where Wan 2.2 I2V 14B would have added
+~38 GB, and a product clip is short and small by nature.
+
+**VRAM is not the disk number.** A generation holds one 20.4 GB backbone plus the encoder and
+VAE — about 30 GB. The two image backbones never co-reside: the Creative workflow runs its two
+stages as separate passes and ComfyUI unloads between them. A 32 GB card runs every workflow;
+24 GB works with the encoder paged out between passes.
+
+**Quality toggles.** Both image backbones ship undistilled with their Lightning LoRA present but
+switched off — inside the Creative workflow, `Enable 4 Steps LoRA?` flips model, sampler steps
+and cfg together for roughly a 12x speedup at the cost of softer text. The LoRAs are shipped
+separately rather than pre-merged precisely so those toggles exist.
+
+**White_to_Scene vs Fusion.** These are a matched pair and each ships with the prompt it was
+trained for. Background wires one image and uses `White_to_Scene` with a prompt that
+*describes a target scene*. Creative's stage B wires two — the generated layout plus your
+product — and uses `Fusion` with a prompt that *blends* the second into the first. Swapping
+either LoRA without swapping its prompt gives noticeably worse results.
+
+**Relight has two modes.** It ships wired for reference-image relighting via the Light-Migration
+LoRA. The `Relight` LoRA is downloaded too — its URL travels in the workflow's note, which the
+bootstrap's scanner picks up like any other — so switching to prompt-driven relighting is one
+widget change with no missing file.
+
+Select a persistent-storage bucket on launch or the 58.7 GB downloads every time and the renders
+are discarded on stop.
+
 ## The shared bootstrap (`comfyui-ugc-bootstrap.sh`)
 
 Every ComfyUI bundle in this folder inlines this script via `commandFile`. It runs ComfyUI from the image's
@@ -664,14 +722,29 @@ fetch identifies itself with a User-Agent.
 
 Weights are not listed here: the script downloads the HuggingFace URLs carried by the installed
 graph itself, so each template fetches only what it loads and a new workflow needs no change
-here. Each URL is routed into the matching `models/` subdirectory by pattern-matching its path —
-`checkpoints`, `text_encoders`, `loras`, `latent_upscale_models`, plus `diffusion_models` and
-`vae` for the MiniMax H3 template's weights. A bare `*[Ll]ora*` arm sits just before the
-catch-all default of `checkpoints`, because a LoRA is not always published under a `/loras/`
-path — the MiniMax H3 turbo LoRA, for instance, sits at its repo root, and without that arm it
-would land in `checkpoints` and its loader node would show red. `minimax-h3-allinone` is the first
-template to actually ship it, so that arm is now load-bearing rather than provisional. A template's
-`envVars` cannot drive this —
+here. Each URL is routed by the `directory` field that ComfyUI already writes into the graph's
+`properties.models[]` entries — `checkpoints`, `text_encoders`, `loras`,
+`latent_upscale_models`, `diffusion_models`, `vae`, `vae_approx`. The graph states where each
+file belongs, so nothing has to be inferred from the URL.
+
+Two things guard that. The value is a path segment under `$MODELS` and arrives from a
+client-supplied graph, so it must match `[a-z0-9_]{1,32}` (with `fullmatch`, not an anchored
+`match` — Python's `$` matches before a trailing newline, so `"loras\n"` would slip through);
+a value that fails is refused with a warning to stderr and the URL falls back to the shape
+guess. And the lookup key is normalised by stripping from the first `?` or `#`, because the
+URL scanner's regex stops at `.safetensors` while `properties.models[].url` may carry a query
+string — an unnormalised key missed `clip_l.safetensors?download=true` and routed it to
+`checkpoints`, which is exactly the class of bug the `directory` field exists to eliminate.
+
+The older path-pattern derivation survives only as the fallback for a URL with no
+`properties.models[]` entry — a MarkdownNote documenting an optional LoRA, for instance, which
+is how `ecommerce-studio` ships its Relight LoRA. Its bare `*[Ll]ora*` arm before the
+`checkpoints` default is what routes such a URL correctly when a LoRA is not published under a
+`/loras/` path. Because the fallback is now only ever reached without a declared directory,
+`scripts/test-model-routing.sh` covers both paths, and `scripts/check-ecom-model-routing.py`
+runs the real scanner over the real shipped graphs — a synthetic fixture that drifts from shipped data is
+what let the `clip_l` misroute through in the first place. A template's `envVars` cannot drive
+this —
 nothing merges them into a service container (`SERVICE_START` has no template id; the container
 env comes only from `userData`).
 
