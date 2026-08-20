@@ -216,6 +216,7 @@ jobs:
         with:
           repository: 'oceanprotocol/barge'
           path: 'barge'
+          ref: feature/node-v4
       - name: Login to Docker Hub
         if: ${{ env.DOCKERHUB_PASSWORD && env.DOCKERHUB_USERNAME }}
         run: |
@@ -240,12 +241,13 @@ jobs:
         with:
           repository: 'oceanprotocol/ocean-cli'
           path: 'ocean-cli'
+          ref: feature/next-node-4
       - name: Checkout Ocean-js
         uses: actions/checkout@v4
         with:
           repository: 'oceanprotocol/ocean.js'
           path: 'ocean.js'
-          ref: main
+          ref: next-release-v9
       - name: Build ocean-js
         working-directory: ${{ github.workspace }}/ocean.js
         run: |

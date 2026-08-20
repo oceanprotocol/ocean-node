@@ -12,20 +12,11 @@ import {
   type ServiceJob
 } from '../../../@types/C2D/ServiceOnDemand.js'
 import { toListedServiceJob } from './utils.js'
+import { parseFromTimestamp } from '../utils/timestamps.js'
 
-// Parses the `fromTimestamp` filter into Unix milliseconds. Accepts an ISO date string
-// or a Unix timestamp (seconds or milliseconds) given as a string / number-like string.
-// Returns undefined for "no filter" and null for an unparseable value (caller → 400).
-export function parseFromTimestamp(value?: string): number | undefined | null {
-  if (value === undefined || value === null || value === '') return undefined
-  if (/^\d+$/.test(String(value))) {
-    const n = Number(value)
-    // 1e12 ms ≈ Sep 2001; any plausible seconds value is far below it
-    return n > 1e12 ? n : n * 1000
-  }
-  const t = Date.parse(String(value))
-  return Number.isNaN(t) ? null : t
-}
+// Re-exported for backwards compatibility: the parser now lives in core/utils/timestamps.ts
+// so the compute-jobs listing can share it.
+export { parseFromTimestamp }
 
 // SERVICE_LIST: the node-wide service listing, shaped like GetJobsHandler. Default (no
 // filters) returns exactly what the engines count against the shared resource pools

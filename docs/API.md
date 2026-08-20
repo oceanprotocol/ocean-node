@@ -1,5 +1,16 @@
 # Ocean Node Api
 
+## Address casing
+
+Every EVM address you send (`consumerAddress`, `owner`, `address`, `decrypterAddress`,
+`dataNftAddress`, `publisherAddress`, `consumerAddrs`, `additionalViewers`) is accepted in **any
+casing** — checksummed (EIP-55), all-lowercase, all-uppercase — and canonicalized to its checksummed
+form by the node before it is used as a lookup key or compared against an owner. A lowercased
+address therefore matches the same jobs, services and buckets as the checksummed one.
+
+Signatures are unaffected: the node verifies the signed message against the casing you actually
+signed, so clients that build the message from a lowercase address keep working.
+
 ---
 
 ## State DDO
@@ -1204,7 +1215,11 @@ returns the current indexing queue, as an array of objects
 
 #### Description
 
-Forwards request to PolicyServer (if any)
+Forwards request to PolicyServer (if any).
+
+This endpoint is not authenticated. The node forwards the caller-supplied payload and adds
+the resolved `ddo` plus its own `nodeAddress`. Caller-supplied identity fields are not
+verified.
 
 #### Parameters
 
@@ -1212,7 +1227,7 @@ Forwards request to PolicyServer (if any)
 | ----------------------- | ------ | -------- | ---------------------------------------------- |
 | command                 | string | v        | command name                                   |
 | node                    | string |          | if not present it means current node           |
-| policyServerPassthrough | any    |          | command and params for PolicyServer (see docs) |
+| policyServerPassthrough | object | v        | command and params for PolicyServer (see docs) |
 
 #### HTTP Example
 
@@ -1243,6 +1258,67 @@ Forwards request to PolicyServer (if any)
   }
 }
 ```
+
+#### Responses
+
+| code | description                                                     |
+| ---- | --------------------------------------------------------------- |
+| 200  | PolicyServer allowed the request; its response body is returned |
+| 400  | missing/invalid parameters                                      |
+
+---
+
+## initializePSVerification
+
+### `HTTP` POST /api/services/initializePSVerification
+
+### `P2P` command: PolicyServerInitialize
+
+#### Description
+
+Asks the PolicyServer to start a verification flow (`initiate` action) for a given
+asset/service and consumer. This endpoint requires an `Authorization` header or a
+`nonce` + `signature` pair.
+
+This is a distinct command from `PolicyServerPassthrough`, so the signed message uses its
+own command string: `consumerAddress + nonce + "PolicyServerInitialize"`.
+
+The verified `consumerAddress` is the one forwarded to the PolicyServer; the caller's
+`authorization`, `nonce` and `signature` are added to the `policyServer` object.
+
+#### Parameters
+
+| name            | type   | required | description                                          |
+| --------------- | ------ | -------- | ---------------------------------------------------- |
+| documentId      | string | v        | the asset DID                                        |
+| serviceId       | string | v        | the service id within the asset                      |
+| consumerAddress | string | v        | the caller's address                                 |
+| policyServer    | any    | v        | free-form data passed to the PolicyServer            |
+| nonce           | string |          | required unless an `Authorization` token is supplied |
+| signature       | string |          | required unless an `Authorization` token is supplied |
+
+#### HTTP Example
+
+```json
+{
+  "documentId": "did:op:1234",
+  "serviceId": "0",
+  "consumerAddress": "0x9876543210fedcba9876543210fedcba98765432",
+  "nonce": "1",
+  "signature": "0x123",
+  "policyServer": {}
+}
+```
+
+#### Responses
+
+| code | description                       |
+| ---- | --------------------------------- |
+| 200  | PolicyServer response body        |
+| 400  | missing/invalid parameters        |
+| 401  | missing or invalid authentication |
+| 404  | asset not found                   |
+| 503  | DDO database not available        |
 
 ---
 
@@ -1359,7 +1435,13 @@ Returns indexed Escrow contract events. The indexer matches Escrow logs by topic
 #### Request (POST /directCommand)
 
 ```json
-{ "command": "getEscrowEvents", "chainId": 8996, "eventType": "Deposit", "offset": 0, "size": 50 }
+{
+  "command": "getEscrowEvents",
+  "chainId": 8996,
+  "eventType": "Deposit",
+  "offset": 0,
+  "size": 50
+}
 ```
 
 #### Response
@@ -1503,23 +1585,23 @@ starts a free compute job and returns jobId if succesfull
 
 #### Parameters
 
-| name                        | type   | required | description                                                                                                                                                                 |
-| --------------------------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| command                     | string | v        | command name                                                                                                                                                                |
-| node                        | string |          | if not present it means current node                                                                                                                                        |
-| consumerAddress             | string | v        | consumer address                                                                                                                                                            |
-| signature                   | string | v        | signature (msg=String(nonce) )                                                                                                                                              |
-| nonce                       | string | v        | nonce for the request                                                                                                                                                       |
-| datasets                    | object |          | list of ComputeAsset to be used as inputs                                                                                                                                   |
-| algorithm                   | object |          | ComputeAlgorithm definition                                                                                                                                                 |
-| environment                 | string | v        | compute environment to use                                                                                                                                                  |
-| resources                   | object |          | optional list of required resources                                                                                                                                         |
-| metadata                    | object |          | optional metadata for the job, data provided by the user                                                                                                                    |
-| additionalViewers           | object |          | optional array of addresses that are allowed to fetch the result                                                                                                            |
-| queueMaxWaitTime            | number |          | optional max time in seconds a job can wait in the queue before being started                                                                                               |
-| encryptedDockerRegistryAuth | string |          | Ecies encrypted docker auth schema for image (see [Private Docker Registries with Per-Job Authentication](../env.md#private-docker-registries-with-per-job-authentication)) |
-| output                      | string |          | Ecies encrypted with instructions for uploading compute results (see [C2D result upload to remote storage](../Storage.md#c2d-result-upload-to-remote-storage))              |
-| outputBucketId              | string |          | persistent-storage bucket id; the bucket is mounted at /data/outputs and results are stored there as individual files. Mutually exclusive with `output` (see [persistent storage](../persistentStorage.md#using-a-bucket-for-compute-job-outputs))   |
+| name                        | type   | required | description                                                                                                                                                                                                                                        |
+| --------------------------- | ------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| command                     | string | v        | command name                                                                                                                                                                                                                                       |
+| node                        | string |          | if not present it means current node                                                                                                                                                                                                               |
+| consumerAddress             | string | v        | consumer address                                                                                                                                                                                                                                   |
+| signature                   | string | v        | signature (msg=String(nonce) )                                                                                                                                                                                                                     |
+| nonce                       | string | v        | nonce for the request                                                                                                                                                                                                                              |
+| datasets                    | object |          | list of ComputeAsset to be used as inputs                                                                                                                                                                                                          |
+| algorithm                   | object |          | ComputeAlgorithm definition                                                                                                                                                                                                                        |
+| environment                 | string | v        | compute environment to use                                                                                                                                                                                                                         |
+| resources                   | object |          | optional list of required resources                                                                                                                                                                                                                |
+| metadata                    | object |          | optional metadata for the job, data provided by the user                                                                                                                                                                                           |
+| additionalViewers           | object |          | optional array of addresses that are allowed to fetch the result                                                                                                                                                                                   |
+| queueMaxWaitTime            | number |          | optional max time in seconds a job can wait in the queue before being started                                                                                                                                                                      |
+| encryptedDockerRegistryAuth | string |          | Ecies encrypted docker auth schema for image (see [Private Docker Registries with Per-Job Authentication](../env.md#private-docker-registries-with-per-job-authentication))                                                                        |
+| output                      | string |          | Ecies encrypted with instructions for uploading compute results (see [C2D result upload to remote storage](../Storage.md#c2d-result-upload-to-remote-storage))                                                                                     |
+| outputBucketId              | string |          | persistent-storage bucket id; the bucket is mounted at /data/outputs and results are stored there as individual files. Mutually exclusive with `output` (see [persistent storage](../persistentStorage.md#using-a-bucket-for-compute-job-outputs)) |
 
 #### Request
 
@@ -1577,11 +1659,30 @@ returns job status
 
 Required at least one of the following parameters:
 
-| name            | type   | required | description                          |
-| --------------- | ------ | -------- | ------------------------------------ |
-| consumerAddress | string |          | consumer address to use as filter    |
-| jobId           | string |          | jobId address to use as filter       |
-| agreementId     | string |          | agreementId address to use as filter |
+| name            | type    | required | description                                                                                                  |
+| --------------- | ------- | -------- | ------------------------------------------------------------------------------------------------------------ |
+| consumerAddress | string  |          | consumer address to use as filter                                                                            |
+| jobId           | string  |          | jobId address to use as filter                                                                               |
+| agreementId     | string  |          | agreementId address to use as filter                                                                         |
+| includeMetrics  | boolean |          | override the runtime-metrics default (`true` = require them, `false` = never). See note below. |
+| signature       | string  |          | signature over `consumerAddress` + `nonce` + `command` (or an auth token) — authenticates the owner |
+| nonce           | string  |          | request nonce, paired with `signature`                                                             |
+
+**Runtime metrics are owner-only and returned BY DEFAULT.** If the request carries owner credentials
+(`consumerAddress` plus `signature`/`nonce`, or an `Authorization` header token), each job owned by
+(or shared with) that address comes back with a `runtimeMetrics` object — no flag needed.
+
+`includeMetrics` only overrides that default:
+
+| `includeMetrics` | behavior |
+| --- | --- |
+| omitted (default) | Metrics attached when owner credentials are present and valid. A request without credentials — the plain, unauthenticated status call — returns `200` with no metrics, exactly as before. Invalid credentials likewise just mean no metrics. |
+| `true` | Metrics are **required**: missing `consumerAddress` answers `400`, failed authentication `401`. Use it when you want to know *why* metrics are absent instead of getting a silently trimmed response. |
+| `false` | Metrics are never attached (and the node skips the auth round-trip). |
+
+Metrics never reach a non-owner, and are never part of the on-chain escrow claim proof. They are
+best-effort and up to one sampling interval stale (see [compute.md](compute.md) and
+`C2D_METRICS_INTERVAL_SECONDS` in [env.md](env.md)).
 
 #### Response
 
@@ -1621,6 +1722,146 @@ Required at least one of the following parameters:
 ]
 ```
 
+When called with owner credentials, each owned job additionally carries a `runtimeMetrics` object
+(see [The `runtimeMetrics` object](#the-runtimemetrics-object) below).
+
+---
+
+### The `runtimeMetrics` object
+
+`runtimeMetrics` is an optional snapshot of live container stats, returned on
+`COMPUTE_GET_STATUS` / `SERVICE_GET_STATUS` to the **authenticated owner** of the job or service —
+by default, without asking for it. It never reaches anyone else, and `includeMetrics=false` opts out.
+Clients MUST treat every part as optional and render a field only when present.
+
+**Semantics clients should surface to users:**
+
+- **Best-effort & slightly stale.** Sampled on a fixed cadence (`C2D_METRICS_INTERVAL_SECONDS`,
+  default 10s), so values can be up to one interval old. `collectedAt` is the sample time — show it
+  (e.g. "as of 8s ago").
+- **May be missing entirely.** No snapshot yet (job just started), collection disabled on the node
+  (`C2D_METRICS_INTERVAL_SECONDS=0`), or a transient sampling failure ⇒ no `runtimeMetrics` field.
+  This is normal, not an error.
+- **`null` vs absent for GPU numbers.** Inside a `gpu[]` entry, a `null` metric means "the backend
+  could not read it" — display as "n/a", never as `0`.
+- **Bytes are raw bytes**; percentages are rounded to two decimals — memory/disk/GPU are `0–100`,
+  but CPU `usagePercent` can exceed `100` across multiple cores (see the CPU table); durations are
+  seconds; the final snapshot after a job/service ends carries the peak/exit values.
+
+#### Top-level fields
+
+| field           | type    | unit / notes                                                                                     |
+| --------------- | ------- | ------------------------------------------------------------------------------------------------ |
+| collectedAt     | string  | ISO-8601 timestamp of the sample                                                                 |
+| containerState  | object  | see below — status + structured exit info                                                        |
+| cpu             | object  | see below                                                                                        |
+| memory          | object  | see below                                                                                        |
+| disk            | object  | see below                                                                                        |
+| network         | object? | `{ rxBytes, txBytes }`; **absent** when the container runs with no network (`NetworkMode: none`)  |
+| blockIO         | object  | `{ readBytes, writeBytes }` — cumulative disk I/O in bytes                                        |
+| pids            | object  | `{ current, limit }` — process/thread count vs the container PID limit (512)                      |
+| gpu             | array?  | one entry per GPU the job/service holds; **absent** for CPU-only jobs or when GPU metrics are off |
+
+`containerState`:
+
+| field        | type     | notes                                                                    |
+| ------------ | -------- | ------------------------------------------------------------------------ |
+| status       | string   | e.g. `running`, `exited`                                                 |
+| startedAt    | string?  | ISO-8601                                                                 |
+| finishedAt   | string?  | ISO-8601; present once the container has stopped                         |
+| exitCode     | number?  | process exit code (present after exit)                                   |
+| oomKilled    | boolean  | `true` if the kernel OOM-killed the container                            |
+| error        | string?  | Docker-reported error string, if any                                     |
+| restartCount | number   | container restarts                                                       |
+| health       | string?  | Docker HEALTHCHECK status when the image defines one (e.g. `healthy`)    |
+
+`cpu`:
+
+| field                  | type   | unit / notes                                                                    |
+| ---------------------- | ------ | ------------------------------------------------------------------------------- |
+| usagePercent           | number | % of one host CPU-second per wall-second (docker-stats formula), `0–N×100`       |
+| allocated              | number | CPU cores requested by the job (`0` when unconstrained)                          |
+| usagePercentOfAllocated| number | `usagePercent / allocated` — "how saturated is what you paid for" (`0` if alloc 0)|
+| cumulativeSeconds      | number | total CPU-seconds consumed since start (monotonic; billing-grade)                |
+| throttledPeriods       | number | CFS quota throttling events — high ⇒ the CPU request is too small                |
+| throttledSeconds       | number | total time throttled, seconds                                                    |
+
+`memory`:
+
+| field          | type   | unit / notes                                             |
+| -------------- | ------ | -------------------------------------------------------- |
+| usageBytes     | number | working-set bytes (`usage − inactive_file`, cgroup v2)   |
+| limitBytes     | number | memory limit (= allocated RAM) in bytes                  |
+| usagePercent   | number | `usageBytes / limitBytes × 100`                          |
+| peakUsageBytes | number | max `usageBytes` observed across samples                 |
+
+`disk`:
+
+| field        | type    | unit / notes                                                                       |
+| ------------ | ------- | ---------------------------------------------------------------------------------- |
+| usedBytes    | number  | compute jobs: bytes written under `/` (excludes base image); services: writable layer |
+| quotaBytes   | number? | present only for jobs with a `disk` resource                                        |
+| usagePercent | number? | present only when `quotaBytes` is known                                             |
+
+`gpu[]` entry:
+
+| field              | type            | unit / notes                                                          |
+| ------------------ | --------------- | --------------------------------------------------------------------- |
+| resourceId         | string          | the requested resource id (`gpu0`, `gpu1`, …) — maps the entry to a device |
+| vendor             | string          | `nvidia` (only NVIDIA is emitted today; `amd`/`intel` reserved)        |
+| utilizationPercent | number \| null  | GPU busy % (`null` = unreadable)                                       |
+| memoryUsedBytes    | number \| null  | VRAM used                                                              |
+| memoryTotalBytes   | number \| null  | total VRAM                                                             |
+| temperatureC       | number?         | °C, when available                                                    |
+| powerWatts         | number?         | current draw, W, when available                                       |
+| shared             | boolean?        | `true` ⇒ device is shareable and the number may include other jobs    |
+
+> Note: the node also keeps an internal delta accumulator on the stored snapshot; it is stripped
+> from the response and clients will never see it.
+
+#### Example `runtimeMetrics`
+
+```json
+{
+  "collectedAt": "2026-07-29T12:00:10.000Z",
+  "containerState": {
+    "status": "running",
+    "startedAt": "2026-07-29T11:59:30.000Z",
+    "oomKilled": false,
+    "restartCount": 0
+  },
+  "cpu": {
+    "usagePercent": 182.4,
+    "allocated": 2,
+    "usagePercentOfAllocated": 91.2,
+    "cumulativeSeconds": 73.1,
+    "throttledPeriods": 12,
+    "throttledSeconds": 0.4
+  },
+  "memory": {
+    "usageBytes": 734003200,
+    "limitBytes": 1073741824,
+    "usagePercent": 68.36,
+    "peakUsageBytes": 812345678
+  },
+  "disk": { "usedBytes": 524288000, "quotaBytes": 10737418240, "usagePercent": 4.88 },
+  "network": { "rxBytes": 10485760, "txBytes": 2097152 },
+  "blockIO": { "readBytes": 41943040, "writeBytes": 8388608 },
+  "pids": { "current": 24, "limit": 512 },
+  "gpu": [
+    {
+      "resourceId": "gpu0",
+      "vendor": "nvidia",
+      "utilizationPercent": 77,
+      "memoryUsedBytes": 1073741824,
+      "memoryTotalBytes": 3221225472,
+      "temperatureC": 55,
+      "powerWatts": 90
+    }
+  ]
+}
+```
+
 ### `HTTP` GET /api/services/computeResult
 
 ### `P2P` command: getComputeResult
@@ -1655,9 +1896,9 @@ Create a new persistent storage bucket. Bucket ownership is set to the request `
 
 #### Request Headers
 
-| name            | type   | required | description |
-| --------------- | ------ | -------- | ----------- |
-| Authorization   | string |          | auth token (optional; depends on node auth configuration) |
+| name          | type   | required | description                                               |
+| ------------- | ------ | -------- | --------------------------------------------------------- |
+| Authorization | string |          | auth token (optional; depends on node auth configuration) |
 
 #### Request Body
 
@@ -1690,13 +1931,13 @@ List buckets for a given `owner`. Results are filtered by bucket access lists fo
 
 #### Query Parameters
 
-| name            | type   | required | description |
-| --------------- | ------ | -------- | ----------- |
-| consumerAddress | string | v        | consumer address |
+| name            | type   | required | description                                        |
+| --------------- | ------ | -------- | -------------------------------------------------- |
+| consumerAddress | string | v        | consumer address                                   |
 | signature       | string | v        | signed message (consumerAddress + nonce + command) |
-| nonce           | string | v        | request nonce |
-| chainId         | number | v        | chain id (used by auth/signature checks) |
-| owner           | string | v        | bucket owner to filter by |
+| nonce           | string | v        | request nonce                                      |
+| chainId         | number | v        | chain id (used by auth/signature checks)           |
+| owner           | string | v        | bucket owner to filter by                          |
 
 #### Response (200)
 
@@ -1721,11 +1962,11 @@ List files in a bucket.
 
 #### Query Parameters
 
-| name            | type   | required | description |
-| --------------- | ------ | -------- | ----------- |
-| consumerAddress | string | v        | consumer address |
+| name            | type   | required | description                                        |
+| --------------- | ------ | -------- | -------------------------------------------------- |
+| consumerAddress | string | v        | consumer address                                   |
 | signature       | string | v        | signed message (consumerAddress + nonce + command) |
-| nonce           | string | v        | request nonce |
+| nonce           | string | v        | request nonce                                      |
 
 #### Response (200)
 
@@ -1750,11 +1991,11 @@ Return the `fileObject` for a specific file in a bucket (useful for passing refe
 
 #### Query Parameters
 
-| name            | type   | required | description |
-| --------------- | ------ | -------- | ----------- |
-| consumerAddress | string | v        | consumer address |
+| name            | type   | required | description                                        |
+| --------------- | ------ | -------- | -------------------------------------------------- |
+| consumerAddress | string | v        | consumer address                                   |
 | signature       | string | v        | signed message (consumerAddress + nonce + command) |
-| nonce           | string | v        | request nonce |
+| nonce           | string | v        | request nonce                                      |
 
 #### Response (200)
 
@@ -1776,11 +2017,11 @@ Upload a file to a bucket. The request body is treated as raw bytes.
 
 #### Query Parameters
 
-| name            | type   | required | description |
-| --------------- | ------ | -------- | ----------- |
-| consumerAddress | string | v        | consumer address |
+| name            | type   | required | description                                        |
+| --------------- | ------ | -------- | -------------------------------------------------- |
+| consumerAddress | string | v        | consumer address                                   |
 | signature       | string | v        | signed message (consumerAddress + nonce + command) |
-| nonce           | string | v        | request nonce |
+| nonce           | string | v        | request nonce                                      |
 
 #### Request Body
 
@@ -1807,12 +2048,12 @@ Delete a file from a bucket.
 
 #### Query Parameters
 
-| name            | type   | required | description |
-| --------------- | ------ | -------- | ----------- |
-| consumerAddress | string | v        | consumer address |
+| name            | type   | required | description                                        |
+| --------------- | ------ | -------- | -------------------------------------------------- |
+| consumerAddress | string | v        | consumer address                                   |
 | signature       | string | v        | signed message (consumerAddress + nonce + command) |
-| nonce           | string | v        | request nonce |
-| chainId         | number | v        | chain id (used by auth/signature checks) |
+| nonce           | string | v        | request nonce                                      |
+| chainId         | number | v        | chain id (used by auth/signature checks)           |
 
 #### Response (200)
 
@@ -1847,37 +2088,37 @@ charged to the authenticated `consumerAddress`.
 Operator-published blueprint. Secret `envVars` values are never returned — only their keys via
 `envVarKeys`.
 
-| property                  | type                          | description |
-| ------------------------- | ----------------------------- | ----------- |
-| id                        | string                        | template id (`[a-z0-9][a-z0-9_-]{0,63}`) |
-| name / description        | string                        | human-readable labels |
-| image                     | string                        | base image |
-| tag / checksum / dockerfile | string                      | image spec — exactly one |
-| exposedPorts              | number[]                      | container ports to forward |
-| envVarKeys                | string[]                      | keys of operator-set env vars (values never returned) |
-| userConfigurableEnvVars   | object[]                      | `{ key, validation?, sensitive? }` passed via `userData` |
-| command / entrypoint      | string[]                      | Docker CMD / ENTRYPOINT overrides |
-| requiredResources         | object[]                      | resources the service MUST have to run |
-| recommendedResources      | object[]                      | resources for best performance |
+| property                    | type     | description                                              |
+| --------------------------- | -------- | -------------------------------------------------------- |
+| id                          | string   | template id (`[a-z0-9][a-z0-9_-]{0,63}`)                 |
+| name / description          | string   | human-readable labels                                    |
+| image                       | string   | base image                                               |
+| tag / checksum / dockerfile | string   | image spec — exactly one                                 |
+| exposedPorts                | number[] | container ports to forward                               |
+| envVarKeys                  | string[] | keys of operator-set env vars (values never returned)    |
+| userConfigurableEnvVars     | object[] | `{ key, validation?, sensitive? }` passed via `userData` |
+| command / entrypoint        | string[] | Docker CMD / ENTRYPOINT overrides                        |
+| requiredResources           | object[] | resources the service MUST have to run                   |
+| recommendedResources        | object[] | resources for best performance                           |
 
 #### `ServiceJob` (returned by start / status / extend / restart / stop)
 
 The encrypted `userData` is never returned. Key fields:
 
-| property      | type     | description |
-| ------------- | -------- | ----------- |
-| serviceId     | string   | unique id of the running service |
-| environment   | string   | envId the service runs on |
-| owner         | string   | consumerAddress |
-| status        | number   | `10` Starting, `20` Locking, `11` PullImage, `13` BuildImage, `30` Claiming, `40` Running, `12` PullImageFailed, `14` BuildImageFailed, `15` VulnerableImage, `50` Stopping, `70` Stopped, `75` Expired, `99` Error |
-| statusText    | string   | human-readable status |
-| dateCreated   | string   | ISO timestamp |
-| expiresAt     | number   | Unix ms timestamp when the paid window ends |
-| duration      | number   | requested seconds |
-| endpoints     | object[] | `{ containerPort, hostPort, url }` per exposed port |
-| resources     | object[] | `{ id, amount, price }` |
-| payment       | object   | initial start payment record |
-| extendPayments | object[] | one entry per successful extend |
+| property       | type     | description                                                                                                                                                                                                         |
+| -------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| serviceId      | string   | unique id of the running service                                                                                                                                                                                    |
+| environment    | string   | envId the service runs on                                                                                                                                                                                           |
+| owner          | string   | consumerAddress                                                                                                                                                                                                     |
+| status         | number   | `10` Starting, `20` Locking, `11` PullImage, `13` BuildImage, `30` Claiming, `40` Running, `12` PullImageFailed, `14` BuildImageFailed, `15` VulnerableImage, `50` Stopping, `70` Stopped, `75` Expired, `99` Error |
+| statusText     | string   | human-readable status                                                                                                                                                                                               |
+| dateCreated    | string   | ISO timestamp                                                                                                                                                                                                       |
+| expiresAt      | number   | Unix ms timestamp when the paid window ends                                                                                                                                                                         |
+| duration       | number   | requested seconds                                                                                                                                                                                                   |
+| endpoints      | object[] | `{ containerPort, hostPort, url }` per exposed port                                                                                                                                                                 |
+| resources      | object[] | `{ id, amount, price }`                                                                                                                                                                                             |
+| payment        | object   | initial start payment record                                                                                                                                                                                        |
+| extendPayments | object[] | one entry per successful extend                                                                                                                                                                                     |
 
 ---
 
@@ -1891,8 +2132,8 @@ List the operator-published service templates (sanitized). Not authenticated.
 
 #### Query Parameters
 
-| name    | type   | required | description |
-| ------- | ------ | -------- | ----------- |
+| name    | type   | required | description                                        |
+| ------- | ------ | -------- | -------------------------------------------------- |
 | chainId | number |          | filter to templates whose envs price on this chain |
 
 #### Response (200)
@@ -1906,7 +2147,10 @@ List the operator-published service templates (sanitized). Not authenticated.
     "tag": "latest",
     "exposedPorts": [8888],
     "userConfigurableEnvVars": [{ "key": "JUPYTER_TOKEN", "sensitive": true }],
-    "requiredResources": [{ "id": "cpu", "min": 1 }, { "id": "ram", "min": 2 }]
+    "requiredResources": [
+      { "id": "cpu", "min": 1 },
+      { "id": "ram", "min": 2 }
+    ]
   }
 ]
 ```
@@ -1944,25 +2188,28 @@ should keep watching `serviceStatus`, not just stop once they first see `Running
   "image": "nginxinc/nginx-unprivileged",
   "tag": "alpine",
   "exposedPorts": [8080],
-  "resources": [{ "id": "cpu", "amount": 1 }, { "id": "ram", "amount": 1 }],
+  "resources": [
+    { "id": "cpu", "amount": 1 },
+    { "id": "ram", "amount": 1 }
+  ],
   "duration": 3600,
   "userData": "<ECIES-encrypted-to-node-pubkey hex>",
   "payment": { "chainId": 8996, "token": "0x..." }
 }
 ```
 
-| field                 | type     | required | description |
-| --------------------- | -------- | -------- | ----------- |
-| environment           | string   | v        | envId to run on (services must be enabled on it) |
-| image                 | string   | v        | base image |
-| tag / checksum / dockerfile | string |        | image spec — at most one; `dockerfile` requires `allowImageBuild` |
-| additionalDockerFiles | object   |          | filename → content; only with `dockerfile` |
-| dockerCmd / dockerEntrypoint | string[] |    | container CMD / ENTRYPOINT overrides |
-| exposedPorts          | number[] |          | container ports to publish |
-| resources             | object[] |          | `{ id, amount }` requested resources |
-| duration              | number   | v        | seconds; capped by `serviceOnDemand.maxDurationSeconds` |
-| userData              | string   |          | ECIES-encrypted (to the node pubkey) JSON of env vars |
-| payment               | object   | v        | `{ chainId, token }` |
+| field                        | type     | required | description                                                       |
+| ---------------------------- | -------- | -------- | ----------------------------------------------------------------- |
+| environment                  | string   | v        | envId to run on (services must be enabled on it)                  |
+| image                        | string   | v        | base image                                                        |
+| tag / checksum / dockerfile  | string   |          | image spec — at most one; `dockerfile` requires `allowImageBuild` |
+| additionalDockerFiles        | object   |          | filename → content; only with `dockerfile`                        |
+| dockerCmd / dockerEntrypoint | string[] |          | container CMD / ENTRYPOINT overrides                              |
+| exposedPorts                 | number[] |          | container ports to publish                                        |
+| resources                    | object[] |          | `{ id, amount }` requested resources                              |
+| duration                     | number   | v        | seconds; capped by `serviceOnDemand.maxDurationSeconds`           |
+| userData                     | string   |          | ECIES-encrypted (to the node pubkey) JSON of env vars             |
+| payment                      | object   | v        | `{ chainId, token }`                                              |
 
 #### Response (200)
 
@@ -2002,16 +2249,21 @@ by the authenticated `consumerAddress` are returned.
 
 #### Query Parameters
 
-| name            | type   | required | description |
-| --------------- | ------ | -------- | ----------- |
-| consumerAddress | string | v        | owner address |
-| nonce           | string | v        | request nonce |
-| signature       | string | v        | signed message (or use an `Authorization` auth-token header) |
-| serviceId       | string |          | filter to a single service; omit to list all owned services |
+| name            | type    | required | description |
+| --------------- | ------- | -------- | ----------- |
+| consumerAddress | string  | v        | owner address |
+| nonce           | string  | v        | request nonce |
+| signature       | string  | v        | signed message (or use an `Authorization` auth-token header) |
+| serviceId       | string  |          | filter to a single service; omit to list all owned services |
+| includeMetrics  | boolean |          | runtime metrics (`runtimeMetrics`) are included by default; pass `false` to omit them |
 
 #### Response (200)
 
-Array of `ServiceJob` (with `userData` stripped).
+Array of `ServiceJob` (with `userData` stripped). Each entry also carries a sanitized
+`runtimeMetrics` object — see [The `runtimeMetrics` object](#the-runtimemetrics-object) for its full
+structure. Included by default here because this command is already authenticated and owner-scoped
+(pass `includeMetrics=false` to omit); the node-wide `serviceList` never returns metrics. Metrics are
+best-effort (see [compute.md](compute.md) and `C2D_METRICS_INTERVAL_SECONDS` in [env.md](env.md)).
 
 ---
 
@@ -2030,14 +2282,14 @@ shared pools): `Running`/`Restarting`/`Stopping`, the mid-start pipeline states,
 
 #### Query Parameters
 
-| name              | type    | required | description |
-| ----------------- | ------- | -------- | ----------- |
-| consumerAddress   | string  | v        | caller identity (any consumer) |
-| nonce             | string  | v        | request nonce |
-| signature         | string  | v        | signed message (or use an `Authorization` auth-token header) |
-| status            | number  |          | filter to ONE specific `ServiceStatusNumber` (any status, incl. `75` Expired); takes precedence over `includeAllStatuses` |
-| includeAllStatuses | boolean |         | `true` returns services in every status instead of only the resource-holding set |
-| fromTimestamp     | string  |          | only services created at/after this moment — ISO date (`2026-01-15T00:00:00Z`) or Unix timestamp (seconds or milliseconds) |
+| name               | type    | required | description                                                                                                                |
+| ------------------ | ------- | -------- | -------------------------------------------------------------------------------------------------------------------------- |
+| consumerAddress    | string  | v        | caller identity (any consumer)                                                                                             |
+| nonce              | string  | v        | request nonce                                                                                                              |
+| signature          | string  | v        | signed message (or use an `Authorization` auth-token header)                                                               |
+| status             | number  |          | filter to ONE specific `ServiceStatusNumber` (any status, incl. `75` Expired); takes precedence over `includeAllStatuses`  |
+| includeAllStatuses | boolean |          | `true` returns services in every status instead of only the resource-holding set                                           |
+| fromTimestamp      | string  |          | only services created at/after this moment — ISO date (`2026-01-15T00:00:00Z`) or Unix timestamp (seconds or milliseconds) |
 
 #### Response (200)
 
@@ -2139,17 +2391,17 @@ RESPEC mode (restart on a new image spec — `image` required, plus at most one 
 }
 ```
 
-| name | type | required | description |
-| --- | --- | --- | --- |
-| serviceId | string | v | the service to restart |
-| image | string | RESPEC | base image name (build label when `dockerfile` is set). Required as soon as any container param is present |
-| tag | string | | pull by `name:tag`; mutually exclusive with `checksum`/`dockerfile` |
-| checksum | string | | pull by digest `sha256:<64 hex>`; mutually exclusive with `tag`/`dockerfile` |
-| dockerfile | string | | build from an inline Dockerfile; requires `allowImageBuild` on the environment; mutually exclusive with `tag`/`checksum` |
-| additionalDockerFiles | object | | extra `filename → content` files for the build context (only with `dockerfile`) |
-| userData | string | | ECIES-encrypted (to the node public key) JSON → the container's env-var map |
-| dockerCmd | string[] | | exact container command (Docker exec-form CMD override) |
-| dockerEntrypoint | string[] | | container ENTRYPOINT override |
+| name                  | type     | required | description                                                                                                              |
+| --------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------ |
+| serviceId             | string   | v        | the service to restart                                                                                                   |
+| image                 | string   | RESPEC   | base image name (build label when `dockerfile` is set). Required as soon as any container param is present               |
+| tag                   | string   |          | pull by `name:tag`; mutually exclusive with `checksum`/`dockerfile`                                                      |
+| checksum              | string   |          | pull by digest `sha256:<64 hex>`; mutually exclusive with `tag`/`dockerfile`                                             |
+| dockerfile            | string   |          | build from an inline Dockerfile; requires `allowImageBuild` on the environment; mutually exclusive with `tag`/`checksum` |
+| additionalDockerFiles | object   |          | extra `filename → content` files for the build context (only with `dockerfile`)                                          |
+| userData              | string   |          | ECIES-encrypted (to the node public key) JSON → the container's env-var map                                              |
+| dockerCmd             | string[] |          | exact container command (Docker exec-form CMD override)                                                                  |
+| dockerEntrypoint      | string[] |          | container ENTRYPOINT override                                                                                            |
 
 #### Response (200)
 
@@ -2208,12 +2460,12 @@ container is kept around until `stop`/`restart`, so its logs remain fetchable fo
 
 #### Query Parameters
 
-| name            | type   | required | description |
-| --------------- | ------ | -------- | ----------- |
-| consumerAddress | string | v        | owner address |
-| nonce           | string | v        | request nonce |
-| signature       | string | v        | signed message (or use an `Authorization` auth-token header) |
-| serviceId       | string | v        | the service to stream logs for |
+| name            | type   | required | description                                                                                                                                                                                                                                     |
+| --------------- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| consumerAddress | string | v        | owner address                                                                                                                                                                                                                                   |
+| nonce           | string | v        | request nonce                                                                                                                                                                                                                                   |
+| signature       | string | v        | signed message (or use an `Authorization` auth-token header)                                                                                                                                                                                    |
+| serviceId       | string | v        | the service to stream logs for                                                                                                                                                                                                                  |
 | since           | string |          | lower time bound for returned logs. Either a Unix timestamp in seconds (e.g. `1735689600`), or a relative duration counted back from now (e.g. `30s`, `45m`, `2h`, `7d`). Omit to get the full history since container start, then follow live. |
 
 #### Response (200)

@@ -181,9 +181,25 @@ export interface ComputeEnvironment extends ComputeEnvironmentBaseConfig {
   consumerAddress: string // v1
   queuedJobs: number
   queuedFreeJobs: number
+  /**
+   * Seconds of remaining queue wait, **summed across every queued job** in this environment
+   * (not a per-job maximum, despite the name). Each job contributes
+   * `max(0, queueMaxWaitTime - elapsed since it was created)`.
+   */
   queMaxWaitTime: number
+  /** As `queMaxWaitTime`, summed over queued *free* jobs only. */
   queMaxWaitTimeFree: number
+  /**
+   * Seconds of remaining runtime, **summed across every running job** in this environment
+   * (not a per-job maximum, despite the name). Each job contributes
+   * `max(0, maxJobDuration - elapsed since it started)`; a job that has been allocated but
+   * has not started executing yet contributes its full `maxJobDuration`.
+   *
+   * Because it is a sum, a client cannot derive "when does capacity free up" from this field:
+   * 15 jobs with 1 second left each report 15, the same as one job with 15 seconds left.
+   */
   runMaxWaitTime: number
+  /** As `runMaxWaitTime`, summed over running *free* jobs only. */
   runMaxWaitTimeFree: number
 }
 
@@ -238,6 +254,73 @@ export type DBComputeJobMetadata = {
   [key: string]: string | number | boolean
 }
 
+// Per-GPU runtime metrics captured alongside the container snapshot. ONE entry per GPU
+// resource the job/service holds — a single job may hold several GPUs simultaneously, and
+// each is sampled independently. Only NVIDIA is emitted today (NVML backend); AMD/Intel
+// land once their backends exist. `resourceId` maps the entry back to the requested
+// resource id ('gpu0' / 'gpu1' …) so consumers can attribute each device.
+export interface GpuMetricsSnapshot {
+  resourceId: string
+  vendor: 'nvidia' | 'amd' | 'intel'
+  utilizationPercent: number | null
+  memoryUsedBytes: number | null
+  memoryTotalBytes: number | null
+  temperatureC?: number
+  powerWatts?: number
+  shared?: boolean // true → device-level number, may include other jobs' load (shareable GPUs)
+}
+
+// A best-effort, node-internal snapshot of everything the Docker engine (and, for NVIDIA,
+// NVML) can cheaply tell us about a running container. Persisted onto the C2D job record
+// (JSON body blob) and STRIPPED from every public response + the escrow claim proof — see
+// omitDBComputeFieldsFromComputeJob / toPublicServiceJob. Covers the full `docker stats`
+// column set plus what the CLI does not show (throttling, peaks, disk-vs-quota, exit info,
+// GPU). Every field defaults defensively (cgroup v1/v2 drift, missing network, daemon
+// hiccups) rather than throwing into the state-machine loop.
+export interface ContainerMetricsSnapshot {
+  collectedAt: string // ISO timestamp of the sample
+  containerState: {
+    status: string // 'running' | 'exited' | ...
+    startedAt?: string
+    finishedAt?: string
+    exitCode?: number
+    oomKilled: boolean
+    error?: string
+    restartCount: number
+    health?: string // Docker HEALTHCHECK status, when the image defines one (services)
+  }
+  cpu: {
+    usagePercent: number // % of host CPU (docker CLI formula)
+    allocated: number // cores requested (job.resources 'cpu'); 0 when unconstrained
+    usagePercentOfAllocated: number // usagePercent / allocated (0 when allocated is 0)
+    cumulativeSeconds: number // total_usage ns → s (monotonic; billing-grade)
+    throttledPeriods: number // quota throttling — signals an undersized cpu request
+    throttledSeconds: number
+  }
+  memory: {
+    usageBytes: number // usage − inactive_file (cgroup v2 convention)
+    limitBytes: number // container limit (= allocated RAM)
+    usagePercent: number
+    peakUsageBytes: number // max across samples (we track it; cgroup v2 has no max_usage)
+  }
+  disk: {
+    usedBytes: number // jobs: du(/) − base image; services: SizeRw
+    quotaBytes?: number // jobs with a 'disk' resource
+    usagePercent?: number
+  }
+  network?: { rxBytes: number; txBytes: number } // absent when NetworkMode 'none'
+  blockIO: { readBytes: number; writeBytes: number }
+  pids: { current: number; limit: number } // vs PidsLimit 512 — fork-bomb signal
+  gpu?: GpuMetricsSnapshot[]
+  // Internal accumulator used to compute one-shot CPU deltas across samples. DB-only —
+  // stripped from every public response together with the snapshot itself.
+  prev?: {
+    cpuTotal: number // cpu_stats.cpu_usage.total_usage (ns) at the previous sample
+    systemCpu: number // cpu_stats.system_cpu_usage (ns) at the previous sample
+    sampledAt: string
+  }
+}
+
 export interface ComputeJobTerminationDetails {
   OOMKilled: boolean
   exitCode: number
@@ -259,6 +342,14 @@ export interface ComputeJob {
   metadata?: DBComputeJobMetadata
   terminationDetails?: ComputeJobTerminationDetails
   queueMaxWaitTime: number // max time in seconds a job can wait in the queue before being started
+}
+
+// Public compute-job response shape: the base ComputeJob plus the OPTIONAL, sanitized runtime
+// metrics that the owner status path may attach (never present by default, and never in the
+// escrow proof). Keeps ComputeJob itself free of the field while giving the status path a typed
+// return instead of an `any` cast.
+export interface PublicComputeJob extends ComputeJob {
+  runtimeMetrics?: ContainerMetricsSnapshot
 }
 
 export interface ComputeOutputEncryption {
@@ -343,6 +434,11 @@ export interface DBComputeJob extends ComputeJob {
   jobIdHash: string
   buildStartTimestamp?: string
   buildStopTimestamp?: string
+  // Best-effort Docker/NVML runtime metrics sampled while the container runs. DB-only:
+  // it lives on DBComputeJob (never on the public ComputeJob) and is additionally stripped
+  // at runtime by omitDBComputeFieldsFromComputeJob so it can never leak into a status
+  // response or the escrow claim proof.
+  runtimeMetrics?: ContainerMetricsSnapshot
 }
 
 // make sure we keep them both in sync

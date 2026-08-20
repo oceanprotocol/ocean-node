@@ -49,6 +49,9 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `ELASTICSEARCH_SNIFF_INTERVAL`: Interval in milliseconds for periodic cluster health monitoring and node discovery. Set to 'false' to disable. Default is `30000`. Example: `30000`
 - `ELASTICSEARCH_SNIFF_ON_CONNECTION_FAULT`: Enable automatic cluster node discovery when connection faults occur. Default is `true`. Example: `true`
 - `ELASTICSEARCH_HEALTH_CHECK_INTERVAL`: Interval in milliseconds for proactive connection health monitoring. Default is `60000`. Example: `60000`
+- `DB_INIT_MAX_ATTEMPTS`: Maximum number of database initialization attempts at node startup. Raise it when the database container/pod starts slower than the node. Set to `1` to disable retrying. All three `DB_INIT_*` variables are validated as integers `>= 1`; a non-numeric or out-of-range value fails configuration validation and the node refuses to start. Default is `10`. Example: `10`
+- `DB_INIT_RETRY_DELAY`: Initial delay in milliseconds before retrying a failed database initialization. Doubles after each attempt. Default is `2000`. Example: `2000`
+- `DB_INIT_MAX_RETRY_DELAY`: Upper bound in milliseconds for the database initialization retry backoff. Default is `30000`. Example: `30000`
 
 ## Payments
 
@@ -128,6 +131,10 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 ## Compute
 
 - `C2D_DOWNLOAD_TIMEOUT`: Timeout (in seconds) for pulling the algorithm docker image during a C2D job. If the pull exceeds this timeout, the job fails with `PullImageFailed` instead of getting stuck. Defaults to `900` (15 minutes). Example: `900`
+
+- `C2D_METRICS_INTERVAL_SECONDS`: How often (in seconds) the node samples live Docker runtime metrics (CPU, RAM, disk, network, block I/O, PIDs, exit info — plus NVIDIA GPU utilization/memory) for running compute jobs and services, persisting a snapshot onto the job record in the C2D database. These metrics are **owner-only**: they are never included in the escrow claim proof and never returned to anyone but the authenticated owner of the job/service. To that owner they come back **by default** on `COMPUTE_GET_STATUS` / `SERVICE_GET_STATUS` (no flag needed — see [API.md](API.md) for the `includeMetrics` override); an unauthenticated status call and the node-wide `serviceList` never return them. Set to `0` to disable collection entirely. Metrics are best-effort (up to one interval of staleness). Defaults to `10`. Example: `10`
+
+- `GPU_METRICS`: Controls the GPU metrics collector. `auto` (default) detects and enables the NVIDIA (NVML) backend when a GPU host is available; `off` disables GPU collection. Requires the optional `koffi` dependency and `libnvidia-ml.so.1` reachable **by the node process** — note that a containerized node does not get the NVIDIA driver libraries just because the host has them, so this is the usual reason GPU metrics are missing (`could not bind libnvidia-ml.so.1`); [compute.md → Troubleshooting GPU metrics](compute.md#troubleshooting-gpu-metrics) lists every warning and its fix. If either is missing, GPU metrics are skipped (no `gpu` field) while container-level metrics continue. AMD and Intel backends are not yet implemented. Cadence reuses `C2D_METRICS_INTERVAL_SECONDS`. Defaults to `auto`. Example: `auto`
 
 - `SERVICE_TEMPLATES_PATH`: Path to a folder of operator-published Service-on-Demand template files (`*.json`, validated against the template schema). The folder is re-read on every `serviceTemplates` request, so templates can be added, edited, or removed without restarting the node. Maps to the `serviceTemplatesPath` config field. Defaults to `databases/serviceTemplates/`. See the [Services guide](services.md). Example: `docs/serviceTemplates/`
 

@@ -157,6 +157,19 @@ describe('**********         NonceDatabase CRUD (without Elastic or Typesense co
     expect(result?.id).to.equal('0x456')
     expect(result?.nonce).to.equal(1)
   })
+
+  it('keys rows by the checksummed address and reads them back in any casing', async () => {
+    // One address = one nonce row. If casing forked the key, a client alternating between
+    // the lowercase and checksummed forms would carry two independent nonce counters.
+    const checksummed = '0x7C8226E267Cd509bCBE12B4e69fbE07052422Dbd'
+    const created = await database.nonce.create(checksummed.toLowerCase(), 7)
+    expect(created?.id).to.equal(checksummed)
+    expect((await database.nonce.retrieve(checksummed))?.nonce).to.equal(7)
+    expect((await database.nonce.retrieve(checksummed.toLowerCase()))?.nonce).to.equal(7)
+    const upper = '0x' + checksummed.slice(2).toUpperCase()
+    expect((await database.nonce.retrieve(upper))?.nonce).to.equal(7)
+    await database.nonce.delete(checksummed)
+  })
 })
 
 describe('**********         IndexerDatabase CRUD', () => {

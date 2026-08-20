@@ -100,7 +100,7 @@
     "lzma-purejs-requirejs": "^1.0.0",
     "node-cron": "^3.0.3",
     "stream-concat": "^1.0.0",
-    "tar": "^7.5.16",
+    "tar": "^7.5.22",
     "uint8arrays": "^4.0.6",
     "unique-names-generator": "^4.7.1",
     "url-join": "^5.0.0",
@@ -108,6 +108,9 @@
     "winston-daily-rotate-file": "^4.7.1",
     "winston-transport": "^4.6.0",
     "zod": "^3.25.76"
+  },
+  "optionalDependencies": {
+    "koffi": "^2.9.0"
   },
   "devDependencies": {
     "@types/chai": "^4.3.10",
