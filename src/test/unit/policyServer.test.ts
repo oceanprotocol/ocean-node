@@ -214,6 +214,28 @@ describe('PolicyServerInitializeHandler', () => {
     assert(initialize.notCalled, 'must not reach the policy server')
   })
 
+  it('rejects a token issued to a different address (401)', async () => {
+    // The token verifies as CONSUMER while the command claims VICTIM. Binding the two is
+    // what stops a valid token for one address from reading/acting on another's behalf.
+    // Token path only: on the signature path the verified address IS the claimed one, so a
+    // mismatch cannot arise there.
+    const { node } = buildFakes()
+    const initialize = sinon.stub(PolicyServer.prototype, 'initializePSVerification')
+
+    const response = await new PolicyServerInitializeHandler(node).handle(
+      initializeTask({
+        consumerAddress: VICTIM,
+        authorization: TOKEN,
+        nonce: undefined,
+        signature: undefined
+      })
+    )
+
+    expect(response.status.httpStatus).to.equal(401)
+    expect(response.status.error).to.contain('does not match')
+    assert(initialize.notCalled, 'must not reach the policy server')
+  })
+
   it('forwards the verified consumerAddress and the caller credentials', async () => {
     const { node } = buildFakes()
     const initialize = sinon
@@ -221,7 +243,7 @@ describe('PolicyServerInitializeHandler', () => {
       .resolves({ success: true, message: 'ok', httpStatus: 200 })
 
     const response = await new PolicyServerInitializeHandler(node).handle(
-      initializeTask({ consumerAddress: VICTIM, authorization: TOKEN })
+      initializeTask({ authorization: TOKEN })
     )
 
     expect(response.status.httpStatus).to.equal(200)
@@ -230,7 +252,9 @@ describe('PolicyServerInitializeHandler', () => {
     expect(documentId).to.equal(DDO.id)
     expect(ddo).to.deep.equal(DDO)
     expect(serviceId).to.equal('service-1')
-    // verified address wins over the one the caller supplied
+    // The VERIFIED address is forwarded, not task.consumerAddress: ingress normalization
+    // checksums the latter to 0x...aBc, so getting the lowercase form back proves the
+    // handler passed on what Auth returned rather than what the caller sent.
     expect(consumerAddress).to.equal(CONSUMER)
     expect(policyServer.some).to.equal('blob')
     expect(policyServer.authorization).to.equal(TOKEN)
