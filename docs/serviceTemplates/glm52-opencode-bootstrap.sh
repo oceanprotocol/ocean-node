@@ -41,44 +41,63 @@ TP_SIZE=2
 PP_SIZE=3
 GPUS_REQUIRED=$((TP_SIZE * PP_SIZE))
 
-# Weights alone are ~89% of a 141 GB card, which makes this the one number here worth
-# understanding before changing it.
+# Memory budget. These numbers are measured from real startup logs on 6x141 GB H200, not
+# estimated, because both obvious values fail and they fail in opposite directions.
 #
-# It was 0.97, and 0.97 is wrong in a way that startup cannot detect: it OOMs on the FIRST
-# REQUEST. Torch creates a pipeline-parallel P2P communicator lazily, the first time a stage
-# actually sends a hidden state -- "An unbatched P2P op (send/recv) was called on this
-# ProcessGroup with size 3. In lazy initialization mode, this will result in a new 2-rank
-# NCCL communicator to be created" -- and its buffers come out of memory vLLM did NOT reserve
-# and does NOT profile. Each such communicator costs roughly 100 MB at NCCL's default channel
-# count. So does the sparse-prefill workspace the flashmla kernel allocates on the first long
-# prompt, and so does the Triton kernel that JITs during that same request. The server binds,
-# reports healthy, and then dies the moment someone types something, with
+# 0.97 dies on the FIRST REQUEST, not at startup. Torch creates a pipeline-parallel P2P
+# communicator lazily, the first time a stage sends a hidden state -- "An unbatched P2P op
+# (send/recv) ... will result in a new 2-rank NCCL communicator to be created" -- and those
+# buffers come from memory vLLM never reserved and does not profile, at roughly 100 MB per
+# communicator. So does the sparse-prefill workspace flashmla allocates on the first long
+# prompt. At 0.97 only ~4.2 GB per card is left outside vLLM's budget, and the server binds,
+# reports healthy, then dies the moment someone types anything:
+#   ncclUnhandledCudaError ... Cuda failure 2 'out of memory'   (from irecv_tensor_dict)
 #
-#   ncclUnhandledCudaError: Call to CUDA function failed. Cuda failure 2 'out of memory'
+# 0.93 refuses to start, for a completely different reason -- and this is the important part:
 #
-# raised from irecv_tensor_dict -- after the 753 GB download, inside the paid window.
+#   Worker_PP0 : Available KV cache memory: 16.81 GiB
+#   worst stage: Available KV cache memory:  1.87 GiB
+#   ValueError: To serve at least one request with the model's max seq len (262144),
+#               4.36 GiB KV cache is needed, which is larger than the available KV cache
+#               memory (1.87 GiB) ... estimated maximum model length is 112512
 #
-# 0.93 leaves ~10 GB per card outside vLLM's budget for the CUDA context, the captured CUDA
-# graphs and those lazily created communicators. The KV cache barely pays for it: this model's
-# compressed-latent attention stores ~44 KB per token across all 78 layers, each pipeline
-# stage holds only its own 26, and --kv-cache-dtype fp8 halves that again, so ~5.6 GB is still
-# ~403K tokens per card -- comfortably past the 262K context.
+# THE PIPELINE STAGES ARE NOT BALANCED. Stage 0 has 16.81 GiB spare while the worst stage has
+# 1.87 GiB, and because pipeline parallelism needs a uniform page count across stages, the
+# minimum sets the pool and ~14.9 GiB of stage 0 is simply wasted. The split is even in LAYERS
+# (26/26/26) and badly uneven in BYTES: this is a mixture-of-experts model whose early layers
+# are dense, the last stage also carries the LM head, and CUDA graphs cost 2.38 GiB on the
+# last stage against 0.67 GiB in the middle (graph memory is inside the util budget since
+# vLLM 0.21.0). Per card each layer is ~4.8 GiB, so one layer moved between stages moves more
+# memory than the entire margin being fought over.
 #
-# The usable band on a 141 GB card is narrow at BOTH ends, so do not treat this as "lower is
-# safer". Per card the cache costs ~14.7 KB/token (44 KB over 78 layers, 26 layers per stage),
-# and one full 262K context needs ~3.7 GB of it:
+# Measured KV on the worst stage, and what fits (~17.4 KB per token per card):
 #
-#   0.90 -> 1.4 GB cache: vLLM ABORTS at startup, cache below one context
-#   0.91 -> 2.8 GB cache: same
-#   0.92 -> 4.2 GB cache: the floor, ~302K tokens
-#   0.93 -> 5.6 GB cache, ~9.9 GB outside vLLM   <-- here
-#   0.97 -> 11.3 GB cache but only ~4.2 GB outside: OOMs on the first request
+#   util  worst-stage KV  outside vLLM   262144 ctx   131072 ctx
+#   0.93        1.87 GiB       9.9 GiB       ABORT        ABORT
+#   0.94        3.28 GiB       8.5 GiB       ABORT           ok
+#   0.95        4.69 GiB       7.1 GiB    ok, +7.5%     ok, +115%   <-- here
+#   0.96        6.10 GiB       5.6 GiB          ok           ok
+#   0.97        7.51 GiB       4.2 GiB          ok           ok  <- first-request OOM
 #
-# Going below 0.92 therefore means lowering --max-model-len with it. Raising it above 0.93
-# means watching a real request complete at the new number first -- which the warm-up below
-# does for you, turning a bad value into an immediate, explained exit rather than a service
-# that dies on first use.
-GPU_MEM_UTIL="${VLLM_GPU_MEM_UTIL:-0.93}"
+# So 0.95 with a 131072 context is the only setting with real margin at BOTH ends: twice the
+# KV cache it needs, and 68% more headroom outside vLLM than the value that OOMed. 262144 does
+# technically fit at 0.95, by 7.5% -- one different graph capture set or vLLM build away from
+# aborting again, which is why it is not the default. See VLLM_PP_LAYER_PARTITION below for
+# the way to actually earn it back.
+GPU_MEM_UTIL="${VLLM_GPU_MEM_UTIL:-0.95}"
+
+# 131072 rather than the model's full 262144. This is a real reduction and it is deliberate:
+# see the table above -- 262144 needs 4.36 GiB of KV on the tightest stage and there is no
+# utilisation value that supplies that with margin while also leaving the lazily created NCCL
+# communicators room to exist. 131072 tokens is still a very large session for a coding agent.
+#
+# To get 262144 back, balance the stages rather than raising the utilisation. Launch once,
+# read the per-stage "Available KV cache memory" lines out of the log, and move layers off the
+# tight stages onto stage 0 with VLLM_PP_LAYER_PARTITION (comma-separated per-stage layer
+# counts summing to 78, e.g. 28,25,25). Balanced perfectly, the ~14.9 GiB currently stranded
+# on stage 0 is more than the whole 262144 context needs. That takes one measurement run on
+# the specific node, which is why it is documented rather than guessed at here.
+MAX_MODEL_LEN="${VLLM_MAX_MODEL_LEN:-131072}"
 
 BUCKET=/data/outputs
 # Namespaced per template, not shared: a consumer may point this template and the smaller
@@ -139,6 +158,9 @@ if [ "$GPU_COUNT" -lt "$GPUS_REQUIRED" ]; then
   exit 1
 fi
 echo "[ocean] $GPU_COUNT GPU(s) visible — using $GPUS_REQUIRED as -tp $TP_SIZE -pp $PP_SIZE"
+if [ -n "${VLLM_PP_LAYER_PARTITION:-}" ]; then
+  echo "[ocean] custom pipeline layer partition: $VLLM_PP_LAYER_PARTITION (must sum to 78)"
+fi
 
 # ---------------------------------------------------------------------------------------
 # Gate 4: shared memory. THE multi-GPU prerequisite, and the one thing this bundle cannot
@@ -301,10 +323,13 @@ fi
 # template's endpoint only if you run one alongside this on the same bucket.
 # ---------------------------------------------------------------------------------------
 mkdir -p "$HOME/.config/opencode"
-SERVED_NAME="$SERVED_NAME" VLLM_PORT="$VLLM_PORT" python3 - "$HOME/.config/opencode/opencode.json" <<'PY'
+SERVED_NAME="$SERVED_NAME" VLLM_PORT="$VLLM_PORT" MAX_MODEL_LEN="$MAX_MODEL_LEN" python3 - "$HOME/.config/opencode/opencode.json" <<'PY'
 import json, os, sys
 
 served, port = os.environ['SERVED_NAME'], os.environ['VLLM_PORT']
+# Must match what vLLM was actually started with: OpenCode compacts a session against this
+# number, so overstating it means requests rejected mid-task instead of a timely compaction.
+ctx = int(os.environ['MAX_MODEL_LEN'])
 config = {
     '$schema': 'https://opencode.ai/config.json',
     'model': f'vllm/{served}',
@@ -325,14 +350,14 @@ config = {
             },
             'models': {
                 served: {
-                    'name': 'GLM-5.2 FP8 (744B MoE, 262K context, thinking)',
+                    'name': f'GLM-5.2 FP8 (744B MoE, {ctx // 1024}K context, thinking)',
                     'attachment': False,   # text-only model; no image input
                     'reasoning': True,
                     'tool_call': True,
                     'temperature': True,
                     'interleaved': 'reasoning_content',  # the field vLLM's parser emits
                     'modalities': {'input': ['text'], 'output': ['text']},
-                    'limit': {'context': 262144, 'output': 65536}
+                    'limit': {'context': ctx, 'output': 65536}
                 }
             }
         }
@@ -412,10 +437,15 @@ fi
 # ordinary content with any tool call still buried inside it — which would leave OpenCode
 # unable to call a single tool.
 #
-# --kv-cache-dtype fp8 and --max-model-len 262144 follow the model's own vLLM recipe. The
-# cache is unusually cheap here (compressed-latent attention stores ~44 KB per token across
-# all 78 layers, and each pipeline stage holds only its own 26), so 262K context is nowhere
-# near the constraint that it would be on a conventional model of this size.
+# --kv-cache-dtype fp8 follows the model's own vLLM recipe. --max-model-len does NOT: the
+# recipe's 262144 does not fit here with any margin, for the stage-imbalance reason set out at
+# the top of this file, so it is $MAX_MODEL_LEN and overridable.
+#
+# --max-num-seqs is 8, down from 16. Concurrency costs memory twice on the tightest stage --
+# activation peak and the CUDA graph capture set, and graph memory sits inside the utilisation
+# budget on vLLM >= 0.21.0, where the last stage was already spending 2.38 GiB on it. Eight
+# concurrent sequences is ample for an agent workload, which runs one session at a time and
+# spends its tokens on depth rather than breadth.
 # ---------------------------------------------------------------------------------------
 vllm serve "$MODEL" \
   --host 127.0.0.1 --port "$VLLM_PORT" \
@@ -423,8 +453,8 @@ vllm serve "$MODEL" \
   --tensor-parallel-size "$TP_SIZE" \
   --pipeline-parallel-size "$PP_SIZE" \
   --gpu-memory-utilization "$GPU_MEM_UTIL" \
-  --max-model-len 262144 \
-  --max-num-seqs 16 \
+  --max-model-len "$MAX_MODEL_LEN" \
+  --max-num-seqs 8 \
   --kv-cache-dtype fp8 \
   --reasoning-parser glm45 \
   --tool-call-parser glm47 \
@@ -480,7 +510,7 @@ served, port = os.environ['SERVED_NAME'], os.environ['VLLM_PORT']
 # prefill kernel is chosen over the dense one, since that is the path allocating a workspace
 # outside vLLM's profiled budget. max_tokens=16 also exercises the decode P2P path, which is
 # where the OOM this guards against actually surfaced.
-filler = 'The quick brown fox jumps over the lazy dog. ' * 700
+filler = 'The quick brown fox jumps over the lazy dog. ' * 700   # ~6K tokens, safe at any supported context
 body = json.dumps({
     'model': served,
     'messages': [{'role': 'user', 'content': filler + '\nReply with the single word: ready'}],
@@ -505,11 +535,13 @@ then
   echo "[ocean] the model server loaded its weights but cannot serve a request, so this" \
     "service is not being published. If the vLLM log above ends in NCCL's" \
     "\"Cuda failure 2 'out of memory'\" from irecv_tensor_dict, the cards are too full for" \
-    "the pipeline communicators that get created on the first request: relaunch with" \
-    "VLLM_GPU_MEM_UTIL=0.92, which is the floor on a 141 GB card — below that the KV cache" \
-    "no longer holds one full 262K context and vLLM aborts during startup instead, so going" \
-    "lower means lowering --max-model-len with it. Exiting rather than billing a service" \
-    "that dies on the first prompt." >&2
+    "the pipeline communicators that get created on the first request. Lower" \
+    "VLLM_GPU_MEM_UTIL (currently $GPU_MEM_UTIL) by 0.01 at a time — but not below the point" \
+    "where the KV cache still holds one full VLLM_MAX_MODEL_LEN ($MAX_MODEL_LEN) context, or" \
+    "the next launch fails at startup instead, with a ValueError naming the shortfall. If both" \
+    "ends are squeezed, the fix is to balance the pipeline stages with VLLM_PP_LAYER_PARTITION" \
+    "rather than to keep trading one failure for the other; see the notes at the top of this" \
+    "script. Exiting rather than billing a service that dies on the first prompt." >&2
   kill $VLLM_PID 2>/dev/null || true
   exit 1
 fi
