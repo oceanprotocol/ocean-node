@@ -658,7 +658,7 @@ tab bar, upload a photo, press Queue.
 | `ocean_ecom_background` | packshot on a plain background | the product in a generated scene, `ecom_background_00001_.png` |
 | `ocean_ecom_relight` | product + a photo whose lighting you want | the product re-lit to match, `ecom_relight_00001_.png` |
 | `ocean_ecom_multiview` | one photo | a full 360: 7 steps at 45 degrees, a close-up, and a loop `ecom_turntable_00001_.webp` |
-| `ocean_ecom_creative` | product photo + a headline in the prompt | an ad with copy and the real product put into it, `ecom_creative_00001_.png` |
+| `ocean_ecom_creative` | product photo + a headline in the prompt | an ad poster with your headline written around the product, `ecom_creative_00001_.png` |
 | `ocean_ecom_motion` | one photo + a description of the motion | `ecom_motion_00001_.mp4`, 9:16, up to 5 seconds |
 
 **Why 2509 and not 2511.** The edit backbone is Qwen-Image-Edit **2509**, not the newer 2511,
@@ -671,15 +671,14 @@ Small video models do not. It is also the same 43 GB weight set as `ltx-video-ug
 Launch with the bucket you already used for that template and the files are on disk. LTX-2.3
 is not gated; LTX-2.5 is, which is why this uses 2.3.
 
-**Weights — 96.2 GB.**
+**Weights — 74.9 GB.**
 
 | | GB | used by |
 | --- | ---: | --- |
 | Qwen2.5-VL 7B text encoder (fp8) | 9.38 | the 4 image workflows |
 | Qwen-Image VAE | 0.25 | 4 |
-| Qwen-Image-Edit 2509 (fp8) | 20.43 | 3 |
-| four product LoRAs + Lightning (bf16) | 1.81 | 3 |
-| Qwen-Image 2512 (fp8) + Lightning (bf16) | 21.28 | creative, stage A |
+| Qwen-Image-Edit 2509 (fp8) | 20.43 | 4 |
+| four product LoRAs + Lightning (bf16) | 1.81 | 4 |
 | LTX-2.3 set (model, Gemma encoder, 2 LoRAs, upscaler) | 43.0 | motion |
 
 **VRAM is not the disk number.** The image workflows hold one 20.4 GB backbone plus the
@@ -690,17 +689,26 @@ card runs everything. A 24 GB card runs the image workflows only.
 switched off. Turning the toggle on switches the model, the steps and the cfg together, to
 4 steps at cfg 1.
 
-**The task LoRAs are single-image specialists.** `White_to_Scene` puts one packshot into a
-scene. `Light-Migration` and `Relight` re-light one image. `Fusion` repairs one image where
-the product is already composited in. None of them composites two separate images, so the
-Creative workflow bypasses the task LoRA and lets base 2509 do the two-image edit.
+**Every workflow here is a single-image edit, on purpose.** `White_to_Scene` puts one
+packshot into a scene. `Light-Migration` and `Relight` re-light one image. `Multiple-angles`
+turns the camera around one image. Creative writes a background and a headline around one
+image. Qwen-Image-Edit 2509 was tested on a two-image composite — a generated poster in
+`image1` and the product in `image2` — and it ignored the poster and returned the product.
+Do not design a workflow here that needs two images composited.
 
-**Relight has two modes.** It ships wired for reference-image relighting via the
-Light-Migration LoRA. The `Relight` LoRA is downloaded too — its URL travels in the
-workflow's note, which the bootstrap's scanner picks up like any other — so switching to
-prompt-driven relighting is one widget change with no missing file.
+**Relight has two modes, and the reference image can bleed.** It ships wired for
+reference-image relighting via the Light-Migration LoRA. That LoRA's upstream template is
+*Light Migration for Character Portrait*, and with a person in the reference it copied the
+person into the output, not only the light. Two guards ship because of that: the prompt
+forbids importing any person, object, background or shape from image 2, and the seeded
+reference is a scene rather than a portrait. Use a scene as your reference too.
 
-Select a persistent-storage bucket on launch or the 96.2 GB downloads every time and the renders
+The second mode has no reference image at all, so it cannot bleed: change the `lora_name`
+widget to `Qwen-Image-Edit-2509-Relight.safetensors` and describe the light in words. That
+LoRA is downloaded already — its URL travels in the workflow's note, which the bootstrap's
+scanner picks up like any other — so the swap needs no new file.
+
+Select a persistent-storage bucket on launch or the 74.9 GB downloads every time and the renders
 are discarded on stop.
 
 ## The shared bootstrap (`comfyui-ugc-bootstrap.sh`)

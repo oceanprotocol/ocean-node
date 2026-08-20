@@ -53,7 +53,7 @@
       "title": "Note for prompting",
       "properties": {},
       "widgets_values": [
-        "The prompt's first two sentences tell the model to take the lighting from your reference photo \u2014 leave them in place.\n\nAdd your own instructions after them, for example a light direction or a mood."
+        "The prompt takes only the light from your reference photo. Leave those sentences in place.\n\nUse a scene as the reference, not a photo of a person or of another product. The model can copy content across, and the sentences that forbid it work better when the reference holds no strong subject."
       ],
       "color": "#222",
       "bgcolor": "#000"
@@ -111,14 +111,14 @@
           "links": null
         }
       ],
-      "title": "Load Lighting Reference",
+      "title": "Load Lighting Reference (a scene, not a person)",
       "properties": {
         "Node name for S&R": "LoadImage",
         "cnr_id": "comfy-core",
         "ver": "0.3.76"
       },
       "widgets_values": [
-        "woman_with_sunbeam.jpg",
+        "comfy_billboard.png",
         "image"
       ]
     },
@@ -967,7 +967,7 @@
               "secondTabWidth": 65
             },
             "widgets_values": [
-              "Remove the original lighting from image 1. Relight image 1 with the lighting direction, intensity and colour tone of image 2. Keep the product's shape, edges, colour and label text unchanged."
+              "Relight image 1 using only the lighting of image 2: its direction, its hardness, its intensity and its colour tone. Remove the original lighting of image 1. Copy nothing else from image 2. Do not add any person, object, background or shape from image 2. Image 1 must keep its own product, its own background, its own shape, edges, colour and label text."
             ],
             "color": "#232",
             "bgcolor": "#353"
