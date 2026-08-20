@@ -1,7 +1,7 @@
 {
   "id": "ecommerce-studio",
   "name": "ComfyUI \u2014 E-commerce studio (product images, angles, creatives, motion)",
-  "description": "ComfyUI preloaded with Qwen-Image-Edit 2509, Qwen-Image 2512 and LTX-2.3 behind five workflows that turn one product photo into the asset set a listing needs. Background puts a packshot into a generated scene. Relight matches the light to a reference photo. Angles makes a full 360 of the product at 45-degree steps, plus a close-up and a loop that starts on your own photo. Creative paints an ad layout with headline copy and puts the product into it. Motion makes a 9:16 clip of up to 5 seconds. Pick a workflow in the tab bar, upload one photo, press Queue. The edit backbone is 2509 and not the newer 2511, because the four product LoRAs this template uses exist only for 2509. Weights are 96.15 GB. The 9.4 GB Qwen2.5-VL text encoder is shared by the four image workflows, and one 20.4 GB edit backbone is shared by three of them. Motion uses LTX-2.3, the same 43 GB weight set as the ltx-video-ugc-product template: if you launch with the bucket you already used for that template, those files are on disk and do not download again. Only one diffusion model is in VRAM per generation, because ComfyUI unloads between passes. Select a persistent-storage bucket on launch, or the weights download every time and the renders are lost on stop. Outputs save flat to the bucket root with ecom_ prefixes. Needs a CUDA GPU: the image workflows need about 30 GB, and Motion needs about 40 GB, so 48 GB runs everything. A model invents every image these workflows make. Check labels, small print and prices before you publish. At 135, 180 and 225 degrees the Angles workflow invents the side of the product it cannot see.",
+  "description": "ComfyUI preloaded with Qwen-Image-Edit 2509 and LTX-2.3 behind five workflows that turn one product photo into the asset set a listing needs. Background puts a packshot into a generated scene. Relight matches the light to a reference photo. Angles makes a full 360 of the product at 45-degree steps, plus a close-up and a loop that starts on your own photo. Creative turns the product photo into an ad poster with your headline written on it. Motion makes a 9:16 clip of up to 5 seconds. Pick a workflow in the tab bar, upload one photo, press Queue. The edit backbone is 2509 and not the newer 2511, because the four product LoRAs this template uses exist only for 2509. Weights are 74.87 GB. The 9.4 GB Qwen2.5-VL text encoder is shared by the four image workflows, and one 20.4 GB edit backbone is shared by all four. Motion uses LTX-2.3, the same 43 GB weight set as the ltx-video-ugc-product template: if you launch with the bucket you already used for that template, those files are on disk and do not download again. Only one diffusion model is in VRAM per generation, because ComfyUI unloads between passes. Select a persistent-storage bucket on launch, or the weights download every time and the renders are lost on stop. Outputs save flat to the bucket root with ecom_ prefixes. Needs a CUDA GPU: the image workflows need about 30 GB, and Motion needs about 40 GB, so 48 GB runs everything. A model invents every image these workflows make. Check labels, small print and prices before you publish. At 135, 180 and 225 degrees the Angles workflow invents the side of the product it cannot see.",
   "kind": "bundle",
   "service": "comfyui",
   "outcome": "Turn one product photo into scene shots, relights, a 360, an ad creative and a clip.",
@@ -54,18 +54,6 @@
       "kind": "model",
       "sizeGb": 0.85,
       "repoId": "lightx2v/Qwen-Image-Lightning"
-    },
-    {
-      "name": "Qwen-Image 2512 (fp8 e4m3fn)",
-      "kind": "model",
-      "sizeGb": 20.43,
-      "repoId": "Comfy-Org/Qwen-Image_ComfyUI"
-    },
-    {
-      "name": "Qwen-Image 2512 Lightning 4-step LoRA (bf16)",
-      "kind": "model",
-      "sizeGb": 0.85,
-      "repoId": "lightx2v/Qwen-Image-2512-Lightning"
     },
     {
       "name": "LTX-2.3 22B dev (fp8)",
@@ -129,8 +117,8 @@
     },
     {
       "id": "ocean_ecom_creative",
-      "name": "Creative \u2014 ad layout with headline copy",
-      "description": "Two stages: Qwen-Image 2512 paints the ad including your headline text, then the edit model composites your real product into it. Switch off the first stage to start from a background you already have \u2014 it is skipped entirely, not just discarded. Saves as ecom_creative_00001_.png.",
+      "name": "Creative \u2014 ad poster with your headline",
+      "description": "Upload your product photo and describe the background and the headline you want. One pass writes the words and the background around your product. Saves as ecom_creative_00001_.png.",
       "file": "workflows/ocean_ecom_creative.json"
     },
     {
@@ -164,8 +152,8 @@
     },
     {
       "id": "disk",
-      "min": 130,
-      "recommended": 200,
+      "min": 110,
+      "recommended": 180,
       "unit": "GB"
     },
     {
