@@ -699,9 +699,10 @@ Do not design a workflow here that needs two images composited.
 **Relight has two modes, and the reference image can bleed.** It ships wired for
 reference-image relighting via the Light-Migration LoRA. That LoRA's upstream template is
 *Light Migration for Character Portrait*, and with a person in the reference it copied the
-person into the output, not only the light. Two guards ship because of that: the prompt
-forbids importing any person, object, background or shape from image 2, and the seeded
-reference is a scene rather than a portrait. Use a scene as your reference too.
+person into the output, not only the light. The fix is in the prompt, which now forbids
+importing any person, object, background or shape from image 2. The seeded reference stays a
+strongly lit photo, because that is what makes a reference useful: flat, even light migrates
+almost nothing. Choose your reference for its light, not its subject.
 
 The second mode has no reference image at all, so it cannot bleed: change the `lora_name`
 widget to `Qwen-Image-Edit-2509-Relight.safetensors` and describe the light in words. That

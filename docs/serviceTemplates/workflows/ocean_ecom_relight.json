@@ -53,7 +53,7 @@
       "title": "Note for prompting",
       "properties": {},
       "widgets_values": [
-        "The prompt takes only the light from your reference photo. Leave those sentences in place.\n\nUse a scene as the reference, not a photo of a person or of another product. The model can copy content across, and the sentences that forbid it work better when the reference holds no strong subject."
+        "The prompt takes only the light from your reference photo, and forbids copying anything else out of it. Leave those sentences in place.\n\nPick a reference with strong, clear light. Flat, even light changes almost nothing. The subject of the reference does not matter, but if you see any of it appear in your result, make the ban sentences in the prompt more specific."
       ],
       "color": "#222",
       "bgcolor": "#000"
@@ -111,14 +111,14 @@
           "links": null
         }
       ],
-      "title": "Load Lighting Reference (a scene, not a person)",
+      "title": "Load Lighting Reference",
       "properties": {
         "Node name for S&R": "LoadImage",
         "cnr_id": "comfy-core",
         "ver": "0.3.76"
       },
       "widgets_values": [
-        "comfy_billboard.png",
+        "woman_with_sunbeam.jpg",
         "image"
       ]
     },
