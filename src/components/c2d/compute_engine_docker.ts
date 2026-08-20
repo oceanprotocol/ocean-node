@@ -105,6 +105,11 @@ const makeServiceLockHolderId = () =>
 // state of a teardown, so treat them as success.
 const isBenignDockerError = (e: any) => e?.statusCode === 404 || e?.statusCode === 304
 
+// Cap on processes/threads a service container may spawn, to stop a runaway workload from
+// exhausting the host's pid space. Overridable per resource via init.advanced.PidsLimit,
+// which a multi-process (one-worker-per-GPU) model server needs.
+const SERVICE_DEFAULT_PIDS_LIMIT = 512
+
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
 
@@ -2225,6 +2230,10 @@ export class C2DEngineDocker extends C2DEngine {
         containerInfo.HostConfig.IpcMode = advancedConfig.IpcMode
       if (advancedConfig.ShmSize)
         containerInfo.HostConfig.ShmSize = advancedConfig.ShmSize
+      // Same override the service path gets, so one init.advanced block behaves identically
+      // whether the operator's hardware is used by a compute job or a service.
+      if (advancedConfig.PidsLimit)
+        containerInfo.HostConfig.PidsLimit = advancedConfig.PidsLimit
       if (job.algorithm?.meta.container.entrypoint) {
         const newEntrypoint = job.algorithm.meta.container.entrypoint.replace(
           '$ALGO',
@@ -3319,8 +3328,22 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
-  // Builds Docker HostConfig resource constraints (memory, cpu, GPU device requests)
-  // from a service resource request, resolved against the connection-level resource pool.
+  // Builds Docker HostConfig resource constraints (memory, cpu, GPU device requests, and
+  // the operator's advanced IPC/shm/pids settings) from a service resource request,
+  // resolved against the connection-level resource pool.
+  //
+  // IpcMode/ShmSize/PidsLimit come from the SAME `init.advanced` block the compute-job path
+  // already honours, and are read from the operator's node config only — never from the
+  // service template or anything else the consumer controls. A template that could ask for
+  // IpcMode:'host' would be an escape hatch out of the CapDrop:['ALL'] +
+  // no-new-privileges sandbox these containers otherwise run in.
+  //
+  // Why services need them at all: a container without them gets Docker's default 64 MB
+  // /dev/shm and its own IPC namespace. Any multi-GPU model server runs one worker process
+  // per GPU and moves activations/collectives between them through shared-memory ring
+  // buffers (vLLM's own message queues, plus NCCL's bootstrap), which does not fit in 64 MB
+  // — the container hangs or dies on a bus error at startup. Single-GPU services never hit
+  // this, which is why nothing noticed until a template asked for more than one card.
   private buildServiceResourceConstraints(
     resources: ComputeResourceRequest[],
     serviceId: string,
@@ -3330,6 +3353,9 @@ export class C2DEngineDocker extends C2DEngine {
     NanoCpus?: number
     DeviceRequests?: any[]
     CpusetCpus?: string
+    IpcMode?: string
+    ShmSize?: number
+    PidsLimit?: number
   } {
     const connResources: ComputeResource[] =
       this.getC2DConfig().connection?.resources ?? []
@@ -3338,11 +3364,27 @@ export class C2DEngineDocker extends C2DEngine {
     const deviceRequests = this.getDockerDeviceRequest(resources, connResources) ?? []
     const cpusetStr =
       cpu && cpu > 0 ? this.allocateCpus(serviceId, cpu, environment) : null
+    const advanced = this.getDockerAdvancedConfig(resources, connResources)
+    if (advanced.IpcMode || advanced.ShmSize || advanced.PidsLimit) {
+      CORE_LOGGER.debug(
+        `service ${serviceId}: advanced docker config from node resources — ` +
+          `IpcMode=${advanced.IpcMode ?? 'default'} ` +
+          `ShmSize=${advanced.ShmSize || 'default'} ` +
+          `PidsLimit=${advanced.PidsLimit || SERVICE_DEFAULT_PIDS_LIMIT}`
+      )
+    }
     return {
       Memory: ram ? ram * 1024 ** 3 : undefined,
       NanoCpus: cpu ? cpu * 1e9 : undefined,
       DeviceRequests: deviceRequests.length ? deviceRequests : undefined,
-      CpusetCpus: cpusetStr ?? undefined
+      CpusetCpus: cpusetStr ?? undefined,
+      // Deliberately NOT forwarded to services: Devices, Binds, CapAdd, GroupAdd,
+      // SecurityOpt. Those widen the sandbox in ways a long-lived, publicly-port-bound
+      // service does not need, and the compute-job path is a different threat model
+      // (short-lived, no published ports). Add them only with a concrete reason.
+      IpcMode: advanced.IpcMode ?? undefined,
+      ShmSize: advanced.ShmSize > 0 ? advanced.ShmSize : undefined,
+      PidsLimit: advanced.PidsLimit > 0 ? advanced.PidsLimit : undefined
     }
   }
 
@@ -3617,12 +3659,19 @@ export class C2DEngineDocker extends C2DEngine {
         ExposedPorts[`${cp}/tcp`] = {}
       })
 
-      const { Memory, NanoCpus, DeviceRequests, CpusetCpus } =
-        this.buildServiceResourceConstraints(
-          job.resources.map((r) => ({ id: r.id, amount: r.amount })),
-          job.serviceId,
-          job.environment
-        )
+      const {
+        Memory,
+        NanoCpus,
+        DeviceRequests,
+        CpusetCpus,
+        IpcMode,
+        ShmSize,
+        PidsLimit
+      } = this.buildServiceResourceConstraints(
+        job.resources.map((r) => ({ id: r.id, amount: r.amount })),
+        job.serviceId,
+        job.environment
+      )
 
       container = await this.docker.createContainer({
         Image: job.containerImage,
@@ -3639,7 +3688,12 @@ export class C2DEngineDocker extends C2DEngine {
           NetworkMode: network.id,
           SecurityOpt: ['no-new-privileges'], // security plan #5
           CapDrop: ['ALL'],
-          PidsLimit: 512,
+          // Operator-configured (init.advanced) or Docker's defaults. Omitting IpcMode and
+          // ShmSize leaves the container with a private 64 MB /dev/shm, which multi-GPU
+          // model servers cannot start in — see buildServiceResourceConstraints().
+          ...(IpcMode ? { IpcMode } : {}),
+          ...(ShmSize ? { ShmSize } : {}),
+          PidsLimit: PidsLimit ?? SERVICE_DEFAULT_PIDS_LIMIT,
           Mounts: await this.serviceOutputMounts(job)
         }
       })
@@ -4315,13 +4369,23 @@ export class C2DEngineDocker extends C2DEngine {
       network = await this.createServiceNetwork(serviceId)
       CORE_LOGGER.debug(`restart ${serviceId}: created network ${network.id}`)
 
-      // 7. Resource constraints
-      const { Memory, NanoCpus, DeviceRequests, CpusetCpus } =
-        this.buildServiceResourceConstraints(
-          job.resources.map((r) => ({ id: r.id, amount: r.amount })),
-          serviceId,
-          job.environment
-        )
+      // 7. Resource constraints. Must resolve identically to the start path: a restart
+      //    creates a NEW container, so anything missed here silently downgrades a running
+      //    service — e.g. a multi-GPU model server that started fine would come back with
+      //    a 64 MB /dev/shm and fail to boot, inside an already-paid window.
+      const {
+        Memory,
+        NanoCpus,
+        DeviceRequests,
+        CpusetCpus,
+        IpcMode,
+        ShmSize,
+        PidsLimit
+      } = this.buildServiceResourceConstraints(
+        job.resources.map((r) => ({ id: r.id, amount: r.amount })),
+        serviceId,
+        job.environment
+      )
 
       // 8. Create and start new container
       container = await this.docker.createContainer({
@@ -4339,7 +4403,9 @@ export class C2DEngineDocker extends C2DEngine {
           NetworkMode: network.id,
           SecurityOpt: ['no-new-privileges'],
           CapDrop: ['ALL'],
-          PidsLimit: 512,
+          ...(IpcMode ? { IpcMode } : {}),
+          ...(ShmSize ? { ShmSize } : {}),
+          PidsLimit: PidsLimit ?? SERVICE_DEFAULT_PIDS_LIMIT,
           Mounts: await this.serviceOutputMounts(job)
         }
       })
