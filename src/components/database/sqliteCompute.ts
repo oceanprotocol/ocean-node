@@ -23,8 +23,10 @@ interface ComputeDatabaseProvider {
   getFinishedJobs(environments?: string[]): Promise<DBComputeJob[]>
   getJobs(
     environments?: string[],
-    fromTimestamp?: string,
-    consumerAddrs?: string[]
+    fromTimestamp?: number,
+    consumerAddrs?: string[],
+    status?: C2DStatusNumber,
+    runningJobs?: boolean
   ): Promise<DBComputeJob[]>
   updateImage(image: string): Promise<void>
   getOldImages(retentionDays: number): Promise<string[]>
@@ -794,16 +796,24 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     return []
   }
 
+  /**
+   * @param fromTimestamp lower bound in Unix **seconds** (the unit this table's
+   * dateCreated/dateFinished TEXT columns store). Callers must normalize before getting
+   * here — see parseFromTimestampSeconds in core/utils/timestamps.ts. Taking a number
+   * rather than a string is deliberate: a raw string bound to these columns is compared
+   * with memcmp, which happens to work for 10-digit seconds and silently matches nothing
+   * for milliseconds, ISO dates or garbage.
+   */
   async getJobs(
     environments?: string[],
-    fromTimestamp?: string,
+    fromTimestamp?: number,
     consumerAddrs?: string[],
     status?: C2DStatusNumber,
     runningJobs?: boolean
   ): Promise<DBComputeJob[]> {
     let selectSQL = `SELECT * FROM ${this.schema.name}`
 
-    const params: string[] = []
+    const params: Array<string | number> = []
     const conditions: string[] = []
 
     if (environments && environments.length > 0) {
@@ -812,19 +822,23 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       params.push(...environments)
     }
 
+    // dateCreated/dateFinished are TEXT holding decimal seconds, so they must be CAST for
+    // the comparison to be numeric instead of lexicographic.
     if (runningJobs) {
       conditions.push(`status = ?`)
       params.push(C2DStatusNumber.RunningAlgorithm.toString())
-      if (fromTimestamp) {
-        conditions.push(`dateCreated >= ?`)
+      if (fromTimestamp !== undefined && fromTimestamp !== null) {
+        conditions.push(`CAST(dateCreated AS REAL) >= ?`)
         params.push(fromTimestamp)
       }
     } else {
-      if (fromTimestamp) {
-        conditions.push(`dateFinished >= ?`)
+      if (fromTimestamp !== undefined && fromTimestamp !== null) {
+        conditions.push(`CAST(dateFinished AS REAL) >= ?`)
         params.push(fromTimestamp)
       }
-      if (status) {
+      // C2DStatusNumber.JobStarted is 0, so a truthiness check would silently drop the
+      // filter and return every status instead.
+      if (status !== undefined && status !== null) {
         conditions.push(`status = ?`)
         params.push(status.toString())
       }
@@ -841,7 +855,10 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     if (conditions.length > 0) {
       selectSQL += ` WHERE ${conditions.join(' AND ')}`
     }
-    selectSQL += ` ORDER BY dateCreated DESC`
+    // Numeric ordering for the same reason as the comparison above. NOTE: do NOT copy this
+    // CAST to the service_jobs table — its dateCreated is an ISO string, which sorts
+    // correctly as text and would CAST to its year.
+    selectSQL += ` ORDER BY CAST(dateCreated AS REAL) DESC`
     return await this.doQuery(selectSQL, params, environments)
   }
 

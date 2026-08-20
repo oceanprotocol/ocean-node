@@ -58,7 +58,12 @@ export class ServiceStopHandler extends CommandHandler {
       return { stream: null, status: { httpStatus: 401, error: 'Not the service owner' } }
 
     try {
-      const stopped = await engine.stopService(task.serviceId, task.consumerAddress)
+      const stopped = await engine.stopService(
+        task.serviceId,
+        task.consumerAddress,
+        false, // onlyIfExpired
+        task.release === true
+      )
       return {
         stream: Readable.from(JSON.stringify([toPublicServiceJob(stopped)])),
         status: { httpStatus: 200 }

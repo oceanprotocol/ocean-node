@@ -490,12 +490,75 @@ describe('Service handlers', () => {
       expect(res.status.httpStatus).to.equal(401)
     })
 
-    it('400 when service is Stopped (bad state)', async () => {
-      const { node } = buildFakes({
-        serviceJobInDb: makeJob({ status: ServiceStatusNumber.Stopped })
+    it('400 while the start payment is in flight (Locking / Claiming)', async () => {
+      for (const [status, statusText] of [
+        [ServiceStatusNumber.Locking, 'Locking'],
+        [ServiceStatusNumber.Claiming, 'Claiming']
+      ] as const) {
+        const { node, escrow } = buildFakes({
+          serviceJobInDb: makeJob({ status, statusText })
+        })
+        const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+        expect(res.status.httpStatus, statusText).to.equal(400)
+        expect(String(res.status.error)).to.contain('payment is in progress')
+        // no second escrow flow may be opened alongside the start's own
+        expect(escrow.createLock.called, statusText).to.equal(false)
+      }
+    })
+
+    it('400 when service is Expired', async () => {
+      const { node, escrow } = buildFakes({
+        serviceJobInDb: makeJob({
+          status: ServiceStatusNumber.Expired,
+          statusText: 'Expired'
+        })
       })
       const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
       expect(res.status.httpStatus).to.equal(400)
+      expect(String(res.status.error)).to.contain('expired')
+      // rejected before any escrow work
+      expect(escrow.createLock.called).to.equal(false)
+    })
+
+    it('400 when expiresAt has already passed, whatever the status says', async () => {
+      // the expiry sweep is a cron job, so a de-facto expired service can still carry a
+      // live status for a while — extend must reject it on expiresAt alone
+      for (const status of [ServiceStatusNumber.Running, ServiceStatusNumber.Stopped]) {
+        const { node, escrow } = buildFakes({
+          serviceJobInDb: makeJob({ status, expiresAt: Date.now() - 1000 })
+        })
+        const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+        expect(res.status.httpStatus, `status=${status}`).to.equal(400)
+        expect(String(res.status.error)).to.contain('expired')
+        expect(escrow.createLock.called, `status=${status}`).to.equal(false)
+      }
+    })
+
+    it('200 for every other state', async () => {
+      for (const status of [
+        ServiceStatusNumber.Starting,
+        ServiceStatusNumber.PullImage,
+        ServiceStatusNumber.BuildImage,
+        ServiceStatusNumber.PullImageFailed,
+        ServiceStatusNumber.BuildImageFailed,
+        ServiceStatusNumber.VulnerableImage,
+        ServiceStatusNumber.Running,
+        ServiceStatusNumber.Restarting,
+        ServiceStatusNumber.Stopping,
+        ServiceStatusNumber.Stopped,
+        ServiceStatusNumber.Error
+      ]) {
+        const job = makeJob({ status })
+        const before = job.expiresAt
+        const { node } = buildFakes({ serviceJobInDb: job })
+        const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+        expect(
+          res.status.httpStatus,
+          `status=${status}: ${res.status?.error ?? ''}`
+        ).to.equal(200)
+        const out = await body(res)
+        expect(out[0].expiresAt, `status=${status}`).to.equal(before + 3600 * 1000)
+      }
     })
 
     it('400 when extension exceeds maxDurationSeconds', async () => {

@@ -11,7 +11,10 @@ import {
 } from './ddoHandler.js'
 import { DownloadHandler } from './downloadHandler.js'
 import { FileInfoHandler } from './fileInfoHandler.js'
-import { PolicyServerPassthroughHandler } from './policyServer.js'
+import {
+  PolicyServerPassthroughHandler,
+  PolicyServerInitializeHandler
+} from './policyServer.js'
 import { EncryptHandler, EncryptFileHandler } from './encryptHandler.js'
 import { FeesHandler } from './feesHandler.js'
 import { BaseHandler, CommandHandler } from './handler.js'
@@ -128,6 +131,10 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.POLICY_SERVER_PASSTHROUGH,
       new PolicyServerPassthroughHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.POLICY_SERVER_INITIALIZE,
+      new PolicyServerInitializeHandler(node)
     )
 
     this.registerCoreHandler(PROTOCOL_COMMANDS.VALIDATE_DDO, new ValidateDDOHandler(node))

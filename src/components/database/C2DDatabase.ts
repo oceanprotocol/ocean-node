@@ -150,9 +150,10 @@ export class C2DDatabase extends AbstractDatabase {
     return await this.provider.getFinishedJobs(environments)
   }
 
+  /** @param fromTimestamp lower bound in Unix seconds — see SQLiteCompute.getJobs. */
   async getJobs(
     environments?: string[],
-    fromTimestamp?: string,
+    fromTimestamp?: number,
     consumerAddrs?: string[],
     status?: C2DStatusNumber,
     runningJobs?: boolean
