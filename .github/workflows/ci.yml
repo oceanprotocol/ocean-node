@@ -241,7 +241,7 @@ jobs:
         with:
           repository: 'oceanprotocol/ocean-cli'
           path: 'ocean-cli'
-          ref: feature/next-node-4
+          ref: deps/remove_web3_and_bump_deps
       - name: Checkout Ocean-js
         uses: actions/checkout@v4
         with:

@@ -43,7 +43,6 @@ export class NvmlGpuCollector implements GpuVendorCollector {
       // Non-literal specifier: tsc treats this as `any` and does not resolve it at build
       // time, so the (optional) koffi dependency is only required at runtime on GPU hosts.
       const specifier = 'koffi'
-      // eslint-disable-next-line @typescript-eslint/no-implied-eval
       const mod: any = await import(specifier)
       return mod?.default ?? mod
     } catch (e: any) {

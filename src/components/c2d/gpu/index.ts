@@ -106,7 +106,6 @@ export class GpuMetricsService {
       for (const [vendor, handles] of byVendor.entries()) {
         const collector = this.getCollector(vendor)
         if (!collector) continue
-        // eslint-disable-next-line no-await-in-loop
         const metrics = await collector.sample(handles)
         for (const m of metrics) {
           out.push({

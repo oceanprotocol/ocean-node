@@ -1127,7 +1127,6 @@ describe('**********         Compute', () => {
     assert(jobs[0].jobId, 'failed to got job id')
     console.log('**** Started FREE compute job with id: ', jobs[0].jobId)
     console.log(jobs[0])
-    // eslint-disable-next-line prefer-destructuring
     freeJobId = jobs[0].jobId
   })
 

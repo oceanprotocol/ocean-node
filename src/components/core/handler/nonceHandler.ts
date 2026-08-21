@@ -22,7 +22,6 @@ export class NonceHandler extends CommandHandler {
     return validation
   }
 
-  // eslint-disable-next-line require-await
   async handle(task: NonceCommand): Promise<P2PCommandResponse> {
     const validationResponse = await this.verifyParamsAndRateLimits(task)
     if (this.shouldDenyTaskHandling(validationResponse)) {

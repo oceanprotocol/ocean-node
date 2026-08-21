@@ -105,7 +105,6 @@ export class HandlerFactory {
 
 // this should be used as singleton
 export class CoreHandlersRegistry {
-  // eslint-disable-next-line no-use-before-define
   private static instance: CoreHandlersRegistry
   // map of handlers registered
   private coreHandlers: Map<string, BaseHandler> = new Map<string, BaseHandler>()

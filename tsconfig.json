@@ -6,6 +6,16 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "noImplicitAny": true,
+    // TypeScript 6 defaults `strict` to true. We opt in, minus the two flags the
+    // codebase is not ready for - see the two `false` entries below. That still buys
+    // strictFunctionTypes, strictBindCallApply, noImplicitThis and alwaysStrict,
+    // none of which were active before TS 6.
+    "strict": true,
+    // 1324 errors to fix before this can go true. Do it subsystem by subsystem.
+    "strictNullChecks": false,
+    // 389 errors: `catch (e)` bindings would become `unknown`. Blocked on the above
+    // anyway, since most of the fixes need optional chaining.
+    "useUnknownInCatchVariables": false,
     "removeComments": true,
     "preserveConstEnums": true,
     "sourceMap": true,
@@ -13,7 +23,11 @@
     "outDir": "./dist/",
     "declaration": true,
     "declarationDir": "./dist/",
-    "ignoreDeprecations": "5.0",
+    // `moduleResolution: node` (node10) is deprecated and stops working in TypeScript 7.
+    // Migrating to `nodenext` costs ~123 errors: ~31 relative imports still missing their
+    // `.js` extension, plus @oceanprotocol/ddo-js not exposing types under a modern
+    // resolver. Must be done before TS 7.
+    "ignoreDeprecations": "6.0",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "allowJs": true,

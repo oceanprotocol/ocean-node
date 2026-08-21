@@ -360,9 +360,9 @@ export const ServiceTemplateSchema = z
       .regex(/^sha256:[a-f0-9]{64}$/)
       .optional(),
     dockerfile: z.string().min(1).optional(),
-    additionalDockerFiles: z.record(z.string()).optional(),
+    additionalDockerFiles: z.record(z.string(), z.string()).optional(),
     exposedPorts: z.array(z.number().int().min(1).max(65535)).min(1),
-    envVars: z.record(z.string()).optional(),
+    envVars: z.record(z.string(), z.string()).optional(),
     userConfigurableEnvVars: z.array(UserConfigurableEnvVarSchema).optional(),
     command: z.array(z.string()).optional(),
     entrypoint: z.array(z.string()).optional(),

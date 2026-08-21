@@ -1138,7 +1138,6 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
-  // eslint-disable-next-line require-await
   public override async getComputeEnvironments(
     chainId?: number
   ): Promise<ComputeEnvironment[]> {
@@ -1399,7 +1398,6 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
-  // eslint-disable-next-line require-await
   public override async startComputeJob(
     assets: ComputeAsset[],
     algorithm: ComputeAlgorithm,
@@ -1565,7 +1563,6 @@ export class C2DEngineDocker extends C2DEngine {
     return [cjob]
   }
 
-  // eslint-disable-next-line require-await
   public override async stopComputeJob(
     jobId: string,
     owner: string,
@@ -1586,7 +1583,6 @@ export class C2DEngineDocker extends C2DEngine {
     return statusResults
   }
 
-  // eslint-disable-next-line require-await
   protected async getResults(jobId: string): Promise<ComputeResult[]> {
     const res: ComputeResult[] = []
     let index = 0
@@ -1667,7 +1663,6 @@ export class C2DEngineDocker extends C2DEngine {
     return res
   }
 
-  // eslint-disable-next-line require-await
   public override async getComputeJobStatus(
     consumerAddress?: string,
     agreementId?: string,
@@ -1697,7 +1692,6 @@ export class C2DEngineDocker extends C2DEngine {
     return statusResults
   }
 
-  // eslint-disable-next-line require-await
   public override async getComputeJobResult(
     consumerAddress: string,
     jobId: string,
@@ -1776,7 +1770,6 @@ export class C2DEngineDocker extends C2DEngine {
     return null
   }
 
-  // eslint-disable-next-line require-await
   public override async getStreamableLogs(jobId: string): Promise<NodeJS.ReadableStream> {
     const jobRes: DBComputeJob[] = await this.db.getJob(jobId)
     if (jobRes.length === 0) return null
@@ -1875,7 +1868,6 @@ export class C2DEngineDocker extends C2DEngine {
         this.getC2DConfig().hash
       )
       for (const svc of pendingStarts) {
-        // eslint-disable-next-line no-await-in-loop
         if (!(await this.tryAcquireServiceLifecycleLock(svc.serviceId))) continue
         // Track the promise so stop() can drain it; clean both trackers when it settles.
         const startPromise = this.processServiceStart(svc).finally(() => {
@@ -2036,7 +2028,6 @@ export class C2DEngineDocker extends C2DEngine {
     return 15 * 60 * 1000
   }
 
-  // eslint-disable-next-line require-await
   private async processJob(job: DBComputeJob) {
     CORE_LOGGER.info(
       `Process job ${job.jobId} started: [STATUS: ${job.status}: ${job.statusText}]`
@@ -2624,7 +2615,6 @@ export class C2DEngineDocker extends C2DEngine {
     await this.cleanupJob(job)
   }
 
-  // eslint-disable-next-line require-await
   private parseCpusetString(cpuset: string): number[] {
     const cores: number[] = []
     if (!cpuset) return cores
@@ -3860,7 +3850,6 @@ export class C2DEngineDocker extends C2DEngine {
       const hostPorts: number[] = []
       try {
         for (let i = 0; i < job.exposedPorts.length; i++) {
-          // eslint-disable-next-line no-await-in-loop
           hostPorts.push(await allocateHostPort(rangeStart, rangeEnd))
         }
       } catch (e) {
@@ -4041,7 +4030,6 @@ export class C2DEngineDocker extends C2DEngine {
       const network = this.docker.getNetwork(ref) // dockerode accepts a name or an id
       let info: any
       try {
-        // eslint-disable-next-line no-await-in-loop
         info = await network.inspect()
       } catch (e: any) {
         if (isBenignDockerError(e)) {
@@ -4056,7 +4044,6 @@ export class C2DEngineDocker extends C2DEngine {
           `attached containers=[${attached.map((c) => c.slice(0, 12)).join(',')}])`
       )
       for (const containerId of attached) {
-        // eslint-disable-next-line no-await-in-loop
         await this.docker
           .getContainer(containerId)
           .remove({ force: true })
@@ -4064,7 +4051,6 @@ export class C2DEngineDocker extends C2DEngine {
             if (!isBenignDockerError(e)) throw e
           })
       }
-      // eslint-disable-next-line no-await-in-loop
       await network.remove().catch((e) => {
         if (!isBenignDockerError(e)) throw e
       })

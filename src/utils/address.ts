@@ -51,7 +51,6 @@ export function getOceanArtifactsAdressesByChainId(chain: number): any {
   return null
 }
 
-// eslint-disable-next-line require-await
 export function getOceanTokenAddressForChain(chainId: number): string | null {
   const addresses = getOceanArtifactsAdressesByChainId(chainId)
   if (addresses && addresses.Ocean) return addresses.Ocean

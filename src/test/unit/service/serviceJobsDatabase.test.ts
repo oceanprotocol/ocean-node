@@ -178,15 +178,27 @@ describe('Service Jobs Database', () => {
 
     it('refreshServiceLocks re-stamps a holder’s rows so they stay unstealable', async () => {
       const serviceId = `lock-svc-${Date.now()}-d`
+      // B's staleness window. The two timings below are scaled off it so the margin is
+      // generous: this test used to age by 150ms against a 100ms window, which left only
+      // ~100ms for refresh + acquire and flaked on a loaded machine (and with
+      // `bail: true` in .mocharc.json one flake truncates the whole suite).
+      const B_STALE_MS = 500
       expect(await db.acquireServiceLock(serviceId, 'proc-A', STALE_MS)).to.equal(true)
-      // age the ORIGINAL stamp past the staleness window B will use below, so the
-      // refusal can only be explained by the refresh re-stamping the row — without the
-      // aging, a freshly-acquired row would be "unstealable" even if refresh did nothing
-      await new Promise((resolve) => setTimeout(resolve, 150))
+      // age the ORIGINAL stamp past B's window, so the refusal below can only be
+      // explained by the refresh re-stamping the row — without the aging, a
+      // freshly-acquired row would be "unstealable" even if refresh did nothing
+      await new Promise((resolve) => setTimeout(resolve, B_STALE_MS + 100))
+      const refreshedAt = Date.now()
       await db.refreshServiceLocks('proc-A')
-      // B treats anything older than 100ms as stale: the original stamp (≥150ms old)
-      // would be stolen; the re-stamped one (a few ms old) must not be
-      expect(await db.acquireServiceLock(serviceId, 'proc-B', 100)).to.equal(false)
+      // the original stamp (>B_STALE_MS old) would be stolen; the re-stamped one must not
+      expect(await db.acquireServiceLock(serviceId, 'proc-B', B_STALE_MS)).to.equal(false)
+      // ...but only if we actually got here inside the window. If the machine stalled
+      // long enough for the refreshed stamp to age out too, the assertion above proved
+      // nothing, so say so rather than reporting a pass or a confusing failure.
+      expect(
+        Date.now() - refreshedAt,
+        'machine too slow to exercise the refresh window; raise B_STALE_MS'
+      ).to.be.lessThan(B_STALE_MS)
       await db.releaseServiceLock(serviceId, 'proc-A')
     })
   })

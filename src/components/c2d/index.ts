@@ -38,7 +38,6 @@ export function sanitizePublicMetrics(
   snapshot: ContainerMetricsSnapshot | undefined
 ): ContainerMetricsSnapshot | undefined {
   if (!snapshot) return undefined
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { prev, ...pub } = snapshot
   return pub as ContainerMetricsSnapshot
 }

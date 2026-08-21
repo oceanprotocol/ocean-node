@@ -9,7 +9,6 @@ export class Purgatory {
   private bannedAssets: Array<PurgatoryAssets>
   private accountPurgatoryUrl: string
   private assetPurgatoryUrl: string
-  // eslint-disable-next-line no-use-before-define
   private static instance: Purgatory
 
   private enabled: boolean = false

@@ -102,7 +102,7 @@ export abstract class C2DEngine {
   // Persists the initial Starting record and returns immediately. The heavy lifting
   // (escrow lock/claim, image pull/build, container start) is done asynchronously by
   // processServiceStart(), driven by the engine's background loop.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  // eslint-disable-next-line require-await
   public async createServiceJob(
     environment: string,
     image: string,
@@ -125,13 +125,12 @@ export abstract class C2DEngine {
 
   // Background pipeline that advances a Starting service job through locking → image →
   // payment → container → Running. Never throws (terminal failures are persisted as status).
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
   public async processServiceStart(job: ServiceJob): Promise<void> {}
 
   // onlyIfExpired: expiry-sweep mode — re-validate expiresAt on the fresh row under the
   // lifecycle lock and skip the teardown when the service was extended in the meantime.
   // release: end the paid window now so the expiry sweep frees the reservation.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  // eslint-disable-next-line require-await
   public async stopService(
     serviceId: string,
     owner: string,
@@ -144,14 +143,13 @@ export abstract class C2DEngine {
   // Runs fn serialized with the engine's per-service lifecycle operations (start
   // pipeline, restart, stop, expiry sweep). Engines without a lock implementation run
   // fn directly; C2DEngineDocker overrides this with its lifecycle lock + DB lease.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   public async runExclusive<T>(serviceId: string, fn: () => Promise<T>): Promise<T> {
     return await fn()
   }
 
   // Restart is atomic: when an image spec is supplied (RESPEC mode) the whole container is
   // rebuilt from these params; when it is absent (REUSE mode) the stored spec is reused.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  // eslint-disable-next-line require-await
   public async restartService(
     serviceId: string,
     owner: string,
@@ -167,7 +165,7 @@ export abstract class C2DEngine {
     return null
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  // eslint-disable-next-line require-await
   public async getServiceStatus(
     consumerAddress?: string,
     serviceId?: string
@@ -175,7 +173,7 @@ export abstract class C2DEngine {
     return []
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars, require-await
+  // eslint-disable-next-line require-await
   public async getServiceStreamableLogs(
     serviceId: string,
     owner: string,
@@ -184,7 +182,6 @@ export abstract class C2DEngine {
     return null
   }
 
-  // eslint-disable-next-line require-await
   public abstract checkDockerImage(
     image: string,
     encryptedDockerRegistryAuth?: string,
@@ -1061,7 +1058,7 @@ export abstract class C2DEngine {
       decryptedDockerRegistryAuth
     )
     if (!validationResult.success) {
-      const errorMessageValidation = validationResult.error.errors
+      const errorMessageValidation = validationResult.error.issues
         .map((err) => err.message)
         .join('; ')
       const errorMessage = `Invalid encryptedDockerRegistryAuth: ${errorMessageValidation}`

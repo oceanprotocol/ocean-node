@@ -81,8 +81,6 @@ process.on('unhandledRejection', (err) => {
 
 // const port = getRandomInt(6000,6500)
 
-express.static.mime.define({ 'image/svg+xml': ['svg'] })
-
 declare global {
   // eslint-disable-next-line no-unused-vars
   namespace Express {
@@ -182,10 +180,17 @@ if (config.hasHttp) {
   app.use((req, res, next) => {
     req.caller = req.headers['x-forwarded-for'] || req.socket.remoteAddress
     req.oceanNode = oceanNode
+    // Express 4 left req.body as {} when there was nothing to parse; Express 5 leaves
+    // it undefined, which turns every `req.body.x` read and `const {x} = req.body`
+    // in the route handlers into a TypeError. Seeding it here restores the Express 4
+    // shape for the whole app. body-parser still parses normally: it only resets
+    // req.body when the property is absent, and assigns unconditionally on success.
+    if (req.body === undefined) {
+      req.body = {}
+    }
     next()
   }, requestValidator)
 
-  // Integrate static file serving middleware
   app.use(removeExtraSlashes)
   app.use('/', httpRoutes)
 

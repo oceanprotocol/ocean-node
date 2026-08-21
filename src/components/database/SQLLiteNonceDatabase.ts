@@ -48,7 +48,6 @@ export class SQLLiteNonceDatabase extends AbstractNonceDatabase {
     try {
       let highest: number | null = null
       for (const variant of addressCasingVariants(address)) {
-        // eslint-disable-next-line no-await-in-loop
         const row = await this.provider.retrieveNonce(variant)
         if (row && row.nonce !== null && (highest === null || row.nonce > highest)) {
           highest = row.nonce

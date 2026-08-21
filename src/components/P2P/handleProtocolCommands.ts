@@ -13,6 +13,8 @@ import {
 } from '../../utils/validators.js'
 import { lpStream } from '@libp2p/utils'
 import type { Connection, Stream } from '@libp2p/interface'
+// type-only, so this does not create a runtime cycle with index.ts
+import type { OceanP2P } from './index.js'
 
 export class ReadableString extends Readable {
   private sent = false
@@ -31,7 +33,13 @@ export class ReadableString extends Readable {
   }
 }
 
-export async function handleProtocolCommands(stream: Stream, connection: Connection) {
+// `this` is the OceanP2P instance: libp2p receives this as
+// `handleProtocolCommands.bind(this)` (see index.ts, createNode)
+export async function handleProtocolCommands(
+  this: OceanP2P,
+  stream: Stream,
+  connection: Connection
+) {
   const { remotePeer, remoteAddr } = connection
 
   // Pause the stream. We do async operations here before writing.
