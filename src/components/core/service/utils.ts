@@ -59,7 +59,6 @@ export function toPublicServiceJob(
   opts: { includeMetrics?: boolean } = {}
 ): Omit<ServiceJob, 'userData'> | null {
   if (!job) return null
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { userData, runtimeMetrics, ...rest } = job
   // userData is ALWAYS stripped. The owner-scoped status path may opt in to the sanitized
   // runtime metrics (internal `prev` accumulator dropped); otherwise they stay absent.
@@ -88,7 +87,6 @@ export function toListedServiceJob(
   | 'additionalDockerFiles'
 > | null {
   if (!job) return null
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const {
     userData,
     runtimeMetrics,
@@ -153,7 +151,6 @@ export async function allocateHostPort(
     // has()->add() pair is atomic, so no concurrent caller can claim the same port
     // while we await isPortFree(). Release the reservation if the OS port is busy.
     allocatedPorts.add(candidate)
-    // eslint-disable-next-line no-await-in-loop
     if (await isPortFree(candidate)) return candidate
     allocatedPorts.delete(candidate)
   }

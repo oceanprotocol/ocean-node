@@ -25,9 +25,17 @@ export class FindPeerHandler extends CommandHandler {
       return checks
     }
     try {
-      const peer = await this.getOceanNode()
-        .getP2PNode()
-        .findPeerInDht(String(task.peerId), parseInt(String(task.timeout)))
+      const p2pNode = this.getOceanNode().getP2PNode()
+      if (!p2pNode) {
+        return {
+          stream: null,
+          status: { httpStatus: 503, error: 'P2P Interface is disabled' }
+        }
+      }
+      const peer = await p2pNode.findPeerInDht(
+        String(task.peerId),
+        parseInt(String(task.timeout))
+      )
       // .getPeerDetails(String(task.peerId))
       if (!peer) {
         return {
@@ -61,9 +69,14 @@ export class GetP2PPeerHandler extends CommandHandler {
       return checks
     }
     try {
-      const peers = await this.getOceanNode()
-        .getP2PNode()
-        .getPeerDetails(String(task.peerId))
+      const p2pNode = this.getOceanNode().getP2PNode()
+      if (!p2pNode) {
+        return {
+          stream: null,
+          status: { httpStatus: 503, error: 'P2P Interface is disabled' }
+        }
+      }
+      const peers = await p2pNode.getPeerDetails(String(task.peerId))
       if (!peers) {
         return {
           stream: null,
@@ -96,7 +109,14 @@ export class GetP2PPeersHandler extends CommandHandler {
       return checks
     }
     try {
-      const peers = await this.getOceanNode().getP2PNode().getAllPeerStore()
+      const p2pNode = this.getOceanNode().getP2PNode()
+      if (!p2pNode) {
+        return {
+          stream: null,
+          status: { httpStatus: 503, error: 'P2P Interface is disabled' }
+        }
+      }
+      const peers = await p2pNode.getAllPeerStore()
       if (!peers) {
         return {
           stream: null,

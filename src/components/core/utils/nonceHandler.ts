@@ -233,7 +233,6 @@ export async function verifyConsumerSignature(
   // otherwise reject clients that built and signed the message from the lowercase form — so
   // try every plausible casing. Deduped, canonical form first: one attempt for most callers.
   for (const candidate of addressCasingVariants(consumer)) {
-    // eslint-disable-next-line no-await-in-loop
     if (
       await verifySignatureForConsumer(
         candidate,

@@ -30,7 +30,6 @@ export class Escrow {
     this.blockchainRegistry = blockchainRegistry
   }
 
-  // eslint-disable-next-line require-await
   getEscrowContractAddressForChain(chainId: number): string | null {
     const addresses = getOceanArtifactsAdressesByChainId(chainId)
     if (addresses && addresses.Escrow) return addresses.Escrow
@@ -101,7 +100,6 @@ export class Escrow {
     return parseFloat(formatUnits(wei, decimals))
   }
 
-  // eslint-disable-next-line require-await
   getContract(chainId: number, signer: ethers.Signer): ethers.Contract | null {
     const address = this.getEscrowContractAddressForChain(chainId)
     if (!address) return null
