@@ -239,6 +239,12 @@ if [ -z "$DOCKER_COMPUTE_ENVIRONMENTS" ]; then
   export DOCKER_COMPUTE_ENVIRONMENTS='[
     {
       "socketPath": "/var/run/docker.sock",
+      "resources": [
+        {
+          "id": "disk",
+          "total": 10
+        }
+      ],
       "environments": [
         {
           "storageExpiry": 604800,
@@ -246,8 +252,14 @@ if [ -z "$DOCKER_COMPUTE_ENVIRONMENTS" ]; then
           "minJobDuration": 60,
           "resources": [
             {
+              "id": "cpu"
+            },
+            {
+              "id": "ram"
+            },
+            {
               "id": "disk",
-              "total": 10
+              "max": 10
             }
           ],
           "fees": {
@@ -580,43 +592,48 @@ process_pci_line() {
         } | del(.. | select(. == null)) | del(.. | select(. == []))'
 }
 
-# Function to get all GPUs in JSON array format
+# Function to get all GPUs in JSON array format.
+# Each physical GPU becomes its own resource entry (kind: "discrete", total: 1)
+# with a single DeviceID — never multiple DeviceIDs in one resource.
 get_all_gpus_json() {
     (
         get_nvidia_gpus
         get_generic_gpus
     ) | jq -s '
-        group_by(.description) | map(
+        to_entries | map(
             {
-                id: (.[0].description | ascii_downcase | gsub("[^a-z0-9]"; "-") | gsub("-+"; "-") | sub("^-"; "") | sub("-$"; "")),
-                description: .[0].description,
+                id: ("gpu" + (.key | tostring)),
+                kind: "discrete",
                 type: "gpu",
-                total: length,
-                driverVersion: (.[0].driverVersion // null),
-                memoryTotal: (.[0].memoryTotal // null),
-                platform: (if .[0].init.deviceRequests.Driver == "amdgpu" then "amd" else .[0].init.deviceRequests.Driver end),
+                total: 1,
+                description: .value.description,
+                driverVersion: .value.driverVersion,
+                memoryTotal: .value.memoryTotal,
+                platform: (if .value.init.deviceRequests.Driver == "amdgpu" then "amd" else .value.init.deviceRequests.Driver end),
                 init: (
-                    if .[0].init.deviceRequests.Driver == "nvidia" then
+                    if .value.init.deviceRequests.Driver == "nvidia" then
                     {
                         deviceRequests: {
-                            Driver: .[0].init.deviceRequests.Driver,
-                            DeviceIDs: (map(.init.deviceRequests.Devices[]?) | unique),
+                            Driver: "nvidia",
+                            DeviceIDs: .value.init.deviceRequests.Devices,
                             Capabilities: [["gpu"]]
                         }
                     }
                     else
                     {
-                        advanced: {
-                            Driver: .[0].init.deviceRequests.Driver,
-                            Devices: (map(.init.deviceRequests.Devices[]?) | unique),
-                            Capabilities: [["gpu"]],
-                            Binds: (map(.init.Binds[]?) | unique),
-                            CapAdd: (map(.init.CapAdd[]?) | unique),
-                            GroupAdd: (map(.init.GroupAdd[]?) | unique),
-                            SecurityOpt: .[0].init.SecurityOpt,
-                            ShmSize: .[0].init.ShmSize,
-                            IpcMode: .[0].init.IpcMode
-                        } | del(.. | select(. == null)) | del(.. | select(. == []))
+                        advanced: (
+                            {
+                                Driver: .value.init.deviceRequests.Driver,
+                                Devices: .value.init.deviceRequests.Devices,
+                                Capabilities: [["gpu"]],
+                                Binds: .value.init.Binds,
+                                CapAdd: .value.init.CapAdd,
+                                GroupAdd: .value.init.GroupAdd,
+                                SecurityOpt: .value.init.SecurityOpt,
+                                ShmSize: .value.init.ShmSize,
+                                IpcMode: .value.init.IpcMode
+                            } | del(.. | select(. == null)) | del(.. | select(. == []))
+                        )
                     }
                     end
                 )
@@ -632,8 +649,11 @@ if command -v jq &> /dev/null; then
 
   if [ "$GPU_COUNT" -gt 0 ]; then
     echo "Detected $GPU_COUNT GPU type(s). Updating configuration..."
-    DOCKER_COMPUTE_ENVIRONMENTS=$(echo "$DOCKER_COMPUTE_ENVIRONMENTS" | jq --argjson gpus "$DETECTED_GPUS" '.[0].environments[0].resources += $gpus')
-    echo "GPUs added to Compute Environment resources."
+    DOCKER_COMPUTE_ENVIRONMENTS=$(echo "$DOCKER_COMPUTE_ENVIRONMENTS" | jq --argjson gpus "$DETECTED_GPUS" '
+      .[0].resources += $gpus |
+      .[0].environments[0].resources += ($gpus | map({ id: .id }))
+    ')
+    echo "GPUs added to connection-level resources; environment refs updated."
   else
     echo "No GPUs detected."
   fi

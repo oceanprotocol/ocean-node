@@ -5,6 +5,11 @@ export const ENV_TO_CONFIG_MAPPING = {
   DB_USERNAME: 'DB_USERNAME',
   DB_PASSWORD: 'DB_PASSWORD',
   DB_TYPE: 'DB_TYPE',
+  // NOTE: deliberately flat (not under dbConfig.*) — preprocessConfigData() rebuilds
+  // data.dbConfig from scratch when DB_URL is set, which would drop anything nested there.
+  DB_INIT_MAX_ATTEMPTS: 'dbInitMaxAttempts',
+  DB_INIT_RETRY_DELAY: 'dbInitRetryDelay',
+  DB_INIT_MAX_RETRY_DELAY: 'dbInitMaxRetryDelay',
   FEE_AMOUNT: 'FEE_AMOUNT',
   FEE_TOKENS: 'FEE_TOKENS',
   HTTP_API_PORT: 'httpPort',
@@ -30,6 +35,7 @@ export const ENV_TO_CONFIG_MAPPING = {
   ALLOWED_ADMINS: 'allowedAdmins',
   ALLOWED_ADMINS_LIST: 'allowedAdminsList',
   DOCKER_COMPUTE_ENVIRONMENTS: 'dockerComputeEnvironments',
+  SERVICE_TEMPLATES_PATH: 'serviceTemplatesPath',
   DOCKER_REGISTRY_AUTHS: 'dockerRegistrysAuth',
   P2P_BOOTSTRAP_NODES: 'p2pConfig.bootstrapNodes',
   P2P_BOOTSTRAP_TIMEOUT: 'p2pConfig.bootstrapTimeout',
@@ -75,6 +81,11 @@ export const ENV_TO_CONFIG_MAPPING = {
 
 // Configuration defaults
 export const DEFAULT_RATE_LIMIT_PER_MINUTE = 30
+// Database init retry at node startup. Worst case wait before giving up with these defaults is
+// 2 + 4 + 8 + 16 + 30 * 5 = 180 seconds, so a container health probe must tolerate that.
+export const DEFAULT_DB_INIT_MAX_ATTEMPTS = 10
+export const DEFAULT_DB_INIT_RETRY_DELAY = 2000
+export const DEFAULT_DB_INIT_MAX_RETRY_DELAY = 30000
 export const DEFAULT_MAX_CONNECTIONS_PER_MINUTE = 60 * 2 // 120 requests per minute
 export const SEPOLIA_CHAIN_ID = '11155111'
 export const BASE_CHAIN_ID = '8453'

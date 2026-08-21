@@ -475,7 +475,6 @@ export class ProviderFees {
    * @param chainId the chain id
    * @returns the token address
    */
-  // eslint-disable-next-line require-await
   getProviderFeeToken(chainId: number): string {
     const feeTokens = this.node.getConfig().feeStrategy?.feeTokens || []
     const result = feeTokens.filter((token: FeeTokens) => Number(token.chain) === chainId)

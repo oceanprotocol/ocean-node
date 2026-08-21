@@ -41,7 +41,6 @@ import {
   dhtFilterMethod
 } from '../../@types/OceanNode.js'
 import { KeyManager } from '../KeyManager/index.js'
-// eslint-disable-next-line camelcase
 import ipaddr from 'ipaddr.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
@@ -72,6 +71,16 @@ let index = 0
 
 /** Optional request payload sent as LP frames after the command JSON; ends with an empty LP frame. */
 export type P2PRequestBodyStream = AsyncIterable<Uint8Array | Buffer | string> | Readable
+
+/**
+ * Reply to a P2P command: the parsed status frame plus the raw body frames.
+ * Stated explicitly because inferring it would leak a nested `uint8arraylist`
+ * path that TypeScript cannot name (TS2742).
+ */
+export type P2PSendResponse = {
+  status: any
+  stream: AsyncIterable<Uint8Array>
+}
 
 function toUint8ArrayChunk(chunk: unknown): Uint8Array {
   if (chunk instanceof Uint8Array) return chunk
@@ -278,7 +287,23 @@ export class OceanP2P extends EventEmitter {
       const maddr = multiaddr(addr)
 
       const protos = maddr.getComponents()
-      const addressString = maddr.nodeAddress().address
+      // multiaddr v13 dropped nodeAddress() - the host is the value of the
+      // leading ip*/dns* component
+      const hostComponent = protos.find(
+        (entry) =>
+          entry.name === 'ip4' ||
+          entry.name === 'ip6' ||
+          entry.name === 'dns' ||
+          entry.name === 'dns4' ||
+          entry.name === 'dns6' ||
+          entry.name === 'dnsaddr'
+      )
+      if (hostComponent?.value === undefined) {
+        // no host to inspect, e.g. a circuit relay address - same outcome as
+        // before, when nodeAddress() threw and we fell through to the catch
+        return true
+      }
+      const addressString = hostComponent.value
       if (
         protos.some(
           (entry) =>
@@ -322,7 +347,7 @@ export class OceanP2P extends EventEmitter {
       ) {
         // disabled logs because of flooding
         // P2P_LOGGER.debug(
-        //  'Deny announcement of private address ' + maddr.nodeAddress().address
+        //  'Deny announcement of private address ' + addressString
         // )
         return false
       }
@@ -428,7 +453,6 @@ export class OceanP2P extends EventEmitter {
         })
       }
 
-      // eslint-disable-next-line no-constant-condition, no-self-compare
       if (config.p2pConfig.enableCircuitRelayServer) {
         P2P_LOGGER.info('Enabling Circuit Relay Server')
         servicesConfig = {
@@ -438,7 +462,6 @@ export class OceanP2P extends EventEmitter {
           }
         }
       }
-      // eslint-disable-next-line no-constant-condition, no-self-compare
       if (config.p2pConfig.upnp) {
         P2P_LOGGER.info('Enabling UPnp discovery')
         servicesConfig = {
@@ -446,7 +469,6 @@ export class OceanP2P extends EventEmitter {
           ...{ upnpNAT: uPnPNAT() }
         }
       }
-      // eslint-disable-next-line no-constant-condition, no-self-compare
       if (config.p2pConfig.autoNat) {
         P2P_LOGGER.info('Enabling AutoNat service')
         servicesConfig = {
@@ -768,7 +790,7 @@ export class OceanP2P extends EventEmitter {
     message: string,
     options: { signal: AbortSignal },
     requestBody?: P2PRequestBodyStream
-  ) {
+  ): Promise<P2PSendResponse> {
     let outbound = message
     if (requestBody) {
       const cmd = JSON.parse(message) as Record<string, unknown>
@@ -787,7 +809,7 @@ export class OceanP2P extends EventEmitter {
           try {
             while (true) {
               const chunk = await lp.read()
-              yield chunk.subarray ? chunk.subarray() : chunk
+              yield chunk.subarray()
             }
           } catch {}
         }
@@ -1014,7 +1036,6 @@ export class OceanP2P extends EventEmitter {
       const f = this._libp2p.contentRouting.findProviders(cid, {
         queryFuncTimeout: timeout || 20000 // 20 seconds
         // on timeout the query ends with an abort signal => CodeError: Query aborted
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
 
       for await (const value of f) {

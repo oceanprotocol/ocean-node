@@ -1,6 +1,14 @@
 import { MetadataAlgorithm, ConsumerParameter } from '@oceanprotocol/ddo-js'
 import type { BaseFileObject, StorageObject, EncryptMethod } from '../fileObject.js'
 import type { AccessList } from '../AccessList.js'
+import type { ServiceOnDemandConfig } from './ServiceOnDemand.js'
+
+// Per-environment capability flags. Both default to true at config-parse and
+// at runtime construction; only an explicit false disables a capability.
+export interface ComputeEnvFeatures {
+  computeJobs: boolean // false → COMPUTE_START + FREE_COMPUTE_START rejected
+  services: boolean // false → SERVICE_START rejected; env hidden from service matching
+}
 export enum C2DClusterType {
   // eslint-disable-next-line no-unused-vars
   OPF_K8 = 0,
@@ -22,11 +30,18 @@ export interface C2DClusterInfo {
 }
 
 export type ComputeResourceType = 'cpu' | 'ram' | 'disk' | any
+export type ComputeResourceKind = 'discrete' | 'fungible'
 
 export interface ResourceConstraint {
-  id: ComputeResourceType // the resource being constrained
-  min?: number // min units of this resource per unit of parent resource
-  max?: number // max units of this resource per unit of parent resource
+  // Exactly one of `id` | `type` must be set.
+  id?: ComputeResourceType // exact single-resource target (e.g. 'ram', 'gpu0')
+  type?: string // group target: aggregate across ALL env resources whose `type` matches (e.g. 'gpu')
+  min?: number // min units of the constrained resource; per unit of parent when `perUnit` (default), absolute aggregate when `perUnit:false`
+  max?: number // max units of the constrained resource; per unit of parent when `perUnit` (default), absolute aggregate when `perUnit:false`
+  perUnit?: boolean // undefined/true = RATIO (parentAmount * min); false = FLOOR (absolute min/max, only enforced when parent > 0)
+  aggregate?: boolean // when true, this constraint's contribution SUMS with matching aggregate
+  // constraints on other requested parents into one shared target (single `id` only). e.g. two
+  // per-device GPUs each with {id:'cpu',min:1,max:4,aggregate:true} → cpu in [2,8] when both rented.
 }
 
 export interface ComputeResourcesPricingInfo {
@@ -58,8 +73,15 @@ export interface ComputeResource {
   id: ComputeResourceType
   description?: string
   type?: string
-  kind?: string // discreet, named, etc
+  kind?: ComputeResourceKind // 'discrete' | 'fungible'. Auto-inferred if omitted.
+  shareable?: boolean // Only meaningful for kind:'discrete'. Default false.
+  // true  → multiple jobs may share the device simultaneously (NIC, TPM, HSM)
+  // false → exclusive: only one job at a time (GPU, FPGA)
   total: number // total number of specific resource
+  cpuList?: string // connection-level cpu resource only: host core IDs jobs may be pinned to,
+  // as comma-separated core IDs and/or ranges, ascending and non-overlapping
+  // ("3", "0-1,3", "0-15,32-47"). Mutually exclusive with total; the effective
+  // total is the expanded list length.
   min: number // min number of resource needed for a job
   max: number // max number of resource for a job
   inUse?: number // for display purposes
@@ -72,6 +94,15 @@ export interface ComputeResource {
   init?: dockerHwInit
   constraints?: ResourceConstraint[] // optional cross-resource constraints
 }
+export interface EnvironmentResourceRef {
+  id: ComputeResourceType // must match a resource id in C2DDockerConfig.resources or auto-detected (cpu/ram/disk)
+  total?: number // env aggregate ceiling; if omitted → defaults to pool total (no per-env restriction)
+  min?: number // per-job minimum
+  max?: number // per-job maximum (capped to total if both present)
+  constraints?: ResourceConstraint[] // per-env override: replaces pool constraints entirely
+  // Omit to inherit pool constraints. Set [] to remove all constraints for this env.
+}
+
 export interface ComputeResourceRequest {
   id: string
   amount: number
@@ -109,6 +140,19 @@ export interface ComputeEnvironmentFreeOptions {
   access: ComputeAccessList
   allowImageBuild?: boolean
 }
+
+// Config-time only — used in C2DEnvironmentConfig.free.
+// resources are EnvironmentResourceRef[] (refs to pool) and resolved to ComputeResource[] at startup.
+// Runtime free options live in ComputeEnvironmentFreeOptions (unchanged).
+export interface C2DEnvironmentFreeConfig {
+  storageExpiry?: number
+  maxJobDuration?: number
+  minJobDuration?: number
+  maxJobs?: number
+  resources?: EnvironmentResourceRef[]
+  access?: ComputeAccessList
+  allowImageBuild?: boolean
+}
 export interface ComputeEnvironmentBaseConfig {
   description?: string // v1
   storageExpiry?: number // amount of seconds for storage
@@ -121,6 +165,7 @@ export interface ComputeEnvironmentBaseConfig {
   free?: ComputeEnvironmentFreeOptions
   platform: RunningPlatform
   enableNetwork?: boolean // whether network is enabled for algorithm containers
+  features?: ComputeEnvFeatures // always populated at runtime construction; gates compute/service starts
 }
 
 export interface ComputeRuntimes {
@@ -136,9 +181,25 @@ export interface ComputeEnvironment extends ComputeEnvironmentBaseConfig {
   consumerAddress: string // v1
   queuedJobs: number
   queuedFreeJobs: number
+  /**
+   * Seconds of remaining queue wait, **summed across every queued job** in this environment
+   * (not a per-job maximum, despite the name). Each job contributes
+   * `max(0, queueMaxWaitTime - elapsed since it was created)`.
+   */
   queMaxWaitTime: number
+  /** As `queMaxWaitTime`, summed over queued *free* jobs only. */
   queMaxWaitTimeFree: number
+  /**
+   * Seconds of remaining runtime, **summed across every running job** in this environment
+   * (not a per-job maximum, despite the name). Each job contributes
+   * `max(0, maxJobDuration - elapsed since it started)`; a job that has been allocated but
+   * has not started executing yet contributes its full `maxJobDuration`.
+   *
+   * Because it is a sum, a client cannot derive "when does capacity free up" from this field:
+   * 15 jobs with 1 second left each report 15, the same as one job with 15 seconds left.
+   */
   runMaxWaitTime: number
+  /** As `runMaxWaitTime`, summed over running *free* jobs only. */
   runMaxWaitTimeFree: number
 }
 
@@ -151,9 +212,10 @@ export interface C2DEnvironmentConfig {
   maxJobs?: number
   fees?: ComputeEnvFeesStructure
   access?: ComputeAccessList
-  free?: ComputeEnvironmentFreeOptions
-  resources?: ComputeResource[]
+  free?: C2DEnvironmentFreeConfig // config-time only; resolved to ComputeEnvironmentFreeOptions at startup
+  resources?: EnvironmentResourceRef[] // lightweight refs to connection pool
   enableNetwork?: boolean // whether network is enabled for algorithm containers
+  features?: ComputeEnvFeatures // config-time, optional
 }
 
 export interface C2DDockerConfig {
@@ -169,15 +231,13 @@ export interface C2DDockerConfig {
   paymentClaimInterval?: number // Default: 3600 seconds (1 hours)
   scanImages?: boolean
   scanImageDBUpdateInterval?: number // Default: 12 hours
+  resources?: ComputeResource[] // optional: cpu/ram/disk auto-detected; include for GPUs/NICs or to cap auto-detected totals
   environments: C2DEnvironmentConfig[]
+  serviceOnDemand?: ServiceOnDemandConfig // per-daemon Service-on-Demand operational config
 }
 
 export type ComputeResultType =
-  | 'imageLog'
-  | 'algorithmLog'
-  | 'output'
-  | 'configurationLog'
-  | 'publishLog'
+  'imageLog' | 'algorithmLog' | 'output' | 'configurationLog' | 'publishLog'
 
 export interface ComputeResult {
   filename: string
@@ -188,6 +248,73 @@ export interface ComputeResult {
 
 export type DBComputeJobMetadata = {
   [key: string]: string | number | boolean
+}
+
+// Per-GPU runtime metrics captured alongside the container snapshot. ONE entry per GPU
+// resource the job/service holds — a single job may hold several GPUs simultaneously, and
+// each is sampled independently. Only NVIDIA is emitted today (NVML backend); AMD/Intel
+// land once their backends exist. `resourceId` maps the entry back to the requested
+// resource id ('gpu0' / 'gpu1' …) so consumers can attribute each device.
+export interface GpuMetricsSnapshot {
+  resourceId: string
+  vendor: 'nvidia' | 'amd' | 'intel'
+  utilizationPercent: number | null
+  memoryUsedBytes: number | null
+  memoryTotalBytes: number | null
+  temperatureC?: number
+  powerWatts?: number
+  shared?: boolean // true → device-level number, may include other jobs' load (shareable GPUs)
+}
+
+// A best-effort, node-internal snapshot of everything the Docker engine (and, for NVIDIA,
+// NVML) can cheaply tell us about a running container. Persisted onto the C2D job record
+// (JSON body blob) and STRIPPED from every public response + the escrow claim proof — see
+// omitDBComputeFieldsFromComputeJob / toPublicServiceJob. Covers the full `docker stats`
+// column set plus what the CLI does not show (throttling, peaks, disk-vs-quota, exit info,
+// GPU). Every field defaults defensively (cgroup v1/v2 drift, missing network, daemon
+// hiccups) rather than throwing into the state-machine loop.
+export interface ContainerMetricsSnapshot {
+  collectedAt: string // ISO timestamp of the sample
+  containerState: {
+    status: string // 'running' | 'exited' | ...
+    startedAt?: string
+    finishedAt?: string
+    exitCode?: number
+    oomKilled: boolean
+    error?: string
+    restartCount: number
+    health?: string // Docker HEALTHCHECK status, when the image defines one (services)
+  }
+  cpu: {
+    usagePercent: number // % of host CPU (docker CLI formula)
+    allocated: number // cores requested (job.resources 'cpu'); 0 when unconstrained
+    usagePercentOfAllocated: number // usagePercent / allocated (0 when allocated is 0)
+    cumulativeSeconds: number // total_usage ns → s (monotonic; billing-grade)
+    throttledPeriods: number // quota throttling — signals an undersized cpu request
+    throttledSeconds: number
+  }
+  memory: {
+    usageBytes: number // usage − inactive_file (cgroup v2 convention)
+    limitBytes: number // container limit (= allocated RAM)
+    usagePercent: number
+    peakUsageBytes: number // max across samples (we track it; cgroup v2 has no max_usage)
+  }
+  disk: {
+    usedBytes: number // jobs: du(/) − base image; services: SizeRw
+    quotaBytes?: number // jobs with a 'disk' resource
+    usagePercent?: number
+  }
+  network?: { rxBytes: number; txBytes: number } // absent when NetworkMode 'none'
+  blockIO: { readBytes: number; writeBytes: number }
+  pids: { current: number; limit: number } // vs PidsLimit 512 — fork-bomb signal
+  gpu?: GpuMetricsSnapshot[]
+  // Internal accumulator used to compute one-shot CPU deltas across samples. DB-only —
+  // stripped from every public response together with the snapshot itself.
+  prev?: {
+    cpuTotal: number // cpu_stats.cpu_usage.total_usage (ns) at the previous sample
+    systemCpu: number // cpu_stats.system_cpu_usage (ns) at the previous sample
+    sampledAt: string
+  }
 }
 
 export interface ComputeJobTerminationDetails {
@@ -211,6 +338,14 @@ export interface ComputeJob {
   metadata?: DBComputeJobMetadata
   terminationDetails?: ComputeJobTerminationDetails
   queueMaxWaitTime: number // max time in seconds a job can wait in the queue before being started
+}
+
+// Public compute-job response shape: the base ComputeJob plus the OPTIONAL, sanitized runtime
+// metrics that the owner status path may attach (never present by default, and never in the
+// escrow proof). Keeps ComputeJob itself free of the field while giving the status path a typed
+// return instead of an `any` cast.
+export interface PublicComputeJob extends ComputeJob {
+  runtimeMetrics?: ContainerMetricsSnapshot
 }
 
 export interface ComputeOutputEncryption {
@@ -295,6 +430,11 @@ export interface DBComputeJob extends ComputeJob {
   jobIdHash: string
   buildStartTimestamp?: string
   buildStopTimestamp?: string
+  // Best-effort Docker/NVML runtime metrics sampled while the container runs. DB-only:
+  // it lives on DBComputeJob (never on the public ComputeJob) and is additionally stripped
+  // at runtime by omitDBComputeFieldsFromComputeJob so it can never leak into a status
+  // response or the escrow claim proof.
+  runtimeMetrics?: ContainerMetricsSnapshot
 }
 
 // make sure we keep them both in sync

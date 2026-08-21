@@ -1,4 +1,4 @@
-FROM node:22.22.2-trixie@sha256:17ccc50fade521c62e2acefd0c975bf5eb2a09632b8717fa7f8b1c2b4e967a07 AS builder
+FROM node:22.23.1-trixie@sha256:3145536027ca5268e24654f7efebf1dbdd684cda3708324e6c53f4ad61af8710 AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     build-essential \
@@ -14,7 +14,7 @@ COPY . .
 RUN npm run build && npm prune --omit=dev
 
 
-FROM node:22.22.2-trixie-slim@sha256:76043ed3132293c26b960ede4358d3c8ba424ee64662cd2d56318b76fcc51c4c AS runner
+FROM node:22.23.1-trixie-slim@sha256:e6d9a389d34ff9678438af985c9913fbd1eb6ed36e80fea56644f4b4f6dd70ba AS runner
 RUN apt-get update && apt-get install -y --no-install-recommends \
     dumb-init \
     gosu \
@@ -43,6 +43,9 @@ COPY --chown=node:node --from=builder /usr/src/app/node_modules ./node_modules
 COPY --chown=node:node --from=builder /usr/src/app/schemas ./schemas
 COPY --chown=node:node --from=builder /usr/src/app/package.json ./
 COPY --chown=node:node --from=builder /usr/src/app/config.json ./
+# Ship the operator service-on-demand templates so SERVICE_TEMPLATES_PATH=docs/serviceTemplates/
+# resolves inside the image (the rest of docs/ stays excluded via .dockerignore).
+COPY --chown=node:node --from=builder /usr/src/app/docs/serviceTemplates ./docs/serviceTemplates
 
 RUN mkdir -p databases c2d_storage logs
 

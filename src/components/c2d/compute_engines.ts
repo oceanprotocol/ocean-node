@@ -10,15 +10,22 @@ import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
 import { KeyManager } from '../KeyManager/index.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
+import type {
+  ServiceTemplate,
+  ServiceTemplatePublic
+} from '../../@types/C2D/ServiceOnDemand.js'
+import { loadServiceTemplates } from '../core/service/templateLoader.js'
 
 export class C2DEngines {
   public engines: C2DEngine[]
+  private config: OceanNodeConfig
   public constructor(
     config: OceanNodeConfig,
     db: C2DDatabase,
     escrow: Escrow,
     keyManager: KeyManager
   ) {
+    this.config = config
     const crons = {
       imageCleanup: false,
       scanDBUpdate: false
@@ -128,6 +135,23 @@ export class C2DEngines {
       }
     }
     throw new Error(`C2D Engine not found by id: ${envId}`)
+  }
+
+  // Called by SERVICE_GET_TEMPLATES handler. Loads + validates templates from the
+  // serviceTemplatesPath folder and returns them sanitized (envVars values stripped to keys).
+  // Choosing a compatible compute environment is the client's responsibility — the node
+  // exposes environments + their resources via GET_COMPUTE_ENVIRONMENTS.
+  async fetchServiceTemplates(): Promise<ServiceTemplatePublic[]> {
+    const templates: ServiceTemplate[] = await loadServiceTemplates(
+      this.config?.serviceTemplatesPath
+    )
+    return templates.map((tmpl) => {
+      const { envVars, ...rest } = tmpl
+      return {
+        ...rest,
+        ...(envVars ? { envVarKeys: Object.keys(envVars) } : {})
+      }
+    })
   }
 
   async fetchEnvironments(

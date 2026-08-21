@@ -1,8 +1,6 @@
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { AbstractDatabase } from './BaseDatabase.js'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
-import path from 'path'
-import * as fs from 'fs'
 import { SQLiteAuthToken } from './sqliteAuthToken.js'
 
 export interface AuthToken {
@@ -24,10 +22,7 @@ export class AuthTokenDatabase extends AbstractDatabase {
 
   static async create(config: OceanNodeDBConfig): Promise<AuthTokenDatabase> {
     DATABASE_LOGGER.info('Creating AuthTokenDatabase with SQLite')
-    const dbDir = path.dirname('databases/authTokenDatabase.sqlite')
-    if (!fs.existsSync(dbDir)) {
-      fs.mkdirSync(dbDir, { recursive: true })
-    }
+    // SqliteClient creates the parent directory on construction.
     const provider = new SQLiteAuthToken('databases/authTokenDatabase.sqlite')
     await provider.createTable()
     return new AuthTokenDatabase(config, provider)

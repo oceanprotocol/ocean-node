@@ -15,7 +15,7 @@ export const aquariusRoutes = express.Router()
 export const AQUARIUS_API_BASE_PATH = '/api/aquarius'
 
 aquariusRoutes.get(
-  `${AQUARIUS_API_BASE_PATH}/assets/ddo/:did/:force?`,
+  `${AQUARIUS_API_BASE_PATH}/assets/ddo/:did{/:force}`,
   async (req, res) => {
     try {
       const { did, force } = req.params
@@ -38,7 +38,7 @@ aquariusRoutes.get(
 )
 
 aquariusRoutes.get(
-  `${AQUARIUS_API_BASE_PATH}/assets/metadata/:did/:force?`,
+  `${AQUARIUS_API_BASE_PATH}/assets/metadata/:did{/:force}`,
   async (req, res) => {
     try {
       const { did, force } = req.params

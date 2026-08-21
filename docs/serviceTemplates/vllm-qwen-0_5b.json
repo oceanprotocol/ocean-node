@@ -1,0 +1,40 @@
+{
+  "id": "vllm-qwen-0-5b",
+  "name": "vLLM — Qwen2.5 0.5B Instruct (local)",
+  "description": "Local OpenAI-compatible LLM inference server (vLLM) serving the small Qwen/Qwen2.5-0.5B-Instruct model. On startup vLLM downloads the model from the Hugging Face Hub, then serves it locally on port 8000 (e.g. POST /v1/chat/completions). The model is fixed by the operator; the consumer only needs a GPU-enabled environment. Set HF_TOKEN only if you later switch to a gated model.",
+  "image": "vllm/vllm-openai",
+  "tag": "latest",
+  "exposedPorts": [8000],
+  "command": [
+    "--model",
+    "Qwen/Qwen2.5-0.5B-Instruct",
+    "--host",
+    "0.0.0.0",
+    "--port",
+    "8000",
+    "--max-model-len",
+    "8192",
+    "--gpu-memory-utilization",
+    "0.9"
+  ],
+  "userConfigurableEnvVars": [
+    {
+      "key": "HF_TOKEN",
+      "validation": "^hf_[A-Za-z0-9]{20,}$",
+      "sensitive": true
+    }
+  ],
+  "requiredResources": [
+    { "id": "cpu", "min": 2, "recommended": 4, "unit": "cores" },
+    { "id": "ram", "min": 8, "recommended": 16, "unit": "GB" },
+    { "id": "disk", "min": 10, "recommended": 20, "unit": "GB" },
+    {
+      "kind": "discrete",
+      "type": "gpu",
+      "min": 1,
+      "recommended": 1,
+      "unit": "count",
+      "description": "CUDA-capable GPU (>= 6 GB VRAM is plenty for this 0.5B model)"
+    }
+  ]
+}

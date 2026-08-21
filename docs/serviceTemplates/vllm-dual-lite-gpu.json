@@ -1,0 +1,32 @@
+{
+  "id": "vllm-dual-lite-gpu",
+  "name": "vLLM — two lite models on one small GPU (Qwen2.5 0.5B + SmolLM2 360M)",
+  "description": "Two local OpenAI-compatible LLM inference servers (vLLM) in a single container, sized to fit together on a 3 GB VRAM GPU. On startup each vLLM process downloads its model from the Hugging Face Hub: Qwen/Qwen2.5-0.5B-Instruct is served on port 8000 and HuggingFaceTB/SmolLM2-360M-Instruct on port 8001 (e.g. POST /v1/chat/completions on either port). The second model starts only after the first is reachable, so GPU memory profiling never overlaps; the GPU budget is split via --gpu-memory-utilization (0.42 + 0.30), and --enforce-eager, --max-model-len 2048, --max-num-seqs 4, fp16 keep both inside 3 GB. If either server exits the container stops. Both models are ungated; set HF_TOKEN only if you later switch to a gated model.",
+  "image": "vllm/vllm-openai",
+  "tag": "latest",
+  "exposedPorts": [8000, 8001],
+  "entrypoint": ["/bin/bash", "-c"],
+  "command": [
+    "vllm serve Qwen/Qwen2.5-0.5B-Instruct --host 0.0.0.0 --port 8000 --dtype half --max-model-len 2048 --max-num-seqs 4 --gpu-memory-utilization 0.42 --swap-space 1 --enforce-eager & P1=$!\nuntil (exec 3<>/dev/tcp/127.0.0.1/8000) 2>/dev/null; do kill -0 $P1 2>/dev/null || exit 1; sleep 5; done\nvllm serve HuggingFaceTB/SmolLM2-360M-Instruct --host 0.0.0.0 --port 8001 --dtype half --max-model-len 2048 --max-num-seqs 4 --gpu-memory-utilization 0.30 --swap-space 1 --enforce-eager & P2=$!\nwait -n $P1 $P2"
+  ],
+  "userConfigurableEnvVars": [
+    {
+      "key": "HF_TOKEN",
+      "validation": "^hf_[A-Za-z0-9]{20,}$",
+      "sensitive": true
+    }
+  ],
+  "requiredResources": [
+    { "id": "cpu", "min": 2, "recommended": 4, "unit": "cores" },
+    { "id": "ram", "min": 8, "recommended": 16, "unit": "GB" },
+    { "id": "disk", "min": 10, "recommended": 20, "unit": "GB" },
+    {
+      "kind": "discrete",
+      "type": "gpu",
+      "min": 1,
+      "recommended": 1,
+      "unit": "count",
+      "description": "CUDA-capable GPU with >= 3 GB VRAM (compute capability >= 7.0); both models share the one GPU"
+    }
+  ]
+}

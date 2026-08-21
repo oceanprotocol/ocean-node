@@ -1,0 +1,32 @@
+{
+  "id": "vllm-nomic-embed",
+  "name": "vLLM — Nomic Embed (embeddings API)",
+  "description": "Local embedding server (vLLM) serving nomic-ai/nomic-embed-text-v1.5. On startup vLLM downloads the model from the Hugging Face Hub, then exposes the OpenAI-compatible embeddings API on port 8000 (POST /v1/embeddings) — handy for testing the embeddings endpoint. Runs vLLM in embedding/pooling mode (--task embed) and requires --trust-remote-code because the model ships custom modeling code that is executed in the container. The model is small, so a few GB of VRAM is enough.",
+  "image": "vllm/vllm-openai",
+  "tag": "latest",
+  "exposedPorts": [8000],
+  "command": [
+    "--model",
+    "nomic-ai/nomic-embed-text-v1.5",
+    "--task",
+    "embed",
+    "--trust-remote-code",
+    "--host",
+    "0.0.0.0",
+    "--port",
+    "8000"
+  ],
+  "requiredResources": [
+    { "id": "cpu", "min": 2, "recommended": 4, "unit": "cores" },
+    { "id": "ram", "min": 4, "recommended": 8, "unit": "GB" },
+    { "id": "disk", "min": 5, "recommended": 10, "unit": "GB" },
+    {
+      "kind": "discrete",
+      "type": "gpu",
+      "min": 1,
+      "recommended": 1,
+      "unit": "count",
+      "description": "CUDA-capable GPU; a few GB VRAM is enough for this 137M embedding model"
+    }
+  ]
+}

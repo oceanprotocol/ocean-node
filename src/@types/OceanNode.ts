@@ -106,6 +106,7 @@ export interface dockerRegistrysAuth {
 
 export interface OceanNodeConfig {
   dockerComputeEnvironments: C2DDockerConfig[]
+  serviceTemplatesPath?: string // folder of *.json service templates; defaults to 'databases/serviceTemplates/'
   dockerRegistrysAuth: dockerRegistrysAuth
   authorizedDecrypters: string[]
   authorizedDecryptersList: AccessListContract | null
@@ -119,6 +120,10 @@ export interface OceanNodeConfig {
   hasIndexer: boolean
   hasHttp: boolean
   dbConfig?: OceanNodeDBConfig
+  // startup database-init retry: attempts, initial backoff (ms) and backoff ceiling (ms)
+  dbInitMaxAttempts: number
+  dbInitRetryDelay: number
+  dbInitMaxRetryDelay: number
   httpPort: number
   feeStrategy: FeeStrategy
   ipfsGateway?: string | null

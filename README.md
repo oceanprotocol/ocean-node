@@ -34,6 +34,7 @@ This command will run you through the process of setting up the environmental va
 
 > [!NOTE]
 > The quickstart script attempts to automatically detect GPUs (NVIDIA via `nvidia-smi`, others via `lspci`) and appends them to your `DOCKER_COMPUTE_ENVIRONMENTS`.
+> Detected GPUs are added to `DOCKER_COMPUTE_ENVIRONMENTS[0].resources` (the connection-level resource pool), and a lightweight ref is added to `DOCKER_COMPUTE_ENVIRONMENTS[0].environments[0].resources`.
 > If you choose to manually configure `DOCKER_COMPUTE_ENVIRONMENTS` before running the script (e.g. via environment variable), be aware that auto-detected GPUs will be **merged** into your configuration, which could lead to duplication if you already manually defined them.
 > For most users, it is recommended to let the script handle GPU detection automatically.
 
@@ -153,5 +154,5 @@ Your node is now running. To start additional nodes, repeat these steps in a new
 - [Network Configuration](docs/networking.md)
 - [Logging & accessing logs](docs/networking.md)
 - [Docker Deployment Guide](docs/dockerDeployment.md)
-- [C2D GPU Guide](docs/GPU.md)
-- [Compute pricing](docs/compute-pricing.md)
+- [Compute (C2D) Configuration — resources, GPUs, constraints, pricing](docs/compute.md)
+- [Services (Service-on-Demand)](docs/services.md)

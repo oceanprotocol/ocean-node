@@ -48,7 +48,12 @@ accessListRoutes.get(
 
 accessListRoutes.get(
   '/api/services/accesslists/:chainId/:contractAddress',
-  async (req: Request, res: Response): Promise<void> => {
+  // params are named explicitly: in @types/express 5 a bare `Request` types
+  // req.params values as `string | string[]`, since path-to-regexp 8 allows repeats
+  async (
+    req: Request<{ chainId: string; contractAddress: string }>,
+    res: Response
+  ): Promise<void> => {
     const result = await new GetAccessListHandler(req.oceanNode).handle({
       command: PROTOCOL_COMMANDS.GET_ACCESS_LIST,
       chainId: Number(req.params.chainId),

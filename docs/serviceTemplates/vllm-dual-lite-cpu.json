@@ -1,0 +1,24 @@
+{
+  "id": "vllm-dual-lite-cpu",
+  "name": "vLLM — two lite models on CPU only (Qwen2.5 0.5B + Phi-4-mini)",
+  "description": "Two local OpenAI-compatible LLM inference servers (vLLM, CPU backend — no GPU required) in a single container, using the official vLLM CPU image (public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo, x86-64 with AVX-512 recommended). On startup each vLLM process downloads its model from the Hugging Face Hub: Qwen/Qwen2.5-0.5B-Instruct is served on port 8000 and microsoft/Phi-4-mini-instruct (3.8B — the lite Phi-4 variant; full 14B Phi-4 is impractical on CPU) on port 8001 (e.g. POST /v1/chat/completions on either port). The second model starts only after the first is reachable; each process gets a 2 GiB CPU KV cache (VLLM_CPU_KVCACHE_SPACE) and both share the CPU cores, so expect modest throughput. If either server exits the container stops. Both models are ungated; set HF_TOKEN only if you later switch to a gated model.",
+  "image": "public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo",
+  "tag": "latest",
+  "exposedPorts": [8000, 8001],
+  "entrypoint": ["/bin/bash", "-c"],
+  "command": [
+    "export VLLM_CPU_KVCACHE_SPACE=2\nvllm serve Qwen/Qwen2.5-0.5B-Instruct --host 0.0.0.0 --port 8000 --max-model-len 4096 --max-num-seqs 4 & P1=$!\nuntil (exec 3<>/dev/tcp/127.0.0.1/8000) 2>/dev/null; do kill -0 $P1 2>/dev/null || exit 1; sleep 5; done\nvllm serve microsoft/Phi-4-mini-instruct --host 0.0.0.0 --port 8001 --max-model-len 4096 --max-num-seqs 4 & P2=$!\nwait -n $P1 $P2"
+  ],
+  "userConfigurableEnvVars": [
+    {
+      "key": "HF_TOKEN",
+      "validation": "^hf_[A-Za-z0-9]{20,}$",
+      "sensitive": true
+    }
+  ],
+  "requiredResources": [
+    { "id": "cpu", "min": 4, "recommended": 8, "unit": "cores" },
+    { "id": "ram", "min": 16, "recommended": 32, "unit": "GB" },
+    { "id": "disk", "min": 20, "recommended": 40, "unit": "GB" }
+  ]
+}

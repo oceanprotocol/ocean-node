@@ -1,0 +1,23 @@
+{
+  "id": "llamacpp-phi4-cpu",
+  "name": "llama.cpp — Phi-4 (CPU)",
+  "description": "CPU-only OpenAI-compatible chat server (llama.cpp) running Microsoft Phi-4 as a Q4_K_M GGUF quantization. On startup llama.cpp downloads the GGUF from the Hugging Face Hub (-hf), then serves /v1/chat/completions on port 8080. No GPU required. Note: vLLM's published image is CUDA-only, so this CPU template uses llama.cpp instead; the model is downloaded then run locally just like the vLLM templates.",
+  "image": "ghcr.io/ggml-org/llama.cpp",
+  "tag": "server",
+  "exposedPorts": [8080],
+  "command": [
+    "-hf",
+    "bartowski/phi-4-GGUF:Q4_K_M",
+    "--host",
+    "0.0.0.0",
+    "--port",
+    "8080",
+    "-c",
+    "8192"
+  ],
+  "requiredResources": [
+    { "id": "cpu", "min": 4, "recommended": 8, "unit": "cores" },
+    { "id": "ram", "min": 12, "recommended": 16, "unit": "GB" },
+    { "id": "disk", "min": 15, "recommended": 20, "unit": "GB" }
+  ]
+}

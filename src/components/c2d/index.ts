@@ -2,7 +2,8 @@ import { deleteKeysFromObject, sanitizeServiceFiles } from '../../utils/util.js'
 
 import { BaseFileObject, EncryptMethod } from '../../@types/fileObject.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
-import { ComputeJob, DBComputeJob } from '../../@types/index.js'
+import { DBComputeJob } from '../../@types/index.js'
+import type { ContainerMetricsSnapshot, PublicComputeJob } from '../../@types/C2D/C2D.js'
 import { OceanNode } from '../../OceanNode.js'
 export { C2DEngine } from './compute_engine_base.js'
 
@@ -31,8 +32,27 @@ export async function decryptFilesObject(
   }
 }
 
-export function omitDBComputeFieldsFromComputeJob(dbCompute: DBComputeJob): ComputeJob {
-  const job: ComputeJob = deleteKeysFromObject(dbCompute, [
+// Returns a runtime-metrics snapshot safe to expose in a response: drops the internal `prev`
+// accumulator (delta bookkeeping meaningless to callers). Returns undefined for a missing snapshot.
+export function sanitizePublicMetrics(
+  snapshot: ContainerMetricsSnapshot | undefined
+): ContainerMetricsSnapshot | undefined {
+  if (!snapshot) return undefined
+  const { prev, ...pub } = snapshot
+  return pub as ContainerMetricsSnapshot
+}
+
+// Maps a DBComputeJob to the public ComputeJob shape by stripping node-internal fields.
+//
+// By DEFAULT `runtimeMetrics` is stripped — this same default-shape is serialized into the
+// on-chain escrow claim proof (compute_engine_docker.ts), which MUST stay deterministic and
+// metrics-free. Pass { includeMetrics: true } ONLY on the authenticated owner status path to
+// keep a sanitized snapshot; never for the proof.
+export function omitDBComputeFieldsFromComputeJob(
+  dbCompute: DBComputeJob,
+  opts: { includeMetrics?: boolean } = {}
+): PublicComputeJob {
+  const keysToOmit = [
     'clusterHash',
     'configlogURL',
     'publishlogURL',
@@ -46,6 +66,11 @@ export function omitDBComputeFieldsFromComputeJob(dbCompute: DBComputeJob): Comp
     'encryptedDockerRegistryAuth',
     'output',
     'outputBucketId'
-  ]) as ComputeJob
+  ]
+  if (!opts.includeMetrics) keysToOmit.push('runtimeMetrics')
+  const job = deleteKeysFromObject(dbCompute, keysToOmit) as PublicComputeJob
+  if (opts.includeMetrics && dbCompute.runtimeMetrics) {
+    job.runtimeMetrics = sanitizePublicMetrics(dbCompute.runtimeMetrics)
+  }
   return job
 }

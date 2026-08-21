@@ -1,4 +1,3 @@
-/* eslint-disable no-unreachable */
 import express, { Request, Response } from 'express'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 

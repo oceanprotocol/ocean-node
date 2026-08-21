@@ -10,6 +10,7 @@ import { PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { NonceCommand } from '../../../@types/commands.js'
 import { streamToString } from '../../../utils/util.js'
 import { Readable } from 'node:stream'
+import { addressCasingVariants } from '../../../utils/evmAddress.js'
 
 export function getDefaultErrorResponse(errorMessage: string): P2PCommandResponse {
   return {
@@ -195,7 +196,72 @@ async function validateNonceAndSignature(
       error: 'nonce: ' + nonce + ' is not a valid nonce'
     }
   }
-  const message = String(String(consumer) + String(nonce) + String(command))
+  const issuerPeerId =
+    command === PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN
+      ? OceanNode.getInstance().getKeyManager().getPeerIdString()
+      : ''
+  if (
+    await verifyConsumerSignature(
+      consumer,
+      nonce,
+      signature,
+      issuerPeerId,
+      command,
+      config,
+      chainId
+    )
+  ) {
+    return { valid: true }
+  }
+  return {
+    valid: false,
+    error: 'consumer address and nonce signature mismatch'
+  }
+}
+
+export async function verifyConsumerSignature(
+  consumer: string,
+  nonce: string | number,
+  signature: string,
+  issuerPeerId: string,
+  command: string = null,
+  config?: OceanNodeConfig,
+  chainId?: string | null
+): Promise<boolean> {
+  // The signed message embeds the consumer address as a STRING, so its casing is part of what
+  // was signed. Addresses are checksum-normalized on ingress (utils/evmAddress.ts), which would
+  // otherwise reject clients that built and signed the message from the lowercase form — so
+  // try every plausible casing. Deduped, canonical form first: one attempt for most callers.
+  for (const candidate of addressCasingVariants(consumer)) {
+    if (
+      await verifySignatureForConsumer(
+        candidate,
+        nonce,
+        signature,
+        issuerPeerId,
+        command,
+        config,
+        chainId
+      )
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+async function verifySignatureForConsumer(
+  consumer: string,
+  nonce: string | number,
+  signature: string,
+  issuerPeerId: string,
+  command: string = null,
+  config?: OceanNodeConfig,
+  chainId?: string | null
+): Promise<boolean> {
+  const message = String(
+    String(consumer) + String(nonce) + String(command) + String(issuerPeerId)
+  )
   const consumerMessage = ethers.solidityPackedKeccak256(
     ['bytes'],
     [ethers.hexlify(ethers.toUtf8Bytes(message))]
@@ -212,7 +278,7 @@ async function validateNonceAndSignature(
       ethers.getAddress(addressFromBytesSignature)?.toLowerCase() ===
         ethers.getAddress(consumer)?.toLowerCase()
     ) {
-      return { valid: true }
+      return true
     }
   } catch (error) {
     // Continue to smart account check
@@ -228,23 +294,20 @@ async function validateNonceAndSignature(
 
       // Try custom hash format (for backward compatibility)
       if (await isERC1271Valid(consumer, consumerMessage, signature, provider)) {
-        return { valid: true }
+        return true
       }
 
       // Try EIP-191 prefixed hash (standard for smart wallets)
       const eip191Hash = ethers.hashMessage(message)
       if (await isERC1271Valid(consumer, eip191Hash, signature, provider)) {
-        return { valid: true }
+        return true
       }
     }
   } catch (error) {
-    // Smart account validation failed
+    CORE_LOGGER.error(`ERC-1271 signature validation error: ${error?.message}`)
   }
 
-  return {
-    valid: false,
-    error: 'consumer address and nonce signature mismatch'
-  }
+  return false
 }
 
 // Smart account validation

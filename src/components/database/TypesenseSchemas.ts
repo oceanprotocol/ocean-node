@@ -166,7 +166,11 @@ export const typesenseSchemas: TypesenseSchemas = {
       { name: 'proof', type: 'string', optional: true, index: false },
       { name: 'maxLockedAmount', type: 'string', optional: true },
       { name: 'maxLockSeconds', type: 'string', optional: true },
-      { name: 'maxLockCounts', type: 'string', optional: true }
+      { name: 'maxLockCounts', type: 'string', optional: true },
+      // ReLock event fields (uint256 kept as raw strings)
+      { name: 'oldAmount', type: 'string', optional: true },
+      { name: 'newAmount', type: 'string', optional: true },
+      { name: 'newExpiry', type: 'string', optional: true }
     ]
   }
 }
