@@ -1,4 +1,4 @@
-FROM node:22.23.1-trixie@sha256:3145536027ca5268e24654f7efebf1dbdd684cda3708324e6c53f4ad61af8710 AS builder
+FROM node:24.19.0-trixie@sha256:66bb8d36ae1ddd72199ed235a089904874ca4079ee517936ca3adb80506a75c1 AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     build-essential \
@@ -14,7 +14,7 @@ COPY . .
 RUN npm run build && npm prune --omit=dev
 
 
-FROM node:22.23.1-trixie-slim@sha256:e6d9a389d34ff9678438af985c9913fbd1eb6ed36e80fea56644f4b4f6dd70ba AS runner
+FROM node:24.19.0-trixie-slim@sha256:0711b541c1c33a8a530ac4f0d391baa9a15b3d804695b1b24a47daa5fb60e74d AS runner
 RUN apt-get update && apt-get install -y --no-install-recommends \
     dumb-init \
     gosu \
