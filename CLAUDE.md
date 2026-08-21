@@ -12,8 +12,11 @@ of which dispatch to the same set of command handlers.
 
 ## 1. Environment & tooling prerequisites
 
-- **Node.js ≥ 22.13 is required** (`.nvmrc` pins `22.22.2`, matching the Dockerfile and CI;
-  `package.json` `engines` requires `>=22.13.0`). Always run `nvm use` (or `source ~/.nvm/nvm.sh && nvm use`) before
+- **Node.js ≥ 22.13 is required** (`.nvmrc` pins `22.23.1`, matching the Dockerfile and CI;
+  `package.json` `engines` requires `>=22.13.0`). The Dockerfile additionally pins each base
+  image by digest, so bumping the version means updating the `sha256:` alongside the tag —
+  resolve it with `docker buildx imagetools inspect node:<version>-trixie`, not from the tag
+  alone. Always run `nvm use` (or `source ~/.nvm/nvm.sh && nvm use`) before
   any `npm`, build, or test command. The wrong Node version fails with errors like
   `Unexpected token 'with'`, missing `GLIBC_2.38`, or — since the SQLite layer uses the
   built-in `node:sqlite` module — `ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite` on Node < 22.13.
