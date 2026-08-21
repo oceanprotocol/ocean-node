@@ -7,7 +7,7 @@
   "type": "module",
   "main": "index.js",
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=24"
   },
   "bugs": {
     "url": "https://github.com/oceanprotocol/ocean-node/issues"
