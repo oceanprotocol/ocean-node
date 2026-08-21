@@ -80,6 +80,12 @@ describe('humanizeHex', () => {
     expect(() => humanizeHex('ab', 4)).to.throw('Fewer input bytes than requested output')
   })
 
+  it('throws a TypeError on an empty digest, as the original did', () => {
+    // String.match returns null here, and humanhash mapped over it unguarded. Kept
+    // identical so the port has no behavioural difference at all from upstream.
+    expect(() => humanizeHex('')).to.throw(TypeError)
+  })
+
   it('rejects a wordlist that is not exactly 256 words', () => {
     expect(() => humanizeHex('deadbeef', 4, '-', ['a', 'b'])).to.throw(
       'Wordlist must have exactly 256 items'

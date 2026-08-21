@@ -312,7 +312,11 @@ export function humanizeHex(
   if (wordlist.length !== 256) {
     throw new Error('Wordlist must have exactly 256 items')
   }
-  const pairs = hexdigest.match(/(..?)/g) ?? []
+  // no `?? []` on purpose: String.match returns null for an empty digest, and mapping
+  // over null throws the same TypeError the original humanhash did. Substituting an
+  // empty array would turn that into 'Fewer input bytes than requested output', which
+  // is the one place this port would otherwise differ from upstream.
+  const pairs = hexdigest.match(/(..?)/g)
   const bytes = pairs.map((pair) => parseInt(pair, 16))
   return compress(bytes, words)
     .map((index) => wordlist[index])
