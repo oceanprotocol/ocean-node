@@ -1,0 +1,114 @@
+{
+  "id": "minimax-h3-video-ugc-multishot",
+  "name": "ComfyUI — UGC multishot reel (MiniMax H3)",
+  "description": "ComfyUI preloaded with MiniMax H3 (open-weights, int8) for a vertical UGC reel where every beat carries native stereo audio — voice, room tone and music generated in the same forward pass, so there is no TTS step and no voice-conversion node pack riding along the way the LTX UGC templates need. One Run renders about 30 seconds with six shots and one consistent character, because the graph chains H3's two modes end to end: beat 1 is FL2VA, whose first_frame literally becomes frame 0 so your uploaded photo opens the video, and beat 2 is Ref2VA, the only mode that accepts a reference video — and it is fed the last 3 seconds of beat 1 directly, as IMAGE and AUDIO tensors rather than a saved MP4, so face, wardrobe, room, camera style and voice all carry forward with no re-encode. 15 seconds is H3's ceiling per generation and no wiring changes that, so the join at 00:15 is a hard cut between two passes, not a continuous take; write beat 2 as a deliberate new angle and it reads as editing. A 'Second beat — 30 s total' boolean drives lazy switches: turn it off and beat 2's checkpoint is never loaded and its sampling pass never runs, giving a 15-second beat in about half the time for iteration. Four prompt boxes, because the two modes take different contracts and H3 mandates the section order subject_definitions → summary → retention_analysis → detailed_description → overall_soundscape → non_diegetic_music: box A (Cast & references) and box D (Audio & music) are set once, box B is beat 1's integrated_multimodal_description and box C is beat 2's summary, retention_analysis and detailed_description. Two StringFormat nodes join them per stage — beat 1 gets a fixed instruction line plus B and D, beat 2 gets A, C and D in the mandated order. retention_analysis is the section actually holding the character's face steady, and it names the chained beat-1 tail as <Video 1>. Only the subject photo is active; product and location stills, an external style/motion video and a voice-lock clip all ship bypassed and are safe to leave that way, since an unwired reference socket is natively valid — H3 accepts up to 9 images, 3 videos (2–15 s each, 15 s total), 3 audio, 12 files overall. No turbo LoRA ships: the 4-step turbo LoRA is about 2.5x faster but clips and noises the audio path, which is this template's headline feature, so full-step sampling with the beta scheduler is the only path installed. One control panel on the canvas drives both beats — a single Resolution, beat length, steps and seed — because two resolutions that drifted apart would make the joining ImageBatch silently rescale beat 2 to beat 1's dimensions, a quality loss with no error; `ref_image_size` is the only dial still promoted onto a stage. fps is a model constant, not a setting: H3 generates at exactly 24 and the frame-grid expression hard-codes `a * 24`, so the node is titled 'Join beats — 24 fps (H3 is fixed at 24, do not change)' and any other value only desyncs audio from picture. Beats render 15 s each (length 362, the top of H3's trained 124–362 range); the shipped Resolution default is 0.6 MP at 9:16 (608x1056) so the first Run finishes quickly; raise it to 0.97 MP for 768x1344, H3's native canvas and its documented cap. 1.0 MP is deliberately not the default: the node's formula turns it into 768x1376, overshooting the long-edge cap. Steps ship at 15, the practical floor, with 20 for a final render; drop to 0.8 MP (672x1216) or shorter beats when you want a Run to finish sooner, since cost is dominated by latent tokens and attention is quadratic in them. Weights total 76.6 GB and the chained design loads both checkpoints per Run, so holding everything resident and offloading nothing now takes a card north of about 115 GB (H200-class, not the 80 GB H100 this used to fit); the launch script adds --highvram automatically when the card's VRAM covers the downloaded weights with 3/2 headroom, which keeps models resident instead of unloading them to system RAM after every use — without it a 20 GB checkpoint is staged rather than resident and streams every step, and the VAEs re-stage on each decode. The script logs the decision so you can see which way it went. A second GPU does not make a single Run faster — H3 is CFG-distilled so the CFG-split node has one conditioning and nothing for the second card, core ComfyUI has no tensor parallelism, and the two beats are sequential by construction; only a second container running a separate job uses one. Each beat also carries three optional device-placement nodes (text encoder, video VAE, audio VAE), shipped bypassed on default because they are pointless on a big card and useful only on something like 2×24 GB, where moving the 14.6 GB encoder to gpu:1 stops it evicting the diffusion model. 24 GB still runs the template at 0.4 MP but offloads heavily and swaps checkpoints mid-Run. Select a persistent-storage bucket on launch: it holds ComfyUI's whole base directory, and without one the roughly 76.6 GB of weights (two 19.5 GB checkpoints, two text encoders at 14.6 and 17.5 GB, video and audio VAEs) re-downloads every launch and is discarded on stop; with a bucket selected, beat and reel clips land in the bucket root where the storage API's listFiles can see them. A third workflow, 'Write the prompt boxes', writes all four boxes for you: a full Qwen3-VL-8B (17.5 GB, downloaded alongside the H3 weights) looks at your subject and product photos in separate passes and writes subject_definitions from what is actually in them, then writes beat 1's body, beat 2's three sections and the shared audio sections in turn, each reading the ones before it; you copy the four results into boxes A-D. It is why the disk floor is 100 GB rather than 70: the weight set is now 76.6 GB. This template tops out at H3's native resolution: MiniMax's 2K mode (hosted `H3-Regenerate-2K`) is a hosted-only feature, absent from the open-weights release, so there is no 2K path here.",
+  "kind": "bundle",
+  "service": "comfyui",
+  "outcome": "Build a multi-shot 9:16 UGC reel with native synced audio, one character and one voice throughout.",
+  "category": "video",
+  "includes": [
+    {
+      "name": "MiniMax H3 Ref2VA (int8)",
+      "kind": "model",
+      "sizeGb": 19.5,
+      "repoId": "Comfy-Org/MiniMax-H3"
+    },
+    {
+      "name": "MiniMax H3 FL2VA (int8)",
+      "kind": "model",
+      "sizeGb": 19.5,
+      "repoId": "Comfy-Org/MiniMax-H3"
+    },
+    {
+      "name": "Qwen3-VL-32B text encoder (nvfp4 awq)",
+      "kind": "model",
+      "sizeGb": 14.6,
+      "repoId": "Comfy-Org/MiniMax-H3"
+    },
+    {
+      "name": "H3 video VAE (fp16)",
+      "kind": "model",
+      "sizeGb": 4.9,
+      "repoId": "Comfy-Org/MiniMax-H3"
+    },
+    {
+      "name": "H3 audio VAE (fp32, stereo)",
+      "kind": "model",
+      "sizeGb": 0.6,
+      "repoId": "Comfy-Org/MiniMax-H3"
+    },
+    {
+      "name": "Qwen3-VL-8B text encoder (bf16)",
+      "kind": "model",
+      "sizeGb": 17.5,
+      "repoId": "Comfy-Org/Qwen3-VL"
+    }
+  ],
+  "image": "yanwk/comfyui-boot",
+  "tag": "cu130-megapak-pt211-20260812",
+  "exposedPorts": [
+    8188
+  ],
+  "entrypoint": [
+    "/bin/bash",
+    "-c"
+  ],
+  "commandFile": "comfyui-ugc-bootstrap.sh",
+  "workflows": [
+    {
+      "id": "ocean_h3_ugc_multishot",
+      "name": "Multishot reel — one Run, 30 s, six shots",
+      "description": "One Run renders ~30 s with six shots and one consistent character, with native synced voice, room tone and music throughout. Two chained subgraphs: beat 1 (FL2VA) starts from your uploaded photo as literal frame 0, and beat 2 (Ref2VA) is handed the last 3 s of beat 1 directly as frames plus audio — no file, no re-encode — so it inherits face, wardrobe, room, camera style and voice automatically. Four prompt boxes: A (Cast & references) and D (Audio & music) are set once, B is beat 1's body and C is beat 2's summary, retention_analysis and detailed_description; two StringFormat nodes give each mode its own correct section order. A 'Second beat' boolean drives lazy switches, so turning it off renders only beat 1 — beat 2's checkpoint never loads and its sampling pass never runs, which halves iteration time. Product and location stills, an external style/motion video and a voice-lock clip all ship bypassed and are safe to leave bypassed. The seam at 00:15 is a hard cut: 15 s is H3's ceiling per generation.",
+      "file": "workflows/ocean_h3_ugc_multishot.json"
+    },
+    {
+      "id": "ocean_h3_ugc_assemble",
+      "name": "Assemble reel",
+      "description": "Concatenates up to 8 rendered beat clips (video + audio, already final) into a single reel using core ComfyUI video nodes — no external editor and no voice-conversion pass, since every beat already carries its own synced audio. Pick clips in the Beat 1–8 LoadVideo dropdowns, bypass any slots you don't need, and Run.",
+      "file": "workflows/ocean_h3_ugc_assemble.json"
+    },
+    {
+      "id": "ocean_h3_ugc_prompts",
+      "name": "Write the prompt boxes",
+      "description": "Turns a subject photo, an optional product photo and a few sentences of brief into the four prompt boxes the multishot reel needs. A full Qwen3-VL-8B looks at each photo in its own pass and writes subject_definitions from what is actually there, then writes beat 1's body, beat 2's three sections and the shared audio sections, each reading the ones before it so the cast, the room and the voice stay consistent. Each box is previewed on canvas and written to the bucket as a .txt; copy them into boxes A, B, C and D of the multishot reel. H3's own text encoder cannot do this — the checkpoint it ships is Qwen3-VL-32B truncated to 50 of 64 layers with no final norm and no LM head.",
+      "file": "workflows/ocean_h3_ugc_prompts.json"
+    }
+  ],
+  "userConfigurableEnvVars": [
+    {
+      "key": "COMFY_WORKFLOW_ID",
+      "validation": "^[A-Za-z0-9_-]+$"
+    },
+    {
+      "key": "COMFY_WORKFLOW"
+    }
+  ],
+  "requiredResources": [
+    {
+      "id": "cpu",
+      "min": 8,
+      "recommended": 16,
+      "unit": "cores"
+    },
+    {
+      "id": "ram",
+      "min": 128,
+      "recommended": 256,
+      "unit": "GB"
+    },
+    {
+      "id": "disk",
+      "min": 100,
+      "recommended": 180,
+      "unit": "GB"
+    },
+    {
+      "kind": "discrete",
+      "type": "gpu",
+      "min": 1,
+      "recommended": 1,
+      "unit": "count",
+      "description": "One CUDA GPU. The chained design loads both checkpoints per Run and the weights total 76.6 GB (19.5 + 19.5 + 14.6 + 4.9 + 0.6 + 17.5), so holding everything resident with nothing offloaded now takes a card north of about 115 GB (H200-class) rather than the 80 GB H100 this used to fit. Don't set CLI_ARGS yourself: the launch script reads the card's VRAM against the on-disk size of the downloaded weights and adds --highvram automatically only when VRAM covers them with 3/2 headroom, so it declines the flag rather than pinning more than the card can back with room for activations. Deliberately ask for one and not two: a second GPU cannot accelerate a single Run here. H3 is CFG-distilled, so the CFG-split node sees one conditioning and has nothing to hand the second card; core ComfyUI has no tensor parallelism, so one sampling pass runs on one device; and beat 2 consumes beat 1's frames, so the two beats cannot overlap. Booking a second card would cost money for an idle device. Two GPUs help only in two cases, neither of which this count controls: running a second container for a parallel job, or a small dual-GPU box (2x24 GB) where the optional device-placement nodes in each beat move the 14.6 GB text encoder off the sampling card. GPU class matters directly here, CPU cores do not — sampling is GPU-bound."
+    }
+  ]
+}
