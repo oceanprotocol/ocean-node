@@ -342,9 +342,39 @@ const UserConfigurableEnvVarSchema = z
   .object({
     key: z.string().min(1),
     validation: z.string().optional(),
-    sensitive: z.boolean().optional()
+    sensitive: z.boolean().optional(),
+    // Advisory only — the node never rejects a start for a missing value; clients use it to
+    // decide whether to prompt (e.g. HF_TOKEN for a gated model).
+    required: z.boolean().optional()
   })
   .strict()
+
+// Catalogue classification. Purely descriptive: none of it changes how the container runs,
+// it travels to clients through the sanitizer and drives how the entry is presented.
+const TemplateIncludedItemSchema = z
+  .object({
+    name: z.string().min(1),
+    kind: z.enum(['model', 'workflow', 'customnode', 'other']),
+    sizeGb: z.number().positive().optional(),
+    repoId: z.string().min(1).optional(),
+    url: z.string().url().optional()
+  })
+  .strict()
+
+const ServiceTemplateWorkflowSchema = z
+  .object({
+    id: z.string().regex(/^[A-Za-z0-9_.-]+$/, {
+      message: 'Workflow id must match [A-Za-z0-9_.-]+'
+    }),
+    name: z.string().min(1),
+    description: z.string().optional(),
+    file: z.string().min(1).optional(),
+    graph: z.unknown().optional()
+  })
+  .strict()
+  .refine((w) => !!w.file !== !!w.graph, {
+    message: 'A workflow must set exactly one of "file" or "graph"'
+  })
 
 export const ServiceTemplateSchema = z
   .object({
@@ -353,6 +383,19 @@ export const ServiceTemplateSchema = z
     }),
     name: z.string().optional(),
     description: z.string().optional(),
+    // Catalogue metadata (all optional; absent `kind` means 'service')
+    kind: z.enum(['service', 'bundle']).optional(),
+    service: z
+      .string()
+      .regex(/^[a-z0-9][a-z0-9_-]{0,63}$/, {
+        message: '"service" must be a template id matching [a-z0-9][a-z0-9_-]{0,63}'
+      })
+      .optional(),
+    outcome: z.string().min(1).optional(),
+    category: z
+      .enum(['image', 'video', 'llm', 'serving', 'notebook', 'embeddings', 'app'])
+      .optional(),
+    includes: z.array(TemplateIncludedItemSchema).optional(),
     image: z.string().min(1),
     tag: z.string().min(1).optional(),
     checksum: z
@@ -365,9 +408,11 @@ export const ServiceTemplateSchema = z
     envVars: z.record(z.string(), z.string()).optional(),
     userConfigurableEnvVars: z.array(UserConfigurableEnvVarSchema).optional(),
     command: z.array(z.string()).optional(),
+    commandFile: z.string().min(1).optional(),
     entrypoint: z.array(z.string()).optional(),
     requiredResources: z.array(TemplateResourceRequirementSchema).optional(),
-    recommendedResources: z.array(TemplateResourceRequirementSchema).optional()
+    recommendedResources: z.array(TemplateResourceRequirementSchema).optional(),
+    workflows: z.array(ServiceTemplateWorkflowSchema).optional()
   })
   .strict()
   .superRefine((tmpl, ctx) => {
@@ -413,6 +458,31 @@ export const ServiceTemplateSchema = z
         code: z.ZodIssueCode.custom,
         message: '"additionalDockerFiles" requires "dockerfile"',
         path: ['additionalDockerFiles']
+      })
+    }
+
+    // A bundle without a parent id renders as a plain service in clients (they key the
+    // grouping off `service`), so a half-declared bundle is a template bug, not a variant.
+    if (tmpl.kind === 'bundle' && !tmpl.service) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '"service" (the parent template id) is required when kind is "bundle"',
+        path: ['service']
+      })
+    }
+    if (tmpl.service && tmpl.kind !== 'bundle') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '"service" only applies to a bundle — set kind: "bundle" or drop it',
+        path: ['service']
+      })
+    }
+
+    if (tmpl.command && tmpl.commandFile) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '"command" and "commandFile" are mutually exclusive — set at most one',
+        path: ['commandFile']
       })
     }
   })

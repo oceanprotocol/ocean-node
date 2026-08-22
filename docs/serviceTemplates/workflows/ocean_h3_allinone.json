@@ -1,0 +1,108 @@
+{
+  "id": "7c18bf10-5269-44b5-bdf6-8ca9d2221f93",
+  "revision": 0,
+  "last_node_id": 3,
+  "last_link_id": 0,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "MarkdownNote",
+      "pos": [
+        -60,
+        -40
+      ],
+      "size": [
+        560,
+        1080
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "Note: how to use",
+      "properties": {},
+      "widgets_values": [
+        "## ALL in ONE MiniMax H3\n\nOne node, the whole H3 pipeline. There is no graph to wire: pick a **mode** in the tab bar,\nfill the boxes, press **Generate**. The node builds the real workflow behind the scenes and\nqueues it, then shows the clip inline with its audio.\n\n### Modes\n\n| Mode | What it does |\n|---|---|\n| **T2V** | Text to video with native audio (voice, room tone, music in the same pass) |\n| **I2V** | Animate a start frame, optionally morph to an end frame |\n| **R2V** | Reference images / video / audio drive the clip |\n| **Extend** | Continue an existing clip |\n| **Chain** | Multi-clip continuation through H3 Motion Context (latent path, no re-encode) |\n\n**Audio Drive**, **Keyframes** and **Image** are taken out of the tab bar on launch, along with\nthe **Upscale** button, the **Live Preview** toggle and the **Sampler** / **Scheduler** pickers.\nEach of them needs a node pack, a weight file or a consumer RTX card this image does not have, so\neach would fail a paid Run rather than do anything. Image mode also makes stills rather than video\n— I2V above is the image-to-video one. H3 has one native sampler pair (`res_multistep` / `simple`)\nand the node uses it.\n\n### Prompt shape\n\nH3 reads three labelled sections, in this order:\n\n```\nintegrated_multimodal_description:\n[Shot 1] Cinematic live-action. <subject, setting, light, the action start to finish>.\n\noverall_soundscape:\n<1-4 sentences: ambience, physical action sounds, non-verbal human sounds>\n\nnon_diegetic_music:\nN/A\n```\n\nThe **Discover** tab ships this as fill-in templates per mode — start there rather than from an\nempty box. Dialogue goes inside the description as `(S1) <character> speaks: <d>[English] line</d>`.\nMulti-shot cuts are written inline: `The shot cuts to [Shot 2] At 00:02.000 ...`.\n\n### Quality\n\nThe **Quality** dropdown holds two, and both work with nothing to configure:\n\n| Preset | What it is |\n|---|---|\n| **Balanced** | SolAttn sparse attention. The default. |\n| **Native** | No accelerator at all. The fallback if anything looks wrong. |\n\nThe preset picks the attention path, nothing else. **Steps** is the field beside it — 20 by\ndefault, and neither preset changes it.\n\nTurbo, Speed and High Quality are gone. Turbo needs a distillation LoRA this template no longer\ndownloads, Speed needs the H3 Cache node, which calls a function ComfyUI core removed in August\n2026, and High Quality needs SageAttention kernels that are not in this image. Left in the list\nthey would be a slower Balanced and a slower Native under names promising the opposite, and one\nwrong click costs a paid Run. You lose nothing on output: SolAttn and Sage are quantized-attention\nspeed trades, not quality knobs. The accelerator chips are removed with them — the dropdown is\nthe whole control.\n\nIf **R2V** throws `shape mismatch: value tensor of shape [...] cannot be broadcast`, that is a\nknown ComfyUI core bug on H3 reference video, not your inputs and not the reference count — use\nT2V or I2V, and report it so the template can move to a newer image. T2V and I2V are unaffected.\n\nResolution presets run 608x352 through 1344x768 landscape, plus five vertical ones added for short-form: 352x608, 480x864, 544x960, **576x1024 (exact 9:16)** and 768x1344. Draft vertical at 352x608 or 480x864, finish at 576x1024. Longer and larger cost VRAM and time; a clip\ntops out at H3's per-generation ceiling, which is what **Extend** and **Chain** exist to get past.\n\n### Where the output goes\n\nClips save to the bucket root as `h3_00001_.mp4`, `h3_00002_.mp4` — flat, so the storage API's\n`listFiles` can see them and you can download a finished clip without opening ComfyUI. The save\ncounter never overwrites. **Chain** is the exception: it writes into `chain/<session>/`, a\nsubfolder `listFiles` does not list, so pull those from the node's **Library** tab before you\nstop the service.\n\nHistory, favourites and settings live in `user/default/` inside the bucket, so they survive a\nstop and come back on the next launch with the same bucket."
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 2,
+      "type": "H3OneNode",
+      "pos": [
+        540,
+        -40
+      ],
+      "size": [
+        1280,
+        1000
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "shape": 7,
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "poster",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "video",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "H3OneNode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 3,
+      "type": "MarkdownNote",
+      "pos": [
+        1860,
+        -40
+      ],
+      "size": [
+        560,
+        1080
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "Note: models & node packs",
+      "properties": {},
+      "widgets_values": [
+        "## Models\n\nThis template downloads its own weights on first start — **59.1 GB** total, into the bucket:\n\n```\nmodels/\n├── diffusion_models/\n│   ├── minimax_h3_fl2va_pruned_int8_convrot.safetensors    19.5 GB   T2V / I2V / extend\n│   └── minimax_h3_ref2va_pruned_int8_convrot.safetensors   19.5 GB   R2V / chain\n├── text_encoders/\n│   └── qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors        14.6 GB\n└── vae/\n    ├── minimax_h3_video_vae_fp16.safetensors                4.9 GB\n    └── minimax_h3_audio_vae_fp32.safetensors                0.6 GB\n```\n\nThe one node builds its graph at queue time, so — unlike the other templates here — there are no\nloader nodes in this canvas to carry the URLs. They are listed here instead, and the launch\nscript reads them off this note. The names match the pack's own defaults, so the node finds them\nwith no configuration:\n\n- [minimax_h3_fl2va_pruned_int8_convrot.safetensors](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors)\n- [minimax_h3_ref2va_pruned_int8_convrot.safetensors](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors)\n- [qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors)\n- [minimax_h3_video_vae_fp16.safetensors](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors)\n- [minimax_h3_audio_vae_fp32.safetensors](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors)\n\nBoth diffusion models are fetched because the mode tabs switch between them freely. Only one is\nresident per generation.\n\n## Node packs\n\nCloned on launch, all pure Python (no pip step): the\n[ALL-in-ONE node](https://github.com/LeonQ8/ComfyUI-ALLinONE-MinimaxH3) itself,\n[H3-Motion-Context-MultiRef](https://github.com/seitanism/ComfyUI-H3-Motion-Context-MultiRef)\nfor extend / chain, and\n[SolAttn_triton](https://github.com/kijai/ComfyUI-SolAttn_triton) for the Balanced quality preset.\n\nThe launch script edits the node's own JS on each launch to take the tabs, buttons and presets\nlisted on the left out of the UI. It prints `[ocean] node UI trimmed` when that worked; if it\nprints a failure instead, the node pack has changed shape and those controls are back on screen —\ndo not use them, they have no packs behind them.\n\n`ComfyUI-MiniMaxH3-Cache` is **not** installed, and is deleted on launch if an earlier one left it\nbehind: it calls `time_shift_slope`, which ComfyUI core removed on 2026-08-06, and it patches the\nmodel at import — so having it present fails every generation, not just the preset that uses it."
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.6,
+      "offset": [
+        120,
+        120
+      ]
+    }
+  },
+  "version": 0.4
+}

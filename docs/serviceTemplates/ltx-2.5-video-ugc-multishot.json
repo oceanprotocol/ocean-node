@@ -1,0 +1,47 @@
+{
+  "id": "ltx-2-5-video-ugc-multishot",
+  "name": "ComfyUI — UGC multishot reel (LTX-2.5)",
+  "description": "ComfyUI preloaded with LTX-2.5 for a vertical UGC reel where one Run is the whole reel. LTX-2.5 cuts between shots inside a single generation and holds character identity, wardrobe, room, lighting and voice across those cuts, so the shot-at-a-time chaining the LTX-2.3 template needs — render a clip, save its last frame, feed it to the next Run, then stitch and voice-convert the result — is gone, and with it the voice-conversion node pack whose first-launch pip install made that template slow to start. Multishot is a prompt format rather than a node: you write the reel as one chronological prose paragraph and mark each cut in words ('A hard cut transitions to a medium close-up of her face'), restating the character's look and saying what the audio does at every cut ('the guitar track continues across the cut'). One prompt box holds that single paragraph: open with the cast and the look, then the shots, so a re-take means editing the shots and leaving the opening lines untouched. LTX's own guidance is 2-4 shots per generation, and the shipped 8 seconds at 24 fps (193 frames) gives each of them 2 to 4 seconds. The prompt enhancer that ships in the upstream graph is deliberately deleted rather than switched off: it rewrites your prompt into a fuller description and flattens exactly the cuts and re-identifications that make a paragraph multishot, and because ComfyUI validates combo widgets across the whole reachable graph — even branches that never execute — leaving it bypassed would still force its 10.28 GB encoder to download. The same logic sets the download list at exactly five files and nothing more: no duration head (it has no ComfyUI node at all, only a ltx-pipelines CLI flag, and it would fight fixed settings anyway), no temporal upscaler, no second text encoder. Settings track Lightricks' own operating point, because that is what quality depends on: their ltx-pipelines DistilledPipeline defaults to 121 frames (5 s at 24 fps) with an 8-step then 3-step sigma schedule, and their ComfyUI API template ships 8 s. This template ships 8 s / 193 frames with stage 1 at 576x1024 doubling to 1152x2048, about 2.3x the official token count — room for a 9:16 frame while still clearing 1080x1920 delivery. It previously ran 481 frames at 768x1344 into 1536x2688, ten times the official token count on the same fixed step budget, which is why it looked softer than the LTX-2.3 template: raising duration and resolution spreads the same 8 plus 3 steps over more tokens instead of adding any. Render two Runs and join them for a longer reel. Attention memory is linear rather than quadratic under the image's SDPA kernels, which is why this fits at all; the genuine memory risk is the VAE decode, handled by the tiled decoder at 768/192/512/0 — spatial tiling only. Splitting the decode temporally returns each overlap window as red/blue dither rather than a blend, so temporal_size stays above the frame count and temporal_overlap stays at 0. Drop duration or stage-1 resolution — both are dials on the canvas — for a cheaper Run. Weights are bf16 throughout and total about 71 GB, and every LTX-2.5 file is behind a licence gate: open each model page once, click 'Agree and Access' with the account that owns your token, and set HF_TOKEN, or nothing downloads and ComfyUI starts empty. Because the weights are large relative to any single card, the launch script adds --highvram only when VRAM covers them with 3/2 headroom, which happens on an H200 and does not on an 80 GB H100; on the smaller card ComfyUI offloads between stages instead, which works but is slower. Ask for one GPU and not two: the two stages are sequential by construction and the distilled model runs CFG=1, so the CFG-split node has a single conditioning and nothing to hand a second device, and core ComfyUI has no tensor parallelism. Select a persistent-storage bucket on launch — it holds ComfyUI's whole base directory, so the 71 GB downloads once instead of on every launch, and finished reels land in the bucket root where the storage API's listFiles can see them.",
+  "kind": "bundle",
+  "service": "comfyui",
+  "outcome": "Render a complete multi-shot 9:16 UGC reel — one character, one voice, native synced audio — in a single Run.",
+  "category": "video",
+  "includes": [
+    { "name": "LTX-2.5 22B distilled transformer (bf16)", "kind": "model", "sizeGb": 42.0, "repoId": "Lightricks/LTX-2.5" },
+    { "name": "Gemma-4-12B text encoder with projections (bf16)", "kind": "model", "sizeGb": 26.3, "repoId": "Lightricks/LTX-2.5" },
+    { "name": "LTX-2.5 video VAE / DiffVAE (bf16)", "kind": "model", "sizeGb": 1.5, "repoId": "Lightricks/LTX-2.5" },
+    { "name": "LTX-2.5 audio VAE + vocoder (bf16)", "kind": "model", "sizeGb": 0.4, "repoId": "Lightricks/LTX-2.5" },
+    { "name": "LTX-2.3 spatial upscaler x2", "kind": "model", "sizeGb": 1.0, "repoId": "Lightricks/LTX-2.3" }
+  ],
+  "image": "yanwk/comfyui-boot",
+  "tag": "cu130-megapak-pt211-20260812",
+  "exposedPorts": [8188],
+  "entrypoint": ["/bin/bash", "-c"],
+  "commandFile": "comfyui-ugc-bootstrap.sh",
+  "workflows": [
+    {
+      "id": "ocean_ltx25_ugc_multishot",
+      "name": "Multishot reel — one Run, 8 s",
+      "description": "One Run renders the whole reel: 2-4 shots, one character, one voice, native synced audio, 1152x2048 at 24 fps. Write the reel in one prompt box as a single chronological paragraph: open with the cast, wardrobe, room, lighting and camera, then the shots, marking every cut in prose and restating the character's look and the audio's continuity at each one. Optionally upload a character photo — img_strength on Preprocess decides whether it is literally frame 0 (0.7+) or only a look reference (~0.35).",
+      "file": "workflows/ocean_ltx25_ugc_multishot.json"
+    }
+  ],
+  "userConfigurableEnvVars": [
+    { "key": "COMFY_WORKFLOW_ID", "validation": "^[A-Za-z0-9_-]+$" },
+    { "key": "COMFY_WORKFLOW" },
+    { "key": "HF_TOKEN", "validation": "^hf_[A-Za-z0-9]{20,}$", "sensitive": true }
+  ],
+  "requiredResources": [
+    { "id": "cpu", "min": 8, "recommended": 16, "unit": "cores" },
+    { "id": "ram", "min": 128, "recommended": 256, "unit": "GB" },
+    { "id": "disk", "min": 110, "recommended": 180, "unit": "GB" },
+    {
+      "kind": "discrete",
+      "type": "gpu",
+      "min": 1,
+      "recommended": 1,
+      "unit": "count",
+      "description": "One CUDA GPU, H200-class (141 GB). The bf16 weight set totals about 71 GB, and stage 2 samples 57,600 latent tokens at 1152x2048 by 193 frames, so the weights rather than the activations are what fills a card here — an 80 GB H100 fits them but without the 3/2 headroom the launch script wants for --highvram, so it offloads between stages and completes slowly rather than failing. Don't set CLI_ARGS yourself: the launch script measures the card's VRAM against the on-disk size of what it downloaded and adds --highvram only when VRAM covers the weights with 3/2 headroom (about 107 GB here), so it takes the flag on an H200 and correctly declines it on an H100. Ask for one card and not two. The two stages are sequential by construction — stage 2 resamples stage 1's latent — and the distilled model is CFG-distilled, so the CFG-split node sees a single conditioning and has nothing to hand a second device; core ComfyUI has no tensor parallelism either. A second GPU helps only by running a second container for a separate job. GPU class matters directly here; CPU cores do not, since sampling is GPU-bound."
+    }
+  ]
+}

@@ -1,0 +1,1755 @@
+{
+  "id": "ocean_h3_ugc_prompts",
+  "revision": 0,
+  "last_node_id": 202,
+  "last_link_id": 40,
+  "nodes": [
+    {
+      "id": 200,
+      "type": "MarkdownNote",
+      "pos": [
+        -1200,
+        -160
+      ],
+      "size": [
+        860,
+        900
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "MarkdownNote"
+      },
+      "title": "How to use",
+      "widgets_values": [
+        "# Write the four prompt boxes\n\nUpload your subject photo into `<Picture 1>` and your product into `<Picture 2>`, write a\nfew sentences in **Brief**, and Run. You get boxes A, B, C and D — copy each into the\nmatching box in the **Multishot reel** workflow.\n\n## The one switch\n\n**Product photo** — on by default. Turn it off for a reel with no product and the product\nvision pass never runs. If you leave it on, un-bypass `<Picture 2>` in the multishot\nworkflow too, so the reel actually has the product you described.\n\n## Re-rolling\n\nEach box has its own seed and temperature on its `TextGenerate` node. Change a seed to\nre-roll that box alone — ComfyUI caches by input hash, so the boxes above it are not\nregenerated. Boxes B, C and D read box A, so re-rolling A re-runs everything below it.\n\n## Where the text goes\n\nEach box is also written to the bucket as `boxA_cast_00001.txt` and so on, next to your\nrendered clips.\n\n## It is a writer, not an oracle\n\nRead boxes B and C before you Run the reel. They should be 350–500 words each with three\ntimecoded shots. If one comes back short, that is the main cause of the character's face\ndrifting — re-roll it."
+      ],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 202,
+      "type": "MarkdownNote",
+      "pos": [
+        -1200,
+        800
+      ],
+      "size": [
+        860,
+        520
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "MarkdownNote"
+      },
+      "title": "Model links",
+      "widgets_values": [
+        "## Model links\n\n[Comfy-Org/Qwen3-VL](https://huggingface.co/Comfy-Org/Qwen3-VL)\n\n**text_encoders**\n\n- [qwen3vl_8b_bf16.safetensors](https://huggingface.co/Comfy-Org/Qwen3-VL/resolve/main/text_encoders/qwen3vl_8b_bf16.safetensors) — 17.5 GB, the prompt writer\n\nMiniMax H3's own text encoder cannot be reused here. The checkpoint it ships is\nQwen3-VL-32B truncated to 50 of 64 layers with no final norm and no LM head — a\nconditioning stump, not a language model."
+      ],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 10,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        -160,
+        -60
+      ],
+      "size": [
+        560,
+        300
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            2,
+            4,
+            19,
+            26,
+            34
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "title": "Brief — what the reel is about",
+      "widgets_values": [
+        "A 30-second vertical UGC reel. The person in <Picture 1> talks straight to camera in their own home about the product in <Picture 2>, which they have been using for three weeks. Filmed handheld on a phone, honest and unpolished, not an advert. English, warm and low-key. They should show the product and use it on camera.\n\nDescribe the reel you want here — purpose, tone, language, what should happen. Do not describe the person or the product: those are read from the two pictures. Switch the product pass off for a reel with no product, and drop that sentence from this brief when you do."
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 20,
+      "type": "LoadImage",
+      "pos": [
+        -160,
+        300
+      ],
+      "size": [
+        560,
+        400
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            6
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "title": "<Picture 1> · Subject — the face the reel keeps",
+      "widgets_values": [
+        "asian_model_in_white_clothes.png",
+        "image"
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 21,
+      "type": "LoadImage",
+      "pos": [
+        -160,
+        760
+      ],
+      "size": [
+        560,
+        400
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            9
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "title": "<Picture 2> · Product",
+      "widgets_values": [
+        "product-cleanser.jpeg",
+        "image"
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 22,
+      "type": "PrimitiveBoolean",
+      "pos": [
+        -160,
+        1220
+      ],
+      "size": [
+        560,
+        60
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "BOOLEAN",
+          "type": "BOOLEAN",
+          "links": [
+            13
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PrimitiveBoolean"
+      },
+      "title": "Product photo — off writes a reel with no product",
+      "widgets_values": [
+        true
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 23,
+      "type": "PrimitiveString",
+      "pos": [
+        -160,
+        1340
+      ],
+      "size": [
+        560,
+        80
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            11
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PrimitiveString"
+      },
+      "title": "(empty — the off branch)",
+      "widgets_values": [
+        ""
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 30,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        560,
+        -60
+      ],
+      "size": [
+        560,
+        420
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "title": "Rules · A1",
+      "widgets_values": [
+        "You write the subject_definitions body for a MiniMax H3 video prompt, from a photograph.\n\nDescribe only what is visible in the picture. Cover: apparent age range, skin tone and\nfinish, hair colour, length, part and how it falls, brows, expression and eye direction,\nand the garment - type, colour, fabric, neckline. Do not infer ethnicity, nationality,\nreligion or culture. Do not invent anything the picture does not show.\n\nA brief follows the picture. It says what the reel is for and is NOT evidence about this\nperson: ignore anything it states or implies about their gender, age, appearance, clothing\nor what they are holding, even where it contradicts you. The photograph is the only\nauthority for who this is. If the brief and the picture disagree, the picture wins.\n\nWrite one paragraph beginning exactly \"<Subject 1> is \", then a second short paragraph\nnaming what the picture is authoritative for.\n\nOutput only those two paragraphs. No preamble, no headings, no markdown, no quotes around\nthe text.\n\nThe example below is a FORMAT sample only. Its subject, product, wardrobe, setting and\nstory have nothing to do with your inputs — copy its structure, tone and length, and\nnone of its content.\n\nExample of the exact style and length wanted:\n\n<Subject 1> is the man in <Picture 1> — forties, light skin with a matte finish and visible pores across the nose, close-cropped grey hair receding at the temples and a short grey beard, heavy straight brows, a level gaze into the lens with the mouth closed and one corner lifted, wearing a charcoal crew-neck sweatshirt.\n\n<Picture 1> is the authoritative reference for his face, hair, skin and top."
+      ]
+    },
+    {
+      "id": 32,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        560,
+        420
+      ],
+      "size": [
+        560,
+        420
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            3
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "title": "Rules · A2",
+      "widgets_values": [
+        "You write the product half of the subject_definitions body for a MiniMax H3 video prompt,\nfrom a photograph.\n\nDescribe only what is visible: form, material, colour and transparency, closure or cap\nincluding its texture, and any label - quote label text exactly as it is legible and say\nnothing about text you cannot read. Do not invent a brand.\n\nA brief follows the picture. It is not evidence about this object: ignore any product type,\nmaterial or category it names. Describe the thing in the photograph, whatever it turns out\nto be — it need not be cosmetics.\n\nWrite one paragraph beginning exactly \"<Subject 2> is the product: \", then a second short\nparagraph naming what the picture is authoritative for.\n\nOutput only those two paragraphs. No preamble, no headings, no markdown.\n\nThe example below is a FORMAT sample only. Its subject, product, wardrobe, setting and\nstory have nothing to do with your inputs — copy its structure, tone and length, and\nnone of its content.\n\nExample of the exact style and length wanted:\n\n<Subject 2> is the product: a squat matte-green metal tin with a shallow domed lid. <Picture 1> shows it closed in his palm; <Picture 2> shows the same tin from above on a pale surface, the lid carrying a small embossed circle and a cream paper label that reads \"BALM\" above \"No. 4\".\n\n<Picture 2> is authoritative for the tin's colour, lid and label."
+      ]
+    },
+    {
+      "id": 50,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        560,
+        900
+      ],
+      "size": [
+        560,
+        700
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            18
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "title": "Rules · B",
+      "widgets_values": [
+        "You write the integrated_multimodal_description body for beat 1 of a MiniMax H3 video\nprompt - the first 15 seconds of a vertical UGC reel.\n\nRules, all mandatory:\n- 350 to 500 words. An under-written body is the main cause of the character's face\n  drifting, so do not go short.\n- Open with \"Live-action, cinematic,\" then the setting, light direction and quality,\n  depth of field, grain, and the palette.\n- Exactly three shots, tagged \"[Shot 1]\" with no timestamp, \"[Shot 2] At 00:05.000,\" and\n  \"[Shot 3] At 00:10.000,\".\n- Refer to the cast by the tags established in the subject_definitions you are given, and\n  restate the identity-carrying details of anyone who appears.\n- Camera moves as motion type, then amplitude, then speed - for example \"pushes in with\n  small amplitude at slow speed\". Leave amplitude and speed unstated when they are medium\n  and normal.\n- Spoken lines as: <Subject 1> with a warm, low voice (S1) says: <d>[English] ...</d>\n  Name the speaker by their subject tag and the voice you hear. Never assume a gender,\n  and never write \"the woman\" or \"the man\" unless the cast you were given says so.\n- Describe only what is seen and heard. No smell, taste or touch, no interpreting feelings.\n\nBegin your output with the literal text \"integrated_multimodal_description: \" and then the\nbody. No preamble, no headings, no markdown.\n\nIf the cast you are given defines no <Subject 2>, this reel has no product: do not\nmention, show, hold or invent one, and never refer to <Subject 2> or <Picture 2>.\nWrite the reel around the person alone.\n\nThe example below is a FORMAT sample only. Its subject, product, wardrobe, setting and\nstory have nothing to do with your inputs — copy its structure, tone and length, and\nnone of its content.\n\nExample of the exact style, structure and length wanted:\n\nintegrated_multimodal_description: Live-action, cinematic, filmed as one hand-held phone take in a warm cream-and-oak living room, strong daylight diffused through sheer curtains from camera left, shallow depth of field, visible skin texture and fine sensor grain, the faint unsteadiness of a real hand. The palette is cream, pale oak, jute and one note of green from a trailing plant.\n\n[Shot 1] the man shown in <Picture 1>, preserving his face, close-cropped grey hair and a short grey beard, light skin and charcoal crew-neck sweatshirt exactly as they appear there, sits on the arm of a worn leather armchair holding the squat matte-green balm tin just below his chin. He lifts his eyes to the lens and smiles, then turns the bottle so the daylight passes through the matte-green enamel. Behind his the round wooden coffee table and the jute rug fall out of focus. The camera pushes in with small amplitude at slow speed and settles just past his shoulders. <Subject 1> with a warm, low voice (S1) says: <d>[English] Okay, three weeks in, and I finally have something honest to say about this one.</d>\n\n[Shot 2] At 00:05.000, cut to a tight over-the-shoulder angle on his hands above the wooden coffee table. He twists the shallow lid clear of the green tin, presses a fingertip into the balm and lifts it clear with a soft sheen, catching the window light. The bottle stands on the table beside a ceramic dish with its cream label square to camera. The camera tilts down with small amplitude at slow speed, following his hands, then holds. His cotton sleeve brushes the table edge as he turns his wrist. <Subject 1> (S1) says: <d>[English] Three drops, damp skin, and it sinks in before I have finished counting to ten.</d>\n\n[Shot 3] At 00:10.000, cut back to a straight-on medium shot on the sofa. He presses the balm along one cheekbone with flat fingers, blinks slowly, and half-smiles as though catching himself enjoying it. His skin reads one shade more luminous than in the first shot and the daylight through the curtains has softened. The camera performs a static shot with no movement at all and lets his finish the thought. <Subject 1> (S1) says: <d>[English] That is it. No tingle, no film, no drama, just skin that behaves.</d> He seats the lid back into the balm tin and sets it on the wooden table with a light knock of metal on wood, and the frame holds a beat on his hand leaving the shot."
+      ]
+    },
+    {
+      "id": 60,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        560,
+        1660
+      ],
+      "size": [
+        560,
+        760
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            25
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "title": "Rules · C",
+      "widgets_values": [
+        "You write beat 2 of a MiniMax H3 video prompt - the second 15 seconds of a vertical UGC\nreel. Beat 2 is a new generation that references beat 1, so 00:15 is a hard cut: same\nperson, same room, same voice, deliberately new camera setup. Write it as an edit, not as\na continuation of one take.\n\nEmit three sections, in exactly this order, each starting with its literal label:\n\nsummary: one paragraph. Open with \"[reference generation + audio reference]\". Say what\ncontinues from beat 1 and what is new.\n\nretention_analysis: one line per subject, in the form\n<Subject n> (appears in [Shot 1], [Shot 2]): fully_preserved - <what is unchanged and\nwhich picture it comes from>.\nThen a line for <Video 1>, which is the tail of beat 1 that beat 2 is chained to:\n<Video 1> (beat 1 tail): fully_preserved - <what carries across>.\nNever use the (Sx) voice tags in this section; they are forbidden here.\n\ndetailed_description: 350 to 500 words, following exactly the same rules as beat 1's body -\nopen \"Live-action, cinematic,\", three shots tagged [Shot 1] untimed, [Shot 2] At 00:05.000,\nand [Shot 3] At 00:10.000,, the same camera vocabulary, and spoken lines as\n<d>[English] ...</d> with a voice tag.\n\nNo preamble, no headings beyond those three labels, no markdown.\n\nIf the cast you are given defines no <Subject 2>, this reel has no product: do not\nmention, show, hold or invent one, and never refer to <Subject 2> or <Picture 2>.\nWrite the reel around the person alone.\n\nThe example below is a FORMAT sample only. Its subject, product, wardrobe, setting and\nstory have nothing to do with your inputs — copy its structure, tone and length, and\nnone of its content.\n\nExample of the exact style, structure and length wanted:\n\nsummary: [reference generation + audio reference] The second half of the same hand-held living-room review. <Subject 1> from <Picture 1> keeps an identical face, hair, skin and charcoal sweatshirt; <Subject 2>, the matte-green balm tin from <Picture 2>, and <Subject 3>, the cream-and-oak room from <Picture 3>, continue from the tail of beat one, and the same warm low speaking voice carries across the cut. Three shots move his from the sofa to the window and end on the product.\n\nretention_analysis:\n<Subject 1> (appears in [Shot 1], [Shot 2], [Shot 3]): fully_preserved - his face, light skin, close-cropped grey hair and a short grey beard, natural brows and charcoal crew-neck sweatshirt are unchanged from <Picture 1>.\n<Subject 2> (appears in [Shot 1], [Shot 3]): fully_preserved - the matte-green balm tin, its shallow domed lid and the cream label reading \"BALM / No. 4\" are unchanged from <Picture 2>.\n<Subject 3> (appears in [Shot 1], [Shot 2], [Shot 3]): fully_preserved - the worn leather armchair, round wooden coffee table, jute rug, rattan cabinet and sheer curtains continue from <Picture 3>, seen from new angles.\n<Video 1> (beat 1 tail): fully_preserved - the character, top, product, room, lighting direction and speaking voice all continue from it; only the camera setup is new.\n\ndetailed_description: Live-action, cinematic, the same hand-held phone take in the same living room, diffused daylight from camera left, shallow depth of field, visible skin texture and fine sensor grain.\n[Shot 1] A new setup on <Subject 1> seated back on the worn leather armchair, framed slightly wider so the rattan cabinet and the open shelves of ceramics fill the background behind his. He holds the balm tin loosely in his left hand and rolls it once between finger and thumb without looking at it, the lid seated. His dark hair falls forward over the charcoal sweatshirt shoulder as he leans in. The camera trucks right with small amplitude at slow speed, letting the diffused daylight move across his cheek and pick out the matte-green enamel. <Subject 1> with a warm, low voice (S1) says: <d>[English] The part nobody mentions is how it layers.</d>\n[Shot 2] At 00:05.000, the shot cuts to a close profile as he rises and steps toward the curtained window, the light going soft and bright across the bridge of his nose. He tilts his chin up and presses two fingers along his jaw and down the side of his neck, reading the finish by touch. The luminosity sits on the cheekbone without breaking into shine, and the linen moves loosely as he turns. The camera holds a static shot and lets his cross the frame rather than following his. <Subject 1> (S1) says: <d>[English] Sunscreen straight over the top, no pilling, no white cast, nothing sliding off by noon.</d>\n[Shot 3] At 00:10.000, the shot cuts to a tight shot of the round wooden coffee table, the balm tin standing square to camera on the jute rug's edge with the cream label and its \"BALM\" panel legible, the worn leather armchair soft and out of focus behind. A ceramic dish sits half in frame. His hand enters from the right, turns the bottle a few degrees to square the label, and withdraws. The camera pushes in with small amplitude at slow speed until the label fills the lower third, then stops. <Subject 1> (S1) says in an off-screen voiceover: <d>[English] Three weeks. That is the whole review.</d> while his lips remain completely closed."
+      ]
+    },
+    {
+      "id": 70,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        560,
+        2480
+      ],
+      "size": [
+        560,
+        560
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            33
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "title": "Rules · D",
+      "widgets_values": [
+        "You write the audio sections of a MiniMax H3 video prompt. They are set once and used by\nboth beats.\n\nEmit two sections, in this order, each starting with its literal label:\n\noverall_soundscape: the room's acoustics - what absorbs, how long the decay, whether there\nis hiss; the diegetic detail that belongs to the actions described; what sits outside the\nroom; and the speaking voice - mic distance in feet, tone, pace, and how it ends sentences.\nState plainly if there is no crowd and no overlapping speakers.\n\nnon_diegetic_music: instrument or instruments, BPM, time signature, what the rhythm does,\nwhether there is percussion, how many seconds in it enters, how many dB it sits under the\nvoice, how it ducks under spoken lines, and how it ends.\n\nNo preamble, no headings beyond those two labels, no markdown.\n\nIf the cast you are given defines no <Subject 2>, this reel has no product: do not\nmention, show, hold or invent one, and never refer to <Subject 2> or <Picture 2>.\nWrite the reel around the person alone.\n\nThe example below is a FORMAT sample only. Its subject, product, wardrobe, setting and\nstory have nothing to do with your inputs — copy its structure, tone and length, and\nnone of its content.\n\nExample of the exact style and length wanted:\n\noverall_soundscape: Soft, absorbent acoustics of a furnished living room — fabric and rug soaking up the high end, a short dry decay and no room hiss. Faint birdsong beyond the curtained window, the light click of the metal lid against the rim of the tin, cotton shifting as he moves, and the soft knock of metal set down on a wooden table. Traffic sits far outside, low and unintelligible. The speaking voice is close-miked at one to two feet from the phone, warm and low, unhurried, slightly breathy at the ends of sentences. No crowd, no overlapping speakers.\n\nnon_diegetic_music: Solo nylon-string guitar with a low upright bass, 82 BPM, 4/4, plucked eighth notes with the bass landing on beats one and three, no percussion. It enters four seconds in at low level, sits 12 dB under the voice, drops a further 4 dB under each spoken line and returns between them, and resolves on a held root note across the last two seconds."
+      ]
+    },
+    {
+      "id": 1,
+      "type": "CLIPLoader",
+      "pos": [
+        1280,
+        -60
+      ],
+      "size": [
+        420,
+        120
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            5,
+            8,
+            21,
+            29,
+            37
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPLoader",
+        "models": [
+          {
+            "name": "qwen3vl_8b_bf16.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/Qwen3-VL/resolve/main/text_encoders/qwen3vl_8b_bf16.safetensors",
+            "directory": "text_encoders"
+          }
+        ]
+      },
+      "title": "Prompt writer — Qwen3-VL-8B",
+      "widgets_values": [
+        "qwen3vl_8b_bf16.safetensors",
+        "stable_diffusion",
+        "default"
+      ]
+    },
+    {
+      "id": 31,
+      "type": "StringFormat",
+      "pos": [
+        1280,
+        120
+      ],
+      "size": [
+        420,
+        220
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "a",
+          "name": "values.a",
+          "type": "*",
+          "link": 1
+        },
+        {
+          "label": "b",
+          "name": "values.b",
+          "type": "*",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            7
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "StringFormat"
+      },
+      "title": "A1 prompt",
+      "widgets_values": [
+        "<|im_start|>system\n{a}<|im_end|>\n<|im_start|>user\n<|vision_start|><|image_pad|><|vision_end|>{b}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+      ]
+    },
+    {
+      "id": 34,
+      "type": "TextGenerate",
+      "pos": [
+        1280,
+        400
+      ],
+      "size": [
+        420,
+        340
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 5
+        },
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 6
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            14
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TextGenerate"
+      },
+      "title": "A1",
+      "widgets_values": [
+        "",
+        2048,
+        "on",
+        0.9,
+        64,
+        0.95,
+        0.05,
+        1.05,
+        0,
+        0,
+        false,
+        true
+      ]
+    },
+    {
+      "id": 33,
+      "type": "StringFormat",
+      "pos": [
+        1280,
+        800
+      ],
+      "size": [
+        420,
+        220
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "a",
+          "name": "values.a",
+          "type": "*",
+          "link": 3
+        },
+        {
+          "label": "b",
+          "name": "values.b",
+          "type": "*",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            10
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "StringFormat"
+      },
+      "title": "A2 prompt",
+      "widgets_values": [
+        "<|im_start|>system\n{a}<|im_end|>\n<|im_start|>user\n<|vision_start|><|image_pad|><|vision_end|>{b}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+      ]
+    },
+    {
+      "id": 35,
+      "type": "TextGenerate",
+      "pos": [
+        1280,
+        1080
+      ],
+      "size": [
+        420,
+        340
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 8
+        },
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 9
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": 10
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            12
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TextGenerate"
+      },
+      "title": "A2",
+      "widgets_values": [
+        "",
+        2048,
+        "on",
+        0.9,
+        64,
+        0.95,
+        0.05,
+        1.05,
+        0,
+        0,
+        false,
+        true
+      ]
+    },
+    {
+      "id": 36,
+      "type": "ComfySwitchNode",
+      "pos": [
+        1280,
+        1480
+      ],
+      "size": [
+        420,
+        90
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "on_false",
+          "type": "STRING",
+          "link": 11
+        },
+        {
+          "name": "on_true",
+          "type": "STRING",
+          "link": 12
+        },
+        {
+          "name": "switch",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "switch"
+          },
+          "link": 13
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "STRING",
+          "links": [
+            15
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ComfySwitchNode",
+        "cnr_id": "comfy-core"
+      },
+      "title": "Product pass",
+      "widgets_values": [
+        true
+      ]
+    },
+    {
+      "id": 40,
+      "type": "StringFormat",
+      "pos": [
+        1280,
+        1630
+      ],
+      "size": [
+        420,
+        220
+      ],
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "a",
+          "name": "values.a",
+          "type": "*",
+          "link": 14
+        },
+        {
+          "label": "b",
+          "name": "values.b",
+          "type": "*",
+          "link": 15
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            16,
+            17,
+            20,
+            27,
+            35
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "StringFormat"
+      },
+      "title": "A · Cast — paste into box A",
+      "widgets_values": [
+        "subject_definitions: {a}\n\n{b}\n\nIf <Video 2> is supplied it sets camera style and motion only, never identity. Any reference that is not supplied is simply not used and nothing else here changes."
+      ]
+    },
+    {
+      "id": 51,
+      "type": "StringFormat",
+      "pos": [
+        1280,
+        1910
+      ],
+      "size": [
+        420,
+        220
+      ],
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "a",
+          "name": "values.a",
+          "type": "*",
+          "link": 18
+        },
+        {
+          "label": "b",
+          "name": "values.b",
+          "type": "*",
+          "link": 19
+        },
+        {
+          "label": "c",
+          "name": "values.c",
+          "type": "*",
+          "link": 20
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            22
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "StringFormat"
+      },
+      "title": "B prompt",
+      "widgets_values": [
+        "<|im_start|>system\n{a}<|im_end|>\n<|im_start|>user\nBrief:\n{b}\n\nCast already established (use these tags and keep every detail consistent with them):\n{c}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+      ]
+    },
+    {
+      "id": 52,
+      "type": "TextGenerate",
+      "pos": [
+        1280,
+        2190
+      ],
+      "size": [
+        420,
+        340
+      ],
+      "flags": {},
+      "order": 20,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 21
+        },
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": 22
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            23,
+            24,
+            28,
+            36
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TextGenerate"
+      },
+      "title": "B",
+      "widgets_values": [
+        "",
+        2048,
+        "on",
+        0.9,
+        64,
+        0.95,
+        0.05,
+        1.05,
+        0,
+        0,
+        false,
+        true
+      ]
+    },
+    {
+      "id": 61,
+      "type": "StringFormat",
+      "pos": [
+        1280,
+        2590
+      ],
+      "size": [
+        420,
+        220
+      ],
+      "flags": {},
+      "order": 21,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "a",
+          "name": "values.a",
+          "type": "*",
+          "link": 25
+        },
+        {
+          "label": "b",
+          "name": "values.b",
+          "type": "*",
+          "link": 26
+        },
+        {
+          "label": "c",
+          "name": "values.c",
+          "type": "*",
+          "link": 27
+        },
+        {
+          "label": "d",
+          "name": "values.d",
+          "type": "*",
+          "link": 28
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            30
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "StringFormat"
+      },
+      "title": "C prompt",
+      "widgets_values": [
+        "<|im_start|>system\n{a}<|im_end|>\n<|im_start|>user\nBrief:\n{b}\n\nCast already established:\n{c}\n\nBeat 1, which you are cutting away from at 00:15:\n{d}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+      ]
+    },
+    {
+      "id": 62,
+      "type": "TextGenerate",
+      "pos": [
+        1280,
+        2870
+      ],
+      "size": [
+        420,
+        340
+      ],
+      "flags": {},
+      "order": 22,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 29
+        },
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": 30
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            31,
+            32
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TextGenerate"
+      },
+      "title": "C",
+      "widgets_values": [
+        "",
+        2048,
+        "on",
+        0.9,
+        64,
+        0.95,
+        0.05,
+        1.05,
+        0,
+        0,
+        false,
+        true
+      ]
+    },
+    {
+      "id": 71,
+      "type": "StringFormat",
+      "pos": [
+        1280,
+        3270
+      ],
+      "size": [
+        420,
+        220
+      ],
+      "flags": {},
+      "order": 23,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "a",
+          "name": "values.a",
+          "type": "*",
+          "link": 33
+        },
+        {
+          "label": "b",
+          "name": "values.b",
+          "type": "*",
+          "link": 34
+        },
+        {
+          "label": "c",
+          "name": "values.c",
+          "type": "*",
+          "link": 35
+        },
+        {
+          "label": "d",
+          "name": "values.d",
+          "type": "*",
+          "link": 36
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            38
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "StringFormat"
+      },
+      "title": "D prompt",
+      "widgets_values": [
+        "<|im_start|>system\n{a}<|im_end|>\n<|im_start|>user\nBrief:\n{b}\n\nCast already established:\n{c}\n\nBeat 1, whose actions the soundscape has to cover:\n{d}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+      ]
+    },
+    {
+      "id": 72,
+      "type": "TextGenerate",
+      "pos": [
+        1280,
+        3550
+      ],
+      "size": [
+        420,
+        340
+      ],
+      "flags": {},
+      "order": 24,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 37
+        },
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": 38
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            39,
+            40
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TextGenerate"
+      },
+      "title": "D",
+      "widgets_values": [
+        "",
+        2048,
+        "on",
+        0.9,
+        64,
+        0.95,
+        0.05,
+        1.05,
+        0,
+        0,
+        false,
+        true
+      ]
+    },
+    {
+      "id": 41,
+      "type": "PreviewAny",
+      "pos": [
+        1840,
+        1630
+      ],
+      "size": [
+        520,
+        300
+      ],
+      "flags": {},
+      "order": 25,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 16
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewAny",
+        "cnr_id": "comfy-core"
+      },
+      "title": "Box A",
+      "widgets_values": []
+    },
+    {
+      "id": 42,
+      "type": "SaveText",
+      "pos": [
+        1840,
+        1970
+      ],
+      "size": [
+        520,
+        120
+      ],
+      "flags": {},
+      "order": 26,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 17
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "SaveText",
+        "cnr_id": "comfy-core"
+      },
+      "title": "Save box A",
+      "widgets_values": [
+        "boxA_cast",
+        "txt"
+      ]
+    },
+    {
+      "id": 53,
+      "type": "PreviewAny",
+      "pos": [
+        1840,
+        2190
+      ],
+      "size": [
+        520,
+        300
+      ],
+      "flags": {},
+      "order": 27,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 23
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewAny",
+        "cnr_id": "comfy-core"
+      },
+      "title": "Box B",
+      "widgets_values": []
+    },
+    {
+      "id": 54,
+      "type": "SaveText",
+      "pos": [
+        1840,
+        2530
+      ],
+      "size": [
+        520,
+        120
+      ],
+      "flags": {},
+      "order": 28,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 24
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "SaveText",
+        "cnr_id": "comfy-core"
+      },
+      "title": "Save box B",
+      "widgets_values": [
+        "boxB_beat1",
+        "txt"
+      ]
+    },
+    {
+      "id": 63,
+      "type": "PreviewAny",
+      "pos": [
+        1840,
+        2870
+      ],
+      "size": [
+        520,
+        300
+      ],
+      "flags": {},
+      "order": 29,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 31
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewAny",
+        "cnr_id": "comfy-core"
+      },
+      "title": "Box C",
+      "widgets_values": []
+    },
+    {
+      "id": 64,
+      "type": "SaveText",
+      "pos": [
+        1840,
+        3210
+      ],
+      "size": [
+        520,
+        120
+      ],
+      "flags": {},
+      "order": 30,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 32
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "SaveText",
+        "cnr_id": "comfy-core"
+      },
+      "title": "Save box C",
+      "widgets_values": [
+        "boxC_beat2",
+        "txt"
+      ]
+    },
+    {
+      "id": 73,
+      "type": "PreviewAny",
+      "pos": [
+        1840,
+        3550
+      ],
+      "size": [
+        520,
+        300
+      ],
+      "flags": {},
+      "order": 31,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 39
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewAny",
+        "cnr_id": "comfy-core"
+      },
+      "title": "Box D",
+      "widgets_values": []
+    },
+    {
+      "id": 74,
+      "type": "SaveText",
+      "pos": [
+        1840,
+        3890
+      ],
+      "size": [
+        520,
+        120
+      ],
+      "flags": {},
+      "order": 32,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 40
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "SaveText",
+        "cnr_id": "comfy-core"
+      },
+      "title": "Save box D",
+      "widgets_values": [
+        "boxD_audio",
+        "txt"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      30,
+      0,
+      31,
+      0,
+      "STRING"
+    ],
+    [
+      2,
+      10,
+      0,
+      31,
+      1,
+      "STRING"
+    ],
+    [
+      3,
+      32,
+      0,
+      33,
+      0,
+      "STRING"
+    ],
+    [
+      4,
+      10,
+      0,
+      33,
+      1,
+      "STRING"
+    ],
+    [
+      5,
+      1,
+      0,
+      34,
+      0,
+      "CLIP"
+    ],
+    [
+      6,
+      20,
+      0,
+      34,
+      1,
+      "IMAGE"
+    ],
+    [
+      7,
+      31,
+      0,
+      34,
+      2,
+      "STRING"
+    ],
+    [
+      8,
+      1,
+      0,
+      35,
+      0,
+      "CLIP"
+    ],
+    [
+      9,
+      21,
+      0,
+      35,
+      1,
+      "IMAGE"
+    ],
+    [
+      10,
+      33,
+      0,
+      35,
+      2,
+      "STRING"
+    ],
+    [
+      11,
+      23,
+      0,
+      36,
+      0,
+      "STRING"
+    ],
+    [
+      12,
+      35,
+      0,
+      36,
+      1,
+      "STRING"
+    ],
+    [
+      13,
+      22,
+      0,
+      36,
+      2,
+      "BOOLEAN"
+    ],
+    [
+      14,
+      34,
+      0,
+      40,
+      0,
+      "STRING"
+    ],
+    [
+      15,
+      36,
+      0,
+      40,
+      1,
+      "STRING"
+    ],
+    [
+      16,
+      40,
+      0,
+      41,
+      0,
+      "STRING"
+    ],
+    [
+      17,
+      40,
+      0,
+      42,
+      0,
+      "STRING"
+    ],
+    [
+      18,
+      50,
+      0,
+      51,
+      0,
+      "STRING"
+    ],
+    [
+      19,
+      10,
+      0,
+      51,
+      1,
+      "STRING"
+    ],
+    [
+      20,
+      40,
+      0,
+      51,
+      2,
+      "STRING"
+    ],
+    [
+      21,
+      1,
+      0,
+      52,
+      0,
+      "CLIP"
+    ],
+    [
+      22,
+      51,
+      0,
+      52,
+      2,
+      "STRING"
+    ],
+    [
+      23,
+      52,
+      0,
+      53,
+      0,
+      "STRING"
+    ],
+    [
+      24,
+      52,
+      0,
+      54,
+      0,
+      "STRING"
+    ],
+    [
+      25,
+      60,
+      0,
+      61,
+      0,
+      "STRING"
+    ],
+    [
+      26,
+      10,
+      0,
+      61,
+      1,
+      "STRING"
+    ],
+    [
+      27,
+      40,
+      0,
+      61,
+      2,
+      "STRING"
+    ],
+    [
+      28,
+      52,
+      0,
+      61,
+      3,
+      "STRING"
+    ],
+    [
+      29,
+      1,
+      0,
+      62,
+      0,
+      "CLIP"
+    ],
+    [
+      30,
+      61,
+      0,
+      62,
+      2,
+      "STRING"
+    ],
+    [
+      31,
+      62,
+      0,
+      63,
+      0,
+      "STRING"
+    ],
+    [
+      32,
+      62,
+      0,
+      64,
+      0,
+      "STRING"
+    ],
+    [
+      33,
+      70,
+      0,
+      71,
+      0,
+      "STRING"
+    ],
+    [
+      34,
+      10,
+      0,
+      71,
+      1,
+      "STRING"
+    ],
+    [
+      35,
+      40,
+      0,
+      71,
+      2,
+      "STRING"
+    ],
+    [
+      36,
+      52,
+      0,
+      71,
+      3,
+      "STRING"
+    ],
+    [
+      37,
+      1,
+      0,
+      72,
+      0,
+      "CLIP"
+    ],
+    [
+      38,
+      71,
+      0,
+      72,
+      2,
+      "STRING"
+    ],
+    [
+      39,
+      72,
+      0,
+      73,
+      0,
+      "STRING"
+    ],
+    [
+      40,
+      72,
+      0,
+      74,
+      0,
+      "STRING"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "Inputs",
+      "bounding": [
+        -200,
+        -160,
+        640,
+        1600
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "Rules — edit to change how it writes",
+      "bounding": [
+        520,
+        -160,
+        640,
+        3260
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 3,
+      "title": "Generation",
+      "bounding": [
+        1240,
+        -160,
+        500,
+        4110
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 4,
+      "title": "Output — copy into the multishot workflow",
+      "bounding": [
+        1800,
+        1530,
+        600,
+        2540
+      ],
+      "color": "#88A",
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.35,
+      "offset": [
+        1260,
+        120
+      ]
+    },
+    "frontendVersion": "1.47.11"
+  },
+  "version": 0.4
+}

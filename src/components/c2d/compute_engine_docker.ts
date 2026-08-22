@@ -74,6 +74,7 @@ import {
   SERVICE_START_PENDING_STATUSES
 } from '../../@types/C2D/ServiceOnDemand.js'
 import type { ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
+import type { DockerMountObject } from '../../@types/PersistentStorage.js'
 import { resolveServiceImage } from './serviceResourceMatching.js'
 import {
   buildSnapshot,
@@ -3621,6 +3622,16 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
+  // Bind-mount for the job's output bucket, when it has one. Throws instead of returning an
+  // empty list: an unmounted container silently re-downloads its models and writes results
+  // nowhere, so a mount failure must fail the start/restart.
+  private async serviceOutputMounts(job: ServiceJob): Promise<DockerMountObject[]> {
+    if (!job.outputBucketId) return []
+    const ps = OceanNode.getInstance().getPersistentStorage()
+    if (!ps) throw new Error('Persistent storage is not configured on this node')
+    return [await ps.getDockerOutputMountObject(job.outputBucketId, job.owner)]
+  }
+
   // Handler-facing: persist the initial Starting record and return immediately so the HTTP
   // response carries the serviceId without waiting for escrow/image/container. The background
   // loop then calls processServiceStart() to advance it. Persisting Starting also reserves the
@@ -3640,7 +3651,8 @@ export class C2DEngineDocker extends C2DEngine {
     owner: string,
     payment: DBComputeJobPayment,
     serviceId: string,
-    userData?: string
+    userData?: string,
+    outputBucketId?: string
   ): Promise<ServiceJob | null> {
     const containerImage = resolveServiceImage(
       image,
@@ -3672,6 +3684,7 @@ export class C2DEngineDocker extends C2DEngine {
       exposedPorts,
       endpoints: [],
       userData, // stored as received (ECIES-encrypted); decrypted transiently at container start
+      outputBucketId,
       resources: resources.map((r) => ({ id: r.id, amount: r.amount })),
       payment
     }
@@ -3901,7 +3914,8 @@ export class C2DEngineDocker extends C2DEngine {
           NetworkMode: network.id,
           SecurityOpt: ['no-new-privileges'], // security plan #5
           CapDrop: ['ALL'],
-          PidsLimit: 512
+          PidsLimit: 512,
+          Mounts: await this.serviceOutputMounts(job)
         }
       })
       CORE_LOGGER.debug(
@@ -4786,7 +4800,8 @@ export class C2DEngineDocker extends C2DEngine {
           NetworkMode: network.id,
           SecurityOpt: ['no-new-privileges'],
           CapDrop: ['ALL'],
-          PidsLimit: 512
+          PidsLimit: 512,
+          Mounts: await this.serviceOutputMounts(job)
         }
       })
       CORE_LOGGER.debug(
