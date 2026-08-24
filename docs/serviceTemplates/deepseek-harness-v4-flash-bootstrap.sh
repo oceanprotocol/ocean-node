@@ -1045,11 +1045,11 @@ echo "[ocean] dsh listening on 127.0.0.1:$DSH_PORT"
 # only job is to say "this service is on the other port, with https://" — turning a dead link
 # into an instruction. It proxies nothing, requires no auth and carries no secrets.
 #
-# `header_up Host {upstream_hostport}` is load-bearing, not tidiness. dsh's client-connection
-# layer wants non-loopback serving authorities declared in trustedHosts, and this container
-# cannot know the public host and port the node will assign it. Rewriting the Host header to
-# the loopback upstream means dsh only ever sees the authority it already trusts, so nothing
-# has to be configured against a value that is not knowable at launch.
+# The two `header_up` lines are load-bearing, not tidiness. dsh's client-connection layer
+# rejects an API request unless Host is loopback/trusted and a browser Origin, when present,
+# has the same authority. This container cannot know the public host and port the node assigns
+# it, so Caddy rewrites both headers to its loopback upstream. Rewriting Host alone produces a
+# 403 on every browser API call because the unchanged public Origin no longer matches it.
 #
 # `auto_https off` keeps Caddy from provisioning or redirecting anything; an explicit `tls` with
 # certificate files still serves TLS, and the `https://` scheme on the site address makes that
@@ -1163,6 +1163,7 @@ https://:$TLS_PORT {
 	}
 	reverse_proxy 127.0.0.1:$DSH_PORT {
 		header_up Host {upstream_hostport}
+		header_up Origin http://{upstream_hostport}
 	}
 }
 
@@ -1184,6 +1185,7 @@ http://:$PROXY_PORT {
 	}
 	reverse_proxy 127.0.0.1:$DSH_PORT {
 		header_up Host {upstream_hostport}
+		header_up Origin http://{upstream_hostport}
 	}
 }
 CADDYFILE
