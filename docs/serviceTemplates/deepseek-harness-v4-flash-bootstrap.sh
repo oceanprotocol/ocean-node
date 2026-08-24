@@ -338,19 +338,17 @@ fi
 # apiKeyEnv names an env var rather than storing a secret: vLLM here has no --api-key, so the
 # value is a placeholder the client must send and the server ignores.
 # ---------------------------------------------------------------------------------------
-# DSH_PROXY=off is a DEBUG MODE, not a deployment option: it removes Caddy from the picture
-# entirely and binds dsh itself to the published port. That means NO AUTHENTICATION on a port
-# anyone can reach — dsh ships none — so it is only defensible behind a firewall or an SSH
-# tunnel, and only for as long as the test takes. It is also still plain HTTP, so a remote
-# browser will fail at the workspace picker exactly as it does without TLS; reach it as
-# http://127.0.0.1:<local-port> through a tunnel, which keeps both the secure context and a
-# loopback Host header that dsh's trustedHosts accepts without configuration.
-USE_PROXY=true
-[ "${DSH_PROXY:-on}" = "off" ] && USE_PROXY=false
-
+# THE PROXY IS NOT OPTIONAL, and this is upstream's decision rather than a preference of this
+# template. dsh's CLI reference states plainly: "The CLI intentionally does not support
+# --host 0.0.0.0 yet and exits with a usage error." dsh therefore cannot bind a published port
+# at all, and a Docker-published port cannot reach a process on the container's loopback. Any
+# remote access to this service must go through something in front — which is what Caddy is.
+# (An earlier revision of this script offered a proxy-less debug mode via a host-webserver
+# section in settings.yaml. It was removed because it cannot work twice over: the CLI refuses
+# the bind, and host/port are composition config adjusted with `dsh web --patch`, not entries
+# in the namespaced settings document this file writes.)
 export DSH_LOCAL_API_KEY=local
 SERVED_NAME="$SERVED_NAME" VLLM_PORT="$VLLM_PORT" MAX_MODEL_LEN="$MAX_MODEL_LEN" \
-  USE_PROXY="$USE_PROXY" DSH_PORT="$DSH_PORT" PROXY_PORT="$PROXY_PORT" \
   python3 - "$DSH_HOME/settings.yaml" <<'PY'
 import os, sys
 
@@ -372,16 +370,6 @@ llm-pi-ai:
           input: [text]
 """
 
-# Only written in the proxy-less debug mode. Section and keys come from the harness's own
-# config catalog (plugin host-webserver, keys host/port); the section-per-plugin layout is the
-# same one the providers guide documents for llm-pi-ai. If a future version renames either, dsh
-# keeps its 127.0.0.1:3080 default and the published port simply never answers — which the
-# readiness probe below reports rather than hiding.
-if os.environ.get('USE_PROXY') == 'false':
-    doc += f"""host-webserver:
-  host: 0.0.0.0
-  port: {int(os.environ['PROXY_PORT'])}
-"""
 with open(sys.argv[1], 'w') as fh:
     fh.write(doc)
 print(f'[ocean] wrote {sys.argv[1]} — provider ocean-local-vllm, model {served}, '
@@ -962,35 +950,22 @@ fi
 # CUDA_VISIBLE_DEVICES emptied for this process only: dsh has no use for a GPU and this
 # guarantees it cannot take VRAM the model needs.
 # ---------------------------------------------------------------------------------------
+# --host and --port are passed explicitly even though they match dsh's defaults: the defaults
+# are what the proxy is configured against, and a future release changing them would otherwise
+# turn into a dead published port rather than a startup error. Both flags, and --no-open, are
+# documented in the CLI reference. --trusted-host exists there too and is the official way to
+# declare a non-loopback invocation authority; this template does not need it, because Caddy
+# rewrites Host to the loopback upstream — worth knowing if you front dsh with your own proxy.
 cd "$WORKSPACE"
-CUDA_VISIBLE_DEVICES= "$NPM_PREFIX/bin/dsh" web --no-open &
+CUDA_VISIBLE_DEVICES= "$NPM_PREFIX/bin/dsh" web --no-open \
+  --host 127.0.0.1 --port "$DSH_PORT" &
 DSH_PID=$!
 
-# In debug mode dsh is asked to bind the published port itself, so that is the port to watch.
-DSH_WATCH_PORT="$DSH_PORT"
-[ "$USE_PROXY" = false ] && DSH_WATCH_PORT="$PROXY_PORT"
-DSH_WAITED=0
-until (exec 3<>/dev/tcp/127.0.0.1/"$DSH_WATCH_PORT") 2>/dev/null; do
+until (exec 3<>/dev/tcp/127.0.0.1/"$DSH_PORT") 2>/dev/null; do
   kill -0 $DSH_PID 2>/dev/null || { echo "[ocean] dsh exited during startup" >&2; exit 1; }
-  if [ "$USE_PROXY" = false ] && [ "$DSH_WAITED" -ge 60 ]; then
-    echo "[ocean] DSH_PROXY=off asked dsh to bind 0.0.0.0:$PROXY_PORT through the" \
-      "host-webserver section of settings.yaml, and nothing is listening there after 60s." \
-      "Either that config key has been renamed in dsh $DSH_VERSION — check" \
-      "$DSH_HOME/settings.yaml against the installed package's config catalog — or dsh is" \
-      "still on its 127.0.0.1:$DSH_PORT default, where a published port cannot reach it." \
-      "Relaunch without DSH_PROXY to use the proxy, which needs no such key." >&2
-    exit 1
-  fi
   sleep 3
-  DSH_WAITED=$((DSH_WAITED + 3))
 done
-if [ "$USE_PROXY" = false ]; then
-  echo "[ocean] dsh listening on 0.0.0.0:$DSH_WATCH_PORT — NO AUTHENTICATION IN FRONT OF IT." \
-    "This is the DSH_PROXY=off debug mode: anyone who can reach this port has a shell in this" \
-    "container. Keep it behind a firewall or a tunnel and stop the service when the test ends."
-else
-  echo "[ocean] dsh listening on 127.0.0.1:$DSH_PORT"
-fi
+echo "[ocean] dsh listening on 127.0.0.1:$DSH_PORT"
 
 # ---------------------------------------------------------------------------------------
 # The published ports: Caddy, TLS, basic auth, reverse proxy to dsh.
@@ -1036,16 +1011,6 @@ fi
 # It is not a way to avoid the certificate warning on a remote browser: it trades the warning
 # for a UI that cannot open a workspace.
 # ---------------------------------------------------------------------------------------
-if [ "$USE_PROXY" = false ]; then
-  echo "[ocean] ready — DSH_PROXY=off: no proxy, no auth, no TLS. Reach container port" \
-    "$PROXY_PORT through an SSH tunnel and open http://127.0.0.1:<local-port> (a tunnel keeps" \
-    "both the secure context and the loopback Host header dsh expects). In dsh: click Choose" \
-    "workspace and pick $WORKSPACE, then start a session — the model is already configured and" \
-    "$SKILL_COUNT skills are loaded. Stop the service when the test ends."
-  wait -n $VLLM_PID $DSH_PID
-  exit $?
-fi
-
 PW_HASH="$("$CADDY_BIN" hash-password --plaintext "$DSH_WEB_PASSWORD")"
 CADDY_DIR="$HOME/caddy-config"
 CERT="$CADDY_DIR/dsh-selfsigned.crt"

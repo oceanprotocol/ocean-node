@@ -61,10 +61,6 @@
       "validation": "^(on|off)$"
     },
     {
-      "key": "DSH_PROXY",
-      "validation": "^(on|off)$"
-    },
-    {
       "key": "VLLM_TP_SIZE",
       "validation": "^(2|4|8)$"
     },
