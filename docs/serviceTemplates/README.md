@@ -839,6 +839,79 @@ ChatGPT-style UI wired to a bundled Ollama runtime (`ghcr.io/open-webui/open-web
 so it runs local LLMs out of the box. Binds `0.0.0.0:8080` by default (no `command`). First
 visit creates an admin account. Needs a CUDA GPU for usable token speed.
 
+### `deepseek-harness-v4-flash.json` — DeepSeek Harness + DeepSeek-V4-Flash (GPU, bundle)
+
+DeepSeek's own agent runtime driven by DeepSeek's own open-weight model, both inside one
+container: `dsh` ([deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness),
+MIT) serves its browser agent UI on loopback, and vLLM serves
+`deepseek-ai/DeepSeek-V4-Flash-0731` (284B total / ~13B active MoE, FP8 weights with fp4
+experts, 166.9 GB on disk) on loopback next to it. `kind: "bundle"` over the `vllm-hf-model`
+service. Launch script: `deepseek-harness-v4-flash-bootstrap.sh`.
+
+The three flags that make this an agent runtime rather than a chat window are
+`--tokenizer-mode deepseek_v4` (the checkpoint ships encoding scripts under `encoding/` instead
+of a Jinja chat template, so without this the OpenAI-compatible chat endpoint has nothing to
+render with), `--tool-call-parser deepseek_v4` with `--enable-auto-tool-choice`, and
+`--reasoning-parser deepseek_v4`. Missing either parser and the model's tool calls arrive as
+prose inside the message body, which leaves the harness unable to act on one of them — so the
+script's warm-up sends a real request **containing a tool call** and refuses to publish a
+service that cannot answer it.
+
+Context defaults to 393216 rather than the model's full 1048576 because that is the smallest
+window in which the model's Think Max reasoning effort does not truncate; `VLLM_MAX_MODEL_LEN`
+raises it. Tensor parallelism is mandatory (166.9 GB does not fit a 141 GB card), so
+`VLLM_TP_SIZE` accepts only 2, 4 or 8 — the model has 64 attention heads and 6 is arithmetically
+illegal, which also means this template needs the operator's larger `/dev/shm` the same way the
+GLM-5.2 bundle does.
+
+**Authentication is this template's own addition, not upstream's.** DeepSeek Harness documents
+its web server as having no TLS, no auth and no origin policy, and its agent runs shell commands
+in the container — so unlike OpenCode there is no password flag to switch on. dsh therefore
+stays on `127.0.0.1:3080` and the single published port is a pinned Caddy reverse proxy
+enforcing HTTP basic auth, with `header_up Host {upstream_hostport}` so dsh only ever sees the
+loopback authority it already trusts (the container cannot know the public host:port the node
+will assign, so `trustedHosts` cannot be configured against it). The hop is plain HTTP because
+the node publishes a plain TCP port: the password travels in cleartext, and the container
+boundary rather than the password is the real isolation. `DSH_WEB_PASSWORD` (12+ chars) is
+mandatory and gated before anything downloads.
+
+**It ships a skills library.** dsh reads the same `SKILL.md` format and discovery roots as other
+skills-aware agents, at these tiers (lower number wins):
+
+| Tier | Root |
+| --- | --- |
+| 100 | `<workspace>/.dsh/skills` |
+| 200 | `<workspace>/.agents/skills` |
+| 300 | `customSkillDirs` |
+| 400 | `$DSH_HOME/skills` — **this bundle's library** |
+| 500 | `$DSH_AGENTS_HOME/skills` |
+| 600 | bundled |
+
+The bootstrap writes six skills at tier 400 and **rewrites them on every launch**, so they are
+node-managed rather than yours: `this-service` (what survives a stop, which port is published,
+how files move through the bucket), `local-model` (interrogating the loopback endpoint, the
+three reasoning efforts, calling it directly), `gpu-budget` (the VRAM is already spent — start
+no second CUDA process), `workspace-discipline` (git-first in a bucket-backed workspace, what to
+ask permission for, seeding `AGENTS.md`), `ocean-service-templates` (authoring templates and
+bundles against `ServiceTemplateSchema`, including the gate/prove/pin conventions this folder
+converged on), and `dsh-extension-pointers` (pointers into the official docs tree only — the
+harness is a preview whose plugin API moves, so no API surface is restated). A consumer's own
+skills belong in `$WORKSPACE/.agents/skills`, which outranks the library and survives relaunch.
+
+Everything is pinned and per-launch overridable — image `vllm/vllm-openai:v0.27.1`, dsh
+`0.1.1-rc.2`, Caddy `2.11.4`, Node `24.19.0` — because dsh is a developer preview whose README
+promises compatibility-breaking changes and whose every published version is a release
+candidate. A bucket is mandatory: it holds the weights, the Node/dsh runtime, dsh's sessions and
+settings, and `/data/outputs/workspace-dsv4`, the git-initialised project directory the agent
+edits.
+
+**One documented caveat.** vLLM's published recipe for this checkpoint lists H200-class Hopper
+only under a prefill/decode-disaggregated deployment, and the expert weights use an fp4 format
+native to Blackwell. Plain tensor parallelism on Hopper is expected to work but is not an
+upstream-documented layout for this model — that is the template's single unverified assumption,
+and the tool-calling warm-up is what turns it into a log line in seconds rather than a wasted
+paid window.
+
 ## The dual-model pattern
 
 One vLLM process serves exactly one model, so the two dual templates override
