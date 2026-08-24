@@ -204,14 +204,43 @@ fi
 echo "[ocean] /dev/shm is ${SHM_MB} MB"
 
 # ---------------------------------------------------------------------------------------
-# Gate 5: bucket space. 166.9 GB of weights, plus the runtime, plus room for the workspace
-# and sessions to grow. Checked before the first byte is fetched.
+# Gate 5: bucket space. A first launch needs room for 166.9 GB of weights plus the runtime.
+# A relaunch must not demand that space a second time: prove the cached checkpoint is complete
+# by reading its safetensors index and checking every referenced shard before reducing the
+# requirement to ordinary runtime/workspace headroom. A partial cache never bypasses the gate.
 # ---------------------------------------------------------------------------------------
 FREE_GB="$(df -BG "$BUCKET" 2>/dev/null | awk 'NR==2 {gsub("G","",$4); print $4}')"
-if [ "${FREE_GB:-0}" -lt 200 ]; then
-  echo "[ocean] only ${FREE_GB:-0} GB free on the bucket at $BUCKET — this needs about 200" \
-    "GB (166.9 GB of weights, the Node/dsh runtime, and headroom for sessions and the" \
-    "workspace). Refusing to start a download that cannot finish." >&2
+MODEL_CACHE="$DSH_STATE/.cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4-Flash-0731"
+WEIGHTS_CACHED=false
+if MODEL_CACHE="$MODEL_CACHE" python3 <<'PYCACHE'
+import json, os, sys
+from pathlib import Path
+
+snapshots = Path(os.environ['MODEL_CACHE']) / 'snapshots'
+for snapshot in snapshots.glob('*') if snapshots.is_dir() else ():
+    index = snapshot / 'model.safetensors.index.json'
+    try:
+        weight_map = json.loads(index.read_text())['weight_map']
+    except (FileNotFoundError, KeyError, json.JSONDecodeError, OSError):
+        continue
+    shards = set(weight_map.values())
+    if shards and all((snapshot / shard).is_file() for shard in shards):
+        sys.exit(0)
+sys.exit(1)
+PYCACHE
+then
+  WEIGHTS_CACHED=true
+fi
+
+MIN_FREE_GB=200
+if [ "$WEIGHTS_CACHED" = true ]; then
+  MIN_FREE_GB=10
+  echo "[ocean] complete cached checkpoint found — relaunch needs only runtime/workspace" \
+    "headroom; snapshot_download will verify and reuse the existing 166.9 GB"
+fi
+if [ "${FREE_GB:-0}" -lt "$MIN_FREE_GB" ]; then
+  echo "[ocean] only ${FREE_GB:-0} GB free on the bucket at $BUCKET — this launch needs at" \
+    "least $MIN_FREE_GB GB. Refusing to start a download or runtime that cannot finish." >&2
   exit 1
 fi
 echo "[ocean] ${FREE_GB} GB free on the bucket"
