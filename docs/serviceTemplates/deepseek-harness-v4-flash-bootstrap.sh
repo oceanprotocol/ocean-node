@@ -1,9 +1,10 @@
 #!/bin/bash
 # DeepSeek Harness (dsh) + DeepSeek-V4-Flash on this node's GPUs, one container, one escrow.
 #
-# Only 8080 is published, and it is a Caddy reverse proxy that demands HTTP basic auth before
-# anything reaches dsh. vLLM binds 127.0.0.1, so the raw OpenAI-compatible API — which answers
-# anyone who reaches it — is not exposed at all. dsh also binds 127.0.0.1.
+# Ports 8443 and 8080 are published. 8443 is a Caddy reverse proxy that demands HTTP basic
+# auth before anything reaches dsh; 8080 is only a signpost pointing the user to the HTTPS
+# endpoint. vLLM binds 127.0.0.1, so the raw OpenAI-compatible API — which answers anyone who
+# reaches it — is not exposed at all. dsh also binds 127.0.0.1.
 #
 # SECURITY, and the reason for gate 2 below. DeepSeek Harness's web server has, in its own
 # documentation (docs/subsystems/web-server.md): no TLS, no authentication, and no origin
@@ -150,8 +151,8 @@ if [ -z "${DSH_WEB_PASSWORD:-}" ]; then
 fi
 if [ "${#DSH_WEB_PASSWORD}" -lt 12 ]; then
   echo "[ocean] DSH_WEB_PASSWORD is shorter than 12 characters — refusing to start. This" \
-    "port is reachable by anyone who scans it and the credential crosses the network in" \
-    "cleartext, so a guessable password is the same as no password." >&2
+    "port is reachable by anyone who scans it, so a guessable password is the same as no" \
+    "password even though the proxy encrypts it in transit." >&2
   exit 1
 fi
 DSH_WEB_USERNAME="${DSH_WEB_USERNAME:-dsh}"
@@ -327,13 +328,20 @@ if command -v git >/dev/null 2>&1 && [ ! -d "$WORKSPACE/.git" ]; then
 fi
 
 # ---------------------------------------------------------------------------------------
-# dsh's settings, rewritten on every launch because they are node-managed. The section name
-# and key shape follow the official providers guide (docs/user/guide/providers.md): settings
-# are keyed by plugin, and `llm-pi-ai.providers.<id>` is where an OpenAI-compatible endpoint
-# is declared. One provider and one model exist here, which is also the privacy control — the
-# consumer cannot pick a hosted model and send this code off the box, because none is
-# configured. Adding a DeepSeek platform key in Settings -> Models would undo that; the whole
-# point of this bundle is that the weights are on the cards next door.
+# dsh's settings and deployment overlay, rewritten on every launch because they are
+# node-managed. The settings section follows the official providers guide:
+# `llm-pi-ai.providers.<id>` declares an OpenAI-compatible endpoint. The overlay changes the
+# shipped profile's default route and disables its `deepseek-official` adapter; settings alone
+# can add a route but cannot remove a composition-owned one. Without the overlay, a fresh
+# session silently defaults to DeepSeek's hosted API and fails with MISSING_CREDENTIAL instead
+# of using the model already running next door — and the hosted route remains selectable.
+#
+# The vLLM V4 encoder reads thinking controls from `chat_template_kwargs`, not the bare
+# OpenAI `reasoning_effort` field a generic endpoint would receive. The compat mapping below
+# is therefore functional configuration: it sends `thinking` plus `reasoning_effort` inside
+# that object, keeps the system message as `system` (not `developer`), and uses `max_tokens`,
+# all of which this vLLM endpoint accepts. Declaring the capacities and effort map also keeps
+# dsh from falling back to 262K/32K and hiding the reasoning selector.
 #
 # apiKeyEnv names an env var rather than storing a secret: vLLM here has no --api-key, so the
 # value is a placeholder the client must send and the server ignores.
@@ -359,14 +367,38 @@ ctx = int(os.environ['MAX_MODEL_LEN'])
 # image and this document is four levels deep and fully known.
 doc = f"""# Written by the ocean-node bundle on every launch — edit at your own risk, it is
 # overwritten. Put durable, personal configuration in the workspace instead.
+agent-default-model:
+  provider: ocean-local-vllm
+  model: {served}
+  reasoningEffort: high
+
 llm-pi-ai:
   providers:
     ocean-local-vllm:
+      displayName: DeepSeek V4 Flash (local vLLM)
       api: openai-completions
       baseURL: http://127.0.0.1:{port}/v1
       apiKeyEnv: DSH_LOCAL_API_KEY
+      compat:
+        thinkingFormat: chat-template
+        supportsDeveloperRole: false
+        maxTokensField: max_tokens
+        chatTemplateKwargs:
+          thinking:
+            $var: thinking.enabled
+          reasoning_effort:
+            $var: thinking.effort
+            omitWhenOff: true
       models:
         - id: {served}
+          name: DeepSeek-V4-Flash-0731 (local)
+          contextWindow: {ctx}
+          maxTokens: 131072
+          reasoningEfforts:
+            off:
+            low: low
+            high: high
+            max: max
           input: [text]
 """
 
@@ -375,6 +407,23 @@ with open(sys.argv[1], 'w') as fh:
 print(f'[ocean] wrote {sys.argv[1]} — provider ocean-local-vllm, model {served}, '
       f'{ctx // 1024}K context')
 PY
+
+# A settings section can add/reshape routes but cannot remove the profile's built-in
+# `deepseek-official` adapter. This loader overlay does that at the owning composition layer
+# and makes the local route the base default as well. Pass it with --patch rather than editing
+# dsh's generated profile so the bundle remains deterministic across dsh upgrades/relaunches.
+DSH_PROFILE_PATCH="$DSH_HOME/ocean-web.patch.yml"
+cat > "$DSH_PROFILE_PATCH" <<'YAML'
+- id: agent-default-model
+  config:
+    provider: ocean-local-vllm
+    model: deepseek-v4-flash
+- id: llm-deepseek
+  disabled: true
+- id: web-search-deepseek
+  disabled: true
+YAML
+echo "[ocean] wrote $DSH_PROFILE_PATCH — hosted DeepSeek routes disabled"
 
 # ---------------------------------------------------------------------------------------
 # The skills library. Skills are not a dsh invention — it reads the same SKILL.md format and
@@ -404,7 +453,7 @@ mkdir -p "$SKILLS/this-service"
 cat > "$SKILLS/this-service/SKILL.md" <<'SKILL'
 ---
 name: this-service
-description: Read FIRST in any new session, and before writing, downloading or moving any file. Explains which directories survive a stop, which single port is published, and how files get in and out of this container.
+description: Read FIRST in any new session, and before writing, downloading or moving any file. Explains which directories survive a stop, which ports are published, and how files get in and out of this container.
 ---
 
 # Where you are
@@ -495,9 +544,9 @@ the input.
 
 ## Reasoning effort
 
-The model has three modes: non-think (fast), think high, and think max. Think max needs a
-context of at least 393216 or its output truncates mid-thought. Prefer non-think for mechanical
-work — renames, greps, file moves — and reserve think max for genuinely hard reasoning, because
+The Harness selector exposes four modes: Off (non-think), Low, High and Max. Think Max needs a
+context of at least 393216 or its output truncates mid-thought. Prefer Off or Low for mechanical
+work — renames, greps, file moves — and reserve Max for genuinely hard reasoning, because
 thinking tokens are billed time on cards the user is renting by the minute.
 
 Reasoning content arrives in a separate field (vLLM is started with `--reasoning-parser
@@ -813,6 +862,7 @@ vllm serve "$MODEL" \
   --max-model-len "$MAX_MODEL_LEN" \
   --max-num-seqs 8 \
   --kv-cache-dtype fp8 \
+  --block-size 256 \
   --trust-remote-code \
   --tokenizer-mode deepseek_v4 \
   --tool-call-parser deepseek_v4 \
@@ -957,7 +1007,7 @@ fi
 # declare a non-loopback invocation authority; this template does not need it, because Caddy
 # rewrites Host to the loopback upstream — worth knowing if you front dsh with your own proxy.
 cd "$WORKSPACE"
-CUDA_VISIBLE_DEVICES= "$NPM_PREFIX/bin/dsh" web --no-open \
+CUDA_VISIBLE_DEVICES= "$NPM_PREFIX/bin/dsh" web --patch "$DSH_PROFILE_PATCH" --no-open \
   --host 127.0.0.1 --port "$DSH_PORT" &
 DSH_PID=$!
 
