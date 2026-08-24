@@ -58,6 +58,14 @@
 set -euo pipefail
 
 MODEL="deepseek-ai/DeepSeek-V4-Flash-0731"
+# The revision the weights are pulled at. Everything else in this script is pinned — the image
+# tag, the dsh release, Caddy — for one reason: nothing may change under a paid window. The
+# weights were the hole in that rule. A branch resolves to whatever the repository head is at
+# download time, so an upstream re-upload can silently hand a relaunch different weights, or
+# invalidate the 166.9 GB already sitting on the consumer's bucket and re-download all of it
+# inside the window. Set MODEL_REVISION to a 40-character commit sha to close that; the default
+# is the branch, and the script says so out loud rather than pretending to be pinned.
+MODEL_REVISION="${MODEL_REVISION:-main}"
 SERVED_NAME="deepseek-v4-flash"
 VLLM_PORT=8000        # loopback only
 DSH_PORT=3080         # loopback only — dsh's own default
@@ -73,17 +81,26 @@ CADDY_VERSION="${CADDY_VERSION:-2.11.4}"
 # cache at the utilisation below. (74.37 x 2 is under 155.4 because DSpark's draft module is not
 # loaded while ENABLE_DSPARK is false — turning it on costs about 3.3 GiB per card.) Tensor
 # parallelism splits by whole attention heads and the model has 64, so 2/4/8 are legal and 6 is
-# not — do not "use all six cards" by setting 6, vLLM will refuse to start. Raise to 4 for more
-# KV cache (a 1M-token context) at the cost of two more cards.
-TP_SIZE="${VLLM_TP_SIZE:-2}"
+# not — do not "use all six cards" by setting 6, vLLM will refuse to start.
+#
+# UNSET MEANS AUTO, and auto means every card this container was given: gate 3 resolves it to
+# the largest legal size (8, 4 or 2) that the visible GPU count supports. A fixed default of 2
+# was wrong in a way that costs real money — this template RECOMMENDS four cards, so a wizard
+# that honours the recommendation would hand vLLM four GPUs, and two of them would sit at zero
+# utilisation for the whole paid window. Spreading wider is never worse: the weights are the
+# same size, each card holds less of them, and the memory freed becomes KV cache (four cards
+# put the model's full 1048576-token context within reach of VLLM_MAX_MODEL_LEN). Set
+# VLLM_TP_SIZE explicitly to pin a layout instead.
+TP_SIZE="${VLLM_TP_SIZE:-auto}"
 case "$TP_SIZE" in
+  auto) ;;
   1) echo "[ocean] VLLM_TP_SIZE=1 cannot work: the checkpoint is 166.9 GB and the largest" \
-       "card here is 141 GB. Use 2, 4 or 8." >&2; exit 1 ;;
+       "card here is 141 GB. Use 2, 4 or 8, or leave it unset to use every visible card." >&2
+     exit 1 ;;
   2|4|8) ;;
   *) echo "[ocean] VLLM_TP_SIZE=$TP_SIZE is not a divisor of the model's 64 attention heads" \
-       "that vLLM accepts here. Use 2, 4 or 8." >&2; exit 1 ;;
+       "that vLLM accepts here. Use 2, 4 or 8, or leave it unset." >&2; exit 1 ;;
 esac
-GPUS_REQUIRED="$TP_SIZE"
 
 # 0.90, vLLM's default, kept deliberately after a measured launch on 2x141 GB H200 rather than
 # left at the default by omission. The full accounting from that launch, per card:
@@ -164,10 +181,33 @@ echo "[ocean] basic auth will be required for user '$DSH_WEB_USERNAME'"
 # ---------------------------------------------------------------------------------------
 if ! command -v nvidia-smi >/dev/null 2>&1; then
   echo "[ocean] nvidia-smi is not present — this container has no GPU access. This model" \
-    "needs $GPUS_REQUIRED CUDA GPUs of the 141 GB H200 class." >&2
+    "needs at least TWO CUDA GPUs of the 141 GB H200 class." >&2
   exit 1
 fi
 GPU_COUNT="$(nvidia-smi --query-gpu=count --format=csv,noheader | head -1 | tr -d ' ')"
+# Resolve an unset VLLM_TP_SIZE to the widest legal layout these cards support, so no GPU the
+# consumer is paying for goes untouched. Legal sizes are only 2, 4 and 8 (64 attention heads),
+# which is why this picks from a list rather than using $GPU_COUNT directly — six visible cards
+# means tp=4 and two spare, not tp=6, which vLLM would refuse.
+if [ "$TP_SIZE" = auto ]; then
+  for CANDIDATE in 8 4 2; do
+    if [ "${GPU_COUNT:-0}" -ge "$CANDIDATE" ]; then TP_SIZE="$CANDIDATE"; break; fi
+  done
+  if [ "$TP_SIZE" = auto ]; then
+    echo "[ocean] this container sees ${GPU_COUNT:-0} GPU(s). The checkpoint is 166.9 GB, so" \
+      "no single 141 GB card holds it and tensor-parallel size 2 is the floor — there is no" \
+      "single-GPU configuration to fall back to." >&2
+    exit 1
+  fi
+  if [ "$GPU_COUNT" -gt "$TP_SIZE" ]; then
+    echo "[ocean] $GPU_COUNT GPU(s) visible; using tp=$TP_SIZE (only 2, 4 and 8 are legal" \
+      "against 64 attention heads), so $((GPU_COUNT - TP_SIZE)) card(s) stay idle. Set" \
+      "VLLM_TP_SIZE if you want a different layout."
+  else
+    echo "[ocean] VLLM_TP_SIZE unset — using every visible card: tp=$TP_SIZE"
+  fi
+fi
+GPUS_REQUIRED="$TP_SIZE"
 if [ "${GPU_COUNT:-0}" -lt "$GPUS_REQUIRED" ]; then
   echo "[ocean] this container sees ${GPU_COUNT:-0} GPU(s) but the layout needs" \
     "$GPUS_REQUIRED (tensor-parallel size $TP_SIZE). The checkpoint is 166.9 GB, so no" \
@@ -210,33 +250,49 @@ echo "[ocean] /dev/shm is ${SHM_MB} MB"
 # requirement to ordinary runtime/workspace headroom. A partial cache never bypasses the gate.
 # ---------------------------------------------------------------------------------------
 FREE_GB="$(df -BG "$BUCKET" 2>/dev/null | awk 'NR==2 {gsub("G","",$4); print $4}')"
-MODEL_CACHE="$DSH_STATE/.cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4-Flash-0731"
 WEIGHTS_CACHED=false
-if MODEL_CACHE="$MODEL_CACHE" python3 <<'PYCACHE'
-import json, os, sys
+DISCOVERED_HF_HUB_CACHE="$(BUCKET="$BUCKET" python3 <<'PYCACHE'
+import json, os
 from pathlib import Path
 
-snapshots = Path(os.environ['MODEL_CACHE']) / 'snapshots'
-for snapshot in snapshots.glob('*') if snapshots.is_dir() else ():
-    index = snapshot / 'model.safetensors.index.json'
-    try:
-        weight_map = json.loads(index.read_text())['weight_map']
-    except (FileNotFoundError, KeyError, json.JSONDecodeError, OSError):
+model_dirname = 'models--deepseek-ai--DeepSeek-V4-Flash-0731'
+for root, dirs, _files in os.walk(os.environ['BUCKET'], followlinks=False):
+    # These cannot contain the Hugging Face cache and can make a workspace scan enormous.
+    dirs[:] = [item for item in dirs if item not in {'.git', 'node_modules'}]
+    model_cache = Path(root)
+    if model_cache.name != model_dirname:
         continue
-    shards = set(weight_map.values())
-    if shards and all((snapshot / shard).is_file() for shard in shards):
-        sys.exit(0)
-sys.exit(1)
+    dirs[:] = []
+    for index in model_cache.glob('snapshots/*/model.safetensors.index.json'):
+        try:
+            weight_map = json.loads(index.read_text())['weight_map']
+        except (FileNotFoundError, KeyError, json.JSONDecodeError, OSError):
+            continue
+        shards = set(weight_map.values())
+        if shards and all((index.parent / shard).is_file() for shard in shards):
+            # Return the directory containing models--ORG--REPO. Assigning it to
+            # HF_HUB_CACHE works for both the standard <HF_HOME>/hub layout and a custom
+            # cache_dir exported by the image.
+            print(model_cache.parent)
+            raise SystemExit(0)
 PYCACHE
-then
+)"
+
+export HF_HOME="$DSH_STATE/.cache/huggingface"
+if [ -n "$DISCOVERED_HF_HUB_CACHE" ]; then
   WEIGHTS_CACHED=true
+  export HF_HUB_CACHE="$DISCOVERED_HF_HUB_CACHE"
+else
+  # Pin new downloads to the persistent namespace instead of trusting image-level cache env.
+  export HF_HUB_CACHE="$HF_HOME/hub"
 fi
 
 MIN_FREE_GB=200
 if [ "$WEIGHTS_CACHED" = true ]; then
   MIN_FREE_GB=10
   echo "[ocean] complete cached checkpoint found — relaunch needs only runtime/workspace" \
-    "headroom; snapshot_download will verify and reuse the existing 166.9 GB"
+    "headroom; snapshot_download will verify and reuse the existing 166.9 GB at" \
+    "$HF_HUB_CACHE"
 fi
 if [ "${FREE_GB:-0}" -lt "$MIN_FREE_GB" ]; then
   echo "[ocean] only ${FREE_GB:-0} GB free on the bucket at $BUCKET — this launch needs at" \
@@ -342,6 +398,15 @@ os.chmod(os.path.join(dest, 'caddy'), 0o755)
 PY
 fi
 echo "[ocean] caddy $("$CADDY_BIN" version | head -1)"
+
+# The basic-auth hash is computed HERE, as early as Caddy exists, so the plaintext can leave
+# the environment before anything else is started. This is not tidiness: dsh inherits this
+# process's environment, and dsh's agent runs arbitrary shell commands in this container, so a
+# DSH_WEB_PASSWORD still set at that point hands the agent the one credential guarding its own
+# port — reachable with `env`, and one prompt-injected file in the workspace away from being
+# published. Caddy needs only the bcrypt hash, which reaches it through the config file.
+PW_HASH="$("$CADDY_BIN" hash-password --plaintext "$DSH_WEB_PASSWORD")"
+unset DSH_WEB_PASSWORD
 
 # git is optional but worth having: the workspace is a real project directory on the bucket and
 # the agent's first useful habit is committing before it edits. Never fatal.
@@ -836,11 +901,17 @@ else
   echo "[ocean] hf_transfer not installed — standard downloads"
 fi
 
+if [ "$MODEL_REVISION" = main ]; then
+  echo "[ocean] MODEL_REVISION is the 'main' branch — the weights are the one thing in this" \
+    "launch that is not pinned to an immutable id. Pass a 40-character commit sha to pin them."
+else
+  echo "[ocean] weights pinned to revision $MODEL_REVISION"
+fi
 echo "[models] downloading $MODEL"
-python3 - "$MODEL" <<'PY'
+python3 - "$MODEL" "$MODEL_REVISION" <<'PY'
 import sys
 from huggingface_hub import snapshot_download
-snapshot_download(sys.argv[1], max_workers=8)
+snapshot_download(sys.argv[1], revision=sys.argv[2], max_workers=8)
 PY
 echo "[models] ready 2/2 $MODEL"
 echo "[models] bundle complete"
@@ -1090,11 +1161,16 @@ echo "[ocean] dsh listening on 127.0.0.1:$DSH_PORT"
 # It is not a way to avoid the certificate warning on a remote browser: it trades the warning
 # for a UI that cannot open a workspace.
 # ---------------------------------------------------------------------------------------
-PW_HASH="$("$CADDY_BIN" hash-password --plaintext "$DSH_WEB_PASSWORD")"
-CADDY_DIR="$HOME/caddy-config"
+# PW_HASH was computed right after Caddy was installed, before dsh started, and the plaintext
+# unset there — see the note at that point in the script.
+# CADDY_DIR is deliberately NOT on the bucket. Everything in it — the Caddyfile carrying the
+# password hash, the per-launch private key, the signpost page — is rewritten on every launch,
+# so persisting it buys nothing, and a private key surviving in the consumer's storage after
+# the container is gone is a liability with no upside.
+CADDY_DIR="${TMPDIR:-/tmp}/caddy-dsh"
 CERT="$CADDY_DIR/dsh-selfsigned.crt"
 KEY="$CADDY_DIR/dsh-selfsigned.key"
-mkdir -p "$CADDY_DIR/site"
+mkdir -p "$CADDY_DIR/site" "$CADDY_DIR/data" "$CADDY_DIR/config"
 
 USE_TLS=true
 if [ "${DSH_TLS:-on}" = "off" ]; then
@@ -1220,7 +1296,7 @@ http://:$PROXY_PORT {
 CADDYFILE
 fi
 
-XDG_DATA_HOME="$HOME/caddy-data" XDG_CONFIG_HOME="$HOME/caddy-config" \
+XDG_DATA_HOME="$CADDY_DIR/data" XDG_CONFIG_HOME="$CADDY_DIR/config" \
   "$CADDY_BIN" run --config "$CADDY_DIR/Caddyfile" --adapter caddyfile &
 PROXY_PID=$!
 
@@ -1250,4 +1326,25 @@ fi
 # If any of the three dies the container stops, rather than leaving something that still looks
 # Running and still bills while being unusable — in particular, a dead proxy must never leave
 # dsh reachable, and a dead dsh must never leave the port answering.
-wait -n $VLLM_PID $DSH_PID $PROXY_PID
+#
+# Polled rather than `wait -n $VLLM_PID $DSH_PID $PROXY_PID`: bash accepted `wait -n` from 4.3
+# but only learned to take PID ARGUMENTS with it in 5.1, and on an older shell that line is a
+# usage error under `set -e` — the container would exit one second after printing "ready",
+# which is the worst possible failure for this script to have. The same caution is already
+# applied to array expansion further up, and the poll costs nothing. It also names which
+# process died, which `wait -n` cannot.
+#
+# `jobs` is called first on purpose: it forces bash to reap terminated background children, so
+# `kill -0` reports a dead process as dead instead of succeeding against a zombie.
+while :; do
+  jobs >/dev/null 2>&1 || true
+  for ENTRY in "vLLM:$VLLM_PID" "dsh:$DSH_PID" "the auth proxy:$PROXY_PID"; do
+    if ! kill -0 "${ENTRY#*:}" 2>/dev/null; then
+      echo "[ocean] ${ENTRY%%:*} exited — stopping the whole service rather than billing a" \
+        "container that still looks Running but cannot answer." >&2
+      kill "$VLLM_PID" "$DSH_PID" "$PROXY_PID" 2>/dev/null || true
+      exit 1
+    fi
+  done
+  sleep 15
+done
