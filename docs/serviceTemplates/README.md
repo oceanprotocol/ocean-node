@@ -864,16 +864,32 @@ raises it. Tensor parallelism is mandatory (166.9 GB does not fit a 141 GB card)
 illegal, which also means this template needs the operator's larger `/dev/shm` the same way the
 GLM-5.2 bundle does.
 
-**Authentication is this template's own addition, not upstream's.** DeepSeek Harness documents
-its web server as having no TLS, no auth and no origin policy, and its agent runs shell commands
-in the container — so unlike OpenCode there is no password flag to switch on. dsh therefore
-stays on `127.0.0.1:3080` and the single published port is a pinned Caddy reverse proxy
-enforcing HTTP basic auth, with `header_up Host {upstream_hostport}` so dsh only ever sees the
-loopback authority it already trusts (the container cannot know the public host:port the node
-will assign, so `trustedHosts` cannot be configured against it). The hop is plain HTTP because
-the node publishes a plain TCP port: the password travels in cleartext, and the container
-boundary rather than the password is the real isolation. `DSH_WEB_PASSWORD` (12+ chars) is
-mandatory and gated before anything downloads.
+**Authentication and TLS are this template's own additions, not upstream's.** DeepSeek Harness
+documents its web server as having no TLS, no auth and no origin policy, and its agent runs
+shell commands in the container — so unlike OpenCode there is no password flag to switch on. dsh
+therefore stays on `127.0.0.1:3080` and the published port is a pinned Caddy reverse proxy that
+terminates TLS and enforces HTTP basic auth, with `header_up Host {upstream_hostport}` so dsh
+only ever sees the loopback authority it already trusts (the container cannot know the public
+host:port the node will assign, so `trustedHosts` cannot be configured against it).
+`DSH_WEB_PASSWORD` (12+ chars) is mandatory and gated before anything downloads.
+
+TLS is load-bearing rather than hardening: browsers gate `crypto.randomUUID()` — along with
+`crypto.subtle`, the clipboard API and service workers — to **secure contexts**, and dsh's
+workspace picker calls it. Over plain `http://` to a remote host the UI dies with
+`crypto.randomUUID is not a function` at a step you cannot skip. The certificate is self-signed
+and regenerated per launch (openssl, falling back to the `cryptography` module), since the
+container never learns the hostname it is reached by; accepting the browser warning is what
+creates the secure context.
+
+**Two ports are published, and the second is a workaround for the node.** ocean-node builds
+every endpoint as `http://<nodeHost>:<hostPort>` (`compute_engine_docker.ts`) with no way for a
+template to declare a scheme, so the URL handed out for the TLS port has the wrong one. Container
+port **8443** carries the UI — take that endpoint and type `https://` in front of it. Container
+port **8080** serves a single static page saying exactly that, turning a dead link into an
+instruction. `DSH_TLS=off` reverts to a plain-HTTP proxy on 8080, correct only when reaching the
+service through an SSH tunnel, because localhost is a secure context by itself. A node-side fix
+(an optional scheme on the template, honoured when the endpoint URL is built) would remove the
+second port entirely.
 
 **It ships a skills library.** dsh reads the same `SKILL.md` format and discovery roots as other
 skills-aware agents, at these tiers (lower number wins):
@@ -905,12 +921,23 @@ candidate. A bucket is mandatory: it holds the weights, the Node/dsh runtime, ds
 settings, and `/data/outputs/workspace-dsv4`, the git-initialised project directory the agent
 edits.
 
-**One documented caveat.** vLLM's published recipe for this checkpoint lists H200-class Hopper
-only under a prefill/decode-disaggregated deployment, and the expert weights use an fp4 format
-native to Blackwell. Plain tensor parallelism on Hopper is expected to work but is not an
-upstream-documented layout for this model — that is the template's single unverified assumption,
-and the tool-calling warm-up is what turns it into a log line in seconds rather than a wasted
-paid window.
+**One documented caveat, now partly closed.** vLLM's published recipe for this checkpoint lists
+H200-class Hopper only under a prefill/decode-disaggregated deployment, so plain tensor
+parallelism here is undocumented upstream rather than unsupported. It loads: measured on
+2x141 GB H200, the fp4-expert weights come up at 74.37 GiB per card at tp=2, indexer cache in
+its non-Blackwell mode. It serves, too: the same launch passed the
+tool-calling warm-up and answered on `/v1/chat/completions`.
+
+Measured on that run, per card at tp=2: 75.31 GiB weights and non-torch, 2.79 GiB peak
+activation, 0.13 GiB CUDA graph pool, and **47.73 GiB of KV cache at the default 0.90
+utilisation** — 2,446,666 tokens, 6.22x concurrency at a full 393216-token request. Engine init
+(profile, KV cache, warmup) took 456 s, most of it DeepGEMM warmup and the TileLang JIT of the
+manifold-hyper-connection kernels; those caches live under `$HOME` on the bucket, so relaunches
+are cheaper. Two startup artefacts are noise rather than problems: a burst of
+`CUDACachingAllocator` OOM warnings while TileLang compiles (before the KV pool is carved out —
+the same run reported 137.63 GiB of 139.8 free), and `shm_broadcast: No available shared memory
+broadcast block found in 60 seconds`, whose own message names compilation as the usual cause.
+Lowering `--gpu-memory-utilization` to quiet them costs KV cache and buys nothing.
 
 ## The dual-model pattern
 
