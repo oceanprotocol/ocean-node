@@ -78,9 +78,13 @@ CADDY_VERSION="${CADDY_VERSION:-2.11.4}"
 # git is NOT in the vLLM image and apt cannot install it in a service container — see the
 # install block below for why. micromamba is a single static binary that installs a real git
 # into $HOME (the bucket) with no root and no capabilities.
-# VERIFY THIS TAG before shipping: micromamba-releases tags carry a build suffix (`X.Y.Z-N`)
-# and a tag that does not exist turns into a 404 at launch, not at review time.
-MICROMAMBA_VERSION="${MICROMAMBA_VERSION:-2.3.4-0}"
+# TAG VERIFIED 2026-08-25 against the release asset URL itself, not from memory: 2.3.4 never
+# existed (2.3.x stops at 2.3.3-0), so the previous value 404'd at launch and git silently
+# never installed. micromamba-releases tags carry a build suffix (`X.Y.Z-N`); a tag that does
+# not exist turns into a 404 at launch, not at review time, so re-probe before bumping:
+#   curl -sIo /dev/null -w '%{http_code}\n' -L \
+#     https://github.com/mamba-org/micromamba-releases/releases/download/$TAG/micromamba-linux-64
+MICROMAMBA_VERSION="${MICROMAMBA_VERSION:-2.9.0-0}"
 # Deliberately NOT version-pinned, against this file's own rule. conda-forge drops old builds,
 # so a hard pin here is a launch that fails when the channel moves rather than a launch that is
 # reproducible. Pin it via env (GIT_SPEC='git=2.51.0') once a build is known to be durable.
