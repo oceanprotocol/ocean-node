@@ -1,5 +1,5 @@
 import { readdir, readFile } from 'fs/promises'
-import { join, resolve, sep } from 'path'
+import { basename, dirname, join, resolve, sep } from 'path'
 import type {
   ServiceTemplate,
   ServiceTemplateWorkflow
@@ -7,16 +7,19 @@ import type {
 import { ServiceTemplateSchema } from '../../../utils/config/schemas.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
-// Reads a file a template points at. Null (with a warning naming `what`) when the path
-// escapes the templates dir or cannot be read — template paths are author-controlled, so
-// both are authoring mistakes rather than node failures.
+// Reads a file a template points at. `baseDir` is the folder the template file itself lives in,
+// so a flow folder's paths stay folder-local; `resolvedRoot` is the templates root, and a target
+// outside it is refused. Null (with a warning naming `what`) when the path escapes the root or
+// cannot be read — template paths are author-controlled, so both are authoring mistakes rather
+// than node failures.
 async function readTemplateFile(
-  resolvedDir: string,
+  resolvedRoot: string,
+  baseDir: string,
   relPath: string,
   what: string
 ): Promise<string | null> {
-  const target = resolve(resolvedDir, relPath)
-  if (target !== resolvedDir && !target.startsWith(resolvedDir + sep)) {
+  const target = resolve(baseDir, relPath)
+  if (target !== resolvedRoot && !target.startsWith(resolvedRoot + sep)) {
     CORE_LOGGER.warn(`${what}: "${relPath}" resolves outside the templates dir`)
     return null
   }
@@ -35,7 +38,18 @@ export async function loadServiceTemplates(dir?: string): Promise<ServiceTemplat
 
   let files: string[]
   try {
-    files = (await readdir(dir)).filter((f) => f.toLowerCase().endsWith('.json')).sort() // deterministic order → stable duplicate resolution
+    const entries = (await readdir(dir, { recursive: true })) as string[]
+    const json = entries.filter((f) => f.toLowerCase().endsWith('.json'))
+    // A directory that holds any <flow>/template.json is using the folder layout, and a repo
+    // laid out that way has no templates at its root — what it does have is its own
+    // package.json, which the flat rule below would otherwise parse and warn about on every
+    // request. The two layouts are therefore mutually exclusive rather than additive.
+    const folderLayout = json.some(
+      (f) => f.includes(sep) && basename(f) === 'template.json'
+    )
+    files = json
+      .filter((f) => (folderLayout ? basename(f) === 'template.json' : !f.includes(sep)))
+      .sort() // deterministic order → stable duplicate resolution
   } catch (e) {
     // A missing folder is the normal "no templates" state — the default path
     // (databases/serviceTemplates/) need not exist — so stay quiet on ENOENT.
@@ -49,9 +63,12 @@ export async function loadServiceTemplates(dir?: string): Promise<ServiceTemplat
     return []
   }
 
-  const resolvedDir = resolve(dir)
+  const resolvedRoot = resolve(dir)
   const byId = new Map<string, ServiceTemplate>()
   for (const file of files) {
+    // Paths inside a template are relative to the template file itself, so a flow folder is
+    // self-contained and can be moved without editing it.
+    const baseDir = dirname(resolve(dir, file))
     let raw: unknown
     try {
       raw = JSON.parse(await readFile(join(dir, file), 'utf8'))
@@ -82,7 +99,8 @@ export async function loadServiceTemplates(dir?: string): Promise<ServiceTemplat
       if (tmpl.commandFile) {
         // No command means nothing to run, so an unreadable file skips the whole template.
         const content = await readTemplateFile(
-          resolvedDir,
+          resolvedRoot,
+          baseDir,
           tmpl.commandFile,
           `Skipping service template "${tmpl.id}"`
         )
@@ -99,7 +117,7 @@ export async function loadServiceTemplates(dir?: string): Promise<ServiceTemplat
             continue
           }
           const dropping = `Template "${tmpl.id}": dropping workflow "${wf.id}"`
-          const content = await readTemplateFile(resolvedDir, wf.file, dropping)
+          const content = await readTemplateFile(resolvedRoot, baseDir, wf.file, dropping)
           if (content === null) continue
           try {
             const { file, ...rest } = wf

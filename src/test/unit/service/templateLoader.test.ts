@@ -1,8 +1,10 @@
 import { expect } from 'chai'
+import sinon from 'sinon'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs'
 import { join, relative } from 'path'
 import { tmpdir } from 'os'
 import { loadServiceTemplates } from '../../../components/core/service/templateLoader.js'
+import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
 const valid = (id: string) => ({
   id,
@@ -154,6 +156,111 @@ describe('loadServiceTemplates', () => {
       expect(await loadServiceTemplates(dir)).to.deep.equal([])
     } finally {
       rmSync(outsideDir, { recursive: true, force: true })
+    }
+  })
+
+  it('14. nested <flow>/template.json is loaded', async () => {
+    mkdirSync(join(dir, 'my-flow'))
+    writeFileSync(join(dir, 'my-flow', 'template.json'), JSON.stringify(valid('my-flow')))
+    const templates = await loadServiceTemplates(dir)
+    expect(templates.map((t) => t.id)).to.deep.equal(['my-flow'])
+  })
+
+  it('15. a nested *.json that is not template.json is ignored', async () => {
+    mkdirSync(join(dir, 'my-flow', 'workflows'), { recursive: true })
+    writeFileSync(join(dir, 'my-flow', 'template.json'), JSON.stringify(valid('my-flow')))
+    // Deliberately schema-valid, under a different id, so the filter is the only reason
+    // this file is excluded — a schema failure could not mask a reverted filter.
+    writeFileSync(
+      join(dir, 'my-flow', 'workflows', 'graph.json'),
+      JSON.stringify(valid('nested-graph'))
+    )
+    const templates = await loadServiceTemplates(dir)
+    expect(templates.map((t) => t.id)).to.deep.equal(['my-flow'])
+  })
+
+  it('16. nested commandFile resolves relative to the flow folder', async () => {
+    mkdirSync(join(dir, 'my-flow'))
+    writeFileSync(join(dir, 'my-flow', 'bootstrap.sh'), '#!/bin/bash\necho hi\n')
+    writeFileSync(
+      join(dir, 'my-flow', 'template.json'),
+      JSON.stringify({ ...valid('my-flow'), commandFile: 'bootstrap.sh' })
+    )
+    const [tmpl] = await loadServiceTemplates(dir)
+    expect(tmpl.command).to.deep.equal(['#!/bin/bash\necho hi\n'])
+    expect(tmpl).to.not.have.property('commandFile')
+  })
+
+  it('17. nested workflows[].file resolves relative to the flow folder', async () => {
+    mkdirSync(join(dir, 'my-flow', 'workflows'), { recursive: true })
+    writeFileSync(
+      join(dir, 'my-flow', 'workflows', 'g.json'),
+      JSON.stringify({ nodes: [1] })
+    )
+    writeFileSync(
+      join(dir, 'my-flow', 'template.json'),
+      JSON.stringify({
+        ...valid('my-flow'),
+        workflows: [{ id: 'g', name: 'G', file: 'workflows/g.json' }]
+      })
+    )
+    const [tmpl] = await loadServiceTemplates(dir)
+    expect(tmpl.workflows[0].graph).to.deep.equal({ nodes: [1] })
+    expect(tmpl.workflows[0]).to.not.have.property('file')
+  })
+
+  it('18. nested commandFile escaping the templates root skips the template', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'outside-'))
+    writeFileSync(join(outside, 'evil.sh'), 'echo pwned')
+    mkdirSync(join(dir, 'my-flow'))
+    writeFileSync(
+      join(dir, 'my-flow', 'template.json'),
+      JSON.stringify({
+        ...valid('my-flow'),
+        commandFile: relative(join(dir, 'my-flow'), join(outside, 'evil.sh'))
+      })
+    )
+    // The sibling must also use the folder layout: once any <flow>/template.json exists,
+    // root-level *.json is ignored (see rule 20), so a root "ok.json" would no longer be
+    // discovered at all and this assertion would stop testing the escape guard.
+    mkdirSync(join(dir, 'ok'))
+    writeFileSync(join(dir, 'ok', 'template.json'), JSON.stringify(valid('ok')))
+    const templates = await loadServiceTemplates(dir)
+    expect(templates.map((t) => t.id)).to.deep.equal(['ok'])
+    rmSync(outside, { recursive: true, force: true })
+  })
+
+  it('19. a nested layout wins: root-level *.json is ignored', async () => {
+    writeFileSync(join(dir, 'flat.json'), JSON.stringify(valid('flat')))
+    mkdirSync(join(dir, 'nested'))
+    writeFileSync(join(dir, 'nested', 'template.json'), JSON.stringify(valid('nested')))
+    const templates = await loadServiceTemplates(dir)
+    expect(templates.map((t) => t.id)).to.deep.equal(['nested'])
+  })
+
+  it("20. a nested layout ignores the repo's own package.json at the root, silently", async () => {
+    mkdirSync(join(dir, 'my-flow'))
+    writeFileSync(join(dir, 'my-flow', 'template.json'), JSON.stringify(valid('my-flow')))
+    // A real templates repo keeps package.json at its root for npm. Under the additive rule
+    // this was discovered, failed the schema, and warned on EVERY request — the loader
+    // re-reads each call. Asserting the returned ids is not enough: the array was already
+    // correct then. The absence of the warning is the whole fix.
+    writeFileSync(
+      join(dir, 'package.json'),
+      JSON.stringify({ name: 'service-templates', private: true, type: 'module' })
+    )
+    const warn = sinon.stub(CORE_LOGGER, 'warn')
+    try {
+      const templates = await loadServiceTemplates(dir)
+      expect(templates.map((t) => t.id)).to.deep.equal(['my-flow'])
+      expect(
+        warn
+          .getCalls()
+          .map((c) => String(c.args[0]))
+          .filter((m) => m.includes('package.json'))
+      ).to.deep.equal([])
+    } finally {
+      warn.restore()
     }
   })
 })
