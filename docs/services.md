@@ -160,9 +160,23 @@ Service-on-demand is configured per Docker connection under `serviceOnDemand`:
 
 Whether a given environment accepts services is gated by its `features.services` flag,
 and access can be restricted with the environment's `access` allow-list
-(`addresses` + on-chain `accessLists`). Operator-published **templates** are loaded from
-`serviceTemplatesPath` (default `databases/serviceTemplates/`); template secret values
-are never returned by the API (only the env-var keys are exposed).
+(`addresses` + on-chain `accessLists`).
+
+**Templates are not shipped in the image.** The node reads them from a folder the operator
+mounts in, so a node without that mount advertises no templates at all. Point
+`serviceTemplatesPath` (env var `SERVICE_TEMPLATES_PATH`) at the mount:
+
+```yaml
+volumes:
+  - /srv/service-templates:/templates:ro
+environment:
+  SERVICE_TEMPLATES_PATH: /templates
+```
+
+The node re-reads the folder on every request, so edits take effect on the next call — no
+restart needed. Layout is one folder per flow, named after the
+flow's `id`, with the template itself always at `template.json` inside it. Template secret
+values are never returned by the API (only the env-var keys are exposed).
 
 The compute environments a service can run on — and the resources (cpu/ram/disk/gpu) it may
 request — are the same ones configured at the node's Docker-connection level for compute jobs,

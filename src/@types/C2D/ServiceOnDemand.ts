@@ -33,6 +33,9 @@ export interface UserConfigurableEnvVar {
 export type ServiceTemplateKind = 'service' | 'bundle'
 
 // Closed set so catalogue buckets stay consistent across nodes.
+// Pinned: prettier 2 collapses this union onto one line, prettier 3 keeps the leading pipes,
+// and CI resolves a different one than a local install does — so the two never agree on it.
+// prettier-ignore
 export type ServiceTemplateCategory =
   | 'image'
   | 'video'
@@ -41,6 +44,7 @@ export type ServiceTemplateCategory =
   | 'notebook'
   | 'embeddings'
   | 'app'
+  | 'other'
 
 // One thing a bundle pre-downloads. Display metadata only: the template's own
 // `command`/`commandFile` does the fetching, and nothing here is verified node-side.
