@@ -41,6 +41,7 @@ export type ServiceTemplateCategory =
   | 'notebook'
   | 'embeddings'
   | 'app'
+  | 'other'
 
 // One thing a bundle pre-downloads. Display metadata only: the template's own
 // `command`/`commandFile` does the fetching, and nothing here is verified node-side.
