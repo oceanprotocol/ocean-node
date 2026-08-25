@@ -110,7 +110,7 @@ These fields go in the `resources` array at the Docker-connection level:
 | `driverVersion` | GPU driver version string |
 | `memoryTotal` | GPU VRAM string (e.g. `"40960 MiB"`) |
 | `platform` | GPU vendor: `"nvidia"`, `"amd"`, `"intel"` |
-| `init` | Docker container configuration (`deviceRequests` for NVIDIA, `advanced` for AMD/Intel). Makes `kind` default to `"discrete"`. |
+| `init` | Docker container configuration (`deviceRequests` for NVIDIA, `advanced` for AMD/Intel, and `advanced` on any vendor for shared-memory/pids  settings — see [Multi-GPU workloads](#multi-gpu-workloads-shared-memory)). Makes `kind` default to `"discrete"`. |
 | `constraints` | Companion resource requirements — see [Resource constraints](#resource-constraints). |
 
 ### CPU pinning with `cpuList`
@@ -227,6 +227,59 @@ The environment references it by `id`.
 > how to fix it. AMD and Intel GPU metrics are not yet collected. GPU metrics are returned only
 > to the owner of the job/service, alongside its container metrics. Set `GPU_METRICS=off` to
 > disable.
+
+### Multi-GPU workloads (shared memory)
+
+A workload that spans **more than one GPU** needs two extra settings that Docker does not
+provide by default. Add them under `init.advanced`, alongside `deviceRequests` — the two
+blocks combine, they are not alternatives.
+
+Why: a model server running on N GPUs starts **one worker process per GPU**, and those
+processes exchange tensors and collectives through POSIX shared memory (`/dev/shm`) — both
+the server's own message queues and NCCL's bootstrap. Docker gives a container a private
+`/dev/shm` of just **64 MB**, which is far too small: the container hangs during startup or
+dies with a bus error. Single-GPU workloads never touch this, so it only appears the first
+time a resource is used by something that spans cards.
+
+| Key | Purpose | Typical value |
+| --- | --- | --- |
+| `ShmSize` | Size of the container's `/dev/shm`, in bytes | `17179869184` (16 GB) |
+| `IpcMode` | Set to `"host"` to share the host IPC namespace instead of getting a private one (equivalent to `docker run --ipc=host`, which most inference servers document as a requirement) | `"host"` |
+| `PidsLimit` | Raises the per-container process/thread cap from the built-in default of 512. N worker processes each with their own thread pools can exceed it | `4096` |
+
+Setting `ShmSize` alone is usually enough and keeps the container's IPC namespace isolated;
+prefer it, and reach for `IpcMode: "host"` only if the workload actually requires it.
+
+Add the block to **each** GPU resource the workload will request, since the effective values
+are resolved from the resources a given job or service asks for:
+
+```json
+{
+  "id": "gpu0",
+  "kind": "discrete",
+  "type": "gpu",
+  "total": 1,
+  "description": "NVIDIA H200 (card 0)",
+  "platform": "nvidia",
+  "memoryTotal": "143771 MiB",
+  "init": {
+    "deviceRequests": {
+      "Driver": "nvidia",
+      "DeviceIDs": ["GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"],
+      "Capabilities": [["gpu"]]
+    },
+    "advanced": {
+      "ShmSize": 17179869184,
+      "PidsLimit": 4096
+    }
+  },
+  "constraints": [{ "id": "ram", "min": 32 }, { "id": "cpu", "min": 4 }]
+}
+```
+
+Both compute jobs and services honour these. When they are absent, containers keep Docker's
+defaults and the 512-process cap.
+
 
 ### AMD Radeon (ROCm)
 
