@@ -864,32 +864,30 @@ raises it. Tensor parallelism is mandatory (166.9 GB does not fit a 141 GB card)
 illegal, which also means this template needs the operator's larger `/dev/shm` the same way the
 GLM-5.2 bundle does.
 
-**Authentication and TLS are this template's own additions, not upstream's.** DeepSeek Harness
-documents its web server as having no TLS, no auth and no origin policy, and its agent runs
-shell commands in the container — so unlike OpenCode there is no password flag to switch on. dsh
-therefore stays on `127.0.0.1:3080` and the published port is a pinned Caddy reverse proxy that
-terminates TLS and enforces HTTP basic auth, with `header_up Host {upstream_hostport}` so dsh
-only ever sees the loopback authority it already trusts (the container cannot know the public
-host:port the node will assign, so `trustedHosts` cannot be configured against it).
-`DSH_WEB_PASSWORD` (12+ chars) is mandatory and gated before anything downloads.
+**One HTTP endpoint now matches ocean-node's contract.** DeepSeek Harness documents its web
+server as having no TLS, no auth and no origin policy, while its agent runs shell commands in the
+container. dsh therefore stays on `127.0.0.1:3080`; pinned Caddy is the only process on published
+port **8080** and enforces HTTP basic auth. `DSH_WEB_PASSWORD` (12+ chars) is mandatory and gated
+before anything downloads. Caddy rewrites Host and Origin only on the dsh route so the harness
+sees the loopback authority it trusts.
 
-TLS is load-bearing rather than hardening: browsers gate `crypto.randomUUID()` — along with
-`crypto.subtle`, the clipboard API and service workers — to **secure contexts**, and dsh's
-workspace picker calls it. Over plain `http://` to a remote host the UI dies with
-`crypto.randomUUID is not a function` at a step you cannot skip. The certificate is self-signed
-and regenerated per launch (openssl, falling back to the `cryptography` module), since the
-container never learns the hostname it is reached by; accepting the browser warning is what
-creates the secure context.
+Pinned dsh `0.1.1-rc.2` contains three browser-side `crypto.randomUUID()` calls. That API is not
+available on remote plain-HTTP origins, which made the earlier self-signed HTTPS workaround run
+in Chrome but fail its WebSocket in stricter browsers. The bootstrap now patches the installed
+compiled bundles to the harness's `crypto.getRandomValues()` UUID strategy and syntax-checks each
+edited file. The HTTP URL returned by the node therefore opens directly, including in DuckDuckGo.
 
-**Two ports are published, and the second is a workaround for the node.** ocean-node builds
-every endpoint as `http://<nodeHost>:<hostPort>` (`compute_engine_docker.ts`) with no way for a
-template to declare a scheme, so the URL handed out for the TLS port has the wrong one. Container
-port **8443** carries the UI — take that endpoint and type `https://` in front of it. Container
-port **8080** serves a single static page saying exactly that, turning a dead link into an
-instruction. `DSH_TLS=off` reverts to a plain-HTTP proxy on 8080, correct only when reaching the
-service through an SSH tunnel, because localhost is a secure context by itself. A node-side fix
-(an optional scheme on the template, honoured when the endpoint URL is built) would remove the
-second port entirely.
+The same endpoint routes `/v1` to loopback vLLM. vLLM itself requires a distinct
+`VLLM_API_KEY` (24+ chars), allowing DeepSeek Harness, OpenCode or another OpenAI-compatible
+agent on the user's computer to keep its repository local and use
+`http://<service-endpoint>/v1`. HTTP does not encrypt the web password, prompts or bearer key;
+Internet-facing deployments still need a trusted external TLS terminator or VPN.
+
+**Repository bootstrap is optional.** Set `GIT_REPOSITORY_URL` to clone an HTTPS repository into
+the persistent workspace before the model downloads; `GIT_REF` selects a branch or tag. Private
+repositories use optional `GIT_USERNAME` + sensitive `GIT_ACCESS_TOKEN` through a temporary
+askpass helper, so credentials are never written into `.git/config` and are unset before dsh
+starts. Existing bucket work is preserved rather than fetched over or replaced on relaunch.
 
 **It ships a skills library.** dsh reads the same `SKILL.md` format and discovery roots as other
 skills-aware agents, at these tiers (lower number wins):
@@ -918,8 +916,8 @@ Everything is pinned and per-launch overridable — image `vllm/vllm-openai:v0.2
 `0.1.1-rc.2`, Caddy `2.11.4`, Node `24.19.0` — because dsh is a developer preview whose README
 promises compatibility-breaking changes and whose every published version is a release
 candidate. A bucket is mandatory: it holds the weights, the Node/dsh runtime, dsh's sessions and
-settings, and `/data/outputs/workspace-dsv4`, the git-initialised project directory the agent
-edits.
+settings, and `/data/outputs/dsh-v4flash/workspace`, the git-initialised project directory the
+agent edits — under `$HOME` because dsh's workspace picker cannot browse above it.
 
 **One documented caveat, now partly closed.** vLLM's published recipe for this checkpoint lists
 H200-class Hopper only under a prefill/decode-disaggregated deployment, so plain tensor

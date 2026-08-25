@@ -1,29 +1,30 @@
 #!/bin/bash
 # DeepSeek Harness (dsh) + DeepSeek-V4-Flash on this node's GPUs, one container, one escrow.
 #
-# Ports 8443 and 8080 are published. 8443 is a Caddy reverse proxy that demands HTTP basic
-# auth before anything reaches dsh; 8080 is only a signpost pointing the user to the HTTPS
-# endpoint. vLLM binds 127.0.0.1, so the raw OpenAI-compatible API — which answers anyone who
-# reaches it — is not exposed at all. dsh also binds 127.0.0.1.
+# Port 8080 is the only published port. Caddy demands HTTP basic auth before browser traffic
+# reaches dsh and forwards /v1 to vLLM, which independently requires a bearer API key. Both
+# upstream processes stay on loopback. This matches ocean-node's advertised http:// endpoint,
+# so the URL returned by SERVICE_GET_STATUS works as-is in every browser and from local tools.
 #
 # SECURITY, and the reason for gate 2 below. DeepSeek Harness's web server has, in its own
 # documentation (docs/subsystems/web-server.md): no TLS, no authentication, and no origin
 # policy. Its agent reads and writes files and runs shell commands in this container. A
 # non-loopback bind is therefore remote code execution by design, and unlike OpenCode there
 # is no password flag to turn on — the harness ships no access control of any kind. So this
-# template never lets dsh bind a public interface: it stays on 127.0.0.1:3080 (its own
-# default) and the only thing on the published port is the auth proxy. That proxy is THIS
-# TEMPLATE'S addition, not an official DeepSeek deployment pattern; upstream documents no
-# supported way to expose dsh to a network.
+# template never lets dsh bind a public interface: it stays on 127.0.0.1:3080 and the only
+# public listener is the auth proxy. That proxy is THIS TEMPLATE'S addition, not an official
+# DeepSeek deployment pattern; upstream documents no supported way to expose dsh to a network.
 #
-# The proxy speaks HTTPS with a self-signed certificate, so basic auth and everything the agent
-# shows you are encrypted. TLS is here for a second, non-negotiable reason: dsh's UI calls
-# crypto.randomUUID() to open a workspace and browsers only expose that in a secure context, so
-# an http:// deployment fails at the first required click for anyone not on localhost. Expect a
-# one-time certificate interstitial — the container never learns the public hostname it is
-# reached by, so no certificate it can obtain will be trusted, and accepting it is what creates
-# the secure context. Identity is unproven; the encryption is real. The container boundary, not
-# the password, is still the real isolation here.
+# dsh 0.1.1-rc.2 contains three browser-side crypto.randomUUID() calls. That API is absent on
+# non-loopback HTTP origins, which makes the stock UI reconnect forever in DuckDuckGo and other
+# browsers. After npm install, this script replaces those calls in the compiled packages with
+# the harness's already-supported getRandomValues UUID strategy and checks the edited files with
+# Node. This is a pinned compatibility patch and is deliberately removed from the network layer.
+#
+# HTTP CAVEAT: basic-auth credentials, prompts and the optional remote model API key are not
+# encrypted on the wire. Put the node behind a trusted HTTPS terminator/VPN for Internet-facing
+# use. The proxy still prevents unauthenticated remote-code execution, but it cannot provide
+# transport confidentiality over an http:// endpoint.
 #
 # The other structural point: this model is 166.9 GB, which does not fit on one 141 GB card, so
 # tensor parallelism is mandatory and there is no single-GPU configuration to fall back to.
@@ -67,14 +68,23 @@ MODEL="deepseek-ai/DeepSeek-V4-Flash-0731"
 # is the branch, and the script says so out loud rather than pretending to be pinned.
 MODEL_REVISION="${MODEL_REVISION:-main}"
 SERVED_NAME="deepseek-v4-flash"
-VLLM_PORT=8000        # loopback only
+VLLM_PORT=8000        # loopback; Caddy exposes /v1 with vLLM bearer auth
 DSH_PORT=3080         # loopback only — dsh's own default
-TLS_PORT=8443         # the published port carrying the UI (Caddy: TLS + basic auth)
-PROXY_PORT=8080       # published too, but only serves a "use the HTTPS port" page (see below)
+WEB_PORT=8080         # the single published HTTP endpoint (UI + /v1)
 
 DSH_VERSION="${DSH_VERSION:-0.1.1-rc.2}"      # pinned; dsh is a dev preview, see note below
 NODE_VERSION="${NODE_VERSION:-24.19.0}"       # Node 24 LTS "Krypton"
 CADDY_VERSION="${CADDY_VERSION:-2.11.4}"
+# git is NOT in the vLLM image and apt cannot install it in a service container — see the
+# install block below for why. micromamba is a single static binary that installs a real git
+# into $HOME (the bucket) with no root and no capabilities.
+# VERIFY THIS TAG before shipping: micromamba-releases tags carry a build suffix (`X.Y.Z-N`)
+# and a tag that does not exist turns into a 404 at launch, not at review time.
+MICROMAMBA_VERSION="${MICROMAMBA_VERSION:-2.3.4-0}"
+# Deliberately NOT version-pinned, against this file's own rule. conda-forge drops old builds,
+# so a hard pin here is a launch that fails when the channel moves rather than a launch that is
+# reproducible. Pin it via env (GIT_SPEC='git=2.51.0') once a build is known to be durable.
+GIT_SPEC="${GIT_SPEC:-git}"
 
 # The parallel layout. 166.9 GB (155.4 GiB) of weights does not fit on one 141 GB card, so TP 2
 # is the floor: measured at 74.37 GiB of weights per card, which leaves 47.73 GiB each for KV
@@ -135,7 +145,23 @@ BUCKET=/data/outputs
 # Face cache under $DSH_STATE is the one thing worth sharing, but huggingface_hub's locking is
 # what makes that safe, so it stays inside this namespace too.
 DSH_STATE="$BUCKET/dsh-v4flash"          # becomes $HOME: node, dsh, DSH_HOME, HF cache
-WORKSPACE="$BUCKET/workspace-dsv4"       # the project directory the agent operates on
+# UNDER $HOME, not beside it, and that is load-bearing rather than tidiness. dsh's "Select
+# Workspace Directory" picker is ROOTED AT $HOME and offers no way to walk above it, so a
+# workspace at $BUCKET/workspace-dsv4 — a sibling of $HOME — is literally unselectable in the
+# UI even though the launch message tells the consumer to pick it. Found the hard way: the
+# consumer reaches the picker, cannot see the directory this script created for them, and their
+# only way forward is to make a new one somewhere inside $HOME.
+WORKSPACE="$DSH_STATE/workspace"         # the project directory the agent operates on
+# One-time migration for buckets written by an earlier version of this template, which put the
+# workspace at the unselectable sibling path. Only moves when the destination does not exist,
+# so it can never overwrite newer work, and it is never fatal.
+if [ -d "$BUCKET/workspace-dsv4" ] && [ ! -e "$WORKSPACE" ]; then
+  echo "[ocean] moving the workspace from $BUCKET/workspace-dsv4 to $WORKSPACE so that dsh's" \
+    "workspace picker, which cannot browse above \$HOME, can actually see it"
+  mkdir -p "$DSH_STATE"
+  mv "$BUCKET/workspace-dsv4" "$WORKSPACE" 2>/dev/null \
+    || echo "[ocean] could not move the old workspace — leaving it at $BUCKET/workspace-dsv4" >&2
+fi
 
 echo "[ocean] $(id)"
 
@@ -169,11 +195,33 @@ fi
 if [ "${#DSH_WEB_PASSWORD}" -lt 12 ]; then
   echo "[ocean] DSH_WEB_PASSWORD is shorter than 12 characters — refusing to start. This" \
     "port is reachable by anyone who scans it, so a guessable password is the same as no" \
-    "password even though the proxy encrypts it in transit." >&2
+    "password. Plain HTTP also provides no transport encryption." >&2
   exit 1
 fi
 DSH_WEB_USERNAME="${DSH_WEB_USERNAME:-dsh}"
+if [[ ! "$DSH_WEB_USERNAME" =~ ^[A-Za-z0-9._-]{1,64}$ ]]; then
+  echo "[ocean] DSH_WEB_USERNAME must contain 1-64 letters, numbers, dots, underscores or" \
+    "hyphens — refusing to write an invalid Caddy configuration." >&2
+  exit 1
+fi
 echo "[ocean] basic auth will be required for user '$DSH_WEB_USERNAME'"
+
+# The same HTTP port exposes vLLM under /v1 so a harness running on the user's own computer can
+# use the rented model without moving the repository into this container. vLLM enforces this
+# key itself; Caddy only routes the request. Keep it distinct from DSH_WEB_PASSWORD because the
+# agent must know the model key but must never inherit the credential guarding its own web UI.
+if [ -z "${VLLM_API_KEY:-}" ]; then
+  echo "[ocean] VLLM_API_KEY is not set — refusing to expose the local-agent endpoint." \
+    "Set a random 24+ character value; local tools will send it as a Bearer token to /v1." >&2
+  exit 1
+fi
+if [[ ! "$VLLM_API_KEY" =~ ^[^[:space:]]{24,128}$ ]]; then
+  echo "[ocean] VLLM_API_KEY must contain 24-128 non-whitespace characters — refusing to" \
+    "start." >&2
+  exit 1
+fi
+export DSH_LOCAL_API_KEY="$VLLM_API_KEY"
+echo "[ocean] authenticated OpenAI-compatible API will be available at /v1"
 
 # ---------------------------------------------------------------------------------------
 # Gate 3: the GPUs. Checked before the download because the alternative is discovering it
@@ -371,8 +419,76 @@ else
 fi
 echo "[models] ready 1/2 DeepSeek Harness (dsh) $DSH_VERSION"
 
+# dsh 0.1.1-rc.2's compiled browser packages call crypto.randomUUID() directly. Browsers do
+# not expose that method on a remote plain-HTTP origin, even though crypto.getRandomValues() is
+# available there. Patch every compiled browser-package copy rather than a hashed frontend
+# asset: npm's global layout nests these packages under @deepseek-ai/dsh/node_modules, while a
+# different npm release may deduplicate them. The recursive scan handles both layouts. The
+# replacement is the RFC 4122 v4 strategy already used by dsh-client-connection itself.
+#
+# This runs on every launch because the npm runtime is bucket-cached. It is idempotent: after
+# the first launch there are no direct calls left. If a future dsh release fixes upstream, zero
+# replacements is success; any edited file still has to parse under the pinned Node runtime.
+DSH_PACKAGE_ROOT="$NPM_PREFIX/lib/node_modules" \
+  NODE_BINARY="$NODE_DIR/bin/node" python3 <<'PY'
+import os
+import pathlib
+import subprocess
+
+root = pathlib.Path(os.environ['DSH_PACKAGE_ROOT'])
+node = os.environ['NODE_BINARY']
+needle = 'crypto.randomUUID()'
+fallback = "'10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c => (+c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> +c / 4).toString(16))"
+changed = []
+browser_packages = (
+    'dsh-host-apiproxy',
+    'dsh-client-connection',
+    'dsh-client-ui-conversation',
+)
+paths = {
+    path
+    for package in browser_packages
+    for path in root.glob(f'**/@deepseek-ai/{package}/lib/**/*.js')
+}
+if not paths:
+    raise SystemExit('[ocean] HTTP compatibility: no dsh browser packages found under ' +
+                     str(root))
+
+for path in sorted(paths):
+    text = path.read_text(encoding='utf-8')
+    count = text.count(needle)
+    if not count:
+        continue
+    # Handle a qualified call first; replacing only its suffix would leave `globalThis.`
+    # before a string expression and create invalid JavaScript.
+    text = text.replace('globalThis.' + needle, fallback.replace('crypto.', 'globalThis.crypto.'))
+    text = text.replace(needle, fallback)
+    path.write_text(text, encoding='utf-8')
+    changed.append((path, count))
+
+remaining = [
+    path for path in paths
+    if needle in path.read_text(encoding='utf-8')
+]
+if remaining:
+    raise SystemExit('[ocean] HTTP compatibility patch left direct randomUUID calls in: ' +
+                     ', '.join(str(path) for path in remaining))
+
+for path, _ in changed:
+    subprocess.run([node, '--check', str(path)], check=True,
+                   stdout=subprocess.DEVNULL)
+
+if changed:
+    calls = sum(count for _, count in changed)
+    print(f'[ocean] HTTP compatibility: replaced {calls} insecure-origin UUID call(s) '
+          f'across {len(changed)} dsh browser bundle(s)')
+else:
+    print('[ocean] HTTP compatibility: dsh bundles already contain no direct '
+          'crypto.randomUUID() calls')
+PY
+
 if [ ! -x "$CADDY_BIN" ]; then
-  echo "[ocean] installing Caddy $CADDY_VERSION (the auth proxy on the published port)"
+  echo "[ocean] installing Caddy $CADDY_VERSION (the HTTP auth proxy on the published port)"
   python3 - "$CADDY_VERSION" "$CADDY_ARCH" "$(dirname "$CADDY_BIN")" <<'PY'
 import os, sys, tarfile, tempfile, urllib.request
 
@@ -408,17 +524,166 @@ echo "[ocean] caddy $("$CADDY_BIN" version | head -1)"
 PW_HASH="$("$CADDY_BIN" hash-password --plaintext "$DSH_WEB_PASSWORD")"
 unset DSH_WEB_PASSWORD
 
-# git is optional but worth having: the workspace is a real project directory on the bucket and
-# the agent's first useful habit is committing before it edits. Never fatal.
-if ! command -v git >/dev/null 2>&1; then
-  echo "[ocean] git not in the image — trying to install it (optional)"
-  (apt-get update -qq && apt-get install -y -qq --no-install-recommends git) >/dev/null 2>&1 \
-    || echo "[ocean] could not install git — the agent's revert/diff habits will be limited"
+# ---------------------------------------------------------------------------------------
+# git. Worth more than "optional": the workspace is a real project directory, the agent's first
+# useful habit is committing before it edits, and cloning the consumer's own repository in is
+# the normal way work arrives in this container at all.
+#
+# APT CANNOT INSTALL IT HERE AND NEVER WILL. ocean-node starts every service container with
+# CapDrop: ['ALL'] and no-new-privileges, and deliberately does not forward CapAdd to services
+# (compute_engine_docker.ts, buildServiceResourceConstraints and the createContainer call). The
+# process is uid 0 with an EMPTY capability set, so apt's seteuid to _apt is one-way and
+# everything after it fails:
+#     W: chown to _apt:root of .../partial failed (1: Operation not permitted)
+#     E: Could not open lock file /var/lib/apt/lists/lock - open (13: Permission denied)
+# That sandbox is intentional on the node's side. The previous best-effort `apt-get install git`
+# here was therefore dead code that could only ever fail — and it discarded stderr, so the log
+# said "could not install git" without ever saying why, which cost a consumer an afternoon.
+#
+# micromamba instead: one static binary, no root, no capabilities, nothing written into the
+# image. It installs a real git under $HOME, which is the bucket, so it is cached across
+# relaunches exactly like Node and Caddy. Downloaded with python3 + urllib for the same reason
+# they are — curl and tar are not guaranteed in this image, python3 is a hard vLLM dependency.
+# Still never fatal: a launch without git is degraded, not broken, and the skills below adapt.
+# ---------------------------------------------------------------------------------------
+GIT_PREFIX="$HOME/gitenv"
+export MAMBA_ROOT_PREFIX="$HOME/.micromamba"
+MAMBA_BIN="$HOME/bin/micromamba"
+
+case "$(uname -m)" in
+  x86_64|amd64) MAMBA_PLATFORM=linux-64 ;;
+  aarch64|arm64) MAMBA_PLATFORM=linux-aarch64 ;;
+  *) MAMBA_PLATFORM="" ;;
+esac
+
+if ! command -v git >/dev/null 2>&1 && [ ! -x "$GIT_PREFIX/bin/git" ] && [ -n "$MAMBA_PLATFORM" ]
+then
+  echo "[ocean] git is not in the image and apt cannot run under CapDrop=ALL — installing it" \
+    "with micromamba into $GIT_PREFIX (cached on the bucket, so this is a one-time cost)"
+  if [ ! -x "$MAMBA_BIN" ]; then
+    mkdir -p "$HOME/bin"
+    python3 - "$MICROMAMBA_VERSION" "$MAMBA_PLATFORM" "$MAMBA_BIN" <<'PY' \
+      || echo "[ocean] could not download micromamba" >&2
+import os, sys, urllib.request
+
+version, platform, dest = sys.argv[1], sys.argv[2], sys.argv[3]
+url = (f'https://github.com/mamba-org/micromamba-releases/releases/download/'
+       f'{version}/micromamba-{platform}')
+print(f'[ocean] fetching {url}', flush=True)
+staging = dest + '.partial'
+with urllib.request.urlopen(url, timeout=300) as resp, open(staging, 'wb') as fh:
+    while True:
+        chunk = resp.read(1 << 20)
+        if not chunk:
+            break
+        fh.write(chunk)
+os.chmod(staging, 0o755)
+os.rename(staging, dest)
+PY
+  fi
+  if [ -x "$MAMBA_BIN" ]; then
+    "$MAMBA_BIN" create -y -q -p "$GIT_PREFIX" -c conda-forge "$GIT_SPEC" \
+      || echo "[ocean] micromamba could not install git" >&2
+  fi
 fi
-if command -v git >/dev/null 2>&1 && [ ! -d "$WORKSPACE/.git" ]; then
+
+if [ -x "$GIT_PREFIX/bin/git" ]; then
+  export PATH="$GIT_PREFIX/bin:$PATH"
+  # conda-forge ships its own CA bundle rather than using the image's. Without this, git's first
+  # https:// fetch fails with a certificate error that reads like a network problem.
+  [ -f "$GIT_PREFIX/ssl/cacert.pem" ] && export GIT_SSL_CAINFO="$GIT_PREFIX/ssl/cacert.pem"
+fi
+
+if command -v git >/dev/null 2>&1; then
+  HAVE_GIT=true
+  echo "[ocean] $(git --version)"
+else
+  HAVE_GIT=false
+  echo "[ocean] WARNING: no git in this container. The agent cannot clone, commit, diff or" \
+    "revert, and the only way work leaves the box is a tarball written to the bucket root." >&2
+fi
+
+# Optional one-launch repository bootstrap. A public HTTPS clone needs only GIT_REPOSITORY_URL;
+# a private clone can additionally use GIT_ACCESS_TOKEN and GIT_USERNAME. The askpass helper
+# keeps the token out of the clone URL and .git/config, and all credential variables are unset
+# before dsh starts so a prompt-injected shell command cannot read them.
+if [ -n "${GIT_REPOSITORY_URL:-}" ]; then
+  if [ "$HAVE_GIT" != true ]; then
+    echo "[ocean] GIT_REPOSITORY_URL was provided but git is unavailable — refusing to start" >&2
+    exit 1
+  fi
+  GIT_REPOSITORY_URL="$GIT_REPOSITORY_URL" python3 <<'PY'
+import os
+from urllib.parse import urlsplit
+
+url = urlsplit(os.environ['GIT_REPOSITORY_URL'])
+if url.scheme != 'https' or not url.hostname:
+    raise SystemExit('[ocean] GIT_REPOSITORY_URL must be an https:// URL')
+if url.username is not None or url.password is not None:
+    raise SystemExit('[ocean] do not put credentials in GIT_REPOSITORY_URL; use '
+                     'GIT_USERNAME and GIT_ACCESS_TOKEN')
+PY
+  if [ -n "${GIT_REF:-}" ] && [[ ! "$GIT_REF" =~ ^[A-Za-z0-9._/-]{1,200}$ ]]; then
+    echo "[ocean] GIT_REF contains unsupported characters — use a branch or tag" \
+      "ref containing only letters, numbers, dot, underscore, slash and hyphen." >&2
+    exit 1
+  fi
+
+  if [ -d "$WORKSPACE/.git" ]; then
+    EXISTING_ORIGIN="$(git -C "$WORKSPACE" remote get-url origin 2>/dev/null || true)"
+    if [ "$EXISTING_ORIGIN" = "$GIT_REPOSITORY_URL" ]; then
+      echo "[ocean] workspace already contains $GIT_REPOSITORY_URL — preserving its current" \
+        "branch and uncommitted work"
+    else
+      echo "[ocean] persistent workspace already has a different git repository" \
+        "(${EXISTING_ORIGIN:-no origin}); refusing to replace user work with" \
+        "$GIT_REPOSITORY_URL. Use a new bucket or remove the repository URL." >&2
+      exit 1
+    fi
+  elif [ -n "$(find "$WORKSPACE" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+    echo "[ocean] GIT_REPOSITORY_URL was provided but $WORKSPACE is not empty and is not a" \
+      "git repository — refusing to overwrite it. Use a new bucket or move those files." >&2
+    exit 1
+  else
+    ASKPASS="${TMPDIR:-/tmp}/dsh-git-askpass.sh"
+    cat > "$ASKPASS" <<'ASKPASS'
+#!/bin/sh
+case "$1" in
+  *sername*) printf '%s\n' "${GIT_USERNAME:-x-access-token}" ;;
+  *assword*) printf '%s\n' "${GIT_ACCESS_TOKEN:-}" ;;
+  *) exit 1 ;;
+esac
+ASKPASS
+    chmod 700 "$ASKPASS"
+    CLONE_ARGS=(clone --depth 1)
+    if [ -n "${GIT_REF:-}" ]; then
+      CLONE_ARGS+=(--branch "$GIT_REF" --single-branch)
+    fi
+    echo "[ocean] cloning $GIT_REPOSITORY_URL into the persistent workspace"
+    if ! GIT_TERMINAL_PROMPT=0 GIT_ASKPASS="$ASKPASS" \
+      git "${CLONE_ARGS[@]}" "$GIT_REPOSITORY_URL" "$WORKSPACE"
+    then
+      rm -f "$ASKPASS"
+      echo "[ocean] repository clone failed — check the URL, ref and access token" >&2
+      exit 1
+    fi
+    rm -f "$ASKPASS"
+    echo "[ocean] repository ready at $WORKSPACE"
+  fi
+fi
+unset GIT_ACCESS_TOKEN GIT_USERNAME
+
+if [ "$HAVE_GIT" = true ] && [ ! -d "$WORKSPACE/.git" ]; then
   git init -q "$WORKSPACE" 2>/dev/null || true
-  git -C "$WORKSPACE" config user.email dsh@ocean.local 2>/dev/null || true
-  git -C "$WORKSPACE" config user.name "DeepSeek Harness" 2>/dev/null || true
+fi
+if [ "$HAVE_GIT" = true ]; then
+  # Global, not local to $WORKSPACE. $HOME is on the bucket, so ~/.gitconfig survives relaunch,
+  # and a consumer who makes their own project directory elsewhere under $HOME — which the
+  # workspace picker actively encourages — gets a usable identity there too instead of
+  # "Please tell me who you are" on their first commit.
+  git config --global user.email dsh@ocean.local 2>/dev/null || true
+  git config --global user.name "DeepSeek Harness" 2>/dev/null || true
+  git config --global --add safe.directory '*' 2>/dev/null || true
 fi
 
 # ---------------------------------------------------------------------------------------
@@ -437,8 +702,9 @@ fi
 # all of which this vLLM endpoint accepts. Declaring the capacities and effort map also keeps
 # dsh from falling back to 262K/32K and hiding the reasoning selector.
 #
-# apiKeyEnv names an env var rather than storing a secret: vLLM here has no --api-key, so the
-# value is a placeholder the client must send and the server ignores.
+# apiKeyEnv names the process-local copy of the user's VLLM_API_KEY. The same key protects the
+# published /v1 route, so the bundled UI and a harness on the user's own computer use exactly
+# the same model endpoint contract.
 # ---------------------------------------------------------------------------------------
 # THE PROXY IS NOT OPTIONAL, and this is upstream's decision rather than a preference of this
 # template. dsh's CLI reference states plainly: "The CLI intentionally does not support
@@ -449,7 +715,6 @@ fi
 # section in settings.yaml. It was removed because it cannot work twice over: the CLI refuses
 # the bind, and host/port are composition config adjusted with `dsh web --patch`, not entries
 # in the namespaced settings document this file writes.)
-export DSH_LOCAL_API_KEY=local
 SERVED_NAME="$SERVED_NAME" VLLM_PORT="$VLLM_PORT" MAX_MODEL_LEN="$MAX_MODEL_LEN" \
   python3 - "$DSH_HOME/settings.yaml" <<'PY'
 import os, sys
@@ -560,8 +825,8 @@ persistent-storage bucket survives.
 
 | Path | Survives a stop? | What it is |
 | --- | --- | --- |
-| `/data/outputs/workspace-dsv4` | **Yes** | Your project directory. Everything you are asked to build belongs here. |
-| `/data/outputs/dsh-v4flash` | **Yes** | `$HOME`: the Node runtime, dsh itself, dsh's settings and session history, the model weights cache. |
+| `/data/outputs/dsh-v4flash/workspace` | **Yes** | Your project directory. Everything you are asked to build belongs here. |
+| `/data/outputs/dsh-v4flash` | **Yes** | `$HOME`: the Node runtime, dsh itself, dsh's settings and session history, the model weights cache. The user's own project directories live here too, because dsh's workspace picker cannot browse above `$HOME`. |
 | `/data/outputs` (rest of bucket) | **Yes** | The bucket root. The storage API lists **top-level files only**, so a file the user must download goes here, not in a subdirectory. |
 | everything else — `/tmp`, `/root`, `/workspace`, the image | **No** | Destroyed on stop, silently. |
 
@@ -572,29 +837,28 @@ Rules that follow from the table, and they are not negotiable:
 - `/data/outputs/dsh-v4flash/.dsh/settings.yaml` and `/data/outputs/dsh-v4flash/.dsh/skills/`
   are **rewritten by the node on every launch**. Editing them is throwing work away. Durable
   configuration goes in the workspace: `AGENTS.md`, and skills in
-  `/data/outputs/workspace-dsv4/.agents/skills/<name>/SKILL.md`, which outrank the node's.
+  `/data/outputs/dsh-v4flash/workspace/.agents/skills/<name>/SKILL.md`, which outrank the node's.
 - Getting files in and out is the bucket's job, not the network's. The user uploads to the
   bucket and you read it; you write to the bucket root and the user downloads it. Do not
   suggest scp, tunnels or paste-into-chat for anything large.
 
 ## The network shape
 
-- `127.0.0.1:8000` — vLLM, OpenAI-compatible, serving `deepseek-v4-flash`. Loopback only.
+- `127.0.0.1:8000` — vLLM, OpenAI-compatible, serving `deepseek-v4-flash`. Loopback only;
+  Caddy exposes only its authenticated `/v1` routes.
 - `127.0.0.1:3080` — dsh, the UI you are being driven through. Loopback only.
-- `0.0.0.0:8443` — **the published port that matters.** Caddy: TLS (self-signed) plus HTTP
-  basic auth, reverse-proxying dsh. This is how the user reached you.
-- `0.0.0.0:8080` — published, but serves a single static page explaining that the UI is on 8443
-  over `https://`. It proxies nothing.
+- `0.0.0.0:8080` — the only published listener. Caddy requires HTTP basic auth for the dsh UI
+  and routes `/v1/*` to vLLM, whose bearer API key is enforced by vLLM itself.
 
 dsh has no authentication of its own, so that proxy is the entire access control on this box.
 Never start another listener on a public interface, never disable or reconfigure the proxy, and
 if you are asked to "expose" something, expose it through the existing proxy or say no.
 
-TLS is not decoration here: browsers gate `crypto.randomUUID()`, `crypto.subtle`, the clipboard
-API and service workers to secure contexts, and dsh's own workspace picker calls the first of
-those. If a user reports "crypto.randomUUID is not a function", they are on the `http://` port
-or a plain-HTTP tunnel — the fix is the `https://` endpoint or a tunnel to localhost, never a
-code change on your side.
+This deployment intentionally matches ocean-node's plain `http://` endpoint. The node patches
+dsh's three browser-side `crypto.randomUUID()` calls to its `getRandomValues` UUID strategy at
+startup, so workspace selection and sessions work in Chrome, Firefox, Safari and DuckDuckGo.
+HTTP does not encrypt the UI password, prompts or model API key: Internet-facing nodes need a
+trusted TLS terminator or VPN outside this container.
 
 ## Cost awareness
 
@@ -627,9 +891,10 @@ Facts from the checkpoint's own `config.json` and model card:
 ## Checking the deployment rather than guessing
 
 ```sh
-curl -s http://127.0.0.1:8000/v1/models            # served name, and the real max_model_len
-curl -s http://127.0.0.1:8000/health               # 200 when the engine is alive
-curl -s http://127.0.0.1:8000/metrics | head -40   # queue depth, KV-cache usage, throughput
+curl -s http://127.0.0.1:8000/v1/models \
+  -H "Authorization: Bearer $DSH_LOCAL_API_KEY"     # served name + max_model_len
+curl -s http://127.0.0.1:8000/health                # 200 when the engine is alive
+curl -s http://127.0.0.1:8000/metrics | head -40    # queue depth, KV-cache, throughput
 ```
 
 Read `max_model_len` from `/v1/models` before you assume anything about context. If a request
@@ -655,13 +920,14 @@ harness session is not the only path:
 
 ```sh
 curl -s http://127.0.0.1:8000/v1/chat/completions \
+  -H "Authorization: Bearer $DSH_LOCAL_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"ping"}],"max_tokens":16}'
 ```
 
-The endpoint has no API key and is unreachable from outside the container. Do not add an
-authentication layer to it, and do not bind it to `0.0.0.0` — that would publish an
-unauthenticated inference endpoint on a public port.
+The raw listener remains on loopback. Caddy also exposes `/v1` on the service's HTTP URL for a
+harness running on the user's computer; it must send the launch-time `VLLM_API_KEY` as a Bearer
+token. Do not bind vLLM itself to `0.0.0.0` or remove that authentication.
 SKILL
 
 mkdir -p "$SKILLS/gpu-budget"
@@ -716,14 +982,15 @@ description: Use before the first edit in any session and before any multi-file 
 
 # Working in a rented workspace
 
-`/data/outputs/workspace-dsv4` is a git repository on the persistent bucket. Git is the only
-undo that survives a container being destroyed, so it is the first tool, not a courtesy at the
-end.
+`/data/outputs/dsh-v4flash/workspace` is a git repository on the persistent bucket. Git is the
+only undo that survives a container being destroyed, so it is the first tool, not a courtesy at
+the end.
 
 ## Before editing
 
-1. `git -C /data/outputs/workspace-dsv4 status --short` — know what is already dirty. Uncommitted
-   changes may be a previous session's unfinished work; do not fold them into yours silently.
+1. `git -C /data/outputs/dsh-v4flash/workspace status --short` — know what is already dirty.
+   Uncommitted changes may be a previous session's unfinished work; do not fold them into
+   yours silently.
 2. Commit or stash the existing state before starting something new. A commit costs nothing and
    is the difference between "revert that" and "retype it".
 3. Read before you write. Grep the repo for the symbol you are about to change; a rename that
@@ -883,6 +1150,59 @@ Anything you build for dsh belongs in the workspace, not in `$DSH_HOME`: the nod
 `$DSH_HOME/settings.yaml` and `$DSH_HOME/skills/` on every launch.
 SKILL
 
+# A skill that asserts something false is worse than no skill: workspace-discipline opens by
+# telling the agent the workspace IS a git repository and to run `git status` before its first
+# edit. When the git install above failed, that instruction burns the agent's first turns on a
+# command that cannot exist, and the "commit before you edit" safety net it sells is not there.
+# Rewrite the two claims rather than deleting the skill — the test loop and the hand-off advice
+# in it are still correct without git. python3 rather than sed because this script already
+# treats python3, not coreutils, as the thing guaranteed to be present.
+if [ "$HAVE_GIT" != true ]; then
+  python3 - "$SKILLS/workspace-discipline/SKILL.md" "$WORKSPACE" <<'PY' || true
+import sys
+
+path, workspace = sys.argv[1], sys.argv[2]
+with open(path, encoding='utf-8') as fh:
+    text = fh.read()
+
+text = text.replace(
+    f'`{workspace}` is a git repository on the persistent bucket. Git is the\n'
+    'only undo that survives a container being destroyed, so it is the first tool, not a '
+    'courtesy at\nthe end.',
+    f'`{workspace}` is a plain directory on the persistent bucket. **There is no git in this\n'
+    'container** — it could not be installed, so there is NO undo. Do not run git commands and\n'
+    'do not tell the user to; they will fail. Before any risky edit, copy the file you are about\n'
+    'to change (`cp x x.bak`), and before a multi-file change copy the tree. Say plainly in your\n'
+    'first reply that git is unavailable, because it changes what the user can ask you to do.')
+text = text.replace(
+    f'1. `git -C {workspace} status --short` — know what is already dirty.\n'
+    "   Uncommitted changes may be a previous session's unfinished work; do not fold them into\n"
+    '   yours silently.\n'
+    '2. Commit or stash the existing state before starting something new. A commit costs nothing '
+    'and\n   is the difference between "revert that" and "retype it".',
+    '1. `ls -la` the workspace and read what is already there. Another session may have left\n'
+    '   unfinished work; do not fold it into yours silently, and do not assume you can tell\n'
+    '   what changed — without git there is no diff to consult.\n'
+    '2. Copy before you overwrite: `cp path path.bak` for one file, `cp -a dir dir.bak` for a\n'
+    '   tree. That copy is the entire undo story here, so make it before the edit, not after\n'
+    '   the mistake.')
+text = text.replace(
+    '- Commit at each working point with a message saying **why**. Sessions end abruptly when a '
+    'paid\n  window closes.',
+    '- At each working point, snapshot the tree: `cp -a <workspace> <workspace>.ok-<n>`, and say\n'
+    '  in your reply what that snapshot represents. Sessions end abruptly when a paid window\n'
+    '  closes, and with no git history a snapshot is the only thing the next session can go back\n'
+    '  to. Delete stale snapshots yourself — they consume the same bucket the weights live on.')
+text = text.replace(
+    'Covers the git safety net, the test loop',
+    'Covers working without git, the test loop')
+with open(path, 'w', encoding='utf-8') as fh:
+    fh.write(text)
+PY
+  echo "[ocean] rewrote workspace-discipline: it no longer promises a git safety net that" \
+    "this container does not have"
+fi
+
 SKILL_COUNT="$(find "$SKILLS" -name SKILL.md | wc -l | tr -d ' ')"
 echo "[ocean] wrote $SKILL_COUNT skills to $SKILLS (tier 400; your own in" \
   "$WORKSPACE/.agents/skills outrank them and survive relaunch)"
@@ -956,6 +1276,7 @@ fi
 # ---------------------------------------------------------------------------------------
 vllm serve "$MODEL" \
   --host 127.0.0.1 --port "$VLLM_PORT" \
+  --api-key "$VLLM_API_KEY" \
   --served-model-name "$SERVED_NAME" \
   --tensor-parallel-size "$TP_SIZE" \
   --gpu-memory-utilization "$GPU_MEM_UTIL" \
@@ -1054,7 +1375,10 @@ body = json.dumps({
 req = urllib.request.Request(
     f'http://127.0.0.1:{port}/v1/chat/completions',
     data=body,
-    headers={'Content-Type': 'application/json'}
+    headers={
+        'Content-Type': 'application/json',
+        'Authorization': f"Bearer {os.environ['VLLM_API_KEY']}",
+    }
 )
 try:
     with urllib.request.urlopen(req, timeout=900) as resp:
@@ -1118,210 +1442,58 @@ done
 echo "[ocean] dsh listening on 127.0.0.1:$DSH_PORT"
 
 # ---------------------------------------------------------------------------------------
-# The published ports: Caddy, TLS, basic auth, reverse proxy to dsh.
+# One published HTTP endpoint. The /v1 route deliberately bypasses basic auth because OpenAI
+# clients send bearer auth; vLLM validates that bearer key itself. Every other path goes to dsh
+# behind basic auth. Host and Origin are rewritten only for dsh: its browser-trust fence expects
+# the loopback authority and the container cannot know the public host:port ocean-node assigns.
 #
-# WHY TLS IS NOT OPTIONAL HERE, and it is not (only) about the password. dsh's web client calls
-# crypto.randomUUID() when you pick a workspace, and that API — like crypto.subtle, the
-# clipboard API and service workers — is gated to SECURE CONTEXTS. Over plain http:// to a
-# remote host the browser leaves it undefined and the UI fails with
-#   "crypto.randomUUID is not a function"
-# at the workspace picker, which is a REQUIRED step. An http:// deployment is therefore not
-# merely less private, it is unusable for anyone who cannot reach the service as localhost.
-# https:// is a secure context even with an untrusted certificate once the warning is accepted,
-# so TLS is the fix rather than a hardening extra. It also retires the cleartext-password
-# caveat: basic auth now travels inside TLS.
-#
-# The certificate is SELF-SIGNED and generated per launch. It cannot be otherwise: the container
-# never learns the public hostname or port the node assigns it, so there is no name to get a
-# real certificate for, and Caddy's own `tls internal` CA would be just as untrusted by the
-# browser. Expect a one-time interstitial ("Advanced" -> proceed). That click is what makes the
-# origin a secure context; the warning is about identity, which this container cannot prove, not
-# about the encryption, which is real.
-#
-# TWO PORTS, and the second exists because of an ocean-node limitation worth naming: the node
-# builds every endpoint as `http://<nodeHost>:<hostPort>` (compute_engine_docker.ts), with no
-# way for a template to declare its scheme. The URL a consumer is handed for the TLS port
-# therefore has the wrong scheme and fails confusingly. Port 8080 serves one static page whose
-# only job is to say "this service is on the other port, with https://" — turning a dead link
-# into an instruction. It proxies nothing, requires no auth and carries no secrets.
-#
-# The two `header_up` lines are load-bearing, not tidiness. dsh's client-connection layer
-# rejects an API request unless Host is loopback/trusted and a browser Origin, when present,
-# has the same authority. This container cannot know the public host and port the node assigns
-# it, so Caddy rewrites both headers to its loopback upstream. Rewriting Host alone produces a
-# 403 on every browser API call because the unchanged public Origin no longer matches it.
-#
-# `auto_https off` keeps Caddy from provisioning or redirecting anything; an explicit `tls` with
-# certificate files still serves TLS, and the `https://` scheme on the site address makes that
-# unambiguous. The password reaches Caddy as a bcrypt hash through the config file; the
-# plaintext is never written to disk.
-#
-# DSH_TLS=off falls back to plain HTTP on 8080 — correct ONLY when the service is reached
-# through an SSH tunnel or another TLS terminator, because localhost is itself a secure context.
-# It is not a way to avoid the certificate warning on a remote browser: it trades the warning
-# for a UI that cannot open a workspace.
+# CADDY_DIR is ephemeral. It contains the password hash and generated configuration, neither of
+# which should outlive the container. PW_HASH was computed before dsh started and the plaintext
+# web password was unset immediately afterwards.
 # ---------------------------------------------------------------------------------------
-# PW_HASH was computed right after Caddy was installed, before dsh started, and the plaintext
-# unset there — see the note at that point in the script.
-# CADDY_DIR is deliberately NOT on the bucket. Everything in it — the Caddyfile carrying the
-# password hash, the per-launch private key, the signpost page — is rewritten on every launch,
-# so persisting it buys nothing, and a private key surviving in the consumer's storage after
-# the container is gone is a liability with no upside.
 CADDY_DIR="${TMPDIR:-/tmp}/caddy-dsh"
-CERT="$CADDY_DIR/dsh-selfsigned.crt"
-KEY="$CADDY_DIR/dsh-selfsigned.key"
-mkdir -p "$CADDY_DIR/site" "$CADDY_DIR/data" "$CADDY_DIR/config"
-
-USE_TLS=true
-if [ "${DSH_TLS:-on}" = "off" ]; then
-  USE_TLS=false
-  echo "[ocean] DSH_TLS=off — serving plain HTTP on $PROXY_PORT. Reach this through an SSH" \
-    "tunnel or a TLS terminator: on a remote browser over http://, dsh cannot open a" \
-    "workspace (crypto.randomUUID is undefined outside a secure context)."
-else
-  # Regenerated per launch rather than cached on the bucket: nothing trusts it anyway, so it is
-  # worthless to keep, and a private key sitting in persistent storage is a liability with no
-  # upside. openssl first because the image is Ubuntu-based and almost always has it; the
-  # cryptography module is the fallback for images that do not. The SANs cover the loopback
-  # names a tunnel user sees; a remote consumer's address cannot be predicted, and it does not
-  # matter, because an untrusted issuer forces the interstitial either way.
-  if command -v openssl >/dev/null 2>&1; then
-    openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 365 \
-      -keyout "$KEY" -out "$CERT" -subj "/CN=deepseek-harness" \
-      -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" >/dev/null 2>&1 \
-      || { echo "[ocean] openssl could not generate a certificate" >&2; USE_TLS=false; }
-  elif python3 -c 'import cryptography' 2>/dev/null; then
-    CERT="$CERT" KEY="$KEY" python3 <<'PYCERT' || USE_TLS=false
-import datetime, ipaddress, os
-from cryptography import x509
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.x509.oid import NameOID
-
-key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, 'deepseek-harness')])
-now = datetime.datetime.now(datetime.timezone.utc)
-cert = (x509.CertificateBuilder()
-        .subject_name(name).issuer_name(name)
-        .public_key(key.public_key())
-        .serial_number(x509.random_serial_number())
-        .not_valid_before(now - datetime.timedelta(minutes=5))
-        .not_valid_after(now + datetime.timedelta(days=365))
-        .add_extension(x509.SubjectAlternativeName([
-            x509.DNSName('localhost'),
-            x509.IPAddress(ipaddress.ip_address('127.0.0.1')),
-        ]), critical=False)
-        .sign(key, hashes.SHA256()))
-with open(os.environ['KEY'], 'wb') as fh:
-    fh.write(key.private_bytes(serialization.Encoding.PEM,
-                               serialization.PrivateFormat.TraditionalOpenSSL,
-                               serialization.NoEncryption()))
-with open(os.environ['CERT'], 'wb') as fh:
-    fh.write(cert.public_bytes(serialization.Encoding.PEM))
-print('[ocean] generated a self-signed certificate with the cryptography module')
-PYCERT
-  else
-    echo "[ocean] neither openssl nor the cryptography module is available in this image —" \
-      "cannot generate a certificate" >&2
-    USE_TLS=false
-  fi
-  if [ "$USE_TLS" = false ]; then
-    echo "[ocean] WARNING: falling back to plain HTTP on $PROXY_PORT. A remote browser will" \
-      "not be able to open a workspace in dsh (crypto.randomUUID is undefined outside a secure" \
-      "context) — reach the service through an SSH tunnel, or relaunch on an image with" \
-      "openssl." >&2
-  else
-    chmod 600 "$KEY"
-    echo "[ocean] generated a self-signed certificate for the TLS port"
-  fi
-fi
-
-if [ "$USE_TLS" = true ]; then
-  # A static file rather than an inline `respond` heredoc: Caddyfile heredocs are sensitive to
-  # the closing marker's indentation, and a broken proxy config is not a failure mode worth
-  # risking for one page of HTML.
-  cat > "$CADDY_DIR/site/index.html" <<'EXPLAINER'
-<!doctype html><meta charset=utf-8><title>Use the HTTPS endpoint</title>
-<style>body{font:16px/1.6 system-ui,sans-serif;max-width:38em;margin:4em auto;padding:0 1em}
-code{background:#eee;padding:.1em .3em;border-radius:3px}</style>
-<h1>This service is on the other port</h1>
-<p>DeepSeek Harness needs a <b>secure context</b>: its UI calls
-<code>crypto.randomUUID()</code>, which browsers only provide over HTTPS or on localhost. Over
-plain HTTP you cannot select a workspace, and selecting one is required.</p>
-<p>Open the <b>other endpoint listed for this service</b> and type <code>https://</code> in
-front of it. Your node reports every endpoint as <code>http://</code> because it has no way to
-know that a container serves TLS, so the scheme has to be corrected by hand — once.</p>
-<p>You will get a certificate warning. That is expected: the certificate is self-signed, because
-this container never learns the public hostname it is reached by. Choose <i>Advanced</i> and
-proceed. The encryption is real; only the identity is unverified.</p>
-EXPLAINER
-  cat > "$CADDY_DIR/Caddyfile" <<CADDYFILE
+mkdir -p "$CADDY_DIR/data" "$CADDY_DIR/config"
+cat > "$CADDY_DIR/Caddyfile" <<CADDYFILE
 {
 	auto_https off
 	admin off
 }
 
-https://:$TLS_PORT {
-	tls $CERT $KEY
-	basic_auth {
-		$DSH_WEB_USERNAME $PW_HASH
+http://:$WEB_PORT {
+	@model path /v1 /v1/*
+	handle @model {
+		reverse_proxy 127.0.0.1:$VLLM_PORT
 	}
-	reverse_proxy 127.0.0.1:$DSH_PORT {
-		header_up Host {upstream_hostport}
-		header_up Origin http://{upstream_hostport}
-	}
-}
 
-http://:$PROXY_PORT {
-	root * $CADDY_DIR/site
-	file_server
-}
-CADDYFILE
-else
-  cat > "$CADDY_DIR/Caddyfile" <<CADDYFILE
-{
-	auto_https off
-	admin off
-}
-
-http://:$PROXY_PORT {
-	basic_auth {
-		$DSH_WEB_USERNAME $PW_HASH
-	}
-	reverse_proxy 127.0.0.1:$DSH_PORT {
-		header_up Host {upstream_hostport}
-		header_up Origin http://{upstream_hostport}
+	handle {
+		basic_auth {
+			$DSH_WEB_USERNAME $PW_HASH
+		}
+		reverse_proxy 127.0.0.1:$DSH_PORT {
+			header_up Host {upstream_hostport}
+			header_up Origin http://{upstream_hostport}
+		}
 	}
 }
 CADDYFILE
-fi
 
 XDG_DATA_HOME="$CADDY_DIR/data" XDG_CONFIG_HOME="$CADDY_DIR/config" \
   "$CADDY_BIN" run --config "$CADDY_DIR/Caddyfile" --adapter caddyfile &
 PROXY_PID=$!
 
-# Wait on whichever port carries the UI, so "ready" never precedes a listener.
-READY_PORT="$PROXY_PORT"
-[ "$USE_TLS" = true ] && READY_PORT="$TLS_PORT"
-until (exec 3<>/dev/tcp/127.0.0.1/"$READY_PORT") 2>/dev/null; do
-  kill -0 $PROXY_PID 2>/dev/null || { echo "[ocean] the auth proxy exited during startup" >&2; exit 1; }
+until (exec 3<>/dev/tcp/127.0.0.1/"$WEB_PORT") 2>/dev/null; do
+  kill -0 $PROXY_PID 2>/dev/null || {
+    echo "[ocean] the HTTP auth proxy exited during startup" >&2
+    exit 1
+  }
   sleep 2
 done
 
-if [ "$USE_TLS" = true ]; then
-  echo "[ocean] ready — open the service endpoint for container port $TLS_PORT, changing" \
-    "http:// to https:// (the node reports every endpoint as http://, and this one is TLS)," \
-    "accept the self-signed certificate warning, then sign in as '$DSH_WEB_USERNAME' with the" \
-    "password you set. The other endpoint, container port $PROXY_PORT, serves a page saying the" \
-    "same thing. In dsh: click Choose workspace and pick $WORKSPACE (the session composer needs" \
-    "a workspace selected), then start a session — the model is already configured and" \
-    "$SKILL_COUNT skills are loaded."
-else
-  echo "[ocean] ready — reach container port $PROXY_PORT through an SSH tunnel and open it as" \
-    "http://127.0.0.1:<local-port>, then sign in as '$DSH_WEB_USERNAME'. A remote browser on" \
-    "http:// will fail at Choose workspace. In dsh: click Choose workspace and pick $WORKSPACE," \
-    "then start a session — the model is already configured and $SKILL_COUNT skills are loaded."
-fi
+echo "[ocean] ready — open the http:// endpoint for container port $WEB_PORT and sign in as" \
+  "'$DSH_WEB_USERNAME'. Click Choose workspace and pick 'workspace' in the Home listing" \
+  "($WORKSPACE), then start a session; $SKILL_COUNT skills and the local model are ready." \
+  "For a harness on your computer, use the same endpoint with /v1 and send VLLM_API_KEY as" \
+  "a Bearer token. HTTP is unencrypted; use a trusted TLS terminator or VPN on public networks."
 
 # If any of the three dies the container stops, rather than leaving something that still looks
 # Running and still bills while being unusable — in particular, a dead proxy must never leave
