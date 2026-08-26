@@ -693,18 +693,37 @@ export const OceanNodeP2PConfigSchema = z.object({
       if (v === null) {
         return dhtFilterMethod.filterNone
       }
-      if (typeof v === 'number' || typeof v === 'string') {
-        const filterValue = typeof v === 'string' ? parseInt(v, 10) : v
-        switch (filterValue) {
+      // The readable enum name, e.g. from `config.json` or a `P2P_DHT_FILTER=filterPrivate`
+      // env var - match it directly, before ever reaching for parseInt.
+      if (
+        typeof v === 'string' &&
+        (Object.values(dhtFilterMethod) as string[]).includes(v)
+      ) {
+        return v as dhtFilterMethod
+      }
+      // Legacy numeric form, string or number: 0 = filterNone, 1 = filterPrivate,
+      // 2 = filterPublic. Only reach for parseInt when the string actually looks numeric,
+      // so a misspelled enum name (e.g. "filterPrivatte") can't be coerced into NaN and
+      // silently misread as a filter level.
+      const isNumericString = typeof v === 'string' && /^-?\d+$/.test(v.trim())
+      if (typeof v === 'number' || isNumericString) {
+        switch (typeof v === 'string' ? parseInt(v, 10) : v) {
+          case 0:
+            return dhtFilterMethod.filterNone
           case 1:
             return dhtFilterMethod.filterPrivate
           case 2:
             return dhtFilterMethod.filterPublic
-          default:
-            return dhtFilterMethod.filterNone
         }
       }
-      return v
+      // Unrecognised value (bad enum name, out-of-range number, or non-numeric junk).
+      // Fall back to the documented default rather than the previous behaviour of
+      // silently landing on filterNone - the least safe choice for a typo on a knob
+      // that controls whether private addresses get stripped from the DHT.
+      CONFIG_LOGGER.warn(
+        `Unrecognised dhtFilter value "${v}", falling back to the default (${dhtFilterMethod.filterPrivate})`
+      )
+      return dhtFilterMethod.filterPrivate
     })
     .optional()
     // Filtering private addresses out of the DHT is the highest-fanout code path in the

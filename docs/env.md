@@ -91,7 +91,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `P2P_ANNOUNCE_PRIVATE`: Announce private IPs. Default: `True`
 - `P2P_dhtMaxInboundStreams`: Maximum number of DHT inbound streams. Defaults to `500`. Example: `500`
 - `P2P_dhtMaxOutboundStreams`: Maximum number of DHT outbound streams. Defaults to `500`. Example: `500`
-- `P2P_DHT_FILTER`: Filter address in DHT. 0 = No filter. 1 = (Default) Filter private addresses. 2 = Filter public addresses
+- `P2P_DHT_FILTER`: Filter address in DHT. Accepts either the enum name or the legacy numeric form: `filterNone`/`0` = No filter. `filterPrivate`/`1` = (Default) Filter private addresses. `filterPublic`/`2` = Filter public addresses. An unrecognised value falls back to the default (`filterPrivate`) and logs a warning.
 - `P2P_DHT_FORCE_SERVER`: Force this node's DHT to run in server mode, bypassing kad-dht's own promote-on-public-address auto-switch. Only set this if the operator already knows the node is reachable. Default: `False`
 - `P2P_mDNSInterval`: Interval (in ms) for discovery using mDNS. Defaults to `20000` (20 seconds). Example: `20000`
 - `P2P_connectionsMaxParallelDials`: Maximum number of parallel dials. Defaults to `50`. Example: `50`
