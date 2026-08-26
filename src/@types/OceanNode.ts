@@ -60,9 +60,15 @@ export interface OceanNodeP2PConfig {
   dhtMaxInboundStreams: number
   dhtMaxOutboundStreams: number
   dhtFilter: dhtFilterMethod
+  // When true, pass `clientMode: false` to kad-dht so this node is always a DHT server.
+  // Left false, `clientMode` is omitted entirely so kad-dht registers its own auto-switch
+  // listener and promotes/demotes based on whether this node currently has a public address.
+  dhtForceServer: boolean
   mDNSInterval: number
   connectionsMaxParallelDials: number
   connectionsDialTimeout: number
+  // libp2p's own default (`MAX_DIAL_QUEUE_LENGTH`) is 500; ocean-node did not expose it before.
+  maxDialQueueLength: number
   announceAddresses: string[]
   filterAnnouncedAddresses: string[]
   autoNat: boolean

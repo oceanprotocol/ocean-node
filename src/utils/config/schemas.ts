@@ -707,10 +707,21 @@ export const OceanNodeP2PConfigSchema = z.object({
       return v
     })
     .optional()
-    .default(dhtFilterMethod.filterNone),
+    // Filtering private addresses out of the DHT is the highest-fanout code path in the
+    // network - it runs on every peer this node's kad-dht learns about, not just the ones it
+    // dials. filterPrivate is also kad-dht's own upstream default (removePrivateAddressesMapper);
+    // ocean-node was overriding it down to filterNone. announcePrivateIp still forces
+    // passthroughMapper back on for local/test networks - see dhtOptions below.
+    .default(dhtFilterMethod.filterPrivate),
   mDNSInterval: z.coerce.number().optional().default(20e3),
-  connectionsMaxParallelDials: z.coerce.number().optional().default(15),
-  connectionsDialTimeout: z.coerce.number().optional().default(30e3),
+  // Passing `clientMode` to kad-dht at all - even `false` - suppresses the listener that
+  // promotes this node to a DHT server once it has a public address (see dhtOptions below).
+  // This only forces server mode for an operator who already knows they are reachable.
+  dhtForceServer: booleanFromString.optional().default(false),
+  connectionsMaxParallelDials: z.coerce.number().optional().default(50),
+  connectionsDialTimeout: z.coerce.number().optional().default(15e3),
+  // libp2p's own default; not previously exposed as config.
+  maxDialQueueLength: z.coerce.number().optional().default(500),
   upnp: booleanFromString.optional().default(true),
   autoNat: booleanFromString.optional().default(true),
   enableCircuitRelayServer: booleanFromString.optional().default(false),
@@ -725,7 +736,10 @@ export const OceanNodeP2PConfigSchema = z.object({
   maxConnections: z.coerce.number().optional().default(300),
   autoDialPeerRetryThreshold: z.coerce.number().optional().default(120000),
   autoDialConcurrency: z.coerce.number().optional().default(5),
-  maxPeerAddrsToDial: z.coerce.number().optional().default(5),
+  // The dial budget is spent per address before the transport check runs, so even an
+  // instantly-skipped address counts against it - and a single bootstrap peer now has
+  // around 6 addresses (tcp/ws/wss x v4/v6).
+  maxPeerAddrsToDial: z.coerce.number().optional().default(30),
   autoDialInterval: z.coerce.number().optional().default(5000),
   enableNetworkStats: booleanFromString.optional().default(false),
   // P2P timeout / attempt budgets. The defaults are imported from

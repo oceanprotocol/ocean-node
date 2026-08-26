@@ -91,10 +91,12 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `P2P_ANNOUNCE_PRIVATE`: Announce private IPs. Default: `True`
 - `P2P_dhtMaxInboundStreams`: Maximum number of DHT inbound streams. Defaults to `500`. Example: `500`
 - `P2P_dhtMaxOutboundStreams`: Maximum number of DHT outbound streams. Defaults to `500`. Example: `500`
-- `P2P_DHT_FILTER`: Filter address in DHT. 0 = (Default) No filter 1. Filter private ddresses. 2. Filter public addresses
+- `P2P_DHT_FILTER`: Filter address in DHT. 0 = No filter. 1 = (Default) Filter private addresses. 2 = Filter public addresses
+- `P2P_DHT_FORCE_SERVER`: Force this node's DHT to run in server mode, bypassing kad-dht's own promote-on-public-address auto-switch. Only set this if the operator already knows the node is reachable. Default: `False`
 - `P2P_mDNSInterval`: Interval (in ms) for discovery using mDNS. Defaults to `20000` (20 seconds). Example: `20000`
-- `P2P_connectionsMaxParallelDials`: Maximum number of parallel dials. Defaults to `150`. Example: `150`
-- `P2P_connectionsDialTimeout`: Timeout for dial commands. Defaults to `10000` (10 seconds). Example: `10000`
+- `P2P_connectionsMaxParallelDials`: Maximum number of parallel dials. Defaults to `50`. Example: `50`
+- `P2P_connectionsDialTimeout`: Timeout for dial commands. Defaults to `15000` (15 seconds). Example: `15000`
+- `P2P_MAXDIALQUEUELENGTH`: Maximum number of dials that may be queued at once before new dial requests are rejected. Defaults to `500` (libp2p's own default).
 - `P2P_ENABLE_UPNP`: Enable UPNP gateway discovery. Default: `True`
 - `P2P_ENABLE_AUTONAT`: Enable AutoNAT discovery. Default: `True`
 - `P2P_ENABLE_CIRCUIT_RELAY_SERVER`: Enable Circuit Relay Server. It will help the network but increase your bandwidth usage. Should be disabled for edge nodes. Default: `True`
@@ -110,7 +112,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `P2P_MAX_CONNECTIONS`: The maximum number of connections libp2p is willing to have before it starts pruning connections to reduce resource usage. Default: 300
 - `P2P_AUTODIALPEERRETRYTHRESHOLD`: When we've failed to dial a peer, do not autodial them again within this number of ms. Default: 1000 \* 120
 - `P2P_AUTODIALCONCURRENCY`: When dialling peers from the peer book to keep the number of open connections, add dials for this many peers to the dial queue at once. Default: 5
-- `P2P_MAXPEERADDRSTODIAL`: Maximum number of addresses allowed for a given peer before giving up. Default: 5
+- `P2P_MAXPEERADDRSTODIAL`: Maximum number of addresses allowed for a given peer before giving up. Default: 30
 - `P2P_AUTODIALINTERVAL`: Auto dial interval (miliseconds). Amount of time between close and open of new peer connection. Default: 5000
 - `P2P_ENABLE_NETWORK_STATS`: Enables 'getP2pNetworkStats' http endpoint. Since this contains private informations (like your ip addresses), this is disabled by default
 

@@ -12,6 +12,7 @@ import {
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { LengthPrefixedStream } from '@libp2p/utils'
+import { KEEP_ALIVE } from '@libp2p/interface'
 import type { Connection, Stream } from '@libp2p/interface'
 
 import { bootstrap } from '@libp2p/bootstrap'
@@ -138,6 +139,13 @@ export class OceanP2P extends EventEmitter {
   private _upnp_interval: NodeJS.Timeout
   private _ip_discovery_interval: NodeJS.Timeout
   private _idx: number
+  /**
+   * Peer IDs parsed from `p2pConfig.bootstrapNodes` - the only "configured", as opposed to
+   * discovered, peer set this node has, and in this network the same peers also serve as
+   * circuit relays. Computed once in `start()`; used by `handlePeerConnect` to apply the
+   * `KEEP_ALIVE` tag. See the comment there for why the plain `bootstrap` tag is not enough.
+   */
+  private _bootstrapPeerIds: Set<string> = new Set()
   private readonly db: Database
   private readonly _config: OceanNodeConfig
   private readonly keyManager: KeyManager
@@ -169,6 +177,19 @@ export class OceanP2P extends EventEmitter {
 
   async start(options: any = null) {
     this._libp2p = await this.createNode(this._config)
+    this._bootstrapPeerIds = new Set(
+      (this._config.p2pConfig.bootstrapNodes ?? [])
+        .map((addr) => {
+          try {
+            return multiaddr(addr)
+              .getComponents()
+              .find((entry) => entry.name === 'p2p')?.value
+          } catch (e) {
+            return undefined
+          }
+        })
+        .filter((id): id is string => id !== undefined)
+    )
     this._libp2p.addEventListener('peer:connect', (evt: any) => {
       this.handlePeerConnect(evt)
     })
@@ -232,6 +253,25 @@ export class OceanP2P extends EventEmitter {
     if (details) {
       const peerId = details.detail
       P2P_LOGGER.debug('Connection established to:' + peerId.toString()) // Emitted when a peer has been found
+      // Tag bootstrap peers with KEEP_ALIVE on every connect, in addition to the plain tag
+      // the bootstrap discovery service already applies (`bootstrapTagName`, default
+      // "bootstrap"). The two are not interchangeable: libp2p's reconnect queue only re-dials
+      // a peer whose tag name starts with "keep-alive" (`@libp2p/interface`'s `KEEP_ALIVE`
+      // constant), so without this a dropped bootstrap peer was shielded from connection
+      // trimming by its tag value but never reconnected. No ttl is set on purpose - a finite
+      // one would let this tag expire too, which is worse: the peer becomes prunable again
+      // and, exactly like the bootstrap tag alone, is never reconnected.
+      if (this._bootstrapPeerIds.has(peerId.toString())) {
+        this._libp2p.peerStore
+          .merge(peerId, { tags: { [`${KEEP_ALIVE}-bootstrap`]: { value: 1 } } })
+          .catch((err: unknown) => {
+            P2P_LOGGER.error(
+              `Failed to tag bootstrap peer ${peerId.toString()} for keep-alive reconnect: ${
+                err instanceof Error ? err.message : String(err)
+              }`
+            )
+          })
+      }
     }
   }
 
@@ -434,19 +474,52 @@ export class OceanP2P extends EventEmitter {
             multiaddrs.filter((m) => this.shouldAnnounce(m))
         }
       }
-      const dhtOptions = {
+      const dhtOptions: {
+        allowQueryWithZeroPeers: boolean
+        maxInboundStreams: number
+        maxOutboundStreams: number
+        kBucketSize: number
+        disjointPaths: number
+        protocol: string
+        peerInfoMapper: typeof passthroughMapper
+        clientMode?: boolean
+      } = {
         allowQueryWithZeroPeers: false,
         maxInboundStreams: config.p2pConfig.dhtMaxInboundStreams,
         maxOutboundStreams: config.p2pConfig.dhtMaxOutboundStreams,
-        clientMode: false, // always be a server
         kBucketSize: 20,
+        // Caps how many disjoint lookup paths one query may run concurrently, independent of
+        // `kBucketSize` (which doubles as the provider-record replication factor and the
+        // per-provide write amplification, so it stays at 20). `alpha` is left at kad-dht's
+        // default of 10 (query concurrency per path); undeclared, `disjointPaths` also
+        // defaults to `alpha`, so a single query could otherwise put up to 10 x 10 = 100
+        // concurrent lookups in flight against a dial queue an order of magnitude smaller -
+        // capping the DHT's own fan-out here is cheaper than widening the dial queue to match
+        // it. 4 x 10 = 40 is the resulting ceiling.
+        disjointPaths: 4,
         protocol: '/ocean/nodes/1.0.0/kad/1.0.0',
-        peerInfoMapper: passthroughMapper // see below
+        // filterPrivate (removePrivateAddressesMapper) is the dhtFilter default; passthroughMapper
+        // is restored below when announcePrivateIp is set, for local/test networks.
+        peerInfoMapper: passthroughMapper
+      }
+      // `clientMode` is left unset unless an operator explicitly asserts this node is
+      // reachable. Passing the option at all - even `false` - stops kad-dht registering the
+      // listener that auto-promotes this node from client to server the moment it has a
+      // public, non-circuit address (and auto-demotes it again if that address later
+      // disappears): in @libp2p/kad-dht's kad-dht.js, that listener is only added
+      // `if (init.clientMode == null)`. See getNetworkingStats()/dhtMode for the running mode.
+      if (config.p2pConfig.dhtForceServer) {
+        dhtOptions.clientMode = false
       }
       if (config.p2pConfig.dhtFilter === dhtFilterMethod.filterPrivate)
         dhtOptions.peerInfoMapper = removePrivateAddressesMapper
       if (config.p2pConfig.dhtFilter === dhtFilterMethod.filterPublic)
         dhtOptions.peerInfoMapper = removePublicAddressesMapper
+      if (config.p2pConfig.announcePrivateIp) {
+        // Local/test networks announce private addresses on purpose (see shouldAnnounce
+        // above), so the DHT must not strip them back out regardless of dhtFilter's default.
+        dhtOptions.peerInfoMapper = passthroughMapper
+      }
       let servicesConfig = {
         identify: identify(),
         dht: kadDHT(dhtOptions),
@@ -521,10 +594,23 @@ export class OceanP2P extends EventEmitter {
           maxParallelDials: config.p2pConfig.connectionsMaxParallelDials,
           dialTimeout: config.p2pConfig.connectionsDialTimeout,
           maxConnections: config.p2pConfig.maxConnections,
-          maxPeerAddrsToDial: config.p2pConfig.maxPeerAddrsToDial
+          maxPeerAddrsToDial: config.p2pConfig.maxPeerAddrsToDial,
+          maxDialQueueLength: config.p2pConfig.maxDialQueueLength
         },
         connectionMonitor: {
-          abortConnectionOnPingFailure: false
+          // A tuned interval, and the ping-failure abort libp2p itself defaults to (both were
+          // previously off/short-circuited to stop pings killing long-running download
+          // connections). A large-transfer soak against this exact configuration - real
+          // TCP+yamux+noise nodes, the production `pauseReads`/`resumeReads` backpressure loop,
+          // an async slow consumer, transfers well past this file's >4 MiB corruption-check
+          // floor - found no false aborts: yamux ping frames are multiplexed independently of a
+          // paused data stream, so a slow *I/O-bound* consumer never starves them. What does
+          // starve them is a consumer that blocks the event loop synchronously; nothing on this
+          // response path does that (verified separately by adding a synchronous busy-loop to
+          // a soak consumer, which does reproduce the abort - the failure mode is event-loop
+          // starvation, not the monitor itself).
+          pingInterval: 30000,
+          abortConnectionOnPingFailure: true
         }
       }
       if (config.p2pConfig.bootstrapNodes && config.p2pConfig.bootstrapNodes.length > 0) {
@@ -560,6 +646,36 @@ export class OceanP2P extends EventEmitter {
       }
       const node = await createLibp2p(options)
       await node.start()
+
+      // Log every DHT client/server mode transition. The auto-switch this enables (see
+      // dhtOptions above) is bidirectional: a reachability blip can demote an already-promoted
+      // node back to client, and promote it again once the address reappears. kad-dht does not
+      // emit an event for this itself, so the transition is observed by wrapping `setMode` -
+      // the same method both directions of the auto-switch call. If flapping ever shows up in
+      // these logs, `addressVerificationTTL` is the knob to damp it with: it is libp2p's own
+      // `AddressManager` init option (default 10 minutes, see
+      // node_modules/libp2p/dist/src/address-manager/index.js) for how long a confirmed
+      // address is trusted before it needs reconfirming, and this repo does not currently pass
+      // it through `createLibp2p`'s options above. That damping is not implemented here. The
+      // current mode is also exposed live through getNetworkingStats().
+      const dhtService = (node.services as Record<string, any> | undefined)?.dht as
+        | {
+            getMode?: () => string
+            setMode?: (mode: string, options?: unknown) => Promise<void>
+          }
+        | undefined
+      if (dhtService?.getMode && dhtService.setMode) {
+        let lastKnownDhtMode = dhtService.getMode()
+        const originalSetMode = dhtService.setMode.bind(dhtService)
+        dhtService.setMode = async (mode: string, setModeOptions?: unknown) => {
+          await originalSetMode(mode, setModeOptions)
+          const currentMode = dhtService.getMode!()
+          if (currentMode !== lastKnownDhtMode) {
+            P2P_LOGGER.info(`DHT mode changed: ${lastKnownDhtMode} -> ${currentMode}`)
+            lastKnownDhtMode = currentMode
+          }
+        }
+      }
 
       const upnpService = (node.services as any).upnpNAT
       if (config.p2pConfig.upnp && upnpService) {
@@ -615,6 +731,12 @@ export class OceanP2P extends EventEmitter {
     // makes the peer store's address lifetime measurable: resolutions shifting between the
     // peerstore and DHT lanes, and the reasons sendTo failed.
     ret.counters = getP2PCounters()
+
+    // "client" or "server" - see the mode-transition comment in createNode() for what can
+    // change it after startup.
+    const dhtService = (this._libp2p.services as Record<string, any> | undefined)?.dht as
+      { getMode?: () => string } | undefined
+    ret.dhtMode = dhtService?.getMode ? dhtService.getMode() : undefined
 
     return ret
   }
