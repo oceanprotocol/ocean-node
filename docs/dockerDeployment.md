@@ -130,7 +130,6 @@ services:
       P2P_ipV6BindWsPort: '9003'
       P2P_ANNOUNCE_ADDRESSES: '["/dns4/<<redacted>>/tcp/9000/p2p/", "/dns4/<<redacted>>/ws/tcp/9001", "/dns6/<<redacted>>/tcp/9002/p2p/", "/dns6/<<redacted>>/ws/tcp/9003"]'
     #      P2P_ANNOUNCE_PRIVATE: ''
-    #      P2P_pubsubPeerDiscoveryInterval: ''
     #      P2P_dhtMaxInboundStreams: ''
     #      P2P_dhtMaxOutboundStreams: ''
     #      P2P_mDNSInterval: ''

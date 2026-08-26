@@ -15,13 +15,28 @@ import { Readable } from 'node:stream'
 
 const MAX_VERDICT_BYTES = 4096
 
+/**
+ * Reads a bounded validation verdict off a P2P response body.
+ *
+ * `destroy` is called only when the source actually has it. The parameter is typed `Readable`,
+ * but what `sendTo` hands back is a bare async iterable over the response frames with no
+ * `destroy` method, so calling it unconditionally replaced the size error with a `TypeError`
+ * and the caller never saw why the verdict was rejected. Throwing out of the `for await` is
+ * what releases such a source anyway: the loop calls the iterator's `return()`, which is where
+ * that iterator resets the stream.
+ */
 async function readBounded(stream: Readable): Promise<string> {
   const chunks: Buffer[] = []
   let size = 0
   for await (const chunk of stream) {
     size += chunk.length
     if (size > MAX_VERDICT_BYTES) {
-      stream.destroy()
+      const destroy = (stream as { destroy?: unknown } | null)?.destroy
+      if (typeof destroy === 'function') {
+        try {
+          destroy.call(stream)
+        } catch {}
+      }
       throw new Error('validation response too large')
     }
     chunks.push(Buffer.from(chunk))

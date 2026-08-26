@@ -1,4 +1,6 @@
 import { Hashes } from '../@types/blockchain'
+// leaf module with no imports of its own, so importing it here cannot create a cycle
+import { ENV_TO_CONFIG_MAPPING } from './config/constants.js'
 
 // Add all the supported commands
 export const PROTOCOL_COMMANDS = {
@@ -291,6 +293,18 @@ export const DB_TYPES = {
   TYPESENSE: 'typesense'
 }
 
+// Every P2P_* env var is derived from ENV_TO_CONFIG_MAPPING (src/utils/config/constants.ts),
+// which is the single source of truth for what the config system actually reads. Generating
+// them instead of hand-listing means the two lists can no longer drift apart.
+const P2P_ENVIRONMENT_VARIABLES: Record<string, EnvVariable> = Object.fromEntries(
+  Object.keys(ENV_TO_CONFIG_MAPPING)
+    .filter((envName) => envName.startsWith('P2P_'))
+    .map((envName) => [
+      envName,
+      { name: envName, value: process.env[envName], required: false }
+    ])
+)
+
 // usefull to keep track of what all the env variables we are using
 // (faster to read than README and we can easily use the constants if needed)
 // required means its not mandatory OR we have defaults
@@ -347,22 +361,8 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.ADDRESS_FILE,
     required: false
   },
-  // p2p specific
-  P2P_BOOTSTRAP_NODES: {
-    name: 'P2P_BOOTSTRAP_NODES',
-    value: process.env.P2P_BOOTSTRAP_NODES,
-    required: false
-  },
-  P2P_ANNOUNCE_ADDRESSES: {
-    name: 'P2P_ANNOUNCE_ADDRESSES',
-    value: process.env.P2P_ANNOUNCE_ADDRESSES,
-    required: false
-  },
-  P2P_FILTER_ANNOUNCED_ADDRESSES: {
-    name: 'P2P_FILTER_ANNOUNCED_ADDRESSES',
-    value: process.env.P2P_FILTER_ANNOUNCED_ADDRESSES,
-    required: false
-  },
+  // p2p specific - all of them, generated from ENV_TO_CONFIG_MAPPING (see above)
+  ...P2P_ENVIRONMENT_VARIABLES,
   // node specific
   NODE_ENV: { name: 'NODE_ENV', value: process.env.NODE_ENV, required: false },
   AUTHORIZED_DECRYPTERS: {
@@ -591,51 +591,6 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   VALIDATE_UNSIGNED_DDO: {
     name: 'VALIDATE_UNSIGNED_DDO',
     value: process.env.VALIDATE_UNSIGNED_DDO,
-    required: false
-  },
-  P2P_ipV4BindAddress: {
-    name: 'P2P_ipV4BindAddress',
-    value: process.env.P2P_ipV4BindAddress,
-    required: false
-  },
-  P2P_ipV4BindTcpPort: {
-    name: 'P2P_ipV4BindTcpPort',
-    value: process.env.P2P_ipV4BindTcpPort,
-    required: false
-  },
-  P2P_ipV4BindWsPort: {
-    name: 'P2P_ipV4BindWsPort',
-    value: process.env.P2P_ipV4BindWsPort,
-    required: false
-  },
-  P2P_ipV4BindWssPort: {
-    name: 'P2P_ipV4BindWssPort',
-    value: process.env.P2P_ipV4BindWssPort,
-    required: false
-  },
-  P2P_ipV6BindAddress: {
-    name: 'P2P_ipV6BindAddress',
-    value: process.env.P2P_ipV6BindAddress,
-    required: false
-  },
-  P2P_ipV6BindTcpPort: {
-    name: 'P2P_ipV6BindTcpPort',
-    value: process.env.P2P_ipV6BindTcpPort,
-    required: false
-  },
-  P2P_ipV6BindWsPort: {
-    name: 'P2P_ipV6BindWsPort',
-    value: process.env.P2P_ipV6BindWsPort,
-    required: false
-  },
-  P2P_MIN_CONNECTIONS: {
-    name: 'P2P_MIN_CONNECTIONS',
-    value: process.env.P2P_MIN_CONNECTIONS,
-    required: false
-  },
-  P2P_MAX_CONNECTIONS: {
-    name: 'P2P_MAX_CONNECTIONS',
-    value: process.env.P2P_MAX_CONNECTIONS,
     required: false
   },
   HTTP_CERT_PATH: {

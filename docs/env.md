@@ -78,6 +78,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `P2P_ipV4BindAddress`: Bind address for IPV4. Defaults to `0.0.0.0`. Example: `"0.0.0.0"`
 - `P2P_ipV4BindTcpPort`: Port used on IPv4 TCP connections. Defaults to `0` (Use whatever port is free. When running as docker, please set it explicitly). Example: `0`
 - `P2P_ipV4BindWsPort`: Port used on IPv4 WS connections. Defaults to `0` (Use whatever port is free. When running as docker, please set it explicitly). Example: `0`
+- `P2P_ipV4BindWssPort`: Port used on IPv4 secure WebSocket (wss) connections. Defaults to `9005`. Example: `9005`
 - `P2P_ipV6BindAddress`: Bind address for IPV6. Defaults to `::1`. Example: `"::1"`
 - `P2P_ipV6BindTcpPort`: Port used on IPv6 TCP connections. Defaults to `0` (Use whatever port is free. When running as docker, please set it explicitly). Example: `0`
 - `P2P_ipV6BindWsPort`: Port used on IPv6 WS connections. Defaults to `0` (Use whatever port is free. When running as docker, please set it explicitly). Example: `0`
@@ -88,7 +89,6 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
   - `"["/ip4/<your-ip-addr>/tcp/9005/tls/wss"]"` - TLS WebSocket Secure
 
 - `P2P_ANNOUNCE_PRIVATE`: Announce private IPs. Default: `True`
-- `P2P_pubsubPeerDiscoveryInterval`: Interval (in ms) for discovery using pubsub. Defaults to `10000` (three seconds). Example: `10000`
 - `P2P_dhtMaxInboundStreams`: Maximum number of DHT inbound streams. Defaults to `500`. Example: `500`
 - `P2P_dhtMaxOutboundStreams`: Maximum number of DHT outbound streams. Defaults to `500`. Example: `500`
 - `P2P_DHT_FILTER`: Filter address in DHT. 0 = (Default) No filter 1. Filter private ddresses. 2. Filter public addresses
@@ -98,6 +98,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `P2P_ENABLE_UPNP`: Enable UPNP gateway discovery. Default: `True`
 - `P2P_ENABLE_AUTONAT`: Enable AutoNAT discovery. Default: `True`
 - `P2P_ENABLE_CIRCUIT_RELAY_SERVER`: Enable Circuit Relay Server. It will help the network but increase your bandwidth usage. Should be disabled for edge nodes. Default: `True`
+- `P2P_ENABLE_CIRCUIT_RELAY_CLIENT`: Enable the Circuit Relay client, i.e. let this node reserve a slot on relay servers so unreachable peers can be dialled through them. Needed by a node behind a NAT it cannot open a port on. Default: `False`
 - `P2P_CIRCUIT_RELAYS`: Numbers of relay servers. Default: `0`
 - `P2P_BOOTSTRAP_NODES` : List of bootstrap nodes. Defults to OPF nodes. Example: ["/dns4/node3.oceanprotocol.com/tcp/9000/p2p/"]
 - `P2P_BOOTSTRAP_TIMEOUT` : How long to wait before discovering bootstrap nodes. In ms. Default: 2000 ms
@@ -112,6 +113,53 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `P2P_MAXPEERADDRSTODIAL`: Maximum number of addresses allowed for a given peer before giving up. Default: 5
 - `P2P_AUTODIALINTERVAL`: Auto dial interval (miliseconds). Amount of time between close and open of new peer connection. Default: 5000
 - `P2P_ENABLE_NETWORK_STATS`: Enables 'getP2pNetworkStats' http endpoint. Since this contains private informations (like your ip addresses), this is disabled by default
+
+### P2P timeout / attempt budgets
+
+The P2P budgets. Every one of them is a **positive integer**, in milliseconds
+unless stated otherwise, and every one is optional — leave it unset to get the default.
+
+**How a bad value is treated.** A blank, non-numeric, zero or negative value is **ignored**, and
+the default below is used instead; fractional values are floored. Every millisecond budget also
+has a **floor of 50 ms**, and a value below it is ignored in exactly the same way: every budgeted
+stage costs at least one round trip to the peer, so a smaller budget expires before the operation
+it bounds can finish — `P2P_STREAM_IDLE_TIMEOUT_MS=1` used to be accepted and broke every
+transfer. The two keys that are counts rather than durations, `P2P_SENDTO_MAX_ATTEMPTS` and
+`P2P_COMMAND_MAX_INBOUND_STREAMS`, keep a floor of 1. This is a single shared rule
+(`normalizeP2pBudget` in `src/components/P2P/timeouts.ts`), used both by the `P2P_TIMEOUTS`
+getters that consume these variables and by `OceanNodeP2PConfigSchema` that validates them, so
+the two cannot disagree. Two specific cases are worth knowing because they used to behave
+differently :
+
+- `P2P_SENDTO_DIAL_MS=` — an **empty** value, the style the rest of `.env.example` uses — used
+  to coerce to `0` and land in the config as a 0 ms, i.e. instantly expired, budget while the
+  code still used 15000. It is now dropped in favour of the default. Prefer leaving the variable
+  out entirely; the `.env.example` entries for these keys are commented out rather than blank.
+- `P2P_SENDTO_DIAL_MS=15s` — a **non-numeric** value — used to be rejected by the schema and
+  made the node refuse to boot. A typo in a tuning knob is no longer startup-fatal.
+
+**Set these as environment variables, not in `config.json`.** The consuming code reads
+`process.env` directly, so a value placed only in `config.json` reaches the validated config but
+not the code that uses it. Every key listed here does have an `ENV_TO_CONFIG_MAPPING` entry, so
+setting it through the environment reaches both.
+
+- `P2P_FINDPEER_TIMEOUT_MS`: Budget for a Kademlia `findPeer` walk. A multi-hop walk needs 10–30s, not 3–5s. Defaults to `20000` (20 seconds). Example: `20000`
+- `P2P_FINDPROVIDERS_TIMEOUT_MS`: Budget for a `findProviders` query. Without it kad-dht falls through to its own 180 second default. Defaults to `20000` (20 seconds). Example: `20000`
+- `P2P_STREAM_IDLE_TIMEOUT_MS`: Per-frame **idle** budget when reading a response stream. Not the same thing as the dial timeout — a large transfer is legitimately slow overall but never idle. Defaults to `60000` (60 seconds). Example: `60000`
+- `P2P_STREAM_BODY_TIMEOUT_MS`: Ceiling on the **whole** response body of one command, measured from the moment the caller starts reading it. Distinct from `P2P_STREAM_IDLE_TIMEOUT_MS`, which rearms on every frame and therefore bounds a *stall* rather than a *transfer*: a peer that keeps trickling frames is never cut off by the idle budget, however long it goes on. Defaults to `3600000` (60 minutes), which clears every transfer this protocol legitimately carries — at the 16–64 KiB frame sizes seen on the wire that is roughly 3.5 GiB at 1 MiB/s. Raise it if your peers legitimately stream for longer, e.g. a multi-hour download on a slow link. Example: `3600000`
+- `P2P_SENDTO_RESOLVE_MS`: `sendTo` stage 1 — address resolution. Defaults to `20000` (20 seconds). Example: `20000`
+- `P2P_SENDTO_DIAL_MS`: `sendTo` stage 2 — dial. Defaults to `15000` (15 seconds). Example: `15000`
+- `P2P_SENDTO_STREAM_MS`: `sendTo` stage 3 — stream open, command write and status read. Defaults to `10000` (10 seconds). Example: `10000`
+- `P2P_SENDTO_TOTAL_MS`: Overall deadline for one `sendTo` **setup** phase, spanning all attempts. It bounds resolution, dial, stream open, the command write and the status frame; it deliberately does **not** bound the response body, which is bounded per frame by `P2P_STREAM_IDLE_TIMEOUT_MS` and in total by `P2P_STREAM_BODY_TIMEOUT_MS`. Defaults to `45000` (45 seconds), which is exactly one complete slow path (`20000 + 15000 + 10000`). Example: `45000`
+- `P2P_SENDTO_MAX_ATTEMPTS`: Number of `sendTo` attempts, each with fresh per-stage signals. Defaults to `2`. Hard-capped at `5` — a larger value is clamped rather than ignored, so it cannot multiply the whole `sendTo` budget. Example: `2`
+- `P2P_ADVERTISE_TIMEOUT_MS`: Budget for one `contentRouting.provide()`, i.e. advertising a DDO or a C2D capability string. Defaults to `20000` (20 seconds). Example: `20000`
+- `P2P_PEERSTORE_GET_MS`: Budget for a local peerStore lookup. Defaults to `3000` (3 seconds). Example: `3000`
+- `P2P_DISCOVERY_DIAL_MS`: Budget for the opportunistic dial of a newly discovered peer. Defaults to `10000` (10 seconds). Example: `10000`
+- `P2P_COMMAND_MAX_INBOUND_STREAMS`: `maxInboundStreams` for the Ocean command protocol handler. Not a timeout; a plain positive integer. Defaults to `32` (libp2p's own default, stated explicitly so it is tunable). Example: `32`
+- `P2P_FINDDDO_TIMEOUT_MS`: Overall FindDDO deadline across all providers. Defaults to `60000` (60 seconds). Example: `60000`
+- `P2P_PROVIDER_RETRY_SLEEP_MS`: Back-off between providers inside FindDDO. Defaults to `5000` (5 seconds). Example: `5000`
+- `P2P_PEERSTORE_MAX_ADDRESS_AGE_MS`: How long the peer store keeps a peer's multiaddrs before treating them as expired and dropping them from every read. libp2p's own default is `3600000` (1 hour), while a DHT provider record stays valid for **48 hours** — so with the library default the DHT kept returning providers whose addresses had already been discarded, and the lookup resolved to nothing. The expiry is not refreshed by re-learning the same address either: storing an address that is already present carries the previous observation timestamp forward, so a peer heard about continuously still expired an hour after it was first seen. This defaults to the provider-record lifetime instead, so a provider record and the addresses it points at expire together. The cost is a stale address for a peer that changed IP, which `sendTo` already absorbs by re-resolving DHT-only after a failed dial. Defaults to `172800000` (48 hours). Example: `172800000`
+- `P2P_PEERSTORE_MAX_PEER_AGE_MS`: How long a peer *record* carrying no addresses survives before the peer store evicts it (libp2p's own default is `21600000`, 6 hours). It is held to **at least** `P2P_PEERSTORE_MAX_ADDRESS_AGE_MS`: a lower value would evict the record while the addresses it carries were still inside their own lifetime, which would silently undo the address setting. Set it below the address age and the address age is used. Defaults to `172800000` (48 hours). Example: `172800000`
 
 ## Policy Server
 

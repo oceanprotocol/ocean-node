@@ -13,6 +13,12 @@ import {
   DEFAULT_DB_INIT_RETRY_DELAY,
   DEFAULT_DB_INIT_MAX_RETRY_DELAY
 } from './constants.js'
+import {
+  P2P_TIMEOUT_DEFAULTS,
+  P2P_BUDGET_MIN_MS,
+  SENDTO_MAX_ATTEMPTS_CAP,
+  normalizeP2pBudget
+} from '../../components/P2P/timeouts.js'
 
 function isValidUrl(urlString: string): boolean {
   try {
@@ -23,6 +29,39 @@ function isValidUrl(urlString: string): boolean {
     return false
   }
 }
+
+/**
+ * One schema shape for every P2P timeout / attempt budget.
+ *
+ * `z.coerce.number()` with no positivity constraint disagreed with `timeouts.ts` in two ways
+ * that were both measured:
+ *
+ *   - `P2P_SENDTO_DIAL_MS=` (the empty-value idiom every line of `.env.example` uses) reached
+ *     the schema as `''`, coerced to `0`, and passed validation - so `config` said 0ms while
+ *     the code used 15000ms;
+ *   - `P2P_SENDTO_DIAL_MS=15s` coerced to `NaN`, which `z.number()` rejects, so
+ *     `buildConfig` threw and **the node refused to boot** - the exact opposite of the
+ *     behaviour `timeouts.ts` documents ("a blank, malformed, zero or negative value is
+ *     ignored"). Adding 13 keys to the schema had silently turned a lenient fallback into a
+ *     startup-fatal for a typo in a tuning knob.
+ *
+ * The rule is now shared code, not a re-implementation: `normalizeP2pBudget` is the same
+ * function the `P2P_TIMEOUTS` getters use, so the schema and the getters cannot drift. Anything
+ * it rejects becomes `undefined` here, which lets `.default()` supply exactly the number the
+ * getter would have fallen back to. `.int().positive()` is declared on the inner schema as
+ * well - it can only ever be reached by a value that came straight from `config.json`, and it
+ * keeps the constraint visible in the schema itself.
+ *
+ * `max` and `min` are the same bounds the matching getter passes, and they have to be passed
+ * on both halves or the two disagree again - that drift is the whole reason the rule is shared
+ * code. Millisecond budgets take `P2P_BUDGET_MIN_MS`; the two keys that are counts rather than
+ * durations take no floor beyond the implicit 1.
+ */
+const p2pBudget = (fallback: number, max?: number, min?: number) =>
+  z.preprocess(
+    (value) => normalizeP2pBudget(value, max, min),
+    z.number().int().positive().optional().default(fallback)
+  )
 
 export const SupportedNetworkSchema = z.object({
   chainId: z.number(),
@@ -646,7 +685,6 @@ export const OceanNodeP2PConfigSchema = z.object({
   ipV6BindAddress: z.string().nullable().optional().default('::'),
   ipV6BindTcpPort: z.coerce.number().nullable().optional().default(9002),
   ipV6BindWsPort: z.coerce.number().nullable().optional().default(9003),
-  pubsubPeerDiscoveryInterval: z.coerce.number().optional().default(1000),
   dhtMaxInboundStreams: z.coerce.number().optional().default(500),
   dhtMaxOutboundStreams: z.coerce.number().optional().default(500),
   dhtFilter: z
@@ -689,7 +727,105 @@ export const OceanNodeP2PConfigSchema = z.object({
   autoDialConcurrency: z.coerce.number().optional().default(5),
   maxPeerAddrsToDial: z.coerce.number().optional().default(5),
   autoDialInterval: z.coerce.number().optional().default(5000),
-  enableNetworkStats: booleanFromString.optional().default(false)
+  enableNetworkStats: booleanFromString.optional().default(false),
+  // P2P timeout / attempt budgets. The defaults are imported from
+  // src/components/P2P/timeouts.ts so there is exactly one source of truth - the values
+  // values shared with ocean.js and ocean-node-bootstrap are marked there.
+  // Declaring them here makes them real, validated, documented configuration keys that
+  // ENVIRONMENT_VARIABLES sync can find. See the config seam note in
+  // timeouts.ts: consumption is via the P2P_* environment variables, because the typed
+  // OceanNodeP2PConfig interface lives in src/@types/OceanNode.ts.
+  findPeerTimeout: p2pBudget(
+    P2P_TIMEOUT_DEFAULTS.findPeerMs,
+    undefined,
+    P2P_BUDGET_MIN_MS
+  ),
+  findProvidersTimeout: p2pBudget(
+    P2P_TIMEOUT_DEFAULTS.findProvidersMs,
+    undefined,
+    P2P_BUDGET_MIN_MS
+  ),
+  streamIdleTimeout: p2pBudget(
+    P2P_TIMEOUT_DEFAULTS.streamIdleMs,
+    undefined,
+    P2P_BUDGET_MIN_MS
+  ),
+  // ceiling on a whole response body, on top of the per-frame idle budget above. Read by
+  // `timeouts.ts` from `P2P_STREAM_BODY_TIMEOUT_MS`, which `ENV_TO_CONFIG_MAPPING` maps here,
+  // so an env override moves the validated config and the running code together.
+  streamBodyTimeout: p2pBudget(
+    P2P_TIMEOUT_DEFAULTS.streamBodyMs,
+    undefined,
+    P2P_BUDGET_MIN_MS
+  ),
+  sendToResolveTimeout: p2pBudget(
+    P2P_TIMEOUT_DEFAULTS.sendToResolveMs,
+    undefined,
+    P2P_BUDGET_MIN_MS
+  ),
+  sendToDialTimeout: p2pBudget(
+    P2P_TIMEOUT_DEFAULTS.sendToDialMs,
+    undefined,
+    P2P_BUDGET_MIN_MS
+  ),
+  sendToStreamTimeout: p2pBudget(
+    P2P_TIMEOUT_DEFAULTS.sendToStreamMs,
+    undefined,
+    P2P_BUDGET_MIN_MS
+  ),
+  // floored at 1 but not capped, so a fat-fingered value multiplied the whole sendTo
+  // budget. The cap is shared with the getter, hence the same constant. A count, not a
+  // duration, so it keeps the floor of 1 rather than the millisecond floor.
+  sendToMaxAttempts: p2pBudget(
+    P2P_TIMEOUT_DEFAULTS.sendToMaxAttempts,
+    SENDTO_MAX_ATTEMPTS_CAP
+  ),
+  // overall deadline for one sendTo setup phase. Mapped from `P2P_SENDTO_TOTAL_MS` in
+  // `ENV_TO_CONFIG_MAPPING`, so the validated config and `timeouts.ts` - which reads
+  // `process.env` directly - always report the same number.
+  sendToTotalTimeout: p2pBudget(
+    P2P_TIMEOUT_DEFAULTS.sendToTotalMs,
+    undefined,
+    P2P_BUDGET_MIN_MS
+  ),
+  advertiseTimeout: p2pBudget(
+    P2P_TIMEOUT_DEFAULTS.advertiseMs,
+    undefined,
+    P2P_BUDGET_MIN_MS
+  ),
+  peerStoreGetTimeout: p2pBudget(
+    P2P_TIMEOUT_DEFAULTS.peerStoreGetMs,
+    undefined,
+    P2P_BUDGET_MIN_MS
+  ),
+  discoveryDialTimeout: p2pBudget(
+    P2P_TIMEOUT_DEFAULTS.discoveryDialMs,
+    undefined,
+    P2P_BUDGET_MIN_MS
+  ),
+  // also a count rather than a duration: 1 inbound stream is a valid, if austere, setting.
+  commandMaxInboundStreams: p2pBudget(P2P_TIMEOUT_DEFAULTS.commandMaxInboundStreams),
+  findDdoTimeout: p2pBudget(P2P_TIMEOUT_DEFAULTS.findDdoMs, undefined, P2P_BUDGET_MIN_MS),
+  providerRetrySleep: p2pBudget(
+    P2P_TIMEOUT_DEFAULTS.providerRetrySleepMs,
+    undefined,
+    P2P_BUDGET_MIN_MS
+  ),
+  // How long the peer store keeps addresses, and how long it keeps a peer record. Both
+  // default to the 48h lifetime of a DHT provider record, against libp2p's own 1h and 6h, so
+  // a provider record and the addresses it points at stop being valid at the same moment.
+  // `peerStoreAgeLimits()` in timeouts.ts holds them to `maxPeerAge >= maxAddressAge` at the
+  // point they are handed to libp2p; this half only validates each value on its own.
+  peerStoreMaxAddressAge: p2pBudget(
+    P2P_TIMEOUT_DEFAULTS.peerStoreMaxAddressAgeMs,
+    undefined,
+    P2P_BUDGET_MIN_MS
+  ),
+  peerStoreMaxPeerAge: p2pBudget(
+    P2P_TIMEOUT_DEFAULTS.peerStoreMaxPeerAgeMs,
+    undefined,
+    P2P_BUDGET_MIN_MS
+  )
 })
 
 const addressArrayFromString = jsonFromString(z.array(z.string())).transform(

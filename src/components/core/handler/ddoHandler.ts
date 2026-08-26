@@ -52,6 +52,11 @@ const MAX_NUM_PROVIDERS = 5
 const MAX_RESPONSE_WAIT_TIME_SECONDS = 60
 // wait time for reading the next getDDO command
 const MAX_WAIT_TIME_SECONDS_GET_DDO = 5
+// byte cap on one provider's getDDO response. A DDO is comfortably under a MiB in practice,
+// so this leaves room for an unusually large one while refusing a peer that answers with a
+// gigabyte. The shared reader's default is 64 MiB, which is a heap ceiling for any
+// accumulating read rather than a statement about this payload.
+const MAX_DDO_RESPONSE_BYTES = 4 * 1024 * 1024
 
 // scans all receipt logs for a MetadataCreated/MetadataUpdated event emitted by the
 // given data NFT. The metadata event is not necessarily the first log of the
@@ -459,6 +464,9 @@ export class FindDdoHandler extends CommandHandler {
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
+    // assigned once the FindDDO deadline exists; the finally below runs it on
+    // every exit path, including the outer-exception one
+    let endFindDdo: () => void = () => {}
     try {
       const node = this.getOceanNode()
       const p2pNode = node.getP2PNode()
@@ -565,21 +573,71 @@ export class FindDdoHandler extends CommandHandler {
         processed++
       }
 
-      // if something goes really bad then exit after 60 secs
-      const fnTimeout = setTimeout(() => {
+      // if something goes really bad then exit after 60 secs.
+      // this is a real AbortController for the whole FindDDO: the deadline is
+      // propagated into the provider lookup and into every peer query, so it
+      // actually stops the work instead of just firing a timer callback
+      const findDdoController = new AbortController()
+      // a plain timer, not AbortSignal.timeout(): that one cannot be cancelled, so it
+      // would still fire - and log a spurious 'Timeout reached' - long after the
+      // request returned. clearTimeout below really does cancel it
+      const findDdoDeadline = setTimeout(() => {
         CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_DEBUG, 'FindDDO: Timeout reached: ', true)
+        findDdoController.abort(
+          new Error(
+            `FindDDO aborted after ${MAX_RESPONSE_WAIT_TIME_SECONDS} seconds, returning whatever info we have available`
+          )
+        )
+      }, 1000 * MAX_RESPONSE_WAIT_TIME_SECONDS)
+      const findDdoSignal = findDdoController.signal
+      // releases the deadline and cancels anything still in flight (idempotent)
+      endFindDdo = () => {
+        clearTimeout(findDdoDeadline)
+        findDdoController.abort(new Error('FindDDO finished'))
+      }
+      // rejects as soon as the FindDDO deadline fires, for callees that cannot
+      // (yet) take a signal of their own
+      const withFindDdoDeadline = <T>(promise: Promise<T>): Promise<T> => {
+        if (findDdoSignal.aborted) {
+          return Promise.reject(findDdoSignal.reason)
+        }
+        let onAbort: () => void = () => {}
+        const aborted = new Promise<never>((resolve, reject) => {
+          onAbort = () => reject(findDdoSignal.reason)
+          findDdoSignal.addEventListener('abort', onAbort, { once: true })
+        })
+        return Promise.race([promise, aborted]).finally(() => {
+          findDdoSignal.removeEventListener('abort', onAbort)
+        })
+      }
+
+      // check other providers for this ddo
+      let providers: Array<{ id: string; multiaddrs: any[] }> = []
+      try {
+        providers = await withFindDdoDeadline(
+          p2pNode.getProvidersForString(task.id, undefined, findDdoSignal)
+        )
+      } catch (findProvidersError) {
+        // only the deadline may be swallowed into a 200. Anything else - notably a
+        // malformed task.id rejected by cidFromRawString(), which sits outside
+        // getProvidersForString's own try - must keep its 500
+        if (!findDdoSignal.aborted) {
+          throw findProvidersError
+        }
+        // deadline reached while looking for providers: return what we already have
+        CORE_LOGGER.warn(
+          `FindDDO: provider lookup ended early for id ${task.id}: ${findProvidersError.message}`
+        )
+        endFindDdo()
         return {
           stream: Readable.from(JSON.stringify(sortFindDDOResults(resultList), null, 4)),
           status: { httpStatus: 200 }
         }
-      }, 1000 * MAX_RESPONSE_WAIT_TIME_SECONDS)
-
-      // check other providers for this ddo
-      const providers = await p2pNode.getProvidersForString(task.id)
+      }
       // check if includes self and exclude from check list
       if (providers.length > 0) {
         // exclude this node from the providers list if present
-        const filteredProviders = providers.filter((provider: any) => {
+        let filteredProviders = providers.filter((provider: any) => {
           return provider.id.toString() !== p2pNode.getPeerId()
         })
 
@@ -588,7 +646,7 @@ export class FindDdoHandler extends CommandHandler {
           toProcess = filteredProviders.length
           // only process a maximum of 5 provider entries per DDO (might never be that much anyway??)
           if (toProcess > MAX_NUM_PROVIDERS) {
-            filteredProviders.slice(0, MAX_NUM_PROVIDERS)
+            filteredProviders = filteredProviders.slice(0, MAX_NUM_PROVIDERS)
             toProcess = MAX_NUM_PROVIDERS
           }
 
@@ -604,11 +662,29 @@ export class FindDdoHandler extends CommandHandler {
               }
 
               try {
-                const response = await p2pNode.sendTo(peer, JSON.stringify(getCommand))
+                const response = await withFindDdoDeadline(
+                  p2pNode.sendTo(
+                    peer,
+                    JSON.stringify(getCommand),
+                    undefined,
+                    undefined,
+                    findDdoSignal
+                  )
+                )
 
                 if (response.status.httpStatus === 200 && response.stream) {
                   // Convert stream to Uint8Array for processing
-                  const data = await streamToUint8Array(response.stream as Readable)
+                  // Capped: this is one DDO from an untrusted provider, and the shared
+                  // reader's 64 MiB default is a heap ceiling rather than a statement about
+                  // this payload. A DDO is well under a MiB in practice. Time is already
+                  // bounded - sendTo above carries findDdoSignal and this read is inside
+                  // withFindDdoDeadline - so only the size was unbounded.
+                  const data = await withFindDdoDeadline(
+                    streamToUint8Array(
+                      response.stream as Readable,
+                      MAX_DDO_RESPONSE_BYTES
+                    )
+                  )
                   await processDDOResponse(peer, data)
                 } else {
                   processed++
@@ -616,27 +692,35 @@ export class FindDdoHandler extends CommandHandler {
               } catch (innerException) {
                 processed++
               }
+
+              // the whole FindDDO deadline has passed, stop querying peers
+              if (findDdoSignal.aborted) {
+                break
+              }
               // 'sleep 5 seconds...'
 
               CORE_LOGGER.logMessage(
                 `Sleeping for: ${MAX_WAIT_TIME_SECONDS_GET_DDO} seconds, while getting DDO info remote peer...`,
                 true
               )
-              await sleep(MAX_WAIT_TIME_SECONDS_GET_DDO * 1000) // await 5 seconds before proceeding to next one
+              // await 5 seconds before proceeding to next one, unless we run out of time
+              await withFindDdoDeadline(
+                sleep(MAX_WAIT_TIME_SECONDS_GET_DDO * 1000)
+              ).catch(() => {})
               // if the ddo is not cached, the very 1st request will take a bit longer
               // cause it needs to get the response from all the other providers call getDDO()
               // otherwise is immediate as we just return the cached version, once the cache expires we
               // repeat the procedure and query the network again, updating cache at the end
             }
             doneLoop += 1
-          } while (processed < toProcess)
+          } while (processed < toProcess && !findDdoSignal.aborted)
 
           if (updatedCache) {
             p2pNode.getDDOCache().updated = new Date().getTime()
           }
 
           // house cleaning
-          clearTimeout(fnTimeout)
+          endFindDdo()
           return {
             stream: Readable.from(
               JSON.stringify(sortFindDDOResults(resultList), null, 4)
@@ -645,7 +729,7 @@ export class FindDdoHandler extends CommandHandler {
           }
         } else {
           // could empty list
-          clearTimeout(fnTimeout)
+          endFindDdo()
           return {
             stream: Readable.from(
               JSON.stringify(sortFindDDOResults(resultList), null, 4)
@@ -655,7 +739,7 @@ export class FindDdoHandler extends CommandHandler {
         }
       } else {
         // could be empty list
-        clearTimeout(fnTimeout)
+        endFindDdo()
         return {
           stream: Readable.from(JSON.stringify(sortFindDDOResults(resultList), null, 4)),
           status: { httpStatus: 200 }
@@ -673,6 +757,9 @@ export class FindDdoHandler extends CommandHandler {
         stream: null,
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
       }
+    } finally {
+      // every exit path releases the deadline listener/timer
+      endFindDdo()
     }
   }
 

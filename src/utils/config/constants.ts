@@ -52,7 +52,6 @@ export const ENV_TO_CONFIG_MAPPING = {
   P2P_ipV6BindTcpPort: 'p2pConfig.ipV6BindTcpPort',
   P2P_ipV6BindWsPort: 'p2pConfig.ipV6BindWsPort',
   P2P_ANNOUNCE_ADDRESSES: 'p2pConfig.announceAddresses',
-  P2P_pubsubPeerDiscoveryInterval: 'p2pConfig.pubsubPeerDiscoveryInterval',
   P2P_dhtMaxInboundStreams: 'p2pConfig.dhtMaxInboundStreams',
   P2P_dhtMaxOutboundStreams: 'p2pConfig.dhtMaxOutboundStreams',
   P2P_DHT_FILTER: 'p2pConfig.dhtFilter',
@@ -73,6 +72,30 @@ export const ENV_TO_CONFIG_MAPPING = {
   P2P_MAXPEERADDRSTODIAL: 'p2pConfig.maxPeerAddrsToDial',
   P2P_AUTODIALINTERVAL: 'p2pConfig.autoDialInterval',
   P2P_ENABLE_NETWORK_STATS: 'p2pConfig.enableNetworkStats',
+  // the P2P timeout budgets. src/components/P2P/timeouts.ts holds the values
+  // and reads these same variables, so an env override reaches both the validated config and
+  // the consuming code.
+  P2P_FINDPEER_TIMEOUT_MS: 'p2pConfig.findPeerTimeout',
+  P2P_FINDPROVIDERS_TIMEOUT_MS: 'p2pConfig.findProvidersTimeout',
+  P2P_STREAM_IDLE_TIMEOUT_MS: 'p2pConfig.streamIdleTimeout',
+  P2P_STREAM_BODY_TIMEOUT_MS: 'p2pConfig.streamBodyTimeout',
+  P2P_SENDTO_RESOLVE_MS: 'p2pConfig.sendToResolveTimeout',
+  P2P_SENDTO_DIAL_MS: 'p2pConfig.sendToDialTimeout',
+  P2P_SENDTO_STREAM_MS: 'p2pConfig.sendToStreamTimeout',
+  P2P_SENDTO_MAX_ATTEMPTS: 'p2pConfig.sendToMaxAttempts',
+  // sendTo's overall setup deadline. Without this line the variable reached
+  // timeouts.ts (which reads process.env directly) but not the validated config, so
+  // `P2P_SENDTO_TOTAL_MS=30000` left config at 45000 while the running code used 30000 -
+  // and generated ENVIRONMENT_VARIABLES list did not know the key existed.
+  P2P_SENDTO_TOTAL_MS: 'p2pConfig.sendToTotalTimeout',
+  P2P_ADVERTISE_TIMEOUT_MS: 'p2pConfig.advertiseTimeout',
+  P2P_PEERSTORE_GET_MS: 'p2pConfig.peerStoreGetTimeout',
+  P2P_DISCOVERY_DIAL_MS: 'p2pConfig.discoveryDialTimeout',
+  P2P_COMMAND_MAX_INBOUND_STREAMS: 'p2pConfig.commandMaxInboundStreams',
+  P2P_FINDDDO_TIMEOUT_MS: 'p2pConfig.findDdoTimeout',
+  P2P_PROVIDER_RETRY_SLEEP_MS: 'p2pConfig.providerRetrySleep',
+  P2P_PEERSTORE_MAX_ADDRESS_AGE_MS: 'p2pConfig.peerStoreMaxAddressAge',
+  P2P_PEERSTORE_MAX_PEER_AGE_MS: 'p2pConfig.peerStoreMaxPeerAge',
   HTTP_CERT_PATH: 'httpCertPath',
   HTTP_KEY_PATH: 'httpKeyPath',
   ENABLE_BENCHMARK: 'enableBenchmark',

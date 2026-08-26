@@ -24,7 +24,6 @@
     "ipV6BindTcpPort": 0,
     "ipV6BindWsPort": 0,
     "announceAddresses": [],
-    "pubsubPeerDiscoveryInterval": 10000,
     "dhtMaxInboundStreams": 500,
     "dhtMaxOutboundStreams": 500,
     "dhtFilter": null,

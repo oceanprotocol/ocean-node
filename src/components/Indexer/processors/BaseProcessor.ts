@@ -28,6 +28,25 @@ import { withRetrial } from '../utils.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
 import { Database } from '../../../components/database/index.js'
 
+/**
+ * Byte caps for the two response bodies `decryptDDO` reads.
+ *
+ * The shared readers default to 64 MiB, which is a ceiling on heap growth, not a statement
+ * about these payloads. Both of these come from a node the indexer chose to trust only as far
+ * as the on-chain `decryptorURL` says, and one of them is read over P2P, so the cap should say
+ * what the payload actually is:
+ *
+ * - a nonce is a decimal integer, so 4 KiB is already three orders of magnitude of headroom;
+ * - a DDO is comfortably under a MiB in practice, so 4 MiB leaves room for an unusually large
+ *   one while still refusing a peer that answers a `getDDO` with a gigabyte.
+ *
+ * Sizing them here rather than in the shared reader keeps the general default general: a
+ * streaming consumer is bounded by the P2P response budgets instead, and only accumulating
+ * call sites like these need a payload-shaped number.
+ */
+const MAX_NONCE_RESPONSE_BYTES = 4 * 1024
+const MAX_DDO_RESPONSE_BYTES = 4 * 1024 * 1024
+
 export abstract class BaseEventProcessor {
   protected networkId: number
   private config: OceanNodeConfig
@@ -390,7 +409,12 @@ export abstract class BaseEventProcessor {
               .getHandler(PROTOCOL_COMMANDS.NONCE)
               .handle(getNonceTask)
             nonceP2p = String(
-              parseInt(await streamToString(response.stream as Readable)) + 1
+              parseInt(
+                await streamToString(
+                  response.stream as Readable,
+                  MAX_NONCE_RESPONSE_BYTES
+                )
+              ) + 1
             )
           } catch (error) {
             const message = `Node exception on getting nonce from local nodeId ${nodeId}. Status: ${error.message}`
@@ -422,7 +446,9 @@ export abstract class BaseEventProcessor {
               .getCoreHandlers()
               .getHandler(PROTOCOL_COMMANDS.DECRYPT_DDO)
               .handle(decryptDDOTask)
-            ddo = JSON.parse(await streamToString(response.stream as Readable))
+            ddo = JSON.parse(
+              await streamToString(response.stream as Readable, MAX_DDO_RESPONSE_BYTES)
+            )
           } catch (error) {
             const message = `Node exception on decrypt DDO from local nodeId ${nodeId}. Status: ${error.message}`
             INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
@@ -436,6 +462,11 @@ export abstract class BaseEventProcessor {
               address: ethAddress,
               command: PROTOCOL_COMMANDS.NONCE
             }
+            // No `signal`: `decryptDDO` takes none and owns no controller, so there is
+            // nothing to thread. Setup is bounded by sendTo's own deadline and the response
+            // body by the body ceiling; giving this call a locally-invented deadline would
+            // mean picking a number tighter or looser than those, which is a budget decision
+            // and belongs with the other P2P budgets rather than here.
             let response = await p2pNode.sendTo(
               decryptorURL,
               JSON.stringify(getNonceTask)
@@ -455,7 +486,12 @@ export abstract class BaseEventProcessor {
 
             // Convert stream to Uint8Array
             const remoteNonce = String(
-              parseInt(await streamToString(response.stream as Readable)) + 1
+              parseInt(
+                await streamToString(
+                  response.stream as Readable,
+                  MAX_NONCE_RESPONSE_BYTES
+                )
+              ) + 1
             )
             INDEXER_LOGGER.debug(
               `decryptDDO: Fetched fresh nonce ${remoteNonce} from remote node ${decryptorURL} for decrypt attempt`
@@ -495,7 +531,10 @@ export abstract class BaseEventProcessor {
             }
 
             // Convert stream to Uint8Array
-            const data = await streamToUint8Array(response.stream as Readable)
+            const data = await streamToUint8Array(
+              response.stream as Readable,
+              MAX_DDO_RESPONSE_BYTES
+            )
             ddo = JSON.parse(uint8ArrayToString(data))
           } catch (error) {
             const message = `Exception from remote nodeId ${nodeId}. Status: ${error.message}`

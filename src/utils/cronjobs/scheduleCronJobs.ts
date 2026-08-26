@@ -25,15 +25,37 @@ export async function scheduleCronJobs(node: OceanNode) {
   } catch (e) {
     OCEAN_NODE_LOGGER.error(`Error when deleting expired c2d jobs: ${e.message}`)
   }
+  // Both announce jobs are started fire-and-forget, so nothing awaits their promise: a
+  // rejection would be an unhandled rejection, and this process installs an
+  // `unhandledRejection` handler that calls `process.exit(1)`. A failed announce must never be
+  // able to stop the node, so every call site attaches a handler of its own even though both
+  // jobs already guard their own bodies.
+  const runAnnounceJob = (
+    name: string,
+    job: (target: OceanNode) => Promise<void>
+  ): void => {
+    job(node).catch((err) => {
+      OCEAN_NODE_LOGGER.error(
+        `Error in ${name} cron job: ${err instanceof Error ? err.message : String(err)}`
+      )
+    })
+  }
+
   // execute p2pAnnounceDDOS immediately on startup
   // and then every REPUBLISH_INTERVAL_HOURS
-  p2pAnnounceDDOS(node)
-  setInterval(() => p2pAnnounceDDOS(node), REPUBLISH_INTERVAL_HOURS)
+  runAnnounceJob('p2pAnnounceDDOS', p2pAnnounceDDOS)
+  setInterval(
+    () => runAnnounceJob('p2pAnnounceDDOS', p2pAnnounceDDOS),
+    REPUBLISH_INTERVAL_HOURS
+  )
 
   // execute p2pAnnounceC2D immediately on startup
   // and then every REPUBLISH_INTERVAL_HOURS
-  p2pAnnounceC2D(node)
-  setInterval(() => p2pAnnounceC2D(node), REPUBLISH_INTERVAL_HOURS)
+  runAnnounceJob('p2pAnnounceC2D', p2pAnnounceC2D)
+  setInterval(
+    () => runAnnounceJob('p2pAnnounceC2D', p2pAnnounceC2D),
+    REPUBLISH_INTERVAL_HOURS
+  )
 }
 
 function scheduleDeleteLogsJob(dbconn: Database | null) {

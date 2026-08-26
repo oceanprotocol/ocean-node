@@ -57,7 +57,6 @@ export interface OceanNodeP2PConfig {
   ipV6BindAddress: string | null
   ipV6BindTcpPort: number | null
   ipV6BindWsPort: number | null
-  pubsubPeerDiscoveryInterval: number
   dhtMaxInboundStreams: number
   dhtMaxOutboundStreams: number
   dhtFilter: dhtFilterMethod
@@ -79,6 +78,36 @@ export interface OceanNodeP2PConfig {
   maxPeerAddrsToDial: number
   autoDialInterval: number
   enableNetworkStats: boolean
+  // timeout / attempt budgets. These mirror the keys `OceanNodeP2PConfigSchema` already
+  // declares (and `ENV_TO_CONFIG_MAPPING` already maps), so a config built by the schema always
+  // carries them - they are `optional` here only so a hand-built config object (tests, fixtures)
+  // stays assignable.
+  //
+  // Known seam: `src/components/P2P/timeouts.ts` still reads the `P2P_*` environment variables
+  // directly rather than these fields, so a value set only in `config.json` reaches the
+  // validated config and not the consuming code. Declaring the fields here is the type half of
+  // closing that seam; the getter half belongs to `timeouts.ts`. The schema no longer blocks
+  // that move - `OceanNodeP2PConfigSchema` now runs every one of these keys through the same
+  // coercion rule the getters use, so a blank or malformed value falls back to the documented
+  // default instead of becoming an instantly-expired `0`. What is still missing is a way for a
+  // synchronous getter to reach an asynchronously-built config.
+  findPeerTimeout?: number
+  findProvidersTimeout?: number
+  streamIdleTimeout?: number
+  streamBodyTimeout?: number
+  sendToResolveTimeout?: number
+  sendToDialTimeout?: number
+  sendToStreamTimeout?: number
+  sendToTotalTimeout?: number
+  sendToMaxAttempts?: number
+  advertiseTimeout?: number
+  peerStoreGetTimeout?: number
+  discoveryDialTimeout?: number
+  commandMaxInboundStreams?: number
+  findDdoTimeout?: number
+  providerRetrySleep?: number
+  peerStoreMaxAddressAge?: number
+  peerStoreMaxPeerAge?: number
 }
 
 export interface OceanNodeDockerConfig {

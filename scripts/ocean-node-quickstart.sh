@@ -714,7 +714,6 @@ services:
       P2P_ipV6BindWsPort: '$P2P_ipV6BindWsPort'
       P2P_ANNOUNCE_ADDRESSES: '$P2P_ANNOUNCE_ADDRESSES'
 #      P2P_ANNOUNCE_PRIVATE: ''
-#      P2P_pubsubPeerDiscoveryInterval: ''
 #      P2P_dhtMaxInboundStreams: ''
 #      P2P_dhtMaxOutboundStreams: ''
 #      P2P_mDNSInterval: ''
