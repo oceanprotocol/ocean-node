@@ -1,13 +1,13 @@
 import EventEmitter from 'node:events'
 import lodash from 'lodash'
+import { handleProtocolCommands } from './handlers.js'
 import {
-  handleProtocolCommands,
   LP_RESUME_BELOW_BYTES,
   lpFramedStream,
   LpFrameReader,
   pauseReads,
   resumeReads
-} from './handlers.js'
+} from './lpFraming.js'
 
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
@@ -44,6 +44,7 @@ import { Database } from '../database'
 import {
   OceanNodeConfig,
   FindDDOResponse,
+  OceanNodeP2PStatus,
   dhtFilterMethod
 } from '../../@types/OceanNode.js'
 import { KeyManager } from '../KeyManager/index.js'
@@ -56,6 +57,32 @@ import { Multiaddr, multiaddr } from '@multiformats/multiaddr'
 import { LevelDatastore } from 'datastore-level'
 import { P2P_TIMEOUTS, peerStoreAgeLimits, stageSignal } from './timeouts.js'
 import { provideLimit } from './provideLimiter.js'
+import { sendToLimit, sendToLimiterStats } from './sendToLimiter.js'
+import {
+  addressConfirmation,
+  autoTlsState,
+  connectionBreakdown,
+  dialQueueStats,
+  effectivePeerStoreAges,
+  relayReservations
+} from './observability.js'
+import {
+  P2P_ERROR,
+  P2PError,
+  classifyP2PError,
+  delayBeforeRetry,
+  describeP2PError,
+  isRetryableP2PError,
+  retryDelayMs
+} from './errors.js'
+import {
+  cachePeerResolution,
+  cachePeerResolutionMiss,
+  getCachedPeerResolution,
+  invalidatePeerResolution,
+  isPeerResolutionNegativelyCached,
+  peerResolutionCacheStats
+} from './peerResolutionCache.js'
 import {
   RESOLVE_DHT_HIT,
   RESOLVE_MISS,
@@ -89,6 +116,25 @@ let index = 0
 
 /** Optional request payload sent as LP frames after the command JSON; ends with an empty LP frame. */
 export type P2PRequestBodyStream = AsyncIterable<Uint8Array | Buffer | string> | Readable
+
+/**
+ * Which tier of `resolvePeer` produced a peer's addresses.
+ *
+ * `connection` and `peerstore` are both local answers; `cache` is the app-level resolution
+ * cache, which sits in front of every tier and is the one provenance a caller must treat with
+ * suspicion - it is the only source that can hand back an address nothing has checked recently,
+ * and the reason `sendTo` invalidates on a failed dial. `negative-cache` means a recent lookup
+ * found nothing and the answer was reused rather than re-walked; `none` means every enabled
+ * tier ran and came up empty.
+ */
+export type PeerResolutionSource =
+  'connection' | 'peerstore' | 'dht' | 'cache' | 'negative-cache' | 'none'
+
+/** Addresses for a peer plus the tier that produced them. */
+export type PeerResolution = {
+  addresses: Multiaddr[]
+  source: PeerResolutionSource
+}
 
 /**
  * Reply to a P2P command: the parsed status frame plus the raw body frames.
@@ -242,9 +288,7 @@ export class OceanP2P extends EventEmitter {
       // indexed asset, and queueing it behind a republish batch would delay a fresh
       // publication by the whole batch.
       this.advertiseString(did).catch((err) => {
-        P2P_LOGGER.error(
-          `Failed to advertise ${did}: ${err instanceof Error ? err.message : String(err)}`
-        )
+        P2P_LOGGER.error(`Failed to advertise ${did}: ${describeP2PError(err)}`)
       })
     })
   }
@@ -266,9 +310,10 @@ export class OceanP2P extends EventEmitter {
           .merge(peerId, { tags: { [`${KEEP_ALIVE}-bootstrap`]: { value: 1 } } })
           .catch((err: unknown) => {
             P2P_LOGGER.error(
-              `Failed to tag bootstrap peer ${peerId.toString()} for keep-alive reconnect: ${
-                err instanceof Error ? err.message : String(err)
-              }`
+              `Failed to tag bootstrap peer for keep-alive reconnect: ${describeP2PError(
+                err,
+                { peerId: peerId.toString() }
+              )}`
             )
           })
       }
@@ -298,8 +343,14 @@ export class OceanP2P extends EventEmitter {
               signal: AbortSignal.timeout(P2P_TIMEOUTS.discoveryDialMs)
             })
             .catch((err: Error) => {
+              // The address count matters here more than anywhere: a discovered peer with
+              // no dialable address and one that refuses every address it advertised
+              // produce the same message and are completely different problems.
               P2P_LOGGER.debug(
-                `Failed to dial discovered peer ${peerInfo.id}: ${err.message}`
+                `Failed to dial discovered peer: ${describeP2PError(err, {
+                  peerId: peerInfo.id.toString(),
+                  addresses: peerInfo.multiaddrs?.length
+                })}`
               )
             })
         }
@@ -482,6 +533,7 @@ export class OceanP2P extends EventEmitter {
         disjointPaths: number
         protocol: string
         peerInfoMapper: typeof passthroughMapper
+        initialQuerySelfInterval: number
         clientMode?: boolean
       } = {
         allowQueryWithZeroPeers: false,
@@ -500,7 +552,24 @@ export class OceanP2P extends EventEmitter {
         protocol: '/ocean/nodes/1.0.0/kad/1.0.0',
         // filterPrivate (removePrivateAddressesMapper) is the dhtFilter default; passthroughMapper
         // is restored below when announcePrivateIp is set, for local/test networks.
-        peerInfoMapper: passthroughMapper
+        peerInfoMapper: passthroughMapper,
+        // When kad-dht runs its *first* self-query - the query whose results are what initially
+        // populate the routing table.
+        //
+        // kad-dht's default is 1 second, and raising it is the fix rather than lowering it,
+        // which is counter-intuitive enough to be worth stating. The self-query runs once at
+        // this interval and is then not run again until `querySelfInterval`, which is five
+        // minutes. At one second this node has no DHT peers yet: bootstrap discovery emits its
+        // peers after `bootstrapTimeout` and each still has to be dialled. So the first
+        // self-query ran against an empty routing table, `allowQueryWithZeroPeers: false` failed
+        // it immediately, and the table then stayed empty for five minutes but for whatever
+        // arrived passively from inbound identify. Running it once, later, with bootstrap
+        // connections in place is what populates the table quickly.
+        //
+        // `querySelfInterval` is deliberately left at kad-dht's default: shortening it would
+        // multiply self-query traffic across every node in the network permanently, to cover a
+        // case that is a bootstrap outage.
+        initialQuerySelfInterval: P2P_TIMEOUTS.initialQuerySelfMs
       }
       // `clientMode` is left unset unless an operator explicitly asserts this node is
       // reachable. Passing the option at all - even `false` - stops kad-dht registering the
@@ -685,7 +754,7 @@ export class OceanP2P extends EventEmitter {
       return node
     } catch (e) {
       P2P_LOGGER.logMessageWithEmoji(
-        'Unable to create node: ' + e.message,
+        'Unable to create node: ' + describeP2PError(e),
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
@@ -738,7 +807,69 @@ export class OceanP2P extends EventEmitter {
       { getMode?: () => string } | undefined
     ret.dhtMode = dhtService?.getMode ? dhtService.getMode() : undefined
 
+    // Current occupancy, read on demand, of the two structures that sit in front of the
+    // network: the app-level resolution cache and the outbound send queue. Not counters -
+    // there is no history here, only what is in them right now - which is why they are
+    // reported separately from `counters` rather than folded into it.
+    ret.resolutionCache = peerResolutionCacheStats()
+    ret.outboundSends = sendToLimiterStats()
+    ret.readiness = this.getP2PStatus()
+
+    // Everything below reads libp2p internals and reports `undefined` rather than throwing
+    // when the shape it expects has moved - see `observability.ts`. `ret.connections` above
+    // is the raw address list and stays as it was; this is the same set counted.
+    ret.connectionBreakdown = connectionBreakdown(this._libp2p)
+    ret.dialQueue = dialQueueStats(this._libp2p)
+    ret.addressConfirmation = addressConfirmation(this._libp2p)
+    ret.relayReservations = relayReservations(this._libp2p)
+    ret.autoTls = autoTlsState(this._libp2p)
+    // The lifetimes the running node applies, which is not necessarily what the environment
+    // currently says - they are read once at construction.
+    ret.peerStoreAges = effectivePeerStoreAges(this._libp2p)
+
     return ret
+  }
+
+  /**
+   * Peers in the DHT routing table, or `undefined` when the DHT service cannot be reached.
+   *
+   * This is the number that decides whether a DHT query can do anything: `allowQueryWithZeroPeers`
+   * is `false`, so a query against an empty table is refused outright instead of walking. The
+   * connection count is not a substitute - a connection to a peer that does not speak the DHT
+   * protocol, or one that has not completed identify yet, is not a peer a query can start from.
+   */
+  getDhtRoutingTableSize(): number | undefined {
+    try {
+      const dht = (this._libp2p.services as Record<string, any> | undefined)?.dht as
+        { routingTable?: { size?: number } } | undefined
+      const size = dht?.routingTable?.size
+      return typeof size === 'number' ? size : undefined
+    } catch (e) {
+      return undefined
+    }
+  }
+
+  /**
+   * Whether this node's P2P interface is usable, not merely enabled.
+   *
+   * Gated on routing-table size rather than on connection count, and reported alongside the
+   * threshold and the raw numbers so a caller can tell a node that is still starting up from
+   * one that is isolated. An unreachable DHT service reports `ready: false` with no size, which
+   * is the honest answer: not knowing is not the same as knowing the table is empty.
+   */
+  getP2PStatus(): OceanNodeP2PStatus {
+    const requiredRoutingTablePeers = P2P_TIMEOUTS.dhtReadyMinPeers
+    const routingTablePeers = this.getDhtRoutingTableSize()
+    const dhtService = (this._libp2p?.services as Record<string, any> | undefined)
+      ?.dht as { getMode?: () => string } | undefined
+    return {
+      ready:
+        routingTablePeers !== undefined && routingTablePeers >= requiredRoutingTablePeers,
+      routingTablePeers,
+      requiredRoutingTablePeers,
+      connections: this._libp2p ? this._libp2p.getConnections().length : 0,
+      dhtMode: dhtService?.getMode ? dhtService.getMode() : undefined
+    }
   }
 
   async getRunningOceanPeers() {
@@ -802,41 +933,258 @@ export class OceanP2P extends EventEmitter {
     }
   }
 
-  // we should have peer multiaddrs
-  // but there is a catch
-  // when dialing multiaddrs, either all of them have peerId, or none..
-  // so decide which one to use
+  /**
+   * Puts a peer's addresses into one consistent, dialable set.
+   *
+   * The problem this solves is a libp2p constraint: when a list of multiaddrs is dialled, either
+   * all of them carry a `/p2p/<peer-id>` component or none of them do - a mixed list is
+   * rejected outright with `InvalidParametersError`. A NAT'd peer's address list is mixed by
+   * construction, because a relay address is written as
+   * `/ip4/.../p2p/<relay-id>/p2p-circuit/p2p/<target-id>` and therefore always carries a
+   * `/p2p/`, while a plain direct address usually does not.
+   *
+   * The previous resolution of that mismatch was to split the list into a with-peer-id set and
+   * a without-peer-id set, **keep whichever set was larger and discard the other**, ties going
+   * to the without-peer-id set. That is a count comparison standing in for a reachability
+   * decision, and for the peers relay exists to serve it decides wrongly. A NAT'd peer holding
+   * one relay address and two stale direct addresses keeps the two addresses that cannot work
+   * and throws away the only path that can. A peer holding one relay address and one direct
+   * address loses its relay to the tie-break. In both cases the peer is simply unreachable, and
+   * nothing reports why - the dial just fails against addresses nobody can connect to.
+   *
+   * Relay-capable and direct addresses are not substitutes and must never be traded off by
+   * count: one is how a reachable peer is reached quickly, the other is how an unreachable peer
+   * is reached at all. So **both are kept**. The mixed-list constraint is satisfied the other
+   * way round - by attaching the target peer id to every address that lacks it, which is
+   * exactly what this function already did for `/p2p-circuit` addresses - and the result is one
+   * uniform set that libp2p accepts whole.
+   *
+   * Order carries the preference the count comparison was groping for: direct addresses first,
+   * relayed ones last, input order preserved inside each group. A direct dial that succeeds
+   * yields a full connection, while a relayed one is limited and metered by a third party, so
+   * relay is the fallback rather than the equal. This is also the order libp2p's own
+   * `defaultAddressSorter` produces (`circuitRelayAddressesLast`), so a caller that hands the
+   * peer id to the dial queue instead of this list gets the same sequence rather than a
+   * different one.
+   *
+   * An address whose terminal `/p2p/` component names some *other* peer, and which is not a
+   * circuit address, is dropped: it does not describe a path to this peer, and appending the
+   * target id to it would fabricate a meaningless two-hop address rather than fix anything.
+   */
   normalizeMultiaddrs(peerName: string, multiaddrs: Multiaddr[]): Multiaddr[] {
-    let finalmultiaddrs: Multiaddr[] = []
-    const finalmultiaddrsWithAddress: Multiaddr[] = []
-    const finalmultiaddrsWithoutAddress: Multiaddr[] = []
-    for (const x of multiaddrs) {
-      if (x.toString().includes(peerName)) finalmultiaddrsWithAddress.push(x)
-      else {
-        let sd = x.toString()
-        if (x.toString().includes('p2p-circuit')) {
-          // because a p2p-circuit should always include peerId, if it's missing we will add it
-          sd = sd + '/p2p/' + peerName
-          finalmultiaddrsWithAddress.push(multiaddr(sd))
-        } else {
-          finalmultiaddrsWithoutAddress.push(multiaddr(sd))
+    const direct: Multiaddr[] = []
+    const relayed: Multiaddr[] = []
+    // The same address routinely arrives from more than one tier - the peer store and the DHT
+    // usually agree - so dedup on the final, peer-id-bearing string form rather than the input.
+    const seen = new Set<string>()
+
+    for (const address of multiaddrs) {
+      let components
+      try {
+        components = address.getComponents()
+      } catch (e) {
+        continue
+      }
+      const isRelayed = components.some((component) => component.name === 'p2p-circuit')
+      const terminal = components[components.length - 1]
+      const terminalPeerId =
+        terminal !== undefined && terminal.name === 'p2p' ? terminal.value : undefined
+
+      let dialable: Multiaddr
+      if (terminalPeerId === peerName) {
+        dialable = address
+      } else if (terminalPeerId !== undefined && !isRelayed) {
+        // Not a path to this peer at all.
+        P2P_LOGGER.debug(
+          `Ignoring address ${address.toString()} while resolving ${peerName}: it terminates at a different peer`
+        )
+        continue
+      } else {
+        try {
+          dialable = multiaddr(`${address.toString()}/p2p/${peerName}`)
+        } catch (e) {
+          continue
         }
       }
-    }
-    if (finalmultiaddrsWithAddress.length > finalmultiaddrsWithoutAddress.length)
-      finalmultiaddrs = finalmultiaddrsWithAddress
-    else finalmultiaddrs = finalmultiaddrsWithoutAddress
 
-    return finalmultiaddrs
+      const key = dialable.toString()
+      if (seen.has(key)) {
+        continue
+      }
+      seen.add(key)
+      if (isRelayed) {
+        relayed.push(dialable)
+      } else {
+        direct.push(dialable)
+      }
+    }
+
+    return [...direct, ...relayed]
   }
 
   /**
-   * Read-only address resolution for a peer.
+   * Read-only address resolution for a peer, cheapest source first, reporting which source
+   * answered.
    *
-   * the peerStore branch still short-circuits on a hit - that is the fast path and it
-   * must stay, so a cached address never costs a DHT walk. The DHT is reached either by asking
-   * for it explicitly (`searchPeerStore: false, searchDHT: true`) or by `sendTo` retrying that
-   * way after a dial against the cached addresses failed.
+   * The tiers, in order, and why that order:
+   *
+   *   1. **An open connection.** Free - it is an in-memory lookup of connections this process
+   *      already holds - and it is the most current information available, because the address
+   *      is one a dial actually succeeded against rather than one somebody advertised.
+   *   2. **The peer store.** A local read, and now a durable one: addresses live there for the
+   *      lifetime of a DHT provider record rather than for an hour.
+   *   3. **The DHT.** A multi-hop network walk, tens of seconds in the bad case. Only reached
+   *      when both local tiers came up empty.
+   *
+   * There is deliberately no peer-exchange tier. This node runs no peer-exchange protocol, so a
+   * tier for it would be a branch that never fires.
+   *
+   * Provenance is returned, not just addresses, because every caller wants it for a different
+   * reason: `sendTo` needs to know whether the addresses it is about to dial came from a cache
+   * it must invalidate on failure, and the logs need to distinguish "answered locally" from
+   * "cost a DHT walk". The resolution *lanes* are counted through the existing counters, which
+   * split answers into local and DHT precisely so the peer store's address lifetime can be
+   * measured; the two local tiers therefore share the local lane, since what that lane measures
+   * is answers that did not cost a network walk. A cache hit is counted in no lane at all - no
+   * lookup ran, so it is neither a hit nor a miss of any tier, the same treatment an unparsable
+   * peer id already gets.
+   *
+   * @param options.usePeerStore also governs whether *local* answers are acceptable at all.
+   *   `false` means the caller is refreshing after a failure and wants network truth, so the
+   *   cache, the connection tier and the peer store are all skipped, and the DHT walk is told
+   *   not to answer from its own local view either.
+   * @param options.signal optional caller deadline; combined with each tier's own budget.
+   */
+  async resolvePeer(
+    peerName: string,
+    options: {
+      usePeerStore?: boolean
+      useDht?: boolean
+      useCache?: boolean
+      signal?: AbortSignal
+    } = {}
+  ): Promise<PeerResolution> {
+    const usePeerStore = options.usePeerStore ?? true
+    const useDht = options.useDht ?? true
+    const useCache = (options.useCache ?? true) && usePeerStore
+    const { signal } = options
+
+    let peerId
+    try {
+      peerId = peerIdFromString(peerName)
+    } catch (e) {
+      // Deliberately uncounted: no lookup ran, so this is neither a hit nor a miss of either
+      // lane. `sendTo` records the same condition as a failure with its own reason.
+      return { addresses: [], source: 'none' }
+    }
+
+    if (useCache) {
+      const cached = getCachedPeerResolution(peerName)
+      if (cached !== undefined && cached.length > 0) {
+        return { addresses: cached, source: 'cache' }
+      }
+      if (isPeerResolutionNegativelyCached(peerName)) {
+        return { addresses: [], source: 'negative-cache' }
+      }
+    }
+
+    // peerStore and DHT routinely return the same address - dedup happens in
+    // normalizeMultiaddrs, on the final dialable form.
+    const collected: Multiaddr[] = []
+
+    if (usePeerStore) {
+      // An address a connection is currently using needs no lookup and cannot be stale.
+      try {
+        for (const connection of this._libp2p.getConnections(peerId)) {
+          if (connection.status === 'open') {
+            collected.push(multiaddr(connection.remoteAddr.toString()))
+          }
+        }
+      } catch (e) {
+        // an unavailable connection list is not a resolution failure; fall through
+      }
+      const fromConnections = this.normalizeMultiaddrs(peerName, collected)
+      if (fromConnections.length > 0) {
+        countP2PEvent(RESOLVE_PEERSTORE_HIT)
+        cachePeerResolution(peerName, fromConnections)
+        return { addresses: fromConnections, source: 'connection' }
+      }
+
+      try {
+        const peerData = await this._libp2p.peerStore.get(peerId, {
+          signal: stageSignal(P2P_TIMEOUTS.peerStoreGetMs, signal)
+        })
+        if (peerData) {
+          for (const x of peerData.addresses) {
+            // v3: Convert to local Multiaddr type to avoid type mismatch
+            collected.push(multiaddr(x.multiaddr.toString()))
+          }
+        }
+
+        // No verification dial here: resolution is read-only. Dialing inherited the
+        // 30s connectionsDialTimeout with no signal, and it was fed the un-normalized
+        // address list, which throws InvalidParametersError for any peer holding both
+        // a relay address (carrying the relay's /p2p/) and a direct one - exactly the
+        // NAT'd peers relay exists to serve. Address validity is the dialer's job.
+        const fromPeerStore = this.normalizeMultiaddrs(peerName, collected)
+        if (fromPeerStore.length > 0) {
+          countP2PEvent(RESOLVE_PEERSTORE_HIT)
+          cachePeerResolution(peerName, fromPeerStore)
+          return { addresses: fromPeerStore, source: 'peerstore' }
+        }
+      } catch (e) {
+        // console.log(e)
+      }
+    }
+
+    if (useDht) {
+      try {
+        // a multi-hop Kademlia walk needs 10-30s; the old 3s aborted almost every
+        // lookup before it could complete.
+        //
+        // `useCache` lets kad-dht answer from its routing table and peer store before it walks
+        // anywhere. That is worth taking now that the peer store holds addresses for 48 hours -
+        // the routing table is a source the tiers above do not consult, and the local read
+        // costs a map lookup against a walk costing tens of seconds. It is turned *off* for a
+        // refresh (`usePeerStore: false`), where the caller has just been let down by local
+        // data and asking for it again would return the same stale answer.
+        const peerData = await this._libp2p.peerRouting.findPeer(peerId, {
+          signal: stageSignal(P2P_TIMEOUTS.findPeerMs, signal),
+          useCache: usePeerStore
+        })
+        if (peerData) {
+          for (const index in peerData.multiaddrs) {
+            // v3: Convert to local Multiaddr type to avoid type mismatch
+            collected.push(multiaddr(peerData.multiaddrs[index].toString()))
+          }
+        }
+      } catch (e) {
+        // console.log(e)
+      }
+    }
+
+    const resolved = this.normalizeMultiaddrs(peerName, collected)
+    // Reached only when every local tier produced nothing - they return above on a hit - so
+    // whatever is here came from the DHT, or from nowhere. A `sendTo` that dials a cached
+    // address, fails and re-resolves DHT-only counts a second outcome here; that is the point,
+    // each lookup that ran is one observation.
+    if (resolved.length > 0) {
+      countP2PEvent(RESOLVE_DHT_HIT)
+      cachePeerResolution(peerName, resolved)
+      return { addresses: resolved, source: 'dht' }
+    }
+    countP2PEvent(RESOLVE_MISS)
+    cachePeerResolutionMiss(peerName)
+    return { addresses: [], source: 'none' }
+  }
+
+  /**
+   * Addresses only, for callers that do not care which tier answered.
+   *
+   * Kept with its original positional signature because it is the shape the rest of the repo
+   * and its tests already call. `searchPeerStore: false` is how the one caller that needs
+   * network truth after a failed dial asks for it - see `resolvePeer`, which treats it as
+   * "skip every local source", not merely "skip the peer store".
    *
    * @param signal optional caller deadline; combined with each step's own budget.
    */
@@ -846,75 +1194,12 @@ export class OceanP2P extends EventEmitter {
     searchDHT: boolean = true,
     signal?: AbortSignal
   ): Promise<Multiaddr[]> {
-    const multiaddrs: Multiaddr[] = []
-    // peerStore and DHT routinely return the same address - dedup by string form
-    const seenMultiaddrs = new Set<string>()
-    const addMultiaddr = (ma: Multiaddr) => {
-      const key = ma.toString()
-      if (seenMultiaddrs.has(key)) return
-      seenMultiaddrs.add(key)
-      multiaddrs.push(ma)
-    }
-    let peerId
-    try {
-      peerId = peerIdFromString(peerName)
-    } catch (e) {
-      // Deliberately uncounted: no lookup ran, so this is neither a hit nor a miss of either
-      // lane. `sendTo` records the same condition as a failure with its own reason.
-      return []
-    }
-    if (searchPeerStore) {
-      // search peerStore
-      try {
-        const peerData = await this._libp2p.peerStore.get(peerId, {
-          signal: stageSignal(P2P_TIMEOUTS.peerStoreGetMs, signal)
-        })
-        if (peerData) {
-          for (const x of peerData.addresses) {
-            // v3: Convert to local Multiaddr type to avoid type mismatch
-            addMultiaddr(multiaddr(x.multiaddr.toString()))
-          }
-        }
-
-        // No verification dial here: resolution is read-only. Dialing inherited the
-        // 30s connectionsDialTimeout with no signal, and it was fed the un-normalized
-        // address list, which throws InvalidParametersError for any peer holding both
-        // a relay address (carrying the relay's /p2p/) and a direct one - exactly the
-        // NAT'd peers relay exists to serve. Address validity is the dialer's job.
-        if (multiaddrs.length > 0) {
-          countP2PEvent(RESOLVE_PEERSTORE_HIT)
-          return this.normalizeMultiaddrs(peerName, multiaddrs)
-        }
-      } catch (e) {
-        // console.log(e)
-      }
-    }
-    if (searchDHT) {
-      try {
-        // a multi-hop Kademlia walk needs 10-30s; the old 3s aborted almost every
-        // lookup before it could complete.
-        const peerData = await this._libp2p.peerRouting.findPeer(peerId, {
-          signal: stageSignal(P2P_TIMEOUTS.findPeerMs, signal),
-          useCache: false
-        })
-        if (peerData) {
-          for (const index in peerData.multiaddrs) {
-            // v3: Convert to local Multiaddr type to avoid type mismatch
-            addMultiaddr(multiaddr(peerData.multiaddrs[index].toString()))
-          }
-        }
-      } catch (e) {
-        // console.log(e)
-      }
-    }
-
-    const resolved = this.normalizeMultiaddrs(peerName, multiaddrs)
-    // Reached only when the peerStore lane produced nothing - it returns above on a hit - so
-    // whatever is here came from the DHT, or from nowhere. A `sendTo` that dials a cached
-    // address, fails and re-resolves DHT-only counts a second outcome here; that is the point,
-    // each lookup that ran is one observation.
-    countP2PEvent(resolved.length > 0 ? RESOLVE_DHT_HIT : RESOLVE_MISS)
-    return resolved
+    const { addresses } = await this.resolvePeer(peerName, {
+      usePeerStore: searchPeerStore,
+      useDht: searchDHT,
+      signal
+    })
+    return addresses
   }
 
   async findPeerInDht(peerName: string, timeout?: number) {
@@ -927,7 +1212,11 @@ export class OceanP2P extends EventEmitter {
           isNaN(timeout) || timeout === 0
             ? AbortSignal.timeout(P2P_TIMEOUTS.findPeerMs)
             : AbortSignal.timeout(timeout),
-        useCache: false,
+        // Answer from the routing table or the peer store when either has this peer, rather
+        // than always walking the network. Worth taking now that peer-store addresses live as
+        // long as the provider records that point at them; with the previous one-hour lifetime
+        // the local check was usually a wasted lookup before the walk it could not avoid.
+        useCache: true,
         useNetwork: true
       })
       return data
@@ -1124,6 +1413,33 @@ export class OceanP2P extends EventEmitter {
    *     (`STREAM_BODY_TIMEOUT_MS`) on top of the per-frame idle budget and the caller's own
    *     signal, all three applied inside the iterator `send` returns.
    *
+   * **Dialling is by peer id, not by address list.** libp2p's dial queue already does what this
+   * method used to do by hand, and does more of it: given a peer id it loads that peer's
+   * addresses from the peer store, falls back to `peerRouting.findPeer` when it has none,
+   * expands `dnsaddr` entries, applies the connection gater, and sorts what is left with
+   * `defaultAddressSorter` - public before private, circuit-relay last, reliable transports
+   * first - before dialling in that order. Handing it an explicit list *replaces* all of that:
+   * the peer store and peer routing are not consulted at all, so an address the caller happens
+   * not to have is an address that will not be tried.
+   *
+   * So the resolution done here exists for the things the dial queue cannot do - counting which
+   * tier answered, caching the answer, and failing fast with a 404 when a peer has no address
+   * anywhere rather than spending a dial budget discovering that - and its result is handed to
+   * the dial queue *through the peer store* rather than as a list. Addresses the dial queue
+   * could not have found on its own (a DHT walk's result, or a cached one) are merged into the
+   * peer store first; addresses that came from the peer store or from an open connection are
+   * already there and are not re-written.
+   *
+   * The one case that still dials an explicit list is `multiAddrs`, supplied by the
+   * `/directCommand` caller. Those are used verbatim for this dial and are deliberately *not*
+   * merged into the peer store: they arrive from outside this node, and merging them would let
+   * a caller install addresses for an arbitrary peer id that outlive the request by the peer
+   * store's 48-hour address lifetime, for every other code path to dial. A caller that pins
+   * addresses gets exactly what it asked for and nothing persists.
+   *
+   * Concurrency across calls is capped - see `sendToLimiter.ts`. The cap is applied *outside*
+   * the deadline below, so a send that waits for a slot is not charged for the wait.
+   *
    * @param signal optional overall caller deadline, e.g. FindDDO's own budget. It bounds
    *   every stage *in addition to* that stage's own
    *   budget and this method's own deadline, so an abort actually stops the dial / stream open /
@@ -1137,299 +1453,418 @@ export class OceanP2P extends EventEmitter {
     requestBody?: P2PRequestBodyStream,
     signal?: AbortSignal
   ): Promise<{ status: any; stream?: AsyncIterable<any> }> {
-    // the overall setup deadline. Local controller, one listener on the caller's
-    // signal, both torn down in the `finally` at the bottom of this method.
-    const totalMs = P2P_TIMEOUTS.sendToTotalMs
-    const setup = new AbortController()
-    const forwardCallerAbort = () => setup.abort(signal?.reason)
-    if (signal?.aborted === true) {
-      setup.abort(signal.reason)
-    } else {
-      signal?.addEventListener('abort', forwardCallerAbort, { once: true })
-    }
-    const totalError = new Error(
-      `sendTo ${peerName} exceeded its overall budget of ${totalMs}ms`
-    )
-    totalError.name = 'TimeoutError'
-    const totalTimer = setTimeout(() => setup.abort(totalError), totalMs)
-    const deadline = setup.signal
-
-    try {
-      const dialOptions = () => ({
-        signal: stageSignal(P2P_TIMEOUTS.sendToDialMs, deadline),
-        priority: 100,
-        runOnLimitedConnection: true
-      })
-      const streamOptions = () => ({
-        signal: stageSignal(P2P_TIMEOUTS.sendToStreamMs, deadline),
-        priority: 100,
-        runOnLimitedConnection: true
-      })
-
-      let peerId
-
-      P2P_LOGGER.logMessage('SendTo() node ' + peerName + ' task: ' + message, true)
+    // The concurrency guard wraps the whole exchange, and the setup deadline is created inside
+    // it. That ordering is the point: a send that queues here has not started its clock, so a
+    // deep queue costs latency and never converts into a timeout.
+    return await sendToLimit(async () => {
+      // the overall setup deadline. Local controller, one listener on the caller's
+      // signal, both torn down in the `finally` at the bottom of this method.
+      const totalMs = P2P_TIMEOUTS.sendToTotalMs
+      const setup = new AbortController()
+      const forwardCallerAbort = () => setup.abort(signal?.reason)
+      if (signal?.aborted === true) {
+        setup.abort(signal.reason)
+      } else {
+        signal?.addEventListener('abort', forwardCallerAbort, { once: true })
+      }
+      const totalError = new Error(
+        `sendTo ${peerName} exceeded its overall budget of ${totalMs}ms`
+      )
+      totalError.name = 'TimeoutError'
+      const totalTimer = setTimeout(() => setup.abort(totalError), totalMs)
+      const deadline = setup.signal
 
       try {
-        peerId = peerIdFromString(peerName)
-      } catch (e) {
-        P2P_LOGGER.logMessageWithEmoji(
-          'Invalid peer (for id): ' + peerName,
-          true,
-          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-          LOG_LEVELS_STR.LEVEL_ERROR
-        )
-        countSendToFailure(SENDTO_FAIL_REASONS.invalidPeer)
-        return { status: { httpStatus: 404, error: 'Invalid peer' } }
-      }
+        const dialOptions = () => ({
+          signal: stageSignal(P2P_TIMEOUTS.sendToDialMs, deadline),
+          priority: 100,
+          runOnLimitedConnection: true
+        })
+        const streamOptions = () => ({
+          signal: stageSignal(P2P_TIMEOUTS.sendToStreamMs, deadline),
+          priority: 100,
+          runOnLimitedConnection: true
+        })
 
-      // addresses pinned by the caller are used verbatim and never re-resolved
-      const callerPinnedAddrs = Boolean(multiAddrs?.length)
-      let multiaddrs = callerPinnedAddrs
-        ? multiAddrs.map((addr) => multiaddr(addr))
-        : await this.getPeerMultiaddrs(
-            peerName,
-            true,
-            true,
-            stageSignal(P2P_TIMEOUTS.sendToResolveMs, deadline)
-          )
+        let peerId
 
-      if (multiaddrs.length < 1) {
-        const error = `Cannot find any address to dial for peer: ${peerId}`
-        P2P_LOGGER.error(error)
-        countSendToFailure(SENDTO_FAIL_REASONS.noAddress)
-        return { status: { httpStatus: 404, error } }
-      }
+        P2P_LOGGER.logMessage('SendTo() node ' + peerName + ' task: ' + message, true)
 
-      // getPeerMultiaddrs returns as soon as the peerStore has any address, so the DHT
-      // is never consulted for a peer with >= 1 cached address. That was safe while libp2p
-      // expired addresses after an hour; at the 48h address lifetime this node now configures
-      // it is not, on its own: a peer that changes IP would be unreachable for up to two days
-      // while the DHT holds its current address the whole time. The fast path is kept intact - a peerStore hit that dials successfully still never
-      // walks the DHT - and the fallback only runs after a *dial* has actually failed.
-      // Once per sendTo.
-      let dhtFallbackUsed = callerPinnedAddrs
-      const resolveViaDhtOnly = async (): Promise<Multiaddr[] | null> => {
-        if (dhtFallbackUsed) return null
-        dhtFallbackUsed = true
-        const fresh = await this.getPeerMultiaddrs(
-          peerName,
-          false,
-          true,
-          stageSignal(P2P_TIMEOUTS.sendToResolveMs, deadline)
-        )
-        if (fresh.length < 1) {
-          P2P_LOGGER.debug(`DHT-only re-resolution found no address for ${peerId}`)
-          return null
-        }
-        const asKey = (list: Multiaddr[]) =>
-          list
-            .map((ma) => ma.toString())
-            .sort()
-            .join(',')
-        if (asKey(fresh) === asKey(multiaddrs)) {
-          P2P_LOGGER.debug(
-            `DHT-only re-resolution returned the same addresses for ${peerId}, not redialling`
-          )
-          return null
-        }
-        return fresh
-      }
-
-      // dial and stream-open are *separate* stages. They used to be one function, so any
-      // rejection armed the DHT re-resolution - including the ones where the dial had already
-      // succeeded (protocol-negotiation timeout, the peer's `maxInboundStreams` exhausted, a
-      // relayed connection refusing the protocol). A <=20s DHT walk plus a <=15s second dial
-      // cannot fix a peer we are already connected to; it is pure added latency. Only a dial
-      // rejection - which includes "the connection we got belongs to a different peer", where a
-      // stale cached address is exactly the likely cause - arms the fallback now.
-      const dial = async (addrs: Multiaddr[]): Promise<Connection> => {
-        const connection = await this._libp2p.dial(addrs, dialOptions())
-        if (connection.remotePeer.toString() !== peerId.toString()) {
-          throw new Error(
-            `Invalid peer on the other side: ${connection.remotePeer.toString()}`
-          )
-        }
-        return connection
-      }
-      const openStream = async (
-        conn: Connection
-      ): Promise<{ stream: Stream; options: { signal: AbortSignal } }> => {
-        const options = streamOptions()
-        const stream = await conn.newStream(this._protocol, options)
-        return { stream, options }
-      }
-
-      /**
-       * The set of connections to this peer that already existed. Taken immediately before a
-       * dial, so that a dial which *creates* a connection can be told apart from one that
-       * hands back an existing one - `libp2p.dial()` does the latter whenever it can.
-       */
-      const existingConnectionIds = (): Set<string> =>
-        new Set(this._libp2p.getConnections(peerId).map((conn) => conn.id))
-
-      /**
-       * A dial that succeeded and then failed to produce a stream left the connection open
-       * with nothing using it. Unlike ocean.js, `abort` is the wrong call here: `libp2p.dial()`
-       * returns an *existing* connection when there is one, so this connection may be carrying
-       * identify / ping / DHT / another `sendTo` stream, and aborting resets all of them.
-       *
-       * Ownership is what decides, and it has to be established *before* the dial. Asking
-       * afterwards whether anyone else is using the connection cannot work: `Connection.streams`
-       * is the muxer's stream list, and the muxer splices a stream out as soon as it closes, so
-       * an empty list is the normal state of a healthy idle connection that identify, ping and
-       * the DHT all use - not evidence that nobody wants it. Closing on `streams.length === 0`
-       * therefore tore down shared connections on exactly the paths where `newStream` fails
-       * without the dial failing: a peer that does not register the command protocol (every
-       * bootstrap does not - see the advertise guard), a limited/relayed connection, and
-       * `maxInboundStreams` exhaustion.
-       *
-       * So: close only a connection that was not there before we dialled. A reused one is left
-       * alone; the connection manager owns its lifetime, as it did before this method ran.
-       */
-      const releaseUnusedConnection = async (
-        conn: Connection,
-        preDialConnectionIds: Set<string>
-      ): Promise<void> => {
         try {
-          if (!preDialConnectionIds.has(conn.id)) {
-            await conn.close()
-          }
-        } catch {}
-      }
-
-      const maxAttempts = P2P_TIMEOUTS.sendToMaxAttempts
-
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        let connection: Connection
-        // Snapshotted per attempt, and before every dial below, because a failed attempt may
-        // have closed a connection this peer had.
-        let preDialConnectionIds = existingConnectionIds()
-        try {
-          connection = await dial(multiaddrs)
+          peerId = peerIdFromString(peerName)
         } catch (e) {
-          const freshAddrs = await resolveViaDhtOnly()
-          if (!freshAddrs) {
-            const error =
-              attempt === 1
-                ? `Cannot connect to peer ${peerId}: ${e.message}`
-                : `Cannot reconnect to peer ${peerId}: ${e.message}`
-            P2P_LOGGER.error(error)
-            countSendToFailure(SENDTO_FAIL_REASONS.dial)
-            return { status: { httpStatus: 404, error } }
-          }
-          P2P_LOGGER.warn(
-            `Dial of ${peerId} failed (${e.message}), retrying with DHT-resolved addresses`
+          P2P_LOGGER.logMessageWithEmoji(
+            'Invalid peer (for id): ' + peerName,
+            true,
+            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+            LOG_LEVELS_STR.LEVEL_ERROR
           )
-          preDialConnectionIds = existingConnectionIds()
-          try {
-            connection = await dial(freshAddrs)
-          } catch (dhtErr) {
-            const error = `Dial of ${peerId} with DHT-resolved addresses also failed: ${dhtErr.message}`
-            P2P_LOGGER.error(error)
-            countSendToFailure(SENDTO_FAIL_REASONS.dial)
-            return { status: { httpStatus: 404, error } }
-          }
-          multiaddrs = freshAddrs
+          countSendToFailure(SENDTO_FAIL_REASONS.invalidPeer)
+          return { status: { httpStatus: 404, error: 'Invalid peer' } }
         }
 
-        let stream: Stream
-        let sendOptions: { signal: AbortSignal }
-        try {
-          ;({ stream, options: sendOptions } = await openStream(connection))
-        } catch (e) {
-          // the dial succeeded, so re-resolving addresses cannot help - report instead
-          // of spending another 35s on a DHT walk and a second dial.
-          await releaseUnusedConnection(connection, preDialConnectionIds)
-          const error = `Cannot open a command stream to peer ${peerId}: ${e.message}`
-          P2P_LOGGER.error(error)
-          countSendToFailure(SENDTO_FAIL_REASONS.streamOpen)
-          return { status: { httpStatus: 404, error } }
-        }
+        // addresses pinned by the caller are used verbatim and never re-resolved
+        const callerPinnedAddrs = Boolean(multiAddrs?.length)
 
-        try {
-          const response = await this.send(
-            stream,
-            message,
-            sendOptions,
-            requestBody,
-            signal
-          )
-          // All teardown of the response stream lives in the body iterator, so a caller that
-          // never iterates leaks the stream: measured `streamStatus=open` long after the peer
-          // had closed its side, holding a `message` listener, the frame reader's closure and
-          // an outbound muxer slot each time, until `maxOutboundStreams` is exhausted. Every
-          // in-repo caller does exactly that on a non-200 - it throws or returns without
-          // touching `stream` - because a failed command has no body worth reading. So the
-          // non-200 case is finished here instead of being handed over half-open, and the
-          // stream is left out of the result so that nothing can iterate an aborted one.
-          //
-          // `abort`, not `close`: the read side is paused at this point (see `send`), so
-          // closing our write side alone would leave the peer's bytes sitting in a buffer
-          // nobody drains until the muxer resets the stream anyway. This just does it now,
-          // deliberately, with an error the logs can attribute.
-          if (response.status?.httpStatus !== 200) {
-            try {
-              stream.abort(
-                new Error(
-                  `P2P command to ${peerId} answered ${response.status?.httpStatus}, response body not read`
-                )
-              )
-            } catch {}
-            countSendToFailure(SENDTO_FAIL_REASONS.remoteStatus)
-            return { status: response.status }
-          }
-          countP2PEvent(SENDTO_OK)
-          return response
-        } catch (err) {
+        /**
+         * Publishes addresses to the peer store so the dial queue can find them, sort them and
+         * dial them in its own order. Failure is not fatal: the dial that follows still has
+         * whatever the peer store already held.
+         */
+        const publishAddresses = async (addresses: Multiaddr[]): Promise<void> => {
           try {
-            stream.abort(err as Error)
-          } catch {}
-          const streamErr = err as Error
-          // abortConnectionOnPingFailure is disabled to keep long-running download streams
-          // alive, so stale connections are not evicted automatically. On a stale stream error,
-          // close the connection and retry so the next dial establishes a fresh one.
-          const stale =
-            streamErr.message?.includes('closed') === true ||
-            streamErr.message?.includes('reset') === true
-          // never retry once a `requestBody` is in play. It is an AsyncIterable/Readable,
-          // so a partially consumed one resumes where it stopped: the server would receive
-          // valid framing with the leading chunks missing and store a silently corrupt upload.
-          // An error the caller can see and retry from the start is the only safe outcome.
-          const bodyConsumed = requestBody != null
-          if (!stale || bodyConsumed || attempt >= maxAttempts) {
-            if (stale && bodyConsumed && attempt < maxAttempts) {
-              P2P_LOGGER.error(
-                `Not retrying ${peerId} after a stale-connection error: the request body is a stream and has already been partially consumed`
-              )
-            }
-            P2P_LOGGER.error(
-              `P2P communication error${attempt > 1 ? ' on retry' : ''}: ${streamErr.message}`
+            await this._libp2p.peerStore.merge(peerId, {
+              multiaddrs: addresses as any[]
+            })
+          } catch (e) {
+            P2P_LOGGER.debug(
+              `Could not store resolved addresses: ${describeP2PError(e, {
+                peerId: peerId.toString(),
+                addresses: addresses.length
+              })}`
             )
-            countSendToFailure(SENDTO_FAIL_REASONS.stream)
-            return {
-              status: { httpStatus: 500, error: `P2P error: ${streamErr.message}` }
-            }
           }
-          P2P_LOGGER.warn(`Stale connection to ${peerId}, retrying: ${streamErr.message}`)
+        }
+
+        let pinnedAddrs: Multiaddr[] = []
+        let known: Multiaddr[] = []
+        if (callerPinnedAddrs) {
+          pinnedAddrs = this.normalizeMultiaddrs(
+            peerName,
+            multiAddrs.map((addr) => multiaddr(addr))
+          )
+          known = pinnedAddrs
+          if (pinnedAddrs.length < 1) {
+            const error = `Cannot find any address to dial for peer: ${peerId}`
+            P2P_LOGGER.error(error)
+            countSendToFailure(SENDTO_FAIL_REASONS.noAddress)
+            return { status: { httpStatus: 404, error } }
+          }
+        } else {
+          const resolution = await this.resolvePeer(peerName, {
+            signal: stageSignal(P2P_TIMEOUTS.sendToResolveMs, deadline)
+          })
+          if (resolution.addresses.length < 1) {
+            const error = `Cannot find any address to dial for peer: ${peerId}`
+            P2P_LOGGER.error(error)
+            countSendToFailure(SENDTO_FAIL_REASONS.noAddress)
+            return { status: { httpStatus: 404, error } }
+          }
+          known = resolution.addresses
+          // Only the sources the dial queue cannot reach on its own are written back. A
+          // peer-store or open-connection answer is already visible to it.
+          if (resolution.source === 'dht' || resolution.source === 'cache') {
+            await publishAddresses(resolution.addresses)
+          }
+        }
+
+        /**
+         * One network-truth refresh per `sendTo`, armed by a failed dial.
+         *
+         * A dial by peer id already consults `peerRouting` - but only when the peer store had
+         * *no* addresses for the peer. The case this covers is the opposite and the more
+         * common one at a 48-hour address lifetime: the peer store has addresses, they are
+         * stale, so the dial queue never looks further and the dial simply fails. Asking the
+         * DHT directly, with local sources switched off so the answer cannot be the stale data
+         * again, is the only way to learn the peer's current address.
+         *
+         * @returns whether a *different* set of addresses was found and published. The
+         *   same-addresses case returns `false` so a caller does not spend a second dial
+         *   re-trying what just failed.
+         */
+        let refreshUsed = callerPinnedAddrs
+        const refreshFromNetwork = async (): Promise<boolean> => {
+          if (refreshUsed) return false
+          refreshUsed = true
+          const fresh = await this.resolvePeer(peerName, {
+            usePeerStore: false,
+            useDht: true,
+            signal: stageSignal(P2P_TIMEOUTS.sendToResolveMs, deadline)
+          })
+          if (fresh.addresses.length < 1) {
+            P2P_LOGGER.debug(`DHT-only re-resolution found no address for ${peerId}`)
+            return false
+          }
+          const asKey = (list: Multiaddr[]) =>
+            list
+              .map((ma) => ma.toString())
+              .sort()
+              .join(',')
+          if (asKey(fresh.addresses) === asKey(known)) {
+            P2P_LOGGER.debug(
+              `DHT-only re-resolution returned the same addresses for ${peerId}, not redialling`
+            )
+            return false
+          }
+          known = fresh.addresses
+          await publishAddresses(fresh.addresses)
+          return true
+        }
+
+        /**
+         * Dials the peer. By peer id on every path except a caller-pinned address list, so the
+         * dial queue supplies address discovery, `dnsaddr` expansion and its own ordering.
+         *
+         * The peer-id check is kept even though libp2p raises `UnexpectedPeerError` itself:
+         * it is the only check that covers the pinned-address path, where the caller chose the
+         * address and the peer at the other end of it is not this node's decision.
+         */
+        const dial = async (): Promise<Connection> => {
+          const connection = callerPinnedAddrs
+            ? await this._libp2p.dial(pinnedAddrs, dialOptions())
+            : await this._libp2p.dial(peerId, dialOptions())
+          if (connection.remotePeer.toString() !== peerId.toString()) {
+            throw new P2PError(
+              P2P_ERROR.peerMismatch,
+              `Invalid peer on the other side: ${connection.remotePeer.toString()}`
+            )
+          }
+          return connection
+        }
+        const openStream = async (
+          conn: Connection
+        ): Promise<{ stream: Stream; options: { signal: AbortSignal } }> => {
+          const options = streamOptions()
+          const stream = await conn.newStream(this._protocol, options)
+          return { stream, options }
+        }
+
+        /**
+         * The set of connections to this peer that already existed. Taken immediately before a
+         * dial, so that a dial which *creates* a connection can be told apart from one that
+         * hands back an existing one - `libp2p.dial()` does the latter whenever it can.
+         */
+        const existingConnectionIds = (): Set<string> =>
+          new Set(this._libp2p.getConnections(peerId).map((conn) => conn.id))
+
+        /**
+         * A dial that succeeded and then failed to produce a stream left the connection open
+         * with nothing using it. Unlike ocean.js, `abort` is the wrong call here: `libp2p.dial()`
+         * returns an *existing* connection when there is one, so this connection may be carrying
+         * identify / ping / DHT / another `sendTo` stream, and aborting resets all of them.
+         *
+         * Ownership is what decides, and it has to be established *before* the dial. Asking
+         * afterwards whether anyone else is using the connection cannot work: `Connection.streams`
+         * is the muxer's stream list, and the muxer splices a stream out as soon as it closes, so
+         * an empty list is the normal state of a healthy idle connection that identify, ping and
+         * the DHT all use - not evidence that nobody wants it. Closing on `streams.length === 0`
+         * therefore tore down shared connections on exactly the paths where `newStream` fails
+         * without the dial failing: a peer that does not register the command protocol (every
+         * bootstrap does not - see the advertise guard), a limited/relayed connection, and
+         * `maxInboundStreams` exhaustion.
+         *
+         * So: close only a connection that was not there before we dialled. A reused one is left
+         * alone; the connection manager owns its lifetime, as it did before this method ran.
+         */
+        const releaseUnusedConnection = async (
+          conn: Connection,
+          preDialConnectionIds: Set<string>
+        ): Promise<void> => {
           try {
-            await connection.close()
+            if (!preDialConnectionIds.has(conn.id)) {
+              await conn.close()
+            }
           } catch {}
         }
-      }
 
-      // only reachable if SENDTO_MAX_ATTEMPTS were somehow all consumed without returning
-      const exhausted = `P2P error: exhausted ${maxAttempts} attempt(s) to ${peerId}`
-      P2P_LOGGER.error(exhausted)
-      countSendToFailure(SENDTO_FAIL_REASONS.attemptsExhausted)
-      return { status: { httpStatus: 500, error: exhausted } }
-    } finally {
-      // The deadline covers the setup phase only, which ends here. Clearing the timer also
-      // means the response-body iterator - which outlives this method - can never be aborted
-      // by it; the caller's own signal, passed through to `send`, still bounds the body.
-      clearTimeout(totalTimer)
-      signal?.removeEventListener('abort', forwardCallerAbort)
-    }
+        const maxAttempts = P2P_TIMEOUTS.sendToMaxAttempts
+
+        /**
+         * Whether a failure in the **dial** stage is worth another attempt.
+         *
+         * Every dial-stage failure invalidates the cached resolution first, whatever its
+         * category: the cache is the one source that can hand back an address nothing has
+         * checked recently, and a failed dial is the only signal it will ever get that an entry
+         * is wrong. Leaving a bad entry in place would make the cache the reason the peer stays
+         * unreachable for the rest of the entry's lifetime, which is strictly worse than not
+         * caching at all.
+         *
+         * Then, at most once per send, the DHT is asked for the peer's current address. If that
+         * produces something different, the next attempt is dialling *different* addresses and
+         * is worth making regardless of category - including for `peer_mismatch`, where a stale
+         * address pointing at whoever now owns that host is the likely cause and a fresh
+         * address is the only thing that can fix it.
+         *
+         * With no fresher address, the category decides, and only `dial_failed` and `timeout`
+         * retry - a transient refusal or a congested dial queue plausibly differs a second time.
+         * `peer_mismatch` cannot: the same address reaches the same wrong peer. `protocol_failed`
+         * cannot either, and `resolve_failed` has already exhausted every tier.
+         */
+        const retryAfterDialFailure = async (
+          err: P2PError,
+          attempt: number
+        ): Promise<boolean> => {
+          if (!callerPinnedAddrs) {
+            invalidatePeerResolution(peerName)
+          }
+          if (attempt >= maxAttempts || deadline.aborted) {
+            return false
+          }
+          if (await refreshFromNetwork()) {
+            return true
+          }
+          return isRetryableP2PError(err.name)
+        }
+
+        let lastFailure: P2PError
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          // Jittered, and applied before the attempt rather than after the failure, so attempt
+          // 1 waits for nothing. Every fan-out in this node retries on the same schedule, so a
+          // fixed back-off would re-synchronise all of them into one burst against the peers
+          // that just failed.
+          await delayBeforeRetry(retryDelayMs(attempt), deadline)
+
+          let connection: Connection
+          // Snapshotted per attempt because a failed attempt may have closed a connection this
+          // peer had.
+          const preDialConnectionIds = existingConnectionIds()
+          try {
+            connection = await dial()
+          } catch (e) {
+            const failure = classifyP2PError(e, P2P_ERROR.dialFailed)
+            lastFailure = failure
+            if (await retryAfterDialFailure(failure, attempt)) {
+              P2P_LOGGER.warn(
+                `Dial of ${peerId} failed (${failure.name}: ${failure.message}), retrying`
+              )
+              continue
+            }
+            const error = `Cannot connect to peer ${peerId} (${failure.name}): ${failure.message}`
+            P2P_LOGGER.error(error)
+            countSendToFailure(SENDTO_FAIL_REASONS.dial)
+            return { status: { httpStatus: 404, error } }
+          }
+
+          let stream: Stream
+          let sendOptions: { signal: AbortSignal }
+          try {
+            ;({ stream, options: sendOptions } = await openStream(connection))
+          } catch (e) {
+            // The dial succeeded, so the addresses are good and nothing about them is
+            // re-resolved. `protocol_failed` - the usual category here, covering a peer that
+            // does not register the command protocol, an exhausted `maxInboundStreams` and a
+            // limited connection refusing the stream - is not retryable for the same reason: a
+            // second dial plus a second negotiation would return the same answer. A `timeout`
+            // is retryable, because a negotiation that ran out of budget on a healthy
+            // connection can differ.
+            await releaseUnusedConnection(connection, preDialConnectionIds)
+            const failure = classifyP2PError(e, P2P_ERROR.protocolFailed)
+            lastFailure = failure
+            if (
+              attempt < maxAttempts &&
+              !deadline.aborted &&
+              isRetryableP2PError(failure.name)
+            ) {
+              P2P_LOGGER.warn(
+                `Opening a command stream to ${peerId} failed (${failure.name}: ${failure.message}), retrying`
+              )
+              continue
+            }
+            const error = `Cannot open a command stream to peer ${peerId} (${failure.name}): ${failure.message}`
+            P2P_LOGGER.error(error)
+            countSendToFailure(SENDTO_FAIL_REASONS.streamOpen)
+            return { status: { httpStatus: 404, error } }
+          }
+
+          try {
+            const response = await this.send(
+              stream,
+              message,
+              sendOptions,
+              requestBody,
+              signal
+            )
+            // All teardown of the response stream lives in the body iterator, so a caller that
+            // never iterates leaks the stream: measured `streamStatus=open` long after the peer
+            // had closed its side, holding a `message` listener, the frame reader's closure and
+            // an outbound muxer slot each time, until `maxOutboundStreams` is exhausted. Every
+            // in-repo caller does exactly that on a non-200 - it throws or returns without
+            // touching `stream` - because a failed command has no body worth reading. So the
+            // non-200 case is finished here instead of being handed over half-open, and the
+            // stream is left out of the result so that nothing can iterate an aborted one.
+            //
+            // `abort`, not `close`: the read side is paused at this point (see `send`), so
+            // closing our write side alone would leave the peer's bytes sitting in a buffer
+            // nobody drains until the muxer resets the stream anyway. This just does it now,
+            // deliberately, with an error the logs can attribute.
+            if (response.status?.httpStatus !== 200) {
+              try {
+                stream.abort(
+                  new Error(
+                    `P2P command to ${peerId} answered ${response.status?.httpStatus}, response body not read`
+                  )
+                )
+              } catch {}
+              countSendToFailure(SENDTO_FAIL_REASONS.remoteStatus)
+              return { status: response.status }
+            }
+            countP2PEvent(SENDTO_OK)
+            return response
+          } catch (err) {
+            try {
+              stream.abort(err as Error)
+            } catch {}
+            const failure = classifyP2PError(err, P2P_ERROR.protocolFailed)
+            lastFailure = failure
+            // A connection that died under us is reported by libp2p with a dedicated error
+            // *name* - `ConnectionClosedError`, `StreamResetError`, `MuxerClosedError` and the
+            // rest - all of which classify as `dial_failed`, because the fix for every one of
+            // them is to drop the connection and dial again. This used to be decided by testing
+            // whether the message contained "closed" or "reset", which both missed names whose
+            // wording differs (`ConnectionFailedError` contains neither word) and matched any
+            // unrelated failure whose text happened to mention one.
+            //
+            // never retry once a `requestBody` is in play. It is an AsyncIterable/Readable,
+            // so a partially consumed one resumes where it stopped: the server would receive
+            // valid framing with the leading chunks missing and store a silently corrupt upload.
+            // An error the caller can see and retry from the start is the only safe outcome.
+            const bodyConsumed = requestBody != null
+            const retryable =
+              isRetryableP2PError(failure.name) && !bodyConsumed && !deadline.aborted
+            if (!retryable || attempt >= maxAttempts) {
+              if (
+                isRetryableP2PError(failure.name) &&
+                bodyConsumed &&
+                attempt < maxAttempts
+              ) {
+                P2P_LOGGER.error(
+                  `Not retrying ${peerId} after a ${failure.name} error: the request body is a stream and has already been partially consumed`
+                )
+              }
+              P2P_LOGGER.error(
+                `P2P communication error${attempt > 1 ? ' on retry' : ''} (${failure.name}): ${failure.message}`
+              )
+              countSendToFailure(SENDTO_FAIL_REASONS.stream)
+              return {
+                status: { httpStatus: 500, error: `P2P error: ${failure.message}` }
+              }
+            }
+            P2P_LOGGER.warn(
+              `Retrying ${peerId} after a ${failure.name} error: ${failure.message}`
+            )
+            try {
+              await connection.close()
+            } catch {}
+          }
+        }
+
+        // Reachable when every attempt failed with a retryable category and the last one was
+        // the last allowed - the loop retries rather than returning in that case.
+        const exhausted = `P2P error: exhausted ${maxAttempts} attempt(s) to ${peerName}${
+          lastFailure ? ` (${lastFailure.name}: ${lastFailure.message})` : ''
+        }`
+        P2P_LOGGER.error(exhausted)
+        countSendToFailure(SENDTO_FAIL_REASONS.attemptsExhausted)
+        return { status: { httpStatus: 500, error: exhausted } }
+      } finally {
+        // The deadline covers the setup phase only, which ends here. Clearing the timer also
+        // means the response-body iterator - which outlives this method - can never be aborted
+        // by it; the caller's own signal, passed through to `send`, still bounds the body.
+        clearTimeout(totalTimer)
+        signal?.removeEventListener('abort', forwardCallerAbort)
+      }
+    })
   }
 
   // when the target is this node
@@ -1468,11 +1903,7 @@ export class OceanP2P extends EventEmitter {
             advertised++
           }
         } catch (err) {
-          P2P_LOGGER.error(
-            `Failed to advertise queued ${did}: ${
-              err instanceof Error ? err.message : String(err)
-            }`
-          )
+          P2P_LOGGER.error(`Failed to advertise queued ${did}: ${describeP2PError(err)}`)
         }
       }
       P2P_LOGGER.debug(`Flushed advertise queue: ${advertised}/${list.length} advertised`)
@@ -1594,7 +2025,7 @@ export class OceanP2P extends EventEmitter {
         peersFound.push(value)
       }
     } catch (e) {
-      P2P_LOGGER.error('getProvidersForString()' + e.message)
+      P2P_LOGGER.error(`getProvidersForString(): ${describeP2PError(e)}`)
     }
     return peersFound.map((peer) => ({
       id: peer.id.toString(),
@@ -1675,7 +2106,7 @@ export class OceanP2P extends EventEmitter {
             } catch (e) {
               P2P_LOGGER.log(
                 LOG_LEVELS_STR.LEVEL_ERROR,
-                `Caught "${e.message}" on storeAndAdvertiseDDOS()`,
+                `Caught "${describeP2PError(e)}" on storeAndAdvertiseDDOS()`,
                 true
               )
             }
@@ -1689,7 +2120,7 @@ export class OceanP2P extends EventEmitter {
     } catch (err) {
       P2P_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
-        `Caught "${err.message}" on storeAndAdvertiseDDOS()`,
+        `Caught "${describeP2PError(err)}" on storeAndAdvertiseDDOS()`,
         true
       )
       return false

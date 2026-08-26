@@ -95,7 +95,21 @@ export const ENV_TO_CONFIG_MAPPING = {
   P2P_DISCOVERY_DIAL_MS: 'p2pConfig.discoveryDialTimeout',
   P2P_COMMAND_MAX_INBOUND_STREAMS: 'p2pConfig.commandMaxInboundStreams',
   P2P_FINDDDO_TIMEOUT_MS: 'p2pConfig.findDdoTimeout',
-  P2P_PROVIDER_RETRY_SLEEP_MS: 'p2pConfig.providerRetrySleep',
+  // Per-provider budget inside FindDDO, and how long a "nobody had it" answer is remembered.
+  // `P2P_PROVIDER_RETRY_SLEEP_MS` is gone with the back-off it configured: providers are now
+  // queried concurrently, so there is no interval between them to tune.
+  P2P_FINDDDO_PROVIDER_TIMEOUT_MS: 'p2pConfig.findDdoProviderTimeout',
+  P2P_DDO_NOT_FOUND_CACHE_MS: 'p2pConfig.ddoNotFoundCacheTimeout',
+  // The app-level peer-address cache and its negative half.
+  P2P_RESOLVE_CACHE_MS: 'p2pConfig.resolveCacheTimeout',
+  P2P_RESOLVE_NEGATIVE_CACHE_MS: 'p2pConfig.resolveNegativeCacheTimeout',
+  // Ceiling on concurrent outbound sendTo calls, so a provider fan-out or an indexer decrypt
+  // loop cannot starve the dial queue.
+  P2P_SENDTO_MAX_CONCURRENCY: 'p2pConfig.sendToMaxConcurrency',
+  // Routing-table size at which the P2P interface reports itself ready, and the delay before
+  // kad-dht's first self-query.
+  P2P_READY_MIN_ROUTING_PEERS: 'p2pConfig.readyMinRoutingPeers',
+  P2P_INITIAL_QUERY_SELF_MS: 'p2pConfig.initialQuerySelfTimeout',
   P2P_PEERSTORE_MAX_ADDRESS_AGE_MS: 'p2pConfig.peerStoreMaxAddressAge',
   P2P_PEERSTORE_MAX_PEER_AGE_MS: 'p2pConfig.peerStoreMaxPeerAge',
   HTTP_CERT_PATH: 'httpCertPath',

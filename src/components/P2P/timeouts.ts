@@ -100,8 +100,101 @@ export const P2P_TIMEOUT_DEFAULTS = Object.freeze({
    * place to import from instead of re-declaring 60s.
    */
   findDdoMs: 60_000,
-  /** Inter-provider back-off inside FindDDO - also consumed in `ddoHandler.ts`. */
-  providerRetrySleepMs: 5_000,
+  /**
+   * `FINDDDO_PROVIDER_TIMEOUT_MS` - budget for asking **one** provider for a DDO, inside
+   * FindDDO.
+   *
+   * FindDDO queries every provider it found concurrently and takes the first legitimate
+   * answer, so this is not a share of the overall deadline: it is how long any single provider
+   * may hold up its own branch before that branch is abandoned and the others are left to
+   * answer. It therefore wants to be short - a provider that has the DDO returns it in one
+   * round trip plus a database read - and 10s is roughly six times the slowest such exchange
+   * measured against a real peer, so it cuts an unresponsive provider without cutting a slow
+   * one. It is deliberately below `sendToTotalMs` (45s): a provider query that took the full
+   * setup budget would be a provider not worth waiting for when four others are being asked
+   * the same question at the same moment.
+   */
+  findDdoProviderMs: 10_000,
+  /**
+   * `DDO_NOT_FOUND_CACHE_MS` - how long FindDDO remembers that a DDO id resolved to nothing.
+   *
+   * The id being asked for is frequently one that does not exist anywhere - a stale link, a
+   * client polling for an asset that was never published, a retry loop - and each such request
+   * costs a full provider walk plus a query to every provider it turns up. Without a negative
+   * entry, a caller in a hot loop pays that repeatedly and so does every peer it asks.
+   *
+   * 30s is chosen against publication latency rather than against request rate: a DDO that
+   * genuinely appears becomes findable once its publisher has written a provider record, and
+   * an entry that outlived that would make this cache the reason a freshly published asset
+   * looked missing. Half a minute is short enough that the window is not user-visible and long
+   * enough to collapse any hot loop into one lookup.
+   */
+  ddoNotFoundCacheMs: 30_000,
+  /**
+   * `RESOLVE_CACHE_MS` - lifetime of an app-level "these are the peer's addresses" entry.
+   *
+   * Distinct from the peer store's 48 hours: this one collapses a burst of identical lookups
+   * inside a single fan-out or indexer loop, so it is sized against how long such a burst
+   * lasts, not against how long an address is valid. 45s sits between two constraints. Below
+   * roughly 30s it stops covering a burst at all - one FindDDO already spans its own 60s
+   * deadline - and above roughly 60s it starts holding an address across enough time that the
+   * peer store, which is the tier immediately behind it and is authoritative, could have been
+   * updated by identify or the DHT without this cache noticing. Correctness does not rest on
+   * the number: a stale entry is corrected by invalidation on dial failure, which is what
+   * makes caching safe here at all.
+   */
+  resolveCacheMs: 45_000,
+  /**
+   * `RESOLVE_NEGATIVE_CACHE_MS` - lifetime of a "this peer resolved to nothing" entry.
+   *
+   * A quarter of the positive lifetime, because the two are not symmetric. A resolved address
+   * is a durable fact backed by a 48h peer store; a failed resolution is a statement about one
+   * instant, and the peer it describes comes back on its own schedule. The only thing this
+   * entry may do is stop a hot loop from paying the same 20s DHT walk repeatedly - 15s is
+   * enough for that and short enough that **a negatively-cached peer becomes reachable again
+   * without a restart**, which is the property that makes a negative cache acceptable.
+   */
+  resolveNegativeCacheMs: 15_000,
+  /**
+   * `SENDTO_MAX_CONCURRENCY` - ceiling on concurrent outbound `sendTo` calls. A count, not a
+   * duration. See `sendToLimiter.ts` for why 25.
+   */
+  sendToMaxConcurrency: 25,
+  /**
+   * `READY_MIN_ROUTING_PEERS` - how many peers the DHT routing table must hold before this node
+   * reports its P2P interface as ready. A count, not a duration.
+   *
+   * Why 4: `allowQueryWithZeroPeers` is `false`, so a query against an empty table fails
+   * immediately rather than walking anywhere, and a table with one or two entries gives a query
+   * a single point of contact. 4 is `disjointPaths` - the number of independent lookup paths one
+   * query is configured to run - so it is the smallest table at which a query can use the
+   * fan-out it is set up for, one starting peer per path. Below that, "ready" would mean the
+   * DHT is reachable in principle rather than usable in practice.
+   */
+  dhtReadyMinPeers: 4,
+  /**
+   * `INITIAL_QUERY_SELF_MS` - how long kad-dht waits after starting before running its first
+   * self-query, the query whose results populate the routing table.
+   *
+   * kad-dht's own default is **1 second**, and that is too early here, in a way that is worth
+   * spelling out because the fix looks backwards. The self-query runs once at that interval and,
+   * whatever happens, is not run again until `querySelfInterval` (5 minutes). At 1s this node
+   * has no DHT peers yet: bootstrap discovery emits its peers after `bootstrapTimeout`
+   * (10s by default), and each then has to be dialled. So the first self-query runs against an
+   * empty routing table, `allowQueryWithZeroPeers: false` makes it fail on the spot, and the
+   * table stays empty for the next five minutes except for whatever arrives passively.
+   *
+   * 20s is `bootstrapTimeout` (10s) plus `discoveryDialMs` (10s) - the point by which a
+   * bootstrap connection exists in the worst case - so the one initial self-query runs with
+   * something to walk from. An operator who changes either of those should change this too;
+   * that is why it is a documented budget and not a literal.
+   *
+   * What this does not fix: if every bootstrap dial fails, the table is still empty at 20s and
+   * the next attempt is still five minutes away. `querySelfInterval` is left at kad-dht's
+   * default deliberately - shortening it would multiply steady-state self-query traffic across
+   * the whole network to cover a case that is a bootstrap outage.
+   */
+  initialQuerySelfMs: 20_000,
   /**
    * `maxAddressAge` - how long the peer store keeps a peer's multiaddrs before treating them
    * as expired and dropping them from every read.
@@ -140,6 +233,16 @@ export const P2P_TIMEOUT_DEFAULTS = Object.freeze({
  * generous - the default is 2 - and it keeps the worst case at `5 x sendToTotalMs`.
  */
 export const SENDTO_MAX_ATTEMPTS_CAP = 5
+
+/**
+ * Hard ceiling on `SENDTO_MAX_CONCURRENCY`, for the same reason the attempts cap exists: a
+ * count with a floor and no ceiling is a knob an operator can use to remove the guard it
+ * configures. Past roughly four times `connectionsMaxParallelDials` (50 by default) the
+ * limiter can no longer bound anything the dial queue does not already bound, so a value above
+ * 200 is a typo rather than a policy, and it is clamped rather than dropped so the guard stays
+ * in place either way.
+ */
+export const SENDTO_MAX_CONCURRENCY_CAP = 200
 
 /**
  * Default ceiling on every budget, because past it the timer primitives stop behaving.
@@ -379,10 +482,55 @@ export const P2P_TIMEOUTS = {
       P2P_BUDGET_MIN_MS
     )
   },
-  get providerRetrySleepMs(): number {
+  get findDdoProviderMs(): number {
     return envPositiveNumber(
-      'P2P_PROVIDER_RETRY_SLEEP_MS',
-      P2P_TIMEOUT_DEFAULTS.providerRetrySleepMs,
+      'P2P_FINDDDO_PROVIDER_TIMEOUT_MS',
+      P2P_TIMEOUT_DEFAULTS.findDdoProviderMs,
+      undefined,
+      P2P_BUDGET_MIN_MS
+    )
+  },
+  get ddoNotFoundCacheMs(): number {
+    return envPositiveNumber(
+      'P2P_DDO_NOT_FOUND_CACHE_MS',
+      P2P_TIMEOUT_DEFAULTS.ddoNotFoundCacheMs,
+      undefined,
+      P2P_BUDGET_MIN_MS
+    )
+  },
+  get resolveCacheMs(): number {
+    return envPositiveNumber(
+      'P2P_RESOLVE_CACHE_MS',
+      P2P_TIMEOUT_DEFAULTS.resolveCacheMs,
+      undefined,
+      P2P_BUDGET_MIN_MS
+    )
+  },
+  get resolveNegativeCacheMs(): number {
+    return envPositiveNumber(
+      'P2P_RESOLVE_NEGATIVE_CACHE_MS',
+      P2P_TIMEOUT_DEFAULTS.resolveNegativeCacheMs,
+      undefined,
+      P2P_BUDGET_MIN_MS
+    )
+  },
+  get sendToMaxConcurrency(): number {
+    return envPositiveNumber(
+      'P2P_SENDTO_MAX_CONCURRENCY',
+      P2P_TIMEOUT_DEFAULTS.sendToMaxConcurrency,
+      SENDTO_MAX_CONCURRENCY_CAP
+    )
+  },
+  get dhtReadyMinPeers(): number {
+    return envPositiveNumber(
+      'P2P_READY_MIN_ROUTING_PEERS',
+      P2P_TIMEOUT_DEFAULTS.dhtReadyMinPeers
+    )
+  },
+  get initialQuerySelfMs(): number {
+    return envPositiveNumber(
+      'P2P_INITIAL_QUERY_SELF_MS',
+      P2P_TIMEOUT_DEFAULTS.initialQuerySelfMs,
       undefined,
       P2P_BUDGET_MIN_MS
     )

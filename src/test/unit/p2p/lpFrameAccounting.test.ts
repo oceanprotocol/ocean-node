@@ -1,5 +1,5 @@
 import { expect } from 'chai'
-import { LP_MAX_FRAME_BYTES } from '../../../components/P2P/handleProtocolCommands.js'
+import { LP_MAX_FRAME_BYTES } from '../../../components/P2P/lpFraming.js'
 import {
   framedPair,
   lpFrame,

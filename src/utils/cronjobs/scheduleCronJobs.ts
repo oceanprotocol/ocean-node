@@ -9,7 +9,7 @@ import { p2pAnnounceDDOS } from './p2pAnnounceDDOS.js'
 import { p2pAnnounceC2D } from './p2pAnnounceC2D.js'
 import { sleep } from '../util.js'
 
-// republish any ddos we are providing to the network every 4 hours
+// re-announce the C2D capability to the network every 4 hours
 // (we can put smaller interval for testing purposes)
 const REPUBLISH_INTERVAL_HOURS = 1000 * 60 * 60 * 4 // 4 hours
 
@@ -41,13 +41,15 @@ export async function scheduleCronJobs(node: OceanNode) {
     })
   }
 
-  // execute p2pAnnounceDDOS immediately on startup
-  // and then every REPUBLISH_INTERVAL_HOURS
+  // Startup only, deliberately not on an interval. kad-dht runs its own reprovider against
+  // the p2p datastore - provider records live 48 h and are refreshed hourly against a 24 h
+  // threshold - so a periodic full re-provide on top of it would only duplicate that work at
+  // ~20 outbound DHT streams per DDO. What the reprovider cannot do is recover from a
+  // datastore that came up empty (a container started without its persistent mount, a wiped
+  // volume), because there is then nothing left in it to refresh. That is the gap this one
+  // pass fills: it walks the DDO store and re-provides everything the node holds, once per
+  // process.
   runAnnounceJob('p2pAnnounceDDOS', p2pAnnounceDDOS)
-  setInterval(
-    () => runAnnounceJob('p2pAnnounceDDOS', p2pAnnounceDDOS),
-    REPUBLISH_INTERVAL_HOURS
-  )
 
   // execute p2pAnnounceC2D immediately on startup
   // and then every REPUBLISH_INTERVAL_HOURS

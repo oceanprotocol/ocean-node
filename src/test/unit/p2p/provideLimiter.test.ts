@@ -10,7 +10,7 @@ import {
 } from '../../../components/P2P/provideLimiter.js'
 import { p2pAnnounceDDOS } from '../../../utils/cronjobs/p2pAnnounceDDOS.js'
 import { OceanNode } from '../../../OceanNode.js'
-import { lpFramedStream } from '../../../components/P2P/handleProtocolCommands.js'
+import { lpFramedStream } from '../../../components/P2P/lpFraming.js'
 import { sleep } from './lpTestUtils.js'
 
 /**
@@ -205,7 +205,10 @@ describe('A non-200 answer must not leave a stream open', () => {
         getConnections: () => [connection]
       },
       _protocol: '/ocean/nodes/1.0.0',
-      send: OceanP2P.prototype.send
+      send: OceanP2P.prototype.send,
+      // a caller-pinned address list is normalised before it is dialled, so the shipped
+      // normaliser has to be on the fake for the pinned path to run at all
+      normalizeMultiaddrs: OceanP2P.prototype.normalizeMultiaddrs
     } as unknown as OceanP2P
 
     const result = await OceanP2P.prototype.sendTo.call(

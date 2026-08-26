@@ -1,9 +1,6 @@
 import { streamPair } from '@libp2p/utils'
 import type { Stream } from '@libp2p/interface'
-import {
-  lpFramedStream,
-  LpFrameReader
-} from '../../../components/P2P/handleProtocolCommands.js'
+import { lpFramedStream, LpFrameReader } from '../../../components/P2P/lpFraming.js'
 
 /**
  * Shared fixtures for the length-prefixed protocol tests.

@@ -17,6 +17,7 @@ import {
   P2P_TIMEOUT_DEFAULTS,
   P2P_BUDGET_MIN_MS,
   SENDTO_MAX_ATTEMPTS_CAP,
+  SENDTO_MAX_CONCURRENCY_CAP,
   normalizeP2pBudget
 } from '../../components/P2P/timeouts.js'
 
@@ -839,8 +840,47 @@ export const OceanNodeP2PConfigSchema = z.object({
   // also a count rather than a duration: 1 inbound stream is a valid, if austere, setting.
   commandMaxInboundStreams: p2pBudget(P2P_TIMEOUT_DEFAULTS.commandMaxInboundStreams),
   findDdoTimeout: p2pBudget(P2P_TIMEOUT_DEFAULTS.findDdoMs, undefined, P2P_BUDGET_MIN_MS),
-  providerRetrySleep: p2pBudget(
-    P2P_TIMEOUT_DEFAULTS.providerRetrySleepMs,
+  // Per-provider budget inside FindDDO. Providers are queried concurrently and the first
+  // legitimate answer wins, so this bounds one branch rather than dividing the overall
+  // deadline. It replaces the fixed inter-provider back-off, which no longer exists: nothing
+  // sleeps between providers now, so there is no interval left to configure.
+  findDdoProviderTimeout: p2pBudget(
+    P2P_TIMEOUT_DEFAULTS.findDdoProviderMs,
+    undefined,
+    P2P_BUDGET_MIN_MS
+  ),
+  // How long a "no provider had this DDO" answer is remembered, to blunt a hot re-query loop.
+  ddoNotFoundCacheTimeout: p2pBudget(
+    P2P_TIMEOUT_DEFAULTS.ddoNotFoundCacheMs,
+    undefined,
+    P2P_BUDGET_MIN_MS
+  ),
+  // Lifetimes of the app-level peer-address cache and of its negative half. Both are short by
+  // design and neither is load-bearing for correctness - a stale entry is corrected by
+  // invalidation on dial failure.
+  resolveCacheTimeout: p2pBudget(
+    P2P_TIMEOUT_DEFAULTS.resolveCacheMs,
+    undefined,
+    P2P_BUDGET_MIN_MS
+  ),
+  resolveNegativeCacheTimeout: p2pBudget(
+    P2P_TIMEOUT_DEFAULTS.resolveNegativeCacheMs,
+    undefined,
+    P2P_BUDGET_MIN_MS
+  ),
+  // Ceiling on concurrent outbound sendTo calls. A count, so it keeps the implicit floor of 1
+  // rather than the millisecond floor, and it is clamped to a cap for the same reason
+  // sendToMaxAttempts is - see the constants in timeouts.ts.
+  sendToMaxConcurrency: p2pBudget(
+    P2P_TIMEOUT_DEFAULTS.sendToMaxConcurrency,
+    SENDTO_MAX_CONCURRENCY_CAP
+  ),
+  // Routing-table size at which this node reports its P2P interface ready. Also a count.
+  readyMinRoutingPeers: p2pBudget(P2P_TIMEOUT_DEFAULTS.dhtReadyMinPeers),
+  // Delay before kad-dht's first self-query, the one that populates the routing table. Raised
+  // above kad-dht's own 1s so it runs after bootstrap connections exist rather than before.
+  initialQuerySelfTimeout: p2pBudget(
+    P2P_TIMEOUT_DEFAULTS.initialQuerySelfMs,
     undefined,
     P2P_BUDGET_MIN_MS
   ),

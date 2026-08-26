@@ -15,6 +15,7 @@ import {
   getP2PCounters,
   resetP2PCounters
 } from '../../../components/P2P/counters.js'
+import { resetPeerResolutionCache } from '../../../components/P2P/peerResolutionCache.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 
 /**
@@ -26,6 +27,8 @@ import { P2PCommandResponse } from '../../../@types/OceanNode.js'
  */
 
 const PEER_A = '16Uiu2HAmLhRDqfufZiQnxvQs2XHhd6hwkLSPfjAQg1gH8wgRixiP'
+/** A second peer, so a case needing two resolutions is not served the first one from the cache. */
+const PEER_B = '16Uiu2HAmHwzeVw7RpGopjZe6qNBJbzDDBdqtrSk7Gcx1emYsfgL4'
 const ADDR_A = `/ip4/10.0.0.1/tcp/9000/p2p/${PEER_A}`
 const ADDR_B = `/ip4/10.0.0.2/tcp/9000/p2p/${PEER_A}`
 
@@ -42,8 +45,12 @@ let dhtLookups = 0
 function resolver(options: ResolverOptions): OceanP2P {
   return {
     normalizeMultiaddrs: OceanP2P.prototype.normalizeMultiaddrs,
+    resolvePeer: OceanP2P.prototype.resolvePeer,
     getPeerMultiaddrs: OceanP2P.prototype.getPeerMultiaddrs,
     _libp2p: {
+      // The cheapest resolution tier is an address a connection is already using. Empty here,
+      // so these cases exercise the peer-store and DHT tiers below.
+      getConnections: (): Connection[] => [],
       peerStore: {
         get: () => {
           if (options.peerStoreAddrs == null) {
@@ -95,6 +102,7 @@ function sender(handle: () => Promise<P2PCommandResponse>): OceanP2P {
   return {
     _protocol: '/ocean/nodes/1.0.0',
     send: OceanP2P.prototype.send,
+    normalizeMultiaddrs: OceanP2P.prototype.normalizeMultiaddrs,
     _libp2p: {
       getConnections: (): Connection[] => [],
       dial: async (): Promise<Connection> => {
@@ -119,6 +127,9 @@ function sender(handle: () => Promise<P2PCommandResponse>): OceanP2P {
 describe('P2P counters', () => {
   beforeEach(() => {
     resetP2PCounters()
+    // Resolutions are cached across calls now, and every case here resolves the same peer, so
+    // without this the second case would be served from the cache and count nothing.
+    resetPeerResolutionCache()
     dhtLookups = 0
   })
 
@@ -164,9 +175,13 @@ describe('P2P counters', () => {
       resolver({ peerStoreAddrs: [ADDR_A] }),
       PEER_A
     )
-    await OceanP2P.prototype.getPeerMultiaddrs.call(resolver({}), PEER_A)
+    // A *different* peer on purpose: a second resolution of PEER_A would be answered from the
+    // resolution cache and would move no lane at all, which is the cache doing its job.
+    await OceanP2P.prototype.getPeerMultiaddrs.call(resolver({}), PEER_B)
 
     const stats = OceanP2P.prototype.getNetworkingStats.call({
+      getP2PStatus: OceanP2P.prototype.getP2PStatus,
+      getDhtRoutingTableSize: OceanP2P.prototype.getDhtRoutingTableSize,
       _libp2p: {
         getMultiaddrs: (): never[] => [],
         getConnections: (): Connection[] => []

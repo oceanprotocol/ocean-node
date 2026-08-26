@@ -2,15 +2,15 @@ import { expect } from 'chai'
 import { Readable } from 'stream'
 import { streamPair } from '@libp2p/utils'
 import type { Connection, Stream } from '@libp2p/interface'
+import { handleProtocolCommands } from '../../../components/P2P/handleProtocolCommands.js'
 import {
   LP_MAX_BUFFER_BYTES,
   LP_MAX_FRAME_BYTES,
   LP_MAX_LENGTH_PREFIX_BYTES,
   LP_PAUSE_BUFFER_BYTES,
   LP_RESUME_BELOW_BYTES,
-  handleProtocolCommands,
   lpFramedStream
-} from '../../../components/P2P/handleProtocolCommands.js'
+} from '../../../components/P2P/lpFraming.js'
 import { OceanP2P } from '../../../components/P2P/index.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { sleep } from './lpTestUtils.js'
@@ -119,6 +119,23 @@ describe('The limits that keep a paused stream from dropping its backlog stay co
    * The relations below are what make the arrangement sound, so they are asserted directly:
    * loosening any one of them silently reintroduces the discard that hands out corrupt frames.
    */
+  it('pins the values ocean.js has to match, not just the relations between them', () => {
+    // The framing constants are a cross-repository contract. ocean.js declares the same
+    // five values in `src/services/providers/lpFraming.ts`, and the two must agree byte
+    // for byte: a peer declaring a frame larger than the other side's `maxDataLength` is
+    // rejected outright, and a read buffer smaller than the window the muxer grows to is
+    // what silently discards a large body mid-transfer.
+    //
+    // The relations asserted below would still hold if both repos moved a value in
+    // *different* directions, so the absolute numbers are pinned as literals here. A
+    // change that fails this test is fixed by changing ocean.js in the same commit, not
+    // by updating the number.
+    expect(LP_MAX_FRAME_BYTES).to.equal(4 * 1024 * 1024)
+    expect(LP_MAX_LENGTH_PREFIX_BYTES).to.equal(4)
+    expect(LP_PAUSE_BUFFER_BYTES).to.equal(16 * 1024 * 1024)
+    expect(LP_MAX_BUFFER_BYTES).to.equal(24 * 1024 * 1024)
+  })
+
   it('lets a resume flush land without overrunning the read-buffer ceiling', () => {
     // a resume can flush a full pause buffer on top of a backlog already at the resume mark
     expect(LP_MAX_BUFFER_BYTES).to.be.at.least(

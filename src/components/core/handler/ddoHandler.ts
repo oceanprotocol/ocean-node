@@ -13,11 +13,11 @@ import {
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import {
-  sleep,
   readStream,
   streamToUint8Array,
   fetchEventFromTransaction
 } from '../../../utils/util.js'
+import { P2P_TIMEOUTS } from '../../P2P/timeouts.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
@@ -48,15 +48,60 @@ import { Asset, DDO, DDOManager } from '@oceanprotocol/ddo-js'
 import { checkCredentialOnAccessList } from '../../../utils/credentials.js'
 
 const MAX_NUM_PROVIDERS = 5
-// after 60 seconds it returns whatever info we have available
-const MAX_RESPONSE_WAIT_TIME_SECONDS = 60
-// wait time for reading the next getDDO command
-const MAX_WAIT_TIME_SECONDS_GET_DDO = 5
 // byte cap on one provider's getDDO response. A DDO is comfortably under a MiB in practice,
 // so this leaves room for an unusually large one while refusing a peer that answers with a
 // gigabyte. The shared reader's default is 64 MiB, which is a heap ceiling for any
 // accumulating read rather than a statement about this payload.
 const MAX_DDO_RESPONSE_BYTES = 4 * 1024 * 1024
+
+/**
+ * DDO ids that a recent FindDDO could not locate anywhere - not locally, and not at any
+ * provider the DHT returned.
+ *
+ * The ids callers ask for are frequently ids that do not exist: a stale link, a client polling
+ * for an asset that was never published, a retry loop around a 404. Each of those costs a
+ * provider walk plus a query to every provider it turns up, and it costs every peer asked the
+ * same. One remembered answer collapses a hot loop into one lookup.
+ *
+ * Two properties make this safe rather than a source of phantom 404s. It is consulted **after**
+ * the local database lookup, never before, so a DDO this node holds is always returned whatever
+ * the cache says - the cache can only ever skip the *network* half of the search. And an entry
+ * is only ever written when the search found nothing at all, so an id that was found locally
+ * cannot have an entry in the first place.
+ *
+ * Module-level, like the P2P counters and the resolution cache, and for the same reason: one
+ * node process, one instance of this handler, and a per-instance field would buy nothing.
+ */
+const notFoundDdos = new Map<string, number>()
+
+/** True when `id` was searched for recently and found nowhere. Prunes as it reads. */
+function isDdoKnownMissing(id: string): boolean {
+  const expiresAt = notFoundDdos.get(id)
+  if (expiresAt == null) {
+    return false
+  }
+  if (expiresAt <= Date.now()) {
+    notFoundDdos.delete(id)
+    return false
+  }
+  return true
+}
+
+/**
+ * Records that `id` was found nowhere.
+ *
+ * The lifetime is short on purpose: a DDO that genuinely appears becomes findable as soon as
+ * its publisher has written a provider record, and an entry outliving that would make this
+ * cache the reason a freshly published asset looked missing.
+ */
+function rememberDdoMissing(id: string): void {
+  notFoundDdos.set(id, Date.now() + P2P_TIMEOUTS.ddoNotFoundCacheMs)
+}
+
+/** Test seam: only the unit tests clear this, a running node never does. */
+export function resetDdoNotFoundCache(): void {
+  notFoundDdos.clear()
+}
 
 // scans all receipt logs for a MetadataCreated/MetadataUpdated event emitted by the
 // given data NFT. The metadata event is not necessarily the first log of the
@@ -496,10 +541,6 @@ export class FindDdoHandler extends CommandHandler {
         }
       }
       // otherwise we need to contact other providers and get DDO from them
-      // ids of available providers
-      let processed = 0
-      let toProcess = 0
-
       const configuration = node.getConfig()
 
       // Checking locally...
@@ -512,7 +553,32 @@ export class FindDdoHandler extends CommandHandler {
         updatedCache = true
       }
 
-      const processDDOResponse = async (peer: string, data: Uint8Array) => {
+      // Deliberately *after* the local lookup, so a DDO this node holds is always returned no
+      // matter what a previous search concluded. All this entry can do is skip the network half
+      // of the search for a short while, which is the half a hot loop of requests for a
+      // non-existent id is repeatedly paying for.
+      if (isDdoKnownMissing(task.id)) {
+        CORE_LOGGER.logMessage(
+          `Skipping the provider search for DDO id ${task.id}: a recent search found it nowhere`,
+          true
+        )
+        return {
+          stream: Readable.from(JSON.stringify(sortFindDDOResults(resultList), null, 4)),
+          status: { httpStatus: 200 }
+        }
+      }
+
+      /**
+       * Validates one provider's answer and folds it into the result list.
+       *
+       * @returns whether the answer was a legitimate DDO. The concurrent provider queries race
+       *   on this: a peer that returns HTTP 200 with something that does not verify has not
+       *   answered the question, so it must not cancel the peers that still might.
+       */
+      const processDDOResponse = async (
+        peer: string,
+        data: Uint8Array
+      ): Promise<boolean> => {
         try {
           const ddo: any = JSON.parse(uint8ArrayToString(data))
           const isResponseLegit = await checkIfDDOResponseIsLegit(ddo, node)
@@ -557,11 +623,11 @@ export class FindDdoHandler extends CommandHandler {
                 }
               }
             }
-          } else {
-            CORE_LOGGER.warn(
-              `Cannot confirm validity of ${ddo.id} from remote node, skipping it...`
-            )
+            return true
           }
+          CORE_LOGGER.warn(
+            `Cannot confirm validity of ${ddo.id} from remote node, skipping it...`
+          )
         } catch (err) {
           CORE_LOGGER.logMessageWithEmoji(
             'FindDDO: Error on sink function: ' + err.message,
@@ -570,10 +636,15 @@ export class FindDdoHandler extends CommandHandler {
             LOG_LEVELS_STR.LEVEL_ERROR
           )
         }
-        processed++
+        return false
       }
 
-      // if something goes really bad then exit after 60 secs.
+      // Overall FindDDO deadline. Read from the P2P budgets rather than from a local literal:
+      // the budget and its environment override already existed, and this file re-declared the
+      // same 60s next to it, so `P2P_FINDDDO_TIMEOUT_MS` was documented but reached nothing.
+      // Destructured inside the handler, not at module scope: the budget object is a set of
+      // getters, so reading it per call is what keeps an environment override effective.
+      const { findDdoMs } = P2P_TIMEOUTS
       // this is a real AbortController for the whole FindDDO: the deadline is
       // propagated into the provider lookup and into every peer query, so it
       // actually stops the work instead of just firing a timer callback
@@ -585,10 +656,10 @@ export class FindDdoHandler extends CommandHandler {
         CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_DEBUG, 'FindDDO: Timeout reached: ', true)
         findDdoController.abort(
           new Error(
-            `FindDDO aborted after ${MAX_RESPONSE_WAIT_TIME_SECONDS} seconds, returning whatever info we have available`
+            `FindDDO aborted after ${findDdoMs}ms, returning whatever info we have available`
           )
         )
-      }, 1000 * MAX_RESPONSE_WAIT_TIME_SECONDS)
+      }, findDdoMs)
       const findDdoSignal = findDdoController.signal
       // releases the deadline and cancels anything still in flight (idempotent)
       endFindDdo = () => {
@@ -609,6 +680,26 @@ export class FindDdoHandler extends CommandHandler {
         return Promise.race([promise, aborted]).finally(() => {
           findDdoSignal.removeEventListener('abort', onAbort)
         })
+      }
+
+      /**
+       * The single exit for a search that actually *finished* - every provider that was going
+       * to answer has answered, or there were none to ask.
+       *
+       * It is the only place a "found nowhere" answer is remembered, and the distinction it
+       * draws is the one that matters: a search the deadline cut short establishes nothing about
+       * whether the DDO exists, only that looking took too long, so those exits deliberately do
+       * not go through here.
+       */
+      const finishCompletedSearch = (): P2PCommandResponse => {
+        if (resultList.length === 0) {
+          rememberDdoMissing(task.id)
+        }
+        endFindDdo()
+        return {
+          stream: Readable.from(JSON.stringify(sortFindDDOResults(resultList), null, 4)),
+          status: { httpStatus: 200 }
+        }
       }
 
       // check other providers for this ddo
@@ -643,107 +734,125 @@ export class FindDdoHandler extends CommandHandler {
 
         // work with the filtered list only
         if (filteredProviders.length > 0) {
-          toProcess = filteredProviders.length
           // only process a maximum of 5 provider entries per DDO (might never be that much anyway??)
-          if (toProcess > MAX_NUM_PROVIDERS) {
+          if (filteredProviders.length > MAX_NUM_PROVIDERS) {
             filteredProviders = filteredProviders.slice(0, MAX_NUM_PROVIDERS)
-            toProcess = MAX_NUM_PROVIDERS
           }
 
-          let doneLoop = 0
-          do {
-            // eslint-disable-next-line no-unmodified-loop-condition
-            for (let i = 0; i < toProcess && doneLoop < toProcess; i++) {
-              const provider = filteredProviders[i]
+          /**
+           * Providers are queried **concurrently**, each with its own budget, and the first
+           * legitimate answer ends the search.
+           *
+           * What this replaces: the providers were queried one at a time, with a fixed 5 second
+           * sleep after each, wrapped in a `do/while` that could re-run the whole pass. At the
+           * provider maximum of 5 that is 5 x (one whole `sendTo` setup budget + 5s) =
+           * 5 x 50s = 250 seconds of structure, before counting the response-body read - and the
+           * only reason a request did not take that long was the overall deadline cutting it
+           * off, which meant the later providers in the list were never actually asked. So the
+           * sequential shape did not just cost latency, it silently reduced the number of
+           * providers consulted to however many fitted in the deadline.
+           *
+           * Concurrency removes both problems: every provider is asked at once, so the answer
+           * arrives in roughly one provider round trip rather than in list order, and no
+           * provider is skipped because an earlier one was slow. Nothing sleeps between
+           * providers - there was never a reason to pause between two independent peers - and
+           * there is no re-query pass, because asking the same providers the same question again
+           * cannot produce a different answer inside one deadline.
+           *
+           * The trade, stated plainly: the result list now holds the first legitimate answer
+           * rather than every provider's answer, so `sortFindDDOResults` has one remote entry to
+           * choose between instead of up to five. The sort exists to prefer the most recently
+           * updated DDO, and collecting all five to do that costs the latency of the slowest
+           * provider on every request, for a difference that only appears when providers
+           * disagree about the same asset.
+           */
+          const perProviderMs = P2P_TIMEOUTS.findDdoProviderMs
+          // Cancels the losers the moment one provider answers legitimately. A separate
+          // controller from the overall deadline so that "we have our answer" and "we ran out
+          // of time" stay distinguishable in the logs.
+          const answered = new AbortController()
+          let haveAnswer = false
+
+          await Promise.all(
+            filteredProviders.map(async (provider: any) => {
               const peer = provider.id.toString()
               const getCommand: GetDdoCommand = {
                 id: task.id,
                 command: PROTOCOL_COMMANDS.GET_DDO
               }
-
+              // Three ways this branch can end early: the overall deadline, another provider
+              // having answered, and this provider taking too long on its own. The per-provider
+              // budget is what makes concurrency safe - without it one unresponsive provider
+              // would hold a branch open for the whole FindDDO deadline.
+              const providerSignal = AbortSignal.any([
+                findDdoSignal,
+                answered.signal,
+                AbortSignal.timeout(perProviderMs)
+              ])
+              // A provider record from the DHT usually carries the provider's addresses. Passing
+              // them through means this send skips address resolution altogether - the addresses
+              // are already in hand, and re-deriving them would repeat the lookup that produced
+              // this provider. Falling back to no addresses lets `sendTo` resolve normally.
+              //
+              // Pinned addresses are used verbatim and are not re-resolved on failure, so a
+              // provider whose advertised address no longer works is lost for this request. That
+              // is the right trade here and only here: four other providers are being asked the
+              // same question at the same moment, so the cost of dropping one is nothing, while
+              // a DHT walk per provider would reintroduce exactly the latency this loop removes.
+              const providerAddrs: string[] = Array.isArray(provider.multiaddrs)
+                ? provider.multiaddrs.map((ma: any) => ma.toString())
+                : []
               try {
-                const response = await withFindDdoDeadline(
-                  p2pNode.sendTo(
-                    peer,
-                    JSON.stringify(getCommand),
-                    undefined,
-                    undefined,
-                    findDdoSignal
-                  )
+                const response = await p2pNode.sendTo(
+                  peer,
+                  JSON.stringify(getCommand),
+                  providerAddrs.length > 0 ? providerAddrs : undefined,
+                  undefined,
+                  providerSignal
                 )
-
-                if (response.status.httpStatus === 200 && response.stream) {
-                  // Convert stream to Uint8Array for processing
-                  // Capped: this is one DDO from an untrusted provider, and the shared
-                  // reader's 64 MiB default is a heap ceiling rather than a statement about
-                  // this payload. A DDO is well under a MiB in practice. Time is already
-                  // bounded - sendTo above carries findDdoSignal and this read is inside
-                  // withFindDdoDeadline - so only the size was unbounded.
-                  const data = await withFindDdoDeadline(
-                    streamToUint8Array(
-                      response.stream as Readable,
-                      MAX_DDO_RESPONSE_BYTES
-                    )
+                if (response.status.httpStatus !== 200 || !response.stream) {
+                  return
+                }
+                // Capped: this is one DDO from an untrusted provider, and the shared
+                // reader's 64 MiB default is a heap ceiling rather than a statement about
+                // this payload. A DDO is well under a MiB in practice. Time is already
+                // bounded - the send above carries providerSignal - so only the size was
+                // unbounded.
+                const data = await streamToUint8Array(
+                  response.stream as Readable,
+                  MAX_DDO_RESPONSE_BYTES
+                )
+                const accepted = await processDDOResponse(peer, data)
+                if (accepted && !haveAnswer) {
+                  haveAnswer = true
+                  answered.abort(
+                    new Error(`FindDDO for ${task.id} answered by provider ${peer}`)
                   )
-                  await processDDOResponse(peer, data)
-                } else {
-                  processed++
                 }
               } catch (innerException) {
-                processed++
+                // One provider failing, timing out, or being cancelled because another
+                // answered is not a FindDDO failure. The overall outcome is whatever the
+                // result list holds when every branch has settled.
+                CORE_LOGGER.debug(
+                  `FindDDO: provider ${peer} did not answer for ${task.id}: ${innerException.message}`
+                )
               }
-
-              // the whole FindDDO deadline has passed, stop querying peers
-              if (findDdoSignal.aborted) {
-                break
-              }
-              // 'sleep 5 seconds...'
-
-              CORE_LOGGER.logMessage(
-                `Sleeping for: ${MAX_WAIT_TIME_SECONDS_GET_DDO} seconds, while getting DDO info remote peer...`,
-                true
-              )
-              // await 5 seconds before proceeding to next one, unless we run out of time
-              await withFindDdoDeadline(
-                sleep(MAX_WAIT_TIME_SECONDS_GET_DDO * 1000)
-              ).catch(() => {})
-              // if the ddo is not cached, the very 1st request will take a bit longer
-              // cause it needs to get the response from all the other providers call getDDO()
-              // otherwise is immediate as we just return the cached version, once the cache expires we
-              // repeat the procedure and query the network again, updating cache at the end
-            }
-            doneLoop += 1
-          } while (processed < toProcess && !findDdoSignal.aborted)
+            })
+          )
 
           if (updatedCache) {
             p2pNode.getDDOCache().updated = new Date().getTime()
           }
 
           // house cleaning
-          endFindDdo()
-          return {
-            stream: Readable.from(
-              JSON.stringify(sortFindDDOResults(resultList), null, 4)
-            ),
-            status: { httpStatus: 200 }
-          }
+          return finishCompletedSearch()
         } else {
           // could empty list
-          endFindDdo()
-          return {
-            stream: Readable.from(
-              JSON.stringify(sortFindDDOResults(resultList), null, 4)
-            ),
-            status: { httpStatus: 200 }
-          }
+          return finishCompletedSearch()
         }
       } else {
         // could be empty list
-        endFindDdo()
-        return {
-          stream: Readable.from(JSON.stringify(sortFindDDOResults(resultList), null, 4)),
-          status: { httpStatus: 200 }
-        }
+        return finishCompletedSearch()
       }
     } catch (error) {
       // 'FindDDO big error: '
@@ -1002,7 +1111,25 @@ async function checkIfDDOResponseIsLegit(
   }
 
   // 2) check event
-  if (!event) {
+  //
+  // This tested a bare `event`, which is declared nowhere in this function - the only `event`
+  // in the file is a `const` inside a `for` block further down, in a different scope. So the
+  // check threw `ReferenceError: event is not defined` for every DDO that got past the hash
+  // gate above, the caller's `try/catch` swallowed it as "Error on sink function", and the
+  // answer was discarded. The effect was that **no** DDO fetched from a remote provider was
+  // ever accepted: a FindDDO could only ever return what this node already held locally. It
+  // was invisible because the failure looked identical to a provider that simply had nothing.
+  //
+  // TypeScript did not catch it because `target: ES2022` pulls in the default DOM library,
+  // where `event` is a declared global.
+  //
+  // What the check is for is visible from step 5, which reads `indexedMetadata.event.block` and
+  // `indexedMetadata.event.tx`: the DDO has to carry an indexed event before any of that can be
+  // verified. Testing that also stops step 5 throwing on a DDO that has no `indexedMetadata`.
+  if (!indexedMetadata?.event) {
+    CORE_LOGGER.error(
+      `Asset ${updatedDdo.id} carries no indexed event, cannot confirm validation.`
+    )
     return false
   }
 
