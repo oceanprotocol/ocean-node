@@ -51,7 +51,11 @@ async function initDatabaseWithRetry(
       !(await isReachableConnection(dbConfig.url))
 
     if (!notReachable) {
-      const database = await Database.init(dbConfig)
+      // On the final attempt allow a partial (DEGRADED) init: if the metadata DB is still
+      // unreachable we keep the working SQLite core (C2D / nonce / auth) instead of returning
+      // null. Earlier attempts keep returning null on metadata failure so we retry with backoff
+      // and give a slow-starting metadata DB time to come up (yielding a full node).
+      const database = await Database.init(dbConfig, isLastAttempt)
       if (database) {
         if (attempt > 1) {
           OCEAN_NODE_LOGGER.info(`Database initialized after ${attempt} attempts`)
@@ -164,6 +168,14 @@ const dbconn: Database | null = await initDatabaseWithRetry(
 )
 if (!dbconn) {
   OCEAN_NODE_LOGGER.error('Database failed to initialize')
+} else if (hasValidDBConfiguration(config.dbConfig) && !dbconn.metadataInitialized) {
+  // DEGRADED mode: SQLite core (C2D / nonce / auth) is up but the metadata DB (Typesense/
+  // Elasticsearch) is unreachable. The Indexer eagerly touches the metadata databases in its
+  // constructor, so it must not be started here.
+  config.hasIndexer = false
+  OCEAN_NODE_LOGGER.warn(
+    'Running in DEGRADED mode: metadata database is unavailable, Indexer is disabled. C2D / nonce / auth remain available.'
+  )
 }
 
 if (!hasValidDBConfiguration(config.dbConfig)) {
