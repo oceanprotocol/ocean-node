@@ -84,6 +84,53 @@ describe('ServiceTemplateSchema', () => {
       }).success
     ).to.equal(true)
   })
+  it('a ComfyUI-shaped bundle (parent, commandFile, workflows) matches ServiceTemplateSchema', () => {
+    const bundle = {
+      id: 'ltx-video-ugc-product',
+      name: 'LTX product video',
+      description: 'ComfyUI with an LTX product-video graph.',
+      kind: 'bundle',
+      service: 'comfyui',
+      outcome: 'A short product video from one product photo.',
+      category: 'video',
+      includes: [
+        { name: 'LTX-Video 2B', kind: 'model', repoId: 'Lightricks/LTX-Video' },
+        { name: 'ocean_ugc_product', kind: 'workflow' }
+      ],
+      image: 'yanwk/comfyui-boot',
+      tag: 'latest',
+      exposedPorts: [8188],
+      commandFile: 'bootstrap.sh',
+      userConfigurableEnvVars: [
+        {
+          key: 'HF_TOKEN',
+          required: true,
+          sensitive: true,
+          validation: '^hf_[A-Za-z0-9]+$'
+        }
+      ],
+      requiredResources: [{ kind: 'discrete', type: 'gpu', min: 1, recommended: 1 }],
+      workflows: [
+        {
+          id: 'ocean_ugc_product',
+          name: 'Product video',
+          file: 'workflows/ocean_ugc_product.json'
+        }
+      ]
+    }
+    expect(ServiceTemplateSchema.safeParse(bundle).success).to.equal(true)
+  })
+
+  it('a bundle without its parent service id is rejected', () => {
+    const orphan = {
+      id: 'orphan-bundle',
+      kind: 'bundle',
+      image: 'yanwk/comfyui-boot',
+      tag: 'latest',
+      exposedPorts: [8188]
+    }
+    expect(ServiceTemplateSchema.safeParse(orphan).success).to.equal(false)
+  })
 })
 
 describe('ServiceOnDemandConfigSchema', () => {

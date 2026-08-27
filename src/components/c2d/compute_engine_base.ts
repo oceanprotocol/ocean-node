@@ -118,7 +118,8 @@ export abstract class C2DEngine {
     owner: string,
     payment: DBComputeJobPayment,
     serviceId: string,
-    userData?: string // ECIES-encrypted; the engine decrypts it transiently into the container env
+    userData?: string, // ECIES-encrypted; the engine decrypts it transiently into the container env
+    outputBucketId?: string
   ): Promise<ServiceJob | null> {
     return null
   }
@@ -895,7 +896,8 @@ export abstract class C2DEngine {
       CapAdd: [] as string[],
       CapDrop: [] as string[],
       IpcMode: null as string,
-      ShmSize: 0 as number
+      ShmSize: 0 as number,
+      PidsLimit: 0 as number
     }
     // Filter out resources with amount 0 as they're not actually being requested
     const activeResources = requests.filter((r) => r.amount > 0)
@@ -910,6 +912,15 @@ export abstract class C2DEngine {
               break
             case 'ShmSize':
               ret.ShmSize = value as number
+              break
+            // Multi-process workloads (one worker process per GPU, each with its own
+            // torch/NCCL thread pools) count every thread against the cgroup pids limit,
+            // so the hardcoded 512 below is reachable. Operator-raisable, same as the rest.
+            case 'PidsLimit':
+              // Docker reads -1/0 as "unlimited", so an unvalidated value silently turns the
+              // fork-bomb cap off. Anything but a positive integer keeps the 512 default.
+              if (Number.isInteger(value) && (value as number) > 0)
+                ret.PidsLimit = value as number
               break
             case 'GroupAdd':
               for (const grp of value as string[]) {
