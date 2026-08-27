@@ -904,8 +904,9 @@ export abstract class C2DEngine {
 
     for (const resource of activeResources) {
       const res = this.getResource(resources, resource.id)
-      if (res.init && res.init.advanced) {
-        for (const [key, value] of Object.entries(res.init.advanced)) {
+      const advanced = res?.init?.advanced
+      if (advanced) {
+        for (const [key, value] of Object.entries(advanced)) {
           switch (key) {
             case 'IpcMode':
               ret.IpcMode = value as string
