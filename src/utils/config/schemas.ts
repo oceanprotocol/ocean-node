@@ -393,7 +393,16 @@ export const ServiceTemplateSchema = z
       .optional(),
     outcome: z.string().min(1).optional(),
     category: z
-      .enum(['image', 'video', 'llm', 'serving', 'notebook', 'embeddings', 'app'])
+      .enum([
+        'image',
+        'video',
+        'llm',
+        'serving',
+        'notebook',
+        'embeddings',
+        'app',
+        'other'
+      ])
       .optional(),
     includes: z.array(TemplateIncludedItemSchema).optional(),
     image: z.string().min(1),

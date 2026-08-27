@@ -2987,3 +2987,26 @@ describe('engine-wide metrics summary logging', function () {
     }
   })
 })
+
+describe('getDockerAdvancedConfig() PidsLimit', () => {
+  // Docker treats -1/0 as unlimited, so a template must not be able to disable the cap.
+  const engine: any = Object.create(C2DEngineDocker.prototype)
+  const resources = (PidsLimit: number): ComputeResource[] => [
+    { id: 'gpu0', total: 1, init: { advanced: { PidsLimit } } } as any
+  ]
+  const requests: ComputeResourceRequest[] = [{ id: 'gpu0', amount: 1 }]
+
+  for (const bad of [-1, 0, 1.5, NaN]) {
+    it(`${bad} is ignored → 0 (caller keeps the 512 default)`, function () {
+      expect(engine.getDockerAdvancedConfig(requests, resources(bad)).PidsLimit).to.equal(
+        0
+      )
+    })
+  }
+
+  it('a positive integer passes through', function () {
+    expect(engine.getDockerAdvancedConfig(requests, resources(4096)).PidsLimit).to.equal(
+      4096
+    )
+  })
+})

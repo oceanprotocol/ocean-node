@@ -920,7 +920,10 @@ export abstract class C2DEngine {
             // torch/NCCL thread pools) count every thread against the cgroup pids limit,
             // so the hardcoded 512 below is reachable. Operator-raisable, same as the rest.
             case 'PidsLimit':
-              ret.PidsLimit = value as number
+              // Docker reads -1/0 as "unlimited", so an unvalidated value silently turns the
+              // fork-bomb cap off. Anything but a positive integer keeps the 512 default.
+              if (Number.isInteger(value) && (value as number) > 0)
+                ret.PidsLimit = value as number
               break
             case 'GroupAdd':
               for (const grp of value as string[]) {

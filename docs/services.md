@@ -207,7 +207,7 @@ declare resources, configure GPUs, set per-environment constraints, and price th
   revoked consumer cannot keep a service alive). `stop` is owner-gated only, so a
   revoked owner can still shut their own service down.
 
--**No privileged/advanced Docker config, with three narrow exceptions.** The service path
+- **No privileged/advanced Docker config, with three narrow exceptions.** The service path
   deliberately omits most of the advanced Docker config the compute path supports — host
   bind mounts, extra capabilities, `seccomp:unconfined`, devices beyond the priced GPU
   pool. Do not thread those in.
