@@ -55,7 +55,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(ocean_compute_cpu_usage_percent)",
+          "expr": "sum(ocean_compute_cpu_usage_percent{service_instance_id=~\"$instance\"})",
           "legendFormat": "cpu %",
           "range": false,
           "instant": true,
@@ -183,7 +183,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(ocean_compute_cpu_cores_allocated)",
+          "expr": "sum(ocean_compute_cpu_cores_allocated{service_instance_id=~\"$instance\"})",
           "legendFormat": "allocated",
           "range": true,
           "instant": false,
@@ -195,7 +195,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(ocean_compute_cpu_host_cores)",
+          "expr": "sum(ocean_compute_cpu_host_cores{service_instance_id=~\"$instance\"})",
           "legendFormat": "host cores",
           "range": true,
           "instant": false,
@@ -260,7 +260,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(ocean_compute_memory_used_bytes)",
+          "expr": "sum(ocean_compute_memory_used_bytes{service_instance_id=~\"$instance\"})",
           "legendFormat": "ram used",
           "range": false,
           "instant": true,
@@ -388,7 +388,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(ocean_compute_disk_used_bytes)",
+          "expr": "sum(ocean_compute_disk_used_bytes{service_instance_id=~\"$instance\"})",
           "legendFormat": "disk used",
           "range": true,
           "instant": false,
@@ -466,7 +466,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(ocean_compute_network_rx_bytes)",
+          "expr": "sum(ocean_compute_network_rx_bytes{service_instance_id=~\"$instance\"})",
           "legendFormat": "rx",
           "range": true,
           "instant": false,
@@ -478,7 +478,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(ocean_compute_network_tx_bytes)",
+          "expr": "sum(ocean_compute_network_tx_bytes{service_instance_id=~\"$instance\"})",
           "legendFormat": "tx",
           "range": true,
           "instant": false,
@@ -543,7 +543,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum by (free) (ocean_compute_jobs_running)",
+          "expr": "sum by (free) (ocean_compute_jobs_running{service_instance_id=~\"$instance\"})",
           "legendFormat": "running free={{free}}",
           "range": true,
           "instant": false,
@@ -555,7 +555,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum by (free) (ocean_compute_jobs_queued)",
+          "expr": "sum by (free) (ocean_compute_jobs_queued{service_instance_id=~\"$instance\"})",
           "legendFormat": "queued free={{free}}",
           "range": true,
           "instant": false,
@@ -620,7 +620,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(ocean_compute_jobs_started_total[$__rate_interval]))",
+          "expr": "sum(rate(ocean_compute_jobs_started_total{service_instance_id=~\"$instance\"}[$__rate_interval]))",
           "legendFormat": "started",
           "range": true,
           "instant": false,
@@ -632,7 +632,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum by (status) (rate(ocean_compute_jobs_finished_total[$__rate_interval]))",
+          "expr": "sum by (status) (rate(ocean_compute_jobs_finished_total{service_instance_id=~\"$instance\"}[$__rate_interval]))",
           "legendFormat": "finished {{status}}",
           "range": true,
           "instant": false,
@@ -710,7 +710,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "avg(ocean_compute_gpu_utilization_percent)",
+          "expr": "avg(ocean_compute_gpu_utilization_percent{service_instance_id=~\"$instance\"})",
           "legendFormat": "gpu util",
           "range": false,
           "instant": true,
@@ -780,7 +780,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "ocean_compute_gpu_utilization_percent",
+          "expr": "ocean_compute_gpu_utilization_percent{service_instance_id=~\"$instance\"}",
           "legendFormat": "{{gpu}} {{vendor}}",
           "range": true,
           "instant": false,
@@ -845,7 +845,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "ocean_compute_gpu_memory_used_bytes",
+          "expr": "ocean_compute_gpu_memory_used_bytes{service_instance_id=~\"$instance\"}",
           "legendFormat": "used {{gpu}} {{vendor}}",
           "range": true,
           "instant": false,
@@ -857,7 +857,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "ocean_compute_gpu_memory_total_bytes",
+          "expr": "ocean_compute_gpu_memory_total_bytes{service_instance_id=~\"$instance\"}",
           "legendFormat": "total {{gpu}} {{vendor}}",
           "range": true,
           "instant": false,
@@ -993,7 +993,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "ocean_compute_gpu_temperature_celsius",
+          "expr": "ocean_compute_gpu_temperature_celsius{service_instance_id=~\"$instance\"}",
           "legendFormat": "{{gpu}} {{vendor}}",
           "range": true,
           "instant": false,
@@ -1058,7 +1058,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "ocean_compute_gpu_power_watts",
+          "expr": "ocean_compute_gpu_power_watts{service_instance_id=~\"$instance\"}",
           "legendFormat": "{{gpu}} {{vendor}}",
           "range": true,
           "instant": false,
@@ -1136,7 +1136,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(ocean_compute_gpu_devices_in_use)",
+          "expr": "sum(ocean_compute_gpu_devices_in_use{service_instance_id=~\"$instance\"})",
           "legendFormat": "devices in use",
           "range": false,
           "instant": true,
@@ -1198,7 +1198,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(ocean_compute_cpu_throttled_containers)",
+          "expr": "sum(ocean_compute_cpu_throttled_containers{service_instance_id=~\"$instance\"})",
           "legendFormat": "throttled",
           "range": false,
           "instant": true,
@@ -1268,7 +1268,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "max(ocean_compute_oldest_sample_age_seconds)",
+          "expr": "max(ocean_compute_oldest_sample_age_seconds{service_instance_id=~\"$instance\"})",
           "legendFormat": "oldest sample age",
           "range": false,
           "instant": true,
@@ -1338,7 +1338,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "ocean_compute_env_resource_inuse / clamp_min(ocean_compute_env_resource_total, 0.0001)",
+          "expr": "ocean_compute_env_resource_inuse{service_instance_id=~\"$instance\"} / clamp_min(ocean_compute_env_resource_total{service_instance_id=~\"$instance\"}, 0.0001)",
           "legendFormat": "{{env}} — {{resource}}",
           "range": false,
           "instant": true,

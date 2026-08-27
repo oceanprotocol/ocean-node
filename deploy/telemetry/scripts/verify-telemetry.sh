@@ -170,8 +170,12 @@ if [ "$DO_NODE" -eq 1 ] && [ -n "${PRIVATE_KEY:-}" ]; then
   check_present 'ocean_p2p_dht_routing_table_peers' 'ocean_p2p_dht_routing_table_peers is present'
 
   # Cardinality guard: peerId/did/jobId must never appear as metric labels.
+  # A selector matches `<label>!=""` only on series that actually carry that label, so an
+  # absent label yields no series (empty result) and a leaked one yields a count. (The old
+  # `count by (<label>)(...)` grouped all series under a single empty-labeled group and so
+  # returned a value even when the label was absent — a false positive.)
   for label in did jobId peerId consumerAddress; do
-    if [ -z "$(prom_value "count(count by ($label) (ocean_p2p_ready))")" ]; then
+    if [ -z "$(prom_value "count({__name__=~\"ocean_.+\", $label!=\"\"})")" ]; then
       ok "$label is NOT a metric label (cardinality guard)"
     else
       bad "$label leaked onto a metric as a label"

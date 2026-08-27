@@ -3,7 +3,9 @@ services:
     image: otel/opentelemetry-collector-contrib:0.115.1
     command: ["--config=/etc/otel-collector.yaml"]
     volumes: ["./otel-collector.yaml:/etc/otel-collector.yaml:ro"]
-    ports: ["4318:4318", "4317:4317"]
+    # Bound to loopback only: this dev stack has an open OTLP receiver and an anonymous-admin
+    # Grafana, neither of which should be reachable on all host interfaces by default.
+    ports: ["127.0.0.1:4318:4318", "127.0.0.1:4317:4317"]
     depends_on: [prometheus, tempo]
   prometheus:
     image: prom/prometheus:v3.1.0
@@ -14,7 +16,7 @@ services:
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./rules.yml:/etc/prometheus/rules.yml:ro
-    ports: ["9090:9090"]
+    ports: ["127.0.0.1:9090:9090"]
   tempo-init:
     image: grafana/tempo:2.7.0
     user: root
@@ -26,7 +28,7 @@ services:
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml:ro
       - tempo-data:/var/tempo
-    ports: ["3200:3200"]
+    ports: ["127.0.0.1:3200:3200"]
     depends_on: [tempo-init]
   grafana:
     image: grafana/grafana:11.5.1
@@ -37,7 +39,7 @@ services:
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
-    ports: ["3001:3000"]
+    ports: ["127.0.0.1:3001:3000"]
     depends_on: [prometheus, tempo]
 volumes:
   tempo-data:

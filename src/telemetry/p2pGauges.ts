@@ -43,7 +43,11 @@ export function registerP2PGauges(p2p: OceanP2P): void {
       if (typeof st.routingTablePeers === 'number') {
         obs.observe(M.p2pRoutingTablePeers, st.routingTablePeers)
       }
-      obs.observe(M.p2pDhtMode, st.dhtMode === 'server' ? 1 : 0)
+      // Only emit when the mode is actually known: an unreachable DHT service reports
+      // `undefined`, which is not the same as "client" and must not be recorded as 0.
+      if (st.dhtMode === 'server' || st.dhtMode === 'client') {
+        obs.observe(M.p2pDhtMode, st.dhtMode === 'server' ? 1 : 0)
+      }
       obs.observe(M.p2pReady, st.ready ? 1 : 0)
 
       // dialQueue => { total, byStatus }

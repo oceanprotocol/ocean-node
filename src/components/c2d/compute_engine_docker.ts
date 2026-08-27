@@ -1249,9 +1249,19 @@ export class C2DEngineDocker extends C2DEngine {
       }
     }
 
-    this.envResourceSnapshot = resourceSnapshot
+    // Unfiltered calls see every env, so they are authoritative and replace the snapshot
+    // wholesale (dropping envs that no longer exist). A chainId-filtered call only sees that
+    // chain's envs, so it must merge — refreshing its own entries without clobbering the
+    // engine-wide picture other chains contributed. Queued totals are engine-wide, so they
+    // are only trusted from an unfiltered call.
     if (!chainId) {
+      this.envResourceSnapshot = resourceSnapshot
       this.lastQueuedTotals = { queued: queuedTotal, queuedFree: queuedFreeTotal }
+    } else {
+      this.envResourceSnapshot = {
+        ...(this.envResourceSnapshot ?? {}),
+        ...resourceSnapshot
+      }
     }
     return filteredEnvs
   }

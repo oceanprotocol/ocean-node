@@ -18,11 +18,9 @@ function hexToBytes(hex: string): Uint8Array {
   if (clean.length === 0 || clean.length % 2 !== 0) {
     throw new Error('PRIVATE_KEY is not an even-length hex string')
   }
-  const bytes = new Uint8Array(clean.length / 2)
-  for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(clean.substr(i * 2, 2), 16)
-  }
-  return bytes
+  // Buffer is a Uint8Array subclass, so returning it satisfies the signature while using
+  // the native hex decoder. The even-length/empty guard above still rejects malformed input.
+  return Buffer.from(clean, 'hex')
 }
 
 export async function derivePeerIdFromEnv(

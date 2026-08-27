@@ -55,7 +55,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum by (direction) (ocean_p2p_connections)",
+          "expr": "sum by (direction) (ocean_p2p_connections{service_instance_id=~\"$instance\", ocean_node_role=~\"$role\"})",
           "legendFormat": "{{direction}}",
           "range": true,
           "instant": false,
@@ -120,7 +120,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "ocean_p2p_dht_routing_table_peers",
+          "expr": "ocean_p2p_dht_routing_table_peers{service_instance_id=~\"$instance\", ocean_node_role=~\"$role\"}",
           "legendFormat": "{{service_instance_id}}",
           "range": true,
           "instant": false,
@@ -185,7 +185,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "ocean_p2p_dht_mode",
+          "expr": "ocean_p2p_dht_mode{service_instance_id=~\"$instance\", ocean_node_role=~\"$role\"}",
           "legendFormat": "dht mode",
           "range": false,
           "instant": true,
@@ -264,7 +264,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "ocean_p2p_ready",
+          "expr": "ocean_p2p_ready{service_instance_id=~\"$instance\", ocean_node_role=~\"$role\"}",
           "legendFormat": "{{service_instance_id}}",
           "range": false,
           "instant": true,
@@ -330,7 +330,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum by (outcome) (rate(ocean_p2p_sendto_total[$__rate_interval]))",
+          "expr": "sum by (outcome) (rate(ocean_p2p_sendto_total{service_instance_id=~\"$instance\", ocean_node_role=~\"$role\"}[$__rate_interval]))",
           "legendFormat": "{{outcome}}",
           "range": true,
           "instant": false,
@@ -395,7 +395,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum by (reason) (rate(ocean_p2p_sendto_total{outcome=\"fail\"}[$__rate_interval]))",
+          "expr": "sum by (reason) (rate(ocean_p2p_sendto_total{outcome=\"fail\", service_instance_id=~\"$instance\", ocean_node_role=~\"$role\"}[$__rate_interval]))",
           "legendFormat": "{{reason}}",
           "range": true,
           "instant": false,
@@ -531,7 +531,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum by (result) (rate(ocean_p2p_resolve_total[$__rate_interval]))",
+          "expr": "sum by (result) (rate(ocean_p2p_resolve_total{service_instance_id=~\"$instance\", ocean_node_role=~\"$role\"}[$__rate_interval]))",
           "legendFormat": "{{result}}",
           "range": true,
           "instant": false,
@@ -680,7 +680,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum by (status) (ocean_p2p_dial_queue)",
+          "expr": "sum by (status) (ocean_p2p_dial_queue{service_instance_id=~\"$instance\", ocean_node_role=~\"$role\"})",
           "legendFormat": "{{status}}",
           "range": true,
           "instant": false,
@@ -745,7 +745,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "ocean_p2p_relay_reservations",
+          "expr": "ocean_p2p_relay_reservations{service_instance_id=~\"$instance\", ocean_node_role=~\"$role\"}",
           "legendFormat": "{{service_instance_id}} {{kind}}",
           "range": true,
           "instant": false,
@@ -810,7 +810,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(ocean_p2p_peer_connect_total[$__rate_interval]))",
+          "expr": "sum(rate(ocean_p2p_peer_connect_total{service_instance_id=~\"$instance\", ocean_node_role=~\"$role\"}[$__rate_interval]))",
           "legendFormat": "connect",
           "range": true,
           "instant": false,
@@ -822,7 +822,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(ocean_p2p_peer_disconnect_total[$__rate_interval]))",
+          "expr": "sum(rate(ocean_p2p_peer_disconnect_total{service_instance_id=~\"$instance\", ocean_node_role=~\"$role\"}[$__rate_interval]))",
           "legendFormat": "disconnect",
           "range": true,
           "instant": false,
@@ -900,7 +900,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum by (outcome) (rate(ocean_p2p_dht_provide_total[$__rate_interval]))",
+          "expr": "sum by (outcome) (rate(ocean_p2p_dht_provide_total{service_instance_id=~\"$instance\", ocean_node_role=~\"$role\"}[$__rate_interval]))",
           "legendFormat": "{{outcome}}",
           "range": true,
           "instant": false,
@@ -965,7 +965,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum by (kind, outcome) (rate(ocean_p2p_dht_find_total[$__rate_interval]))",
+          "expr": "sum by (kind, outcome) (rate(ocean_p2p_dht_find_total{service_instance_id=~\"$instance\", ocean_node_role=~\"$role\"}[$__rate_interval]))",
           "legendFormat": "{{kind}} — {{outcome}}",
           "range": true,
           "instant": false,
@@ -1043,7 +1043,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "min(ocean_p2p_autotls_cert_expiry_seconds)",
+          "expr": "min(ocean_p2p_autotls_cert_expiry_seconds{service_instance_id=~\"$instance\", ocean_node_role=~\"$role\"})",
           "legendFormat": "expiry",
           "range": false,
           "instant": true,
@@ -1113,7 +1113,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "topk(15, sum by (command) (rate(ocean_p2p_command_total[$__range])))",
+          "expr": "topk(15, sum by (command) (rate(ocean_p2p_command_total{service_instance_id=~\"$instance\", ocean_node_role=~\"$role\"}[$__range])))",
           "legendFormat": "{{command}}",
           "range": false,
           "instant": true,
@@ -1166,7 +1166,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "count(ocean_p2p_ready)",
+          "expr": "count(ocean_p2p_ready{service_instance_id=~\"$instance\", ocean_node_role=~\"$role\"})",
           "legendFormat": "nodes reporting",
           "range": false,
           "instant": true,
@@ -1178,7 +1178,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "avg(ocean_p2p_ready)",
+          "expr": "avg(ocean_p2p_ready{service_instance_id=~\"$instance\", ocean_node_role=~\"$role\"})",
           "legendFormat": "ready share",
           "range": false,
           "instant": true,

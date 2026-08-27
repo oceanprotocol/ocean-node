@@ -9,9 +9,12 @@ server is loopback-only, and the node's HTTP API is optional, so neither is reli
 from outside its network namespace.
 
 **Telemetry is a hard no-op until configured.** The `telemetry/` module depends only on
-`@opentelemetry/api`; unless `OTEL_EXPORTER_OTLP_ENDPOINT` (or a per-signal endpoint) is set and
-`TELEMETRY_ENABLED` isn't `off`, every instrument is a no-op and nothing is sent over the network.
-Existing deployments are unaffected until an operator opts in.
+`@opentelemetry/api`; unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set and `TELEMETRY_ENABLED` isn't
+`off`, every instrument is a no-op and nothing is sent over the network. Only
+`OTEL_EXPORTER_OTLP_ENDPOINT` controls whether telemetry is enabled — the OTel SDK still honors the
+standard per-signal `OTEL_EXPORTER_OTLP_{TRACES,METRICS}_ENDPOINT` variables for routing once
+enabled, but setting only those (without the base endpoint) does not turn telemetry on. Existing
+deployments are unaffected until an operator opts in.
 
 ---
 
