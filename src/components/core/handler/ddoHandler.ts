@@ -74,6 +74,25 @@ const MAX_DDO_RESPONSE_BYTES = 4 * 1024 * 1024
  */
 const notFoundDdos = new Map<string, number>()
 
+/**
+ * Ceiling on how many distinct missing ids are remembered at once. The ids callers ask for are
+ * frequently ids that do not exist, and a caller can supply an unbounded number of *distinct*
+ * non-existent ids - a scan, a retry loop over random dids - each of which would otherwise hold
+ * a slot for the full TTL. Without this cap the cache grows without limit until each id happens
+ * to be looked up again after it expired. At this size the map is a few hundred KB at most.
+ */
+const MAX_NOT_FOUND_DDOS = 50_000
+
+/** Drops every entry whose TTL has already passed. */
+function pruneExpiredNotFoundDdos(): void {
+  const now = Date.now()
+  for (const [id, expiresAt] of notFoundDdos) {
+    if (expiresAt <= now) {
+      notFoundDdos.delete(id)
+    }
+  }
+}
+
 /** True when `id` was searched for recently and found nowhere. Prunes as it reads. */
 function isDdoKnownMissing(id: string): boolean {
   const expiresAt = notFoundDdos.get(id)
@@ -95,6 +114,17 @@ function isDdoKnownMissing(id: string): boolean {
  * cache the reason a freshly published asset looked missing.
  */
 function rememberDdoMissing(id: string): void {
+  // Enforce the ceiling before adding a genuinely new id. Reclaim expired entries first, and if
+  // that is not enough evict the oldest live ones - every entry shares the same TTL, so the
+  // Map's insertion order is also expiry order, and the front is what is closest to expiring.
+  if (notFoundDdos.size >= MAX_NOT_FOUND_DDOS && !notFoundDdos.has(id)) {
+    pruneExpiredNotFoundDdos()
+    while (notFoundDdos.size >= MAX_NOT_FOUND_DDOS) {
+      const oldest = notFoundDdos.keys().next().value
+      if (oldest === undefined) break
+      notFoundDdos.delete(oldest)
+    }
+  }
   notFoundDdos.set(id, Date.now() + P2P_TIMEOUTS.ddoNotFoundCacheMs)
 }
 
@@ -692,7 +722,12 @@ export class FindDdoHandler extends CommandHandler {
        * not go through here.
        */
       const finishCompletedSearch = (): P2PCommandResponse => {
-        if (resultList.length === 0) {
+        // Only a search that ran to completion may write a "found nowhere" entry. The concurrent
+        // provider loop swallows each branch's abort, so this exit is still reached when the
+        // deadline fired mid-query - and a deadline establishes nothing about whether the DDO
+        // exists (see the comment on this block). Remembering it missing then would let a slow
+        // lookup poison the cache against an id that is simply expensive to find.
+        if (resultList.length === 0 && !findDdoSignal.aborted) {
           rememberDdoMissing(task.id)
         }
         endFindDdo()

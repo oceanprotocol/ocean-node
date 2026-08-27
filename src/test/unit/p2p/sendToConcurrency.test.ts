@@ -13,6 +13,13 @@ import { resetP2PCounters } from '../../../components/P2P/counters.js'
 import { OceanNodeP2PConfigSchema } from '../../../utils/config/schemas.js'
 import { SENDTO_MAX_CONCURRENCY_CAP } from '../../../components/P2P/timeouts.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
+import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
+import {
+  buildEnvOverrideConfig,
+  setupEnvironment,
+  tearDownEnvironment,
+  OverrideEnvConfig
+} from '../../utils/utils.js'
 
 /**
  * A `sendTo` holds a slot in libp2p's dial queue for its whole setup phase, and two paths fan
@@ -27,7 +34,6 @@ import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 
 const PEER = '16Uiu2HAmLhRDqfufZiQnxvQs2XHhd6hwkLSPfjAQg1gH8wgRixiP'
 const ADDR = '/ip4/10.3.3.3/tcp/9000'
-const KEY = 'P2P_SENDTO_MAX_CONCURRENCY'
 
 function responderFor(handle: () => Promise<P2PCommandResponse>): OceanP2P {
   return {
@@ -76,74 +82,88 @@ function sender(handle: () => Promise<P2PCommandResponse>): OceanP2P {
 }
 
 describe('outbound sends are capped', () => {
-  let saved: string | undefined
-
-  before(() => {
-    saved = process.env[KEY]
-  })
-
-  after(() => {
-    if (saved === undefined) {
-      delete process.env[KEY]
-    } else {
-      process.env[KEY] = saved
-    }
-  })
-
   beforeEach(() => {
     resetP2PCounters()
     resetPeerResolutionCache()
   })
 
-  it('never runs more exchanges at once than the ceiling allows', async () => {
-    process.env[KEY] = '3'
-    expect(P2P_TIMEOUTS.sendToMaxConcurrency).to.equal(3)
-
-    let inFlight = 0
-    let peak = 0
-    let release: () => void = () => {}
-    const held = new Promise<void>((resolve) => {
-      release = resolve
+  describe('with the ceiling set to 3', () => {
+    let envOverrides: OverrideEnvConfig[]
+    before(async () => {
+      envOverrides = await setupEnvironment(
+        null,
+        buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.P2P_SENDTO_MAX_CONCURRENCY], ['3'])
+      )
+    })
+    after(async () => {
+      await tearDownEnvironment(envOverrides)
     })
 
-    const node = sender(async () => {
-      inFlight++
-      peak = Math.max(peak, inFlight)
-      await held
-      inFlight--
-      return { status: { httpStatus: 200 }, stream: Readable.from(['payload']) }
-    })
+    it('never runs more exchanges at once than the ceiling allows', async () => {
+      expect(P2P_TIMEOUTS.sendToMaxConcurrency).to.equal(3)
 
-    const sends = Array.from({ length: 9 }, () =>
-      OceanP2P.prototype.sendTo.call(node, PEER, JSON.stringify({ command: 'x' }))
-    )
+      let inFlight = 0
+      let peak = 0
+      let release: () => void = () => {}
+      const held = new Promise<void>((resolve) => {
+        release = resolve
+      })
 
-    // Give every send that can start a chance to start before the responders are released.
-    await new Promise((resolve) => setTimeout(resolve, 150))
-    expect(peak, 'more exchanges were in flight than the ceiling allows').to.equal(3)
-    expect(sendToLimiterStats().queued, 'the rest must be queued, not running').to.equal(
-      6
-    )
+      const node = sender(async () => {
+        inFlight++
+        peak = Math.max(peak, inFlight)
+        await held
+        inFlight--
+        return { status: { httpStatus: 200 }, stream: Readable.from(['payload']) }
+      })
 
-    release()
-    const results = await Promise.all(sends)
-    for (const result of results) {
-      expect(result.status.httpStatus).to.equal(200)
-      if (result.stream) {
-        for await (const chunk of result.stream) {
-          expect(chunk).to.not.equal(undefined)
+      const sends = Array.from({ length: 9 }, () =>
+        OceanP2P.prototype.sendTo.call(node, PEER, JSON.stringify({ command: 'x' }))
+      )
+
+      // Give every send that can start a chance to start before the responders are released.
+      await new Promise((resolve) => setTimeout(resolve, 150))
+      expect(peak, 'more exchanges were in flight than the ceiling allows').to.equal(3)
+      expect(
+        sendToLimiterStats().queued,
+        'the rest must be queued, not running'
+      ).to.equal(6)
+
+      release()
+      const results = await Promise.all(sends)
+      for (const result of results) {
+        expect(result.status.httpStatus).to.equal(200)
+        if (result.stream) {
+          for await (const chunk of result.stream) {
+            expect(chunk).to.not.equal(undefined)
+          }
         }
       }
-    }
-    expect(peak).to.equal(3)
+      expect(peak).to.equal(3)
+    })
   })
 
-  it('clamps a ceiling that would stop being a ceiling, on both halves', () => {
-    process.env[KEY] = '100000'
-    expect(P2P_TIMEOUTS.sendToMaxConcurrency).to.equal(SENDTO_MAX_CONCURRENCY_CAP)
-    expect(
-      OceanNodeP2PConfigSchema.parse({ sendToMaxConcurrency: '100000' })
-        .sendToMaxConcurrency
-    ).to.equal(SENDTO_MAX_CONCURRENCY_CAP)
+  describe('with a ceiling above the cap', () => {
+    let envOverrides: OverrideEnvConfig[]
+    before(async () => {
+      envOverrides = await setupEnvironment(
+        null,
+        buildEnvOverrideConfig(
+          [ENVIRONMENT_VARIABLES.P2P_SENDTO_MAX_CONCURRENCY],
+          ['100000']
+        )
+      )
+    })
+    after(async () => {
+      await tearDownEnvironment(envOverrides)
+    })
+
+    it('clamps a ceiling that would stop being a ceiling, on both halves', () => {
+      expect(P2P_TIMEOUTS.sendToMaxConcurrency).to.equal(SENDTO_MAX_CONCURRENCY_CAP)
+      expect(
+        OceanNodeP2PConfigSchema.parse({ sendToMaxConcurrency: '100000' })
+          .sendToMaxConcurrency
+      ).to.equal(SENDTO_MAX_CONCURRENCY_CAP)
+    })
   })
 })

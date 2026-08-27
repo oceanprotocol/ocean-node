@@ -1843,9 +1843,10 @@ export class OceanP2P extends EventEmitter {
             P2P_LOGGER.warn(
               `Retrying ${peerId} after a ${failure.name} error: ${failure.message}`
             )
-            try {
-              await connection.close()
-            } catch {}
+            // Close only a connection this attempt dialled. `dial()` returns an existing
+            // connection when there is one, which may be carrying identify / ping / DHT / another
+            // sendTo stream - closing that on a retry would reset all of them.
+            await releaseUnusedConnection(connection, preDialConnectionIds)
           }
         }
 

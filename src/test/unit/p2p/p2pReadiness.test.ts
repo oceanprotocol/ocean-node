@@ -3,6 +3,13 @@ import type { Connection } from '@libp2p/interface'
 import { OceanP2P } from '../../../components/P2P/index.js'
 import { P2P_TIMEOUT_DEFAULTS, P2P_TIMEOUTS } from '../../../components/P2P/timeouts.js'
 import { OceanNodeP2PConfigSchema } from '../../../utils/config/schemas.js'
+import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
+import {
+  buildEnvOverrideConfig,
+  setupEnvironment,
+  tearDownEnvironment,
+  OverrideEnvConfig
+} from '../../utils/utils.js'
 
 /**
  * "P2P is enabled" and "P2P can do anything" are different questions, and only the first one was
@@ -84,11 +91,22 @@ describe('P2P readiness is gated on the routing table', () => {
     expect(status.ready).to.equal(true)
   })
 
-  it('honours an operator threshold on both config halves', () => {
-    const key = 'P2P_READY_MIN_ROUTING_PEERS'
-    const previous = process.env[key]
-    try {
-      process.env[key] = '10'
+  describe('honours an operator threshold on both config halves', () => {
+    let envOverrides: OverrideEnvConfig[]
+    before(async () => {
+      envOverrides = await setupEnvironment(
+        null,
+        buildEnvOverrideConfig(
+          [ENVIRONMENT_VARIABLES.P2P_READY_MIN_ROUTING_PEERS],
+          ['10']
+        )
+      )
+    })
+    after(async () => {
+      await tearDownEnvironment(envOverrides)
+    })
+
+    it('applies to the getter, the schema and the readiness gate', () => {
       expect(P2P_TIMEOUTS.dhtReadyMinPeers).to.equal(10)
       expect(
         OceanNodeP2PConfigSchema.parse({ readyMinRoutingPeers: '10' })
@@ -97,13 +115,7 @@ describe('P2P readiness is gated on the routing table', () => {
       expect(
         OceanP2P.prototype.getP2PStatus.call(nodeWith({ routingTableSize: 9 })).ready
       ).to.equal(false)
-    } finally {
-      if (previous === undefined) {
-        delete process.env[key]
-      } else {
-        process.env[key] = previous
-      }
-    }
+    })
   })
 })
 
@@ -122,22 +134,27 @@ describe('the first DHT self-query runs after bootstrap connections can exist', 
     expect(P2P_TIMEOUT_DEFAULTS.initialQuerySelfMs).to.be.greaterThan(1_000)
   })
 
-  it('is overridable, and the two config halves agree on the override', () => {
-    const key = 'P2P_INITIAL_QUERY_SELF_MS'
-    const previous = process.env[key]
-    try {
-      process.env[key] = '30000'
+  describe('is overridable, and the two config halves agree on the override', () => {
+    let envOverrides: OverrideEnvConfig[]
+    before(async () => {
+      envOverrides = await setupEnvironment(
+        null,
+        buildEnvOverrideConfig(
+          [ENVIRONMENT_VARIABLES.P2P_INITIAL_QUERY_SELF_MS],
+          ['30000']
+        )
+      )
+    })
+    after(async () => {
+      await tearDownEnvironment(envOverrides)
+    })
+
+    it('reaches both the getter and the schema', () => {
       expect(P2P_TIMEOUTS.initialQuerySelfMs).to.equal(30000)
       expect(
         OceanNodeP2PConfigSchema.parse({ initialQuerySelfTimeout: '30000' })
           .initialQuerySelfTimeout
       ).to.equal(30000)
-    } finally {
-      if (previous === undefined) {
-        delete process.env[key]
-      } else {
-        process.env[key] = previous
-      }
-    }
+    })
   })
 })

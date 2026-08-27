@@ -9,6 +9,12 @@ import {
   peerStoreAgeLimits
 } from '../../../components/P2P/timeouts.js'
 import { OceanNodeP2PConfigSchema } from '../../../utils/config/schemas.js'
+import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
+import {
+  buildEnvOverrideConfig,
+  setupEnvironment,
+  tearDownEnvironment
+} from '../../utils/utils.js'
 
 /**
  * libp2p expires peer addresses after an hour and peer records after six, while a DHT provider
@@ -46,21 +52,19 @@ async function atSimulatedAge<T>(ms: number, fn: () => Promise<T>): Promise<T> {
   }
 }
 
-function withEnv(key: string, value: string | undefined, fn: () => void): void {
-  const previous = process.env[key]
+async function withEnv(
+  key: string,
+  value: string,
+  fn: () => void | Promise<void>
+): Promise<void> {
+  const overrides = await setupEnvironment(
+    null,
+    buildEnvOverrideConfig([ENVIRONMENT_VARIABLES[key]], [value])
+  )
   try {
-    if (value === undefined) {
-      delete process.env[key]
-    } else {
-      process.env[key] = value
-    }
-    fn()
+    await fn()
   } finally {
-    if (previous === undefined) {
-      delete process.env[key]
-    } else {
-      process.env[key] = previous
-    }
+    await tearDownEnvironment(overrides)
   }
 }
 
@@ -75,8 +79,8 @@ describe('peer store address lifetime', () => {
       })
     })
 
-    it('never lets the peer record expire before the addresses it carries', () => {
-      withEnv(PEER_AGE_KEY, '60000', () => {
+    it('never lets the peer record expire before the addresses it carries', async () => {
+      await withEnv(PEER_AGE_KEY, '60000', () => {
         const limits = peerStoreAgeLimits()
         expect(limits.maxAddressAge).to.equal(FORTY_EIGHT_HOURS_MS)
         // an operator who lowers only this one would otherwise have the record - and with it
@@ -85,9 +89,9 @@ describe('peer store address lifetime', () => {
       })
     })
 
-    it('honours a deliberate override', () => {
-      withEnv(ADDRESS_AGE_KEY, '7200000', () => {
-        withEnv(PEER_AGE_KEY, '9000000', () => {
+    it('honours a deliberate override', async () => {
+      await withEnv(ADDRESS_AGE_KEY, '7200000', async () => {
+        await withEnv(PEER_AGE_KEY, '9000000', () => {
           expect(peerStoreAgeLimits()).to.deep.equal({
             maxAddressAge: 7_200_000,
             maxPeerAge: 9_000_000
@@ -100,8 +104,8 @@ describe('peer store address lifetime', () => {
     // that validates the configuration
     const rejected = ['', '   ', 'two days', 'NaN', '0', '-1', '10']
     for (const raw of rejected) {
-      it(`falls back to the default on both halves for "${raw}"`, () => {
-        withEnv(ADDRESS_AGE_KEY, raw, () => {
+      it(`falls back to the default on both halves for "${raw}"`, async () => {
+        await withEnv(ADDRESS_AGE_KEY, raw, () => {
           const fromGetter = P2P_TIMEOUTS.peerStoreMaxAddressAgeMs
           const fromSchema = OceanNodeP2PConfigSchema.parse({
             peerStoreMaxAddressAge: raw
@@ -109,7 +113,7 @@ describe('peer store address lifetime', () => {
           expect(fromGetter).to.equal(FORTY_EIGHT_HOURS_MS)
           expect(fromSchema).to.equal(fromGetter)
         })
-        withEnv(PEER_AGE_KEY, raw, () => {
+        await withEnv(PEER_AGE_KEY, raw, () => {
           const fromGetter = P2P_TIMEOUTS.peerStoreMaxPeerAgeMs
           const fromSchema = OceanNodeP2PConfigSchema.parse({
             peerStoreMaxPeerAge: raw

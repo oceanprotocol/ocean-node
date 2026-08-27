@@ -6,9 +6,15 @@ import {
   resetDdoNotFoundCache
 } from '../../components/core/handler/ddoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
-import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { generateDDOHash } from '../../utils/asset.js'
 import { P2P_TIMEOUTS } from '../../components/P2P/timeouts.js'
+import {
+  buildEnvOverrideConfig,
+  setupEnvironment,
+  tearDownEnvironment,
+  OverrideEnvConfig
+} from '../utils/utils.js'
 
 /**
  * FindDDO's provider loop.
@@ -215,13 +221,24 @@ describe('FindDDO queries providers concurrently', () => {
     expect(queries[0].addrs).to.equal(undefined)
   })
 
-  it('abandons a provider that exceeds its own budget without failing the request', async () => {
+  describe('abandons a provider that exceeds its own budget', () => {
     // The budget is lowered for the case rather than waiting out the real one, which also shows
     // the override reaching the code that consumes it.
-    const key = 'P2P_FINDDDO_PROVIDER_TIMEOUT_MS'
-    const previous = process.env[key]
-    process.env[key] = '300'
-    try {
+    let envOverrides: OverrideEnvConfig[]
+    before(async () => {
+      envOverrides = await setupEnvironment(
+        null,
+        buildEnvOverrideConfig(
+          [ENVIRONMENT_VARIABLES.P2P_FINDDDO_PROVIDER_TIMEOUT_MS],
+          ['300']
+        )
+      )
+    })
+    after(async () => {
+      await tearDownEnvironment(envOverrides)
+    })
+
+    it('does not fail the request', async () => {
       const perProvider = P2P_TIMEOUTS.findDdoProviderMs
       expect(perProvider).to.equal(300)
       const slow = { delayMs: 60_000 }
@@ -233,13 +250,7 @@ describe('FindDDO queries providers concurrently', () => {
       // The per-provider budget, not the overall FindDDO deadline, is what bounds this.
       expect(elapsed).to.be.below(perProvider + 2_000)
       expect(elapsed).to.be.below(P2P_TIMEOUTS.findDdoMs)
-    } finally {
-      if (previous === undefined) {
-        delete process.env[key]
-      } else {
-        process.env[key] = previous
-      }
-    }
+    })
   })
 })
 

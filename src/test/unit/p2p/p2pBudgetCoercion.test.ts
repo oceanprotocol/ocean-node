@@ -9,6 +9,12 @@ import {
 import { OceanNodeP2PConfigSchema } from '../../../utils/config/schemas.js'
 import { ENV_TO_CONFIG_MAPPING } from '../../../utils/config/constants.js'
 import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
+import {
+  buildEnvOverrideConfig,
+  setupEnvironment,
+  tearDownEnvironment,
+  OverrideEnvConfig
+} from '../../utils/utils.js'
 
 /**
  * Every P2P budget is read twice: once by the validated configuration and once, at the moment
@@ -61,24 +67,22 @@ const cases: BudgetCase[] = [
 ]
 
 describe('P2P budgets: the validated config and the getter must never disagree', () => {
-  const KEY = 'P2P_SENDTO_TOTAL_MS'
-  let saved: string | undefined
+  let envOverrides: OverrideEnvConfig[] | undefined
 
-  before(() => {
-    saved = process.env[KEY]
-  })
-
-  after(() => {
-    if (saved === undefined) {
-      delete process.env[KEY]
-    } else {
-      process.env[KEY] = saved
-    }
+  afterEach(async () => {
+    await tearDownEnvironment(envOverrides)
+    envOverrides = undefined
   })
 
   for (const testCase of cases) {
-    it(`agrees on "${testCase.raw}" (${testCase.why})`, () => {
-      process.env[KEY] = testCase.raw
+    it(`agrees on "${testCase.raw}" (${testCase.why})`, async () => {
+      envOverrides = await setupEnvironment(
+        null,
+        buildEnvOverrideConfig(
+          [ENVIRONMENT_VARIABLES.P2P_SENDTO_TOTAL_MS],
+          [testCase.raw]
+        )
+      )
       const fromGetter = P2P_TIMEOUTS.sendToTotalMs
       const fromSchema = OceanNodeP2PConfigSchema.parse({
         sendToTotalTimeout: testCase.raw
@@ -90,25 +94,18 @@ describe('P2P budgets: the validated config and the getter must never disagree',
     })
   }
 
-  it('applies the attempt cap identically on both halves', () => {
-    const key = 'P2P_SENDTO_MAX_ATTEMPTS'
-    const previous = process.env[key]
-    try {
-      process.env[key] = '1000'
-      const fromGetter = P2P_TIMEOUTS.sendToMaxAttempts
-      const fromSchema = OceanNodeP2PConfigSchema.parse({
-        sendToMaxAttempts: '1000'
-      }).sendToMaxAttempts
-      // an uncapped attempt count multiplies the whole per-attempt budget by itself
-      expect(fromGetter).to.equal(SENDTO_MAX_ATTEMPTS_CAP)
-      expect(fromSchema).to.equal(fromGetter)
-    } finally {
-      if (previous === undefined) {
-        delete process.env[key]
-      } else {
-        process.env[key] = previous
-      }
-    }
+  it('applies the attempt cap identically on both halves', async () => {
+    envOverrides = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.P2P_SENDTO_MAX_ATTEMPTS], ['1000'])
+    )
+    const fromGetter = P2P_TIMEOUTS.sendToMaxAttempts
+    const fromSchema = OceanNodeP2PConfigSchema.parse({
+      sendToMaxAttempts: '1000'
+    }).sendToMaxAttempts
+    // an uncapped attempt count multiplies the whole per-attempt budget by itself
+    expect(fromGetter).to.equal(SENDTO_MAX_ATTEMPTS_CAP)
+    expect(fromSchema).to.equal(fromGetter)
   })
 
   /**
@@ -136,7 +133,10 @@ describe('P2P budgets: the validated config and the getter must never disagree',
   })
 
   it('clamps a budget to a value the timer primitives can actually hold', async () => {
-    process.env[KEY] = '10000000000'
+    envOverrides = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.P2P_SENDTO_TOTAL_MS], ['10000000000'])
+    )
     const budget = P2P_TIMEOUTS.sendToTotalMs
     expect(budget).to.equal(P2P_BUDGET_CAP)
 

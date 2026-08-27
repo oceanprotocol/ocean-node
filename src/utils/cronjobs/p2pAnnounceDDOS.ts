@@ -50,16 +50,23 @@ function extractPage(result: any, pageSize: number): DdoPage {
     return { documents, hasFullBatch }
   }
   for (const perSchema of result) {
+    // The raw page size decides whether the page was full - measured before filtering, because a
+    // page that came back full but held documents without an id still means the store may have
+    // more pages. Testing the filtered count instead would drop `hasFullBatch` to false on such
+    // a page and stop the walk early, leaving later pages never re-provided.
+    let rawCount = 0
     let batch: any[] = []
     if (Array.isArray(perSchema)) {
+      rawCount = perSchema.length
       batch = perSchema.filter((document: any) => document && document.id)
     } else if (perSchema && Array.isArray(perSchema.hits)) {
+      rawCount = perSchema.hits.length
       batch = perSchema.hits
         .map((hit: any) => hit?.document)
         .filter((document: any) => document && document.id)
     }
     documents.push(...batch)
-    if (batch.length >= pageSize) {
+    if (rawCount >= pageSize) {
       hasFullBatch = true
     }
   }

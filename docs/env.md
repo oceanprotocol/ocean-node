@@ -85,8 +85,8 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `P2P_ANNOUNCE_ADDRESSES`: List of addresses to announce to the network. Example: `"[\"/ip4/1.2.3.4/tcp/8000\"]"`
 
   To enable SNI (Server Name Indication) with autoTLS, include `/tls/ws` or `/tls/wss` addresses:
-  - `"["/ip4/<your-ip-addr>/tcp/9001/tls/ws"]"` - TLS WebSocket
-  - `"["/ip4/<your-ip-addr>/tcp/9005/tls/wss"]"` - TLS WebSocket Secure
+  - `"[\"/ip4/<your-ip-addr>/tcp/9001/tls/ws\"]"` - TLS WebSocket
+  - `"[\"/ip4/<your-ip-addr>/tcp/9005/tls/wss\"]"` - TLS WebSocket Secure
 
 - `P2P_ANNOUNCE_PRIVATE`: Announce private IPs. Default: `False`. Setting it to `True` also forces `passthroughMapper` on the DHT, which is what a local or test network needs and what a public node must not have.
 - `P2P_dhtMaxInboundStreams`: Maximum number of DHT inbound streams. Defaults to `500`. Example: `500`
@@ -99,10 +99,10 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `P2P_MAXDIALQUEUELENGTH`: Maximum number of dials that may be queued at once before new dial requests are rejected. Defaults to `500` (libp2p's own default).
 - `P2P_ENABLE_UPNP`: Enable UPNP gateway discovery. Default: `True`
 - `P2P_ENABLE_AUTONAT`: Enable AutoNAT discovery. Default: `True`
-- `P2P_ENABLE_CIRCUIT_RELAY_SERVER`: Enable Circuit Relay Server. It will help the network but increase your bandwidth usage. Should be disabled for edge nodes. Default: `False`
+- `P2P_ENABLE_CIRCUIT_RELAY_SERVER`: Enable Circuit Relay Server. It will help the network but increase your bandwidth usage. It should be disabled for edge nodes. Default: `False`
 - `P2P_ENABLE_CIRCUIT_RELAY_CLIENT`: Enable the Circuit Relay client, i.e. let this node reserve a slot on relay servers so unreachable peers can be dialled through them. Needed by a node behind a NAT it cannot open a port on. Default: `False`
 - `P2P_CIRCUIT_RELAYS`: Numbers of relay servers. Default: `0`
-- `P2P_BOOTSTRAP_NODES` : List of bootstrap nodes. Defults to OPF nodes. Example: ["/dns4/node3.oceanprotocol.com/tcp/9000/p2p/"]
+- `P2P_BOOTSTRAP_NODES` : List of bootstrap nodes. Defaults to OPF nodes. Example: ["/dns4/node3.oceanprotocol.com/tcp/9000/p2p/"]
 - `P2P_BOOTSTRAP_TIMEOUT` : How long to wait before discovering bootstrap nodes. In ms. Default: `10000` ms
 - `P2P_BOOTSTRAP_TAGNAME` : Tag a bootstrap peer with this name before "discovering" it. Default: 'bootstrap'
 - `P2P_BOOTSTRAP_TAGVALUE` : The bootstrap peer tag will have this value. Default: `50`
@@ -113,7 +113,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `P2P_AUTODIALPEERRETRYTHRESHOLD`: When we've failed to dial a peer, do not autodial them again within this number of ms. Default: `120000` (1000 \* 120)
 - `P2P_AUTODIALCONCURRENCY`: When dialling peers from the peer book to keep the number of open connections, add dials for this many peers to the dial queue at once. Default: `5`
 - `P2P_MAXPEERADDRSTODIAL`: Maximum number of addresses allowed for a given peer before giving up. Default: `30`
-- `P2P_AUTODIALINTERVAL`: Auto dial interval (miliseconds). Amount of time between close and open of new peer connection. Default: `5000`
+- `P2P_AUTODIALINTERVAL`: Auto dial interval (milliseconds). Amount of time between close and open of new peer connection. Default: `5000`
 - `P2P_ENABLE_NETWORK_STATS`: Enables 'getP2pNetworkStats' http endpoint. Since this contains private informations (like your ip addresses), this is disabled by default
 
 ### P2P timeout / attempt budgets
