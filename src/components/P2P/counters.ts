@@ -19,7 +19,14 @@
  * P2P component, so an instance field would only add a `this` dependency for no gain.
  *
  * Read them through `OceanP2P.getNetworkingStats()`.
+ *
+ * `countP2PEvent`/`countSendToFailure` are also the single tap for the OTel `p2pResolve`/
+ * `p2pSendTo` counters (`../../telemetry/metrics.js`) - one place mapping these in-process
+ * keys to OTel instrument attributes, instead of scattering `.add()` across the ~10 call
+ * sites in `index.ts`. The two counter families can then never drift apart.
  */
+
+import { p2pResolve, p2pSendTo } from '../../telemetry/metrics.js'
 
 /** Address resolution outcomes. Exactly one is counted per `getPeerMultiaddrs` call that ran a lookup. */
 export const RESOLVE_PEERSTORE_HIT = 'resolve:peerstore-hit'
@@ -63,18 +70,42 @@ const counters: Record<string, number> = {
   )
 }
 
-/** Increments one counter. Unknown keys are accepted so a caller cannot silently lose a count. */
+/** `resolve:*` key -> the bounded `result` attribute the `ocean.p2p.resolve` counter carries. */
+const RESOLVE_OTEL_RESULT: Record<string, string> = {
+  [RESOLVE_PEERSTORE_HIT]: 'peerstore_hit',
+  [RESOLVE_DHT_HIT]: 'dht_hit',
+  [RESOLVE_MISS]: 'miss'
+}
+
+/**
+ * Increments one counter. Unknown keys are accepted so a caller cannot silently lose a count.
+ *
+ * Also the tap for the OTel `p2pResolve`/`p2pSendTo` (ok side) counters: a resolve key adds
+ * `{ result }`, `SENDTO_OK` adds `{ outcome: 'ok' }`. The `sendTo:fail` bookkeeping keys that
+ * `countSendToFailure` drives through here are intentionally not mapped to an OTel attribute -
+ * that call already reports the fail side directly, with the real reason, so mapping them here
+ * too would double-count.
+ */
 export function countP2PEvent(key: string): void {
   counters[key] = (counters[key] ?? 0) + 1
+  const result = RESOLVE_OTEL_RESULT[key]
+  if (result) {
+    p2pResolve.add(1, { result })
+  } else if (key === SENDTO_OK) {
+    p2pSendTo.add(1, { outcome: 'ok' })
+  }
 }
 
 /**
  * Counts a `sendTo` failure twice on purpose: once against the headline `sendTo:fail` and once
- * against its reason, so the two are always consistent with each other.
+ * against its reason, so the two are always consistent with each other. Also reports the OTel
+ * `p2pSendTo` fail side, `{ outcome: 'fail', reason }`, with `reason` one of the bounded
+ * `SENDTO_FAIL_REASONS` values - never the error message itself.
  */
 export function countSendToFailure(reason: string): void {
   countP2PEvent(SENDTO_FAIL)
   countP2PEvent(`${SENDTO_FAIL}:${reason}`)
+  p2pSendTo.add(1, { outcome: 'fail', reason })
 }
 
 /** A copy, so a caller reading the stats cannot mutate the counters. */
