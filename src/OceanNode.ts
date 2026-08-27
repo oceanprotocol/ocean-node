@@ -114,16 +114,28 @@ export class OceanNode {
         if (!blockchainRegistry)
           blockchainRegistry = new BlockchainRegistry(keyManager, config)
       }
-      // teardown old instance if needed; retain the promise so a newly-created
-      // OceanIndexer can await it before crawling (see awaitPendingTeardown).
-      OceanNode.pendingTeardown =
-        this.instance?.tearDownAll().catch((err: unknown) => {
-          OCEAN_NODE_LOGGER.warn(
-            `Failed to tear down previous OceanNode instance: ${
-              err instanceof Error ? err.message : String(err)
-            }`
-          )
-        }) ?? null
+      // Teardown the old instance if needed, and retain the promise so a newly-created
+      // OceanIndexer can await it before crawling (see awaitPendingTeardown). Chain onto any
+      // still-pending teardown from an earlier replacement instead of overwriting it, so the
+      // barrier keeps covering every outstanding teardown, not just the most recent one.
+      const previousTeardown = OceanNode.pendingTeardown
+      const instanceToTearDown = this.instance
+      OceanNode.pendingTeardown = (async () => {
+        if (previousTeardown) {
+          await previousTeardown
+        }
+        if (instanceToTearDown) {
+          try {
+            await instanceToTearDown.tearDownAll()
+          } catch (err: unknown) {
+            OCEAN_NODE_LOGGER.warn(
+              `Failed to tear down previous OceanNode instance: ${
+                err instanceof Error ? err.message : String(err)
+              }`
+            )
+          }
+        }
+      })()
       OCEAN_NODE_LOGGER.debug('Creating new OceanNode instance')
       this.instance = new OceanNode(
         config,

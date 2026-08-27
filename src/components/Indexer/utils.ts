@@ -288,6 +288,7 @@ export async function getPricesByDt(
             })
           }
         } catch (e) {
+          if (isProviderError(e)) throw e
           INDEXER_LOGGER.error(
             `[GET PRICES] failure when retrieving dispenser status from contracts: ${e}`
           )
@@ -315,6 +316,7 @@ export async function getPricesByDt(
             })
           }
         } catch (e) {
+          if (isProviderError(e)) throw e
           INDEXER_LOGGER.error(
             `[GET PRICES] failure when retrieving exchange status from contracts: ${e}`
           )

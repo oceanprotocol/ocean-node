@@ -475,6 +475,13 @@ export class ChainIndexer {
           })
         }
       } catch (error) {
+        if (isProviderError(error)) {
+          // Transient provider failure: preserve the task for a later retry (do not emit
+          // REINDEX_QUEUE_POP) and rethrow so the loop's outer catch holds the cursor,
+          // sleeps, and re-acquires a healthy provider before retrying.
+          this.reindexQueue.unshift(reindexTask)
+          throw error
+        }
         INDEXER_LOGGER.log(
           LOG_LEVELS_STR.LEVEL_ERROR,
           `REINDEX Error for tx ${reindexTask.txId}: ${error.message}`,
