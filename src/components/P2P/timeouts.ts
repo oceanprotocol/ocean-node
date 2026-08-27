@@ -6,18 +6,30 @@
  * `src/components/core/handler/ddoHandler.ts`). The values marked "shared" are kept identical
  * in ocean-node, ocean.js and ocean-node-bootstrap - change them in all three or in none.
  *
- * Every value is env-overridable. The getters re-read `process.env` on each access on purpose:
- * a module-level `const` is captured at import time, which is exactly why the constants this
- * file absorbs could not be overridden by a test that sets the variable after the module graph
- * is loaded. The cost is one `Number()` per call, on paths about to do network I/O.
+ * Every value is overridable from two places, in this order of precedence:
  *
- * Known seam: every key here has to be declared in three places - here,
- * `OceanNodeP2PConfigSchema` and `ENV_TO_CONFIG_MAPPING` - or the validated config and the
- * running code disagree about a budget that only one of them can see. Consumption is via
- * `process.env` rather than `config.p2pConfig.*`, so setting a value through an environment
- * variable works on both paths, while setting it *only* in `config.json` reaches the schema but
- * not this module.
+ *   1. the matching `P2P_*` environment variable, and
+ *   2. the matching `config.p2pConfig.*` field, once the config builder has handed it to
+ *      `registerP2PBudgetConfig()`.
+ *
+ * The getters re-read `process.env` on each access on purpose: a module-level `const` is
+ * captured at import time, which is exactly why the constants this file absorbs could not be
+ * overridden by a test that sets the variable after the module graph is loaded. The cost is one
+ * `Number()` per call, on paths about to do network I/O.
+ *
+ * Env wins over config so that behaviour is preserved: an env override already flows into the
+ * validated config too (via `ENV_TO_CONFIG_MAPPING`), and a test that sets `process.env` after
+ * this module loaded still takes effect without rebuilding the config. Config is the second
+ * source, which closes the seam where a value set *only* in `config.json` reached the schema
+ * but not this module.
+ *
+ * Every key here still has to be declared in three places - here, `OceanNodeP2PConfigSchema`
+ * and `ENV_TO_CONFIG_MAPPING` - or the two sources disagree about a budget that only one of
+ * them can see. The env var name is the join key: `configValueForEnv()` maps it to the
+ * `p2pConfig.*` field through the same `ENV_TO_CONFIG_MAPPING` the schema is built from.
  */
+
+import { ENV_TO_CONFIG_MAPPING } from '../../utils/config/constants.js'
 
 /**
  * The defaults. A plain frozen record so a reader can diff the values against the other repos
@@ -354,10 +366,48 @@ export function normalizeP2pBudget(
 }
 
 /**
- * Reads a budget from the environment, falling back to the mandated default. A blank,
- * malformed, zero, negative or below-floor value is ignored rather than silently disabling or
- * crippling a budget - an unbounded DHT query, and a 1ms one, are both failure modes these
- * constants exist to stop.
+ * The validated `p2pConfig`, registered by the config builder once the config is built (and on
+ * every forced reload). Kept as the second source behind `process.env` so a budget set only in
+ * `config.json` still reaches this module. `undefined` until registration - before that, and
+ * when P2P is disabled (`p2pConfig` null), the getters see env-or-default exactly as they did.
+ */
+let registeredP2PConfig: Record<string, unknown> | undefined
+
+/**
+ * Hands the validated `p2pConfig` to this module so the getters can fall back to a value set
+ * only in `config.json`. Called from the config builder; passing `null`/`undefined` (P2P
+ * disabled, or a reset in tests) clears it back to env-or-default.
+ */
+export function registerP2PBudgetConfig(
+  p2pConfig: Record<string, unknown> | null | undefined
+): void {
+  registeredP2PConfig = p2pConfig ?? undefined
+}
+
+/**
+ * The registered config's value for the `p2pConfig.*` field that `envName` maps to, or
+ * `undefined` when nothing is registered, the env var is not a `p2pConfig.*` budget, or the
+ * field is unset. The mapping is the same `ENV_TO_CONFIG_MAPPING` the schema is built from, so
+ * the env var name is all a getter has to know.
+ */
+function configValueForEnv(envName: string): unknown {
+  if (!registeredP2PConfig) {
+    return undefined
+  }
+  const path = (ENV_TO_CONFIG_MAPPING as Record<string, string>)[envName]
+  const prefix = 'p2pConfig.'
+  if (!path || !path.startsWith(prefix)) {
+    return undefined
+  }
+  return registeredP2PConfig[path.slice(prefix.length)]
+}
+
+/**
+ * Reads a budget from the environment, then from the registered config, then falls back to the
+ * mandated default. A blank, malformed, zero, negative or below-floor value from either source
+ * is ignored rather than silently disabling or crippling a budget - an unbounded DHT query, and
+ * a 1ms one, are both failure modes these constants exist to stop. Env wins over config so a
+ * live/test override still takes effect without rebuilding the config.
  */
 function envPositiveNumber(
   name: string,
@@ -365,7 +415,11 @@ function envPositiveNumber(
   max?: number,
   min?: number
 ): number {
-  return normalizeP2pBudget(process.env[name], max, min) ?? fallback
+  return (
+    normalizeP2pBudget(process.env[name], max, min) ??
+    normalizeP2pBudget(configValueForEnv(name), max, min) ??
+    fallback
+  )
 }
 
 /**

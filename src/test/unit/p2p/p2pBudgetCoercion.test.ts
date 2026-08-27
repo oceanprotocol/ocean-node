@@ -4,7 +4,8 @@ import {
   P2P_TIMEOUT_DEFAULTS,
   P2P_TIMEOUTS,
   SENDTO_MAX_ATTEMPTS_CAP,
-  normalizeP2pBudget
+  normalizeP2pBudget,
+  registerP2PBudgetConfig
 } from '../../../components/P2P/timeouts.js'
 import { OceanNodeP2PConfigSchema } from '../../../utils/config/schemas.js'
 import { ENV_TO_CONFIG_MAPPING } from '../../../utils/config/constants.js'
@@ -274,5 +275,56 @@ describe('every P2P budget reaches all of its declaration sites', () => {
     // configure. A documented knob wired to nothing is worse than no knob.
     expect('P2P_PROVIDER_RETRY_SLEEP_MS' in ENV_TO_CONFIG_MAPPING).to.equal(false)
     expect(ENVIRONMENT_VARIABLES.P2P_PROVIDER_RETRY_SLEEP_MS).to.equal(undefined)
+  })
+})
+
+/**
+ * The second source: a budget set only in `config.json` reaches the getter through the config
+ * the builder registers, and an env var still overrides it. Before this, `timeouts.ts` read
+ * `process.env` alone, so a value set only in the JSON config reached the schema but not the
+ * running code - the exact seam the module header used to document.
+ */
+describe('P2P budgets: a value set only in config.json reaches the getter', () => {
+  const ENV = 'P2P_FINDPEER_TIMEOUT_MS'
+  const CONFIG_KEY = 'findPeerTimeout'
+  const getter = () => P2P_TIMEOUTS.findPeerMs
+
+  let previousEnv: string | undefined
+
+  beforeEach(() => {
+    previousEnv = process.env[ENV]
+    delete process.env[ENV]
+  })
+
+  afterEach(() => {
+    // The registration is module-global; leaving it set would leak into every later suite.
+    registerP2PBudgetConfig(null)
+    if (previousEnv === undefined) {
+      delete process.env[ENV]
+    } else {
+      process.env[ENV] = previousEnv
+    }
+  })
+
+  it('falls back to the registered config when no env var is set', () => {
+    registerP2PBudgetConfig({ [CONFIG_KEY]: 12345 })
+    expect(getter()).to.equal(12345)
+  })
+
+  it('lets the env var win over the registered config', () => {
+    registerP2PBudgetConfig({ [CONFIG_KEY]: 12345 })
+    process.env[ENV] = '23456'
+    expect(getter()).to.equal(23456)
+  })
+
+  it('ignores a malformed registered value and uses the documented default', () => {
+    registerP2PBudgetConfig({ [CONFIG_KEY]: 'not-a-number' })
+    expect(getter()).to.equal(P2P_TIMEOUT_DEFAULTS.findPeerMs)
+  })
+
+  it('reverts to env-or-default once the config is cleared', () => {
+    registerP2PBudgetConfig({ [CONFIG_KEY]: 12345 })
+    registerP2PBudgetConfig(null)
+    expect(getter()).to.equal(P2P_TIMEOUT_DEFAULTS.findPeerMs)
   })
 })
