@@ -1927,8 +1927,12 @@ export class OceanP2P extends EventEmitter {
    */
   private hasPeersToAdvertiseTo(): boolean {
     const routingTableSize = this.getDhtRoutingTableSize()
-    if (typeof routingTableSize === 'number' && routingTableSize > 0) {
-      return true
+    // A reachable DHT service gives the exact answer: with allowQueryWithZeroPeers
+    // false, an empty routing table means provide() is refused outright, and a
+    // connection to a non-DHT peer is no substitute. Only fall back to the
+    // connection count when the size is unknown (DHT service unreachable).
+    if (routingTableSize !== undefined) {
+      return routingTableSize > 0
     }
     return this._libp2p.getConnections().length > 0
   }
