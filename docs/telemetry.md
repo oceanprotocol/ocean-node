@@ -29,6 +29,7 @@ deployments are unaffected until an operator opts in.
 - [G. OTel → Prometheus name mangling](#g-otel--prometheus-name-mangling)
 - [H. Cardinality & privacy rules](#h-cardinality--privacy-rules)
 - [I. Dashboards](#i-dashboards)
+- [J. Remote Grafana (existing / shared instance)](#j-remote-grafana-existing--shared-instance)
 
 ---
 
@@ -286,3 +287,96 @@ Prometheus datasource, uid `ocean-node-prometheus`, on import) and an `instance`
 fleet. The recording rules both dashboards lean on live in `deploy/telemetry/rules.yml` and use
 the `clamp_min(denominator, 0.0001)` idiom to keep a ratio panel from going `NaN`/dividing by zero
 when a fleet is momentarily empty.
+
+## J. Remote Grafana (existing / shared instance)
+
+Everything in [D](#d-run-the-local-stack) assumes the shipped compose stack owns Grafana,
+Prometheus and Tempo, and auto-provisions the datasources, rules and dashboards for you. If you
+already run Grafana — a shared team instance, or **Grafana Cloud** — you don't want a second
+Grafana; you want to plug ocean-node's dashboards into the one you have. This section covers that.
+
+The dashboards themselves are just Grafana panels reading PromQL from a Prometheus-compatible
+datasource. So the requirement is unchanged from local: **your Grafana must have a datasource
+holding the `ocean_*` series.** The node still pushes OTLP; only the storage/visualization tier
+differs. Two ways to get the metrics there:
+
+1. **Keep the shipped collector + Prometheus, point only Grafana at them.** Run
+   `otel-collector` and `prometheus` from `docker-compose.telemetry.yml` (or your own equivalents),
+   leave the node pushing to the collector as in [D](#d-run-the-local-stack), and add that
+   Prometheus as a datasource in your existing Grafana. Nothing changes for the node.
+2. **Push straight to a managed backend (Grafana Cloud).** Point the node — or a collector in
+   front of it — at the backend's OTLP endpoint and let its bundled Prometheus/Mimir store the
+   metrics. See "Grafana Cloud" below.
+
+### Step 1 — a Prometheus datasource with the metrics
+
+In your Grafana: **Connections → Data sources → Add data source → Prometheus**, set the URL to
+your Prometheus/Mimir, save & test. Note its **datasource UID** (visible in the URL of the
+datasource settings page, or via `GET /api/datasources`) — the import step maps the dashboards'
+`DS_PROMETHEUS` variable onto it.
+
+If you provision Grafana from files instead of clicking, the shipped
+`deploy/telemetry/grafana/provisioning/datasources/datasources.yaml` is a working template —
+change the `url` from the compose service name (`http://prometheus:9090`) to your reachable
+address and keep the `ocean-node-prometheus` uid so imported dashboards resolve cleanly.
+
+### Step 2 — load the recording rules
+
+Both dashboards reference the recording rules in `deploy/telemetry/rules.yml`
+(`ocean_node:p2p_sendto_fail_rate`, `ocean_node:compute_cpu_used_ratio`, …). Those rules are
+evaluated by **Prometheus**, not Grafana — so if your Prometheus doesn't have them, the ratio
+panels render empty. Load `rules.yml` into whatever evaluates rules for your datasource:
+
+- **Self-hosted Prometheus:** add the file to `rule_files:` (as `prometheus.yml` does) and reload.
+- **Grafana Cloud / Mimir:** upload it with `mimirtool rules load rules.yml` against your tenant,
+  or recreate the two ratios as Grafana recording rules — they're four PromQL expressions.
+
+You can skip this and the dashboards still load; only the fail-rate / utilization-ratio panels
+stay blank until the rules exist.
+
+### Step 3 — import the dashboards
+
+The compose stack file-provisions the dashboards; a remote Grafana you don't control usually
+can't be file-provisioned, so push them over the HTTP API with the shipped helper:
+
+```bash
+GRAFANA_URL=https://your-org.grafana.net \
+GRAFANA_TOKEN=glsa_xxx \
+./deploy/telemetry/scripts/import-dashboard.sh p2p
+
+# and the compute board
+GRAFANA_URL=https://your-org.grafana.net GRAFANA_TOKEN=glsa_xxx \
+  ./deploy/telemetry/scripts/import-dashboard.sh compute
+```
+
+`GRAFANA_TOKEN` is a **service-account token with Editor rights** (Grafana → Administration →
+Users and access → Service accounts → add account, role Editor, add token). The script
+auto-discovers the Prometheus datasource on the target and binds `DS_PROMETHEUS` to it (override
+with `PROM_UID=<uid>` if you have more than one Prometheus), strips the stale dashboard `id` so
+re-imports update in place, and can target a folder with `GRAFANA_FOLDER_UID`. Pass a path
+instead of `p2p`/`compute` to import a custom dashboard JSON. Re-run it after editing a dashboard
+JSON to push the new version.
+
+### Grafana Cloud specifics
+
+Grafana Cloud exposes an OTLP endpoint, so you can skip a self-hosted Prometheus entirely and
+point the node's exporter there directly:
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-<region>.grafana.net/otlp
+export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic <base64(instanceID:token)>"
+npm start
+```
+
+Use a Grafana Cloud **access policy token** with metrics/traces write scope; the `instanceID` is
+your stack's numeric Prometheus (and Tempo) instance id. `OTEL_EXPORTER_OTLP_HEADERS` carries the
+auth on every push — exactly what it exists for (see [C](#c-env-vars)). Metrics land in the
+stack's bundled Prometheus, traces in its Tempo; then do Steps 1–3 against that stack's
+datasources. For a fleet, still keep a collector in front (its `attributes/scrub` processor and
+batching apply regardless of where the data ends up) rather than fanning every node straight at
+the gateway.
+
+The cardinality and privacy rules in [H](#h-cardinality--privacy-rules) apply unchanged to a
+remote Grafana. In particular, if you're pointing more than a bounded, dozens-scale fleet at a
+shared backend, review the `transform/strip_instance` fallback in `otel-collector.internal.yaml`
+before `service_instance_id` (the per-node peerId) multiplies your active series.
