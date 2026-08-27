@@ -1926,15 +1926,9 @@ export class OceanP2P extends EventEmitter {
    * falling back to the connection count if the DHT service is not reachable for any reason.
    */
   private hasPeersToAdvertiseTo(): boolean {
-    try {
-      const dht = (this._libp2p.services as Record<string, any> | undefined)?.dht as
-        { routingTable?: { size?: number } } | undefined
-      const routingTableSize = dht?.routingTable?.size
-      if (typeof routingTableSize === 'number' && routingTableSize > 0) {
-        return true
-      }
-    } catch (e) {
-      // fall through to the connection count
+    const routingTableSize = this.getDhtRoutingTableSize()
+    if (typeof routingTableSize === 'number' && routingTableSize > 0) {
+      return true
     }
     return this._libp2p.getConnections().length > 0
   }
