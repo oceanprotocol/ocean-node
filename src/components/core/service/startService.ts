@@ -15,7 +15,7 @@ import type {
   ComputeEnvironment,
   DBComputeJobPayment as Payment
 } from '../../../@types/C2D/C2D.js'
-import { generateUniqueID } from '../compute/utils.js'
+import { generateUniqueID, validateOutputBucket } from '../compute/utils.js'
 import { validateAccess } from '../compute/startCompute.js'
 import { decryptUserData, toPublicServiceJob } from './utils.js'
 
@@ -120,6 +120,18 @@ export class ServiceStartHandler extends CommandHandler {
             )
           )
         }
+      }
+
+      // Must run before createServiceJob claims escrow, or a bad bucket burns the user's
+      // payment. No-op when the task carries no bucket. '' = no `output` dir to conflict with.
+      const outputBucketCheck = await validateOutputBucket(
+        node,
+        task.outputBucketId,
+        '',
+        task.consumerAddress
+      )
+      if (outputBucketCheck.status.httpStatus !== 200) {
+        return outputBucketCheck
       }
 
       // 4. Duration limit
@@ -237,7 +249,8 @@ export class ServiceStartHandler extends CommandHandler {
         task.consumerAddress,
         payment,
         serviceId,
-        task.userData
+        task.userData,
+        task.outputBucketId
       )
 
       return {

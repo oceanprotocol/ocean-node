@@ -8,7 +8,6 @@ databases
 .git
 .github
 docs/*
-!docs/serviceTemplates
 src/test
 *.md
 *.log

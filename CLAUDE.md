@@ -315,8 +315,9 @@ Handler source is grouped under `src/components/core/`:
   `accessList.ts`, `asset.ts`, `attestation.ts`.
 - Runtime data dirs: `databases/` (SQLite files + libp2p LevelDB store), `c2d_storage/` (C2D
   job working data), `logs/`, `schemas/` (SHACL DDO validation schemas — shipped into the
-  Docker image), `docs/serviceTemplates/` (operator service-on-demand templates, referenced by
-  `SERVICE_TEMPLATES_PATH`).
+  Docker image). Service-on-demand templates are not shipped: the node reads
+  them from the folder given by `serviceTemplatesPath` / `SERVICE_TEMPLATES_PATH`, which the
+  operator mounts in at run time.
 - `tsoa.json` configures OpenAPI spec generation from `src/components/httpRoutes/**`; the
   actual routing is plain Express routers, not tsoa-generated.
 
@@ -325,8 +326,8 @@ Handler source is grouped under `src/components/core/`:
 ## 5. Docker & deployment
 
 Multi-stage `Dockerfile` (builder + slim runner) on `node:24`. The runner ships only
-`dist/`, `node_modules`, `schemas/`, `config.json`, and `docs/serviceTemplates/`
-(`.dockerignore` excludes the rest of `docs/`). It exposes P2P ports `9000-9003,9005` and
+`dist/`, `node_modules`, `schemas/`, and `config.json` (`.dockerignore` excludes all of
+`docs/`) — no service templates. It exposes P2P ports `9000-9003,9005` and
 HTTP `8000`. `docker-entrypoint.sh` handles Docker socket group membership at runtime so C2D
 can talk to `/var/run/docker.sock`. Deployment options (Docker, local Docker build via
 `quickstart`, PM2, plain npm) are in `README.md`; production deployment details in

@@ -160,9 +160,23 @@ Service-on-demand is configured per Docker connection under `serviceOnDemand`:
 
 Whether a given environment accepts services is gated by its `features.services` flag,
 and access can be restricted with the environment's `access` allow-list
-(`addresses` + on-chain `accessLists`). Operator-published **templates** are loaded from
-`serviceTemplatesPath` (default `databases/serviceTemplates/`); template secret values
-are never returned by the API (only the env-var keys are exposed).
+(`addresses` + on-chain `accessLists`).
+
+**Templates are not shipped in the image.** The node reads them from a folder the operator
+mounts in, so a node without that mount advertises no templates at all. Point
+`serviceTemplatesPath` (env var `SERVICE_TEMPLATES_PATH`) at the mount:
+
+```yaml
+volumes:
+  - /srv/service-templates:/templates:ro
+environment:
+  SERVICE_TEMPLATES_PATH: /templates
+```
+
+The node re-reads the folder on every request, so edits take effect on the next call — no
+restart needed. Layout is one folder per flow, named after the
+flow's `id`, with the template itself always at `template.json` inside it. Template secret
+values are never returned by the API (only the env-var keys are exposed).
 
 The compute environments a service can run on — and the resources (cpu/ram/disk/gpu) it may
 request — are the same ones configured at the node's Docker-connection level for compute jobs,
@@ -177,7 +191,8 @@ declare resources, configure GPUs, set per-environment constraints, and price th
   Unlike the compute path, the service path does **not** force a non-root `User` —
   arbitrary service images often expect to start as root, so the image's declared user
   is kept. Dropping all capabilities + `no-new-privileges` keeps that root process
-  unprivileged.
+  unprivileged. `PidsLimit` is the only one of the three an operator can raise, via
+  `init.advanced` on a resource (see the next-to-last bullet).
 
 - **⚠️ Low ports won't bind inside the container.** Because `CapDrop: ['ALL']` removes
   `NET_BIND_SERVICE`, a process **inside** the container cannot bind to a container port
@@ -192,10 +207,21 @@ declare resources, configure GPUs, set per-environment constraints, and price th
   revoked consumer cannot keep a service alive). `stop` is owner-gated only, so a
   revoked owner can still shut their own service down.
 
-- **No privileged/advanced Docker config.** The service path deliberately omits the
-  user-injectable advanced Docker config (host bind mounts, extra capabilities,
-  `seccomp:unconfined`, devices beyond the priced GPU pool) that the compute path
-  supports. Do not thread it in.
+- **No privileged/advanced Docker config, with three narrow exceptions.** The service path
+  deliberately omits most of the advanced Docker config the compute path supports — host
+  bind mounts, extra capabilities, `seccomp:unconfined`, devices beyond the priced GPU
+  pool. Do not thread those in.
+
+  The exceptions are `ShmSize`, `IpcMode` and `PidsLimit`, read from the **operator's**
+  `init.advanced` block on a requested resource (see
+  [Multi-GPU workloads](compute.md#multi-gpu-workloads-shared-memory)). They are required
+  for any service spanning more than one GPU: Docker's default 64 MB `/dev/shm` is too
+  small for the per-GPU worker processes such a service starts, and it fails at boot
+  without them.
+
+  These come only from node configuration. Nothing in a service template, `userData`, or
+  the start request can set them — a consumer-selected template able to ask for
+  `IpcMode: 'host'` would be a way out of the `CapDrop: ['ALL']` sandbox. Keep it that way.
 
 - **Payment is server-priced.** Cost is computed only from the environment's configured
   pricing for the requested token/chain; the consumer cannot influence the charged

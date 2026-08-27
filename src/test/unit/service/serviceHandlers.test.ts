@@ -162,6 +162,12 @@ function buildFakes(opts: FakeOpts = {}) {
     fetchServiceTemplates: sinon.stub().resolves([{ ...TEMPLATE }])
   }
 
+  // Valid by default; override validateBucket/assertConsumerAllowedForBucket to fail it.
+  const persistentStorage: any = {
+    validateBucket: sinon.stub(),
+    assertConsumerAllowedForBucket: sinon.stub().resolves(undefined)
+  }
+
   const node: any = {
     getRequestMap: () => new Map(),
     getConfig: (): any => ({
@@ -173,13 +179,13 @@ function buildFakes(opts: FakeOpts = {}) {
       decrypt: (d: Uint8Array) => Promise.resolve(Buffer.from(d))
     }),
     getAuth: () => ({
-      // mirrors the real signature path: the address that verified IS the claimed one
       validateAuthenticationOrToken: ({ address }: any) =>
         Promise.resolve({ valid: true, address })
-    })
+    }),
+    getPersistentStorage: () => persistentStorage
   }
 
-  return { node, engine, engines, escrow, env }
+  return { node, engine, engines, escrow, env, persistentStorage }
 }
 
 function body(response: any): Promise<any> {
@@ -983,6 +989,29 @@ describe('Service handlers', () => {
       expect(payment.claimTx).to.equal('')
       const out = await body(res)
       expect(out[0]).to.not.have.property('userData')
+    })
+
+    it('forwards outputBucketId to createServiceJob', async () => {
+      const { node, engine } = buildFakes()
+      const res = await new ServiceStartHandler(node).handle({
+        ...baseTask,
+        outputBucketId: 'bucket-42'
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      expect(engine.createServiceJob.lastCall.args.at(-1)).to.equal('bucket-42')
+    })
+
+    it('400 with a clear message when outputBucketId is invalid, and no job record is created (fail fast)', async () => {
+      const { node, engine, persistentStorage } = buildFakes()
+      persistentStorage.validateBucket.throws(new Error('bucket not found'))
+      const res = await new ServiceStartHandler(node).handle({
+        ...baseTask,
+        outputBucketId: 'bad-bucket'
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+      expect(String(res.status.error)).to.contain('bucket not found')
+      // no job record may be created for a start that was refused upfront (see startService.ts)
+      expect(engine.createServiceJob.called).to.equal(false)
     })
   })
 
