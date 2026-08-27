@@ -24,7 +24,7 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
 import { fetchTransactionReceipt } from '../../core/utils/validateOrders.js'
-import { withRetrial } from '../utils.js'
+import { withRetrial, isProviderError } from '../utils.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
 import { Database } from '../../../components/database/index.js'
 
@@ -39,6 +39,14 @@ export abstract class BaseEventProcessor {
 
   getConfig(): OceanNodeConfig {
     return this.config
+  }
+
+  /**
+   * Rethrow transient provider/RPC failures so the crawl loop can retry the chunk instead of the
+   * event processor swallowing them and letting the cursor advance past an un-stored asset.
+   */
+  protected rethrowIfProviderError(err: any): void {
+    if (isProviderError(err)) throw err
   }
 
   async getDatabase(): Promise<Database> {

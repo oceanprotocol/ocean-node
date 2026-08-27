@@ -92,6 +92,7 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
       const savedDDO = await this.createOrUpdateDDO(ddoInstance, EVENTS.METADATA_STATE)
       return savedDDO
     } catch (err) {
+      this.rethrowIfProviderError(err)
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
     }
   }

@@ -61,6 +61,8 @@ export class Blockchain {
       // 2. Destroy the FallbackProvider itself
       this.provider.destroy()
       this.provider = null
+      // Cached signer is bound to the destroyed provider; getSigner() only rebuilds when falsy.
+      this.signer = undefined as unknown as Signer
     }
   }
 

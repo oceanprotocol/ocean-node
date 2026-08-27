@@ -36,6 +36,10 @@ export interface RequestDataCheck {
 }
 export class OceanNode {
   private static instance: OceanNode
+  // In-flight teardown of the previous instance (set by getInstance). A newly-created
+  // OceanIndexer awaits this before crawling, so it never overlaps a dying indexer on
+  // the same DB/chain while that instance's provider is being destroyed.
+  private static pendingTeardown: Promise<void> | null = null
   // handlers
   private coreHandlers: CoreHandlersRegistry
   // compute engines
@@ -110,14 +114,16 @@ export class OceanNode {
         if (!blockchainRegistry)
           blockchainRegistry = new BlockchainRegistry(keyManager, config)
       }
-      // teardown old instance if needed
-      this.instance?.tearDownAll().catch((err: unknown) => {
-        OCEAN_NODE_LOGGER.warn(
-          `Failed to tear down previous OceanNode instance: ${
-            err instanceof Error ? err.message : String(err)
-          }`
-        )
-      })
+      // teardown old instance if needed; retain the promise so a newly-created
+      // OceanIndexer can await it before crawling (see awaitPendingTeardown).
+      OceanNode.pendingTeardown =
+        this.instance?.tearDownAll().catch((err: unknown) => {
+          OCEAN_NODE_LOGGER.warn(
+            `Failed to tear down previous OceanNode instance: ${
+              err instanceof Error ? err.message : String(err)
+            }`
+          )
+        }) ?? null
       OCEAN_NODE_LOGGER.debug('Creating new OceanNode instance')
       this.instance = new OceanNode(
         config,
@@ -132,6 +138,22 @@ export class OceanNode {
       OCEAN_NODE_LOGGER.debug('Return cached OceanNode instance')
     }
     return this.instance
+  }
+
+  /**
+   * Await a previous instance's in-flight teardown (set by getInstance) so callers such as a
+   * freshly-constructed OceanIndexer don't start crawling while the old instance is still
+   * shutting down its indexer and destroying its provider. No-op when nothing is pending.
+   */
+  public static async awaitPendingTeardown(): Promise<void> {
+    const pending = OceanNode.pendingTeardown
+    if (pending) {
+      await pending
+      // Only clear if a newer teardown didn't replace it while we were awaiting.
+      if (OceanNode.pendingTeardown === pending) {
+        OceanNode.pendingTeardown = null
+      }
+    }
   }
 
   // in the future we should remove these 'add' methods as well

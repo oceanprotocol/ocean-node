@@ -125,6 +125,7 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
       )
       return savedDDO
     } catch (err) {
+      this.rethrowIfProviderError(err)
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
     }
   }

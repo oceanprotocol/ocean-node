@@ -122,6 +122,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
       const savedDDO = await this.createOrUpdateDDO(ddoInstance, EVENTS.ORDER_REUSED)
       return savedDDO
     } catch (err) {
+      this.rethrowIfProviderError(err)
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
     }
   }
