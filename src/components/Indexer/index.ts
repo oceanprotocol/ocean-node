@@ -42,6 +42,7 @@ import { getPackageVersion } from '../../utils/version.js'
 import { DB_EVENTS, ES_CONNECTION_EVENTS } from '../database/ElasticsearchConfigHelper.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { clearEventProcessorCache } from './processor.js'
+import { OceanNode } from '../../OceanNode.js'
 
 /**
  * Event emitter for DDO (Data Descriptor Object) events
@@ -313,6 +314,11 @@ export class OceanIndexer {
 
   // Start all chain indexers
   public async startAllChainIndexers(): Promise<boolean> {
+    // Close the overlap at its source: wait for a previous OceanNode instance's teardown
+    // (its indexer stop + provider destroy) to finish before this indexer starts crawling,
+    // so two indexers never run concurrently against the same DB/chain.
+    await OceanNode.awaitPendingTeardown()
+
     await this.checkAndTriggerReindexing()
 
     // Setup event listeners for all chains (they all use the same event emitter)
