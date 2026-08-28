@@ -1,0 +1,63 @@
+# Ocean-internal collector variant.
+#
+# The Ocean-internal deployment (4 bootstraps + relay tier + core nodes) is a bounded,
+# dozens-scale fleet, so this uses the SAME pipeline shape as otel-collector.yaml
+# (operator-local) — resource_to_telemetry_conversion stays enabled and
+# `service.instance.id` (the node's peerId) is kept on every metric series, giving
+# per-node dashboards. See plan §3 / §8.3.
+#
+# What actually differs from the operator-local file, before this is used for real:
+#   1. Auth on the OTLP receiver. This file's `otlp` receiver is the open dev receiver —
+#      fine on localhost, not fine on a shared endpoint. Put a token/header check in front
+#      of it (e.g. an `headers_setter`/auth extension validating the header the pushing
+#      nodes send via `OTEL_EXPORTER_OTLP_HEADERS`), or terminate it behind a reverse proxy
+#      that enforces the token before traffic reaches the collector.
+#   2. Persistent storage + retention sized for the fleet. The `prometheusremotewrite` /
+#      `otlp/tempo` exporters below point at the same local Prometheus/Tempo used for
+#      operator-local dev; a real deployment swaps these for durable storage (self-hosted
+#      Prometheus with a persistent volume + real retention, or Grafana Cloud Mimir/Tempo —
+#      swap `prometheusremotewrite.endpoint` for the Mimir `/api/v1/push` URL + auth headers,
+#      and `otlp/tempo.endpoint` for the Tempo `:443` endpoint, per on-mcp's telemetry README).
+#
+# Both are open decisions (plan §12, items 1-2) — this file is the starting point, not a
+# finished hardened config.
+
+receivers:
+  otlp:
+    protocols:
+      http: { endpoint: 0.0.0.0:4318 }
+      grpc: { endpoint: 0.0.0.0:4317 }
+processors:
+  memory_limiter: { check_interval: 1s, limit_mib: 512, spike_limit_mib: 128 }
+  batch: { timeout: 10s, send_batch_size: 8192 }
+  attributes/scrub:            # defence-in-depth; the app never sets these on metrics
+    actions:
+      - { key: privateKey, action: delete }
+      - { key: private_key, action: delete }
+      - { key: PRIVATE_KEY, action: delete }
+      - { key: consumerAddress, action: delete }
+      - { key: did, action: delete }
+      - { key: jobId, action: delete }
+      - { key: nonce, action: delete }
+      - { key: signature, action: delete }
+  # Fallback only — if the core fleet ever grows to thousands of instances, drop instance
+  # identity from METRICS (keep it on traces for drill-down) with this processor. Not enabled
+  # by default: uncomment this block, add `transform/strip_instance` to the metrics pipeline
+  # below, and set `prometheusremotewrite.resource_to_telemetry_conversion.enabled: false`.
+  #
+  # transform/strip_instance:
+  #   metric_statements:
+  #     - context: resource
+  #       statements: [ 'delete_key(attributes, "service.instance.id")' ]
+exporters:
+  prometheusremotewrite:
+    endpoint: http://prometheus:9090/api/v1/write
+    tls: { insecure: true }
+    resource_to_telemetry_conversion: { enabled: true }   # bounded fleet: keep instance id
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls: { insecure: true }
+service:
+  pipelines:
+    metrics: { receivers: [otlp], processors: [memory_limiter, attributes/scrub, batch], exporters: [prometheusremotewrite] }
+    traces:  { receivers: [otlp], processors: [memory_limiter, attributes/scrub, batch], exporters: [otlp/tempo] }

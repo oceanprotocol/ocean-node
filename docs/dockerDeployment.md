@@ -79,6 +79,68 @@ $ ./scripts/ocean-node-update.sh
 
 ---
 
+## Persistent node data (required)
+
+The image declares a `VOLUME` at `/usr/src/app/databases`, and **that mount point must be
+backed by a persistent volume in production** - a named volume, a bind mount, or the
+Kubernetes-equivalent persistent volume claim. The compose file produced by
+`ocean-node-quickstart.sh` already does this with the `node-sqlite` named volume; if you write
+your own compose file, or run `docker run` by hand, you have to do it yourself:
+
+```shell
+$ docker run -d \
+    -e PRIVATE_KEY="$PRIVATE_KEY" \
+    -v ocean-node-databases:/usr/src/app/databases \
+    -p 8000:8000 -p 9000-9003:9000-9003 \
+    oceanprotocol/ocean-node:latest
+```
+
+This is not just a convenience. `/usr/src/app/databases` holds:
+
+- the SQLite databases - nonce tracking, node config, C2D job records and auth tokens;
+- `databases/p2p-store`, the libp2p LevelDB datastore.
+
+The datastore is what makes the node keep answering for the assets it holds. Its own DHT
+provider records are written from three places and no others: when the indexer sees a new
+metadata event, once at startup, and by kad-dht's own reprovider, which refreshes them from
+that datastore. Provider records are valid for 48 hours and the reprovider renews them well
+inside that window, but only for the records it can still find on disk. Start the container
+without a persistent mount and every restart hands it an empty datastore, so there is nothing
+left to renew: the records age out of the network and remote `FindDDO` stops returning a node
+that is sitting on the DDO, with nothing in the logs to say so.
+
+Without an explicit mount, docker attaches a fresh **anonymous** volume to the declared mount
+point. That survives `docker restart` but not `docker-compose down`, `docker rm`, or
+`docker-compose up --force-recreate`, and it is invisible in `docker volume ls` under any name
+you would recognise - so it looks like persistence right up to the point where it is not.
+
+Check that a running deployment really has a named mount:
+
+```shell
+$ docker inspect -f '{{range .Mounts}}{{.Type}} {{.Name}} -> {{.Destination}}{{"\n"}}{{end}}' ocean-node
+volume node-sqlite -> /usr/src/app/databases
+```
+
+An empty `.Name` on that line means the mount is anonymous and the data is one
+`docker-compose down` away from being gone.
+
+Ownership is handled for you: the image creates the directory owned by the unprivileged `node`
+user it runs as, and `docker-entrypoint.sh` re-applies ownership at startup, which is what
+makes a bind mount of a host directory work regardless of who created it on the host.
+
+The two development compose files in the repository root, `typesense-compose.yml` and
+`elasticsearch-compose.yml`, carry the same mount on an `ocean-node` service behind a compose
+profile, so they are only started when asked for:
+
+```shell
+$ PRIVATE_KEY=0x... docker-compose -f typesense-compose.yml --profile node up -d
+```
+
+Without `--profile node` those files still start only the database, which is what the
+"run the node from npm" workflow in the README expects.
+
+---
+
 Additional notes:
 
 - the docker compose file generated will have the following format. For all available configurations, refer to the [Environment Variables](https://github.com/oceanprotocol/ocean-node/blob/main/docs/env.md) documentation
@@ -130,7 +192,6 @@ services:
       P2P_ipV6BindWsPort: '9003'
       P2P_ANNOUNCE_ADDRESSES: '["/dns4/<<redacted>>/tcp/9000/p2p/", "/dns4/<<redacted>>/ws/tcp/9001", "/dns6/<<redacted>>/tcp/9002/p2p/", "/dns6/<<redacted>>/ws/tcp/9003"]'
     #      P2P_ANNOUNCE_PRIVATE: ''
-    #      P2P_pubsubPeerDiscoveryInterval: ''
     #      P2P_dhtMaxInboundStreams: ''
     #      P2P_dhtMaxOutboundStreams: ''
     #      P2P_mDNSInterval: ''
@@ -144,6 +205,10 @@ services:
     #      P2P_FILTER_ANNOUNCED_ADDRESSES: ''
     networks:
       - ocean_network
+    volumes:
+      # required - see "Persistent node data" above
+      - node-sqlite:/usr/src/app/databases
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - typesense
 
@@ -160,6 +225,8 @@ services:
 
 volumes:
   typesense-data:
+    driver: local
+  node-sqlite:
     driver: local
 
 networks:

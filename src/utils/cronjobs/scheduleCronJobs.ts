@@ -9,7 +9,7 @@ import { p2pAnnounceDDOS } from './p2pAnnounceDDOS.js'
 import { p2pAnnounceC2D } from './p2pAnnounceC2D.js'
 import { sleep } from '../util.js'
 
-// republish any ddos we are providing to the network every 4 hours
+// re-announce the C2D capability to the network every 4 hours
 // (we can put smaller interval for testing purposes)
 const REPUBLISH_INTERVAL_HOURS = 1000 * 60 * 60 * 4 // 4 hours
 
@@ -25,15 +25,39 @@ export async function scheduleCronJobs(node: OceanNode) {
   } catch (e) {
     OCEAN_NODE_LOGGER.error(`Error when deleting expired c2d jobs: ${e.message}`)
   }
-  // execute p2pAnnounceDDOS immediately on startup
-  // and then every REPUBLISH_INTERVAL_HOURS
-  p2pAnnounceDDOS(node)
-  setInterval(() => p2pAnnounceDDOS(node), REPUBLISH_INTERVAL_HOURS)
+  // Both announce jobs are started fire-and-forget, so nothing awaits their promise: a
+  // rejection would be an unhandled rejection, and this process installs an
+  // `unhandledRejection` handler that calls `process.exit(1)`. A failed announce must never be
+  // able to stop the node, so every call site attaches a handler of its own even though both
+  // jobs already guard their own bodies.
+  const runAnnounceJob = (
+    name: string,
+    job: (target: OceanNode) => Promise<void>
+  ): void => {
+    job(node).catch((err) => {
+      OCEAN_NODE_LOGGER.error(
+        `Error in ${name} cron job: ${err instanceof Error ? err.message : String(err)}`
+      )
+    })
+  }
+
+  // Startup only, deliberately not on an interval. kad-dht runs its own reprovider against
+  // the p2p datastore - provider records live 48 h and are refreshed hourly against a 24 h
+  // threshold - so a periodic full re-provide on top of it would only duplicate that work at
+  // ~20 outbound DHT streams per DDO. What the reprovider cannot do is recover from a
+  // datastore that came up empty (a container started without its persistent mount, a wiped
+  // volume), because there is then nothing left in it to refresh. That is the gap this one
+  // pass fills: it walks the DDO store and re-provides everything the node holds, once per
+  // process.
+  runAnnounceJob('p2pAnnounceDDOS', p2pAnnounceDDOS)
 
   // execute p2pAnnounceC2D immediately on startup
   // and then every REPUBLISH_INTERVAL_HOURS
-  p2pAnnounceC2D(node)
-  setInterval(() => p2pAnnounceC2D(node), REPUBLISH_INTERVAL_HOURS)
+  runAnnounceJob('p2pAnnounceC2D', p2pAnnounceC2D)
+  setInterval(
+    () => runAnnounceJob('p2pAnnounceC2D', p2pAnnounceC2D),
+    REPUBLISH_INTERVAL_HOURS
+  )
 }
 
 function scheduleDeleteLogsJob(dbconn: Database | null) {

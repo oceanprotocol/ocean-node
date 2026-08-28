@@ -44,10 +44,22 @@ COPY --chown=node:node --from=builder /usr/src/app/schemas ./schemas
 COPY --chown=node:node --from=builder /usr/src/app/package.json ./
 COPY --chown=node:node --from=builder /usr/src/app/config.json ./
 
-RUN mkdir -p databases c2d_storage logs
+# `databases` holds everything the node must not lose across a restart: the SQLite files
+# (nonce, config, C2D jobs, auth tokens) and `databases/p2p-store`, the LevelDatastore that
+# backs libp2p. kad-dht's reprovider refreshes this node's provider records from that
+# datastore, so if it starts empty the node stops answering for content it still holds, and the
+# records expire out of the network without anything noticing. The directory is created and
+# handed to the unprivileged `node` user here, and VOLUME declares the mount point so a named
+# volume or bind mount can be attached; docker-entrypoint.sh re-applies ownership at runtime
+# for the bind-mount case, where the host directory arrives owned by whoever created it.
+# A persistent mount here is REQUIRED, not optional - see "Persistent node data" in
+# docs/dockerDeployment.md.
+RUN mkdir -p databases/p2p-store c2d_storage logs \
+    && chown -R node:node databases c2d_storage logs
+VOLUME ["/usr/src/app/databases"]
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["node", "--max-old-space-size=28784", "--trace-warnings", "--experimental-specifier-resolution=node", "dist/index.js"]
+CMD ["node", "--import", "./dist/telemetry/otel.js", "--max-old-space-size=28784", "--trace-warnings", "--experimental-specifier-resolution=node", "dist/index.js"]
