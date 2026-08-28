@@ -151,6 +151,13 @@ directCommandRoute.post(
       closedResponse = true
       if (!res.headersSent) {
         res.status(500).send(err.message)
+      } else {
+        // The status line and at least one body chunk are already on the wire, so
+        // the status cannot be changed and end() would look like a complete (but
+        // short) transfer. Destroy the response instead: the client and every
+        // intermediate proxy see a failed transfer immediately, rather than holding
+        // the socket open until their own timeout.
+        res.destroy(err)
       }
     }
   }

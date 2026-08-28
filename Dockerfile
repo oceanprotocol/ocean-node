@@ -1,4 +1,4 @@
-FROM node:22.23.1-trixie@sha256:3145536027ca5268e24654f7efebf1dbdd684cda3708324e6c53f4ad61af8710 AS builder
+FROM node:24.19.0-trixie@sha256:66bb8d36ae1ddd72199ed235a089904874ca4079ee517936ca3adb80506a75c1 AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     build-essential \
@@ -14,7 +14,7 @@ COPY . .
 RUN npm run build && npm prune --omit=dev
 
 
-FROM node:22.23.1-trixie-slim@sha256:e6d9a389d34ff9678438af985c9913fbd1eb6ed36e80fea56644f4b4f6dd70ba AS runner
+FROM node:24.19.0-trixie-slim@sha256:0711b541c1c33a8a530ac4f0d391baa9a15b3d804695b1b24a47daa5fb60e74d AS runner
 RUN apt-get update && apt-get install -y --no-install-recommends \
     dumb-init \
     gosu \
@@ -44,10 +44,22 @@ COPY --chown=node:node --from=builder /usr/src/app/schemas ./schemas
 COPY --chown=node:node --from=builder /usr/src/app/package.json ./
 COPY --chown=node:node --from=builder /usr/src/app/config.json ./
 
-RUN mkdir -p databases c2d_storage logs
+# `databases` holds everything the node must not lose across a restart: the SQLite files
+# (nonce, config, C2D jobs, auth tokens) and `databases/p2p-store`, the LevelDatastore that
+# backs libp2p. kad-dht's reprovider refreshes this node's provider records from that
+# datastore, so if it starts empty the node stops answering for content it still holds, and the
+# records expire out of the network without anything noticing. The directory is created and
+# handed to the unprivileged `node` user here, and VOLUME declares the mount point so a named
+# volume or bind mount can be attached; docker-entrypoint.sh re-applies ownership at runtime
+# for the bind-mount case, where the host directory arrives owned by whoever created it.
+# A persistent mount here is REQUIRED, not optional - see "Persistent node data" in
+# docs/dockerDeployment.md.
+RUN mkdir -p databases/p2p-store c2d_storage logs \
+    && chown -R node:node databases c2d_storage logs
+VOLUME ["/usr/src/app/databases"]
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["node", "--max-old-space-size=28784", "--trace-warnings", "--experimental-specifier-resolution=node", "dist/index.js"]
+CMD ["node", "--import", "./dist/telemetry/otel.js", "--max-old-space-size=28784", "--trace-warnings", "--experimental-specifier-resolution=node", "dist/index.js"]

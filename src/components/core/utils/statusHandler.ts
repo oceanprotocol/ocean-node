@@ -148,6 +148,16 @@ export async function status(
       )
     }
   }
+  // Whether the P2P interface is usable, not just enabled. Re-read on every request rather
+  // than cached with the block above: the routing table fills after startup, so a value
+  // captured once would report a node as permanently not-ready.
+  if (config.hasP2P && oceanNode.hasP2PInterface()) {
+    const p2pNode = oceanNode.getP2PNode()
+    nodeStatus.p2pStatus = p2pNode ? p2pNode.getP2PStatus() : undefined
+  } else {
+    delete nodeStatus.p2pStatus
+  }
+
   // only these 2 might change between requests
   nodeStatus.platform.freemem = os.freemem()
   nodeStatus.platform.loadavg = os.loadavg()

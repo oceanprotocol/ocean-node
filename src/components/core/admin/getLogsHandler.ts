@@ -30,7 +30,11 @@ export class GetLogsHandler extends AdminCommandHandler {
           }
         } else {
           return {
-            status: { httpStatus: 404 },
+            // the error text has to be on `status` as well as in the stream: a non-200
+            // response body is not forwarded over P2P, and the /directCommand route falls
+            // back to `response.status.error`, so without this the client gets a 404 with an
+            // empty body.
+            status: { httpStatus: 404, error: 'Log not found' },
             stream: new ReadableString('Log not found')
           }
         }

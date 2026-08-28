@@ -1,0 +1,15 @@
+groups:
+  - name: ocean-node-compute
+    rules:
+      - record: ocean_node:compute_cpu_used_ratio
+        expr: sum(ocean_compute_cpu_usage_percent) / clamp_min(sum(ocean_compute_cpu_host_cores) * 100, 0.0001)
+      - record: ocean_node:compute_mem_used_ratio
+        expr: sum(ocean_compute_memory_used_bytes) / clamp_min(sum(ocean_compute_memory_limit_bytes), 0.0001)
+      - record: ocean_node:compute_gpu_mem_used_ratio
+        expr: sum(ocean_compute_gpu_memory_used_bytes) / clamp_min(sum(ocean_compute_gpu_memory_total_bytes), 0.0001)
+  - name: ocean-node-p2p
+    rules:
+      - record: ocean_node:p2p_sendto_fail_rate
+        expr: sum(rate(ocean_p2p_sendto_total{outcome="fail"}[5m])) / clamp_min(sum(rate(ocean_p2p_sendto_total[5m])), 0.0001)
+      - record: ocean_node:p2p_resolve_miss_rate
+        expr: sum(rate(ocean_p2p_resolve_total{result="miss"}[5m])) / clamp_min(sum(rate(ocean_p2p_resolve_total[5m])), 0.0001)

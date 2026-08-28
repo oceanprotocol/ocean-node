@@ -5,15 +5,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Ocean Node is the all-in-one backend for the Ocean Protocol stack. A single Node process
 replaces three legacy components: **Provider** (data access / encryption / compute),
 **Aquarius** (metadata cache) and the **subgraph** (on-chain event indexing). It is a
-TypeScript ESM project (Node 22) that exposes an HTTP API and a libp2p P2P interface, both
+TypeScript ESM project (Node 24) that exposes an HTTP API and a libp2p P2P interface, both
 of which dispatch to the same set of command handlers.
 
 ---
 
 ## 1. Environment & tooling prerequisites
 
-- **Node.js ≥ 22.13 is required** (`.nvmrc` pins `22.23.1`, matching the Dockerfile and CI;
-  `package.json` `engines` requires `>=22.13.0`). The Dockerfile additionally pins each base
+- **Node.js 24 is required** (`.nvmrc` pins `24.19.0` — the current Node 24 LTS "Krypton" —
+  matching the Dockerfile and CI; `package.json` `engines` requires `>=24`, so Node 22 is
+  no longer a supported runtime). The Dockerfile additionally pins each base
   image by digest, so bumping the version means updating the `sha256:` alongside the tag —
   resolve it with `docker buildx imagetools inspect node:<version>-trixie`, not from the tag
   alone. Always run `nvm use` (or `source ~/.nvm/nvm.sh && nvm use`) before
@@ -324,7 +325,7 @@ Handler source is grouped under `src/components/core/`:
 
 ## 5. Docker & deployment
 
-Multi-stage `Dockerfile` (builder + slim runner) on `node:22`. The runner ships only
+Multi-stage `Dockerfile` (builder + slim runner) on `node:24`. The runner ships only
 `dist/`, `node_modules`, `schemas/`, and `config.json` (`.dockerignore` excludes all of
 `docs/`) — no service templates. It exposes P2P ports `9000-9003,9005` and
 HTTP `8000`. `docker-entrypoint.sh` handles Docker socket group membership at runtime so C2D
