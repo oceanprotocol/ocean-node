@@ -523,6 +523,41 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.GPU_METRICS,
     required: false
   },
+  OTEL_EXPORTER_OTLP_ENDPOINT: {
+    name: 'OTEL_EXPORTER_OTLP_ENDPOINT',
+    value: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+    required: false
+  },
+  OTEL_EXPORTER_OTLP_HEADERS: {
+    name: 'OTEL_EXPORTER_OTLP_HEADERS',
+    value: process.env.OTEL_EXPORTER_OTLP_HEADERS,
+    required: false
+  },
+  OTEL_METRIC_EXPORT_INTERVAL: {
+    name: 'OTEL_METRIC_EXPORT_INTERVAL',
+    value: process.env.OTEL_METRIC_EXPORT_INTERVAL,
+    required: false
+  },
+  OTEL_SERVICE_NAME: {
+    name: 'OTEL_SERVICE_NAME',
+    value: process.env.OTEL_SERVICE_NAME,
+    required: false
+  },
+  DEPLOYMENT_ENVIRONMENT: {
+    name: 'DEPLOYMENT_ENVIRONMENT',
+    value: process.env.DEPLOYMENT_ENVIRONMENT,
+    required: false
+  },
+  TELEMETRY_ENABLED: {
+    name: 'TELEMETRY_ENABLED',
+    value: process.env.TELEMETRY_ENABLED,
+    required: false
+  },
+  OCEAN_NETWORK_LABEL: {
+    name: 'OCEAN_NETWORK_LABEL',
+    value: process.env.OCEAN_NETWORK_LABEL,
+    required: false
+  },
   SERVICE_TEMPLATES_PATH: {
     name: 'SERVICE_TEMPLATES_PATH',
     value: process.env.SERVICE_TEMPLATES_PATH,

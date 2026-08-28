@@ -93,6 +93,14 @@ import {
   countSendToFailure,
   getP2PCounters
 } from './counters.js'
+import {
+  p2pCertEvent,
+  p2pDhtFind,
+  p2pDhtProvide,
+  p2pPeerConnect,
+  p2pPeerDisconnect,
+  p2pPeerDiscovery
+} from '../../telemetry/metrics.js'
 
 import { autoTLS } from '@ipshipyard/libp2p-auto-tls'
 import { keychain } from '@libp2p/keychain'
@@ -294,6 +302,7 @@ export class OceanP2P extends EventEmitter {
   }
 
   handlePeerConnect(details: any) {
+    p2pPeerConnect.add(1)
     if (details) {
       const peerId = details.detail
       P2P_LOGGER.debug('Connection established to:' + peerId.toString()) // Emitted when a peer has been found
@@ -321,11 +330,13 @@ export class OceanP2P extends EventEmitter {
   }
 
   handlePeerDisconnect(details: any) {
+    p2pPeerDisconnect.add(1)
     const peerId = details.detail
     P2P_LOGGER.debug('Connection closed to:' + peerId.toString()) // Emitted when a peer has been found
   }
 
   handlePeerDiscovery(details: any) {
+    p2pPeerDiscovery.add(1)
     try {
       const peerInfo = details.detail
       P2P_LOGGER.debug('Discovered new peer:' + peerInfo.id.toString())
@@ -362,6 +373,7 @@ export class OceanP2P extends EventEmitter {
   }
 
   handleCertificateProvision() {
+    p2pCertEvent.add(1, { type: 'provision' })
     P2P_LOGGER.info('----- A TLS certificate was provisioned -----')
     const interval = setInterval(() => {
       const mas = this._libp2p
@@ -378,6 +390,7 @@ export class OceanP2P extends EventEmitter {
   }
 
   handleCertificateRenew() {
+    p2pCertEvent.add(1, { type: 'renew' })
     P2P_LOGGER.info('----- A TLS certificate was renewed -----')
   }
 
@@ -1219,8 +1232,11 @@ export class OceanP2P extends EventEmitter {
         useCache: true,
         useNetwork: true
       })
+      p2pDhtFind.add(1, { kind: 'peer', outcome: 'ok' })
       return data
-    } catch (e) {}
+    } catch (e) {
+      p2pDhtFind.add(1, { kind: 'peer', outcome: 'fail' })
+    }
     return null
   }
 
@@ -1972,9 +1988,15 @@ export class OceanP2P extends EventEmitter {
     // awaited on purpose. Fire-and-forget meant storeAndAdvertiseDDOS' per-item limit
     // only gated db.create + cacheDDO, so a 250-DDO batch still launched 250 concurrent
     // provides ~ 5000 PUTs at k=20.
-    await this._libp2p.contentRouting.provide(cid, {
-      signal: stageSignal(P2P_TIMEOUTS.advertiseMs, signal)
-    })
+    try {
+      await this._libp2p.contentRouting.provide(cid, {
+        signal: stageSignal(P2P_TIMEOUTS.advertiseMs, signal)
+      })
+    } catch (e) {
+      p2pDhtProvide.add(1, { outcome: 'fail' })
+      throw e
+    }
+    p2pDhtProvide.add(1, { outcome: 'ok' })
     return true
   }
 
@@ -2023,7 +2045,9 @@ export class OceanP2P extends EventEmitter {
       for await (const value of f) {
         peersFound.push(value)
       }
+      p2pDhtFind.add(1, { kind: 'providers', outcome: 'ok' })
     } catch (e) {
+      p2pDhtFind.add(1, { kind: 'providers', outcome: 'fail' })
       P2P_LOGGER.error(`getProvidersForString(): ${describeP2PError(e)}`)
     }
     return peersFound.map((peer) => ({

@@ -1,0 +1,30 @@
+receivers:
+  otlp:
+    protocols:
+      http: { endpoint: 0.0.0.0:4318 }
+      grpc: { endpoint: 0.0.0.0:4317 }
+processors:
+  memory_limiter: { check_interval: 1s, limit_mib: 512, spike_limit_mib: 128 }
+  batch: { timeout: 10s, send_batch_size: 8192 }
+  attributes/scrub:            # defence-in-depth; the app never sets these on metrics
+    actions:
+      - { key: privateKey, action: delete }
+      - { key: private_key, action: delete }
+      - { key: PRIVATE_KEY, action: delete }
+      - { key: consumerAddress, action: delete }
+      - { key: did, action: delete }
+      - { key: jobId, action: delete }
+      - { key: nonce, action: delete }
+      - { key: signature, action: delete }
+exporters:
+  prometheusremotewrite:
+    endpoint: http://prometheus:9090/api/v1/write
+    tls: { insecure: true }
+    resource_to_telemetry_conversion: { enabled: true }   # operator-local: keep instance id
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls: { insecure: true }
+service:
+  pipelines:
+    metrics: { receivers: [otlp], processors: [memory_limiter, attributes/scrub, batch], exporters: [prometheusremotewrite] }
+    traces:  { receivers: [otlp], processors: [memory_limiter, attributes/scrub, batch], exporters: [otlp/tempo] }

@@ -7,6 +7,8 @@ import { Command } from '../../@types/commands.js'
 import { P2PCommandResponse } from '../../@types/OceanNode'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { BaseHandler } from '../core/handler/handler.js'
+import { SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { p2pCommand } from '../../telemetry/metrics.js'
 import {
   checkGlobalConnectionsRateLimit,
   checkRequestsRateLimit
@@ -196,9 +198,16 @@ export async function handleProtocolCommands(
   }
   P2P_LOGGER.logMessage('Performing P2P task: ' + JSON.stringify(logPayload), true)
 
+  // Bounded label for the `ocean.p2p.command` counter - never the raw, caller-supplied
+  // string, so an unknown/garbage command cannot grow the metric's cardinality.
+  const commandLabel = SUPPORTED_PROTOCOL_COMMANDS.includes(task.command)
+    ? task.command
+    : 'unknown'
+
   // Get and execute handler
   const handler: BaseHandler = this.getCoreHandlers().getHandler(task.command)
   if (!handler) {
+    p2pCommand.add(1, { command: commandLabel, outcome: 'error' })
     await sendErrorAndClose(501, `No handler found for command: ${task.command}`)
     return
   }
@@ -230,7 +239,9 @@ export async function handleProtocolCommands(
     }
 
     await stream.close()
+    p2pCommand.add(1, { command: commandLabel, outcome: 'ok' })
   } catch (err) {
+    p2pCommand.add(1, { command: commandLabel, outcome: 'error' })
     P2P_LOGGER.logMessageWithEmoji(
       'handleProtocolCommands Error: ' +
         (err instanceof Error ? err.message : String(err)),

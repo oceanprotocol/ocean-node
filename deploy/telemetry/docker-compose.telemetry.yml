@@ -1,0 +1,45 @@
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.115.1
+    command: ["--config=/etc/otel-collector.yaml"]
+    volumes: ["./otel-collector.yaml:/etc/otel-collector.yaml:ro"]
+    # Bound to loopback only: this dev stack has an open OTLP receiver and an anonymous-admin
+    # Grafana, neither of which should be reachable on all host interfaces by default.
+    ports: ["127.0.0.1:4318:4318", "127.0.0.1:4317:4317"]
+    depends_on: [prometheus, tempo]
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-remote-write-receiver
+      - --enable-feature=exemplar-storage
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./rules.yml:/etc/prometheus/rules.yml:ro
+    ports: ["127.0.0.1:9090:9090"]
+  tempo-init:
+    image: grafana/tempo:2.7.0
+    user: root
+    entrypoint: ["chown", "-R", "10001:10001", "/var/tempo"]
+    volumes: ["tempo-data:/var/tempo"]
+  tempo:
+    image: grafana/tempo:2.7.0
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    ports: ["127.0.0.1:3200:3200"]
+    depends_on: [tempo-init]
+  grafana:
+    image: grafana/grafana:11.5.1
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["127.0.0.1:3001:3000"]
+    depends_on: [prometheus, tempo]
+volumes:
+  tempo-data:

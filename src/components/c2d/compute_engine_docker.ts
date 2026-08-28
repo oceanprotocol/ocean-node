@@ -93,6 +93,12 @@ import {
   userDataToEnv,
   decryptUserData
 } from '../core/service/utils.js'
+import type {
+  ComputeEngineAggregate,
+  ComputeGpuAggregate,
+  EnvResourceSnapshot
+} from '../../telemetry/computeTypes.js'
+import { cJobsFinished } from '../../telemetry/metrics.js'
 
 const C2D_CONTAINER_UID = 1000
 const C2D_CONTAINER_GID = 1000
@@ -123,6 +129,18 @@ export class C2DEngineDocker extends C2DEngine {
   private cronTimer: any
   private cronTime: number = 2000
   private jobImageSizes: Map<string, number> = new Map()
+  // Engine-wide resource aggregate, refreshed each time logMetricsSummary() runs (throttled
+  // to C2D_METRICS_INTERVAL_SECONDS). Read by the OTel compute gauge callback
+  // (`telemetry/computeGauges.ts`) — never populated from there, only observed.
+  public lastAggregate?: ComputeEngineAggregate
+  // Per-environment resource pool snapshot (declared capacity vs live use), refreshed each
+  // time getComputeEnvironments() runs. Same read-only relationship with the gauge callback.
+  public envResourceSnapshot?: EnvResourceSnapshot
+  // Engine-wide queued job totals (summed across envs), refreshed each time
+  // getComputeEnvironments() runs. logMetricsSummary() folds this cached value into
+  // lastAggregate.queuedJobs/queuedFreeJobs since the per-tick summary is sync and cannot
+  // afford the async per-env getUsedResources() call itself.
+  private lastQueuedTotals?: { queued: number; queuedFree: number }
   // Best-effort GPU metrics collector (NVIDIA/NVML today). Lazily initializes its vendor
   // backends on first use by a GPU job; a pure-CPU node never loads any GPU code.
   private gpuMetrics: GpuMetricsService = new GpuMetricsService()
@@ -1146,6 +1164,14 @@ export class C2DEngineDocker extends C2DEngine {
      */
     if (!this.docker) return []
     const filteredEnvs = []
+    // Rebuilt fresh each call from the inUse/total this method already stamps below — read
+    // by the OTel compute gauge callback (`telemetry/computeGauges.ts`), never written there.
+    const resourceSnapshot: EnvResourceSnapshot = {}
+    // Engine-wide queued totals, summed across envs below. Only meaningful for an unfiltered
+    // (all-envs) call, so a chainId-filtered call leaves the cached engine-wide value alone
+    // rather than overwriting it with a partial sum.
+    let queuedTotal = 0
+    let queuedFreeTotal = 0
     // const systemInfo = this.docker ? await this.docker.info() : null
     for (const env of this.envs) {
       if (!chainId || (env.fees && Object.hasOwn(env.fees, String(chainId)))) {
@@ -1174,6 +1200,8 @@ export class C2DEngineDocker extends C2DEngine {
         computeEnv.runningfreeJobs = totalFreeJobs
         computeEnv.queuedJobs = queuedJobs
         computeEnv.queuedFreeJobs = queuedFreeJobs
+        if (typeof queuedJobs === 'number') queuedTotal += queuedJobs
+        if (typeof queuedFreeJobs === 'number') queuedFreeTotal += queuedFreeJobs
         computeEnv.queMaxWaitTime = maxWaitTime
         computeEnv.queMaxWaitTimeFree = maxWaitTimeFree
         computeEnv.runMaxWaitTime = maxRunningTime
@@ -1193,10 +1221,48 @@ export class C2DEngineDocker extends C2DEngine {
             else computeEnv.free.resources[i].inUse = 0
           }
         }
+
+        // Telemetry-only: never let a snapshot-shaping bug affect the response above.
+        try {
+          const perEnv: Record<string, { total: number; inUse: number }> = {}
+          for (const r of computeEnv.resources ?? []) {
+            perEnv[r.id] = { total: r.total ?? 0, inUse: r.inUse ?? 0 }
+          }
+          resourceSnapshot[computeEnv.id] = perEnv
+          // Free-tier resources share the same resource ids (cpu/ram/disk/gpu…) as the paid
+          // pool but are a distinct pool, so they get a distinct snapshot key rather than
+          // overwriting the paid entry above.
+          if (computeEnv.free?.resources) {
+            const perFreeEnv: Record<string, { total: number; inUse: number }> = {}
+            for (const r of computeEnv.free.resources) {
+              perFreeEnv[r.id] = { total: r.total ?? 0, inUse: r.inUse ?? 0 }
+            }
+            resourceSnapshot[`${computeEnv.id}:free`] = perFreeEnv
+          }
+        } catch (e) {
+          CORE_LOGGER.debug(
+            `[metrics] env resource snapshot failed for ${computeEnv?.id}: ${e?.message}`
+          )
+        }
+
         filteredEnvs.push(computeEnv)
       }
     }
 
+    // Unfiltered calls see every env, so they are authoritative and replace the snapshot
+    // wholesale (dropping envs that no longer exist). A chainId-filtered call only sees that
+    // chain's envs, so it must merge — refreshing its own entries without clobbering the
+    // engine-wide picture other chains contributed. Queued totals are engine-wide, so they
+    // are only trusted from an unfiltered call.
+    if (!chainId) {
+      this.envResourceSnapshot = resourceSnapshot
+      this.lastQueuedTotals = { queued: queuedTotal, queuedFree: queuedFreeTotal }
+    } else {
+      this.envResourceSnapshot = {
+        ...(this.envResourceSnapshot ?? {}),
+        ...resourceSnapshot
+      }
+    }
     return filteredEnvs
   }
 
@@ -2078,6 +2144,7 @@ export class C2DEngineDocker extends C2DEngine {
         job.buildStopTimestamp = String(nowSec)
       }
       job.dateFinished = String(nowSec)
+      this.recordJobFinished(job)
 
       await this.db.updateJob(job)
       await this.cleanupJob(job)
@@ -2092,6 +2159,7 @@ export class C2DEngineDocker extends C2DEngine {
         job.statusText = C2DStatusText.JobQueuedExpired
         job.isRunning = false
         job.dateFinished = now
+        this.recordJobFinished(job)
         await this.db.updateJob(job)
         await this.cleanupJob(job)
         return
@@ -2151,6 +2219,7 @@ export class C2DEngineDocker extends C2DEngine {
           job.statusText = C2DStatusText.VulnerableImage
           job.isRunning = false
           job.dateFinished = String(Date.now() / 1000)
+          this.recordJobFinished(job)
           await this.db.updateJob(job)
           await this.cleanupJob(job)
           return
@@ -2179,6 +2248,7 @@ export class C2DEngineDocker extends C2DEngine {
         job.statusText = C2DStatusText.VolumeCreationFailed
         job.isRunning = false
         job.dateFinished = String(Date.now() / 1000)
+        this.recordJobFinished(job)
         await this.db.updateJob(job)
         await this.cleanupJob(job)
         return
@@ -2359,6 +2429,7 @@ export class C2DEngineDocker extends C2DEngine {
         job.statusText = C2DStatusText.ContainerCreationFailed
         job.isRunning = false
         job.dateFinished = String(Date.now() / 1000)
+        this.recordJobFinished(job)
         await this.db.updateJob(job)
         await this.cleanupJob(job)
         return
@@ -2374,6 +2445,7 @@ export class C2DEngineDocker extends C2DEngine {
         // failed, let's close it
         job.isRunning = false
         job.dateFinished = String(Date.now() / 1000)
+        this.recordJobFinished(job)
         await this.db.updateJob(job)
         await this.cleanupJob(job)
       } else {
@@ -2429,6 +2501,7 @@ export class C2DEngineDocker extends C2DEngine {
 
             job.isRunning = false
             job.dateFinished = String(Date.now() / 1000)
+            this.recordJobFinished(job)
             await this.db.updateJob(job)
             await this.cleanupJob(job)
             return
@@ -2513,6 +2586,7 @@ export class C2DEngineDocker extends C2DEngine {
         CORE_LOGGER.debug('Could not retrieve container: ' + e.message)
         job.isRunning = false
         job.dateFinished = String(Date.now() / 1000)
+        this.recordJobFinished(job)
         try {
           const algoLogFile =
             this.getStoragePath() + '/' + job.jobId + '/data/logs/algorithm.log'
@@ -2601,6 +2675,7 @@ export class C2DEngineDocker extends C2DEngine {
       }
       job.isRunning = false
       job.dateFinished = String(Date.now() / 1000)
+      this.recordJobFinished(job)
       await this.db.updateJob(job)
       await this.cleanupJob(job)
     }
@@ -2611,6 +2686,7 @@ export class C2DEngineDocker extends C2DEngine {
     job.statusText = C2DStatusText.DataProvisioningFailed
     job.isRunning = false
     job.dateFinished = String(Date.now() / 1000)
+    this.recordJobFinished(job)
     await this.db.updateJob(job)
     await this.cleanupJob(job)
   }
@@ -2983,6 +3059,7 @@ export class C2DEngineDocker extends C2DEngine {
       // Final metrics snapshot before the container is torn down (records the last CPU
       // seconds, peak memory, final disk usage and exit info for postmortems).
       await this.collectJobMetrics(job, algorithmUsage, true)
+      this.recordJobFinished(job)
       await this.db.updateJob(job)
       await this.cleanupJob(job)
       CORE_LOGGER.info(`Job ${job.jobId} terminated - DISK QUOTA EXCEEDED`)
@@ -3006,6 +3083,21 @@ export class C2DEngineDocker extends C2DEngine {
       cpu,
       ramBytes: ramGb * 1024 * 1024 * 1024,
       diskBytes: diskGb * 1024 * 1024 * 1024
+    }
+  }
+
+  // Increments the `ocean.compute.jobs.finished` counter with a bounded status label (the
+  // C2DStatusNumber enum key, not free text). Called at the docker engine's job-finalization
+  // sites, right after `job.dateFinished` is set. Guarded so a telemetry failure can never
+  // turn a successful finalization into a failed one.
+  private recordJobFinished(job: DBComputeJob): void {
+    try {
+      cJobsFinished.add(1, {
+        engine: this.getC2DConfig().hash,
+        status: C2DStatusNumber[job.status] ?? String(job.status)
+      })
+    } catch (e: any) {
+      CORE_LOGGER.debug(`[metrics] jobs.finished counter failed: ${e?.message}`)
     }
   }
 
@@ -3057,6 +3149,28 @@ export class C2DEngineDocker extends C2DEngine {
             `[metrics] summary engine ${this.getC2DConfig().hash}: ${jobs.length} job(s) / ` +
               `${services.length} service(s) running, none sampled yet`
           )
+        }
+        // A well-formed, all-zero aggregate is preferable to leaving the previous tick's
+        // (now stale) numbers cached: the gauge callback would otherwise keep reporting a
+        // ghost workload after the last job/service finished. hostCores/runningJobs are
+        // still real (cheap, in scope) so dashboards don't lose those while idle.
+        this.lastAggregate = {
+          cpuPercent: 0,
+          coresAllocated: 0,
+          hostCores: this.physicalLimits.get('cpu') ?? 0,
+          throttledCount: 0,
+          memUsed: 0,
+          memLimit: 0,
+          diskUsed: 0,
+          rxBytes: 0,
+          txBytes: 0,
+          sampledCount: 0,
+          oldestSampleAgeSeconds: 0,
+          runningJobs: jobs.length,
+          runningFreeJobs: jobs.filter((j) => j.isFree).length,
+          queuedJobs: this.lastQueuedTotals?.queued,
+          queuedFreeJobs: this.lastQueuedTotals?.queuedFree,
+          gpus: []
         }
         return
       }
@@ -3121,6 +3235,53 @@ export class C2DEngineDocker extends C2DEngine {
         if (pressure.length > 0) {
           CORE_LOGGER.debug(`[metrics] pressure ${kind} ${id}: ${pressure.join(', ')}`)
         }
+      }
+
+      // Dedupe GPUs by resourceId across every sampled job/service: a shareable GPU
+      // (`shared: true`) is reported identically by each job holding it, so summing would
+      // multiply a single device's utilization/memory by however many jobs share it. The
+      // first sample seen for a resourceId is kept — all samples for the same device carry
+      // the same device-level reading within one tick.
+      const gpuByResourceId = new Map<string, ComputeGpuAggregate>()
+      for (const { metrics } of sampled) {
+        for (const g of metrics.gpu ?? []) {
+          if (!gpuByResourceId.has(g.resourceId)) {
+            gpuByResourceId.set(g.resourceId, {
+              resourceId: g.resourceId,
+              vendor: g.vendor,
+              utilizationPercent: g.utilizationPercent ?? undefined,
+              memoryUsedBytes: g.memoryUsedBytes ?? undefined,
+              memoryTotalBytes: g.memoryTotalBytes ?? undefined,
+              temperatureC: g.temperatureC,
+              powerWatts: g.powerWatts
+            })
+          }
+        }
+      }
+
+      // runningJobs/runningFreeJobs are a free split of the `jobs` param already in scope
+      // (no extra DB call). Queued counts need getUsedResources() per env (async,
+      // per-environment) which is not cheaply available inside this sync summary, so they
+      // are read from the cache getComputeEnvironments() last stamped on this.lastQueuedTotals
+      // instead — left undefined only if that cache hasn't been populated yet, in which case
+      // the gauge callback simply skips observing them.
+      this.lastAggregate = {
+        cpuPercent,
+        coresAllocated,
+        hostCores,
+        throttledCount,
+        memUsed,
+        memLimit,
+        diskUsed,
+        rxBytes,
+        txBytes,
+        sampledCount: sampled.length,
+        oldestSampleAgeSeconds,
+        runningJobs: jobs.length,
+        runningFreeJobs: jobs.filter((j) => j.isFree).length,
+        queuedJobs: this.lastQueuedTotals?.queued,
+        queuedFreeJobs: this.lastQueuedTotals?.queuedFree,
+        gpus: Array.from(gpuByResourceId.values())
       }
     } catch (e: any) {
       CORE_LOGGER.debug(`[metrics] summary failed: ${e?.message}`)
@@ -3290,6 +3451,7 @@ export class C2DEngineDocker extends C2DEngine {
       job.statusText = C2DStatusText.PullImageFailed
       job.isRunning = false
       job.dateFinished = String(Date.now() / 1000)
+      this.recordJobFinished(job)
       await this.db.updateJob(job)
       await this.cleanupJob(job)
     } finally {
@@ -3442,6 +3604,7 @@ export class C2DEngineDocker extends C2DEngine {
       job.buildStopTimestamp = String(Date.now() / 1000)
       job.isRunning = false
       job.dateFinished = String(Date.now() / 1000)
+      this.recordJobFinished(job)
       await this.db.updateJob(job)
       await this.cleanupJob(job)
     } finally {
