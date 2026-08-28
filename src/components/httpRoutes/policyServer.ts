@@ -49,11 +49,14 @@ PolicyServerPassthroughRoute.post(
     )
     try {
       const response = await new PolicyServerInitializeHandler(req.oceanNode).handle({
-        command: PROTOCOL_COMMANDS.POLICY_SERVER_PASSTHROUGH,
+        command: PROTOCOL_COMMANDS.POLICY_SERVER_INITIALIZE,
         documentId: req.body.documentId,
         serviceId: req.body.serviceId,
         consumerAddress: req.body.consumerAddress,
         policyServer: req.body.policyServer,
+        nonce: req.body.nonce,
+        signature: req.body.signature,
+        authorization: req.headers?.authorization,
         caller: req.caller
       })
       if (response.stream) {

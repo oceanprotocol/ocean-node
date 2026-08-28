@@ -14,6 +14,7 @@ import {
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { ReadableString } from '../../P2P/handlers.js'
 import { CONNECTION_HISTORY_DELETE_THRESHOLD } from '../../../utils/constants.js'
+import { normalizeCommandAddresses, sameAddress } from '../../../utils/evmAddress.js'
 
 export abstract class BaseHandler implements ICommandHandler {
   public nodeInstance: OceanNode
@@ -157,6 +158,10 @@ export abstract class CommandHandler
 {
   abstract validate(command: Command): ValidateParams
   async verifyParamsAndRateLimits(task: Command): Promise<P2PCommandResponse> {
+    // Canonicalize every caller-supplied address (EIP-55) before ANYTHING reads it: the
+    // validators below, DB lookups keyed by owner, ownership comparisons. Addresses are
+    // identity keys, and a differently-cased one silently misses instead of erroring.
+    normalizeCommandAddresses(task)
     // first check rate limits, if any
     if (!(await this.checkRateLimit(task.caller))) {
       return buildRateLimitReachedResponse()
@@ -174,22 +179,13 @@ export abstract class CommandHandler
     }
   }
 
-  async getAddressFromToken(authToken: string): Promise<string> {
-    const auth = this.getOceanNode().getAuth()
-    if (!auth) {
-      throw new Error('Auth not configured')
-    }
-
-    return (await auth.validateToken(authToken)).address
-  }
-
   async validateTokenOrSignature(
     authToken: string,
     address: string,
     nonce: string,
     signature: string,
     command: string
-  ): Promise<P2PCommandResponse> {
+  ): Promise<P2PCommandResponse & { consumerAddress?: string }> {
     const oceanNode = this.getOceanNode()
     const auth = oceanNode.getAuth()
     if (!auth) {
@@ -211,10 +207,24 @@ export abstract class CommandHandler
         status: { httpStatus: 401, error: isAuthRequestValid.error }
       }
     }
+    // An auth TOKEN authenticates whoever it was issued to — not necessarily the address the
+    // command claims. Bind the two: without this, a valid token for address A would authorize a
+    // request naming address B as its consumerAddress, i.e. read/act on B's jobs, services and
+    // buckets. (The signature path returns the very address it verified, so it always matches.)
+    if (address && !sameAddress(isAuthRequestValid.address, address)) {
+      return {
+        stream: null,
+        status: {
+          httpStatus: 401,
+          error: 'Authenticated address does not match the requested address'
+        }
+      }
+    }
 
     return {
       stream: null,
-      status: { httpStatus: 200 }
+      status: { httpStatus: 200 },
+      consumerAddress: isAuthRequestValid.address
     }
   }
 }

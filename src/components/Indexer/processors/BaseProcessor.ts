@@ -1,5 +1,4 @@
 import { VersionedDDO, DeprecatedDDO } from '@oceanprotocol/ddo-js'
-import axios from 'axios'
 import {
   ZeroAddress,
   Signer,
@@ -25,9 +24,28 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
 import { fetchTransactionReceipt } from '../../core/utils/validateOrders.js'
-import { withRetrial } from '../utils.js'
+import { withRetrial, isProviderError } from '../utils.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
 import { Database } from '../../../components/database/index.js'
+
+/**
+ * Byte caps for the two response bodies `decryptDDO` reads.
+ *
+ * The shared readers default to 64 MiB, which is a ceiling on heap growth, not a statement
+ * about these payloads. Both of these come from a node the indexer chose to trust only as far
+ * as the on-chain `decryptorURL` says, and one of them is read over P2P, so the cap should say
+ * what the payload actually is:
+ *
+ * - a nonce is a decimal integer, so 4 KiB is already three orders of magnitude of headroom;
+ * - a DDO is comfortably under a MiB in practice, so 4 MiB leaves room for an unusually large
+ *   one while still refusing a peer that answers a `getDDO` with a gigabyte.
+ *
+ * Sizing them here rather than in the shared reader keeps the general default general: a
+ * streaming consumer is bounded by the P2P response budgets instead, and only accumulating
+ * call sites like these need a payload-shaped number.
+ */
+const MAX_NONCE_RESPONSE_BYTES = 4 * 1024
+const MAX_DDO_RESPONSE_BYTES = 4 * 1024 * 1024
 
 export abstract class BaseEventProcessor {
   protected networkId: number
@@ -40,6 +58,14 @@ export abstract class BaseEventProcessor {
 
   getConfig(): OceanNodeConfig {
     return this.config
+  }
+
+  /**
+   * Rethrow transient provider/RPC failures so the crawl loop can retry the chunk instead of the
+   * event processor swallowing them and letting the cursor advance past an un-stored asset.
+   */
+  protected rethrowIfProviderError(err: any): void {
+    if (isProviderError(err)) throw err
   }
 
   async getDatabase(): Promise<Database> {
@@ -222,12 +248,13 @@ export abstract class BaseEventProcessor {
         INDEXER_LOGGER.logMessage(
           `decryptDDO: Making HTTP request for nonce. DecryptorURL: ${decryptorURL}`
         )
-        const nonceResponse = await axios.get(
+        const nonceResponse = await fetch(
           `${decryptorURL}/api/services/nonce?userAddress=${address}`,
-          { timeout: 20000 }
+          { signal: AbortSignal.timeout(20000) }
         )
-        return nonceResponse.status === 200 && nonceResponse.data
-          ? String(parseInt(nonceResponse.data.nonce) + 1)
+        const nonceData = nonceResponse.status === 200 ? await nonceResponse.json() : null
+        return nonceData?.nonce !== undefined
+          ? String(parseInt(nonceData.nonce) + 1)
           : Date.now().toString()
       } else {
         return Date.now().toString()
@@ -287,17 +314,32 @@ export abstract class BaseEventProcessor {
               nonce
             }
             try {
-              const res = await axios({
-                method: 'post',
-                url: `${decryptorURL}/api/services/decrypt`,
-                data: payload,
-                timeout: 30000,
-                validateStatus: (status) => {
-                  return (
-                    (status >= 200 && status < 300) || status === 400 || status === 403
-                  )
-                }
+              // fetch never throws on HTTP status; the manual status checks below
+              // reproduce the previous axios validateStatus contract (2xx/400/403
+              // handled here, everything else throws and is retried by withRetrial).
+              const fetchRes = await fetch(`${decryptorURL}/api/services/decrypt`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: AbortSignal.timeout(30000)
               })
+              // axios's default transformResponse parsed JSON regardless of the
+              // content-type, falling back to the raw string. The decrypt endpoint
+              // returns the DDO as JSON but with a text/plain content-type, so a
+              // content-type gate would wrongly keep it a string and downstream
+              // create256Hash would receive an object. Replicate axios here.
+              const rawBody = await fetchRes.text()
+              let parsedBody: any = rawBody
+              try {
+                parsedBody = JSON.parse(rawBody)
+              } catch {
+                // not JSON — keep the raw string, same as axios did
+              }
+              const res = {
+                status: fetchRes.status,
+                statusText: fetchRes.statusText,
+                data: parsedBody
+              }
 
               INDEXER_LOGGER.log(
                 LOG_LEVELS_STR.LEVEL_INFO,
@@ -320,9 +362,11 @@ export abstract class BaseEventProcessor {
               }
               return res
             } catch (err: any) {
-              // Retry ONLY on ECONNREFUSED
+              // Retry ONLY on ECONNREFUSED. fetch wraps the OS error in
+              // `err.cause`, so check both there and on the error itself.
               if (
                 err.code === 'ECONNREFUSED' ||
+                err.cause?.code === 'ECONNREFUSED' ||
                 (err.message && err.message.includes('ECONNREFUSED'))
               ) {
                 INDEXER_LOGGER.log(
@@ -373,7 +417,12 @@ export abstract class BaseEventProcessor {
               .getHandler(PROTOCOL_COMMANDS.NONCE)
               .handle(getNonceTask)
             nonceP2p = String(
-              parseInt(await streamToString(response.stream as Readable)) + 1
+              parseInt(
+                await streamToString(
+                  response.stream as Readable,
+                  MAX_NONCE_RESPONSE_BYTES
+                )
+              ) + 1
             )
           } catch (error) {
             const message = `Node exception on getting nonce from local nodeId ${nodeId}. Status: ${error.message}`
@@ -405,7 +454,9 @@ export abstract class BaseEventProcessor {
               .getCoreHandlers()
               .getHandler(PROTOCOL_COMMANDS.DECRYPT_DDO)
               .handle(decryptDDOTask)
-            ddo = JSON.parse(await streamToString(response.stream as Readable))
+            ddo = JSON.parse(
+              await streamToString(response.stream as Readable, MAX_DDO_RESPONSE_BYTES)
+            )
           } catch (error) {
             const message = `Node exception on decrypt DDO from local nodeId ${nodeId}. Status: ${error.message}`
             INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
@@ -419,6 +470,11 @@ export abstract class BaseEventProcessor {
               address: ethAddress,
               command: PROTOCOL_COMMANDS.NONCE
             }
+            // No `signal`: `decryptDDO` takes none and owns no controller, so there is
+            // nothing to thread. Setup is bounded by sendTo's own deadline and the response
+            // body by the body ceiling; giving this call a locally-invented deadline would
+            // mean picking a number tighter or looser than those, which is a budget decision
+            // and belongs with the other P2P budgets rather than here.
             let response = await p2pNode.sendTo(
               decryptorURL,
               JSON.stringify(getNonceTask)
@@ -438,7 +494,12 @@ export abstract class BaseEventProcessor {
 
             // Convert stream to Uint8Array
             const remoteNonce = String(
-              parseInt(await streamToString(response.stream as Readable)) + 1
+              parseInt(
+                await streamToString(
+                  response.stream as Readable,
+                  MAX_NONCE_RESPONSE_BYTES
+                )
+              ) + 1
             )
             INDEXER_LOGGER.debug(
               `decryptDDO: Fetched fresh nonce ${remoteNonce} from remote node ${decryptorURL} for decrypt attempt`
@@ -478,7 +539,10 @@ export abstract class BaseEventProcessor {
             }
 
             // Convert stream to Uint8Array
-            const data = await streamToUint8Array(response.stream as Readable)
+            const data = await streamToUint8Array(
+              response.stream as Readable,
+              MAX_DDO_RESPONSE_BYTES
+            )
             ddo = JSON.parse(uint8ArrayToString(data))
           } catch (error) {
             const message = `Exception from remote nodeId ${nodeId}. Status: ${error.message}`

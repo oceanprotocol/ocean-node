@@ -11,13 +11,11 @@ import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 
 export abstract class Storage {
-  /* eslint-disable no-use-before-define -- static factory return type references this class */
   static getStorageClass: (
     file: any,
     config: OceanNodeConfig,
     consumerAddress?: string
   ) => Storage
-  /* eslint-enable no-use-before-define */
 
   private file: StorageObject
   config: OceanNodeConfig

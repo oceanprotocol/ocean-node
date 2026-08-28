@@ -5,6 +5,11 @@ export const ENV_TO_CONFIG_MAPPING = {
   DB_USERNAME: 'DB_USERNAME',
   DB_PASSWORD: 'DB_PASSWORD',
   DB_TYPE: 'DB_TYPE',
+  // NOTE: deliberately flat (not under dbConfig.*) — preprocessConfigData() rebuilds
+  // data.dbConfig from scratch when DB_URL is set, which would drop anything nested there.
+  DB_INIT_MAX_ATTEMPTS: 'dbInitMaxAttempts',
+  DB_INIT_RETRY_DELAY: 'dbInitRetryDelay',
+  DB_INIT_MAX_RETRY_DELAY: 'dbInitMaxRetryDelay',
   FEE_AMOUNT: 'FEE_AMOUNT',
   FEE_TOKENS: 'FEE_TOKENS',
   HTTP_API_PORT: 'httpPort',
@@ -30,6 +35,7 @@ export const ENV_TO_CONFIG_MAPPING = {
   ALLOWED_ADMINS: 'allowedAdmins',
   ALLOWED_ADMINS_LIST: 'allowedAdminsList',
   DOCKER_COMPUTE_ENVIRONMENTS: 'dockerComputeEnvironments',
+  SERVICE_TEMPLATES_PATH: 'serviceTemplatesPath',
   DOCKER_REGISTRY_AUTHS: 'dockerRegistrysAuth',
   P2P_BOOTSTRAP_NODES: 'p2pConfig.bootstrapNodes',
   P2P_BOOTSTRAP_TIMEOUT: 'p2pConfig.bootstrapTimeout',
@@ -46,13 +52,14 @@ export const ENV_TO_CONFIG_MAPPING = {
   P2P_ipV6BindTcpPort: 'p2pConfig.ipV6BindTcpPort',
   P2P_ipV6BindWsPort: 'p2pConfig.ipV6BindWsPort',
   P2P_ANNOUNCE_ADDRESSES: 'p2pConfig.announceAddresses',
-  P2P_pubsubPeerDiscoveryInterval: 'p2pConfig.pubsubPeerDiscoveryInterval',
   P2P_dhtMaxInboundStreams: 'p2pConfig.dhtMaxInboundStreams',
   P2P_dhtMaxOutboundStreams: 'p2pConfig.dhtMaxOutboundStreams',
   P2P_DHT_FILTER: 'p2pConfig.dhtFilter',
+  P2P_DHT_FORCE_SERVER: 'p2pConfig.dhtForceServer',
   P2P_mDNSInterval: 'p2pConfig.mDNSInterval',
   P2P_connectionsMaxParallelDials: 'p2pConfig.connectionsMaxParallelDials',
   P2P_connectionsDialTimeout: 'p2pConfig.connectionsDialTimeout',
+  P2P_MAXDIALQUEUELENGTH: 'p2pConfig.maxDialQueueLength',
   P2P_ENABLE_UPNP: 'p2pConfig.upnp',
   P2P_ENABLE_AUTONAT: 'p2pConfig.autoNat',
   P2P_ENABLE_CIRCUIT_RELAY_SERVER: 'p2pConfig.enableCircuitRelayServer',
@@ -67,6 +74,44 @@ export const ENV_TO_CONFIG_MAPPING = {
   P2P_MAXPEERADDRSTODIAL: 'p2pConfig.maxPeerAddrsToDial',
   P2P_AUTODIALINTERVAL: 'p2pConfig.autoDialInterval',
   P2P_ENABLE_NETWORK_STATS: 'p2pConfig.enableNetworkStats',
+  // the P2P timeout budgets. src/components/P2P/timeouts.ts holds the values
+  // and reads these same variables, so an env override reaches both the validated config and
+  // the consuming code.
+  P2P_FINDPEER_TIMEOUT_MS: 'p2pConfig.findPeerTimeout',
+  P2P_FINDPROVIDERS_TIMEOUT_MS: 'p2pConfig.findProvidersTimeout',
+  P2P_STREAM_IDLE_TIMEOUT_MS: 'p2pConfig.streamIdleTimeout',
+  P2P_STREAM_BODY_TIMEOUT_MS: 'p2pConfig.streamBodyTimeout',
+  P2P_SENDTO_RESOLVE_MS: 'p2pConfig.sendToResolveTimeout',
+  P2P_SENDTO_DIAL_MS: 'p2pConfig.sendToDialTimeout',
+  P2P_SENDTO_STREAM_MS: 'p2pConfig.sendToStreamTimeout',
+  P2P_SENDTO_MAX_ATTEMPTS: 'p2pConfig.sendToMaxAttempts',
+  // sendTo's overall setup deadline. Without this line the variable reached
+  // timeouts.ts (which reads process.env directly) but not the validated config, so
+  // `P2P_SENDTO_TOTAL_MS=30000` left config at 45000 while the running code used 30000 -
+  // and generated ENVIRONMENT_VARIABLES list did not know the key existed.
+  P2P_SENDTO_TOTAL_MS: 'p2pConfig.sendToTotalTimeout',
+  P2P_ADVERTISE_TIMEOUT_MS: 'p2pConfig.advertiseTimeout',
+  P2P_PEERSTORE_GET_MS: 'p2pConfig.peerStoreGetTimeout',
+  P2P_DISCOVERY_DIAL_MS: 'p2pConfig.discoveryDialTimeout',
+  P2P_COMMAND_MAX_INBOUND_STREAMS: 'p2pConfig.commandMaxInboundStreams',
+  P2P_FINDDDO_TIMEOUT_MS: 'p2pConfig.findDdoTimeout',
+  // Per-provider budget inside FindDDO, and how long a "nobody had it" answer is remembered.
+  // `P2P_PROVIDER_RETRY_SLEEP_MS` is gone with the back-off it configured: providers are now
+  // queried concurrently, so there is no interval between them to tune.
+  P2P_FINDDDO_PROVIDER_TIMEOUT_MS: 'p2pConfig.findDdoProviderTimeout',
+  P2P_DDO_NOT_FOUND_CACHE_MS: 'p2pConfig.ddoNotFoundCacheTimeout',
+  // The app-level peer-address cache and its negative half.
+  P2P_RESOLVE_CACHE_MS: 'p2pConfig.resolveCacheTimeout',
+  P2P_RESOLVE_NEGATIVE_CACHE_MS: 'p2pConfig.resolveNegativeCacheTimeout',
+  // Ceiling on concurrent outbound sendTo calls, so a provider fan-out or an indexer decrypt
+  // loop cannot starve the dial queue.
+  P2P_SENDTO_MAX_CONCURRENCY: 'p2pConfig.sendToMaxConcurrency',
+  // Routing-table size at which the P2P interface reports itself ready, and the delay before
+  // kad-dht's first self-query.
+  P2P_READY_MIN_ROUTING_PEERS: 'p2pConfig.readyMinRoutingPeers',
+  P2P_INITIAL_QUERY_SELF_MS: 'p2pConfig.initialQuerySelfTimeout',
+  P2P_PEERSTORE_MAX_ADDRESS_AGE_MS: 'p2pConfig.peerStoreMaxAddressAge',
+  P2P_PEERSTORE_MAX_PEER_AGE_MS: 'p2pConfig.peerStoreMaxPeerAge',
   HTTP_CERT_PATH: 'httpCertPath',
   HTTP_KEY_PATH: 'httpKeyPath',
   ENABLE_BENCHMARK: 'enableBenchmark',
@@ -75,6 +120,11 @@ export const ENV_TO_CONFIG_MAPPING = {
 
 // Configuration defaults
 export const DEFAULT_RATE_LIMIT_PER_MINUTE = 30
+// Database init retry at node startup. Worst case wait before giving up with these defaults is
+// 2 + 4 + 8 + 16 + 30 * 5 = 180 seconds, so a container health probe must tolerate that.
+export const DEFAULT_DB_INIT_MAX_ATTEMPTS = 10
+export const DEFAULT_DB_INIT_RETRY_DELAY = 2000
+export const DEFAULT_DB_INIT_MAX_RETRY_DELAY = 30000
 export const DEFAULT_MAX_CONNECTIONS_PER_MINUTE = 60 * 2 // 120 requests per minute
 export const SEPOLIA_CHAIN_ID = '11155111'
 export const BASE_CHAIN_ID = '8453'

@@ -37,6 +37,7 @@ export class AddressAddedEventProcessor extends BaseEventProcessor {
       )
       return result
     } catch (err) {
+      this.rethrowIfProviderError(err)
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
         `Error processing AddressAdded event: ${err.message}`,

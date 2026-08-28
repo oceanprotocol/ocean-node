@@ -9,6 +9,8 @@ on:
   pull_request:
     branches:
       - 'main'
+      - 'next-4'
+      - 'deps/node_v24'
 
 env:
   DOCKERHUB_IMAGE: ${{ 'oceanprotocol/ocean-node' }}

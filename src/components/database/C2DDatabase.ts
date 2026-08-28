@@ -3,8 +3,10 @@ import fs from 'fs'
 import {
   ComputeEnvironment,
   DBComputeJob,
-  C2DStatusNumber
+  C2DStatusNumber,
+  ContainerMetricsSnapshot
 } from '../../@types/C2D/C2D.js'
+import { ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
 import { SQLiteCompute } from './sqliteCompute.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
@@ -30,6 +32,8 @@ export class C2DDatabase extends AbstractDatabase {
       this.provider = new SQLiteCompute('databases/c2dDatabase.sqlite')
       await this.provider.createTable()
       await this.provider.createImageTable()
+      await this.provider.createServiceTable()
+      await this.provider.createServiceLocksTable()
 
       return this
     })() as unknown as C2DDatabase
@@ -71,6 +75,73 @@ export class C2DDatabase extends AbstractDatabase {
     return await this.provider.getRunningJobs(engine, environment)
   }
 
+  // ── Service-on-Demand jobs ──────────────────────────────────────────
+
+  async newServiceJob(job: ServiceJob): Promise<void> {
+    return await this.provider.newServiceJob(job)
+  }
+
+  async getServiceJob(serviceId?: string, owner?: string): Promise<ServiceJob[]> {
+    return await this.provider.getServiceJob(serviceId, owner)
+  }
+
+  async updateServiceJob(job: ServiceJob): Promise<number> {
+    return await this.provider.updateServiceJob(job)
+  }
+
+  // Guarded, metrics-only write: persists runtimeMetrics without touching lifecycle fields, and
+  // only when the row still matches the expected owner/clusterHash/status/containerId. Best-effort.
+  async updateServiceJobMetrics(
+    serviceId: string,
+    expected: {
+      owner: string
+      clusterHash: string
+      status: number
+      containerId: string
+    },
+    runtimeMetrics: ContainerMetricsSnapshot
+  ): Promise<boolean> {
+    return await this.provider.updateServiceJobMetrics(
+      serviceId,
+      expected,
+      runtimeMetrics
+    )
+  }
+
+  async getRunningServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
+    return await this.provider.getRunningServiceJobs(clusterHash)
+  }
+
+  async getExpiredServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
+    return await this.provider.getExpiredServiceJobs(clusterHash)
+  }
+
+  async getPendingServiceStarts(clusterHash?: string): Promise<ServiceJob[]> {
+    return await this.provider.getPendingServiceStarts(clusterHash)
+  }
+
+  // ── Service lifecycle locks (cross-process; see sqliteCompute.ts) ───────
+
+  async acquireServiceLock(
+    serviceId: string,
+    holder: string,
+    staleMs: number
+  ): Promise<boolean> {
+    return await this.provider.acquireServiceLock(serviceId, holder, staleMs)
+  }
+
+  async releaseServiceLock(serviceId: string, holder: string): Promise<void> {
+    return await this.provider.releaseServiceLock(serviceId, holder)
+  }
+
+  async refreshServiceLocks(holder: string): Promise<void> {
+    return await this.provider.refreshServiceLocks(holder)
+  }
+
+  async isServiceLocked(serviceId: string, staleMs: number): Promise<boolean> {
+    return await this.provider.isServiceLocked(serviceId, staleMs)
+  }
+
   async deleteJob(jobId: string): Promise<boolean> {
     return await this.provider.deleteJob(jobId)
   }
@@ -79,9 +150,10 @@ export class C2DDatabase extends AbstractDatabase {
     return await this.provider.getFinishedJobs(environments)
   }
 
+  /** @param fromTimestamp lower bound in Unix seconds — see SQLiteCompute.getJobs. */
   async getJobs(
     environments?: string[],
-    fromTimestamp?: string,
+    fromTimestamp?: number,
     consumerAddrs?: string[],
     status?: C2DStatusNumber,
     runningJobs?: boolean

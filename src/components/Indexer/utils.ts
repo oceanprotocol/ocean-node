@@ -15,6 +15,25 @@ import { ServicePrice } from '../../@types/IndexedMetadata.js'
 import { VersionedDDO } from '@oceanprotocol/ddo-js'
 import FactoryRouter from '@oceanprotocol/contracts/artifacts/contracts/pools/FactoryRouter.sol/FactoryRouter.json' with { type: 'json' }
 
+/**
+ * Distinguishes a transient provider/RPC failure (destroyed provider, network error, timeout,
+ * cancelled in-flight request) from a legitimate business outcome, so contract-call catches can
+ * rethrow provider errors instead of swallowing them and letting the crawl loop advance the
+ * cursor past an asset it never stored.
+ */
+export function isProviderError(err: any): boolean {
+  const code = err?.code
+  const msg = String(err?.message ?? err ?? '')
+  return (
+    code === 'NETWORK_ERROR' ||
+    code === 'SERVER_ERROR' ||
+    code === 'TIMEOUT' ||
+    (code === 'UNSUPPORTED_OPERATION' && /provider destroyed/i.test(msg)) ||
+    /provider destroyed/i.test(msg) ||
+    /cancelled request/i.test(msg)
+  )
+}
+
 export const getContractAddress = (chainId: number, contractName: string): string => {
   const addressFile = getOceanArtifactsAdressesByChainId(chainId)
   if (addressFile && contractName in addressFile) {
@@ -33,6 +52,7 @@ export const isValidFreContract = async (
   try {
     return await routerContract.isFixedRateContract(address)
   } catch (e) {
+    if (isProviderError(e)) throw e
     INDEXER_LOGGER.error(`Could not fetch FRE contract status: ${e.message}`)
   }
 }
@@ -47,6 +67,7 @@ export const isValidDispenserContract = async (
   try {
     return await routerContract.isDispenserContract(address)
   } catch (e) {
+    if (isProviderError(e)) throw e
     INDEXER_LOGGER.error(`Could not fetch dispenser contract status: ${e.message}`)
   }
 }
@@ -237,11 +258,13 @@ export async function getPricesByDt(
   try {
     dispensers = await datatoken.getDispensers()
   } catch (e) {
+    if (isProviderError(e)) throw e
     INDEXER_LOGGER.error(`[GET PRICES] failure when retrieving dispensers: ${e}`)
   }
   try {
     fixedRates = await datatoken.getFixedRates()
   } catch (e) {
+    if (isProviderError(e)) throw e
     INDEXER_LOGGER.error(
       `[GET PRICES] failure when retrieving fixed rate exchanges: ${e}`
     )
@@ -265,6 +288,7 @@ export async function getPricesByDt(
             })
           }
         } catch (e) {
+          if (isProviderError(e)) throw e
           INDEXER_LOGGER.error(
             `[GET PRICES] failure when retrieving dispenser status from contracts: ${e}`
           )
@@ -292,6 +316,7 @@ export async function getPricesByDt(
             })
           }
         } catch (e) {
+          if (isProviderError(e)) throw e
           INDEXER_LOGGER.error(
             `[GET PRICES] failure when retrieving exchange status from contracts: ${e}`
           )
@@ -328,11 +353,13 @@ export async function getPricingStatsForDddo(
     try {
       dispensers = await datatoken.getDispensers()
     } catch (e) {
+      if (isProviderError(e)) throw e
       INDEXER_LOGGER.error(`Contract call fails when retrieving dispensers: ${e}`)
     }
     try {
       fixedRates = await datatoken.getFixedRates()
     } catch (e) {
+      if (isProviderError(e)) throw e
       INDEXER_LOGGER.error(
         `Contract call fails when retrieving fixed rate exchanges: ${e}`
       )
@@ -371,6 +398,7 @@ export async function getPricingStatsForDddo(
               })
             }
           } catch (e) {
+            if (isProviderError(e)) throw e
             INDEXER_LOGGER.error(
               `[GET PRICES] failure when retrieving dispenser status from contracts: ${e}`
             )
@@ -407,6 +435,7 @@ export async function getPricingStatsForDddo(
             })
           }
         } catch (e) {
+          if (isProviderError(e)) throw e
           INDEXER_LOGGER.error(
             `[GET PRICES] failure when retrieving exchange status from contracts: ${e}`
           )

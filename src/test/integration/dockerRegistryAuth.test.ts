@@ -300,8 +300,8 @@ describe('**********         Docker Registry Authentication Integration Tests', 
       const result = DockerRegistryAuthSchema.safeParse(authData)
       expect(result.success).to.be.false
       if (!result.success) {
-        expect(result.error.errors).to.exist
-        expect(result.error.errors[0].message).to.include(
+        expect(result.error.issues).to.exist
+        expect(result.error.issues[0].message).to.include(
           "Either 'auth' must be provided, or both 'username' and 'password' must be provided"
         )
       }
@@ -315,8 +315,8 @@ describe('**********         Docker Registry Authentication Integration Tests', 
       const result = DockerRegistryAuthSchema.safeParse(authData)
       expect(result.success).to.be.false
       if (!result.success) {
-        expect(result.error.errors).to.exist
-        expect(result.error.errors[0].message).to.include(
+        expect(result.error.issues).to.exist
+        expect(result.error.issues[0].message).to.include(
           "Either 'auth' must be provided, or both 'username' and 'password' must be provided"
         )
       }
@@ -328,8 +328,8 @@ describe('**********         Docker Registry Authentication Integration Tests', 
       const result = DockerRegistryAuthSchema.safeParse(authData)
       expect(result.success).to.be.false
       if (!result.success) {
-        expect(result.error.errors).to.exist
-        expect(result.error.errors[0].message).to.include(
+        expect(result.error.issues).to.exist
+        expect(result.error.issues[0].message).to.include(
           "Either 'auth' must be provided, or both 'username' and 'password' must be provided"
         )
       }
@@ -343,8 +343,8 @@ describe('**********         Docker Registry Authentication Integration Tests', 
       const result = DockerRegistryAuthSchema.safeParse(authData)
       expect(result.success).to.be.false
       if (!result.success) {
-        expect(result.error.errors).to.exist
-        expect(result.error.errors[0].message).to.include(
+        expect(result.error.issues).to.exist
+        expect(result.error.issues[0].message).to.include(
           "Either 'auth' must be provided, or both 'username' and 'password' must be provided"
         )
       }
@@ -359,8 +359,8 @@ describe('**********         Docker Registry Authentication Integration Tests', 
       const result = DockerRegistryAuthSchema.safeParse(authData)
       expect(result.success).to.be.false
       if (!result.success) {
-        expect(result.error.errors).to.exist
-        expect(result.error.errors[0].message).to.include(
+        expect(result.error.issues).to.exist
+        expect(result.error.issues[0].message).to.include(
           "Either 'auth' must be provided, or both 'username' and 'password' must be provided"
         )
       }
@@ -375,8 +375,8 @@ describe('**********         Docker Registry Authentication Integration Tests', 
       const result = DockerRegistryAuthSchema.safeParse(authData)
       expect(result.success).to.be.false
       if (!result.success) {
-        expect(result.error.errors).to.exist
-        expect(result.error.errors[0].message).to.include(
+        expect(result.error.issues).to.exist
+        expect(result.error.issues[0].message).to.include(
           "Either 'auth' must be provided, or both 'username' and 'password' must be provided"
         )
       }
@@ -392,8 +392,8 @@ describe('**********         Docker Registry Authentication Integration Tests', 
       const result = DockerRegistryAuthSchema.safeParse(authData)
       expect(result.success).to.be.false
       if (!result.success) {
-        expect(result.error.errors).to.exist
-        expect(result.error.errors[0].message).to.include(
+        expect(result.error.issues).to.exist
+        expect(result.error.issues[0].message).to.include(
           "Either 'auth' must be provided, or both 'username' and 'password' must be provided"
         )
       }

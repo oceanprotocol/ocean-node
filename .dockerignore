@@ -7,7 +7,7 @@ databases
 .env.*
 .git
 .github
-docs
+docs/*
 src/test
 *.md
 *.log

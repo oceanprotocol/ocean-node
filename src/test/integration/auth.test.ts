@@ -126,7 +126,8 @@ describe('**********         Auth Token Integration Tests', () => {
       const messageHash = createHashForSignature(
         await consumerAccount.getAddress(),
         nonce,
-        PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN
+        PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
+        oceanNode.getKeyManager().getPeerIdString()
       )
       const signature = await safeSign(consumerAccount, messageHash)
 
@@ -150,7 +151,8 @@ describe('**********         Auth Token Integration Tests', () => {
       const messageHash = createHashForSignature(
         consumerAddress,
         nonce,
-        PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN
+        PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
+        oceanNode.getKeyManager().getPeerIdString()
       )
       const signature = await safeSign(consumerAccount, messageHash)
 
@@ -179,7 +181,8 @@ describe('**********         Auth Token Integration Tests', () => {
       const messageHash = createHashForSignature(
         consumerAddress,
         nonce,
-        PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN
+        PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
+        oceanNode.getKeyManager().getPeerIdString()
       )
       const signature = await safeSign(consumerAccount, messageHash)
 
@@ -192,11 +195,17 @@ describe('**********         Auth Token Integration Tests', () => {
 
       const token = await streamToObject(handlerResponse.stream as Readable)
       const newNonce = getRandomNonce()
+      const invalidateHash = createHashForSignature(
+        consumerAddress,
+        newNonce,
+        PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN
+      )
+      const invalidateSignature = await safeSign(consumerAccount, invalidateHash)
 
       await new InvalidateAuthTokenHandler(oceanNode).handle({
         command: PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
         address: consumerAddress,
-        signature,
+        signature: invalidateSignature,
         nonce: newNonce,
         token: token.token
       })
@@ -244,7 +253,8 @@ describe('**********         Auth Token Integration Tests', () => {
         const messageHash = createHashForSignature(
           await consumerAccount.getAddress(),
           nonce,
-          PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN
+          PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
+          oceanNode.getKeyManager().getPeerIdString()
         )
         const signature = await safeSign(consumerAccount, messageHash)
 

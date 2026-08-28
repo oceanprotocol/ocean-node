@@ -57,13 +57,18 @@ export interface OceanNodeP2PConfig {
   ipV6BindAddress: string | null
   ipV6BindTcpPort: number | null
   ipV6BindWsPort: number | null
-  pubsubPeerDiscoveryInterval: number
   dhtMaxInboundStreams: number
   dhtMaxOutboundStreams: number
   dhtFilter: dhtFilterMethod
+  // When true, pass `clientMode: false` to kad-dht so this node is always a DHT server.
+  // Left false, `clientMode` is omitted entirely so kad-dht registers its own auto-switch
+  // listener and promotes/demotes based on whether this node currently has a public address.
+  dhtForceServer: boolean
   mDNSInterval: number
   connectionsMaxParallelDials: number
   connectionsDialTimeout: number
+  // libp2p's own default (`MAX_DIAL_QUEUE_LENGTH`) is 500; ocean-node did not expose it before.
+  maxDialQueueLength: number
   announceAddresses: string[]
   filterAnnouncedAddresses: string[]
   autoNat: boolean
@@ -79,6 +84,42 @@ export interface OceanNodeP2PConfig {
   maxPeerAddrsToDial: number
   autoDialInterval: number
   enableNetworkStats: boolean
+  // timeout / attempt budgets. These mirror the keys `OceanNodeP2PConfigSchema` already
+  // declares (and `ENV_TO_CONFIG_MAPPING` already maps), so a config built by the schema always
+  // carries them - they are `optional` here only so a hand-built config object (tests, fixtures)
+  // stays assignable.
+  //
+  // Known seam: `src/components/P2P/timeouts.ts` still reads the `P2P_*` environment variables
+  // directly rather than these fields, so a value set only in `config.json` reaches the
+  // validated config and not the consuming code. Declaring the fields here is the type half of
+  // closing that seam; the getter half belongs to `timeouts.ts`. The schema no longer blocks
+  // that move - `OceanNodeP2PConfigSchema` now runs every one of these keys through the same
+  // coercion rule the getters use, so a blank or malformed value falls back to the documented
+  // default instead of becoming an instantly-expired `0`. What is still missing is a way for a
+  // synchronous getter to reach an asynchronously-built config.
+  findPeerTimeout?: number
+  findProvidersTimeout?: number
+  streamIdleTimeout?: number
+  streamBodyTimeout?: number
+  sendToResolveTimeout?: number
+  sendToDialTimeout?: number
+  sendToStreamTimeout?: number
+  sendToTotalTimeout?: number
+  sendToMaxAttempts?: number
+  advertiseTimeout?: number
+  peerStoreGetTimeout?: number
+  discoveryDialTimeout?: number
+  commandMaxInboundStreams?: number
+  findDdoTimeout?: number
+  findDdoProviderTimeout?: number
+  ddoNotFoundCacheTimeout?: number
+  resolveCacheTimeout?: number
+  resolveNegativeCacheTimeout?: number
+  sendToMaxConcurrency?: number
+  readyMinRoutingPeers?: number
+  initialQuerySelfTimeout?: number
+  peerStoreMaxAddressAge?: number
+  peerStoreMaxPeerAge?: number
 }
 
 export interface OceanNodeDockerConfig {
@@ -106,6 +147,7 @@ export interface dockerRegistrysAuth {
 
 export interface OceanNodeConfig {
   dockerComputeEnvironments: C2DDockerConfig[]
+  serviceTemplatesPath?: string // folder of *.json service templates; defaults to 'databases/serviceTemplates/'
   dockerRegistrysAuth: dockerRegistrysAuth
   authorizedDecrypters: string[]
   authorizedDecryptersList: AccessListContract | null
@@ -119,6 +161,10 @@ export interface OceanNodeConfig {
   hasIndexer: boolean
   hasHttp: boolean
   dbConfig?: OceanNodeDBConfig
+  // startup database-init retry: attempts, initial backoff (ms) and backoff ceiling (ms)
+  dbInitMaxAttempts: number
+  dbInitRetryDelay: number
+  dbInitMaxRetryDelay: number
   httpPort: number
   feeStrategy: FeeStrategy
   ipfsGateway?: string | null
@@ -176,6 +222,30 @@ export interface AddressPerChain {
   [chainId: string]: string
 }
 
+/**
+ * Whether this node's P2P interface can actually be used, as opposed to merely being enabled.
+ *
+ * `p2p` on the status object says the interface is configured. That is not the same question a
+ * caller has: a node whose DHT routing table is empty cannot resolve a peer or find a provider,
+ * because queries against an empty table are refused rather than walked, and a freshly started
+ * node is in exactly that state for as long as it takes to connect to a bootstrap peer and run
+ * its first self-query. Reporting the routing table's size next to the threshold makes the
+ * difference between "starting up" and "isolated" visible from outside, which is otherwise only
+ * inferable from logs.
+ */
+export interface OceanNodeP2PStatus {
+  /** True once the routing table holds at least `requiredRoutingTablePeers` peers. */
+  ready: boolean
+  /** Peers currently in the DHT routing table; `undefined` if the DHT service is unreachable. */
+  routingTablePeers?: number
+  /** The threshold `ready` is measured against. */
+  requiredRoutingTablePeers: number
+  /** Open libp2p connections, which is a different thing from DHT-usable peers. */
+  connections: number
+  /** "client" or "server" - kad-dht switches modes on its own as reachability changes. */
+  dhtMode?: string
+}
+
 export interface OceanNodeStatus {
   id: string
   publicKey: string
@@ -184,6 +254,8 @@ export interface OceanNodeStatus {
   version: string
   http: boolean
   p2p: boolean
+  /** Present only when the P2P interface is enabled and running. */
+  p2pStatus?: OceanNodeP2PStatus
   provider: OceanNodeProvider[]
   indexer: OceanNodeIndexer[]
   escrowAddress: AddressPerChain

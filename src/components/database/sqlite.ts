@@ -1,5 +1,5 @@
 import { TypesenseSchema, typesenseSchemas } from './TypesenseSchemas.js'
-import sqlite3 from 'sqlite3'
+import { SqliteClient } from './sqliteClient.js'
 
 interface DatabaseProvider {
   createNonce(address: string, nonce: number): Promise<{ id: string; nonce: number }>
@@ -9,46 +9,34 @@ interface DatabaseProvider {
 }
 
 export class SQLiteProvider implements DatabaseProvider {
-  private db: sqlite3.Database
+  private db: SqliteClient
   private schemaNonce: TypesenseSchema
   private configSchema: string
 
   constructor(dbFilePath: string) {
-    this.db = new sqlite3.Database(dbFilePath)
+    this.db = new SqliteClient(dbFilePath)
     this.schemaNonce = typesenseSchemas.nonceSchemas
     this.configSchema = 'config'
   }
 
   // eslint-disable-next-line require-await
   async createTableForNonce() {
-    const createTableSQL = `
+    this.db.exec(`
       CREATE TABLE IF NOT EXISTS ${this.schemaNonce.name} (
         id TEXT PRIMARY KEY,
         nonce INTEGER
       );
-    `
-    return new Promise<void>((resolve, reject) => {
-      this.db.run(createTableSQL, (err) => {
-        if (err) reject(err)
-        else resolve()
-      })
-    })
+    `)
   }
 
   // eslint-disable-next-line require-await
   async createTableForConfig() {
-    const createTableSQL = `
+    this.db.exec(`
         CREATE TABLE IF NOT EXISTS ${this.configSchema} (
           key TEXT NOT NULL PRIMARY KEY,
           value TEXT
         );
-      `
-    return new Promise<void>((resolve, reject) => {
-      this.db.run(createTableSQL, (err) => {
-        if (err) reject(err)
-        else resolve()
-      })
-    })
+      `)
   }
 
   // eslint-disable-next-line require-await
@@ -58,12 +46,8 @@ export class SQLiteProvider implements DatabaseProvider {
       VALUES (?, ?)
       ON CONFLICT(id) DO UPDATE SET nonce=excluded.nonce;
     `
-    return new Promise<{ id: string; nonce: number }>((resolve, reject) => {
-      this.db.run(insertSQL, [address, nonce], (err) => {
-        if (err) reject(err)
-        else resolve({ id: address, nonce })
-      })
-    })
+    this.db.run(insertSQL, [address, nonce])
+    return { id: address, nonce }
   }
 
   // eslint-disable-next-line require-await
@@ -73,12 +57,8 @@ export class SQLiteProvider implements DatabaseProvider {
     VALUES (?, ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value;
   `
-    return new Promise<{ key: string; value: string }>((resolve, reject) => {
-      this.db.run(insertSQL, [key, value], (err) => {
-        if (err) reject(err)
-        else resolve({ key, value })
-      })
-    })
+    this.db.run(insertSQL, [key, value])
+    return { key, value }
   }
 
   // eslint-disable-next-line require-await
@@ -86,13 +66,8 @@ export class SQLiteProvider implements DatabaseProvider {
     const selectSQL = `
       SELECT * FROM ${this.schemaNonce.name} WHERE id = ?
     `
-    return new Promise<{ id: string; nonce: number | null }>((resolve, reject) => {
-      this.db.get(selectSQL, [address], (err, row: { nonce: number } | undefined) => {
-        if (err) reject(err)
-        else
-          resolve(row ? { id: address, nonce: row.nonce } : { id: address, nonce: null })
-      })
-    })
+    const row = this.db.get<{ nonce: number }>(selectSQL, [address])
+    return row ? { id: address, nonce: row.nonce } : { id: address, nonce: null }
   }
 
   // eslint-disable-next-line require-await
@@ -100,12 +75,9 @@ export class SQLiteProvider implements DatabaseProvider {
     const selectSQL = `
       SELECT value FROM ${this.configSchema} WHERE key = ?;
     `
-    return new Promise<{ value: string | null }>((resolve, reject) => {
-      this.db.get(selectSQL, [key], (err, row: { value: string } | undefined) => {
-        if (err) reject(err)
-        else resolve(row ? { value: row.value } : { value: null }) // Returns null if no version exists
-      })
-    })
+    const row = this.db.get<{ value: string }>(selectSQL, [key])
+    // Returns null if no version exists
+    return row ? { value: row.value } : { value: null }
   }
 
   // eslint-disable-next-line require-await
@@ -123,16 +95,10 @@ export class SQLiteProvider implements DatabaseProvider {
       DELETE FROM ${this.schemaNonce.name} WHERE id = ?
     `
 
-    return new Promise<{ id: string; nonce: number | null }>((resolve, reject) => {
-      this.db.get(selectSQL, [address], (err, row: { nonce: number } | undefined) => {
-        if (err) return reject(err)
-        if (!row) return resolve({ id: address, nonce: null })
+    const row = this.db.get<{ nonce: number }>(selectSQL, [address])
+    if (!row) return { id: address, nonce: null }
 
-        this.db.run(deleteSQL, [address], (err) => {
-          if (err) reject(err)
-          else resolve({ id: address, nonce: row.nonce })
-        })
-      })
-    })
+    this.db.run(deleteSQL, [address])
+    return { id: address, nonce: row.nonce }
   }
 }

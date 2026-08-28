@@ -134,3 +134,22 @@ Called whenever a new decrypt command is received by Ocean Node
   "policyServer": {}
 }
 ```
+
+## Passthrough and initialization authentication
+
+`POST /api/services/PolicyServerPassthrough` lets a caller send an arbitrary payload
+straight to the PolicyServer without authentication. Ocean Node adds the resolved `ddo`
+and its own `nodeAddress`, but it does not verify or inject caller identity. Every field in
+the passthrough payload, including `action` and `consumerAddress`, must therefore be treated
+as untrusted input.
+
+`POST /api/services/initializePSVerification` remains authenticated. The caller supplies
+either an `Authorization` header or a `nonce` + `signature` pair together with
+`consumerAddress`. Its signed message is
+`consumerAddress + nonce + "PolicyServerInitialize"`, and its credentials are forwarded
+inside the `policyServer` object.
+
+> **A caller controls `action`.** A passthrough payload can claim `"action": "download"` or
+> `"action": "startCompute"` and look much like the ones Ocean Node itself sends for those
+> commands. Neither the action nor caller identity is verified — do not grant a
+> passthrough request the same authority as a node-initiated one.

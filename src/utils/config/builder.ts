@@ -20,6 +20,7 @@ import { CONFIG_LOGGER } from '../logging/common.js'
 import { LOG_LEVELS_STR, GENERIC_EMOJIS } from '../logging/Logger.js'
 import { OceanNodeConfigSchema } from './schemas.js'
 import { ENV_TO_CONFIG_MAPPING } from './constants.js'
+import { registerP2PBudgetConfig } from '../../components/P2P/timeouts.js'
 import { fileURLToPath } from 'url'
 import lodash from 'lodash'
 
@@ -277,6 +278,10 @@ export function buildMergedConfig(): OceanNodeConfig {
   config.c2dClusters = buildC2DClusters(
     config.dockerComputeEnvironments as C2DDockerConfig[]
   )
+
+  // Let the P2P budget getters fall back to values set only in config.json (env still wins).
+  // Runs on every (re)build, so a forced reload re-registers the fresh p2pConfig.
+  registerP2PBudgetConfig(config.p2pConfig as Record<string, unknown> | null)
 
   return config as OceanNodeConfig
 }

@@ -90,19 +90,13 @@ describe('**********         Docker Image Cleanup Integration Tests', () => {
       const testImage = 'test-image:latest'
       await sqliteProvider.updateImage(testImage)
 
-      // Verify image was recorded by querying directly
-      // getOldImages(0) looks for images older than now, so we query the DB directly
-      const imageRecord = await new Promise<any>((resolve, reject) => {
-        const { db } = sqliteProvider as any
-        db.get(
-          'SELECT image, lastUsedTimestamp FROM docker_images WHERE image = ?',
-          [testImage],
-          (err: Error | null, row: any) => {
-            if (err) reject(err)
-            else resolve(row)
-          }
-        )
-      })
+      // Verify image was recorded by querying directly via the SqliteClient handle.
+      // getOldImages(0) looks for images older than now, so we query the DB directly.
+      const sqliteClient = (sqliteProvider as any).db
+      const imageRecord = sqliteClient.get(
+        'SELECT image, lastUsedTimestamp FROM docker_images WHERE image = ?',
+        [testImage]
+      )
 
       assert(imageRecord, 'Image should be recorded in database')
       expect(imageRecord.image).to.equal(testImage)
@@ -125,17 +119,11 @@ describe('**********         Docker Image Cleanup Integration Tests', () => {
       await sqliteProvider.updateImage(testImage)
 
       // Verify image exists with updated timestamp
-      const imageRecord = await new Promise<any>((resolve, reject) => {
-        const { db } = sqliteProvider as any
-        db.get(
-          'SELECT image, lastUsedTimestamp FROM docker_images WHERE image = ?',
-          [testImage],
-          (err: Error | null, row: any) => {
-            if (err) reject(err)
-            else resolve(row)
-          }
-        )
-      })
+      const sqliteClient = (sqliteProvider as any).db
+      const imageRecord = sqliteClient.get(
+        'SELECT image, lastUsedTimestamp FROM docker_images WHERE image = ?',
+        [testImage]
+      )
 
       assert(imageRecord, 'Image should be recorded in database')
       expect(imageRecord.image).to.equal(testImage)
@@ -151,17 +139,11 @@ describe('**********         Docker Image Cleanup Integration Tests', () => {
 
       // Manually insert an old image by directly updating the database
       const oldTimestamp = Math.floor(Date.now() / 1000) - 8 * 24 * 60 * 60 // 8 days ago
-      await new Promise((resolve, reject) => {
-        const { db } = sqliteProvider as any
-        db.run(
-          'INSERT OR REPLACE INTO docker_images (image, lastUsedTimestamp) VALUES (?, ?)',
-          [oldImage, oldTimestamp],
-          (err: Error | null) => {
-            if (err) reject(err)
-            else resolve(undefined)
-          }
-        )
-      })
+      const sqliteClient = (sqliteProvider as any).db
+      sqliteClient.run(
+        'INSERT OR REPLACE INTO docker_images (image, lastUsedTimestamp) VALUES (?, ?)',
+        [oldImage, oldTimestamp]
+      )
 
       // Get images older than 7 days
       const oldImages = await sqliteProvider.getOldImages(7)
@@ -206,17 +188,11 @@ describe('**********         Docker Image Cleanup Integration Tests', () => {
       await (dockerEngine as any).updateImageUsage(testImage)
 
       // Verify image was recorded in database
-      const imageRecord = await new Promise<any>((resolve, reject) => {
-        const { db } = sqliteProvider as any
-        db.get(
-          'SELECT image, lastUsedTimestamp FROM docker_images WHERE image = ?',
-          [testImage],
-          (err: Error | null, row: any) => {
-            if (err) reject(err)
-            else resolve(row)
-          }
-        )
-      })
+      const sqliteClient = (sqliteProvider as any).db
+      const imageRecord = sqliteClient.get(
+        'SELECT image, lastUsedTimestamp FROM docker_images WHERE image = ?',
+        [testImage]
+      )
 
       assert(imageRecord, 'Image should be recorded in database after updateImageUsage')
       expect(imageRecord.image).to.equal(testImage)
@@ -284,17 +260,11 @@ describe('**********         Docker Image Cleanup Integration Tests', () => {
 
       // Track the image with old timestamp (8 days ago)
       const oldTimestamp = Math.floor(Date.now() / 1000) - 8 * 24 * 60 * 60
-      await new Promise((resolve, reject) => {
-        const { db } = sqliteProvider as any
-        db.run(
-          'INSERT OR REPLACE INTO docker_images (image, lastUsedTimestamp) VALUES (?, ?)',
-          [testImageName, oldTimestamp],
-          (err: Error | null) => {
-            if (err) reject(err)
-            else resolve(undefined)
-          }
-        )
-      })
+      const sqliteClient = (sqliteProvider as any).db
+      sqliteClient.run(
+        'INSERT OR REPLACE INTO docker_images (image, lastUsedTimestamp) VALUES (?, ?)',
+        [testImageName, oldTimestamp]
+      )
 
       // Verify image exists before cleanup
       const imagesBefore = await docker.listImages()

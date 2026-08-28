@@ -1,4 +1,6 @@
 import { Hashes } from '../@types/blockchain'
+// leaf module with no imports of its own, so importing it here cannot create a cycle
+import { ENV_TO_CONFIG_MAPPING } from './config/constants.js'
 
 // Add all the supported commands
 export const PROTOCOL_COMMANDS = {
@@ -30,12 +32,14 @@ export const PROTOCOL_COMMANDS = {
   HANDLE_INDEXING_THREAD: 'handleIndexingThread',
   COLLECT_FEES: 'collectFees',
   POLICY_SERVER_PASSTHROUGH: 'PolicyServerPassthrough',
+  POLICY_SERVER_INITIALIZE: 'PolicyServerInitialize',
   GET_P2P_PEER: 'getP2PPeer',
   GET_P2P_PEERS: 'getP2PPeers',
   GET_P2P_NETWORK_STATS: 'getP2PNetworkStats',
   FIND_PEER: 'findPeer',
   CREATE_AUTH_TOKEN: 'createAuthToken',
   INVALIDATE_AUTH_TOKEN: 'invalidateAuthToken',
+  VALIDATE_AUTH_TOKEN: 'validateAuthToken',
   FETCH_CONFIG: 'fetchConfig',
   PUSH_CONFIG: 'pushConfig',
   GET_LOGS: 'getLogs',
@@ -49,7 +53,15 @@ export const PROTOCOL_COMMANDS = {
   PERSISTENT_STORAGE_DELETE_FILE: 'persistentStorageDeleteFile',
   GET_ACCESS_LIST: 'getAccessList',
   SEARCH_ACCESS_LIST: 'searchAccessList',
-  GET_ESCROW_EVENTS: 'getEscrowEvents'
+  GET_ESCROW_EVENTS: 'getEscrowEvents',
+  SERVICE_GET_TEMPLATES: 'serviceGetTemplates',
+  SERVICE_START: 'serviceStart',
+  SERVICE_STOP: 'serviceStop',
+  SERVICE_RESTART: 'serviceRestart',
+  SERVICE_GET_STATUS: 'serviceGetStatus',
+  SERVICE_LIST: 'serviceList',
+  SERVICE_EXTEND: 'serviceExtend',
+  SERVICE_GET_STREAMABLE_LOGS: 'serviceGetStreamableLogs'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -81,12 +93,14 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
   PROTOCOL_COMMANDS.COLLECT_FEES,
   PROTOCOL_COMMANDS.POLICY_SERVER_PASSTHROUGH,
+  PROTOCOL_COMMANDS.POLICY_SERVER_INITIALIZE,
   PROTOCOL_COMMANDS.GET_P2P_PEER,
   PROTOCOL_COMMANDS.GET_P2P_PEERS,
   PROTOCOL_COMMANDS.GET_P2P_NETWORK_STATS,
   PROTOCOL_COMMANDS.FIND_PEER,
   PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
   PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
+  PROTOCOL_COMMANDS.VALIDATE_AUTH_TOKEN,
   PROTOCOL_COMMANDS.FETCH_CONFIG,
   PROTOCOL_COMMANDS.PUSH_CONFIG,
   PROTOCOL_COMMANDS.GET_LOGS,
@@ -100,7 +114,15 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DELETE_FILE,
   PROTOCOL_COMMANDS.GET_ACCESS_LIST,
   PROTOCOL_COMMANDS.SEARCH_ACCESS_LIST,
-  PROTOCOL_COMMANDS.GET_ESCROW_EVENTS
+  PROTOCOL_COMMANDS.GET_ESCROW_EVENTS,
+  PROTOCOL_COMMANDS.SERVICE_GET_TEMPLATES,
+  PROTOCOL_COMMANDS.SERVICE_START,
+  PROTOCOL_COMMANDS.SERVICE_STOP,
+  PROTOCOL_COMMANDS.SERVICE_RESTART,
+  PROTOCOL_COMMANDS.SERVICE_GET_STATUS,
+  PROTOCOL_COMMANDS.SERVICE_LIST,
+  PROTOCOL_COMMANDS.SERVICE_EXTEND,
+  PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS
 ]
 
 export const MetadataStates = {
@@ -132,6 +154,7 @@ export const EVENTS = {
   // Escrow contract events. Values must equal the on-chain event name.
   ESCROW_AUTH: 'Auth',
   ESCROW_LOCK: 'Lock',
+  ESCROW_RELOCK: 'ReLock',
   ESCROW_CLAIMED: 'Claimed',
   ESCROW_CANCELED: 'Canceled',
   ESCROW_DEPOSIT: 'Deposit',
@@ -141,6 +164,7 @@ export const EVENTS = {
 export const ESCROW_EVENTS = [
   EVENTS.ESCROW_AUTH,
   EVENTS.ESCROW_LOCK,
+  EVENTS.ESCROW_RELOCK,
   EVENTS.ESCROW_CLAIMED,
   EVENTS.ESCROW_CANCELED,
   EVENTS.ESCROW_DEPOSIT,
@@ -227,13 +251,17 @@ export const EVENT_HASHES: Hashes = {
     type: EVENTS.NEW_ACCESS_LIST,
     text: 'NewAccessList(address,address)'
   },
-  '0x118cb6c6a02e26bfdb39cab8d70573499942c4ee3f0d7616d3c4100fe9163d9d': {
+  '0x5a3021f46552b1ac3c96e967ff1ecfeb100603ccc2940941cad97db3ee2baec7': {
     type: EVENTS.ESCROW_AUTH,
-    text: 'Auth(address,address,uint256,uint256,uint256)'
+    text: 'Auth(address,address,address,uint256,uint256,uint256)'
   },
   '0xb746b0421b0b98debe76bb312ec9fb701603af22ddb107f7e639b0187e4ff880': {
     type: EVENTS.ESCROW_LOCK,
     text: 'Lock(address,address,uint256,uint256,uint256,address)'
+  },
+  '0x1ccec59cf72b2788d240da471a5a929af5babf4b9f1f5edafbe4ccb832d20211': {
+    type: EVENTS.ESCROW_RELOCK,
+    text: 'ReLock(address,address,uint256,uint256,uint256,uint256,address)'
   },
   '0x77aeb72af8b0efaf7fd8c746d2fb78653ae489dd88dea7a851cb354e4cdc4eed': {
     type: EVENTS.ESCROW_CLAIMED,
@@ -264,6 +292,18 @@ export const DB_TYPES = {
   ELASTIC_SEARCH: 'elasticsearch',
   TYPESENSE: 'typesense'
 }
+
+// Every P2P_* env var is derived from ENV_TO_CONFIG_MAPPING (src/utils/config/constants.ts),
+// which is the single source of truth for what the config system actually reads. Generating
+// them instead of hand-listing means the two lists can no longer drift apart.
+const P2P_ENVIRONMENT_VARIABLES: Record<string, EnvVariable> = Object.fromEntries(
+  Object.keys(ENV_TO_CONFIG_MAPPING)
+    .filter((envName) => envName.startsWith('P2P_'))
+    .map((envName) => [
+      envName,
+      { name: envName, value: process.env[envName], required: false }
+    ])
+)
 
 // usefull to keep track of what all the env variables we are using
 // (faster to read than README and we can easily use the constants if needed)
@@ -321,22 +361,8 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.ADDRESS_FILE,
     required: false
   },
-  // p2p specific
-  P2P_BOOTSTRAP_NODES: {
-    name: 'P2P_BOOTSTRAP_NODES',
-    value: process.env.P2P_BOOTSTRAP_NODES,
-    required: false
-  },
-  P2P_ANNOUNCE_ADDRESSES: {
-    name: 'P2P_ANNOUNCE_ADDRESSES',
-    value: process.env.P2P_ANNOUNCE_ADDRESSES,
-    required: false
-  },
-  P2P_FILTER_ANNOUNCED_ADDRESSES: {
-    name: 'P2P_FILTER_ANNOUNCED_ADDRESSES',
-    value: process.env.P2P_FILTER_ANNOUNCED_ADDRESSES,
-    required: false
-  },
+  // p2p specific - all of them, generated from ENV_TO_CONFIG_MAPPING (see above)
+  ...P2P_ENVIRONMENT_VARIABLES,
   // node specific
   NODE_ENV: { name: 'NODE_ENV', value: process.env.NODE_ENV, required: false },
   AUTHORIZED_DECRYPTERS: {
@@ -457,6 +483,21 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.DB_TYPE,
     required: false
   },
+  DB_INIT_MAX_ATTEMPTS: {
+    name: 'DB_INIT_MAX_ATTEMPTS',
+    value: process.env.DB_INIT_MAX_ATTEMPTS,
+    required: false
+  },
+  DB_INIT_RETRY_DELAY: {
+    name: 'DB_INIT_RETRY_DELAY',
+    value: process.env.DB_INIT_RETRY_DELAY,
+    required: false
+  },
+  DB_INIT_MAX_RETRY_DELAY: {
+    name: 'DB_INIT_MAX_RETRY_DELAY',
+    value: process.env.DB_INIT_MAX_RETRY_DELAY,
+    required: false
+  },
   CRON_DELETE_DB_LOGS: {
     name: 'CRON_DELETE_DB_LOGS',
     value: process.env.CRON_DELETE_DB_LOGS,
@@ -470,6 +511,56 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   DOCKER_COMPUTE_ENVIRONMENTS: {
     name: 'DOCKER_COMPUTE_ENVIRONMENTS',
     value: process.env.DOCKER_COMPUTE_ENVIRONMENTS,
+    required: false
+  },
+  C2D_METRICS_INTERVAL_SECONDS: {
+    name: 'C2D_METRICS_INTERVAL_SECONDS',
+    value: process.env.C2D_METRICS_INTERVAL_SECONDS,
+    required: false
+  },
+  GPU_METRICS: {
+    name: 'GPU_METRICS',
+    value: process.env.GPU_METRICS,
+    required: false
+  },
+  OTEL_EXPORTER_OTLP_ENDPOINT: {
+    name: 'OTEL_EXPORTER_OTLP_ENDPOINT',
+    value: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+    required: false
+  },
+  OTEL_EXPORTER_OTLP_HEADERS: {
+    name: 'OTEL_EXPORTER_OTLP_HEADERS',
+    value: process.env.OTEL_EXPORTER_OTLP_HEADERS,
+    required: false
+  },
+  OTEL_METRIC_EXPORT_INTERVAL: {
+    name: 'OTEL_METRIC_EXPORT_INTERVAL',
+    value: process.env.OTEL_METRIC_EXPORT_INTERVAL,
+    required: false
+  },
+  OTEL_SERVICE_NAME: {
+    name: 'OTEL_SERVICE_NAME',
+    value: process.env.OTEL_SERVICE_NAME,
+    required: false
+  },
+  DEPLOYMENT_ENVIRONMENT: {
+    name: 'DEPLOYMENT_ENVIRONMENT',
+    value: process.env.DEPLOYMENT_ENVIRONMENT,
+    required: false
+  },
+  TELEMETRY_ENABLED: {
+    name: 'TELEMETRY_ENABLED',
+    value: process.env.TELEMETRY_ENABLED,
+    required: false
+  },
+  OCEAN_NETWORK_LABEL: {
+    name: 'OCEAN_NETWORK_LABEL',
+    value: process.env.OCEAN_NETWORK_LABEL,
+    required: false
+  },
+  SERVICE_TEMPLATES_PATH: {
+    name: 'SERVICE_TEMPLATES_PATH',
+    value: process.env.SERVICE_TEMPLATES_PATH,
     required: false
   },
   DOCKER_REGISTRY_AUTHS: {
@@ -535,51 +626,6 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   VALIDATE_UNSIGNED_DDO: {
     name: 'VALIDATE_UNSIGNED_DDO',
     value: process.env.VALIDATE_UNSIGNED_DDO,
-    required: false
-  },
-  P2P_ipV4BindAddress: {
-    name: 'P2P_ipV4BindAddress',
-    value: process.env.P2P_ipV4BindAddress,
-    required: false
-  },
-  P2P_ipV4BindTcpPort: {
-    name: 'P2P_ipV4BindTcpPort',
-    value: process.env.P2P_ipV4BindTcpPort,
-    required: false
-  },
-  P2P_ipV4BindWsPort: {
-    name: 'P2P_ipV4BindWsPort',
-    value: process.env.P2P_ipV4BindWsPort,
-    required: false
-  },
-  P2P_ipV4BindWssPort: {
-    name: 'P2P_ipV4BindWssPort',
-    value: process.env.P2P_ipV4BindWssPort,
-    required: false
-  },
-  P2P_ipV6BindAddress: {
-    name: 'P2P_ipV6BindAddress',
-    value: process.env.P2P_ipV6BindAddress,
-    required: false
-  },
-  P2P_ipV6BindTcpPort: {
-    name: 'P2P_ipV6BindTcpPort',
-    value: process.env.P2P_ipV6BindTcpPort,
-    required: false
-  },
-  P2P_ipV6BindWsPort: {
-    name: 'P2P_ipV6BindWsPort',
-    value: process.env.P2P_ipV6BindWsPort,
-    required: false
-  },
-  P2P_MIN_CONNECTIONS: {
-    name: 'P2P_MIN_CONNECTIONS',
-    value: process.env.P2P_MIN_CONNECTIONS,
-    required: false
-  },
-  P2P_MAX_CONNECTIONS: {
-    name: 'P2P_MAX_CONNECTIONS',
-    value: process.env.P2P_MAX_CONNECTIONS,
     required: false
   },
   HTTP_CERT_PATH: {

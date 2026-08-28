@@ -2,6 +2,7 @@
 // beforeAll() and afterAll() are called before starting the tests
 // and after finishing them respectively.
 
+import type { Context as MochaContext } from 'mocha'
 import { DB_TYPES, ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { CONFIG_LOGGER } from '../../utils/logging/common.js'
 import {
@@ -50,7 +51,9 @@ function getEnvOverrides(): OverrideEnvConfig[] {
 }
 
 export const mochaHooks = {
-  beforeAll() {
+  // mocha invokes root hooks with its Context as `this`, which is where
+  // this.timeout() below comes from
+  beforeAll(this: MochaContext) {
     // get stuff we want to override
     envOverrides = getEnvOverrides()
 

@@ -11,7 +11,7 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { typesenseSchemas } from '../../database/TypesenseSchemas.js'
 import { SupportedNetwork } from '../../../@types/blockchain.js'
-import HumanHasher from 'humanhash'
+import { humanizeHex } from '../../../utils/humanHash.js'
 import { getPackageVersion } from '../../../utils/version.js'
 
 function getSupportedStorageTypes(config: OceanNodeConfig): StorageTypes {
@@ -123,7 +123,7 @@ export async function status(
           ? nodeId
           : oceanNode.getKeyManager().getPeerId().toString(), // get current node ID
       publicKey: publicKeyHex,
-      friendlyName: new HumanHasher().humanize(publicKeyHex),
+      friendlyName: humanizeHex(publicKeyHex),
       address: oceanNode.getKeyManager().getEthAddress(),
       version: getPackageVersion(),
       http: config.hasHttp,
@@ -148,6 +148,16 @@ export async function status(
       )
     }
   }
+  // Whether the P2P interface is usable, not just enabled. Re-read on every request rather
+  // than cached with the block above: the routing table fills after startup, so a value
+  // captured once would report a node as permanently not-ready.
+  if (config.hasP2P && oceanNode.hasP2PInterface()) {
+    const p2pNode = oceanNode.getP2PNode()
+    nodeStatus.p2pStatus = p2pNode ? p2pNode.getP2PStatus() : undefined
+  } else {
+    delete nodeStatus.p2pStatus
+  }
+
   // only these 2 might change between requests
   nodeStatus.platform.freemem = os.freemem()
   nodeStatus.platform.loadavg = os.loadavg()

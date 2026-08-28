@@ -12,6 +12,7 @@ import {
   getCrawlingInterval,
   getDeployedContractBlock,
   getNetworkHeight,
+  isProviderError,
   retrieveChunkEvents
 } from './utils.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
@@ -168,8 +169,8 @@ export class ChainIndexer {
       `Initial details for chain ${this.blockchain.getSupportedChain()}: RPCS start block: ${this.rpcDetails.startBlock}, Contract deployment block: ${contractDeploymentBlock}, Crawling start block: ${crawlingStartBlock}`
     )
 
-    const provider = await this.blockchain.getProvider()
-    const signer = await this.blockchain.getSigner()
+    let provider = await this.blockchain.getProvider()
+    let signer = await this.blockchain.getSigner()
     const interval = getCrawlingInterval()
     let chunkSize = this.rpcDetails.chunkSize || 1
     let successfulRetrievalCount = 0
@@ -182,6 +183,12 @@ export class ChainIndexer {
         lockProcessing = true
 
         try {
+          // Self-heal: if the provider was destroyed (overlapping teardown), getProvider()
+          // recreates it and getSigner() rebuilds against it. When healthy, both return the
+          // cached instances at negligible cost.
+          provider = await this.blockchain.getProvider()
+          signer = await this.blockchain.getSigner()
+
           const lastIndexedBlock = await this.getLastIndexedBlock()
           const networkHeight = await getNetworkHeight(provider)
           const startBlock =
@@ -222,6 +229,8 @@ export class ChainIndexer {
               )
               successfulRetrievalCount++
             } catch (error) {
+              // Rethrow so the outer catch retries this range instead of advancing past it.
+              if (isProviderError(error)) throw error
               INDEXER_LOGGER.log(
                 LOG_LEVELS_STR.LEVEL_WARN,
                 `Get events for network: ${this.rpcDetails.network} failure: ${error.message} \n\nConsider that there may be an issue with your RPC provider. We recommend using private RPCs from reliable providers such as Infura or Alchemy.`,
@@ -466,6 +475,13 @@ export class ChainIndexer {
           })
         }
       } catch (error) {
+        if (isProviderError(error)) {
+          // Transient provider failure: preserve the task for a later retry (do not emit
+          // REINDEX_QUEUE_POP) and rethrow so the loop's outer catch holds the cursor,
+          // sleeps, and re-acquires a healthy provider before retrying.
+          this.reindexQueue.unshift(reindexTask)
+          throw error
+        }
         INDEXER_LOGGER.log(
           LOG_LEVELS_STR.LEVEL_ERROR,
           `REINDEX Error for tx ${reindexTask.txId}: ${error.message}`,

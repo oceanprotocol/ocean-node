@@ -374,6 +374,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         return saveDDO
       }
     } catch (error) {
+      this.rethrowIfProviderError(error)
       const { ddoState } = await this.getDatabase()
       await ddoState.update(
         this.networkId,

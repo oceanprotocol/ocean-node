@@ -46,6 +46,7 @@ const EVENT_PROCESSOR_MAP: Record<string, ProcessorConstructor> = {
   [EVENTS.ADDRESS_REMOVED]: AddressRemovedEventProcessor,
   [EVENTS.ESCROW_AUTH]: EscrowEventProcessor,
   [EVENTS.ESCROW_LOCK]: EscrowEventProcessor,
+  [EVENTS.ESCROW_RELOCK]: EscrowEventProcessor,
   [EVENTS.ESCROW_CLAIMED]: EscrowEventProcessor,
   [EVENTS.ESCROW_CANCELED]: EscrowEventProcessor,
   [EVENTS.ESCROW_DEPOSIT]: EscrowEventProcessor,

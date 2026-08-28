@@ -47,6 +47,7 @@ import { checkCredentials } from '../../../utils/credentials.js'
 import { checkAddressOnAccessList } from '../../../utils/accessList.js'
 import { ensureConsumerAllowedForPersistentStorageLocalfsFileObject } from '../../persistentStorage/PersistentStorageFactory.js'
 import { resolveComputeFileObject } from '../../c2d/compute_engine_docker.js'
+import { cJobsStarted } from '../../../telemetry/metrics.js'
 
 export class CommonComputeHandler extends CommandHandler {
   validate(command: PaidComputeStartCommand): ValidateParams {
@@ -133,6 +134,15 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
             status: {
               httpStatus: 500,
               error: 'Invalid C2D Environment'
+            }
+          }
+        }
+        if (env.features?.computeJobs === false) {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 403,
+              error: 'Compute jobs are not enabled on this environment'
             }
           }
         }
@@ -649,6 +659,11 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
           'ComputeStartCommand Response: ' + JSON.stringify(response, null, 2),
           true
         )
+        try {
+          cJobsStarted.add(1, { engine: hash, free: 'false' })
+        } catch (e: any) {
+          CORE_LOGGER.debug(`[metrics] jobs.started counter failed: ${e?.message}`)
+        }
 
         return {
           stream: Readable.from(JSON.stringify(response)),
@@ -950,6 +965,15 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
           }
         }
       }
+      if (env.features?.computeJobs === false) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 403,
+            error: 'Compute jobs are not enabled on this environment'
+          }
+        }
+      }
       try {
         const accessGranted = await validateAccess(
           task.consumerAddress,
@@ -1042,6 +1066,11 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
         'FreeComputeStartCommand Response: ' + JSON.stringify(response, null, 2),
         true
       )
+      try {
+        cJobsStarted.add(1, { engine: hash, free: 'true' })
+      } catch (e: any) {
+        CORE_LOGGER.debug(`[metrics] jobs.started counter failed: ${e?.message}`)
+      }
 
       return {
         stream: Readable.from(JSON.stringify(response)),
@@ -1062,7 +1091,7 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
   }
 }
 
-async function validateAccess(
+export async function validateAccess(
   consumerAddress: string,
   access: ComputeAccessList | undefined,
   oceanNode: OceanNode

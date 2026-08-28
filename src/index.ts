@@ -22,9 +22,60 @@ import { fileURLToPath } from 'url'
 import cors from 'cors'
 import { scheduleCronJobs } from './utils/cronjobs/scheduleCronJobs.js'
 import { requestValidator } from './components/httpRoutes/requestValidator.js'
-import { hasValidDBConfiguration } from './utils/database.js'
+import { hasValidDBConfiguration, isReachableConnection } from './utils/database.js'
+import type { OceanNodeDBConfig } from './@types/OceanNode.js'
+// Telemetry gauge registration. These modules depend on `@opentelemetry/api` only (no SDK), so
+// importing them here does not pull the OTel SDK into the graph ahead of the `--import` bootstrap
+// (`telemetry/otel.js`). `otel.ts` itself is loaded via `--import`, never statically imported here.
+import { registerP2PGauges } from './telemetry/p2pGauges.js'
+import { registerComputeGauges } from './telemetry/computeGauges.js'
 
 const app: Express = express()
+
+// Database services (Elasticsearch/Typesense) frequently take longer to accept
+// connections than the node itself takes to boot. Database.init() gives
+// up after a single failed attempt, which leaves the node running permanently
+// without Indexer and without C2D.
+
+async function initDatabaseWithRetry(
+  dbConfig: OceanNodeDBConfig,
+  maxAttempts: number,
+  retryDelay: number,
+  maxRetryDelay: number
+): Promise<Database | null> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const isLastAttempt = attempt === maxAttempts
+    const notReachable =
+      !isLastAttempt &&
+      hasValidDBConfiguration(dbConfig) &&
+      !(await isReachableConnection(dbConfig.url))
+
+    if (!notReachable) {
+      // On the final attempt allow a partial (DEGRADED) init: if the metadata DB is still
+      // unreachable we keep the working SQLite core (C2D / nonce / auth) instead of returning
+      // null. Earlier attempts keep returning null on metadata failure so we retry with backoff
+      // and give a slow-starting metadata DB time to come up (yielding a full node).
+      const database = await Database.init(dbConfig, isLastAttempt)
+      if (database) {
+        if (attempt > 1) {
+          OCEAN_NODE_LOGGER.info(`Database initialized after ${attempt} attempts`)
+        }
+        return database
+      }
+    }
+    if (isLastAttempt) {
+      break
+    }
+    const delay = Math.min(retryDelay * 2 ** (attempt - 1), maxRetryDelay)
+    OCEAN_NODE_LOGGER.warn(
+      `Database ${
+        notReachable ? 'not reachable yet' : 'initialization failed'
+      } (attempt ${attempt}/${maxAttempts}), retrying in ${delay}ms`
+    )
+    await new Promise((resolve) => setTimeout(resolve, delay))
+  }
+  return null
+}
 
 process.on('uncaughtException', (err) => {
   OCEAN_NODE_LOGGER.error(`Uncaught exception: ${err.message}`)
@@ -37,9 +88,41 @@ process.on('unhandledRejection', (err) => {
   process.exit(1)
 })
 
-// const port = getRandomInt(6000,6500)
+// Graceful shutdown: flush the final telemetry batch before exiting so a deploy does not lose the
+// last export. The OTel SDK is only present in the module cache when loaded via `--import`, so this
+// resolves `shutdownTelemetry()` lazily and is a harmless no-op when telemetry is unconfigured.
+// A re-entrancy guard makes a second signal (e.g. double Ctrl-C) a no-op, and a force-exit timer
+// guarantees the process still dies if the OTLP flush stalls against an unreachable collector —
+// so adding these handlers never makes shutdown slower than the previous signal-kills-immediately
+// behavior.
+let shuttingDown = false
+async function gracefulShutdown(signal: string): Promise<void> {
+  if (shuttingDown) return
+  shuttingDown = true
+  OCEAN_NODE_LOGGER.info(`Received ${signal}, shutting down`)
+  const forceExit = setTimeout(() => {
+    OCEAN_NODE_LOGGER.warn('Shutdown timed out, forcing exit')
+    process.exit(1)
+  }, 10000)
+  forceExit.unref()
+  try {
+    await (await import('./telemetry/otel.js')).shutdownTelemetry()
+  } catch (e) {
+    OCEAN_NODE_LOGGER.warn(
+      `Telemetry shutdown failed: ${e instanceof Error ? e.message : e}`
+    )
+  }
+  clearTimeout(forceExit)
+  process.exit(0)
+}
+process.on('SIGINT', () => {
+  void gracefulShutdown('SIGINT')
+})
+process.on('SIGTERM', () => {
+  void gracefulShutdown('SIGTERM')
+})
 
-express.static.mime.define({ 'image/svg+xml': ['svg'] })
+// const port = getRandomInt(6000,6500)
 
 declare global {
   // eslint-disable-next-line no-unused-vars
@@ -77,9 +160,22 @@ let node: OceanP2P = null
 let indexer = null
 let provider = null
 // If there is no DB URL only the nonce database will be available
-const dbconn: Database = await Database.init(config.dbConfig)
+const dbconn: Database | null = await initDatabaseWithRetry(
+  config.dbConfig,
+  config.dbInitMaxAttempts,
+  config.dbInitRetryDelay,
+  config.dbInitMaxRetryDelay
+)
 if (!dbconn) {
   OCEAN_NODE_LOGGER.error('Database failed to initialize')
+} else if (hasValidDBConfiguration(config.dbConfig) && !dbconn.metadataInitialized) {
+  // DEGRADED mode: SQLite core (C2D / nonce / auth) is up but the metadata DB (Typesense/
+  // Elasticsearch) is unreachable. The Indexer eagerly touches the metadata databases in its
+  // constructor, so it must not be started here.
+  config.hasIndexer = false
+  OCEAN_NODE_LOGGER.warn(
+    'Running in DEGRADED mode: metadata database is unavailable, Indexer is disabled. C2D / nonce / auth remain available.'
+  )
 }
 
 if (!hasValidDBConfiguration(config.dbConfig)) {
@@ -104,6 +200,9 @@ if (config.hasP2P) {
     node = new OceanP2P(config, keyManager)
   }
   await node.start()
+  // Attach the P2P observable-gauge callbacks now that libp2p is up. No-ops cleanly if P2P is
+  // disabled (this block only runs when hasP2P) or when telemetry is unconfigured.
+  registerP2PGauges(node)
 }
 if (config.hasIndexer && dbconn) {
   indexer = new OceanIndexer(dbconn, config, blockchainRegistry)
@@ -124,6 +223,9 @@ const oceanNode = OceanNode.getInstance(
   blockchainRegistry
 )
 await oceanNode.addC2DEngines()
+// Attach the compute observable-gauge callbacks. No-ops cleanly when C2D is disabled
+// (getC2DEngines() is undefined) or when telemetry is unconfigured.
+registerComputeGauges(oceanNode.getC2DEngines())
 
 function removeExtraSlashes(req: any, res: any, next: any) {
   req.url = req.url.replace(/\/{2,}/g, '/')
@@ -135,10 +237,17 @@ if (config.hasHttp) {
   app.use((req, res, next) => {
     req.caller = req.headers['x-forwarded-for'] || req.socket.remoteAddress
     req.oceanNode = oceanNode
+    // Express 4 left req.body as {} when there was nothing to parse; Express 5 leaves
+    // it undefined, which turns every `req.body.x` read and `const {x} = req.body`
+    // in the route handlers into a TypeError. Seeding it here restores the Express 4
+    // shape for the whole app. body-parser still parses normally: it only resets
+    // req.body when the property is absent, and assigns unconditionally on success.
+    if (req.body === undefined) {
+      req.body = {}
+    }
     next()
   }, requestValidator)
 
-  // Integrate static file serving middleware
   app.use(removeExtraSlashes)
   app.use('/', httpRoutes)
 

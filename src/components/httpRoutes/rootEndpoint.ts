@@ -1,6 +1,5 @@
 import express from 'express'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
-import { getAllServiceEndpoints } from './index.js'
 export const rootEndpointRoutes = express.Router()
 
 rootEndpointRoutes.get('/', (req, res) => {
@@ -14,7 +13,6 @@ rootEndpointRoutes.get('/', (req, res) => {
     chainIds: config.supportedNetworks ? Object.keys(config.supportedNetworks) : [],
     providerAddress: keyManager.getEthAddress(),
     nodePublicKey: keyManager.getPublicKey(),
-    serviceEndpoints: getAllServiceEndpoints(),
     software: 'Ocean-Node',
     version: '0.0.1'
   })
