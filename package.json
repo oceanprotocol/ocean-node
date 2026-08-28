@@ -47,7 +47,7 @@
     "test:load": "npm run test:k6-common k6 run -e TEST_TYPE=load \"./dist/test/performance/perf_test.js\"",
     "test:stress": "npm run test:k6-common k6 run -e TEST_TYPE=stress \"./dist/test/performance/perf_test.js\"",
     "test:request:rate": "npm run test:k6-common && k6 run -e RATE=true \"./dist/test/performance/perf_test.js\"",
-    "release": "release-it --non-interactive",
+    "release": "release-it",
     "changelog": "auto-changelog -p"
   },
   "dependencies": {
