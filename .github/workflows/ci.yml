@@ -247,7 +247,7 @@ jobs:
         with:
           repository: 'oceanprotocol/ocean.js'
           path: 'ocean.js'
-          ref: feature/update_web3_deps
+          ref: next-release-v9
       - name: Build ocean-js
         working-directory: ${{ github.workspace }}/ocean.js
         run: |
