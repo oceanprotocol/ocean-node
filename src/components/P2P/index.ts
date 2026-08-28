@@ -2061,7 +2061,11 @@ export class OceanP2P extends EventEmitter {
     this._ddoDHT.dht.set(ddo.id, {
       id: ddo.id,
       lastUpdateTx: ddo.event ? ddo.event.tx : '', // some missing event? probably just bad test data
-      lastUpdateTime: ddo.metadata.updated,
+      // DDO v5 assets (e.g. did:ope:* published via ddo.js) may not carry a top-level
+      // `metadata` object, so guard it the same way as `event` above rather than
+      // dereferencing unconditionally - a missing metadata block must not throw and abort
+      // caching this DDO in republishStoredDDOS().
+      lastUpdateTime: ddo.metadata?.updated ?? '',
       provider: this.getPeerId()
     })
     this._ddoDHT.updated = new Date().getTime()
