@@ -4,6 +4,7 @@
 import { OceanNode } from '../../OceanNode.js'
 import { P2P_LOGGER } from '../logging/common.js'
 import { provideLimit } from '../../components/P2P/provideLimiter.js'
+import { logProvideFailure } from '../../components/P2P/errors.js'
 
 /**
  * How many documents to ask each schema for per round trip. Kept well under the Typesense
@@ -166,8 +167,10 @@ export async function p2pAnnounceDDOS(node: OceanNode) {
                 advertised++
               }
             } catch (e) {
-              P2P_LOGGER.error(
-                `Caught "${e.message}" while republishing ${ddo?.id} on republishStoredDDOS()`
+              logProvideFailure(
+                P2P_LOGGER,
+                e,
+                `Caught error while republishing ${ddo?.id} on republishStoredDDOS()`
               )
             }
             try {

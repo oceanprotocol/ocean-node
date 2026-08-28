@@ -72,6 +72,7 @@ import {
   classifyP2PError,
   delayBeforeRetry,
   describeP2PError,
+  logProvideFailure,
   isRetryableP2PError,
   retryDelayMs
 } from './errors.js'
@@ -296,7 +297,7 @@ export class OceanP2P extends EventEmitter {
       // indexed asset, and queueing it behind a republish batch would delay a fresh
       // publication by the whole batch.
       this.advertiseString(did).catch((err) => {
-        P2P_LOGGER.error(`Failed to advertise ${did}: ${describeP2PError(err)}`)
+        logProvideFailure(P2P_LOGGER, err, `Failed to advertise ${did}`)
       })
     })
   }
@@ -1920,7 +1921,7 @@ export class OceanP2P extends EventEmitter {
             advertised++
           }
         } catch (err) {
-          P2P_LOGGER.error(`Failed to advertise queued ${did}: ${describeP2PError(err)}`)
+          logProvideFailure(P2P_LOGGER, err, `Failed to advertise queued ${did}`)
         }
       }
       P2P_LOGGER.debug(`Flushed advertise queue: ${advertised}/${list.length} advertised`)
@@ -2131,10 +2132,10 @@ export class OceanP2P extends EventEmitter {
               this.cacheDDO(ddo)
               count++
             } catch (e) {
-              P2P_LOGGER.log(
-                LOG_LEVELS_STR.LEVEL_ERROR,
-                `Caught "${describeP2PError(e)}" on storeAndAdvertiseDDOS()`,
-                true
+              logProvideFailure(
+                P2P_LOGGER,
+                e,
+                `Caught error on storeAndAdvertiseDDOS() for ${ddo?.id}`
               )
             }
           })

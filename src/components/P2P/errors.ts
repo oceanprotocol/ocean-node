@@ -108,8 +108,15 @@ const PROTOCOL_NAMES = Object.freeze(
   ])
 )
 
-/** Error names that mean a budget expired, from libp2p, from Node's timers, or from a caller. */
-const TIMEOUT_NAMES = Object.freeze(new Set(['TimeoutError', 'AbortError']))
+/**
+ * Error names that mean a budget expired, from libp2p, from Node's timers, or from a caller.
+ * `QueryAbortedError` is a DHT walk that hit its deadline (kad-dht's `getClosestPeers` /
+ * `provide` giving up), which is a timeout by another name - and treating it as one makes it
+ * both retryable and quiet, which a walk cut short by our own budget should be.
+ */
+const TIMEOUT_NAMES = Object.freeze(
+  new Set(['TimeoutError', 'AbortError', 'QueryAbortedError'])
+)
 
 /** Error names that mean the peer on the wire is not the peer that was asked for. */
 const PEER_MISMATCH_NAMES = Object.freeze(
@@ -300,4 +307,37 @@ export function describeP2PError(
   // The message goes last and is always present: it is the part that occasionally carries
   // the only specific detail, and the part most likely to be missing anything useful.
   return parts.length > 0 ? `${parts.join(' ')}: ${message}` : message
+}
+
+/**
+ * Logs a failed `advertiseString` / `contentRouting.provide()` at the level its cause warrants.
+ *
+ * A provide walks the DHT and writes a provider record to the peers it finds. In a sparse or
+ * degraded network - which is the normal state - most of these **time out** ("The operation was
+ * aborted", `TimeoutError`/`AbortError`/`QueryAbortedError`) simply because there are too few
+ * live peers to reach within the `advertiseMs` budget. That is not a fault of this node and is
+ * not actionable, so a timeout is logged at **debug** rather than flooding the logs at `error`.
+ * The failure is still counted - `advertiseString` increments `p2pDhtProvide{outcome:fail}` -
+ * so the downgrade loses no observability, only the noise.
+ *
+ * **Anything that is not a timeout stays loud** (`error`): a malformed CID, an
+ * `InvalidParametersError`, a local `db.create`/`cacheDDO` failure caught alongside the
+ * provide, or any unexpected throw is a real problem an operator should see. The split is made
+ * by `classifyP2PError`, never by matching the message - see this module's header.
+ *
+ * `msg` is the call-site-specific prefix (which DID, from which loop); the classified error
+ * description is appended. Every per-item provide catch across the P2P layer routes through
+ * here so the level policy lives in one place.
+ */
+export function logProvideFailure(
+  logger: { debug(message: string): void; error(message: string): void },
+  err: unknown,
+  msg: string
+): void {
+  const line = `${msg}: ${describeP2PError(err)}`
+  if (classifyP2PError(err).name === P2P_ERROR.timeout) {
+    logger.debug(line)
+  } else {
+    logger.error(line)
+  }
 }
