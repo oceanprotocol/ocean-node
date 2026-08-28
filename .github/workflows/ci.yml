@@ -230,8 +230,6 @@ jobs:
         working-directory: ${{ github.workspace }}/barge
         run: |
           bash -x start_ocean.sh --no-node --with-typesense 2>&1 > start_ocean.log &
-        env:
-          CONTRACTS_VERSION: '2.9.0'
       - run: docker image ls
       - name: Delete default runner images
         run: |
@@ -241,13 +239,11 @@ jobs:
         with:
           repository: 'oceanprotocol/ocean-cli'
           path: 'ocean-cli'
-          ref: feature/next-node-4
       - name: Checkout Ocean-js
         uses: actions/checkout@v4
         with:
           repository: 'oceanprotocol/ocean.js'
           path: 'ocean.js'
-          ref: next-release-v9
       - name: Build ocean-js
         working-directory: ${{ github.workspace }}/ocean.js
         run: |
