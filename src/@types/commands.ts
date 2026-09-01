@@ -29,6 +29,16 @@ export interface FindPeerCommand extends Command {
 export interface GetP2PPeersCommand extends Command {}
 export interface GetP2PNetworkStatsCommand extends Command {}
 
+// Live per-node resource snapshot. No params.
+export interface GetNodeMetricsCommand extends Command {}
+
+// Hourly per-node resource history. Both bounds optional; accept epoch ms (number/string) or an
+// ISO-8601 date string. Default range is the last retention window (~6 months) up to now.
+export interface GetNodeMetricsHistoryCommand extends Command {
+  startTime?: number | string
+  stopTime?: number | string
+}
+
 export interface GetAccessListCommand extends Command {
   chainId: number
   contractAddress: string

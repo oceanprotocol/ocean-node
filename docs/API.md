@@ -1466,6 +1466,129 @@ Every row has `id, eventType, chainId, contract, block, txHash` plus event-speci
 
 ---
 
+## Get Node Metrics
+
+### `HTTP` GET /nodeMetrics
+
+### `HTTP` POST /directCommand
+
+### `P2P` command: getNodeMetrics
+
+#### Description
+
+Returns a live per-node resource snapshot, rolled up across every C2D engine (the same aggregate the telemetry layer exports) blended with host `os` readings. Read-only, no parameters. `hasAggregate` is a freshness flag: when `false`, no engine had a fresh compute aggregate (metrics collection is disabled via `C2D_METRICS_INTERVAL_SECONDS=0`, or nothing has been sampled yet) and every scalar is a structural zero rather than a genuine reading. The snapshot is returned either way.
+
+#### Parameters
+
+| name    | type   | required  | description                     |
+| ------- | ------ | --------- | ------------------------------- |
+| command | string | POST only | command name (`getNodeMetrics`) |
+
+#### Response
+
+```json
+{
+  "collectedAt": 1730370000000,
+  "hasAggregate": true,
+  "cpu": {
+    "usagePercent": 42.5,
+    "coresAllocated": 4,
+    "hostCores": 16,
+    "throttledCount": 0,
+    "loadAverage": [1.2, 1.1, 0.9]
+  },
+  "memory": {
+    "usedBytes": 2147483648,
+    "limitBytes": 8589934592,
+    "hostFreeBytes": 12000000000,
+    "hostTotalBytes": 34359738368
+  },
+  "disk": { "usedBytes": 1073741824 },
+  "network": { "rxBytes": 12345, "txBytes": 6789 },
+  "jobs": { "running": 1, "runningFree": 0, "queued": 0, "queuedFree": 0 },
+  "gpu": [
+    {
+      "resourceId": "0",
+      "vendor": "nvidia",
+      "utilizationPercent": 55,
+      "memoryUsedBytes": 2000000000,
+      "memoryTotalBytes": 16000000000,
+      "temperatureC": 61,
+      "powerWatts": 120
+    }
+  ],
+  "env": [{ "env": "env-hash", "resource": "cpu", "total": 16, "inUse": 4 }],
+  "meta": { "sampledContainers": 1, "oldestSampleAgeSeconds": 8 }
+}
+```
+
+---
+
+## Get Node Metrics History
+
+### `HTTP` GET /nodeMetrics/history?startTime=&stopTime=
+
+### `HTTP` POST /directCommand
+
+### `P2P` command: getNodeMetricsHistory
+
+#### Description
+
+Returns ordered hourly averages of the per-node resource snapshot, persisted to SQLite by the sampler/roll-up cron jobs and retained for `NODE_METRICS_RETENTION_DAYS` (default 180). Scalars are arithmetic means over the hour's minute-samples; `sampleCount` is how many samples fed each bucket; GPU entries are averaged per `resourceId`, env entries per `env`+`resource`. Requires the node-metrics database (returns `503` when unavailable, e.g. history disabled via `NODE_METRICS_HISTORY_ENABLED=false`).
+
+When the requested range includes the current, in-progress hour, the last bucket is a **live** average computed on the fly from the raw samples collected so far this hour (before the top-of-hour roll-up has stored it). It is flagged `"partial": true` and is the only bucket that carries that flag; every completed hour is a finalized, stored average. This lets a caller see fresh data without waiting for the hourly roll-up.
+
+#### Parameters
+
+| name      | type          | required | description                                                                        |
+| --------- | ------------- | -------- | ---------------------------------------------------------------------------------- |
+| command   | string        | POST only | command name (`getNodeMetricsHistory`)                                             |
+| startTime | number/string |          | range start — epoch ms or ISO-8601. Defaults to now minus the retention window     |
+| stopTime  | number/string |          | range end — epoch ms or ISO-8601. Defaults to now                                  |
+
+`startTime` must be earlier than `stopTime` (else `400`); the range is clamped to the retention window and the row count is capped.
+
+#### Request (POST /directCommand)
+
+```json
+{
+  "command": "getNodeMetricsHistory",
+  "startTime": 1727778000000,
+  "stopTime": 1730370000000
+}
+```
+
+#### Response
+
+```json
+{
+  "startTime": 1727778000000,
+  "stopTime": 1730370000000,
+  "count": 1,
+  "buckets": [
+    {
+      "hourStart": 1730368800000,
+      "sampleCount": 60,
+      "cpu": { "usagePercent": 40.1, "coresAllocated": 4, "hostCores": 16, "throttledCount": 0 },
+      "memory": {
+        "usedBytes": 2000000000,
+        "limitBytes": 8589934592,
+        "hostFreeBytes": 12000000000,
+        "hostTotalBytes": 34359738368
+      },
+      "disk": { "usedBytes": 1073741824 },
+      "network": { "rxBytes": 12000, "txBytes": 6000 },
+      "jobs": { "running": 1, "runningFree": 0, "queued": 0, "queuedFree": 0 },
+      "gpu": [{ "resourceId": "0", "vendor": "nvidia", "utilizationPercent": 50 }],
+      "env": [{ "env": "env-hash", "resource": "cpu", "total": 16, "inUse": 4 }],
+      "meta": { "sampledContainers": 1 }
+    }
+  ]
+}
+```
+
+---
+
 # Compute
 
 For starters, you can find a list of algorithms in the [Ocean Algorithms repository](https://github.com/oceanprotocol/algo_dockers) and the docker images in the [Algo Dockerhub](https://hub.docker.com/r/oceanprotocol/algo_dockers/tags).

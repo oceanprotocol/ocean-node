@@ -184,6 +184,14 @@ setting it through the environment reaches both.
 - `CRON_DELETE_DB_LOGS`: Delete old logs from database Cron expression. Example: `0 0 * * *` (runs every day at midnight)
 - `CRON_CLEANUP_C2D_STORAGE`: Clear c2d expired resources/storage and delete old jobs. Example: `*/5 * * * *` (runs every 5 minutes)
 
+## Node Metrics History
+
+Powers the `getNodeMetrics` (live snapshot) and `getNodeMetricsHistory` (hourly averages) commands / REST routes. The history layer is SQLite-backed (`databases/nodeMetrics.sqlite`) so it works even with no metadata DB configured. A minute sampler writes the same per-node aggregate the live command returns into a short-lived raw buffer, an hourly roll-up at minute `:05` averages each complete hour into `node_metrics_hourly`, and a daily sweep drops rows older than the retention window. The sampler **warns and skips** (persists no row) when there is no fresh compute aggregate — i.e. `C2D_METRICS_INTERVAL_SECONDS=0` or no engine has sampled yet — so all-zero rows never skew the averages. The live `getNodeMetrics` command still returns a (zeroed) snapshot in that case.
+
+- `NODE_METRICS_HISTORY_ENABLED`: Enable/disable the node-metrics history sampler + roll-up + retention cron jobs. Defaults to enabled whenever a database is available. Set to `false` (also accepts `0`/`no`) to turn the history layer off; the live `getNodeMetrics` command is unaffected. Example: `true`
+- `NODE_METRICS_SAMPLE_CRON`: Cron expression for the minute sampler. Defaults to `* * * * *` (every minute). Example: `* * * * *`
+- `NODE_METRICS_RETENTION_DAYS`: How many days of hourly rows to keep before the daily retention sweep deletes them. Also clamps the range `getNodeMetricsHistory` will return. Defaults to `180` (~6 months). Example: `180`
+
 ## Compute
 
 - `C2D_DOWNLOAD_TIMEOUT`: Timeout (in seconds) for pulling the algorithm docker image during a C2D job. If the pull exceeds this timeout, the job fails with `PullImageFailed` instead of getting stuck. Defaults to `900` (15 minutes). Example: `900`

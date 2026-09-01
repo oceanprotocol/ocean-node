@@ -49,6 +49,7 @@ import {
   GetP2PNetworkStatsHandler,
   FindPeerHandler
 } from './p2p.js'
+import { GetNodeMetricsHandler, GetNodeMetricsHistoryHandler } from './nodeMetrics.js'
 import {
   CreateAuthTokenHandler,
   InvalidateAuthTokenHandler,
@@ -214,6 +215,14 @@ export class CoreHandlersRegistry {
       new GetP2PNetworkStatsHandler(node)
     )
     this.registerCoreHandler(PROTOCOL_COMMANDS.FIND_PEER, new FindPeerHandler(node))
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.GET_NODE_METRICS,
+      new GetNodeMetricsHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.GET_NODE_METRICS_HISTORY,
+      new GetNodeMetricsHistoryHandler(node)
+    )
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
       new CreateAuthTokenHandler(node)

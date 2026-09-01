@@ -16,6 +16,7 @@ import { adminConfigRoutes } from './adminConfig.js'
 import { persistentStorageRoutes } from './persistentStorage.js'
 import { accessListRoutes } from './accessList.js'
 import { escrowRoutes } from './escrow.js'
+import { nodeMetricsRoutes } from './nodeMetrics.js'
 
 export * from './getOceanPeers.js'
 export * from './auth.js'
@@ -70,3 +71,7 @@ httpRoutes.use(accessListRoutes)
 // escrow events routes
 // /api/services/escrow/events
 httpRoutes.use(escrowRoutes)
+// node metrics routes
+// /nodeMetrics
+// /nodeMetrics/history
+httpRoutes.use(nodeMetricsRoutes)
