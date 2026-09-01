@@ -12,7 +12,7 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import type { ComputeEnvironment } from '../../../@types/C2D/C2D.js'
 import { ServiceStatusNumber } from '../../../@types/C2D/ServiceOnDemand.js'
 import { validateAccess } from '../compute/startCompute.js'
-import { isJobMetadataSizeValid } from '../../c2d/index.js'
+import { isJobMetadataSizeValid, INVALID_JOB_METADATA_MESSAGE } from '../../c2d/index.js'
 import { decryptUserData, findServiceJobAndEngine, toPublicServiceJob } from './utils.js'
 
 export class ServiceRestartHandler extends CommandHandler {
@@ -53,7 +53,7 @@ export class ServiceRestartHandler extends CommandHandler {
     // Metadata is independent of the RESPEC discriminator, so validate it outside the
     // `respec` block — a lone oversized metadata bag must still be rejected up front (400).
     if (!isJobMetadataSizeValid(command.metadata))
-      return buildInvalidRequestMessage('Metadata size is too large')
+      return buildInvalidRequestMessage(INVALID_JOB_METADATA_MESSAGE)
     return commandValidation
   }
 

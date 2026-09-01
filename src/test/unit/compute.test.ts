@@ -2861,7 +2861,7 @@ describe('service start/restart Docker cleanup on failure', function () {
         undefined,
         oversized
       ),
-      'Metadata size is too large'
+      'Invalid metadata'
     )
   })
 

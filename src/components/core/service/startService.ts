@@ -17,7 +17,7 @@ import type {
 } from '../../../@types/C2D/C2D.js'
 import { generateUniqueID, validateOutputBucket } from '../compute/utils.js'
 import { validateAccess } from '../compute/startCompute.js'
-import { isJobMetadataSizeValid } from '../../c2d/index.js'
+import { isJobMetadataSizeValid, INVALID_JOB_METADATA_MESSAGE } from '../../c2d/index.js'
 import { decryptUserData, toPublicServiceJob } from './utils.js'
 
 export class ServiceStartHandler extends CommandHandler {
@@ -44,7 +44,7 @@ export class ServiceStartHandler extends CommandHandler {
           'Provide at most one of "tag", "checksum", "dockerfile"'
         )
       if (!isJobMetadataSizeValid(command.metadata))
-        return buildInvalidRequestMessage('Metadata size is too large')
+        return buildInvalidRequestMessage(INVALID_JOB_METADATA_MESSAGE)
     }
     return commandValidation
   }

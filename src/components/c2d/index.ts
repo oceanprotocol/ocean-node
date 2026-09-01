@@ -16,21 +16,33 @@ export { C2DEngine } from './compute_engine_base.js'
 // not payloads.
 export const MAX_JOB_METADATA_SIZE = 1024
 
-// True when the user-supplied metadata is absent or, once JSON-serialized, within
-// MAX_JOB_METADATA_SIZE. Single source of truth for the size rule, shared by the request
-// handlers (which turn a false into a 400) and the engine guard below. Absent metadata
-// (undefined/null) is valid; a non-object slips through as trivially small.
+// Validates the user-supplied metadata (untrusted HTTP/P2P input) against the
+// DBComputeJobMetadata contract — a flat object of string/number/boolean values — and the
+// MAX_JOB_METADATA_SIZE cap. Single source of truth shared by the request handlers (which
+// turn a false into a 400) and the engine guard below, so the two paths cannot drift.
+//   - undefined/null → valid ("absent"; the compute routes pass `null` for no metadata).
+//   - anything else must be a plain object (not an array) whose values are all scalars.
+//   - then the JSON-serialized form must be within the size cap.
 export function isJobMetadataSizeValid(metadata?: DBComputeJobMetadata): boolean {
   if (metadata === undefined || metadata === null) return true
+  if (typeof metadata !== 'object' || Array.isArray(metadata)) return false
+  const scalar = (v: unknown) =>
+    typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean'
+  if (!Object.values(metadata).every(scalar)) return false
   return JSON.stringify(metadata).length <= MAX_JOB_METADATA_SIZE
 }
+
+// Message used for every metadata rejection (shape or size), so the engine throw and the
+// handlers' 400 responses stay identical.
+export const INVALID_JOB_METADATA_MESSAGE =
+  'Invalid metadata: expected an object of string/number/boolean values, at most 1 KB'
 
 // Throwing guard for the engine paths (compute startComputeJob + service create/restart) —
 // defense-in-depth behind the handlers' fail-fast 400. Throws when isJobMetadataSizeValid
 // is false so the two paths cannot drift.
 export function validateJobMetadataSize(metadata?: DBComputeJobMetadata): void {
   if (!isJobMetadataSizeValid(metadata)) {
-    throw new Error('Metadata size is too large')
+    throw new Error(INVALID_JOB_METADATA_MESSAGE)
   }
 }
 

@@ -408,7 +408,20 @@ describe('Service handlers', () => {
         metadata: { blob: 'x'.repeat(1100) }
       } as any)
       expect(res.status.httpStatus).to.equal(400)
-      expect(String(res.status.error)).to.contain('Metadata size is too large')
+      expect(String(res.status.error)).to.contain('Invalid metadata')
+      expect(engine.restartService.called).to.equal(false)
+    })
+
+    it('400 when metadata is malformed (array / non-scalar value), without calling engine.restartService', async () => {
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      for (const bad of [['a', 'b'], { nested: { x: 1 } }, 42]) {
+        const res = await new ServiceRestartHandler(node).handle({
+          ...baseTask,
+          metadata: bad
+        } as any)
+        expect(res.status.httpStatus).to.equal(400)
+        expect(String(res.status.error)).to.contain('Invalid metadata')
+      }
       expect(engine.restartService.called).to.equal(false)
     })
 
@@ -1043,7 +1056,20 @@ describe('Service handlers', () => {
         metadata: { blob: 'x'.repeat(1100) }
       } as any)
       expect(res.status.httpStatus).to.equal(400)
-      expect(String(res.status.error)).to.contain('Metadata size is too large')
+      expect(String(res.status.error)).to.contain('Invalid metadata')
+      expect(engine.createServiceJob.called).to.equal(false)
+    })
+
+    it('400 when metadata is malformed (array / nested object / non-scalar value), before any job is created', async () => {
+      const { node, engine } = buildFakes()
+      for (const bad of [['x'], { nested: { a: 1 } }, { arr: [1, 2] }, 'a-string']) {
+        const res = await new ServiceStartHandler(node).handle({
+          ...baseTask,
+          metadata: bad
+        } as any)
+        expect(res.status.httpStatus).to.equal(400)
+        expect(String(res.status.error)).to.contain('Invalid metadata')
+      }
       expect(engine.createServiceJob.called).to.equal(false)
     })
 
