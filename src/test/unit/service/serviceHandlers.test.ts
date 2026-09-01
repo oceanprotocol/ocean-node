@@ -389,6 +389,29 @@ describe('Service handlers', () => {
       expect(callArgs[9]).to.equal(undefined) // dockerEntrypoint
     })
 
+    it('forwards new metadata to engine.restartService (arg 10), independent of RESPEC', async () => {
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      const metadata = { run: 'v2' }
+      const res = await new ServiceRestartHandler(node).handle({
+        ...baseTask,
+        metadata
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      // metadata alone must NOT force RESPEC (no image required)
+      expect(engine.restartService.firstCall.args[10]).to.deep.equal(metadata)
+    })
+
+    it('400 fail-fast when metadata exceeds 1 KB, without calling engine.restartService', async () => {
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      const res = await new ServiceRestartHandler(node).handle({
+        ...baseTask,
+        metadata: { blob: 'x'.repeat(1100) }
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+      expect(String(res.status.error)).to.contain('Metadata size is too large')
+      expect(engine.restartService.called).to.equal(false)
+    })
+
     it('400 RESPEC without image — a lone dockerCmd is a partial change, which is rejected', async () => {
       const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
       const res = await new ServiceRestartHandler(node).handle({
@@ -999,6 +1022,29 @@ describe('Service handlers', () => {
       } as any)
       expect(res.status.httpStatus).to.equal(200)
       expect(engine.createServiceJob.lastCall.args.at(-1)).to.equal('bucket-42')
+    })
+
+    it('forwards user metadata to createServiceJob (before outputBucketId)', async () => {
+      const { node, engine } = buildFakes()
+      const metadata = { run: 'experiment-7', attempt: 2, dryRun: false }
+      const res = await new ServiceStartHandler(node).handle({
+        ...baseTask,
+        metadata
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      // signature tail: (..., serviceId, userData, metadata, outputBucketId)
+      expect(engine.createServiceJob.firstCall.args.at(-2)).to.deep.equal(metadata)
+    })
+
+    it('400 fail-fast when metadata exceeds 1 KB, before any job is created', async () => {
+      const { node, engine } = buildFakes()
+      const res = await new ServiceStartHandler(node).handle({
+        ...baseTask,
+        metadata: { blob: 'x'.repeat(1100) }
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+      expect(String(res.status.error)).to.contain('Metadata size is too large')
+      expect(engine.createServiceJob.called).to.equal(false)
     })
 
     it('400 with a clear message when outputBucketId is invalid, and no job record is created (fail fast)', async () => {

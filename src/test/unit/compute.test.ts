@@ -2794,6 +2794,77 @@ describe('service start/restart Docker cleanup on failure', function () {
     ).to.equal(true)
   })
 
+  it('restartService replaces stored metadata when a new bag is supplied', async function () {
+    const existingJob = makeRunningJobWithCmd({ metadata: { run: 'old', attempt: 1 } })
+    engine.db.getServiceJob = sinon.stub().resolves([existingJob])
+    const container = makeContainer(false)
+    engine.docker = {
+      createNetwork: sinon.stub().resolves(network),
+      createContainer: sinon.stub().resolves(container),
+      getNetwork: sinon.stub().returns(network)
+    }
+
+    // REUSE mode (no container params) but a new metadata bag ⇒ metadata is replaced,
+    // independent of the container spec.
+    await engine.restartService(
+      'svc-cmd',
+      '0xowner',
+      undefined, // image
+      undefined, // tag
+      undefined, // checksum
+      undefined, // dockerfile
+      undefined, // additionalDockerFiles
+      undefined, // userData
+      undefined, // dockerCmd
+      undefined, // dockerEntrypoint
+      { run: 'new', attempt: 2 } // metadata
+    )
+    await Promise.allSettled([...engine.serviceOpPromises])
+
+    expect(existingJob.metadata).to.deep.equal({ run: 'new', attempt: 2 })
+    // and the container spec was still reused untouched
+    const createArgs = engine.docker.createContainer.firstCall.args[0]
+    expect(createArgs.Image).to.equal('nginx:latest')
+  })
+
+  it('restartService keeps the original metadata when none is supplied', async function () {
+    const existingJob = makeRunningJobWithCmd({ metadata: { run: 'keep-me' } })
+    engine.db.getServiceJob = sinon.stub().resolves([existingJob])
+    const container = makeContainer(false)
+    engine.docker = {
+      createNetwork: sinon.stub().resolves(network),
+      createContainer: sinon.stub().resolves(container),
+      getNetwork: sinon.stub().returns(network)
+    }
+
+    await engine.restartService('svc-cmd', '0xowner')
+    await Promise.allSettled([...engine.serviceOpPromises])
+
+    expect(existingJob.metadata).to.deep.equal({ run: 'keep-me' })
+  })
+
+  it('restartService rejects metadata larger than 1 KB', async function () {
+    const existingJob = makeRunningJobWithCmd()
+    engine.db.getServiceJob = sinon.stub().resolves([existingJob])
+    const oversized = { blob: 'x'.repeat(1100) }
+    await expectRejects(
+      engine.restartService(
+        'svc-cmd',
+        '0xowner',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        oversized
+      ),
+      'Metadata size is too large'
+    )
+  })
+
   it('restartService (RESPEC) clears dockerCmd/dockerEntrypoint when explicitly given an empty array', async function () {
     const existingJob = makeRunningJobWithCmd()
     engine.db.getServiceJob = sinon.stub().resolves([existingJob])

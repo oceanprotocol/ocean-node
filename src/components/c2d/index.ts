@@ -3,9 +3,29 @@ import { deleteKeysFromObject, sanitizeServiceFiles } from '../../utils/util.js'
 import { BaseFileObject, EncryptMethod } from '../../@types/fileObject.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { DBComputeJob } from '../../@types/index.js'
-import type { ContainerMetricsSnapshot, PublicComputeJob } from '../../@types/C2D/C2D.js'
+import type {
+  ContainerMetricsSnapshot,
+  DBComputeJobMetadata,
+  PublicComputeJob
+} from '../../@types/C2D/C2D.js'
 import { OceanNode } from '../../OceanNode.js'
 export { C2DEngine } from './compute_engine_base.js'
+
+// Max JSON-serialized size of the user-supplied `metadata` bag carried by a compute job
+// (DBComputeJob) or a service job (ServiceJob). Metadata is meant for small labels/tags,
+// not payloads.
+export const MAX_JOB_METADATA_SIZE = 1024
+
+// Shared guard for the user-supplied metadata on compute AND service jobs — a single source
+// of truth so the two paths cannot drift. No-op for empty/absent metadata; throws when the
+// JSON-serialized form exceeds MAX_JOB_METADATA_SIZE.
+export function validateJobMetadataSize(metadata?: DBComputeJobMetadata): void {
+  if (metadata && Object.keys(metadata).length > 0) {
+    if (JSON.stringify(metadata).length > MAX_JOB_METADATA_SIZE) {
+      throw new Error('Metadata size is too large')
+    }
+  }
+}
 
 export async function decryptFilesObject(
   serviceFiles: any

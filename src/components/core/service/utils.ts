@@ -72,9 +72,11 @@ export function toPublicServiceJob(
 
 // Listing-grade sanitization for SERVICE_LIST, which is NOT owner-scoped: on top of the
 // always-stripped userData (the encrypted env blob), it removes everything that reveals
-// HOW a service is configured — CMD/ENTRYPOINT overrides and any inline Dockerfile —
-// keeping identity, status, resources, endpoints and payment metadata. The owner-scoped
-// SERVICE_GET_STATUS keeps those fields (the owner set them).
+// HOW a service is configured — CMD/ENTRYPOINT overrides and any inline Dockerfile — plus
+// the owner's arbitrary `metadata` labels, keeping identity, status, resources, endpoints
+// and payment metadata. The owner-scoped, authenticated SERVICE_GET_STATUS keeps those
+// fields (the owner set them), so metadata is returned to the owner there but never in this
+// node-wide list.
 export function toListedServiceJob(
   job: ServiceJob | null
 ): Omit<
@@ -85,6 +87,7 @@ export function toListedServiceJob(
   | 'dockerEntrypoint'
   | 'dockerfile'
   | 'additionalDockerFiles'
+  | 'metadata'
 > | null {
   if (!job) return null
   const {
@@ -94,6 +97,7 @@ export function toListedServiceJob(
     dockerEntrypoint,
     dockerfile,
     additionalDockerFiles,
+    metadata,
     ...pub
   } = job
   return pub
