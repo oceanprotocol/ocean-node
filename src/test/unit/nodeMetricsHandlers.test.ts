@@ -257,6 +257,23 @@ describe('nodeMetrics handlers', () => {
       expect(body.buckets[0].cpu.usagePercent).to.equal(10)
     })
 
+    it('keeps the echoed range ordered when the whole window predates retention', async () => {
+      // Both bounds are older than the 180-day retention horizon; clamping would otherwise pull
+      // start (up to `earliest`) past stop, echoing an inverted startTime > stopTime.
+      const day = 24 * 60 * 60 * 1000
+      const now = Date.now()
+      const result = await new GetNodeMetricsHistoryHandler(nodeWithMetricsDb()).handle({
+        command: PROTOCOL_COMMANDS.GET_NODE_METRICS_HISTORY,
+        startTime: now - 300 * day,
+        stopTime: now - 200 * day
+      })
+      expect(result.status.httpStatus).to.equal(200)
+      const body = await streamToJson(result.stream as Readable)
+      expect(body.startTime).to.be.at.most(body.stopTime)
+      expect(body.count).to.equal(0)
+      expect(body.buckets).to.deep.equal([])
+    })
+
     it('appends a live partial:true bucket for the current, not-yet-rolled-up hour', async () => {
       // Raw samples in the CURRENT hour, deliberately NOT rolled up.
       const currentHour = floorToHour(Date.now())

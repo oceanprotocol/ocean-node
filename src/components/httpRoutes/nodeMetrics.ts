@@ -5,7 +5,6 @@ import {
   GetNodeMetricsHistoryHandler
 } from '../core/handler/nodeMetrics.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { streamToString } from '../../utils/util.js'
 import {
   GetNodeMetricsCommand,
   GetNodeMetricsHistoryCommand
@@ -22,8 +21,10 @@ nodeMetricsRoutes.get(
     }
     const result = await new GetNodeMetricsHandler(req.oceanNode).handle(command)
     if (result.stream) {
-      const data = JSON.parse(await streamToString(result.stream as Readable))
-      res.json(data)
+      // The handler already emits a JSON string stream; pipe it straight through instead of
+      // buffering the whole body and re-serializing it via res.json().
+      res.type('application/json')
+      ;(result.stream as Readable).pipe(res)
     } else {
       res.status(result.status.httpStatus).send(result.status.error)
     }
@@ -42,8 +43,10 @@ nodeMetricsRoutes.get(
     }
     const result = await new GetNodeMetricsHistoryHandler(req.oceanNode).handle(command)
     if (result.stream) {
-      const data = JSON.parse(await streamToString(result.stream as Readable))
-      res.json(data)
+      // The handler already emits a JSON string stream; pipe it straight through instead of
+      // buffering the whole body and re-serializing it via res.json().
+      res.type('application/json')
+      ;(result.stream as Readable).pipe(res)
     } else {
       res.status(result.status.httpStatus).send(result.status.error)
     }
