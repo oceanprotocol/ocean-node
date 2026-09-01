@@ -127,6 +127,10 @@ export class GetNodeMetricsHistoryHandler extends CommandHandler {
       // Clamp to what we could possibly hold, then cap the row count.
       start = Math.max(start, earliest)
       stop = Math.min(stop, now)
+      // A window that lies entirely before the retention horizon clamps `start` up to `earliest`
+      // while `stop` stays below it, inverting the interval. Keep it ordered so the echoed range is
+      // coherent and getHourly returns an empty (not malformed) result.
+      if (start > stop) start = stop
 
       const buckets = db.nodeMetrics.getHourly(start, stop, MAX_HISTORY_ROWS)
 
