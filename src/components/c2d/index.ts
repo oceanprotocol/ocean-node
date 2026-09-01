@@ -16,14 +16,21 @@ export { C2DEngine } from './compute_engine_base.js'
 // not payloads.
 export const MAX_JOB_METADATA_SIZE = 1024
 
-// Shared guard for the user-supplied metadata on compute AND service jobs — a single source
-// of truth so the two paths cannot drift. No-op for empty/absent metadata; throws when the
-// JSON-serialized form exceeds MAX_JOB_METADATA_SIZE.
+// True when the user-supplied metadata is absent or, once JSON-serialized, within
+// MAX_JOB_METADATA_SIZE. Single source of truth for the size rule, shared by the request
+// handlers (which turn a false into a 400) and the engine guard below. Absent metadata
+// (undefined/null) is valid; a non-object slips through as trivially small.
+export function isJobMetadataSizeValid(metadata?: DBComputeJobMetadata): boolean {
+  if (metadata === undefined || metadata === null) return true
+  return JSON.stringify(metadata).length <= MAX_JOB_METADATA_SIZE
+}
+
+// Throwing guard for the engine paths (compute startComputeJob + service create/restart) —
+// defense-in-depth behind the handlers' fail-fast 400. Throws when isJobMetadataSizeValid
+// is false so the two paths cannot drift.
 export function validateJobMetadataSize(metadata?: DBComputeJobMetadata): void {
-  if (metadata && Object.keys(metadata).length > 0) {
-    if (JSON.stringify(metadata).length > MAX_JOB_METADATA_SIZE) {
-      throw new Error('Metadata size is too large')
-    }
+  if (!isJobMetadataSizeValid(metadata)) {
+    throw new Error('Metadata size is too large')
   }
 }
 
