@@ -417,9 +417,10 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/serviceStart`, async (req, res) =>
     resources: (req.body.resources as ComputeResourceRequest[]) || undefined,
     duration: req.body.duration as number,
     userData: (req.body.userData as string) || undefined,
-    // Pass through unchanged so malformed values (0/false/'', arrays, non-scalar objects)
-    // reach validation and produce a 400 rather than being silently swallowed by `|| undefined`.
-    metadata: req.body.metadata,
+    // Normalize only null/undefined to undefined so malformed values (0/false/'',
+    // arrays, non-scalar objects) still reach validation and produce a 400 rather
+    // than being silently swallowed by `|| undefined`.
+    metadata: req.body.metadata ?? undefined,
     outputBucketId: (req.body.outputBucketId as string) || undefined,
     payment: req.body.payment,
     authorization: req.headers?.authorization,
@@ -476,8 +477,9 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/serviceRestart`, async (req, res) 
     userData: (req.body.userData as string) || undefined,
     dockerCmd: (req.body.dockerCmd as string[]) || undefined,
     dockerEntrypoint: (req.body.dockerEntrypoint as string[]) || undefined,
-    // Pass through unchanged so malformed values reach validation and produce a 400.
-    metadata: req.body.metadata,
+    // Normalize only null/undefined to undefined so malformed values still reach
+    // validation and produce a 400.
+    metadata: req.body.metadata ?? undefined,
     authorization: req.headers?.authorization,
     caller: req.caller
   }
