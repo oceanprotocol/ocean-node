@@ -8,6 +8,7 @@ import { streamToObject, streamToString } from '../../utils/util.js'
 import {
   PersistentStorageCreateBucketHandler,
   PersistentStorageDeleteFileHandler,
+  PersistentStorageDownloadFileHandler,
   PersistentStorageGetBucketsHandler,
   PersistentStorageGetFileObjectHandler,
   PersistentStorageListFilesHandler,
@@ -156,6 +157,39 @@ persistentStorageRoutes.get(
       res.status(200).json(payload)
     } catch (error) {
       HTTP_LOGGER.error(`PersistentStorage get file object error: ${error}`)
+      res.status(500).send('Internal Server Error')
+    }
+  }
+)
+
+// Download a file from a bucket. Response body is the raw file bytes.
+persistentStorageRoutes.get(
+  `${SERVICES_API_BASE_PATH}/persistentStorage/buckets/:bucketId/files/:fileName`,
+  async (req, res) => {
+    try {
+      const response = await new PersistentStorageDownloadFileHandler(
+        req.oceanNode
+      ).handle({
+        command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DOWNLOAD_FILE,
+        consumerAddress: req.query.consumerAddress as string,
+        signature: req.query.signature as string,
+        nonce: req.query.nonce as string,
+        bucketId: req.params.bucketId,
+        fileName: req.params.fileName,
+        authorization: req.headers?.authorization,
+        caller: req.caller
+      } as any)
+      if (!response.stream) {
+        res.status(response.status.httpStatus).send(response.status.error)
+        return
+      }
+      res.status(response.status.httpStatus)
+      if (response.status.headers) {
+        res.set(response.status.headers)
+      }
+      response.stream.pipe(res)
+    } catch (error) {
+      HTTP_LOGGER.error(`PersistentStorage download error: ${error}`)
       res.status(500).send('Internal Server Error')
     }
   }

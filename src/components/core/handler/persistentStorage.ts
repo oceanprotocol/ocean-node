@@ -2,6 +2,7 @@ import { Readable } from 'stream'
 import type {
   PersistentStorageCreateBucketCommand,
   PersistentStorageDeleteFileCommand,
+  PersistentStorageDownloadFileCommand,
   PersistentStorageGetBucketsCommand,
   PersistentStorageGetFileObjectCommand,
   PersistentStorageListFilesCommand,
@@ -424,6 +425,72 @@ export class PersistentStorageDeleteFileHandler extends CommandHandler {
       }
       const message = e instanceof Error ? e.message : String(e)
       CORE_LOGGER.error(`PersistentStorageDeleteFileHandler error: ${message}`)
+      return { stream: null, status: { httpStatus: 500, error: message } }
+    }
+  }
+}
+
+export class PersistentStorageDownloadFileHandler extends CommandHandler {
+  validate(command: PersistentStorageDownloadFileCommand): ValidateParams {
+    const base = validateCommandParameters(command, ['bucketId', 'fileName'])
+    if (!base.valid) return base
+    return { valid: true }
+  }
+
+  async handle(task: PersistentStorageDownloadFileCommand): Promise<P2PCommandResponse> {
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) return validationResponse
+
+    const isAuthRequestValid = await this.validateTokenOrSignature(
+      task.authorization,
+      task.consumerAddress,
+      task.nonce,
+      task.signature,
+      task.command
+    )
+    if (isAuthRequestValid.status.httpStatus !== 200) return isAuthRequestValid
+
+    try {
+      const storage = requirePersistentStorage(this)
+      const ownerNormalized = getAddress(isAuthRequestValid.consumerAddress)
+      // getReadableStream enforces the bucket ACL (throws PersistentStorageAccessDeniedError).
+      const stream = await storage.getReadableStream(
+        task.bucketId,
+        task.fileName,
+        ownerNormalized
+      )
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/octet-stream',
+        'Content-Disposition': `attachment; filename="${encodeURIComponent(task.fileName)}"`
+      }
+      // Best-effort Content-Length; skip if stat is unavailable.
+      try {
+        const info = await storage.getFileInfo(
+          task.bucketId,
+          task.fileName,
+          ownerNormalized
+        )
+        if (typeof info?.size === 'number') {
+          headers['Content-Length'] = String(info.size)
+        }
+      } catch {
+        // no-op: streaming without Content-Length is fine
+      }
+
+      return {
+        stream,
+        status: { httpStatus: 200, error: null, headers }
+      }
+    } catch (e) {
+      if (e instanceof PersistentStorageAccessDeniedError) {
+        return { stream: null, status: { httpStatus: 403, error: e.message } }
+      }
+      const message = e instanceof Error ? e.message : String(e)
+      if (message.toLowerCase().includes('not found')) {
+        return { stream: null, status: { httpStatus: 404, error: message } }
+      }
+      CORE_LOGGER.error(`PersistentStorageDownloadFileHandler error: ${message}`)
       return { stream: null, status: { httpStatus: 500, error: message } }
     }
   }

@@ -116,6 +116,10 @@ Access checks happen at two levels:
   - Returns file metadata (`name`, `size`, `lastModified`) for a bucket.
   - Enforces bucket ACL.
 
+- **Download file**
+  - Streams the raw file bytes back to the caller (HTTP or P2P).
+  - Enforces bucket ACL.
+
 - **Delete file**
   - Deletes the named file from the bucket.
   - Enforces bucket ACL.
@@ -165,6 +169,7 @@ All persistent storage operations are implemented as protocol commands in the ha
 - `persistentStorageListFiles`
 - `persistentStorageGetFileObject`
 - `persistentStorageUploadFile`
+- `persistentStorageDownloadFile`
 - `persistentStorageDeleteFile`
 
 Each command requires authentication (token or signature) based on Ocean Node’s auth configuration.
@@ -179,10 +184,15 @@ At a glance:
 - `GET /api/services/persistentStorage/buckets`
 - `GET /api/services/persistentStorage/buckets/:bucketId/files`
 - `GET /api/services/persistentStorage/buckets/:bucketId/files/:fileName/object`
+- `GET /api/services/persistentStorage/buckets/:bucketId/files/:fileName`
 - `POST /api/services/persistentStorage/buckets/:bucketId/files/:fileName`
 - `DELETE /api/services/persistentStorage/buckets/:bucketId/files/:fileName`
 
 Upload uses the raw request body as bytes and forwards it to the handler as a stream.
+Download (`GET .../files/:fileName`) streams the raw file bytes back with
+`Content-Type: application/octet-stream` and a `Content-Disposition` attachment header;
+over P2P the same command returns the raw bytes as the response stream. The `/object`
+variant instead returns the JSON file object used for c2d references.
 
 ---
 

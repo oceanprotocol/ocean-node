@@ -10,6 +10,7 @@ import { Database } from '../../components/database/index.js'
 import {
   PersistentStorageCreateBucketHandler,
   PersistentStorageDeleteFileHandler,
+  PersistentStorageDownloadFileHandler,
   PersistentStorageGetBucketsHandler,
   PersistentStorageGetFileObjectHandler,
   PersistentStorageListFilesHandler,
@@ -348,6 +349,95 @@ describe('**********         Persistent storage handlers (integration)', functio
     expect(obj).to.be.an('object')
     expect(obj.bucketId).to.equal(bucketId)
     expect(obj.fileName).to.equal(fileName)
+  })
+
+  it('downloadFile streams the raw file bytes back for an allowed consumer', async () => {
+    const consumerAddress = await consumer.getAddress()
+
+    let nonce = Date.now().toString()
+    let messageHashBytes = createHashForSignature(
+      consumerAddress,
+      nonce,
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+    )
+    let signature = await safeSign(consumer, messageHashBytes)
+
+    const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      consumerAddress,
+      signature,
+      nonce,
+      accessLists: [],
+      authorization: undefined
+    } as any)
+    expect(createRes.status.httpStatus).to.equal(200)
+    const bucketId = (await streamToObject(createRes.stream as Readable))
+      .bucketId as string
+
+    const fileName = 'download-me.txt'
+    const body = Buffer.from('persistent-storage-download-it')
+
+    nonce = Date.now().toString()
+    messageHashBytes = createHashForSignature(
+      consumerAddress,
+      nonce,
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
+    )
+    signature = await safeSign(consumer, messageHashBytes)
+    const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
+      consumerAddress,
+      signature,
+      nonce,
+      bucketId,
+      fileName,
+      stream: Readable.from(body)
+    } as any)
+    expect(uploadRes.status.httpStatus).to.equal(200)
+
+    // allowed consumer downloads → raw bytes match what was uploaded
+    nonce = Date.now().toString()
+    messageHashBytes = createHashForSignature(
+      consumerAddress,
+      nonce,
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DOWNLOAD_FILE
+    )
+    signature = await safeSign(consumer, messageHashBytes)
+    const downloadRes = await new PersistentStorageDownloadFileHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DOWNLOAD_FILE,
+      consumerAddress,
+      signature,
+      nonce,
+      bucketId,
+      fileName,
+      authorization: undefined
+    } as any)
+    expect(downloadRes.status.httpStatus).to.equal(200)
+    expect(downloadRes.stream).to.be.instanceOf(Readable)
+    expect(downloadRes.status.headers?.['Content-Length']).to.equal(String(body.length))
+    const downloaded = await streamToString(downloadRes.stream as Readable)
+    expect(downloaded).to.equal(body.toString())
+
+    // a non-allowed consumer (not the owner, not on any ACL) is rejected with 403
+    const strangerAddress = await forbiddenConsumer.getAddress()
+    nonce = Date.now().toString()
+    messageHashBytes = createHashForSignature(
+      strangerAddress,
+      nonce,
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DOWNLOAD_FILE
+    )
+    signature = await safeSign(forbiddenConsumer, messageHashBytes)
+    const deniedRes = await new PersistentStorageDownloadFileHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DOWNLOAD_FILE,
+      consumerAddress: strangerAddress,
+      signature,
+      nonce,
+      bucketId,
+      fileName,
+      authorization: undefined
+    } as any)
+    expect(deniedRes.status.httpStatus).to.equal(403)
+    expect(deniedRes.stream).to.equal(null)
   })
 
   it('getFileChecksum returns the sha256 of the file contents for an allowed consumer', async () => {
