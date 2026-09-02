@@ -185,10 +185,12 @@ persistentStorageRoutes.get(
       }
       res.status(response.status.httpStatus)
       if (response.status.headers) {
+        // Includes Cache-Control: no-store (authenticated per-user download).
         res.set(response.status.headers)
       }
+      const sourceStream = response.stream as Readable
       // Guard against a mid-flight source error so the request can't hang or crash the process.
-      response.stream.on('error', (err) => {
+      sourceStream.on('error', (err) => {
         HTTP_LOGGER.error(`PersistentStorage download stream error: ${err}`)
         if (!res.headersSent) {
           res.status(500).send('Internal Server Error')
@@ -196,7 +198,14 @@ persistentStorageRoutes.get(
           res.end()
         }
       })
-      response.stream.pipe(res)
+      // If the client goes away before the stream finishes, tear down the source
+      // stream so the underlying handle/connection isn't leaked.
+      res.on('close', () => {
+        if (!res.writableEnded) {
+          sourceStream.destroy()
+        }
+      })
+      sourceStream.pipe(res)
     } catch (error) {
       HTTP_LOGGER.error(`PersistentStorage download error: ${error}`)
       res.status(500).send('Internal Server Error')

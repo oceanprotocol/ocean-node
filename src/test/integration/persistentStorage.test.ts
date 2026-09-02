@@ -415,6 +415,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     expect(downloadRes.status.httpStatus).to.equal(200)
     expect(downloadRes.stream).to.be.instanceOf(Readable)
     expect(downloadRes.status.headers?.['Content-Length']).to.equal(String(body.length))
+    // authenticated per-user download must not be cached by shared caches
+    expect(downloadRes.status.headers?.['Cache-Control']).to.equal('no-store')
     const downloaded = await streamToString(downloadRes.stream as Readable)
     expect(downloaded).to.equal(body.toString())
 

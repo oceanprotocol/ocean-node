@@ -460,11 +460,18 @@ export class PersistentStorageDownloadFileHandler extends CommandHandler {
         ownerNormalized
       )
 
-      // RFC 6266: an ASCII fallback (quotes stripped) plus a UTF-8 filename* so
-      // clients render the real name instead of literal %XX escapes.
-      const asciiFallback = task.fileName.replace(/["\\]/g, '')
+      // RFC 6266: an ASCII fallback plus a UTF-8 filename* so clients render the
+      // real name instead of literal %XX escapes. The fallback must be a safe
+      // header value, so drop quotes/backslashes and replace any control or
+      // non-ASCII character (which Node rejects with ERR_INVALID_CHAR); the
+      // untouched name still round-trips via the encoded filename* parameter.
+      const asciiFallback = task.fileName
+        .replace(/[^\x20-\x7E]/g, '_')
+        .replace(/["\\]/g, '')
       const headers: Record<string, string> = {
         'Content-Type': 'application/octet-stream',
+        // Authenticated per-user download: never let a shared cache retain the bytes.
+        'Cache-Control': 'no-store',
         'Content-Disposition': `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(
           task.fileName
         )}`
