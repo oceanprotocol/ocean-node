@@ -57,7 +57,7 @@ describe('service utils', () => {
   })
 
   describe('toListedServiceJob', () => {
-    it('strips metadata (and userData/config fields) from the anonymous listing', () => {
+    it('keeps metadata but strips userData/config fields from the anonymous listing', () => {
       const job = {
         serviceId: 's1',
         userData: 'ENCRYPTED',
@@ -66,12 +66,15 @@ describe('service utils', () => {
         dockerCmd: ['a'],
         dockerEntrypoint: ['/e'],
         dockerfile: 'FROM x',
-        metadata: { secretish: 'label' }
+        metadata: { run: 'exp-7', attempt: 2 }
       } as unknown as ServiceJob
       const listed = toListedServiceJob(job)
-      expect(listed).to.not.have.property('metadata')
+      expect(listed).to.have.property('metadata')
+      expect((listed as ServiceJob).metadata).to.deep.equal({ run: 'exp-7', attempt: 2 })
       expect(listed).to.not.have.property('userData')
       expect(listed).to.not.have.property('dockerCmd')
+      expect(listed).to.not.have.property('dockerEntrypoint')
+      expect(listed).to.not.have.property('dockerfile')
       expect(listed).to.have.property('serviceId', 's1')
     })
     it('is null-safe', () => {

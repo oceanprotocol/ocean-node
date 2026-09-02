@@ -2210,7 +2210,7 @@ should keep watching `serviceStatus`, not just stop once they first see `Running
 | resources                    | object[] |          | `{ id, amount }` requested resources                              |
 | duration                     | number   | v        | seconds; capped by `serviceOnDemand.maxDurationSeconds`           |
 | userData                     | string   |          | ECIES-encrypted (to the node pubkey) JSON of env vars             |
-| metadata                     | object   |          | arbitrary user labels (`string`/`number`/`boolean` values, ≤1 KB JSON); node-opaque. Returned to the owner on `serviceStatus`, stripped from `serviceList` |
+| metadata                     | object   |          | arbitrary user labels (`string`/`number`/`boolean` values, ≤1 KB JSON); node-opaque. Returned on both `serviceStatus` and `serviceList` |
 | payment                      | object   | v        | `{ chainId, token }`                                              |
 
 #### Response (200)
@@ -2298,9 +2298,9 @@ shared pools): `Running`/`Restarting`/`Stopping`, the mid-start pipeline states,
 #### Response (200)
 
 Array of `ServiceJob`, **listing-sanitized**: `userData`, `dockerCmd`, `dockerEntrypoint`,
-`dockerfile`, `additionalDockerFiles` and the owner's `metadata` are stripped (identity,
-status, resources, endpoints and payment metadata are kept). Use the owner-scoped
-`serviceStatus` to see a service's own configuration and metadata.
+`dockerfile` and `additionalDockerFiles` are stripped (identity, status, resources,
+endpoints, payment metadata and the owner's `metadata` are kept). Use the owner-scoped
+`serviceStatus` to see a service's own configuration.
 
 ---
 
