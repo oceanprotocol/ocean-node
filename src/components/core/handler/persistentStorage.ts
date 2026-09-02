@@ -460,9 +460,14 @@ export class PersistentStorageDownloadFileHandler extends CommandHandler {
         ownerNormalized
       )
 
+      // RFC 6266: an ASCII fallback (quotes stripped) plus a UTF-8 filename* so
+      // clients render the real name instead of literal %XX escapes.
+      const asciiFallback = task.fileName.replace(/["\\]/g, '')
       const headers: Record<string, string> = {
         'Content-Type': 'application/octet-stream',
-        'Content-Disposition': `attachment; filename="${encodeURIComponent(task.fileName)}"`
+        'Content-Disposition': `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(
+          task.fileName
+        )}`
       }
       // Best-effort Content-Length; skip if stat is unavailable.
       try {

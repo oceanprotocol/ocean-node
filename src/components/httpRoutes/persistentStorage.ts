@@ -187,6 +187,15 @@ persistentStorageRoutes.get(
       if (response.status.headers) {
         res.set(response.status.headers)
       }
+      // Guard against a mid-flight source error so the request can't hang or crash the process.
+      response.stream.on('error', (err) => {
+        HTTP_LOGGER.error(`PersistentStorage download stream error: ${err}`)
+        if (!res.headersSent) {
+          res.status(500).send('Internal Server Error')
+        } else {
+          res.end()
+        }
+      })
       response.stream.pipe(res)
     } catch (error) {
       HTTP_LOGGER.error(`PersistentStorage download error: ${error}`)
