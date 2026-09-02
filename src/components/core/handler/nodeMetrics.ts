@@ -12,7 +12,10 @@ import {
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { collectNodeMetricsSnapshot } from '../utils/nodeMetricsHandler.js'
 import { NodeMetricsHistoryResult } from '../../../@types/nodeMetrics.js'
-import { getMetricsRetentionDays } from '../../../utils/nodeMetricsConfig.js'
+import {
+  getMetricsRetentionDays,
+  isNodeMetricsHistoryEnabled
+} from '../../../utils/nodeMetricsConfig.js'
 import { floorToHour } from '../../database/sqliteNodeMetrics.js'
 
 const HOUR_MS = 60 * 60 * 1000
@@ -82,8 +85,11 @@ export class GetNodeMetricsHistoryHandler extends CommandHandler {
       return checks
     }
     try {
+      // The DB table is created regardless of the flag (and may hold rows from a period when the
+      // feature was on), so gate reads on the flag too — otherwise disabling it would only stop
+      // new roll-ups while still serving previously accumulated history.
       const db = await this.getOceanNode().getDatabase()
-      if (!db || !db.nodeMetrics) {
+      if (!isNodeMetricsHistoryEnabled() || !db || !db.nodeMetrics) {
         return {
           stream: null,
           status: {
