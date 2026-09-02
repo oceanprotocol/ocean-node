@@ -2132,6 +2132,40 @@ Return the `fileObject` for a specific file in a bucket (useful for passing refe
 
 ---
 
+### `HTTP` GET /api/services/persistentStorage/buckets/:bucketId/files/:fileName
+
+#### Description
+
+Download a file from a bucket. The response body is the raw file bytes. Enforces the bucket
+access list (the consumer must be the bucket owner or on the bucket ACL). The same operation is
+available as the `persistentStorageDownloadFile` P2P command, which streams the raw bytes back
+identically.
+
+#### Query Parameters
+
+| name            | type   | required | description                                        |
+| --------------- | ------ | -------- | -------------------------------------------------- |
+| consumerAddress | string | v        | consumer address                                   |
+| signature       | string | v        | signed message (consumerAddress + nonce + command) |
+| nonce           | string | v        | request nonce                                      |
+
+#### Response (200)
+
+Raw file bytes, sent with:
+
+- `Content-Type: application/octet-stream`
+- `Content-Disposition: attachment; filename="<fileName>"`
+- `Content-Length` (best-effort)
+
+#### Errors
+
+| status | when                                                        |
+| ------ | ---------------------------------------------------------- |
+| 403    | consumer is not the bucket owner and not on the bucket ACL |
+| 404    | file not found in the bucket                                |
+
+---
+
 ### `HTTP` POST /api/services/persistentStorage/buckets/:bucketId/files/:fileName
 
 #### Description

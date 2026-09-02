@@ -2,6 +2,7 @@ import { Readable } from 'stream'
 import type {
   PersistentStorageCreateBucketCommand,
   PersistentStorageDeleteFileCommand,
+  PersistentStorageDownloadFileCommand,
   PersistentStorageGetBucketsCommand,
   PersistentStorageGetFileObjectCommand,
   PersistentStorageListFilesCommand,
@@ -424,6 +425,84 @@ export class PersistentStorageDeleteFileHandler extends CommandHandler {
       }
       const message = e instanceof Error ? e.message : String(e)
       CORE_LOGGER.error(`PersistentStorageDeleteFileHandler error: ${message}`)
+      return { stream: null, status: { httpStatus: 500, error: message } }
+    }
+  }
+}
+
+export class PersistentStorageDownloadFileHandler extends CommandHandler {
+  validate(command: PersistentStorageDownloadFileCommand): ValidateParams {
+    const base = validateCommandParameters(command, ['bucketId', 'fileName'])
+    if (!base.valid) return base
+    return { valid: true }
+  }
+
+  async handle(task: PersistentStorageDownloadFileCommand): Promise<P2PCommandResponse> {
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) return validationResponse
+
+    const isAuthRequestValid = await this.validateTokenOrSignature(
+      task.authorization,
+      task.consumerAddress,
+      task.nonce,
+      task.signature,
+      task.command
+    )
+    if (isAuthRequestValid.status.httpStatus !== 200) return isAuthRequestValid
+
+    try {
+      const storage = requirePersistentStorage(this)
+      const ownerNormalized = getAddress(isAuthRequestValid.consumerAddress)
+      // getReadableStream enforces the bucket ACL (throws PersistentStorageAccessDeniedError).
+      const stream = await storage.getReadableStream(
+        task.bucketId,
+        task.fileName,
+        ownerNormalized
+      )
+
+      // RFC 6266: an ASCII fallback plus a UTF-8 filename* so clients render the
+      // real name instead of literal %XX escapes. The fallback must be a safe
+      // header value, so drop quotes/backslashes and replace any control or
+      // non-ASCII character (which Node rejects with ERR_INVALID_CHAR); the
+      // untouched name still round-trips via the encoded filename* parameter.
+      const asciiFallback = task.fileName
+        .replace(/[^\x20-\x7E]/g, '_')
+        .replace(/["\\]/g, '')
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/octet-stream',
+        // Authenticated per-user download: never let a shared cache retain the bytes.
+        'Cache-Control': 'no-store',
+        'Content-Disposition': `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(
+          task.fileName
+        )}`
+      }
+      // Best-effort Content-Length; skip if stat is unavailable.
+      try {
+        const info = await storage.getFileInfo(
+          task.bucketId,
+          task.fileName,
+          ownerNormalized
+        )
+        if (typeof info?.size === 'number') {
+          headers['Content-Length'] = String(info.size)
+        }
+      } catch {
+        // no-op: streaming without Content-Length is fine
+      }
+
+      return {
+        stream,
+        status: { httpStatus: 200, error: null, headers }
+      }
+    } catch (e) {
+      if (e instanceof PersistentStorageAccessDeniedError) {
+        return { stream: null, status: { httpStatus: 403, error: e.message } }
+      }
+      const message = e instanceof Error ? e.message : String(e)
+      if (message.toLowerCase().includes('not found')) {
+        return { stream: null, status: { httpStatus: 404, error: message } }
+      }
+      CORE_LOGGER.error(`PersistentStorageDownloadFileHandler error: ${message}`)
       return { stream: null, status: { httpStatus: 500, error: message } }
     }
   }

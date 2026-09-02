@@ -420,6 +420,14 @@ export interface PersistentStorageDeleteFileCommand extends Command {
   fileName: string
 }
 
+export interface PersistentStorageDownloadFileCommand extends Command {
+  consumerAddress: string
+  signature: string
+  nonce: string
+  bucketId: string
+  fileName: string
+}
+
 // ── Service On Demand ─────────────────────────────────────────────────
 
 export interface ServiceGetTemplatesCommand extends Command {

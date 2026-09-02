@@ -59,6 +59,7 @@ import { GetJobsHandler } from './getJobs.js'
 import {
   PersistentStorageCreateBucketHandler,
   PersistentStorageDeleteFileHandler,
+  PersistentStorageDownloadFileHandler,
   PersistentStorageGetBucketsHandler,
   PersistentStorageGetFileObjectHandler,
   PersistentStorageListFilesHandler,
@@ -266,6 +267,10 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DELETE_FILE,
       new PersistentStorageDeleteFileHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DOWNLOAD_FILE,
+      new PersistentStorageDownloadFileHandler(node)
     )
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.GET_ACCESS_LIST,
