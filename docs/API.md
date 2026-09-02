@@ -2317,6 +2317,7 @@ should keep watching `serviceStatus`, not just stop once they first see `Running
   ],
   "duration": 3600,
   "userData": "<ECIES-encrypted-to-node-pubkey hex>",
+  "metadata": { "run": "experiment-7", "attempt": 2 },
   "payment": { "chainId": 8996, "token": "0x..." }
 }
 ```
@@ -2332,6 +2333,7 @@ should keep watching `serviceStatus`, not just stop once they first see `Running
 | resources                    | object[] |          | `{ id, amount }` requested resources                              |
 | duration                     | number   | v        | seconds; capped by `serviceOnDemand.maxDurationSeconds`           |
 | userData                     | string   |          | ECIES-encrypted (to the node pubkey) JSON of env vars             |
+| metadata                     | object   |          | arbitrary user labels (`string`/`number`/`boolean` values, ≤1 KB JSON); node-opaque. Returned on both `serviceStatus` and `serviceList` |
 | payment                      | object   | v        | `{ chainId, token }`                                              |
 
 #### Response (200)
@@ -2355,7 +2357,8 @@ The immediate response — `Starting`, no endpoints yet. Poll `serviceStatus` fo
 ```
 
 Errors: `403` services disabled on the env / access denied, `400` invalid params (bad address,
-duration, image spec, unavailable resources, or no pricing for the token). Escrow lock/claim now
+duration, image spec, metadata over 1 KB, unavailable resources, or no pricing for the token).
+Escrow lock/claim now
 happens in the background, so escrow failures surface as the job ending in an `Error` / `*Failed`
 status (observed via `serviceStatus`), not as a synchronous `402`.
 
@@ -2382,7 +2385,8 @@ by the authenticated `consumerAddress` are returned.
 
 #### Response (200)
 
-Array of `ServiceJob` (with `userData` stripped). Each entry also carries a sanitized
+Array of `ServiceJob` (with `userData` stripped; any user-supplied `metadata` is kept — this
+path is owner-scoped). Each entry also carries a sanitized
 `runtimeMetrics` object — see [The `runtimeMetrics` object](#the-runtimemetrics-object) for its full
 structure. Included by default here because this command is already authenticated and owner-scoped
 (pass `includeMetrics=false` to omit); the node-wide `serviceList` never returns metrics. Metrics are
@@ -2418,8 +2422,8 @@ shared pools): `Running`/`Restarting`/`Stopping`, the mid-start pipeline states,
 
 Array of `ServiceJob`, **listing-sanitized**: `userData`, `dockerCmd`, `dockerEntrypoint`,
 `dockerfile` and `additionalDockerFiles` are stripped (identity, status, resources,
-endpoints and payment metadata are kept). Use the owner-scoped `serviceStatus` to see a
-service's own configuration.
+endpoints, payment metadata and the owner's `metadata` are kept). Use the owner-scoped
+`serviceStatus` to see a service's own configuration.
 
 ---
 
@@ -2525,6 +2529,7 @@ RESPEC mode (restart on a new image spec — `image` required, plus at most one 
 | userData              | string   |          | ECIES-encrypted (to the node public key) JSON → the container's env-var map                                              |
 | dockerCmd             | string[] |          | exact container command (Docker exec-form CMD override)                                                                  |
 | dockerEntrypoint      | string[] |          | container ENTRYPOINT override                                                                                            |
+| metadata              | object   |          | user labels (≤1 KB JSON). **Not** a container param — independent of REUSE/RESPEC. When present it **replaces** the stored metadata; when omitted the original metadata is kept |
 
 #### Response (200)
 
@@ -2533,8 +2538,9 @@ The `ServiceJob` with a new `containerId` (same `hostPort` and `expiresAt`; the 
 
 #### Response (400)
 
-Not found, expired, payment never claimed, or an invalid respec — a container param was sent
-without `image`, or more than one of `tag`/`checksum`/`dockerfile` was provided.
+Not found, expired, payment never claimed, metadata over 1 KB, or an invalid respec — a
+container param was sent without `image`, or more than one of `tag`/`checksum`/`dockerfile` was
+provided.
 
 #### Response (403)
 

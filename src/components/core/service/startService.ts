@@ -17,6 +17,7 @@ import type {
 } from '../../../@types/C2D/C2D.js'
 import { generateUniqueID, validateOutputBucket } from '../compute/utils.js'
 import { validateAccess } from '../compute/startCompute.js'
+import { isJobMetadataSizeValid, INVALID_JOB_METADATA_MESSAGE } from '../../c2d/index.js'
 import { decryptUserData, toPublicServiceJob } from './utils.js'
 
 export class ServiceStartHandler extends CommandHandler {
@@ -42,6 +43,8 @@ export class ServiceStartHandler extends CommandHandler {
         return buildInvalidRequestMessage(
           'Provide at most one of "tag", "checksum", "dockerfile"'
         )
+      if (!isJobMetadataSizeValid(command.metadata))
+        return buildInvalidRequestMessage(INVALID_JOB_METADATA_MESSAGE)
     }
     return commandValidation
   }
@@ -250,6 +253,7 @@ export class ServiceStartHandler extends CommandHandler {
         payment,
         serviceId,
         task.userData,
+        task.metadata,
         task.outputBucketId
       )
 

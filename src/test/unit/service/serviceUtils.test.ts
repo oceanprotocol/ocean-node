@@ -3,6 +3,7 @@ import type { ServiceJob } from '../../../@types/C2D/ServiceOnDemand.js'
 import {
   userDataToEnv,
   toPublicServiceJob,
+  toListedServiceJob,
   decryptUserData,
   allocateHostPort,
   releaseHostPort,
@@ -38,8 +39,46 @@ describe('service utils', () => {
       expect(pub).to.not.have.property('userData')
       expect(pub).to.have.property('serviceId', 's1')
     })
+    it('keeps user metadata (returned to the owner on SERVICE_GET_STATUS)', () => {
+      const job = {
+        serviceId: 's1',
+        userData: 'ENCRYPTED',
+        owner: '0xabc',
+        endpoints: [],
+        metadata: { run: 'exp-7', attempt: 2 }
+      } as unknown as ServiceJob
+      const pub = toPublicServiceJob(job)
+      expect(pub).to.have.property('metadata')
+      expect((pub as ServiceJob).metadata).to.deep.equal({ run: 'exp-7', attempt: 2 })
+    })
     it('is null-safe', () => {
       expect(toPublicServiceJob(null)).to.equal(null)
+    })
+  })
+
+  describe('toListedServiceJob', () => {
+    it('keeps metadata but strips userData/config fields from the anonymous listing', () => {
+      const job = {
+        serviceId: 's1',
+        userData: 'ENCRYPTED',
+        owner: '0xabc',
+        endpoints: [],
+        dockerCmd: ['a'],
+        dockerEntrypoint: ['/e'],
+        dockerfile: 'FROM x',
+        metadata: { run: 'exp-7', attempt: 2 }
+      } as unknown as ServiceJob
+      const listed = toListedServiceJob(job)
+      expect(listed).to.have.property('metadata')
+      expect((listed as ServiceJob).metadata).to.deep.equal({ run: 'exp-7', attempt: 2 })
+      expect(listed).to.not.have.property('userData')
+      expect(listed).to.not.have.property('dockerCmd')
+      expect(listed).to.not.have.property('dockerEntrypoint')
+      expect(listed).to.not.have.property('dockerfile')
+      expect(listed).to.have.property('serviceId', 's1')
+    })
+    it('is null-safe', () => {
+      expect(toListedServiceJob(null)).to.equal(null)
     })
   })
 

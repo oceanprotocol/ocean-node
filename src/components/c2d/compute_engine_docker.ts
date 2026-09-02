@@ -56,7 +56,11 @@ import { AssetUtils } from '../../utils/asset.js'
 import { FindDdoHandler } from '../core/handler/ddoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { KeyManager } from '../KeyManager/index.js'
-import { decryptFilesObject, omitDBComputeFieldsFromComputeJob } from './index.js'
+import {
+  decryptFilesObject,
+  omitDBComputeFieldsFromComputeJob,
+  validateJobMetadataSize
+} from './index.js'
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
 import { Service } from '@oceanprotocol/ddo-js'
 import { getOceanTokenAddressForChain } from '../../utils/address.js'
@@ -1490,12 +1494,7 @@ export class C2DEngineDocker extends C2DEngine {
     // TO DO - iterate over resources and get default runtime
     const isFree: boolean = !(payment && payment.lockTx)
 
-    if (metadata && Object.keys(metadata).length > 0) {
-      const metadataSize = JSON.stringify(metadata).length
-      if (metadataSize > 1024) {
-        throw new Error('Metadata size is too large')
-      }
-    }
+    validateJobMetadataSize(metadata)
 
     const envIdWithHash = environment && environment.indexOf('-') > -1
     const env = await this.getComputeEnvironment(
@@ -3841,8 +3840,10 @@ export class C2DEngineDocker extends C2DEngine {
     payment: DBComputeJobPayment,
     serviceId: string,
     userData?: string,
+    metadata?: DBComputeJobMetadata,
     outputBucketId?: string
   ): Promise<ServiceJob | null> {
+    validateJobMetadataSize(metadata)
     const containerImage = resolveServiceImage(
       image,
       tag,
@@ -3873,6 +3874,7 @@ export class C2DEngineDocker extends C2DEngine {
       exposedPorts,
       endpoints: [],
       userData, // stored as received (ECIES-encrypted); decrypted transiently at container start
+      metadata,
       outputBucketId,
       resources: resources.map((r) => ({ id: r.id, amount: r.amount })),
       payment
@@ -4769,8 +4771,12 @@ export class C2DEngineDocker extends C2DEngine {
     newAdditionalDockerFiles?: Record<string, string>,
     newUserData?: string,
     newDockerCmd?: string[],
-    newDockerEntrypoint?: string[]
+    newDockerEntrypoint?: string[],
+    newMetadata?: DBComputeJobMetadata
   ): Promise<ServiceJob | null> {
+    // Metadata is independent of the container-param REUSE/RESPEC grouping: validate it up
+    // front so a bad request is rejected before any teardown. Applied to the job below.
+    validateJobMetadataSize(newMetadata)
     // Lifecycle lock: without it the InternalLoop's orphan-recovery (which sees the
     // intermediate Restarting/PullImage/BuildImage status this method persists) tears
     // down the network created here mid-restart → container.start() fails with
@@ -4817,6 +4823,9 @@ export class C2DEngineDocker extends C2DEngine {
       // record that would be double-started with a second escrow lock.
       job.status = ServiceStatusNumber.Restarting
       job.statusText = ServiceStatusText[ServiceStatusNumber.Restarting]
+      // Replace the stored metadata only when the request carries a new bag; otherwise the
+      // original labels are kept untouched (independent of the container-param REUSE/RESPEC).
+      if (newMetadata !== undefined) job.metadata = newMetadata
       await this.db.updateServiceJob(job)
     } catch (e) {
       await this.releaseServiceLifecycleLock(serviceId)

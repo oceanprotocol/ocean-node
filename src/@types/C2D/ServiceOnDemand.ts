@@ -1,5 +1,6 @@
 import type {
   DBComputeJobPayment,
+  DBComputeJobMetadata,
   ComputeResourceRequestWithPrice,
   ContainerMetricsSnapshot
 } from './C2D.js'
@@ -193,6 +194,12 @@ export interface ServiceJob {
   exposedPorts: number[]
   endpoints: ServiceEndpoint[]
   userData?: string // ECIES(node key) string sent by the client; stored as-is, decrypted only at start/restart; never returned
+  // Arbitrary, node-opaque user labels (≤1 KB when JSON-stringified). Set at SERVICE_START,
+  // optionally replaced at SERVICE_RESTART. Returned only to the owner via toPublicServiceJob
+  // (SERVICE_GET_STATUS is authenticated + owner-scoped) and stripped from the node-wide
+  // SERVICE_LIST (toListedServiceJob). Shares the DBComputeJob.metadata type; note the
+  // compute equivalent is readable by anyone holding the jobId, whereas this is owner-only.
+  metadata?: DBComputeJobMetadata
   outputBucketId?: string // persistent-storage bucket bind-mounted at /data/outputs
   resources: ComputeResourceRequestWithPrice[]
   payment: DBComputeJobPayment // initial start payment

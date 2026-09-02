@@ -26,7 +26,8 @@ export { parseFromTimestamp }
 // `includeAllStatuses` returns everything; `fromTimestamp` keeps only services created
 // at/after that moment. Unlike SERVICE_GET_STATUS this is NOT owner-scoped: any
 // authenticated caller sees every consumer's services, so the output is listing-grade
-// sanitized (no userData, no CMD/ENTRYPOINT overrides, no Dockerfile).
+// sanitized (no userData, no CMD/ENTRYPOINT overrides, no Dockerfile) — but `metadata`
+// is kept, matching SERVICE_GET_STATUS.
 export class GetServicesHandler extends CommandHandler {
   validate(command: GetServicesCommand): ValidateParams {
     // consumerAddress is required: it is the identity the signature/token is verified

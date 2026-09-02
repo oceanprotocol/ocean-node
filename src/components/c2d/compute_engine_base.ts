@@ -119,6 +119,7 @@ export abstract class C2DEngine {
     payment: DBComputeJobPayment,
     serviceId: string,
     userData?: string, // ECIES-encrypted; the engine decrypts it transiently into the container env
+    metadata?: DBComputeJobMetadata,
     outputBucketId?: string
   ): Promise<ServiceJob | null> {
     return null
@@ -161,7 +162,8 @@ export abstract class C2DEngine {
     newAdditionalDockerFiles?: Record<string, string>,
     newUserData?: string,
     newDockerCmd?: string[],
-    newDockerEntrypoint?: string[]
+    newDockerEntrypoint?: string[],
+    newMetadata?: DBComputeJobMetadata
   ): Promise<ServiceJob | null> {
     return null
   }
