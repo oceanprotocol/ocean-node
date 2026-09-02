@@ -39,6 +39,7 @@ import { C2DDatabase } from './C2DDatabase.js'
 import { SQLLiteNonceDatabase } from './SQLLiteNonceDatabase.js'
 import { SQLLiteConfigDatabase } from './SQLLiteConfigDatabase.js'
 import { AuthTokenDatabase } from './AuthTokenDatabase.js'
+import { NodeMetricsDatabase } from './sqliteNodeMetrics.js'
 
 export class DatabaseFactory {
   private static databaseMap = {
@@ -142,6 +143,11 @@ export class DatabaseFactory {
 
   static async createConfigDatabase(): Promise<SQLLiteConfigDatabase> {
     return await new SQLLiteConfigDatabase()
+  }
+
+  // eslint-disable-next-line require-await
+  static async createNodeMetricsDatabase(): Promise<NodeMetricsDatabase> {
+    return new NodeMetricsDatabase()
   }
 
   static createAccessListDatabase(

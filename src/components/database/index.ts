@@ -21,6 +21,7 @@ import { SQLLiteConfigDatabase } from './SQLLiteConfigDatabase.js'
 import { SQLLiteNonceDatabase } from './SQLLiteNonceDatabase.js'
 import { TypesenseSchema } from './TypesenseSchemas.js'
 import { AuthTokenDatabase } from './AuthTokenDatabase.js'
+import { NodeMetricsDatabase } from './sqliteNodeMetrics.js'
 
 export type Schema = ElasticsearchSchema | TypesenseSchema
 
@@ -36,6 +37,7 @@ export class Database {
   sqliteConfig: SQLLiteConfigDatabase
   c2d: C2DDatabase
   authToken: AuthTokenDatabase
+  nodeMetrics: NodeMetricsDatabase
   // true only when the metadata (Typesense/Elasticsearch) databases were all initialized.
   // false in DEGRADED mode (metadata DB unreachable) and when no metadata DB is configured.
   metadataInitialized: boolean = false
@@ -87,6 +89,14 @@ export class Database {
     } catch (error) {
       DATABASE_LOGGER.error(`Auth database initialization failed: ${error}`)
       return null
+    }
+    try {
+      db.nodeMetrics = await DatabaseFactory.createNodeMetricsDatabase()
+    } catch (error) {
+      // Node metrics history is a best-effort, non-critical feature: a failure here must not
+      // stop the node from starting. Leave db.nodeMetrics undefined; the cron jobs and history
+      // handler guard on its presence.
+      DATABASE_LOGGER.error(`Node metrics database initialization failed: ${error}`)
     }
 
     if (hasValidDBConfiguration(config)) {

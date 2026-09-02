@@ -4,9 +4,10 @@ import { Database } from '../../components/database/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { ENVIRONMENT_VARIABLES } from '../constants.js'
 import { OCEAN_NODE_LOGGER } from '../logging/common.js'
-import * as cron from 'node-cron'
+import { scheduleCron } from './scheduleCron.js'
 import { p2pAnnounceDDOS } from './p2pAnnounceDDOS.js'
 import { p2pAnnounceC2D } from './p2pAnnounceC2D.js'
+import { scheduleNodeMetricsJobs } from './nodeMetricsJobs.js'
 import { sleep } from '../util.js'
 
 // re-announce the C2D capability to the network every 4 hours
@@ -24,6 +25,11 @@ export async function scheduleCronJobs(node: OceanNode) {
     scheduleCleanExpiredC2DJobs(await node.getDatabase())
   } catch (e) {
     OCEAN_NODE_LOGGER.error(`Error when deleting expired c2d jobs: ${e.message}`)
+  }
+  try {
+    scheduleNodeMetricsJobs(node, await node.getDatabase())
+  } catch (e) {
+    OCEAN_NODE_LOGGER.error(`Error when scheduling node metrics jobs: ${e.message}`)
   }
   // Both announce jobs are started fire-and-forget, so nothing awaits their promise: a
   // rejection would be an unhandled rejection, and this process installs an
@@ -66,7 +72,7 @@ function scheduleDeleteLogsJob(dbconn: Database | null) {
   if (dbconn && dbconn.logs) {
     const expression =
       process.env[ENVIRONMENT_VARIABLES.CRON_DELETE_DB_LOGS.name] || '0 0 * * *'
-    cron.schedule(expression, async () => {
+    scheduleCron(expression, async () => {
       try {
         const deletedLogsNum = await dbconn.logs.deleteOldLogs()
         OCEAN_NODE_LOGGER.logMessage(
@@ -90,7 +96,7 @@ function scheduleCleanExpiredC2DJobs(dbconn: Database | null) {
   if (dbconn && dbconn.c2d) {
     const expression =
       process.env[ENVIRONMENT_VARIABLES.CRON_CLEANUP_C2D_STORAGE.name] || '*/5 * * * *'
-    cron.schedule(expression, async () => {
+    scheduleCron(expression, async () => {
       try {
         const deleted = await dbconn.c2d.cleanStorageExpiredJobs()
         OCEAN_NODE_LOGGER.info(`${deleted} expired C2D jobs cleaned successfully.`)
