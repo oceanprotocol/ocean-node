@@ -907,7 +907,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"signature\": \"{{signature}}\",\n  \"environment\": \"\",\n  \"image\": \"nginxinc/nginx-unprivileged\",\n  \"tag\": \"alpine\",\n  \"exposedPorts\": [8080],\n  \"resources\": [ { \"id\": \"cpu\", \"amount\": 1 }, { \"id\": \"ram\", \"amount\": 1 } ],\n  \"duration\": 3600,\n  \"userData\": \"\",\n  \"payment\": { \"chainId\": {{chainId}}, \"token\": \"0x...\" }\n}"
+							"raw": "{\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"signature\": \"{{signature}}\",\n  \"environment\": \"\",\n  \"image\": \"nginxinc/nginx-unprivileged\",\n  \"tag\": \"alpine\",\n  \"exposedPorts\": [8080],\n  \"resources\": [ { \"id\": \"cpu\", \"amount\": 1 }, { \"id\": \"ram\", \"amount\": 1 } ],\n  \"duration\": 3600,\n  \"userData\": \"\",\n  \"metadata\": { \"label\": \"my-service\" },\n  \"payment\": { \"chainId\": {{chainId}}, \"token\": \"0x...\" }\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/services/serviceStart",
@@ -920,7 +920,7 @@
 								"serviceStart"
 							]
 						},
-						"description": "Launch a long-running service container, paid via escrow. Optional: checksum, dockerfile, additionalDockerFiles, dockerCmd, dockerEntrypoint. Services must listen on a high port (>1024)."
+						"description": "Launch a long-running service container, paid via escrow. Optional: checksum, dockerfile, additionalDockerFiles, dockerCmd, dockerEntrypoint, metadata (optional user-defined labels — a flat key/value map of string/number/boolean values, node-opaque, ≤1 KB). Services must listen on a high port (>1024)."
 					}
 				},
 				{
@@ -1089,7 +1089,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"signature\": \"{{signature}}\",\n  \"serviceId\": \"{{serviceId}}\"\n}"
+							"raw": "{\n  \"consumerAddress\": \"{{consumerAddress}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"signature\": \"{{signature}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"metadata\": { \"label\": \"my-service\" }\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/services/serviceRestart",
@@ -1102,7 +1102,7 @@
 								"serviceRestart"
 							]
 						},
-						"description": "Recreate the service container (no extra charge), keeping the same hostPort, resources and expiresAt. Restart is ATOMIC — all-old or all-new. REUSE mode (body above): send no container params to restart on the stored spec. RESPEC mode: send ANY container param and the container is rebuilt entirely from the request — `image` becomes required plus at most one of tag/checksum/dockerfile (validated like serviceStart), and userData/dockerCmd/dockerEntrypoint are taken as-sent (omitted means empty, NOT inherited). Bug-fix flow example: add \\\"image\\\":\\\"myrepo/myservice\\\",\\\"tag\\\":\\\"v2\\\" to the body. A container param without `image` returns 400; a dockerfile respec where allowImageBuild=false returns 403."
+						"description": "Recreate the service container (no extra charge), keeping the same hostPort, resources and expiresAt. Restart is ATOMIC — all-old or all-new. REUSE mode (body above): send no container params to restart on the stored spec. RESPEC mode: send ANY container param and the container is rebuilt entirely from the request — `image` becomes required plus at most one of tag/checksum/dockerfile (validated like serviceStart), and userData/dockerCmd/dockerEntrypoint are taken as-sent (omitted means empty, NOT inherited). Bug-fix flow example: add \\\"image\\\":\\\"myrepo/myservice\\\",\\\"tag\\\":\\\"v2\\\" to the body. A container param without `image` returns 400; a dockerfile respec where allowImageBuild=false returns 403. `metadata` (optional, flat key/value map ≤1 KB) does NOT trigger RESPEC: when present it REPLACES the stored metadata, when omitted the original metadata is kept untouched."
 					}
 				},
 				{
@@ -1407,6 +1407,49 @@
 							]
 						},
 						"description": "Get the file object metadata for a file in a bucket."
+					}
+				},
+				{
+					"name": "Download File",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "{{token}}",
+								"disabled": true
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/persistentStorage/buckets/{{bucketId}}/files/myfile.txt?consumerAddress={{consumerAddress}}&signature={{signature}}&nonce={{nonce}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"services",
+								"persistentStorage",
+								"buckets",
+								"{{bucketId}}",
+								"files",
+								"myfile.txt"
+							],
+							"query": [
+								{
+									"key": "consumerAddress",
+									"value": "{{consumerAddress}}"
+								},
+								{
+									"key": "signature",
+									"value": "{{signature}}"
+								},
+								{
+									"key": "nonce",
+									"value": "{{nonce}}"
+								}
+							]
+						},
+						"description": "Download a file from a bucket. The response body is the raw file bytes (Cache-Control: no-store). This is an authenticated per-user download — authorize with consumerAddress/signature/nonce, or a bearer token via the Authorization header."
 					}
 				},
 				{
@@ -1859,6 +1902,58 @@
 							]
 						},
 						"description": "Get the indexer job pool for a given job identifier."
+					}
+				}
+			]
+		},
+		{
+			"name": "Node Metrics",
+			"item": [
+				{
+					"name": "Get Node Metrics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/nodeMetrics",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"nodeMetrics"
+							]
+						},
+						"description": "Pull the node's current metrics as a JSON document."
+					}
+				},
+				{
+					"name": "Get Node Metrics History",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/nodeMetrics/history?startTime=&stopTime=",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"nodeMetrics",
+								"history"
+							],
+							"query": [
+								{
+									"key": "startTime",
+									"value": "",
+									"description": "Optional lower time bound for the metrics history window."
+								},
+								{
+									"key": "stopTime",
+									"value": "",
+									"description": "Optional upper time bound for the metrics history window."
+								}
+							]
+						},
+						"description": "Pull historical node metrics as JSON, optionally bounded by startTime/stopTime."
 					}
 				}
 			]
