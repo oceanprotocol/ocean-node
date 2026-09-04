@@ -638,6 +638,34 @@ describe('Service handlers', () => {
       expect(res.status.httpStatus).to.equal(400)
     })
 
+    it("400 when the extension is below the env's own minServiceDuration", async () => {
+      const { node, engine } = buildFakes({
+        minServiceDuration: 600,
+        serviceJobInDb: makeJob({ expiresAt: Date.now() + 500 * 1000 })
+      })
+      const res = await new ServiceExtendHandler(node).handle({
+        ...baseTask,
+        additionalDuration: 100
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+      // Rejected outright, never priced — a short top-up must not be billed at the full floor.
+      expect(engine.calculateResourcesCost.called).to.equal(false)
+    })
+
+    it('prices an extension by its actual duration, never rounded up to the floor', async () => {
+      const { node, engine } = buildFakes({
+        minServiceDuration: 600,
+        serviceJobInDb: makeJob({ expiresAt: Date.now() + 500 * 1000 })
+      })
+      await new ServiceExtendHandler(node).handle({
+        ...baseTask,
+        additionalDuration: 900
+      } as any)
+      const { args } = engine.calculateResourcesCost.firstCall
+      expect(args[4]).to.equal(900) // the duration actually priced
+      expect(args[5]).to.equal(600) // floor passed, but 900 > 600 so it cannot inflate
+    })
+
     it("400 when the extension exceeds the env's own maxServiceDuration", async () => {
       // ~500 s left + 400 s = 900 s: inside the daemon's 86400, outside the env's 600.
       const { node } = buildFakes({

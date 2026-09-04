@@ -1707,12 +1707,12 @@ and SERVICE_START rejects a `duration` outside it:
   `serviceOnDemand.maxDurationSeconds` and may be **lowered** per environment; a larger per-env
   value is clamped to the daemon ceiling at startup. SERVICE_EXTEND also caps the resulting
   remaining window to it.
-- `minServiceDuration` — the floor, and also the **billing floor**: a service is priced at
-  `max(duration, minServiceDuration)` rounded up to whole minutes. Defaults to the
-  environment's own `minJobDuration`, and may be **raised** per environment; a value below the
-  daemon's `serviceOnDemand.minDurationSeconds` is clamped up at startup. SERVICE_EXTEND does
-  not apply the floor to `additionalDuration` (a small top-up stays allowed) but does price
-  against it.
+- `minServiceDuration` — the floor. SERVICE_START rejects a shorter `duration`, and
+  SERVICE_EXTEND rejects a shorter `additionalDuration`: the floor is a minimum *purchase*, so a
+  smaller one is refused rather than silently billed at the floor. Everything accepted is then
+  priced by its actual duration, rounded up to whole minutes. Defaults to the environment's own
+  `minJobDuration`, and may be **raised** per environment; a value below the daemon's
+  `serviceOnDemand.minDurationSeconds` is clamped up at startup.
 
 Environments on the same engine may therefore report different values for both.
 

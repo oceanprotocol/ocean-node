@@ -176,15 +176,20 @@ env keeps the full 24 h:
 { "id": "cpu-small", "minServiceDuration": 600, "maxServiceDuration": 3600, "fees": { "1": [ ... ] } }
 ```
 
-`minServiceDuration` is also the **billing floor**: a service costs
-`max(duration, minServiceDuration)` rounded up to whole minutes, so a request under the floor
-is rejected rather than silently charged for time it was not granted. It defaults to the
-environment's `minJobDuration`, which is exactly what services were already billed at — so
-leaving both new fields unset changes nothing.
+`minServiceDuration` is a minimum **purchase**, applied to a start and to an extension alike:
+SERVICE_START rejects a shorter `duration` and SERVICE_EXTEND rejects a shorter
+`additionalDuration`, rather than granting the smaller window and charging for the floor.
+Anything accepted is priced by its actual duration, rounded up to whole minutes. Rejecting is
+what keeps the two honest — billing a 100 s top-up as 600 s would let ten of them add 1000 s of
+runtime while charging for 6000 s. It defaults to the environment's `minJobDuration`, which is
+exactly what services were already billed at, so leaving both new fields unset changes nothing.
 
 Both are separate from `minJobDuration` / `maxJobDuration`, which are per-env too but apply
-only to compute jobs. SERVICE_EXTEND does not enforce the floor on `additionalDuration` — a
-small top-up on a running service stays allowed — but it does price against it.
+only to compute jobs.
+
+An environment whose resolved floor exceeds its resolved cap is a **fatal config error**: no
+duration could satisfy both, so the node logs the offending environment and refuses to start
+rather than advertising an environment that can never be booked.
 
 **Templates are not shipped in the image.** The node reads them from a folder the operator
 mounts in, so a node without that mount advertises no templates at all. Point

@@ -153,21 +153,31 @@ export class ServiceExtendHandler extends CommandHandler {
               )
             )
 
-          // Cost — same price formula as the start, priced off the env the service runs
-          // on. No fallback: pricing must use runEnv (resolved above);
-          // calculateResourcesCost returns null if that env has no pricing for the token.
-          // The floor applies to a service's own duration at SERVICE_START, not to a top-up:
-          // blocking a small extension would strand a service that only needs a few more
-          // minutes. It is still the *billing* floor, so a top-up is priced like a start.
+          // Reject a top-up below the floor rather than rounding its price up to it. Billing a
+          // 100s extension as 600s on a 600s-floor env would let ten such top-ups add 1000s of
+          // runtime while charging for 6000s; the floor is a minimum purchase, so it gates what
+          // may be bought instead of silently inflating what a smaller purchase costs. Same rule
+          // and same message shape as SERVICE_START.
           const minDuration =
             runEnv.minServiceDuration ??
             Math.max(runEnv.minJobDuration ?? 0, engine.getMinServiceDuration())
+          if (task.additionalDuration < minDuration)
+            return buildInvalidParametersResponse(
+              buildInvalidRequestMessage(
+                `Additional duration ${task.additionalDuration}s is below minimum ${minDuration}s`
+              )
+            )
+          // Cost — same price formula as the start, priced off the env the service runs
+          // on. No fallback: pricing must use runEnv (resolved above);
+          // calculateResourcesCost returns null if that env has no pricing for the token.
           const costExtend = engine.calculateResourcesCost(
             freshJob.resources.map((r) => ({ id: r.id, amount: r.amount })),
             runEnv,
             task.payment.chainId,
             task.payment.token,
             task.additionalDuration,
+            // Guarded above to be >= minDuration, so this never rounds the price up; it is passed
+            // to keep a service off the compute-job floor (minJobDuration), which may be higher.
             minDuration
           )
           if (costExtend === null)

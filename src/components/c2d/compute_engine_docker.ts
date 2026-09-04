@@ -573,13 +573,19 @@ export class C2DEngineDocker extends C2DEngine {
         envServiceFloor ?? envDef.minJobDuration ?? 0,
         daemonServiceFloor
       )
+      // Fatal, unlike the clamps above: those correct a value into a working range, whereas an
+      // empty range leaves the env permanently unusable for services — every SERVICE_START would
+      // 400. Refuse to boot rather than advertise an environment that can never be booked.
       if (minServiceDuration > maxServiceDuration) {
-        CORE_LOGGER.warn(
-          `Environment "${envDef.description || envDef.id || 'unknown'}": ` +
-            `minServiceDuration (${minServiceDuration}) exceeds maxServiceDuration ` +
-            `(${maxServiceDuration}) — no service duration can satisfy both, so SERVICE_START ` +
-            `will reject every request on this environment. Fix your config.`
-        )
+        const envName = envDef.description || envDef.id || 'unknown'
+        const message =
+          `Environment "${envName}": minServiceDuration (${minServiceDuration}) exceeds ` +
+          `maxServiceDuration (${maxServiceDuration}) — no service duration can satisfy both, so ` +
+          `every SERVICE_START would be rejected. Fix the environment's minServiceDuration / ` +
+          `maxServiceDuration, or the daemon's serviceOnDemand.minDurationSeconds / ` +
+          `maxDurationSeconds.`
+        CORE_LOGGER.error(message)
+        throw new Error(message)
       }
 
       const env: ComputeEnvironment = {
