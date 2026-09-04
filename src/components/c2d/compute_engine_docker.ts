@@ -537,6 +537,24 @@ export class C2DEngineDocker extends C2DEngine {
       const fees = this.processFeesForEnvironment(envDef.fees, supportedChains)
       const envResources = this.resolveEnvironmentResources(envDef, connectionPool)
 
+      // Service duration cap. The daemon's serviceOnDemand.maxDurationSeconds is a hard
+      // ceiling — an env may tighten it but never raise it, so a larger value is clamped
+      // with a warning (same treatment a resource max above the pool total gets).
+      const daemonServiceCap = this.getMaxServiceDuration()
+      const { maxServiceDuration: envServiceCap } = envDef
+      if (envServiceCap !== undefined && envServiceCap > daemonServiceCap) {
+        CORE_LOGGER.warn(
+          `Environment "${envDef.description || envDef.id || 'unknown'}": ` +
+            `maxServiceDuration (${envServiceCap}) is greater than the daemon's ` +
+            `serviceOnDemand.maxDurationSeconds (${daemonServiceCap}) — clamping to ` +
+            `${daemonServiceCap}. An environment can only lower the daemon cap.`
+        )
+      }
+      const maxServiceDuration = Math.min(
+        envServiceCap ?? daemonServiceCap,
+        daemonServiceCap
+      )
+
       const env: ComputeEnvironment = {
         id: '',
         runningJobs: 0,
@@ -555,7 +573,10 @@ export class C2DEngineDocker extends C2DEngine {
         features: {
           computeJobs: envDef.features?.computeJobs ?? true,
           services: envDef.features?.services ?? true
-        }
+        },
+        // Always advertised, even where features.services is false, because it states what
+        // SERVICE_START would enforce — clients gate on features.services, not on absence.
+        maxServiceDuration
       }
 
       if (envDef.storageExpiry !== undefined) env.storageExpiry = envDef.storageExpiry

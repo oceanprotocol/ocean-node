@@ -158,12 +158,26 @@ Service-on-demand is configured per Docker connection under `serviceOnDemand`:
 | `enabled` | Master switch for the feature on this connection. |
 | `nodeHost` | Externally reachable host used to build endpoint URLs. |
 | `hostPortRange` | `[start, end]` range the node allocates published host ports from. |
-| `maxDurationSeconds` | Upper bound on a service's lifetime (default 86400). |
+| `maxDurationSeconds` | Hard ceiling on a service's lifetime for this daemon (default 86400). An environment may lower it with its own `maxServiceDuration`; a larger per-env value is clamped to this one at startup, with a warning. |
 | `allowImageBuild` | If true, consumers may submit an inline `dockerfile` to build. |
 
 Whether a given environment accepts services is gated by its `features.services` flag,
 and access can be restricted with the environment's `access` allow-list
 (`addresses` + on-chain `accessLists`).
+
+Each environment resolves its own service cap at startup and advertises it in
+GET_COMPUTE_ENVIRONMENTS as `maxServiceDuration` — the value SERVICE_START validates the
+requested `duration` against, and the ceiling SERVICE_EXTEND caps the resulting remaining
+window to. Set it per environment to give, say, a cheap CPU env a 1 h limit while a GPU env
+keeps the full 24 h:
+
+```json
+{ "id": "cpu-small", "maxServiceDuration": 3600, "fees": { "1": [ ... ] } }
+```
+
+Note this is a separate limit from `maxJobDuration`, which is per-env too but applies only
+to compute jobs. Services have no minimum duration: any value above 0 is accepted, then
+billed at the env's `minJobDuration` floor, rounded up to whole minutes.
 
 **Templates are not shipped in the image.** The node reads them from a folder the operator
 mounts in, so a node without that mount advertises no templates at all. Point

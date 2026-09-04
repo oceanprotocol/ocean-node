@@ -16,7 +16,10 @@ import type {
   DBComputeJobMetadata,
   ComputeEnvFees
 } from '../../@types/C2D/C2D.js'
-import type { ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
+import {
+  DEFAULT_SERVICE_MAX_DURATION_SECONDS,
+  type ServiceJob
+} from '../../@types/C2D/ServiceOnDemand.js'
 import { C2DClusterType, C2DStatusNumber } from '../../@types/C2D/C2D.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
@@ -78,6 +81,21 @@ export abstract class C2DEngine {
   getC2DConfig(): C2DClusterInfo {
     /** Returns cluster config */
     return this.clusterConfig
+  }
+
+  /**
+   * Hard cap, in seconds, on how long a service may run — what SERVICE_START validates the
+   * requested duration against, and what SERVICE_EXTEND caps the resulting remaining window
+   * to. Per Docker daemon rather than per environment, so every env on this engine reports
+   * the same value via `maxServiceDuration`. Falls back to the schema default when the
+   * cluster carries no `serviceOnDemand` block, so what is advertised is exactly what is
+   * enforced.
+   */
+  getMaxServiceDuration(): number {
+    return (
+      this.getC2DConfig().connection?.serviceOnDemand?.maxDurationSeconds ??
+      DEFAULT_SERVICE_MAX_DURATION_SECONDS
+    )
   }
 
   getC2DType(): C2DClusterType {

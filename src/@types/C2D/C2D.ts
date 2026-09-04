@@ -158,6 +158,7 @@ export interface ComputeEnvironmentBaseConfig {
   storageExpiry?: number // amount of seconds for storage
   minJobDuration?: number // min billable seconds for a paid job
   maxJobDuration?: number // max duration in seconds for a paid job
+  maxServiceDuration?: number // max duration in seconds for a paid service
   maxJobs?: number // maximum number of simultaneous paid jobs
   fees: ComputeEnvFeesStructure
   resources?: ComputeResource[]
@@ -209,6 +210,10 @@ export interface C2DEnvironmentConfig {
   storageExpiry?: number
   minJobDuration?: number
   maxJobDuration?: number
+  // Optional per-env service cap. The daemon's serviceOnDemand.maxDurationSeconds is a hard
+  // ceiling: an env may only lower it, and a larger value is clamped (with a warning) at
+  // startup. Omitted → the env inherits the daemon cap.
+  maxServiceDuration?: number
   maxJobs?: number
   fees?: ComputeEnvFeesStructure
   access?: ComputeAccessList

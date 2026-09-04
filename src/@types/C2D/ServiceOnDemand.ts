@@ -104,11 +104,17 @@ export interface ServiceTemplatePublic extends Omit<ServiceTemplate, 'envVars'> 
 
 // ── Operational config (per Docker daemon, not global) ────────────────
 
+// Service duration cap applied when a daemon carries no `serviceOnDemand` block, or one
+// that omits `maxDurationSeconds`. Single source of truth for the config schema's default,
+// the SERVICE_START / SERVICE_EXTEND checks and the `maxServiceDuration` every compute
+// environment advertises — those three must never disagree.
+export const DEFAULT_SERVICE_MAX_DURATION_SECONDS = 86400 // 24 h
+
 export interface ServiceOnDemandConfig {
   enabled: boolean
   nodeHost: string // host (or IP) clients use to reach forwarded service ports; e.g. 'localhost'
   hostPortRange?: [number, number] // e.g. [30000, 32767]; specific to this daemon's host
-  maxDurationSeconds?: number // default: 86400 (24 h)
+  maxDurationSeconds?: number // default: DEFAULT_SERVICE_MAX_DURATION_SECONDS (24 h)
   allowImageBuild?: boolean // default: false — gates Dockerfile-based services per daemon
 }
 

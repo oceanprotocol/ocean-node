@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { getAddress } from 'ethers'
 import { dhtFilterMethod } from '../../@types/OceanNode.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
+import { DEFAULT_SERVICE_MAX_DURATION_SECONDS } from '../../@types/C2D/ServiceOnDemand.js'
 import { CONFIG_LOGGER } from '../logging/common.js'
 import { booleanFromString, jsonFromString } from './transforms.js'
 import {
@@ -548,7 +549,12 @@ export const ServiceOnDemandConfigSchema = z
         message: 'hostPortRange[0] must be less than hostPortRange[1]'
       })
       .optional(),
-    maxDurationSeconds: z.number().int().min(60).optional().default(86400),
+    maxDurationSeconds: z
+      .number()
+      .int()
+      .min(60)
+      .optional()
+      .default(DEFAULT_SERVICE_MAX_DURATION_SECONDS),
     allowImageBuild: z.boolean().optional().default(false)
   })
   .strict()
@@ -605,6 +611,9 @@ export const C2DEnvironmentConfigSchema = z
     storageExpiry: z.number().int().optional().default(604800),
     minJobDuration: z.number().int().optional().default(60),
     maxJobDuration: z.number().int().optional().default(3600),
+    // No default: absent means "inherit the daemon's serviceOnDemand.maxDurationSeconds",
+    // which is resolved at engine start and clamped there if this exceeds it.
+    maxServiceDuration: z.number().int().min(1).optional(),
     maxJobs: z.number().int().optional(),
     fees: z.record(z.string(), z.array(ComputeEnvFeesSchema)).optional(),
     access: z

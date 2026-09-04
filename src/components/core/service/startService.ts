@@ -137,9 +137,10 @@ export class ServiceStartHandler extends CommandHandler {
         return outputBucketCheck
       }
 
-      // 4. Duration limit
-      const sod = engine.getC2DConfig().connection?.serviceOnDemand
-      const maxDuration = sod?.maxDurationSeconds ?? 86400
+      // 4. Duration limit. Per-env, already clamped to the daemon's
+      //    serviceOnDemand.maxDurationSeconds at engine start; the daemon value is the
+      //    fallback for an env built without one.
+      const maxDuration = env.maxServiceDuration ?? engine.getMaxServiceDuration()
       if (task.duration > maxDuration)
         return buildInvalidParametersResponse(
           buildInvalidRequestMessage(

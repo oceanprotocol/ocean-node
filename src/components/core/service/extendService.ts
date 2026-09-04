@@ -142,9 +142,9 @@ export class ServiceExtendHandler extends CommandHandler {
               )
             )
 
-          // Extension must not push total beyond maxDurationSeconds
-          const sod = engine.getC2DConfig().connection?.serviceOnDemand
-          const maxDuration = sod?.maxDurationSeconds ?? 86400
+          // Extension must not push the remaining window beyond the cap of the env the
+          // service actually runs on (already clamped to the daemon ceiling at engine start).
+          const maxDuration = runEnv.maxServiceDuration ?? engine.getMaxServiceDuration()
           const newTotalDuration = remainingSeconds + task.additionalDuration
           if (newTotalDuration > maxDuration)
             return buildInvalidParametersResponse(

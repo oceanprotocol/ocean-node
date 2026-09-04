@@ -4,6 +4,8 @@ import {
   ServiceOnDemandConfigSchema,
   C2DEnvironmentConfigSchema
 } from '../../../utils/config/schemas.js'
+import { DEFAULT_SERVICE_MAX_DURATION_SECONDS } from '../../../@types/C2D/ServiceOnDemand.js'
+import { C2DEngine } from '../../../components/c2d/compute_engine_base.js'
 
 const baseTemplate = {
   id: 'jupyter-cpu',
@@ -142,6 +144,17 @@ describe('ServiceOnDemandConfigSchema', () => {
     expect(parsed.maxDurationSeconds).to.equal(86400)
     expect(parsed.allowImageBuild).to.equal(false)
   })
+  it('default is the shared constant, not an independent literal', () => {
+    // The schema default, the SERVICE_START / SERVICE_EXTEND fallback and the
+    // maxServiceDuration every env advertises all read this one constant. Pinning it here
+    // means a change to it can never leave the advertised cap disagreeing with the
+    // enforced one.
+    const parsed = ServiceOnDemandConfigSchema.parse({
+      enabled: true,
+      nodeHost: 'localhost'
+    })
+    expect(parsed.maxDurationSeconds).to.equal(DEFAULT_SERVICE_MAX_DURATION_SECONDS)
+  })
   it('requires nodeHost', () => {
     expect(ServiceOnDemandConfigSchema.safeParse({ enabled: true }).success).to.equal(
       false
@@ -155,6 +168,60 @@ describe('ServiceOnDemandConfigSchema', () => {
         bogus: 1
       }).success
     ).to.equal(false)
+  })
+})
+
+describe('C2DEnvironmentConfigSchema maxServiceDuration', () => {
+  const baseEnv = {
+    fees: { '1': [{ feeToken: '0xabc', prices: [{ id: 'cpu', price: 1 }] }] }
+  }
+
+  it('absent → undefined, so the env inherits the daemon cap at engine start', () => {
+    const parsed = C2DEnvironmentConfigSchema.parse({ ...baseEnv })
+    expect(parsed.maxServiceDuration).to.equal(undefined)
+  })
+  it('accepts a positive integer', () => {
+    const parsed = C2DEnvironmentConfigSchema.parse({
+      ...baseEnv,
+      maxServiceDuration: 600
+    })
+    expect(parsed.maxServiceDuration).to.equal(600)
+  })
+  it('rejects zero and negatives', () => {
+    for (const bad of [0, -1]) {
+      expect(
+        C2DEnvironmentConfigSchema.safeParse({ ...baseEnv, maxServiceDuration: bad })
+          .success,
+        `maxServiceDuration=${bad}`
+      ).to.equal(false)
+    }
+  })
+})
+
+describe('C2DEngine.getMaxServiceDuration', () => {
+  // Object.create skips the abstract class's constructor (which wants a db, escrow and key
+  // manager) — the getter only ever reads clusterConfig.
+  const engineWith = (connection: any): C2DEngine => {
+    const engine: any = Object.create(C2DEngine.prototype)
+    engine.clusterConfig = { hash: 'hash-1', connection }
+    return engine
+  }
+
+  it("returns the daemon's configured cap", () => {
+    const engine = engineWith({ serviceOnDemand: { maxDurationSeconds: 7200 } })
+    expect(engine.getMaxServiceDuration()).to.equal(7200)
+  })
+  it('falls back to the shared default when serviceOnDemand omits maxDurationSeconds', () => {
+    const engine = engineWith({ serviceOnDemand: { enabled: true } })
+    expect(engine.getMaxServiceDuration()).to.equal(DEFAULT_SERVICE_MAX_DURATION_SECONDS)
+  })
+  it('falls back to the shared default when there is no serviceOnDemand block at all', () => {
+    expect(engineWith({}).getMaxServiceDuration()).to.equal(
+      DEFAULT_SERVICE_MAX_DURATION_SECONDS
+    )
+    expect(engineWith(undefined).getMaxServiceDuration()).to.equal(
+      DEFAULT_SERVICE_MAX_DURATION_SECONDS
+    )
   })
 })
 

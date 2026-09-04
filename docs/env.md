@@ -290,7 +290,8 @@ The config has a two-level structure:
 - **id** *(optional)*: Stable identifier for the environment. Used to compute the environment hash.
 - **description**: Human-readable description.
 - **storageExpiry**: Seconds before compute results expire.
-- **maxJobDuration** / **minJobDuration**: Maximum/minimum job duration in seconds.
+- **maxJobDuration** / **minJobDuration**: Maximum/minimum **compute job** duration in seconds. These do not apply to services.
+- **maxServiceDuration** *(optional)*: Maximum **service** duration in seconds, for service-on-demand. Omit to inherit the daemon's `serviceOnDemand.maxDurationSeconds` (default 86400). That daemon value is a hard ceiling — an environment can only lower it, and a larger value is clamped at startup with a warning. Advertised to clients on every environment as `maxServiceDuration`.
 - **maxJobs**: Maximum simultaneous paid jobs.
 - **enableNetwork**: Whether algorithm containers can make outbound network connections. Default: `false`
 - **access**: Access control for paid jobs.
