@@ -227,6 +227,14 @@ The environment references it by `id`.
 > how to fix it. AMD and Intel GPU metrics are not yet collected. GPU metrics are returned only
 > to the owner of the job/service, alongside its container metrics. Set `GPU_METRICS=off` to
 > disable.
+>
+> Separately, when telemetry is enabled the node also **exports** GPU health as OTel gauges for
+> operator dashboards: utilization, memory, temperature and power are sampled **host-wide** for
+> every GPU visible to the node process — idle ones included, so a card shows up even when no job
+> holds it — each carrying an `in_use` label (`true`/`false`) for whether a job currently holds
+> it, while `ocean_compute_gpu_devices_in_use` counts the allocated devices. This fleet-facing
+> export is independent of the per-owner job metrics above and honours the same `GPU_METRICS`
+> switch and NVML requirements.
 
 ### Multi-GPU workloads (shared memory)
 

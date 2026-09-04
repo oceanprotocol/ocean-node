@@ -5,7 +5,12 @@ import type {
 } from '../../../@types/C2D/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
-import { GpuDeviceHandle, GpuVendor, GpuVendorCollector } from './types.js'
+import {
+  GpuDeviceHandle,
+  GpuDeviceMetrics,
+  GpuVendor,
+  GpuVendorCollector
+} from './types.js'
 import { NvmlGpuCollector } from './nvml.js'
 
 export { parseMemoryTotalToBytes } from './types.js'
@@ -30,6 +35,36 @@ function inferVendor(res: ComputeResource): GpuVendor | null {
     return 'nvidia'
   }
   return null
+}
+
+// Maps host-enumerated device samples (from a collector's sampleAll) to snapshots, aligning each
+// device's stable NVML UUID to its configured resource id ('gpu0') so host-wide GPU series share
+// labels with `ocean_compute_env_resource_*` (and so `in_use` can be derived per device). A device
+// with no configured UUID match falls back to a vendor+index id. Pure and NVML-free by design so
+// the label logic — the one part that silently mis-labels if wrong — is unit-testable.
+export function mapHostGpuDevices(
+  metrics: GpuDeviceMetrics[],
+  gpuResources: ComputeResource[]
+): GpuMetricsSnapshot[] {
+  const idByUuid = new Map<string, string>()
+  for (const res of gpuResources ?? []) {
+    if (String(res.type).toLowerCase() !== 'gpu') continue
+    const ids: string[] = res?.init?.deviceRequests?.DeviceIDs ?? []
+    const uuid = ids.find((id) => /^GPU-/i.test(id)) ?? ids[0]
+    if (uuid) idByUuid.set(uuid, String(res.id))
+  }
+  return (metrics ?? []).map((m) => ({
+    resourceId:
+      (m.uuid && idByUuid.get(m.uuid)) ??
+      (m.index !== undefined ? `${m.vendor}${m.index}` : m.resourceId),
+    vendor: m.vendor,
+    utilizationPercent: m.utilizationPercent,
+    memoryUsedBytes: m.memoryUsedBytes,
+    memoryTotalBytes: m.memoryTotalBytes,
+    temperatureC: m.temperatureC,
+    powerWatts: m.powerWatts,
+    shared: m.shared
+  }))
 }
 
 // Resolves the GPUs a job/service actually holds and samples each one, attaching a per-device
@@ -132,6 +167,28 @@ export class GpuMetricsService {
       return out.length ? out : undefined
     } catch (e: any) {
       CORE_LOGGER.debug(`[metrics] gpu: collection failed: ${e?.message}`)
+      return undefined
+    }
+  }
+
+  // Host-wide GPU sample: every GPU visible to this process, independent of any job. This is what
+  // populates the dashboard's GPU health panels while the box is idle. `gpuResources` are the
+  // declared GPU ComputeResources (from the engine config) — used only to map an enumerated
+  // device's NVML UUID back to its configured resource id ('gpu0') so the emitted series align
+  // with `ocean_compute_env_resource_*`. A device with no matching config falls back to a
+  // vendor+index id. Returns undefined when GPU collection is disabled or nothing was read.
+  async sampleHost(
+    gpuResources: ComputeResource[]
+  ): Promise<GpuMetricsSnapshot[] | undefined> {
+    if (!gpuMetricsEnabled()) return undefined
+    try {
+      // NVIDIA only today; AMD/Intel enumeration lands with their backends.
+      const collector = this.getCollector('nvidia')
+      if (!collector) return undefined
+      const out = mapHostGpuDevices(await collector.sampleAll(), gpuResources)
+      return out.length ? out : undefined
+    } catch (e: any) {
+      CORE_LOGGER.debug(`[metrics] gpu: host sample failed: ${e?.message}`)
       return undefined
     }
   }

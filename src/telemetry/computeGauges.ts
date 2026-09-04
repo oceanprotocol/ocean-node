@@ -8,7 +8,11 @@
  * chaining and the callback simply observes nothing — it must compile and run either way.
  */
 import type { C2DEngines } from '../components/c2d/compute_engines.js'
-import type { ComputeEngineAggregate, EnvResourceSnapshot } from './computeTypes.js'
+import type {
+  ComputeEngineAggregate,
+  ComputeGpuAggregate,
+  EnvResourceSnapshot
+} from './computeTypes.js'
 import * as M from './metrics.js'
 
 // The runtime-populated fields live on the concrete engine; read them structurally so this module
@@ -17,6 +21,7 @@ type AggregatingEngine = {
   getC2DConfig?: () => { hash?: string }
   lastAggregate?: ComputeEngineAggregate
   envResourceSnapshot?: EnvResourceSnapshot
+  hostGpuSnapshot?: ComputeGpuAggregate[]
 }
 
 export function registerComputeGauges(engines: C2DEngines): void {
@@ -68,24 +73,10 @@ export function registerComputeGauges(engines: C2DEngines): void {
             obs.observe(M.cJobsQueued, a.queuedFreeJobs, { engine, free: 'true' })
           }
 
-          const gpus = a.gpus ?? []
-          obs.observe(M.cGpuDevices, gpus.length, { engine })
-          for (const g of gpus) {
-            const attrs = {
-              engine,
-              gpu: String(g.resourceId),
-              vendor: g.vendor ?? 'unknown'
-            }
-            obs.observe(M.cGpuUtil, g.utilizationPercent ?? 0, attrs)
-            obs.observe(M.cGpuMemUsed, g.memoryUsedBytes ?? 0, attrs)
-            obs.observe(M.cGpuMemTotal, g.memoryTotalBytes ?? 0, attrs)
-            if (typeof g.temperatureC === 'number') {
-              obs.observe(M.cGpuTemp, g.temperatureC, attrs)
-            }
-            if (typeof g.powerWatts === 'number') {
-              obs.observe(M.cGpuPower, g.powerWatts, attrs)
-            }
-          }
+          // Distinct GPUs currently held by running jobs = "devices in use". The per-device
+          // health series (util/mem/temp/power) are emitted below from the host-wide snapshot so
+          // they exist for every GPU even when the box is idle.
+          obs.observe(M.cGpuDevices, (a.gpus ?? []).length, { engine })
         }
 
         const env = eng?.envResourceSnapshot ?? {}
@@ -98,6 +89,51 @@ export function registerComputeGauges(engines: C2DEngines): void {
               obs.observe(M.cEnvInUse, v.inUse, { engine, env: envId, resource: rid })
             }
           }
+        }
+
+        // Per-GPU health for every visible device (idle included), sourced from the host-wide
+        // NVML snapshot. `in_use` is derived from the env resource snapshot: a GPU whose resource
+        // id shows inUse>0 in any environment is currently held by a job. The job-scoped a.gpus is
+        // a fallback only for devices the host enumeration could not read (e.g. NVML unavailable),
+        // deduped by resource id so a device is never emitted twice in one tick.
+        const inUseGpuIds = new Set<string>()
+        for (const resources of Object.values(env)) {
+          for (const [rid, v] of Object.entries(resources ?? {})) {
+            if (v && typeof v.inUse === 'number' && v.inUse > 0) inUseGpuIds.add(rid)
+          }
+        }
+        const emittedGpuIds = new Set<string>()
+        const observeGpu = (g: ComputeGpuAggregate, inUse: boolean): void => {
+          const rid = String(g.resourceId)
+          if (emittedGpuIds.has(rid)) return
+          emittedGpuIds.add(rid)
+          const attrs = {
+            engine,
+            gpu: rid,
+            vendor: g.vendor ?? 'unknown',
+            in_use: inUse ? 'true' : 'false'
+          }
+          if (typeof g.utilizationPercent === 'number') {
+            obs.observe(M.cGpuUtil, g.utilizationPercent, attrs)
+          }
+          if (typeof g.memoryUsedBytes === 'number') {
+            obs.observe(M.cGpuMemUsed, g.memoryUsedBytes, attrs)
+          }
+          if (typeof g.memoryTotalBytes === 'number') {
+            obs.observe(M.cGpuMemTotal, g.memoryTotalBytes, attrs)
+          }
+          if (typeof g.temperatureC === 'number') {
+            obs.observe(M.cGpuTemp, g.temperatureC, attrs)
+          }
+          if (typeof g.powerWatts === 'number') {
+            obs.observe(M.cGpuPower, g.powerWatts, attrs)
+          }
+        }
+        for (const g of eng?.hostGpuSnapshot ?? []) {
+          observeGpu(g, inUseGpuIds.has(String(g.resourceId)))
+        }
+        for (const g of a?.gpus ?? []) {
+          observeGpu(g, true)
         }
       }
     },
