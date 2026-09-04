@@ -537,6 +537,57 @@ export class C2DEngineDocker extends C2DEngine {
       const fees = this.processFeesForEnvironment(envDef.fees, supportedChains)
       const envResources = this.resolveEnvironmentResources(envDef, connectionPool)
 
+      // Service duration cap. The daemon's serviceOnDemand.maxDurationSeconds is a hard
+      // ceiling — an env may tighten it but never raise it, so a larger value is clamped
+      // with a warning (same treatment a resource max above the pool total gets).
+      const daemonServiceCap = this.getMaxServiceDuration()
+      const { maxServiceDuration: envServiceCap } = envDef
+      if (envServiceCap !== undefined && envServiceCap > daemonServiceCap) {
+        CORE_LOGGER.warn(
+          `Environment "${envDef.description || envDef.id || 'unknown'}": ` +
+            `maxServiceDuration (${envServiceCap}) is greater than the daemon's ` +
+            `serviceOnDemand.maxDurationSeconds (${daemonServiceCap}) — clamping to ` +
+            `${daemonServiceCap}. An environment can only lower the daemon cap.`
+        )
+      }
+      const maxServiceDuration = Math.min(
+        envServiceCap ?? daemonServiceCap,
+        daemonServiceCap
+      )
+
+      // Service floor. Mirror image of the cap: the daemon's serviceOnDemand.minDurationSeconds
+      // is a hard floor an env may raise but not undercut, so a smaller per-env value is clamped
+      // up with a warning. Absent, an env falls back to its own minJobDuration, which is what
+      // services were already billed at — so an unconfigured node is unchanged.
+      const daemonServiceFloor = this.getMinServiceDuration()
+      const { minServiceDuration: envServiceFloor } = envDef
+      if (envServiceFloor !== undefined && envServiceFloor < daemonServiceFloor) {
+        CORE_LOGGER.warn(
+          `Environment "${envDef.description || envDef.id || 'unknown'}": ` +
+            `minServiceDuration (${envServiceFloor}) is below the daemon's ` +
+            `serviceOnDemand.minDurationSeconds (${daemonServiceFloor}) — raising to ` +
+            `${daemonServiceFloor}. An environment can only raise the daemon floor.`
+        )
+      }
+      const minServiceDuration = Math.max(
+        envServiceFloor ?? envDef.minJobDuration ?? 0,
+        daemonServiceFloor
+      )
+      // Fatal, unlike the clamps above: those correct a value into a working range, whereas an
+      // empty range leaves the env permanently unusable for services — every SERVICE_START would
+      // 400. Refuse to boot rather than advertise an environment that can never be booked.
+      if (minServiceDuration > maxServiceDuration) {
+        const envName = envDef.description || envDef.id || 'unknown'
+        const message =
+          `Environment "${envName}": minServiceDuration (${minServiceDuration}) exceeds ` +
+          `maxServiceDuration (${maxServiceDuration}) — no service duration can satisfy both, so ` +
+          `every SERVICE_START would be rejected. Fix the environment's minServiceDuration / ` +
+          `maxServiceDuration, or the daemon's serviceOnDemand.minDurationSeconds / ` +
+          `maxDurationSeconds.`
+        CORE_LOGGER.error(message)
+        throw new Error(message)
+      }
+
       const env: ComputeEnvironment = {
         id: '',
         runningJobs: 0,
@@ -555,7 +606,11 @@ export class C2DEngineDocker extends C2DEngine {
         features: {
           computeJobs: envDef.features?.computeJobs ?? true,
           services: envDef.features?.services ?? true
-        }
+        },
+        // Always advertised, even where features.services is false, because they state what
+        // SERVICE_START would enforce — clients gate on features.services, not on absence.
+        minServiceDuration,
+        maxServiceDuration
       }
 
       if (envDef.storageExpiry !== undefined) env.storageExpiry = envDef.storageExpiry

@@ -142,9 +142,9 @@ export class ServiceExtendHandler extends CommandHandler {
               )
             )
 
-          // Extension must not push total beyond maxDurationSeconds
-          const sod = engine.getC2DConfig().connection?.serviceOnDemand
-          const maxDuration = sod?.maxDurationSeconds ?? 86400
+          // Extension must not push the remaining window beyond the cap of the env the
+          // service actually runs on (already clamped to the daemon ceiling at engine start).
+          const maxDuration = runEnv.maxServiceDuration ?? engine.getMaxServiceDuration()
           const newTotalDuration = remainingSeconds + task.additionalDuration
           if (newTotalDuration > maxDuration)
             return buildInvalidParametersResponse(
@@ -153,6 +153,20 @@ export class ServiceExtendHandler extends CommandHandler {
               )
             )
 
+          // Reject a top-up below the floor rather than rounding its price up to it. Billing a
+          // 100s extension as 600s on a 600s-floor env would let ten such top-ups add 1000s of
+          // runtime while charging for 6000s; the floor is a minimum purchase, so it gates what
+          // may be bought instead of silently inflating what a smaller purchase costs. Same rule
+          // and same message shape as SERVICE_START.
+          const minDuration =
+            runEnv.minServiceDuration ??
+            Math.max(runEnv.minJobDuration ?? 0, engine.getMinServiceDuration())
+          if (task.additionalDuration < minDuration)
+            return buildInvalidParametersResponse(
+              buildInvalidRequestMessage(
+                `Additional duration ${task.additionalDuration}s is below minimum ${minDuration}s`
+              )
+            )
           // Cost — same price formula as the start, priced off the env the service runs
           // on. No fallback: pricing must use runEnv (resolved above);
           // calculateResourcesCost returns null if that env has no pricing for the token.
@@ -161,7 +175,10 @@ export class ServiceExtendHandler extends CommandHandler {
             runEnv,
             task.payment.chainId,
             task.payment.token,
-            task.additionalDuration
+            task.additionalDuration,
+            // Guarded above to be >= minDuration, so this never rounds the price up; it is passed
+            // to keep a service off the compute-job floor (minJobDuration), which may be higher.
+            minDuration
           )
           if (costExtend === null)
             return buildInvalidParametersResponse(

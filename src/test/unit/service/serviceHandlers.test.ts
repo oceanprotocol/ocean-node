@@ -58,6 +58,10 @@ const TEMPLATE = {
 
 interface FakeOpts {
   serviceEnabled?: boolean
+  // per-env service cap; omitted → the env inherits the daemon's 86400
+  maxServiceDuration?: number
+  // per-env service floor; omitted → the env has none (no minJobDuration on the fake env)
+  minServiceDuration?: number
   serviceJobInDb?: ServiceJob | null
   cost?: number | null
   envId?: string
@@ -71,7 +75,13 @@ function buildFakes(opts: FakeOpts = {}) {
       computeJobs: true,
       services: opts.serviceEnabled !== false
     },
-    resources: [{ id: 'cpu', kind: 'fungible', total: 8, min: 1, max: 8 }]
+    resources: [{ id: 'cpu', kind: 'fungible', total: 8, min: 1, max: 8 }],
+    ...(opts.maxServiceDuration === undefined
+      ? {}
+      : { maxServiceDuration: opts.maxServiceDuration }),
+    ...(opts.minServiceDuration === undefined
+      ? {}
+      : { minServiceDuration: opts.minServiceDuration })
   }
 
   const escrow = {
@@ -109,6 +119,20 @@ function buildFakes(opts: FakeOpts = {}) {
       hash: 'hash-1',
       connection: { serviceOnDemand: { maxDurationSeconds: 86400 } }
     }),
+    // Mirrors C2DEngine.getMaxServiceDuration by deriving from getC2DConfig, so a test that
+    // re-stubs the cluster's serviceOnDemand block still steers the duration checks.
+    // Mirrors C2DEngine.getMinServiceDuration — the daemon floor, 0 unless a test sets one.
+    getMinServiceDuration: sinon
+      .stub()
+      .callsFake(
+        () => engine.getC2DConfig().connection?.serviceOnDemand?.minDurationSeconds ?? 0
+      ),
+    getMaxServiceDuration: sinon
+      .stub()
+      .callsFake(
+        () =>
+          engine.getC2DConfig().connection?.serviceOnDemand?.maxDurationSeconds ?? 86400
+      ),
     calculateResourcesCost: sinon
       .stub()
       .returns(opts.cost === undefined ? 10 : opts.cost),
@@ -614,6 +638,47 @@ describe('Service handlers', () => {
       expect(res.status.httpStatus).to.equal(400)
     })
 
+    it("400 when the extension is below the env's own minServiceDuration", async () => {
+      const { node, engine } = buildFakes({
+        minServiceDuration: 600,
+        serviceJobInDb: makeJob({ expiresAt: Date.now() + 500 * 1000 })
+      })
+      const res = await new ServiceExtendHandler(node).handle({
+        ...baseTask,
+        additionalDuration: 100
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+      // Rejected outright, never priced — a short top-up must not be billed at the full floor.
+      expect(engine.calculateResourcesCost.called).to.equal(false)
+    })
+
+    it('prices an extension by its actual duration, never rounded up to the floor', async () => {
+      const { node, engine } = buildFakes({
+        minServiceDuration: 600,
+        serviceJobInDb: makeJob({ expiresAt: Date.now() + 500 * 1000 })
+      })
+      await new ServiceExtendHandler(node).handle({
+        ...baseTask,
+        additionalDuration: 900
+      } as any)
+      const { args } = engine.calculateResourcesCost.firstCall
+      expect(args[4]).to.equal(900) // the duration actually priced
+      expect(args[5]).to.equal(600) // floor passed, but 900 > 600 so it cannot inflate
+    })
+
+    it("400 when the extension exceeds the env's own maxServiceDuration", async () => {
+      // ~500 s left + 400 s = 900 s: inside the daemon's 86400, outside the env's 600.
+      const { node } = buildFakes({
+        maxServiceDuration: 600,
+        serviceJobInDb: makeJob({ expiresAt: Date.now() + 500 * 1000 })
+      })
+      const res = await new ServiceExtendHandler(node).handle({
+        ...baseTask,
+        additionalDuration: 400
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
     it('402 when escrow lock fails', async () => {
       const { node, escrow } = buildFakes({ serviceJobInDb: makeJob() })
       escrow.createLock.resolves(null)
@@ -981,6 +1046,50 @@ describe('Service handlers', () => {
         duration: 999999
       } as any)
       expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it("400 when duration is below the env's own minServiceDuration", async () => {
+      const { node } = buildFakes({ minServiceDuration: 600 })
+      const res = await new ServiceStartHandler(node).handle({
+        ...baseTask,
+        duration: 300
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it("200 when duration exactly meets the env's own minServiceDuration", async () => {
+      const { node } = buildFakes({ minServiceDuration: 600 })
+      const res = await new ServiceStartHandler(node).handle({
+        ...baseTask,
+        duration: 600
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+    })
+
+    it('prices a service against its own floor, not the compute-job one', async () => {
+      const { node, engine } = buildFakes({ minServiceDuration: 600 })
+      await new ServiceStartHandler(node).handle({ ...baseTask, duration: 900 } as any)
+      // 6th arg is the billing floor override handed to calculateResourcesCost.
+      expect(engine.calculateResourcesCost.firstCall.args[5]).to.equal(600)
+    })
+
+    it("400 when duration exceeds the env's own maxServiceDuration", async () => {
+      // Well under the daemon's 86400, so only the tighter per-env cap can reject this.
+      const { node } = buildFakes({ maxServiceDuration: 600 })
+      const res = await new ServiceStartHandler(node).handle({
+        ...baseTask,
+        duration: 1200
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+    })
+
+    it("200 when duration is within the env's own maxServiceDuration", async () => {
+      const { node } = buildFakes({ maxServiceDuration: 600 })
+      const res = await new ServiceStartHandler(node).handle({
+        ...baseTask,
+        duration: 600
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
     })
 
     it('400 when no pricing for the token (cost null)', async () => {

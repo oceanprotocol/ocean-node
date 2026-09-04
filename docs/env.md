@@ -224,6 +224,15 @@ The config has a two-level structure:
       { "id": "disk", "total": 50 }
     ],
 
+    "serviceOnDemand": {
+      "enabled": true,
+      "nodeHost": "localhost",
+      "hostPortRange": [30000, 32767],
+      "minDurationSeconds": 0,
+      "maxDurationSeconds": 86400,
+      "allowImageBuild": false
+    },
+
     "environments": [
       {
         "id": "default",
@@ -231,6 +240,8 @@ The config has a two-level structure:
         "storageExpiry": 604800,
         "maxJobDuration": 3600,
         "minJobDuration": 60,
+        "minServiceDuration": 600,
+        "maxServiceDuration": 7200,
         "enableNetwork": false,
         "access": {
           "addresses": ["0x123", "0x456"],
@@ -290,7 +301,9 @@ The config has a two-level structure:
 - **id** *(optional)*: Stable identifier for the environment. Used to compute the environment hash.
 - **description**: Human-readable description.
 - **storageExpiry**: Seconds before compute results expire.
-- **maxJobDuration** / **minJobDuration**: Maximum/minimum job duration in seconds.
+- **maxJobDuration** / **minJobDuration**: Maximum/minimum **compute job** duration in seconds. These do not apply to services.
+- **minServiceDuration** *(optional)*: Minimum **service** duration in seconds, for service-on-demand. SERVICE_START rejects a shorter duration and SERVICE_EXTEND rejects a shorter top-up — it is a minimum purchase, not a rounding rule, so anything accepted is billed for its actual duration (rounded up to whole minutes). Must not exceed `maxServiceDuration`, or the node refuses to start. Omit to fall back to this environment's `minJobDuration` — which is what services were already priced at. A value below the daemon's `serviceOnDemand.minDurationSeconds` is raised to it at startup, with a warning. Advertised to clients as `minServiceDuration`.
+- **maxServiceDuration** *(optional)*: Maximum **service** duration in seconds, for service-on-demand. Omit to inherit the daemon's `serviceOnDemand.maxDurationSeconds` (default 86400). That daemon value is a hard ceiling — an environment can only lower it, and a larger value is clamped at startup with a warning. Advertised to clients on every environment as `maxServiceDuration`.
 - **maxJobs**: Maximum simultaneous paid jobs.
 - **enableNetwork**: Whether algorithm containers can make outbound network connections. Default: `false`
 - **access**: Access control for paid jobs.
