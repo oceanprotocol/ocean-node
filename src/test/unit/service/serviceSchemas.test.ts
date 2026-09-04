@@ -4,7 +4,10 @@ import {
   ServiceOnDemandConfigSchema,
   C2DEnvironmentConfigSchema
 } from '../../../utils/config/schemas.js'
-import { DEFAULT_SERVICE_MAX_DURATION_SECONDS } from '../../../@types/C2D/ServiceOnDemand.js'
+import {
+  DEFAULT_SERVICE_MAX_DURATION_SECONDS,
+  DEFAULT_SERVICE_MIN_DURATION_SECONDS
+} from '../../../@types/C2D/ServiceOnDemand.js'
 import { C2DEngine } from '../../../components/c2d/compute_engine_base.js'
 
 const baseTemplate = {
@@ -144,6 +147,14 @@ describe('ServiceOnDemandConfigSchema', () => {
     expect(parsed.maxDurationSeconds).to.equal(86400)
     expect(parsed.allowImageBuild).to.equal(false)
   })
+  it('minDurationSeconds defaults to no daemon floor', () => {
+    const parsed = ServiceOnDemandConfigSchema.parse({
+      enabled: true,
+      nodeHost: 'localhost'
+    })
+    expect(parsed.minDurationSeconds).to.equal(DEFAULT_SERVICE_MIN_DURATION_SECONDS)
+    expect(parsed.minDurationSeconds).to.equal(0)
+  })
   it('default is the shared constant, not an independent literal', () => {
     // The schema default, the SERVICE_START / SERVICE_EXTEND fallback and the
     // maxServiceDuration every env advertises all read this one constant. Pinning it here
@@ -195,6 +206,51 @@ describe('C2DEnvironmentConfigSchema maxServiceDuration', () => {
         `maxServiceDuration=${bad}`
       ).to.equal(false)
     }
+  })
+})
+
+describe('C2DEnvironmentConfigSchema minServiceDuration', () => {
+  const baseEnv = {
+    fees: { '1': [{ feeToken: '0xabc', prices: [{ id: 'cpu', price: 1 }] }] }
+  }
+
+  it('absent → undefined, so the env falls back to its minJobDuration', () => {
+    const parsed = C2DEnvironmentConfigSchema.parse({ ...baseEnv })
+    expect(parsed.minServiceDuration).to.equal(undefined)
+  })
+  it('accepts 0 — an env may explicitly opt out of any floor', () => {
+    const parsed = C2DEnvironmentConfigSchema.parse({ ...baseEnv, minServiceDuration: 0 })
+    expect(parsed.minServiceDuration).to.equal(0)
+  })
+  it('rejects negatives', () => {
+    expect(
+      C2DEnvironmentConfigSchema.safeParse({ ...baseEnv, minServiceDuration: -1 }).success
+    ).to.equal(false)
+  })
+})
+
+describe('C2DEngine.getMinServiceDuration', () => {
+  const engineWith = (connection: any): C2DEngine => {
+    const engine: any = Object.create(C2DEngine.prototype)
+    engine.clusterConfig = { hash: 'hash-1', connection }
+    return engine
+  }
+
+  it("returns the daemon's configured floor", () => {
+    expect(
+      engineWith({ serviceOnDemand: { minDurationSeconds: 600 } }).getMinServiceDuration()
+    ).to.equal(600)
+  })
+  it('falls back to no floor when the daemon does not set one', () => {
+    expect(
+      engineWith({ serviceOnDemand: { enabled: true } }).getMinServiceDuration()
+    ).to.equal(DEFAULT_SERVICE_MIN_DURATION_SECONDS)
+    expect(engineWith({}).getMinServiceDuration()).to.equal(
+      DEFAULT_SERVICE_MIN_DURATION_SECONDS
+    )
+    expect(engineWith(undefined).getMinServiceDuration()).to.equal(
+      DEFAULT_SERVICE_MIN_DURATION_SECONDS
+    )
   })
 })
 

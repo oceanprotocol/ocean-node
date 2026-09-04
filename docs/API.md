@@ -1672,6 +1672,7 @@ fetch all compute environments
     "storageExpiry": 604800,
     "maxJobDuration": 3600,
     "minJobDuration": 60,
+    "minServiceDuration": 60,
     "maxServiceDuration": 86400,
     "resources": [
       { "id": "cpu", "total": 16, "max": 16, "min": 1, "inUse": 0 },
@@ -1699,14 +1700,21 @@ fetch all compute environments
 ]
 ```
 
-`maxJobDuration` / `minJobDuration` apply to **compute jobs**. Services use
-`maxServiceDuration` instead: the hard cap SERVICE_START validates a requested `duration`
-against, and the ceiling SERVICE_EXTEND caps the resulting remaining window to. It defaults to
-the daemon's `serviceOnDemand.maxDurationSeconds` and can be lowered per environment with
-that environment's own `maxServiceDuration` (a larger per-env value is clamped to the daemon
-ceiling at startup), so environments on the same engine may report different values.
-Services have no minimum duration — any value above 0 is accepted, then billed at the
-`minJobDuration` floor, rounded up to whole minutes.
+`maxJobDuration` / `minJobDuration` apply to **compute jobs**. Services have their own pair,
+and SERVICE_START rejects a `duration` outside it:
+
+- `maxServiceDuration` — the ceiling. Defaults to the daemon's
+  `serviceOnDemand.maxDurationSeconds` and may be **lowered** per environment; a larger per-env
+  value is clamped to the daemon ceiling at startup. SERVICE_EXTEND also caps the resulting
+  remaining window to it.
+- `minServiceDuration` — the floor, and also the **billing floor**: a service is priced at
+  `max(duration, minServiceDuration)` rounded up to whole minutes. Defaults to the
+  environment's own `minJobDuration`, and may be **raised** per environment; a value below the
+  daemon's `serviceOnDemand.minDurationSeconds` is clamped up at startup. SERVICE_EXTEND does
+  not apply the floor to `additionalDuration` (a small top-up stays allowed) but does price
+  against it.
+
+Environments on the same engine may therefore report different values for both.
 
 The field is additive: an older node omits it, so treat a missing value as the 86400 s
 (24 h) default rather than falling back to `maxJobDuration`, which is a different limit and

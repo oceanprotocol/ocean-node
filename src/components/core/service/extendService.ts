@@ -156,12 +156,19 @@ export class ServiceExtendHandler extends CommandHandler {
           // Cost — same price formula as the start, priced off the env the service runs
           // on. No fallback: pricing must use runEnv (resolved above);
           // calculateResourcesCost returns null if that env has no pricing for the token.
+          // The floor applies to a service's own duration at SERVICE_START, not to a top-up:
+          // blocking a small extension would strand a service that only needs a few more
+          // minutes. It is still the *billing* floor, so a top-up is priced like a start.
+          const minDuration =
+            runEnv.minServiceDuration ??
+            Math.max(runEnv.minJobDuration ?? 0, engine.getMinServiceDuration())
           const costExtend = engine.calculateResourcesCost(
             freshJob.resources.map((r) => ({ id: r.id, amount: r.amount })),
             runEnv,
             task.payment.chainId,
             task.payment.token,
-            task.additionalDuration
+            task.additionalDuration,
+            minDuration
           )
           if (costExtend === null)
             return buildInvalidParametersResponse(

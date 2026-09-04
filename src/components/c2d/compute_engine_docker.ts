@@ -555,6 +555,33 @@ export class C2DEngineDocker extends C2DEngine {
         daemonServiceCap
       )
 
+      // Service floor. Mirror image of the cap: the daemon's serviceOnDemand.minDurationSeconds
+      // is a hard floor an env may raise but not undercut, so a smaller per-env value is clamped
+      // up with a warning. Absent, an env falls back to its own minJobDuration, which is what
+      // services were already billed at — so an unconfigured node is unchanged.
+      const daemonServiceFloor = this.getMinServiceDuration()
+      const { minServiceDuration: envServiceFloor } = envDef
+      if (envServiceFloor !== undefined && envServiceFloor < daemonServiceFloor) {
+        CORE_LOGGER.warn(
+          `Environment "${envDef.description || envDef.id || 'unknown'}": ` +
+            `minServiceDuration (${envServiceFloor}) is below the daemon's ` +
+            `serviceOnDemand.minDurationSeconds (${daemonServiceFloor}) — raising to ` +
+            `${daemonServiceFloor}. An environment can only raise the daemon floor.`
+        )
+      }
+      const minServiceDuration = Math.max(
+        envServiceFloor ?? envDef.minJobDuration ?? 0,
+        daemonServiceFloor
+      )
+      if (minServiceDuration > maxServiceDuration) {
+        CORE_LOGGER.warn(
+          `Environment "${envDef.description || envDef.id || 'unknown'}": ` +
+            `minServiceDuration (${minServiceDuration}) exceeds maxServiceDuration ` +
+            `(${maxServiceDuration}) — no service duration can satisfy both, so SERVICE_START ` +
+            `will reject every request on this environment. Fix your config.`
+        )
+      }
+
       const env: ComputeEnvironment = {
         id: '',
         runningJobs: 0,
@@ -574,8 +601,9 @@ export class C2DEngineDocker extends C2DEngine {
           computeJobs: envDef.features?.computeJobs ?? true,
           services: envDef.features?.services ?? true
         },
-        // Always advertised, even where features.services is false, because it states what
+        // Always advertised, even where features.services is false, because they state what
         // SERVICE_START would enforce — clients gate on features.services, not on absence.
+        minServiceDuration,
         maxServiceDuration
       }
 

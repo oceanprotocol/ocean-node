@@ -158,6 +158,7 @@ Service-on-demand is configured per Docker connection under `serviceOnDemand`:
 | `enabled` | Master switch for the feature on this connection. |
 | `nodeHost` | Externally reachable host used to build endpoint URLs. |
 | `hostPortRange` | `[start, end]` range the node allocates published host ports from. |
+| `minDurationSeconds` | Hard floor under a service's duration for this daemon (default 0 — no floor). An environment may raise it with its own `minServiceDuration`; a smaller per-env value is clamped up to this one at startup, with a warning. |
 | `maxDurationSeconds` | Hard ceiling on a service's lifetime for this daemon (default 86400). An environment may lower it with its own `maxServiceDuration`; a larger per-env value is clamped to this one at startup, with a warning. |
 | `allowImageBuild` | If true, consumers may submit an inline `dockerfile` to build. |
 
@@ -165,19 +166,25 @@ Whether a given environment accepts services is gated by its `features.services`
 and access can be restricted with the environment's `access` allow-list
 (`addresses` + on-chain `accessLists`).
 
-Each environment resolves its own service cap at startup and advertises it in
-GET_COMPUTE_ENVIRONMENTS as `maxServiceDuration` — the value SERVICE_START validates the
-requested `duration` against, and the ceiling SERVICE_EXTEND caps the resulting remaining
-window to. Set it per environment to give, say, a cheap CPU env a 1 h limit while a GPU env
-keeps the full 24 h:
+Each environment resolves its own service bounds at startup and advertises them in
+GET_COMPUTE_ENVIRONMENTS as `minServiceDuration` and `maxServiceDuration`. SERVICE_START
+rejects a `duration` outside that range; SERVICE_EXTEND caps the resulting remaining window to
+the maximum. Set them per environment to give, say, a cheap CPU env a 1 h limit while a GPU
+env keeps the full 24 h:
 
 ```json
-{ "id": "cpu-small", "maxServiceDuration": 3600, "fees": { "1": [ ... ] } }
+{ "id": "cpu-small", "minServiceDuration": 600, "maxServiceDuration": 3600, "fees": { "1": [ ... ] } }
 ```
 
-Note this is a separate limit from `maxJobDuration`, which is per-env too but applies only
-to compute jobs. Services have no minimum duration: any value above 0 is accepted, then
-billed at the env's `minJobDuration` floor, rounded up to whole minutes.
+`minServiceDuration` is also the **billing floor**: a service costs
+`max(duration, minServiceDuration)` rounded up to whole minutes, so a request under the floor
+is rejected rather than silently charged for time it was not granted. It defaults to the
+environment's `minJobDuration`, which is exactly what services were already billed at — so
+leaving both new fields unset changes nothing.
+
+Both are separate from `minJobDuration` / `maxJobDuration`, which are per-env too but apply
+only to compute jobs. SERVICE_EXTEND does not enforce the floor on `additionalDuration` — a
+small top-up on a running service stays allowed — but it does price against it.
 
 **Templates are not shipped in the image.** The node reads them from a folder the operator
 mounts in, so a node without that mount advertises no templates at all. Point

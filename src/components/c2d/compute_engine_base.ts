@@ -18,6 +18,7 @@ import type {
 } from '../../@types/C2D/C2D.js'
 import {
   DEFAULT_SERVICE_MAX_DURATION_SECONDS,
+  DEFAULT_SERVICE_MIN_DURATION_SECONDS,
   type ServiceJob
 } from '../../@types/C2D/ServiceOnDemand.js'
 import { C2DClusterType, C2DStatusNumber } from '../../@types/C2D/C2D.js'
@@ -95,6 +96,19 @@ export abstract class C2DEngine {
     return (
       this.getC2DConfig().connection?.serviceOnDemand?.maxDurationSeconds ??
       DEFAULT_SERVICE_MAX_DURATION_SECONDS
+    )
+  }
+
+  /**
+   * Floor, in seconds, that this daemon puts under every service. An environment may raise it
+   * with its own `minServiceDuration` but never go below it. Defaults to 0 — no daemon floor —
+   * so an unconfigured node leaves each env's own floor (its minJobDuration) in charge and
+   * bills exactly as it did before this knob existed.
+   */
+  getMinServiceDuration(): number {
+    return (
+      this.getC2DConfig().connection?.serviceOnDemand?.minDurationSeconds ??
+      DEFAULT_SERVICE_MIN_DURATION_SECONDS
     )
   }
 
@@ -1030,14 +1044,21 @@ export abstract class C2DEngine {
     return cost
   }
 
+  /**
+   * @param minDurationOverride - billing floor to apply instead of `env.minJobDuration`.
+   * Services pass their own `minServiceDuration` here so a service is never priced against the
+   * compute-job floor. Omitted (compute jobs) keeps the original behaviour.
+   */
   public calculateResourcesCost(
     resourcesRequest: ComputeResourceRequest[],
     env: ComputeEnvironment,
     chainId: number,
     token: string,
-    maxJobDuration: number
+    maxJobDuration: number,
+    minDurationOverride?: number
   ): number | null {
-    if (maxJobDuration < env.minJobDuration) maxJobDuration = env.minJobDuration
+    const minDuration = minDurationOverride ?? env.minJobDuration
+    if (maxJobDuration < minDuration) maxJobDuration = minDuration
     const prices = this.getEnvPricesForToken(env, chainId, token)
     if (!prices) return null
     let cost: number = 0
