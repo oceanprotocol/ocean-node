@@ -30,6 +30,10 @@ interface NvmlBindings {
   getMemoryInfo: (...a: any[]) => number
   getTemperature: (...a: any[]) => number
   getPowerUsage: (...a: any[]) => number
+  // Host-wide enumeration (for sampleAll): count devices, get a handle by index, read its UUID.
+  getCount: (...a: any[]) => number
+  getHandleByIndex: (...a: any[]) => number
+  getUUID: (...a: any[]) => number
 }
 
 export class NvmlGpuCollector implements GpuVendorCollector {
@@ -93,6 +97,20 @@ export class NvmlGpuCollector implements GpuVendorCollector {
         getPowerUsage: lib.func('nvmlDeviceGetPowerUsage', 'int', [
           deviceType,
           koffi.out(koffi.pointer('uint32'))
+        ]),
+        getCount: lib.func('nvmlDeviceGetCount_v2', 'int', [
+          koffi.out(koffi.pointer('uint32'))
+        ]),
+        getHandleByIndex: lib.func('nvmlDeviceGetHandleByIndex_v2', 'int', [
+          'uint32',
+          koffi.out(koffi.pointer(deviceType))
+        ]),
+        // char* out buffer: pass a Node Buffer (mutable, passed by reference) and read the
+        // null-terminated UUID back after the call.
+        getUUID: lib.func('nvmlDeviceGetUUID', 'int', [
+          deviceType,
+          koffi.pointer('char'),
+          'uint32'
         ])
       }
     } catch (e: any) {
@@ -138,6 +156,48 @@ export class NvmlGpuCollector implements GpuVendorCollector {
     }
   }
 
+  // Reads the four live metrics off an already-resolved NVML device handle into `base`. Each
+  // read is independent and guarded: an unreadable metric is left as its `base` default (null for
+  // util/mem, absent for temp/power) rather than failing the whole sample.
+  private applyDeviceReadings(device: any, base: GpuDeviceMetrics): void {
+    const b = this.bindings
+    if (!b) return
+    const util: any = {}
+    if (b.getUtilizationRates(device, util) === NVML_SUCCESS) {
+      base.utilizationPercent = Number(util.gpu)
+    }
+    const mem: any = {}
+    if (b.getMemoryInfo(device, mem) === NVML_SUCCESS) {
+      base.memoryUsedBytes = Number(mem.used)
+      base.memoryTotalBytes = Number(mem.total)
+    }
+    const tempOut: any[] = [0]
+    if (b.getTemperature(device, NVML_TEMPERATURE_GPU, tempOut) === NVML_SUCCESS) {
+      base.temperatureC = Number(tempOut[0])
+    }
+    const powerOut: any[] = [0]
+    if (b.getPowerUsage(device, powerOut) === NVML_SUCCESS) {
+      base.powerWatts = Number((Number(powerOut[0]) / 1000).toFixed(1)) // mW → W
+    }
+  }
+
+  // Reads a device's NVML UUID ("GPU-…") into a JS string. Best-effort: returns undefined if the
+  // binding is missing or the call fails, so the caller falls back to the enumeration index.
+  private readUuid(device: any): string | undefined {
+    const b = this.bindings
+    if (!b?.getUUID) return undefined
+    try {
+      const buf = Buffer.alloc(96)
+      if (b.getUUID(device, buf, buf.length) === NVML_SUCCESS) {
+        const end = buf.indexOf(0)
+        return buf.toString('latin1', 0, end < 0 ? buf.length : end)
+      }
+    } catch {
+      // best-effort
+    }
+    return undefined
+  }
+
   private sampleOne(handle: GpuDeviceHandle): GpuDeviceMetrics {
     const base: GpuDeviceMetrics = {
       resourceId: handle.resourceId,
@@ -152,25 +212,7 @@ export class NvmlGpuCollector implements GpuVendorCollector {
     try {
       const devOut: any[] = [null]
       if (b.getHandleByUUID(handle.uuid, devOut) !== NVML_SUCCESS) return base
-      const device = devOut[0]
-
-      const util: any = {}
-      if (b.getUtilizationRates(device, util) === NVML_SUCCESS) {
-        base.utilizationPercent = Number(util.gpu)
-      }
-      const mem: any = {}
-      if (b.getMemoryInfo(device, mem) === NVML_SUCCESS) {
-        base.memoryUsedBytes = Number(mem.used)
-        base.memoryTotalBytes = Number(mem.total)
-      }
-      const tempOut: any[] = [0]
-      if (b.getTemperature(device, NVML_TEMPERATURE_GPU, tempOut) === NVML_SUCCESS) {
-        base.temperatureC = Number(tempOut[0])
-      }
-      const powerOut: any[] = [0]
-      if (b.getPowerUsage(device, powerOut) === NVML_SUCCESS) {
-        base.powerWatts = Number((Number(powerOut[0]) / 1000).toFixed(1)) // mW → W
-      }
+      this.applyDeviceReadings(devOut[0], base)
     } catch (e: any) {
       CORE_LOGGER.debug(
         `GPU metrics (nvidia): sample of ${handle.resourceId} failed: ${e?.message}`
@@ -182,6 +224,47 @@ export class NvmlGpuCollector implements GpuVendorCollector {
   async sample(handles: GpuDeviceHandle[]): Promise<GpuDeviceMetrics[]> {
     if (!(await this.detect())) return []
     return handles.map((h) => this.sampleOne(h))
+  }
+
+  // Enumerate every GPU visible to this process (nvmlDeviceGetCount + GetHandleByIndex) and
+  // sample each — the host-wide path that surfaces idle GPUs no job is holding. Each entry carries
+  // its NVML UUID (for mapping back to a configured resource id) and index (fallback identity).
+  async sampleAll(): Promise<GpuDeviceMetrics[]> {
+    if (!(await this.detect())) return []
+    const b = this.bindings
+    if (!b?.getCount || !b?.getHandleByIndex) return []
+    const out: GpuDeviceMetrics[] = []
+    try {
+      const countOut: any[] = [0]
+      if (b.getCount(countOut) !== NVML_SUCCESS) return []
+      const count = Number(countOut[0]) || 0
+      for (let i = 0; i < count; i++) {
+        const devOut: any[] = [null]
+        if (b.getHandleByIndex(i, devOut) !== NVML_SUCCESS) continue
+        const device = devOut[0]
+        const uuid = this.readUuid(device)
+        const base: GpuDeviceMetrics = {
+          resourceId: uuid ?? String(i),
+          vendor: 'nvidia',
+          utilizationPercent: null,
+          memoryUsedBytes: null,
+          memoryTotalBytes: null,
+          uuid,
+          index: i
+        }
+        try {
+          this.applyDeviceReadings(device, base)
+        } catch (e: any) {
+          CORE_LOGGER.debug(
+            `GPU metrics (nvidia): sample of device ${i} failed: ${e?.message}`
+          )
+        }
+        out.push(base)
+      }
+    } catch (e: any) {
+      CORE_LOGGER.debug(`GPU metrics (nvidia): host enumeration failed: ${e?.message}`)
+    }
+    return out
   }
 
   dispose(): void {

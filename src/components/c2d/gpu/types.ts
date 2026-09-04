@@ -23,6 +23,12 @@ export interface GpuDeviceMetrics {
   temperatureC?: number
   powerWatts?: number
   shared?: boolean
+  // Set by host-wide enumeration (sampleAll), not by job-scoped sampling: the device's stable
+  // vendor identity (nvidia: NVML UUID) and its enumeration index. The GpuMetricsService uses
+  // `uuid` to map an enumerated device back to a configured resource id ('gpu0'); `index` is the
+  // fallback identity when no configured resource matches.
+  uuid?: string
+  index?: number
 }
 
 // Vendor backend contract. Only the NVIDIA (NVML) backend is implemented today; AMD/Intel
@@ -32,6 +38,10 @@ export interface GpuVendorCollector {
   detect(): Promise<boolean> // is this backend usable on this host? Run once, cached.
   resolve(res: ComputeResource): GpuDeviceHandle | null
   sample(handles: GpuDeviceHandle[]): Promise<GpuDeviceMetrics[]>
+  // Enumerate and sample EVERY GPU visible to this process, with no job/handle — this is what
+  // gives idle host GPUs (no running job) live utilization/memory/temperature/power. Returns []
+  // when the backend is unusable on this host.
+  sampleAll(): Promise<GpuDeviceMetrics[]>
   dispose(): void
 }
 
