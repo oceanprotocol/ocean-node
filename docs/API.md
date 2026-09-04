@@ -1716,9 +1716,15 @@ and SERVICE_START rejects a `duration` outside it:
 
 Environments on the same engine may therefore report different values for both.
 
-The field is additive: an older node omits it, so treat a missing value as the 86400 s
-(24 h) default rather than falling back to `maxJobDuration`, which is a different limit and
-is often much smaller.
+Both fields are additive, and an older node omits them. Their fallbacks differ, so treat each
+separately:
+
+- A missing `maxServiceDuration` means the 86400 s (24 h) default — **not** `maxJobDuration`,
+  which is a different limit and is often much larger, so using it would offer windows the node
+  rejects.
+- A missing `minServiceDuration` means the environment's own `minJobDuration` (raised to the
+  daemon's `serviceOnDemand.minDurationSeconds`, which itself defaults to 0 — no daemon floor).
+  That is exactly what such a node already bills a service at.
 
 ### `HTTP` POST /api/services/freeCompute
 
