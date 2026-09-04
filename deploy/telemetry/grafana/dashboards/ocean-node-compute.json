@@ -846,7 +846,7 @@
           },
           "editorMode": "code",
           "expr": "ocean_compute_gpu_memory_used_bytes{service_instance_id=~\"$instance\"}",
-          "legendFormat": "used {{gpu}} {{vendor}}",
+          "legendFormat": "used {{gpu}} {{vendor}} ({{in_use}})",
           "range": true,
           "instant": false,
           "refId": "A"
@@ -858,7 +858,7 @@
           },
           "editorMode": "code",
           "expr": "ocean_compute_gpu_memory_total_bytes{service_instance_id=~\"$instance\"}",
-          "legendFormat": "total {{gpu}} {{vendor}}",
+          "legendFormat": "total {{gpu}} {{vendor}} ({{in_use}})",
           "range": true,
           "instant": false,
           "refId": "B"

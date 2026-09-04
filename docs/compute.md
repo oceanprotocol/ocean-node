@@ -234,7 +234,9 @@ The environment references it by `id`.
 > holds it — each carrying an `in_use` label (`true`/`false`) for whether a job currently holds
 > it, while `ocean_compute_gpu_devices_in_use` counts the allocated devices. This fleet-facing
 > export is independent of the per-owner job metrics above and honours the same `GPU_METRICS`
-> switch and NVML requirements.
+> switch and NVML requirements. It runs **only when the node declares GPU `ComputeResource`s**
+> (`type: "gpu"`) in `DOCKER_COMPUTE_ENVIRONMENTS`: a node that has GPUs but declares no GPU
+> resource emits no host GPU gauges, even when NVML is available.
 
 ### Multi-GPU workloads (shared memory)
 

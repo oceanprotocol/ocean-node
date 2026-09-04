@@ -3118,18 +3118,11 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
-  // ONE line per sampling interval with the engine's whole live resource picture, plus a
-  // "pressure" line for each workload that is close to a limit. This is the admin's entry
-  // point into the metrics: `grep '\[metrics\]'` for everything, `grep '\[metrics\] summary'`
-  // for the roll-up, `grep '\[metrics\] pressure'` for what is about to hurt.
-  //
-  // Reads the snapshots already sampled this tick (no extra Docker or DB calls) and is
-  // throttled to C2D_METRICS_INTERVAL_SECONDS — the loop itself ticks every 2s, but snapshots
-  // only refresh once per interval, so logging every tick would just repeat numbers.
-  // Never throws: a logging failure must not touch the loop.
   // Sample the host's GPUs (all of them, not just those held by a running job) so the compute
   // dashboard shows GPU health even while idle. Throttled to the metrics cadence and strictly
-  // best-effort: any failure leaves the previous snapshot in place and never disturbs the loop.
+  // best-effort: a mid-tick throw never disturbs the loop and leaves the previous snapshot in
+  // place, while a completed sample that read no device clears the snapshot — so a GPU that has
+  // dropped off the bus (or NVML gone unavailable) surfaces as a gap, not frozen stale readings.
   // No-ops entirely on a node that declares no GPU resources, so pure-CPU nodes never touch NVML.
   private async refreshHostGpuSnapshot(): Promise<void> {
     try {
@@ -3160,6 +3153,15 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
+  // ONE line per sampling interval with the engine's whole live resource picture, plus a
+  // "pressure" line for each workload that is close to a limit. This is the admin's entry
+  // point into the metrics: `grep '\[metrics\]'` for everything, `grep '\[metrics\] summary'`
+  // for the roll-up, `grep '\[metrics\] pressure'` for what is about to hurt.
+  //
+  // Reads the snapshots already sampled this tick (no extra Docker or DB calls) and is
+  // throttled to C2D_METRICS_INTERVAL_SECONDS — the loop itself ticks every 2s, but snapshots
+  // only refresh once per interval, so logging every tick would just repeat numbers.
+  // Never throws: a logging failure must not touch the loop.
   private logMetricsSummary(
     jobs: DBComputeJob[] = [],
     services: ServiceJob[] = []
