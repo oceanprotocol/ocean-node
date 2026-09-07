@@ -752,7 +752,7 @@ describe('**********         Service on Demand', () => {
     expect(resp.status.httpStatus).to.equal(400)
   })
 
-  it('(j) SERVICE_EXTEND advances expiresAt and records an extendPayment', async () => {
+  it('(j) SERVICE_EXTEND below the minimum duration → 400', async () => {
     const {
       consumerAddress: addr,
       nonce,
@@ -768,12 +768,31 @@ describe('**********         Service on Demand', () => {
       payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken }
     }
     const resp = await new ServiceExtendHandler(oceanNode).handle(task)
+    expect(resp.status.httpStatus).to.equal(400)
+  })
+
+  it('(j2) SERVICE_EXTEND advances expiresAt and records an extendPayment', async () => {
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_EXTEND)
+    const task: ServiceExtendCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_EXTEND,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      serviceId,
+      additionalDuration: 60,
+      payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken }
+    }
+    const resp = await new ServiceExtendHandler(oceanNode).handle(task)
     assert(
       resp.status.httpStatus === 200,
       `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
     )
     const [job] = (await streamToObject(resp.stream as Readable)) as ServiceJob[]
-    expect(job.expiresAt).to.equal(expiresAt + 30 * 1000)
+    expect(job.expiresAt).to.equal(expiresAt + 60 * 1000)
     expect(job.extendPayments?.length).to.equal(1)
     expiresAt = job.expiresAt
   })

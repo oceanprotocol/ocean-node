@@ -137,13 +137,25 @@ export class ServiceStartHandler extends CommandHandler {
         return outputBucketCheck
       }
 
-      // 4. Duration limit
-      const sod = engine.getC2DConfig().connection?.serviceOnDemand
-      const maxDuration = sod?.maxDurationSeconds ?? 86400
+      // 4. Duration limits. Both are per-env, resolved and clamped against the daemon's
+      //    serviceOnDemand bounds at engine start; the daemon values are the fallback for an
+      //    env built without them.
+      const maxDuration = env.maxServiceDuration ?? engine.getMaxServiceDuration()
       if (task.duration > maxDuration)
         return buildInvalidParametersResponse(
           buildInvalidRequestMessage(
             `Duration ${task.duration}s exceeds maximum ${maxDuration}s`
+          )
+        )
+      // Reject rather than silently round up: below the floor the service would be billed for
+      // time it is not granted, and the caller would never learn why it cost what it did.
+      const minDuration =
+        env.minServiceDuration ??
+        Math.max(env.minJobDuration ?? 0, engine.getMinServiceDuration())
+      if (task.duration < minDuration)
+        return buildInvalidParametersResponse(
+          buildInvalidRequestMessage(
+            `Duration ${task.duration}s is below minimum ${minDuration}s`
           )
         )
 
@@ -173,7 +185,9 @@ export class ServiceStartHandler extends CommandHandler {
         env,
         task.payment.chainId,
         task.payment.token,
-        task.duration
+        task.duration,
+        // Services bill against their own floor, never the compute-job one.
+        minDuration
       )
       if (cost === null)
         return buildInvalidParametersResponse(

@@ -1672,6 +1672,8 @@ fetch all compute environments
     "storageExpiry": 604800,
     "maxJobDuration": 3600,
     "minJobDuration": 60,
+    "minServiceDuration": 60,
+    "maxServiceDuration": 86400,
     "resources": [
       { "id": "cpu", "total": 16, "max": 16, "min": 1, "inUse": 0 },
       {
@@ -1697,6 +1699,32 @@ fetch all compute environments
   }
 ]
 ```
+
+`maxJobDuration` / `minJobDuration` apply to **compute jobs**. Services have their own pair,
+and SERVICE_START rejects a `duration` outside it:
+
+- `maxServiceDuration` — the ceiling. Defaults to the daemon's
+  `serviceOnDemand.maxDurationSeconds` and may be **lowered** per environment; a larger per-env
+  value is clamped to the daemon ceiling at startup. SERVICE_EXTEND also caps the resulting
+  remaining window to it.
+- `minServiceDuration` — the floor. SERVICE_START rejects a shorter `duration`, and
+  SERVICE_EXTEND rejects a shorter `additionalDuration`: the floor is a minimum *purchase*, so a
+  smaller one is refused rather than silently billed at the floor. Everything accepted is then
+  priced by its actual duration, rounded up to whole minutes. Defaults to the environment's own
+  `minJobDuration`, and may be **raised** per environment; a value below the daemon's
+  `serviceOnDemand.minDurationSeconds` is clamped up at startup.
+
+Environments on the same engine may therefore report different values for both.
+
+Both fields are additive, and an older node omits them. Their fallbacks differ, so treat each
+separately:
+
+- A missing `maxServiceDuration` means the 86400 s (24 h) default — **not** `maxJobDuration`,
+  which is a different limit and is often much larger, so using it would offer windows the node
+  rejects.
+- A missing `minServiceDuration` means the environment's own `minJobDuration` (raised to the
+  daemon's `serviceOnDemand.minDurationSeconds`, which itself defaults to 0 — no daemon floor).
+  That is exactly what such a node already bills a service at.
 
 ### `HTTP` POST /api/services/freeCompute
 

@@ -158,12 +158,38 @@ Service-on-demand is configured per Docker connection under `serviceOnDemand`:
 | `enabled` | Master switch for the feature on this connection. |
 | `nodeHost` | Externally reachable host used to build endpoint URLs. |
 | `hostPortRange` | `[start, end]` range the node allocates published host ports from. |
-| `maxDurationSeconds` | Upper bound on a service's lifetime (default 86400). |
+| `minDurationSeconds` | Hard floor under a service's duration for this daemon (default 0 — no floor). An environment may raise it with its own `minServiceDuration`; a smaller per-env value is clamped up to this one at startup, with a warning. |
+| `maxDurationSeconds` | Hard ceiling on a service's lifetime for this daemon (default 86400). An environment may lower it with its own `maxServiceDuration`; a larger per-env value is clamped to this one at startup, with a warning. |
 | `allowImageBuild` | If true, consumers may submit an inline `dockerfile` to build. |
 
 Whether a given environment accepts services is gated by its `features.services` flag,
 and access can be restricted with the environment's `access` allow-list
 (`addresses` + on-chain `accessLists`).
+
+Each environment resolves its own service bounds at startup and advertises them in
+GET_COMPUTE_ENVIRONMENTS as `minServiceDuration` and `maxServiceDuration`. SERVICE_START
+rejects a `duration` outside that range; SERVICE_EXTEND caps the resulting remaining window to
+the maximum. Set them per environment to give, say, a cheap CPU env a 1 h limit while a GPU
+env keeps the full 24 h:
+
+```json
+{ "id": "cpu-small", "minServiceDuration": 600, "maxServiceDuration": 3600, "fees": { "1": [ ... ] } }
+```
+
+`minServiceDuration` is a minimum **purchase**, applied to a start and to an extension alike:
+SERVICE_START rejects a shorter `duration` and SERVICE_EXTEND rejects a shorter
+`additionalDuration`, rather than granting the smaller window and charging for the floor.
+Anything accepted is priced by its actual duration, rounded up to whole minutes. Rejecting is
+what keeps the two honest — billing a 100 s top-up as 600 s would let ten of them add 1000 s of
+runtime while charging for 6000 s. It defaults to the environment's `minJobDuration`, which is
+exactly what services were already billed at, so leaving both new fields unset changes nothing.
+
+Both are separate from `minJobDuration` / `maxJobDuration`, which are per-env too but apply
+only to compute jobs.
+
+An environment whose resolved floor exceeds its resolved cap is a **fatal config error**: no
+duration could satisfy both, so the node logs the offending environment and refuses to start
+rather than advertising an environment that can never be booked.
 
 **Templates are not shipped in the image.** The node reads them from a folder the operator
 mounts in, so a node without that mount advertises no templates at all. Point
