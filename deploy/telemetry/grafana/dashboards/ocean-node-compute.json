@@ -781,7 +781,7 @@
           },
           "editorMode": "code",
           "expr": "ocean_compute_gpu_utilization_percent{service_instance_id=~\"$instance\"}",
-          "legendFormat": "{{gpu}} {{vendor}}",
+          "legendFormat": "{{gpu}} {{vendor}} ({{in_use}})",
           "range": true,
           "instant": false,
           "refId": "A"
@@ -827,7 +827,7 @@
       "id": 15,
       "type": "timeseries",
       "title": "GPU memory used / total",
-      "description": "Per-GPU ocean_compute_gpu_memory_used_bytes vs ocean_compute_gpu_memory_total_bytes; ratio via ocean_node:compute_gpu_mem_used_ratio.",
+      "description": "Per-GPU ocean_compute_gpu_memory_used_bytes vs ocean_compute_gpu_memory_total_bytes; the adjacent stat shows the used/total ratio. Emitted for every host GPU (idle included); in_use shows which are held by a job.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -846,7 +846,7 @@
           },
           "editorMode": "code",
           "expr": "ocean_compute_gpu_memory_used_bytes{service_instance_id=~\"$instance\"}",
-          "legendFormat": "used {{gpu}} {{vendor}}",
+          "legendFormat": "used {{gpu}} {{vendor}} ({{in_use}})",
           "range": true,
           "instant": false,
           "refId": "A"
@@ -858,7 +858,7 @@
           },
           "editorMode": "code",
           "expr": "ocean_compute_gpu_memory_total_bytes{service_instance_id=~\"$instance\"}",
-          "legendFormat": "total {{gpu}} {{vendor}}",
+          "legendFormat": "total {{gpu}} {{vendor}} ({{in_use}})",
           "range": true,
           "instant": false,
           "refId": "B"
@@ -904,7 +904,7 @@
       "id": 16,
       "type": "stat",
       "title": "GPU memory used ratio",
-      "description": "Recording rule ocean_node:compute_gpu_mem_used_ratio.",
+      "description": "GPU memory used / total across the selected node's GPUs, computed inline so it does not depend on the ocean_node:compute_gpu_mem_used_ratio recording rule being loaded on this Prometheus.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -922,7 +922,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "ocean_node:compute_gpu_mem_used_ratio",
+          "expr": "sum(ocean_compute_gpu_memory_used_bytes{service_instance_id=~\"$instance\"}) / sum(ocean_compute_gpu_memory_total_bytes{service_instance_id=~\"$instance\"})",
           "legendFormat": "used ratio",
           "range": false,
           "instant": true,
@@ -994,7 +994,7 @@
           },
           "editorMode": "code",
           "expr": "ocean_compute_gpu_temperature_celsius{service_instance_id=~\"$instance\"}",
-          "legendFormat": "{{gpu}} {{vendor}}",
+          "legendFormat": "{{gpu}} {{vendor}} ({{in_use}})",
           "range": true,
           "instant": false,
           "refId": "A"
@@ -1059,7 +1059,7 @@
           },
           "editorMode": "code",
           "expr": "ocean_compute_gpu_power_watts{service_instance_id=~\"$instance\"}",
-          "legendFormat": "{{gpu}} {{vendor}}",
+          "legendFormat": "{{gpu}} {{vendor}} ({{in_use}})",
           "range": true,
           "instant": false,
           "refId": "A"
@@ -1407,6 +1407,7 @@
         "definition": "label_values(ocean_compute_cpu_host_cores, service_instance_id)",
         "hide": 0,
         "includeAll": true,
+        "allValue": ".*",
         "label": "Instance",
         "multi": true,
         "name": "instance",

@@ -154,6 +154,12 @@ export class C2DEngineDocker extends C2DEngine {
   // Best-effort GPU metrics collector (NVIDIA/NVML today). Lazily initializes its vendor
   // backends on first use by a GPU job; a pure-CPU node never loads any GPU code.
   private gpuMetrics: GpuMetricsService = new GpuMetricsService()
+  // Host-wide GPU health snapshot: every GPU visible to this process, idle ones included.
+  // Refreshed by refreshHostGpuSnapshot() on the metrics cadence and read (never written) by the
+  // OTel compute gauge callback, same contract as lastAggregate/envResourceSnapshot. Stays
+  // undefined on nodes that declare no GPU resources, so a pure-CPU node never touches NVML.
+  public hostGpuSnapshot?: ComputeGpuAggregate[]
+  private lastHostGpuSampleAt: number = 0
   // Last time the engine-wide metrics roll-up was logged. The loop ticks every 2s but snapshots
   // only refresh once per C2D_METRICS_INTERVAL_SECONDS, so the summary is throttled to match.
   private lastMetricsSummaryAt: number = 0
@@ -1930,6 +1936,10 @@ export class C2DEngineDocker extends C2DEngine {
       // sees the whole live picture without correlating per-container samples by hand.
       this.logMetricsSummary(jobs, runningServices)
 
+      // Host-wide GPU health (every visible device, idle included) — throttled + best-effort so a
+      // hung or absent NVML can never stall the loop.
+      await this.refreshHostGpuSnapshot()
+
       // Service-on-Demand starts: advance pending service jobs through the start pipeline.
       // Fire-and-forget (NOT awaited): an image pull can take minutes and must not block the
       // loop (compute jobs + expiry must keep advancing). The in-progress guard prevents a
@@ -3105,6 +3115,41 @@ export class C2DEngineDocker extends C2DEngine {
       })
     } catch (e: any) {
       CORE_LOGGER.debug(`[metrics] jobs.finished counter failed: ${e?.message}`)
+    }
+  }
+
+  // Sample the host's GPUs (all of them, not just those held by a running job) so the compute
+  // dashboard shows GPU health even while idle. Throttled to the metrics cadence and strictly
+  // best-effort: a mid-tick throw never disturbs the loop and leaves the previous snapshot in
+  // place, while a completed sample that read no device clears the snapshot — so a GPU that has
+  // dropped off the bus (or NVML gone unavailable) surfaces as a gap, not frozen stale readings.
+  // No-ops entirely on a node that declares no GPU resources, so pure-CPU nodes never touch NVML.
+  private async refreshHostGpuSnapshot(): Promise<void> {
+    try {
+      if (!isMetricsCollectionEnabled()) return
+      const now = Date.now()
+      if (now - (this.lastHostGpuSampleAt ?? 0) < getMetricsIntervalSeconds() * 1000) {
+        return
+      }
+      const connection = await this.getC2DConfig().connection
+      const gpuResources = (connection?.resources ?? []).filter(
+        (r: ComputeResource) => String(r.type).toLowerCase() === 'gpu'
+      )
+      if (gpuResources.length === 0) return // pure-CPU node: never load NVML
+      // Stamp the throttle only once we know there are GPUs worth sampling.
+      this.lastHostGpuSampleAt = now
+      const snapshot = await this.gpuMetrics.sampleHost(gpuResources)
+      this.hostGpuSnapshot = (snapshot ?? []).map((g) => ({
+        resourceId: g.resourceId,
+        vendor: g.vendor,
+        utilizationPercent: g.utilizationPercent ?? undefined,
+        memoryUsedBytes: g.memoryUsedBytes ?? undefined,
+        memoryTotalBytes: g.memoryTotalBytes ?? undefined,
+        temperatureC: g.temperatureC,
+        powerWatts: g.powerWatts
+      }))
+    } catch (e: any) {
+      CORE_LOGGER.debug(`[metrics] host gpu sample failed: ${e?.message}`)
     }
   }
 
