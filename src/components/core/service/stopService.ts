@@ -9,6 +9,7 @@ import {
   buildInvalidRequestMessage
 } from '../../httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { isAllowedAdminAddress } from '../admin/adminHandler.js'
 import { findServiceJobAndEngine, toPublicServiceJob } from './utils.js'
 
 export class ServiceStopHandler extends CommandHandler {
@@ -36,12 +37,27 @@ export class ServiceStopHandler extends CommandHandler {
         status: { httpStatus: 503, error: 'Compute engines not configured' }
       }
 
-    // Find the job and the engine that owns it (by clusterHash — see helper)
-    const { job, engine } = await findServiceJobAndEngine(
+    // Find the job and the engine that owns it (by clusterHash — see helper). Scoped to
+    // the caller first, so a stranger cannot tell an existing service from a missing one.
+    let { job, engine } = await findServiceJobAndEngine(
       engines,
       task.serviceId,
       task.consumerAddress
     )
+    // Node admins (ALLOWED_ADMINS / ALLOWED_ADMINS_LIST) may stop ANY service on this
+    // node — the operator has to be able to tear down a tenant's container without its
+    // key. Only consulted when the owner-scoped path did not already grant access, so the
+    // common owner call never pays for the access-list lookups.
+    let asAdmin = false
+    if (!job || job.owner.toLowerCase() !== task.consumerAddress.toLowerCase()) {
+      asAdmin = await isAllowedAdminAddress(
+        this.getOceanNode().getAdminAddresses(),
+        task.consumerAddress
+      )
+      // Admin caller: redo the lookup unfiltered, since the job belongs to someone else.
+      if (asAdmin && !job)
+        ({ job, engine } = await findServiceJobAndEngine(engines, task.serviceId))
+    }
     if (!job)
       return buildInvalidParametersResponse(
         buildInvalidRequestMessage('Service job not found: ' + task.serviceId)
@@ -54,13 +70,21 @@ export class ServiceStopHandler extends CommandHandler {
           error: `No compute engine owns service ${task.serviceId} (cluster ${job.clusterHash}) — the node's compute configuration may have changed`
         }
       }
-    if (job.owner.toLowerCase() !== task.consumerAddress.toLowerCase())
+    if (!asAdmin && job.owner.toLowerCase() !== task.consumerAddress.toLowerCase())
       return { stream: null, status: { httpStatus: 401, error: 'Not the service owner' } }
+
+    if (asAdmin)
+      CORE_LOGGER.logMessage(
+        `Admin ${task.consumerAddress} is stopping service ${task.serviceId} owned by ${job.owner} (release=${task.release === true})`,
+        true
+      )
 
     try {
       const stopped = await engine.stopService(
         task.serviceId,
-        task.consumerAddress,
+        // The job's own owner, not the caller: an admin stop must still resolve the row
+        // the owner-scoped engine lookup expects.
+        job.owner,
         false, // onlyIfExpired
         task.release === true
       )
