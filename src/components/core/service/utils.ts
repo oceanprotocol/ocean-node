@@ -96,11 +96,17 @@ export function toListedServiceJob(
     dockerfile,
     additionalDockerFiles,
     readiness,
+    modelDownload,
     ...pub
   } = job
   // "Is this service actually serving?" is the listing's whole point for a node operator, so the
   // readiness RESULT is kept — but reduced to what answers that, without the diagnostics (probed
   // address, error text) meant for the owner.
+  // Progress is kept for the same reason, minus `modelId`: which model a consumer is running is
+  // their business, and this listing is readable by any caller, not just the owner.
+  const listedModelDownload = modelDownload
+    ? (({ modelId, ...rest }) => rest)(modelDownload)
+    : undefined
   return {
     ...pub,
     ...(readiness
@@ -111,7 +117,8 @@ export function toListedServiceJob(
             readySince: readiness.readySince
           }
         }
-      : {})
+      : {}),
+    ...(listedModelDownload ? { modelDownload: listedModelDownload } : {})
   }
 }
 

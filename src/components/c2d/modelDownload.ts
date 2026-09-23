@@ -33,69 +33,215 @@ import { CORE_LOGGER } from '../../utils/logging/common.js'
 // against live downloads.
 const IN_FLIGHT_SUFFIXES = ['.incomplete', '.downloadInProgress']
 
-// Read at most this many tar entries. A model repo has tens of files; a bound stops a pathological
-// cache (or a wrong path pointing at something huge) from walking forever.
-const MAX_CACHE_ENTRIES = 5000
+// A model repo has tens of files; a bound stops a pathological cache (or a mistyped path pointing
+// at something huge) from issuing thousands of stat calls.
+const MAX_BLOB_FILES = 512
+
+// Docker returns a path's stat in this header, base64-encoded JSON, with NO response body.
+const PATH_STAT_HEADER = 'x-docker-container-path-stat'
+
+/** One file's size, read from Docker's stat header. null when the path is gone or unreadable. */
+async function statContainerPath(
+  container: Dockerode.Container,
+  path: string
+): Promise<number | null> {
+  try {
+    const info: any = await container.infoArchive({ path })
+    const header = info?.headers?.[PATH_STAT_HEADER]
+    if (!header) return null
+    const stat = JSON.parse(Buffer.from(String(header), 'base64').toString())
+    const size = Number(stat?.size)
+    return Number.isFinite(size) ? size : null
+  } catch {
+    // Vanished between listing and stat (a rename on completion), or never existed.
+    return null
+  }
+}
 
 /**
- * Sums the cache's byte counts by streaming the directory out of the container and reading ONLY the
- * tar HEADERS (name, size, type) — the payload is discarded as it arrives, so nothing large is
- * transferred and no shell, volume, or storage-driver assumption is involved. Returns null when the
- * cache does not exist yet (the normal state for the first seconds) or cannot be read.
+ * Sums the cache's byte counts WITHOUT transferring any of it.
+ *
+ * Docker's archive endpoint streams file CONTENTS, and it does so for any directory that contains
+ * them — measured at 367 MB of socket traffic to list a 350 MB `blobs/` folder, scaling with the
+ * model (a 15 GB one would move 15 GB, every few seconds). So `blobs/` is never listed. Instead:
+ *
+ *  1. `snapshots/` is listed, which holds only directories and symlinks — 2.5 KB and ~14 ms,
+ *     whatever the model's size — and every symlink's target names a blob.
+ *  2. Each blob is then stat-ed through Docker's path-stat header, which carries the size and
+ *     returns no body at all (~9 ms, zero content).
+ *
+ * In-flight files are found by stat-ing the in-progress name beside each target: a partially
+ * downloaded blob is written as `<sha>.incomplete` (huggingface_hub) or `<sha>.downloadInProgress`
+ * (llama.cpp) and only renamed to `<sha>` on completion, while its snapshot symlink already points
+ * at the final name.
+ *
+ * Returns null when the cache does not exist yet (the normal state for the first seconds) or cannot
+ * be read. Never throws: progress reporting must not be able to disturb a running service.
  */
 export async function readModelDownloadBytes(
   container: Dockerode.Container,
   cachePath: string
 ): Promise<{ downloadedBytes: number; files: number; inFlight: number } | null> {
+  const repoDirs = await listDirectoryEntries(container, cachePath, 'directory')
+  if (!repoDirs) return null
+
+  let downloadedBytes = 0
+  let files = 0
+  let inFlight = 0
+  let seen = 0
+
+  for (const repoDir of repoDirs) {
+    if (!repoDir.startsWith('models--')) continue
+    const blobTargets = await listSnapshotBlobTargets(
+      container,
+      `${cachePath}/${repoDir}`
+    )
+    for (const blobName of blobTargets) {
+      if (seen >= MAX_BLOB_FILES) break
+      seen++
+      const blobPath = `${cachePath}/${repoDir}/blobs/${blobName}`
+      // The finished blob, if the download completed.
+      const size = await statContainerPath(container, blobPath)
+      if (size !== null) {
+        downloadedBytes += size
+        files++
+        continue
+      }
+      // Otherwise it may still be arriving under its in-progress name.
+      for (const suffix of IN_FLIGHT_SUFFIXES) {
+        const partial = await statContainerPath(container, `${blobPath}${suffix}`)
+        if (partial !== null) {
+          downloadedBytes += partial
+          inFlight++
+          break
+        }
+      }
+    }
+  }
+  return { downloadedBytes, files, inFlight }
+}
+
+/**
+ * The blob names a repo's snapshots point at.
+ *
+ * `snapshots/<sha>/<file>` are symlinks into `blobs/`, so this directory carries no file data and
+ * its listing is cheap regardless of how large the model is. The symlink target's basename is the
+ * blob to stat.
+ */
+async function listSnapshotBlobTargets(
+  container: Dockerode.Container,
+  repoPath: string
+): Promise<string[]> {
+  const targets = await listSymlinkTargets(container, `${repoPath}/snapshots`)
+  return targets ?? []
+}
+
+/**
+ * Names of the immediate children of a container directory, of the given tar entry type.
+ *
+ * Only ever called on directories that hold no file data of their own (the cache root, which holds
+ * repo folders), so nothing large crosses the socket — see the note on readModelDownloadBytes.
+ */
+async function listDirectoryEntries(
+  container: Dockerode.Container,
+  path: string,
+  keep: 'file' | 'directory'
+): Promise<string[] | null> {
+  // `stopAtDepth` is what keeps this cheap: Docker tars a directory RECURSIVELY and there is no
+  // shallow-list option, so a cache root would stream every weight file before this could filter
+  // by depth. Entries arrive in tree order, so the stream is abandoned as soon as something below
+  // the level being listed appears — the payloads never start.
+  const entries = await readTarHeaders(container, path, 1)
+  if (!entries) return null
+  return entries
+    .filter((entry) => entry.depth === 1 && entry.type === keep)
+    .map((entry) => entry.name)
+}
+
+/**
+ * Basenames of every symlink target under a directory tree (here: `snapshots/<sha>/<file>` points
+ * at `../../blobs/<sha>`). Symlinks carry no payload, so this stays cheap at any model size.
+ */
+async function listSymlinkTargets(
+  container: Dockerode.Container,
+  path: string
+): Promise<string[] | null> {
+  const entries = await readTarHeaders(container, path)
+  if (!entries) return null
+  const targets = new Set<string>()
+  for (const entry of entries) {
+    if (entry.type !== 'symlink' || !entry.linkname) continue
+    const basename = entry.linkname.split('/').filter(Boolean).pop()
+    if (basename) targets.add(basename)
+  }
+  return [...targets]
+}
+
+interface TarEntryHeader {
+  name: string
+  type: string
+  depth: number
+  linkname?: string
+}
+
+/** Reads a container path's tar entry headers. Null when the path is absent or unreadable. */
+async function readTarHeaders(
+  container: Dockerode.Container,
+  path: string,
+  stopAtDepth?: number
+): Promise<TarEntryHeader[] | null> {
   let archive: Readable
   try {
-    archive = (await container.getArchive({ path: cachePath })) as Readable
+    archive = (await container.getArchive({ path })) as Readable
   } catch (error: any) {
     // 404 until the engine creates the cache — not a failure, just nothing to report yet.
     if (error?.statusCode !== 404) {
-      CORE_LOGGER.debug(`[model-download] archive ${cachePath} failed: ${error?.message}`)
+      CORE_LOGGER.debug(`[model-download] listing ${path} failed: ${error?.message}`)
     }
     return null
   }
 
   return await new Promise((resolve) => {
     const extract = tarStream.extract()
-    let downloadedBytes = 0
-    let files = 0
-    let inFlight = 0
-    let entries = 0
+    const entries: TarEntryHeader[] = []
     let settled = false
-
-    const finish = (
-      result: { downloadedBytes: number; files: number; inFlight: number } | null
-    ) => {
+    const finish = (result: TarEntryHeader[] | null) => {
       if (settled) return
       settled = true
       resolve(result)
     }
 
     extract.on('entry', (header, stream, next) => {
-      entries++
-      // Only regular files carry bytes. A symlink (every snapshots/ entry) reports size 0 and its
-      // target may not exist yet, so counting those would double-count or contribute nothing.
-      if (header.type === 'file' && header.name.includes('/blobs/')) {
-        downloadedBytes += header.size ?? 0
-        if (IN_FLIGHT_SUFFIXES.some((suffix) => header.name.endsWith(suffix))) {
-          inFlight++
-        } else {
-          files++
-        }
+      // Paths arrive prefixed with the requested directory's own name; drop it so `depth` counts
+      // from the directory that was asked for.
+      const relative = header.name.split('/').slice(1).filter(Boolean)
+      if (relative.length > 0) {
+        entries.push({
+          name: relative[relative.length - 1],
+          type: String(header.type),
+          depth: relative.length,
+          linkname: (header as any).linkname
+        })
+      }
+      // Deeper than asked for: everything wanted at this level has already been seen, and what
+      // follows is file data. Stop before any of it is transferred.
+      if (stopAtDepth !== undefined && relative.length > stopAtDepth) {
+        extract.destroy()
+        archive.destroy()
+        finish(entries)
+        return
       }
       stream.on('end', next)
-      stream.resume() // discard the payload; only the header matters
-      if (entries > MAX_CACHE_ENTRIES) {
+      stream.resume()
+      if (entries.length >= MAX_BLOB_FILES) {
         extract.destroy()
-        finish({ downloadedBytes, files, inFlight })
+        archive.destroy()
+        finish(entries)
       }
     })
-    extract.on('finish', () => finish({ downloadedBytes, files, inFlight }))
+    extract.on('finish', () => finish(entries))
     extract.on('error', (error: any) => {
-      CORE_LOGGER.debug(`[model-download] tar read failed: ${error?.message}`)
+      CORE_LOGGER.debug(`[model-download] listing ${path} failed: ${error?.message}`)
       finish(null)
     })
     archive.on('error', () => finish(null))
@@ -163,7 +309,15 @@ export async function fetchModelTotalBytes(
     const response = await fetch(`${HF_MODEL_API}/${path}?expand[]=safetensors`, {
       signal: AbortSignal.timeout(HF_TIMEOUT_MS)
     })
-    if (response.ok) {
+    if (!response.ok) {
+      // A 404 is a definitive "no such repo" and worth remembering; anything else (429, 5xx, a
+      // proxy hiccup) is transient and must not poison the cache for the life of the process.
+      if (response.status === 404) {
+        totalBytesCache.set(key, null)
+      }
+      return null
+    }
+    {
       const body: any = await response.json()
       const parameters = body?.safetensors?.parameters
       if (parameters && typeof parameters === 'object') {
@@ -180,10 +334,15 @@ export async function fetchModelTotalBytes(
       }
     }
   } catch (error: any) {
+    // Network error, timeout, unparseable body: no answer, but not evidence there is none. Return
+    // without caching so the next sample can ask again.
     CORE_LOGGER.debug(
       `[model-download] hub lookup for ${modelId} failed: ${error?.message}`
     )
+    return null
   }
+  // A successful response that carried no index IS definitive (a GGUF-only repo has none), so it
+  // is cached like any other answer.
   totalBytesCache.set(key, total)
   return total
 }

@@ -4525,6 +4525,11 @@ export class C2DEngineDocker extends C2DEngine {
 
       const now = Date.now()
       const wasReady = job.readiness?.state === 'ready'
+      // Has this container EVER answered? `wasReady` only covers the last sample, so a service
+      // that fails twice running would fall back to "waiting" on the second — reading as "still
+      // starting up" for something that already served and then stopped. readySince is set on the
+      // first success and kept through failures, so it is the durable answer.
+      const everReady = wasReady || job.readiness?.readySince !== undefined
       // Hold off until the container has had a moment to bind its port — probing a process that
       // has not called listen() yet only produces noise in the node's own logs.
       const startedAt = Date.parse(details.State?.StartedAt ?? '')
@@ -4590,7 +4595,7 @@ export class C2DEngineDocker extends C2DEngine {
         : {
             // Only a service that HAD answered can be "failing"; one that never has is still
             // warming up, which is the normal state for the first minutes of a model server.
-            state: wasReady ? 'failing' : 'waiting',
+            state: everReady ? 'failing' : 'waiting',
             engine: engine.id,
             readySince: job.readiness?.readySince,
             lastCheckedAt: now,
@@ -4611,11 +4616,12 @@ export class C2DEngineDocker extends C2DEngine {
       }
 
       // While the engine is still warming up, sample how far its model download has got. Skipped
-      // once ready: the files are there, and the walk is pure overhead from then on.
-      const modelDownload =
-        readiness.state === 'ready'
-          ? undefined
-          : await this.sampleModelDownload(job, engine)
+      // once the service has EVER been ready: the files are on disk from that point on, so the walk
+      // would only re-measure a finished download — including while a ready service is failing,
+      // when it says nothing about why.
+      const modelDownload = everReady
+        ? undefined
+        : await this.sampleModelDownload(job, engine)
 
       // Same cross-process guard as the metrics write: a lifecycle transition must win.
       if (

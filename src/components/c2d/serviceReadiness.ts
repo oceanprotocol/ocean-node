@@ -169,7 +169,11 @@ export async function runReadinessProbe(
     const response = await fetch(url, {
       method: 'GET',
       signal: controller.signal,
-      headers: { accept: '*/*' }
+      headers: { accept: '*/*' },
+      // Never chase a redirect: following one would send this request to an address the workload
+      // chose rather than the container we are probing, and a 3xx is not the engine saying it can
+      // serve. Returned as a response instead, it simply fails the expected-status check.
+      redirect: 'manual'
     })
     // Drain, so the socket is not left hanging on either path.
     await response.body?.cancel().catch(() => {})
