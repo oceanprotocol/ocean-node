@@ -846,8 +846,9 @@ export class C2DEngineDocker extends C2DEngine {
       await Promise.allSettled([...this.serviceOpPromises])
       this.serviceOpPromises.clear()
     }
-    // Background readiness probes write to the same DB; let them settle too.
-    if (this.serviceProbesInFlight.size > 0) {
+    // Background readiness probes write to the same DB; let them settle too. The optional chain
+    // covers engines built without the constructor (e.g. test doubles).
+    if (this.serviceProbesInFlight?.size > 0) {
       await Promise.allSettled([...this.serviceProbesInFlight.values()])
       this.serviceProbesInFlight.clear()
     }
