@@ -5248,15 +5248,27 @@ export class C2DEngineDocker extends C2DEngine {
     job.runtimeMetrics = undefined
     // Same for readiness: the replacement container has to earn "ready" again (an Edit relaunch
     // re-downloads the model), and reporting the outgoing container's ready state would hand the
-    // user a live endpoint minutes before there is one. The probe SPEC is kept — a restart reuses
-    // the stored container spec, so it reuses the check that matches it.
-    const restartEngine = resolveServiceEngine(job)
-    job.readiness = restartEngine
-      ? { state: 'waiting', engine: restartEngine.id }
+    // user a live endpoint minutes before there is one.
+    //
+    // Resolved defensively: this runs OUTSIDE the try below that turns a failure into a persisted
+    // Error status, so anything thrown here would abandon the restart with the job stuck reading
+    // Restarting forever. Readiness is best-effort reporting — it must never be the reason a
+    // lifecycle operation fails.
+    let restartEngineId: string | undefined
+    try {
+      restartEngineId = resolveServiceEngine(job)?.id
+    } catch (e: any) {
+      CORE_LOGGER.debug(`restart ${serviceId}: engine detection failed: ${e?.message}`)
+    }
+    job.readiness = restartEngineId
+      ? { state: 'waiting', engine: restartEngineId }
       : undefined
     job.imagePull = undefined
     job.modelDownload = undefined
-    this.serviceProbeUrls.delete(serviceId)
+    // Optional-chained deliberately: this cache is best-effort bookkeeping for the next probe, and
+    // a restart must not fail because of it. (It is also absent on an engine built without running
+    // field initializers, which is how the unit tests construct one.)
+    this.serviceProbeUrls?.delete(serviceId)
     await this.db.updateServiceJob(job)
 
     // Live Docker handles for the newly-created container/network, tracked so the
