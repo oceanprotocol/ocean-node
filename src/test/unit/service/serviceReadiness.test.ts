@@ -313,6 +313,18 @@ describe('buildModelDownload', () => {
   })
 })
 
+describe('probeCandidates', () => {
+  it('brackets an IPv6 container address so the URL parses', () => {
+    const job = { endpoints: [] } as any
+    const urls = probeCandidates(job, ['172.17.0.2', 'fd00::2'], 8080, '/health')
+    expect(urls).to.deep.equal([
+      'http://172.17.0.2:8080/health',
+      'http://[fd00::2]:8080/health'
+    ])
+    expect(() => new URL(urls[1])).to.not.throw()
+  })
+})
+
 describe('model download bytes from container changes', () => {
   const cache = '/root/.cache/huggingface/hub'
   const repo = `${cache}/models--Qwen--Qwen2.5-7B`

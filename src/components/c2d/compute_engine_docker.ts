@@ -4151,15 +4151,26 @@ export class C2DEngineDocker extends C2DEngine {
           // images). Writes are chained rather than fired in parallel, and drained BEFORE the
           // status moves on — an in-flight write still carrying status=PullImage must never land
           // after the Claiming transition and resurrect the old status.
+          // At most one write waits behind the running one: each write persists the shared `job`,
+          // which already carries the latest progress, so queuing more would only replay it. A
+          // slow DB then drops intermediate updates instead of growing the chain.
           let pullWrites: Promise<unknown> = Promise.resolve()
+          let pullWriteQueued = false
           await this.pullImageRef(
             job.containerImage,
             undefined,
             undefined,
             (progress) => {
               job.imagePull = progress
+              if (pullWriteQueued) {
+                return
+              }
+              pullWriteQueued = true
               pullWrites = pullWrites
-                .then(() => this.db.updateServiceJob(job))
+                .then(() => {
+                  pullWriteQueued = false
+                  return this.db.updateServiceJob(job)
+                })
                 .catch((e: any) =>
                   CORE_LOGGER.debug(
                     `service ${serviceId}: pull progress write failed: ${e.message}`

@@ -139,7 +139,11 @@ export function probeCandidates(
   const hostPort = endpoint?.hostPort
   const urls: string[] = []
   for (const ip of containerIps) {
-    if (ip) urls.push(`http://${ip}:${containerPort}${path}`)
+    if (ip) {
+      // Docker reports IPv4 here today; an IPv6 literal would need brackets to form a URL.
+      const host = ip.includes(':') ? `[${ip}]` : ip
+      urls.push(`http://${host}:${containerPort}${path}`)
+    }
   }
   if (hostPort) {
     urls.push(`http://127.0.0.1:${hostPort}${path}`)
