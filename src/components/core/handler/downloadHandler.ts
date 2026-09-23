@@ -37,7 +37,7 @@ export function isOrderingAllowedForAsset(asset: Asset): OrdableAssetResponse {
       isOrdable: false,
       reason: `Asset provided is either null, either undefined ${asset}`
     }
-   } else if (
+  } else if (
     !asset.indexedMetadata?.nft ||
     ![MetadataStates.ACTIVE, MetadataStates.UNLISTED].includes(
       asset.indexedMetadata.nft.state
