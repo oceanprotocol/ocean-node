@@ -6,7 +6,11 @@ import {
   C2DStatusNumber,
   ContainerMetricsSnapshot
 } from '../../@types/C2D/C2D.js'
-import { ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
+import {
+  ServiceJob,
+  ServiceModelDownload,
+  ServiceReadiness
+} from '../../@types/C2D/ServiceOnDemand.js'
 import { SQLiteCompute } from './sqliteCompute.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
@@ -105,6 +109,25 @@ export class C2DDatabase extends AbstractDatabase {
       serviceId,
       expected,
       runtimeMetrics
+    )
+  }
+
+  async updateServiceJobReadiness(
+    serviceId: string,
+    expected: {
+      owner: string
+      clusterHash: string
+      status: number
+      containerId: string
+    },
+    readiness: ServiceReadiness,
+    modelDownload?: ServiceModelDownload
+  ): Promise<boolean> {
+    return await this.provider.updateServiceJobReadiness(
+      serviceId,
+      expected,
+      readiness,
+      modelDownload
     )
   }
 

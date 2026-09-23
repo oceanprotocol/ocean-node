@@ -472,6 +472,17 @@ describe('**********         Service on Demand', () => {
     assert(res.body.toLowerCase().includes('nginx'), 'body should be the nginx page')
   })
 
+  it('(d2) reports no readiness for an image the node does not recognize', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 4)
+    // nginx is not an engine the node knows, so it must be left exactly as it was before this
+    // feature existed: Running, and no readiness field for a client to gate on.
+    const job = await getServiceJob(serviceId)
+    assert(job, 'job not found')
+    expect(job.status).to.equal(ServiceStatusNumber.Running)
+    expect(job.readiness).to.equal(undefined)
+    expect(job.modelDownload).to.equal(undefined)
+  })
+
   it('(e) SERVICE_GET_STATUS returns the job with userData stripped', async () => {
     const job = await getServiceJob(serviceId)
     assert(job, 'job not found')
