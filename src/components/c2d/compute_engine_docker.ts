@@ -96,7 +96,7 @@ import {
   buildModelDownload,
   fetchModelTotalBytes,
   isModelDownloadComplete,
-  readModelDownloadBytes
+  ModelDownloadSampler
 } from './modelDownload.js'
 import type { DockerMountObject } from '../../@types/PersistentStorage.js'
 import { resolveServiceImage } from './serviceResourceMatching.js'
@@ -205,6 +205,8 @@ export class C2DEngineDocker extends C2DEngine {
   // works depends on how this node is deployed (on the host, or itself in Docker), so the probe
   // discovers it once and reuses it instead of walking the candidate list every few seconds.
   private serviceProbeUrls: Map<string, string> = new Map()
+  // Per-service model-download sampling state (which cache files to stat, when to re-list them).
+  private modelDownloadSampler = new ModelDownloadSampler()
   // serviceId -> its readiness probe (+ model-download sample) still running in the background.
   // The probe is launched fire-and-forget so a slow engine, Docker daemon or Hub never holds up
   // InternalLoop; this keeps one probe per service at a time and lets stop() drain them.
@@ -4481,6 +4483,15 @@ export class C2DEngineDocker extends C2DEngine {
         !this.serviceOpsInFlight.has(svc.serviceId)
     )
     await Promise.all(runningOnly.map((svc) => this.checkServiceContainerHealth(svc)))
+    // Forget per-service probe state for services that are no longer running (stopped, failed,
+    // expired), whichever path ended them.
+    const running = new Set(services.map((svc) => svc.serviceId))
+    this.modelDownloadSampler.retain(running)
+    for (const serviceId of this.serviceProbeUrls.keys()) {
+      if (!running.has(serviceId)) {
+        this.serviceProbeUrls.delete(serviceId)
+      }
+    }
     return runningOnly
   }
 
@@ -4704,7 +4715,7 @@ export class C2DEngineDocker extends C2DEngine {
     }
     try {
       const container = this.docker.getContainer(job.containerId)
-      const downloaded = await readModelDownloadBytes(container)
+      const downloaded = await this.modelDownloadSampler.sample(job.serviceId, container)
       if (!downloaded) return undefined
       // Only a Hugging Face repo has a size the node can look up; a local path or an object-store
       // URI reports bytes with no total, which clients render as an indeterminate bar.

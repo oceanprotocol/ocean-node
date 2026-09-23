@@ -133,42 +133,48 @@ export function selectBlobPaths(
   return [...paths].slice(0, MAX_BLOB_FILES)
 }
 
+export interface ModelDownloadBytes {
+  downloadedBytes: number
+  files: number
+  inFlight: number
+}
+
 /**
- * Sums the cache's byte counts WITHOUT transferring any of it.
+ * The cache's blob paths, from Docker's changes endpoint: every path the container has added or
+ * modified on top of its image — names only, no contents. It sees partial files under whatever
+ * name the downloader picked, in every repo folder, with no dependence on when symlinks appear or
+ * what order a directory lists in.
  *
- * Docker's changes endpoint lists every path the container has added or modified on top of its
- * image — names only, no contents, computed by the daemon from the container's writable layer. It
- * sees partial files under whatever name the downloader picked, in every repo folder, with no
- * dependence on when symlinks appear or what order a directory lists in. Each file is then stat-ed
- * through Docker's path-stat header, which carries the size and returns no body.
- *
- * A partial file renamed between the listing and its stat is looked up again under its finished
- * name, so a file completing mid-sample is counted once rather than dropped.
- *
- * Only sees the container's own filesystem: a cache mounted from a volume is invisible here.
- * Engine-agnostic within that: anything downloading through the Hugging Face cache layout is
- * measured, wherever the cache was put.
- *
- * Returns null when the cache does not exist yet (the normal state for the first seconds) or cannot
- * be read. Never throws: progress reporting must not be able to disturb a running service.
+ * The one expensive call here: on the containerd image store the daemon compares the container
+ * against its whole image (measured 0.1-1.6s, growing with image size), so ModelDownloadSampler
+ * calls it sparingly. Null when Docker could not answer.
  */
-export async function readModelDownloadBytes(
+async function discoverBlobPaths(
   container: Dockerode.Container
-): Promise<{ downloadedBytes: number; files: number; inFlight: number } | null> {
-  let changes: Array<{ Path?: string; Kind?: number }> | null
+): Promise<string[] | null> {
   try {
-    changes = await container.changes()
+    return selectBlobPaths(await container.changes())
   } catch (error: any) {
     CORE_LOGGER.debug(`[model-download] listing changes failed: ${error?.message}`)
     return null
   }
-  const blobPaths = selectBlobPaths(changes)
-  if (blobPaths.length === 0) {
-    return null
-  }
+}
 
+/**
+ * Sizes the given blob paths through Docker's path-stat header, which carries the size and returns
+ * no body. A partial file renamed since it was listed is looked up again under its finished name,
+ * so a file completing mid-sample is counted once rather than dropped; `paths` comes back with
+ * those renames applied, and `renamed` says a download finished — usually the moment the
+ * downloader starts its next file.
+ */
+async function measureBlobPaths(
+  container: Dockerode.Container,
+  blobPaths: string[]
+): Promise<{ bytes: ModelDownloadBytes; paths: string[]; renamed: boolean }> {
   const listed = new Set(blobPaths)
   const counted = new Set<string>()
+  const paths: string[] = []
+  let renamed = false
   let downloadedBytes = 0
   let files = 0
   let inFlight = 0
@@ -180,6 +186,7 @@ export async function readModelDownloadBytes(
     const size = await fileSize(container, path)
     if (size !== null) {
       counted.add(path)
+      paths.push(path)
       downloadedBytes += size
       if (inFlightSuffix(path)) {
         inFlight++
@@ -191,8 +198,9 @@ export async function readModelDownloadBytes(
     if (!inFlightSuffix(path)) {
       continue
     }
-    // Finished between the listing and the stat: count it under the name it now has, unless the
-    // listing already carries that name and it will be (or was) counted there.
+    // Finished since it was listed: count it under the name it now has, unless the list already
+    // carries that name and it will be (or was) counted there.
+    renamed = true
     const finished = finishedBlobPath(path)
     if (listed.has(finished) || counted.has(finished)) {
       continue
@@ -200,11 +208,102 @@ export async function readModelDownloadBytes(
     const finishedSize = await fileSize(container, finished)
     if (finishedSize !== null) {
       counted.add(finished)
+      paths.push(finished)
       downloadedBytes += finishedSize
       files++
     }
   }
-  return { downloadedBytes, files, inFlight }
+  return { bytes: { downloadedBytes, files, inFlight }, paths, renamed }
+}
+
+/**
+ * Sums the cache's byte counts WITHOUT transferring any of it: one changes listing, then a stat
+ * per blob. Only sees the container's own filesystem — a cache mounted from a volume is invisible
+ * here. Engine-agnostic within that: anything downloading through the Hugging Face cache layout is
+ * measured, wherever the cache was put.
+ *
+ * Returns null when the cache does not exist yet (the normal state for the first seconds) or cannot
+ * be read. Never throws: progress reporting must not be able to disturb a running service.
+ */
+export async function readModelDownloadBytes(
+  container: Dockerode.Container
+): Promise<ModelDownloadBytes | null> {
+  const blobPaths = await discoverBlobPaths(container)
+  if (!blobPaths || blobPaths.length === 0) {
+    return null
+  }
+  return (await measureBlobPaths(container, blobPaths)).bytes
+}
+
+// Re-listing cadence. A known partial file finishing triggers a re-list on the next sample
+// regardless, since that is when the downloader starts its next file; these bound how late a file
+// that started on its own is noticed.
+export const BLOB_REDISCOVER_MS = 30_000
+// Before the cache holds anything: the first bytes should show up quickly.
+export const BLOB_EMPTY_REDISCOVER_MS = 10_000
+
+interface BlobDiscovery {
+  containerId: string
+  paths: string[]
+  discoveredAt: number
+  /** Set when a known download finished: re-list on the next sample. */
+  stale: boolean
+}
+
+/**
+ * Samples model downloads per service, re-listing the container's changes only when needed and
+ * stat-ing the known paths in between — the stats are cheap, the listing is not.
+ *
+ * A file that starts without another finishing is counted up to BLOB_REDISCOVER_MS late, so the bar
+ * can pause and then catch up; it never goes backwards. Readiness does not depend on any of this.
+ */
+export class ModelDownloadSampler {
+  private discoveries = new Map<string, BlobDiscovery>()
+
+  async sample(
+    serviceId: string,
+    container: Dockerode.Container,
+    now: number = Date.now()
+  ): Promise<ModelDownloadBytes | null> {
+    let discovery = this.discoveries.get(serviceId)
+    // A restart runs a new container, whose cache starts from nothing.
+    if (discovery && discovery.containerId !== container.id) {
+      discovery = undefined
+    }
+    if (!discovery || this.isDue(discovery, now)) {
+      const paths = await discoverBlobPaths(container)
+      if (!paths) {
+        return null
+      }
+      discovery = { containerId: container.id, paths, discoveredAt: now, stale: false }
+      this.discoveries.set(serviceId, discovery)
+    }
+    if (discovery.paths.length === 0) {
+      return null
+    }
+    const measured = await measureBlobPaths(container, discovery.paths)
+    discovery.paths = measured.paths
+    discovery.stale = discovery.stale || measured.renamed
+    return measured.bytes
+  }
+
+  /** Drops every service not in `keep` — called with the services still running. */
+  retain(keep: Set<string>): void {
+    for (const serviceId of this.discoveries.keys()) {
+      if (!keep.has(serviceId)) {
+        this.discoveries.delete(serviceId)
+      }
+    }
+  }
+
+  private isDue(discovery: BlobDiscovery, now: number): boolean {
+    if (discovery.stale) {
+      return true
+    }
+    const period =
+      discovery.paths.length === 0 ? BLOB_EMPTY_REDISCOVER_MS : BLOB_REDISCOVER_MS
+    return now - discovery.discoveredAt >= period
+  }
 }
 
 // Bytes on the wire per parameter, by the dtype key the Hub reports. Anything unrecognized counts

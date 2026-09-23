@@ -14,7 +14,10 @@ import { resolveServiceEngine } from '../../../components/c2d/serviceEngines.js'
 import {
   buildModelDownload,
   fetchModelTotalBytes,
+  BLOB_EMPTY_REDISCOVER_MS,
+  BLOB_REDISCOVER_MS,
   isModelDownloadComplete,
+  ModelDownloadSampler,
   readModelDownloadBytes,
   selectBlobPaths
 } from '../../../components/c2d/modelDownload.js'
@@ -450,5 +453,101 @@ describe('isModelDownloadComplete', () => {
     // No total known: never declared complete, sampling carries on.
     expect(isModelDownloadComplete(record(undefined, 0))).to.equal(false)
     expect(isModelDownloadComplete(undefined)).to.equal(false)
+  })
+})
+
+describe('ModelDownloadSampler', () => {
+  const repo = '/root/.cache/huggingface/hub/models--Qwen--Qwen2.5-7B'
+
+  // A container whose cache the test mutates between samples; counts the expensive listing.
+  function liveContainer(id = 'c1') {
+    const files: Record<string, number> = {}
+    const state = { changesCalls: 0 }
+    const container = {
+      id,
+      changes: () => {
+        state.changesCalls++
+        return Promise.resolve(Object.keys(files).map((Path) => ({ Path, Kind: 1 })))
+      },
+      infoArchive: ({ path }: { path: string }) => {
+        if (!(path in files)) {
+          return Promise.reject(new Error('not found'))
+        }
+        const header = Buffer.from(JSON.stringify({ size: files[path] })).toString(
+          'base64'
+        )
+        return Promise.resolve({ headers: { 'x-docker-container-path-stat': header } })
+      }
+    } as any
+    return { container, files, state }
+  }
+
+  it('re-lists only on its own cadence, stat-ing known files in between', async () => {
+    const sampler = new ModelDownloadSampler()
+    const { container, files, state } = liveContainer()
+    files[`${repo}/blobs/a.1a2b3c4d.incomplete`] = 100
+
+    expect((await sampler.sample('svc', container, 0))?.downloadedBytes).to.equal(100)
+    files[`${repo}/blobs/a.1a2b3c4d.incomplete`] = 700
+    // Growth of a known file is seen without listing again.
+    expect((await sampler.sample('svc', container, 5_000))?.downloadedBytes).to.equal(700)
+    expect(state.changesCalls).to.equal(1)
+    // A file that started on its own waits for the periodic re-list.
+    files[`${repo}/blobs/b.5e6f7a8b.incomplete`] = 50
+    expect((await sampler.sample('svc', container, 10_000))?.downloadedBytes).to.equal(
+      700
+    )
+    expect(
+      (await sampler.sample('svc', container, BLOB_REDISCOVER_MS))?.downloadedBytes
+    ).to.equal(750)
+    expect(state.changesCalls).to.equal(2)
+  })
+
+  it('re-lists right after a known download finishes', async () => {
+    const sampler = new ModelDownloadSampler()
+    const { container, files, state } = liveContainer()
+    files[`${repo}/blobs/a.1a2b3c4d.incomplete`] = 100
+    await sampler.sample('svc', container, 0)
+
+    // `a` finishes and the downloader starts `b`.
+    delete files[`${repo}/blobs/a.1a2b3c4d.incomplete`]
+    files[`${repo}/blobs/a`] = 1000
+    files[`${repo}/blobs/b.5e6f7a8b.incomplete`] = 20
+    const finished = await sampler.sample('svc', container, 5_000)
+    expect(finished).to.deep.equal({ downloadedBytes: 1000, files: 1, inFlight: 0 })
+    expect(state.changesCalls).to.equal(1)
+    // The finish marked the list stale: the next sample picks `b` up well before 30s.
+    const next = await sampler.sample('svc', container, 10_000)
+    expect(next).to.deep.equal({ downloadedBytes: 1020, files: 1, inFlight: 1 })
+    expect(state.changesCalls).to.equal(2)
+  })
+
+  it('polls an empty cache on the shorter cadence', async () => {
+    const sampler = new ModelDownloadSampler()
+    const { container, files, state } = liveContainer()
+    expect(await sampler.sample('svc', container, 0)).to.equal(null)
+    files[`${repo}/blobs/a.1a2b3c4d.incomplete`] = 10
+    expect(await sampler.sample('svc', container, 5_000)).to.equal(null)
+    expect(
+      (await sampler.sample('svc', container, BLOB_EMPTY_REDISCOVER_MS))?.downloadedBytes
+    ).to.equal(10)
+    expect(state.changesCalls).to.equal(2)
+  })
+
+  it('starts over for a new container and forgets services that ended', async () => {
+    const sampler = new ModelDownloadSampler()
+    const first = liveContainer('c1')
+    first.files[`${repo}/blobs/a`] = 500
+    await sampler.sample('svc', first.container, 0)
+
+    // Restart: a new container with an empty cache must not be measured with the old paths.
+    const second = liveContainer('c2')
+    expect(await sampler.sample('svc', second.container, 1_000)).to.equal(null)
+    expect(second.state.changesCalls).to.equal(1)
+
+    sampler.retain(new Set())
+    first.files[`${repo}/blobs/b`] = 1
+    await sampler.sample('svc', first.container, 2_000)
+    expect(first.state.changesCalls).to.equal(2)
   })
 })
