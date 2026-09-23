@@ -151,9 +151,24 @@ export const SERVICE_ENGINE_PROFILES: ServiceEngineProfile[] = [
   }
 ]
 
+/**
+ * The repository path of an image reference, with any `@digest` and `:tag` removed. `image` is
+ * documented as the bare name (tag and digest ride in their own fields), but a caller that folds
+ * them in should still match. Only the last path segment carries a tag, so a registry port
+ * (`localhost:5000/...`) is left alone.
+ */
+function stripImageRef(image: string): string {
+  const withoutDigest = image.split('@')[0]
+  const lastSlash = withoutDigest.lastIndexOf('/')
+  const colon = withoutDigest.indexOf(':', lastSlash + 1)
+  return colon === -1 ? withoutDigest : withoutDigest.slice(0, colon)
+}
+
 /** The engine profile for a service, or null when the node does not recognize the image. */
 export function resolveServiceEngine(job: ServiceJob): ServiceEngineProfile | null {
-  const image = (job.image ?? '').trim()
-  if (!image) return null
+  const image = stripImageRef((job.image || job.containerImage || '').trim())
+  if (!image) {
+    return null
+  }
   return SERVICE_ENGINE_PROFILES.find((profile) => profile.matchesImage(image)) ?? null
 }

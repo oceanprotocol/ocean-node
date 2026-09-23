@@ -116,6 +116,25 @@ describe('resolveServiceEngine', () => {
     expect(resolveServiceEngine(job('ghcr.io/vllm/vllm-openai'))?.id).to.equal('vllm')
   })
 
+  it('matches even when a tag or digest is folded into the image', () => {
+    expect(resolveServiceEngine(job('vllm/vllm-openai:v0.28.0'))?.id).to.equal('vllm')
+    expect(resolveServiceEngine(job('vllm/vllm-openai@sha256:abc'))?.id).to.equal('vllm')
+    expect(
+      resolveServiceEngine(job('localhost:5000/vllm/vllm-openai:latest'))?.id
+    ).to.equal('vllm')
+    expect(resolveServiceEngine(job('localhost:5000/vllm/vllm-openai'))?.id).to.equal(
+      'vllm'
+    )
+    expect(
+      resolveServiceEngine(job('ghcr.io/ggml-org/llama.cpp:server-cuda'))?.id
+    ).to.equal('llamacpp')
+  })
+
+  it('falls back to containerImage when image is missing', () => {
+    const noImage = { containerImage: 'vllm/vllm-openai:v0.28.0' } as ServiceJob
+    expect(resolveServiceEngine(noImage)?.id).to.equal('vllm')
+  })
+
   it('returns null for an image it does not know, so nothing is gated', () => {
     expect(resolveServiceEngine(job('nginxinc/nginx-unprivileged'))).to.equal(null)
     expect(resolveServiceEngine(job('someone/vllm-openai-fork'))).to.equal(null)
