@@ -77,7 +77,26 @@ import {
   ServiceStatusText,
   SERVICE_START_PENDING_STATUSES
 } from '../../@types/C2D/ServiceOnDemand.js'
-import type { ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
+import type {
+  ServiceJob,
+  ServiceImagePullProgress,
+  ServiceModelDownload,
+  ServiceReadiness
+} from '../../@types/C2D/ServiceOnDemand.js'
+import {
+  ImagePullTracker,
+  probeCandidates,
+  runReadinessProbe,
+  PROBE_INITIAL_DELAY_SECONDS,
+  PROBE_PERIOD_SECONDS,
+  READY_PROBE_PERIOD_SECONDS
+} from './serviceReadiness.js'
+import { resolveServiceEngine, type ServiceEngineProfile } from './serviceEngines.js'
+import {
+  buildModelDownload,
+  fetchModelTotalBytes,
+  readModelDownloadBytes
+} from './modelDownload.js'
 import type { DockerMountObject } from '../../@types/PersistentStorage.js'
 import { resolveServiceImage } from './serviceResourceMatching.js'
 import {
@@ -181,6 +200,10 @@ export class C2DEngineDocker extends C2DEngine {
   // process; the service_locks DB lease (acquired alongside it) extends the guarantee
   // across processes sharing the same DB file + Docker daemon.
   private serviceOpsInFlight: Set<string> = new Set()
+  // serviceId -> the address the readiness probe last reached the container on. Which address
+  // works depends on how this node is deployed (on the host, or itself in Docker), so the probe
+  // discovers it once and reuses it instead of walking the candidate list every few seconds.
+  private serviceProbeUrls: Map<string, string> = new Map()
   private readonly serviceLockHolderId: string = makeServiceLockHolderId()
   private serviceLockHeartbeatTimer: NodeJS.Timeout | null = null
   // The in-flight service lifecycle promises — processServiceStart() launched
@@ -3727,7 +3750,8 @@ export class C2DEngineDocker extends C2DEngine {
   private async pullImageRef(
     imageRef: string,
     encryptedDockerRegistryAuth?: string,
-    logFile?: string
+    logFile?: string,
+    onProgress?: (progress: ServiceImagePullProgress) => void
   ): Promise<void> {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), this.getImagePullTimeoutMs())
@@ -3766,6 +3790,10 @@ export class C2DEngineDocker extends C2DEngine {
       }
 
       const pullStream = await this.docker.pull(imageRef, pullOptions)
+      // Per-layer byte accounting, aggregated from the daemon's own progress events. Only built
+      // when someone is listening (service starts) — the compute path passes no callback and so
+      // keeps its previous, allocation-free behaviour.
+      const tracker = onProgress ? new ImagePullTracker(onProgress) : null
       await new Promise<void>((resolve, reject) => {
         this.docker.modem.followProgress(
           pullStream,
@@ -3774,10 +3802,12 @@ export class C2DEngineDocker extends C2DEngine {
               if (logFile) appendFileSync(logFile, String(err.message))
               return reject(err)
             }
+            tracker?.finish()
             resolve()
           },
           (progress: any) => {
             if (logFile) appendFileSync(logFile, (progress.status ?? '') + '\n')
+            tracker?.onEvent(progress)
           }
         )
       })
@@ -3979,6 +4009,12 @@ export class C2DEngineDocker extends C2DEngine {
       resources: resources.map((r) => ({ id: r.id, amount: r.amount })),
       payment
     }
+    // Stated up front, so a client polling a service that has not reached Running yet can already
+    // tell "this node will report readiness for this workload" from "it never will".
+    const engine = resolveServiceEngine(job)
+    if (engine) {
+      job.readiness = { state: 'waiting', engine: engine.id }
+    }
     await this.db.newServiceJob(job)
     return job
   }
@@ -4097,7 +4133,28 @@ export class C2DEngineDocker extends C2DEngine {
           job.status = ServiceStatusNumber.PullImage
           job.statusText = ServiceStatusText[ServiceStatusNumber.PullImage]
           await this.db.updateServiceJob(job)
-          await this.pullImageRef(job.containerImage)
+          // Persist the daemon's own byte counts as the pull runs, so a client polling status can
+          // show real progress on what is usually the longest visible wait (multi-GB engine
+          // images). Writes are chained rather than fired in parallel, and drained BEFORE the
+          // status moves on — an in-flight write still carrying status=PullImage must never land
+          // after the Claiming transition and resurrect the old status.
+          let pullWrites: Promise<unknown> = Promise.resolve()
+          await this.pullImageRef(
+            job.containerImage,
+            undefined,
+            undefined,
+            (progress) => {
+              job.imagePull = progress
+              pullWrites = pullWrites
+                .then(() => this.db.updateServiceJob(job))
+                .catch((e: any) =>
+                  CORE_LOGGER.debug(
+                    `service ${serviceId}: pull progress write failed: ${e.message}`
+                  )
+                )
+            }
+          )
+          await pullWrites
         }
       } catch (e: any) {
         imageError = e
@@ -4435,8 +4492,190 @@ export class C2DEngineDocker extends C2DEngine {
       await this.markServiceFailed(job, reason, details.State)
       return
     }
-    // Container healthy: sample live runtime metrics (throttled, best-effort, lease-free).
+    // Container up: ask the workload itself whether it can serve requests yet (throttled,
+    // best-effort, lease-free), then sample live runtime metrics on the same terms.
+    await this.probeServiceReadiness(job, details)
     await this.sampleAndPersistServiceMetrics(job)
+  }
+
+  /**
+   * Asks a recognized workload whether it can serve requests yet, and persists the answer.
+   *
+   * "Running" only means the container process started. An inference engine then spends minutes
+   * downloading weights and warming up, during which its forwarded port either refuses connections
+   * or answers 503 — so a consumer handed the URL at Running gets nothing but errors. The engine is
+   * the only thing that knows when that ends, and this is the node asking it, from outside the
+   * container, on the consumer's behalf.
+   *
+   * Which request to make is engine-specific and comes from the node's own table
+   * (components/c2d/serviceEngines). An image the node does not recognize is left alone entirely:
+   * `readiness` stays absent, and clients keep treating Running as usable exactly as before.
+   *
+   * Same discipline as the metrics sampler: no lifecycle lease, skipped while a lifecycle op is in
+   * flight, persisted through a guarded readiness-ONLY write, and it never throws.
+   */
+  private async probeServiceReadiness(
+    job: ServiceJob,
+    details: Dockerode.ContainerInspectInfo
+  ): Promise<void> {
+    try {
+      const engine = resolveServiceEngine(job)
+      if (!engine) return
+      if (this.serviceOpsInFlight.has(job.serviceId)) return
+
+      const now = Date.now()
+      const wasReady = job.readiness?.state === 'ready'
+      // Hold off until the container has had a moment to bind its port — probing a process that
+      // has not called listen() yet only produces noise in the node's own logs.
+      const startedAt = Date.parse(details.State?.StartedAt ?? '')
+      if (
+        !wasReady &&
+        Number.isFinite(startedAt) &&
+        now - startedAt < PROBE_INITIAL_DELAY_SECONDS * 1000
+      ) {
+        return
+      }
+      // The loop ticks every couple of seconds; the probe runs on its own, slower period. Once
+      // ready it slows right down — from then on it is a liveness check, not a wait.
+      const periodMs =
+        (wasReady ? READY_PROBE_PERIOD_SECONDS : PROBE_PERIOD_SECONDS) * 1000
+      if (job.readiness?.lastCheckedAt && now - job.readiness.lastCheckedAt < periodMs) {
+        return
+      }
+
+      const port = engine.probe.port ?? job.exposedPorts[0]
+      if (!port) return
+      const containerIps = Object.values(details.NetworkSettings?.Networks ?? {})
+        .map((net: any) => net?.IPAddress)
+        .filter((ip: string) => !!ip)
+      const candidates = probeCandidates(job, containerIps, port, engine.probe.path)
+      // The address that answered last time, tried first — but never exclusively: a container
+      // restart can change its IP, so a cached candidate that stops connecting falls back to the
+      // full list on the same tick.
+      const cached = this.serviceProbeUrls.get(job.serviceId)
+      const ordered = cached
+        ? [cached, ...candidates.filter((url) => url !== cached)]
+        : candidates
+
+      let result = null
+      for (const url of ordered) {
+        const attempt = await runReadinessProbe(url, engine.probe.expectStatus)
+        if (attempt.ok) {
+          result = attempt
+          this.serviceProbeUrls.set(job.serviceId, url)
+          break
+        }
+        // A real HTTP answer means we reached the workload — it simply is not ready. That is a
+        // conclusive result, so stop here rather than reporting a later candidate's connection
+        // error, which would read as "unreachable" instead of "still warming up".
+        if (attempt.httpStatus !== undefined) {
+          result = attempt
+          this.serviceProbeUrls.set(job.serviceId, url)
+          break
+        }
+        result = result ?? attempt
+      }
+      if (!result) return
+
+      const readiness: ServiceReadiness = result.ok
+        ? {
+            state: 'ready',
+            engine: engine.id,
+            readySince: job.readiness?.readySince ?? now,
+            lastCheckedAt: now,
+            consecutiveFailures: 0,
+            httpStatus: result.httpStatus,
+            probedUrl: result.url
+          }
+        : {
+            // Only a service that HAD answered can be "failing"; one that never has is still
+            // warming up, which is the normal state for the first minutes of a model server.
+            state: wasReady ? 'failing' : 'waiting',
+            engine: engine.id,
+            readySince: job.readiness?.readySince,
+            lastCheckedAt: now,
+            consecutiveFailures: (job.readiness?.consecutiveFailures ?? 0) + 1,
+            httpStatus: result.httpStatus,
+            lastError: result.error,
+            probedUrl: result.url
+          }
+
+      if (result.ok !== wasReady) {
+        CORE_LOGGER.info(
+          `[readiness] service ${job.serviceId} (${engine.id}): ${
+            job.readiness?.state ?? 'unknown'
+          } -> ${readiness.state} via ${result.url}${
+            result.error ? ` (${result.error})` : ''
+          }`
+        )
+      }
+
+      // While the engine is still warming up, sample how far its model download has got. Skipped
+      // once ready: the files are there, and the walk is pure overhead from then on.
+      const modelDownload =
+        readiness.state === 'ready'
+          ? undefined
+          : await this.sampleModelDownload(job, engine)
+
+      // Same cross-process guard as the metrics write: a lifecycle transition must win.
+      if (
+        this.serviceOpsInFlight.has(job.serviceId) ||
+        (await this.db.isServiceLocked(job.serviceId, SERVICE_LOCK_STALE_MS))
+      ) {
+        return
+      }
+      await this.db.updateServiceJobReadiness(
+        job.serviceId,
+        {
+          owner: job.owner,
+          clusterHash: job.clusterHash,
+          status: ServiceStatusNumber.Running,
+          containerId: job.containerId
+        },
+        readiness,
+        modelDownload
+      )
+    } catch (e: any) {
+      CORE_LOGGER.debug(
+        `[readiness] service ${job.serviceId}: probe failed: ${e?.message}`
+      )
+    }
+  }
+
+  /**
+   * How much of its model the container has pulled down, read from the engine's own cache.
+   *
+   * This is the wait the image pull does not cover: the image is fetched once per node and cached
+   * forever after, while the weights are fetched by the engine on EVERY container start, after it
+   * reports Running. Nothing serves that number over HTTP at the time (there is no server yet), so
+   * it is read from the cache files themselves — see components/c2d/modelDownload.
+   *
+   * Best-effort throughout: an unreadable cache, an engine with no known cache path, or a model
+   * whose size the Hub cannot tell us all degrade to less information, never to an error.
+   */
+  private async sampleModelDownload(
+    job: ServiceJob,
+    engine: ServiceEngineProfile
+  ): Promise<ServiceModelDownload | undefined> {
+    if (!engine.modelCachePath) return undefined
+    try {
+      const container = this.docker.getContainer(job.containerId)
+      const downloaded = await readModelDownloadBytes(container, engine.modelCachePath)
+      if (!downloaded) return undefined
+      // Only a Hugging Face repo has a size the node can look up; a local path or an object-store
+      // URI reports bytes with no total, which clients render as an indeterminate bar.
+      const modelId = engine.modelIdFromCommand?.(job.dockerCmd) ?? null
+      // A GGUF engine names the exact file it pulls; asking for that instead of the whole repo is
+      // the difference between a real denominator and one covering every quantization on offer.
+      const quant = engine.modelQuantFromCommand?.(job.dockerCmd) ?? undefined
+      const totalBytes = modelId ? await fetchModelTotalBytes(modelId, quant) : null
+      return buildModelDownload(downloaded, totalBytes, modelId)
+    } catch (e: any) {
+      CORE_LOGGER.debug(
+        `[model-download] service ${job.serviceId}: sample failed: ${e?.message}`
+      )
+      return undefined
+    }
   }
 
   // Resolves a service's requested allocation as bytes/cores for the metrics snapshot.
@@ -5007,6 +5246,17 @@ export class C2DEngineDocker extends C2DEngine {
     // Reset the metrics accumulators: the new container is a fresh process, so peak memory
     // and CPU deltas must not carry over from the outgoing one.
     job.runtimeMetrics = undefined
+    // Same for readiness: the replacement container has to earn "ready" again (an Edit relaunch
+    // re-downloads the model), and reporting the outgoing container's ready state would hand the
+    // user a live endpoint minutes before there is one. The probe SPEC is kept — a restart reuses
+    // the stored container spec, so it reuses the check that matches it.
+    const restartEngine = resolveServiceEngine(job)
+    job.readiness = restartEngine
+      ? { state: 'waiting', engine: restartEngine.id }
+      : undefined
+    job.imagePull = undefined
+    job.modelDownload = undefined
+    this.serviceProbeUrls.delete(serviceId)
     await this.db.updateServiceJob(job)
 
     // Live Docker handles for the newly-created container/network, tracked so the

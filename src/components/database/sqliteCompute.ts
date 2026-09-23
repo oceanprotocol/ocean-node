@@ -8,7 +8,9 @@ import {
 import {
   ServiceStatusNumber,
   SERVICE_START_PENDING_STATUSES,
-  type ServiceJob
+  type ServiceJob,
+  type ServiceModelDownload,
+  type ServiceReadiness
 } from '../../@types/C2D/ServiceOnDemand.js'
 import { SqliteClient } from './sqliteClient.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
@@ -321,18 +323,17 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     }
   }
 
-  // Persists ONLY runtimeMetrics onto a service job — best-effort telemetry that must NOT clobber
-  // lifecycle fields another process may have changed. The read + validate + merge + write run
-  // inside a single `BEGIN IMMEDIATE` transaction so the sequence is atomic even across processes
-  // sharing the SQLite file: IMMEDIATE takes the write lock up front (waiting up to busy_timeout),
-  // so no other process can commit a lifecycle change (status, expiry, container) between our read
-  // and our write. Inside the transaction it re-reads the CURRENT row, re-validates
-  // owner/clusterHash/status/containerId, merges ONLY runtimeMetrics into that current body, and
-  // writes back ONLY the `body` column guarded on the unchanged status — leaving every lifecycle
-  // field (incl. expiresAt, in both column and body) exactly as last committed. Returns true when a
-  // row was written; any mismatch/error rolls back and returns false.
-  // eslint-disable-next-line require-await
-  async updateServiceJobMetrics(
+  // Persists ONE best-effort, non-lifecycle field onto a service job (runtime metrics, readiness)
+  // without clobbering lifecycle fields another process may have changed. The read + validate +
+  // merge + write run inside a single `BEGIN IMMEDIATE` transaction so the sequence is atomic even
+  // across processes sharing the SQLite file: IMMEDIATE takes the write lock up front (waiting up
+  // to busy_timeout), so no other process can commit a lifecycle change (status, expiry, container)
+  // between our read and our write. Inside the transaction it re-reads the CURRENT row, re-validates
+  // owner/clusterHash/status/containerId, applies `patch` to that current body, and writes back ONLY
+  // the `body` column guarded on the unchanged status — leaving every lifecycle field (incl.
+  // expiresAt, in both column and body) exactly as last committed. Returns true when a row was
+  // written; any mismatch/error rolls back and returns false.
+  private patchServiceJobBody(
     serviceId: string,
     expected: {
       owner: string
@@ -340,12 +341,13 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       status: number
       containerId: string
     },
-    runtimeMetrics: ContainerMetricsSnapshot
-  ): Promise<boolean> {
+    what: string,
+    patch: (body: ServiceJob) => void
+  ): boolean {
     try {
       this.db.exec('BEGIN IMMEDIATE;')
     } catch (err) {
-      DATABASE_LOGGER.error(`metrics update: could not begin transaction: ${err.message}`)
+      DATABASE_LOGGER.error(`${what} update: could not begin transaction: ${err.message}`)
       return false
     }
     try {
@@ -367,7 +369,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
         this.db.exec('ROLLBACK;')
         return false
       }
-      body.runtimeMetrics = runtimeMetrics
+      patch(body)
       const { changes } = this.db.run(
         `UPDATE service_jobs SET body = ? WHERE serviceId = ? AND status = ?;`,
         [
@@ -379,7 +381,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       this.db.exec('COMMIT;')
       return changes > 0
     } catch (err) {
-      DATABASE_LOGGER.error(`Error while updating service job metrics: ${err.message}`)
+      DATABASE_LOGGER.error(`Error while updating service job ${what}: ${err.message}`)
       try {
         this.db.exec('ROLLBACK;')
       } catch {
@@ -387,6 +389,44 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       }
       return false
     }
+  }
+
+  // eslint-disable-next-line require-await
+  async updateServiceJobMetrics(
+    serviceId: string,
+    expected: {
+      owner: string
+      clusterHash: string
+      status: number
+      containerId: string
+    },
+    runtimeMetrics: ContainerMetricsSnapshot
+  ): Promise<boolean> {
+    return this.patchServiceJobBody(serviceId, expected, 'metrics', (body) => {
+      body.runtimeMetrics = runtimeMetrics
+    })
+  }
+
+  // Same guarantees as updateServiceJobMetrics, for the readiness probe result: it is sampled from
+  // the same lease-free background loop, so it must never overwrite a lifecycle transition either.
+  // eslint-disable-next-line require-await
+  async updateServiceJobReadiness(
+    serviceId: string,
+    expected: {
+      owner: string
+      clusterHash: string
+      status: number
+      containerId: string
+    },
+    readiness: ServiceReadiness,
+    modelDownload?: ServiceModelDownload
+  ): Promise<boolean> {
+    return this.patchServiceJobBody(serviceId, expected, 'readiness', (body) => {
+      body.readiness = readiness
+      // Only overwritten when a fresh sample was taken: once the engine is ready the walk stops,
+      // and the last figures stay as the record of what was downloaded.
+      if (modelDownload) body.modelDownload = modelDownload
+    })
   }
 
   private mapServiceRows(rows: any[] | undefined): ServiceJob[] {

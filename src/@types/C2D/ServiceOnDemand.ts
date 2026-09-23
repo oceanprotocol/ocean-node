@@ -124,6 +124,76 @@ export interface ServiceOnDemandConfig {
   allowImageBuild?: boolean // default: false — gates Dockerfile-based services per daemon
 }
 
+// ── Readiness + startup progress ──────────────────────────────────────
+
+/**
+ * Whether a service can actually serve requests, as opposed to merely having a running container.
+ *
+ * `Running` says the container process started. An inference engine then spends minutes downloading
+ * weights and warming up, during which its forwarded port either refuses connections or answers 503
+ * — so a consumer handed the endpoint at `Running` gets nothing but errors. The node closes that gap
+ * by asking the workload itself, on a schedule, and reporting the answer here.
+ *
+ * Only reported for workloads the node recognizes (see components/c2d/serviceEngines). For anything
+ * else the field is ABSENT, which every client must read as "this node cannot tell me" and fall back
+ * to treating `Running` as usable — the behaviour that predates this feature.
+ */
+export type ServiceReadinessState =
+  | 'waiting' // not answering as expected yet — the normal warm-up window
+  | 'ready' // answered the engine's readiness request
+  | 'failing' // it WAS ready and stopped answering
+
+export interface ServiceReadiness {
+  state: ServiceReadinessState
+  engine: string // which profile decided this ('vllm'), so a client can say what was checked
+  readySince?: number // Unix ms of the first successful check of THIS container
+  lastCheckedAt?: number // Unix ms
+  consecutiveFailures?: number
+  httpStatus?: number // last response status (absent when the connection itself failed)
+  lastError?: string // owner-only: stripped from SERVICE_LIST
+  probedUrl?: string // owner-only: which candidate address answered (diagnostics)
+}
+
+/**
+ * Live progress of the image pull, aggregated from the Docker daemon's own per-layer byte
+ * counts. Written only while the job sits in PullImage, and kept afterwards as the record of
+ * what was downloaded (a cached image never produces one — absence means "already on the node").
+ *
+ * `totalBytes` is the sum of the layer totals Docker has ANNOUNCED so far, which grows as
+ * layers start, so `percent` is clamped monotonic rather than recomputed each tick.
+ */
+export interface ServiceImagePullProgress {
+  phase: 'downloading' | 'extracting' | 'complete'
+  downloadedBytes: number
+  totalBytes: number
+  percent: number
+  layersTotal: number
+  layersDone: number
+  updatedAt: number // Unix ms
+}
+
+/**
+ * How much of its model a recognized engine has downloaded, read from the container's own cache.
+ *
+ * This is the wait the image pull does NOT cover: the image is pulled once per node and cached
+ * forever after, while the weights are fetched on every container start, by the engine, after it
+ * reports Running.
+ *
+ * `totalBytes`/`percent` are present only when the size could be established — the engine is
+ * serving a Hugging Face repo AND the Hub published a safetensors index for it. Pointed at a local
+ * path, an object-store URI or an unindexed repo, only `downloadedBytes` is reported and the client
+ * shows an indeterminate bar rather than a ratio against a guess.
+ */
+export interface ServiceModelDownload {
+  modelId?: string // the repo being fetched, when it is a Hub id
+  downloadedBytes: number
+  totalBytes?: number
+  percent?: number
+  filesComplete: number
+  filesInFlight: number // the hub fetches files in parallel, so only the aggregate is meaningful
+  updatedAt: number // Unix ms
+}
+
 // ── Runtime service job ───────────────────────────────────────────────
 
 export interface ServiceEndpoint {
@@ -219,4 +289,11 @@ export interface ServiceJob {
   // Best-effort Docker/NVML runtime metrics sampled while the service container runs.
   // DB-only: stripped from every public response by toPublicServiceJob / toListedServiceJob.
   runtimeMetrics?: ContainerMetricsSnapshot
+  // Whether the workload can serve requests yet, for engines the node recognizes. Absent otherwise,
+  // which clients read as "not reported" and fall back to treating Running as usable.
+  readiness?: ServiceReadiness
+  // Image pull byte progress, written while the job is in PullImage.
+  imagePull?: ServiceImagePullProgress
+  // Model-weight download progress, sampled from the container's cache while it warms up.
+  modelDownload?: ServiceModelDownload
 }
