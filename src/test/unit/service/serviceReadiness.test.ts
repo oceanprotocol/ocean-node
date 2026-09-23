@@ -11,7 +11,13 @@ import {
   runReadinessProbe
 } from '../../../components/c2d/serviceReadiness.js'
 import { resolveServiceEngine } from '../../../components/c2d/serviceEngines.js'
-import { buildModelDownload } from '../../../components/c2d/modelDownload.js'
+import {
+  buildModelDownload,
+  fetchModelTotalBytes,
+  isModelDownloadComplete,
+  readModelDownloadBytes,
+  selectBlobPaths
+} from '../../../components/c2d/modelDownload.js'
 
 describe('ImagePullTracker', () => {
   // The daemon's real event sequence for one layer, minus the narration lines.
@@ -301,5 +307,148 @@ describe('buildModelDownload', () => {
       'a/b'
     )
     expect(result.percent).to.equal(100)
+  })
+})
+
+describe('model download bytes from container changes', () => {
+  const cache = '/root/.cache/huggingface/hub'
+  const repo = `${cache}/models--Qwen--Qwen2.5-7B`
+
+  // A container double: `changes()` lists paths, `infoArchive()` answers Docker's stat header.
+  function fakeContainer(
+    changes: Array<{ Path: string; Kind: number }>,
+    files: Record<string, { size: number; linkTarget?: string }>
+  ) {
+    return {
+      changes: () => Promise.resolve(changes),
+      infoArchive: ({ path }: { path: string }) => {
+        const stat = files[path]
+        if (!stat) {
+          return Promise.reject(
+            Object.assign(new Error('not found'), { statusCode: 404 })
+          )
+        }
+        const header = Buffer.from(JSON.stringify(stat)).toString('base64')
+        return Promise.resolve({ headers: { 'x-docker-container-path-stat': header } })
+      }
+    } as any
+  }
+
+  it('keeps only files directly inside a repo blobs folder', () => {
+    const paths = selectBlobPaths([
+      { Path: cache, Kind: 1 },
+      { Path: `${cache}/.locks/models--Qwen--Qwen2.5-7B/abc.lock`, Kind: 1 },
+      { Path: `${repo}/blobs`, Kind: 1 },
+      { Path: `${repo}/blobs/abc`, Kind: 1 },
+      { Path: `${repo}/blobs/def.1a2b3c4d.incomplete`, Kind: 1 },
+      { Path: `${repo}/blobs/gone`, Kind: 2 },
+      { Path: `${repo}/snapshots/sha/model.safetensors`, Kind: 1 },
+      { Path: '/tmp/other', Kind: 1 },
+      // HF_HOME moved the cache: still found by its layout.
+      { Path: '/data/hf/hub/models--org--name/blobs/xyz', Kind: 1 }
+    ])
+    expect(paths).to.deep.equal([
+      `${repo}/blobs/abc`,
+      `${repo}/blobs/def.1a2b3c4d.incomplete`,
+      '/data/hf/hub/models--org--name/blobs/xyz'
+    ])
+  })
+
+  it('counts finished and in-flight files, whatever the partial file is named', async () => {
+    const container = fakeContainer(
+      [
+        { Path: `${repo}/blobs/aaa`, Kind: 1 },
+        { Path: `${repo}/blobs/bbb.1a2b3c4d.incomplete`, Kind: 1 },
+        { Path: `${repo}/blobs/ccc.downloadInProgress`, Kind: 1 }
+      ],
+      {
+        [`${repo}/blobs/aaa`]: { size: 1000 },
+        [`${repo}/blobs/bbb.1a2b3c4d.incomplete`]: { size: 300 },
+        [`${repo}/blobs/ccc.downloadInProgress`]: { size: 200 }
+      }
+    )
+    expect(await readModelDownloadBytes(container)).to.deep.equal({
+      downloadedBytes: 1500,
+      files: 1,
+      inFlight: 2
+    })
+  })
+
+  it('counts a file that finished between the listing and the stat under its new name', async () => {
+    const container = fakeContainer(
+      [{ Path: `${repo}/blobs/bbb.1a2b3c4d.incomplete`, Kind: 1 }],
+      { [`${repo}/blobs/bbb`]: { size: 900 } }
+    )
+    expect(await readModelDownloadBytes(container)).to.deep.equal({
+      downloadedBytes: 900,
+      files: 1,
+      inFlight: 0
+    })
+  })
+
+  it('follows a blob symlinked into a shared store', async () => {
+    const container = fakeContainer([{ Path: `${repo}/blobs/aaa`, Kind: 1 }], {
+      [`${repo}/blobs/aaa`]: { size: 40, linkTarget: '../../shared/aaa' },
+      [`${repo}/blobs/../../shared/aaa`]: { size: 5000 }
+    })
+    expect((await readModelDownloadBytes(container))?.downloadedBytes).to.equal(5000)
+  })
+
+  it('reports nothing while the cache holds no blobs yet, or when Docker fails', async () => {
+    expect(await readModelDownloadBytes(fakeContainer([], {}))).to.equal(null)
+    const failing = { changes: () => Promise.reject(new Error('boom')) } as any
+    expect(await readModelDownloadBytes(failing)).to.equal(null)
+  })
+})
+
+describe('fetchModelTotalBytes', () => {
+  const realFetch = globalThis.fetch
+  afterEach(() => {
+    globalThis.fetch = realFetch
+  })
+
+  it('backs off after a transient Hub failure instead of retrying every sample', async () => {
+    let calls = 0
+    globalThis.fetch = (() => {
+      calls++
+      return Promise.resolve(new Response('busy', { status: 503 }))
+    }) as typeof fetch
+    expect(await fetchModelTotalBytes('backoff-test/model-a')).to.equal(null)
+    expect(await fetchModelTotalBytes('backoff-test/model-a')).to.equal(null)
+    expect(calls).to.equal(1)
+  })
+
+  it('caches a successful answer for good', async () => {
+    let calls = 0
+    globalThis.fetch = (() => {
+      calls++
+      return Promise.resolve(
+        Response.json({ safetensors: { parameters: { BF16: 1000, F32: 10 } } })
+      )
+    }) as typeof fetch
+    expect(await fetchModelTotalBytes('backoff-test/model-b')).to.equal(2040)
+    expect(await fetchModelTotalBytes('backoff-test/model-b')).to.equal(2040)
+    expect(calls).to.equal(1)
+  })
+})
+
+describe('isModelDownloadComplete', () => {
+  const record = (percent: number | undefined, filesInFlight: number) =>
+    ({
+      downloadedBytes: 1,
+      percent,
+      filesComplete: 1,
+      filesInFlight,
+      updatedAt: 0
+    }) as any
+
+  it('is complete only at 100% with nothing still arriving', () => {
+    expect(isModelDownloadComplete(record(100, 0))).to.equal(true)
+    // The total is an estimate: 100% with a shard still being written is not done.
+    expect(isModelDownloadComplete(record(100, 1))).to.equal(false)
+    expect(isModelDownloadComplete(record(99, 0))).to.equal(false)
+    // No total known: never declared complete, sampling carries on.
+    expect(isModelDownloadComplete(record(undefined, 0))).to.equal(false)
+    expect(isModelDownloadComplete(undefined)).to.equal(false)
   })
 })

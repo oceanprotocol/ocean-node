@@ -95,6 +95,7 @@ import { resolveServiceEngine, type ServiceEngineProfile } from './serviceEngine
 import {
   buildModelDownload,
   fetchModelTotalBytes,
+  isModelDownloadComplete,
   readModelDownloadBytes
 } from './modelDownload.js'
 import type { DockerMountObject } from '../../@types/PersistentStorage.js'
@@ -204,6 +205,10 @@ export class C2DEngineDocker extends C2DEngine {
   // works depends on how this node is deployed (on the host, or itself in Docker), so the probe
   // discovers it once and reuses it instead of walking the candidate list every few seconds.
   private serviceProbeUrls: Map<string, string> = new Map()
+  // serviceId -> its readiness probe (+ model-download sample) still running in the background.
+  // The probe is launched fire-and-forget so a slow engine, Docker daemon or Hub never holds up
+  // InternalLoop; this keeps one probe per service at a time and lets stop() drain them.
+  private serviceProbesInFlight: Map<string, Promise<void>> = new Map()
   private readonly serviceLockHolderId: string = makeServiceLockHolderId()
   private serviceLockHeartbeatTimer: NodeJS.Timeout | null = null
   // The in-flight service lifecycle promises — processServiceStart() launched
@@ -838,6 +843,11 @@ export class C2DEngineDocker extends C2DEngine {
     if (this.serviceOpPromises.size > 0) {
       await Promise.allSettled([...this.serviceOpPromises])
       this.serviceOpPromises.clear()
+    }
+    // Background readiness probes write to the same DB; let them settle too.
+    if (this.serviceProbesInFlight.size > 0) {
+      await Promise.allSettled([...this.serviceProbesInFlight.values()])
+      this.serviceProbesInFlight.clear()
     }
     this.isInternalLoopRunning = false
     // Release any GPU metrics backends (e.g. nvmlShutdown). Best-effort, never throws; the
@@ -4494,8 +4504,31 @@ export class C2DEngineDocker extends C2DEngine {
     }
     // Container up: ask the workload itself whether it can serve requests yet (throttled,
     // best-effort, lease-free), then sample live runtime metrics on the same terms.
-    await this.probeServiceReadiness(job, details)
+    this.launchServiceReadinessProbe(job, details)
     await this.sampleAndPersistServiceMetrics(job)
+  }
+
+  /**
+   * Runs probeServiceReadiness without holding up the loop. The probe can walk several addresses
+   * with a timeout each, and its model-download sample waits on the Docker daemon and the Hub —
+   * seconds, on a bad day, that would otherwise delay every compute job and service start on the
+   * node. At most one probe per service runs at a time; a tick that finds one in flight skips it.
+   */
+  private launchServiceReadinessProbe(
+    job: ServiceJob,
+    details: Dockerode.ContainerInspectInfo
+  ): void {
+    if (this.stopped || this.serviceProbesInFlight.has(job.serviceId)) {
+      return
+    }
+    // probeServiceReadiness never throws; the catch only keeps a surprise from surfacing as an
+    // unhandled rejection.
+    const probe = this.probeServiceReadiness(job, details)
+      .catch((e: any) =>
+        CORE_LOGGER.debug(`[readiness] service ${job.serviceId}: ${e?.message}`)
+      )
+      .finally(() => this.serviceProbesInFlight.delete(job.serviceId))
+    this.serviceProbesInFlight.set(job.serviceId, probe)
   }
 
   /**
@@ -4664,9 +4697,14 @@ export class C2DEngineDocker extends C2DEngine {
     engine: ServiceEngineProfile
   ): Promise<ServiceModelDownload | undefined> {
     if (!engine.modelCachePath) return undefined
+    // Downloaded: what remains is the engine loading weights, which the cache says nothing about.
+    // Returning nothing keeps the stored 100% record as it is.
+    if (isModelDownloadComplete(job.modelDownload)) {
+      return undefined
+    }
     try {
       const container = this.docker.getContainer(job.containerId)
-      const downloaded = await readModelDownloadBytes(container, engine.modelCachePath)
+      const downloaded = await readModelDownloadBytes(container)
       if (!downloaded) return undefined
       // Only a Hugging Face repo has a size the node can look up; a local path or an object-store
       // URI reports bytes with no total, which clients render as an indeterminate bar.

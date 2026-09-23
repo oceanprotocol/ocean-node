@@ -27,9 +27,10 @@ export interface ServiceEngineProfile {
     expectStatus: number[]
   }
   /**
-   * Where this engine caches the model it downloads at startup, inside the container. Absent for an
-   * engine whose download the node cannot observe — readiness still works, progress simply isn't
-   * reported.
+   * Where this engine caches the model it downloads at startup, inside the container, by default.
+   * Its presence is what turns progress reporting on; the files themselves are found by the Hugging
+   * Face cache layout wherever it sits (see modelDownload). Absent for an engine whose download the
+   * node cannot observe — readiness still works, progress simply isn't reported.
    */
   modelCachePath?: string
   /**
