@@ -4,6 +4,8 @@ import EscrowJson from '@oceanprotocol/contracts/artifacts/contracts/escrow/Escr
 import { EscrowAuthorization, EscrowLock } from '../../../@types/Escrow.js'
 import { getOceanArtifactsAdressesByChainId } from '../../../utils/address.js'
 import { RPCS } from '../../../@types/blockchain.js'
+import { AccessListContract } from '../../../@types/OceanNode.js'
+import { JobType } from '../../../utils/constants.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { sleep } from '../../../utils/util.js'
 import { BlockchainRegistry } from '../../BlockchainRegistry/index.js'
@@ -17,17 +19,29 @@ export class Escrow {
   private networks: RPCS
   private claimDurationTimeout: number
   private blockchainRegistry: BlockchainRegistry
+  /** Per-chain Subsidy Provider contract addresses, passed to the escrow at claim time. */
+  private subsidyProviders: AccessListContract | null
   /** Cache for token decimals to avoid repeated blockchain calls */
   private decimalsCache: Map<string, number> = new Map()
 
   constructor(
     supportedNetworks: RPCS,
     claimDurationTimeout: number,
-    blockchainRegistry: BlockchainRegistry
+    blockchainRegistry: BlockchainRegistry,
+    subsidyProviders: AccessListContract | null = null
   ) {
     this.networks = supportedNetworks
     this.claimDurationTimeout = claimDurationTimeout
     this.blockchainRegistry = blockchainRegistry
+    this.subsidyProviders = subsidyProviders
+  }
+
+  /**
+   * Subsidy Provider contract addresses configured for a given chain, or an empty list when none
+   * are set. The empty list is the "plain claim" case the escrow expects (no third-party subsidy).
+   */
+  private getSubsidyProvidersForChain(chain: number): string[] {
+    return this.subsidyProviders?.[String(chain)] ?? []
   }
 
   getEscrowContractAddressForChain(chainId: number): string | null {
@@ -236,13 +250,15 @@ export class Escrow {
     token: string,
     payer: string,
     amount: number,
-    proof: string
+    proof: string,
+    jobType: JobType = JobType.NONE
   ): Promise<string | null> {
     const blockchain = this.getBlockchain(chain)
     const signer = await blockchain.getSigner()
     const contract = this.getContract(chain, signer)
     const wei = await this.getPaymentAmountInWei(amount, chain, token)
     const jobId = create256Hash(job)
+    const subsidyProviders = this.getSubsidyProvidersForChain(chain)
     if (!contract) return null
     try {
       const locks = await this.getLocks(chain, token, payer, await signer.getAddress())
@@ -253,7 +269,9 @@ export class Escrow {
             token,
             payer,
             wei,
-            ethers.toUtf8Bytes(proof)
+            ethers.toUtf8Bytes(proof),
+            jobType,
+            subsidyProviders
           )
           const gasOptions = await blockchain.getGasOptions(gas, 1.2)
           const tx = await contract.claimLockAndWithdraw(
@@ -262,6 +280,8 @@ export class Escrow {
             payer,
             wei,
             ethers.toUtf8Bytes(proof),
+            jobType,
+            subsidyProviders,
             gasOptions
           )
           return tx.hash
@@ -321,7 +341,8 @@ export class Escrow {
     tokens: string[],
     payers: string[],
     amounts: number[],
-    proofs: string[]
+    proofs: string[],
+    jobType: JobType = JobType.NONE
   ): Promise<string | null> {
     const blockchain = this.getBlockchain(chain)
     const signer = await blockchain.getSigner()
@@ -345,13 +366,21 @@ export class Escrow {
       jobIds.push(jobId)
       ethProofs.push(ethers.toUtf8Bytes(proofs[i]))
     }
+    // Parallel arrays the plural claim ABI expects: one jobType per job (all the same here) and
+    // one subsidy-provider list per job (the batch is single-chain, so the same per-chain list is
+    // repeated for every job).
+    const chainSubsidyProviders = this.getSubsidyProvidersForChain(chain)
+    const jobTypes: JobType[] = jobs.map(() => jobType)
+    const subsidyProviders: string[][] = jobs.map(() => chainSubsidyProviders)
     try {
       const gas = await contract.claimLocksAndWithdraw.estimateGas(
         jobIds,
         tokens,
         payers,
         weis,
-        ethProofs
+        ethProofs,
+        jobTypes,
+        subsidyProviders
       )
       const gasOptions = await blockchain.getGasOptions(gas, 1.2)
       const tx = await contract.claimLocksAndWithdraw(
@@ -360,6 +389,8 @@ export class Escrow {
         payers,
         weis,
         ethProofs,
+        jobTypes,
+        subsidyProviders,
         gasOptions
       )
       return tx.hash

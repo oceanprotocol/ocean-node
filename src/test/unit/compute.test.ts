@@ -30,7 +30,7 @@ import {
   TEST_ENV_CONFIG_FILE
 } from '../utils/utils.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
-import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import { ENVIRONMENT_VARIABLES, JobType } from '../../utils/constants.js'
 import { completeDBComputeJob, dockerImageManifest } from '../data/assets.js'
 import {
   C2DEngine,
@@ -2503,6 +2503,9 @@ describe('service start/restart Docker cleanup on failure', function () {
     expect(job.status).to.equal(ServiceStatusNumber.Error)
     // Funds were already claimed before the container step, so no refund here.
     expect(engine.escrow.claimLock.calledOnce).to.equal(true)
+    // service-start settles as a SERVICE job so a Subsidy Provider can gate on the job type;
+    // jobType is the 7th positional arg to the escrow wrapper.
+    expect(engine.escrow.claimLock.firstCall.args[6]).to.equal(JobType.SERVICE)
     expect(engine.escrow.cancelExpiredLock.called).to.equal(false)
   })
 
@@ -3079,5 +3082,93 @@ describe('getDockerAdvancedConfig() PidsLimit', () => {
     expect(engine.getDockerAdvancedConfig(requests, resources(4096)).PidsLimit).to.equal(
       4096
     )
+  })
+})
+
+// Compute payment settlement must tag the claim as a COMPUTE job so a Subsidy Provider can gate
+// on the job type. This drives the private claimPayments() with a single claimable job and asserts
+// JobType.COMPUTE reaches both escrow call sites: the batch claimLocks, and — when the batch
+// throws — the per-job claimLock fallback.
+describe('claimPayments passes JobType.COMPUTE to the escrow claim call sites', function () {
+  const CHAIN = 8996
+  const TOKEN = '0xtoken'
+  const OWNER = '0xowner'
+
+  function makeClaimableJob(): any {
+    return {
+      jobId: 'compute-job-1',
+      jobIdHash: '12345', // must match the lock's jobId (BigInt compare in claimPayments)
+      owner: OWNER,
+      environment: 'env-1',
+      isFree: false,
+      status: C2DStatusNumber.JobSettle,
+      maxJobDuration: 3600,
+      // duration = stop - start (+ build); 100s > 0 → payment is due
+      algoStartTimestamp: '0',
+      algoStopTimestamp: '100',
+      resources: [{ id: 'cpu', amount: 1 }],
+      payment: { chainId: CHAIN, token: TOKEN }
+    }
+  }
+
+  // Build an engine whose every dependency claimPayments() touches is stubbed, so only the
+  // escrow claim call is exercised. `batchThrows` routes execution down the fallback path.
+  function buildEngine(batchThrows: boolean) {
+    const engine: any = Object.create(C2DEngineDocker.prototype)
+    const job = makeClaimableJob()
+    engine.envs = [{ id: 'env-1', fees: { [String(CHAIN)]: [{ feeToken: TOKEN }] } }]
+    engine.db = {
+      getJobsByStatus: sinon.stub().resolves([job]),
+      updateJob: sinon.stub().resolves()
+    }
+    engine.getKeyManager = sinon.stub().returns({ getEthAddress: () => '0xnode' })
+    engine.getComputeEnvironment = sinon.stub().resolves({
+      id: 'env-1',
+      minJobDuration: 60,
+      fees: { [String(CHAIN)]: [{ feeToken: TOKEN }] }
+    })
+    engine.getValidBuildDurationSeconds = sinon.stub().returns(0)
+    engine.getTotalCostOfJob = sinon.stub().returns(5)
+    engine.cleanUpUnknownLocks = sinon.stub().resolves()
+    // A matching, non-expired lock so the job is claimed (not cancelled / marked no-lock).
+    const notExpired = BigInt(Math.floor(Date.now() / 1000) + 100000)
+    const claimLocks = batchThrows
+      ? sinon.stub().rejects(new Error('batch failed'))
+      : sinon.stub().resolves('0xbatchtx')
+    engine.escrow = {
+      getLocks: sinon
+        .stub()
+        .resolves([{ jobId: BigInt(job.jobIdHash), expiry: notExpired }]),
+      claimLocks,
+      claimLock: sinon.stub().resolves('0xsingletx'),
+      cancelExpiredLocks: sinon.stub().resolves('0xcancel'),
+      cancelExpiredLock: sinon.stub().resolves('0xcancel')
+    }
+    return { engine, job }
+  }
+
+  afterEach(() => sinon.restore())
+
+  it('batch: claimLocks receives JobType.COMPUTE as its last positional arg', async function () {
+    const { engine } = buildEngine(false)
+    await (engine as any).claimPayments()
+
+    expect(engine.escrow.claimLocks.calledOnce).to.equal(true)
+    const { args } = engine.escrow.claimLocks.firstCall
+    // (chainId, jobIds, tokens, payers, amounts, proofs, jobType)
+    expect(args[6]).to.equal(JobType.COMPUTE)
+    expect(engine.escrow.claimLock.called).to.equal(false)
+  })
+
+  it('fallback: per-job claimLock receives JobType.COMPUTE at arg index 6 when the batch throws', async function () {
+    const { engine } = buildEngine(true)
+    await (engine as any).claimPayments()
+
+    // batch was attempted and rejected, so the per-job fallback ran
+    expect(engine.escrow.claimLocks.calledOnce).to.equal(true)
+    expect(engine.escrow.claimLock.calledOnce).to.equal(true)
+    const { args } = engine.escrow.claimLock.firstCall
+    // (chainId, jobId, token, payer, cost, proof, jobType)
+    expect(args[6]).to.equal(JobType.COMPUTE)
   })
 })

@@ -35,4 +35,8 @@ export interface EscrowEvent {
   oldAmount?: string
   newAmount?: string
   newExpiry?: string
+  // Subsidized event fields
+  provider?: string
+  subsidyAmount?: string
+  bonusAmount?: string
 }

@@ -99,6 +99,37 @@ export const AccessListContractSchema = z.preprocess(
   z.record(z.string(), z.array(z.string())).nullable()
 )
 
+// Per-chain map of Subsidy Provider contract addresses `{ "<chainId>": ["0x.."] }`, passed to
+// the escrow at claim time. Same shape as AccessListContract, but the addresses are normalized
+// to their EIP-55 checksummed form via ethers `getAddress`. Anything malformed (bad JSON, not a
+// per-chain object, or an invalid address) collapses to `null` rather than throwing, so a typo
+// in this optional knob can never keep the node from booting.
+export const SubsidyProvidersSchema = z.preprocess(
+  (val) => {
+    if (val === null || val === undefined) return null
+    if (typeof val === 'string') {
+      try {
+        val = JSON.parse(val)
+      } catch {
+        return null
+      }
+    }
+    if (typeof val !== 'object' || Array.isArray(val)) return null
+    try {
+      const checksummed: Record<string, string[]> = {}
+      for (const [chainId, addresses] of Object.entries(val as Record<string, unknown>)) {
+        if (!Array.isArray(addresses)) return null
+        checksummed[chainId] = addresses.map((addr) => getAddress(addr as string))
+      }
+      return checksummed
+    } catch (error) {
+      CONFIG_LOGGER.error(`Invalid address in SUBSIDY_PROVIDERS: ${error.message}`)
+      return null
+    }
+  },
+  z.record(z.string(), z.array(z.string())).nullable()
+)
+
 export const OceanNodeConfigKeysSchema = z.object({
   privateKey: z.any().optional().nullable(),
   type: z.string().optional().default('raw')
@@ -1139,6 +1170,7 @@ export const OceanNodeConfigSchema = z
       }),
     allowedAdmins: addressArrayFromString.optional(),
     allowedAdminsList: jsonFromString(AccessListContractSchema).optional(),
+    subsidyProviders: SubsidyProvidersSchema.optional().default(null),
 
     codeHash: z.string().optional(),
     maxConnections: z.coerce.number().optional(),

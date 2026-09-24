@@ -75,7 +75,7 @@
     "@libp2p/utils": "^7.4.1",
     "@libp2p/websockets": "^10.1.21",
     "@multiformats/multiaddr": "^13.0.3",
-    "@oceanprotocol/contracts": "^2.9.0",
+    "@oceanprotocol/contracts": "^3.0.0",
     "@oceanprotocol/ddo-js": "^0.4.1",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/exporter-metrics-otlp-http": "^0.221.0",

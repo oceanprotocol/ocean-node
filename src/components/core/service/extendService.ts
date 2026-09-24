@@ -9,6 +9,7 @@ import {
   buildInvalidRequestMessage
 } from '../../httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { JobType } from '../../../utils/constants.js'
 import type { ComputeEnvironment } from '../../../@types/C2D/C2D.js'
 import { ServiceStatusNumber } from '../../../@types/C2D/ServiceOnDemand.js'
 import { validateAccess } from '../compute/startCompute.js'
@@ -330,7 +331,8 @@ export class ServiceExtendHandler extends CommandHandler {
               task.payment.token,
               task.consumerAddress,
               costExtend,
-              `service-extend:${task.serviceId}`
+              `service-extend:${task.serviceId}`,
+              JobType.SERVICE
             )
           } catch (e: any) {
             claimTx = null

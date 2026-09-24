@@ -100,6 +100,16 @@ export class EscrowEventProcessor extends BaseEventProcessor {
           record.token = addr(args.token)
           record.amount = num(args.amount)
           break
+        case EVENTS.ESCROW_SUBSIDIZED:
+          // Subsidized(payee, payer, jobId, token, provider, subsidyAmount, bonusAmount)
+          record.payee = addr(args.payee)
+          record.payer = addr(args.payer)
+          record.jobId = num(args.jobId)
+          record.token = addr(args.token)
+          record.provider = addr(args.provider)
+          record.subsidyAmount = num(args.subsidyAmount)
+          record.bonusAmount = num(args.bonusAmount)
+          break
         default:
           return null
       }

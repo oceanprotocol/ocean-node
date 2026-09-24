@@ -56,6 +56,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 ## Payments
 
 - `ESCROW_CLAIM_TIMEOUT`: Amount of time reserved to claim a escrow payment, in seconds. Defaults to `3600`. Example: `3600`
+- `SUBSIDY_PROVIDERS`: Per-chain map (keyed by chainId) of Subsidy Provider contract addresses the node passes to the escrow at claim time, so a third party can sponsor part of a payer's cost and/or pay the node a bonus. Each chain's value is a list, so several providers can be named per chain. The addresses are normalized to their EIP-55 checksummed form; a malformed value (bad JSON, not a per-chain object, or an invalid address) is ignored (the whole map is treated as unset) rather than blocking startup. Defaults to unset (no subsidies; plain claims). Example — use the OPF Subsidy Provider on Base (chainId `8453`): `"{ \"8453\": [\"0x4344D4Bc29531DB736378e9A3dA85BF1eff0CB22\"] }"`. Multiple chains/providers: `"{ \"8453\": [\"0x4344D4Bc29531DB736378e9A3dA85BF1eff0CB22\"], \"8996\": [\"0x123\",\"0x456\"] }"`
 
 ## Logs
 

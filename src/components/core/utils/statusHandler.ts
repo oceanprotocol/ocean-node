@@ -147,6 +147,9 @@ export async function status(
         parseInt(chain)
       )
     }
+    // Per-chain Subsidy Provider contract addresses configured on this node (empty map when
+    // none are set). Surfaced in both normal and detailed status via this shared block.
+    nodeStatus.subsidyProviders = config.subsidyProviders ?? {}
   }
   // Whether the P2P interface is usable, not just enabled. Re-read on every request rather
   // than cached with the block above: the routing table fills after startup, so a value

@@ -17,6 +17,7 @@ import {
 import {
   ENVIRONMENT_VARIABLES,
   EVENTS,
+  JobType,
   PROTOCOL_COMMANDS
 } from '../../utils/constants.js'
 import {
@@ -255,6 +256,85 @@ describe('Indexer stores Escrow contract events', () => {
     expect(event.token).to.equal(paymentToken.toLowerCase())
     // expiry is emitted as an absolute timestamp; just assert it is populated
     assert(event.newExpiry, 'newExpiry should be populated')
+  })
+
+  // Subsidy Providers claim-with-subsidy flow. This is gated on the republished
+  // @oceanprotocol/contracts (the new claim ABI carrying jobType + subsidyProviders) AND a
+  // Barge deployment that ships a MockSubsidyProvider address in the artifacts file. Until both
+  // are present the test self-skips, so it stays green against the current escrow while
+  // documenting the intended end-to-end assertion. Once the contracts are bumped, drop the
+  // guards below and fund/register the MockSubsidyProvider in `before()`.
+  it('indexes a Subsidized event on a claim carrying a subsidy provider', async function () {
+    if (!escrowAddress || !paymentToken) this.skip()
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+
+    // Guard 1: the installed escrow ABI must be the new one (claimLock takes jobType +
+    // subsidyProviders, i.e. 7 inputs). The pre-subsidy ABI has 6.
+    let claimFragment: any
+    try {
+      claimFragment = escrowContract.interface.getFunction('claimLock')
+    } catch {
+      claimFragment = null
+    }
+    if (!claimFragment || claimFragment.inputs.length < 7) {
+      this.skip()
+    }
+
+    // Guard 2: Barge must ship a deployed MockSubsidyProvider we can name as a provider.
+    let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
+    if (!artifactsAddresses) {
+      artifactsAddresses = getOceanArtifactsAdresses().development
+    }
+    const subsidyProvider =
+      artifactsAddresses?.MockSubsidyProvider ?? artifactsAddresses?.SubsidyProvider
+    if (!subsidyProvider) {
+      this.skip()
+    }
+
+    // Payee (publisher) claims the lock created for `jobId` earlier, naming the subsidy
+    // provider and a COMPUTE jobType. A contributing provider makes the escrow emit Subsidized.
+    const tx = await escrowContract
+      .connect(publisherAccount)
+      .claimLock(
+        jobId,
+        paymentToken,
+        payerAddress,
+        lockAmount,
+        ethers.toUtf8Bytes('subsidy-proof'),
+        JobType.COMPUTE,
+        [subsidyProvider]
+      )
+    const receipt = await tx.wait()
+    const claimTxHash = receipt.hash
+
+    const events = await waitForEscrowEvents({
+      txHash: claimTxHash,
+      eventType: EVENTS.ESCROW_SUBSIDIZED
+    })
+    assert(events && events.length > 0, 'Subsidized event should be indexed')
+    const event = events[0]
+    expect(event.payee).to.equal(payeeAddress.toLowerCase())
+    expect(event.payer).to.equal(payerAddress.toLowerCase())
+    expect(event.jobId).to.equal(jobId.toString())
+    expect(event.token).to.equal(paymentToken.toLowerCase())
+    expect(event.provider).to.equal(subsidyProvider.toLowerCase())
+    assert(event.subsidyAmount !== undefined, 'subsidyAmount should be populated')
+    assert(event.bonusAmount !== undefined, 'bonusAmount should be populated')
+
+    // And it is queryable through the getEscrowEvents command.
+    const response = await new EscrowEventsHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.GET_ESCROW_EVENTS,
+      chainId,
+      eventType: EVENTS.ESCROW_SUBSIDIZED,
+      payer: payerAddress,
+      caller: '127.0.0.1'
+    })
+    expect(response.status.httpStatus).to.equal(200)
+    const result = JSON.parse(await streamToString(response.stream as Readable))
+    assert(
+      result.some((e: any) => e.txHash === claimTxHash),
+      'query should return the indexed Subsidized event'
+    )
   })
 
   it('returns indexed events through the EscrowEventsHandler (query command)', async function () {

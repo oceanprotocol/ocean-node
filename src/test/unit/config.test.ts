@@ -1,4 +1,5 @@
 import { expect } from 'chai'
+import { getAddress } from 'ethers'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { getConfiguration, loadConfigFromFile } from '../../utils/config.js'
 import {
@@ -8,7 +9,7 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
-import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import { ENVIRONMENT_VARIABLES, JobType } from '../../utils/constants.js'
 import {
   DEFAULT_DB_INIT_MAX_ATTEMPTS,
   DEFAULT_DB_INIT_MAX_RETRY_DELAY,
@@ -209,5 +210,94 @@ describe('Should validate P2P config from environment variables', () => {
     delete process.env[ENVIRONMENT_VARIABLES.P2P_ipV6BindAddress.name]
     delete process.env[ENVIRONMENT_VARIABLES.P2P_MIN_CONNECTIONS.name]
     delete process.env[ENVIRONMENT_VARIABLES.P2P_MAX_CONNECTIONS.name]
+  })
+})
+
+describe('JobType enum', () => {
+  // The numeric values are part of the on-chain claim ABI, so a silent renumbering here would
+  // change which subsidy path a job resolves to on-chain. Pin them.
+  it('has stable numeric values NONE=0, COMPUTE=1, SERVICE=2', () => {
+    expect(JobType.NONE).to.be.equal(0)
+    expect(JobType.COMPUTE).to.be.equal(1)
+    expect(JobType.SERVICE).to.be.equal(2)
+  })
+})
+
+describe('Should validate SUBSIDY_PROVIDERS configuration', () => {
+  const DB_ENV_VARS = [ENVIRONMENT_VARIABLES.DB_TYPE, ENVIRONMENT_VARIABLES.DB_URL]
+  const DB_ENV_VALUES = ['typesense', 'http://localhost:8108/?apiKey=xyz']
+
+  // Mixed/lower-case inputs — the schema must normalize these to EIP-55 checksummed form.
+  const ADDR_A_LOWER = '0x1c7d4b196cb0c7b01d743fbc6116a902379c7238'
+  const ADDR_B_LOWER = '0x0000000000000000000000000000000000000abc'
+
+  // Build a config with a given SUBSIDY_PROVIDERS value (or without the var when undefined),
+  // returning the parsed config or the thrown error.
+  async function configWith(
+    subsidyProviders?: string
+  ): Promise<{ config?: OceanNodeConfig; error?: Error }> {
+    const envVars = [...DB_ENV_VARS]
+    const envValues = [...DB_ENV_VALUES]
+    if (subsidyProviders !== undefined) {
+      envVars.push(ENVIRONMENT_VARIABLES.SUBSIDY_PROVIDERS)
+      envValues.push(subsidyProviders)
+    }
+    const overrides = buildEnvOverrideConfig(envVars, envValues)
+    try {
+      await setupEnvironment(TEST_ENV_CONFIG_PATH, overrides)
+      return { config: await getConfiguration(true) }
+    } catch (error) {
+      return { error }
+    } finally {
+      await tearDownEnvironment(overrides)
+    }
+  }
+
+  it('parses a valid per-chain map into a checksummed list', async () => {
+    const { config: conf, error } = await configWith(
+      JSON.stringify({ '8996': [ADDR_A_LOWER, ADDR_B_LOWER] })
+    )
+    expect(error).to.be.equal(undefined)
+    expect(conf.subsidyProviders).to.not.be.equal(null)
+    expect(conf.subsidyProviders['8996']).to.deep.equal([
+      getAddress(ADDR_A_LOWER),
+      getAddress(ADDR_B_LOWER)
+    ])
+    // normalized, not the raw lower-case input
+    expect(conf.subsidyProviders['8996'][0]).to.not.be.equal(ADDR_A_LOWER)
+  })
+
+  it('defaults to null when unset', async () => {
+    const { config: conf, error } = await configWith()
+    expect(error).to.be.equal(undefined)
+    expect(conf.subsidyProviders).to.be.equal(null)
+  })
+
+  it('collapses an invalid address to null rather than throwing', async () => {
+    const { config: conf, error } = await configWith(
+      JSON.stringify({ '8996': ['0xnot-an-address'] })
+    )
+    expect(error).to.be.equal(undefined)
+    expect(conf.subsidyProviders).to.be.equal(null)
+  })
+
+  it('collapses malformed JSON to null rather than throwing', async () => {
+    const { config: conf, error } = await configWith('{ this is not json ]')
+    expect(error).to.be.equal(undefined)
+    expect(conf.subsidyProviders).to.be.equal(null)
+  })
+
+  it('applies the env var value (env overrides config.json)', async () => {
+    const { config: conf, error } = await configWith(
+      JSON.stringify({ '137': [ADDR_A_LOWER] })
+    )
+    expect(error).to.be.equal(undefined)
+    expect(conf.subsidyProviders['137']).to.deep.equal([getAddress(ADDR_A_LOWER)])
+  })
+
+  after(() => {
+    delete process.env.CONFIG_PATH
+    delete process.env.PRIVATE_KEY
+    delete process.env[ENVIRONMENT_VARIABLES.SUBSIDY_PROVIDERS.name]
   })
 })
