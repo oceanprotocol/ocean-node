@@ -148,6 +148,10 @@ export async function status(
       )
     }
   }
+  // Per-chain Subsidy Provider contract addresses configured on this node (empty map when none
+  // are set). Set on every request, independent of supportedNetworks, so the field is always
+  // present and never retains a stale value the config no longer defines.
+  nodeStatus.subsidyProviders = config.subsidyProviders ?? {}
   // Whether the P2P interface is usable, not just enabled. Re-read on every request rather
   // than cached with the block above: the routing table fills after startup, so a value
   // captured once would report a node as permanently not-ready.

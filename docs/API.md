@@ -872,6 +872,12 @@ returns status of node
       "arwave": true
       "url": true
     },
+    "escrowAddress": {
+      "8996": "0x123"
+    },
+    "subsidyProviders": {
+      "8996": ["0x123", "0x456"]
+    },
     "uptime": 123,
     "platform": {
       "cpus": "123",
@@ -888,6 +894,11 @@ returns status of node
     }
   }
 ```
+
+`escrowAddress` and `subsidyProviders` are per-chain maps (keyed by chainId). `subsidyProviders`
+reflects the node's `SUBSIDY_PROVIDERS` configuration — the Subsidy Provider contract addresses the
+node passes to the escrow at claim time; it is `{}` when none are configured. Both are present in
+the normal and detailed status.
 
 ---
 
@@ -1423,7 +1434,7 @@ Returns indexed Escrow contract events. The indexer matches Escrow logs by topic
 | --------- | ------ | --------- | --------------------------------------------------------- |
 | command   | string | POST only | command name (`getEscrowEvents`)                          |
 | chainId   | number |           | chain id                                                  |
-| eventType | string |           | one of `Auth, Lock, Claimed, Canceled, Deposit, Withdraw` |
+| eventType | string |           | one of `Auth, Lock, ReLock, Claimed, Canceled, Deposit, Withdraw, Subsidized` |
 | payer     | string |           | payer address (case-insensitive)                          |
 | payee     | string |           | payee address (case-insensitive)                          |
 | token     | string |           | token address (case-insensitive)                          |
@@ -1446,7 +1457,7 @@ Returns indexed Escrow contract events. The indexer matches Escrow logs by topic
 
 #### Response
 
-Every row has `id, eventType, chainId, contract, block, txHash` plus event-specific fields (`payer, payee, token, jobId, amount, expiry, proof, maxLockedAmount, maxLockSeconds, maxLockCounts`).
+Every row has `id, eventType, chainId, contract, block, txHash` plus event-specific fields (`payer, payee, token, jobId, amount, expiry, proof, maxLockedAmount, maxLockSeconds, maxLockCounts`). A `Subsidized` row (emitted once per contributing Subsidy Provider at claim time) additionally carries `provider, subsidyAmount, bonusAmount`.
 
 ```json
 [
