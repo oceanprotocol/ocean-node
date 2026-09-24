@@ -118,6 +118,10 @@ export const SubsidyProvidersSchema = z.preprocess(
     try {
       const checksummed: Record<string, string[]> = {}
       for (const [chainId, addresses] of Object.entries(val as Record<string, unknown>)) {
+        // Keys must be canonical decimal chain ids (matching `String(chainId)` used by
+        // Escrow.getSubsidyProvidersForChain); reject hex/whitespace/leading-zero/non-numeric
+        // keys that would otherwise be stored but never matched at claim time.
+        if (!/^[1-9]\d*$/.test(chainId)) return null
         if (!Array.isArray(addresses)) return null
         checksummed[chainId] = addresses.map((addr) => getAddress(addr as string))
       }

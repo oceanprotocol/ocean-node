@@ -335,6 +335,10 @@ describe('Indexer stores Escrow contract events', () => {
       result.some((e: any) => e.txHash === claimTxHash),
       'query should return the indexed Subsidized event'
     )
+    const queried = result.find((e: any) => e.txHash === claimTxHash)
+    expect(queried.provider).to.equal(subsidyProvider.toLowerCase())
+    expect(queried.subsidyAmount).to.equal(event.subsidyAmount)
+    expect(queried.bonusAmount).to.equal(event.bonusAmount)
   })
 
   it('returns indexed events through the EscrowEventsHandler (query command)', async function () {

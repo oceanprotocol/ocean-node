@@ -287,6 +287,14 @@ describe('Should validate SUBSIDY_PROVIDERS configuration', () => {
     expect(conf.subsidyProviders).to.be.equal(null)
   })
 
+  it('collapses a non-canonical chain-id key to null rather than storing it', async () => {
+    const { config: conf, error } = await configWith(
+      JSON.stringify({ '0x2105': [ADDR_A_LOWER] })
+    )
+    expect(error).to.be.equal(undefined)
+    expect(conf.subsidyProviders).to.be.equal(null)
+  })
+
   it('applies the env var value (env overrides config.json)', async () => {
     const { config: conf, error } = await configWith(
       JSON.stringify({ '137': [ADDR_A_LOWER] })
