@@ -35,6 +35,8 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `VALIDATE_UNSIGNED_DDO`: If set to `false`, the node will not validate unsigned DDOs and will request a signed message with the publisher address, nonce and signature. Default is `true`. Example: `false`
 - `JWT_SECRET`: Secret used to sign JWT tokens. Default is `ocean-node-secret`. Example: `"my-secret-jwt-token"`
 - `PERSISTENT_STORAGE`: Persistent storage config. See [persistent storage](persistentStorage.md).
+- `SERVICE_BUCKET_QUOTA_BYTES`: Quota, in bytes, of the output bucket `serviceStart` creates when the request has no `outputBucketId`. The quota is stored on the bucket when it is created, so a change only applies to new buckets. Must be an integer `>= 1`. Default is `5368709120` (5 GB). Example: `10737418240`
+- `SERVICE_BUCKET_RETENTION_SECONDS`: How long, in seconds, such a bucket is kept after its service's paid window ends. It is applied when the bucket is created and again whenever `serviceExtend` or another service start pushes the date out. Must be an integer `>= 0`. Default is `604800` (1 week). Example: `259200`
 
 ## Database
 

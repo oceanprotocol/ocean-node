@@ -27,6 +27,11 @@ export async function scheduleCronJobs(node: OceanNode) {
     OCEAN_NODE_LOGGER.error(`Error when deleting expired c2d jobs: ${e.message}`)
   }
   try {
+    scheduleDeleteExpiredBucketsJob(node)
+  } catch (e) {
+    OCEAN_NODE_LOGGER.error(`Error when deleting expired buckets: ${e.message}`)
+  }
+  try {
     scheduleNodeMetricsJobs(node, await node.getDatabase())
   } catch (e) {
     OCEAN_NODE_LOGGER.error(`Error when scheduling node metrics jobs: ${e.message}`)
@@ -88,6 +93,21 @@ function scheduleDeleteLogsJob(dbconn: Database | null) {
       'Logs CronJob: Database connection not established or logs instance not available (skipped).'
     )
   }
+}
+
+// Service output buckets expire SERVICE_BUCKET_RETENTION_SECONDS (a week by default) after
+// their service's paid window. Hourly is plenty at that granularity.
+function scheduleDeleteExpiredBucketsJob(node: OceanNode) {
+  const storage = node.getPersistentStorage()
+  if (!storage) return
+  scheduleCron('0 * * * *', async () => {
+    try {
+      const deleted = await storage.deleteExpiredBuckets()
+      if (deleted > 0) OCEAN_NODE_LOGGER.info(`${deleted} expired buckets deleted.`)
+    } catch (err) {
+      OCEAN_NODE_LOGGER.error(`Error deleting expired buckets: ${err.message}`)
+    }
+  })
 }
 
 function scheduleCleanExpiredC2DJobs(dbconn: Database | null) {

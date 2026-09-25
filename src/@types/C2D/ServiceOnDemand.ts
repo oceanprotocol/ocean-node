@@ -182,6 +182,12 @@ export const SERVICE_START_PENDING_STATUSES: readonly ServiceStatusNumber[] = [
   ServiceStatusNumber.Restarting
 ]
 
+export interface ServiceOutputBucketUsage {
+  quotaBytes: number
+  usedBytes: number
+  full: boolean // usedBytes >= quotaBytes
+}
+
 export interface ServiceJob {
   serviceId: string // unique id for a running service — distinct from a compute jobId
   clusterHash: string

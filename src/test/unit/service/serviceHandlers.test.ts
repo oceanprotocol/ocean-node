@@ -66,6 +66,8 @@ interface FakeOpts {
   cost?: number | null
   envId?: string
   streamableLogs?: Readable | null
+  // node persistent storage backend; omitted → persistent storage not configured
+  persistentStorageType?: 'localfs' | 's3'
 }
 
 function buildFakes(opts: FakeOpts = {}) {
@@ -189,14 +191,20 @@ function buildFakes(opts: FakeOpts = {}) {
   // Valid by default; override validateBucket/assertConsumerAllowedForBucket to fail it.
   const persistentStorage: any = {
     validateBucket: sinon.stub(),
-    assertConsumerAllowedForBucket: sinon.stub().resolves(undefined)
+    assertConsumerAllowedForBucket: sinon.stub().resolves(undefined),
+    getBucketQuotaUsage: sinon.stub().resolves(null),
+    extendBucketRetention: sinon.stub().resolves(undefined),
+    getOrCreateServiceBucket: sinon.stub().resolves({ bucketId: 'auto-bucket' })
   }
 
   const node: any = {
     getRequestMap: () => new Map(),
     getConfig: (): any => ({
       rateLimit: undefined as number | undefined,
-      serviceTemplatesPath: undefined as string | undefined
+      serviceTemplatesPath: undefined as string | undefined,
+      persistentStorage: opts.persistentStorageType
+        ? { enabled: true, type: opts.persistentStorageType }
+        : undefined
     }),
     getC2DEngines: () => engines,
     getKeyManager: () => ({
@@ -292,6 +300,48 @@ describe('Service handlers', () => {
       expect(jobs).to.have.length(1)
       expect(jobs[0]).to.not.have.property('userData')
       expect(jobs[0].serviceId).to.equal('svc-1')
+    })
+
+    const statusTask = {
+      command: PROTOCOL_COMMANDS.SERVICE_GET_STATUS,
+      consumerAddress: OWNER,
+      nonce: '1',
+      signature: '0xsig',
+      serviceId: 'svc-1'
+    }
+
+    it('reports the output bucket fill level, flagging a full bucket', async () => {
+      const { node, persistentStorage } = buildFakes({
+        serviceJobInDb: makeJob({ outputBucketId: 'bucket-42' })
+      })
+      persistentStorage.getBucketQuotaUsage.resolves({ quotaBytes: 100, usedBytes: 100 })
+      const [job] = await body(
+        await new ServiceGetStatusHandler(node).handle({ ...statusTask } as any)
+      )
+      expect(job.outputBucketUsage).to.deep.equal({
+        quotaBytes: 100,
+        usedBytes: 100,
+        full: true
+      })
+      const [bucketId, maxAgeMs] = persistentStorage.getBucketQuotaUsage.firstCall.args
+      expect(bucketId).to.equal('bucket-42')
+      expect(maxAgeMs).to.be.greaterThan(0)
+    })
+
+    it('omits the fill level when the bucket has no quota or cannot be sized', async () => {
+      for (const usage of [null, new Error('EACCES')]) {
+        const { node, persistentStorage } = buildFakes({
+          serviceJobInDb: makeJob({ outputBucketId: 'bucket-42' })
+        })
+        if (usage instanceof Error) persistentStorage.getBucketQuotaUsage.rejects(usage)
+        else persistentStorage.getBucketQuotaUsage.resolves(usage)
+        const res = await new ServiceGetStatusHandler(node).handle({
+          ...statusTask
+        } as any)
+        expect(res.status.httpStatus).to.equal(200)
+        const [job] = await body(res)
+        expect(job).to.not.have.property('outputBucketUsage')
+      }
     })
   })
 
@@ -709,6 +759,26 @@ describe('Service handlers', () => {
       expect(out[0].extendPayments).to.have.length(1)
       expect(out[0].extendPayments[0].claimTx).to.equal('0xclaim')
       expect(out[0]).to.not.have.property('userData')
+    })
+
+    it('extends the output bucket retention to the new expiresAt', async () => {
+      const job = makeJob({ outputBucketId: 'bucket-42' })
+      const { node, persistentStorage } = buildFakes({ serviceJobInDb: job })
+      const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      const out = await body(res)
+      expect(persistentStorage.extendBucketRetention.firstCall.args).to.deep.equal([
+        'bucket-42',
+        out[0].expiresAt
+      ])
+    })
+
+    it('still extends the service when the bucket retention update fails', async () => {
+      const job = makeJob({ outputBucketId: 'bucket-42' })
+      const { node, persistentStorage } = buildFakes({ serviceJobInDb: job })
+      persistentStorage.extendBucketRetention.rejects(new Error('disk gone'))
+      const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(200)
     })
 
     it('auto-refunds an unresolved extension intent from a previous crash, then proceeds', async () => {
@@ -1144,6 +1214,64 @@ describe('Service handlers', () => {
       } as any)
       expect(res.status.httpStatus).to.equal(200)
       expect(engine.createServiceJob.lastCall.args.at(-1)).to.equal('bucket-42')
+    })
+
+    it('extends the retention of a supplied bucket and does not create one', async () => {
+      const { node, persistentStorage } = buildFakes({ persistentStorageType: 'localfs' })
+      await new ServiceStartHandler(node).handle({
+        ...baseTask,
+        outputBucketId: 'bucket-42'
+      } as any)
+      expect(persistentStorage.extendBucketRetention.firstCall.args[0]).to.equal(
+        'bucket-42'
+      )
+      expect(persistentStorage.getOrCreateServiceBucket.called).to.equal(false)
+    })
+
+    it('starts into a supplied bucket even when it is full (the quota is soft)', async () => {
+      const { node, engine, persistentStorage } = buildFakes()
+      persistentStorage.getBucketQuotaUsage.resolves({ quotaBytes: 100, usedBytes: 500 })
+      const res = await new ServiceStartHandler(node).handle({
+        ...baseTask,
+        outputBucketId: 'bucket-42'
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      expect(engine.createServiceJob.lastCall.args.at(-1)).to.equal('bucket-42')
+    })
+
+    it('creates a default bucket for the service on localfs and returns its id', async () => {
+      const { node, engine, persistentStorage } = buildFakes({
+        persistentStorageType: 'localfs'
+      })
+      const res = await new ServiceStartHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      const [owner, serviceId, expiresAt] =
+        persistentStorage.getOrCreateServiceBucket.firstCall.args
+      expect(owner).to.equal(OWNER)
+      // keyed by the same serviceId the job is created with
+      expect(serviceId).to.equal(engine.createServiceJob.firstCall.args[13])
+      expect(expiresAt).to.be.closeTo(Date.now() + baseTask.duration * 1000, 5000)
+      expect(engine.createServiceJob.firstCall.args.at(-1)).to.equal('auto-bucket')
+    })
+
+    it('runs without a bucket when persistent storage is not localfs', async () => {
+      for (const persistentStorageType of [undefined, 's3'] as const) {
+        const { node, engine, persistentStorage } = buildFakes({ persistentStorageType })
+        const res = await new ServiceStartHandler(node).handle({ ...baseTask } as any)
+        expect(res.status.httpStatus).to.equal(200)
+        expect(persistentStorage.getOrCreateServiceBucket.called).to.equal(false)
+        expect(engine.createServiceJob.firstCall.args.at(-1)).to.equal(undefined)
+      }
+    })
+
+    it('does not create a bucket for a start that is refused', async () => {
+      const { node, engine, persistentStorage } = buildFakes({
+        persistentStorageType: 'localfs'
+      })
+      engine.escrow.getUserAvailableFunds.resolves(0n)
+      const res = await new ServiceStartHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(400)
+      expect(persistentStorage.getOrCreateServiceBucket.called).to.equal(false)
     })
 
     it('forwards user metadata to createServiceJob (before outputBucketId)', async () => {

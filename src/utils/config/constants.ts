@@ -115,7 +115,11 @@ export const ENV_TO_CONFIG_MAPPING = {
   HTTP_CERT_PATH: 'httpCertPath',
   HTTP_KEY_PATH: 'httpKeyPath',
   ENABLE_BENCHMARK: 'enableBenchmark',
-  PERSISTENT_STORAGE: 'persistentStorage'
+  PERSISTENT_STORAGE: 'persistentStorage',
+  // Flat rather than under persistentStorage.*: that key is replaced wholesale when the
+  // PERSISTENT_STORAGE env var carries its JSON.
+  SERVICE_BUCKET_QUOTA_BYTES: 'serviceBucketQuotaBytes',
+  SERVICE_BUCKET_RETENTION_SECONDS: 'serviceBucketRetentionSeconds'
 } as const
 
 // Configuration defaults
@@ -125,6 +129,9 @@ export const DEFAULT_RATE_LIMIT_PER_MINUTE = 30
 export const DEFAULT_DB_INIT_MAX_ATTEMPTS = 10
 export const DEFAULT_DB_INIT_RETRY_DELAY = 2000
 export const DEFAULT_DB_INIT_MAX_RETRY_DELAY = 30000
+// Default output bucket SERVICE_START creates when the request carries no outputBucketId.
+export const DEFAULT_SERVICE_BUCKET_QUOTA_BYTES = 5 * 1024 * 1024 * 1024 // 5 GB
+export const DEFAULT_SERVICE_BUCKET_RETENTION_SECONDS = 7 * 24 * 60 * 60 // 1 week
 export const DEFAULT_MAX_CONNECTIONS_PER_MINUTE = 60 * 2 // 120 requests per minute
 export const SEPOLIA_CHAIN_ID = '11155111'
 export const BASE_CHAIN_ID = '8453'

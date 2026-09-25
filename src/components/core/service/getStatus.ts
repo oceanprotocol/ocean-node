@@ -6,8 +6,38 @@ import {
   ValidateParams,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
-import type { ServiceJob } from '../../../@types/C2D/ServiceOnDemand.js'
+import type {
+  ServiceJob,
+  ServiceOutputBucketUsage
+} from '../../../@types/C2D/ServiceOnDemand.js'
+import type { PersistentStorageFactory } from '../../persistentStorage/PersistentStorageFactory.js'
+import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { toPublicServiceJob } from './utils.js'
+
+// Sizing a bucket walks its folder, and clients poll status every few seconds, so a
+// reading may be this old. Uploads and deletes through the storage API refresh it.
+const BUCKET_USAGE_MAX_AGE_MS = 30_000
+
+// Best-effort: a bucket that is gone or can't be sized just leaves the field off.
+async function getOutputBucketUsage(
+  storage: PersistentStorageFactory | null,
+  job: ServiceJob
+): Promise<ServiceOutputBucketUsage | undefined> {
+  if (!storage || !job.outputBucketId) return undefined
+  try {
+    const usage = await storage.getBucketQuotaUsage(
+      job.outputBucketId,
+      BUCKET_USAGE_MAX_AGE_MS
+    )
+    if (!usage) return undefined
+    return { ...usage, full: usage.usedBytes >= usage.quotaBytes }
+  } catch (e: any) {
+    CORE_LOGGER.debug(
+      `Service ${job.serviceId}: could not size bucket ${job.outputBucketId}: ${e.message}`
+    )
+    return undefined
+  }
+}
 
 export class ServiceGetStatusHandler extends CommandHandler {
   validate(command: ServiceGetStatusCommand): ValidateParams {
@@ -47,14 +77,18 @@ export class ServiceGetStatusHandler extends CommandHandler {
 
     // Ownership is already proven above (this command is always authenticated), so runtime
     // metrics are included BY DEFAULT here — only an explicit includeMetrics=false opts out.
+    const storage = this.getOceanNode().getPersistentStorage()
+    const out = await Promise.all(
+      jobs.map(async (job) => {
+        const pub = toPublicServiceJob(job, {
+          includeMetrics: task.includeMetrics !== false
+        })
+        const outputBucketUsage = await getOutputBucketUsage(storage, job)
+        return outputBucketUsage ? { ...pub, outputBucketUsage } : pub
+      })
+    )
     return {
-      stream: Readable.from(
-        JSON.stringify(
-          jobs.map((job) =>
-            toPublicServiceJob(job, { includeMetrics: task.includeMetrics !== false })
-          )
-        )
-      ),
+      stream: Readable.from(JSON.stringify(out)),
       status: { httpStatus: 200 }
     }
   }
