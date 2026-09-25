@@ -6,6 +6,7 @@ import type { C2DDatabase } from '../../database/C2DDatabase.js'
 import type { C2DEngine } from '../../c2d/compute_engine_base.js'
 import type { C2DEngines } from '../../c2d/compute_engines.js'
 import { sanitizePublicMetrics } from '../../c2d/index.js'
+import type { OceanNode } from '../../../OceanNode.js'
 
 // Looks up a service job and resolves the engine that OWNS it (by clusterHash). Every
 // engine shares the same C2DDatabase, so any engine's db returns the job — taking the
@@ -24,6 +25,32 @@ export async function findServiceJobAndEngine(
   if (!job) return { job: null, engine: null }
   const engine = all.find((e) => e.getC2DConfig().hash === job.clusterHash) ?? null
   return { job, engine }
+}
+
+// Picks the bucket a new service writes its results (/data/outputs) to. A bucket the
+// consumer named is kept, with its retention (if it expires at all) pushed out to cover
+// this service. Without one, the node creates a default bucket for the service — only on
+// localfs, the one backend that works today; otherwise the service runs without a bucket,
+// exactly as before.
+export async function resolveServiceOutputBucket(
+  node: OceanNode,
+  owner: string,
+  serviceId: string,
+  serviceExpiresAtMs: number,
+  requestedBucketId?: string
+): Promise<string | undefined> {
+  const storage = node.getPersistentStorage()
+  if (requestedBucketId) {
+    await storage.extendBucketRetention(requestedBucketId, serviceExpiresAtMs)
+    return requestedBucketId
+  }
+  if (!storage || node.getConfig().persistentStorage?.type !== 'localfs') return undefined
+  const bucket = await storage.getOrCreateServiceBucket(
+    owner,
+    serviceId,
+    serviceExpiresAtMs
+  )
+  return bucket.bucketId
 }
 
 // Converts the decrypted userData object into a flat container env-var map (stringified values).

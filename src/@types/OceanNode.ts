@@ -189,6 +189,9 @@ export interface OceanNodeConfig {
   httpKeyPath?: string
   enableBenchmark?: boolean
   persistentStorage?: PersistentStorageConfig
+  // default SERVICE_START output bucket: quota (bytes) and retention past expiresAt (seconds)
+  serviceBucketQuotaBytes?: number
+  serviceBucketRetentionSeconds?: number
 }
 
 export interface P2PStatusResponse {

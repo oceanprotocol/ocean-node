@@ -1,6 +1,7 @@
 import fs from 'fs'
 import fsp from 'fs/promises'
 import path from 'path'
+import { Transform } from 'stream'
 import { pipeline } from 'stream/promises'
 import { createHash, randomUUID } from 'crypto'
 import { uniqueNamesGenerator, adjectives, animals } from 'unique-names-generator'
@@ -13,13 +14,59 @@ import type {
 } from '../../@types/PersistentStorage.js'
 
 import {
+  CreateBucketOptions,
   CreateBucketResult,
   PersistentStorageBucketRecord,
   PersistentStorageFactory,
-  PersistentStorageFileInfo
+  PersistentStorageFileInfo,
+  PersistentStorageQuotaExceededError
 } from './PersistentStorageFactory.js'
 import { OceanNode } from '../../OceanNode.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
+
+/* eslint-disable security/detect-non-literal-fs-filename -- walks a bucket folder */
+// Sums file sizes below `dir`. Symlinks are counted as links, never followed, so a
+// container can't point one outside the bucket to inflate or dodge its usage.
+async function folderSizeBytes(dir: string): Promise<number> {
+  let total = 0
+  const entries = await fsp.readdir(dir, { withFileTypes: true })
+  for (const ent of entries) {
+    const entryPath = path.join(dir, ent.name)
+    if (ent.isDirectory()) {
+      total += await folderSizeBytes(entryPath)
+    } else {
+      const st = await fsp.lstat(entryPath).catch((): null => null)
+      if (st) total += st.size
+    }
+  }
+  return total
+}
+/* eslint-enable security/detect-non-literal-fs-filename */
+
+// Passes at most `maxBytes` through, failing the stream as soon as more arrive.
+function limitBytes(
+  maxBytes: number,
+  bucketId: string,
+  usage: { quotaBytes: number; usedBytes: number }
+): Transform {
+  let seen = 0
+  return new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      seen += chunk.length
+      if (seen > maxBytes) {
+        callback(
+          new PersistentStorageQuotaExceededError(
+            bucketId,
+            usage.quotaBytes - maxBytes + seen,
+            usage.quotaBytes
+          )
+        )
+        return
+      }
+      callback(null, chunk)
+    }
+  })
+}
 
 export class PersistentStorageLocalFS extends PersistentStorageFactory {
   /* eslint-disable security/detect-non-literal-fs-filename -- localfs backend operates on filesystem paths */
@@ -98,7 +145,8 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
   async createNewBucket(
     accessList: AccessList[],
     owner: string,
-    label?: string
+    label?: string,
+    options: CreateBucketOptions = {}
   ): Promise<CreateBucketResult> {
     const bucketId = randomUUID()
     const createdAt = Math.floor(Date.now() / 1000)
@@ -114,10 +162,33 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
       owner,
       JSON.stringify(accessList ?? []),
       createdAt,
-      finalLabel
+      finalLabel,
+      options
     )
 
-    return { bucketId, owner, accessList, label: finalLabel }
+    return {
+      bucketId,
+      owner,
+      accessList,
+      label: finalLabel,
+      serviceId: options.serviceId ?? null,
+      quotaBytes: options.quotaBytes ?? null,
+      expiresAt: options.expiresAt ?? null
+    }
+  }
+
+  async deleteBucket(bucketId: string): Promise<void> {
+    await this.ensureBucketExists(bucketId)
+    // Folder first: if the rm fails the row survives, so the bucket is still known and
+    // the expiry sweep retries it instead of leaking an orphan folder.
+    await fsp.rm(this.bucketPath(bucketId), { recursive: true, force: true })
+    await super.dbDeleteBucket(bucketId)
+    this.forgetBucketUsage(bucketId)
+  }
+
+  async getBucketUsageBytes(bucketId: string): Promise<number> {
+    await this.ensureBucketExists(bucketId)
+    return await folderSizeBytes(this.bucketPath(bucketId))
   }
 
   async listFiles(
@@ -163,7 +234,39 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
     await fsp.mkdir(targetDir, { recursive: true })
     const targetPath = path.join(targetDir, fileName)
 
-    await pipeline(content, fs.createWriteStream(targetPath))
+    const usage = await this.getBucketQuotaUsage(bucketId)
+    if (!usage) {
+      await pipeline(content, fs.createWriteStream(targetPath))
+    } else {
+      // The upload replaces any file of the same name, so its current size is freed.
+      const replacedBytes = await fsp
+        .stat(targetPath)
+        .then((st) => (st.isFile() ? st.size : 0))
+        .catch((): number => 0)
+      const allowedBytes = usage.quotaBytes - usage.usedBytes + replacedBytes
+      if (allowedBytes <= 0) {
+        throw new PersistentStorageQuotaExceededError(
+          bucketId,
+          usage.usedBytes,
+          usage.quotaBytes
+        )
+      }
+      // Write to a temp name and rename on success, so a rejected upload neither leaves
+      // a partial file behind nor destroys the file it would have replaced.
+      const tmpPath = path.join(targetDir, `.upload-${randomUUID()}`)
+      try {
+        await pipeline(
+          content,
+          limitBytes(allowedBytes, bucketId, usage),
+          fs.createWriteStream(tmpPath)
+        )
+        await fsp.rename(tmpPath, targetPath)
+      } catch (e) {
+        await fsp.rm(tmpPath, { force: true })
+        throw e
+      }
+      this.forgetBucketUsage(bucketId)
+    }
 
     const st = await fsp.stat(targetPath)
     return {
@@ -185,6 +288,7 @@ export class PersistentStorageLocalFS extends PersistentStorageFactory {
 
     const targetPath = path.join(this.bucketPath(bucketId), fileName)
     await fsp.rm(targetPath)
+    this.forgetBucketUsage(bucketId)
   }
 
   async getFileObject(

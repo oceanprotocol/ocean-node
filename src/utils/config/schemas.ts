@@ -15,7 +15,9 @@ import {
   DEFAULT_FILTER_ANNOUNCED_ADDRESSES,
   DEFAULT_DB_INIT_MAX_ATTEMPTS,
   DEFAULT_DB_INIT_RETRY_DELAY,
-  DEFAULT_DB_INIT_MAX_RETRY_DELAY
+  DEFAULT_DB_INIT_MAX_RETRY_DELAY,
+  DEFAULT_SERVICE_BUCKET_QUOTA_BYTES,
+  DEFAULT_SERVICE_BUCKET_RETENTION_SECONDS
 } from './constants.js'
 import {
   P2P_TIMEOUT_DEFAULTS,
@@ -1082,6 +1084,20 @@ export const OceanNodeConfigSchema = z
         return val
       }, PersistentStorageConfigSchema)
       .optional(),
+    // A 0 quota would stop every service on its first size check, so it must be >= 1.
+    // A 0 retention is allowed: the bucket then goes when the paid window ends.
+    serviceBucketQuotaBytes: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .default(DEFAULT_SERVICE_BUCKET_QUOTA_BYTES),
+    serviceBucketRetentionSeconds: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .default(DEFAULT_SERVICE_BUCKET_RETENTION_SECONDS),
 
     FEE_AMOUNT: z.string().optional(),
     FEE_TOKENS: z.string().optional(),
