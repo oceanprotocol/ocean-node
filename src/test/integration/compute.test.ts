@@ -898,7 +898,10 @@ describe('**********         Compute', () => {
         const { jobId } = startedJobs[0]
         assert(jobId, 'no jobId returned')
 
-        const [stored] = await dbconn.c2d.getJob(jobId)
+        // The public jobId is `<clusterHash>-<internalId>` (see getComputeJobStatus). The DB keys
+        // on the internal id, so strip the cluster-hash prefix before looking it up.
+        const internalJobId = jobId.substring(jobId.indexOf('-') + 1)
+        const [stored] = await dbconn.c2d.getJob(internalJobId)
         assert(stored, 'compute job not persisted')
         expect(stored.payment.subsidyProviders).to.deep.equal([
           getAddress(SUBSIDY_WHITELISTED)
