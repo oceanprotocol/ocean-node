@@ -309,3 +309,58 @@ describe('Should validate SUBSIDY_PROVIDERS configuration', () => {
     delete process.env[ENVIRONMENT_VARIABLES.SUBSIDY_PROVIDERS.name]
   })
 })
+
+describe('Should validate SUBSIDY_PROVIDER_FILTER configuration', () => {
+  const DB_ENV_VARS = [ENVIRONMENT_VARIABLES.DB_TYPE, ENVIRONMENT_VARIABLES.DB_URL]
+  const DB_ENV_VALUES = ['typesense', 'http://localhost:8108/?apiKey=xyz']
+
+  async function configWith(
+    filter?: string
+  ): Promise<{ config?: OceanNodeConfig; error?: Error }> {
+    const envVars = [...DB_ENV_VARS]
+    const envValues = [...DB_ENV_VALUES]
+    if (filter !== undefined) {
+      envVars.push(ENVIRONMENT_VARIABLES.SUBSIDY_PROVIDER_FILTER)
+      envValues.push(filter)
+    }
+    const overrides = buildEnvOverrideConfig(envVars, envValues)
+    try {
+      await setupEnvironment(TEST_ENV_CONFIG_PATH, overrides)
+      return { config: await getConfiguration(true) }
+    } catch (error) {
+      return { error }
+    } finally {
+      await tearDownEnvironment(overrides)
+    }
+  }
+
+  it('defaults to false when unset', async () => {
+    const { config: conf, error } = await configWith()
+    expect(error).to.be.equal(undefined)
+    expect(conf.subsidyProviderFilter).to.be.equal(false)
+  })
+
+  it('parses "true" as true', async () => {
+    const { config: conf, error } = await configWith('true')
+    expect(error).to.be.equal(undefined)
+    expect(conf.subsidyProviderFilter).to.be.equal(true)
+  })
+
+  it('parses "1" as true', async () => {
+    const { config: conf, error } = await configWith('1')
+    expect(error).to.be.equal(undefined)
+    expect(conf.subsidyProviderFilter).to.be.equal(true)
+  })
+
+  it('parses an unrelated value as false', async () => {
+    const { config: conf, error } = await configWith('off')
+    expect(error).to.be.equal(undefined)
+    expect(conf.subsidyProviderFilter).to.be.equal(false)
+  })
+
+  after(() => {
+    delete process.env.CONFIG_PATH
+    delete process.env.PRIVATE_KEY
+    delete process.env[ENVIRONMENT_VARIABLES.SUBSIDY_PROVIDER_FILTER.name]
+  })
+})

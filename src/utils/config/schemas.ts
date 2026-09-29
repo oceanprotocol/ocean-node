@@ -1175,6 +1175,10 @@ export const OceanNodeConfigSchema = z
     allowedAdmins: addressArrayFromString.optional(),
     allowedAdminsList: jsonFromString(AccessListContractSchema).optional(),
     subsidyProviders: SubsidyProvidersSchema.optional().default(null),
+    // When ON, a user-supplied subsidy-provider list may only contain addresses that are
+    // already in this node's `subsidyProviders` whitelist for the request's chain; anything
+    // else is rejected. Default OFF (users may send any valid address).
+    subsidyProviderFilter: booleanFromString.optional().default(false),
 
     codeHash: z.string().optional(),
     maxConnections: z.coerce.number().optional(),

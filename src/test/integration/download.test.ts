@@ -76,6 +76,7 @@ describe('**********         [Download Flow] - Should run a complete node flow.'
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ALLOWED_ADMINS,
           ENVIRONMENT_VARIABLES.SUBSIDY_PROVIDERS,
+          ENVIRONMENT_VARIABLES.SUBSIDY_PROVIDER_FILTER,
           ENVIRONMENT_VARIABLES.ADDRESS_FILE
         ],
         [
@@ -85,6 +86,7 @@ describe('**********         [Download Flow] - Should run a complete node flow.'
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           JSON.stringify({ '8996': ['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'] }),
+          'true',
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
@@ -134,6 +136,10 @@ describe('**********         [Download Flow] - Should run a complete node flow.'
         '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'?.toLowerCase(),
       'incorrect subsidy provider address'
     )
+    assert(
+      status.subsidyProviderFilter === true,
+      'subsidyProviderFilter should reflect SUBSIDY_PROVIDER_FILTER=true'
+    )
     assert(status.c2dClusters === undefined, 'clusters info should be undefined')
     assert(status.supportedSchemas === undefined, 'schemas info should be undefined')
   })
@@ -153,6 +159,10 @@ describe('**********         [Download Flow] - Should run a complete node flow.'
       status.subsidyProviders?.['8996']?.[0]?.toLowerCase() ===
         '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'?.toLowerCase(),
       'subsidy providers should be present in detailed status'
+    )
+    assert(
+      status.subsidyProviderFilter === true,
+      'subsidyProviderFilter should be present in detailed status'
     )
   })
 
