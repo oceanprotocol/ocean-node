@@ -240,6 +240,25 @@ Because results are regular bucket files, they can feed the next compute job wit
 
 ---
 
+## Service default buckets
+
+When `serviceStart` has no `outputBucketId`, a `localfs` node creates a bucket for the service
+(see [Results bucket](services.md#results-bucket)). These buckets differ from ones made with
+`createBucket` in three ways, all shown by `getBuckets`:
+
+- `serviceId` — the service the bucket was created for.
+- `quotaBytes` — `SERVICE_BUCKET_QUOTA_BYTES` at creation time, 5 GB by default. Uploads that
+  would go over it fail. The quota is soft: the service using the bucket is never stopped, and
+  its container's own writes are not capped.
+- `expiresAt` — unix seconds, `SERVICE_BUCKET_RETENTION_SECONDS` (one week by default) after the
+  service's paid window ends (pushed out by
+  `serviceExtend` or by another service starting into the bucket). An hourly sweep then deletes
+  the bucket and its files.
+
+Buckets created with `createBucket` have `null` for all three: no quota, never deleted.
+
+---
+
 ## Limitations and notes
 
 - The bucket registry is local to the node (SQLite file). If you run multiple nodes, each node’s registry is independent unless you externalize/replicate it.

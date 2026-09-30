@@ -1,4 +1,5 @@
 import {
+  CreateBucketOptions,
   CreateBucketResult,
   PersistentStorageBucketRecord,
   PersistentStorageFactory,
@@ -35,8 +36,19 @@ export class PersistentStorageS3 extends PersistentStorageFactory {
   async createNewBucket(
     accessList: AccessList[],
     _owner: string,
-    _label?: string
+    _label?: string,
+    _options?: CreateBucketOptions
   ): Promise<CreateBucketResult> {
+    throw new Error('PersistentStorageS3 is not implemented yet')
+  }
+
+  // eslint-disable-next-line require-await
+  async deleteBucket(_bucketId: string): Promise<void> {
+    throw new Error('PersistentStorageS3 is not implemented yet')
+  }
+
+  // eslint-disable-next-line require-await
+  async getBucketUsageBytes(_bucketId: string): Promise<number> {
     throw new Error('PersistentStorageS3 is not implemented yet')
   }
 

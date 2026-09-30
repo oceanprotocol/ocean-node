@@ -504,6 +504,16 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.DB_INIT_MAX_RETRY_DELAY,
     required: false
   },
+  SERVICE_BUCKET_QUOTA_BYTES: {
+    name: 'SERVICE_BUCKET_QUOTA_BYTES',
+    value: process.env.SERVICE_BUCKET_QUOTA_BYTES,
+    required: false
+  },
+  SERVICE_BUCKET_RETENTION_SECONDS: {
+    name: 'SERVICE_BUCKET_RETENTION_SECONDS',
+    value: process.env.SERVICE_BUCKET_RETENTION_SECONDS,
+    required: false
+  },
   CRON_DELETE_DB_LOGS: {
     name: 'CRON_DELETE_DB_LOGS',
     value: process.env.CRON_DELETE_DB_LOGS,
