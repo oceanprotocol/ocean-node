@@ -167,17 +167,16 @@ compute job's outputs:
   folder over: the old container is stopped (not removed), and once the new one is created
   its `/data/outputs` is copied in, before the new container starts and the old one is
   removed. The service comes back with the files it had, and a restart normally produces no
-  archive. If the copy fails, or the restart itself fails, the folder is archived instead
-  (`reason: restart`), so nothing is lost. A service with an output bucket needs none of
+  archive. If the copy fails, or the restart itself fails, the folder is archived instead,
+  so nothing is lost. A service with an output bucket needs none of
   this: the bucket is mounted into the new container again.
 - **It is archived when the service's container goes away for good**: `serviceStop`, the
   expiry sweep, and the crash recovery at node start. The folder lives in the container's
   writable layer, so it is zipped right before the container is removed. Each such container
   gives one archive, `outputs-<n>.zip` under `<c2d storage>/services/<serviceId>/`, listed on
-  `serviceStatus` as `outputArchives` (`index`, `filename`, `filesize`, `createdAt`,
-  `reason` — `stop`, `expiry`, `restart` or `recovery` — and `containerId`). Archiving is
-  best-effort: if it fails, teardown continues and the reason is kept in
-  `outputArchiveError`. A container without `/data/outputs`, or with an empty one, produces
+  `serviceStatus` as `outputArchives` (`index`, `filename`, `filesize`, `createdAt` and
+  `containerId`). Archiving is best-effort: if it fails, teardown continues and the error is
+  only logged by the node. A container without `/data/outputs`, or with an empty one, produces
   no archive. A service that is stopped and later restarted starts with an empty folder;
   what it had is in the stop archive.
 - **The zip holds the folder's regular files and folders**, uncompressed, with their mtimes
@@ -194,7 +193,7 @@ compute job's outputs:
   service's environment, default 604800) after `expiresAt`, by the same cron that cleans
   expired compute jobs (`CRON_CLEANUP_C2D_STORAGE`). An early `release` moves `expiresAt` to
   the stop time, and `serviceExtend` moves it later. The service record is kept, with
-  `outputArchives: []` and `outputsDeletedAt` set.
+  `outputArchives: []`.
 - There is no size cap on archives beyond the node's free disk.
 
 ## Configuration
@@ -326,7 +325,7 @@ declare resources, configure GPUs, set per-environment constraints, and price th
 
 - **`serviceResult` is authenticated and owner-scoped, like `serviceStreamableLogs`.** A
   service's outputs are its owner's data; a non-owner gets `401`. The node-wide
-  `serviceList` leaves out `outputArchives` and `outputArchiveError`.
+  `serviceList` leaves out `outputArchives`.
 
 - **`allowImageBuild` runs arbitrary build instructions.** When enabled, a consumer's
   inline `dockerfile` is built by the Docker daemon, so its `RUN` steps execute arbitrary

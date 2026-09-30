@@ -87,7 +87,6 @@ export function toListedServiceJob(
   | 'dockerfile'
   | 'additionalDockerFiles'
   | 'outputArchives'
-  | 'outputArchiveError'
   | 'previousContainerId'
 > | null {
   if (!job) return null
@@ -99,7 +98,6 @@ export function toListedServiceJob(
     dockerfile,
     additionalDockerFiles,
     outputArchives,
-    outputArchiveError,
     previousContainerId,
     ...pub
   } = job

@@ -126,10 +126,6 @@ export interface ServiceOnDemandConfig {
 
 // ── Runtime service job ───────────────────────────────────────────────
 
-// Why a service container's /data/outputs was archived: an explicit stop, the expiry sweep's
-// teardown, a restart replacing the container, or orphan recovery after a node crash.
-export type ServiceOutputArchiveReason = 'stop' | 'expiry' | 'restart' | 'recovery'
-
 // One zip of /data/outputs, taken right before a container of the service was removed. A
 // service without an output bucket gets one per container it ran, downloadable through
 // SERVICE_GET_RESULT until expiresAt + the environment's storageExpiry.
@@ -138,7 +134,6 @@ export interface ServiceOutputArchive {
   filename: string // e.g. outputs-0.zip, under <storage>/services/<serviceId>/
   filesize: number // bytes
   createdAt: number // Unix ms timestamp
-  reason: ServiceOutputArchiveReason
   containerId: string // container it was taken from — a retried teardown must not archive it twice
 }
 
@@ -231,8 +226,6 @@ export interface ServiceJob {
   outputBucketId?: string // persistent-storage bucket bind-mounted at /data/outputs
   // Archives of /data/outputs, only for services without an outputBucketId.
   outputArchives?: ServiceOutputArchive[]
-  outputArchiveError?: string // why the last archive attempt failed; cleared by the next success
-  outputsDeletedAt?: number // Unix ms timestamp at which storage expiry deleted the archives
   // Internal, only while a restart is in flight: the stopped old container, kept until its
   // /data/outputs has been carried over into the new one (orphan recovery archives and
   // removes it if the node dies before that). Never returned to clients.

@@ -78,10 +78,7 @@ import {
   ServiceStatusText,
   SERVICE_START_PENDING_STATUSES
 } from '../../@types/C2D/ServiceOnDemand.js'
-import type {
-  ServiceJob,
-  ServiceOutputArchiveReason
-} from '../../@types/C2D/ServiceOnDemand.js'
+import type { ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
 import type { DockerMountObject } from '../../@types/PersistentStorage.js'
 import { resolveServiceImage } from './serviceResourceMatching.js'
 import {
@@ -3969,11 +3966,10 @@ export class C2DEngineDocker extends C2DEngine {
   // the container is removed (after it was stopped, so the service flushed its files): the
   // folder lives in the container's writable layer and is gone with it. Skipped for services
   // with an output bucket (their results are already in the bucket). Best-effort — never
-  // throws, a failure is recorded on job.outputArchiveError; the caller persists the job.
+  // throws, a failure is only logged; the caller persists the job.
   private async archiveServiceOutputs(
     job: ServiceJob,
-    container: Dockerode.Container,
-    reason: ServiceOutputArchiveReason
+    container: Dockerode.Container
   ): Promise<void> {
     if (job.outputBucketId) return
     const archives = job.outputArchives ?? []
@@ -3993,9 +3989,7 @@ export class C2DEngineDocker extends C2DEngine {
       } catch (e: any) {
         // no /data/outputs in the container, or the container is already gone
         if (e?.statusCode === 404) {
-          CORE_LOGGER.debug(
-            `service ${job.serviceId}: nothing to archive (${reason}): ${e.message}`
-          )
+          CORE_LOGGER.debug(`service ${job.serviceId}: nothing to archive: ${e.message}`)
           return
         }
         throw e
@@ -4013,9 +4007,7 @@ export class C2DEngineDocker extends C2DEngine {
       // Nothing written: an entry that downloads as an empty zip would only be noise.
       if (empty) {
         rmSync(partialPath, { force: true })
-        CORE_LOGGER.debug(
-          `service ${job.serviceId}: ${SERVICE_OUTPUTS_PATH} empty (${reason})`
-        )
+        CORE_LOGGER.debug(`service ${job.serviceId}: ${SERVICE_OUTPUTS_PATH} empty`)
         return
       }
       renameSync(partialPath, finalPath)
@@ -4027,21 +4019,18 @@ export class C2DEngineDocker extends C2DEngine {
           filename,
           filesize: size,
           createdAt: Date.now(),
-          reason,
           containerId: container.id
         }
       ]
-      delete job.outputArchiveError
       CORE_LOGGER.info(
-        `service ${job.serviceId}: archived ${SERVICE_OUTPUTS_PATH} (${reason}) to ${filename}, ` +
+        `service ${job.serviceId}: archived ${SERVICE_OUTPUTS_PATH} to ${filename}, ` +
           `${size} bytes` +
           (skipped ? `, ${skipped} symlink/special/unsafe entries skipped` : '')
       )
     } catch (e: any) {
       if (partialPath) rmSync(partialPath, { force: true })
-      job.outputArchiveError = `${reason}: ${e?.message ?? e}`
       CORE_LOGGER.error(
-        `service ${job.serviceId}: failed to archive ${SERVICE_OUTPUTS_PATH} (${reason}): ${
+        `service ${job.serviceId}: failed to archive ${SERVICE_OUTPUTS_PATH}: ${
           e?.message ?? e
         }`
       )
@@ -4188,7 +4177,7 @@ export class C2DEngineDocker extends C2DEngine {
         if (job.payment.claimTx) {
           const holder = this.docker.getContainer(job.containerId || previousContainerId)
           await holder.stop({ t: 10 }).catch(() => {})
-          await this.archiveServiceOutputs(job, holder, 'recovery')
+          await this.archiveServiceOutputs(job, holder)
         }
         if (job.containerId)
           await this.cleanupServiceDocker(
@@ -4990,7 +4979,7 @@ export class C2DEngineDocker extends C2DEngine {
         await c.stop({ t: 10 }).catch((e) => {
           if (!isBenignDockerError(e)) throw e
         })
-        await this.archiveServiceOutputs(job, c, onlyIfExpired ? 'expiry' : 'stop')
+        await this.archiveServiceOutputs(job, c)
         await c.remove({ force: true }).catch((e) => {
           if (!isBenignDockerError(e)) throw e
         })
@@ -5325,7 +5314,7 @@ export class C2DEngineDocker extends C2DEngine {
           CORE_LOGGER.error(
             `restart ${serviceId}: could not carry ${SERVICE_OUTPUTS_PATH} over (${e.message}) — archiving it instead`
           )
-          await this.archiveServiceOutputs(job, previous, 'restart')
+          await this.archiveServiceOutputs(job, previous)
         }
         job.containerId = container.id
         await this.db.updateServiceJob(job)
@@ -5372,7 +5361,7 @@ export class C2DEngineDocker extends C2DEngine {
       // holds it — the old one if the carry-over didn't happen yet, else the new one.
       if (!job.outputBucketId) {
         const holder = previous ?? (job.containerId ? container : null)
-        if (holder) await this.archiveServiceOutputs(job, holder, 'restart')
+        if (holder) await this.archiveServiceOutputs(job, holder)
       }
       if (previous) {
         await previous.remove({ force: true }).catch(() => {})
@@ -5534,7 +5523,6 @@ export class C2DEngineDocker extends C2DEngine {
             force: true
           })
           job.outputArchives = []
-          job.outputsDeletedAt = Date.now()
           await this.db.updateServiceJob(job)
           cleaned++
           CORE_LOGGER.info(

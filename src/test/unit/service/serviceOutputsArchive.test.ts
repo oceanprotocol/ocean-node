@@ -270,7 +270,6 @@ describe('service /data/outputs archives', () => {
       expect(archive).to.include({
         index: 0,
         filename: 'outputs-0.zip',
-        reason: 'stop',
         containerId: 'c1'
       })
       const file = path.join(folder(), 'outputs-0.zip')
@@ -280,26 +279,25 @@ describe('service /data/outputs archives', () => {
       expect(entries.find((e) => e.name === 'result.txt').content).to.equal('hello')
     })
 
-    it('the expiry teardown records reason "expiry"', async () => {
+    it('the expiry teardown archives the container', async () => {
       const engine = makeEngine(tempFolder)
       const job = makeJob({ expiresAt: Date.now() - 1000 })
       engine.db.getServiceJob.resolves([job])
       engine.docker.getContainer.returns(outputsContainer('c1'))
       const stopped = await engine.stopService(SERVICE_ID, OWNER, true)
-      expect(stopped.outputArchives[0].reason).to.equal('expiry')
+      expect(stopped.outputArchives).to.have.lengthOf(1)
+      expect(stopped.outputArchives[0].containerId).to.equal('c1')
     })
 
     it('numbers archives per container and never archives the same container twice', async () => {
       const engine = makeEngine(tempFolder)
       const job = makeJob()
-      await engine.archiveServiceOutputs(job, outputsContainer('c1'), 'restart')
-      await engine.archiveServiceOutputs(job, outputsContainer('c1'), 'stop') // retried teardown
-      await engine.archiveServiceOutputs(job, outputsContainer('c2'), 'stop')
-      expect(
-        job.outputArchives.map((a) => [a.index, a.containerId, a.reason])
-      ).to.deep.equal([
-        [0, 'c1', 'restart'],
-        [1, 'c2', 'stop']
+      await engine.archiveServiceOutputs(job, outputsContainer('c1'))
+      await engine.archiveServiceOutputs(job, outputsContainer('c1')) // retried teardown
+      await engine.archiveServiceOutputs(job, outputsContainer('c2'))
+      expect(job.outputArchives.map((a) => [a.index, a.containerId])).to.deep.equal([
+        [0, 'c1'],
+        [1, 'c2']
       ])
       expect(fs.readdirSync(folder()).sort()).to.deep.equal([
         'outputs-0.zip',
@@ -311,7 +309,7 @@ describe('service /data/outputs archives', () => {
       const engine = makeEngine(tempFolder)
       const job = makeJob({ outputBucketId: 'bucket-1' })
       const c = outputsContainer('c1')
-      await engine.archiveServiceOutputs(job, c, 'stop')
+      await engine.archiveServiceOutputs(job, c)
       sinon.assert.notCalled(c.getArchive)
       expect(job.outputArchives).to.equal(undefined)
     })
@@ -321,19 +319,17 @@ describe('service /data/outputs archives', () => {
       const job = makeJob()
       const c = outputsContainer('c1')
       c.getArchive = sinon.stub().rejects(dockerError(404))
-      await engine.archiveServiceOutputs(job, c, 'stop')
+      await engine.archiveServiceOutputs(job, c)
       expect(job.outputArchives).to.equal(undefined)
-      expect(job.outputArchiveError).to.equal(undefined)
     })
 
-    it('records a failure without throwing and leaves no partial file', async () => {
+    it('logs a failure without throwing and leaves no partial file', async () => {
       const engine = makeEngine(tempFolder)
       const job = makeJob()
       const c = outputsContainer('c1')
       c.getArchive = sinon.stub().resolves(Readable.from(Buffer.alloc(1024, 7)))
-      await engine.archiveServiceOutputs(job, c, 'stop')
+      await engine.archiveServiceOutputs(job, c)
       expect(job.outputArchives).to.equal(undefined)
-      expect(job.outputArchiveError).to.match(/^stop: /)
       expect(fs.readdirSync(folder())).to.deep.equal([])
     })
   })
@@ -342,7 +338,7 @@ describe('service /data/outputs archives', () => {
     async function engineWithArchive() {
       const engine = makeEngine(tempFolder)
       const job = makeJob({ status: ServiceStatusNumber.Stopped, containerId: '' })
-      await engine.archiveServiceOutputs(job, outputsContainer('c1'), 'stop')
+      await engine.archiveServiceOutputs(job, outputsContainer('c1'))
       engine.db.getServiceJob.resolves([job])
       return { engine, job }
     }
@@ -432,7 +428,7 @@ describe('service /data/outputs archives', () => {
         containerId: '',
         expiresAt: Date.now() - expiredAgo
       })
-      await engine.archiveServiceOutputs(job, outputsContainer('c1'), 'expiry')
+      await engine.archiveServiceOutputs(job, outputsContainer('c1'))
       engine.db.getServiceJob.resolves([job])
       engine.db.getExpiredServiceJobsBefore.resolves([job])
       return { engine, job }
@@ -442,7 +438,6 @@ describe('service /data/outputs archives', () => {
       const { engine, job } = await expiredService(STORAGE_EXPIRY * 1000 + 1000)
       expect(await engine.cleanupExpiredServiceOutputs()).to.equal(1)
       expect(job.outputArchives).to.deep.equal([])
-      expect(job.outputsDeletedAt).to.be.a('number')
       expect(
         fs.existsSync(path.join(tempFolder, CLUSTER_HASH, 'services', SERVICE_ID))
       ).to.equal(false)
@@ -533,9 +528,7 @@ describe('service /data/outputs archives', () => {
       await engine.doRestartService(job)
 
       expect(job.status).to.equal(ServiceStatusNumber.Running)
-      expect(job.outputArchives.map((a) => [a.containerId, a.reason])).to.deep.equal([
-        ['old', 'restart']
-      ])
+      expect(job.outputArchives.map((a) => a.containerId)).to.deep.equal(['old'])
       sinon.assert.calledOnce(old.remove)
     })
 
@@ -554,9 +547,7 @@ describe('service /data/outputs archives', () => {
       }
       expect(error.message).to.equal('pull failed')
       expect(job.status).to.equal(ServiceStatusNumber.Error)
-      expect(job.outputArchives.map((a) => [a.containerId, a.reason])).to.deep.equal([
-        ['old', 'restart']
-      ])
+      expect(job.outputArchives.map((a) => a.containerId)).to.deep.equal(['old'])
       sinon.assert.calledOnce(old.remove)
       expect(job.previousContainerId).to.equal(undefined)
     })
@@ -578,9 +569,7 @@ describe('service /data/outputs archives', () => {
       expect(error.message).to.equal('start failed')
       expect(job.status).to.equal(ServiceStatusNumber.Error)
       expect(job.containerId).to.equal('')
-      expect(job.outputArchives.map((a) => [a.containerId, a.reason])).to.deep.equal([
-        ['new', 'restart']
-      ])
+      expect(job.outputArchives.map((a) => a.containerId)).to.deep.equal(['new'])
     })
 
     it('a service with an output bucket removes the old container right away, copying nothing', async () => {
@@ -613,9 +602,7 @@ describe('service /data/outputs archives', () => {
       await engine.processServiceStart(job)
 
       expect(job.status).to.equal(ServiceStatusNumber.Error)
-      expect(job.outputArchives.map((a) => [a.containerId, a.reason])).to.deep.equal([
-        ['old', 'recovery']
-      ])
+      expect(job.outputArchives.map((a) => a.containerId)).to.deep.equal(['old'])
       sinon.assert.calledOnce(old.remove)
       expect(job.previousContainerId).to.equal(undefined)
     })
@@ -626,8 +613,7 @@ describe('service /data/outputs archives', () => {
     const job = makeJob()
     await engine.archiveServiceOutputs(
       job,
-      outputsContainer('c1', [{ name: 'outputs', type: 'directory' }]),
-      'stop'
+      outputsContainer('c1', [{ name: 'outputs', type: 'directory' }])
     )
     expect(job.outputArchives ?? []).to.deep.equal([])
     expect(

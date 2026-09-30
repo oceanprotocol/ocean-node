@@ -1210,7 +1210,6 @@ describe('**********         Service on Demand', () => {
   it('(m2) SERVICE_STOP archived the last container; its outputs stay downloadable', async function () {
     const job = await getServiceJob(serviceId)
     const archive = job.outputArchives[job.outputArchives.length - 1]
-    expect(archive.reason).to.equal('stop')
     expect(job.outputArchives.map((a) => a.index)).to.deep.equal(
       job.outputArchives.map((_, i) => i)
     )
