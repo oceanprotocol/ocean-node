@@ -21,6 +21,7 @@ import {
   DEFAULT_SERVICE_MIN_DURATION_SECONDS,
   type ServiceJob
 } from '../../@types/C2D/ServiceOnDemand.js'
+import type { ServiceResult } from './serviceOutputsZip.js'
 import { C2DClusterType, C2DStatusNumber } from '../../@types/C2D/C2D.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
@@ -215,6 +216,26 @@ export abstract class C2DEngine {
     since?: number
   ): Promise<NodeJS.ReadableStream | null> {
     return null
+  }
+
+  // Streams one archived /data/outputs zip of a service (see ServiceJob.outputArchives), or,
+  // with index 'live', a zip of the running container's /data/outputs. Null when the service
+  // is unknown to the engine; throws ServiceResultError for a refused request.
+  // eslint-disable-next-line require-await
+  public async getServiceResult(
+    serviceId: string,
+    owner: string,
+    index: number | 'live',
+    offset?: number
+  ): Promise<ServiceResult | null> {
+    return null
+  }
+
+  // Deletes the output archives of expired services whose environment's storageExpiry has
+  // elapsed since expiresAt. Returns how many services had their archives deleted.
+  // eslint-disable-next-line require-await
+  public async cleanupExpiredServiceOutputs(): Promise<number> {
+    return 0
   }
 
   public abstract checkDockerImage(

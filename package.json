@@ -114,6 +114,7 @@
     "winston": "^3.19.0",
     "winston-daily-rotate-file": "^5.0.0",
     "winston-transport": "^4.6.0",
+    "yazl": "^3.3.1",
     "zod": "^4.4.3"
   },
   "optionalDependencies": {
@@ -131,6 +132,8 @@
     "@types/node": "^26.2.0",
     "@types/sinon": "^22.0.0",
     "@types/tar-stream": "^3.1.4",
+    "@types/yauzl": "^3.4.0",
+    "@types/yazl": "^3.3.1",
     "auto-changelog": "^2.6.0",
     "chai": "^6.2.2",
     "eslint": "^10.8.1",
@@ -145,7 +148,8 @@
     "release-it": "^21.0.2",
     "sinon": "^22.1.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.67.0"
+    "typescript-eslint": "^8.67.0",
+    "yauzl": "^3.4.0"
   },
   "overrides": {
     "serialize-javascript": "^7.1.0",

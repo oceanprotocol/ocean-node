@@ -116,6 +116,13 @@ export class C2DDatabase extends AbstractDatabase {
     return await this.provider.getExpiredServiceJobs(clusterHash)
   }
 
+  async getExpiredServiceJobsBefore(
+    expiresBefore: number,
+    clusterHash?: string
+  ): Promise<ServiceJob[]> {
+    return await this.provider.getExpiredServiceJobsBefore(expiresBefore, clusterHash)
+  }
+
   async getPendingServiceStarts(clusterHash?: string): Promise<ServiceJob[]> {
     return await this.provider.getPendingServiceStarts(clusterHash)
   }
@@ -205,6 +212,12 @@ export class C2DDatabase extends AbstractDatabase {
 
     let cleaned = 0
     for (const engine of allEngines) {
+      // Services keep their row; only their /data/outputs archives expire.
+      try {
+        cleaned += await engine.cleanupExpiredServiceOutputs()
+      } catch (e) {
+        DATABASE_LOGGER.error('Error cleaning up expired service outputs: ' + e.message)
+      }
       const engineEnvironments = await engine.getComputeEnvironments()
       for (const computeEnvironment of engineEnvironments) {
         allEnvironments.push(computeEnvironment)

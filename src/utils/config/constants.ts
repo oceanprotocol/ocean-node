@@ -115,7 +115,10 @@ export const ENV_TO_CONFIG_MAPPING = {
   HTTP_CERT_PATH: 'httpCertPath',
   HTTP_KEY_PATH: 'httpKeyPath',
   ENABLE_BENCHMARK: 'enableBenchmark',
-  PERSISTENT_STORAGE: 'persistentStorage'
+  PERSISTENT_STORAGE: 'persistentStorage',
+  // NOTE: deliberately flat (not under persistentStorage.*) — PERSISTENT_STORAGE is a JSON
+  // string until the schema parses it, so buildMergedConfig() applies this after parsing.
+  PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING: 'PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING'
 } as const
 
 // Configuration defaults

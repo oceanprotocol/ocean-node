@@ -476,6 +476,19 @@ export interface ServiceGetStreamableLogsCommand extends Command {
   since?: string
 }
 
+export interface ServiceGetResultCommand extends Command {
+  consumerAddress: string
+  nonce: string
+  signature: string
+  serviceId: string
+  // One of the service's outputArchives (see SERVICE_GET_STATUS) ...
+  index?: number
+  offset?: number // resume a download of that archive from this byte
+  // ... or a zip of the running container's /data/outputs, streamed as it is read (not
+  // resumable; files the service is writing at that moment may come out partial).
+  live?: boolean
+}
+
 export interface ServiceGetStatusCommand extends Command {
   consumerAddress: string
   nonce: string

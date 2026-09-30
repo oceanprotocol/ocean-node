@@ -47,7 +47,8 @@ import {
   appendFileSync,
   statSync,
   statfsSync,
-  createReadStream
+  createReadStream,
+  renameSync
 } from 'fs'
 import { pipeline } from 'node:stream/promises'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
@@ -77,9 +78,19 @@ import {
   ServiceStatusText,
   SERVICE_START_PENDING_STATUSES
 } from '../../@types/C2D/ServiceOnDemand.js'
-import type { ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
+import type {
+  ServiceJob,
+  ServiceOutputArchiveReason
+} from '../../@types/C2D/ServiceOnDemand.js'
 import type { DockerMountObject } from '../../@types/PersistentStorage.js'
 import { resolveServiceImage } from './serviceResourceMatching.js'
+import {
+  SERVICE_OUTPUTS_PATH,
+  ServiceResultError,
+  emptyOutputsDirTar,
+  tarToZip,
+  type ServiceResult
+} from './serviceOutputsZip.js'
 import {
   buildSnapshot,
   describeSnapshot,
@@ -3920,6 +3931,111 @@ export class C2DEngineDocker extends C2DEngine {
     return [await ps.getDockerOutputMountObject(job.outputBucketId, job.owner)]
   }
 
+  private getServiceOutputsFolder(serviceId: string): string {
+    return path.join(this.getStoragePath(), 'services', serviceId)
+  }
+
+  // Makes sure a service without an output bucket has a writable /data/outputs to write its
+  // results to (and that the archive step can read), without touching an existing /data.
+  // Runs on the created, not yet started container. Best-effort: a service that doesn't
+  // write results must not fail to start over it.
+  private async ensureServiceOutputsFolder(
+    job: ServiceJob,
+    container: Dockerode.Container
+  ): Promise<void> {
+    if (job.outputBucketId) return
+    const exists = async (p: string): Promise<boolean> => {
+      try {
+        await container.infoArchive({ path: p })
+        return true
+      } catch (e: any) {
+        if (e?.statusCode === 404) return false
+        throw e
+      }
+    }
+    try {
+      if (await exists(SERVICE_OUTPUTS_PATH)) return
+      const root = (await exists('/data')) ? '/data' : '/'
+      await container.putArchive(await emptyOutputsDirTar(root), { path: root })
+    } catch (e: any) {
+      CORE_LOGGER.warn(
+        `service ${job.serviceId}: could not create ${SERVICE_OUTPUTS_PATH}: ${e?.message ?? e}`
+      )
+    }
+  }
+
+  // Zips the container's /data/outputs into <storage>/services/<serviceId>/outputs-<n>.zip and
+  // records it on job.outputArchives, like a compute job's outputs.tar. Must run right before
+  // the container is removed (after it was stopped, so the service flushed its files): the
+  // folder lives in the container's writable layer and is gone with it. Skipped for services
+  // with an output bucket (their results are already in the bucket). Best-effort — never
+  // throws, a failure is recorded on job.outputArchiveError; the caller persists the job.
+  private async archiveServiceOutputs(
+    job: ServiceJob,
+    container: Dockerode.Container,
+    reason: ServiceOutputArchiveReason
+  ): Promise<void> {
+    if (job.outputBucketId) return
+    const archives = job.outputArchives ?? []
+    // A teardown that failed after archiving is retried (e.g. by the expiry sweep every
+    // tick) — the same container must not be archived again.
+    if (archives.some((a) => a.containerId === container.id)) return
+    const index = archives.reduce((next, a) => Math.max(next, a.index + 1), 0)
+    const filename = `outputs-${index}.zip`
+    let partialPath: string | undefined
+    try {
+      const folder = this.getServiceOutputsFolder(job.serviceId)
+      const finalPath = path.join(folder, filename)
+      partialPath = finalPath + '.partial'
+      let tar: NodeJS.ReadableStream
+      try {
+        tar = await container.getArchive({ path: SERVICE_OUTPUTS_PATH })
+      } catch (e: any) {
+        // no /data/outputs in the container, or the container is already gone
+        if (e?.statusCode === 404) {
+          CORE_LOGGER.debug(
+            `service ${job.serviceId}: nothing to archive (${reason}): ${e.message}`
+          )
+          return
+        }
+        throw e
+      }
+      mkdirSync(folder, { recursive: true })
+      let skipped = 0
+      await pipeline(
+        tarToZip(tar, (stats) => (skipped = stats.skipped)),
+        createWriteStream(partialPath)
+      )
+      renameSync(partialPath, finalPath)
+      const { size } = statSync(finalPath)
+      job.outputArchives = [
+        ...archives,
+        {
+          index,
+          filename,
+          filesize: size,
+          createdAt: Date.now(),
+          reason,
+          containerId: container.id
+        }
+      ]
+      delete job.outputArchiveError
+      CORE_LOGGER.info(
+        `service ${job.serviceId}: archived ${SERVICE_OUTPUTS_PATH} (${reason}) to ${filename}, ` +
+          `${size} bytes` +
+          (skipped ? `, ${skipped} symlink/special/unsafe entries skipped` : '')
+      )
+    } catch (e: any) {
+      if (partialPath) rmSync(partialPath, { force: true })
+      job.outputArchiveError = `${reason}: ${e?.message ?? e}`
+      CORE_LOGGER.error(
+        `service ${job.serviceId}: failed to archive ${SERVICE_OUTPUTS_PATH} (${reason}): ${
+          e?.message ?? e
+        }`
+      )
+    }
+  }
+
   // Handler-facing: persist the initial Starting record and return immediately so the HTTP
   // response carries the serviceId without waiting for escrow/image/container. The background
   // loop then calls processServiceStart() to advance it. Persisting Starting also reserves the
@@ -4032,12 +4148,16 @@ export class C2DEngineDocker extends C2DEngine {
           job.owner
         )
       }
-      if (job.containerId)
-        await this.cleanupServiceDocker(
-          this.docker.getContainer(job.containerId),
-          null,
-          serviceId
-        )
+      if (job.containerId) {
+        const c = this.docker.getContainer(job.containerId)
+        // Only a claimed service ever ran (a restart interrupted before it removed the old
+        // container, typically) — archive what it wrote before the container goes.
+        if (job.payment.claimTx) {
+          await c.stop({ t: 10 }).catch(() => {})
+          await this.archiveServiceOutputs(job, c, 'recovery')
+        }
+        await this.cleanupServiceDocker(c, null, serviceId)
+      }
       await this.removeServiceNetwork(serviceId, job.networkId).catch((e) => {
         CORE_LOGGER.debug(`orphan recovery ${serviceId}: network removal: ${e.message}`)
       })
@@ -4224,6 +4344,7 @@ export class C2DEngineDocker extends C2DEngine {
       CORE_LOGGER.debug(
         `start ${serviceId}: created container ${container.id} on network ${network.id} — starting`
       )
+      await this.ensureServiceOutputsFolder(job, container)
       await container.start()
 
       job.containerId = container.id
@@ -4824,6 +4945,7 @@ export class C2DEngineDocker extends C2DEngine {
         await c.stop({ t: 10 }).catch((e) => {
           if (!isBenignDockerError(e)) throw e
         })
+        await this.archiveServiceOutputs(job, c, onlyIfExpired ? 'expiry' : 'stop')
         await c.remove({ force: true }).catch((e) => {
           if (!isBenignDockerError(e)) throw e
         })
@@ -4993,6 +5115,7 @@ export class C2DEngineDocker extends C2DEngine {
       await c.stop({ t: 10 }).catch((e) => {
         CORE_LOGGER.debug(`restart ${serviceId}: old container stop: ${e.message}`)
       })
+      await this.archiveServiceOutputs(job, c, 'restart')
       await c.remove({ force: true }).catch((e) => {
         CORE_LOGGER.debug(`restart ${serviceId}: old container remove: ${e.message}`)
       })
@@ -5129,6 +5252,7 @@ export class C2DEngineDocker extends C2DEngine {
       CORE_LOGGER.debug(
         `restart ${serviceId}: created container ${container.id} on network ${network.id} — starting`
       )
+      await this.ensureServiceOutputsFolder(job, container)
       await container.start()
       CORE_LOGGER.debug(`restart ${serviceId}: container ${container.id} started`)
 
@@ -5208,6 +5332,127 @@ export class C2DEngineDocker extends C2DEngine {
       )
       return null
     }
+  }
+
+  public override async getServiceResult(
+    serviceId: string,
+    owner: string,
+    index: number | 'live',
+    offset: number = 0
+  ): Promise<ServiceResult | null> {
+    const [job] = await this.db.getServiceJob(serviceId, owner)
+    if (!job) return null
+    const zipHeaders = (filename: string) => ({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${filename}"`
+    })
+
+    if (index === 'live') {
+      if (job.outputBucketId)
+        throw new ServiceResultError(
+          400,
+          `Service ${serviceId} writes its outputs to bucket ${job.outputBucketId}; download them from the bucket`
+        )
+      if (
+        !job.containerId ||
+        (job.status !== ServiceStatusNumber.Running &&
+          job.status !== ServiceStatusNumber.Error)
+      )
+        throw new ServiceResultError(
+          409,
+          `Service ${serviceId} has no container right now (status "${job.statusText}"); download one of its output archives instead`
+        )
+      let tar: NodeJS.ReadableStream
+      try {
+        tar = await this.docker
+          .getContainer(job.containerId)
+          .getArchive({ path: SERVICE_OUTPUTS_PATH })
+      } catch (e: any) {
+        if (e?.statusCode === 404)
+          throw new ServiceResultError(
+            404,
+            `Service ${serviceId} has no ${SERVICE_OUTPUTS_PATH} to download`
+          )
+        throw e
+      }
+      return {
+        stream: tarToZip(tar),
+        headers: zipHeaders(`${serviceId}-outputs-live.zip`)
+      }
+    }
+
+    const archive = (job.outputArchives ?? []).find((a) => a.index === index)
+    if (!archive)
+      throw new ServiceResultError(
+        404,
+        `Service ${serviceId} has no output archive with index ${index}`
+      )
+    const file = path.join(this.getServiceOutputsFolder(serviceId), archive.filename)
+    let size: number
+    try {
+      ;({ size } = statSync(file))
+    } catch {
+      throw new ServiceResultError(
+        404,
+        `Output archive ${archive.filename} of service ${serviceId} is no longer available`
+      )
+    }
+    if (offset > size)
+      throw new ServiceResultError(
+        416,
+        `Offset ${offset} is past the end of ${archive.filename} (${size} bytes)`
+      )
+    return {
+      stream: createReadStream(file, offset > 0 ? { start: offset } : undefined),
+      headers: {
+        ...zipHeaders(`${serviceId}-${archive.filename}`),
+        'Content-Length': String(size - offset)
+      }
+    }
+  }
+
+  public override async cleanupExpiredServiceOutputs(): Promise<number> {
+    const envs = await this.getComputeEnvironments()
+    // Seconds. The schema defaults every environment's storageExpiry; the fallback only
+    // covers services whose environment was removed from the config since.
+    const defaultStorageExpiry = 604800
+    const storageExpiry = new Map(
+      envs.map((env) => [env.id, env.storageExpiry ?? defaultStorageExpiry])
+    )
+    const now = Date.now()
+    const shortest = Math.min(defaultStorageExpiry, ...storageExpiry.values())
+    const candidates = await this.db.getExpiredServiceJobsBefore(
+      now - shortest * 1000,
+      this.getC2DConfig().hash
+    )
+    let cleaned = 0
+    for (const candidate of candidates) {
+      if (!candidate.outputArchives?.length) continue
+      const expiry = storageExpiry.get(candidate.environment) ?? defaultStorageExpiry
+      if (now < candidate.expiresAt + expiry * 1000) continue
+      try {
+        await this.runExclusive(candidate.serviceId, async () => {
+          const [job] = await this.db.getServiceJob(candidate.serviceId, candidate.owner)
+          if (!job?.outputArchives?.length) return
+          rmSync(this.getServiceOutputsFolder(job.serviceId), {
+            recursive: true,
+            force: true
+          })
+          job.outputArchives = []
+          job.outputsDeletedAt = Date.now()
+          await this.db.updateServiceJob(job)
+          cleaned++
+          CORE_LOGGER.info(
+            `service ${job.serviceId}: output archives deleted (storage expiry elapsed)`
+          )
+        })
+      } catch (e: any) {
+        CORE_LOGGER.error(
+          `service ${candidate.serviceId}: failed to delete output archives: ${e.message} — retrying next run`
+        )
+      }
+    }
+    return cleaned
   }
 
   private addUserDataToFilesObject(

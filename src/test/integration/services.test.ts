@@ -7,7 +7,8 @@ import {
   ServiceRestartHandler,
   ServiceGetStatusHandler,
   GetServicesHandler,
-  ServiceGetStreamableLogsHandler
+  ServiceGetStreamableLogsHandler,
+  ServiceGetResultHandler
 } from '../../components/core/service/index.js'
 import { ComputeGetEnvironmentsHandler } from '../../components/core/compute/index.js'
 import type {
@@ -18,7 +19,8 @@ import type {
   ServiceRestartCommand,
   ServiceGetStatusCommand,
   GetServicesCommand,
-  ServiceGetStreamableLogsCommand
+  ServiceGetStreamableLogsCommand,
+  ServiceGetResultCommand
 } from '../../@types/commands.js'
 import {
   ServiceStatusNumber,
@@ -58,6 +60,8 @@ import Dockerode from 'dockerode'
 import fsp from 'fs/promises'
 import path from 'path'
 import { tmpdir } from 'os'
+import * as tarStream from 'tar-stream'
+import yauzl from 'yauzl'
 
 const TEMPLATE_ID = 'nginx-demo'
 const MAX_DURATION = 600 // serviceOnDemand.maxDurationSeconds
@@ -218,6 +222,61 @@ describe('**********         Service on Demand', () => {
   function getDockerEngine(): C2DEngineDocker {
     const engines = (oceanNode.getC2DEngines() as any).engines as C2DEngineDocker[]
     return engines.find((e) => e instanceof C2DEngineDocker) as C2DEngineDocker
+  }
+
+  // Writes a file into the service container's /data/outputs, as the service itself would.
+  async function writeServiceOutput(
+    containerId: string,
+    name: string,
+    content: string
+  ): Promise<void> {
+    const pack = tarStream.pack()
+    pack.entry({ name, mode: 0o644 }, content)
+    pack.finalize()
+    await new Dockerode()
+      .getContainer(containerId)
+      .putArchive(pack as unknown as NodeJS.ReadableStream, { path: '/data/outputs' })
+  }
+
+  // SERVICE_GET_RESULT as the owner (or `signer`); resolves to the handler response.
+  async function getServiceResult(
+    params: Partial<ServiceGetResultCommand>,
+    signer: Signer = consumerAccount
+  ) {
+    const signed = await signFor(signer, PROTOCOL_COMMANDS.SERVICE_GET_RESULT)
+    return await new ServiceGetResultHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_GET_RESULT,
+      consumerAddress: signed.consumerAddress,
+      nonce: signed.nonce,
+      signature: signed.signature,
+      serviceId,
+      ...params
+    } as ServiceGetResultCommand)
+  }
+
+  // name → content of every file in a zip response stream
+  async function unzipFiles(stream: Readable): Promise<Record<string, string>> {
+    const chunks: Buffer[] = []
+    for await (const c of stream) chunks.push(c as Buffer)
+    return await new Promise((resolve, reject) => {
+      yauzl.fromBuffer(Buffer.concat(chunks), { lazyEntries: true }, (err, zip) => {
+        if (err) return reject(err)
+        const files: Record<string, string> = {}
+        zip.on('error', reject)
+        zip.on('end', () => resolve(files))
+        zip.on('entry', (entry) => {
+          if (entry.fileName.endsWith('/')) return zip.readEntry()
+          zip.openReadStream(entry, async (e, rs) => {
+            if (e) return reject(e)
+            const parts: Buffer[] = []
+            for await (const p of rs) parts.push(p as Buffer)
+            files[entry.fileName] = Buffer.concat(parts).toString()
+            zip.readEntry()
+          })
+        })
+        zip.readEntry()
+      })
+    })
   }
 
   // container.logs({follow: true}) never ends on its own, so read for a bounded
@@ -672,6 +731,33 @@ describe('**********         Service on Demand', () => {
     expect(nonOwnerResp.status.httpStatus).to.not.equal(200)
   })
 
+  it('(f2) SERVICE_GET_RESULT live zips the running container /data/outputs (owner-only)', async () => {
+    const job = await getServiceJob(serviceId)
+    // the node created a writable /data/outputs before starting the container
+    await writeServiceOutput(job.containerId, 'first.txt', 'from the first container')
+
+    const live = await getServiceResult({ live: true })
+    assert(
+      live.status.httpStatus === 200,
+      `expected 200, got ${live.status.httpStatus}: ${live.status?.error ?? ''}`
+    )
+    expect(live.status.headers['Content-Type']).to.equal('application/zip')
+    const files = await unzipFiles(live.stream as Readable)
+    expect(files['first.txt']).to.equal('from the first container')
+
+    // nothing archived while the first container is still running
+    expect(job.outputArchives ?? []).to.deep.equal([])
+    expect((await getServiceResult({ index: 0 })).status.httpStatus).to.equal(404)
+    // index and live together are rejected
+    expect((await getServiceResult({ index: 0, live: true })).status.httpStatus).to.equal(
+      400
+    )
+    // a non-owner can't read the outputs
+    expect(
+      (await getServiceResult({ live: true }, nonOwnerAccount)).status.httpStatus
+    ).to.not.equal(200)
+  })
+
   it('(g) SERVICE_START on a services-disabled environment → 403', async () => {
     const {
       consumerAddress: addr,
@@ -847,6 +933,23 @@ describe('**********         Service on Demand', () => {
 
     const res = await httpGetWithRetry(endpointUrl)
     assert(res.status === 200, `expected nginx HTTP 200 after restart, got ${res.status}`)
+
+    // the old container's /data/outputs was archived before it was removed...
+    const archive = running.outputArchives.find((a) => a.containerId === oldContainerId)
+    expect(archive).to.include({
+      reason: 'restart',
+      filename: `outputs-${archive.index}.zip`
+    })
+    const archived = await getServiceResult({ index: archive.index })
+    assert(
+      archived.status.httpStatus === 200,
+      `expected 200, got ${archived.status.httpStatus}: ${archived.status?.error ?? ''}`
+    )
+    const files = await unzipFiles(archived.stream as Readable)
+    expect(files['first.txt']).to.equal('from the first container')
+    // ...and the new container starts with an empty one
+    const live = await getServiceResult({ live: true })
+    expect(await unzipFiles(live.stream as Readable)).to.deep.equal({})
   })
 
   it('(l2) SERVICE_RESTART self-heals a network leaked by a crash mid-start', async function () {
@@ -1099,6 +1202,27 @@ describe('**********         Service on Demand', () => {
     const nets = await docker.listNetworks()
     const matching = nets.filter((n: any) => n.Name === `ocean-svc-${serviceId}`)
     expect(matching.length).to.equal(0)
+  })
+
+  it('(m2) SERVICE_STOP archived the last container; its outputs stay downloadable', async function () {
+    const job = await getServiceJob(serviceId)
+    const archive = job.outputArchives[job.outputArchives.length - 1]
+    expect(archive.reason).to.equal('stop')
+    expect(job.outputArchives.map((a) => a.index)).to.deep.equal(
+      job.outputArchives.map((_, i) => i)
+    )
+
+    const full = await getServiceResult({ index: archive.index })
+    expect(full.status.httpStatus).to.equal(200)
+    expect(full.status.headers['Content-Length']).to.equal(String(archive.filesize))
+    await unzipFiles(full.stream as Readable)
+
+    // resumable: the tail from an offset is exactly the rest of the file
+    const tail = await getServiceResult({ index: archive.index, offset: 10 })
+    expect(tail.status.headers['Content-Length']).to.equal(String(archive.filesize - 10))
+
+    // no container any more → no live download
+    expect((await getServiceResult({ live: true })).status.httpStatus).to.equal(409)
   })
 
   it('(n) [slow] expiry cron marks a short-lived service Expired', async function () {

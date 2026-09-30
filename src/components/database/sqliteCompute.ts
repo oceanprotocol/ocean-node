@@ -467,6 +467,28 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     }
   }
 
+  // Expired (terminal) services whose paid window ended at or before `expiresBefore` (Unix
+  // ms) — candidates for deleting their output archives once storage expiry has elapsed.
+  // eslint-disable-next-line require-await
+  async getExpiredServiceJobsBefore(
+    expiresBefore: number,
+    clusterHash?: string
+  ): Promise<ServiceJob[]> {
+    const params: Array<string | number> = [ServiceStatusNumber.Expired, expiresBefore]
+    let selectSQL = `SELECT * FROM service_jobs WHERE status = ? AND expiresAt <= ?`
+    if (clusterHash) {
+      selectSQL += ` AND clusterHash = ?`
+      params.push(clusterHash)
+    }
+    try {
+      const rows = this.db.all(selectSQL, params)
+      return this.mapServiceRows(rows)
+    } catch (err) {
+      DATABASE_LOGGER.error(err.message)
+      throw err
+    }
+  }
+
   // eslint-disable-next-line require-await
   async getExpiredServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
     // Running, Error AND Stopped all still hold their paid reservation (see activeStatuses

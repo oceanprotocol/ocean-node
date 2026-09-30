@@ -29,7 +29,8 @@ import type {
   ServiceRestartCommand,
   ServiceGetStatusCommand,
   GetServicesCommand,
-  ServiceGetStreamableLogsCommand
+  ServiceGetStreamableLogsCommand,
+  ServiceGetResultCommand
 } from '../../@types/commands.js'
 import {
   ServiceGetTemplatesHandler,
@@ -39,7 +40,8 @@ import {
   ServiceRestartHandler,
   ServiceGetStatusHandler,
   GetServicesHandler,
-  ServiceGetStreamableLogsHandler
+  ServiceGetStreamableLogsHandler,
+  ServiceGetResultHandler
 } from '../core/service/index.js'
 
 import { streamToObject, streamToString } from '../../utils/util.js'
@@ -559,6 +561,42 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/serviceStreamableLogs`, async (req,
           ? 'Service not found or not running'
           : 'Error')
       res.status(response.status.httpStatus).send(body)
+    }
+  } catch (error) {
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    res.status(500).send('Internal Server Error')
+  }
+})
+
+// zip of a service's /data/outputs: an archived one (index[, offset]) or the live container's
+computeRoutes.get(`${SERVICES_API_BASE_PATH}/serviceResult`, async (req, res) => {
+  try {
+    HTTP_LOGGER.logMessage(
+      `ServiceGetResultCommand request received with query: ${JSON.stringify(req.query)}`,
+      true
+    )
+    const task: ServiceGetResultCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_GET_RESULT,
+      node: (req.query.node as string) || null,
+      consumerAddress: (req.query.consumerAddress as string) || null,
+      serviceId: (req.query.serviceId as string) || null,
+      // can't be parseInt() because that excludes index 0
+      index: req.query.index !== undefined ? Number(req.query.index) : undefined,
+      offset: req.query.offset !== undefined ? Number(req.query.offset) : undefined,
+      live: req.query.live === 'true',
+      signature: (req.query.signature as string) || null,
+      nonce: (req.query.nonce as string) || null,
+      authorization: req.headers?.authorization,
+      caller: req.caller
+    }
+
+    const response = await new ServiceGetResultHandler(req.oceanNode).handle(task)
+    if (response.stream) {
+      res.status(response.status.httpStatus)
+      res.set(response.status.headers)
+      response.stream.pipe(res)
+    } else {
+      res.status(response.status.httpStatus).send(response.status.error)
     }
   } catch (error) {
     HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
