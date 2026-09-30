@@ -7,6 +7,7 @@ import {
   releaseHostPort,
   reserveHostPort
 } from '../../../components/core/service/utils.js'
+import { PersistentStorageAccessDeniedError } from '../../../components/persistentStorage/PersistentStorageFactory.js'
 
 const OWNER = '0x0000000000000000000000000000000000000001'
 const SERVICE_ID = 'svc-race-1'
@@ -559,5 +560,34 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
     }
     expect(engine.db.getServiceJob.called).to.equal(false)
     expect(engine.db.acquireServiceLock.called).to.equal(false)
+  })
+})
+
+describe('restartService with an output bucket the owner can no longer use', () => {
+  afterEach(() => sinon.restore())
+
+  it('refuses before tearing anything down, leaving the job and its container as they were', async () => {
+    const engine = makeEngine()
+    const job = makeJob({ outputBucketId: 'bucket-1' })
+    engine.db.getServiceJob.resolves([job])
+    const container = stubContainer()
+    engine.docker.getContainer.returns(container)
+    // e.g. bucket sharing was turned off and the bucket belongs to someone else
+    engine.serviceOutputMounts = sinon
+      .stub()
+      .rejects(new PersistentStorageAccessDeniedError())
+
+    let error: unknown
+    try {
+      await engine.restartService(SERVICE_ID, OWNER)
+    } catch (e) {
+      error = e
+    }
+    expect(error).to.be.instanceOf(PersistentStorageAccessDeniedError)
+    expect(container.stop.called).to.equal(false)
+    expect(container.remove.called).to.equal(false)
+    expect(engine.db.updateServiceJob.called).to.equal(false)
+    expect(job.status).to.equal(ServiceStatusNumber.Running)
+    expect(engine.serviceOpsInFlight.has(SERVICE_ID)).to.equal(false)
   })
 })

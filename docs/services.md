@@ -73,7 +73,10 @@ and watch `Restarting` → `PullImage`/`BuildImage` → `Running` (or `Error` wi
 reason in `statusText`). A service whose start payment was **never claimed** — the escrow
 lock failed outright (e.g. insufficient funds) or was refunded before being claimed —
 cannot be restarted: it was never paid for, so restarting it would run the service for
-free. Start a new service instead.
+free. Start a new service instead. A service with an `outputBucketId` the owner can no
+longer use (the bucket was deleted, or it belongs to someone else and bucket sharing is
+disabled or the owner was removed from its access list) is refused with `403` before
+anything is torn down, so the running container is left as it was.
 
 **Restart can change the image — atomically.** A restart is either *all-old* or *all-new*;
 it never mixes new request params over the stored job:

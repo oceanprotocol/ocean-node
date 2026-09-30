@@ -46,7 +46,7 @@ import {
 
 import { streamToObject, streamToString } from '../../utils/util.js'
 import { PROTOCOL_COMMANDS, SERVICES_API_BASE_PATH } from '../../utils/constants.js'
-import { Readable } from 'stream'
+import { Readable, pipeline } from 'stream'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 
@@ -568,6 +568,15 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/serviceStreamableLogs`, async (req,
   }
 })
 
+// A numeric query param, undefined when absent. An empty or non-numeric value becomes NaN so
+// the handler rejects it instead of reading it as 0 (Number('') === 0); parseInt() is not used
+// because it accepts trailing garbage ("1abc").
+function queryNumber(value: unknown): number | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'string' || value.trim() === '') return NaN
+  return Number(value)
+}
+
 // zip of a service's /data/outputs: an archived one (index[, offset]) or the live container's
 computeRoutes.get(`${SERVICES_API_BASE_PATH}/serviceResult`, async (req, res) => {
   try {
@@ -580,9 +589,8 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/serviceResult`, async (req, res) =>
       node: (req.query.node as string) || null,
       consumerAddress: (req.query.consumerAddress as string) || null,
       serviceId: (req.query.serviceId as string) || null,
-      // can't be parseInt() because that excludes index 0
-      index: req.query.index !== undefined ? Number(req.query.index) : undefined,
-      offset: req.query.offset !== undefined ? Number(req.query.offset) : undefined,
+      index: queryNumber(req.query.index),
+      offset: queryNumber(req.query.offset),
       live: req.query.live === 'true',
       signature: (req.query.signature as string) || null,
       nonce: (req.query.nonce as string) || null,
@@ -594,7 +602,16 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/serviceResult`, async (req, res) =>
     if (response.stream) {
       res.status(response.status.httpStatus)
       res.set(response.status.headers)
-      response.stream.pipe(res)
+      // pipeline, not pipe: a live zip fails mid-stream when its container goes away, and an
+      // unhandled error on the source would take the node down; a client that disconnects
+      // must also release the container's archive stream instead of leaving it stalled.
+      pipeline(response.stream as Readable, res, (err) => {
+        if (err)
+          HTTP_LOGGER.log(
+            LOG_LEVELS_STR.LEVEL_ERROR,
+            `serviceResult ${task.serviceId}: download aborted: ${err.message}`
+          )
+      })
     } else {
       res.status(response.status.httpStatus).send(response.status.error)
     }

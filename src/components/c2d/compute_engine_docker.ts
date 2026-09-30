@@ -5039,6 +5039,11 @@ export class C2DEngineDocker extends C2DEngine {
         throw new Error(
           'Cannot restart a service whose payment was never claimed (unpaid or refunded) — start a new service'
         )
+      // Resolve the output-bucket mount now, while the old container is still up: the
+      // background op tears it down before it creates the new one, so a bucket the owner
+      // lost access to (bucket sharing disabled, removed from its access list, bucket
+      // deleted) would otherwise leave the service without a container until expiresAt.
+      await this.serviceOutputMounts(job)
       // Persist Restarting BEFORE returning: status polls flip immediately, and a crash
       // from here on leaves a pending-status record the boot loop orphan-recovers
       // (Restarting is in SERVICE_START_PENDING_STATUSES) instead of a bare Starting
