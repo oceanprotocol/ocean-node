@@ -163,15 +163,23 @@ compute job's outputs:
 - **The folder always exists.** Before starting a container the node creates
   `/data/outputs` in it (mode `0777`, so a non-root service user can write), unless the image
   already has one. An existing `/data` is left untouched.
-- **It is archived whenever a container goes away.** The folder lives in the container's
-  writable layer, so it is zipped right before every container removal: `serviceStop`, the
-  expiry sweep, `serviceRestart` (which replaces the container, so the new one starts with
-  an empty `/data/outputs`), and the crash recovery at node start. Each container gives one
-  archive, `outputs-<n>.zip` under `<c2d storage>/services/<serviceId>/`, listed on
+- **A restart keeps it.** `serviceRestart` replaces the container, so the node carries the
+  folder over: the old container is stopped (not removed), and once the new one is created
+  its `/data/outputs` is copied in, before the new container starts and the old one is
+  removed. The service comes back with the files it had, and a restart normally produces no
+  archive. If the copy fails, or the restart itself fails, the folder is archived instead
+  (`reason: restart`), so nothing is lost. A service with an output bucket needs none of
+  this: the bucket is mounted into the new container again.
+- **It is archived when the service's container goes away for good**: `serviceStop`, the
+  expiry sweep, and the crash recovery at node start. The folder lives in the container's
+  writable layer, so it is zipped right before the container is removed. Each such container
+  gives one archive, `outputs-<n>.zip` under `<c2d storage>/services/<serviceId>/`, listed on
   `serviceStatus` as `outputArchives` (`index`, `filename`, `filesize`, `createdAt`,
   `reason` — `stop`, `expiry`, `restart` or `recovery` — and `containerId`). Archiving is
   best-effort: if it fails, teardown continues and the reason is kept in
-  `outputArchiveError`. A container without `/data/outputs` produces no archive.
+  `outputArchiveError`. A container without `/data/outputs`, or with an empty one, produces
+  no archive. A service that is stopped and later restarted starts with an empty folder;
+  what it had is in the stop archive.
 - **The zip holds the folder's regular files and folders**, uncompressed, with their mtimes
   and permission bits. Symlinks, hardlinks, devices and entries with an absolute or `..`
   path are left out, so an archive can't write outside the folder it is extracted into.

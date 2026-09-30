@@ -4002,10 +4002,22 @@ export class C2DEngineDocker extends C2DEngine {
       }
       mkdirSync(folder, { recursive: true })
       let skipped = 0
+      let empty = false
       await pipeline(
-        tarToZip(tar, (stats) => (skipped = stats.skipped)),
+        tarToZip(tar, (stats) => {
+          skipped = stats.skipped
+          empty = stats.files === 0 && stats.directories === 0
+        }),
         createWriteStream(partialPath)
       )
+      // Nothing written: an entry that downloads as an empty zip would only be noise.
+      if (empty) {
+        rmSync(partialPath, { force: true })
+        CORE_LOGGER.debug(
+          `service ${job.serviceId}: ${SERVICE_OUTPUTS_PATH} empty (${reason})`
+        )
+        return
+      }
       renameSync(partialPath, finalPath)
       const { size } = statSync(finalPath)
       job.outputArchives = [
@@ -4034,6 +4046,26 @@ export class C2DEngineDocker extends C2DEngine {
         }`
       )
     }
+  }
+
+  // Streams a container's /data/outputs into another one — created, not yet started — as a
+  // tar straight between the two, so a restart keeps what the service wrote. The source may be
+  // stopped and off its (already removed) network: Docker reads a stopped container's
+  // filesystem all the same. The target's /data must exist (ensureServiceOutputsFolder).
+  // Returns false when the source has no /data/outputs.
+  private async copyServiceOutputs(
+    from: Dockerode.Container,
+    to: Dockerode.Container
+  ): Promise<boolean> {
+    let tar: NodeJS.ReadableStream
+    try {
+      tar = await from.getArchive({ path: SERVICE_OUTPUTS_PATH })
+    } catch (e: any) {
+      if (e?.statusCode === 404) return false
+      throw e
+    }
+    await to.putArchive(tar, { path: path.posix.dirname(SERVICE_OUTPUTS_PATH) })
+    return true
   }
 
   // Handler-facing: persist the initial Starting record and return immediately so the HTTP
@@ -4148,15 +4180,28 @@ export class C2DEngineDocker extends C2DEngine {
           job.owner
         )
       }
-      if (job.containerId) {
-        const c = this.docker.getContainer(job.containerId)
-        // Only a claimed service ever ran (a restart interrupted before it removed the old
-        // container, typically) — archive what it wrote before the container goes.
+      const { previousContainerId } = job
+      if (job.containerId || previousContainerId) {
+        // Only a claimed service ever ran — archive what it wrote before its containers go.
+        // A restart that died before switching to the new container (containerId still
+        // empty) left the results in the previous one it was carrying them over from.
         if (job.payment.claimTx) {
-          await c.stop({ t: 10 }).catch(() => {})
-          await this.archiveServiceOutputs(job, c, 'recovery')
+          const holder = this.docker.getContainer(job.containerId || previousContainerId)
+          await holder.stop({ t: 10 }).catch(() => {})
+          await this.archiveServiceOutputs(job, holder, 'recovery')
         }
-        await this.cleanupServiceDocker(c, null, serviceId)
+        if (job.containerId)
+          await this.cleanupServiceDocker(
+            this.docker.getContainer(job.containerId),
+            null,
+            serviceId
+          )
+        if (previousContainerId)
+          await this.docker
+            .getContainer(previousContainerId)
+            .remove({ force: true })
+            .catch(() => {})
+        delete job.previousContainerId
       }
       await this.removeServiceNetwork(serviceId, job.networkId).catch((e) => {
         CORE_LOGGER.debug(`orphan recovery ${serviceId}: network removal: ${e.message}`)
@@ -5112,18 +5157,28 @@ export class C2DEngineDocker extends C2DEngine {
     // persisted as Restarting, so a crash anywhere in this method leaves a pending-status
     // record that the boot loop orphan-recovers (refund-safe: the original payment's
     // claimTx is set, so recovery never touches escrow for a restart).
+    //
+    // A service without an output bucket keeps its /data/outputs across the restart: the old
+    // container is only stopped here, and removed once its folder has been copied into the
+    // new one (step 8). A stopped container is not an endpoint of the network, so removing
+    // the network below leaves it alone. With a bucket the results are in the bucket already.
+    let previous: Dockerode.Container | null = null
     if (job.containerId) {
-      CORE_LOGGER.debug(`restart ${serviceId}: removing old container ${job.containerId}`)
+      CORE_LOGGER.debug(`restart ${serviceId}: stopping old container ${job.containerId}`)
       // Final snapshot of the outgoing container before it is torn down (best-effort).
       await this.captureFinalServiceSnapshot(job)
       const c = this.docker.getContainer(job.containerId)
       await c.stop({ t: 10 }).catch((e) => {
         CORE_LOGGER.debug(`restart ${serviceId}: old container stop: ${e.message}`)
       })
-      await this.archiveServiceOutputs(job, c, 'restart')
-      await c.remove({ force: true }).catch((e) => {
-        CORE_LOGGER.debug(`restart ${serviceId}: old container remove: ${e.message}`)
-      })
+      if (job.outputBucketId) {
+        await c.remove({ force: true }).catch((e) => {
+          CORE_LOGGER.debug(`restart ${serviceId}: old container remove: ${e.message}`)
+        })
+      } else {
+        previous = c
+        job.previousContainerId = job.containerId
+      }
     }
     await this.removeServiceNetwork(serviceId, job.networkId).catch((e) => {
       CORE_LOGGER.debug(`restart ${serviceId}: old network removal: ${e.message}`)
@@ -5258,6 +5313,29 @@ export class C2DEngineDocker extends C2DEngine {
         `restart ${serviceId}: created container ${container.id} on network ${network.id} — starting`
       )
       await this.ensureServiceOutputsFolder(job, container)
+
+      // Carry /data/outputs over from the old container, then let it go. If the copy fails
+      // the old folder is archived instead, so nothing is lost. The new container is
+      // persisted before the old one is removed: a crash from here on recovers (and
+      // archives) the new container, which now holds the results.
+      if (previous) {
+        try {
+          await this.copyServiceOutputs(previous, container)
+        } catch (e: any) {
+          CORE_LOGGER.error(
+            `restart ${serviceId}: could not carry ${SERVICE_OUTPUTS_PATH} over (${e.message}) — archiving it instead`
+          )
+          await this.archiveServiceOutputs(job, previous, 'restart')
+        }
+        job.containerId = container.id
+        await this.db.updateServiceJob(job)
+        await previous.remove({ force: true }).catch((e) => {
+          CORE_LOGGER.debug(`restart ${serviceId}: old container remove: ${e.message}`)
+        })
+        previous = null
+        delete job.previousContainerId
+      }
+
       await container.start()
       CORE_LOGGER.debug(`restart ${serviceId}: container ${container.id} started`)
 
@@ -5290,7 +5368,19 @@ export class C2DEngineDocker extends C2DEngine {
         `restart ${serviceId}: FAILED (${err.message}) — docker state at failure`,
         serviceId
       )
+      // The failed restart must not take /data/outputs with it: archive whichever container
+      // holds it — the old one if the carry-over didn't happen yet, else the new one.
+      if (!job.outputBucketId) {
+        const holder = previous ?? (job.containerId ? container : null)
+        if (holder) await this.archiveServiceOutputs(job, holder, 'restart')
+      }
+      if (previous) {
+        await previous.remove({ force: true }).catch(() => {})
+        delete job.previousContainerId
+      }
       await this.cleanupServiceDocker(container, network, serviceId)
+      // Set once the carry-over switched to the new container, which is gone now too.
+      job.containerId = ''
       // Ports deliberately stay reserved: the consumer paid until expiresAt and may
       // restart again — the expiry sweep releases them when the window elapses.
       job.status = ServiceStatusNumber.Error

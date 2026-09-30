@@ -459,4 +459,181 @@ describe('service /data/outputs archives', () => {
       sinon.assert.notCalled(engine.db.updateServiceJob)
     })
   })
+
+  describe('restart carries /data/outputs over', () => {
+    // A created (not yet started) container: /data already exists, so ensureServiceOutputsFolder
+    // puts nothing, and the carried-over tar is the only putArchive.
+    function newContainer(overrides: Record<string, any> = {}) {
+      return {
+        id: 'new',
+        infoArchive: sinon.stub().resolves({}),
+        putArchive: sinon.stub().resolves(undefined),
+        getArchive: sinon
+          .stub()
+          .callsFake(async () => Readable.from(await makeTar(OUTPUTS_TAR))),
+        start: sinon.stub().resolves(undefined),
+        stop: sinon.stub().resolves(undefined),
+        remove: sinon.stub().resolves(undefined),
+        ...overrides
+      }
+    }
+
+    function restartEngine(old: any, created: any) {
+      const engine = makeEngine(tempFolder)
+      engine.docker.getContainer.callsFake((id: string) =>
+        id === created.id ? created : old
+      )
+      engine.docker.createNetwork = sinon.stub().resolves({ id: 'newnet' })
+      engine.docker.createContainer = sinon.stub().resolves(created)
+      engine.pullImageRef = sinon.stub().resolves(undefined)
+      return engine
+    }
+
+    it('copies the old container folder into the new one before starting it, and archives nothing', async () => {
+      const old = outputsContainer('old')
+      const created = newContainer()
+      const engine = restartEngine(old, created)
+      const job = makeJob({ containerId: 'old' })
+
+      await engine.doRestartService(job)
+
+      expect(job.status).to.equal(ServiceStatusNumber.Running)
+      expect(job.containerId).to.equal('new')
+      expect(job.previousContainerId).to.equal(undefined)
+      expect(job.outputArchives ?? []).to.deep.equal([])
+      sinon.assert.calledOnce(created.putArchive)
+      expect(created.putArchive.firstCall.args[1]).to.deep.equal({ path: '/data' })
+      // the old folder is read only after the old container stopped; it is removed only once
+      // the copy landed, and the new container starts last
+      sinon.assert.callOrder(
+        old.stop,
+        old.getArchive,
+        created.putArchive,
+        old.remove,
+        created.start
+      )
+      // the switch to the new container is persisted before the old one is removed
+      const switched = engine.db.updateServiceJob
+        .getCalls()
+        .findIndex((c: any) => c.args[0].containerId === 'new')
+      expect(switched).to.be.greaterThan(-1)
+      expect(
+        engine.db.updateServiceJob.getCall(switched).calledBefore(old.remove.firstCall)
+      ).to.equal(true)
+    })
+
+    it('archives the old folder instead when the copy fails, and still restarts', async () => {
+      const old = outputsContainer('old')
+      const created = newContainer({
+        putArchive: sinon.stub().rejects(new Error('disk full'))
+      })
+      const engine = restartEngine(old, created)
+      const job = makeJob({ containerId: 'old' })
+
+      await engine.doRestartService(job)
+
+      expect(job.status).to.equal(ServiceStatusNumber.Running)
+      expect(job.outputArchives.map((a) => [a.containerId, a.reason])).to.deep.equal([
+        ['old', 'restart']
+      ])
+      sinon.assert.calledOnce(old.remove)
+    })
+
+    it('a restart failing before the copy archives the old container', async () => {
+      const old = outputsContainer('old')
+      const created = newContainer()
+      const engine = restartEngine(old, created)
+      engine.pullImageRef = sinon.stub().rejects(new Error('pull failed'))
+      const job = makeJob({ containerId: 'old' })
+
+      let error: Error
+      try {
+        await engine.doRestartService(job)
+      } catch (e) {
+        error = e
+      }
+      expect(error.message).to.equal('pull failed')
+      expect(job.status).to.equal(ServiceStatusNumber.Error)
+      expect(job.outputArchives.map((a) => [a.containerId, a.reason])).to.deep.equal([
+        ['old', 'restart']
+      ])
+      sinon.assert.calledOnce(old.remove)
+      expect(job.previousContainerId).to.equal(undefined)
+    })
+
+    it('a restart failing after the copy archives the new container, which holds the results', async () => {
+      const old = outputsContainer('old')
+      const created = newContainer({
+        start: sinon.stub().rejects(new Error('start failed'))
+      })
+      const engine = restartEngine(old, created)
+      const job = makeJob({ containerId: 'old' })
+
+      let error: Error
+      try {
+        await engine.doRestartService(job)
+      } catch (e) {
+        error = e
+      }
+      expect(error.message).to.equal('start failed')
+      expect(job.status).to.equal(ServiceStatusNumber.Error)
+      expect(job.containerId).to.equal('')
+      expect(job.outputArchives.map((a) => [a.containerId, a.reason])).to.deep.equal([
+        ['new', 'restart']
+      ])
+    })
+
+    it('a service with an output bucket removes the old container right away, copying nothing', async () => {
+      const old = outputsContainer('old')
+      const created = newContainer()
+      const engine = restartEngine(old, created)
+      engine.serviceOutputMounts = sinon.stub().resolves([])
+      const job = makeJob({ containerId: 'old', outputBucketId: 'bucket-1' })
+
+      await engine.doRestartService(job)
+
+      expect(job.status).to.equal(ServiceStatusNumber.Running)
+      sinon.assert.notCalled(old.getArchive)
+      sinon.assert.notCalled(created.putArchive)
+      sinon.assert.callOrder(old.remove, created.start)
+    })
+
+    it('orphan recovery archives the previous container when a restart died before switching', async () => {
+      const old = outputsContainer('old')
+      const engine = makeEngine(tempFolder)
+      engine.docker.getContainer.returns(old)
+      const job = makeJob({
+        containerId: '',
+        previousContainerId: 'old',
+        status: ServiceStatusNumber.PullImage,
+        statusText: 'PullImage'
+      })
+      engine.db.getServiceJob.resolves([job])
+
+      await engine.processServiceStart(job)
+
+      expect(job.status).to.equal(ServiceStatusNumber.Error)
+      expect(job.outputArchives.map((a) => [a.containerId, a.reason])).to.deep.equal([
+        ['old', 'recovery']
+      ])
+      sinon.assert.calledOnce(old.remove)
+      expect(job.previousContainerId).to.equal(undefined)
+    })
+  })
+
+  it('an empty /data/outputs produces no archive', async () => {
+    const engine = makeEngine(tempFolder)
+    const job = makeJob()
+    await engine.archiveServiceOutputs(
+      job,
+      outputsContainer('c1', [{ name: 'outputs', type: 'directory' }]),
+      'stop'
+    )
+    expect(job.outputArchives ?? []).to.deep.equal([])
+    expect(
+      fs.existsSync(
+        path.join(tempFolder, CLUSTER_HASH, 'services', SERVICE_ID, 'outputs-0.zip')
+      )
+    ).to.equal(false)
+  })
 })

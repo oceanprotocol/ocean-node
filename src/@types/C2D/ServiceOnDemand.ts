@@ -233,6 +233,10 @@ export interface ServiceJob {
   outputArchives?: ServiceOutputArchive[]
   outputArchiveError?: string // why the last archive attempt failed; cleared by the next success
   outputsDeletedAt?: number // Unix ms timestamp at which storage expiry deleted the archives
+  // Internal, only while a restart is in flight: the stopped old container, kept until its
+  // /data/outputs has been carried over into the new one (orphan recovery archives and
+  // removes it if the node dies before that). Never returned to clients.
+  previousContainerId?: string
   resources: ComputeResourceRequestWithPrice[]
   payment: DBComputeJobPayment // initial start payment
   extendPayments?: DBComputeJobPayment[] // one entry per successful SERVICE_EXTEND

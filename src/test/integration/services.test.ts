@@ -934,22 +934,25 @@ describe('**********         Service on Demand', () => {
     const res = await httpGetWithRetry(endpointUrl)
     assert(res.status === 200, `expected nginx HTTP 200 after restart, got ${res.status}`)
 
-    // the old container's /data/outputs was archived before it was removed...
-    const archive = running.outputArchives.find((a) => a.containerId === oldContainerId)
-    expect(archive).to.include({
-      reason: 'restart',
-      filename: `outputs-${archive.index}.zip`
-    })
-    const archived = await getServiceResult({ index: archive.index })
-    assert(
-      archived.status.httpStatus === 200,
-      `expected 200, got ${archived.status.httpStatus}: ${archived.status?.error ?? ''}`
-    )
-    const files = await unzipFiles(archived.stream as Readable)
-    expect(files['first.txt']).to.equal('from the first container')
-    // ...and the new container starts with an empty one
+    // the old container's /data/outputs was carried over into the new container...
     const live = await getServiceResult({ live: true })
-    expect(await unzipFiles(live.stream as Readable)).to.deep.equal({})
+    assert(
+      live.status.httpStatus === 200,
+      `expected 200, got ${live.status.httpStatus}: ${live.status?.error ?? ''}`
+    )
+    const files = await unzipFiles(live.stream as Readable)
+    expect(files['first.txt']).to.equal('from the first container')
+    // ...so nothing was archived for the restart, and the old container is gone
+    expect(
+      (running.outputArchives ?? []).filter((a) => a.containerId === oldContainerId)
+    ).to.deep.equal([])
+    let oldInspect: { statusCode?: number } | null = null
+    try {
+      await new Dockerode().getContainer(oldContainerId).inspect()
+    } catch (e) {
+      oldInspect = e
+    }
+    expect(oldInspect?.statusCode, 'old container must be removed').to.equal(404)
   })
 
   it('(l2) SERVICE_RESTART self-heals a network leaked by a crash mid-start', async function () {
