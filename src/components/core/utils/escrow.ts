@@ -251,14 +251,17 @@ export class Escrow {
     payer: string,
     amount: number,
     proof: string,
-    jobType: JobType = JobType.NONE
+    jobType: JobType = JobType.NONE,
+    subsidyOverride: string[] | null = null
   ): Promise<string | null> {
     const blockchain = this.getBlockchain(chain)
     const signer = await blockchain.getSigner()
     const contract = this.getContract(chain, signer)
     const wei = await this.getPaymentAmountInWei(amount, chain, token)
     const jobId = create256Hash(job)
-    const subsidyProviders = this.getSubsidyProvidersForChain(chain)
+    // `??` (not `||`) so a user-supplied empty list means "no providers" and only a missing
+    // override (undefined/null) falls back to the per-chain node config.
+    const subsidyProviders = subsidyOverride ?? this.getSubsidyProvidersForChain(chain)
     if (!contract) return null
     try {
       const locks = await this.getLocks(chain, token, payer, await signer.getAddress())
@@ -342,7 +345,8 @@ export class Escrow {
     payers: string[],
     amounts: number[],
     proofs: string[],
-    jobType: JobType = JobType.NONE
+    jobType: JobType = JobType.NONE,
+    subsidyOverrides: (string[] | null)[] | null = null
   ): Promise<string | null> {
     const blockchain = this.getBlockchain(chain)
     const signer = await blockchain.getSigner()
@@ -367,11 +371,14 @@ export class Escrow {
       ethProofs.push(ethers.toUtf8Bytes(proofs[i]))
     }
     // Parallel arrays the plural claim ABI expects: one jobType per job (all the same here) and
-    // one subsidy-provider list per job (the batch is single-chain, so the same per-chain list is
-    // repeated for every job).
+    // one subsidy-provider list per job. Each job may carry its own user-supplied override; where
+    // it doesn't (undefined/null), the per-chain node config is used. `??` (not `||`) so a
+    // user-supplied empty list survives as "no providers".
     const chainSubsidyProviders = this.getSubsidyProvidersForChain(chain)
     const jobTypes: JobType[] = jobs.map(() => jobType)
-    const subsidyProviders: string[][] = jobs.map(() => chainSubsidyProviders)
+    const subsidyProviders: string[][] = jobs.map(
+      (_job, i) => subsidyOverrides?.[i] ?? chainSubsidyProviders
+    )
     try {
       const gas = await contract.claimLocksAndWithdraw.estimateGas(
         jobIds,

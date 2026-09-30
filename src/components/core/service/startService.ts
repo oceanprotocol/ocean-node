@@ -19,6 +19,7 @@ import { generateUniqueID, validateOutputBucket } from '../compute/utils.js'
 import { validateAccess } from '../compute/startCompute.js'
 import { isJobMetadataSizeValid, INVALID_JOB_METADATA_MESSAGE } from '../../c2d/index.js'
 import { decryptUserData, toPublicServiceJob } from './utils.js'
+import { resolveUserSubsidyProviders } from '../utils/subsidyProviders.js'
 
 export class ServiceStartHandler extends CommandHandler {
   validate(command: ServiceStartCommand): ValidateParams {
@@ -237,6 +238,20 @@ export class ServiceStartHandler extends CommandHandler {
         nonce: task.nonce
       })
 
+      // Resolve the user-supplied subsidy providers (if any) for the payment chain, enforcing the
+      // node's whitelist filter when enabled. Persisted on the job so the background pipeline's
+      // claim uses the user's choice rather than the node config at that time.
+      const subsidyResolution = resolveUserSubsidyProviders(
+        task.subsidyProviders,
+        task.payment.chainId,
+        node.getConfig()
+      )
+      if (!subsidyResolution.valid) {
+        return buildInvalidParametersResponse(
+          buildInvalidRequestMessage(subsidyResolution.reason)
+        )
+      }
+
       // Escrow tx hashes are filled in later by the background pipeline (locking → payment).
       const payment: Payment = {
         chainId: task.payment.chainId,
@@ -244,7 +259,8 @@ export class ServiceStartHandler extends CommandHandler {
         lockTx: '',
         claimTx: '',
         cancelTx: '',
-        cost
+        cost,
+        subsidyProviders: subsidyResolution.resolved
       }
 
       // 7. Persist the Starting record and return immediately with the serviceId. The

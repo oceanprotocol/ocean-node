@@ -878,6 +878,7 @@ returns status of node
     "subsidyProviders": {
       "8996": ["0x123", "0x456"]
     },
+    "subsidyProviderFilter": false,
     "uptime": 123,
     "platform": {
       "cpus": "123",
@@ -898,7 +899,25 @@ returns status of node
 `escrowAddress` and `subsidyProviders` are per-chain maps (keyed by chainId). `subsidyProviders`
 reflects the node's `SUBSIDY_PROVIDERS` configuration — the Subsidy Provider contract addresses the
 node passes to the escrow at claim time; it is `{}` when none are configured. Both are present in
-the normal and detailed status.
+the normal and detailed status. `subsidyProviderFilter` reflects the node's
+`SUBSIDY_PROVIDER_FILTER` setting: when `true`, a user-supplied `subsidyProviders` list on a
+compute/service request is restricted to addresses already in this map for the request's chain
+(see the per-request `subsidyProviders` field below).
+
+### Per-request `subsidyProviders`
+
+`startCompute` (paid), `serviceStart`, and `serviceExtend` accept an optional top-level
+`subsidyProviders` field: a plain array of Subsidy Provider contract addresses for the request's
+payment chain. It overrides the node's `SUBSIDY_PROVIDERS` for that request only:
+
+- **omitted / `undefined`** → the node's configured `SUBSIDY_PROVIDERS` for the chain are used.
+- **`[]`** (empty array) → the claim is made with **no** subsidy providers.
+- **non-empty array** → the claim uses **only** these addresses, ignoring node config.
+
+Every address must be a valid EVM address (otherwise HTTP 400). When the node has
+`SUBSIDY_PROVIDER_FILTER` enabled, every supplied address must also be in the node's
+`SUBSIDY_PROVIDERS` for that chain, or the request is rejected with HTTP 400 (an empty array is
+always allowed). Free compute has no escrow claim, so the field is ignored there.
 
 ---
 

@@ -793,6 +793,123 @@ describe('**********         Compute', () => {
     jobWithOutputURL = jobs[0].jobId
   })
 
+  // ── user-supplied subsidyProviders (PaidComputeStartHandler) ──────────────
+  // Mirrors the service-handler coverage in services.test.ts. These reuse the same valid
+  // datasets/orders/env as the successful start above; the reject cases return before createLock
+  // (no escrow funds consumed).
+  const SUBSIDY_WHITELISTED = '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'
+  const SUBSIDY_NON_WHITELISTED = '0x529043886F21D9bc1AE0feDb751e34265a246e47'
+
+  // Temporarily flip the live node config to SUBSIDY_PROVIDER_FILTER=on with a whitelist, run fn,
+  // then restore. Handlers read config by reference via getConfig(); try/finally prevents leakage.
+  async function withSubsidyFilter(
+    whitelist: Record<string, string[]>,
+    fn: () => Promise<void>
+  ): Promise<void> {
+    const cfg = oceanNode.getConfig()
+    const prevFilter = cfg.subsidyProviderFilter
+    const prevProviders = cfg.subsidyProviders
+    cfg.subsidyProviderFilter = true
+    cfg.subsidyProviders = whitelist
+    try {
+      await fn()
+    } finally {
+      cfg.subsidyProviderFilter = prevFilter
+      cfg.subsidyProviders = prevProviders
+    }
+  }
+
+  async function buildPaidStartTask(
+    subsidyProviders?: string[]
+  ): Promise<PaidComputeStartCommand> {
+    const nonce = Date.now().toString()
+    const signature = await safeSign(
+      consumerAccount,
+      createHashForSignature(
+        await consumerAccount.getAddress(),
+        nonce,
+        PROTOCOL_COMMANDS.COMPUTE_START
+      )
+    )
+    const re = firstEnv.resources.map((res) => ({ id: res.id, amount: res.min }))
+    const task: PaidComputeStartCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_START,
+      consumerAddress: await consumerAccount.getAddress(),
+      signature,
+      nonce,
+      environment: firstEnv.id,
+      datasets: [
+        {
+          documentId: publishedComputeDataset.ddo.id,
+          serviceId: publishedComputeDataset.ddo.services[0].id,
+          transferTxId: datasetOrderTxId
+        }
+      ],
+      algorithm: {
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        transferTxId: algoOrderTxId,
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      },
+      payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken },
+      maxJobDuration: computeJobDuration,
+      resources: re
+    }
+    if (subsidyProviders !== undefined) task.subsidyProviders = subsidyProviders
+    return task
+  }
+
+  it('COMPUTE_START rejects an invalid subsidyProviders address (400)', async () => {
+    const task = await buildPaidStartTask(['0xnot-an-address'])
+    const response = await new PaidComputeStartHandler(oceanNode).handle(task)
+    expect(response.status.httpStatus).to.equal(400)
+    expect(response.status.error).to.contain('subsidy provider')
+  })
+
+  it('COMPUTE_START rejects a provider outside the whitelist when the filter is on (400)', async () => {
+    await withSubsidyFilter(
+      { [String(DEVELOPMENT_CHAIN_ID)]: [SUBSIDY_WHITELISTED] },
+      async () => {
+        const task = await buildPaidStartTask([SUBSIDY_NON_WHITELISTED])
+        const response = await new PaidComputeStartHandler(oceanNode).handle(task)
+        expect(response.status.httpStatus).to.equal(400)
+        expect(response.status.error).to.contain('not allowed')
+      }
+    )
+  })
+
+  it('COMPUTE_START persists a checksummed, whitelisted subsidyProviders list on the job payment', async function () {
+    // Needs escrow funds (createLock runs). Funds are still available here — the next test drains
+    // them. The persisted value is written synchronously by startComputeJob, so it is readable
+    // straight from the DB regardless of what the async batched claim does later (the whitelisted
+    // EOA is not a real subsidy contract, so that claim is expected to revert-and-cancel).
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+    await withSubsidyFilter(
+      { [String(DEVELOPMENT_CHAIN_ID)]: [SUBSIDY_WHITELISTED] },
+      async () => {
+        // lower-case on input; the resolver must persist the EIP-55 checksummed form
+        const task = await buildPaidStartTask([SUBSIDY_WHITELISTED.toLowerCase()])
+        const response = await new PaidComputeStartHandler(oceanNode).handle(task)
+        assert(
+          response.status.httpStatus === 200,
+          `expected 200, got ${response.status.httpStatus}: ${response.status?.error ?? ''}`
+        )
+        const startedJobs = await streamToObject(response.stream as Readable)
+        const { jobId } = startedJobs[0]
+        assert(jobId, 'no jobId returned')
+
+        // The public jobId is `<clusterHash>-<internalId>` (see getComputeJobStatus). The DB keys
+        // on the internal id, so strip the cluster-hash prefix before looking it up.
+        const internalJobId = jobId.substring(jobId.indexOf('-') + 1)
+        const [stored] = await dbconn.c2d.getJob(internalJobId)
+        assert(stored, 'compute job not persisted')
+        expect(stored.payment.subsidyProviders).to.deep.equal([
+          getAddress(SUBSIDY_WHITELISTED)
+        ])
+      }
+    )
+  })
+
   it('should fail to start a compute job without escrow funds', async () => {
     // ensure clean escrow state: no funds, no auths, no locks
     const funds = await oceanNode.escrow.getUserAvailableFunds(
@@ -1128,6 +1245,55 @@ describe('**********         Compute', () => {
     console.log('**** Started FREE compute job with id: ', jobs[0].jobId)
     console.log(jobs[0])
     freeJobId = jobs[0].jobId
+  })
+
+  it('FREE_COMPUTE_START ignores subsidyProviders (no escrow claim), even an invalid one', async () => {
+    // Free compute never claims escrow, so the resolver is not wired into FreeComputeStartHandler.
+    // A garbage subsidyProviders value must therefore be silently ignored (200), NOT rejected as it
+    // would be on a paid start. Locks in that "ignored" contract so a future refactor that wires the
+    // resolver into the shared base handler is caught.
+    const nonce = Date.now().toString()
+    const signature = await safeSign(
+      consumerAccount,
+      createHashForSignature(
+        await consumerAccount.getAddress(),
+        nonce,
+        PROTOCOL_COMMANDS.FREE_COMPUTE_START
+      )
+    )
+    const startComputeTask: FreeComputeStartCommand = {
+      command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+      consumerAddress: await consumerAccount.getAddress(),
+      signature,
+      nonce,
+      environment: firstEnv.id,
+      datasets: [
+        {
+          fileObject: computeAsset.services[0].files.files[0],
+          documentId: publishedComputeDataset.ddo.id,
+          serviceId: publishedComputeDataset.ddo.services[0].id,
+          transferTxId: datasetOrderTxId
+        }
+      ],
+      algorithm: {
+        fileObject: algoAsset.services[0].files.files[0],
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        transferTxId: algoOrderTxId,
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      },
+      output: null,
+      queueMaxWaitTime: 300,
+      // would be a 400 on a paid start; must be ignored here
+      subsidyProviders: ['0xnot-an-address']
+    }
+    const response = await new FreeComputeStartHandler(oceanNode).handle(startComputeTask)
+    assert(
+      response.status.httpStatus === 200,
+      `expected free compute to ignore subsidyProviders and return 200, got ${response.status.httpStatus}: ${response.status?.error ?? ''}`
+    )
+    const startedJobs = await streamToObject(response.stream as Readable)
+    assert(startedJobs[0].jobId, 'expected a jobId for the free job')
   })
 
   it('should get job status by jobId', async () => {

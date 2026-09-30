@@ -102,7 +102,10 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       queueMaxWaitTime: req.body.queueMaxWaitTime || 0,
       caller: req.caller,
       encryptedDockerRegistryAuth:
-        (req.body.encryptedDockerRegistryAuth as string) || null
+        (req.body.encryptedDockerRegistryAuth as string) || null,
+      // Tri-state preserved: undefined (absent) = use node config, [] = no providers, array = use
+      // exactly these. Passing the raw value through keeps the absent-vs-empty distinction.
+      subsidyProviders: req.body.subsidyProviders as string[] | undefined
     }
     if (req.body.output) {
       startComputeTask.output = req.body.output
@@ -423,6 +426,8 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/serviceStart`, async (req, res) =>
     metadata: req.body.metadata ?? undefined,
     outputBucketId: (req.body.outputBucketId as string) || undefined,
     payment: req.body.payment,
+    // Tri-state preserved: undefined = use node config, [] = no providers, array = use these.
+    subsidyProviders: req.body.subsidyProviders as string[] | undefined,
     authorization: req.headers?.authorization,
     caller: req.caller
   }
@@ -454,6 +459,8 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/serviceExtend`, async (req, res) =
     serviceId: (req.body.serviceId as string) || null,
     additionalDuration: req.body.additionalDuration as number,
     payment: req.body.payment,
+    // Tri-state preserved: undefined = use node config, [] = no providers, array = use these.
+    subsidyProviders: req.body.subsidyProviders as string[] | undefined,
     authorization: req.headers?.authorization,
     caller: req.caller
   }

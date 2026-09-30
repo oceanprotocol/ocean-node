@@ -104,6 +104,13 @@ describe('**********         Service on Demand', () => {
   let endpointUrl: string
   const startedServices: string[] = []
 
+  // Subsidy-provider fixtures for the user-supplied subsidyProviders tests. WHITELISTED is what a
+  // filter-ON node is configured to allow; NON_WHITELISTED is a different valid address that must
+  // be rejected under the filter. Supplied lower-case on purpose so the resolver's EIP-55
+  // normalization is observable in the persisted job.
+  const WHITELISTED_PROVIDER = '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'
+  const NON_WHITELISTED_PROVIDER = '0x529043886F21D9bc1AE0feDb751e34265a246e47'
+
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
 
   // ── helpers ──────────────────────────────────────────────────────────
@@ -218,6 +225,27 @@ describe('**********         Service on Demand', () => {
   function getDockerEngine(): C2DEngineDocker {
     const engines = (oceanNode.getC2DEngines() as any).engines as C2DEngineDocker[]
     return engines.find((e) => e instanceof C2DEngineDocker) as C2DEngineDocker
+  }
+
+  // Temporarily flip the live node config to SUBSIDY_PROVIDER_FILTER=on with a given per-chain
+  // whitelist, run `fn`, then restore. Handlers read the config by reference via getConfig(), so
+  // mutating it here is enough to exercise the filter without re-booting the node. try/finally keeps
+  // the change from leaking into the surrounding lifecycle tests.
+  async function withSubsidyFilter(
+    whitelist: Record<string, string[]>,
+    fn: () => Promise<void>
+  ): Promise<void> {
+    const cfg = oceanNode.getConfig()
+    const prevFilter = cfg.subsidyProviderFilter
+    const prevProviders = cfg.subsidyProviders
+    cfg.subsidyProviderFilter = true
+    cfg.subsidyProviders = whitelist
+    try {
+      await fn()
+    } finally {
+      cfg.subsidyProviderFilter = prevFilter
+      cfg.subsidyProviders = prevProviders
+    }
   }
 
   // container.logs({follow: true}) never ends on its own, so read for a bounded
@@ -470,6 +498,94 @@ describe('**********         Service on Demand', () => {
     const res = await httpGetWithRetry(endpointUrl)
     assert(res.status === 200, `expected nginx HTTP 200, got ${res.status}`)
     assert(res.body.toLowerCase().includes('nginx'), 'body should be the nginx page')
+  })
+
+  it('(d-subsidy-1) SERVICE_START rejects an invalid subsidyProviders address (400)', async () => {
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_START)
+    const task: ServiceStartCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_START,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      environment: servicesEnv.id,
+      image: 'nginxinc/nginx-unprivileged',
+      tag: 'alpine',
+      exposedPorts: [8080],
+      duration: SERVICE_DURATION,
+      resources: [
+        { id: 'cpu', amount: 1 },
+        { id: 'ram', amount: 1 }
+      ],
+      payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken },
+      // not a valid EVM address → rejected before any escrow interaction
+      subsidyProviders: ['0xnot-an-address']
+    }
+    const resp = await new ServiceStartHandler(oceanNode).handle(task)
+    expect(resp.status.httpStatus).to.equal(400)
+    expect(resp.status.error).to.contain('subsidy provider')
+  })
+
+  it('(d-subsidy-2) SERVICE_START rejects a provider outside the whitelist when the filter is on (400)', async () => {
+    await withSubsidyFilter(
+      { [String(DEVELOPMENT_CHAIN_ID)]: [WHITELISTED_PROVIDER] },
+      async () => {
+        const {
+          consumerAddress: addr,
+          nonce,
+          signature
+        } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_START)
+        const task: ServiceStartCommand = {
+          command: PROTOCOL_COMMANDS.SERVICE_START,
+          consumerAddress: addr,
+          nonce,
+          signature,
+          environment: servicesEnv.id,
+          image: 'nginxinc/nginx-unprivileged',
+          tag: 'alpine',
+          exposedPorts: [8080],
+          duration: SERVICE_DURATION,
+          resources: [
+            { id: 'cpu', amount: 1 },
+            { id: 'ram', amount: 1 }
+          ],
+          payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken },
+          subsidyProviders: [NON_WHITELISTED_PROVIDER]
+        }
+        const resp = await new ServiceStartHandler(oceanNode).handle(task)
+        expect(resp.status.httpStatus).to.equal(400)
+        expect(resp.status.error).to.contain('not allowed')
+      }
+    )
+  })
+
+  it('(d-subsidy-3) SERVICE_EXTEND rejects a provider outside the whitelist when the filter is on (400)', async () => {
+    await withSubsidyFilter(
+      { [String(DEVELOPMENT_CHAIN_ID)]: [WHITELISTED_PROVIDER] },
+      async () => {
+        const {
+          consumerAddress: addr,
+          nonce,
+          signature
+        } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_EXTEND)
+        const task: ServiceExtendCommand = {
+          command: PROTOCOL_COMMANDS.SERVICE_EXTEND,
+          consumerAddress: addr,
+          nonce,
+          signature,
+          serviceId,
+          additionalDuration: SERVICE_DURATION,
+          payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken },
+          subsidyProviders: [NON_WHITELISTED_PROVIDER]
+        }
+        const resp = await new ServiceExtendHandler(oceanNode).handle(task)
+        expect(resp.status.httpStatus).to.equal(400)
+        expect(resp.status.error).to.contain('not allowed')
+      }
+    )
   })
 
   it('(e) SERVICE_GET_STATUS returns the job with userData stripped', async () => {
@@ -1193,5 +1309,64 @@ describe('**********         Service on Demand', () => {
 
     // stop it
     await getDockerEngine().stopService(job.serviceId, consumerAddress)
+  })
+
+  it('(p) SERVICE_START persists a checksummed, whitelisted subsidyProviders list on the job', async function () {
+    // Budget matches test (d): the stopService() call below blocks on the same per-service
+    // lifecycle lock as the background pipeline (lock → image → claim → start), so this test does
+    // the full flow synchronously. NOTE: the whitelisted address here is a plain EOA, not a
+    // deployed subsidy-provider contract, so the on-chain claim is expected to revert and fall into
+    // the cancel-refund path — that is fine, this test only asserts the value persisted at request
+    // time (before any claim runs), so a resulting Error status is not a regression.
+    this.timeout(DEFAULT_TEST_TIMEOUT * 4)
+    await withSubsidyFilter(
+      { [String(DEVELOPMENT_CHAIN_ID)]: [WHITELISTED_PROVIDER] },
+      async () => {
+        const {
+          consumerAddress: addr,
+          nonce,
+          signature
+        } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_START)
+        const task: ServiceStartCommand = {
+          command: PROTOCOL_COMMANDS.SERVICE_START,
+          consumerAddress: addr,
+          nonce,
+          signature,
+          environment: servicesEnv.id,
+          image: 'nginxinc/nginx-unprivileged',
+          tag: 'alpine',
+          exposedPorts: [8080],
+          duration: SERVICE_DURATION,
+          resources: [
+            { id: 'cpu', amount: 1 },
+            { id: 'ram', amount: 1 }
+          ],
+          payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken },
+          // lower-case on input; the resolver must store the EIP-55 checksummed form
+          subsidyProviders: [WHITELISTED_PROVIDER.toLowerCase()]
+        }
+        const resp = await new ServiceStartHandler(oceanNode).handle(task)
+        assert(
+          resp.status.httpStatus === 200,
+          `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
+        )
+        const [job] = (await streamToObject(resp.stream as Readable)) as ServiceJob[]
+        // register for teardown before any further await, so a later assertion failure
+        // still leaves the service to be cleaned up by after()
+        startedServices.push(job.serviceId)
+
+        // The resolved override is persisted synchronously by createServiceJob, so it is
+        // readable straight from the DB — no need to wait for the background pipeline.
+        const [stored] = await dbconn.c2d.getServiceJob(job.serviceId)
+        assert(stored, 'service job not persisted')
+        expect(stored.payment.subsidyProviders).to.deep.equal([
+          ethers.getAddress(WHITELISTED_PROVIDER)
+        ])
+
+        await getDockerEngine()
+          .stopService(job.serviceId, consumerAddress)
+          .catch(() => {})
+      }
+    )
   })
 })
