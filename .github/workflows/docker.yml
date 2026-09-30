@@ -11,6 +11,7 @@ on:
       - 'main'
       - 'next-4'
       - 'deps/node_v24'
+      - 'feature/user_input_subsidy'
 
 env:
   DOCKERHUB_IMAGE: ${{ 'oceanprotocol/ocean-node' }}
