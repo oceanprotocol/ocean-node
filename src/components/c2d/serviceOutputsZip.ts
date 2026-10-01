@@ -69,6 +69,11 @@ export function tarToZip(
   }
 
   extract.on('entry', (header, stream, next) => {
+    // A tar that ends inside an entry (Docker stops writing it when a file shrinks while it is
+    // archived, or the archive request breaks) errors the entry's stream, not only `extract`.
+    // yazl never listens on the streams it is given, so without this the error is unhandled
+    // and takes the node down — and the client is left with a truncated zip.
+    stream.on('error', (err) => out.destroy(err))
     const name = zipEntryName(header.name)
     const permissions = (header.mode ?? 0o644) & 0o7777
     const mtime = header.mtime ?? new Date()

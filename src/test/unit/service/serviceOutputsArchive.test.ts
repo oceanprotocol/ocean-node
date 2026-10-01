@@ -231,6 +231,26 @@ describe('service /data/outputs archives', () => {
       }
       expect(error).to.be.instanceOf(Error)
     })
+
+    it('fails the zip stream, without an unhandled error, when the tar ends inside a file', async () => {
+      const tar = await makeTar([
+        { name: 'outputs', type: 'directory' },
+        { name: 'outputs/big.bin', content: 'x'.repeat(64 * 1024) }
+      ])
+      const uncaught = sinon.spy()
+      process.prependListener('uncaughtException', uncaught)
+      let error: Error
+      try {
+        await streamToBuffer(tarToZip(Readable.from(tar.subarray(0, 512 + 1024))))
+      } catch (e) {
+        error = e
+      } finally {
+        await new Promise((resolve) => setImmediate(resolve))
+        process.removeListener('uncaughtException', uncaught)
+      }
+      expect(uncaught.called).to.equal(false)
+      expect(error?.message).to.equal('Unexpected end of data')
+    })
   })
 
   it('emptyOutputsDirTar never re-creates an existing /data', async () => {
