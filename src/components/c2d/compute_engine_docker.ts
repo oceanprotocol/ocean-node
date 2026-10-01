@@ -51,7 +51,7 @@ import {
 } from 'fs'
 import { pipeline } from 'node:stream/promises'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
-import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import { ENVIRONMENT_VARIABLES, JobType } from '../../utils/constants.js'
 import { AssetUtils } from '../../utils/asset.js'
 import { FindDdoHandler } from '../core/handler/ddoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
@@ -1011,7 +1011,8 @@ export class C2DEngineDocker extends C2DEngine {
             tokens,
             payers,
             amounts,
-            proofs
+            proofs,
+            JobType.COMPUTE
           )
           if (txId) {
             // Update all jobs with the transaction ID
@@ -1041,7 +1042,8 @@ export class C2DEngineDocker extends C2DEngine {
                 claim.job.payment!.token,
                 claim.job.owner,
                 claim.cost,
-                claim.proof
+                claim.proof,
+                JobType.COMPUTE
               )
               if (txId) {
                 if (claim.job.payment) {
@@ -4133,7 +4135,8 @@ export class C2DEngineDocker extends C2DEngine {
         token,
         job.owner,
         job.payment.cost,
-        `service-start:${serviceId}`
+        `service-start:${serviceId}`,
+        JobType.SERVICE
       )
       if (!claimTx) {
         job.payment.cancelTx = await this.safeCancelLock(

@@ -34,6 +34,7 @@ export const ENV_TO_CONFIG_MAPPING = {
   AUTHORIZED_PUBLISHERS_LIST: 'authorizedPublishersList',
   ALLOWED_ADMINS: 'allowedAdmins',
   ALLOWED_ADMINS_LIST: 'allowedAdminsList',
+  SUBSIDY_PROVIDERS: 'subsidyProviders',
   DOCKER_COMPUTE_ENVIRONMENTS: 'dockerComputeEnvironments',
   SERVICE_TEMPLATES_PATH: 'serviceTemplatesPath',
   DOCKER_REGISTRY_AUTHS: 'dockerRegistrysAuth',

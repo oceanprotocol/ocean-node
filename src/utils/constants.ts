@@ -140,6 +140,18 @@ export const MetadataStates = {
   UNLISTED: 5
 }
 
+// jobType passed to the Escrow claim functions so a Subsidy Provider can gate on the kind of
+// job being settled. The numeric values are part of the on-chain claim ABI — the escrow and any
+// Subsidy Provider contract read them directly, so they MUST NOT be renumbered. Future features
+// add their own id.
+/* eslint-disable no-unused-vars */
+export enum JobType {
+  NONE = 0,
+  COMPUTE = 1, // C2D compute jobs
+  SERVICE = 2 // service-on-demand
+}
+/* eslint-enable no-unused-vars */
+
 export const EVENTS = {
   METADATA_CREATED: 'MetadataCreated',
   METADATA_UPDATED: 'MetadataUpdated',
@@ -164,7 +176,8 @@ export const EVENTS = {
   ESCROW_CLAIMED: 'Claimed',
   ESCROW_CANCELED: 'Canceled',
   ESCROW_DEPOSIT: 'Deposit',
-  ESCROW_WITHDRAW: 'Withdraw'
+  ESCROW_WITHDRAW: 'Withdraw',
+  ESCROW_SUBSIDIZED: 'Subsidized'
 }
 
 export const ESCROW_EVENTS = [
@@ -174,7 +187,8 @@ export const ESCROW_EVENTS = [
   EVENTS.ESCROW_CLAIMED,
   EVENTS.ESCROW_CANCELED,
   EVENTS.ESCROW_DEPOSIT,
-  EVENTS.ESCROW_WITHDRAW
+  EVENTS.ESCROW_WITHDRAW,
+  EVENTS.ESCROW_SUBSIDIZED
 ]
 
 export const INDEXER_CRAWLING_EVENTS = {
@@ -284,6 +298,10 @@ export const EVENT_HASHES: Hashes = {
   '0x9b1bfa7fa9ee420a16e124f794c35ac9f90472acc99140eb2f6447c714cad8eb': {
     type: EVENTS.ESCROW_WITHDRAW,
     text: 'Withdraw(address,address,uint256)'
+  },
+  '0x04e202f6138ce0268067aab74c4038deaca9e8f15460867eff076939f0b06336': {
+    type: EVENTS.ESCROW_SUBSIDIZED,
+    text: 'Subsidized(address,address,uint256,address,address,uint256,uint256)'
   }
 }
 
@@ -419,6 +437,12 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   ALLOWED_ADMINS_LIST: {
     name: 'ALLOWED_ADMINS_LIST',
     value: process.env.ALLOWED_ADMINS_LIST,
+    required: false
+  },
+  SUBSIDY_PROVIDERS: {
+    // per-chain map of Subsidy Provider contract addresses passed to the escrow at claim time
+    name: 'SUBSIDY_PROVIDERS',
+    value: process.env.SUBSIDY_PROVIDERS,
     required: false
   },
   ASSET_PURGATORY_URL: {

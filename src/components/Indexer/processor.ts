@@ -50,7 +50,8 @@ const EVENT_PROCESSOR_MAP: Record<string, ProcessorConstructor> = {
   [EVENTS.ESCROW_CLAIMED]: EscrowEventProcessor,
   [EVENTS.ESCROW_CANCELED]: EscrowEventProcessor,
   [EVENTS.ESCROW_DEPOSIT]: EscrowEventProcessor,
-  [EVENTS.ESCROW_WITHDRAW]: EscrowEventProcessor
+  [EVENTS.ESCROW_WITHDRAW]: EscrowEventProcessor,
+  [EVENTS.ESCROW_SUBSIDIZED]: EscrowEventProcessor
 }
 
 const processorInstances = new Map<string, BaseEventProcessor>()

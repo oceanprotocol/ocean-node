@@ -2,7 +2,7 @@ import { assert, expect } from 'chai'
 import { Readable } from 'stream'
 import sinon from 'sinon'
 import { streamToObject } from '../../../utils/util.js'
-import { PROTOCOL_COMMANDS } from '../../../utils/constants.js'
+import { PROTOCOL_COMMANDS, JobType } from '../../../utils/constants.js'
 import { ServiceStatusNumber, ServiceJob } from '../../../@types/C2D/ServiceOnDemand.js'
 import { ServiceGetTemplatesHandler } from '../../../components/core/service/getTemplates.js'
 import { ServiceGetStatusHandler } from '../../../components/core/service/getStatus.js'
@@ -702,6 +702,8 @@ describe('Service handlers', () => {
       expect(res.status.httpStatus).to.equal(200)
       expect(escrow.createLock.calledOnce).to.equal(true)
       expect(escrow.claimLock.calledOnce).to.equal(true)
+      // service-extend settles as a SERVICE job; jobType is the 7th positional arg
+      expect(escrow.claimLock.firstCall.args[6]).to.equal(JobType.SERVICE)
       // two writes: the durable intent (before claim) + the finalized extension
       expect(engine.db.updateServiceJob.calledTwice).to.equal(true)
       const out = await body(res)
