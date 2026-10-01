@@ -449,6 +449,8 @@ export const ServiceTemplateSchema = z
       ])
       .optional(),
     includes: z.array(TemplateIncludedItemSchema).optional(),
+    // true: left out of the dashboard catalogue, still reachable by a direct link
+    unlisted: z.boolean().optional(),
     image: z.string().min(1),
     tag: z.string().min(1).optional(),
     checksum: z
