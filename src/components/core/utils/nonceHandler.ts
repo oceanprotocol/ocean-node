@@ -284,13 +284,15 @@ async function verifySignatureForConsumer(
     // Continue to smart account check
   }
 
-  // Try ERC-1271 (smart account) validation
-  try {
-    const targetChainId = chainId || Object.keys(config?.supportedNetworks || {})[0]
-    if (targetChainId && config?.supportedNetworks?.[targetChainId]) {
-      const provider = new ethers.JsonRpcProvider(
-        config.supportedNetworks[targetChainId].rpc
-      )
+  // An explicit chain restricts validation; otherwise try every configured network.
+  const targetChainIds = chainId
+    ? [chainId]
+    : Object.keys(config?.supportedNetworks || {})
+  for (const targetChainId of targetChainIds) {
+    const network = config?.supportedNetworks?.[targetChainId]
+    if (!network) continue
+    try {
+      const provider = new ethers.JsonRpcProvider(network.rpc)
 
       // Try custom hash format (for backward compatibility)
       if (await isERC1271Valid(consumer, consumerMessage, signature, provider)) {
@@ -302,9 +304,9 @@ async function verifySignatureForConsumer(
       if (await isERC1271Valid(consumer, eip191Hash, signature, provider)) {
         return true
       }
+    } catch (error) {
+      CORE_LOGGER.error(`ERC-1271 signature validation error: ${error?.message}`)
     }
-  } catch (error) {
-    CORE_LOGGER.error(`ERC-1271 signature validation error: ${error?.message}`)
   }
 
   return false
