@@ -15,6 +15,46 @@ import { CommonValidation } from '../../../utils/validators.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { normalizeCommandAddresses } from '../../../utils/evmAddress.js'
 
+// Membership test for the node's admin set: the ALLOWED_ADMINS address list first, then
+// each configured admin access list (ALLOWED_ADMINS_LIST), per chain. Says nothing about
+// authentication — the caller must have already proven it owns `address` (signature or
+// auth token). Exported because handlers outside the admin family (SERVICE_STOP) also
+// grant the node operator a privileged path and must not re-implement these checks.
+export async function isAllowedAdminAddress(
+  allowedAdmins: { addresses: string[]; accessLists: any } | null | undefined,
+  address: string
+): Promise<boolean> {
+  if (!allowedAdmins || !address) {
+    return false
+  }
+  const { addresses, accessLists } = allowedAdmins
+  const isListedAddress = await checkSingleCredential(
+    { type: CREDENTIALS_TYPES.ADDRESS, values: addresses },
+    address,
+    null
+  )
+  if (isListedAddress) {
+    return true
+  }
+  if (accessLists) {
+    for (const chainId of Object.keys(accessLists)) {
+      const isOnAccessList = await checkSingleCredential(
+        {
+          type: CREDENTIALS_TYPES.ACCESS_LIST,
+          chainId: parseInt(chainId),
+          accessList: accessLists[chainId]
+        },
+        address,
+        null
+      )
+      if (isOnAccessList) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
 export abstract class AdminCommandHandler
   extends BaseHandler
   implements IValidateAdminCommandHandler
@@ -69,32 +109,8 @@ export abstract class AdminCommandHandler
       }
     }
     try {
-      const allowedAdmins = oceanNode.getAdminAddresses()
-
-      const { addresses, accessLists } = allowedAdmins
-      let allowed = await checkSingleCredential(
-        { type: CREDENTIALS_TYPES.ADDRESS, values: addresses },
-        address,
-        null
-      )
-      if (allowed) {
+      if (await isAllowedAdminAddress(oceanNode.getAdminAddresses(), address)) {
         return { valid: true, error: '' }
-      }
-      if (accessLists) {
-        for (const chainId of Object.keys(accessLists)) {
-          allowed = await checkSingleCredential(
-            {
-              type: CREDENTIALS_TYPES.ACCESS_LIST,
-              chainId: parseInt(chainId),
-              accessList: accessLists[chainId]
-            },
-            address,
-            null
-          )
-          if (allowed) {
-            return { valid: true, error: '' }
-          }
-        }
       }
 
       const errorMsg = `The address which signed the message is not on the allowed admins list. Therefore signature ${signature} is rejected`
