@@ -191,8 +191,8 @@ export class C2DEngineDocker extends C2DEngine {
   private serviceOpsInFlight: Set<string> = new Set()
   private readonly serviceLockHolderId: string = makeServiceLockHolderId()
   private serviceLockHeartbeatTimer: NodeJS.Timeout | null = null
-  // The in-flight service lifecycle promises — processServiceStart() launched
-  // fire-and-forget by InternalLoop, plus handler-driven stopService()/restartService()
+  // The in-flight service lifecycle promises — processServiceStart() and expireService()
+  // launched fire-and-forget by InternalLoop, plus handler-driven stopService()/restartService()
   // calls — so stop() can drain them before returning. Otherwise an op could outlive
   // stop() and race a restarted engine on the same shared DB.
   private serviceOpPromises: Set<Promise<unknown>> = new Set()
@@ -2030,66 +2030,36 @@ export class C2DEngineDocker extends C2DEngine {
       }
 
       // Service-on-Demand expiry: stop services whose paid window has elapsed.
+      // Fire-and-forget like the starts above: the teardown zips a bucket-less service's
+      // /data/outputs (archiveServiceOutputs), which takes as long as the folder is big, and
+      // must not hold up compute jobs, starts, health checks or the other expiries. The
+      // lifecycle lock is held for the whole teardown, so an overlapping tick skips the
+      // service instead of expiring it twice.
       const expiredServices = await this.db.getExpiredServiceJobs(
         this.getC2DConfig().hash
       )
       for (const svc of expiredServices) {
-        CORE_LOGGER.info(`Service ${svc.serviceId} expired — stopping`)
-        let stopped: ServiceJob | null
-        try {
-          // onlyIfExpired: doStopService re-checks expiresAt on the FRESH row under the
-          // lifecycle lock — a SERVICE_EXTEND that landed after our expiredServices
-          // snapshot must not have its service torn down.
-          stopped = await this.stopService(svc.serviceId, svc.owner, true)
-        } catch (e: any) {
-          // Typically the lifecycle lock (a restart/stop already in flight). Marking
-          // Expired without teardown would leak the container/ports, so defer the whole
-          // sweep for this service to the next tick.
-          CORE_LOGGER.error(
-            `Failed to stop expired service ${svc.serviceId}: ${e.message} — retrying next tick`
-          )
-          continue
-        }
-        // Extended mid-sweep (expiresAt is in the future again on the fresh row) — not
-        // expired anymore, regardless of status. Leave it alone.
-        if (stopped && Date.now() < stopped.expiresAt) {
+        // Typically a restart/stop already in flight. Marking Expired without teardown
+        // would leak the container/ports, so defer this service to the next tick.
+        if (!(await this.tryAcquireServiceLifecycleLock(svc.serviceId))) {
           CORE_LOGGER.debug(
-            `Service ${svc.serviceId} was extended after the expiry snapshot — skipping expiry`
+            `Service ${svc.serviceId} expired but has an operation in progress — retrying next tick`
           )
           continue
         }
-        // Flip to Expired ONLY once teardown actually completed. Expired is terminal —
-        // it is never swept again — so marking it while the stop failed mid-way (the
-        // job comes back as Error "stop failed: …" with its container possibly still
-        // running and its ports still reserved) would leak those resources forever.
-        // Left as Error, the job stays in the expirable set and is retried next tick.
-        if (
-          !stopped ||
-          (stopped.status !== ServiceStatusNumber.Stopped &&
-            stopped.status !== ServiceStatusNumber.Expired)
-        ) {
+        // Track the promise so stop() can drain it; clean both trackers when it settles.
+        const expiryPromise = this.expireService(svc).finally(() => {
+          this.serviceOpPromises.delete(expiryPromise)
+          return this.releaseServiceLifecycleLock(svc.serviceId)
+        })
+        this.serviceOpPromises.add(expiryPromise)
+        // expireService logs every expected failure and leaves it to the next tick; only a
+        // DB error can reject it — consume that so it can't surface as unhandled.
+        expiryPromise.catch((e) =>
           CORE_LOGGER.error(
-            `Expired service ${svc.serviceId} teardown did not complete ` +
-              `(status "${stopped?.statusText ?? 'gone'}") — retrying next tick`
+            `expireService ${svc.serviceId} failed unexpectedly: ${e.message} — retrying next tick`
           )
-          continue
-        }
-        // mark the (now stopped) record as Expired so it is not picked up again
-        const [stoppedJob] = await this.db.getServiceJob(svc.serviceId, svc.owner)
-        if (stoppedJob) {
-          stoppedJob.status = ServiceStatusNumber.Expired
-          stoppedJob.statusText = ServiceStatusText[ServiceStatusNumber.Expired]
-          await this.db.updateServiceJob(stoppedJob)
-          // Expired is the ONLY transition that releases the reservation: amounts stop
-          // counting (Expired is not an active status) and the host ports are freed
-          // here. Everywhere else — including an explicit user stop — the paid-for
-          // reservation survives so the service can be restarted on the same endpoints.
-          for (const ep of stoppedJob.endpoints ?? []) releaseHostPort(ep.hostPort)
-          CORE_LOGGER.debug(
-            `Service ${svc.serviceId} marked Expired — all resources released ` +
-              `(ports [${(stoppedJob.endpoints ?? []).map((ep) => ep.hostPort).join(',')}])`
-          )
-        }
+        )
       }
     } catch (e) {
       CORE_LOGGER.error(`Error in C2D InternalLoop: ${e.message}`)
@@ -4887,6 +4857,67 @@ export class C2DEngineDocker extends C2DEngine {
       )
     } catch (e: any) {
       CORE_LOGGER.warn(`service lock DB release failed for ${serviceId}: ${e.message}`)
+    }
+  }
+
+  // Expiry teardown of one service, launched in the background by InternalLoop: stop it,
+  // then mark it Expired, which releases its reservation. Must only run while holding the
+  // service lifecycle lock, kept across both steps so no other operation (e.g. a
+  // SERVICE_EXTEND) lands in between. Anything that leaves the service short of Expired is
+  // logged and retried on the next tick.
+  private async expireService(svc: ServiceJob): Promise<void> {
+    CORE_LOGGER.info(`Service ${svc.serviceId} expired — stopping`)
+    let stopped: ServiceJob | null
+    try {
+      // onlyIfExpired: doStopService re-checks expiresAt on the FRESH row — a
+      // SERVICE_EXTEND that landed after the loop's expiredServices snapshot must not
+      // have its service torn down.
+      stopped = await this.doStopService(svc.serviceId, svc.owner, true)
+    } catch (e: any) {
+      CORE_LOGGER.error(
+        `Failed to stop expired service ${svc.serviceId}: ${e.message} — retrying next tick`
+      )
+      return
+    }
+    // Extended mid-sweep (expiresAt is in the future again on the fresh row) — not
+    // expired anymore, regardless of status. Leave it alone.
+    if (stopped && Date.now() < stopped.expiresAt) {
+      CORE_LOGGER.debug(
+        `Service ${svc.serviceId} was extended after the expiry snapshot — skipping expiry`
+      )
+      return
+    }
+    // Flip to Expired ONLY once teardown actually completed. Expired is terminal —
+    // it is never swept again — so marking it while the stop failed mid-way (the
+    // job comes back as Error "stop failed: …" with its container possibly still
+    // running and its ports still reserved) would leak those resources forever.
+    // Left as Error, the job stays in the expirable set and is retried next tick.
+    if (
+      !stopped ||
+      (stopped.status !== ServiceStatusNumber.Stopped &&
+        stopped.status !== ServiceStatusNumber.Expired)
+    ) {
+      CORE_LOGGER.error(
+        `Expired service ${svc.serviceId} teardown did not complete ` +
+          `(status "${stopped?.statusText ?? 'gone'}") — retrying next tick`
+      )
+      return
+    }
+    // mark the (now stopped) record as Expired so it is not picked up again
+    const [stoppedJob] = await this.db.getServiceJob(svc.serviceId, svc.owner)
+    if (stoppedJob) {
+      stoppedJob.status = ServiceStatusNumber.Expired
+      stoppedJob.statusText = ServiceStatusText[ServiceStatusNumber.Expired]
+      await this.db.updateServiceJob(stoppedJob)
+      // Expired is the ONLY transition that releases the reservation: amounts stop
+      // counting (Expired is not an active status) and the host ports are freed
+      // here. Everywhere else — including an explicit user stop — the paid-for
+      // reservation survives so the service can be restarted on the same endpoints.
+      for (const ep of stoppedJob.endpoints ?? []) releaseHostPort(ep.hostPort)
+      CORE_LOGGER.debug(
+        `Service ${svc.serviceId} marked Expired — all resources released ` +
+          `(ports [${(stoppedJob.endpoints ?? []).map((ep) => ep.hostPort).join(',')}])`
+      )
     }
   }
 

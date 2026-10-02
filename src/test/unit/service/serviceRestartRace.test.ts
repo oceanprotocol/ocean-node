@@ -19,6 +19,12 @@ function flush(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve))
 }
 
+// The expiry sweep launches each teardown in the background, like the start pipeline, so a
+// test waits for those ops to settle before asserting their outcome.
+async function drainServiceOps(engine: any): Promise<void> {
+  await Promise.allSettled([...engine.serviceOpPromises])
+}
+
 function makeJob(overrides: Partial<ServiceJob> = {}): ServiceJob {
   return {
     serviceId: SERVICE_ID,
@@ -346,7 +352,40 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
     engine.serviceOpsInFlight.clear()
     engine.isInternalLoopRunning = false
     await engine.InternalLoop()
+    await drainServiceOps(engine)
     expect(expired.status).to.equal(ServiceStatusNumber.Expired)
+  })
+
+  it('the expiry sweep does not hold up InternalLoop while a teardown archives outputs', async () => {
+    const engine = makeEngine()
+    const expired = makeJob({ expiresAt: Date.now() - 1000 })
+    engine.db.getExpiredServiceJobs.resolves([expired])
+    engine.db.getServiceJob.resolves([expired])
+    engine.docker.getContainer.returns(stubContainer())
+    let finishArchive: () => void
+    engine.archiveServiceOutputs = sinon.stub().returns(
+      new Promise<void>((resolve) => {
+        finishArchive = resolve
+      })
+    )
+
+    // the loop returns while the zip of /data/outputs is still being written...
+    await engine.InternalLoop()
+    await flush()
+    expect(engine.archiveServiceOutputs.calledOnce).to.equal(true)
+    expect(expired.status).to.equal(ServiceStatusNumber.Stopping)
+    expect(engine.serviceOpsInFlight.has(SERVICE_ID)).to.equal(true)
+
+    // ...and an overlapping tick leaves the in-flight teardown alone
+    engine.isInternalLoopRunning = false
+    await engine.InternalLoop()
+    await flush()
+    expect(engine.archiveServiceOutputs.calledOnce).to.equal(true)
+
+    finishArchive!()
+    await drainServiceOps(engine)
+    expect(expired.status).to.equal(ServiceStatusNumber.Expired)
+    expect(engine.serviceOpsInFlight.has(SERVICE_ID)).to.equal(false)
   })
 
   it('restartService rejects when another process holds the DB lease', async () => {
@@ -453,6 +492,7 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
       engine.db.getExpiredServiceJobs.resolves([job])
       engine.isInternalLoopRunning = false
       await engine.InternalLoop()
+      await drainServiceOps(engine)
       expect(job.status).to.equal(ServiceStatusNumber.Expired)
       expect(await allocateHostPort(PORT, PORT)).to.equal(PORT)
     } finally {
@@ -473,6 +513,7 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
     engine.docker.getContainer.returns(stubContainer())
 
     await engine.InternalLoop()
+    await drainServiceOps(engine)
 
     expect(extended.status).to.equal(ServiceStatusNumber.Running)
     expect(engine.docker.getContainer.called, 'no teardown may happen').to.equal(false)
@@ -490,6 +531,7 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
     )
 
     await engine.InternalLoop()
+    await drainServiceOps(engine)
     // Expired is terminal and never swept again — a failed stop must leave the job
     // OUT of Expired (as Error "stop failed") so the container/ports aren't leaked.
     expect(expired.status).to.not.equal(ServiceStatusNumber.Expired)
@@ -499,6 +541,7 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
     engine.docker.getContainer.returns(stubContainer())
     engine.isInternalLoopRunning = false
     await engine.InternalLoop()
+    await drainServiceOps(engine)
     expect(expired.status).to.equal(ServiceStatusNumber.Expired)
   })
 
@@ -515,6 +558,7 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
     engine.db.getServiceJob.resolves([stopped])
 
     await engine.InternalLoop()
+    await drainServiceOps(engine)
 
     expect(stopped.status).to.equal(ServiceStatusNumber.Expired)
     // resources were already released at stop time — no docker teardown must happen
