@@ -81,6 +81,16 @@ export class PersistentStorageCreateBucketHandler extends CommandHandler {
 
     try {
       const storage = requirePersistentStorage(this)
+      if (task.accessLists.length > 0 && !storage.isBucketSharingAllowed()) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error:
+              'Bucket sharing is disabled on this node: "accessLists" must be an empty array'
+          }
+        }
+      }
       const node = this.getOceanNode()
       const config = node.getConfig()
       // if we have access lists,check them.
@@ -208,10 +218,10 @@ export class PersistentStorageGetBucketsHandler extends CommandHandler {
     if (isAuthRequestValid.status.httpStatus !== 200) return isAuthRequestValid
 
     let ownerNormalized: string
-    // let consumerNormalized: string
+    let consumerNormalized: string
     try {
       ownerNormalized = getAddress(task.owner)
-      // consumerNormalized = getAddress(task.consumerAddress)
+      consumerNormalized = getAddress(isAuthRequestValid.consumerAddress)
     } catch {
       return {
         stream: null,
@@ -224,8 +234,10 @@ export class PersistentStorageGetBucketsHandler extends CommandHandler {
 
     try {
       const storage = requirePersistentStorage(this)
-      // const node = this.getOceanNode()
-      const rows = await storage.listBuckets(ownerNormalized)
+      const rows = await storage.listBucketsForConsumer(
+        ownerNormalized,
+        consumerNormalized
+      )
 
       return {
         stream: Readable.from(JSON.stringify(rows)),

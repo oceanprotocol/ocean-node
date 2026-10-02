@@ -2677,3 +2677,58 @@ Service not found, or not `Running`/`Error`.
 #### Response (401)
 
 Missing/invalid auth, or `consumerAddress` is not the service owner.
+
+---
+
+### `HTTP` GET /api/services/serviceResult
+
+### `P2P` command: serviceGetResult
+
+#### Description
+
+Download a service's `/data/outputs` as a zip, for a service **without** an `outputBucketId`
+(see [Service outputs](services.md#service-outputs)). **Authenticated and owner-scoped.**
+Either one of the archives the node took when a container of the service was removed
+(`index`, as listed in `outputArchives` on `serviceStatus`), or a zip of the running
+container's folder (`live=true`).
+
+#### Query Parameters
+
+| name            | type    | required | description                                                                  |
+| --------------- | ------- | -------- | ---------------------------------------------------------------------------- |
+| consumerAddress | string  | v        | owner address                                                                |
+| nonce           | string  | v        | request nonce                                                                |
+| signature       | string  | v        | signed message (or use an `Authorization` auth-token header)                 |
+| serviceId       | string  | v        | the service                                                                  |
+| index           | number  |          | archive index from `outputArchives`; required unless `live=true`             |
+| offset          | number  |          | resume an archive download from this byte (not with `live`)                  |
+| live            | boolean |          | `true` to zip the running container's `/data/outputs` instead of an archive |
+
+#### Response (200)
+
+`application/zip` stream, with `Content-Disposition: attachment; filename="<serviceId>-outputs-<n>.zip"`
+(or `<serviceId>-outputs-live.zip`). An archive download also carries `Content-Length`
+(the bytes left after `offset`).
+
+#### Response (400)
+
+Neither `index` nor `live`, both, an invalid `index`/`offset`, `offset` with `live`, a
+live download of a service whose outputs go to a bucket, or an unknown `serviceId` (as for
+the other service commands).
+
+#### Response (401)
+
+Missing/invalid auth, or `consumerAddress` is not the service owner.
+
+#### Response (404)
+
+No archive with that `index` (or it was deleted by storage expiry), or no `/data/outputs`
+in the running container.
+
+#### Response (409)
+
+`live=true` while the service has no container (e.g. `Stopped`, `Expired`, mid-restart).
+
+#### Response (416)
+
+`offset` is past the end of the archive.

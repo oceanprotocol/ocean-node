@@ -76,7 +76,8 @@ import {
   ServiceRestartHandler,
   ServiceGetStatusHandler,
   GetServicesHandler,
-  ServiceGetStreamableLogsHandler
+  ServiceGetStreamableLogsHandler,
+  ServiceGetResultHandler
 } from '../service/index.js'
 
 export type HandlerRegistry = {
@@ -193,6 +194,10 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,
       new ServiceGetStreamableLogsHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.SERVICE_GET_RESULT,
+      new ServiceGetResultHandler(node)
     )
     this.registerCoreHandler(PROTOCOL_COMMANDS.STOP_NODE, new StopNodeHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.STOP_JOB, new StopJobHandler(node))

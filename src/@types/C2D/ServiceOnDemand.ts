@@ -127,6 +127,17 @@ export interface ServiceOnDemandConfig {
 
 // ── Runtime service job ───────────────────────────────────────────────
 
+// One zip of /data/outputs, taken right before a container of the service was removed. A
+// service without an output bucket gets one per container it ran, downloadable through
+// SERVICE_GET_RESULT until expiresAt + the environment's storageExpiry.
+export interface ServiceOutputArchive {
+  index: number
+  filename: string // e.g. outputs-0.zip, under <storage>/services/<serviceId>/
+  filesize: number // bytes
+  createdAt: number // Unix ms timestamp
+  containerId: string // container it was taken from — a retried teardown must not archive it twice
+}
+
 export interface ServiceEndpoint {
   containerPort: number
   hostPort: number
@@ -214,6 +225,12 @@ export interface ServiceJob {
   // compute equivalent is readable by anyone holding the jobId, whereas this is owner-only.
   metadata?: DBComputeJobMetadata
   outputBucketId?: string // persistent-storage bucket bind-mounted at /data/outputs
+  // Archives of /data/outputs, only for services without an outputBucketId.
+  outputArchives?: ServiceOutputArchive[]
+  // Internal, only while a restart is in flight: the stopped old container, kept until its
+  // /data/outputs has been carried over into the new one (orphan recovery archives and
+  // removes it if the node dies before that). Never returned to clients.
+  previousContainerId?: string
   resources: ComputeResourceRequestWithPrice[]
   payment: DBComputeJobPayment // initial start payment
   extendPayments?: DBComputeJobPayment[] // one entry per successful SERVICE_EXTEND

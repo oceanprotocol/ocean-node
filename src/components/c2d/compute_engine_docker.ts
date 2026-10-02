@@ -47,7 +47,8 @@ import {
   appendFileSync,
   statSync,
   statfsSync,
-  createReadStream
+  createReadStream,
+  renameSync
 } from 'fs'
 import { pipeline } from 'node:stream/promises'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
@@ -80,6 +81,13 @@ import {
 import type { ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
 import type { DockerMountObject } from '../../@types/PersistentStorage.js'
 import { resolveServiceImage } from './serviceResourceMatching.js'
+import {
+  SERVICE_OUTPUTS_PATH,
+  ServiceResultError,
+  emptyOutputsDirTar,
+  tarToZip,
+  type ServiceResult
+} from './serviceOutputsZip.js'
 import {
   buildSnapshot,
   describeSnapshot,
@@ -183,8 +191,8 @@ export class C2DEngineDocker extends C2DEngine {
   private serviceOpsInFlight: Set<string> = new Set()
   private readonly serviceLockHolderId: string = makeServiceLockHolderId()
   private serviceLockHeartbeatTimer: NodeJS.Timeout | null = null
-  // The in-flight service lifecycle promises — processServiceStart() launched
-  // fire-and-forget by InternalLoop, plus handler-driven stopService()/restartService()
+  // The in-flight service lifecycle promises — processServiceStart() and expireService()
+  // launched fire-and-forget by InternalLoop, plus handler-driven stopService()/restartService()
   // calls — so stop() can drain them before returning. Otherwise an op could outlive
   // stop() and race a restarted engine on the same shared DB.
   private serviceOpPromises: Set<Promise<unknown>> = new Set()
@@ -2022,66 +2030,36 @@ export class C2DEngineDocker extends C2DEngine {
       }
 
       // Service-on-Demand expiry: stop services whose paid window has elapsed.
+      // Fire-and-forget like the starts above: the teardown zips a bucket-less service's
+      // /data/outputs (archiveServiceOutputs), which takes as long as the folder is big, and
+      // must not hold up compute jobs, starts, health checks or the other expiries. The
+      // lifecycle lock is held for the whole teardown, so an overlapping tick skips the
+      // service instead of expiring it twice.
       const expiredServices = await this.db.getExpiredServiceJobs(
         this.getC2DConfig().hash
       )
       for (const svc of expiredServices) {
-        CORE_LOGGER.info(`Service ${svc.serviceId} expired — stopping`)
-        let stopped: ServiceJob | null
-        try {
-          // onlyIfExpired: doStopService re-checks expiresAt on the FRESH row under the
-          // lifecycle lock — a SERVICE_EXTEND that landed after our expiredServices
-          // snapshot must not have its service torn down.
-          stopped = await this.stopService(svc.serviceId, svc.owner, true)
-        } catch (e: any) {
-          // Typically the lifecycle lock (a restart/stop already in flight). Marking
-          // Expired without teardown would leak the container/ports, so defer the whole
-          // sweep for this service to the next tick.
-          CORE_LOGGER.error(
-            `Failed to stop expired service ${svc.serviceId}: ${e.message} — retrying next tick`
-          )
-          continue
-        }
-        // Extended mid-sweep (expiresAt is in the future again on the fresh row) — not
-        // expired anymore, regardless of status. Leave it alone.
-        if (stopped && Date.now() < stopped.expiresAt) {
+        // Typically a restart/stop already in flight. Marking Expired without teardown
+        // would leak the container/ports, so defer this service to the next tick.
+        if (!(await this.tryAcquireServiceLifecycleLock(svc.serviceId))) {
           CORE_LOGGER.debug(
-            `Service ${svc.serviceId} was extended after the expiry snapshot — skipping expiry`
+            `Service ${svc.serviceId} expired but has an operation in progress — retrying next tick`
           )
           continue
         }
-        // Flip to Expired ONLY once teardown actually completed. Expired is terminal —
-        // it is never swept again — so marking it while the stop failed mid-way (the
-        // job comes back as Error "stop failed: …" with its container possibly still
-        // running and its ports still reserved) would leak those resources forever.
-        // Left as Error, the job stays in the expirable set and is retried next tick.
-        if (
-          !stopped ||
-          (stopped.status !== ServiceStatusNumber.Stopped &&
-            stopped.status !== ServiceStatusNumber.Expired)
-        ) {
+        // Track the promise so stop() can drain it; clean both trackers when it settles.
+        const expiryPromise = this.expireService(svc).finally(() => {
+          this.serviceOpPromises.delete(expiryPromise)
+          return this.releaseServiceLifecycleLock(svc.serviceId)
+        })
+        this.serviceOpPromises.add(expiryPromise)
+        // expireService logs every expected failure and leaves it to the next tick; only a
+        // DB error can reject it — consume that so it can't surface as unhandled.
+        expiryPromise.catch((e) =>
           CORE_LOGGER.error(
-            `Expired service ${svc.serviceId} teardown did not complete ` +
-              `(status "${stopped?.statusText ?? 'gone'}") — retrying next tick`
+            `expireService ${svc.serviceId} failed unexpectedly: ${e.message} — retrying next tick`
           )
-          continue
-        }
-        // mark the (now stopped) record as Expired so it is not picked up again
-        const [stoppedJob] = await this.db.getServiceJob(svc.serviceId, svc.owner)
-        if (stoppedJob) {
-          stoppedJob.status = ServiceStatusNumber.Expired
-          stoppedJob.statusText = ServiceStatusText[ServiceStatusNumber.Expired]
-          await this.db.updateServiceJob(stoppedJob)
-          // Expired is the ONLY transition that releases the reservation: amounts stop
-          // counting (Expired is not an active status) and the host ports are freed
-          // here. Everywhere else — including an explicit user stop — the paid-for
-          // reservation survives so the service can be restarted on the same endpoints.
-          for (const ep of stoppedJob.endpoints ?? []) releaseHostPort(ep.hostPort)
-          CORE_LOGGER.debug(
-            `Service ${svc.serviceId} marked Expired — all resources released ` +
-              `(ports [${(stoppedJob.endpoints ?? []).map((ep) => ep.hostPort).join(',')}])`
-          )
-        }
+        )
       }
     } catch (e) {
       CORE_LOGGER.error(`Error in C2D InternalLoop: ${e.message}`)
@@ -3920,6 +3898,135 @@ export class C2DEngineDocker extends C2DEngine {
     return [await ps.getDockerOutputMountObject(job.outputBucketId, job.owner)]
   }
 
+  private getServiceOutputsFolder(serviceId: string): string {
+    return path.join(this.getStoragePath(), 'services', serviceId)
+  }
+
+  // Makes sure a service without an output bucket has a writable /data/outputs to write its
+  // results to (and that the archive step can read), without touching an existing /data.
+  // Runs on the created, not yet started container. Best-effort: a service that doesn't
+  // write results must not fail to start over it.
+  private async ensureServiceOutputsFolder(
+    job: ServiceJob,
+    container: Dockerode.Container
+  ): Promise<void> {
+    if (job.outputBucketId) return
+    const exists = async (p: string): Promise<boolean> => {
+      try {
+        await container.infoArchive({ path: p })
+        return true
+      } catch (e: any) {
+        if (e?.statusCode === 404) return false
+        throw e
+      }
+    }
+    try {
+      if (await exists(SERVICE_OUTPUTS_PATH)) return
+      const root = (await exists('/data')) ? '/data' : '/'
+      await container.putArchive(await emptyOutputsDirTar(root), { path: root })
+    } catch (e: any) {
+      CORE_LOGGER.warn(
+        `service ${job.serviceId}: could not create ${SERVICE_OUTPUTS_PATH}: ${e?.message ?? e}`
+      )
+    }
+  }
+
+  // Zips the container's /data/outputs into <storage>/services/<serviceId>/outputs-<n>.zip and
+  // records it on job.outputArchives, like a compute job's outputs.tar. Must run right before
+  // the container is removed (after it was stopped, so the service flushed its files): the
+  // folder lives in the container's writable layer and is gone with it. Skipped for services
+  // with an output bucket (their results are already in the bucket). Best-effort — never
+  // throws, a failure is only logged; the caller persists the job.
+  private async archiveServiceOutputs(
+    job: ServiceJob,
+    container: Dockerode.Container
+  ): Promise<void> {
+    if (job.outputBucketId) return
+    const archives = job.outputArchives ?? []
+    // A teardown that failed after archiving is retried (e.g. by the expiry sweep every
+    // tick) — the same container must not be archived again.
+    if (archives.some((a) => a.containerId === container.id)) return
+    const index = archives.reduce((next, a) => Math.max(next, a.index + 1), 0)
+    const filename = `outputs-${index}.zip`
+    let partialPath: string | undefined
+    try {
+      const folder = this.getServiceOutputsFolder(job.serviceId)
+      const finalPath = path.join(folder, filename)
+      partialPath = finalPath + '.partial'
+      let tar: NodeJS.ReadableStream
+      try {
+        tar = await container.getArchive({ path: SERVICE_OUTPUTS_PATH })
+      } catch (e: any) {
+        // no /data/outputs in the container, or the container is already gone
+        if (e?.statusCode === 404) {
+          CORE_LOGGER.debug(`service ${job.serviceId}: nothing to archive: ${e.message}`)
+          return
+        }
+        throw e
+      }
+      mkdirSync(folder, { recursive: true })
+      let skipped = 0
+      let empty = false
+      await pipeline(
+        tarToZip(tar, (stats) => {
+          skipped = stats.skipped
+          empty = stats.files === 0 && stats.directories === 0
+        }),
+        createWriteStream(partialPath)
+      )
+      // Nothing written: an entry that downloads as an empty zip would only be noise.
+      if (empty) {
+        rmSync(partialPath, { force: true })
+        CORE_LOGGER.debug(`service ${job.serviceId}: ${SERVICE_OUTPUTS_PATH} empty`)
+        return
+      }
+      renameSync(partialPath, finalPath)
+      const { size } = statSync(finalPath)
+      job.outputArchives = [
+        ...archives,
+        {
+          index,
+          filename,
+          filesize: size,
+          createdAt: Date.now(),
+          containerId: container.id
+        }
+      ]
+      CORE_LOGGER.info(
+        `service ${job.serviceId}: archived ${SERVICE_OUTPUTS_PATH} to ${filename}, ` +
+          `${size} bytes` +
+          (skipped ? `, ${skipped} symlink/special/unsafe entries skipped` : '')
+      )
+    } catch (e: any) {
+      if (partialPath) rmSync(partialPath, { force: true })
+      CORE_LOGGER.error(
+        `service ${job.serviceId}: failed to archive ${SERVICE_OUTPUTS_PATH}: ${
+          e?.message ?? e
+        }`
+      )
+    }
+  }
+
+  // Streams a container's /data/outputs into another one — created, not yet started — as a
+  // tar straight between the two, so a restart keeps what the service wrote. The source may be
+  // stopped and off its (already removed) network: Docker reads a stopped container's
+  // filesystem all the same. The target's /data must exist (ensureServiceOutputsFolder).
+  // Returns false when the source has no /data/outputs.
+  private async copyServiceOutputs(
+    from: Dockerode.Container,
+    to: Dockerode.Container
+  ): Promise<boolean> {
+    let tar: NodeJS.ReadableStream
+    try {
+      tar = await from.getArchive({ path: SERVICE_OUTPUTS_PATH })
+    } catch (e: any) {
+      if (e?.statusCode === 404) return false
+      throw e
+    }
+    await to.putArchive(tar, { path: path.posix.dirname(SERVICE_OUTPUTS_PATH) })
+    return true
+  }
+
   // Handler-facing: persist the initial Starting record and return immediately so the HTTP
   // response carries the serviceId without waiting for escrow/image/container. The background
   // loop then calls processServiceStart() to advance it. Persisting Starting also reserves the
@@ -4032,12 +4139,29 @@ export class C2DEngineDocker extends C2DEngine {
           job.owner
         )
       }
-      if (job.containerId)
-        await this.cleanupServiceDocker(
-          this.docker.getContainer(job.containerId),
-          null,
-          serviceId
-        )
+      const { previousContainerId } = job
+      if (job.containerId || previousContainerId) {
+        // Only a claimed service ever ran — archive what it wrote before its containers go.
+        // A restart that died before switching to the new container (containerId still
+        // empty) left the results in the previous one it was carrying them over from.
+        if (job.payment.claimTx) {
+          const holder = this.docker.getContainer(job.containerId || previousContainerId)
+          await holder.stop({ t: 10 }).catch(() => {})
+          await this.archiveServiceOutputs(job, holder)
+        }
+        if (job.containerId)
+          await this.cleanupServiceDocker(
+            this.docker.getContainer(job.containerId),
+            null,
+            serviceId
+          )
+        if (previousContainerId)
+          await this.docker
+            .getContainer(previousContainerId)
+            .remove({ force: true })
+            .catch(() => {})
+        delete job.previousContainerId
+      }
       await this.removeServiceNetwork(serviceId, job.networkId).catch((e) => {
         CORE_LOGGER.debug(`orphan recovery ${serviceId}: network removal: ${e.message}`)
       })
@@ -4224,6 +4348,7 @@ export class C2DEngineDocker extends C2DEngine {
       CORE_LOGGER.debug(
         `start ${serviceId}: created container ${container.id} on network ${network.id} — starting`
       )
+      await this.ensureServiceOutputsFolder(job, container)
       await container.start()
 
       job.containerId = container.id
@@ -4735,6 +4860,67 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
+  // Expiry teardown of one service, launched in the background by InternalLoop: stop it,
+  // then mark it Expired, which releases its reservation. Must only run while holding the
+  // service lifecycle lock, kept across both steps so no other operation (e.g. a
+  // SERVICE_EXTEND) lands in between. Anything that leaves the service short of Expired is
+  // logged and retried on the next tick.
+  private async expireService(svc: ServiceJob): Promise<void> {
+    CORE_LOGGER.info(`Service ${svc.serviceId} expired — stopping`)
+    let stopped: ServiceJob | null
+    try {
+      // onlyIfExpired: doStopService re-checks expiresAt on the FRESH row — a
+      // SERVICE_EXTEND that landed after the loop's expiredServices snapshot must not
+      // have its service torn down.
+      stopped = await this.doStopService(svc.serviceId, svc.owner, true)
+    } catch (e: any) {
+      CORE_LOGGER.error(
+        `Failed to stop expired service ${svc.serviceId}: ${e.message} — retrying next tick`
+      )
+      return
+    }
+    // Extended mid-sweep (expiresAt is in the future again on the fresh row) — not
+    // expired anymore, regardless of status. Leave it alone.
+    if (stopped && Date.now() < stopped.expiresAt) {
+      CORE_LOGGER.debug(
+        `Service ${svc.serviceId} was extended after the expiry snapshot — skipping expiry`
+      )
+      return
+    }
+    // Flip to Expired ONLY once teardown actually completed. Expired is terminal —
+    // it is never swept again — so marking it while the stop failed mid-way (the
+    // job comes back as Error "stop failed: …" with its container possibly still
+    // running and its ports still reserved) would leak those resources forever.
+    // Left as Error, the job stays in the expirable set and is retried next tick.
+    if (
+      !stopped ||
+      (stopped.status !== ServiceStatusNumber.Stopped &&
+        stopped.status !== ServiceStatusNumber.Expired)
+    ) {
+      CORE_LOGGER.error(
+        `Expired service ${svc.serviceId} teardown did not complete ` +
+          `(status "${stopped?.statusText ?? 'gone'}") — retrying next tick`
+      )
+      return
+    }
+    // mark the (now stopped) record as Expired so it is not picked up again
+    const [stoppedJob] = await this.db.getServiceJob(svc.serviceId, svc.owner)
+    if (stoppedJob) {
+      stoppedJob.status = ServiceStatusNumber.Expired
+      stoppedJob.statusText = ServiceStatusText[ServiceStatusNumber.Expired]
+      await this.db.updateServiceJob(stoppedJob)
+      // Expired is the ONLY transition that releases the reservation: amounts stop
+      // counting (Expired is not an active status) and the host ports are freed
+      // here. Everywhere else — including an explicit user stop — the paid-for
+      // reservation survives so the service can be restarted on the same endpoints.
+      for (const ep of stoppedJob.endpoints ?? []) releaseHostPort(ep.hostPort)
+      CORE_LOGGER.debug(
+        `Service ${svc.serviceId} marked Expired — all resources released ` +
+          `(ports [${(stoppedJob.endpoints ?? []).map((ep) => ep.hostPort).join(',')}])`
+      )
+    }
+  }
+
   public override async stopService(
     serviceId: string,
     owner: string,
@@ -4824,6 +5010,7 @@ export class C2DEngineDocker extends C2DEngine {
         await c.stop({ t: 10 }).catch((e) => {
           if (!isBenignDockerError(e)) throw e
         })
+        await this.archiveServiceOutputs(job, c)
         await c.remove({ force: true }).catch((e) => {
           if (!isBenignDockerError(e)) throw e
         })
@@ -4917,6 +5104,11 @@ export class C2DEngineDocker extends C2DEngine {
         throw new Error(
           'Cannot restart a service whose payment was never claimed (unpaid or refunded) — start a new service'
         )
+      // Resolve the output-bucket mount now, while the old container is still up: the
+      // background op tears it down before it creates the new one, so a bucket the owner
+      // lost access to (bucket sharing disabled, removed from its access list, bucket
+      // deleted) would otherwise leave the service without a container until expiresAt.
+      await this.serviceOutputMounts(job)
       // Persist Restarting BEFORE returning: status polls flip immediately, and a crash
       // from here on leaves a pending-status record the boot loop orphan-recovers
       // (Restarting is in SERVICE_START_PENDING_STATUSES) instead of a bare Starting
@@ -4985,17 +5177,43 @@ export class C2DEngineDocker extends C2DEngine {
     // persisted as Restarting, so a crash anywhere in this method leaves a pending-status
     // record that the boot loop orphan-recovers (refund-safe: the original payment's
     // claimTx is set, so recovery never touches escrow for a restart).
+    //
+    // A service without an output bucket keeps its /data/outputs across the restart: the old
+    // container is only stopped here, and removed once its folder has been copied into the
+    // new one (step 8). A stopped container is not an endpoint of the network, so removing
+    // the network below leaves it alone. With a bucket the results are in the bucket already.
+    let previous: Dockerode.Container | null = null
     if (job.containerId) {
-      CORE_LOGGER.debug(`restart ${serviceId}: removing old container ${job.containerId}`)
+      CORE_LOGGER.debug(`restart ${serviceId}: stopping old container ${job.containerId}`)
       // Final snapshot of the outgoing container before it is torn down (best-effort).
       await this.captureFinalServiceSnapshot(job)
       const c = this.docker.getContainer(job.containerId)
+      // Already stopped (304) or already gone (404) counts as stopped.
+      let stopped = true
       await c.stop({ t: 10 }).catch((e) => {
+        if (!isBenignDockerError(e)) stopped = false
         CORE_LOGGER.debug(`restart ${serviceId}: old container stop: ${e.message}`)
       })
-      await c.remove({ force: true }).catch((e) => {
-        CORE_LOGGER.debug(`restart ${serviceId}: old container remove: ${e.message}`)
-      })
+      if (job.outputBucketId) {
+        await c.remove({ force: true }).catch((e) => {
+          CORE_LOGGER.debug(`restart ${serviceId}: old container remove: ${e.message}`)
+        })
+      } else if (!stopped) {
+        // It can't be kept for the carry-over: it may still be running, and
+        // removeServiceNetwork below force-removes a container still attached to the
+        // network, folder and all. Archive the folder now instead; the new container
+        // starts with an empty one.
+        CORE_LOGGER.error(
+          `restart ${serviceId}: could not stop old container ${job.containerId} — archiving ${SERVICE_OUTPUTS_PATH} instead of carrying it over`
+        )
+        await this.archiveServiceOutputs(job, c)
+        await c.remove({ force: true }).catch((e) => {
+          CORE_LOGGER.debug(`restart ${serviceId}: old container remove: ${e.message}`)
+        })
+      } else {
+        previous = c
+        job.previousContainerId = job.containerId
+      }
     }
     await this.removeServiceNetwork(serviceId, job.networkId).catch((e) => {
       CORE_LOGGER.debug(`restart ${serviceId}: old network removal: ${e.message}`)
@@ -5129,6 +5347,30 @@ export class C2DEngineDocker extends C2DEngine {
       CORE_LOGGER.debug(
         `restart ${serviceId}: created container ${container.id} on network ${network.id} — starting`
       )
+      await this.ensureServiceOutputsFolder(job, container)
+
+      // Carry /data/outputs over from the old container, then let it go. If the copy fails
+      // the old folder is archived instead, so nothing is lost. The new container is
+      // persisted before the old one is removed: a crash from here on recovers (and
+      // archives) the new container, which now holds the results.
+      if (previous) {
+        try {
+          await this.copyServiceOutputs(previous, container)
+        } catch (e: any) {
+          CORE_LOGGER.error(
+            `restart ${serviceId}: could not carry ${SERVICE_OUTPUTS_PATH} over (${e.message}) — archiving it instead`
+          )
+          await this.archiveServiceOutputs(job, previous)
+        }
+        job.containerId = container.id
+        await this.db.updateServiceJob(job)
+        await previous.remove({ force: true }).catch((e) => {
+          CORE_LOGGER.debug(`restart ${serviceId}: old container remove: ${e.message}`)
+        })
+        previous = null
+        delete job.previousContainerId
+      }
+
       await container.start()
       CORE_LOGGER.debug(`restart ${serviceId}: container ${container.id} started`)
 
@@ -5161,7 +5403,19 @@ export class C2DEngineDocker extends C2DEngine {
         `restart ${serviceId}: FAILED (${err.message}) — docker state at failure`,
         serviceId
       )
+      // The failed restart must not take /data/outputs with it: archive whichever container
+      // holds it — the old one if the carry-over didn't happen yet, else the new one.
+      if (!job.outputBucketId) {
+        const holder = previous ?? (job.containerId ? container : null)
+        if (holder) await this.archiveServiceOutputs(job, holder)
+      }
+      if (previous) {
+        await previous.remove({ force: true }).catch(() => {})
+        delete job.previousContainerId
+      }
       await this.cleanupServiceDocker(container, network, serviceId)
+      // Set once the carry-over switched to the new container, which is gone now too.
+      job.containerId = ''
       // Ports deliberately stay reserved: the consumer paid until expiresAt and may
       // restart again — the expiry sweep releases them when the window elapses.
       job.status = ServiceStatusNumber.Error
@@ -5208,6 +5462,126 @@ export class C2DEngineDocker extends C2DEngine {
       )
       return null
     }
+  }
+
+  public override async getServiceResult(
+    serviceId: string,
+    owner: string,
+    index: number | 'live',
+    offset: number = 0
+  ): Promise<ServiceResult | null> {
+    const [job] = await this.db.getServiceJob(serviceId, owner)
+    if (!job) return null
+    const zipHeaders = (filename: string) => ({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${filename}"`
+    })
+
+    if (index === 'live') {
+      if (job.outputBucketId)
+        throw new ServiceResultError(
+          400,
+          `Service ${serviceId} writes its outputs to bucket ${job.outputBucketId}; download them from the bucket`
+        )
+      if (
+        !job.containerId ||
+        (job.status !== ServiceStatusNumber.Running &&
+          job.status !== ServiceStatusNumber.Error)
+      )
+        throw new ServiceResultError(
+          409,
+          `Service ${serviceId} has no container right now (status "${job.statusText}"); download one of its output archives instead`
+        )
+      let tar: NodeJS.ReadableStream
+      try {
+        tar = await this.docker
+          .getContainer(job.containerId)
+          .getArchive({ path: SERVICE_OUTPUTS_PATH })
+      } catch (e: any) {
+        if (e?.statusCode === 404)
+          throw new ServiceResultError(
+            404,
+            `Service ${serviceId} has no ${SERVICE_OUTPUTS_PATH} to download`
+          )
+        throw e
+      }
+      return {
+        stream: tarToZip(tar),
+        headers: zipHeaders(`${serviceId}-outputs-live.zip`)
+      }
+    }
+
+    const archive = (job.outputArchives ?? []).find((a) => a.index === index)
+    if (!archive)
+      throw new ServiceResultError(
+        404,
+        `Service ${serviceId} has no output archive with index ${index}`
+      )
+    const file = path.join(this.getServiceOutputsFolder(serviceId), archive.filename)
+    let size: number
+    try {
+      ;({ size } = statSync(file))
+    } catch {
+      throw new ServiceResultError(
+        404,
+        `Output archive ${archive.filename} of service ${serviceId} is no longer available`
+      )
+    }
+    if (offset > size)
+      throw new ServiceResultError(
+        416,
+        `Offset ${offset} is past the end of ${archive.filename} (${size} bytes)`
+      )
+    return {
+      stream: createReadStream(file, offset > 0 ? { start: offset } : undefined),
+      headers: {
+        ...zipHeaders(`${serviceId}-${archive.filename}`),
+        'Content-Length': String(size - offset)
+      }
+    }
+  }
+
+  public override async cleanupExpiredServiceOutputs(): Promise<number> {
+    const envs = await this.getComputeEnvironments()
+    // Seconds. The schema defaults every environment's storageExpiry; the fallback only
+    // covers services whose environment was removed from the config since.
+    const defaultStorageExpiry = 604800
+    const storageExpiry = new Map(
+      envs.map((env) => [env.id, env.storageExpiry ?? defaultStorageExpiry])
+    )
+    const now = Date.now()
+    const shortest = Math.min(defaultStorageExpiry, ...storageExpiry.values())
+    const candidates = await this.db.getExpiredServiceJobsBefore(
+      now - shortest * 1000,
+      this.getC2DConfig().hash
+    )
+    let cleaned = 0
+    for (const candidate of candidates) {
+      if (!candidate.outputArchives?.length) continue
+      const expiry = storageExpiry.get(candidate.environment) ?? defaultStorageExpiry
+      if (now < candidate.expiresAt + expiry * 1000) continue
+      try {
+        await this.runExclusive(candidate.serviceId, async () => {
+          const [job] = await this.db.getServiceJob(candidate.serviceId, candidate.owner)
+          if (!job?.outputArchives?.length) return
+          rmSync(this.getServiceOutputsFolder(job.serviceId), {
+            recursive: true,
+            force: true
+          })
+          job.outputArchives = []
+          await this.db.updateServiceJob(job)
+          cleaned++
+          CORE_LOGGER.info(
+            `service ${job.serviceId}: output archives deleted (storage expiry elapsed)`
+          )
+        })
+      } catch (e: any) {
+        CORE_LOGGER.error(
+          `service ${candidate.serviceId}: failed to delete output archives: ${e.message} — retrying next run`
+        )
+      }
+    }
+    return cleaned
   }
 
   private addUserDataToFilesObject(
