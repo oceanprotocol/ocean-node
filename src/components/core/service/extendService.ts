@@ -12,6 +12,7 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import type { ComputeEnvironment } from '../../../@types/C2D/C2D.js'
 import { ServiceStatusNumber } from '../../../@types/C2D/ServiceOnDemand.js'
 import { validateAccess } from '../compute/startCompute.js'
+import { validateOutputBucket } from '../compute/utils.js'
 import { findServiceJobAndEngine, toPublicServiceJob } from './utils.js'
 
 export class ServiceExtendHandler extends CommandHandler {
@@ -92,6 +93,19 @@ export class ServiceExtendHandler extends CommandHandler {
     )
     if (!accessGranted)
       return { stream: null, status: { httpStatus: 403, error: 'Access denied' } }
+
+    // Output-bucket gate, same check as SERVICE_START. Re-checked for the same reason: the
+    // owner can lose the bucket after the start (bucket sharing turned off, removed from its
+    // access list, bucket deleted), and extending would prolong a mount they may no longer
+    // use. The service keeps running until expiresAt. Checked before any escrow operation, so
+    // a refusal costs nothing. No-op for a service without a bucket.
+    const outputBucketCheck = await validateOutputBucket(
+      this.getOceanNode(),
+      job.outputBucketId,
+      '',
+      task.consumerAddress
+    )
+    if (outputBucketCheck.status.httpStatus !== 200) return outputBucketCheck
 
     // Everything from the state check to the final write runs under the per-service
     // lifecycle lock: extend is a read-mutate-write of the job row, and without the lock

@@ -281,7 +281,11 @@ declare resources, configure GPUs, set per-environment constraints, and price th
 - **Access lists apply to the whole lifecycle.** `start`, `extend`, and `restart` all
   re-check the environment's `access` allow-list (access lists are mutable, so a
   revoked consumer cannot keep a service alive). `stop` is owner-gated only, so a
-  revoked owner can still shut their own service down.
+  revoked owner can still shut their own service down. The same goes for the
+  `outputBucketId`: `start`, `extend` and `restart` all check that the owner may still use
+  the bucket, and refuse with `403` (before any payment or teardown) once they may not —
+  e.g. bucket sharing was turned off, the owner was removed from the bucket's access list,
+  or the bucket was deleted. A running service keeps its mount until `expiresAt`.
 
 - **No privileged/advanced Docker config, with three narrow exceptions.** The service path
   deliberately omits most of the advanced Docker config the compute path supports — host
