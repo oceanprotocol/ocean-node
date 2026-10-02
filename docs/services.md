@@ -167,8 +167,8 @@ compute job's outputs:
   folder over: the old container is stopped (not removed), and once the new one is created
   its `/data/outputs` is copied in, before the new container starts and the old one is
   removed. The service comes back with the files it had, and a restart normally produces no
-  archive. If the copy fails, or the restart itself fails, the folder is archived instead,
-  so nothing is lost. A service with an output bucket needs none of
+  archive. If the old container can't be stopped, the copy fails, or the restart itself
+  fails, the folder is archived instead, so nothing is lost. A service with an output bucket needs none of
   this: the bucket is mounted into the new container again.
 - **It is archived when the service's container goes away for good**: `serviceStop`, the
   expiry sweep, and the crash recovery at node start. The folder lives in the container's

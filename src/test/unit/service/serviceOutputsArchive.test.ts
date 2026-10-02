@@ -6,6 +6,7 @@ import path from 'path'
 import { Readable } from 'stream'
 import * as tarStream from 'tar-stream'
 import yauzl from 'yauzl'
+import yazl from 'yazl'
 import { C2DEngineDocker } from '../../../components/c2d/compute_engine_docker.js'
 import {
   ServiceResultError,
@@ -250,6 +251,26 @@ describe('service /data/outputs archives', () => {
       }
       expect(uncaught.called).to.equal(false)
       expect(error?.message).to.equal('Unexpected end of data')
+    })
+
+    it('fails the zip stream, without an unhandled error, when yazl itself errors', async () => {
+      // yazl emits its own failures on the ZipFile, not on its outputStream
+      sinon.stub(yazl.ZipFile.prototype, 'end').callsFake(function (this: yazl.ZipFile) {
+        this.emit('error', new Error('zip failed'))
+      })
+      const uncaught = sinon.spy()
+      process.prependListener('uncaughtException', uncaught)
+      let error: Error
+      try {
+        await streamToBuffer(tarToZip(Readable.from(await makeTar(OUTPUTS_TAR))))
+      } catch (e) {
+        error = e
+      } finally {
+        await new Promise((resolve) => setImmediate(resolve))
+        process.removeListener('uncaughtException', uncaught)
+      }
+      expect(uncaught.called).to.equal(false)
+      expect(error?.message).to.equal('zip failed')
     })
   })
 
@@ -550,6 +571,44 @@ describe('service /data/outputs archives', () => {
       expect(job.status).to.equal(ServiceStatusNumber.Running)
       expect(job.outputArchives.map((a) => a.containerId)).to.deep.equal(['old'])
       sinon.assert.calledOnce(old.remove)
+    })
+
+    it('archives the old folder up front when the old container cannot be stopped', async () => {
+      // A failed stop may leave it running, and the network teardown force-removes a
+      // container still attached — so it must not be kept around for the carry-over.
+      const daemonError: any = new Error('docker 500')
+      daemonError.statusCode = 500
+      const old = { ...outputsContainer('old'), stop: sinon.stub().rejects(daemonError) }
+      const created = newContainer()
+      const engine = restartEngine(old, created)
+      const job = makeJob({ containerId: 'old' })
+
+      await engine.doRestartService(job)
+
+      expect(job.status).to.equal(ServiceStatusNumber.Running)
+      expect(job.containerId).to.equal('new')
+      expect(job.previousContainerId).to.equal(undefined)
+      expect(job.outputArchives.map((a) => a.containerId)).to.deep.equal(['old'])
+      sinon.assert.notCalled(created.putArchive)
+      sinon.assert.callOrder(old.getArchive, old.remove, created.start)
+    })
+
+    it('still carries the folder over when the old container was already stopped (304)', async () => {
+      const alreadyStopped: any = new Error('docker 304')
+      alreadyStopped.statusCode = 304
+      const old = {
+        ...outputsContainer('old'),
+        stop: sinon.stub().rejects(alreadyStopped)
+      }
+      const created = newContainer()
+      const engine = restartEngine(old, created)
+      const job = makeJob({ containerId: 'old' })
+
+      await engine.doRestartService(job)
+
+      expect(job.status).to.equal(ServiceStatusNumber.Running)
+      expect(job.outputArchives ?? []).to.deep.equal([])
+      sinon.assert.calledOnce(created.putArchive)
     })
 
     it('a restart failing before the copy archives the old container', async () => {

@@ -2712,8 +2712,9 @@ container's folder (`live=true`).
 
 #### Response (400)
 
-Neither `index` nor `live`, both, an invalid `index`/`offset`, `offset` with `live`, or a
-live download of a service whose outputs go to a bucket.
+Neither `index` nor `live`, both, an invalid `index`/`offset`, `offset` with `live`, a
+live download of a service whose outputs go to a bucket, or an unknown `serviceId` (as for
+the other service commands).
 
 #### Response (401)
 
@@ -2721,8 +2722,8 @@ Missing/invalid auth, or `consumerAddress` is not the service owner.
 
 #### Response (404)
 
-Unknown service, no archive with that `index` (or it was deleted by storage expiry), or no
-`/data/outputs` in the running container.
+No archive with that `index` (or it was deleted by storage expiry), or no `/data/outputs`
+in the running container.
 
 #### Response (409)
 

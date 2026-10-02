@@ -5188,10 +5188,25 @@ export class C2DEngineDocker extends C2DEngine {
       // Final snapshot of the outgoing container before it is torn down (best-effort).
       await this.captureFinalServiceSnapshot(job)
       const c = this.docker.getContainer(job.containerId)
+      // Already stopped (304) or already gone (404) counts as stopped.
+      let stopped = true
       await c.stop({ t: 10 }).catch((e) => {
+        if (!isBenignDockerError(e)) stopped = false
         CORE_LOGGER.debug(`restart ${serviceId}: old container stop: ${e.message}`)
       })
       if (job.outputBucketId) {
+        await c.remove({ force: true }).catch((e) => {
+          CORE_LOGGER.debug(`restart ${serviceId}: old container remove: ${e.message}`)
+        })
+      } else if (!stopped) {
+        // It can't be kept for the carry-over: it may still be running, and
+        // removeServiceNetwork below force-removes a container still attached to the
+        // network, folder and all. Archive the folder now instead; the new container
+        // starts with an empty one.
+        CORE_LOGGER.error(
+          `restart ${serviceId}: could not stop old container ${job.containerId} — archiving ${SERVICE_OUTPUTS_PATH} instead of carrying it over`
+        )
+        await this.archiveServiceOutputs(job, c)
         await c.remove({ force: true }).catch((e) => {
           CORE_LOGGER.debug(`restart ${serviceId}: old container remove: ${e.message}`)
         })

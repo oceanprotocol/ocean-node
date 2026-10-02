@@ -468,14 +468,19 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
   }
 
   // Expired (terminal) services whose paid window ended at or before `expiresBefore` (Unix
-  // ms) — candidates for deleting their output archives once storage expiry has elapsed.
+  // ms) and that still hold output archives — candidates for deleting them once storage
+  // expiry has elapsed. The archive filter runs in SQL: expired rows are kept forever (with
+  // outputArchives: [] once cleaned), so without it every cleanup run would load and parse
+  // every service that ever expired.
   // eslint-disable-next-line require-await
   async getExpiredServiceJobsBefore(
     expiresBefore: number,
     clusterHash?: string
   ): Promise<ServiceJob[]> {
     const params: Array<string | number> = [ServiceStatusNumber.Expired, expiresBefore]
-    let selectSQL = `SELECT * FROM service_jobs WHERE status = ? AND expiresAt <= ?`
+    let selectSQL =
+      `SELECT * FROM service_jobs WHERE status = ? AND expiresAt <= ?` +
+      ` AND json_array_length(CAST(body AS TEXT), '$.outputArchives') > 0`
     if (clusterHash) {
       selectSQL += ` AND clusterHash = ?`
       params.push(clusterHash)

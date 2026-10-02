@@ -111,6 +111,10 @@ export function tarToZip(
     zip.end()
   })
   let finished = false
+  // yazl reports its own failures (e.g. an entry whose byte count differs from its declared
+  // size) on the ZipFile, not on its outputStream: without a listener there, the 'error'
+  // event is unhandled and takes the node down.
+  zip.on('error', (err) => out.destroy(err))
   zip.outputStream.on('error', (err) => out.destroy(err))
   zip.outputStream.on('end', () => {
     finished = true
