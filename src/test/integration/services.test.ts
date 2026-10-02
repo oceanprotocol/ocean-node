@@ -1170,6 +1170,9 @@ describe('**********         Service on Demand', () => {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const before = await getServiceJob(serviceId)
     const { containerId } = before
+    // (l2) simulates a lost container ref, so f2's file did not survive the restarts —
+    // write one into the last container for (m2) to find in the stop archive.
+    await writeServiceOutput(containerId, 'last.txt', 'from the last container')
 
     const {
       consumerAddress: addr,
@@ -1209,6 +1212,10 @@ describe('**********         Service on Demand', () => {
 
   it('(m2) SERVICE_STOP archived the last container; its outputs stay downloadable', async function () {
     const job = await getServiceJob(serviceId)
+    expect(
+      job.outputArchives,
+      'stop must archive /data/outputs'
+    ).to.have.length.greaterThan(0)
     const archive = job.outputArchives[job.outputArchives.length - 1]
     expect(job.outputArchives.map((a) => a.index)).to.deep.equal(
       job.outputArchives.map((_, i) => i)
@@ -1217,7 +1224,8 @@ describe('**********         Service on Demand', () => {
     const full = await getServiceResult({ index: archive.index })
     expect(full.status.httpStatus).to.equal(200)
     expect(full.status.headers['Content-Length']).to.equal(String(archive.filesize))
-    await unzipFiles(full.stream as Readable)
+    const files = await unzipFiles(full.stream as Readable)
+    expect(files['last.txt']).to.equal('from the last container')
 
     // resumable: the tail from an offset is exactly the rest of the file
     const tail = await getServiceResult({ index: archive.index, offset: 10 })
