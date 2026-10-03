@@ -128,6 +128,54 @@ describe('AdminCommandHandler access-list validation', () => {
     expect(blockchainCalls).to.deep.equal([8453])
   })
 
+  it('does NOT authorize when the configured contract address is empty', async () => {
+    // Regression: an empty contract address makes checkAddressOnAccessListWithSigner
+    // return true (falsy address => "no access list"), which would otherwise authorize
+    // ANY authenticated caller as admin. The handler must fail closed.
+    const blockchainCalls: number[] = []
+    const node = makeFakeOceanNode(
+      {
+        accessLists: { [CHAIN_ID]: [''] },
+        // A working signer that would return a non-zero balance if it were ever used.
+        blockchain: { getSigner: () => Promise.resolve(fakeSignerWithBalance(1n)) }
+      },
+      blockchainCalls
+    )
+    const handler = new TestAdminHandler(node)
+
+    const result = await handler.validateTokenOrSignature(
+      ADMIN_ADDRESS,
+      '1',
+      '0xsignature',
+      'someAdminCommand'
+    )
+
+    expect(result.valid).to.equal(false)
+    expect(result.error).to.contain('not on the allowed admins list')
+  })
+
+  it('does NOT authorize when the configured contract address is malformed', async () => {
+    const blockchainCalls: number[] = []
+    const node = makeFakeOceanNode(
+      {
+        accessLists: { [CHAIN_ID]: ['not-an-address'] },
+        blockchain: { getSigner: () => Promise.resolve(fakeSignerWithBalance(1n)) }
+      },
+      blockchainCalls
+    )
+    const handler = new TestAdminHandler(node)
+
+    const result = await handler.validateTokenOrSignature(
+      ADMIN_ADDRESS,
+      '1',
+      '0xsignature',
+      'someAdminCommand'
+    )
+
+    expect(result.valid).to.equal(false)
+    expect(result.error).to.contain('not on the allowed admins list')
+  })
+
   it('continues to the next chain when one chain RPC throws', async () => {
     const blockchainCalls: number[] = []
     // Chain 1 (137) throws on getSigner (simulating RPC rate limit / downtime);

@@ -17,6 +17,7 @@ import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import { CommonValidation } from '../../../utils/validators.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { normalizeCommandAddresses } from '../../../utils/evmAddress.js'
+import { isAddress } from 'ethers'
 
 export abstract class AdminCommandHandler
   extends BaseHandler
@@ -94,12 +95,25 @@ export abstract class AdminCommandHandler
             )
             continue
           }
+          // Fail closed on misconfiguration: an empty or malformed contract address
+          // would make checkAddressOnAccessListWithSigner return `true` (it treats a
+          // falsy address as "no access list"), silently authorizing ANY authenticated
+          // caller as admin. Only keep well-formed contract addresses.
+          const validContracts = accessLists[chainId].filter((addr: string) =>
+            isAddress(addr)
+          )
+          if (validContracts.length === 0) {
+            CORE_LOGGER.error(
+              `No valid access list contract address configured for admin check on chain ${chainId}. Skipping.`
+            )
+            continue
+          }
           try {
             const signer = await blockchain.getSigner()
-            // Pass the whole per-chain map; checkCredentialOnAccessList iterates the
-            // array of contract addresses under this chainId and checks each one.
+            // Pass only the validated contracts for this chain; checkCredentialOnAccessList
+            // iterates the array and checks each one with an on-chain balanceOf.
             allowed = await checkCredentialOnAccessList(
-              accessLists,
+              { [chainId]: validContracts },
               chainId,
               address,
               signer
