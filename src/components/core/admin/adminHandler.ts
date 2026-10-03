@@ -6,7 +6,10 @@ import {
   buildRateLimitReachedResponse,
   buildInvalidParametersResponse
 } from '../../httpRoutes/validateCommands.js'
-import { checkSingleCredential } from '../../../utils/credentials.js'
+import {
+  checkSingleCredential,
+  checkCredentialOnAccessList
+} from '../../../utils/credentials.js'
 import { CREDENTIALS_TYPES } from '../../../@types/DDO/Credentials.js'
 import { BaseHandler } from '../handler/handler.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
@@ -82,14 +85,23 @@ export abstract class AdminCommandHandler
       }
       if (accessLists) {
         for (const chainId of Object.keys(accessLists)) {
-          allowed = await checkSingleCredential(
-            {
-              type: CREDENTIALS_TYPES.ACCESS_LIST,
-              chainId: parseInt(chainId),
-              accessList: accessLists[chainId]
-            },
+          // Need an on-chain signer/provider to call balanceOf on the access list
+          // contract. getBlockchain() returns null when that chain has no RPC configured.
+          const blockchain = oceanNode.getBlockchain(parseInt(chainId))
+          if (!blockchain) {
+            CORE_LOGGER.error(
+              `Cannot check admin access list for chain ${chainId}: no RPC configured for that chain. Skipping.`
+            )
+            continue
+          }
+          const signer = await blockchain.getSigner()
+          // Pass the whole per-chain map; checkCredentialOnAccessList iterates the
+          // array of contract addresses under this chainId and checks each one.
+          allowed = await checkCredentialOnAccessList(
+            accessLists,
+            chainId,
             address,
-            null
+            signer
           )
           if (allowed) {
             return { valid: true, error: '' }
