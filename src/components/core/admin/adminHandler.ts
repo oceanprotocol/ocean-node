@@ -94,15 +94,24 @@ export abstract class AdminCommandHandler
             )
             continue
           }
-          const signer = await blockchain.getSigner()
-          // Pass the whole per-chain map; checkCredentialOnAccessList iterates the
-          // array of contract addresses under this chainId and checks each one.
-          allowed = await checkCredentialOnAccessList(
-            accessLists,
-            chainId,
-            address,
-            signer
-          )
+          try {
+            const signer = await blockchain.getSigner()
+            // Pass the whole per-chain map; checkCredentialOnAccessList iterates the
+            // array of contract addresses under this chainId and checks each one.
+            allowed = await checkCredentialOnAccessList(
+              accessLists,
+              chainId,
+              address,
+              signer
+            )
+          } catch (error) {
+            // Isolate per-chain failures (RPC rate limit / downtime) so one bad
+            // chain does not abort the whole loop and deny an otherwise-valid admin.
+            CORE_LOGGER.error(
+              `Error checking admin access list for chain ${chainId}: ${error}`
+            )
+            continue
+          }
           if (allowed) {
             return { valid: true, error: '' }
           }

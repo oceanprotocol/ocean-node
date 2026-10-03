@@ -127,4 +127,66 @@ describe('AdminCommandHandler access-list validation', () => {
     expect(result.error).to.contain('not on the allowed admins list')
     expect(blockchainCalls).to.deep.equal([8453])
   })
+
+  it('continues to the next chain when one chain RPC throws', async () => {
+    const blockchainCalls: number[] = []
+    // Chain 1 (137) throws on getSigner (simulating RPC rate limit / downtime);
+    // chain 2 (8453) authorizes. The admin must still be authorized.
+    const throwingBlockchain = {
+      getSigner: () => Promise.reject(new Error('RPC unavailable'))
+    }
+    const holderBlockchain = {
+      getSigner: () => Promise.resolve(fakeSignerWithBalance(1n))
+    }
+    const node = {
+      getAuth: () => ({
+        validateAuthenticationOrToken: () => Promise.resolve({ valid: true, error: '' })
+      }),
+      getAdminAddresses: () => ({
+        addresses: [] as string[],
+        accessLists: { '137': [CONTRACT_ADDRESS], [CHAIN_ID]: [CONTRACT_ADDRESS] }
+      }),
+      getBlockchain: (chainId: number) => {
+        blockchainCalls.push(chainId)
+        return chainId === 137 ? throwingBlockchain : holderBlockchain
+      }
+    } as unknown as OceanNode
+    const handler = new TestAdminHandler(node)
+
+    const result = await handler.validateTokenOrSignature(
+      ADMIN_ADDRESS,
+      '1',
+      '0xsignature',
+      'someAdminCommand'
+    )
+
+    expect(result.valid).to.equal(true)
+    // Both chains were visited: the throwing one did not abort the loop.
+    expect(blockchainCalls).to.deep.equal([137, 8453])
+  })
+
+  it('rejects gracefully (no throw) when the only chain RPC throws', async () => {
+    const blockchainCalls: number[] = []
+    const node = makeFakeOceanNode(
+      {
+        accessLists: { [CHAIN_ID]: [CONTRACT_ADDRESS] },
+        blockchain: {
+          getSigner: () => Promise.reject(new Error('RPC unavailable'))
+        }
+      },
+      blockchainCalls
+    )
+    const handler = new TestAdminHandler(node)
+
+    const result = await handler.validateTokenOrSignature(
+      ADMIN_ADDRESS,
+      '1',
+      '0xsignature',
+      'someAdminCommand'
+    )
+
+    expect(result.valid).to.equal(false)
+    expect(result.error).to.contain('not on the allowed admins list')
+    expect(blockchainCalls).to.deep.equal([8453])
+  })
 })
