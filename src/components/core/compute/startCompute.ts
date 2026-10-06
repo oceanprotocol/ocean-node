@@ -430,7 +430,7 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
                 const consumeData =
                   task.consumerAddress +
                   task.datasets[0].documentId +
-                  getNonceAsNumber(task.consumerAddress)
+                  (await getNonceAsNumber(task.consumerAddress))
                 // call smart contract to decrypt
                 const serviceIndex = AssetUtils.getServiceIndexById(ddo, service.id)
                 const filesObject = await getFilesObjectFromConfidentialEVM(
@@ -983,7 +983,7 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
               const consumeData =
                 task.consumerAddress +
                 task.datasets[0].documentId +
-                getNonceAsNumber(task.consumerAddress)
+                (await getNonceAsNumber(task.consumerAddress))
               // call smart contract to decrypt
               const serviceIndex = AssetUtils.getServiceIndexById(ddo, service.id)
               const filesObject = await getFilesObjectFromConfidentialEVM(
