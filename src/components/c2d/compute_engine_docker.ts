@@ -2407,7 +2407,7 @@ export class C2DEngineDocker extends C2DEngine {
       if (job.algorithm?.meta.container.entrypoint) {
         const newEntrypoint = job.algorithm.meta.container.entrypoint.replace(
           '$ALGO',
-          'data/transformations/algorithm'
+          '/data/transformations/algorithm'
         )
         containerInfo.Entrypoint = newEntrypoint.split(' ')
       }
