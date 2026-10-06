@@ -406,7 +406,7 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
 
           // let's see if we can access this asset
           // check if oasis evm or similar
-          const confidentialEVM = isConfidentialChainDDO(BigInt(ddo.chainId), service)
+          const confidentialEVM = isConfidentialChainDDO(BigInt(ddoChainId), service)
           let canDecrypt = false
           try {
             if (!confidentialEVM) {
@@ -523,8 +523,8 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
           }
           result.validOrder = elem.transferTxId
 
-          if (!('meta' in algorithm) && ddo.metadata.type === 'algorithm') {
-            const { entrypoint, image, tag, checksum } = ddo.metadata.algorithm.container
+          if (!('meta' in algorithm) && metadata.type === 'algorithm') {
+            const { entrypoint, image, tag, checksum } = metadata.algorithm.container
             const container = { entrypoint, image, tag, checksum }
             algorithm.meta = {
               language: metadata.algorithm.language,
@@ -816,6 +816,13 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
           return psAccess
         }
       }
+      const algoChecksums = await getAlgoChecksums(
+        task.algorithm.documentId,
+        task.algorithm.serviceId,
+        node,
+        node.getConfig(),
+        task.consumerAddress
+      )
       for (const elem of [...[task.algorithm], ...task.datasets]) {
         if (!('documentId' in elem) || !elem.documentId) {
           continue
@@ -834,7 +841,7 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
           }
         }
         const ddoInstance = DDOManager.getDDOClass(ddo)
-        const { chainId: ddoChainId, credentials } = ddoInstance.getDDOFields()
+        const { chainId: ddoChainId, credentials, metadata } = ddoInstance.getDDOFields()
         const isOrdable = isOrderingAllowedForAsset(ddo)
         if (!isOrdable.isOrdable) {
           CORE_LOGGER.error(isOrdable.reason)
@@ -949,6 +956,77 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
               status: {
                 httpStatus: 403,
                 error: `Error: Access to service with id ${service.id} was denied`
+              }
+            }
+          }
+        }
+        const confidentialEVM = isConfidentialChainDDO(BigInt(ddoChainId), service)
+        let canDecrypt = false
+        try {
+          if (!confidentialEVM) {
+            await node
+              .getKeyManager()
+              .decrypt(
+                Uint8Array.from(Buffer.from(sanitizeServiceFiles(service.files), 'hex')),
+                EncryptMethod.ECIES
+              )
+            canDecrypt = true
+          } else {
+            // TODO 'Start compute on confidential EVM!'
+            const signer = await blockchain.getSigner()
+            const isTemplate4 = await isDataTokenTemplate4(
+              service.datatokenAddress,
+              signer
+            )
+            if (isTemplate4 && (await isERC20Template4Active(ddoChainId, signer))) {
+              // we need to get the proper data for the signature
+              const consumeData =
+                task.consumerAddress +
+                task.datasets[0].documentId +
+                getNonceAsNumber(task.consumerAddress)
+              // call smart contract to decrypt
+              const serviceIndex = AssetUtils.getServiceIndexById(ddo, service.id)
+              const filesObject = await getFilesObjectFromConfidentialEVM(
+                serviceIndex,
+                service.datatokenAddress,
+                signer,
+                task.consumerAddress,
+                task.signature, // we will need to have a signature verification
+                consumeData
+              )
+              if (filesObject != null) {
+                canDecrypt = true
+              }
+            }
+          }
+        } catch (e) {
+          // do nothing
+          CORE_LOGGER.error('Could not decrypt DDO files Object: ' + e.message)
+        }
+        if (service.type === 'compute' && !canDecrypt) {
+          const error = `Service ${elem.serviceId} from DDO ${elem.documentId} cannot be used in compute on this provider`
+          return {
+            stream: null,
+            status: {
+              httpStatus: 500,
+              error
+            }
+          }
+        }
+        if (metadata.type !== 'algorithm') {
+          const validAlgoForDataset = await validateAlgoForDataset(
+            task.algorithm.documentId,
+            algoChecksums,
+            ddoInstance,
+            elem.serviceId,
+            node
+          )
+          if (!validAlgoForDataset) {
+            return {
+              stream: null,
+              status: {
+                httpStatus: 400,
+                error: `Algorithm ${task.algorithm.documentId} not allowed to run on the dataset: ${elem.documentId}`
               }
             }
           }
