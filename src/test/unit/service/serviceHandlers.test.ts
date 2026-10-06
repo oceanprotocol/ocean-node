@@ -206,8 +206,7 @@ function buildFakes(opts: FakeOpts = {}) {
     getRequestMap: () => new Map(),
     getConfig: (): any => ({
       rateLimit: undefined as number | undefined,
-      serviceTemplatesPath: undefined as string | undefined,
-      supportedNetworks: { '8453': { chainId: 8453 } }
+      serviceTemplatesPath: undefined as string | undefined
     }),
     // RPC signer for access-list balanceOf: a bare runner whose eth_call returns the balance
     getBlockchain: () => ({
