@@ -50,10 +50,7 @@ export class ServiceStopHandler extends CommandHandler {
     // common owner call never pays for the access-list lookups.
     let asAdmin = false
     if (!job || job.owner.toLowerCase() !== task.consumerAddress.toLowerCase()) {
-      asAdmin = await isAllowedAdminAddress(
-        this.getOceanNode().getAdminAddresses(),
-        task.consumerAddress
-      )
+      asAdmin = await isAllowedAdminAddress(this.getOceanNode(), task.consumerAddress)
       // Admin caller: redo the lookup unfiltered, since the job belongs to someone else.
       if (asAdmin && !job)
         ({ job, engine } = await findServiceJobAndEngine(engines, task.serviceId))

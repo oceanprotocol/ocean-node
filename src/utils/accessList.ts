@@ -56,8 +56,9 @@ export async function checkAddressOnAccessList(
   for (const accessListMap of access) {
     if (!accessListMap) continue
     for (const chain of Object.keys(accessListMap)) {
-      const { chainId } = supportedNetworks[chain]
       try {
+        // inside the try: a list on a chain missing from supportedNetworks must skip, not throw
+        const { chainId } = supportedNetworks[chain]
         const blockchain = oceanNode.getBlockchain(chainId)
         if (!blockchain) {
           CORE_LOGGER.logMessage(

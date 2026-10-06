@@ -1,6 +1,7 @@
 import { assert, expect } from 'chai'
 import { Readable } from 'stream'
 import sinon from 'sinon'
+import { AbiCoder } from 'ethers'
 import { streamToObject } from '../../../utils/util.js'
 import { PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { ServiceStatusNumber, ServiceJob } from '../../../@types/C2D/ServiceOnDemand.js'
@@ -17,8 +18,8 @@ import { ServiceGetStreamableLogsHandler } from '../../../components/core/servic
 // see and forward, whatever casing the caller sent (see the lowercase-address test below).
 const OWNER = '0x0000000000000000000000000000000000000aBc'
 // A node admin (ALLOWED_ADMINS) and an unrelated caller — neither owns the fake job.
-const ADMIN = '0x0000000000000000000000000000000000000AdE'
-const STRANGER = '0x0000000000000000000000000000000000000fFf'
+const ADMIN = '0x0000000000000000000000000000000000000adE'
+const STRANGER = '0x0000000000000000000000000000000000000FfF'
 
 function makeJob(overrides: Partial<ServiceJob> = {}): ServiceJob {
   return {
@@ -71,6 +72,10 @@ interface FakeOpts {
   streamableLogs?: Readable | null
   // node admins (ALLOWED_ADMINS); empty unless a test grants one
   admins?: string[]
+  // admin access lists (ALLOWED_ADMINS_LIST), chainId → contract addresses
+  adminAccessLists?: Record<string, string[]>
+  // balanceOf answered by every access-list contract on the fake chain
+  accessListBalance?: number
 }
 
 function buildFakes(opts: FakeOpts = {}) {
@@ -201,7 +206,21 @@ function buildFakes(opts: FakeOpts = {}) {
     getRequestMap: () => new Map(),
     getConfig: (): any => ({
       rateLimit: undefined as number | undefined,
-      serviceTemplatesPath: undefined as string | undefined
+      serviceTemplatesPath: undefined as string | undefined,
+      supportedNetworks: { '8453': { chainId: 8453 } }
+    }),
+    // RPC signer for access-list balanceOf: a bare runner whose eth_call returns the balance
+    getBlockchain: () => ({
+      getSigner: () =>
+        Promise.resolve({
+          call: () =>
+            Promise.resolve(
+              AbiCoder.defaultAbiCoder().encode(
+                ['uint256'],
+                [opts.accessListBalance ?? 0]
+              )
+            )
+        })
     }),
     getC2DEngines: () => engines,
     getKeyManager: () => ({
@@ -214,7 +233,7 @@ function buildFakes(opts: FakeOpts = {}) {
     // No ALLOWED_ADMINS by default — tests that exercise the admin path override this.
     getAdminAddresses: () => ({
       addresses: opts.admins ?? [],
-      accessLists: undefined as any
+      accessLists: opts.adminAccessLists as any
     }),
     getPersistentStorage: () => persistentStorage
   }
@@ -408,6 +427,34 @@ describe('Service handlers', () => {
         consumerAddress: ADMIN
       } as any)
       expect(res.status.httpStatus).to.equal(200)
+    })
+
+    it('200 when the admin is a member of an ALLOWED_ADMINS_LIST access list', async () => {
+      const { node, engine } = buildFakes({
+        serviceJobInDb: makeJob(),
+        adminAccessLists: { '8453': ['0x00000000000000000000000000000000000000A1'] },
+        accessListBalance: 1
+      })
+      const res = await new ServiceStopHandler(node).handle({
+        ...baseTask,
+        consumerAddress: ADMIN
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      expect(engine.stopService.firstCall.args[1]).to.equal(OWNER)
+    })
+
+    it('401 when the caller holds no token on the admin access list', async () => {
+      const { node, engine } = buildFakes({
+        serviceJobInDb: makeJob(),
+        adminAccessLists: { '8453': ['0x00000000000000000000000000000000000000A1'] },
+        accessListBalance: 0
+      })
+      const res = await new ServiceStopHandler(node).handle({
+        ...baseTask,
+        consumerAddress: STRANGER
+      } as any)
+      expect(res.status.httpStatus).to.equal(401)
+      expect(engine.stopService.called).to.equal(false)
     })
 
     it("401 when a non-admin stranger stops someone else's service", async () => {

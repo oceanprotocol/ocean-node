@@ -14,6 +14,8 @@ import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import { CommonValidation } from '../../../utils/validators.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { normalizeCommandAddresses } from '../../../utils/evmAddress.js'
+import { checkAddressOnAccessList } from '../../../utils/accessList.js'
+import type { OceanNode } from '../../../OceanNode.js'
 
 // Membership test for the node's admin set: the ALLOWED_ADMINS address list first, then
 // each configured admin access list (ALLOWED_ADMINS_LIST), per chain. Says nothing about
@@ -21,9 +23,10 @@ import { normalizeCommandAddresses } from '../../../utils/evmAddress.js'
 // auth token). Exported because handlers outside the admin family (SERVICE_STOP) also
 // grant the node operator a privileged path and must not re-implement these checks.
 export async function isAllowedAdminAddress(
-  allowedAdmins: { addresses: string[]; accessLists: any } | null | undefined,
+  oceanNode: OceanNode,
   address: string
 ): Promise<boolean> {
+  const allowedAdmins = oceanNode.getAdminAddresses()
   if (!allowedAdmins || !address) {
     return false
   }
@@ -36,21 +39,12 @@ export async function isAllowedAdminAddress(
   if (isListedAddress) {
     return true
   }
+  // The access-list balanceOf needs the chain's RPC signer. checkSingleCredential cannot
+  // be used here: it takes ONE contract address and the signer from its caller, while
+  // accessLists maps chainId → address[] — passing that array with a null signer made
+  // every ALLOWED_ADMINS_LIST member fail ("invalid value for Contract target").
   if (accessLists) {
-    for (const chainId of Object.keys(accessLists)) {
-      const isOnAccessList = await checkSingleCredential(
-        {
-          type: CREDENTIALS_TYPES.ACCESS_LIST,
-          chainId: parseInt(chainId),
-          accessList: accessLists[chainId]
-        },
-        address,
-        null
-      )
-      if (isOnAccessList) {
-        return true
-      }
-    }
+    return await checkAddressOnAccessList(address, [accessLists], oceanNode)
   }
   return false
 }
@@ -109,7 +103,7 @@ export abstract class AdminCommandHandler
       }
     }
     try {
-      if (await isAllowedAdminAddress(oceanNode.getAdminAddresses(), address)) {
+      if (await isAllowedAdminAddress(oceanNode, address)) {
         return { valid: true, error: '' }
       }
 
