@@ -76,6 +76,7 @@ export interface ServiceTemplate {
   category?: ServiceTemplateCategory
   includes?: TemplateIncludedItem[] // bundles only: manifest of what the command downloads
   unlisted?: boolean // true: left out of the catalogue listing, still reachable by a direct link
+  order?: number // catalogue position, lowest first; entries without one follow, in node order
   // Image specification — exactly one of (tag | checksum | dockerfile) must be set:
   image: string // base image name
   tag?: string // e.g. "latest" — mutually exclusive with checksum/dockerfile
