@@ -1004,6 +1004,10 @@ export class C2DEngineDocker extends C2DEngine {
           const payers = jobs.map((j) => j.owner)
           const amounts = claims.map((c) => c.cost)
           const proofs = claims.map((c) => c.proof)
+          // Per-job subsidy overrides. An explicit user list ([] or non-empty) was frozen onto the
+          // job at request time and is passed through unchanged; `undefined`/null here means the
+          // user opted out, so the escrow falls back to the node config read live at claim time.
+          const subsidyOverrides = jobs.map((j) => j.payment!.subsidyProviders ?? null)
 
           const txId = await this.escrow.claimLocks(
             chainId,
@@ -1012,7 +1016,8 @@ export class C2DEngineDocker extends C2DEngine {
             payers,
             amounts,
             proofs,
-            JobType.COMPUTE
+            JobType.COMPUTE,
+            subsidyOverrides
           )
           if (txId) {
             // Update all jobs with the transaction ID
@@ -1043,7 +1048,8 @@ export class C2DEngineDocker extends C2DEngine {
                 claim.job.owner,
                 claim.cost,
                 claim.proof,
-                JobType.COMPUTE
+                JobType.COMPUTE,
+                claim.job.payment!.subsidyProviders ?? null
               )
               if (txId) {
                 if (claim.job.payment) {
@@ -4136,7 +4142,8 @@ export class C2DEngineDocker extends C2DEngine {
         job.owner,
         job.payment.cost,
         `service-start:${serviceId}`,
-        JobType.SERVICE
+        JobType.SERVICE,
+        job.payment.subsidyProviders ?? null
       )
       if (!claimTx) {
         job.payment.cancelTx = await this.safeCancelLock(

@@ -445,6 +445,13 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.SUBSIDY_PROVIDERS,
     required: false
   },
+  SUBSIDY_PROVIDER_FILTER: {
+    // when ON, a user-supplied subsidy-provider list may only contain addresses already present
+    // in this node's SUBSIDY_PROVIDERS whitelist for the request chain; anything else is rejected
+    name: 'SUBSIDY_PROVIDER_FILTER',
+    value: process.env.SUBSIDY_PROVIDER_FILTER,
+    required: false
+  },
   ASSET_PURGATORY_URL: {
     name: 'ASSET_PURGATORY_URL',
     value: process.env.ASSET_PURGATORY_URL,

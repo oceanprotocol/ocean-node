@@ -138,4 +138,60 @@ describe('Escrow claim wrappers forward jobType + subsidyProviders', () => {
     expect(callArgs[5]).to.deep.equal([JobType.COMPUTE, JobType.COMPUTE])
     expect(callArgs[6]).to.deep.equal([[], []])
   })
+
+  const USER_PROVIDER = '0x2222222222222222222222222222222222222222'
+
+  it('claimLock: a user override replaces the node config list', async () => {
+    const { escrow, contract } = buildEscrow({ [String(CHAIN)]: [PROVIDER] })
+    const jobId = create256Hash('job-ov')
+    sinon.stub(escrow, 'getLocks').resolves([{ jobId: BigInt(jobId) } as any])
+
+    await escrow.claimLock(CHAIN, 'job-ov', TOKEN, PAYER, 1, 'p', JobType.COMPUTE, [
+      USER_PROVIDER
+    ])
+
+    const callArgs = contract.claimLockAndWithdraw.firstCall.args
+    expect(callArgs[6]).to.deep.equal([USER_PROVIDER])
+  })
+
+  it('claimLock: a user override of [] means no providers, not fallback to config', async () => {
+    const { escrow, contract } = buildEscrow({ [String(CHAIN)]: [PROVIDER] })
+    const jobId = create256Hash('job-empty')
+    sinon.stub(escrow, 'getLocks').resolves([{ jobId: BigInt(jobId) } as any])
+
+    await escrow.claimLock(CHAIN, 'job-empty', TOKEN, PAYER, 1, 'p', JobType.COMPUTE, [])
+
+    const callArgs = contract.claimLockAndWithdraw.firstCall.args
+    expect(callArgs[6]).to.deep.equal([])
+  })
+
+  it('claimLock: a null override falls back to the node config list', async () => {
+    const { escrow, contract } = buildEscrow({ [String(CHAIN)]: [PROVIDER] })
+    const jobId = create256Hash('job-null')
+    sinon.stub(escrow, 'getLocks').resolves([{ jobId: BigInt(jobId) } as any])
+
+    await escrow.claimLock(CHAIN, 'job-null', TOKEN, PAYER, 1, 'p', JobType.COMPUTE, null)
+
+    const callArgs = contract.claimLockAndWithdraw.firstCall.args
+    expect(callArgs[6]).to.deep.equal([PROVIDER])
+  })
+
+  it('claimLocks: per-job overrides win, and a null slot falls back to config', async () => {
+    const { escrow, contract } = buildEscrow({ [String(CHAIN)]: [PROVIDER] })
+
+    await escrow.claimLocks(
+      CHAIN,
+      ['job-a', 'job-b', 'job-c'],
+      [TOKEN, TOKEN, TOKEN],
+      [PAYER, PAYER, PAYER],
+      [1, 2, 3],
+      ['pa', 'pb', 'pc'],
+      JobType.COMPUTE,
+      [[USER_PROVIDER], [], null]
+    )
+
+    const callArgs = contract.claimLocksAndWithdraw.firstCall.args
+    // job-a: user override; job-b: explicit none; job-c: null → node config
+    expect(callArgs[6]).to.deep.equal([[USER_PROVIDER], [], [PROVIDER]])
+  })
 })

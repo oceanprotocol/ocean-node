@@ -179,6 +179,9 @@ export interface OceanNodeConfig {
   allowedAdminsList?: AccessListContract | null
   // per-chain map of Subsidy Provider contract addresses passed to the escrow at claim time
   subsidyProviders?: AccessListContract | null
+  // when ON, a user-supplied subsidy-provider list may only contain addresses already present in
+  // `subsidyProviders` for the request chain; otherwise the request is rejected. Default false.
+  subsidyProviderFilter?: boolean
   codeHash?: string
   rateLimit?: number // per request ip or peer
   maxConnections?: number // global, regardless of client address(es)
@@ -268,6 +271,8 @@ export interface OceanNodeStatus {
   allowedAdmins?: { addresses: string[]; accessLists: AccessListContract }
   // per-chain map of Subsidy Provider contract addresses configured on this node
   subsidyProviders?: AccessListContract
+  // whether this node restricts user-supplied subsidy providers to the configured whitelist
+  subsidyProviderFilter?: boolean
   // detailed information
   c2dClusters?: any[]
   supportedSchemas?: Schema[]

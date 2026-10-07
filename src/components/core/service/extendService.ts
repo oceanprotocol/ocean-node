@@ -14,6 +14,7 @@ import type { ComputeEnvironment } from '../../../@types/C2D/C2D.js'
 import { ServiceStatusNumber } from '../../../@types/C2D/ServiceOnDemand.js'
 import { validateAccess } from '../compute/startCompute.js'
 import { findServiceJobAndEngine, toPublicServiceJob } from './utils.js'
+import { resolveUserSubsidyProviders } from '../utils/subsidyProviders.js'
 
 export class ServiceExtendHandler extends CommandHandler {
   validate(command: ServiceExtendCommand): ValidateParams {
@@ -188,6 +189,19 @@ export class ServiceExtendHandler extends CommandHandler {
               )
             )
 
+          // Resolve the user-supplied subsidy providers (if any) for the payment chain, enforcing
+          // the node's whitelist filter when enabled. The extend claim is synchronous, so the
+          // resolved value is passed straight to claimLock below rather than persisted.
+          const subsidyResolution = resolveUserSubsidyProviders(
+            task.subsidyProviders,
+            task.payment.chainId,
+            this.getOceanNode().getConfig()
+          )
+          if (!subsidyResolution.valid)
+            return buildInvalidParametersResponse(
+              buildInvalidRequestMessage(subsidyResolution.reason)
+            )
+
           // An extendPayments entry with a lockTx but neither claimTx nor cancelTx is an
           // UNRESOLVED intent from a previous crash (see below — the intent is persisted
           // before claiming). Resolve it before charging again: try to cancel (refund)
@@ -274,6 +288,11 @@ export class ServiceExtendHandler extends CommandHandler {
           // claiming: a crash between claim and the final write is then auditable — the
           // consumer's money can never be taken without a durable record of why — and a
           // retry finds the intent (unresolved branch above) instead of charging twice.
+          // NOTE: the intent does NOT carry the resolved subsidy providers. That is safe today
+          // because the claim is synchronous and uses the in-scope `subsidyResolution.resolved`
+          // moments later. If this claim is ever made async/crash-recoverable (like the compute
+          // batch), persist the resolved list here so the recovery path can reclaim with the
+          // consumer's original choice instead of silently falling back to node config.
           const intent = {
             chainId: task.payment.chainId,
             token: task.payment.token,
@@ -332,7 +351,8 @@ export class ServiceExtendHandler extends CommandHandler {
               task.consumerAddress,
               costExtend,
               `service-extend:${task.serviceId}`,
-              JobType.SERVICE
+              JobType.SERVICE,
+              subsidyResolution.resolved ?? null
             )
           } catch (e: any) {
             claimTx = null

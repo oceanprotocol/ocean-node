@@ -48,6 +48,7 @@ import { checkAddressOnAccessList } from '../../../utils/accessList.js'
 import { ensureConsumerAllowedForPersistentStorageLocalfsFileObject } from '../../persistentStorage/PersistentStorageFactory.js'
 import { resolveComputeFileObject } from '../../c2d/compute_engine_docker.js'
 import { cJobsStarted } from '../../../telemetry/metrics.js'
+import { resolveUserSubsidyProviders } from '../utils/subsidyProviders.js'
 
 export class CommonComputeHandler extends CommandHandler {
   validate(command: PaidComputeStartCommand): ValidateParams {
@@ -581,6 +582,24 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
         task.payment.token,
         task.maxJobDuration
       )
+      // Resolve the user-supplied subsidy providers (if any) for the payment chain, enforcing the
+      // node's whitelist filter when enabled. Done before locking funds so a bad list fails fast;
+      // the resolved value is persisted on the job so the (batched) claim later uses the user's
+      // choice rather than whatever the node config holds at claim time.
+      const subsidyResolution = resolveUserSubsidyProviders(
+        task.subsidyProviders,
+        task.payment.chainId,
+        node.getConfig()
+      )
+      if (!subsidyResolution.valid) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: subsidyResolution.reason
+          }
+        }
+      }
       let agreementId
       CORE_LOGGER.logMessage(
         `escrow.createLock cost=${cost} token=${task.payment.token} chainId=${task.payment.chainId} resources=${JSON.stringify(task.resources)} maxJobDuration=${task.maxJobDuration}`,
@@ -646,7 +665,8 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
             lockTx: agreementId,
             claimTx: null,
             cancelTx: null,
-            cost: 0
+            cost: 0,
+            subsidyProviders: subsidyResolution.resolved
           },
           jobId,
           task.metadata,

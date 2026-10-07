@@ -278,6 +278,10 @@ export interface FreeComputeStartCommand extends Command {
   additionalViewers?: string[] // addresses of additional addresses that can get results
   queueMaxWaitTime?: number // max time in seconds a job can wait in the queue before being started
   encryptedDockerRegistryAuth?: string
+  // Optional user-supplied Subsidy Provider contract addresses for the request chain. undefined =
+  // use the node config; [] = no providers; non-empty = use ONLY these (ignoring node config).
+  // Ignored for free compute (no escrow claim). See resolveUserSubsidyProviders.
+  subsidyProviders?: string[]
 }
 export interface PaidComputeStartCommand extends FreeComputeStartCommand {
   payment: ComputePayment
@@ -454,6 +458,10 @@ export interface ServiceStartCommand extends Command {
   metadata?: DBComputeJobMetadata // optional user-defined labels for the service; node-opaque, ≤1 KB
   outputBucketId?: string // persistent-storage bucket bind-mounted at /data/outputs
   payment: { chainId: number; token: string }
+  // Optional user-supplied Subsidy Provider contract addresses for payment.chainId. undefined =
+  // use the node config; [] = no providers; non-empty = use ONLY these. See
+  // resolveUserSubsidyProviders.
+  subsidyProviders?: string[]
 }
 
 export interface ServiceStopCommand extends Command {
@@ -546,4 +554,8 @@ export interface ServiceExtendCommand extends Command {
   serviceId: string
   additionalDuration: number
   payment: { chainId: number; token: string }
+  // Optional user-supplied Subsidy Provider contract addresses for payment.chainId. undefined =
+  // use the node config; [] = no providers; non-empty = use ONLY these. See
+  // resolveUserSubsidyProviders.
+  subsidyProviders?: string[]
 }
