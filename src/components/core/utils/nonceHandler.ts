@@ -47,7 +47,7 @@ export async function getNonceAsNumber(address: string): Promise<number> {
     .getHandlerForTask(command)
     .handle(command)
   if (nonceResponse.stream) {
-    return await Number(streamToString(nonceResponse.stream as Readable))
+    return Number(await streamToString(nonceResponse.stream as Readable))
   }
   return 0
 }

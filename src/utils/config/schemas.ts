@@ -449,6 +449,10 @@ export const ServiceTemplateSchema = z
       ])
       .optional(),
     includes: z.array(TemplateIncludedItemSchema).optional(),
+    // true: left out of the dashboard catalogue, still reachable by a direct link
+    unlisted: z.boolean().optional(),
+    // catalogue position, lowest first; entries without one follow, in node order
+    order: z.number().int().optional(),
     image: z.string().min(1),
     tag: z.string().min(1).optional(),
     checksum: z
