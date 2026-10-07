@@ -126,6 +126,15 @@ describe('ServiceTemplateSchema', () => {
     expect(ServiceTemplateSchema.safeParse(bundle).success).to.equal(true)
   })
 
+  it('unlisted must be a boolean', () => {
+    expect(
+      ServiceTemplateSchema.safeParse({ ...baseTemplate, unlisted: true }).success
+    ).to.equal(true)
+    expect(
+      ServiceTemplateSchema.safeParse({ ...baseTemplate, unlisted: 'yes' }).success
+    ).to.equal(false)
+  })
+
   it('a bundle without its parent service id is rejected', () => {
     const orphan = {
       id: 'orphan-bundle',
