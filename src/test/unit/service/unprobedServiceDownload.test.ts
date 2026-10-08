@@ -1,6 +1,6 @@
 import { expect } from 'chai'
 import sinon from 'sinon'
-import { Readable } from 'stream'
+import { PassThrough, Readable } from 'stream'
 import * as tarStream from 'tar-stream'
 import { C2DEngineDocker } from '../../../components/c2d/compute_engine_docker.js'
 import { ServiceStatusNumber } from '../../../@types/C2D/ServiceOnDemand.js'
@@ -128,5 +128,30 @@ describe('getContainerDiskUsage', () => {
       "du: cannot access '/data/models--org--model-2 1': No such file or directory\r\n"
     )
     expect(await engine.getContainerDiskUsage('container-1', '/data/x')).to.equal(null)
+  })
+})
+
+describe('getContainerDiskUsage timeout', () => {
+  let clock: sinon.SinonFakeTimers
+  beforeEach(() => {
+    clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  })
+  afterEach(() => {
+    clock.restore()
+  })
+
+  it('gives up on a du that never finishes, instead of hanging', async () => {
+    const stream = new PassThrough()
+    const engine: any = Object.create(C2DEngineDocker.prototype)
+    engine.docker = {
+      getContainer: () => ({
+        inspect: sinon.stub().resolves({ State: { Running: true } }),
+        exec: sinon.stub().resolves({ start: sinon.stub().resolves(stream) })
+      })
+    }
+    const result = engine.getContainerDiskUsage('container-1', '/data/hung')
+    await clock.tickAsync(15_000)
+    expect(await result).to.equal(null)
+    expect(stream.destroyed).to.equal(true)
   })
 })

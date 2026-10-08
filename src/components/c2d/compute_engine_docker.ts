@@ -147,6 +147,9 @@ const trivyImage = 'aquasec/trivy:0.69.3' // Use pinned versions for safety
 // doesn't get a live operation's resources torn down under it.
 const SERVICE_LOCK_HEARTBEAT_MS = 30_000
 const SERVICE_LOCK_STALE_MS = 120_000
+// A `du` inside a container that never finishes (a huge or slow folder, or a container that replaced
+// the binary) must not hold the loop that measures it, nor the node's shutdown that drains it.
+const DISK_USAGE_TIMEOUT_MS = 15_000
 
 // Identifies one engine instance as a service-lock holder across processes. pid alone is
 // not enough: pids are reused, and one process can host several engine instances.
@@ -3094,8 +3097,28 @@ export class C2DEngineDocker extends C2DEngine {
       const stream = await exec.start({ Detach: false, Tty: true })
 
       const chunks: Buffer[] = []
-      for await (const chunk of stream) {
-        chunks.push(chunk as Buffer)
+      const read = (async () => {
+        for await (const chunk of stream) {
+          chunks.push(chunk as Buffer)
+        }
+        return true
+      })()
+      // Destroying the stream on timeout rejects the read after the race has moved on.
+      read.catch(() => {})
+      let timer: NodeJS.Timeout
+      const timedOut = new Promise<false>((resolve) => {
+        timer = setTimeout(() => resolve(false), DISK_USAGE_TIMEOUT_MS)
+      })
+      try {
+        if (!(await Promise.race([read, timedOut]))) {
+          stream.destroy()
+          CORE_LOGGER.warn(
+            `du ${path} in ${containerName} did not finish within ${DISK_USAGE_TIMEOUT_MS / 1000}s`
+          )
+          return null
+        }
+      } finally {
+        clearTimeout(timer)
       }
 
       const output = Buffer.concat(chunks).toString()
