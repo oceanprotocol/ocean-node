@@ -712,7 +712,8 @@ describe('**********         Compute', () => {
         firstEnv.consumerAddress,
         balance,
         initializeResponse.payment.minLockSeconds,
-        10
+        10,
+        0 // expiryTimestamp: 0 = indefinite (Escrow v2)
       )
 
     const fundsBefore = await oceanNode.escrow.getUserAvailableFunds(
@@ -931,7 +932,7 @@ describe('**********         Compute', () => {
     if (auth.length > 0) {
       await escrowContract
         .connect(consumerAccount)
-        .authorize(initializeResponse.payment.token, firstEnv.consumerAddress, 0, 0, 0)
+        .authorize(initializeResponse.payment.token, firstEnv.consumerAddress, 0, 0, 0, 0)
     }
     const locks = await oceanNode.escrow.getLocks(
       DEVELOPMENT_CHAIN_ID,
@@ -1022,7 +1023,8 @@ describe('**********         Compute', () => {
         firstEnv.consumerAddress,
         balance,
         initializeResponse.payment.minLockSeconds,
-        10
+        10,
+        0 // expiryTimestamp: 0 = indefinite (Escrow v2)
       )
     const auth = await oceanNode.escrow.getAuthorizations(
       DEVELOPMENT_CHAIN_ID,
@@ -3943,7 +3945,7 @@ describe('**********         Compute Access Restrictions', () => {
         // Remove authorization by setting to 0
         await escrowContract
           .connect(consumerAccount)
-          .authorize(paymentToken, providerAddress, 0, 0, 0)
+          .authorize(paymentToken, providerAddress, 0, 0, 0, 0)
       }
 
       // Check and withdraw existing funds if any
@@ -3981,7 +3983,7 @@ describe('**********         Compute Access Restrictions', () => {
 
       const authorizeTx = await escrowContract
         .connect(consumerAccount)
-        .authorize(paymentToken, providerAddress, balance, 3600, 10)
+        .authorize(paymentToken, providerAddress, balance, 3600, 10, 0)
       await authorizeTx.wait()
 
       // Verify authorization is set up correctly

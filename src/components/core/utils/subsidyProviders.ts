@@ -1,6 +1,13 @@
 import { isAddress, getAddress } from 'ethers'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
 
+// The Escrow v2 contract caps the number of UNIQUE sponsors per lock at `maxSponsorsPerLock()`
+// (== 10) and reverts `createLock`/`reLock` with "Too many sponsors" beyond it. We mirror that
+// limit node-side so an over-long list is rejected cheaply (a 400) instead of costing an
+// `estimateGas` round-trip on a guaranteed on-chain revert. Kept in sync with the contract
+// constant; if the contract ever changes it, update here (or read it on-chain).
+export const MAX_SUBSIDY_PROVIDERS_PER_LOCK = 10
+
 export interface ResolvedSubsidyProviders {
   valid: boolean
   // Present only when valid === false: a human-readable reason for the rejection.
@@ -65,13 +72,26 @@ export function resolveUserSubsidyProviders(
     }
   }
 
+  // Collapse duplicates: the escrow counts UNIQUE sponsors, so a repeated address is a single
+  // sponsor. De-duping here keeps the persisted/forwarded list minimal and makes the cap below
+  // count the same way the contract does.
+  const deduped = Array.from(new Set(normalized))
+
+  // Enforce the contract's per-lock sponsor cap locally (see MAX_SUBSIDY_PROVIDERS_PER_LOCK).
+  if (deduped.length > MAX_SUBSIDY_PROVIDERS_PER_LOCK) {
+    return {
+      valid: false,
+      reason: `Too many subsidy providers: ${deduped.length} unique (max ${MAX_SUBSIDY_PROVIDERS_PER_LOCK} per lock)`
+    }
+  }
+
   // Whitelist enforcement: only addresses already configured on this node (for the request chain)
   // are allowed through when the filter is ON.
   if (config.subsidyProviderFilter) {
     const whitelist = new Set(
       (config.subsidyProviders?.[String(chainId)] ?? []).map((addr) => getAddress(addr))
     )
-    const disallowed = normalized.filter((addr) => !whitelist.has(addr))
+    const disallowed = deduped.filter((addr) => !whitelist.has(addr))
     if (disallowed.length > 0) {
       return {
         valid: false,
@@ -82,5 +102,5 @@ export function resolveUserSubsidyProviders(
     }
   }
 
-  return { valid: true, resolved: normalized }
+  return { valid: true, resolved: deduped }
 }

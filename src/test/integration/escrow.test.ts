@@ -184,7 +184,8 @@ describe('Indexer stores Escrow contract events', () => {
       payeeAddress,
       depositAmount,
       expiry,
-      10
+      10,
+      0 // expiryTimestamp: 0 = indefinite (Escrow v2)
     )
     const receipt = await tx.wait()
     authTxHash = receipt.hash
@@ -200,6 +201,8 @@ describe('Indexer stores Escrow contract events', () => {
     expect(event.token).to.equal(paymentToken.toLowerCase())
     expect(event.maxLockedAmount).to.equal(depositAmount.toString())
     expect(event.maxLockCounts).to.equal('10')
+    // Escrow v2: authorize was called with expiryTimestamp 0 (indefinite)
+    expect(event.expiryTimestamp).to.equal('0')
   })
 
   it('indexes a Lock event', async function () {
@@ -208,7 +211,8 @@ describe('Indexer stores Escrow contract events', () => {
 
     const tx = await escrowContract
       .connect(publisherAccount)
-      .createLock(jobId, paymentToken, payerAddress, lockAmount, expiry)
+      // Escrow v2: + jobType (0 = NONE) + subsidyProviders ([] = plain payer-funded lock)
+      .createLock(jobId, paymentToken, payerAddress, lockAmount, expiry, 0, [])
     const receipt = await tx.wait()
     lockTxHash = receipt.hash
 
@@ -238,7 +242,8 @@ describe('Indexer stores Escrow contract events', () => {
     const reLockExpiry = Math.floor(expiry / 2)
     const tx = await escrowContract
       .connect(publisherAccount)
-      .reLock(jobId, paymentToken, payerAddress, newLockAmount, reLockExpiry)
+      // Escrow v2: + jobType (0 = NONE) + subsidyProviders ([] = plain payer-funded lock)
+      .reLock(jobId, paymentToken, payerAddress, newLockAmount, reLockExpiry, 0, [])
     const receipt = await tx.wait()
     const reLockTxHash = receipt.hash
 

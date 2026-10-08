@@ -248,7 +248,11 @@ export class ServiceExtendHandler extends CommandHandler {
               task.payment.token,
               task.consumerAddress,
               costExtend,
-              engine.escrow.getMinLockTime(task.additionalDuration)
+              engine.escrow.getMinLockTime(task.additionalDuration),
+              JobType.SERVICE,
+              // Same subsidy-provider list the in-scope claimLock uses below — lock & claim
+              // must agree on the sponsoring providers.
+              subsidyResolution.resolved ?? null
             )
           } catch (e: any) {
             CORE_LOGGER.error(`Service extend createLock failed: ${e.message}`)

@@ -197,50 +197,11 @@ export class ServiceStartHandler extends CommandHandler {
           )
         )
 
-      // 6b. Fail fast when the consumer's escrow visibly can't cover the cost, instead
-      // of returning a serviceId doomed to fail asynchronously at the Locking step.
-      // Best-effort UX only: balances can change before the background createLock runs,
-      // so the authoritative check stays in the pipeline — and an RPC hiccup here must
-      // not block starts (the pipeline check will catch a genuine shortfall anyway).
-      try {
-        const [availableWei, costWei] = await Promise.all([
-          engine.escrow.getUserAvailableFunds(
-            task.payment.chainId,
-            task.consumerAddress,
-            task.payment.token
-          ),
-          engine.escrow.getPaymentAmountInWei(
-            cost,
-            task.payment.chainId,
-            task.payment.token
-          )
-        ])
-        if (BigInt(availableWei.toString()) < BigInt(costWei.toString())) {
-          return buildInvalidParametersResponse(
-            buildInvalidRequestMessage(
-              `Insufficient escrow funds for token ${task.payment.token} on chain ` +
-                `${task.payment.chainId}: available ${availableWei}, required ${costWei} ` +
-                `wei — deposit and authorize escrow funds before starting the service`
-            )
-          )
-        }
-      } catch (e: any) {
-        CORE_LOGGER.debug(
-          `SERVICE_START: escrow funds pre-check skipped (${e.message}) — the background Locking step will verify`
-        )
-      }
-
-      const serviceId = generateUniqueID({
-        owner: task.consumerAddress,
-        environment: task.environment,
-        image: task.image,
-        duration: task.duration,
-        nonce: task.nonce
-      })
-
-      // Resolve the user-supplied subsidy providers (if any) for the payment chain, enforcing the
-      // node's whitelist filter when enabled. Persisted on the job so the background pipeline's
-      // claim uses the user's choice rather than the node config at that time.
+      // Resolve the user-supplied subsidy providers (if any) for the payment chain BEFORE the
+      // funds pre-check, so a sponsored request can skip it. Snapshot the EFFECTIVE list (the
+      // explicit user list, else the node's configured list for this chain) and persist it on the
+      // job, so the background lock and the later claim settle from the exact same provider set
+      // instead of each re-reading config. `??` (not `||`) so an explicit `[]` survives.
       const subsidyResolution = resolveUserSubsidyProviders(
         task.subsidyProviders,
         task.payment.chainId,
@@ -251,6 +212,57 @@ export class ServiceStartHandler extends CommandHandler {
           buildInvalidRequestMessage(subsidyResolution.reason)
         )
       }
+      const effectiveSubsidy =
+        subsidyResolution.resolved ??
+        node.getConfig().subsidyProviders?.[String(task.payment.chainId)] ??
+        []
+      const isSponsored = effectiveSubsidy.length > 0
+
+      // 6b. Fail fast when the consumer's escrow visibly can't cover the cost, instead
+      // of returning a serviceId doomed to fail asynchronously at the Locking step.
+      // Best-effort UX only: balances can change before the background createLock runs,
+      // so the authoritative check stays in the pipeline — and an RPC hiccup here must
+      // not block starts (the pipeline check will catch a genuine shortfall anyway).
+      // Skipped for a sponsored request: a (partly) sponsored lock only needs the payer to
+      // cover the unsponsored portion — a fully-sponsored user may hold 0 — so this mirrors
+      // the createLock stopgap and lets zero-deposit Service-on-Demand through.
+      if (!isSponsored) {
+        try {
+          const [availableWei, costWei] = await Promise.all([
+            engine.escrow.getUserAvailableFunds(
+              task.payment.chainId,
+              task.consumerAddress,
+              task.payment.token
+            ),
+            engine.escrow.getPaymentAmountInWei(
+              cost,
+              task.payment.chainId,
+              task.payment.token
+            )
+          ])
+          if (BigInt(availableWei.toString()) < BigInt(costWei.toString())) {
+            return buildInvalidParametersResponse(
+              buildInvalidRequestMessage(
+                `Insufficient escrow funds for token ${task.payment.token} on chain ` +
+                  `${task.payment.chainId}: available ${availableWei}, required ${costWei} ` +
+                  `wei — deposit and authorize escrow funds before starting the service`
+              )
+            )
+          }
+        } catch (e: any) {
+          CORE_LOGGER.debug(
+            `SERVICE_START: escrow funds pre-check skipped (${e.message}) — the background Locking step will verify`
+          )
+        }
+      }
+
+      const serviceId = generateUniqueID({
+        owner: task.consumerAddress,
+        environment: task.environment,
+        image: task.image,
+        duration: task.duration,
+        nonce: task.nonce
+      })
 
       // Escrow tx hashes are filled in later by the background pipeline (locking → payment).
       const payment: Payment = {
@@ -260,7 +272,7 @@ export class ServiceStartHandler extends CommandHandler {
         claimTx: '',
         cancelTx: '',
         cost,
-        subsidyProviders: subsidyResolution.resolved
+        subsidyProviders: effectiveSubsidy
       }
 
       // 7. Persist the Starting record and return immediately with the serviceId. The

@@ -1453,7 +1453,7 @@ Returns indexed Escrow contract events. The indexer matches Escrow logs by topic
 | --------- | ------ | --------- | --------------------------------------------------------- |
 | command   | string | POST only | command name (`getEscrowEvents`)                          |
 | chainId   | number |           | chain id                                                  |
-| eventType | string |           | one of `Auth, Lock, ReLock, Claimed, Canceled, Deposit, Withdraw, Subsidized` |
+| eventType | string |           | one of `Auth, Lock, ReLock, Claimed, Canceled, Deposit, Withdraw, Subsidized, LockSponsored, SponsorRefunded` |
 | payer     | string |           | payer address (case-insensitive)                          |
 | payee     | string |           | payee address (case-insensitive)                          |
 | token     | string |           | token address (case-insensitive)                          |
@@ -1476,7 +1476,7 @@ Returns indexed Escrow contract events. The indexer matches Escrow logs by topic
 
 #### Response
 
-Every row has `id, eventType, chainId, contract, block, txHash` plus event-specific fields (`payer, payee, token, jobId, amount, expiry, proof, maxLockedAmount, maxLockSeconds, maxLockCounts`). A `Subsidized` row (emitted once per contributing Subsidy Provider at claim time) additionally carries `provider, subsidyAmount, bonusAmount`.
+Every row has `id, eventType, chainId, contract, block, txHash` plus event-specific fields (`payer, payee, token, jobId, amount, expiry, proof, maxLockedAmount, maxLockSeconds, maxLockCounts`). An `Auth` row additionally carries `expiryTimestamp` (Escrow v2: `0` = indefinite, otherwise the unix ts after which the payee can no longer create/extend locks). A `Subsidized` row (emitted once per contributing Subsidy Provider at claim time) additionally carries `provider, subsidyAmount, bonusAmount`. Escrow v2 lock-time sponsorship adds two events, each emitted once per contributing provider: a `LockSponsored` row (a provider pre-funds a lock at `createLock`) carries `provider, amount`; a `SponsorRefunded` row (unused sponsored tokens returned on partial claim / expiry / reLock-shrink) carries `provider, amount, reclaimable` (`reclaimable: true` ⇒ the push to the provider failed and the amount is parked for the provider to `sweepReclaimable`).
 
 ```json
 [

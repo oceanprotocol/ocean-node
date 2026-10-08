@@ -28,7 +28,7 @@ import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/template
 import AccessListContract from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' with { type: 'json' }
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 
-const EVENT_PROCESSOR_MAP: Record<string, ProcessorConstructor> = {
+export const EVENT_PROCESSOR_MAP: Record<string, ProcessorConstructor> = {
   [EVENTS.METADATA_CREATED]: MetadataEventProcessor,
   [EVENTS.METADATA_UPDATED]: MetadataEventProcessor,
   [EVENTS.METADATA_STATE]: MetadataStateEventProcessor,
@@ -51,7 +51,9 @@ const EVENT_PROCESSOR_MAP: Record<string, ProcessorConstructor> = {
   [EVENTS.ESCROW_CANCELED]: EscrowEventProcessor,
   [EVENTS.ESCROW_DEPOSIT]: EscrowEventProcessor,
   [EVENTS.ESCROW_WITHDRAW]: EscrowEventProcessor,
-  [EVENTS.ESCROW_SUBSIDIZED]: EscrowEventProcessor
+  [EVENTS.ESCROW_SUBSIDIZED]: EscrowEventProcessor,
+  [EVENTS.ESCROW_LOCK_SPONSORED]: EscrowEventProcessor,
+  [EVENTS.ESCROW_SPONSOR_REFUNDED]: EscrowEventProcessor
 }
 
 const processorInstances = new Map<string, BaseEventProcessor>()

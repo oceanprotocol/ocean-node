@@ -4073,7 +4073,11 @@ export class C2DEngineDocker extends C2DEngine {
         token,
         job.owner,
         job.payment.cost,
-        this.escrow.getMinLockTime(job.duration)
+        this.escrow.getMinLockTime(job.duration),
+        JobType.SERVICE,
+        // Same subsidy-provider list the matching claimLock uses (see below) — lock & claim
+        // must agree, so the sponsored lock can be settled from the same providers.
+        job.payment.subsidyProviders ?? null
       )
       if (!lockTx) throw new Error('Escrow lock failed')
       await this.escrow.waitForTransaction(chainId, lockTx)

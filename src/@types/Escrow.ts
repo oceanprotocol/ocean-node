@@ -5,6 +5,9 @@ export interface EscrowAuthorization {
   maxLockSeconds: BigInt
   maxLockCounts: BigInt
   currentLocks: BigInt
+  // Escrow v2: 0 = indefinite, >0 = unix ts after which the payee can no longer create/extend
+  // locks (claim/cancel are never gated). Present on v2 escrows only.
+  expiryTimestamp?: BigInt
 }
 
 export interface EscrowLock {
@@ -39,4 +42,8 @@ export interface EscrowEvent {
   provider?: string
   subsidyAmount?: string
   bonusAmount?: string
+  // Auth event (Escrow v2): authorization expiry (0 = indefinite)
+  expiryTimestamp?: string
+  // SponsorRefunded event (Escrow v2): true => push failed, parked for sweep
+  reclaimable?: boolean
 }

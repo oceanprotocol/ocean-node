@@ -34,17 +34,40 @@ describe('resolveUserSubsidyProviders', () => {
     expect(r.resolved).to.deep.equal([])
   })
 
-  it('keeps duplicate addresses (no dedup), checksummed', () => {
+  it('collapses duplicate addresses to a single unique sponsor, checksummed', () => {
     const r = resolveUserSubsidyProviders([A, A], CHAIN, cfg({}))
     expect(r.valid).to.equal(true)
-    // current behavior preserves duplicates (no dedup) — asserted so a future change is deliberate
-    expect(r.resolved).to.deep.equal([getAddress(A), getAddress(A)])
+    // the escrow counts UNIQUE sponsors, so duplicates are collapsed
+    expect(r.resolved).to.deep.equal([getAddress(A)])
   })
 
   it('valid array → checksummed, filter off', () => {
     const r = resolveUserSubsidyProviders([A, B], CHAIN, cfg({}))
     expect(r.valid).to.equal(true)
     expect(r.resolved).to.deep.equal([getAddress(A), getAddress(B)])
+  })
+
+  // The escrow caps unique sponsors per lock at MAX_SUBSIDY_PROVIDERS_PER_LOCK (10). The resolver
+  // enforces that locally (unique count) so an over-long list is a cheap 400, not an estimateGas
+  // round-trip on a guaranteed "Too many sponsors" revert.
+  const mkAddrs = (n: number) =>
+    Array.from({ length: n }, (_, i) => '0x' + String(i + 1).padStart(40, '0'))
+
+  it('rejects more than the per-lock unique-sponsor cap', () => {
+    const r = resolveUserSubsidyProviders(mkAddrs(11), CHAIN, cfg({}))
+    expect(r.valid).to.equal(false)
+    expect(r.reason).to.contain('Too many subsidy providers')
+  })
+
+  it('allows exactly the cap, and the cap counts UNIQUE sponsors (dupes collapse under it)', () => {
+    const ten = mkAddrs(10)
+    const r = resolveUserSubsidyProviders(ten, CHAIN, cfg({}))
+    expect(r.valid).to.equal(true)
+    expect(r.resolved).to.have.length(10)
+    // 12 entries but only 10 unique → valid after dedup (cap is on unique count, not raw length)
+    const r2 = resolveUserSubsidyProviders([...ten, ten[0], ten[1]], CHAIN, cfg({}))
+    expect(r2.valid).to.equal(true)
+    expect(r2.resolved).to.have.length(10)
   })
 
   it('rejects an invalid address', () => {

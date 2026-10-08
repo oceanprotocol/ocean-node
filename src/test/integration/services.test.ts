@@ -155,7 +155,7 @@ describe('**********         Service on Demand', () => {
     await (
       await escrowContract
         .connect(consumerAccount)
-        .authorize(paymentToken, beneficiaryNodeAddr, balance, minLockSeconds, 100)
+        .authorize(paymentToken, beneficiaryNodeAddr, balance, minLockSeconds, 100, 0)
     ).wait()
     return await oceanNode.escrow.getUserAvailableFunds(
       DEVELOPMENT_CHAIN_ID,

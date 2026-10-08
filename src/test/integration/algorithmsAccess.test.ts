@@ -419,7 +419,8 @@ describe('**********         Trusted algorithms Flow', () => {
         firstEnv.consumerAddress,
         balance,
         initializeResponse.payment.minLockSeconds,
-        10
+        10,
+        0 // expiryTimestamp: 0 = indefinite (Escrow v2)
       )
     await authorizeTx.wait()
     const locks = await oceanNode.escrow.getLocks(
