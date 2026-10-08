@@ -24,6 +24,7 @@ import {
   SENDTO_MAX_CONCURRENCY_CAP,
   normalizeP2pBudget
 } from '../../components/P2P/timeouts.js'
+import { MAX_SUBSIDY_PROVIDERS_PER_LOCK } from '../../components/core/utils/subsidyProviders.js'
 
 function isValidUrl(urlString: string): boolean {
   try {
@@ -100,10 +101,11 @@ export const AccessListContractSchema = z.preprocess(
 )
 
 // Per-chain map of Subsidy Provider contract addresses `{ "<chainId>": ["0x.."] }`, passed to
-// the escrow at claim time. Same shape as AccessListContract, but the addresses are normalized
-// to their EIP-55 checksummed form via ethers `getAddress`. Anything malformed (bad JSON, not a
-// per-chain object, or an invalid address) collapses to `null` rather than throwing, so a typo
-// in this optional knob can never keep the node from booting.
+// the escrow at lock and claim time. Same shape as AccessListContract, but each chain's addresses
+// are normalized to their EIP-55 checksummed form via ethers `getAddress` and de-duplicated.
+// Anything malformed (bad JSON, not a per-chain object, an invalid address, or more than
+// `MAX_SUBSIDY_PROVIDERS_PER_LOCK` unique providers on a chain) collapses the whole map to `null`
+// rather than throwing, so a typo in this optional knob can never keep the node from booting.
 export const SubsidyProvidersSchema = z.preprocess(
   (val) => {
     if (val === null || val === undefined) return null
@@ -123,7 +125,21 @@ export const SubsidyProvidersSchema = z.preprocess(
         // keys that would otherwise be stored but never matched at claim time.
         if (!/^[1-9]\d*$/.test(chainId)) return null
         if (!Array.isArray(addresses)) return null
-        checksummed[chainId] = addresses.map((addr) => getAddress(addr as string))
+        // Checksum + de-duplicate: the escrow counts UNIQUE sponsors, so duplicates are one
+        // sponsor. This is also the default list handed to createLock/claimLock when a request
+        // supplies no override, so it must obey the same per-lock cap the request path enforces.
+        const unique = Array.from(
+          new Set(addresses.map((addr) => getAddress(addr as string)))
+        )
+        if (unique.length > MAX_SUBSIDY_PROVIDERS_PER_LOCK) {
+          // A configured list above the escrow's `maxSponsorsPerLock()` would make every default
+          // lock/claim for this chain revert "Too many sponsors"; treat it as invalid config.
+          CONFIG_LOGGER.error(
+            `SUBSIDY_PROVIDERS for chain ${chainId} has ${unique.length} unique providers; max is ${MAX_SUBSIDY_PROVIDERS_PER_LOCK} per lock`
+          )
+          return null
+        }
+        checksummed[chainId] = unique
       }
       return checksummed
     } catch (error) {

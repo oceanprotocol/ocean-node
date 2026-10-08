@@ -303,6 +303,28 @@ describe('Should validate SUBSIDY_PROVIDERS configuration', () => {
     expect(conf.subsidyProviders['137']).to.deep.equal([getAddress(ADDR_A_LOWER)])
   })
 
+  it('de-duplicates a chain list (escrow counts unique sponsors)', async () => {
+    const { config: conf, error } = await configWith(
+      JSON.stringify({ '8996': [ADDR_A_LOWER, ADDR_A_LOWER, ADDR_B_LOWER] })
+    )
+    expect(error).to.be.equal(undefined)
+    expect(conf.subsidyProviders['8996']).to.deep.equal([
+      getAddress(ADDR_A_LOWER),
+      getAddress(ADDR_B_LOWER)
+    ])
+  })
+
+  it('collapses to null when a chain exceeds the per-lock unique-sponsor cap', async () => {
+    // 11 unique valid addresses > MAX_SUBSIDY_PROVIDERS_PER_LOCK (10)
+    const many = Array.from(
+      { length: 11 },
+      (_, i) => '0x' + String(i + 1).padStart(40, '0')
+    )
+    const { config: conf, error } = await configWith(JSON.stringify({ '8996': many }))
+    expect(error).to.be.equal(undefined)
+    expect(conf.subsidyProviders).to.be.equal(null)
+  })
+
   after(() => {
     delete process.env.CONFIG_PATH
     delete process.env.PRIVATE_KEY
