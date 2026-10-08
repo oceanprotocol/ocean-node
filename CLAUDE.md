@@ -340,5 +340,7 @@ can talk to `/var/run/docker.sock`. Deployment options (Docker, local Docker bui
 `Arhitecture.md` (note the spelling), `API.md` (full HTTP API reference — very large, plus a
 Postman collection), `env.md` (authoritative env-var reference), `database.md`,
 `Storage.md` / `persistentStorage.md`, `KeyManager.md`, `PolicyServer.md`, `services.md`
-(Service-on-Demand), `compute.md` (C2D configuration: resources, GPUs, constraints, pricing), `networking.md`, `Logs.md`,
+(Service-on-Demand), `compute.md` (C2D configuration: resources, GPUs, constraints, pricing),
+`subsidyProviders.md` (third-party sponsorship of paid compute/services: prepaid vs refund,
+zero-deposit, `SUBSIDY_PROVIDERS`), `networking.md`, `Logs.md`,
 `Publishing.md`, `testing.md`, `dockerDeployment.md`.

@@ -411,6 +411,11 @@ export interface DBComputeJobPayment {
   claimTx: string
   cancelTx: string
   cost: number
+  // Resolved, validated user-supplied Subsidy Provider addresses for this job's chain, snapshotted
+  // at request time so the (possibly async/batched) escrow claim uses the user's choice rather than
+  // whatever the node config holds later. undefined = fall back to node config at claim time;
+  // [] = claim with no subsidy providers; non-empty = claim with exactly these.
+  subsidyProviders?: string[]
 }
 
 // this is the internal structure

@@ -2,7 +2,7 @@ import { assert, expect } from 'chai'
 import { Readable } from 'stream'
 import sinon from 'sinon'
 import { streamToObject } from '../../../utils/util.js'
-import { PROTOCOL_COMMANDS } from '../../../utils/constants.js'
+import { PROTOCOL_COMMANDS, JobType } from '../../../utils/constants.js'
 import { ServiceStatusNumber, ServiceJob } from '../../../@types/C2D/ServiceOnDemand.js'
 import { ServiceGetTemplatesHandler } from '../../../components/core/service/getTemplates.js'
 import { ServiceGetStatusHandler } from '../../../components/core/service/getStatus.js'
@@ -702,6 +702,14 @@ describe('Service handlers', () => {
       expect(res.status.httpStatus).to.equal(200)
       expect(escrow.createLock.calledOnce).to.equal(true)
       expect(escrow.claimLock.calledOnce).to.equal(true)
+      // service-extend settles as a SERVICE job; jobType is the 7th positional arg
+      expect(escrow.claimLock.firstCall.args[6]).to.equal(JobType.SERVICE)
+      // createLock must carry the same jobType and the SAME subsidy-provider list as the claim
+      // (lock & claim must agree so a sponsored lock settles from the same providers).
+      expect(escrow.createLock.firstCall.args[6]).to.equal(JobType.SERVICE)
+      expect(escrow.createLock.firstCall.args[7]).to.deep.equal(
+        escrow.claimLock.firstCall.args[7]
+      )
       // two writes: the durable intent (before claim) + the finalized extension
       expect(engine.db.updateServiceJob.calledTwice).to.equal(true)
       const out = await body(res)
@@ -1007,6 +1015,19 @@ describe('Service handlers', () => {
       expect(String(res.status.error)).to.contain('Insufficient escrow funds')
       // no job record may be created for a start that was refused upfront
       expect(engine.createServiceJob.called).to.equal(false)
+    })
+
+    it('skips the escrow funds pre-check for a sponsored request (zero-deposit SoD)', async () => {
+      const { node, engine } = buildFakes()
+      engine.escrow.getUserAvailableFunds.resolves(0n) // payer has nothing available…
+      // …but the request names a subsidy provider → sponsored → the funds pre-check is skipped,
+      // so the start is NOT refused for insufficient funds (parity with the compute createLock
+      // stopgap; the contract settles the real payer portion authoritatively).
+      const res = await new ServiceStartHandler(node).handle({
+        ...baseTask,
+        subsidyProviders: ['0x1111111111111111111111111111111111111111']
+      } as any)
+      expect(String(res.status.error || '')).to.not.contain('Insufficient escrow funds')
     })
 
     it('the funds pre-check is best-effort: an RPC failure does not block the start', async () => {

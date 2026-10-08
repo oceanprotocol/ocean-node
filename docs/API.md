@@ -872,6 +872,13 @@ returns status of node
       "arwave": true
       "url": true
     },
+    "escrowAddress": {
+      "8996": "0x123"
+    },
+    "subsidyProviders": {
+      "8996": ["0x123", "0x456"]
+    },
+    "subsidyProviderFilter": false,
     "uptime": 123,
     "platform": {
       "cpus": "123",
@@ -888,6 +895,33 @@ returns status of node
     }
   }
 ```
+
+`escrowAddress` and `subsidyProviders` are per-chain maps (keyed by chainId). `subsidyProviders`
+reflects the node's `SUBSIDY_PROVIDERS` configuration — the Subsidy Provider contract addresses the
+node passes to the escrow at **lock and claim** time (lock-time "prepaid" sponsorship and claim-time
+"refund" sponsorship); it is `{}` when none are configured. Both are present in
+the normal and detailed status. `subsidyProviderFilter` reflects the node's
+`SUBSIDY_PROVIDER_FILTER` setting: when `true`, a user-supplied `subsidyProviders` list on a
+compute/service request is restricted to addresses already in this map for the request's chain
+(see the per-request `subsidyProviders` field below).
+
+### Per-request `subsidyProviders`
+
+`startCompute` (paid), `serviceStart`, and `serviceExtend` accept an optional top-level
+`subsidyProviders` field: a plain array of Subsidy Provider contract addresses for the request's
+payment chain. The node hands the **same** list to both the escrow lock (lock-time "prepaid"
+sponsorship) and the later claim (claim-time "refund" sponsorship). It overrides the node's
+`SUBSIDY_PROVIDERS` for that request only:
+
+- **omitted / `undefined`** → the node's configured `SUBSIDY_PROVIDERS` for the chain are used.
+- **`[]`** (empty array) → the lock/claim are made with **no** subsidy providers (plain payer-funded).
+- **non-empty array** → the lock/claim use **only** these addresses, ignoring node config.
+
+Every address must be a valid EVM address (otherwise HTTP 400). Duplicates are collapsed, and the
+list may name at most **10 unique** providers (the escrow's `maxSponsorsPerLock()`); more is rejected
+with HTTP 400. When the node has `SUBSIDY_PROVIDER_FILTER` enabled, every supplied address must also
+be in the node's `SUBSIDY_PROVIDERS` for that chain, or the request is rejected with HTTP 400 (an
+empty array is always allowed). Free compute has no escrow lock/claim, so the field is ignored there.
 
 ---
 
@@ -1423,7 +1457,7 @@ Returns indexed Escrow contract events. The indexer matches Escrow logs by topic
 | --------- | ------ | --------- | --------------------------------------------------------- |
 | command   | string | POST only | command name (`getEscrowEvents`)                          |
 | chainId   | number |           | chain id                                                  |
-| eventType | string |           | one of `Auth, Lock, Claimed, Canceled, Deposit, Withdraw` |
+| eventType | string |           | one of `Auth, Lock, ReLock, Claimed, Canceled, Deposit, Withdraw, Subsidized, LockSponsored, SponsorRefunded` |
 | payer     | string |           | payer address (case-insensitive)                          |
 | payee     | string |           | payee address (case-insensitive)                          |
 | token     | string |           | token address (case-insensitive)                          |
@@ -1446,7 +1480,7 @@ Returns indexed Escrow contract events. The indexer matches Escrow logs by topic
 
 #### Response
 
-Every row has `id, eventType, chainId, contract, block, txHash` plus event-specific fields (`payer, payee, token, jobId, amount, expiry, proof, maxLockedAmount, maxLockSeconds, maxLockCounts`).
+Every row has `id, eventType, chainId, contract, block, txHash` plus event-specific fields (`payer, payee, token, jobId, amount, expiry, proof, maxLockedAmount, maxLockSeconds, maxLockCounts`). An `Auth` row additionally carries `expiryTimestamp` (Escrow v2: `0` = indefinite, otherwise the unix ts after which the payee can no longer create/extend locks). A `Subsidized` row (emitted once per contributing Subsidy Provider at claim time) additionally carries `provider, subsidyAmount, bonusAmount`. Escrow v2 lock-time sponsorship adds two events, each emitted once per contributing provider: a `LockSponsored` row (a provider pre-funds a lock at `createLock`) carries `provider, amount`; a `SponsorRefunded` row (unused sponsored tokens returned on partial claim / expiry / reLock-shrink) carries `provider, amount, reclaimable` (`reclaimable: true` ⇒ the push to the provider failed and the amount is parked for the provider to `sweepReclaimable`).
 
 ```json
 [

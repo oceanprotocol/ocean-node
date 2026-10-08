@@ -168,7 +168,13 @@ export const elasticSchemas: ElasticsearchSchemas = {
           maxLockCounts: { type: 'text' },
           oldAmount: { type: 'text' },
           newAmount: { type: 'text' },
-          newExpiry: { type: 'text' }
+          newExpiry: { type: 'text' },
+          // Subsidy events (Subsidized / LockSponsored / SponsorRefunded) + Auth v2 expiry
+          provider: { type: 'keyword' },
+          subsidyAmount: { type: 'text' },
+          bonusAmount: { type: 'text' },
+          expiryTimestamp: { type: 'text' },
+          reclaimable: { type: 'boolean' }
         }
       }
     }

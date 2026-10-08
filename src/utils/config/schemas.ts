@@ -24,6 +24,7 @@ import {
   SENDTO_MAX_CONCURRENCY_CAP,
   normalizeP2pBudget
 } from '../../components/P2P/timeouts.js'
+import { MAX_SUBSIDY_PROVIDERS_PER_LOCK } from '../../components/core/utils/subsidyProviders.js'
 
 function isValidUrl(urlString: string): boolean {
   try {
@@ -95,6 +96,56 @@ export const AccessListContractSchema = z.preprocess(
     if (typeof val !== 'object' || Array.isArray(val)) return null
 
     return val
+  },
+  z.record(z.string(), z.array(z.string())).nullable()
+)
+
+// Per-chain map of Subsidy Provider contract addresses `{ "<chainId>": ["0x.."] }`, passed to
+// the escrow at lock and claim time. Same shape as AccessListContract, but each chain's addresses
+// are normalized to their EIP-55 checksummed form via ethers `getAddress` and de-duplicated.
+// Anything malformed (bad JSON, not a per-chain object, an invalid address, or more than
+// `MAX_SUBSIDY_PROVIDERS_PER_LOCK` unique providers on a chain) collapses the whole map to `null`
+// rather than throwing, so a typo in this optional knob can never keep the node from booting.
+export const SubsidyProvidersSchema = z.preprocess(
+  (val) => {
+    if (val === null || val === undefined) return null
+    if (typeof val === 'string') {
+      try {
+        val = JSON.parse(val)
+      } catch {
+        return null
+      }
+    }
+    if (typeof val !== 'object' || Array.isArray(val)) return null
+    try {
+      const checksummed: Record<string, string[]> = {}
+      for (const [chainId, addresses] of Object.entries(val as Record<string, unknown>)) {
+        // Keys must be canonical decimal chain ids (matching `String(chainId)` used by
+        // Escrow.getSubsidyProvidersForChain); reject hex/whitespace/leading-zero/non-numeric
+        // keys that would otherwise be stored but never matched at claim time.
+        if (!/^[1-9]\d*$/.test(chainId)) return null
+        if (!Array.isArray(addresses)) return null
+        // Checksum + de-duplicate: the escrow counts UNIQUE sponsors, so duplicates are one
+        // sponsor. This is also the default list handed to createLock/claimLock when a request
+        // supplies no override, so it must obey the same per-lock cap the request path enforces.
+        const unique = Array.from(
+          new Set(addresses.map((addr) => getAddress(addr as string)))
+        )
+        if (unique.length > MAX_SUBSIDY_PROVIDERS_PER_LOCK) {
+          // A configured list above the escrow's `maxSponsorsPerLock()` would make every default
+          // lock/claim for this chain revert "Too many sponsors"; treat it as invalid config.
+          CONFIG_LOGGER.error(
+            `SUBSIDY_PROVIDERS for chain ${chainId} has ${unique.length} unique providers; max is ${MAX_SUBSIDY_PROVIDERS_PER_LOCK} per lock`
+          )
+          return null
+        }
+        checksummed[chainId] = unique
+      }
+      return checksummed
+    } catch (error) {
+      CONFIG_LOGGER.error(`Invalid address in SUBSIDY_PROVIDERS: ${error.message}`)
+      return null
+    }
   },
   z.record(z.string(), z.array(z.string())).nullable()
 )
@@ -1143,6 +1194,11 @@ export const OceanNodeConfigSchema = z
       }),
     allowedAdmins: addressArrayFromString.optional(),
     allowedAdminsList: jsonFromString(AccessListContractSchema).optional(),
+    subsidyProviders: SubsidyProvidersSchema.optional().default(null),
+    // When ON, a user-supplied subsidy-provider list may only contain addresses that are
+    // already in this node's `subsidyProviders` whitelist for the request's chain; anything
+    // else is rejected. Default OFF (users may send any valid address).
+    subsidyProviderFilter: booleanFromString.optional().default(false),
 
     codeHash: z.string().optional(),
     maxConnections: z.coerce.number().optional(),
