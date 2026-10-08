@@ -20,7 +20,7 @@ import { buildModelDownload, fileSize } from './modelDownload.js'
  * manifest is untrusted: it only ever decides what this service's own progress report says.
  */
 export const MANIFEST_PATH = '/tmp/ocean/downloads.tsv'
-export const MAX_DOWNLOAD_ENTRIES = 64
+const MAX_DOWNLOAD_ENTRIES = 64
 // How long after its container starts a service the node cannot probe is checked for a manifest.
 // A script writes it before its first download; setup steps before that can take minutes.
 export const MANIFEST_DISCOVERY_MS = 30 * 60 * 1000
@@ -37,15 +37,15 @@ export interface DownloadEntry {
 export type DirectoryBytes = (path: string) => Promise<number | null>
 
 /** One small file from the container, via Docker's archive endpoint. Null when absent or too big. */
-export async function readContainerFile(
+async function readContainerFile(
   container: Dockerode.Container,
   path: string
-): Promise<{ text: string; mtime: number } | null> {
+): Promise<string | null> {
   try {
     const extract = tarStream.extract()
     pipeline(await container.getArchive({ path }), extract, () => {})
     for await (const entry of extract) {
-      const { type, size, mtime } = entry.header
+      const { type, size } = entry.header
       if (type !== 'file' || (size ?? 0) > MAX_READ_BYTES) {
         return null
       }
@@ -53,10 +53,7 @@ export async function readContainerFile(
       for await (const chunk of entry) {
         chunks.push(chunk)
       }
-      return {
-        text: Buffer.concat(chunks).toString('utf8'),
-        mtime: mtime?.getTime() ?? 0
-      }
+      return Buffer.concat(chunks).toString('utf8')
     }
     return null
   } catch {
@@ -152,7 +149,7 @@ export async function sampleDownloadManifest(
   if (!manifest) {
     return null
   }
-  const { entries, truncated } = parseDownloadManifest(manifest.text)
+  const { entries, truncated } = parseDownloadManifest(manifest)
   if (entries.length === 0) {
     return null
   }

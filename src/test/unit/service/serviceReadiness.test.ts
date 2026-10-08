@@ -180,6 +180,18 @@ describe('resolveServiceEngine', () => {
   })
 })
 
+describe('resolveServiceEngine — ComfyUI', () => {
+  const job = (image: string) => ({ image, exposedPorts: [8188] }) as ServiceJob
+
+  it('recognizes the comfyui-boot image under any tag', () => {
+    expect(resolveServiceEngine(job('yanwk/comfyui-boot'))?.id).to.equal('comfyui')
+    expect(
+      resolveServiceEngine(job('yanwk/comfyui-boot:cu130-megapak-pt211'))?.id
+    ).to.equal('comfyui')
+    expect(resolveServiceEngine(job('someone/comfyui-boot'))).to.equal(null)
+  })
+})
+
 describe('resolveServiceEngine — llama.cpp', () => {
   const job = (image: string, cmd?: string[]) =>
     ({ image, dockerCmd: cmd, exposedPorts: [8000, 8080] }) as ServiceJob

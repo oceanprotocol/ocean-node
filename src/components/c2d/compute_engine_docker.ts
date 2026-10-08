@@ -90,7 +90,8 @@ import {
   runReadinessProbe,
   PROBE_INITIAL_DELAY_SECONDS,
   PROBE_PERIOD_SECONDS,
-  READY_PROBE_PERIOD_SECONDS
+  READY_PROBE_PERIOD_SECONDS,
+  READINESS_WARN_AFTER_SECONDS
 } from './serviceReadiness.js'
 import { resolveServiceEngine, type ServiceEngineProfile } from './serviceEngines.js'
 import {
@@ -99,7 +100,6 @@ import {
   isModelDownloadComplete,
   ModelDownloadSampler
 } from './modelDownload.js'
-import { sampleComfyModelDownload } from './comfyDownload.js'
 import { MANIFEST_DISCOVERY_MS, sampleDownloadManifest } from './downloadManifest.js'
 import type { DockerMountObject } from '../../@types/PersistentStorage.js'
 import { resolveServiceImage } from './serviceResourceMatching.js'
@@ -222,6 +222,8 @@ export class C2DEngineDocker extends C2DEngine {
   private modelDownloadSampler = new ModelDownloadSampler()
   // serviceId -> when a service the node cannot probe was last checked for a download manifest.
   private manifestCheckedAt: Map<string, number> = new Map()
+  // serviceId -> the container a "still not ready" warning was logged for (once per container).
+  private readinessWarned: Map<string, string> = new Map()
   // serviceId -> its readiness probe (+ model-download sample) still running in the background.
   // The probe is launched fire-and-forget so a slow engine, Docker daemon or Hub never holds up
   // InternalLoop; this keeps one probe per service at a time and lets stop() drain them.
@@ -4670,14 +4672,15 @@ export class C2DEngineDocker extends C2DEngine {
     // expired), whichever path ended them.
     const running = new Set(services.map((svc) => svc.serviceId))
     this.modelDownloadSampler.retain(running)
-    for (const serviceId of this.serviceProbeUrls.keys()) {
-      if (!running.has(serviceId)) {
-        this.serviceProbeUrls.delete(serviceId)
-      }
-    }
-    for (const serviceId of this.manifestCheckedAt.keys()) {
-      if (!running.has(serviceId)) {
-        this.manifestCheckedAt.delete(serviceId)
+    for (const state of [
+      this.serviceProbeUrls,
+      this.manifestCheckedAt,
+      this.readinessWarned
+    ]) {
+      for (const serviceId of state.keys()) {
+        if (!running.has(serviceId)) {
+          state.delete(serviceId)
+        }
       }
     }
     return runningOnly
@@ -4856,7 +4859,25 @@ export class C2DEngineDocker extends C2DEngine {
       // when it says nothing about why.
       const modelDownload = everReady
         ? undefined
-        : await this.sampleModelDownload(job, engine, startedAt)
+        : await this.sampleModelDownload(job, engine)
+
+      // A service that never answers is usually a node that cannot reach its container: say so once,
+      // where an operator looks, rather than only through users stuck on "warming up".
+      if (
+        readiness.state === 'waiting' &&
+        Number.isFinite(startedAt) &&
+        now - startedAt >= READINESS_WARN_AFTER_SECONDS * 1000 &&
+        this.readinessWarned.get(job.serviceId) !== job.containerId
+      ) {
+        this.readinessWarned.set(job.serviceId, job.containerId)
+        const download = modelDownload ?? job.modelDownload
+        CORE_LOGGER.warn(
+          `[readiness] service ${job.serviceId} (${engine.id}) not ready ` +
+            `${Math.round((now - startedAt) / 60_000)} min after its container started: ` +
+            `${readiness.lastError ?? `HTTP ${readiness.httpStatus}`} via ${readiness.probedUrl}` +
+            (download ? `; model download at ${download.percent ?? '?'}%` : '')
+        )
+      }
 
       // Same cross-process guard as the metrics write: a lifecycle transition must win.
       if (
@@ -4958,8 +4979,7 @@ export class C2DEngineDocker extends C2DEngine {
    */
   private async sampleModelDownload(
     job: ServiceJob,
-    engine: ServiceEngineProfile,
-    startedAt: number
+    engine: ServiceEngineProfile
   ): Promise<ServiceModelDownload | undefined> {
     try {
       const container = this.docker.getContainer(job.containerId)
@@ -4969,19 +4989,11 @@ export class C2DEngineDocker extends C2DEngine {
         this.getContainerDiskUsage(job.containerId, path)
       )
       if (fromManifest) return fromManifest
-      if (!engine.modelCachePath && !engine.comfyModelList) return undefined
+      if (!engine.modelCachePath) return undefined
       // Downloaded: what remains is the engine loading weights, which the cache says nothing about.
       // Returning nothing keeps the stored 100% record as it is.
       if (isModelDownloadComplete(job.modelDownload)) {
         return undefined
-      }
-      if (engine.comfyModelList) {
-        const download = await sampleComfyModelDownload(
-          container,
-          !!job.outputBucketId,
-          startedAt
-        )
-        return download ?? undefined
       }
       const downloaded = await this.modelDownloadSampler.sample(job.serviceId, container)
       if (!downloaded) return undefined

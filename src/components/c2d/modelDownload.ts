@@ -328,7 +328,7 @@ const BYTES_PER_PARAM: Record<string, number> = {
 }
 
 const HF_MODEL_API = 'https://huggingface.co/api/models'
-export const HF_TIMEOUT_MS = 8000
+const HF_TIMEOUT_MS = 8000
 // One lookup per model for the life of the process: the answer cannot change for a given repo, and
 // this is read on the metrics cadence for every starting service.
 const totalBytesCache = new Map<string, number | null>()
@@ -362,7 +362,7 @@ export async function fetchModelTotalBytes(
  * Runs a Hub size lookup at most once per key: a size or a definitive null is kept for the life of
  * the process, while undefined (the Hub could not be asked) is retried after HUB_RETRY_AFTER_MS.
  */
-export async function cachedHubLookup(
+async function cachedHubLookup(
   key: string,
   lookup: () => Promise<number | null | undefined>
 ): Promise<number | null> {

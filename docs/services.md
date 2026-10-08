@@ -163,6 +163,8 @@ returned by `SERVICE_GET_STATUS`:
   itself: vLLM `GET /v1/models` on 8000, llama.cpp `GET /health` on 8080, ComfyUI
   `GET /system_stats` on 8188. A profile applies only when the service publishes that port, so an
   app that runs an engine behind its own port reports no readiness and `Running` stays the signal.
+  A service still `waiting` 15 minutes after its container started is logged once as a node warning
+  with the last probe error — usually a node that cannot reach its containers.
 - `imagePull` — byte progress of the image pull.
 - `modelDownload` — bytes downloaded against the total, and `filesComplete` / `filesTotal` when the
   download is listed up front.
@@ -173,8 +175,7 @@ line per item, written before the first download. A `file` entry is complete onc
 and in flight while `<path>.part` does; a `dir` entry is a folder filled under names of its own
 (huggingface_hub's snapshot cache), measured with `du -sb`. A `bytes` of `0` means unknown. Lines may
 be appended while the script runs; at most 64 entries are read. Without a manifest, the node falls
-back to the engine's own Hugging Face cache (vLLM, llama.cpp) or the `.models.tsv` list older
-ComfyUI bundle scripts keep.
+back to the engine's own Hugging Face cache (vLLM, llama.cpp).
 
 A service with no engine profile (an app that runs its engine behind its own port) still reports
 `modelDownload` from its manifest, with no `readiness`. With nothing to say when such a service is
