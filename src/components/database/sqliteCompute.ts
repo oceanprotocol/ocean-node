@@ -423,7 +423,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     modelDownload?: ServiceModelDownload
   ): Promise<boolean> {
     return this.patchServiceJobBody(serviceId, expected, 'readiness', (body) => {
-      if (readiness) body.readiness = readiness
+      if (readiness) {
+        body.readiness = readiness
+      }
       // Only overwritten when a fresh sample was taken: once the engine is ready the walk stops,
       // and the last figures stay as the record of what was downloaded.
       if (modelDownload) body.modelDownload = modelDownload

@@ -21,11 +21,16 @@ import { buildModelDownload, fileSize } from './modelDownload.js'
  */
 export const MANIFEST_PATH = '/tmp/ocean/downloads.tsv'
 const MAX_DOWNLOAD_ENTRIES = 64
+// Each `dir` entry costs a `du` inside the container, so far fewer of them are measured.
+const MAX_DIR_ENTRIES = 8
 // How long after its container starts a service the node cannot probe is checked for a manifest.
 // A script writes it before its first download; setup steps before that can take minutes.
 export const MANIFEST_DISCOVERY_MS = 30 * 60 * 1000
+// The longest a service the node cannot probe is sampled after its container starts, so a download
+// that never reads as complete (an unknown size, a file that never arrives) is not sampled forever.
+export const MANIFEST_SAMPLING_MS = 6 * 60 * 60 * 1000
 const MAX_READ_BYTES = 64 * 1024
-const BYTES = /^\d{1,15}$/
+const BYTES = /^\d{1,13}$/
 
 export interface DownloadEntry {
   kind: 'file' | 'dir'
@@ -62,14 +67,15 @@ async function readContainerFile(
 }
 
 /**
- * The manifest's entries, capped at MAX_DOWNLOAD_ENTRIES. `truncated` says it names more than
- * that, so the entries are not the whole download.
+ * The manifest's entries, capped at MAX_DOWNLOAD_ENTRIES (MAX_DIR_ENTRIES of them `dir`). `truncated`
+ * says it names more than that, so the entries are not the whole download.
  */
 export function parseDownloadManifest(text: string): {
   entries: DownloadEntry[]
   truncated: boolean
 } {
   const entries = new Map<string, DownloadEntry>()
+  let dirs = 0
   for (const line of text.split('\n')) {
     const [kind, bytes, path] = line.trim().split('\t')
     if (
@@ -81,8 +87,14 @@ export function parseDownloadManifest(text: string): {
     ) {
       continue
     }
-    if (entries.size >= MAX_DOWNLOAD_ENTRIES) {
+    if (
+      entries.size >= MAX_DOWNLOAD_ENTRIES ||
+      (kind === 'dir' && dirs >= MAX_DIR_ENTRIES)
+    ) {
       return { entries: [...entries.values()], truncated: true }
+    }
+    if (kind === 'dir') {
+      dirs++
     }
     entries.set(path, { kind, path, bytes: Number(bytes) || null })
   }
@@ -117,17 +129,17 @@ export async function measureDownloads(
       }
       continue
     }
-    // Partial first: a file renamed between the two checks is then still found finished.
-    const partial = await fileSize(container, `${path}.part`)
-    if (partial !== null) {
-      downloadedBytes += partial
-      inFlight++
-      continue
-    }
+    // Finished first, so a stale .part left beside it cannot hold the file in flight forever.
     const finished = await fileSize(container, path)
     if (finished !== null) {
       downloadedBytes += finished
       files++
+      continue
+    }
+    const partial = await fileSize(container, `${path}.part`)
+    if (partial !== null) {
+      downloadedBytes += partial
+      inFlight++
     }
   }
   const totalBytes =

@@ -100,7 +100,11 @@ import {
   isModelDownloadComplete,
   ModelDownloadSampler
 } from './modelDownload.js'
-import { MANIFEST_DISCOVERY_MS, sampleDownloadManifest } from './downloadManifest.js'
+import {
+  MANIFEST_DISCOVERY_MS,
+  MANIFEST_SAMPLING_MS,
+  sampleDownloadManifest
+} from './downloadManifest.js'
 import type { DockerMountObject } from '../../@types/PersistentStorage.js'
 import { resolveServiceImage } from './serviceResourceMatching.js'
 import {
@@ -147,9 +151,10 @@ const trivyImage = 'aquasec/trivy:0.69.3' // Use pinned versions for safety
 // doesn't get a live operation's resources torn down under it.
 const SERVICE_LOCK_HEARTBEAT_MS = 30_000
 const SERVICE_LOCK_STALE_MS = 120_000
-// A `du` inside a container that never finishes (a huge or slow folder, or a container that replaced
-// the binary) must not hold the loop that measures it, nor the node's shutdown that drains it.
-const DISK_USAGE_TIMEOUT_MS = 15_000
+// How long the node waits for `du` on a service's manifest folder. The container is user-controlled
+// and the measurement is only progress reporting, so it must not hold the probe or the node's
+// shutdown that drains it. Compute disk-quota checks keep waiting for the answer.
+const MANIFEST_DU_TIMEOUT_MS = 15_000
 // A manifest folder is measured with `du` at most this often, while the manifest itself is re-read
 // on every sample to catch appended entries.
 const MANIFEST_DIR_MEASURE_MS = 15_000
@@ -3083,7 +3088,8 @@ export class C2DEngineDocker extends C2DEngine {
   // never report an unmeasurable container as "0 bytes used".
   private async getContainerDiskUsage(
     containerName: string,
-    path: string = '/data'
+    path: string = '/data',
+    timeoutMs?: number
   ): Promise<number | null> {
     try {
       const container = this.docker.getContainer(containerName)
@@ -3117,13 +3123,15 @@ export class C2DEngineDocker extends C2DEngine {
       read.catch(() => {})
       let timer: NodeJS.Timeout
       const timedOut = new Promise<false>((resolve) => {
-        timer = setTimeout(() => resolve(false), DISK_USAGE_TIMEOUT_MS)
+        if (timeoutMs !== undefined) {
+          timer = setTimeout(() => resolve(false), timeoutMs)
+        }
       })
       try {
         if (!(await Promise.race([read, timedOut]))) {
           stream.destroy()
           CORE_LOGGER.warn(
-            `du ${path} in ${containerName} did not finish within ${DISK_USAGE_TIMEOUT_MS / 1000}s`
+            `du ${path} in ${containerName} did not finish within ${timeoutMs / 1000}s`
           )
           return null
         }
@@ -3133,8 +3141,9 @@ export class C2DEngineDocker extends C2DEngine {
 
       const output = Buffer.concat(chunks).toString()
 
-      // `du -sb` prints "<bytes>\t<path>"; anything else (an error) is not a size.
-      const match = output.match(/^\s*(\d+)\s/)
+      // `du -sb` prints "<bytes>\t<path>", after any "du: cannot access" lines (e.g. for /proc),
+      // which the TTY merges into the same output.
+      const match = output.match(/^(\d+)\t/m)
       return match ? parseInt(match[1], 10) : null
     } catch (error) {
       CORE_LOGGER.error(
@@ -4918,7 +4927,8 @@ export class C2DEngineDocker extends C2DEngine {
    * manifest says, with no readiness, so Running stays the signal that the service is usable.
    *
    * Throttled like the probe. A service with no manifest MANIFEST_DISCOVERY_MS after its container
-   * started is not checked again, and sampling stops once the listed download is complete — with no
+   * started is not checked again, and sampling stops once the listed download is complete or after
+   * MANIFEST_SAMPLING_MS, whichever comes first — with no
    * readiness to end it, it would otherwise run for the whole session.
    */
   private async sampleUnprobedServiceDownload(
@@ -4934,9 +4944,8 @@ export class C2DEngineDocker extends C2DEngine {
     const now = Date.now()
     const startedAt = Date.parse(details.State?.StartedAt ?? '')
     if (
-      !job.modelDownload &&
       Number.isFinite(startedAt) &&
-      now - startedAt > MANIFEST_DISCOVERY_MS
+      now - startedAt > (job.modelDownload ? MANIFEST_SAMPLING_MS : MANIFEST_DISCOVERY_MS)
     ) {
       return
     }
@@ -4989,7 +4998,11 @@ export class C2DEngineDocker extends C2DEngine {
     if (last && now - last.at < MANIFEST_DIR_MEASURE_MS) {
       return last.bytes
     }
-    const bytes = await this.getContainerDiskUsage(job.containerId, path)
+    const bytes = await this.getContainerDiskUsage(
+      job.containerId,
+      path,
+      MANIFEST_DU_TIMEOUT_MS
+    )
     cache.sizes.set(path, { bytes, at: now })
     return bytes
   }
@@ -5017,8 +5030,12 @@ export class C2DEngineDocker extends C2DEngine {
       const fromManifest = await sampleDownloadManifest(container, (path) =>
         this.manifestDirectoryBytes(job, path)
       )
-      if (fromManifest) return fromManifest
-      if (!engine.modelCachePath) return undefined
+      if (fromManifest) {
+        return fromManifest
+      }
+      if (!engine.modelCachePath) {
+        return undefined
+      }
       // Downloaded: what remains is the engine loading weights, which the cache says nothing about.
       // Returning nothing keeps the stored 100% record as it is.
       if (isModelDownloadComplete(job.modelDownload)) {

@@ -44,6 +44,15 @@ describe('parseDownloadManifest', () => {
     ])
   })
 
+  it('measures at most 8 folders and flags a manifest that names more', () => {
+    const dir = (i: number) => `dir\t1\t/data/hub/models--org--m${i}`
+    const eight = Array.from({ length: 8 }, (_, i) => dir(i))
+    expect(parseDownloadManifest(eight.join('\n')).truncated).to.equal(false)
+    const over = parseDownloadManifest([...eight, dir(8)].join('\n'))
+    expect(over.entries).to.have.length(8)
+    expect(over.truncated).to.equal(true)
+  })
+
   it('caps the entries and flags a manifest that names more', () => {
     const line = (i: number) => `file\t1\t${MODELS}/f${i}`
     const capped = Array.from({ length: 64 }, (_, i) => line(i))
@@ -117,6 +126,15 @@ describe('sampleDownloadManifest', () => {
       filesComplete: 3
     })
     expect(isModelDownloadComplete(download)).to.equal(true)
+  })
+
+  it('counts a finished file as done even with a stale .part beside it', async () => {
+    const container = fakeContainer(`file\t1000\t${MODELS}/vae/a.safetensors`, {
+      [`${MODELS}/vae/a.safetensors`]: 1000,
+      [`${MODELS}/vae/a.safetensors.part`]: 10
+    })
+    const download = await sampleDownloadManifest(container, () => Promise.resolve(null))
+    expect(download).to.include({ filesComplete: 1, filesInFlight: 0, percent: 100 })
   })
 
   it('reports no total when a size is unknown', async () => {

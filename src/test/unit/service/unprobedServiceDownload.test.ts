@@ -106,6 +106,22 @@ describe('download progress for a service the node cannot probe', () => {
     sinon.assert.calledTwice(engine.getContainerDiskUsage)
   })
 
+  it('stops sampling six hours after the container started, complete or not', async () => {
+    const engine = engineWith(`dir\t0\t${CACHE}\n`, 400)
+    const unfinished = {
+      downloadedBytes: 400,
+      filesComplete: 0,
+      filesInFlight: 1,
+      filesTotal: 1,
+      updatedAt: Date.now()
+    }
+    await engine.probeServiceReadiness(
+      job({ modelDownload: unfinished }),
+      startedAgo(6 * 60 * 60 * 1000 + 1)
+    )
+    sinon.assert.notCalled(engine.getArchive)
+  })
+
   it('writes nothing for a service that has no manifest', async () => {
     const engine = engineWith(null, null)
     await engine.probeServiceReadiness(job(), startedAgo(60_000))
@@ -131,6 +147,15 @@ describe('getContainerDiskUsage', () => {
     const path = '/data/outputs/hf/hub/models--Qwen--Qwen3.8-test'
     const engine = engineWithOutput(`5004096\t${path}\r\n`)
     expect(await engine.getContainerDiskUsage('container-1', path)).to.equal(5004096)
+  })
+
+  it('finds the size after the error lines du prints for /proc', async () => {
+    const engine = engineWithOutput(
+      "du: cannot access '/proc/7/task/7/fd/3': No such file or directory\r\n" +
+        "du: cannot access '/proc/7/fd/4': No such file or directory\r\n" +
+        '204542432\t/\r\n'
+    )
+    expect(await engine.getContainerDiskUsage('container-1', '/')).to.equal(204542432)
   })
 
   it('never reads an error message as a size', async () => {
@@ -159,7 +184,7 @@ describe('getContainerDiskUsage timeout', () => {
         exec: sinon.stub().resolves({ start: sinon.stub().resolves(stream) })
       })
     }
-    const result = engine.getContainerDiskUsage('container-1', '/data/hung')
+    const result = engine.getContainerDiskUsage('container-1', '/data/hung', 15_000)
     await clock.tickAsync(15_000)
     expect(await result).to.equal(null)
     expect(stream.destroyed).to.equal(true)
