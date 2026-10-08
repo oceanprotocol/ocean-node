@@ -11,7 +11,7 @@ import {
 const HF = 'https://huggingface.co'
 
 describe('ComfyUI engine profile', () => {
-  const job = (image: string) => ({ image }) as ServiceJob
+  const job = (image: string) => ({ image, exposedPorts: [8188] }) as ServiceJob
 
   it('recognizes the comfyui-boot image under any tag', () => {
     expect(resolveServiceEngine(job('yanwk/comfyui-boot'))?.id).to.equal('comfyui')

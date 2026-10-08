@@ -100,6 +100,7 @@ import {
   ModelDownloadSampler
 } from './modelDownload.js'
 import { sampleComfyModelDownload } from './comfyDownload.js'
+import { MANIFEST_DISCOVERY_MS, sampleDownloadManifest } from './downloadManifest.js'
 import type { DockerMountObject } from '../../@types/PersistentStorage.js'
 import { resolveServiceImage } from './serviceResourceMatching.js'
 import {
@@ -216,6 +217,8 @@ export class C2DEngineDocker extends C2DEngine {
   private serviceProbeUrls: Map<string, string> = new Map()
   // Per-service model-download sampling state (which cache files to stat, when to re-list them).
   private modelDownloadSampler = new ModelDownloadSampler()
+  // serviceId -> when a service the node cannot probe was last checked for a download manifest.
+  private manifestCheckedAt: Map<string, number> = new Map()
   // serviceId -> its readiness probe (+ model-download sample) still running in the background.
   // The probe is launched fire-and-forget so a slow engine, Docker daemon or Hub never holds up
   // InternalLoop; this keeps one probe per service at a time and lets stop() drain them.
@@ -3079,13 +3082,16 @@ export class C2DEngineDocker extends C2DEngine {
         return null
       }
 
+      // With a TTY the output arrives as plain text. Without one, Docker frames it with 8-byte
+      // headers whose length byte can read as an ASCII digit and get prepended to the size.
       const exec = await container.exec({
         Cmd: ['du', '-sb', path],
         AttachStdout: true,
-        AttachStderr: true
+        AttachStderr: true,
+        Tty: true
       })
 
-      const stream = await exec.start({ Detach: false, Tty: false })
+      const stream = await exec.start({ Detach: false, Tty: true })
 
       const chunks: Buffer[] = []
       for await (const chunk of stream) {
@@ -3094,7 +3100,8 @@ export class C2DEngineDocker extends C2DEngine {
 
       const output = Buffer.concat(chunks).toString()
 
-      const match = output.match(/(\d+)\s/)
+      // `du -sb` prints "<bytes>\t<path>"; anything else (an error) is not a size.
+      const match = output.match(/^\s*(\d+)\s/)
       return match ? parseInt(match[1], 10) : null
     } catch (error) {
       CORE_LOGGER.error(
@@ -4645,6 +4652,11 @@ export class C2DEngineDocker extends C2DEngine {
         this.serviceProbeUrls.delete(serviceId)
       }
     }
+    for (const serviceId of this.manifestCheckedAt.keys()) {
+      if (!running.has(serviceId)) {
+        this.manifestCheckedAt.delete(serviceId)
+      }
+    }
     return runningOnly
   }
 
@@ -4717,7 +4729,10 @@ export class C2DEngineDocker extends C2DEngine {
   ): Promise<void> {
     try {
       const engine = resolveServiceEngine(job)
-      if (!engine) return
+      if (!engine) {
+        await this.sampleUnprobedServiceDownload(job, details)
+        return
+      }
       if (this.serviceOpsInFlight.has(job.serviceId)) return
 
       const now = Date.now()
@@ -4846,7 +4861,69 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   /**
-   * How much of its model the container has pulled down, read from the engine's own cache.
+   * Download progress for a service the node cannot probe: only what the launch script's download
+   * manifest says, with no readiness, so Running stays the signal that the service is usable.
+   *
+   * Throttled like the probe. A service with no manifest MANIFEST_DISCOVERY_MS after its container
+   * started is not checked again, and sampling stops once the listed download is complete — with no
+   * readiness to end it, it would otherwise run for the whole session.
+   */
+  private async sampleUnprobedServiceDownload(
+    job: ServiceJob,
+    details: Dockerode.ContainerInspectInfo
+  ): Promise<void> {
+    if (
+      this.serviceOpsInFlight.has(job.serviceId) ||
+      isModelDownloadComplete(job.modelDownload)
+    ) {
+      return
+    }
+    const now = Date.now()
+    const startedAt = Date.parse(details.State?.StartedAt ?? '')
+    if (
+      !job.modelDownload &&
+      Number.isFinite(startedAt) &&
+      now - startedAt > MANIFEST_DISCOVERY_MS
+    ) {
+      return
+    }
+    if (
+      now - (this.manifestCheckedAt.get(job.serviceId) ?? 0) <
+      PROBE_PERIOD_SECONDS * 1000
+    ) {
+      return
+    }
+    this.manifestCheckedAt.set(job.serviceId, now)
+    const modelDownload = await sampleDownloadManifest(
+      this.docker.getContainer(job.containerId),
+      (path) => this.getContainerDiskUsage(job.containerId, path)
+    )
+    if (!modelDownload) {
+      return
+    }
+    // Same cross-process guard as the readiness write: a lifecycle transition must win.
+    if (
+      this.serviceOpsInFlight.has(job.serviceId) ||
+      (await this.db.isServiceLocked(job.serviceId, SERVICE_LOCK_STALE_MS))
+    ) {
+      return
+    }
+    await this.db.updateServiceJobReadiness(
+      job.serviceId,
+      {
+        owner: job.owner,
+        clusterHash: job.clusterHash,
+        status: ServiceStatusNumber.Running,
+        containerId: job.containerId
+      },
+      undefined,
+      modelDownload
+    )
+  }
+
+  /**
+   * How much of its model the container has pulled down: from the launch script's download
+   * manifest when it writes one, otherwise from the engine's own cache.
    *
    * This is the wait the image pull does not cover: the image is fetched once per node and cached
    * forever after, while the weights are fetched by the engine on EVERY container start, after it
@@ -4861,14 +4938,20 @@ export class C2DEngineDocker extends C2DEngine {
     engine: ServiceEngineProfile,
     startedAt: number
   ): Promise<ServiceModelDownload | undefined> {
-    if (!engine.modelCachePath && !engine.comfyModelList) return undefined
-    // Downloaded: what remains is the engine loading weights, which the cache says nothing about.
-    // Returning nothing keeps the stored 100% record as it is.
-    if (isModelDownloadComplete(job.modelDownload)) {
-      return undefined
-    }
     try {
       const container = this.docker.getContainer(job.containerId)
+      // The launch script's own manifest, when it writes one (see downloadManifest). Read before
+      // the completion check below: a script can append to it after its first downloads finish.
+      const fromManifest = await sampleDownloadManifest(container, (path) =>
+        this.getContainerDiskUsage(job.containerId, path)
+      )
+      if (fromManifest) return fromManifest
+      if (!engine.modelCachePath && !engine.comfyModelList) return undefined
+      // Downloaded: what remains is the engine loading weights, which the cache says nothing about.
+      // Returning nothing keeps the stored 100% record as it is.
+      if (isModelDownloadComplete(job.modelDownload)) {
+        return undefined
+      }
       if (engine.comfyModelList) {
         const download = await sampleComfyModelDownload(
           container,

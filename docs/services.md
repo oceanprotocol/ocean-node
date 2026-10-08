@@ -153,6 +153,35 @@ redeploy) cannot run conflicting operations on the same service. Leases are hear
 every 30 s while the operation runs; a lease not refreshed for 2 minutes belongs to a
 crashed process and is stolen automatically, so no manual cleanup is ever needed.
 
+## Readiness and startup progress
+
+`Running` only means the container started. For workloads it recognizes, the node also reports
+whether the service can serve requests and how far its startup downloads have got, on the job
+returned by `SERVICE_GET_STATUS`:
+
+- `readiness` — `waiting`, `ready` or `failing`, from a request the node makes to the workload
+  itself: vLLM `GET /v1/models` on 8000, llama.cpp `GET /health` on 8080, ComfyUI
+  `GET /system_stats` on 8188. A profile applies only when the service publishes that port, so an
+  app that runs an engine behind its own port reports no readiness and `Running` stays the signal.
+- `imagePull` — byte progress of the image pull.
+- `modelDownload` — bytes downloaded against the total, and `filesComplete` / `filesTotal` when the
+  download is listed up front.
+
+`modelDownload` comes from the launch script's download manifest when it writes one: a
+tab-separated `/tmp/ocean/downloads.tsv` in the container, one `<kind> <bytes> <path> [<source>]`
+line per item, written before the first download. A `file` entry is complete once `<path>` exists
+and in flight while `<path>.part` does; a `dir` entry is a folder filled under names of its own
+(huggingface_hub's snapshot cache), measured with `du -sb`. A `bytes` of `0` means unknown. Lines may
+be appended while the script runs; at most 64 entries are read. Without a manifest, the node falls
+back to the engine's own Hugging Face cache (vLLM, llama.cpp) or the `.models.tsv` list older
+ComfyUI bundle scripts keep.
+
+A service with no engine profile (an app that runs its engine behind its own port) still reports
+`modelDownload` from its manifest, with no `readiness`. With nothing to say when such a service is
+ready, the node checks it only within 30 minutes of the container starting unless a manifest has
+appeared, and stops once everything listed is complete. All of it is best-effort and owner-only: a
+missing or wrong manifest only changes what that service's own progress report says.
+
 ## Service outputs
 
 A service writes its results to `/data/outputs`. With an `outputBucketId` that folder is the

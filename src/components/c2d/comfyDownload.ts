@@ -1,16 +1,15 @@
 import type Dockerode from 'dockerode'
-import { pipeline } from 'stream'
-import * as tarStream from 'tar-stream'
 import type { ServiceModelDownload } from '../../@types/C2D/ServiceOnDemand.js'
+import { cachedHubLookup, HF_TIMEOUT_MS } from './modelDownload.js'
 import {
-  buildModelDownload,
-  cachedHubLookup,
-  fileSize,
-  HF_TIMEOUT_MS
-} from './modelDownload.js'
+  MAX_DOWNLOAD_ENTRIES,
+  measureDownloads,
+  readContainerFile
+} from './downloadManifest.js'
 
 /**
- * Model-download progress for the ComfyUI bundle templates.
+ * Model-download progress for ComfyUI bundle scripts that predate the download manifest (see
+ * downloadManifest), read from the list they keep for their own download loop.
  *
  * Before fetching anything, a bundle's script lists the weights its workflows need in
  * `<base>/.models.tsv`, one `<dir>\t<url>` line each. It then downloads them with curl to
@@ -22,8 +21,6 @@ import {
  */
 
 const MODEL_LIST_FILE = '.models.tsv'
-const MAX_LIST_BYTES = 64 * 1024
-const MAX_ENTRIES = 64
 const MODEL_DIR = /^[a-z0-9_]{1,32}$/
 const URL_SEGMENT = /^[\w.-]+$/
 
@@ -58,7 +55,7 @@ function isHubFileUrl(value: string): boolean {
 }
 
 /**
- * The list's destinations, capped at MAX_ENTRIES. `truncated` says the list names more than that,
+ * The list's destinations, capped at MAX_DOWNLOAD_ENTRIES. `truncated` says the list names more than that,
  * so the entries are not the whole download.
  */
 export function parseComfyModelList(
@@ -76,40 +73,12 @@ export function parseComfyModelList(
     if (entries.has(path)) {
       continue
     }
-    if (entries.size >= MAX_ENTRIES) {
+    if (entries.size >= MAX_DOWNLOAD_ENTRIES) {
       return { entries: [...entries.values()], truncated: true }
     }
     entries.set(path, { url, path })
   }
   return { entries: [...entries.values()], truncated: false }
-}
-
-/** One small file from the container, via Docker's archive endpoint. Null when absent or too big. */
-async function readContainerFile(
-  container: Dockerode.Container,
-  path: string
-): Promise<{ text: string; mtime: number } | null> {
-  try {
-    const extract = tarStream.extract()
-    pipeline(await container.getArchive({ path }), extract, () => {})
-    for await (const entry of extract) {
-      const { type, size, mtime } = entry.header
-      if (type !== 'file' || (size ?? 0) > MAX_LIST_BYTES) {
-        return null
-      }
-      const chunks: Buffer[] = []
-      for await (const chunk of entry) {
-        chunks.push(chunk)
-      }
-      return {
-        text: Buffer.concat(chunks).toString('utf8'),
-        mtime: mtime?.getTime() ?? 0
-      }
-    }
-    return null
-  } catch {
-    return null
-  }
 }
 
 /**
@@ -157,35 +126,16 @@ export async function sampleComfyModelDownload(
   if (entries.length === 0) {
     return null
   }
-  // A truncated list is not the whole download: report bytes only, never a total or a file count
-  // that would declare it complete early.
+  // A truncated list is not the whole download: no sizes, so no total or file count that would
+  // declare it complete early.
   const sizes: (number | null)[] = truncated
-    ? [null]
+    ? entries.map((): null => null)
     : await Promise.all(
         entries.map(({ url }) => cachedHubLookup(url, () => lookupHubFileBytes(url)))
       )
-  let downloadedBytes = 0
-  let files = 0
-  let inFlight = 0
-  for (const { path } of entries) {
-    // Partial first: a file renamed between the two checks is then still found finished.
-    const partial = await fileSize(container, `${path}.part`)
-    if (partial !== null) {
-      downloadedBytes += partial
-      inFlight++
-      continue
-    }
-    const finished = await fileSize(container, path)
-    if (finished !== null) {
-      downloadedBytes += finished
-      files++
-    }
-  }
-  const totalBytes = sizes.every((size) => size !== null)
-    ? sizes.reduce((sum, size) => sum + size, 0)
-    : null
-  return {
-    ...buildModelDownload({ downloadedBytes, files, inFlight }, totalBytes, null),
-    ...(truncated ? {} : { filesTotal: entries.length })
-  }
+  return await measureDownloads(
+    container,
+    entries.map(({ path }, i) => ({ kind: 'file' as const, path, bytes: sizes[i] })),
+    truncated
+  )
 }

@@ -175,11 +175,28 @@ function stripImageRef(image: string): string {
   return colon === -1 ? withoutDigest : withoutDigest.slice(0, colon)
 }
 
-/** The engine profile for a service, or null when the node does not recognize the image. */
+/**
+ * The engine profile for a service, or null when the node does not recognize the image — or when
+ * the service does not publish the engine's port. An app that runs the engine behind itself (vLLM
+ * on loopback, the app on its own port) is not the engine's to call ready: probing the app's port
+ * for the engine's path would never succeed.
+ */
 export function resolveServiceEngine(job: ServiceJob): ServiceEngineProfile | null {
   const image = stripImageRef((job.image || job.containerImage || '').trim())
   if (!image) {
     return null
   }
-  return SERVICE_ENGINE_PROFILES.find((profile) => profile.matchesImage(image)) ?? null
+  const profile = SERVICE_ENGINE_PROFILES.find((candidate) =>
+    candidate.matchesImage(image)
+  )
+  if (!profile) {
+    return null
+  }
+  if (
+    profile.probe.port !== undefined &&
+    !job.exposedPorts?.includes(profile.probe.port)
+  ) {
+    return null
+  }
+  return profile
 }
