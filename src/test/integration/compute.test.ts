@@ -705,16 +705,14 @@ describe('**********         Compute', () => {
       .connect(consumerAccount)
       .deposit(initializeResponse.payment.token, balance)
 
-    await escrowContract
-      .connect(consumerAccount)
-      .authorize(
-        initializeResponse.payment.token,
-        firstEnv.consumerAddress,
-        balance,
-        initializeResponse.payment.minLockSeconds,
-        10,
-        0 // expiryTimestamp: 0 = indefinite (Escrow v2)
-      )
+    await escrowContract.connect(consumerAccount).authorize(
+      initializeResponse.payment.token,
+      firstEnv.consumerAddress,
+      balance,
+      initializeResponse.payment.minLockSeconds,
+      10,
+      0 // expiryTimestamp: 0 = indefinite (Escrow v2)
+    )
 
     const fundsBefore = await oceanNode.escrow.getUserAvailableFunds(
       DEVELOPMENT_CHAIN_ID,
@@ -1016,16 +1014,14 @@ describe('**********         Compute', () => {
       .connect(consumerAccount)
       .deposit(initializeResponse.payment.token, balance)
 
-    await escrowContract
-      .connect(consumerAccount)
-      .authorize(
-        initializeResponse.payment.token,
-        firstEnv.consumerAddress,
-        balance,
-        initializeResponse.payment.minLockSeconds,
-        10,
-        0 // expiryTimestamp: 0 = indefinite (Escrow v2)
-      )
+    await escrowContract.connect(consumerAccount).authorize(
+      initializeResponse.payment.token,
+      firstEnv.consumerAddress,
+      balance,
+      initializeResponse.payment.minLockSeconds,
+      10,
+      0 // expiryTimestamp: 0 = indefinite (Escrow v2)
+    )
     const auth = await oceanNode.escrow.getAuthorizations(
       DEVELOPMENT_CHAIN_ID,
       paymentToken,
