@@ -150,6 +150,9 @@ const SERVICE_LOCK_STALE_MS = 120_000
 // A `du` inside a container that never finishes (a huge or slow folder, or a container that replaced
 // the binary) must not hold the loop that measures it, nor the node's shutdown that drains it.
 const DISK_USAGE_TIMEOUT_MS = 15_000
+// A manifest folder is measured with `du` at most this often, while the manifest itself is re-read
+// on every sample to catch appended entries.
+const MANIFEST_DIR_MEASURE_MS = 15_000
 
 // Identifies one engine instance as a service-lock holder across processes. pid alone is
 // not enough: pids are reused, and one process can host several engine instances.
@@ -224,6 +227,11 @@ export class C2DEngineDocker extends C2DEngine {
   private manifestCheckedAt: Map<string, number> = new Map()
   // serviceId -> the container a "still not ready" warning was logged for (once per container).
   private readinessWarned: Map<string, string> = new Map()
+  // serviceId -> the last `du` of each manifest folder in its current container.
+  private manifestDirSizes: Map<
+    string,
+    { containerId: string; sizes: Map<string, { bytes: number | null; at: number }> }
+  > = new Map()
   // serviceId -> its readiness probe (+ model-download sample) still running in the background.
   // The probe is launched fire-and-forget so a slow engine, Docker daemon or Hub never holds up
   // InternalLoop; this keeps one probe per service at a time and lets stop() drain them.
@@ -4675,7 +4683,8 @@ export class C2DEngineDocker extends C2DEngine {
     for (const state of [
       this.serviceProbeUrls,
       this.manifestCheckedAt,
-      this.readinessWarned
+      this.readinessWarned,
+      this.manifestDirSizes
     ]) {
       for (const serviceId of state.keys()) {
         if (!running.has(serviceId)) {
@@ -4940,7 +4949,7 @@ export class C2DEngineDocker extends C2DEngine {
     this.manifestCheckedAt.set(job.serviceId, now)
     const modelDownload = await sampleDownloadManifest(
       this.docker.getContainer(job.containerId),
-      (path) => this.getContainerDiskUsage(job.containerId, path)
+      (path) => this.manifestDirectoryBytes(job, path)
     )
     if (!modelDownload) {
       return
@@ -4965,6 +4974,26 @@ export class C2DEngineDocker extends C2DEngine {
     )
   }
 
+  /** A manifest folder's size, re-measured with `du` at most every MANIFEST_DIR_MEASURE_MS. */
+  private async manifestDirectoryBytes(
+    job: ServiceJob,
+    path: string
+  ): Promise<number | null> {
+    let cache = this.manifestDirSizes.get(job.serviceId)
+    if (!cache || cache.containerId !== job.containerId) {
+      cache = { containerId: job.containerId, sizes: new Map() }
+      this.manifestDirSizes.set(job.serviceId, cache)
+    }
+    const now = Date.now()
+    const last = cache.sizes.get(path)
+    if (last && now - last.at < MANIFEST_DIR_MEASURE_MS) {
+      return last.bytes
+    }
+    const bytes = await this.getContainerDiskUsage(job.containerId, path)
+    cache.sizes.set(path, { bytes, at: now })
+    return bytes
+  }
+
   /**
    * How much of its model the container has pulled down: from the launch script's download
    * manifest when it writes one, otherwise from the engine's own cache.
@@ -4986,7 +5015,7 @@ export class C2DEngineDocker extends C2DEngine {
       // The launch script's own manifest, when it writes one (see downloadManifest). Read before
       // the completion check below: a script can append to it after its first downloads finish.
       const fromManifest = await sampleDownloadManifest(container, (path) =>
-        this.getContainerDiskUsage(job.containerId, path)
+        this.manifestDirectoryBytes(job, path)
       )
       if (fromManifest) return fromManifest
       if (!engine.modelCachePath) return undefined

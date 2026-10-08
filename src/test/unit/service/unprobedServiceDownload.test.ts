@@ -14,6 +14,7 @@ describe('download progress for a service the node cannot probe', () => {
     const engine: any = Object.create(C2DEngineDocker.prototype)
     engine.serviceOpsInFlight = new Set()
     engine.manifestCheckedAt = new Map()
+    engine.manifestDirSizes = new Map()
     engine.getArchive = sinon.stub().callsFake(() => {
       if (manifest === null) {
         return Promise.reject(new Error('no such file'))
@@ -94,6 +95,15 @@ describe('download progress for a service the node cannot probe', () => {
     const engine = engineWith(null, null)
     await engine.probeServiceReadiness(job(), startedAgo(31 * 60 * 1000))
     sinon.assert.notCalled(engine.getArchive)
+  })
+
+  it('measures a manifest folder at most once per period, and again in a new container', async () => {
+    const engine = engineWith(null, 400)
+    await engine.manifestDirectoryBytes(job(), CACHE)
+    await engine.manifestDirectoryBytes(job(), CACHE)
+    sinon.assert.calledOnce(engine.getContainerDiskUsage)
+    await engine.manifestDirectoryBytes(job({ containerId: 'container-2' }), CACHE)
+    sinon.assert.calledTwice(engine.getContainerDiskUsage)
   })
 
   it('writes nothing for a service that has no manifest', async () => {
