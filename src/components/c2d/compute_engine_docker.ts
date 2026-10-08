@@ -99,6 +99,7 @@ import {
   isModelDownloadComplete,
   ModelDownloadSampler
 } from './modelDownload.js'
+import { sampleComfyModelDownload } from './comfyDownload.js'
 import type { DockerMountObject } from '../../@types/PersistentStorage.js'
 import { resolveServiceImage } from './serviceResourceMatching.js'
 import {
@@ -4817,7 +4818,7 @@ export class C2DEngineDocker extends C2DEngine {
       // when it says nothing about why.
       const modelDownload = everReady
         ? undefined
-        : await this.sampleModelDownload(job, engine)
+        : await this.sampleModelDownload(job, engine, startedAt)
 
       // Same cross-process guard as the metrics write: a lifecycle transition must win.
       if (
@@ -4857,9 +4858,10 @@ export class C2DEngineDocker extends C2DEngine {
    */
   private async sampleModelDownload(
     job: ServiceJob,
-    engine: ServiceEngineProfile
+    engine: ServiceEngineProfile,
+    startedAt: number
   ): Promise<ServiceModelDownload | undefined> {
-    if (!engine.modelCachePath) return undefined
+    if (!engine.modelCachePath && !engine.comfyModelList) return undefined
     // Downloaded: what remains is the engine loading weights, which the cache says nothing about.
     // Returning nothing keeps the stored 100% record as it is.
     if (isModelDownloadComplete(job.modelDownload)) {
@@ -4867,6 +4869,14 @@ export class C2DEngineDocker extends C2DEngine {
     }
     try {
       const container = this.docker.getContainer(job.containerId)
+      if (engine.comfyModelList) {
+        const download = await sampleComfyModelDownload(
+          container,
+          !!job.outputBucketId,
+          startedAt
+        )
+        return download ?? undefined
+      }
       const downloaded = await this.modelDownloadSampler.sample(job.serviceId, container)
       if (!downloaded) return undefined
       // Only a Hugging Face repo has a size the node can look up; a local path or an object-store

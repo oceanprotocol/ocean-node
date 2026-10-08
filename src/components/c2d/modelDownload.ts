@@ -73,7 +73,7 @@ async function statContainerPath(
  * `huggingface_hub` can link a blob into a shared store — the link's own size would count a few
  * bytes for a multi-gigabyte file.
  */
-async function fileSize(
+export async function fileSize(
   container: Dockerode.Container,
   path: string
 ): Promise<number | null> {
@@ -328,7 +328,7 @@ const BYTES_PER_PARAM: Record<string, number> = {
 }
 
 const HF_MODEL_API = 'https://huggingface.co/api/models'
-const HF_TIMEOUT_MS = 8000
+export const HF_TIMEOUT_MS = 8000
 // One lookup per model for the life of the process: the answer cannot change for a given repo, and
 // this is read on the metrics cadence for every starting service.
 const totalBytesCache = new Map<string, number | null>()
@@ -355,12 +355,23 @@ export async function fetchModelTotalBytes(
   quant?: string
 ): Promise<number | null> {
   const key = quant ? `${modelId}:${quant}` : modelId
+  return await cachedHubLookup(key, () => lookupModelTotalBytes(modelId, quant))
+}
+
+/**
+ * Runs a Hub size lookup at most once per key: a size or a definitive null is kept for the life of
+ * the process, while undefined (the Hub could not be asked) is retried after HUB_RETRY_AFTER_MS.
+ */
+export async function cachedHubLookup(
+  key: string,
+  lookup: () => Promise<number | null | undefined>
+): Promise<number | null> {
   if (totalBytesCache.has(key)) return totalBytesCache.get(key) ?? null
   const failedAt = hubFailedAt.get(key)
   if (failedAt !== undefined && Date.now() - failedAt < HUB_RETRY_AFTER_MS) {
     return null
   }
-  const total = await lookupModelTotalBytes(modelId, quant)
+  const total = await lookup()
   if (total === undefined) {
     hubFailedAt.set(key, Date.now())
     return null
@@ -470,11 +481,15 @@ async function fetchGgufFileBytes(
  * Whether a recorded download has finished: the total reached AND nothing still arriving. The total
  * is an estimate (dtype × parameters), so on its own it can read 100% while the last shard is still
  * being written; no partial files left is what makes it final. A record with no total never
- * completes here, and sampling simply carries on until the service is ready.
+ * completes here, and sampling simply carries on until the service is ready. A record that knows
+ * its file count (a ComfyUI model list) is complete once every listed file is.
  */
 export function isModelDownloadComplete(
   download: ServiceModelDownload | undefined
 ): boolean {
+  if (download?.filesTotal !== undefined) {
+    return download.filesComplete >= download.filesTotal
+  }
   return download?.percent === 100 && download.filesInFlight === 0
 }
 

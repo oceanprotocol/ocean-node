@@ -45,6 +45,8 @@ export interface ServiceEngineProfile {
    * for a GGUF repo carrying a dozen quantizations differs by an order of magnitude.
    */
   modelQuantFromCommand?: (cmd: string[] | undefined) => string | null
+  /** Progress is read from the model list a ComfyUI bundle script writes (see comfyDownload). */
+  comfyModelList?: boolean
 }
 
 /**
@@ -149,6 +151,14 @@ export const SERVICE_ENGINE_PROFILES: ServiceEngineProfile[] = [
     modelCachePath: '/root/.cache/huggingface/hub',
     modelIdFromCommand: hfRepoIdFromLlamaCppCommand,
     modelQuantFromCommand: quantFromLlamaCppCommand
+  },
+  {
+    id: 'comfyui',
+    matchesImage: (image) => /(^|\/)yanwk\/comfyui-boot$/.test(image),
+    // ComfyUI binds its port only after the bundle script has fetched its models and every custom
+    // node has loaded, so the first 200 means the UI is usable.
+    probe: { path: '/system_stats', port: 8188, expectStatus: [200] },
+    comfyModelList: true
   }
 ]
 
