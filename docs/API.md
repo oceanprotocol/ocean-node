@@ -898,7 +898,8 @@ returns status of node
 
 `escrowAddress` and `subsidyProviders` are per-chain maps (keyed by chainId). `subsidyProviders`
 reflects the node's `SUBSIDY_PROVIDERS` configuration — the Subsidy Provider contract addresses the
-node passes to the escrow at claim time; it is `{}` when none are configured. Both are present in
+node passes to the escrow at **lock and claim** time (lock-time "prepaid" sponsorship and claim-time
+"refund" sponsorship); it is `{}` when none are configured. Both are present in
 the normal and detailed status. `subsidyProviderFilter` reflects the node's
 `SUBSIDY_PROVIDER_FILTER` setting: when `true`, a user-supplied `subsidyProviders` list on a
 compute/service request is restricted to addresses already in this map for the request's chain
@@ -908,16 +909,19 @@ compute/service request is restricted to addresses already in this map for the r
 
 `startCompute` (paid), `serviceStart`, and `serviceExtend` accept an optional top-level
 `subsidyProviders` field: a plain array of Subsidy Provider contract addresses for the request's
-payment chain. It overrides the node's `SUBSIDY_PROVIDERS` for that request only:
+payment chain. The node hands the **same** list to both the escrow lock (lock-time "prepaid"
+sponsorship) and the later claim (claim-time "refund" sponsorship). It overrides the node's
+`SUBSIDY_PROVIDERS` for that request only:
 
 - **omitted / `undefined`** → the node's configured `SUBSIDY_PROVIDERS` for the chain are used.
-- **`[]`** (empty array) → the claim is made with **no** subsidy providers.
-- **non-empty array** → the claim uses **only** these addresses, ignoring node config.
+- **`[]`** (empty array) → the lock/claim are made with **no** subsidy providers (plain payer-funded).
+- **non-empty array** → the lock/claim use **only** these addresses, ignoring node config.
 
-Every address must be a valid EVM address (otherwise HTTP 400). When the node has
-`SUBSIDY_PROVIDER_FILTER` enabled, every supplied address must also be in the node's
-`SUBSIDY_PROVIDERS` for that chain, or the request is rejected with HTTP 400 (an empty array is
-always allowed). Free compute has no escrow claim, so the field is ignored there.
+Every address must be a valid EVM address (otherwise HTTP 400). Duplicates are collapsed, and the
+list may name at most **10 unique** providers (the escrow's `maxSponsorsPerLock()`); more is rejected
+with HTTP 400. When the node has `SUBSIDY_PROVIDER_FILTER` enabled, every supplied address must also
+be in the node's `SUBSIDY_PROVIDERS` for that chain, or the request is rejected with HTTP 400 (an
+empty array is always allowed). Free compute has no escrow lock/claim, so the field is ignored there.
 
 ---
 

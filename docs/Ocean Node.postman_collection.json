@@ -616,7 +616,7 @@
 								"compute"
 							]
 						},
-						"description": "Start a paid compute job. Optional fields: policyServer, metadata, additionalViewers, queueMaxWaitTime, encryptedDockerRegistryAuth, output, outputBucketId."
+						"description": "Start a paid compute job. Optional fields: policyServer, metadata, additionalViewers, queueMaxWaitTime, encryptedDockerRegistryAuth, output, outputBucketId, subsidyProviders (array of Subsidy Provider contract addresses for the payment chain — the node hands the same list to the escrow lock and claim; omit to use the node's SUBSIDY_PROVIDERS, [] for none, max 10 unique)."
 					}
 				},
 				{
@@ -920,7 +920,7 @@
 								"serviceStart"
 							]
 						},
-						"description": "Launch a long-running service container, paid via escrow. Optional: checksum, dockerfile, additionalDockerFiles, dockerCmd, dockerEntrypoint, metadata (optional user-defined labels — a flat key/value map of string/number/boolean values, node-opaque, ≤1 KB). Services must listen on a high port (>1024)."
+						"description": "Launch a long-running service container, paid via escrow. Optional: checksum, dockerfile, additionalDockerFiles, dockerCmd, dockerEntrypoint, metadata (optional user-defined labels — a flat key/value map of string/number/boolean values, node-opaque, ≤1 KB), subsidyProviders (array of Subsidy Provider contract addresses for the payment chain — same list used at escrow lock and claim; omit for the node's SUBSIDY_PROVIDERS, [] for none, max 10 unique; a fully-sponsored lock needs no payer deposit). Services must listen on a high port (>1024)."
 					}
 				},
 				{
@@ -1069,7 +1069,7 @@
 								"serviceExtend"
 							]
 						},
-						"description": "Pay to push the service expiry further out (additionalDuration in seconds, must be positive)."
+						"description": "Pay to push the service expiry further out (additionalDuration in seconds, must be positive). Optional: subsidyProviders (array of Subsidy Provider contract addresses for the payment chain — same list used at escrow lock and claim; omit for the node's SUBSIDY_PROVIDERS, [] for none, max 10 unique)."
 					}
 				},
 				{
@@ -1614,7 +1614,7 @@
 								}
 							]
 						},
-						"description": "Query escrow contract events with optional filters (eventType e.g. Lock/Claimed/Canceled/Deposit/Withdraw/Auth)."
+						"description": "Query escrow contract events with optional filters (eventType one of Auth/Lock/ReLock/Claimed/Canceled/Deposit/Withdraw/Subsidized/LockSponsored/SponsorRefunded). Subsidized is the claim-time (refund) sponsorship event; LockSponsored/SponsorRefunded are the Escrow v2 lock-time (prepaid) sponsorship events."
 					}
 				}
 			]
@@ -2536,7 +2536,7 @@
 								"directCommand"
 							]
 						},
-						"description": "Query escrow events over the command interface."
+						"description": "Query escrow events over the command interface. Optional filters include eventType (Auth/Lock/ReLock/Claimed/Canceled/Deposit/Withdraw/Subsidized/LockSponsored/SponsorRefunded), payer, payee, token."
 					}
 				}
 			]

@@ -9,6 +9,10 @@ constraints, availability gating, and the fee structure.
 > On-demand **services** run on the same compute environments and draw from the same
 > resource pool described here — see [services.md](services.md).
 
+> Paid compute jobs can be **subsidized** — a third party covers part or all of the cost
+> (including zero-deposit jobs), optionally paying the node a bonus. See
+> [subsidyProviders.md](subsidyProviders.md).
+
 ## Contents
 
 1. [Overview](#overview)
