@@ -220,8 +220,8 @@ Alternatively, results can be stored as individual files in a node persistent-st
    - optional `encryption`: currently only `AES` is accepted, with a hex key
 2. You ECIES-encrypt that JSON into a string and send it in the compute command as `output`.
 3. When the job finishes:
-   - if `output` is present and remote storage supports upload, Ocean Node uploads the tar archive remotely
-   - otherwise, Ocean Node falls back to local `outputs.tar` behavior
+   - if `output` is present and remote storage supports upload, Ocean Node uploads the ZIP archive remotely
+   - otherwise, Ocean Node falls back to local `outputs.zip` behavior
 
 ### `ComputeOutput` shape
 
@@ -310,8 +310,8 @@ Example for `freeStartCompute`:
 
 ### Uploaded filename and fallback behavior
 
-- For remote upload, Ocean Node writes: `outputs-<clusterHash>-<jobId>.tar`
-- If `output` is missing/empty, or chosen storage does not support upload, Ocean Node stores output locally (`outputs.tar`) as before.
+- For remote upload, Ocean Node writes: `outputs-<clusterHash>-<jobId>.zip`. ZIP conversion happens before optional encryption. Explicit destination keys are used as supplied; choose a `.zip` key when configuring a new upload.
+- If `output` is missing/empty, or chosen storage does not support upload, Ocean Node stores output locally (`outputs.zip`). Historical `outputs.tar` files remain downloadable.
 - If remote upload fails, job status is set to `ResultsUploadFailed`.
 
 ---

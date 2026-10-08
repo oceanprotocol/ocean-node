@@ -211,7 +211,7 @@ variant instead returns the JSON file object used for c2d references.
 
 ## Using a bucket for compute job outputs
 
-Compute jobs (free and paid) can store their results directly in a persistent storage bucket instead of the default `outputs.tar` archive. Pass the bucket id as `outputBucketId` in the start compute command:
+Compute jobs (free and paid) can store their results directly in a persistent storage bucket instead of the default `outputs.zip` archive. Pass the bucket id as `outputBucketId` in the start compute command:
 
 ```json
 {
@@ -224,7 +224,7 @@ Compute jobs (free and paid) can store their results directly in a persistent st
 How it works:
 
 - The bucket directory is bind-mounted **read-write** at `/data/outputs` inside the job container, so everything the algorithm writes there lands directly in the bucket as **individual files** (no archive, no copy step). Files appear in the bucket as the job writes them.
-- No local `outputs.tar` is produced and the job's results index contains no `output` entry; logs (`imageLog`, `configurationLog`, `algorithmLog`) behave as usual. Results are retrieved via the persistent storage list/get APIs.
+- No local `outputs.zip` is produced and the job's results index contains no `output` entry; logs (`imageLog`, `configurationLog`, `algorithmLog`) behave as usual. Results are retrieved via the persistent storage list/get APIs.
 - The consumer starting the job must be the bucket owner or on the bucket access list, otherwise the start request is rejected with `403`.
 - `outputBucketId` is **mutually exclusive** with the `output` (remote storage upload) parameter — sending both returns `400`.
 - Files keep the names the algorithm gives them; writing an existing name **overwrites** it, so pipelines can re-run jobs with stable filenames.

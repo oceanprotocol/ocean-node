@@ -2019,7 +2019,15 @@ Clients MUST treat every part as optional and render a field only when present.
 
 #### Description
 
-returns job result
+Returns the file identified by `index` in the job status `results` array. Select
+`type: "output"` for the archive; logs remain separate text files. New job outputs
+are ZIP (`outputs.zip`, `application/zip`); historical TAR archives remain readable.
+ZIP entries contain the contents of `/data/outputs` without the outer `outputs/`
+directory. Regular files and directories are retained; links, special files and unsafe
+paths are skipped. Stored ZIP archives support byte-offset downloads over P2P.
+Bucket-output jobs have no archive entry; use the persistent storage APIs instead.
+Deploy ZIP/TAR-compatible clients before upgraded nodes. Rollback releases must retain
+the ZIP/TAR reader so already-published ZIP outputs remain available.
 
 #### Parameters
 

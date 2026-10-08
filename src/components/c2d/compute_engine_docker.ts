@@ -1805,20 +1805,18 @@ export class C2DEngineDocker extends C2DEngine {
       }
     } catch (e) {}
     try {
-      // check if we have an output request.
+      // Buckets have no local archive. Remote storage without upload support can
+      // fall back locally, so discover its archive from disk as well.
       const jobDb = await this.db.getJob(jobId)
-      if (jobDb.length < 1 || (!jobDb[0].output && !jobDb[0].outputBucketId)) {
-        const outputStat = statSync(
-          this.getStoragePath() + '/' + jobId + '/data/outputs/outputs.tar'
-        )
-        if (outputStat) {
-          res.push({
-            filename: 'outputs.tar',
-            filesize: outputStat.size,
-            type: 'output',
-            index
-          })
+      if (jobDb.length < 1 || !jobDb[0].outputBucketId) {
+        // Prefer new ZIP outputs, while keeping pre-upgrade jobs downloadable.
+        for (const filename of ['outputs.zip', 'outputs.tar']) {
+          const file = path.join(this.getStoragePath(), jobId, 'data/outputs', filename)
+          if (!existsSync(file)) continue
+          const outputStat = statSync(file)
+          res.push({ filename, filesize: outputStat.size, type: 'output', index })
           index = index + 1
+          break
         }
       }
     } catch (e) {}
@@ -1931,13 +1929,21 @@ export class C2DEngineDocker extends C2DEngine {
           }
         }
         if (i.type === 'output') {
+          const file = path.join(this.getStoragePath(), jobId, 'data/outputs', i.filename)
+          const { size } = statSync(file)
+          if (!Number.isSafeInteger(offset) || offset < 0 || offset > size) {
+            throw new Error(
+              `Invalid result offset ${offset} for ${i.filename} (${size} bytes)`
+            )
+          }
           return {
-            stream: createReadStream(
-              this.getStoragePath() + '/' + jobId + '/data/outputs/outputs.tar',
-              offset > 0 ? { start: offset } : undefined
-            ),
+            stream: createReadStream(file, offset > 0 ? { start: offset } : undefined),
             headers: {
-              'Content-Type': 'application/octet-stream'
+              'Content-Type': i.filename.endsWith('.zip')
+                ? 'application/zip'
+                : 'application/x-tar',
+              'Content-Disposition': `attachment; filename="${jobId}-${i.filename}"`,
+              'Content-Length': String(size - offset)
             }
           }
         }
@@ -2697,9 +2703,6 @@ export class C2DEngineDocker extends C2DEngine {
       // Reuse the last du(/)-measured disk usage (jobs don't inspect size:true, so buildSnapshot
       // would otherwise fall back to an unset SizeRw and report 0).
       await this.collectJobMetrics(job, job.runtimeMetrics?.disk?.usedBytes, true)
-      const outputsArchivePath =
-        this.getStoragePath() + '/' + job.jobId + '/data/outputs/outputs.tar'
-
       try {
         if (container) {
           if (job.outputBucketId) {
@@ -2722,9 +2725,9 @@ export class C2DEngineDocker extends C2DEngine {
               'upload' in storage &&
               typeof storage.upload === 'function'
             ) {
-              let uploadStream = (await container.getArchive({
-                path: '/data/outputs'
-              })) as unknown as Readable
+              let uploadStream = tarToZip(
+                await container.getArchive({ path: '/data/outputs' })
+              )
               if (output.encryption && output.encryption?.key) {
                 const enc = output.encryption
                 const key = Uint8Array.from(Buffer.from(enc.key, 'hex'))
@@ -2735,23 +2738,17 @@ export class C2DEngineDocker extends C2DEngine {
                 )
               }
               const fname =
-                'outputs-' + this.getC2DConfig().hash + '-' + job.jobId + '.tar'
+                'outputs-' + this.getC2DConfig().hash + '-' + job.jobId + '.zip'
               await (
                 storage as unknown as {
                   upload: (name: string, stream: Readable) => Promise<unknown>
                 }
               ).upload(fname, uploadStream)
             } else {
-              await pipeline(
-                await container.getArchive({ path: '/data/outputs' }),
-                createWriteStream(outputsArchivePath)
-              )
+              await this.archiveComputeOutputs(container, job.jobId)
             }
           } else {
-            await pipeline(
-              await container.getArchive({ path: '/data/outputs' }),
-              createWriteStream(outputsArchivePath)
-            )
+            await this.archiveComputeOutputs(container, job.jobId)
           }
         }
       } catch (e) {
@@ -2764,6 +2761,24 @@ export class C2DEngineDocker extends C2DEngine {
       this.recordJobFinished(job)
       await this.db.updateJob(job)
       await this.cleanupJob(job)
+    }
+  }
+
+  private async archiveComputeOutputs(
+    container: Dockerode.Container,
+    jobId: string
+  ): Promise<void> {
+    const folder = path.join(this.getStoragePath(), jobId, 'data/outputs')
+    const file = path.join(folder, 'outputs.zip')
+    const partial = file + '.partial'
+    try {
+      const tar = await container.getArchive({ path: '/data/outputs' })
+      mkdirSync(folder, { recursive: true })
+      await pipeline(tarToZip(tar), createWriteStream(partial))
+      renameSync(partial, file)
+    } catch (e) {
+      rmSync(partial, { force: true })
+      throw e
     }
   }
 
@@ -3975,7 +3990,7 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   // Zips the container's /data/outputs into <storage>/services/<serviceId>/outputs-<n>.zip and
-  // records it on job.outputArchives, like a compute job's outputs.tar. Must run right before
+  // records it on job.outputArchives, like a compute job's outputs.zip. Must run right before
   // the container is removed (after it was stopped, so the service flushed its files): the
   // folder lives in the container's writable layer and is gone with it. Skipped for services
   // with an output bucket (their results are already in the bucket). Best-effort — never
