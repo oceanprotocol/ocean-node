@@ -364,6 +364,19 @@ export class ServiceExtendHandler extends CommandHandler {
           freshJob.expiresAt += task.additionalDuration * 1000
           freshJob.duration += task.additionalDuration
           await engine.db.updateServiceJob(freshJob)
+          // The results bucket must outlive the longer window too. Best-effort: the
+          // extension is already paid for, so a storage hiccup must not fail it.
+          if (freshJob.outputBucketId) {
+            await this.getOceanNode()
+              .getPersistentStorage()
+              ?.extendBucketRetention(freshJob.outputBucketId, freshJob.expiresAt)
+              .catch((e: any) =>
+                CORE_LOGGER.error(
+                  `Service ${task.serviceId}: could not extend retention of bucket ` +
+                    `${freshJob.outputBucketId}: ${e.message}`
+                )
+              )
+          }
 
           CORE_LOGGER.logMessage(
             `Service ${task.serviceId} extended by ${task.additionalDuration}s, new expiresAt: ${freshJob.expiresAt}`,

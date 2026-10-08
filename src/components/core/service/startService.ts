@@ -18,7 +18,11 @@ import type {
 import { generateUniqueID, validateOutputBucket } from '../compute/utils.js'
 import { validateAccess } from '../compute/startCompute.js'
 import { isJobMetadataSizeValid, INVALID_JOB_METADATA_MESSAGE } from '../../c2d/index.js'
-import { decryptUserData, toPublicServiceJob } from './utils.js'
+import {
+  decryptUserData,
+  resolveServiceOutputBucket,
+  toPublicServiceJob
+} from './utils.js'
 
 export class ServiceStartHandler extends CommandHandler {
   validate(command: ServiceStartCommand): ValidateParams {
@@ -247,6 +251,17 @@ export class ServiceStartHandler extends CommandHandler {
         cost
       }
 
+      // 6c. Results bucket, resolved last so a refused start never leaves one behind. Its
+      //     id is on the returned job (outputBucketId), for the consumer to fetch results
+      //     or hand to a later SERVICE_START.
+      const outputBucketId = await resolveServiceOutputBucket(
+        node,
+        task.consumerAddress,
+        serviceId,
+        Date.now() + task.duration * 1000,
+        task.outputBucketId
+      )
+
       // 7. Persist the Starting record and return immediately with the serviceId. The
       //    engine's background loop (processServiceStart) then performs escrow lock → image
       //    pull/build → claim/cancel → container start. Clients poll SERVICE_GET_STATUS to
@@ -268,7 +283,7 @@ export class ServiceStartHandler extends CommandHandler {
         serviceId,
         task.userData,
         task.metadata,
-        task.outputBucketId
+        outputBucketId
       )
 
       return {
