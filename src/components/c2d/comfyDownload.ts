@@ -57,23 +57,31 @@ function isHubFileUrl(value: string): boolean {
   )
 }
 
-export function parseComfyModelList(text: string, base: string): ComfyModelEntry[] {
+/**
+ * The list's destinations, capped at MAX_ENTRIES. `truncated` says the list names more than that,
+ * so the entries are not the whole download.
+ */
+export function parseComfyModelList(
+  text: string,
+  base: string
+): { entries: ComfyModelEntry[]; truncated: boolean } {
   const entries = new Map<string, ComfyModelEntry>()
   for (const line of text.split('\n')) {
-    if (entries.size >= MAX_ENTRIES) {
-      break
-    }
     const [dir, url] = line.trim().split('\t')
     if (!MODEL_DIR.test(dir) || !url || !isHubFileUrl(url)) {
       continue
     }
     // Same destination the script derives: `$MODELS/$sub/$(basename "$url")`.
     const path = `${base}/models/${dir}/${url.slice(url.lastIndexOf('/') + 1)}`
-    if (!entries.has(path)) {
-      entries.set(path, { url, path })
+    if (entries.has(path)) {
+      continue
     }
+    if (entries.size >= MAX_ENTRIES) {
+      return { entries: [...entries.values()], truncated: true }
+    }
+    entries.set(path, { url, path })
   }
-  return [...entries.values()]
+  return { entries: [...entries.values()], truncated: false }
 }
 
 /** One small file from the container, via Docker's archive endpoint. Null when absent or too big. */
@@ -145,13 +153,17 @@ export async function sampleComfyModelDownload(
   if (!list || list.mtime < startedAt - 1000) {
     return null
   }
-  const entries = parseComfyModelList(list.text, base)
+  const { entries, truncated } = parseComfyModelList(list.text, base)
   if (entries.length === 0) {
     return null
   }
-  const sizes = await Promise.all(
-    entries.map(({ url }) => cachedHubLookup(url, () => lookupHubFileBytes(url)))
-  )
+  // A truncated list is not the whole download: report bytes only, never a total or a file count
+  // that would declare it complete early.
+  const sizes: (number | null)[] = truncated
+    ? [null]
+    : await Promise.all(
+        entries.map(({ url }) => cachedHubLookup(url, () => lookupHubFileBytes(url)))
+      )
   let downloadedBytes = 0
   let files = 0
   let inFlight = 0
@@ -174,6 +186,6 @@ export async function sampleComfyModelDownload(
     : null
   return {
     ...buildModelDownload({ downloadedBytes, files, inFlight }, totalBytes, null),
-    filesTotal: entries.length
+    ...(truncated ? {} : { filesTotal: entries.length })
   }
 }

@@ -30,16 +30,31 @@ describe('parseComfyModelList', () => {
       `loras\t${HF}/org/repo/resolve/main/b.safetensors`,
       ''
     ].join('\n')
-    expect(parseComfyModelList(text, '/tmp/comfy')).to.deep.equal([
-      {
-        url: `${HF}/org/repo/resolve/main/split_files/vae/a.safetensors`,
-        path: '/tmp/comfy/models/vae/a.safetensors'
-      },
-      {
-        url: `${HF}/org/repo/resolve/main/b.safetensors`,
-        path: '/tmp/comfy/models/loras/b.safetensors'
-      }
-    ])
+    expect(parseComfyModelList(text, '/tmp/comfy')).to.deep.equal({
+      entries: [
+        {
+          url: `${HF}/org/repo/resolve/main/split_files/vae/a.safetensors`,
+          path: '/tmp/comfy/models/vae/a.safetensors'
+        },
+        {
+          url: `${HF}/org/repo/resolve/main/b.safetensors`,
+          path: '/tmp/comfy/models/loras/b.safetensors'
+        }
+      ],
+      truncated: false
+    })
+  })
+
+  it('caps the list and flags one that names more files than the cap', () => {
+    const line = (i: number) => `vae\t${HF}/org/repo/resolve/main/f${i}.safetensors`
+    const capped = Array.from({ length: 64 }, (_, i) => line(i))
+    const exact = parseComfyModelList([...capped, line(0)].join('\n'), '/tmp/comfy')
+    expect(exact.entries).to.have.length(64)
+    expect(exact.truncated).to.equal(false)
+
+    const over = parseComfyModelList([...capped, line(64)].join('\n'), '/tmp/comfy')
+    expect(over.entries).to.have.length(64)
+    expect(over.truncated).to.equal(true)
   })
 
   it('drops anything that is not a plain Hugging Face file URL or a safe directory', () => {
@@ -53,7 +68,7 @@ describe('parseComfyModelList', () => {
       `vae\t${HF}/org/repo/resolve/main/a.bin`,
       'vae'
     ].join('\n')
-    expect(parseComfyModelList(text, '/tmp/comfy')).to.deep.equal([])
+    expect(parseComfyModelList(text, '/tmp/comfy').entries).to.deep.equal([])
   })
 })
 
@@ -148,5 +163,28 @@ describe('sampleComfyModelDownload', () => {
 
     const empty = { getArchive: () => Promise.reject(new Error('no such file')) } as any
     expect(await sampleComfyModelDownload(empty, false, startedAt)).to.equal(null)
+  })
+
+  it('reports bytes only for a list longer than the cap, so it never completes early', async () => {
+    const url = (i: number) => `${HF}/overflow-test/repo/resolve/main/f${i}.safetensors`
+    const list = Array.from({ length: 65 }, (_, i) => `vae\t${url(i)}`).join('\n')
+    const files = Object.fromEntries(
+      Array.from({ length: 64 }, (_, i) => [
+        `/tmp/comfy/models/vae/f${i}.safetensors`,
+        10
+      ])
+    )
+    let lookups = 0
+    globalThis.fetch = (() => {
+      lookups++
+      return Promise.resolve(new Response(null, { status: 302 }))
+    }) as typeof fetch
+    const container = fakeContainer(list, new Date(startedAt), files)
+    const download = await sampleComfyModelDownload(container, false, startedAt)
+    expect(download).to.include({ downloadedBytes: 640, filesComplete: 64 })
+    expect(download?.filesTotal).to.equal(undefined)
+    expect(download?.totalBytes).to.equal(undefined)
+    expect(isModelDownloadComplete(download)).to.equal(false)
+    expect(lookups).to.equal(0)
   })
 })
