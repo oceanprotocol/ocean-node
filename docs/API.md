@@ -2721,12 +2721,13 @@ container's folder (`live=true`).
 #### Response (400)
 
 Neither `index` nor `live`, both, an invalid `index`/`offset`, `offset` with `live`, a
-live download of a service whose outputs go to a bucket, or an unknown `serviceId` (as for
-the other service commands).
+live download of a service whose outputs go to a bucket, an unknown `serviceId`, or
+`consumerAddress` is not the service owner (the same "Service job not found" response
+as an unknown `serviceId`).
 
 #### Response (401)
 
-Missing/invalid auth, or `consumerAddress` is not the service owner.
+Missing/invalid auth.
 
 #### Response (404)
 

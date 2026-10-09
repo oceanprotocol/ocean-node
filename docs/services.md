@@ -328,8 +328,8 @@ declare resources, configure GPUs, set per-environment constraints, and price th
   duration like `1h`) to skip straight to recent output.
 
 - **`serviceResult` is authenticated and owner-scoped, like `serviceStreamableLogs`.** A
-  service's outputs are its owner's data; a non-owner gets `401`. The node-wide
-  `serviceList` leaves out `outputArchives`.
+  service's outputs are its owner's data; a non-owner gets the same `400` as an unknown
+  `serviceId`. The node-wide `serviceList` leaves out `outputArchives`.
 
 - **`allowImageBuild` runs arbitrary build instructions.** When enabled, a consumer's
   inline `dockerfile` is built by the Docker daemon, so its `RUN` steps execute arbitrary
