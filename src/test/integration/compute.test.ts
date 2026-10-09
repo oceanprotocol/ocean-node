@@ -2286,7 +2286,7 @@ describe('**********         Compute', () => {
       status === C2DStatusNumber.JobFinished || status === C2DStatusNumber.JobSettle,
       `Job ${jobWithOutputURL} did not reach status 70 (JobFinished) in time (last status: ${status})`
     )
-    const outputUrl = `http://172.15.0.7:80/outputs-${jobWithOutputURL}.tar`
+    const outputUrl = `http://172.15.0.7:80/outputs-${jobWithOutputURL}.zip`
     const downloadResponse = await fetch(outputUrl)
     assert(
       downloadResponse.ok,
