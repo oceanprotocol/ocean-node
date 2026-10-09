@@ -73,7 +73,7 @@ async function statContainerPath(
  * `huggingface_hub` can link a blob into a shared store — the link's own size would count a few
  * bytes for a multi-gigabyte file.
  */
-async function fileSize(
+export async function fileSize(
   container: Dockerode.Container,
   path: string
 ): Promise<number | null> {
@@ -470,11 +470,15 @@ async function fetchGgufFileBytes(
  * Whether a recorded download has finished: the total reached AND nothing still arriving. The total
  * is an estimate (dtype × parameters), so on its own it can read 100% while the last shard is still
  * being written; no partial files left is what makes it final. A record with no total never
- * completes here, and sampling simply carries on until the service is ready.
+ * completes here, and sampling simply carries on until the service is ready. A record that knows
+ * its file count (a download manifest) is complete once every listed item is.
  */
 export function isModelDownloadComplete(
   download: ServiceModelDownload | undefined
 ): boolean {
+  if (download?.filesTotal !== undefined) {
+    return download.filesComplete >= download.filesTotal
+  }
   return download?.percent === 100 && download.filesInFlight === 0
 }
 

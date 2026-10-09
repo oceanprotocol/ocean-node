@@ -120,7 +120,7 @@ export class C2DDatabase extends AbstractDatabase {
       status: number
       containerId: string
     },
-    readiness: ServiceReadiness,
+    readiness: ServiceReadiness | undefined,
     modelDownload?: ServiceModelDownload
   ): Promise<boolean> {
     return await this.provider.updateServiceJobReadiness(

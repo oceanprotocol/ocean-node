@@ -409,6 +409,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
 
   // Same guarantees as updateServiceJobMetrics, for the readiness probe result: it is sampled from
   // the same lease-free background loop, so it must never overwrite a lifecycle transition either.
+  // `readiness` is absent for a service the node cannot probe, which reports download progress only.
   // eslint-disable-next-line require-await
   async updateServiceJobReadiness(
     serviceId: string,
@@ -418,11 +419,13 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       status: number
       containerId: string
     },
-    readiness: ServiceReadiness,
+    readiness: ServiceReadiness | undefined,
     modelDownload?: ServiceModelDownload
   ): Promise<boolean> {
     return this.patchServiceJobBody(serviceId, expected, 'readiness', (body) => {
-      body.readiness = readiness
+      if (readiness) {
+        body.readiness = readiness
+      }
       // Only overwritten when a fresh sample was taken: once the engine is ready the walk stops,
       // and the last figures stay as the record of what was downloaded.
       if (modelDownload) body.modelDownload = modelDownload

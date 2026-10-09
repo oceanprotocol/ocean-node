@@ -118,7 +118,7 @@ describe('ImagePullTracker', () => {
 })
 
 describe('resolveServiceEngine', () => {
-  const job = (image: string) => ({ image }) as ServiceJob
+  const job = (image: string) => ({ image, exposedPorts: [8000, 8080] }) as ServiceJob
 
   it('recognizes the vLLM image, including a registry mirror of it', () => {
     expect(resolveServiceEngine(job('vllm/vllm-openai'))?.id).to.equal('vllm')
@@ -140,7 +140,10 @@ describe('resolveServiceEngine', () => {
   })
 
   it('falls back to containerImage when image is missing', () => {
-    const noImage = { containerImage: 'vllm/vllm-openai:v0.28.0' } as ServiceJob
+    const noImage = {
+      containerImage: 'vllm/vllm-openai:v0.28.0',
+      exposedPorts: [8000]
+    } as ServiceJob
     expect(resolveServiceEngine(noImage)?.id).to.equal('vllm')
   })
 
@@ -148,6 +151,15 @@ describe('resolveServiceEngine', () => {
     expect(resolveServiceEngine(job('nginxinc/nginx-unprivileged'))).to.equal(null)
     expect(resolveServiceEngine(job('someone/vllm-openai-fork'))).to.equal(null)
     expect(resolveServiceEngine(job(''))).to.equal(null)
+  })
+
+  it('leaves an app that runs the engine behind its own port unrecognized', () => {
+    // A bundle that publishes only its app (vLLM on loopback inside) has nothing to probe.
+    const app = { image: 'vllm/vllm-openai', exposedPorts: [9119] } as ServiceJob
+    expect(resolveServiceEngine(app)).to.equal(null)
+    expect(resolveServiceEngine({ image: 'vllm/vllm-openai' } as ServiceJob)).to.equal(
+      null
+    )
   })
 
   it('reads the Hugging Face repo id out of the vLLM command', () => {
@@ -168,8 +180,21 @@ describe('resolveServiceEngine', () => {
   })
 })
 
+describe('resolveServiceEngine — ComfyUI', () => {
+  const job = (image: string) => ({ image, exposedPorts: [8188] }) as ServiceJob
+
+  it('recognizes the comfyui-boot image under any tag', () => {
+    expect(resolveServiceEngine(job('yanwk/comfyui-boot'))?.id).to.equal('comfyui')
+    expect(
+      resolveServiceEngine(job('yanwk/comfyui-boot:cu130-megapak-pt211'))?.id
+    ).to.equal('comfyui')
+    expect(resolveServiceEngine(job('someone/comfyui-boot'))).to.equal(null)
+  })
+})
+
 describe('resolveServiceEngine — llama.cpp', () => {
-  const job = (image: string, cmd?: string[]) => ({ image, dockerCmd: cmd }) as ServiceJob
+  const job = (image: string, cmd?: string[]) =>
+    ({ image, dockerCmd: cmd, exposedPorts: [8000, 8080] }) as ServiceJob
 
   it('recognizes the llama.cpp image and probes /health', () => {
     const engine = resolveServiceEngine(job('ghcr.io/ggml-org/llama.cpp'))

@@ -111,6 +111,9 @@ export const PROBE_PERIOD_SECONDS = 5
 // Once ready the check keeps running — to catch an engine that dies without its container exiting —
 // but far more slowly: it is a liveness check at that point, not a wait.
 export const READY_PROBE_PERIOD_SECONDS = 30
+// A service still not ready this long after its container started is logged as a warning, once per
+// container: usually a node that cannot reach it, sometimes just a very large download.
+export const READINESS_WARN_AFTER_SECONDS = 15 * 60
 const PROBE_TIMEOUT_MS = 2000
 
 export interface ReadinessProbeResult {
