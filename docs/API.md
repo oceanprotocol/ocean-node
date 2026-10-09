@@ -2019,7 +2019,15 @@ Clients MUST treat every part as optional and render a field only when present.
 
 #### Description
 
-returns job result
+Returns the file identified by `index` in the job status `results` array. Select
+`type: "output"` for the archive; logs remain separate text files. New job outputs
+are ZIP (`outputs.zip`, `application/zip`); historical TAR archives remain readable.
+ZIP entries contain the contents of `/data/outputs` without the outer `outputs/`
+directory. Regular files and directories are retained; links, special files and unsafe
+paths are skipped. Stored ZIP archives support byte-offset downloads over P2P.
+Bucket-output jobs have no archive entry; use the persistent storage APIs instead.
+Deploy ZIP/TAR-compatible clients before upgraded nodes. Rollback releases must retain
+the ZIP/TAR reader so already-published ZIP outputs remain available.
 
 #### Parameters
 
@@ -2677,3 +2685,59 @@ Service not found, or not `Running`/`Error`.
 #### Response (401)
 
 Missing/invalid auth, or `consumerAddress` is not the service owner.
+
+---
+
+### `HTTP` GET /api/services/serviceResult
+
+### `P2P` command: serviceGetResult
+
+#### Description
+
+Download a service's `/data/outputs` as a zip, for a service **without** an `outputBucketId`
+(see [Service outputs](services.md#service-outputs)). **Authenticated and owner-scoped.**
+Either one of the archives the node took when a container of the service was removed
+(`index`, as listed in `outputArchives` on `serviceStatus`), or a zip of the running
+container's folder (`live=true`).
+
+#### Query Parameters
+
+| name            | type    | required | description                                                                  |
+| --------------- | ------- | -------- | ---------------------------------------------------------------------------- |
+| consumerAddress | string  | v        | owner address                                                                |
+| nonce           | string  | v        | request nonce                                                                |
+| signature       | string  | v        | signed message (or use an `Authorization` auth-token header)                 |
+| serviceId       | string  | v        | the service                                                                  |
+| index           | number  |          | archive index from `outputArchives`; required unless `live=true`             |
+| offset          | number  |          | resume an archive download from this byte (not with `live`)                  |
+| live            | boolean |          | `true` to zip the running container's `/data/outputs` instead of an archive |
+
+#### Response (200)
+
+`application/zip` stream, with `Content-Disposition: attachment; filename="<serviceId>-outputs-<n>.zip"`
+(or `<serviceId>-outputs-live.zip`). An archive download also carries `Content-Length`
+(the bytes left after `offset`).
+
+#### Response (400)
+
+Neither `index` nor `live`, both, an invalid `index`/`offset`, `offset` with `live`, a
+live download of a service whose outputs go to a bucket, an unknown `serviceId`, or
+`consumerAddress` is not the service owner (the same "Service job not found" response
+as an unknown `serviceId`).
+
+#### Response (401)
+
+Missing/invalid auth.
+
+#### Response (404)
+
+No archive with that `index` (or it was deleted by storage expiry), or no `/data/outputs`
+in the running container.
+
+#### Response (409)
+
+`live=true` while the service has no container (e.g. `Stopped`, `Expired`, mid-restart).
+
+#### Response (416)
+
+`offset` is past the end of the archive.

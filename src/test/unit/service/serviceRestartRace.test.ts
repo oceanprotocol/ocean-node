@@ -7,6 +7,7 @@ import {
   releaseHostPort,
   reserveHostPort
 } from '../../../components/core/service/utils.js'
+import { PersistentStorageAccessDeniedError } from '../../../components/persistentStorage/PersistentStorageFactory.js'
 
 const OWNER = '0x0000000000000000000000000000000000000001'
 const SERVICE_ID = 'svc-race-1'
@@ -16,6 +17,12 @@ const CLUSTER_HASH = 'hash-1'
 // (immediately-resolving) stubbed awaits up to the next genuinely pending promise.
 function flush(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve))
+}
+
+// The expiry sweep launches each teardown in the background, like the start pipeline, so a
+// test waits for those ops to settle before asserting their outcome.
+async function drainServiceOps(engine: any): Promise<void> {
+  await Promise.allSettled([...engine.serviceOpPromises])
 }
 
 function makeJob(overrides: Partial<ServiceJob> = {}): ServiceJob {
@@ -345,7 +352,40 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
     engine.serviceOpsInFlight.clear()
     engine.isInternalLoopRunning = false
     await engine.InternalLoop()
+    await drainServiceOps(engine)
     expect(expired.status).to.equal(ServiceStatusNumber.Expired)
+  })
+
+  it('the expiry sweep does not hold up InternalLoop while a teardown archives outputs', async () => {
+    const engine = makeEngine()
+    const expired = makeJob({ expiresAt: Date.now() - 1000 })
+    engine.db.getExpiredServiceJobs.resolves([expired])
+    engine.db.getServiceJob.resolves([expired])
+    engine.docker.getContainer.returns(stubContainer())
+    let finishArchive: () => void
+    engine.archiveServiceOutputs = sinon.stub().returns(
+      new Promise<void>((resolve) => {
+        finishArchive = resolve
+      })
+    )
+
+    // the loop returns while the zip of /data/outputs is still being written...
+    await engine.InternalLoop()
+    await flush()
+    expect(engine.archiveServiceOutputs.calledOnce).to.equal(true)
+    expect(expired.status).to.equal(ServiceStatusNumber.Stopping)
+    expect(engine.serviceOpsInFlight.has(SERVICE_ID)).to.equal(true)
+
+    // ...and an overlapping tick leaves the in-flight teardown alone
+    engine.isInternalLoopRunning = false
+    await engine.InternalLoop()
+    await flush()
+    expect(engine.archiveServiceOutputs.calledOnce).to.equal(true)
+
+    finishArchive!()
+    await drainServiceOps(engine)
+    expect(expired.status).to.equal(ServiceStatusNumber.Expired)
+    expect(engine.serviceOpsInFlight.has(SERVICE_ID)).to.equal(false)
   })
 
   it('restartService rejects when another process holds the DB lease', async () => {
@@ -452,6 +492,7 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
       engine.db.getExpiredServiceJobs.resolves([job])
       engine.isInternalLoopRunning = false
       await engine.InternalLoop()
+      await drainServiceOps(engine)
       expect(job.status).to.equal(ServiceStatusNumber.Expired)
       expect(await allocateHostPort(PORT, PORT)).to.equal(PORT)
     } finally {
@@ -472,6 +513,7 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
     engine.docker.getContainer.returns(stubContainer())
 
     await engine.InternalLoop()
+    await drainServiceOps(engine)
 
     expect(extended.status).to.equal(ServiceStatusNumber.Running)
     expect(engine.docker.getContainer.called, 'no teardown may happen').to.equal(false)
@@ -489,6 +531,7 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
     )
 
     await engine.InternalLoop()
+    await drainServiceOps(engine)
     // Expired is terminal and never swept again — a failed stop must leave the job
     // OUT of Expired (as Error "stop failed") so the container/ports aren't leaked.
     expect(expired.status).to.not.equal(ServiceStatusNumber.Expired)
@@ -498,6 +541,7 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
     engine.docker.getContainer.returns(stubContainer())
     engine.isInternalLoopRunning = false
     await engine.InternalLoop()
+    await drainServiceOps(engine)
     expect(expired.status).to.equal(ServiceStatusNumber.Expired)
   })
 
@@ -514,6 +558,7 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
     engine.db.getServiceJob.resolves([stopped])
 
     await engine.InternalLoop()
+    await drainServiceOps(engine)
 
     expect(stopped.status).to.equal(ServiceStatusNumber.Expired)
     // resources were already released at stop time — no docker teardown must happen
@@ -559,5 +604,34 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
     }
     expect(engine.db.getServiceJob.called).to.equal(false)
     expect(engine.db.acquireServiceLock.called).to.equal(false)
+  })
+})
+
+describe('restartService with an output bucket the owner can no longer use', () => {
+  afterEach(() => sinon.restore())
+
+  it('refuses before tearing anything down, leaving the job and its container as they were', async () => {
+    const engine = makeEngine()
+    const job = makeJob({ outputBucketId: 'bucket-1' })
+    engine.db.getServiceJob.resolves([job])
+    const container = stubContainer()
+    engine.docker.getContainer.returns(container)
+    // e.g. bucket sharing was turned off and the bucket belongs to someone else
+    engine.serviceOutputMounts = sinon
+      .stub()
+      .rejects(new PersistentStorageAccessDeniedError())
+
+    let error: unknown
+    try {
+      await engine.restartService(SERVICE_ID, OWNER)
+    } catch (e) {
+      error = e
+    }
+    expect(error).to.be.instanceOf(PersistentStorageAccessDeniedError)
+    expect(container.stop.called).to.equal(false)
+    expect(container.remove.called).to.equal(false)
+    expect(engine.db.updateServiceJob.called).to.equal(false)
+    expect(job.status).to.equal(ServiceStatusNumber.Running)
+    expect(engine.serviceOpsInFlight.has(SERVICE_ID)).to.equal(false)
   })
 })

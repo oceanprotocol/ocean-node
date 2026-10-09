@@ -47,7 +47,8 @@ import {
   appendFileSync,
   statSync,
   statfsSync,
-  createReadStream
+  createReadStream,
+  renameSync
 } from 'fs'
 import { pipeline } from 'node:stream/promises'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
@@ -77,9 +78,36 @@ import {
   ServiceStatusText,
   SERVICE_START_PENDING_STATUSES
 } from '../../@types/C2D/ServiceOnDemand.js'
-import type { ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
+import type {
+  ServiceJob,
+  ServiceImagePullProgress,
+  ServiceModelDownload,
+  ServiceReadiness
+} from '../../@types/C2D/ServiceOnDemand.js'
+import {
+  ImagePullTracker,
+  probeCandidates,
+  runReadinessProbe,
+  PROBE_INITIAL_DELAY_SECONDS,
+  PROBE_PERIOD_SECONDS,
+  READY_PROBE_PERIOD_SECONDS
+} from './serviceReadiness.js'
+import { resolveServiceEngine, type ServiceEngineProfile } from './serviceEngines.js'
+import {
+  buildModelDownload,
+  fetchModelTotalBytes,
+  isModelDownloadComplete,
+  ModelDownloadSampler
+} from './modelDownload.js'
 import type { DockerMountObject } from '../../@types/PersistentStorage.js'
 import { resolveServiceImage } from './serviceResourceMatching.js'
+import {
+  SERVICE_OUTPUTS_PATH,
+  ServiceResultError,
+  emptyOutputsDirTar,
+  tarToZip,
+  type ServiceResult
+} from './serviceOutputsZip.js'
 import {
   buildSnapshot,
   describeSnapshot,
@@ -181,10 +209,20 @@ export class C2DEngineDocker extends C2DEngine {
   // process; the service_locks DB lease (acquired alongside it) extends the guarantee
   // across processes sharing the same DB file + Docker daemon.
   private serviceOpsInFlight: Set<string> = new Set()
+  // serviceId -> the address the readiness probe last reached the container on. Which address
+  // works depends on how this node is deployed (on the host, or itself in Docker), so the probe
+  // discovers it once and reuses it instead of walking the candidate list every few seconds.
+  private serviceProbeUrls: Map<string, string> = new Map()
+  // Per-service model-download sampling state (which cache files to stat, when to re-list them).
+  private modelDownloadSampler = new ModelDownloadSampler()
+  // serviceId -> its readiness probe (+ model-download sample) still running in the background.
+  // The probe is launched fire-and-forget so a slow engine, Docker daemon or Hub never holds up
+  // InternalLoop; this keeps one probe per service at a time and lets stop() drain them.
+  private serviceProbesInFlight: Map<string, Promise<void>> = new Map()
   private readonly serviceLockHolderId: string = makeServiceLockHolderId()
   private serviceLockHeartbeatTimer: NodeJS.Timeout | null = null
-  // The in-flight service lifecycle promises — processServiceStart() launched
-  // fire-and-forget by InternalLoop, plus handler-driven stopService()/restartService()
+  // The in-flight service lifecycle promises — processServiceStart() and expireService()
+  // launched fire-and-forget by InternalLoop, plus handler-driven stopService()/restartService()
   // calls — so stop() can drain them before returning. Otherwise an op could outlive
   // stop() and race a restarted engine on the same shared DB.
   private serviceOpPromises: Set<Promise<unknown>> = new Set()
@@ -815,6 +853,12 @@ export class C2DEngineDocker extends C2DEngine {
     if (this.serviceOpPromises.size > 0) {
       await Promise.allSettled([...this.serviceOpPromises])
       this.serviceOpPromises.clear()
+    }
+    // Background readiness probes write to the same DB; let them settle too. The optional chain
+    // covers engines built without the constructor (e.g. test doubles).
+    if (this.serviceProbesInFlight?.size > 0) {
+      await Promise.allSettled([...this.serviceProbesInFlight.values()])
+      this.serviceProbesInFlight.clear()
     }
     this.isInternalLoopRunning = false
     // Release any GPU metrics backends (e.g. nvmlShutdown). Best-effort, never throws; the
@@ -1761,20 +1805,18 @@ export class C2DEngineDocker extends C2DEngine {
       }
     } catch (e) {}
     try {
-      // check if we have an output request.
+      // Buckets have no local archive. Remote storage without upload support can
+      // fall back locally, so discover its archive from disk as well.
       const jobDb = await this.db.getJob(jobId)
-      if (jobDb.length < 1 || (!jobDb[0].output && !jobDb[0].outputBucketId)) {
-        const outputStat = statSync(
-          this.getStoragePath() + '/' + jobId + '/data/outputs/outputs.tar'
-        )
-        if (outputStat) {
-          res.push({
-            filename: 'outputs.tar',
-            filesize: outputStat.size,
-            type: 'output',
-            index
-          })
+      if (jobDb.length < 1 || !jobDb[0].outputBucketId) {
+        // Prefer new ZIP outputs, while keeping pre-upgrade jobs downloadable.
+        for (const filename of ['outputs.zip', 'outputs.tar']) {
+          const file = path.join(this.getStoragePath(), jobId, 'data/outputs', filename)
+          if (!existsSync(file)) continue
+          const outputStat = statSync(file)
+          res.push({ filename, filesize: outputStat.size, type: 'output', index })
           index = index + 1
+          break
         }
       }
     } catch (e) {}
@@ -1887,13 +1929,21 @@ export class C2DEngineDocker extends C2DEngine {
           }
         }
         if (i.type === 'output') {
+          const file = path.join(this.getStoragePath(), jobId, 'data/outputs', i.filename)
+          const { size } = statSync(file)
+          if (!Number.isSafeInteger(offset) || offset < 0 || offset > size) {
+            throw new Error(
+              `Invalid result offset ${offset} for ${i.filename} (${size} bytes)`
+            )
+          }
           return {
-            stream: createReadStream(
-              this.getStoragePath() + '/' + jobId + '/data/outputs/outputs.tar',
-              offset > 0 ? { start: offset } : undefined
-            ),
+            stream: createReadStream(file, offset > 0 ? { start: offset } : undefined),
             headers: {
-              'Content-Type': 'application/octet-stream'
+              'Content-Type': i.filename.endsWith('.zip')
+                ? 'application/zip'
+                : 'application/x-tar',
+              'Content-Disposition': `attachment; filename="${jobId}-${i.filename}"`,
+              'Content-Length': String(size - offset)
             }
           }
         }
@@ -2022,66 +2072,36 @@ export class C2DEngineDocker extends C2DEngine {
       }
 
       // Service-on-Demand expiry: stop services whose paid window has elapsed.
+      // Fire-and-forget like the starts above: the teardown zips a bucket-less service's
+      // /data/outputs (archiveServiceOutputs), which takes as long as the folder is big, and
+      // must not hold up compute jobs, starts, health checks or the other expiries. The
+      // lifecycle lock is held for the whole teardown, so an overlapping tick skips the
+      // service instead of expiring it twice.
       const expiredServices = await this.db.getExpiredServiceJobs(
         this.getC2DConfig().hash
       )
       for (const svc of expiredServices) {
-        CORE_LOGGER.info(`Service ${svc.serviceId} expired — stopping`)
-        let stopped: ServiceJob | null
-        try {
-          // onlyIfExpired: doStopService re-checks expiresAt on the FRESH row under the
-          // lifecycle lock — a SERVICE_EXTEND that landed after our expiredServices
-          // snapshot must not have its service torn down.
-          stopped = await this.stopService(svc.serviceId, svc.owner, true)
-        } catch (e: any) {
-          // Typically the lifecycle lock (a restart/stop already in flight). Marking
-          // Expired without teardown would leak the container/ports, so defer the whole
-          // sweep for this service to the next tick.
-          CORE_LOGGER.error(
-            `Failed to stop expired service ${svc.serviceId}: ${e.message} — retrying next tick`
-          )
-          continue
-        }
-        // Extended mid-sweep (expiresAt is in the future again on the fresh row) — not
-        // expired anymore, regardless of status. Leave it alone.
-        if (stopped && Date.now() < stopped.expiresAt) {
+        // Typically a restart/stop already in flight. Marking Expired without teardown
+        // would leak the container/ports, so defer this service to the next tick.
+        if (!(await this.tryAcquireServiceLifecycleLock(svc.serviceId))) {
           CORE_LOGGER.debug(
-            `Service ${svc.serviceId} was extended after the expiry snapshot — skipping expiry`
+            `Service ${svc.serviceId} expired but has an operation in progress — retrying next tick`
           )
           continue
         }
-        // Flip to Expired ONLY once teardown actually completed. Expired is terminal —
-        // it is never swept again — so marking it while the stop failed mid-way (the
-        // job comes back as Error "stop failed: …" with its container possibly still
-        // running and its ports still reserved) would leak those resources forever.
-        // Left as Error, the job stays in the expirable set and is retried next tick.
-        if (
-          !stopped ||
-          (stopped.status !== ServiceStatusNumber.Stopped &&
-            stopped.status !== ServiceStatusNumber.Expired)
-        ) {
+        // Track the promise so stop() can drain it; clean both trackers when it settles.
+        const expiryPromise = this.expireService(svc).finally(() => {
+          this.serviceOpPromises.delete(expiryPromise)
+          return this.releaseServiceLifecycleLock(svc.serviceId)
+        })
+        this.serviceOpPromises.add(expiryPromise)
+        // expireService logs every expected failure and leaves it to the next tick; only a
+        // DB error can reject it — consume that so it can't surface as unhandled.
+        expiryPromise.catch((e) =>
           CORE_LOGGER.error(
-            `Expired service ${svc.serviceId} teardown did not complete ` +
-              `(status "${stopped?.statusText ?? 'gone'}") — retrying next tick`
+            `expireService ${svc.serviceId} failed unexpectedly: ${e.message} — retrying next tick`
           )
-          continue
-        }
-        // mark the (now stopped) record as Expired so it is not picked up again
-        const [stoppedJob] = await this.db.getServiceJob(svc.serviceId, svc.owner)
-        if (stoppedJob) {
-          stoppedJob.status = ServiceStatusNumber.Expired
-          stoppedJob.statusText = ServiceStatusText[ServiceStatusNumber.Expired]
-          await this.db.updateServiceJob(stoppedJob)
-          // Expired is the ONLY transition that releases the reservation: amounts stop
-          // counting (Expired is not an active status) and the host ports are freed
-          // here. Everywhere else — including an explicit user stop — the paid-for
-          // reservation survives so the service can be restarted on the same endpoints.
-          for (const ep of stoppedJob.endpoints ?? []) releaseHostPort(ep.hostPort)
-          CORE_LOGGER.debug(
-            `Service ${svc.serviceId} marked Expired — all resources released ` +
-              `(ports [${(stoppedJob.endpoints ?? []).map((ep) => ep.hostPort).join(',')}])`
-          )
-        }
+        )
       }
     } catch (e) {
       CORE_LOGGER.error(`Error in C2D InternalLoop: ${e.message}`)
@@ -2683,9 +2703,6 @@ export class C2DEngineDocker extends C2DEngine {
       // Reuse the last du(/)-measured disk usage (jobs don't inspect size:true, so buildSnapshot
       // would otherwise fall back to an unset SizeRw and report 0).
       await this.collectJobMetrics(job, job.runtimeMetrics?.disk?.usedBytes, true)
-      const outputsArchivePath =
-        this.getStoragePath() + '/' + job.jobId + '/data/outputs/outputs.tar'
-
       try {
         if (container) {
           if (job.outputBucketId) {
@@ -2708,9 +2725,9 @@ export class C2DEngineDocker extends C2DEngine {
               'upload' in storage &&
               typeof storage.upload === 'function'
             ) {
-              let uploadStream = (await container.getArchive({
-                path: '/data/outputs'
-              })) as unknown as Readable
+              let uploadStream = tarToZip(
+                await container.getArchive({ path: '/data/outputs' })
+              )
               if (output.encryption && output.encryption?.key) {
                 const enc = output.encryption
                 const key = Uint8Array.from(Buffer.from(enc.key, 'hex'))
@@ -2721,23 +2738,17 @@ export class C2DEngineDocker extends C2DEngine {
                 )
               }
               const fname =
-                'outputs-' + this.getC2DConfig().hash + '-' + job.jobId + '.tar'
+                'outputs-' + this.getC2DConfig().hash + '-' + job.jobId + '.zip'
               await (
                 storage as unknown as {
                   upload: (name: string, stream: Readable) => Promise<unknown>
                 }
               ).upload(fname, uploadStream)
             } else {
-              await pipeline(
-                await container.getArchive({ path: '/data/outputs' }),
-                createWriteStream(outputsArchivePath)
-              )
+              await this.archiveComputeOutputs(container, job.jobId)
             }
           } else {
-            await pipeline(
-              await container.getArchive({ path: '/data/outputs' }),
-              createWriteStream(outputsArchivePath)
-            )
+            await this.archiveComputeOutputs(container, job.jobId)
           }
         }
       } catch (e) {
@@ -2750,6 +2761,24 @@ export class C2DEngineDocker extends C2DEngine {
       this.recordJobFinished(job)
       await this.db.updateJob(job)
       await this.cleanupJob(job)
+    }
+  }
+
+  private async archiveComputeOutputs(
+    container: Dockerode.Container,
+    jobId: string
+  ): Promise<void> {
+    const folder = path.join(this.getStoragePath(), jobId, 'data/outputs')
+    const file = path.join(folder, 'outputs.zip')
+    const partial = file + '.partial'
+    try {
+      const tar = await container.getArchive({ path: '/data/outputs' })
+      mkdirSync(folder, { recursive: true })
+      await pipeline(tarToZip(tar), createWriteStream(partial))
+      renameSync(partial, file)
+    } catch (e) {
+      rmSync(partial, { force: true })
+      throw e
     }
   }
 
@@ -3727,7 +3756,8 @@ export class C2DEngineDocker extends C2DEngine {
   private async pullImageRef(
     imageRef: string,
     encryptedDockerRegistryAuth?: string,
-    logFile?: string
+    logFile?: string,
+    onProgress?: (progress: ServiceImagePullProgress) => void
   ): Promise<void> {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), this.getImagePullTimeoutMs())
@@ -3766,6 +3796,10 @@ export class C2DEngineDocker extends C2DEngine {
       }
 
       const pullStream = await this.docker.pull(imageRef, pullOptions)
+      // Per-layer byte accounting, aggregated from the daemon's own progress events. Only built
+      // when someone is listening (service starts) — the compute path passes no callback and so
+      // keeps its previous, allocation-free behaviour.
+      const tracker = onProgress ? new ImagePullTracker(onProgress) : null
       await new Promise<void>((resolve, reject) => {
         this.docker.modem.followProgress(
           pullStream,
@@ -3774,10 +3808,12 @@ export class C2DEngineDocker extends C2DEngine {
               if (logFile) appendFileSync(logFile, String(err.message))
               return reject(err)
             }
+            tracker?.finish()
             resolve()
           },
           (progress: any) => {
             if (logFile) appendFileSync(logFile, (progress.status ?? '') + '\n')
+            tracker?.onEvent(progress)
           }
         )
       })
@@ -3920,6 +3956,135 @@ export class C2DEngineDocker extends C2DEngine {
     return [await ps.getDockerOutputMountObject(job.outputBucketId, job.owner)]
   }
 
+  private getServiceOutputsFolder(serviceId: string): string {
+    return path.join(this.getStoragePath(), 'services', serviceId)
+  }
+
+  // Makes sure a service without an output bucket has a writable /data/outputs to write its
+  // results to (and that the archive step can read), without touching an existing /data.
+  // Runs on the created, not yet started container. Best-effort: a service that doesn't
+  // write results must not fail to start over it.
+  private async ensureServiceOutputsFolder(
+    job: ServiceJob,
+    container: Dockerode.Container
+  ): Promise<void> {
+    if (job.outputBucketId) return
+    const exists = async (p: string): Promise<boolean> => {
+      try {
+        await container.infoArchive({ path: p })
+        return true
+      } catch (e: any) {
+        if (e?.statusCode === 404) return false
+        throw e
+      }
+    }
+    try {
+      if (await exists(SERVICE_OUTPUTS_PATH)) return
+      const root = (await exists('/data')) ? '/data' : '/'
+      await container.putArchive(await emptyOutputsDirTar(root), { path: root })
+    } catch (e: any) {
+      CORE_LOGGER.warn(
+        `service ${job.serviceId}: could not create ${SERVICE_OUTPUTS_PATH}: ${e?.message ?? e}`
+      )
+    }
+  }
+
+  // Zips the container's /data/outputs into <storage>/services/<serviceId>/outputs-<n>.zip and
+  // records it on job.outputArchives, like a compute job's outputs.zip. Must run right before
+  // the container is removed (after it was stopped, so the service flushed its files): the
+  // folder lives in the container's writable layer and is gone with it. Skipped for services
+  // with an output bucket (their results are already in the bucket). Best-effort — never
+  // throws, a failure is only logged; the caller persists the job.
+  private async archiveServiceOutputs(
+    job: ServiceJob,
+    container: Dockerode.Container
+  ): Promise<void> {
+    if (job.outputBucketId) return
+    const archives = job.outputArchives ?? []
+    // A teardown that failed after archiving is retried (e.g. by the expiry sweep every
+    // tick) — the same container must not be archived again.
+    if (archives.some((a) => a.containerId === container.id)) return
+    const index = archives.reduce((next, a) => Math.max(next, a.index + 1), 0)
+    const filename = `outputs-${index}.zip`
+    let partialPath: string | undefined
+    try {
+      const folder = this.getServiceOutputsFolder(job.serviceId)
+      const finalPath = path.join(folder, filename)
+      partialPath = finalPath + '.partial'
+      let tar: NodeJS.ReadableStream
+      try {
+        tar = await container.getArchive({ path: SERVICE_OUTPUTS_PATH })
+      } catch (e: any) {
+        // no /data/outputs in the container, or the container is already gone
+        if (e?.statusCode === 404) {
+          CORE_LOGGER.debug(`service ${job.serviceId}: nothing to archive: ${e.message}`)
+          return
+        }
+        throw e
+      }
+      mkdirSync(folder, { recursive: true })
+      let skipped = 0
+      let empty = false
+      await pipeline(
+        tarToZip(tar, (stats) => {
+          skipped = stats.skipped
+          empty = stats.files === 0 && stats.directories === 0
+        }),
+        createWriteStream(partialPath)
+      )
+      // Nothing written: an entry that downloads as an empty zip would only be noise.
+      if (empty) {
+        rmSync(partialPath, { force: true })
+        CORE_LOGGER.debug(`service ${job.serviceId}: ${SERVICE_OUTPUTS_PATH} empty`)
+        return
+      }
+      renameSync(partialPath, finalPath)
+      const { size } = statSync(finalPath)
+      job.outputArchives = [
+        ...archives,
+        {
+          index,
+          filename,
+          filesize: size,
+          createdAt: Date.now(),
+          containerId: container.id
+        }
+      ]
+      CORE_LOGGER.info(
+        `service ${job.serviceId}: archived ${SERVICE_OUTPUTS_PATH} to ${filename}, ` +
+          `${size} bytes` +
+          (skipped ? `, ${skipped} symlink/special/unsafe entries skipped` : '')
+      )
+    } catch (e: any) {
+      if (partialPath) rmSync(partialPath, { force: true })
+      CORE_LOGGER.error(
+        `service ${job.serviceId}: failed to archive ${SERVICE_OUTPUTS_PATH}: ${
+          e?.message ?? e
+        }`
+      )
+    }
+  }
+
+  // Streams a container's /data/outputs into another one — created, not yet started — as a
+  // tar straight between the two, so a restart keeps what the service wrote. The source may be
+  // stopped and off its (already removed) network: Docker reads a stopped container's
+  // filesystem all the same. The target's /data must exist (ensureServiceOutputsFolder).
+  // Returns false when the source has no /data/outputs.
+  private async copyServiceOutputs(
+    from: Dockerode.Container,
+    to: Dockerode.Container
+  ): Promise<boolean> {
+    let tar: NodeJS.ReadableStream
+    try {
+      tar = await from.getArchive({ path: SERVICE_OUTPUTS_PATH })
+    } catch (e: any) {
+      if (e?.statusCode === 404) return false
+      throw e
+    }
+    await to.putArchive(tar, { path: path.posix.dirname(SERVICE_OUTPUTS_PATH) })
+    return true
+  }
+
   // Handler-facing: persist the initial Starting record and return immediately so the HTTP
   // response carries the serviceId without waiting for escrow/image/container. The background
   // loop then calls processServiceStart() to advance it. Persisting Starting also reserves the
@@ -3979,6 +4144,12 @@ export class C2DEngineDocker extends C2DEngine {
       resources: resources.map((r) => ({ id: r.id, amount: r.amount })),
       payment
     }
+    // Stated up front, so a client polling a service that has not reached Running yet can already
+    // tell "this node will report readiness for this workload" from "it never will".
+    const engine = resolveServiceEngine(job)
+    if (engine) {
+      job.readiness = { state: 'waiting', engine: engine.id }
+    }
     await this.db.newServiceJob(job)
     return job
   }
@@ -4032,12 +4203,29 @@ export class C2DEngineDocker extends C2DEngine {
           job.owner
         )
       }
-      if (job.containerId)
-        await this.cleanupServiceDocker(
-          this.docker.getContainer(job.containerId),
-          null,
-          serviceId
-        )
+      const { previousContainerId } = job
+      if (job.containerId || previousContainerId) {
+        // Only a claimed service ever ran — archive what it wrote before its containers go.
+        // A restart that died before switching to the new container (containerId still
+        // empty) left the results in the previous one it was carrying them over from.
+        if (job.payment.claimTx) {
+          const holder = this.docker.getContainer(job.containerId || previousContainerId)
+          await holder.stop({ t: 10 }).catch(() => {})
+          await this.archiveServiceOutputs(job, holder)
+        }
+        if (job.containerId)
+          await this.cleanupServiceDocker(
+            this.docker.getContainer(job.containerId),
+            null,
+            serviceId
+          )
+        if (previousContainerId)
+          await this.docker
+            .getContainer(previousContainerId)
+            .remove({ force: true })
+            .catch(() => {})
+        delete job.previousContainerId
+      }
       await this.removeServiceNetwork(serviceId, job.networkId).catch((e) => {
         CORE_LOGGER.debug(`orphan recovery ${serviceId}: network removal: ${e.message}`)
       })
@@ -4097,7 +4285,39 @@ export class C2DEngineDocker extends C2DEngine {
           job.status = ServiceStatusNumber.PullImage
           job.statusText = ServiceStatusText[ServiceStatusNumber.PullImage]
           await this.db.updateServiceJob(job)
-          await this.pullImageRef(job.containerImage)
+          // Persist the daemon's own byte counts as the pull runs, so a client polling status can
+          // show real progress on what is usually the longest visible wait (multi-GB engine
+          // images). Writes are chained rather than fired in parallel, and drained BEFORE the
+          // status moves on — an in-flight write still carrying status=PullImage must never land
+          // after the Claiming transition and resurrect the old status.
+          // At most one write waits behind the running one: each write persists the shared `job`,
+          // which already carries the latest progress, so queuing more would only replay it. A
+          // slow DB then drops intermediate updates instead of growing the chain.
+          let pullWrites: Promise<unknown> = Promise.resolve()
+          let pullWriteQueued = false
+          await this.pullImageRef(
+            job.containerImage,
+            undefined,
+            undefined,
+            (progress) => {
+              job.imagePull = progress
+              if (pullWriteQueued) {
+                return
+              }
+              pullWriteQueued = true
+              pullWrites = pullWrites
+                .then(() => {
+                  pullWriteQueued = false
+                  return this.db.updateServiceJob(job)
+                })
+                .catch((e: any) =>
+                  CORE_LOGGER.debug(
+                    `service ${serviceId}: pull progress write failed: ${e.message}`
+                  )
+                )
+            }
+          )
+          await pullWrites
         }
       } catch (e: any) {
         imageError = e
@@ -4224,6 +4444,7 @@ export class C2DEngineDocker extends C2DEngine {
       CORE_LOGGER.debug(
         `start ${serviceId}: created container ${container.id} on network ${network.id} — starting`
       )
+      await this.ensureServiceOutputsFolder(job, container)
       await container.start()
 
       job.containerId = container.id
@@ -4414,6 +4635,15 @@ export class C2DEngineDocker extends C2DEngine {
         !this.serviceOpsInFlight.has(svc.serviceId)
     )
     await Promise.all(runningOnly.map((svc) => this.checkServiceContainerHealth(svc)))
+    // Forget per-service probe state for services that are no longer running (stopped, failed,
+    // expired), whichever path ended them.
+    const running = new Set(services.map((svc) => svc.serviceId))
+    this.modelDownloadSampler.retain(running)
+    for (const serviceId of this.serviceProbeUrls.keys()) {
+      if (!running.has(serviceId)) {
+        this.serviceProbeUrls.delete(serviceId)
+      }
+    }
     return runningOnly
   }
 
@@ -4435,8 +4665,224 @@ export class C2DEngineDocker extends C2DEngine {
       await this.markServiceFailed(job, reason, details.State)
       return
     }
-    // Container healthy: sample live runtime metrics (throttled, best-effort, lease-free).
+    // Container up: ask the workload itself whether it can serve requests yet (throttled,
+    // best-effort, lease-free), then sample live runtime metrics on the same terms.
+    this.launchServiceReadinessProbe(job, details)
     await this.sampleAndPersistServiceMetrics(job)
+  }
+
+  /**
+   * Runs probeServiceReadiness without holding up the loop. The probe can walk several addresses
+   * with a timeout each, and its model-download sample waits on the Docker daemon and the Hub —
+   * seconds, on a bad day, that would otherwise delay every compute job and service start on the
+   * node. At most one probe per service runs at a time; a tick that finds one in flight skips it.
+   */
+  private launchServiceReadinessProbe(
+    job: ServiceJob,
+    details: Dockerode.ContainerInspectInfo
+  ): void {
+    if (this.stopped || this.serviceProbesInFlight.has(job.serviceId)) {
+      return
+    }
+    // probeServiceReadiness never throws; the catch only keeps a surprise from surfacing as an
+    // unhandled rejection.
+    const probe = this.probeServiceReadiness(job, details)
+      .catch((e: any) =>
+        CORE_LOGGER.debug(`[readiness] service ${job.serviceId}: ${e?.message}`)
+      )
+      .finally(() => this.serviceProbesInFlight.delete(job.serviceId))
+    this.serviceProbesInFlight.set(job.serviceId, probe)
+  }
+
+  /**
+   * Asks a recognized workload whether it can serve requests yet, and persists the answer.
+   *
+   * "Running" only means the container process started. An inference engine then spends minutes
+   * downloading weights and warming up, during which its forwarded port either refuses connections
+   * or answers 503 — so a consumer handed the URL at Running gets nothing but errors. The engine is
+   * the only thing that knows when that ends, and this is the node asking it, from outside the
+   * container, on the consumer's behalf.
+   *
+   * Which request to make is engine-specific and comes from the node's own table
+   * (components/c2d/serviceEngines). An image the node does not recognize is left alone entirely:
+   * `readiness` stays absent, and clients keep treating Running as usable exactly as before.
+   *
+   * Same discipline as the metrics sampler: no lifecycle lease, skipped while a lifecycle op is in
+   * flight, persisted through a guarded readiness-ONLY write, and it never throws.
+   */
+  private async probeServiceReadiness(
+    job: ServiceJob,
+    details: Dockerode.ContainerInspectInfo
+  ): Promise<void> {
+    try {
+      const engine = resolveServiceEngine(job)
+      if (!engine) return
+      if (this.serviceOpsInFlight.has(job.serviceId)) return
+
+      const now = Date.now()
+      const wasReady = job.readiness?.state === 'ready'
+      // Has this container EVER answered? `wasReady` only covers the last sample, so a service
+      // that fails twice running would fall back to "waiting" on the second — reading as "still
+      // starting up" for something that already served and then stopped. readySince is set on the
+      // first success and kept through failures, so it is the durable answer.
+      const everReady = wasReady || job.readiness?.readySince !== undefined
+      // Hold off until the container has had a moment to bind its port — probing a process that
+      // has not called listen() yet only produces noise in the node's own logs.
+      const startedAt = Date.parse(details.State?.StartedAt ?? '')
+      if (
+        !wasReady &&
+        Number.isFinite(startedAt) &&
+        now - startedAt < PROBE_INITIAL_DELAY_SECONDS * 1000
+      ) {
+        return
+      }
+      // The loop ticks every couple of seconds; the probe runs on its own, slower period. Once
+      // ready it slows right down — from then on it is a liveness check, not a wait.
+      const periodMs =
+        (wasReady ? READY_PROBE_PERIOD_SECONDS : PROBE_PERIOD_SECONDS) * 1000
+      if (job.readiness?.lastCheckedAt && now - job.readiness.lastCheckedAt < periodMs) {
+        return
+      }
+
+      const port = engine.probe.port ?? job.exposedPorts[0]
+      if (!port) return
+      const containerIps = Object.values(details.NetworkSettings?.Networks ?? {})
+        .map((net: any) => net?.IPAddress)
+        .filter((ip: string) => !!ip)
+      const candidates = probeCandidates(job, containerIps, port, engine.probe.path)
+      // The address that answered last time, tried first — but never exclusively: a container
+      // restart can change its IP, so a cached candidate that stops connecting falls back to the
+      // full list on the same tick.
+      const cached = this.serviceProbeUrls.get(job.serviceId)
+      const ordered = cached
+        ? [cached, ...candidates.filter((url) => url !== cached)]
+        : candidates
+
+      let result = null
+      for (const url of ordered) {
+        const attempt = await runReadinessProbe(url, engine.probe.expectStatus)
+        if (attempt.ok) {
+          result = attempt
+          this.serviceProbeUrls.set(job.serviceId, url)
+          break
+        }
+        // A real HTTP answer means we reached the workload — it simply is not ready. That is a
+        // conclusive result, so stop here rather than reporting a later candidate's connection
+        // error, which would read as "unreachable" instead of "still warming up".
+        if (attempt.httpStatus !== undefined) {
+          result = attempt
+          this.serviceProbeUrls.set(job.serviceId, url)
+          break
+        }
+        result = result ?? attempt
+      }
+      if (!result) return
+
+      const readiness: ServiceReadiness = result.ok
+        ? {
+            state: 'ready',
+            engine: engine.id,
+            readySince: job.readiness?.readySince ?? now,
+            lastCheckedAt: now,
+            consecutiveFailures: 0,
+            httpStatus: result.httpStatus,
+            probedUrl: result.url
+          }
+        : {
+            // Only a service that HAD answered can be "failing"; one that never has is still
+            // warming up, which is the normal state for the first minutes of a model server.
+            state: everReady ? 'failing' : 'waiting',
+            engine: engine.id,
+            readySince: job.readiness?.readySince,
+            lastCheckedAt: now,
+            consecutiveFailures: (job.readiness?.consecutiveFailures ?? 0) + 1,
+            httpStatus: result.httpStatus,
+            lastError: result.error,
+            probedUrl: result.url
+          }
+
+      if (result.ok !== wasReady) {
+        CORE_LOGGER.info(
+          `[readiness] service ${job.serviceId} (${engine.id}): ${
+            job.readiness?.state ?? 'unknown'
+          } -> ${readiness.state} via ${result.url}${
+            result.error ? ` (${result.error})` : ''
+          }`
+        )
+      }
+
+      // While the engine is still warming up, sample how far its model download has got. Skipped
+      // once the service has EVER been ready: the files are on disk from that point on, so the walk
+      // would only re-measure a finished download — including while a ready service is failing,
+      // when it says nothing about why.
+      const modelDownload = everReady
+        ? undefined
+        : await this.sampleModelDownload(job, engine)
+
+      // Same cross-process guard as the metrics write: a lifecycle transition must win.
+      if (
+        this.serviceOpsInFlight.has(job.serviceId) ||
+        (await this.db.isServiceLocked(job.serviceId, SERVICE_LOCK_STALE_MS))
+      ) {
+        return
+      }
+      await this.db.updateServiceJobReadiness(
+        job.serviceId,
+        {
+          owner: job.owner,
+          clusterHash: job.clusterHash,
+          status: ServiceStatusNumber.Running,
+          containerId: job.containerId
+        },
+        readiness,
+        modelDownload
+      )
+    } catch (e: any) {
+      CORE_LOGGER.debug(
+        `[readiness] service ${job.serviceId}: probe failed: ${e?.message}`
+      )
+    }
+  }
+
+  /**
+   * How much of its model the container has pulled down, read from the engine's own cache.
+   *
+   * This is the wait the image pull does not cover: the image is fetched once per node and cached
+   * forever after, while the weights are fetched by the engine on EVERY container start, after it
+   * reports Running. Nothing serves that number over HTTP at the time (there is no server yet), so
+   * it is read from the cache files themselves — see components/c2d/modelDownload.
+   *
+   * Best-effort throughout: an unreadable cache, an engine with no known cache path, or a model
+   * whose size the Hub cannot tell us all degrade to less information, never to an error.
+   */
+  private async sampleModelDownload(
+    job: ServiceJob,
+    engine: ServiceEngineProfile
+  ): Promise<ServiceModelDownload | undefined> {
+    if (!engine.modelCachePath) return undefined
+    // Downloaded: what remains is the engine loading weights, which the cache says nothing about.
+    // Returning nothing keeps the stored 100% record as it is.
+    if (isModelDownloadComplete(job.modelDownload)) {
+      return undefined
+    }
+    try {
+      const container = this.docker.getContainer(job.containerId)
+      const downloaded = await this.modelDownloadSampler.sample(job.serviceId, container)
+      if (!downloaded) return undefined
+      // Only a Hugging Face repo has a size the node can look up; a local path or an object-store
+      // URI reports bytes with no total, which clients render as an indeterminate bar.
+      const modelId = engine.modelIdFromCommand?.(job.dockerCmd) ?? null
+      // A GGUF engine names the exact file it pulls; asking for that instead of the whole repo is
+      // the difference between a real denominator and one covering every quantization on offer.
+      const quant = engine.modelQuantFromCommand?.(job.dockerCmd) ?? undefined
+      const totalBytes = modelId ? await fetchModelTotalBytes(modelId, quant) : null
+      return buildModelDownload(downloaded, totalBytes, modelId)
+    } catch (e: any) {
+      CORE_LOGGER.debug(
+        `[model-download] service ${job.serviceId}: sample failed: ${e?.message}`
+      )
+      return undefined
+    }
   }
 
   // Resolves a service's requested allocation as bytes/cores for the metrics snapshot.
@@ -4735,6 +5181,67 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
+  // Expiry teardown of one service, launched in the background by InternalLoop: stop it,
+  // then mark it Expired, which releases its reservation. Must only run while holding the
+  // service lifecycle lock, kept across both steps so no other operation (e.g. a
+  // SERVICE_EXTEND) lands in between. Anything that leaves the service short of Expired is
+  // logged and retried on the next tick.
+  private async expireService(svc: ServiceJob): Promise<void> {
+    CORE_LOGGER.info(`Service ${svc.serviceId} expired — stopping`)
+    let stopped: ServiceJob | null
+    try {
+      // onlyIfExpired: doStopService re-checks expiresAt on the FRESH row — a
+      // SERVICE_EXTEND that landed after the loop's expiredServices snapshot must not
+      // have its service torn down.
+      stopped = await this.doStopService(svc.serviceId, svc.owner, true)
+    } catch (e: any) {
+      CORE_LOGGER.error(
+        `Failed to stop expired service ${svc.serviceId}: ${e.message} — retrying next tick`
+      )
+      return
+    }
+    // Extended mid-sweep (expiresAt is in the future again on the fresh row) — not
+    // expired anymore, regardless of status. Leave it alone.
+    if (stopped && Date.now() < stopped.expiresAt) {
+      CORE_LOGGER.debug(
+        `Service ${svc.serviceId} was extended after the expiry snapshot — skipping expiry`
+      )
+      return
+    }
+    // Flip to Expired ONLY once teardown actually completed. Expired is terminal —
+    // it is never swept again — so marking it while the stop failed mid-way (the
+    // job comes back as Error "stop failed: …" with its container possibly still
+    // running and its ports still reserved) would leak those resources forever.
+    // Left as Error, the job stays in the expirable set and is retried next tick.
+    if (
+      !stopped ||
+      (stopped.status !== ServiceStatusNumber.Stopped &&
+        stopped.status !== ServiceStatusNumber.Expired)
+    ) {
+      CORE_LOGGER.error(
+        `Expired service ${svc.serviceId} teardown did not complete ` +
+          `(status "${stopped?.statusText ?? 'gone'}") — retrying next tick`
+      )
+      return
+    }
+    // mark the (now stopped) record as Expired so it is not picked up again
+    const [stoppedJob] = await this.db.getServiceJob(svc.serviceId, svc.owner)
+    if (stoppedJob) {
+      stoppedJob.status = ServiceStatusNumber.Expired
+      stoppedJob.statusText = ServiceStatusText[ServiceStatusNumber.Expired]
+      await this.db.updateServiceJob(stoppedJob)
+      // Expired is the ONLY transition that releases the reservation: amounts stop
+      // counting (Expired is not an active status) and the host ports are freed
+      // here. Everywhere else — including an explicit user stop — the paid-for
+      // reservation survives so the service can be restarted on the same endpoints.
+      for (const ep of stoppedJob.endpoints ?? []) releaseHostPort(ep.hostPort)
+      CORE_LOGGER.debug(
+        `Service ${svc.serviceId} marked Expired — all resources released ` +
+          `(ports [${(stoppedJob.endpoints ?? []).map((ep) => ep.hostPort).join(',')}])`
+      )
+    }
+  }
+
   public override async stopService(
     serviceId: string,
     owner: string,
@@ -4824,6 +5331,7 @@ export class C2DEngineDocker extends C2DEngine {
         await c.stop({ t: 10 }).catch((e) => {
           if (!isBenignDockerError(e)) throw e
         })
+        await this.archiveServiceOutputs(job, c)
         await c.remove({ force: true }).catch((e) => {
           if (!isBenignDockerError(e)) throw e
         })
@@ -4917,6 +5425,11 @@ export class C2DEngineDocker extends C2DEngine {
         throw new Error(
           'Cannot restart a service whose payment was never claimed (unpaid or refunded) — start a new service'
         )
+      // Resolve the output-bucket mount now, while the old container is still up: the
+      // background op tears it down before it creates the new one, so a bucket the owner
+      // lost access to (bucket sharing disabled, removed from its access list, bucket
+      // deleted) would otherwise leave the service without a container until expiresAt.
+      await this.serviceOutputMounts(job)
       // Persist Restarting BEFORE returning: status polls flip immediately, and a crash
       // from here on leaves a pending-status record the boot loop orphan-recovers
       // (Restarting is in SERVICE_START_PENDING_STATUSES) instead of a bare Starting
@@ -4985,17 +5498,43 @@ export class C2DEngineDocker extends C2DEngine {
     // persisted as Restarting, so a crash anywhere in this method leaves a pending-status
     // record that the boot loop orphan-recovers (refund-safe: the original payment's
     // claimTx is set, so recovery never touches escrow for a restart).
+    //
+    // A service without an output bucket keeps its /data/outputs across the restart: the old
+    // container is only stopped here, and removed once its folder has been copied into the
+    // new one (step 8). A stopped container is not an endpoint of the network, so removing
+    // the network below leaves it alone. With a bucket the results are in the bucket already.
+    let previous: Dockerode.Container | null = null
     if (job.containerId) {
-      CORE_LOGGER.debug(`restart ${serviceId}: removing old container ${job.containerId}`)
+      CORE_LOGGER.debug(`restart ${serviceId}: stopping old container ${job.containerId}`)
       // Final snapshot of the outgoing container before it is torn down (best-effort).
       await this.captureFinalServiceSnapshot(job)
       const c = this.docker.getContainer(job.containerId)
+      // Already stopped (304) or already gone (404) counts as stopped.
+      let stopped = true
       await c.stop({ t: 10 }).catch((e) => {
+        if (!isBenignDockerError(e)) stopped = false
         CORE_LOGGER.debug(`restart ${serviceId}: old container stop: ${e.message}`)
       })
-      await c.remove({ force: true }).catch((e) => {
-        CORE_LOGGER.debug(`restart ${serviceId}: old container remove: ${e.message}`)
-      })
+      if (job.outputBucketId) {
+        await c.remove({ force: true }).catch((e) => {
+          CORE_LOGGER.debug(`restart ${serviceId}: old container remove: ${e.message}`)
+        })
+      } else if (!stopped) {
+        // It can't be kept for the carry-over: it may still be running, and
+        // removeServiceNetwork below force-removes a container still attached to the
+        // network, folder and all. Archive the folder now instead; the new container
+        // starts with an empty one.
+        CORE_LOGGER.error(
+          `restart ${serviceId}: could not stop old container ${job.containerId} — archiving ${SERVICE_OUTPUTS_PATH} instead of carrying it over`
+        )
+        await this.archiveServiceOutputs(job, c)
+        await c.remove({ force: true }).catch((e) => {
+          CORE_LOGGER.debug(`restart ${serviceId}: old container remove: ${e.message}`)
+        })
+      } else {
+        previous = c
+        job.previousContainerId = job.containerId
+      }
     }
     await this.removeServiceNetwork(serviceId, job.networkId).catch((e) => {
       CORE_LOGGER.debug(`restart ${serviceId}: old network removal: ${e.message}`)
@@ -5007,6 +5546,29 @@ export class C2DEngineDocker extends C2DEngine {
     // Reset the metrics accumulators: the new container is a fresh process, so peak memory
     // and CPU deltas must not carry over from the outgoing one.
     job.runtimeMetrics = undefined
+    // Same for readiness: the replacement container has to earn "ready" again (an Edit relaunch
+    // re-downloads the model), and reporting the outgoing container's ready state would hand the
+    // user a live endpoint minutes before there is one.
+    //
+    // Resolved defensively: this runs OUTSIDE the try below that turns a failure into a persisted
+    // Error status, so anything thrown here would abandon the restart with the job stuck reading
+    // Restarting forever. Readiness is best-effort reporting — it must never be the reason a
+    // lifecycle operation fails.
+    let restartEngineId: string | undefined
+    try {
+      restartEngineId = resolveServiceEngine(job)?.id
+    } catch (e: any) {
+      CORE_LOGGER.debug(`restart ${serviceId}: engine detection failed: ${e?.message}`)
+    }
+    job.readiness = restartEngineId
+      ? { state: 'waiting', engine: restartEngineId }
+      : undefined
+    job.imagePull = undefined
+    job.modelDownload = undefined
+    // Optional-chained deliberately: this cache is best-effort bookkeeping for the next probe, and
+    // a restart must not fail because of it. (It is also absent on an engine built without running
+    // field initializers, which is how the unit tests construct one.)
+    this.serviceProbeUrls?.delete(serviceId)
     await this.db.updateServiceJob(job)
 
     // Live Docker handles for the newly-created container/network, tracked so the
@@ -5129,6 +5691,30 @@ export class C2DEngineDocker extends C2DEngine {
       CORE_LOGGER.debug(
         `restart ${serviceId}: created container ${container.id} on network ${network.id} — starting`
       )
+      await this.ensureServiceOutputsFolder(job, container)
+
+      // Carry /data/outputs over from the old container, then let it go. If the copy fails
+      // the old folder is archived instead, so nothing is lost. The new container is
+      // persisted before the old one is removed: a crash from here on recovers (and
+      // archives) the new container, which now holds the results.
+      if (previous) {
+        try {
+          await this.copyServiceOutputs(previous, container)
+        } catch (e: any) {
+          CORE_LOGGER.error(
+            `restart ${serviceId}: could not carry ${SERVICE_OUTPUTS_PATH} over (${e.message}) — archiving it instead`
+          )
+          await this.archiveServiceOutputs(job, previous)
+        }
+        job.containerId = container.id
+        await this.db.updateServiceJob(job)
+        await previous.remove({ force: true }).catch((e) => {
+          CORE_LOGGER.debug(`restart ${serviceId}: old container remove: ${e.message}`)
+        })
+        previous = null
+        delete job.previousContainerId
+      }
+
       await container.start()
       CORE_LOGGER.debug(`restart ${serviceId}: container ${container.id} started`)
 
@@ -5161,7 +5747,19 @@ export class C2DEngineDocker extends C2DEngine {
         `restart ${serviceId}: FAILED (${err.message}) — docker state at failure`,
         serviceId
       )
+      // The failed restart must not take /data/outputs with it: archive whichever container
+      // holds it — the old one if the carry-over didn't happen yet, else the new one.
+      if (!job.outputBucketId) {
+        const holder = previous ?? (job.containerId ? container : null)
+        if (holder) await this.archiveServiceOutputs(job, holder)
+      }
+      if (previous) {
+        await previous.remove({ force: true }).catch(() => {})
+        delete job.previousContainerId
+      }
       await this.cleanupServiceDocker(container, network, serviceId)
+      // Set once the carry-over switched to the new container, which is gone now too.
+      job.containerId = ''
       // Ports deliberately stay reserved: the consumer paid until expiresAt and may
       // restart again — the expiry sweep releases them when the window elapses.
       job.status = ServiceStatusNumber.Error
@@ -5208,6 +5806,126 @@ export class C2DEngineDocker extends C2DEngine {
       )
       return null
     }
+  }
+
+  public override async getServiceResult(
+    serviceId: string,
+    owner: string,
+    index: number | 'live',
+    offset: number = 0
+  ): Promise<ServiceResult | null> {
+    const [job] = await this.db.getServiceJob(serviceId, owner)
+    if (!job) return null
+    const zipHeaders = (filename: string) => ({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${filename}"`
+    })
+
+    if (index === 'live') {
+      if (job.outputBucketId)
+        throw new ServiceResultError(
+          400,
+          `Service ${serviceId} writes its outputs to bucket ${job.outputBucketId}; download them from the bucket`
+        )
+      if (
+        !job.containerId ||
+        (job.status !== ServiceStatusNumber.Running &&
+          job.status !== ServiceStatusNumber.Error)
+      )
+        throw new ServiceResultError(
+          409,
+          `Service ${serviceId} has no container right now (status "${job.statusText}"); download one of its output archives instead`
+        )
+      let tar: NodeJS.ReadableStream
+      try {
+        tar = await this.docker
+          .getContainer(job.containerId)
+          .getArchive({ path: SERVICE_OUTPUTS_PATH })
+      } catch (e: any) {
+        if (e?.statusCode === 404)
+          throw new ServiceResultError(
+            404,
+            `Service ${serviceId} has no ${SERVICE_OUTPUTS_PATH} to download`
+          )
+        throw e
+      }
+      return {
+        stream: tarToZip(tar),
+        headers: zipHeaders(`${serviceId}-outputs-live.zip`)
+      }
+    }
+
+    const archive = (job.outputArchives ?? []).find((a) => a.index === index)
+    if (!archive)
+      throw new ServiceResultError(
+        404,
+        `Service ${serviceId} has no output archive with index ${index}`
+      )
+    const file = path.join(this.getServiceOutputsFolder(serviceId), archive.filename)
+    let size: number
+    try {
+      ;({ size } = statSync(file))
+    } catch {
+      throw new ServiceResultError(
+        404,
+        `Output archive ${archive.filename} of service ${serviceId} is no longer available`
+      )
+    }
+    if (offset > size)
+      throw new ServiceResultError(
+        416,
+        `Offset ${offset} is past the end of ${archive.filename} (${size} bytes)`
+      )
+    return {
+      stream: createReadStream(file, offset > 0 ? { start: offset } : undefined),
+      headers: {
+        ...zipHeaders(`${serviceId}-${archive.filename}`),
+        'Content-Length': String(size - offset)
+      }
+    }
+  }
+
+  public override async cleanupExpiredServiceOutputs(): Promise<number> {
+    const envs = await this.getComputeEnvironments()
+    // Seconds. The schema defaults every environment's storageExpiry; the fallback only
+    // covers services whose environment was removed from the config since.
+    const defaultStorageExpiry = 604800
+    const storageExpiry = new Map(
+      envs.map((env) => [env.id, env.storageExpiry ?? defaultStorageExpiry])
+    )
+    const now = Date.now()
+    const shortest = Math.min(defaultStorageExpiry, ...storageExpiry.values())
+    const candidates = await this.db.getExpiredServiceJobsBefore(
+      now - shortest * 1000,
+      this.getC2DConfig().hash
+    )
+    let cleaned = 0
+    for (const candidate of candidates) {
+      if (!candidate.outputArchives?.length) continue
+      const expiry = storageExpiry.get(candidate.environment) ?? defaultStorageExpiry
+      if (now < candidate.expiresAt + expiry * 1000) continue
+      try {
+        await this.runExclusive(candidate.serviceId, async () => {
+          const [job] = await this.db.getServiceJob(candidate.serviceId, candidate.owner)
+          if (!job?.outputArchives?.length) return
+          rmSync(this.getServiceOutputsFolder(job.serviceId), {
+            recursive: true,
+            force: true
+          })
+          job.outputArchives = []
+          await this.db.updateServiceJob(job)
+          cleaned++
+          CORE_LOGGER.info(
+            `service ${job.serviceId}: output archives deleted (storage expiry elapsed)`
+          )
+        })
+      } catch (e: any) {
+        CORE_LOGGER.error(
+          `service ${candidate.serviceId}: failed to delete output archives: ${e.message} — retrying next run`
+        )
+      }
+    }
+    return cleaned
   }
 
   private addUserDataToFilesObject(

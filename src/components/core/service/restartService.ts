@@ -14,6 +14,7 @@ import { ServiceStatusNumber } from '../../../@types/C2D/ServiceOnDemand.js'
 import { validateAccess } from '../compute/startCompute.js'
 import { isJobMetadataSizeValid, INVALID_JOB_METADATA_MESSAGE } from '../../c2d/index.js'
 import { decryptUserData, findServiceJobAndEngine, toPublicServiceJob } from './utils.js'
+import { PersistentStorageAccessDeniedError } from '../../persistentStorage/PersistentStorageFactory.js'
 
 export class ServiceRestartHandler extends CommandHandler {
   validate(command: ServiceRestartCommand): ValidateParams {
@@ -187,7 +188,9 @@ export class ServiceRestartHandler extends CommandHandler {
       }
     } catch (error: any) {
       CORE_LOGGER.error(`ServiceRestart ${task.serviceId} failed: ${error.message}`)
-      return { stream: null, status: { httpStatus: 500, error: error.message } }
+      // the owner lost access to the service's output bucket (checked before any teardown)
+      const httpStatus = error instanceof PersistentStorageAccessDeniedError ? 403 : 500
+      return { stream: null, status: { httpStatus, error: error.message } }
     }
   }
 }

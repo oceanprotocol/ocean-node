@@ -74,6 +74,18 @@ export interface AccessList {
 
 This access list is used to decide whether a given `consumerAddress` is allowed to interact with a bucket.
 
+### Bucket sharing toggle
+
+Bucket sharing is **off by default**. Node operators turn it on with `persistentStorage.allowBucketSharing: true` (or the env var `PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING=true`, which overrides the config). While it is on, the bucket access list works as described above.
+
+When sharing is disabled (the default):
+
+- `createBucket` rejects a non-empty `accessLists` with **HTTP 400**; send `accessLists: []`.
+- Bucket access lists are ignored: only the bucket **owner** can list, upload, download, delete, get file objects, mount the bucket in a compute job / service, or use it as an output bucket. Everyone else gets **HTTP 403**.
+- `getBuckets` returns an empty list unless the caller is the `owner`.
+- Access lists already stored on existing buckets are kept, so turning sharing back on restores access.
+- Node status reports the setting as `persistentStorage.allowBucketSharing`.
+
 ### Where checks happen
 
 Access checks happen at two levels:
@@ -88,7 +100,7 @@ Access checks happen at two levels:
 - `createBucket`: additionally checks the node-level allow list `config.persistentStorage.accessLists` (who can create buckets at all).
 - `getBuckets`: queries registry rows filtered by `owner` and then:
   - if `consumerAddress === owner`: returns all buckets for that owner
-  - else: filters buckets by the bucket ACL
+  - else: returns only the buckets whose ACL includes the consumer (a bucket with an empty ACL is never listed to others; nothing is listed when sharing is disabled)
 
 ### Error behavior
 
@@ -144,6 +156,7 @@ Key fields:
 - `enabled`: boolean
 - `type`: `"localfs"` or `"s3"`
 - `accessLists`: AccessList[] — node-level allow list to create buckets
+- `allowBucketSharing`: boolean, default `false` — whether bucket access lists are honoured (see [Bucket sharing toggle](#bucket-sharing-toggle)). Env override: `PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING`
 - `options`:
   - localfs: `{ "folder": "/path/to/storage" }`
   - s3: `{ endpoint, objectKey, accessKeyId, secretAccessKey, ... }` (future)
@@ -198,7 +211,7 @@ variant instead returns the JSON file object used for c2d references.
 
 ## Using a bucket for compute job outputs
 
-Compute jobs (free and paid) can store their results directly in a persistent storage bucket instead of the default `outputs.tar` archive. Pass the bucket id as `outputBucketId` in the start compute command:
+Compute jobs (free and paid) can store their results directly in a persistent storage bucket instead of the default `outputs.zip` archive. Pass the bucket id as `outputBucketId` in the start compute command:
 
 ```json
 {
@@ -211,7 +224,7 @@ Compute jobs (free and paid) can store their results directly in a persistent st
 How it works:
 
 - The bucket directory is bind-mounted **read-write** at `/data/outputs` inside the job container, so everything the algorithm writes there lands directly in the bucket as **individual files** (no archive, no copy step). Files appear in the bucket as the job writes them.
-- No local `outputs.tar` is produced and the job's results index contains no `output` entry; logs (`imageLog`, `configurationLog`, `algorithmLog`) behave as usual. Results are retrieved via the persistent storage list/get APIs.
+- No local `outputs.zip` is produced and the job's results index contains no `output` entry; logs (`imageLog`, `configurationLog`, `algorithmLog`) behave as usual. Results are retrieved via the persistent storage list/get APIs.
 - The consumer starting the job must be the bucket owner or on the bucket access list, otherwise the start request is rejected with `403`.
 - `outputBucketId` is **mutually exclusive** with the `output` (remote storage upload) parameter — sending both returns `400`.
 - Files keep the names the algorithm gives them; writing an existing name **overwrites** it, so pipelines can re-run jobs with stable filenames.

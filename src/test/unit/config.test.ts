@@ -211,3 +211,57 @@ describe('Should validate P2P config from environment variables', () => {
     delete process.env[ENVIRONMENT_VARIABLES.P2P_MAX_CONNECTIONS.name]
   })
 })
+
+describe('Should validate persistent storage bucket sharing configuration', () => {
+  const PERSISTENT_STORAGE_JSON = JSON.stringify({
+    enabled: true,
+    type: 'localfs',
+    accessLists: [],
+    options: { folder: '/tmp/ocean-ps-config-test' }
+  })
+
+  async function configWith(allowSharing?: string): Promise<OceanNodeConfig> {
+    const envVars = [
+      ENVIRONMENT_VARIABLES.DB_TYPE,
+      ENVIRONMENT_VARIABLES.DB_URL,
+      ENVIRONMENT_VARIABLES.PERSISTENT_STORAGE
+    ]
+    const envValues = [
+      'typesense',
+      'http://localhost:8108/?apiKey=xyz',
+      PERSISTENT_STORAGE_JSON
+    ]
+    if (allowSharing !== undefined) {
+      envVars.push(ENVIRONMENT_VARIABLES.PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING)
+      envValues.push(allowSharing)
+    }
+    const overrides = buildEnvOverrideConfig(envVars, envValues)
+    try {
+      await setupEnvironment(TEST_ENV_CONFIG_PATH, overrides)
+      return await getConfiguration(true)
+    } finally {
+      await tearDownEnvironment(overrides)
+    }
+  }
+
+  it('should disable bucket sharing by default', async () => {
+    const conf = await configWith()
+    expect(conf.persistentStorage.allowBucketSharing).to.be.equal(false)
+  })
+
+  it('should disable bucket sharing from the environment variable', async () => {
+    const conf = await configWith('false')
+    expect(conf.persistentStorage.allowBucketSharing).to.be.equal(false)
+    expect((conf as any).PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING).to.be.equal(undefined)
+  })
+
+  it('should enable bucket sharing from the environment variable', async () => {
+    const conf = await configWith('true')
+    expect(conf.persistentStorage.allowBucketSharing).to.be.equal(true)
+  })
+
+  after(() => {
+    delete process.env.CONFIG_PATH
+    delete process.env.PRIVATE_KEY
+  })
+})

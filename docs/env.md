@@ -35,6 +35,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `VALIDATE_UNSIGNED_DDO`: If set to `false`, the node will not validate unsigned DDOs and will request a signed message with the publisher address, nonce and signature. Default is `true`. Example: `false`
 - `JWT_SECRET`: Secret used to sign JWT tokens. Default is `ocean-node-secret`. Example: `"my-secret-jwt-token"`
 - `PERSISTENT_STORAGE`: Persistent storage config. See [persistent storage](persistentStorage.md).
+- `PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING`: If set to `true`, bucket owners can share a bucket through its access list. Otherwise bucket access lists are ignored, only the bucket owner can use a bucket, and creating a bucket with a non-empty access list is rejected. Overrides `persistentStorage.allowBucketSharing`. Default is `false`. Example: `true`
 
 ## Database
 

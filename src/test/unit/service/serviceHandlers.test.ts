@@ -12,6 +12,7 @@ import { ServiceStopHandler } from '../../../components/core/service/stopService
 import { ServiceExtendHandler } from '../../../components/core/service/extendService.js'
 import { ServiceRestartHandler } from '../../../components/core/service/restartService.js'
 import { ServiceGetStreamableLogsHandler } from '../../../components/core/service/getStreamableLogs.js'
+import { PersistentStorageAccessDeniedError } from '../../../components/persistentStorage/PersistentStorageFactory.js'
 
 // Checksummed (EIP-55): commands are canonicalized on ingress, so this is the form handlers
 // see and forward, whatever casing the caller sent (see the lowercase-address test below).
@@ -692,6 +693,34 @@ describe('Service handlers', () => {
       const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
       expect(res.status.httpStatus).to.equal(402)
       expect(escrow.cancelExpiredLock.calledOnce).to.equal(true)
+    })
+
+    it('403 without touching escrow when the owner lost access to the output bucket', async () => {
+      // e.g. bucket sharing was turned off after the start, and the bucket is someone else's
+      const { node, escrow, persistentStorage } = buildFakes({
+        serviceJobInDb: makeJob({ outputBucketId: 'bucket-42' })
+      })
+      persistentStorage.assertConsumerAllowedForBucket.rejects(
+        new PersistentStorageAccessDeniedError()
+      )
+      const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(403)
+      expect(
+        persistentStorage.assertConsumerAllowedForBucket.calledOnceWith(
+          OWNER,
+          'bucket-42'
+        )
+      ).to.equal(true)
+      expect(escrow.createLock.called, 'no payment for a refused extension').to.equal(
+        false
+      )
+    })
+
+    it('skips the bucket check for a service without an output bucket', async () => {
+      const { node, persistentStorage } = buildFakes({ serviceJobInDb: makeJob() })
+      const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      expect(persistentStorage.assertConsumerAllowedForBucket.called).to.equal(false)
     })
 
     it('200, advances expiresAt and records an extendPayment', async () => {
