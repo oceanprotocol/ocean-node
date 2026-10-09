@@ -10,16 +10,19 @@ on:
     branches:
       - '**'
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '24.19.0'
       - name: Cache node_modules
-        uses: actions/cache@v3
+        uses: actions/cache@v6
         env:
           cache-name: cache-node-modules
         with:
@@ -32,7 +35,7 @@ jobs:
   dockertest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: docker build -t 'ocean-node:mybuild' .
 
   build:
@@ -45,12 +48,12 @@ jobs:
         node: ['24.19.0']
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
       - name: Cache node_modules
-        uses: actions/cache@v3
+        uses: actions/cache@v6
         env:
           cache-name: cache-node-modules
         with:
@@ -63,12 +66,12 @@ jobs:
   test_unit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '24.19.0'
       - name: Cache node_modules
-        uses: actions/cache@v3
+        uses: actions/cache@v6
         env:
           cache-name: cache-node-modules
         with:
@@ -91,7 +94,7 @@ jobs:
           DB_PASSWORD: 'changeme'
           FEE_TOKENS: '{ "1": "0x967da4048cD07aB37855c090aAF366e4ce1b9F48", "137": "0x282d8efCe846A88B159800bd4130ad77443Fa1A1", "80001": "0xd8992Ed72C445c35Cb4A2be468568Ed1079357c8", "56": "0xDCe07662CA8EbC241316a15B611c89711414Dd1a" }'
           FEE_AMOUNT: '{ "amount": 1, "unit": "MB" }'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: coverage/
@@ -99,12 +102,12 @@ jobs:
   test_integration:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '24.19.0'
       - name: Cache node_modules
-        uses: actions/cache@v3
+        uses: actions/cache@v6
         env:
           cache-name: cache-node-modules
         with:
@@ -114,7 +117,7 @@ jobs:
       - name: Set ADDRESS_FILE
         run: echo "ADDRESS_FILE=${HOME}/.ocean/ocean-contracts/artifacts/address.json" >> $GITHUB_ENV
       - name: Checkout Barge
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: 'oceanprotocol/barge'
           path: 'barge'
@@ -145,16 +148,18 @@ jobs:
       - name: docker logs
         run: docker logs ocean-ocean-contracts-1 && docker logs ocean-typesense-1
         if: ${{ failure() }}
-      - name: Set DOCKER_REGISTRY_AUTHS from Docker Hub secrets
+      - name: Build Docker registry auths
+        id: docker_auths
         if: env.DOCKERHUB_USERNAME && env.DOCKERHUB_PASSWORD
         run: |
-          DOCKER_REGISTRY_AUTHS=$(jq -n \
+          DOCKER_REGISTRY_AUTHS=$(jq -cn \
             --arg username "$DOCKERHUB_USERNAME" \
             --arg password "$DOCKERHUB_PASSWORD" \
             '{ "https://registry-1.docker.io": { "username": $username, "password": $password } }')
-          echo "DOCKER_REGISTRY_AUTHS<<EOF" >> $GITHUB_ENV
-          echo "$DOCKER_REGISTRY_AUTHS" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          # Written to the step OUTPUT (not $GITHUB_ENV) so the Docker Hub password
+          # is NOT persisted into the environment of every later step. It is consumed
+          # only by the step that explicitly references steps.docker_auths.outputs.value.
+          echo "value=$DOCKER_REGISTRY_AUTHS" >> "$GITHUB_OUTPUT"
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
@@ -175,11 +180,11 @@ jobs:
           FEE_AMOUNT: '{ "amount": 1, "unit": "MB" }'
           ASSET_PURGATORY_URL: 'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json'
           ACCOUNT_PURGATORY_URL: 'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-accounts.json'
-          DOCKER_REGISTRY_AUTHS: ${{ env.DOCKER_REGISTRY_AUTHS }}
+          DOCKER_REGISTRY_AUTHS: ${{ steps.docker_auths.outputs.value }}
       - name: docker logs
         run: docker logs ocean-ocean-contracts-1 && docker logs ocean-typesense-1
         if: ${{ failure() }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: coverage/
@@ -189,15 +194,15 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '24.19.0'
 
       - name: Cache node_modules
-        uses: actions/cache@v3
+        uses: actions/cache@v6
         env:
           cache-name: cache-node-modules
         with:
@@ -209,7 +214,7 @@ jobs:
         run: echo "ADDRESS_FILE=${HOME}/.ocean/ocean-contracts/artifacts/address.json" >> $GITHUB_ENV
 
       - name: Checkout Barge
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: 'oceanprotocol/barge'
           path: 'barge'
@@ -231,12 +236,12 @@ jobs:
         run: |
           rm -rf /usr/share/swift/
       - name: Checkout Ocean CLI
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: 'oceanprotocol/ocean-cli'
           path: 'ocean-cli'
       - name: Checkout Ocean-js
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: 'oceanprotocol/ocean.js'
           path: 'ocean.js'
@@ -253,7 +258,7 @@ jobs:
           npm link @oceanprotocol/lib
           npm run build
       - name: Checkout Ocean Node
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: 'oceanprotocol/ocean-node'
           path: 'ocean-node'
@@ -276,16 +281,18 @@ jobs:
         run: docker logs ocean-contracts-1 && docker logs ocean-typesense-1
         if: ${{ failure() }}
 
-      - name: Set DOCKER_REGISTRY_AUTHS from Docker Hub secrets
+      - name: Build Docker registry auths
+        id: docker_auths
         if: env.DOCKERHUB_USERNAME && env.DOCKERHUB_PASSWORD
         run: |
-          DOCKER_REGISTRY_AUTHS=$(jq -n \
+          DOCKER_REGISTRY_AUTHS=$(jq -cn \
             --arg username "$DOCKERHUB_USERNAME" \
             --arg password "$DOCKERHUB_PASSWORD" \
             '{ "https://registry-1.docker.io": { "username": $username, "password": $password } }')
-          echo "DOCKER_REGISTRY_AUTHS<<EOF" >> $GITHUB_ENV
-          echo "$DOCKER_REGISTRY_AUTHS" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          # Written to the step OUTPUT (not $GITHUB_ENV) so the Docker Hub password
+          # is NOT persisted into the environment of every later step. It is consumed
+          # only by the step that explicitly references steps.docker_auths.outputs.value.
+          echo "value=$DOCKER_REGISTRY_AUTHS" >> "$GITHUB_OUTPUT"
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
@@ -314,7 +321,7 @@ jobs:
           MAX_REQ_PER_MINUTE: 320
           MAX_CONNECTIONS_PER_MINUTE: 320
           DOCKER_COMPUTE_ENVIRONMENTS: '[{"socketPath":"/var/run/docker.sock","environments":[{"storageExpiry":604800,"maxJobDuration":3600,"minJobDuration":60,"resources":[{"id":"cpu","total":4,"max":4,"min":1,"type":"cpu"},{"id":"ram","total":10,"max":10,"min":1,"type":"ram"},{"id":"disk","total":10,"max":10,"min":0,"type":"disk"}],"fees":{"8996":[{"prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"maxJobs":3,"resources":[{"id":"cpu","max":1},{"id":"ram","max":1},{"id":"disk","max":1}]}}]}]'
-          DOCKER_REGISTRY_AUTHS: ${{ env.DOCKER_REGISTRY_AUTHS }}
+          DOCKER_REGISTRY_AUTHS: ${{ steps.docker_auths.outputs.value }}
           PERSISTENT_STORAGE: '{"enabled": true, "type": "localfs", "options": {"folder": "/tmp/ocean-persistent-storage"}}'
       - name: Check Ocean Node is running
         run: |
