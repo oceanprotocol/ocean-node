@@ -1,3 +1,4 @@
+import path from 'path'
 import { z } from 'zod'
 import { getAddress } from 'ethers'
 import { dhtFilterMethod } from '../../@types/OceanNode.js'
@@ -24,6 +25,11 @@ import {
   SENDTO_MAX_CONCURRENCY_CAP,
   normalizeP2pBudget
 } from '../../components/P2P/timeouts.js'
+import {
+  isValidRepoFilePath,
+  isValidRepoId,
+  isValidRevisionName
+} from '../../components/modelCache/validate.js'
 
 function isValidUrl(urlString: string): boolean {
   try {
@@ -188,6 +194,101 @@ export const PersistentStorageConfigSchema = z
           })
         }
       }
+    }
+  })
+
+// Node-level model cache (docs/modelCache.md). Only syntactic checks here: a schema failure
+// stops the node from booting, so filesystem checks (local disk, overlap with node data,
+// same path on the host) run in the cache manager instead. Every object is strict so a
+// misspelled key (allow_patterns, revison) fails loudly instead of being dropped.
+const CuratedModelSchema = z
+  .object({
+    repo: z.string(),
+    revision: z.string().optional(),
+    commit: z
+      .string()
+      .regex(/^[0-9a-f]{40}$/, 'commit must be a full 40-character lowercase sha')
+      .optional(),
+    allowPatterns: z.array(z.string().min(1).max(512)).min(1).max(200).optional(),
+    files: z.array(z.string()).min(1).max(5000).optional(),
+    priority: z.number().int().optional()
+  })
+  .strict()
+  .superRefine((e, ctx) => {
+    if (!isValidRepoId(e.repo)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `invalid Hugging Face repo id ${JSON.stringify(e.repo)}`,
+        path: ['repo']
+      })
+    }
+    if (e.revision !== undefined && !isValidRevisionName(e.revision)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'revision must be a branch/tag name (use commit for a sha)',
+        path: ['revision']
+      })
+    }
+    if (e.allowPatterns && e.files) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'use either allowPatterns or files, not both',
+        path: ['files']
+      })
+    }
+    for (const [i, f] of (e.files ?? []).entries()) {
+      if (!isValidRepoFilePath(f)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `invalid repo file path ${JSON.stringify(f)}`,
+          path: ['files', i]
+        })
+      }
+    }
+  })
+
+export const ServiceModelCacheConfigSchema = z
+  .object({
+    enabled: z.boolean(),
+    path: z.string().optional(),
+    maxSizeGb: z.number().positive().optional(),
+    minFreeGb: z.number().min(0).optional().default(100),
+    fromTemplates: z.boolean().optional().default(true),
+    includeUnlisted: z.boolean().optional().default(true),
+    curated: z.array(CuratedModelSchema).max(500).optional().default([]),
+    syncIntervalMinutes: z.number().int().min(5).max(1440).optional().default(60),
+    gcGraceHours: z.number().min(1).optional().default(24)
+  })
+  .strict()
+  .superRefine((d, ctx) => {
+    if (d.path !== undefined) {
+      if (
+        !d.path.startsWith('/') ||
+        d.path === '/' ||
+        path.posix.normalize(d.path).replace(/\/$/, '') !== d.path
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'serviceModelCache.path must be an absolute, normalized path other than /',
+          path: ['path']
+        })
+      }
+    }
+    if (!d.enabled) return
+    if (!d.path) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'serviceModelCache.path is required when enabled',
+        path: ['path']
+      })
+    }
+    if (!d.maxSizeGb) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'serviceModelCache.maxSizeGb is required when enabled',
+        path: ['maxSizeGb']
+      })
     }
   })
 
@@ -1088,6 +1189,8 @@ export const OceanNodeConfigSchema = z
         return val
       }, PersistentStorageConfigSchema)
       .optional(),
+
+    serviceModelCache: ServiceModelCacheConfigSchema.nullable().optional(),
 
     FEE_AMOUNT: z.string().optional(),
     FEE_TOKENS: z.string().optional(),

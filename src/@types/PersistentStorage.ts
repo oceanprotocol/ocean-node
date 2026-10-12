@@ -34,4 +34,7 @@ export interface DockerMountObject {
   Source: string
   Target: string
   ReadOnly: boolean
+  // NonRecursive: submounts under Source are not carried into the container (API >= 1.40).
+  // Propagation is spelled out (Docker's default, rprivate) because dockerode's type needs it.
+  BindOptions?: { Propagation: 'rprivate'; NonRecursive?: boolean }
 }

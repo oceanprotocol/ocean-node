@@ -571,6 +571,13 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.SERVICE_TEMPLATES_PATH,
     required: false
   },
+  // Hugging Face token for the node model cache (docs/modelCache.md): rate limits only, read
+  // at use time, never part of the config. Deliberately not in ENV_TO_CONFIG_MAPPING.
+  SERVICE_MODEL_CACHE_HF_TOKEN: {
+    name: 'SERVICE_MODEL_CACHE_HF_TOKEN',
+    value: process.env.SERVICE_MODEL_CACHE_HF_TOKEN,
+    required: false
+  },
   DOCKER_REGISTRY_AUTHS: {
     name: 'DOCKER_REGISTRY_AUTHS',
     value: process.env.DOCKER_REGISTRY_AUTHS,

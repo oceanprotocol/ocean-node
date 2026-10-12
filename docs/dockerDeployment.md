@@ -141,6 +141,46 @@ Without `--profile node` those files still start only the database, which is wha
 
 ---
 
+## Node model cache (optional)
+
+A node that offers services can keep the Hugging Face weights its templates use on local disk
+and mount them read-only into every service - see [Node model cache](modelCache.md). Three
+things in the deployment have to be right for it:
+
+- **The cache directory is bound at the identical path.** The node checks the directory from
+  inside its container, but dockerd, which creates the service containers, resolves the bind
+  source on the host, so the path must be the same on both sides, read-write. The node refuses
+  the directory otherwise - as long as it can find its own container, which it looks up by
+  hostname: keep the default hostname and do not use `network_mode: host`.
+- **The directory is created empty and owned by uid 1000**, the `node` user the image runs as.
+  Unlike `databases`, the entrypoint does not fix its ownership.
+- **`CONFIG_PATH` names a file on the persistent `databases` mount.** The cache is configured in
+  the config file, which `pushConfig` rewrites. The image's own `/usr/src/app/config.json` sits
+  in the container's writable layer: a push to it is written in place (not atomically, since
+  the node cannot create files in the root-owned `/usr/src/app`) and lost at the next
+  recreate, when the image's copy comes back.
+
+```shell
+$ sudo install -d -o 1000 -g 1000 -m 0755 /data/ocean-model-cache-v1
+```
+
+```yaml
+services:
+  ocean-node:
+    environment:
+      CONFIG_PATH: /usr/src/app/databases/config.json
+    volumes:
+      - node-sqlite:/usr/src/app/databases
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /data/ocean-model-cache-v1:/data/ocean-model-cache-v1
+```
+
+Copy the running config into `databases/` before switching `CONFIG_PATH` to it. The full
+procedure - pre-checks, enabling, verification, sizing - is the
+[operator runbook](modelCache.md#operator-runbook).
+
+---
+
 Additional notes:
 
 - the docker compose file generated will have the following format. For all available configurations, refer to the [Environment Variables](https://github.com/oceanprotocol/ocean-node/blob/main/docs/env.md) documentation

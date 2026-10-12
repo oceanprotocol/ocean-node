@@ -258,3 +258,4 @@ Because results are regular bucket files, they can feed the next compute job wit
 - The bucket registry is local to the node (SQLite file). If you run multiple nodes, each node’s registry is independent unless you externalize/replicate it.
 - `listBuckets(owner)` requires `owner` and only returns buckets that were created with that owner recorded.
 - Filenames in `localfs` are constrained (no path separators) to avoid path traversal.
+- On a node with a [node model cache](modelCache.md), model weights must not live in buckets: a bucket may sit on network storage, which loads weights far more slowly than the cache's local disk. Service bootstraps there read weights from the cache and download what it lacks to the container's own disk, never into the bucket (see the [consumer rules](modelCache.md#consumer-rules)).

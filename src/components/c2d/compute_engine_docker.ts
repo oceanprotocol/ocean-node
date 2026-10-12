@@ -34,6 +34,12 @@ import { Escrow } from '../core/utils/escrow.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { Storage } from '../storage/index.js'
 import Dockerode from 'dockerode'
+import {
+  applyModelCacheEnv,
+  getModelCacheMounts,
+  isModelCacheMount,
+  MODEL_CACHE_ENV
+} from '../modelCache/mounts.js'
 import type { ContainerCreateOptions, HostConfig, VolumeCreateOptions } from 'dockerode'
 import * as tar from 'tar'
 import * as tarStream from 'tar-stream'
@@ -3956,6 +3962,62 @@ export class C2DEngineDocker extends C2DEngine {
     return [await ps.getDockerOutputMountObject(job.outputBucketId, job.owner)]
   }
 
+  // The node's read-only model cache (docs/modelCache.md), when the operator enabled it —
+  // the one host bind a service gets besides its bucket. Reads the node's LIVE config (a
+  // pushConfig of serviceModelCache does not rebuild engines) and never throws: a missing
+  // cache must not fail a paid start.
+  private async serviceModelCacheMounts(): Promise<DockerMountObject[]> {
+    // dockerd resolves a bind on its own host: only a daemon on this host (a socket, not a
+    // TCP connection) can see the directory the cache verified.
+    const conn = this.getC2DConfig()?.connection
+    if (!conn?.socketPath || (conn.protocol && conn.host && conn.port)) return []
+    let node: OceanNode
+    try {
+      node = OceanNode.getInstance()
+    } catch {
+      return []
+    }
+    return await getModelCacheMounts(
+      node.getConfig()?.serviceModelCache,
+      node.getModelCacheManager?.()
+    )
+  }
+
+  // createContainer, retried once without the model cache when dockerd refuses the create
+  // with it (e.g. the cache path is not bound into the node at the identical host path):
+  // that mount is optional, the paid service is not.
+  private async createServiceContainer(
+    serviceId: string,
+    opts: ContainerCreateOptions
+  ): Promise<Dockerode.Container> {
+    try {
+      return await this.docker.createContainer(opts)
+    } catch (e) {
+      const mounts = (opts.HostConfig?.Mounts ?? []) as DockerMountObject[]
+      if (!mounts.some(isModelCacheMount)) throw e
+      const reason = e?.message ?? String(e)
+      CORE_LOGGER.warn(
+        `service ${serviceId}: container create failed with the model cache mount (${reason}); retrying without it`
+      )
+      const container = await this.docker.createContainer({
+        ...opts,
+        Env: (opts.Env ?? []).filter((v) => !v.startsWith(`${MODEL_CACHE_ENV}=`)),
+        HostConfig: {
+          ...opts.HostConfig,
+          Mounts: mounts.filter((m) => !isModelCacheMount(m))
+        }
+      })
+      // Only now is the cache mount known to be the culprit (the retry would have failed
+      // the same way for any other reason).
+      try {
+        OceanNode.getInstance().getModelCacheManager?.()?.markMountBroken(reason)
+      } catch {
+        // no node instance (tests)
+      }
+      return container
+    }
+  }
+
   private getServiceOutputsFolder(serviceId: string): string {
     return path.join(this.getStoragePath(), 'services', serviceId)
   }
@@ -4393,6 +4455,8 @@ export class C2DEngineDocker extends C2DEngine {
       // Container env from the decrypted (in-memory) userData; command/entrypoint from the request.
       const decryptedUserData = await decryptUserData(job.userData, this.keyManager)
       const env = userDataToEnv(decryptedUserData)
+      const cacheMounts = await this.serviceModelCacheMounts()
+      applyModelCacheEnv(env, cacheMounts.length > 0)
       const cmd = job.dockerCmd?.length ? job.dockerCmd : undefined
       const entrypoint = job.dockerEntrypoint?.length ? job.dockerEntrypoint : undefined
 
@@ -4417,7 +4481,7 @@ export class C2DEngineDocker extends C2DEngine {
         job.environment
       )
 
-      container = await this.docker.createContainer({
+      container = await this.createServiceContainer(serviceId, {
         Image: job.containerImage,
         Cmd: cmd,
         Entrypoint: entrypoint,
@@ -4438,7 +4502,7 @@ export class C2DEngineDocker extends C2DEngine {
           ...(IpcMode ? { IpcMode } : {}),
           ...(ShmSize ? { ShmSize } : {}),
           PidsLimit: PidsLimit ?? SERVICE_DEFAULT_PIDS_LIMIT,
-          Mounts: await this.serviceOutputMounts(job)
+          Mounts: [...(await this.serviceOutputMounts(job)), ...cacheMounts]
         }
       })
       CORE_LOGGER.debug(
@@ -5633,6 +5697,8 @@ export class C2DEngineDocker extends C2DEngine {
 
       // 4. Rebuild env (from userData) + command/entrypoint
       const env = userDataToEnv(decryptedUserData)
+      const cacheMounts = await this.serviceModelCacheMounts()
+      applyModelCacheEnv(env, cacheMounts.length > 0)
       const cmd = effDockerCmd?.length ? effDockerCmd : undefined
       const entrypoint = effDockerEntrypoint?.length ? effDockerEntrypoint : undefined
 
@@ -5667,7 +5733,7 @@ export class C2DEngineDocker extends C2DEngine {
       )
 
       // 8. Create and start new container
-      container = await this.docker.createContainer({
+      container = await this.createServiceContainer(serviceId, {
         Image: effContainerImage,
         Cmd: cmd,
         Entrypoint: entrypoint,
@@ -5685,7 +5751,7 @@ export class C2DEngineDocker extends C2DEngine {
           ...(IpcMode ? { IpcMode } : {}),
           ...(ShmSize ? { ShmSize } : {}),
           PidsLimit: PidsLimit ?? SERVICE_DEFAULT_PIDS_LIMIT,
-          Mounts: await this.serviceOutputMounts(job)
+          Mounts: [...(await this.serviceOutputMounts(job)), ...cacheMounts]
         }
       })
       CORE_LOGGER.debug(

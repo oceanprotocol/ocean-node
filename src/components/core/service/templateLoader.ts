@@ -16,25 +16,41 @@ async function readTemplateFile(
   resolvedRoot: string,
   baseDir: string,
   relPath: string,
-  what: string
+  what: string,
+  diag?: TemplateLoadDiagnostics
 ): Promise<string | null> {
   const target = resolve(baseDir, relPath)
   if (target !== resolvedRoot && !target.startsWith(resolvedRoot + sep)) {
     CORE_LOGGER.warn(`${what}: "${relPath}" resolves outside the templates dir`)
+    diag?.errors.push(`${what}: "${relPath}" resolves outside the templates dir`)
     return null
   }
   try {
     return await readFile(target, 'utf8')
   } catch (e) {
     CORE_LOGGER.warn(`${what}: cannot read "${relPath}" (${e.message})`)
+    diag?.errors.push(`${what}: cannot read "${relPath}" (${e.message})`)
     return null
   }
 }
 
+// Collects every load problem the loader otherwise only logs. The model cache uses it to
+// tell "a template was removed" from "the templates could not be read" before it retires
+// anything (see components/modelCache).
+export interface TemplateLoadDiagnostics {
+  errors: string[]
+}
+
 // Re-reads on every call so operators can add/edit/remove template files without a restart.
 // (If profiling ever shows this is hot, add an mtime-keyed cache — semantics stay identical.)
-export async function loadServiceTemplates(dir?: string): Promise<ServiceTemplate[]> {
-  if (!dir) return [] // safety net; in practice the config schema always supplies the default
+export async function loadServiceTemplates(
+  dir?: string,
+  diag?: TemplateLoadDiagnostics
+): Promise<ServiceTemplate[]> {
+  if (!dir) {
+    diag?.errors.push('no serviceTemplatesPath configured')
+    return [] // safety net; in practice the config schema always supplies the default
+  }
 
   let files: string[]
   try {
@@ -53,6 +69,7 @@ export async function loadServiceTemplates(dir?: string): Promise<ServiceTemplat
   } catch (e) {
     // A missing folder is the normal "no templates" state — the default path
     // (databases/serviceTemplates/) need not exist — so stay quiet on ENOENT.
+    diag?.errors.push(`serviceTemplatesPath "${dir}" is not readable: ${e.message}`)
     if (e.code === 'ENOENT') {
       CORE_LOGGER.debug(
         `serviceTemplatesPath "${dir}" does not exist — no service templates loaded`
@@ -76,6 +93,7 @@ export async function loadServiceTemplates(dir?: string): Promise<ServiceTemplat
       CORE_LOGGER.warn(
         `Skipping service template file "${file}": invalid JSON (${e.message})`
       )
+      diag?.errors.push(`${file}: invalid JSON`)
       continue
     }
     // A file may be a single template object or an array of templates.
@@ -87,6 +105,7 @@ export async function loadServiceTemplates(dir?: string): Promise<ServiceTemplat
             .map((i) => i.message)
             .join('; ')}`
         )
+        diag?.errors.push(`${file}: invalid template`)
         continue
       }
       const tmpl = parsed.data as ServiceTemplate
@@ -102,7 +121,8 @@ export async function loadServiceTemplates(dir?: string): Promise<ServiceTemplat
           resolvedRoot,
           baseDir,
           tmpl.commandFile,
-          `Skipping service template "${tmpl.id}"`
+          `Skipping service template "${tmpl.id}"`,
+          diag
         )
         if (content === null) continue
         delete tmpl.commandFile
@@ -117,13 +137,20 @@ export async function loadServiceTemplates(dir?: string): Promise<ServiceTemplat
             continue
           }
           const dropping = `Template "${tmpl.id}": dropping workflow "${wf.id}"`
-          const content = await readTemplateFile(resolvedRoot, baseDir, wf.file, dropping)
+          const content = await readTemplateFile(
+            resolvedRoot,
+            baseDir,
+            wf.file,
+            dropping,
+            diag
+          )
           if (content === null) continue
           try {
             const { file, ...rest } = wf
             resolved.push({ ...rest, graph: JSON.parse(content) })
           } catch (e) {
             CORE_LOGGER.warn(`${dropping} — invalid JSON in "${wf.file}" (${e.message})`)
+            diag?.errors.push(`${dropping}: invalid JSON in "${wf.file}"`)
           }
         }
         tmpl.workflows = resolved

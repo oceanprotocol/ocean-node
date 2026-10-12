@@ -254,6 +254,11 @@ restart needed. Layout is one folder per flow, named after the
 flow's `id`, with the template itself always at `template.json` inside it. Template secret
 values are never returned by the API (only the env-var keys are exposed).
 
+**Model weights can be cached node-wide.** With `serviceModelCache` enabled, the node
+downloads the Hugging Face weights its templates use (plus any the operator lists) once, to
+local disk, and mounts them read-only into every service, so a bootstrap that reads the cache
+need not spend its paid window downloading them. See [Node model cache](modelCache.md).
+
 The compute environments a service can run on — and the resources (cpu/ram/disk/gpu) it may
 request — are the same ones configured at the node's Docker-connection level for compute jobs,
 and services draw from and are counted against the same shared resource pool. For how to
@@ -268,7 +273,7 @@ declare resources, configure GPUs, set per-environment constraints, and price th
   arbitrary service images often expect to start as root, so the image's declared user
   is kept. Dropping all capabilities + `no-new-privileges` keeps that root process
   unprivileged. `PidsLimit` is the only one of the three an operator can raise, via
-  `init.advanced` on a resource (see the next-to-last bullet).
+  `init.advanced` on a resource (see *No privileged/advanced Docker config* below).
 
 - **⚠️ Low ports won't bind inside the container.** Because `CapDrop: ['ALL']` removes
   `NET_BIND_SERVICE`, a process **inside** the container cannot bind to a container port
@@ -302,6 +307,24 @@ declare resources, configure GPUs, set per-environment constraints, and price th
   These come only from node configuration. Nothing in a service template, `userData`, or
   the start request can set them — a consumer-selected template able to ask for
   `IpcMode: 'host'` would be a way out of the `CapDrop: ['ALL']` sandbox. Keep it that way.
+
+- **One host bind besides the bucket: the node model cache.** Apart from the service's output
+  bucket, the only host directory a service ever gets is the operator's
+  [node model cache](modelCache.md), and only while `serviceModelCache` is enabled and
+  verified. It is a deliberately narrow exception to the rule above:
+  - it is **read-only** and non-recursive, always at the fixed target `/ocean/model-cache`,
+    and announced by `OCEAN_MODEL_CACHE=/ocean/model-cache` (a value supplied in `userData`
+    is dropped);
+  - its source, target and mode come only from the node — nothing in a template, `userData`
+    or the start request can add, move or widen it;
+  - its content is node-managed: public Hugging Face weights the node downloaded and verified
+    against their hashes itself (gated and private repositories are never cached), and an
+    `index.json` listing them. That is all it exposes, and every tenant can read all of it,
+    including which models the node holds; the cache's own state stays outside the mounted
+    part.
+
+  If dockerd refuses the mount, the container is created again without it — the cache can
+  never fail a paid start.
 
 - **Payment is server-priced.** Cost is computed only from the environment's configured
   pricing for the requested token/chain; the consumer cannot influence the charged

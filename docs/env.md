@@ -203,6 +203,8 @@ Powers the `getNodeMetrics` (live snapshot) and `getNodeMetricsHistory` (hourly 
 
 - `SERVICE_TEMPLATES_PATH`: Path to a folder of operator-published Service-on-Demand template files (`*.json`, validated against the template schema). The folder is re-read on every `serviceTemplates` request, so templates can be added, edited, or removed without restarting the node. Maps to the `serviceTemplatesPath` config field. Defaults to `databases/serviceTemplates/`, which the image does not create — the operator mounts templates into it (a missing folder simply means no templates). See the [Services guide](services.md). Example: `/templates`
 
+- `SERVICE_MODEL_CACHE_HF_TOKEN`: Optional Hugging Face token for the [node model cache](modelCache.md). It only lifts the Hub's anonymous rate limits: gated and private repositories are never cached, with or without it. Environment only, deliberately — there is no config field for it, so it is never written to the config file and never returned by `fetchConfig`/`pushConfig`. Sent only to `huggingface.co`, never to the CDN that downloads redirect to. Use a fine-grained, read-only token with no access to gated or private repositories (it needs none). Example: `hf_...`
+
 The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable is used to configure Docker-based compute environments in Ocean Node. For the full guide — resources, GPU setup, constraints and pricing — see [Compute Configuration](compute.md).
 
 `cpu`, `ram`, and `disk` resources are **auto-detected** from the host at startup. All resource values are expressed in natural units: CPU in cores, RAM and disk in GB.
