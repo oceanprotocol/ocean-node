@@ -59,7 +59,7 @@ export function toPublicServiceJob(
   opts: { includeMetrics?: boolean } = {}
 ): Omit<ServiceJob, 'userData'> | null {
   if (!job) return null
-  const { userData, runtimeMetrics, ...rest } = job
+  const { userData, runtimeMetrics, previousContainerId, ...rest } = job
   // userData is ALWAYS stripped. The owner-scoped status path may opt in to the sanitized
   // runtime metrics (internal `prev` accumulator dropped); otherwise they stay absent.
   // SERVICE_LIST uses toListedServiceJob, which never includes metrics.
@@ -72,8 +72,8 @@ export function toPublicServiceJob(
 
 // Listing-grade sanitization for SERVICE_LIST, which is NOT owner-scoped: on top of the
 // always-stripped userData (the encrypted env blob), it removes everything that reveals
-// HOW a service is configured — CMD/ENTRYPOINT overrides and any inline Dockerfile —
-// keeping identity, status, resources, endpoints, payment metadata and the owner's
+// HOW a service is configured — CMD/ENTRYPOINT overrides and any inline Dockerfile — and
+// what it produced (its output archives), keeping identity, status, resources, endpoints, payment metadata and the owner's
 // arbitrary `metadata` labels. `metadata` is returned in both this node-wide list and the
 // owner-scoped SERVICE_GET_STATUS.
 export function toListedServiceJob(
@@ -86,6 +86,8 @@ export function toListedServiceJob(
   | 'dockerEntrypoint'
   | 'dockerfile'
   | 'additionalDockerFiles'
+  | 'outputArchives'
+  | 'previousContainerId'
 > | null {
   if (!job) return null
   const {
@@ -95,9 +97,33 @@ export function toListedServiceJob(
     dockerEntrypoint,
     dockerfile,
     additionalDockerFiles,
+    outputArchives,
+    previousContainerId,
+    readiness,
+    modelDownload,
     ...pub
   } = job
-  return pub
+  // "Is this service actually serving?" is the listing's whole point for a node operator, so the
+  // readiness RESULT is kept — but reduced to what answers that, without the diagnostics (probed
+  // address, error text) meant for the owner.
+  // Progress is kept for the same reason, minus `modelId`: which model a consumer is running is
+  // their business, and this listing is readable by any caller, not just the owner.
+  const listedModelDownload = modelDownload
+    ? (({ modelId, ...rest }) => rest)(modelDownload)
+    : undefined
+  return {
+    ...pub,
+    ...(readiness
+      ? {
+          readiness: {
+            state: readiness.state,
+            engine: readiness.engine,
+            readySince: readiness.readySince
+          }
+        }
+      : {}),
+    ...(listedModelDownload ? { modelDownload: listedModelDownload } : {})
+  }
 }
 
 const SINCE_DURATION_RE = /^(\d+)(s|m|h|d)$/

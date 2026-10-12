@@ -37,6 +37,7 @@ and `signature` as query parameters (or an auth-token `Authorization` header).
 | `SERVICE_STOP` | `/api/services/serviceStop` | POST | Tear down the container; the paid resource reservation (cpu/ram/gpu + host ports) is kept until `expiresAt`, so the service can be restarted anytime on the same endpoints. `release: true` ends the paid window now and frees it instead (no refund, no restart) |
 | `SERVICE_GET_TEMPLATES` | `/api/services/serviceTemplates` | GET | List operator-published service templates |
 | `SERVICE_GET_STREAMABLE_LOGS` | `/api/services/serviceStreamableLogs` | GET | Stream the container's live stdout/stderr logs — authenticated, owner-scoped; available while `Running` or `Error`; optional `since` to skip history |
+| `SERVICE_GET_RESULT` | `/api/services/serviceResult` | GET | Download the service's `/data/outputs` as a zip — one of its archives (`index`, resumable with `offset`) or the running container's (`live=true`); authenticated, owner-scoped. See [Service outputs](#service-outputs) |
 
 **Start is asynchronous.** `serviceStart` does only the fast, synchronous validation and then
 returns the `serviceId` right away — it does **not** wait for escrow or the (potentially
@@ -72,7 +73,10 @@ and watch `Restarting` → `PullImage`/`BuildImage` → `Running` (or `Error` wi
 reason in `statusText`). A service whose start payment was **never claimed** — the escrow
 lock failed outright (e.g. insufficient funds) or was refunded before being claimed —
 cannot be restarted: it was never paid for, so restarting it would run the service for
-free. Start a new service instead.
+free. Start a new service instead. A service with an `outputBucketId` the owner can no
+longer use (the bucket was deleted, or it belongs to someone else and bucket sharing is
+disabled or the owner was removed from its access list) is refused with `403` before
+anything is torn down, so the running container is left as it was.
 
 **Restart can change the image — atomically.** A restart is either *all-old* or *all-new*;
 it never mixes new request params over the stored job:
@@ -148,6 +152,49 @@ takes a lease row in the SQLite `service_locks` table, so two processes sharing 
 redeploy) cannot run conflicting operations on the same service. Leases are heartbeated
 every 30 s while the operation runs; a lease not refreshed for 2 minutes belongs to a
 crashed process and is stolen automatically, so no manual cleanup is ever needed.
+
+## Service outputs
+
+A service writes its results to `/data/outputs`. With an `outputBucketId` that folder is the
+bucket, bind-mounted into the container, and everything below does not apply — the results
+are in the bucket. Without a bucket, the node handles `/data/outputs` like it handles a
+compute job's outputs:
+
+- **The folder always exists.** Before starting a container the node creates
+  `/data/outputs` in it (mode `0777`, so a non-root service user can write), unless the image
+  already has one. An existing `/data` is left untouched.
+- **A restart keeps it.** `serviceRestart` replaces the container, so the node carries the
+  folder over: the old container is stopped (not removed), and once the new one is created
+  its `/data/outputs` is copied in, before the new container starts and the old one is
+  removed. The service comes back with the files it had, and a restart normally produces no
+  archive. If the old container can't be stopped, the copy fails, or the restart itself
+  fails, the folder is archived instead, so nothing is lost. A service with an output bucket needs none of
+  this: the bucket is mounted into the new container again.
+- **It is archived when the service's container goes away for good**: `serviceStop`, the
+  expiry sweep, and the crash recovery at node start. The folder lives in the container's
+  writable layer, so it is zipped right before the container is removed. Each such container
+  gives one archive, `outputs-<n>.zip` under `<c2d storage>/services/<serviceId>/`, listed on
+  `serviceStatus` as `outputArchives` (`index`, `filename`, `filesize`, `createdAt` and
+  `containerId`). Archiving is best-effort: if it fails, teardown continues and the error is
+  only logged by the node. A container without `/data/outputs`, or with an empty one, produces
+  no archive. A service that is stopped and later restarted starts with an empty folder;
+  what it had is in the stop archive.
+- **The zip holds the folder's regular files and folders**, uncompressed, with their mtimes
+  and permission bits. Symlinks, hardlinks, devices and entries with an absolute or `..`
+  path are left out, so an archive can't write outside the folder it is extracted into.
+- **Download it any time.** `serviceResult?serviceId&index=<n>` streams an archive, in any
+  status, including `Expired`; add `offset=<bytes>` to resume a broken download.
+  `serviceResult?serviceId&live=true` zips the running container's `/data/outputs` on the
+  fly (while `Running`, or `Error` before teardown) — a service can run for weeks, and its
+  owner shouldn't have to stop it to get results. A live download isn't written to the
+  node's disk and can't be resumed. Files the service is writing at that moment may come out
+  partial.
+- **Archives expire like job results.** They are deleted `storageExpiry` seconds (of the
+  service's environment, default 604800) after `expiresAt`, by the same cron that cleans
+  expired compute jobs (`CRON_CLEANUP_C2D_STORAGE`). An early `release` moves `expiresAt` to
+  the stop time, and `serviceExtend` moves it later. The service record is kept, with
+  `outputArchives: []`.
+- There is no size cap on archives beyond the node's free disk.
 
 ## Configuration
 
@@ -234,7 +281,11 @@ declare resources, configure GPUs, set per-environment constraints, and price th
 - **Access lists apply to the whole lifecycle.** `start`, `extend`, and `restart` all
   re-check the environment's `access` allow-list (access lists are mutable, so a
   revoked consumer cannot keep a service alive). `stop` is owner-gated only, so a
-  revoked owner can still shut their own service down.
+  revoked owner can still shut their own service down. The same goes for the
+  `outputBucketId`: `start`, `extend` and `restart` all check that the owner may still use
+  the bucket, and refuse with `403` (before any payment or teardown) once they may not —
+  e.g. bucket sharing was turned off, the owner was removed from the bucket's access list,
+  or the bucket was deleted. A running service keeps its mount until `expiresAt`.
 
 - **No privileged/advanced Docker config, with three narrow exceptions.** The service path
   deliberately omits most of the advanced Docker config the compute path supports — host
@@ -275,6 +326,10 @@ declare resources, configure GPUs, set per-environment constraints, and price th
   the stream switches to following live output — for a service that has been running for
   days or weeks that can be a lot of data, so pass `since` (a Unix timestamp, or a relative
   duration like `1h`) to skip straight to recent output.
+
+- **`serviceResult` is authenticated and owner-scoped, like `serviceStreamableLogs`.** A
+  service's outputs are its owner's data; a non-owner gets the same `400` as an unknown
+  `serviceId`. The node-wide `serviceList` leaves out `outputArchives`.
 
 - **`allowImageBuild` runs arbitrary build instructions.** When enabled, a consumer's
   inline `dockerfile` is built by the Docker daemon, so its `RUN` steps execute arbitrary

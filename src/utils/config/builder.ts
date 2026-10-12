@@ -19,6 +19,7 @@ import { create256Hash } from '../crypt.js'
 import { CONFIG_LOGGER } from '../logging/common.js'
 import { LOG_LEVELS_STR, GENERIC_EMOJIS } from '../logging/Logger.js'
 import { OceanNodeConfigSchema } from './schemas.js'
+import { booleanFromString } from './transforms.js'
 import { ENV_TO_CONFIG_MAPPING } from './constants.js'
 import { registerP2PBudgetConfig } from '../../components/P2P/timeouts.js'
 import { fileURLToPath } from 'url'
@@ -251,6 +252,17 @@ export function buildMergedConfig(): OceanNodeConfig {
   }
 
   const config = parsed.data as any
+
+  // PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING overrides persistentStorage.allowBucketSharing.
+  // Applied after parsing because PERSISTENT_STORAGE may still be a JSON string before it.
+  if (config.PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING !== undefined) {
+    if (config.persistentStorage) {
+      config.persistentStorage.allowBucketSharing = booleanFromString.parse(
+        config.PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING
+      )
+    }
+    delete config.PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING
+  }
 
   // Post-processing transformations
   if (!config.indexingNetworks) {

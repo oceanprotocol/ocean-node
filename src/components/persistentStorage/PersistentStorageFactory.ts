@@ -242,6 +242,36 @@ export abstract class PersistentStorageFactory {
     }))
   }
 
+  /**
+   * Lists the owner's buckets that `consumer` may use: all of them for the owner, otherwise
+   * only those whose access list includes the consumer (none when sharing is disabled).
+   * Both addresses must already be normalized (checksummed `getAddress`).
+   */
+  async listBucketsForConsumer(
+    owner: string,
+    consumer: string
+  ): Promise<PersistentStorageBucketRecord[]> {
+    const buckets = await this.listBuckets(owner)
+    if (consumer === owner) {
+      return buckets
+    }
+    if (!this.isBucketSharingAllowed()) {
+      return []
+    }
+    // Buckets often share an access list; check each distinct list only once.
+    const checks = new Map<string, Promise<boolean>>()
+    const allowed = await Promise.all(
+      buckets.map((bucket) => {
+        const key = JSON.stringify(bucket.accessLists)
+        if (!checks.has(key)) {
+          checks.set(key, this.isAllowed(consumer, bucket.accessLists))
+        }
+        return checks.get(key)
+      })
+    )
+    return buckets.filter((_, i) => allowed[i])
+  }
+
   /*
    * NOTE: db* methods are intentionally gated on ensureDbReady() to avoid races
    * with constructor-time schema creation.
@@ -299,7 +329,15 @@ export abstract class PersistentStorageFactory {
     return checkAddressOnAccessList(consumerAddress, accessLists, this.node)
   }
 
-  /** Throws {@link PersistentStorageAccessDeniedError} if the consumer is not on the bucket access list. */
+  /** Whether bucket access lists are honoured (off by default). When off, only the bucket owner can use a bucket. */
+  public isBucketSharingAllowed(): boolean {
+    return this.node.getConfig().persistentStorage?.allowBucketSharing === true
+  }
+
+  /**
+   * Throws {@link PersistentStorageAccessDeniedError} if the consumer is neither the owner
+   * nor on the bucket access list (the access list is ignored when sharing is disabled).
+   */
   public async assertConsumerAllowedForBucket(
     consumerAddress: string,
     bucketId: string
@@ -311,6 +349,9 @@ export abstract class PersistentStorageFactory {
     const accessLists = parseBucketAccessListsJson(bucket.accessListJson)
     if (normalizeWeb3Address(consumerAddress) === normalizeWeb3Address(bucket.owner)) {
       return
+    }
+    if (!this.isBucketSharingAllowed()) {
+      throw new PersistentStorageAccessDeniedError()
     }
     if (!(await this.isAllowed(consumerAddress, accessLists))) {
       throw new PersistentStorageAccessDeniedError()
