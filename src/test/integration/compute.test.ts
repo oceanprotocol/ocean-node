@@ -91,7 +91,22 @@ import {
   PersistentStorageUploadFileHandler
 } from '../../components/core/handler/persistentStorage.js'
 import { deployAndGetAccessListConfig } from '../utils/contracts.js'
-import * as tar from 'tar'
+import yauzl from 'yauzl'
+
+async function readOutputZip(file: string, filename: string): Promise<string> {
+  const zip = await yauzl.openPromise(file)
+  try {
+    for await (const entry of zip.eachEntry()) {
+      if (entry.fileName !== filename) continue
+      const chunks: Buffer[] = []
+      for await (const chunk of await zip.openReadStreamPromise(entry)) chunks.push(chunk)
+      return Buffer.concat(chunks).toString('utf8')
+    }
+    throw new Error(`Expected ${filename} inside ${file}`)
+  } finally {
+    zip.close()
+  }
+}
 
 /**
  * Polls getComputeEnvironments until every environment's resources (and free.resources)
@@ -2442,23 +2457,10 @@ describe('**********         Compute', () => {
       await waitForComputeJobFinished(oceanNode, fullJobId, 180_000)
 
       const base = (psDockerEngine as any).getStoragePath() as string
-      const outputsTarPath = path.join(base, innerJobId, 'data/outputs/outputs.tar')
+      const outputsZipPath = path.join(base, innerJobId, 'data/outputs/outputs.zip')
       /* eslint-disable security/detect-non-literal-fs-filename -- job paths from C2D engine */
-      assert(existsSync(outputsTarPath), `expected outputs archive at ${outputsTarPath}`)
-      const extractDir = await fsp.mkdtemp(path.join(tmpdir(), 'ocean-ps-out-'))
-      try {
-        await tar.x({ file: outputsTarPath, cwd: extractDir }, [
-          `outputs/${outputFileName}`
-        ])
-        const extracted = path.join(extractDir, `outputs/${outputFileName}`)
-        assert(
-          existsSync(extracted),
-          `expected outputs/${outputFileName} inside outputs.tar`
-        )
-        return await fsp.readFile(extracted, 'utf8')
-      } finally {
-        await fsp.rm(extractDir, { recursive: true, force: true })
-      }
+      assert(existsSync(outputsZipPath), `expected outputs archive at ${outputsZipPath}`)
+      return readOutputZip(outputsZipPath, outputFileName)
       /* eslint-enable security/detect-non-literal-fs-filename */
     }
 
@@ -2653,31 +2655,11 @@ describe('**********         Compute', () => {
       await waitForComputeJobFinished(oceanNode, fullJobId, 180_000)
 
       const base = (psDockerEngine as any).getStoragePath() as string
-      const outputsTarPath = path.join(base, innerJobId, 'data/outputs/outputs.tar')
+      const outputsZipPath = path.join(base, innerJobId, 'data/outputs/outputs.zip')
       /* eslint-disable security/detect-non-literal-fs-filename -- job paths from C2D engine */
-      assert(
-        existsSync(outputsTarPath),
-        `expected outputs archive at ${outputsTarPath} (algorithm should write into /data/outputs before tar)`
-      )
-      const extractDir = await fsp.mkdtemp(path.join(tmpdir(), 'ocean-ps-tar-'))
-      try {
-        await tar.x(
-          {
-            file: outputsTarPath,
-            cwd: extractDir
-          },
-          ['outputs/ps-result.txt']
-        )
-        const extractedFile = path.join(extractDir, 'outputs/ps-result.txt')
-        assert(
-          existsSync(extractedFile),
-          'expected outputs/ps-result.txt inside outputs.tar'
-        )
-        const written = await fsp.readFile(extractedFile, 'utf8')
-        assert.equal(written, secret)
-      } finally {
-        await fsp.rm(extractDir, { recursive: true, force: true })
-      }
+      assert(existsSync(outputsZipPath), `expected outputs archive at ${outputsZipPath}`)
+      const written = await readOutputZip(outputsZipPath, 'ps-result.txt')
+      assert.equal(written, secret)
       /* eslint-enable security/detect-non-literal-fs-filename */
     })
 
@@ -3106,7 +3088,7 @@ describe('**********         Compute', () => {
       })
 
       /* eslint-disable security/detect-non-literal-fs-filename -- test paths */
-      it('stores job results directly in the bucket as individual files (no outputs.tar)', async function () {
+      it('stores job results directly in the bucket as individual files (no output archive)', async function () {
         this.timeout(300_000)
         const { job, innerJobId } = await startFreeJobAndWait(
           seedFileName,
@@ -3123,8 +3105,12 @@ describe('**********         Compute', () => {
         )
 
         const base = (psDockerEngine as any).getStoragePath() as string
-        const outputsTarPath = path.join(base, innerJobId, 'data/outputs/outputs.tar')
-        assert(!existsSync(outputsTarPath), 'outputs.tar should not exist')
+        for (const filename of ['outputs.zip', 'outputs.tar']) {
+          assert(
+            !existsSync(path.join(base, innerJobId, 'data/outputs', filename)),
+            `${filename} should not exist`
+          )
+        }
         assert(
           !(job.results || []).some((r: any) => r.type === 'output'),
           'no output entry expected in results'

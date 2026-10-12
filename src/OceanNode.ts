@@ -23,6 +23,7 @@ import { createPersistentStorage } from './components/persistentStorage/createPe
 import { PersistentStorageFactory } from './components/persistentStorage/PersistentStorageFactory.js'
 import { isAddress, FallbackProvider, ethers } from 'ethers'
 import { create256Hash } from './utils/crypt.js'
+import type { ModelCacheManager } from './components/modelCache/manager.js'
 
 export interface RequestLimiter {
   requester: string | string[] // IP address or peer ID
@@ -51,6 +52,7 @@ export class OceanNode {
   private requestMap: Map<string, RequestLimiter>
   private auth: Auth
   private persistentStorage: PersistentStorageFactory
+  private modelCacheManager: ModelCacheManager | null = null
   private database: Database
 
   private constructor(
@@ -186,6 +188,10 @@ export class OceanNode {
   }
 
   public async tearDownAll() {
+    if (this.modelCacheManager) {
+      await this.modelCacheManager.stop()
+      this.modelCacheManager = null
+    }
     if (this.c2dEngines) {
       await this.c2dEngines.stopAllEngines()
       this.c2dEngines = null
@@ -288,6 +294,15 @@ export class OceanNode {
 
   public getConfig(): OceanNodeConfig {
     return this.config
+  }
+
+  // Node-level, not per engine: engines are rebuilt on config pushes, the cache is not.
+  public setModelCacheManager(manager: ModelCacheManager | null) {
+    this.modelCacheManager = manager
+  }
+
+  public getModelCacheManager(): ModelCacheManager | null {
+    return this.modelCacheManager ?? null
   }
 
   /**

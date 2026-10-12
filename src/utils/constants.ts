@@ -64,7 +64,8 @@ export const PROTOCOL_COMMANDS = {
   SERVICE_GET_STATUS: 'serviceGetStatus',
   SERVICE_LIST: 'serviceList',
   SERVICE_EXTEND: 'serviceExtend',
-  SERVICE_GET_STREAMABLE_LOGS: 'serviceGetStreamableLogs'
+  SERVICE_GET_STREAMABLE_LOGS: 'serviceGetStreamableLogs',
+  SERVICE_GET_RESULT: 'serviceGetResult'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -128,7 +129,8 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.SERVICE_GET_STATUS,
   PROTOCOL_COMMANDS.SERVICE_LIST,
   PROTOCOL_COMMANDS.SERVICE_EXTEND,
-  PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS
+  PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,
+  PROTOCOL_COMMANDS.SERVICE_GET_RESULT
 ]
 
 export const MetadataStates = {
@@ -569,6 +571,13 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.SERVICE_TEMPLATES_PATH,
     required: false
   },
+  // Hugging Face token for the node model cache (docs/modelCache.md): rate limits only, read
+  // at use time, never part of the config. Deliberately not in ENV_TO_CONFIG_MAPPING.
+  SERVICE_MODEL_CACHE_HF_TOKEN: {
+    name: 'SERVICE_MODEL_CACHE_HF_TOKEN',
+    value: process.env.SERVICE_MODEL_CACHE_HF_TOKEN,
+    required: false
+  },
   DOCKER_REGISTRY_AUTHS: {
     name: 'DOCKER_REGISTRY_AUTHS',
     value: process.env.DOCKER_REGISTRY_AUTHS,
@@ -647,6 +656,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   PERSISTENT_STORAGE: {
     name: 'PERSISTENT_STORAGE',
     value: process.env.PERSISTENT_STORAGE,
+    required: false
+  },
+  PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING: {
+    name: 'PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING',
+    value: process.env.PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING,
     required: false
   },
   C2D_DOWNLOAD_TIMEOUT: {

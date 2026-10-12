@@ -20,6 +20,8 @@ export interface PersistentStorageConfig {
   enabled: boolean
   type: PersistentStorageType
   accessLists: AccessList[]
+  /** Unless true, bucket access lists are ignored: only the bucket owner can use a bucket. Default false. */
+  allowBucketSharing?: boolean
   options: PersistentStorageLocalFSOptions | PersistentStorageS3Options
 }
 
@@ -32,4 +34,7 @@ export interface DockerMountObject {
   Source: string
   Target: string
   ReadOnly: boolean
+  // NonRecursive: submounts under Source are not carried into the container (API >= 1.40).
+  // Propagation is spelled out (Docker's default, rprivate) because dockerode's type needs it.
+  BindOptions?: { Propagation: 'rprivate'; NonRecursive?: boolean }
 }

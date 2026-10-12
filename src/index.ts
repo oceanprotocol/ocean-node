@@ -29,6 +29,9 @@ import type { OceanNodeDBConfig } from './@types/OceanNode.js'
 // (`telemetry/otel.js`). `otel.ts` itself is loaded via `--import`, never statically imported here.
 import { registerP2PGauges } from './telemetry/p2pGauges.js'
 import { registerComputeGauges } from './telemetry/computeGauges.js'
+import { ModelCacheManager } from './components/modelCache/manager.js'
+import { makeSelfInspector } from './components/modelCache/selfInspect.js'
+import type { C2DEngineDocker } from './components/c2d/compute_engine_docker.js'
 
 const app: Express = express()
 
@@ -96,6 +99,8 @@ process.on('unhandledRejection', (err) => {
 // so adding these handlers never makes shutdown slower than the previous signal-kills-immediately
 // behavior.
 let shuttingDown = false
+// Set once the model cache manager exists; stops a running sync (partial downloads resume).
+let stopModelCache: (() => Promise<void>) | null = null
 async function gracefulShutdown(signal: string): Promise<void> {
   if (shuttingDown) return
   shuttingDown = true
@@ -105,6 +110,13 @@ async function gracefulShutdown(signal: string): Promise<void> {
     process.exit(1)
   }, 10000)
   forceExit.unref()
+  try {
+    await stopModelCache?.()
+  } catch (e) {
+    OCEAN_NODE_LOGGER.warn(
+      `Model cache stop failed: ${e instanceof Error ? e.message : e}`
+    )
+  }
   try {
     await (await import('./telemetry/otel.js')).shutdownTelemetry()
   } catch (e) {
@@ -226,6 +238,34 @@ await oceanNode.addC2DEngines()
 // Attach the compute observable-gauge callbacks. No-ops cleanly when C2D is disabled
 // (getC2DEngines() is undefined) or when telemetry is unconfigured.
 registerComputeGauges(oceanNode.getC2DEngines())
+
+// Node-level cache of model weights for services (docs/modelCache.md). Idle unless
+// serviceModelCache is enabled; it reads the live config on every run, so a pushConfig
+// turns it on, off or reshapes it without a restart.
+const modelCacheManager = new ModelCacheManager({
+  getConfig: () => oceanNode.getConfig(),
+  // An unavailable DB must read as "unknown" (GC then deletes nothing), never as "none".
+  getServiceJobs: async () => {
+    const db = await oceanNode.getDatabase()
+    if (!db?.c2d) throw new Error('C2D database unavailable')
+    return await db.c2d.getRunningServiceJobs()
+  },
+  getEngineStoragePaths: () =>
+    (oceanNode.getC2DEngines()?.engines ?? [])
+      .map((e) => (e as C2DEngineDocker).getStoragePath?.())
+      .filter((p): p is string => typeof p === 'string'),
+  // The daemon that will mount the cache: a local socket one (remote daemons never get it).
+  inspectSelf: makeSelfInspector(() => {
+    const local = (oceanNode.getC2DEngines()?.engines ?? []).find((e) => {
+      const conn = (e as C2DEngineDocker).getC2DConfig?.()?.connection
+      return conn?.socketPath && !(conn.protocol && conn.host && conn.port)
+    })
+    return (local as C2DEngineDocker)?.docker ?? undefined
+  })
+})
+oceanNode.setModelCacheManager(modelCacheManager)
+stopModelCache = () => modelCacheManager.stop()
+modelCacheManager.start()
 
 function removeExtraSlashes(req: any, res: any, next: any) {
   req.url = req.url.replace(/\/{2,}/g, '/')

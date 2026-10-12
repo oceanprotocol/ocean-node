@@ -6,6 +6,7 @@ import { Schema } from '../components/database'
 import { KeyProviderType } from './KeyManager'
 import type { PersistentStorageConfig } from './PersistentStorage.js'
 import type { AccessList } from './AccessList'
+import type { ServiceModelCacheConfig } from '../components/modelCache/types.js'
 
 export interface OceanNodeDBConfig {
   url: string | null
@@ -189,6 +190,8 @@ export interface OceanNodeConfig {
   httpKeyPath?: string
   enableBenchmark?: boolean
   persistentStorage?: PersistentStorageConfig
+  // Node-level cache of model weights mounted read-only into services (docs/modelCache.md)
+  serviceModelCache?: ServiceModelCacheConfig
 }
 
 export interface P2PStatusResponse {
@@ -269,6 +272,7 @@ export interface OceanNodeStatus {
   supportedSchemas?: Schema[]
   persistentStorage?: {
     accessLists?: AccessList[]
+    allowBucketSharing?: boolean
   }
 }
 
