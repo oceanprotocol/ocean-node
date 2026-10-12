@@ -145,7 +145,7 @@
     "release-it": "^21.0.2",
     "sinon": "^22.1.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.67.0"
+    "typescript-eslint": "^8.71.0"
   },
   "overrides": {
     "serialize-javascript": "^7.1.0",
