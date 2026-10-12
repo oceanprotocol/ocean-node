@@ -266,16 +266,23 @@ async function verifySignatureForConsumer(
     ['bytes'],
     [ethers.hexlify(ethers.toUtf8Bytes(message))]
   )
-  const messageHashBytes = ethers.toBeArray(consumerMessage)
+  const messageHashBytes = ethers.getBytes(consumerMessage)
+  const legacyMessageHashBytes = ethers.toBeArray(consumerMessage)
 
   // Try EOA signature validation
   try {
     const addressFromHashSignature = ethers.verifyMessage(consumerMessage, signature)
     const addressFromBytesSignature = ethers.verifyMessage(messageHashBytes, signature)
+    const addressFromLegacyBytesSignature = ethers.verifyMessage(
+      legacyMessageHashBytes,
+      signature
+    )
     if (
       ethers.getAddress(addressFromHashSignature)?.toLowerCase() ===
         ethers.getAddress(consumer)?.toLowerCase() ||
       ethers.getAddress(addressFromBytesSignature)?.toLowerCase() ===
+        ethers.getAddress(consumer)?.toLowerCase() ||
+      ethers.getAddress(addressFromLegacyBytesSignature)?.toLowerCase() ===
         ethers.getAddress(consumer)?.toLowerCase()
     ) {
       return true
