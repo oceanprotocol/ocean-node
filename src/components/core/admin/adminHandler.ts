@@ -6,7 +6,10 @@ import {
   buildRateLimitReachedResponse,
   buildInvalidParametersResponse
 } from '../../httpRoutes/validateCommands.js'
-import { checkSingleCredential } from '../../../utils/credentials.js'
+import {
+  checkSingleCredential,
+  checkCredentialOnAccessList
+} from '../../../utils/credentials.js'
 import { CREDENTIALS_TYPES } from '../../../@types/DDO/Credentials.js'
 import { BaseHandler } from '../handler/handler.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
@@ -14,6 +17,7 @@ import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import { CommonValidation } from '../../../utils/validators.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { normalizeCommandAddresses } from '../../../utils/evmAddress.js'
+import { isAddress } from 'ethers'
 
 export abstract class AdminCommandHandler
   extends BaseHandler
@@ -82,15 +86,46 @@ export abstract class AdminCommandHandler
       }
       if (accessLists) {
         for (const chainId of Object.keys(accessLists)) {
-          allowed = await checkSingleCredential(
-            {
-              type: CREDENTIALS_TYPES.ACCESS_LIST,
-              chainId: parseInt(chainId),
-              accessList: accessLists[chainId]
-            },
-            address,
-            null
+          // Need an on-chain signer/provider to call balanceOf on the access list
+          // contract. getBlockchain() returns null when that chain has no RPC configured.
+          const blockchain = oceanNode.getBlockchain(parseInt(chainId))
+          if (!blockchain) {
+            CORE_LOGGER.error(
+              `Cannot check admin access list for chain ${chainId}: no RPC configured for that chain. Skipping.`
+            )
+            continue
+          }
+          // Fail closed on misconfiguration: an empty or malformed contract address
+          // would make checkAddressOnAccessListWithSigner return `true` (it treats a
+          // falsy address as "no access list"), silently authorizing ANY authenticated
+          // caller as admin. Only keep well-formed contract addresses.
+          const validContracts = accessLists[chainId].filter((addr: string) =>
+            isAddress(addr)
           )
+          if (validContracts.length === 0) {
+            CORE_LOGGER.error(
+              `No valid access list contract address configured for admin check on chain ${chainId}. Skipping.`
+            )
+            continue
+          }
+          try {
+            const signer = await blockchain.getSigner()
+            // Pass only the validated contracts for this chain; checkCredentialOnAccessList
+            // iterates the array and checks each one with an on-chain balanceOf.
+            allowed = await checkCredentialOnAccessList(
+              { [chainId]: validContracts },
+              chainId,
+              address,
+              signer
+            )
+          } catch (error) {
+            // Isolate per-chain failures (RPC rate limit / downtime) so one bad
+            // chain does not abort the whole loop and deny an otherwise-valid admin.
+            CORE_LOGGER.error(
+              `Error checking admin access list for chain ${chainId}: ${error}`
+            )
+            continue
+          }
           if (allowed) {
             return { valid: true, error: '' }
           }
