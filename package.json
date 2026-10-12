@@ -51,7 +51,7 @@
     "changelog": "auto-changelog -p"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1115.0",
+    "@aws-sdk/client-s3": "^3.1146.0",
     "@aws-sdk/lib-storage": "^3.1115.0",
     "@chainsafe/libp2p-noise": "^17.0.0",
     "@chainsafe/libp2p-yamux": "^8.0.1",
