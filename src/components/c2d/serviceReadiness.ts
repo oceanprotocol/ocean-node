@@ -3,23 +3,11 @@ import type {
   ServiceJob
 } from '../../@types/C2D/ServiceOnDemand.js'
 
-// ── Image pull progress ───────────────────────────────────────────────
-
-// How often the aggregated byte counts are pushed to the caller (which persists them). The daemon
-// emits progress events per layer per ~100ms, which is far more often than a status poll reads.
+// How often the aggregated byte counts are pushed to the caller
 const PULL_PROGRESS_EMIT_INTERVAL_MS = 1000
 
 /**
- * Aggregates the Docker daemon's per-layer pull events into one byte/percentage view.
- *
- * Docker reports each layer separately, and only announces a layer's `total` when that layer
- * STARTS downloading — so the denominator grows during the pull and a naively recomputed
- * percentage walks backwards. The emitted `percent` is therefore clamped monotonic: it is the
- * honest lower bound at every moment, which is what a progress bar needs.
- *
- * Layers that are already on the host arrive as "Already exists" and contribute no bytes, so an
- * image that is fully cached completes at 0 bytes — the caller reports that as "complete" rather
- * than as a stalled 0%.
+ * Aggregates the Docker daemon's per-layer pull events into one byte/percentage view
  */
 export class ImagePullTracker {
   private readonly layers = new Map<
@@ -36,9 +24,6 @@ export class ImagePullTracker {
   onEvent(event: any): void {
     const id: string | undefined = typeof event?.id === 'string' ? event.id : undefined
     const status: string = typeof event?.status === 'string' ? event.status : ''
-    // Not a layer: the pull's own narration. Most of it carries no id ("Digest: sha256:…"), but
-    // the opening "Pulling from library/python" line carries the TAG as its id — counted as a
-    // layer it inflates layersTotal by one, so the pull ends reading 4/5 instead of 4/4.
     if (!id || status.startsWith('Pulling from') || status.startsWith('Digest:')) return
 
     const layer = this.layers.get(id) ?? { current: 0, total: 0, done: false }
@@ -122,11 +107,6 @@ export interface ReadinessProbeResult {
 
 /**
  * The addresses worth trying to reach a service container on, best first.
- *
- * Which one works depends entirely on how the node itself is deployed, and the node cannot know
- * that up front: a node running on the host reaches the container's own bridge IP directly, a node
- * that publishes ports reaches them on loopback, and a node running inside Docker reaches neither
- * and has to go out through the host gateway. So we try them in order once and remember the winner.
  */
 export function probeCandidates(
   job: ServiceJob,
@@ -158,10 +138,6 @@ export function probeCandidates(
 
 /**
  * Performs ONE readiness request. Never throws — a failure IS the result.
- *
- * A refused connection is reported without an httpStatus, which the caller treats as "not ready"
- * exactly like an unexpected status: an engine that binds its port only after loading its weights
- * (vLLM, commonly) is unreachable rather than unhealthy for that whole window.
  */
 export async function runReadinessProbe(
   url: string,

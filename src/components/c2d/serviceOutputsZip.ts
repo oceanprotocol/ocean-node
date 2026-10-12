@@ -32,10 +32,7 @@ export interface TarToZipStats {
 /**
  * Maps a tar entry name from `container.getArchive({ path: '/data/outputs' })` to its path
  * inside the zip. Docker roots that archive at the folder name ("outputs/..."), which is
- * stripped so the zip holds the folder's contents. Returns '' for the root folder itself and
- * null for a name that is unsafe to extract (absolute, drive letter, "." or ".." segments):
- * the tar is written by the service container, so it must never be able to plant a zip-slip
- * entry on the machine of whoever unzips it.
+ * stripped so the zip holds the folder's contents
  */
 export function zipEntryName(tarName: string): string | null {
   const normalized = tarName.replace(/\\/g, '/')
@@ -48,11 +45,7 @@ export function zipEntryName(tarName: string): string | null {
 
 /**
  * Converts the tar stream Docker returns for a container folder into a zip stream, without
- * buffering it on disk. Regular files and folders are kept with their mtime and permission
- * bits; everything else is skipped. Files are stored, not deflated: service outputs are mostly
- * already-compressed media or model files, and deflating them would only slow down the
- * stop/restart that archives them. yazl switches to ZIP64 on its own for entries or archives
- * past 4 GB.
+ * buffering it on disk
  */
 export function tarToZip(
   tar: NodeJS.ReadableStream,
@@ -111,9 +104,6 @@ export function tarToZip(
     zip.end()
   })
   let finished = false
-  // yazl reports its own failures (e.g. an entry whose byte count differs from its declared
-  // size) on the ZipFile, not on its outputStream: without a listener there, the 'error'
-  // event is unhandled and takes the node down.
   zip.on('error', (err) => out.destroy(err))
   zip.outputStream.on('error', (err) => out.destroy(err))
   zip.outputStream.on('end', () => {

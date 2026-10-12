@@ -2,17 +2,6 @@ import type { ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
 
 /**
  * What the node knows about the workloads it can report readiness and model-download progress for.
- *
- * Deliberately a closed table rather than something the client declares. A service's container
- * reports Running the moment its process starts, but an inference engine then spends minutes
- * downloading weights and warming up — during which its port either refuses connections or answers
- * 503. Only the engine knows when that ends, and only the node can ask it (the endpoint is plain
- * http, so a browser on an https page cannot). Knowing WHICH question to ask is engine-specific, so
- * it lives here: one row per engine the node understands.
- *
- * An unrecognized image matches nothing, and the node then reports no readiness at all — which every
- * client reads as "this node cannot tell me", falling back to the pre-existing behaviour where
- * Running means the endpoint is handed over. New engines are added by adding a row.
  */
 export interface ServiceEngineProfile {
   /** Identifier carried on the job's readiness record, so a client can tell what was probed. */
@@ -86,12 +75,6 @@ function quantFromLlamaCppCommand(cmd: string[] | undefined): string | null {
 
 /**
  * The Hugging Face repo id vLLM is serving, or null when it is not serving one.
- *
- * `--model` accepts far more than a Hub repo: an absolute path to weights already on disk, an
- * object-store URI (`s3://`, `gs://`), or a ModelScope id when VLLM_USE_MODELSCOPE is set. Only a
- * plain `org/name` is a Hub repo whose size the Hub can be asked for — everything else returns null,
- * and the caller then reports bytes downloaded with no total (an indeterminate bar) rather than
- * measuring against a repo that has nothing to do with what is being fetched.
  */
 function hfRepoIdFromVllmCommand(cmd: string[] | undefined): string | null {
   if (!cmd) return null
