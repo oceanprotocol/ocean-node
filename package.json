@@ -105,7 +105,7 @@
     "lzma-purejs-requirejs": "^1.0.0",
     "multiformats": "^14.0.5",
     "node-cron": "^4.6.0",
-    "p-limit": "^7.3.1",
+    "p-limit": "^7.3.3",
     "tar": "^7.5.22",
     "tar-stream": "^3.2.0",
     "uint8arrays": "^6.1.1",
