@@ -89,7 +89,7 @@
     "@opentelemetry/sdk-node": "^0.221.0",
     "@opentelemetry/semantic-conventions": "^1.43.0",
     "base58-js": "^3.0.3",
-    "basic-ftp": "^6.2.1",
+    "basic-ftp": "^6.2.2",
     "cors": "^2.8.6",
     "datastore-level": "^13.0.1",
     "dockerode": "^5.0.1",
