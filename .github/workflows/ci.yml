@@ -144,7 +144,7 @@ jobs:
         run: |
           bash -x start_ocean.sh --no-node --with-typesense 2>&1 > start_ocean.log &
         env:
-          CONTRACTS_VERSION: 3.2.0-rc.0
+          CONTRACTS_VERSION: 3.2.0-rc.1
       - run: npm ci
       - run: npm run build
       - run: docker image ls
@@ -248,7 +248,7 @@ jobs:
         run: |
           bash -x start_ocean.sh --no-node --with-typesense 2>&1 > start_ocean.log &
         env:
-          CONTRACTS_VERSION: 3.2.0-rc.0
+          CONTRACTS_VERSION: 3.2.0-rc.1
       - run: docker image ls
       - name: Delete default runner images
         run: |
@@ -265,7 +265,7 @@ jobs:
         with:
           persist-credentials: false
           repository: 'oceanprotocol/ocean.js'
-          ref: 'v9.3.0-next.3'
+          ref: 'v9.3.0-next.4'
           path: 'ocean.js'
       - name: Build ocean-js
         working-directory: ${{ github.workspace }}/ocean.js
