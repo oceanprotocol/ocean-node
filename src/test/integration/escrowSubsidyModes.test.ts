@@ -198,8 +198,9 @@ describe('Escrow v2 subsidy modes (OPF + OneTime, REFUND_ONLY + PREPAID_ONLY)', 
       // pctBps=10000 (100%), daily/monthly generous, weekly 0 (unused), enabled
       await (await c.setTokenLimits(paymentToken, 10000, BIG, 0, BIG, true)).wait()
     } else {
-      // pctBps=0 (no per-job cap), generous default one-time credit per user, enabled
-      await (await c.setTokenConfig(paymentToken, 0, BIG, true)).wait()
+      // pctBps=10000 (100% of the job; `0` now means "grant nothing"), generous default
+      // one-time credit per user, enabled
+      await (await c.setTokenConfig(paymentToken, 10000, BIG, true)).wait()
     }
     await (await c.setAllowedJobTypes([jobType])).wait()
     await (await c.setAuthorizedEscrow(escrowAddress, true)).wait()
