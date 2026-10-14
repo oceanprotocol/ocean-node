@@ -377,4 +377,105 @@ describe('Indexer stores Escrow contract events', () => {
     assert(next && next.length === 1, 'offset + size should return a single row')
     expect(next[0].id).to.not.equal(page[0].id) // offset advanced past the first row
   })
+
+  it('filters by a native block range (store-side)', async function () {
+    if (!escrowAddress || !paymentToken) this.skip()
+    this.timeout(DEFAULT_TEST_TIMEOUT)
+
+    const all = await database.escrow.search({ chainId }, 0, 250)
+    assert(all && all.length > 0, 'there should be indexed events')
+    const minBlock = Math.min(...all.map((e: any) => Number(e.block)))
+
+    // direct DB search with a range-object value
+    const fromMin = await database.escrow.search(
+      { chainId, block: { min: minBlock } },
+      0,
+      250
+    )
+    assert(fromMin && fromMin.length === all.length, 'min=lowest block returns all rows')
+    assert(
+      fromMin.every((e: any) => Number(e.block) >= minBlock),
+      'every row is at or above the lower bound'
+    )
+
+    // a lower bound above every block returns nothing
+    const maxBlock = Math.max(...all.map((e: any) => Number(e.block)))
+    const none = await database.escrow.search(
+      { chainId, block: { min: maxBlock + 1 } },
+      0,
+      250
+    )
+    assert(!none || none.length === 0, 'min above max block returns no rows')
+
+    // and the same range is reachable through the command via `ranges`
+    const response = await new EscrowEventsHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.GET_ESCROW_EVENTS,
+      chainId,
+      ranges: { block: { min: minBlock, max: maxBlock } },
+      caller: '127.0.0.1'
+    })
+    expect(response.status.httpStatus).to.equal(200)
+    const result = JSON.parse(await streamToString(response.stream as Readable))
+    assert(
+      result.length > 0 &&
+        result.every(
+          (e: any) => Number(e.block) >= minBlock && Number(e.block) <= maxBlock
+        ),
+      'command range filter returns rows within [min,max]'
+    )
+  })
+
+  it('filters by a client-side uint256 amount range (subsidyAmount)', async function () {
+    if (!escrowAddress || !paymentToken) this.skip()
+    this.timeout(DEFAULT_TEST_TIMEOUT)
+
+    const subsidized = await database.escrow.search(
+      { chainId, eventType: EVENTS.ESCROW_SUBSIDIZED },
+      0,
+      250
+    )
+    if (!subsidized || subsidized.length === 0) this.skip()
+    const target = subsidized[0].subsidyAmount as string
+
+    // a range that includes the target value returns it
+    const included = await new EscrowEventsHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.GET_ESCROW_EVENTS,
+      chainId,
+      eventType: EVENTS.ESCROW_SUBSIDIZED,
+      ranges: { subsidyAmount: { min: target, max: target } },
+      caller: '127.0.0.1'
+    })
+    expect(included.status.httpStatus).to.equal(200)
+    const inResult = JSON.parse(await streamToString(included.stream as Readable))
+    assert(
+      inResult.some((e: any) => e.subsidyAmount === target),
+      'range [target,target] returns the matching event'
+    )
+
+    // an exclusive lower bound at the target value filters it out
+    const excluded = await new EscrowEventsHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.GET_ESCROW_EVENTS,
+      chainId,
+      eventType: EVENTS.ESCROW_SUBSIDIZED,
+      ranges: { subsidyAmount: { gt: target } },
+      caller: '127.0.0.1'
+    })
+    expect(excluded.status.httpStatus).to.equal(200)
+    const exResult = JSON.parse(await streamToString(excluded.stream as Readable))
+    assert(
+      !exResult.some((e: any) => e.subsidyAmount === target),
+      'exclusive bound gt=target excludes the matching event'
+    )
+  })
+
+  it('rejects an unsupported range field with 400', async function () {
+    if (!escrowAddress || !paymentToken) this.skip()
+    const response = await new EscrowEventsHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.GET_ESCROW_EVENTS,
+      chainId,
+      ranges: { payer: { min: 1 } } as any,
+      caller: '127.0.0.1'
+    })
+    expect(response.status.httpStatus).to.equal(400)
+  })
 })

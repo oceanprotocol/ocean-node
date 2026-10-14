@@ -1603,6 +1603,41 @@
 									"disabled": true
 								},
 								{
+									"key": "provider",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "contract",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "reclaimable",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "blockMin",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "blockMax",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "subsidyAmountMin",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "subsidyAmountMax",
+									"value": "",
+									"disabled": true
+								},
+								{
 									"key": "offset",
 									"value": "",
 									"disabled": true
@@ -1614,7 +1649,7 @@
 								}
 							]
 						},
-						"description": "Query escrow contract events with optional filters (eventType one of Auth/Lock/ReLock/Claimed/Canceled/Deposit/Withdraw/Subsidized/LockSponsored/SponsorRefunded). Subsidized is the claim-time (refund) sponsorship event; LockSponsored/SponsorRefunded are the Escrow v2 lock-time (prepaid) sponsorship events."
+						"description": "Query escrow contract events with optional filters (eventType one of Auth/Lock/ReLock/Claimed/Canceled/Deposit/Withdraw/Subsidized/LockSponsored/SponsorRefunded). Subsidized is the claim-time (refund) sponsorship event; LockSponsored/SponsorRefunded are the Escrow v2 lock-time (prepaid) sponsorship events. Equality filters: chainId, eventType, payer, payee, token, provider, contract, reclaimable, jobId, txId. Range filters use <field>Min/<field>Max query params: blockMin/blockMax and chainIdMin/chainIdMax push down to the store; amount-type fields (amount, subsidyAmount, bonusAmount, oldAmount, newAmount, maxLockedAmount, maxLockSeconds, maxLockCounts, expiry, newExpiry, expiryTimestamp) are filtered node-side with BigInt comparison. No authentication required."
 					}
 				}
 			]
@@ -2525,7 +2560,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"command\": \"getEscrowEvents\",\n  \"chainId\": {{chainId}}\n}"
+							"raw": "{\n  \"command\": \"getEscrowEvents\",\n  \"chainId\": {{chainId}},\n  \"eventType\": \"Subsidized\",\n  \"ranges\": {\n    \"block\": { \"min\": 0 },\n    \"subsidyAmount\": { \"min\": \"0\" }\n  }\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/directCommand",

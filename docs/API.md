@@ -1453,18 +1453,43 @@ Returns indexed Escrow contract events. The indexer matches Escrow logs by topic
 
 #### Parameters
 
-| name      | type   | required  | description                                               |
-| --------- | ------ | --------- | --------------------------------------------------------- |
-| command   | string | POST only | command name (`getEscrowEvents`)                          |
-| chainId   | number |           | chain id                                                  |
-| eventType | string |           | one of `Auth, Lock, ReLock, Claimed, Canceled, Deposit, Withdraw, Subsidized, LockSponsored, SponsorRefunded` |
-| payer     | string |           | payer address (case-insensitive)                          |
-| payee     | string |           | payee address (case-insensitive)                          |
-| token     | string |           | token address (case-insensitive)                          |
-| jobId     | string |           | compute job id                                            |
-| txId      | string |           | transaction hash                                          |
-| offset    | number |           | rows to skip (default 0)                                  |
-| size      | number |           | page size (default 100, max 250)                          |
+| name        | type    | required  | description                                               |
+| ----------- | ------- | --------- | --------------------------------------------------------- |
+| command     | string  | POST only | command name (`getEscrowEvents`)                          |
+| chainId     | number  |           | chain id                                                  |
+| eventType   | string  |           | one of `Auth, Lock, ReLock, Claimed, Canceled, Deposit, Withdraw, Subsidized, LockSponsored, SponsorRefunded` |
+| payer       | string  |           | payer address (case-insensitive)                          |
+| payee       | string  |           | payee address (case-insensitive)                          |
+| token       | string  |           | token address (case-insensitive)                          |
+| provider    | string  |           | subsidy/sponsor provider address (case-insensitive)       |
+| contract    | string  |           | Escrow contract address                                   |
+| reclaimable | boolean |           | filter `SponsorRefunded` rows by their reclaimable flag   |
+| jobId       | string  |           | compute job id                                            |
+| txId        | string  |           | transaction hash                                          |
+| ranges      | object  | POST only | range filters keyed by field (see below)                  |
+| offset      | number  |           | rows to skip (default 0)                                  |
+| size        | number  |           | page size (default 100, max 250)                          |
+
+No authentication is required (both the HTTP route and the P2P command are public reads).
+
+#### Range filters
+
+Any field above is an exact-match filter. Numeric fields also support range filtering.
+
+- **Over P2P / `POST /directCommand`**: use the `ranges` object, keyed by record field, where each
+  value is `{ "min"?, "max"?, "gt"?, "lt"? }` (`min`/`max` inclusive, `gt`/`lt` exclusive). Bounds
+  may be strings or numbers; uint256 values are compared as big integers, so pass them as strings.
+- **Over HTTP GET**: use `<field>Min` / `<field>Max` query params (e.g.
+  `?blockMin=100&blockMax=200&subsidyAmountMin=1000`).
+
+Range-filterable fields:
+
+| field                                                                                     | pushed to store? |
+| ----------------------------------------------------------------------------------------- | ---------------- |
+| `block`, `chainId`                                                                         | yes (native numeric) |
+| `amount`, `subsidyAmount`, `bonusAmount`, `oldAmount`, `newAmount`, `maxLockedAmount`, `maxLockSeconds`, `maxLockCounts`, `expiry`, `newExpiry`, `expiryTimestamp` | no — filtered node-side with BigInt comparison over paginated store results (bounded scan; a highly selective amount range over a very large result set may be truncated) |
+
+A range on any field not in this list (e.g. an address field) is rejected with `400`.
 
 #### Request (POST /directCommand)
 
@@ -1472,10 +1497,21 @@ Returns indexed Escrow contract events. The indexer matches Escrow logs by topic
 {
   "command": "getEscrowEvents",
   "chainId": 8996,
-  "eventType": "Deposit",
+  "eventType": "Subsidized",
+  "provider": "0xabc...",
+  "ranges": {
+    "block": { "min": 100, "max": 500 },
+    "subsidyAmount": { "min": "1000000000000000000" }
+  },
   "offset": 0,
   "size": 50
 }
+```
+
+#### Request (HTTP GET)
+
+```
+GET /api/services/escrow/events?chainId=8996&eventType=Subsidized&provider=0xabc...&blockMin=100&blockMax=500&subsidyAmountMin=1000000000000000000&size=50
 ```
 
 #### Response

@@ -10,6 +10,7 @@ import {
 } from './BaseDatabase.js'
 import { AccessListUser } from '../../@types/AccessList.js'
 import { EscrowEvent } from '../../@types/Escrow.js'
+import { buildElasticQuery } from './escrowSearch.js'
 import { createElasticsearchClientWithRetry } from './ElasticsearchConfigHelper.js'
 import { OceanNodeDBConfig } from '../../@types'
 import { ElasticsearchSchema } from './ElasticSchemas.js'
@@ -545,10 +546,8 @@ export class ElasticsearchEscrowDatabase extends AbstractEscrowDatabase {
       const limit = Math.min(size && size > 0 ? size : 100, 250)
       const from = offset && offset > 0 ? offset : 0
 
-      const terms = Object.entries(filters || {})
-        .filter(([, value]) => value !== undefined && value !== null && value !== '')
-        .map(([field, value]) => ({ term: { [field]: value } }))
-      const query = terms.length ? { bool: { must: terms } } : { match_all: {} }
+      // Values may be equality scalars or RangeFilter objects (range on numeric fields).
+      const query = buildElasticQuery(filters)
 
       const searchParams = {
         index: this.getSchema().index,

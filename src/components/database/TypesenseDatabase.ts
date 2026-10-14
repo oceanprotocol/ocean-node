@@ -17,6 +17,7 @@ import {
 } from './BaseDatabase.js'
 import { AccessListUser } from '../../@types/AccessList.js'
 import { EscrowEvent } from '../../@types/Escrow.js'
+import { buildTypesenseFilterBy } from './escrowSearch.js'
 import { validateDDO } from '../../utils/asset.js'
 import { DDOManager } from '@oceanprotocol/ddo-js'
 
@@ -278,16 +279,8 @@ export class TypesenseEscrowDatabase extends AbstractEscrowDatabase {
 
   async search(filters: Record<string, any>, offset?: number, size?: number) {
     try {
-      const filterBy = Object.entries(filters || {})
-        .filter(([, value]) => value !== undefined && value !== null && value !== '')
-        // Backtick string values so spaces/special chars can't break the syntax;
-        // strip backticks from the value so it can't escape the quoted literal.
-        .map(([field, value]) =>
-          typeof value === 'string'
-            ? `${field}:=\`${value.replace(/`/g, '')}\``
-            : `${field}:=${value}`
-        )
-        .join(' && ')
+      // Values may be equality scalars or RangeFilter objects (range on numeric fields).
+      const filterBy = buildTypesenseFilterBy(filters)
 
       // clamp the page size so a single request can't return an unbounded set
       const limit = Math.min(size && size > 0 ? size : 100, TYPESENSE_HITS_CAP)

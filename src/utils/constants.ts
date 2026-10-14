@@ -719,6 +719,11 @@ export const CONNECTION_HISTORY_DELETE_THRESHOLD = 300
 export const CONNECTIONS_RATE_INTERVAL = 60 * 1000
 // Typesense's maximum limit to send 250 hits at a time
 export const TYPESENSE_HITS_CAP = 250
+
+// Upper bound on how many escrow rows the handler will scan from the store when a client-side
+// (BigInt) range filter is active. Keeps deep pagination bounded; beyond this the result is
+// whatever matched within the scanned window.
+export const MAX_ESCROW_CLIENT_SCAN = 2000
 export const DDO_IDENTIFIER_PREFIX = 'did:op:'
 // global ocean node API services path
 export const SERVICES_API_BASE_PATH = '/api/services'
