@@ -1,7 +1,7 @@
 import { Signer, ethers, getAddress, FallbackProvider } from 'ethers'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' with { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
-import { EVENT_HASHES, isDefined } from '../../utils/index.js'
+import { EVENT_HASHES, ESCROW_EVENTS, isDefined } from '../../utils/index.js'
 import { NetworkEvent } from '../../@types/blockchain.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
@@ -88,6 +88,18 @@ export const getNetworkHeight = async (provider: FallbackProvider) => {
   return networkHeight
 }
 
+// Escrow events are emitted only by the Escrow singleton, but their signatures
+// (e.g. Deposit(address,address,uint256) / Withdraw(address,address,uint256)) are
+// generic enough to collide with unrelated contracts across a busy chain. We split
+// the escrow topic hashes out so they can be fetched with an `address` filter, while
+// the rest (emitted by dynamically-deployed data NFTs/datatokens) stay topic-only.
+const ESCROW_EVENT_HASHES = Object.entries(EVENT_HASHES)
+  .filter(([, value]) => ESCROW_EVENTS.includes(value.type))
+  .map(([hash]) => hash)
+const NON_ESCROW_EVENT_HASHES = Object.keys(EVENT_HASHES).filter(
+  (hash) => !ESCROW_EVENT_HASHES.includes(hash)
+)
+
 export const retrieveChunkEvents = async (
   signer: Signer,
   provider: FallbackProvider,
@@ -95,24 +107,42 @@ export const retrieveChunkEvents = async (
   lastIndexedBlock: number,
   count: number
 ): Promise<ethers.Log[]> => {
+  const startIndex = lastIndexedBlock + 1
+  const toBlock = lastIndexedBlock + count
   try {
-    const eventHashes = Object.keys(EVENT_HASHES)
-    const startIndex = lastIndexedBlock + 1
-    const details = {
-      fromBlock: startIndex,
-      toBlock: lastIndexedBlock + count,
-      topics: [eventHashes]
+    INDEXER_LOGGER.debug(`Retrieving events from block ${startIndex} to ${toBlock}`)
+
+    const queries: Array<Promise<ethers.Log[]>> = [
+      provider.getLogs({
+        fromBlock: startIndex,
+        toBlock,
+        topics: [NON_ESCROW_EVENT_HASHES]
+      })
+    ]
+
+    // Only query escrow events from the known Escrow contract address. When it is not
+    // deployed on this chain the escrow processor would drop every event anyway, so we
+    // skip the query entirely (this also avoids logging unrelated Deposit/Withdraw txs).
+    const escrowAddress = getContractAddress(network, 'Escrow')
+    if (escrowAddress) {
+      queries.push(
+        provider.getLogs({
+          fromBlock: startIndex,
+          toBlock,
+          address: escrowAddress,
+          topics: [ESCROW_EVENT_HASHES]
+        })
+      )
     }
-    INDEXER_LOGGER.debug(
-      `Retrieving events from block ${startIndex} to ${lastIndexedBlock + count}`
-    )
-    const blockLogs = await provider.getLogs(details)
+
+    const blockLogs = (await Promise.all(queries)).flat()
+    // Preserve chain order (block, then log index) so downstream processing sees the
+    // same sequence it would from a single getLogs call.
+    blockLogs.sort((a, b) => a.blockNumber - b.blockNumber || a.index - b.index)
     return blockLogs
   } catch (error) {
     INDEXER_LOGGER.error(
-      `Error retrieving events from block ${lastIndexedBlock + 1} to ${
-        lastIndexedBlock + count
-      }:`
+      `Error retrieving events from block ${startIndex} to ${toBlock}:`
     )
     INDEXER_LOGGER.error(error)
     throw new Error(` Error processing chunk of blocks events ${error.message}`)
