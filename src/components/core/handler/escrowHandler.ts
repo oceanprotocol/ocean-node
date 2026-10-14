@@ -66,9 +66,16 @@ export class EscrowEventsHandler extends CommandHandler {
         txHash: task.txId,
         reclaimable: typeof task.reclaimable === 'boolean' ? task.reclaimable : undefined
       }
-      // native (store-side) ranges are merged into the filters map passed to the DB
+      // native (store-side) ranges are merged into the filters map passed to the DB. If an
+      // equality value is already set for the same field (only `chainId` can overlap), keep
+      // BOTH as an array so the DSL builders AND them together — the range must not clobber the
+      // equality.
       for (const [field, range] of Object.entries(nativeRanges)) {
-        filters[field] = range
+        const existing = filters[field]
+        filters[field] =
+          existing !== undefined && existing !== null && existing !== ''
+            ? [existing, range]
+            : range
       }
 
       let result: Record<string, any>[]
@@ -116,16 +123,33 @@ export class EscrowEventsHandler extends CommandHandler {
     const matched: Record<string, any>[] = []
     let scanned = 0
     let from = 0
+    let exhausted = false
     while (scanned < MAX_ESCROW_CLIENT_SCAN) {
       const page = await database.escrow.search(filters, from, pageSize)
-      if (!page || page.length === 0) break
+      if (!page || page.length === 0) {
+        exhausted = true
+        break
+      }
       scanned += page.length
       for (const record of page) {
         if (passesClientRanges(record, clientRanges)) matched.push(record)
       }
       if (matched.length >= needed) break
-      if (page.length < pageSize) break // last page reached
+      if (page.length < pageSize) {
+        exhausted = true // store has no more rows for this filter
+        break
+      }
       from += pageSize
+    }
+    // We stopped at the scan cap (not the store's end) without filling the requested page: the
+    // result is a partial window, not the complete set. Report it instead of returning it as if
+    // it were complete, so the caller can narrow the filter.
+    if (!exhausted && matched.length < needed) {
+      CORE_LOGGER.warn(
+        `getEscrowEvents: client-side range scan reached the ${MAX_ESCROW_CLIENT_SCAN}-row cap ` +
+          `before filling the requested page (offset=${wantOffset}, size=${wantSize}); results ` +
+          `may be incomplete. Narrow the filter (e.g. chainId, eventType or a block range).`
+      )
     }
     return matched.slice(wantOffset, wantOffset + wantSize)
   }

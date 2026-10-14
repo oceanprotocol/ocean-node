@@ -87,6 +87,24 @@ describe('escrow search filter helpers', () => {
         expect(CLIENT_RANGE_FIELDS).to.not.include(f)
       }
     })
+
+    it('normalizes native-range bounds to canonical decimal strings', () => {
+      const { nativeRanges } = splitRanges({
+        block: { min: '0x64', max: 200, gt: '007' }
+      })
+      expect(nativeRanges.block).to.deep.equal({
+        min: '100', // hex 0x64
+        max: '200', // number -> string
+        gt: '7' // leading zeros stripped
+      })
+    })
+
+    it('leaves client-range bounds untouched', () => {
+      const { clientRanges } = splitRanges({
+        subsidyAmount: { min: '0x0a', max: '1000' }
+      })
+      expect(clientRanges.subsidyAmount).to.deep.equal({ min: '0x0a', max: '1000' })
+    })
   })
 
   describe('passesClientRanges (BigInt comparison)', () => {
@@ -162,6 +180,11 @@ describe('escrow search filter helpers', () => {
       })
       expect(out).to.equal('reclaimable:=true')
     })
+
+    it('ANDs an equality and a range on the same field (array value)', () => {
+      const out = buildTypesenseFilterBy({ chainId: [8996, { min: 1, max: 10 }] })
+      expect(out).to.equal('chainId:=8996 && chainId:>=1 && chainId:<=10')
+    })
   })
 
   describe('buildElasticQuery', () => {
@@ -185,6 +208,15 @@ describe('escrow search filter helpers', () => {
       expect(buildElasticQuery({})).to.deep.equal({ match_all: {} })
       expect(buildElasticQuery({ a: undefined, b: '' })).to.deep.equal({
         match_all: {}
+      })
+    })
+
+    it('ANDs an equality term and a range on the same field (array value)', () => {
+      const q = buildElasticQuery({ chainId: [8996, { min: 1, max: 10 }] })
+      expect(q).to.deep.equal({
+        bool: {
+          must: [{ term: { chainId: 8996 } }, { range: { chainId: { gte: 1, lte: 10 } } }]
+        }
       })
     })
   })

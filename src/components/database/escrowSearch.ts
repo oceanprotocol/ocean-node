@@ -95,6 +95,22 @@ export function validateEscrowRanges(ranges?: Record<string, RangeFilter>): {
   return { valid: true }
 }
 
+// Native range fields are numeric in the store (Typesense int64 / ES long), so their bounds go
+// straight into the numeric DSL. Emit each defined bound as a canonical decimal string so a
+// value given as hex ("0x64"), a number, or with leading zeros ("007") is not sent verbatim.
+// Absent bounds stay absent; a non-parseable bound (shouldn't occur post-validation) is left
+// untouched. Client-side ranges are NOT normalized — passesClientRanges parses them with BigInt.
+function normalizeNativeRange(r: RangeFilter): RangeFilter {
+  const out: RangeFilter = {}
+  for (const bound of ['min', 'max', 'gt', 'lt'] as const) {
+    const v = r[bound]
+    if (!hasValue(v)) continue
+    const big = toBigInt(v)
+    out[bound] = big !== undefined ? big.toString() : v
+  }
+  return out
+}
+
 // Split the ranges into those pushed to the store (native numeric fields) and those applied
 // client-side (uint256 string fields). Unknown fields are dropped (validation rejects them
 // before this is reached).
@@ -106,7 +122,7 @@ export function splitRanges(ranges?: Record<string, RangeFilter>): {
   const clientRanges: Record<string, RangeFilter> = {}
   for (const [field, r] of Object.entries(ranges || {})) {
     if (!isRangeFilter(r)) continue
-    if (NATIVE_RANGE_FIELDS.includes(field)) nativeRanges[field] = r
+    if (NATIVE_RANGE_FIELDS.includes(field)) nativeRanges[field] = normalizeNativeRange(r)
     else if (CLIENT_RANGE_FIELDS.includes(field)) clientRanges[field] = r
   }
   return { nativeRanges, clientRanges }
@@ -137,8 +153,10 @@ export function passesClientRanges(
 // scalars or RangeFilter objects. Range objects only make sense on numeric fields.
 export function buildTypesenseFilterBy(filters: Record<string, any>): string {
   const clauses: string[] = []
-  for (const [field, value] of Object.entries(filters || {})) {
-    if (value === undefined || value === null || value === '') continue
+  // An array value means several constraints on the SAME field, all ANDed — e.g. an equality
+  // and a range on `chainId`; each element is emitted as its own clause.
+  const emit = (field: string, value: any) => {
+    if (value === undefined || value === null || value === '') return
     if (isRangeFilter(value)) {
       if (hasValue(value.min)) clauses.push(`${field}:>=${value.min}`)
       if (hasValue(value.max)) clauses.push(`${field}:<=${value.max}`)
@@ -152,6 +170,11 @@ export function buildTypesenseFilterBy(filters: Record<string, any>): string {
       clauses.push(`${field}:=${value}`)
     }
   }
+  for (const [field, value] of Object.entries(filters || {})) {
+    if (value === undefined || value === null || value === '') continue
+    if (Array.isArray(value)) value.forEach((v) => emit(field, v))
+    else emit(field, value)
+  }
   return clauses.join(' && ')
 }
 
@@ -159,8 +182,10 @@ export function buildTypesenseFilterBy(filters: Record<string, any>): string {
 // `range` for RangeFilter objects.
 export function buildElasticQuery(filters: Record<string, any>): Record<string, any> {
   const must: Record<string, any>[] = []
-  for (const [field, value] of Object.entries(filters || {})) {
-    if (value === undefined || value === null || value === '') continue
+  // An array value means several constraints on the SAME field, all ANDed (e.g. an equality
+  // term plus a range on `chainId`); each element becomes its own clause in `must`.
+  const emit = (field: string, value: any) => {
+    if (value === undefined || value === null || value === '') return
     if (isRangeFilter(value)) {
       const range: Record<string, any> = {}
       if (hasValue(value.min)) range.gte = value.min
@@ -171,6 +196,11 @@ export function buildElasticQuery(filters: Record<string, any>): Record<string, 
     } else {
       must.push({ term: { [field]: value } })
     }
+  }
+  for (const [field, value] of Object.entries(filters || {})) {
+    if (value === undefined || value === null || value === '') continue
+    if (Array.isArray(value)) value.forEach((v) => emit(field, v))
+    else emit(field, value)
   }
   return must.length ? { bool: { must } } : { match_all: {} }
 }

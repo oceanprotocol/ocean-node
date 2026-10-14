@@ -105,7 +105,7 @@ describe('Escrow v2 subsidy modes (OPF + OneTime, REFUND_ONLY + PREPAID_ONLY)', 
           JSON.stringify(mockSupportedNetworks),
           JSON.stringify([DEVELOPMENT_CHAIN_ID]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
+          `${homedir()}/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
     )
