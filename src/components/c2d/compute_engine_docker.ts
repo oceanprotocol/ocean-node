@@ -151,12 +151,8 @@ const trivyImage = 'aquasec/trivy:0.69.3' // Use pinned versions for safety
 // doesn't get a live operation's resources torn down under it.
 const SERVICE_LOCK_HEARTBEAT_MS = 30_000
 const SERVICE_LOCK_STALE_MS = 120_000
-// How long the node waits for `du` on a service's manifest folder. The container is user-controlled
-// and the measurement is only progress reporting, so it must not hold the probe or the node's
-// shutdown that drains it. Compute disk-quota checks keep waiting for the answer.
+// `du` on a manifest folder runs in a user-controlled container, so it must not hold the probe.
 const MANIFEST_DU_TIMEOUT_MS = 15_000
-// A manifest folder is measured with `du` at most this often, while the manifest itself is re-read
-// on every sample to catch appended entries.
 const MANIFEST_DIR_MEASURE_MS = 15_000
 
 // Identifies one engine instance as a service-lock holder across processes. pid alone is
@@ -228,14 +224,14 @@ export class C2DEngineDocker extends C2DEngine {
   private serviceProbeUrls: Map<string, string> = new Map()
   // Per-service model-download sampling state (which cache files to stat, when to re-list them).
   private modelDownloadSampler = new ModelDownloadSampler()
-  // serviceId -> when a service the node cannot probe was last checked for a download manifest.
+  // serviceId -> last manifest check, for services the node cannot probe.
   private manifestCheckedAt: Map<string, number> = new Map()
-  // serviceId -> the container a "still not ready" warning was logged for (once per container).
+  // serviceId -> containerId the "still not ready" warning was logged for.
   private readinessWarned: Map<string, string> = new Map()
-  // serviceId -> the last `du` of each manifest folder in its current container.
+  // serviceId -> manifest folder path -> last `du`.
   private manifestDirSizes: Map<
     string,
-    { containerId: string; sizes: Map<string, { bytes: number | null; at: number }> }
+    Map<string, { containerId: string; bytes: number | null; at: number }>
   > = new Map()
   // serviceId -> its readiness probe (+ model-download sample) still running in the background.
   // The probe is launched fire-and-forget so a slow engine, Docker daemon or Hub never holds up
@@ -3101,8 +3097,7 @@ export class C2DEngineDocker extends C2DEngine {
         return null
       }
 
-      // With a TTY the output arrives as plain text. Without one, Docker frames it with 8-byte
-      // headers whose length byte can read as an ASCII digit and get prepended to the size.
+      // Without a TTY, Docker's 8-byte stream headers can read as digits prepended to the size.
       const exec = await container.exec({
         Cmd: ['du', '-sb', path],
         AttachStdout: true,
@@ -3112,37 +3107,36 @@ export class C2DEngineDocker extends C2DEngine {
 
       const stream = await exec.start({ Detach: false, Tty: true })
 
+      let timedOut = false
+      const timer =
+        timeoutMs !== undefined
+          ? setTimeout(() => {
+              timedOut = true
+              stream.destroy()
+            }, timeoutMs)
+          : undefined
       const chunks: Buffer[] = []
-      const read = (async () => {
+      try {
         for await (const chunk of stream) {
           chunks.push(chunk as Buffer)
         }
-        return true
-      })()
-      // Destroying the stream on timeout rejects the read after the race has moved on.
-      read.catch(() => {})
-      let timer: NodeJS.Timeout
-      const timedOut = new Promise<false>((resolve) => {
-        if (timeoutMs !== undefined) {
-          timer = setTimeout(() => resolve(false), timeoutMs)
-        }
-      })
-      try {
-        if (!(await Promise.race([read, timedOut]))) {
-          stream.destroy()
-          CORE_LOGGER.warn(
-            `du ${path} in ${containerName} did not finish within ${timeoutMs / 1000}s`
-          )
-          return null
+      } catch (error) {
+        if (!timedOut) {
+          throw error
         }
       } finally {
         clearTimeout(timer)
       }
+      if (timedOut) {
+        CORE_LOGGER.warn(
+          `du ${path} in ${containerName} did not finish within ${timeoutMs / 1000}s`
+        )
+        return null
+      }
 
       const output = Buffer.concat(chunks).toString()
 
-      // `du -sb` prints "<bytes>\t<path>", after any "du: cannot access" lines (e.g. for /proc),
-      // which the TTY merges into the same output.
+      // The size line follows any "du: cannot access" lines, which the TTY merges in.
       const match = output.match(/^(\d+)\t/m)
       return match ? parseInt(match[1], 10) : null
     } catch (error) {
@@ -4879,8 +4873,7 @@ export class C2DEngineDocker extends C2DEngine {
         ? undefined
         : await this.sampleModelDownload(job, engine)
 
-      // A service that never answers is usually a node that cannot reach its container: say so once,
-      // where an operator looks, rather than only through users stuck on "warming up".
+      // Usually a node that cannot reach its container: tell the operator once per container.
       if (
         readiness.state === 'waiting' &&
         Number.isFinite(startedAt) &&
@@ -4897,24 +4890,7 @@ export class C2DEngineDocker extends C2DEngine {
         )
       }
 
-      // Same cross-process guard as the metrics write: a lifecycle transition must win.
-      if (
-        this.serviceOpsInFlight.has(job.serviceId) ||
-        (await this.db.isServiceLocked(job.serviceId, SERVICE_LOCK_STALE_MS))
-      ) {
-        return
-      }
-      await this.db.updateServiceJobReadiness(
-        job.serviceId,
-        {
-          owner: job.owner,
-          clusterHash: job.clusterHash,
-          status: ServiceStatusNumber.Running,
-          containerId: job.containerId
-        },
-        readiness,
-        modelDownload
-      )
+      await this.persistServiceReadiness(job, readiness, modelDownload)
     } catch (e: any) {
       CORE_LOGGER.debug(
         `[readiness] service ${job.serviceId}: probe failed: ${e?.message}`
@@ -4922,14 +4898,35 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
+  // Same cross-process guard as the metrics write: a lifecycle transition must win.
+  private async persistServiceReadiness(
+    job: ServiceJob,
+    readiness: ServiceReadiness | undefined,
+    modelDownload: ServiceModelDownload | undefined
+  ): Promise<void> {
+    if (
+      this.serviceOpsInFlight.has(job.serviceId) ||
+      (await this.db.isServiceLocked(job.serviceId, SERVICE_LOCK_STALE_MS))
+    ) {
+      return
+    }
+    await this.db.updateServiceJobReadiness(
+      job.serviceId,
+      {
+        owner: job.owner,
+        clusterHash: job.clusterHash,
+        status: ServiceStatusNumber.Running,
+        containerId: job.containerId
+      },
+      readiness,
+      modelDownload
+    )
+  }
+
   /**
-   * Download progress for a service the node cannot probe: only what the launch script's download
-   * manifest says, with no readiness, so Running stays the signal that the service is usable.
-   *
-   * Throttled like the probe. A service with no manifest MANIFEST_DISCOVERY_MS after its container
-   * started is not checked again, and sampling stops once the listed download is complete or after
-   * MANIFEST_SAMPLING_MS, whichever comes first — with no
-   * readiness to end it, it would otherwise run for the whole session.
+   * Manifest download progress for a service the node cannot probe; no readiness, so Running stays
+   * the signal. With no readiness to end it, sampling is bounded by MANIFEST_DISCOVERY_MS /
+   * MANIFEST_SAMPLING_MS and stops once the listed download is complete.
    */
   private async sampleUnprobedServiceDownload(
     job: ServiceJob,
@@ -4960,42 +4957,26 @@ export class C2DEngineDocker extends C2DEngine {
       this.docker.getContainer(job.containerId),
       (path) => this.manifestDirectoryBytes(job, path)
     )
-    if (!modelDownload) {
-      return
+    if (modelDownload) {
+      await this.persistServiceReadiness(job, undefined, modelDownload)
     }
-    // Same cross-process guard as the readiness write: a lifecycle transition must win.
-    if (
-      this.serviceOpsInFlight.has(job.serviceId) ||
-      (await this.db.isServiceLocked(job.serviceId, SERVICE_LOCK_STALE_MS))
-    ) {
-      return
-    }
-    await this.db.updateServiceJobReadiness(
-      job.serviceId,
-      {
-        owner: job.owner,
-        clusterHash: job.clusterHash,
-        status: ServiceStatusNumber.Running,
-        containerId: job.containerId
-      },
-      undefined,
-      modelDownload
-    )
   }
 
-  /** A manifest folder's size, re-measured with `du` at most every MANIFEST_DIR_MEASURE_MS. */
   private async manifestDirectoryBytes(
     job: ServiceJob,
     path: string
   ): Promise<number | null> {
-    let cache = this.manifestDirSizes.get(job.serviceId)
-    if (!cache || cache.containerId !== job.containerId) {
-      cache = { containerId: job.containerId, sizes: new Map() }
-      this.manifestDirSizes.set(job.serviceId, cache)
+    let sizes = this.manifestDirSizes.get(job.serviceId)
+    if (!sizes) {
+      sizes = new Map()
+      this.manifestDirSizes.set(job.serviceId, sizes)
     }
     const now = Date.now()
-    const last = cache.sizes.get(path)
-    if (last && now - last.at < MANIFEST_DIR_MEASURE_MS) {
+    const last = sizes.get(path)
+    if (
+      last?.containerId === job.containerId &&
+      now - last.at < MANIFEST_DIR_MEASURE_MS
+    ) {
       return last.bytes
     }
     const bytes = await this.getContainerDiskUsage(
@@ -5003,7 +4984,7 @@ export class C2DEngineDocker extends C2DEngine {
       path,
       MANIFEST_DU_TIMEOUT_MS
     )
-    cache.sizes.set(path, { bytes, at: now })
+    sizes.set(path, { containerId: job.containerId, bytes, at: now })
     return bytes
   }
 
@@ -5025,8 +5006,7 @@ export class C2DEngineDocker extends C2DEngine {
   ): Promise<ServiceModelDownload | undefined> {
     try {
       const container = this.docker.getContainer(job.containerId)
-      // The launch script's own manifest, when it writes one (see downloadManifest). Read before
-      // the completion check below: a script can append to it after its first downloads finish.
+      // Before the completion check: a script can append to its manifest after earlier downloads.
       const fromManifest = await sampleDownloadManifest(container, (path) =>
         this.manifestDirectoryBytes(job, path)
       )

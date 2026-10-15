@@ -5,29 +5,22 @@ import type { ServiceModelDownload } from '../../@types/C2D/ServiceOnDemand.js'
 import { buildModelDownload, fileSize } from './modelDownload.js'
 
 /**
- * Download progress from a manifest the service's own launch script writes.
+ * Download progress from a manifest the service's launch script writes before its first download,
+ * one `<kind>\t<bytes>\t<path>[\t<source>]` line per item (`bytes` 0 = unknown):
  *
- * Before its first download, a template script lists what it will fetch in MANIFEST_PATH, one
- * `<kind>\t<bytes>\t<path>[\t<source>]` line per item:
+ *   file  written to `<path>.part`, renamed to `<path>` once complete
+ *   dir   a folder filled under names of its own, measured with `du`
  *
- *   file  one file, written to `<path>.part` and renamed to `<path>` once complete
- *   dir   a folder a tool fills under names of its own (huggingface_hub's snapshot cache),
- *         measured with `du` and complete once it holds `<bytes>`
- *
- * `bytes` is what the item will weigh, or 0 when the script could not tell. A script may append
- * lines while it runs, so the file is re-read on every sample. It lives in the container's own
- * filesystem, so a new container never sees an earlier one's. Like the script that writes it, the
- * manifest is untrusted: it only ever decides what this service's own progress report says.
+ * Re-read on every sample, since the script may append to it. Untrusted: it only affects this
+ * service's own progress report.
  */
 export const MANIFEST_PATH = '/tmp/ocean/downloads.tsv'
 const MAX_DOWNLOAD_ENTRIES = 64
-// Each `dir` entry costs a `du` inside the container, so far fewer of them are measured.
+// Each `dir` entry costs a `du` inside the container.
 const MAX_DIR_ENTRIES = 8
-// How long after its container starts a service the node cannot probe is checked for a manifest.
-// A script writes it before its first download; setup steps before that can take minutes.
+// For a service the node cannot probe: how long after start to look for a manifest, and the
+// longest it is sampled, so a download that never completes is not sampled forever.
 export const MANIFEST_DISCOVERY_MS = 30 * 60 * 1000
-// The longest a service the node cannot probe is sampled after its container starts, so a download
-// that never reads as complete (an unknown size, a file that never arrives) is not sampled forever.
 export const MANIFEST_SAMPLING_MS = 6 * 60 * 60 * 1000
 const MAX_READ_BYTES = 64 * 1024
 const BYTES = /^\d{1,13}$/
@@ -38,10 +31,8 @@ export interface DownloadEntry {
   bytes: number | null
 }
 
-/** Bytes held under a folder in the container, or null when it is not there yet. */
 export type DirectoryBytes = (path: string) => Promise<number | null>
 
-/** One small file from the container, via Docker's archive endpoint. Null when absent or too big. */
 async function readContainerFile(
   container: Dockerode.Container,
   path: string
@@ -66,10 +57,7 @@ async function readContainerFile(
   }
 }
 
-/**
- * The manifest's entries, capped at MAX_DOWNLOAD_ENTRIES (MAX_DIR_ENTRIES of them `dir`). `truncated`
- * says it names more than that, so the entries are not the whole download.
- */
+/** `truncated`: the manifest names more than the caps allow, so it must never read as complete. */
 export function parseDownloadManifest(text: string): {
   entries: DownloadEntry[]
   truncated: boolean
@@ -101,26 +89,29 @@ export function parseDownloadManifest(text: string): {
   return { entries: [...entries.values()], truncated: false }
 }
 
-/**
- * Bytes on disk against the sizes the entries declare. The total and the file count are reported
- * only when they are the whole download, so a truncated list never reads as complete.
- */
-export async function measureDownloads(
+/** Null when the script writes no manifest. */
+export async function sampleDownloadManifest(
   container: Dockerode.Container,
-  entries: DownloadEntry[],
-  truncated: boolean,
-  directoryBytes?: DirectoryBytes
-): Promise<ServiceModelDownload> {
+  directoryBytes: DirectoryBytes
+): Promise<ServiceModelDownload | null> {
+  const manifest = await readContainerFile(container, MANIFEST_PATH)
+  if (!manifest) {
+    return null
+  }
+  const { entries, truncated } = parseDownloadManifest(manifest)
+  if (entries.length === 0) {
+    return null
+  }
   let downloadedBytes = 0
   let files = 0
   let inFlight = 0
   for (const { kind, path, bytes } of entries) {
     if (kind === 'dir') {
-      const held = directoryBytes ? await directoryBytes(path) : null
+      const held = await directoryBytes(path)
       if (held === null) {
         continue
       }
-      // Capped: a reused cache can hold more than this launch asked for.
+      // A reused cache can hold more than this launch asked for.
       downloadedBytes += bytes ? Math.min(held, bytes) : held
       if (bytes && held >= bytes) {
         files++
@@ -129,7 +120,7 @@ export async function measureDownloads(
       }
       continue
     }
-    // Finished first, so a stale .part left beside it cannot hold the file in flight forever.
+    // Finished first, so a stale .part beside it cannot keep the file in flight.
     const finished = await fileSize(container, path)
     if (finished !== null) {
       downloadedBytes += finished
@@ -149,25 +140,5 @@ export async function measureDownloads(
   return {
     ...buildModelDownload({ downloadedBytes, files, inFlight }, totalBytes, null),
     ...(truncated ? {} : { filesTotal: entries.length })
-  }
-}
-
-/** Progress from the launch script's manifest. Null when the script writes none. Never throws. */
-export async function sampleDownloadManifest(
-  container: Dockerode.Container,
-  directoryBytes: DirectoryBytes
-): Promise<ServiceModelDownload | null> {
-  const manifest = await readContainerFile(container, MANIFEST_PATH)
-  if (!manifest) {
-    return null
-  }
-  const { entries, truncated } = parseDownloadManifest(manifest)
-  if (entries.length === 0) {
-    return null
-  }
-  try {
-    return await measureDownloads(container, entries, truncated, directoryBytes)
-  } catch {
-    return null
   }
 }

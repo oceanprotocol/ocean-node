@@ -409,7 +409,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
 
   // Same guarantees as updateServiceJobMetrics, for the readiness probe result: it is sampled from
   // the same lease-free background loop, so it must never overwrite a lifecycle transition either.
-  // `readiness` is absent for a service the node cannot probe, which reports download progress only.
+  // `readiness` is undefined for a service the node cannot probe.
   // eslint-disable-next-line require-await
   async updateServiceJobReadiness(
     serviceId: string,

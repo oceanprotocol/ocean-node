@@ -153,8 +153,7 @@ export const SERVICE_ENGINE_PROFILES: ServiceEngineProfile[] = [
   {
     id: 'comfyui',
     matchesImage: (image) => /(^|\/)yanwk\/comfyui-boot$/.test(image),
-    // ComfyUI binds its port only after the bundle script has fetched its models and every custom
-    // node has loaded, so the first 200 means the UI is usable.
+    // Binds its port only after models are fetched and custom nodes loaded.
     probe: { path: '/system_stats', port: 8188, expectStatus: [200] }
   }
 ]
@@ -173,10 +172,8 @@ function stripImageRef(image: string): string {
 }
 
 /**
- * The engine profile for a service, or null when the node does not recognize the image — or when
- * the service does not publish the engine's port. An app that runs the engine behind itself (vLLM
- * on loopback, the app on its own port) is not the engine's to call ready: probing the app's port
- * for the engine's path would never succeed.
+ * Null for an unrecognized image, or when the engine's port is not published (an app running the
+ * engine behind its own port has nothing to probe).
  */
 export function resolveServiceEngine(job: ServiceJob): ServiceEngineProfile | null {
   const image = stripImageRef((job.image || job.containerImage || '').trim())
