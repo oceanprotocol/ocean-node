@@ -170,7 +170,13 @@ export const typesenseSchemas: TypesenseSchemas = {
       // ReLock event fields (uint256 kept as raw strings)
       { name: 'oldAmount', type: 'string', optional: true },
       { name: 'newAmount', type: 'string', optional: true },
-      { name: 'newExpiry', type: 'string', optional: true }
+      { name: 'newExpiry', type: 'string', optional: true },
+      // Subsidy events (Subsidized / LockSponsored / SponsorRefunded) + Auth v2 expiry
+      { name: 'provider', type: 'string', optional: true },
+      { name: 'subsidyAmount', type: 'string', optional: true },
+      { name: 'bonusAmount', type: 'string', optional: true },
+      { name: 'expiryTimestamp', type: 'string', optional: true },
+      { name: 'reclaimable', type: 'bool', optional: true }
     ]
   }
 }

@@ -4,6 +4,8 @@ import EscrowJson from '@oceanprotocol/contracts/artifacts/contracts/escrow/Escr
 import { EscrowAuthorization, EscrowLock } from '../../../@types/Escrow.js'
 import { getOceanArtifactsAdressesByChainId } from '../../../utils/address.js'
 import { RPCS } from '../../../@types/blockchain.js'
+import { AccessListContract } from '../../../@types/OceanNode.js'
+import { JobType } from '../../../utils/constants.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { sleep } from '../../../utils/util.js'
 import { BlockchainRegistry } from '../../BlockchainRegistry/index.js'
@@ -17,17 +19,29 @@ export class Escrow {
   private networks: RPCS
   private claimDurationTimeout: number
   private blockchainRegistry: BlockchainRegistry
+  /** Per-chain Subsidy Provider contract addresses, passed to the escrow at claim time. */
+  private subsidyProviders: AccessListContract | null
   /** Cache for token decimals to avoid repeated blockchain calls */
   private decimalsCache: Map<string, number> = new Map()
 
   constructor(
     supportedNetworks: RPCS,
     claimDurationTimeout: number,
-    blockchainRegistry: BlockchainRegistry
+    blockchainRegistry: BlockchainRegistry,
+    subsidyProviders: AccessListContract | null = null
   ) {
     this.networks = supportedNetworks
     this.claimDurationTimeout = claimDurationTimeout
     this.blockchainRegistry = blockchainRegistry
+    this.subsidyProviders = subsidyProviders
+  }
+
+  /**
+   * Subsidy Provider contract addresses configured for a given chain, or an empty list when none
+   * are set. The empty list is the "plain claim" case the escrow expects (no third-party subsidy).
+   */
+  private getSubsidyProvidersForChain(chain: number): string[] {
+    return this.subsidyProviders?.[String(chain)] ?? []
   }
 
   getEscrowContractAddressForChain(chainId: number): string | null {
@@ -163,18 +177,46 @@ export class Escrow {
     token: string,
     payer: string,
     amount: number,
-    expiry: BigNumberish
+    expiry: BigNumberish,
+    jobType: JobType = JobType.NONE,
+    subsidyOverride: string[] | null = null
   ): Promise<string | null> {
     const jobId = create256Hash(job)
+    // Escrow v2 `createLock` takes `jobType` + `subsidyProviders` (lock-time / "prepaid"
+    // sponsorship). The node hands the escrow the SAME provider list at lock time as it does at
+    // claim time, resolved identically to `claimLock`: a user-supplied override wins, otherwise
+    // the per-chain node config is used. `??` (not `||`) so a user-supplied empty list survives
+    // as "no providers" (a plain payer-funded lock, identical to the pre-v2 behaviour).
+    const subsidyProviders = subsidyOverride ?? this.getSubsidyProvidersForChain(chain)
     const blockchain = this.getBlockchain(chain)
     const signer = await blockchain.getSigner()
     const contract = this.getContract(chain, signer)
     if (!contract) throw new Error(`Failed to initialize escrow contract`)
     const wei = await this.getPaymentAmountInWei(amount, chain, token)
-    const userBalance = await this.getUserAvailableFunds(chain, payer, token)
-    if (BigInt(userBalance.toString()) < BigInt(wei)) {
-      // not enough funds
-      throw new Error(`User ${payer} does not have enough funds`)
+
+    // Escrow v2 stopgap: when the lock is (partly) sponsored, the payer only needs to cover the
+    // UNsponsored portion `P = L - S` — a fully-sponsored lock needs 0 from the payer. We can't
+    // know `S` node-side without quoting the providers, so for a sponsored lock we skip the
+    // payer-funded pre-checks (available-funds + the `maxLockedAmount` cap) and let the on-chain
+    // `createLock` reject authoritatively (e.g. "Payer does not have enough funds"). A plain
+    // payer-funded lock (empty provider list) keeps the original fail-fast guards unchanged.
+    // TODO(escrow-v2 follow-up): tighten this by quoting the providers' PREFUNDED subsidy
+    // (`quoteSubsidyByMode`) to compute `P = L - S` and re-apply the guards against `P` — today
+    // a node with a global SUBSIDY_PROVIDERS list skips the fast-fail even when providers end up
+    // covering 0 (S=0), so an underfunded payer gets an on-chain revert instead of a clean error.
+    const isSponsored = subsidyProviders.length > 0
+    if (isSponsored) {
+      CORE_LOGGER.debug(
+        `createLock: sponsored lock (providers=${subsidyProviders.length}) — skipping payer-funded available-funds + maxLockedAmount guards; contract settles P = L - S authoritatively.`
+      )
+    }
+
+    if (!isSponsored) {
+      const userBalance = await this.getUserAvailableFunds(chain, payer, token)
+      if (BigInt(userBalance.toString()) < BigInt(wei)) {
+        // not enough funds
+        throw new Error(`User ${payer} does not have enough funds`)
+      }
     }
 
     const signerAddress = await signer.getAddress()
@@ -204,9 +246,14 @@ export class Escrow {
         } authorizations.`
       )
     }
+    // Payer-funded cap check — skipped for sponsored locks (see the note above). In v2 both
+    // `currentLockedAmount` and `maxLockedAmount` track only the payer portion `P`, so comparing
+    // them against the gross `wei` would wrongly reject (a `maxLockedAmount == 0` "sponsored-only"
+    // auth always would). The contract enforces the real cap on `P`.
     if (
+      !isSponsored &&
       BigInt(auths[0].currentLockedAmount.toString()) + BigInt(wei) >
-      BigInt(auths[0].maxLockedAmount.toString())
+        BigInt(auths[0].maxLockedAmount.toString())
     ) {
       throw new Error(`No valid escrow auths found(will go over limit)`)
     }
@@ -219,10 +266,53 @@ export class Escrow {
     ) {
       throw new Error(`No valid escrow auths found(too many active locks)`)
     }
+    // Auth expiry (Escrow v2): a non-zero `expiryTimestamp` is a unix ts after which the payee can
+    // no longer create (or extend) locks, and a lock may not be created with an end beyond it (a
+    // lock can never outlive its auth). The contract reverts with "Auth expired" in both cases, so
+    // fail fast here instead of sending a doomed tx. `0`/undefined = indefinite (also the case on
+    // a pre-v2 escrow whose auth tuple has no `expiryTimestamp`), so the check is a no-op there.
+    // This gate applies to every lock, sponsored or not (claim/cancel are never expiry-gated).
+    // This is an OPTIMISTIC pre-check: it uses the node's wall clock (`Date.now()`), whereas the
+    // contract uses the mine-time `block.timestamp`, so the on-chain revert stays authoritative.
+    // The bounds mirror the contract (`block.timestamp <= expiry` and `block.timestamp + duration
+    // <= expiry`), so equality is allowed on both.
+    const { expiryTimestamp } = auths[0]
+    if (expiryTimestamp !== undefined && expiryTimestamp !== null) {
+      const expiryTs = BigInt(expiryTimestamp.toString())
+      if (expiryTs > 0n) {
+        const nowSec = BigInt(Math.floor(Date.now() / 1000))
+        if (nowSec > expiryTs) {
+          throw new Error(`No valid escrow auths found(authorization expired)`)
+        }
+        // Lock end ≈ now + duration (the contract stamps startTime at mine time ≈ now).
+        if (nowSec + BigInt(expiry) > expiryTs) {
+          throw new Error(
+            `No valid escrow auths found(lock would outlive authorization expiry)`
+          )
+        }
+      }
+    }
     try {
-      const gas = await contract.createLock.estimateGas(jobId, token, payer, wei, expiry)
+      const gas = await contract.createLock.estimateGas(
+        jobId,
+        token,
+        payer,
+        wei,
+        expiry,
+        jobType,
+        subsidyProviders
+      )
       const gasOptions = await blockchain.getGasOptions(gas, 1.2)
-      const tx = await contract.createLock(jobId, token, payer, wei, expiry, gasOptions)
+      const tx = await contract.createLock(
+        jobId,
+        token,
+        payer,
+        wei,
+        expiry,
+        jobType,
+        subsidyProviders,
+        gasOptions
+      )
       return tx.hash
     } catch (e) {
       CORE_LOGGER.error('Failed to create lock: ' + e.message)
@@ -236,13 +326,18 @@ export class Escrow {
     token: string,
     payer: string,
     amount: number,
-    proof: string
+    proof: string,
+    jobType: JobType = JobType.NONE,
+    subsidyOverride: string[] | null = null
   ): Promise<string | null> {
     const blockchain = this.getBlockchain(chain)
     const signer = await blockchain.getSigner()
     const contract = this.getContract(chain, signer)
     const wei = await this.getPaymentAmountInWei(amount, chain, token)
     const jobId = create256Hash(job)
+    // `??` (not `||`) so a user-supplied empty list means "no providers" and only a missing
+    // override (undefined/null) falls back to the per-chain node config.
+    const subsidyProviders = subsidyOverride ?? this.getSubsidyProvidersForChain(chain)
     if (!contract) return null
     try {
       const locks = await this.getLocks(chain, token, payer, await signer.getAddress())
@@ -253,7 +348,9 @@ export class Escrow {
             token,
             payer,
             wei,
-            ethers.toUtf8Bytes(proof)
+            ethers.toUtf8Bytes(proof),
+            jobType,
+            subsidyProviders
           )
           const gasOptions = await blockchain.getGasOptions(gas, 1.2)
           const tx = await contract.claimLockAndWithdraw(
@@ -262,6 +359,8 @@ export class Escrow {
             payer,
             wei,
             ethers.toUtf8Bytes(proof),
+            jobType,
+            subsidyProviders,
             gasOptions
           )
           return tx.hash
@@ -321,7 +420,9 @@ export class Escrow {
     tokens: string[],
     payers: string[],
     amounts: number[],
-    proofs: string[]
+    proofs: string[],
+    jobType: JobType = JobType.NONE,
+    subsidyOverrides: (string[] | null)[] | null = null
   ): Promise<string | null> {
     const blockchain = this.getBlockchain(chain)
     const signer = await blockchain.getSigner()
@@ -345,13 +446,24 @@ export class Escrow {
       jobIds.push(jobId)
       ethProofs.push(ethers.toUtf8Bytes(proofs[i]))
     }
+    // Parallel arrays the plural claim ABI expects: one jobType per job (all the same here) and
+    // one subsidy-provider list per job. Each job may carry its own user-supplied override; where
+    // it doesn't (undefined/null), the per-chain node config is used. `??` (not `||`) so a
+    // user-supplied empty list survives as "no providers".
+    const chainSubsidyProviders = this.getSubsidyProvidersForChain(chain)
+    const jobTypes: JobType[] = jobs.map(() => jobType)
+    const subsidyProviders: string[][] = jobs.map(
+      (_job, i) => subsidyOverrides?.[i] ?? chainSubsidyProviders
+    )
     try {
       const gas = await contract.claimLocksAndWithdraw.estimateGas(
         jobIds,
         tokens,
         payers,
         weis,
-        ethProofs
+        ethProofs,
+        jobTypes,
+        subsidyProviders
       )
       const gasOptions = await blockchain.getGasOptions(gas, 1.2)
       const tx = await contract.claimLocksAndWithdraw(
@@ -360,6 +472,8 @@ export class Escrow {
         payers,
         weis,
         ethProofs,
+        jobTypes,
+        subsidyProviders,
         gasOptions
       )
       return tx.hash

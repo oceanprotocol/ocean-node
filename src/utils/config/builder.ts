@@ -300,6 +300,21 @@ export async function getConfiguration(
     previousConfiguration.codeHash = await computeCodebaseHash(__dirname)
   }
 
+  if (isStartup) {
+    // Insecure-default warning: with SUBSIDY_PROVIDER_FILTER off, an untrusted consumer may name
+    // ANY sponsor address in a request and have this node lock/claim against it (an open,
+    // sybil-drainable sponsorship program). Warn loudly when the operator has configured
+    // SUBSIDY_PROVIDERS but left the filter off, so the exposure is a deliberate choice.
+    const sp = previousConfiguration.subsidyProviders
+    const hasSubsidyProviders =
+      !!sp && Object.values(sp).some((list) => Array.isArray(list) && list.length > 0)
+    if (hasSubsidyProviders && !previousConfiguration.subsidyProviderFilter) {
+      CONFIG_LOGGER.warn(
+        'SUBSIDY_PROVIDERS is configured but SUBSIDY_PROVIDER_FILTER is OFF: any consumer may name ANY sponsor address through this node (open, sybil-drainable sponsorship). Set SUBSIDY_PROVIDER_FILTER=true to restrict callers to this node’s configured providers.'
+      )
+    }
+  }
+
   return previousConfiguration
 }
 

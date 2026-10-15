@@ -48,6 +48,8 @@ import { checkAddressOnAccessList } from '../../../utils/accessList.js'
 import { ensureConsumerAllowedForPersistentStorageLocalfsFileObject } from '../../persistentStorage/PersistentStorageFactory.js'
 import { resolveComputeFileObject } from '../../c2d/compute_engine_docker.js'
 import { cJobsStarted } from '../../../telemetry/metrics.js'
+import { resolveUserSubsidyProviders } from '../utils/subsidyProviders.js'
+import { JobType } from '../../../utils/constants.js'
 
 export class CommonComputeHandler extends CommandHandler {
   validate(command: PaidComputeStartCommand): ValidateParams {
@@ -581,6 +583,35 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
         task.payment.token,
         task.maxJobDuration
       )
+      // Resolve the user-supplied subsidy providers (if any) for the payment chain, enforcing the
+      // node's whitelist filter when enabled. Done before locking funds so a bad list fails fast;
+      // the resolved value is persisted on the job so the (batched) claim later uses the user's
+      // choice rather than whatever the node config holds at claim time.
+      const subsidyResolution = resolveUserSubsidyProviders(
+        task.subsidyProviders,
+        task.payment.chainId,
+        node.getConfig()
+      )
+      if (!subsidyResolution.valid) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: subsidyResolution.reason
+          }
+        }
+      }
+      // Snapshot the EFFECTIVE provider list now and reuse the SAME array for both the lock and the
+      // (batched) claim, so they can never disagree. An explicit user list is used as-is; when the
+      // user opted out (`resolved === undefined`) we snapshot the node's configured list for this
+      // chain AT LOCK TIME, rather than letting the lock and the much-later claim each re-read
+      // SUBSIDY_PROVIDERS live — for a prefunded lock those two live reads could straddle an
+      // operator config change and settle the claim against a different provider set than the lock
+      // was funded from. `??` (not `||`) so an explicit `[]` (no providers) survives.
+      const effectiveSubsidy =
+        subsidyResolution.resolved ??
+        node.getConfig().subsidyProviders?.[String(task.payment.chainId)] ??
+        []
       let agreementId
       CORE_LOGGER.logMessage(
         `escrow.createLock cost=${cost} token=${task.payment.token} chainId=${task.payment.chainId} resources=${JSON.stringify(task.resources)} maxJobDuration=${task.maxJobDuration}`,
@@ -595,7 +626,11 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
           cost,
           engine.escrow.getMinLockTime(
             Number(task.maxJobDuration) + Number(task.queueMaxWaitTime)
-          )
+          ),
+          JobType.COMPUTE,
+          // The snapshotted list, also persisted on the job (below) and handed to claimLock —
+          // lock & claim settle from the exact same provider set.
+          effectiveSubsidy
         )
       } catch (e) {
         const errMsg = e?.message || String(e)
@@ -646,7 +681,8 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
             lockTx: agreementId,
             claimTx: null,
             cancelTx: null,
-            cost: 0
+            cost: 0,
+            subsidyProviders: effectiveSubsidy
           },
           jobId,
           task.metadata,

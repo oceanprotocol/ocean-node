@@ -87,7 +87,12 @@ export class OceanIndexer {
   private blockchainRegistry?: BlockchainRegistry
   private supportedChains: string[]
   private indexers: Map<number, ChainIndexer> = new Map()
-  private MIN_REQUIRED_VERSION = '0.2.2'
+  // Minimum DB schema version: if the version stored in the DB is older than this, every
+  // chain is reset to its deployment block and reindexed on startup (see
+  // checkAndTriggerReindexing). Bump this to the current release whenever the indexed schema
+  // changes in a way that needs a reindex. Bumped to 4.2.0 for the Escrow v2 / subsidy-provider
+  // events (Subsidized / LockSponsored / SponsorRefunded) so existing deployments backfill them.
+  private MIN_REQUIRED_VERSION = '4.2.0'
   private isDbConnected: boolean = true
   private reconnectTimer: NodeJS.Timeout | null = null
 
