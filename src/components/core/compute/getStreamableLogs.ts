@@ -41,6 +41,13 @@ export class ComputeGetStreamableLogsHandler extends CommandHandler {
     if (authValidationResponse.status.httpStatus !== 200) {
       return authValidationResponse
     }
+    const { consumerAddress } = authValidationResponse
+    if (!consumerAddress) {
+      return {
+        stream: null,
+        status: { httpStatus: 401, error: 'Authenticated address is required' }
+      }
+    }
 
     // split jobId (which is already in hash-jobId format) and get the hash
     // then get jobId which might contain dashes as well
@@ -62,7 +69,7 @@ export class ComputeGetStreamableLogsHandler extends CommandHandler {
       }
     }
     try {
-      const respStream = await engine.getStreamableLogs(jobId)
+      const respStream = await engine.getStreamableLogs(jobId, consumerAddress)
       if (!respStream) {
         return {
           stream: null,
