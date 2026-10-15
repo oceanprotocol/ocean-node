@@ -161,6 +161,7 @@ export interface ServiceModelDownload {
   percent?: number
   filesComplete: number
   filesInFlight: number // the hub fetches files in parallel, so only the aggregate is meaningful
+  filesTotal?: number // from the download manifest
   updatedAt: number // Unix ms
 }
 
