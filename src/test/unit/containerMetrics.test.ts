@@ -470,7 +470,7 @@ describe('gpu NVML multi-GPU resolution + sampling', () => {
     // devices produce distinct numbers.
     const utilByUuid: Record<string, number> = { 'GPU-aaaa': 11, 'GPU-bbbb': 77 }
     let currentUuid = ''
-    collector.detected = true
+    collector.detecting = Promise.resolve(true)
     collector.initialized = true
     collector.bindings = {
       getHandleByUUID: (uuid: string, out: any[]) => {

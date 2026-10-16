@@ -36,10 +36,13 @@ interface NvmlBindings {
   getUUID: (...a: any[]) => number
 }
 
+// Built once per process: koffi struct names are process-global, so a second build throws.
+let sharedBindings: Promise<NvmlBindings | null> | null = null
+
 export class NvmlGpuCollector implements GpuVendorCollector {
   public readonly vendor = 'nvidia' as const
   private bindings: NvmlBindings | null = null
-  private detected: boolean | null = null // null = not yet probed
+  private detecting: Promise<boolean> | null = null // shared by concurrent callers
   private initialized = false
 
   private async loadKoffi(): Promise<any | null> {
@@ -121,24 +124,31 @@ export class NvmlGpuCollector implements GpuVendorCollector {
     }
   }
 
-  async detect(): Promise<boolean> {
-    if (this.detected !== null) return this.detected
-    const koffi = await this.loadKoffi()
-    if (!koffi) return (this.detected = false)
-    const bindings = this.buildBindings(koffi)
-    if (!bindings) return (this.detected = false)
+  detect(): Promise<boolean> {
+    if (!this.detecting) this.detecting = this.probe()
+    return this.detecting
+  }
+
+  private async probe(): Promise<boolean> {
+    if (!sharedBindings) {
+      sharedBindings = this.loadKoffi().then((koffi) =>
+        koffi ? this.buildBindings(koffi) : null
+      )
+    }
+    const bindings = await sharedBindings
+    if (!bindings) return false
     try {
       const rc = bindings.init()
       if (rc !== NVML_SUCCESS) {
         CORE_LOGGER.warn(`GPU metrics (nvidia): nvmlInit failed (code ${rc}) — disabled`)
-        return (this.detected = false)
+        return false
       }
       this.initialized = true
       this.bindings = bindings
-      return (this.detected = true)
+      return true
     } catch (e: any) {
       CORE_LOGGER.warn(`GPU metrics (nvidia): nvmlInit threw — disabled (${e?.message})`)
-      return (this.detected = false)
+      return false
     }
   }
 
@@ -277,7 +287,7 @@ export class NvmlGpuCollector implements GpuVendorCollector {
     // Clear the cached probe result and release the (now shut-down) bindings so a later
     // detect() re-initializes from scratch and sample()/sampleOne() can never use a torn-down
     // NVML handle.
-    this.detected = null
+    this.detecting = null
     this.bindings = null
   }
 }
