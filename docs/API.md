@@ -2616,9 +2616,12 @@ provided.
 
 #### Description
 
-Tear down the service container and network. Owner-gated. The paid reservation is kept until
-`expiresAt`; optional `release: true` ends the paid window now so the expiry sweep frees it
-instead — no refund, no restart.
+Tear down the service container and network. Owner-gated, with one exception: a **node
+admin** (an address in `ALLOWED_ADMINS` or on an `ALLOWED_ADMINS_LIST` access list) may stop
+**any** service on the node by signing as itself in `consumerAddress` — the operator does not
+need the tenant's key. The paid reservation is kept until `expiresAt`; optional
+`release: true` ends the paid window now so the expiry sweep frees it instead — no refund,
+no restart.
 
 #### Request Body
 
@@ -2635,6 +2638,15 @@ instead — no refund, no restart.
 #### Response (200)
 
 The `ServiceJob` with `status: 70` (Stopped).
+
+#### Response (400)
+
+No such service. An admin caller gets this too when the `serviceId` does not exist on the
+node at all; a non-admin caller gets it for any service it does not own.
+
+#### Response (401)
+
+Missing/invalid auth, or `consumerAddress` is neither the service owner nor a node admin.
 
 ---
 

@@ -1,6 +1,7 @@
 import { assert, expect } from 'chai'
 import { Readable } from 'stream'
 import sinon from 'sinon'
+import { AbiCoder } from 'ethers'
 import { streamToObject } from '../../../utils/util.js'
 import { PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { ServiceStatusNumber, ServiceJob } from '../../../@types/C2D/ServiceOnDemand.js'
@@ -16,6 +17,9 @@ import { ServiceGetStreamableLogsHandler } from '../../../components/core/servic
 // Checksummed (EIP-55): commands are canonicalized on ingress, so this is the form handlers
 // see and forward, whatever casing the caller sent (see the lowercase-address test below).
 const OWNER = '0x0000000000000000000000000000000000000aBc'
+// A node admin (ALLOWED_ADMINS) and an unrelated caller — neither owns the fake job.
+const ADMIN = '0x0000000000000000000000000000000000000adE'
+const STRANGER = '0x0000000000000000000000000000000000000FfF'
 
 function makeJob(overrides: Partial<ServiceJob> = {}): ServiceJob {
   return {
@@ -66,6 +70,12 @@ interface FakeOpts {
   cost?: number | null
   envId?: string
   streamableLogs?: Readable | null
+  // node admins (ALLOWED_ADMINS); empty unless a test grants one
+  admins?: string[]
+  // admin access lists (ALLOWED_ADMINS_LIST), chainId → contract addresses
+  adminAccessLists?: Record<string, string[]>
+  // balanceOf answered by every access-list contract on the fake chain
+  accessListBalance?: number
 }
 
 function buildFakes(opts: FakeOpts = {}) {
@@ -198,6 +208,19 @@ function buildFakes(opts: FakeOpts = {}) {
       rateLimit: undefined as number | undefined,
       serviceTemplatesPath: undefined as string | undefined
     }),
+    // RPC signer for access-list balanceOf: a bare runner whose eth_call returns the balance
+    getBlockchain: () => ({
+      getSigner: () =>
+        Promise.resolve({
+          call: () =>
+            Promise.resolve(
+              AbiCoder.defaultAbiCoder().encode(
+                ['uint256'],
+                [opts.accessListBalance ?? 0]
+              )
+            )
+        })
+    }),
     getC2DEngines: () => engines,
     getKeyManager: () => ({
       decrypt: (d: Uint8Array) => Promise.resolve(Buffer.from(d))
@@ -205,6 +228,11 @@ function buildFakes(opts: FakeOpts = {}) {
     getAuth: () => ({
       validateAuthenticationOrToken: ({ address }: any) =>
         Promise.resolve({ valid: true, address })
+    }),
+    // No ALLOWED_ADMINS by default — tests that exercise the admin path override this.
+    getAdminAddresses: () => ({
+      addresses: opts.admins ?? [],
+      accessLists: opts.adminAccessLists as any
     }),
     getPersistentStorage: () => persistentStorage
   }
@@ -337,6 +365,117 @@ describe('Service handlers', () => {
       expect(res.status.httpStatus).to.equal(200)
       expect(engine.stopService.calledOnce).to.equal(true)
       expect(engine.db.getServiceJob.firstCall.args[1]).to.equal(OWNER)
+    })
+
+    it('200 when a node admin stops a service owned by someone else', async () => {
+      const { node, engine } = buildFakes({
+        serviceJobInDb: makeJob(),
+        admins: [ADMIN]
+      })
+      const res = await new ServiceStopHandler(node).handle({
+        ...baseTask,
+        consumerAddress: ADMIN
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      expect(engine.stopService.calledOnce).to.equal(true)
+      // the lookup is still owner-scoped first — the admin check is the fallback
+      expect(engine.db.getServiceJob.firstCall.args[1]).to.equal(ADMIN)
+      // the engine is asked for the JOB's owner, not the admin
+      expect(engine.stopService.firstCall.args[1]).to.equal(OWNER)
+    })
+
+    it('admin lookup falls back to an unfiltered query when the owner-scoped one misses', async () => {
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob(), admins: [ADMIN] })
+      // The real DB filters on `owner`, so an admin's owner-scoped lookup finds nothing.
+      const job = makeJob()
+      engine.db.getServiceJob = sinon
+        .stub()
+        .callsFake((_serviceId: string, owner?: string) =>
+          Promise.resolve(
+            !owner || owner.toLowerCase() === OWNER.toLowerCase() ? [job] : []
+          )
+        )
+      const res = await new ServiceStopHandler(node).handle({
+        ...baseTask,
+        consumerAddress: ADMIN
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      expect(engine.db.getServiceJob.callCount).to.equal(2)
+      expect(engine.db.getServiceJob.lastCall.args[1]).to.equal(undefined)
+      expect(engine.stopService.firstCall.args[1]).to.equal(OWNER)
+    })
+
+    it('admin stop forwards release', async () => {
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob(), admins: [ADMIN] })
+      const res = await new ServiceStopHandler(node).handle({
+        ...baseTask,
+        consumerAddress: ADMIN,
+        release: true
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      expect(engine.stopService.firstCall.args[3]).to.equal(true)
+    })
+
+    it('admin matching is case-insensitive on the allowed-admins list', async () => {
+      const { node } = buildFakes({
+        serviceJobInDb: makeJob(),
+        admins: [ADMIN.toLowerCase()]
+      })
+      const res = await new ServiceStopHandler(node).handle({
+        ...baseTask,
+        consumerAddress: ADMIN
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+    })
+
+    it('200 when the admin is a member of an ALLOWED_ADMINS_LIST access list', async () => {
+      const { node, engine } = buildFakes({
+        serviceJobInDb: makeJob(),
+        adminAccessLists: { '8453': ['0x00000000000000000000000000000000000000A1'] },
+        accessListBalance: 1
+      })
+      const res = await new ServiceStopHandler(node).handle({
+        ...baseTask,
+        consumerAddress: ADMIN
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      expect(engine.stopService.firstCall.args[1]).to.equal(OWNER)
+    })
+
+    it('401 when the caller holds no token on the admin access list', async () => {
+      const { node, engine } = buildFakes({
+        serviceJobInDb: makeJob(),
+        adminAccessLists: { '8453': ['0x00000000000000000000000000000000000000A1'] },
+        accessListBalance: 0
+      })
+      const res = await new ServiceStopHandler(node).handle({
+        ...baseTask,
+        consumerAddress: STRANGER
+      } as any)
+      expect(res.status.httpStatus).to.equal(401)
+      expect(engine.stopService.called).to.equal(false)
+    })
+
+    it("401 when a non-admin stranger stops someone else's service", async () => {
+      const { node, engine } = buildFakes({
+        serviceJobInDb: makeJob(),
+        admins: [ADMIN]
+      })
+      const res = await new ServiceStopHandler(node).handle({
+        ...baseTask,
+        consumerAddress: STRANGER
+      } as any)
+      expect(res.status.httpStatus).to.equal(401)
+      expect(engine.stopService.called).to.equal(false)
+    })
+
+    it('400 for an admin when the service does not exist at all', async () => {
+      const { node } = buildFakes({ serviceJobInDb: null, admins: [ADMIN] })
+      const res = await new ServiceStopHandler(node).handle({
+        ...baseTask,
+        consumerAddress: ADMIN
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
     })
   })
 
