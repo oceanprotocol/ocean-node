@@ -10,12 +10,33 @@ import { SqliteClient } from '../database/sqliteClient.js'
 import { getAddress } from 'ethers'
 import { OceanNode } from '../../OceanNode.js'
 import { checkAddressOnAccessList } from '../../utils/accessList.js'
+import { CORE_LOGGER } from '../../utils/logging/common.js'
+import {
+  DEFAULT_SERVICE_BUCKET_QUOTA_BYTES,
+  DEFAULT_SERVICE_BUCKET_RETENTION_SECONDS
+} from '../../utils/config/constants.js'
 
 export class PersistentStorageAccessDeniedError extends Error {
   constructor(message = 'You are not allowed to access this bucket') {
     super(message)
     this.name = 'PersistentStorageAccessDeniedError'
   }
+}
+
+export class PersistentStorageQuotaExceededError extends Error {
+  constructor(bucketId: string, usedBytes: number, quotaBytes: number) {
+    super(
+      `Bucket ${bucketId} is over its quota (${usedBytes} of ${quotaBytes} bytes used) — ` +
+        'delete files from it to free space'
+    )
+    this.name = 'PersistentStorageQuotaExceededError'
+  }
+}
+
+export type CreateBucketOptions = {
+  serviceId?: string // the service the bucket was auto-created for (at most one bucket each)
+  quotaBytes?: number
+  expiresAt?: number // unix seconds; the expiry sweep deletes the bucket after this
 }
 
 function normalizeWeb3Address(addr: string): string {
@@ -41,6 +62,9 @@ export type BucketRow = {
   accessListJson: string
   createdAt: number
   label: string | null
+  serviceId: string | null
+  quotaBytes: number | null
+  expiresAt: number | null
 }
 
 export interface PersistentStorageFileInfo {
@@ -55,6 +79,9 @@ export type CreateBucketResult = {
   owner: string
   accessList: AccessList[]
   label?: string | null
+  serviceId?: string | null
+  quotaBytes?: number | null
+  expiresAt?: number | null
 }
 
 /** Bucket metadata from registry (list APIs and internal filtering). */
@@ -64,13 +91,21 @@ export type PersistentStorageBucketRecord = {
   createdAt: number
   accessLists: AccessList[]
   label?: string | null
+  serviceId?: string | null
+  quotaBytes?: number | null
+  expiresAt?: number | null
 }
+
+const BUCKET_COLUMNS =
+  'bucketId, owner, accessListJson, createdAt, label, serviceId, quotaBytes, expiresAt'
 
 export abstract class PersistentStorageFactory {
   private db: SqliteClient
   private node: OceanNode
   private dbReady = false
   private dbReadyPromise: Promise<void>
+  // bucketId → last measured size, see getBucketQuotaUsage
+  private bucketUsageCache: Map<string, { usedBytes: number; at: number }> = new Map()
 
   constructor(node: OceanNode) {
     this.node = node
@@ -82,20 +117,35 @@ export abstract class PersistentStorageFactory {
         owner TEXT NOT NULL,
         accessListJson TEXT NOT NULL,
         createdAt INTEGER NOT NULL,
-        label TEXT
+        label TEXT,
+        serviceId TEXT,
+        quotaBytes INTEGER,
+        expiresAt INTEGER
       );
     `)
-    // Migration: add the label column if it doesn't exist. A fresh table already has it,
-    // so ALTER throws "duplicate column name" — swallow only that; surface any other
+    // Migration: add columns missing from older databases. A fresh table already has
+    // them, so ALTER throws "duplicate column name" — swallow only that; surface any other
     // failure instead of starting with a broken schema. Schema setup is synchronous now,
     // so the DB is ready by the time the constructor returns.
-    try {
-      this.db.exec(`ALTER TABLE persistent_storage_buckets ADD COLUMN label TEXT`)
-    } catch (alterErr) {
-      if (!/duplicate column name/i.test(alterErr.message)) {
-        throw alterErr
+    for (const column of [
+      'label TEXT',
+      'serviceId TEXT',
+      'quotaBytes INTEGER',
+      'expiresAt INTEGER'
+    ]) {
+      try {
+        this.db.exec(`ALTER TABLE persistent_storage_buckets ADD COLUMN ${column}`)
+      } catch (alterErr) {
+        if (!/duplicate column name/i.test(alterErr.message)) {
+          throw alterErr
+        }
       }
     }
+    // At most one auto-created bucket per service, so a retried start can't make two.
+    this.db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_persistent_storage_buckets_serviceId
+      ON persistent_storage_buckets (serviceId) WHERE serviceId IS NOT NULL;
+    `)
     this.dbReady = true
     this.dbReadyPromise = Promise.resolve()
   }
@@ -127,8 +177,15 @@ export abstract class PersistentStorageFactory {
   public abstract createNewBucket(
     accessList: AccessList[],
     owner: string,
-    label?: string
+    label?: string,
+    options?: CreateBucketOptions
   ): Promise<CreateBucketResult>
+
+  /** Removes the bucket's contents and its registry row. */
+  public abstract deleteBucket(bucketId: string): Promise<void>
+
+  /** Total bytes stored in the bucket, including nested folders a container wrote. */
+  public abstract getBucketUsageBytes(bucketId: string): Promise<number>
 
   public abstract listFiles(
     bucketId: string,
@@ -238,8 +295,117 @@ export abstract class PersistentStorageFactory {
       owner: row.owner,
       createdAt: row.createdAt,
       accessLists: parseBucketAccessListsJson(row.accessListJson),
-      label: row.label ?? null
+      label: row.label ?? null,
+      serviceId: row.serviceId ?? null,
+      quotaBytes: row.quotaBytes ?? null,
+      expiresAt: row.expiresAt ?? null
     }))
+  }
+
+  /**
+   * Returns the output bucket auto-created for `serviceId`, creating it on first call:
+   * owned by `owner`, no access list, SERVICE_BUCKET_QUOTA_BYTES quota, and kept for
+   * SERVICE_BUCKET_RETENTION_SECONDS past the service's paid window (both env vars, 5 GB and
+   * 1 week by default). Idempotent per
+   * serviceId — a second call returns the same bucket with its retention extended.
+   */
+  async getOrCreateServiceBucket(
+    owner: string,
+    serviceId: string,
+    serviceExpiresAtMs: number
+  ): Promise<BucketRow> {
+    const existing = await this.dbGetBucketByServiceId(serviceId)
+    if (existing) {
+      await this.extendBucketRetention(existing.bucketId, serviceExpiresAtMs)
+      return (await this.dbGetBucket(existing.bucketId)) ?? existing
+    }
+    const { bucketId } = await this.createNewBucket([], owner, `service-${serviceId}`, {
+      serviceId,
+      quotaBytes: this.serviceBucketQuotaBytes(),
+      expiresAt: this.serviceBucketExpiryFor(serviceExpiresAtMs)
+    })
+    return await this.dbGetBucket(bucketId)
+  }
+
+  /**
+   * Keeps an expiring bucket alive until SERVICE_BUCKET_RETENTION_SECONDS after the given
+   * service window ends. Never shortens it, and leaves buckets without an expiry alone.
+   */
+  async extendBucketRetention(
+    bucketId: string,
+    serviceExpiresAtMs: number
+  ): Promise<void> {
+    const sql = `UPDATE persistent_storage_buckets SET expiresAt = MAX(expiresAt, ?) WHERE bucketId = ? AND expiresAt IS NOT NULL`
+    await this.ensureDbReady()
+    this.db.run(sql, [this.serviceBucketExpiryFor(serviceExpiresAtMs), bucketId])
+  }
+
+  // Default output bucket SERVICE_START creates when the request carries no outputBucketId.
+  // Buckets created any other way have neither a quota nor an expiry. The quota is stamped
+  // on the bucket at creation, so changing the env var only affects new buckets.
+  serviceBucketQuotaBytes(): number {
+    return (
+      this.node.getConfig().serviceBucketQuotaBytes ?? DEFAULT_SERVICE_BUCKET_QUOTA_BYTES
+    )
+  }
+
+  // Retention counts from the END of the paid service window (expiresAt), not from creation:
+  // a Stopped service stays restartable until expiresAt, and its results must outlive it.
+  serviceBucketExpiryFor(serviceExpiresAtMs: number): number {
+    const retention =
+      this.node.getConfig().serviceBucketRetentionSeconds ??
+      DEFAULT_SERVICE_BUCKET_RETENTION_SECONDS
+    return Math.floor(serviceExpiresAtMs / 1000) + retention
+  }
+
+  /**
+   * Quota and current usage of a bucket, or null when the bucket has no quota. Sizing walks
+   * the whole bucket folder, so a caller that polls (service status) can accept a reading
+   * up to `maxAgeMs` old. Uploads and deletes through this API drop the cached reading;
+   * writes a service container makes show up once it ages out.
+   */
+  async getBucketQuotaUsage(
+    bucketId: string,
+    maxAgeMs = 0
+  ): Promise<{ quotaBytes: number; usedBytes: number } | null> {
+    const bucket = await this.getBucket(bucketId)
+    if (!bucket || bucket.quotaBytes === null || bucket.quotaBytes === undefined) {
+      return null
+    }
+    const cached = this.bucketUsageCache.get(bucketId)
+    if (maxAgeMs > 0 && cached && Date.now() - cached.at <= maxAgeMs) {
+      return { quotaBytes: bucket.quotaBytes, usedBytes: cached.usedBytes }
+    }
+    const usedBytes = await this.getBucketUsageBytes(bucketId)
+    this.bucketUsageCache.set(bucketId, { usedBytes, at: Date.now() })
+    return { quotaBytes: bucket.quotaBytes, usedBytes }
+  }
+
+  /** Drops the cached size of a bucket after its contents changed. */
+  protected forgetBucketUsage(bucketId: string): void {
+    this.bucketUsageCache.delete(bucketId)
+  }
+
+  /** Deletes every bucket whose expiry has passed. Returns how many were removed. */
+  async deleteExpiredBuckets(
+    nowSeconds = Math.floor(Date.now() / 1000)
+  ): Promise<number> {
+    const sql = `SELECT ${BUCKET_COLUMNS} FROM persistent_storage_buckets WHERE expiresAt IS NOT NULL AND expiresAt <= ?`
+    await this.ensureDbReady()
+    const expired = this.db.all<BucketRow>(sql, [nowSeconds])
+    let deleted = 0
+    for (const bucket of expired) {
+      try {
+        await this.deleteBucket(bucket.bucketId)
+        deleted++
+      } catch (e) {
+        // Left in place: the next sweep retries it.
+        CORE_LOGGER.error(
+          `Could not delete expired bucket ${bucket.bucketId}: ${e?.message ?? e}`
+        )
+      }
+    }
+    return deleted
   }
 
   /*
@@ -252,27 +418,44 @@ export abstract class PersistentStorageFactory {
     owner: string,
     accessListJson: string,
     createdAt: number,
-    label: string | null
+    label: string | null,
+    options: CreateBucketOptions = {}
   ): Promise<void> {
     // ON CONFLICT does not touch label, so a re-create never clobbers a rename.
     const sql = `
-      INSERT INTO persistent_storage_buckets (bucketId, owner, accessListJson, createdAt, label)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO persistent_storage_buckets (${BUCKET_COLUMNS})
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(bucketId) DO UPDATE SET accessListJson=excluded.accessListJson;
     `
     await this.ensureDbReady()
-    this.db.run(sql, [bucketId, owner, accessListJson, createdAt, label])
+    this.db.run(sql, [
+      bucketId,
+      owner,
+      accessListJson,
+      createdAt,
+      label,
+      options.serviceId ?? null,
+      options.quotaBytes ?? null,
+      options.expiresAt ?? null
+    ])
   }
 
   async dbGetBucket(bucketId: string): Promise<BucketRow | null> {
-    const sql = `SELECT bucketId, owner, accessListJson, createdAt, label FROM persistent_storage_buckets WHERE bucketId = ?`
+    const sql = `SELECT ${BUCKET_COLUMNS} FROM persistent_storage_buckets WHERE bucketId = ?`
     await this.ensureDbReady()
     const row = this.db.get<BucketRow>(sql, [bucketId])
     return row ?? null
   }
 
+  async dbGetBucketByServiceId(serviceId: string): Promise<BucketRow | null> {
+    const sql = `SELECT ${BUCKET_COLUMNS} FROM persistent_storage_buckets WHERE serviceId = ?`
+    await this.ensureDbReady()
+    const row = this.db.get<BucketRow>(sql, [serviceId])
+    return row ?? null
+  }
+
   async dbListBucketsByOwner(owner: string): Promise<BucketRow[]> {
-    const sql = `SELECT bucketId, owner, accessListJson, createdAt, label FROM persistent_storage_buckets WHERE owner = ? ORDER BY createdAt ASC`
+    const sql = `SELECT ${BUCKET_COLUMNS} FROM persistent_storage_buckets WHERE owner = ? ORDER BY createdAt ASC`
     await this.ensureDbReady()
     return this.db.all<BucketRow>(sql, [owner])
   }

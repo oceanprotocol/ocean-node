@@ -149,6 +149,42 @@ redeploy) cannot run conflicting operations on the same service. Leases are hear
 every 30 s while the operation runs; a lease not refreshed for 2 minutes belongs to a
 crashed process and is stolen automatically, so no manual cleanup is ever needed.
 
+## Results bucket
+
+A service writes durable results to `/data/outputs`, which is bind-mounted from a
+[persistent storage](persistentStorage.md) bucket:
+
+- **Your own bucket.** Pass `outputBucketId` in `serviceStart`. You must own the bucket or be on
+  its access list (`403` otherwise).
+- **A default bucket.** Without `outputBucketId`, and when the node's persistent storage is
+  `localfs`, the node creates a bucket for the service: owned by the consumer, no access list,
+  a quota of `SERVICE_BUCKET_QUOTA_BYTES` (**5 GB** by default). Its id is returned as `outputBucketId` in the `serviceStart` response (and in
+  `serviceStatus`). It is created only after every other check has passed, so a refused start
+  leaves no bucket behind, and there is at most one per `serviceId`. Restarts keep the same
+  bucket. To relaunch into it — e.g. after editing a service — pass that id as `outputBucketId`
+  to the new `serviceStart`.
+- If persistent storage is disabled (or not `localfs`), the service runs without a bucket, as
+  before, and nothing it writes outlives the container.
+
+**Quota.** The quota is soft and never stops a service. Once the bucket is full, uploads through
+the persistent storage API that would go over the quota are rejected. The service keeps
+running, and starts and restarts into the bucket are allowed. `serviceStatus` reports the fill
+level of any bucket that has a quota:
+
+```json
+"outputBucketUsage": { "quotaBytes": 5368709120, "usedBytes": 5368709120, "full": true }
+```
+
+The reading can be up to 30 s old. Uploads and deletes through the storage API refresh it at
+once. To make room, delete files from the bucket.
+A bind mount can't be size-capped, so writes the service container makes to `/data/outputs`
+are **not** blocked and can take the bucket past its quota.
+
+**Expiry.** A default bucket is deleted, contents included, `SERVICE_BUCKET_RETENTION_SECONDS`
+after its service's paid window ends (**one week** by default: `expiresAt` + 7 days). `serviceExtend` pushes that date out, and so does starting
+another service into the bucket. An hourly sweep deletes buckets past their date. Buckets you
+created with `createBucket` never expire and have no quota.
+
 ## Configuration
 
 Service-on-demand is configured per Docker connection under `serviceOnDemand`:
