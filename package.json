@@ -72,7 +72,7 @@
     "@libp2p/tcp": "^11.0.28",
     "@libp2p/tls": "^3.1.10",
     "@libp2p/upnp-nat": "^4.0.28",
-    "@libp2p/utils": "^7.4.1",
+    "@libp2p/utils": "^7.4.2",
     "@libp2p/websockets": "^10.1.21",
     "@multiformats/multiaddr": "^13.0.3",
     "@oceanprotocol/contracts": "^2.9.0",
