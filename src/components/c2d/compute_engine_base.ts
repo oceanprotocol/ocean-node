@@ -321,7 +321,10 @@ export abstract class C2DEngine {
     return null
   }
 
-  public getStreamableLogs(jobId: string): Promise<NodeJS.ReadableStream> {
+  public getStreamableLogs(
+    jobId: string,
+    consumerAddress: string
+  ): Promise<NodeJS.ReadableStream> {
     throw new Error(`Not implemented for this engine type`)
   }
 
