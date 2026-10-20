@@ -104,6 +104,8 @@ describe('**********         Persistent storage handlers (integration)', functio
       enabled: true,
       type: 'localfs',
       accessLists: [bucketAllowList],
+      // most tests here share buckets through their access list
+      allowBucketSharing: true,
       options: { folder: psRoot }
     }
 
@@ -998,6 +1000,114 @@ describe('**********         Persistent storage handlers (integration)', functio
     expect(getAddress(found.owner)).to.equal(getAddress(consumerAddress))
     expect(found.accessLists).to.be.an('array')
     expect(afterList.length).to.be.at.least(beforeList.length + 1)
+  })
+
+  it('with bucket sharing disabled, only the owner can use a bucket', async () => {
+    const ownerAddress = await consumer.getAddress()
+    // wallets[2] is on bucketAllowList, so it could use a shared bucket
+    const sharedWith = wallets[2]
+    let privateBucketId: string
+    const signed = async (signer: Signer, command: string) => {
+      await sleep(10)
+      const nonce = Date.now().toString()
+      const address = await signer.getAddress()
+      const signature = await safeSign(
+        signer,
+        createHashForSignature(address, nonce, command)
+      )
+      return {
+        command,
+        consumerAddress: address,
+        nonce,
+        signature,
+        authorization: undefined as string | undefined
+      }
+    }
+
+    // Shared bucket created while sharing is still allowed
+    const sharedRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
+      ...(await signed(consumer, PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET)),
+      accessLists: [bucketAllowList]
+    } as any)
+    expect(sharedRes.status.httpStatus).to.equal(200)
+    const sharedBucketId = (await streamToObject(sharedRes.stream as Readable))
+      .bucketId as string
+
+    oceanNode.getConfig().persistentStorage.allowBucketSharing = false
+    try {
+      const statusRes = await new StatusHandler(oceanNode).handle({
+        command: PROTOCOL_COMMANDS.STATUS,
+        node: oceanNode.getKeyManager().getPeerId().toString()
+      })
+      const nodeStatus = JSON.parse(
+        await streamToString(statusRes.stream as Readable)
+      ) as OceanNodeStatus
+      expect(nodeStatus.persistentStorage?.allowBucketSharing).to.equal(false)
+
+      // Creating a bucket with an access list is rejected
+      const rejected = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
+        ...(await signed(consumer, PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET)),
+        accessLists: [bucketAllowList]
+      } as any)
+      expect(rejected.status.httpStatus).to.equal(400)
+      expect(rejected.status.error).to.contain('sharing is disabled')
+
+      // Creating a private bucket still works
+      const privateRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle(
+        {
+          ...(await signed(consumer, PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET)),
+          accessLists: []
+        } as any
+      )
+      expect(privateRes.status.httpStatus).to.equal(200)
+      privateBucketId = (await streamToObject(privateRes.stream as Readable))
+        .bucketId as string
+
+      // The existing bucket's access list is ignored for other consumers...
+      const deniedList = await new PersistentStorageListFilesHandler(oceanNode).handle({
+        ...(await signed(sharedWith, PROTOCOL_COMMANDS.PERSISTENT_STORAGE_LIST_FILES)),
+        bucketId: sharedBucketId
+      } as any)
+      expect(deniedList.status.httpStatus).to.equal(403)
+
+      // ...and the owner's buckets are not listed to them
+      const othersBuckets = await new PersistentStorageGetBucketsHandler(
+        oceanNode
+      ).handle({
+        ...(await signed(sharedWith, PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_BUCKETS)),
+        owner: ownerAddress
+      } as any)
+      expect(othersBuckets.status.httpStatus).to.equal(200)
+      expect(await streamToObject(othersBuckets.stream as Readable)).to.deep.equal([])
+
+      // The owner keeps full access
+      const ownerList = await new PersistentStorageListFilesHandler(oceanNode).handle({
+        ...(await signed(consumer, PROTOCOL_COMMANDS.PERSISTENT_STORAGE_LIST_FILES)),
+        bucketId: sharedBucketId
+      } as any)
+      expect(ownerList.status.httpStatus).to.equal(200)
+    } finally {
+      oceanNode.getConfig().persistentStorage.allowBucketSharing = true
+    }
+
+    // Re-enabling sharing restores access through the stored access list
+    const allowedList = await new PersistentStorageListFilesHandler(oceanNode).handle({
+      ...(await signed(sharedWith, PROTOCOL_COMMANDS.PERSISTENT_STORAGE_LIST_FILES)),
+      bucketId: sharedBucketId
+    } as any)
+    expect(allowedList.status.httpStatus).to.equal(200)
+
+    // ...and getBuckets lists the shared bucket to them, but not the private one
+    const sharedBuckets = await new PersistentStorageGetBucketsHandler(oceanNode).handle({
+      ...(await signed(sharedWith, PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_BUCKETS)),
+      owner: ownerAddress
+    } as any)
+    expect(sharedBuckets.status.httpStatus).to.equal(200)
+    const sharedIds = (await streamToObject(sharedBuckets.stream as Readable)).map(
+      (b: { bucketId: string }) => b.bucketId
+    )
+    expect(sharedIds).to.include(sharedBucketId)
+    expect(sharedIds).to.not.include(privateBucketId)
   })
 
   it('create bucket validate fails when accessLists is missing', async () => {

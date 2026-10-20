@@ -6,7 +6,11 @@ import {
   C2DStatusNumber,
   ContainerMetricsSnapshot
 } from '../../@types/C2D/C2D.js'
-import { ServiceJob } from '../../@types/C2D/ServiceOnDemand.js'
+import {
+  ServiceJob,
+  ServiceModelDownload,
+  ServiceReadiness
+} from '../../@types/C2D/ServiceOnDemand.js'
 import { SQLiteCompute } from './sqliteCompute.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
@@ -108,12 +112,38 @@ export class C2DDatabase extends AbstractDatabase {
     )
   }
 
+  async updateServiceJobReadiness(
+    serviceId: string,
+    expected: {
+      owner: string
+      clusterHash: string
+      status: number
+      containerId: string
+    },
+    readiness: ServiceReadiness,
+    modelDownload?: ServiceModelDownload
+  ): Promise<boolean> {
+    return await this.provider.updateServiceJobReadiness(
+      serviceId,
+      expected,
+      readiness,
+      modelDownload
+    )
+  }
+
   async getRunningServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
     return await this.provider.getRunningServiceJobs(clusterHash)
   }
 
   async getExpiredServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
     return await this.provider.getExpiredServiceJobs(clusterHash)
+  }
+
+  async getExpiredServiceJobsBefore(
+    expiresBefore: number,
+    clusterHash?: string
+  ): Promise<ServiceJob[]> {
+    return await this.provider.getExpiredServiceJobsBefore(expiresBefore, clusterHash)
   }
 
   async getPendingServiceStarts(clusterHash?: string): Promise<ServiceJob[]> {
@@ -205,6 +235,12 @@ export class C2DDatabase extends AbstractDatabase {
 
     let cleaned = 0
     for (const engine of allEngines) {
+      // Services keep their row; only their /data/outputs archives expire.
+      try {
+        cleaned += await engine.cleanupExpiredServiceOutputs()
+      } catch (e) {
+        DATABASE_LOGGER.error('Error cleaning up expired service outputs: ' + e.message)
+      }
       const engineEnvironments = await engine.getComputeEnvironments()
       for (const computeEnvironment of engineEnvironments) {
         allEnvironments.push(computeEnvironment)

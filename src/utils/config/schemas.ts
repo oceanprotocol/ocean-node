@@ -138,6 +138,8 @@ export const PersistentStorageConfigSchema = z
     accessLists: jsonFromString(z.array(z.record(z.string(), z.array(z.string()))))
       .optional()
       .default([]),
+    // Unless true, bucket accessLists are ignored and only the bucket owner can use it.
+    allowBucketSharing: booleanFromString.optional().default(false),
     options: z.any().optional()
   })
   .superRefine((data, ctx) => {

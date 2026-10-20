@@ -269,6 +269,7 @@ export interface OceanNodeStatus {
   supportedSchemas?: Schema[]
   persistentStorage?: {
     accessLists?: AccessList[]
+    allowBucketSharing?: boolean
   }
 }
 
