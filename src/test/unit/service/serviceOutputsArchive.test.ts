@@ -651,37 +651,25 @@ describe('service /data/outputs archives', () => {
       expect(job.outputArchives.map((a) => a.containerId)).to.deep.equal(['new'])
     })
 
-    it('a start retried without the HF patch carries the folder into the replacement', async () => {
-      // canonical: the node mounts (and Docker names) the symlink-resolved dir
-      const patchDir = path.join(fs.realpathSync(tempFolder), 'hfpatch')
+    it('a refused HF patch copy recreates the container before the folder is carried over', async () => {
       const old = outputsContainer('old')
-      const created = newContainer({
-        start: sinon
+      const refused = newContainer({
+        id: 'refused',
+        putArchive: sinon
           .stub()
           .rejects(
-            new Error(`OCI runtime create failed: error mounting "${patchDir}" to rootfs`)
+            new Error(
+              '(HTTP code 500) server error - container rootfs is marked read-only'
+            )
           )
       })
       const replacement = newContainer({ id: 'retry' })
-      const engine = restartEngine(old, created)
-      engine.config = {
-        serviceHfMirrorUrl: 'http://172.17.0.1:8092',
-        serviceHfPatchDir: patchDir
-      }
+      const engine = restartEngine(old, refused)
+      engine.config = { serviceHfMirrorUrl: 'http://172.17.0.1:8092' }
       engine.docker.getImage = sinon
         .stub()
         .returns({ inspect: sinon.stub().resolves({ Config: { Env: [] } }) })
       engine.docker.createContainer.onCall(1).resolves(replacement)
-      // the job object is mutated in place: record what each persist actually wrote
-      const persisted: string[] = []
-      engine.db.updateServiceJob.callsFake((j: ServiceJob) => {
-        persisted.push(j.containerId)
-        return Promise.resolve(1)
-      })
-      created.remove.callsFake(() => {
-        persisted.push('<failed removed>')
-        return Promise.resolve()
-      })
       const job = makeJob({ containerId: 'old' })
 
       await engine.doRestartService(job)
@@ -689,23 +677,23 @@ describe('service /data/outputs archives', () => {
       expect(job.status).to.equal(ServiceStatusNumber.Running)
       expect(job.containerId).to.equal('retry')
       expect(job.outputArchives ?? []).to.deep.equal([])
-      sinon.assert.calledOnce(created.start)
-      sinon.assert.calledOnce(replacement.start)
+      // only the patch went to the refused container, which never started
+      sinon.assert.calledOnce(refused.putArchive)
+      expect(refused.putArchive.firstCall.args[1]).to.deep.equal({
+        path: '/',
+        noOverwriteDirNonDir: true
+      })
+      sinon.assert.notCalled(refused.start)
+      // the folder lands straight in the replacement; old is removed after the copy
       sinon.assert.calledOnce(replacement.putArchive)
-      // old → failed → replacement: each copy lands before its source is removed
+      expect(replacement.putArchive.firstCall.args[1]).to.deep.equal({ path: '/data' })
       sinon.assert.callOrder(
-        created.putArchive,
-        old.remove,
-        created.start,
-        created.getArchive,
+        refused.putArchive,
+        refused.remove,
+        old.getArchive,
         replacement.putArchive,
-        created.remove,
+        old.remove,
         replacement.start
-      )
-      // the switch to the replacement is persisted before the failed container is removed
-      expect(persisted.indexOf('retry')).to.be.greaterThan(-1)
-      expect(persisted.indexOf('retry')).to.be.lessThan(
-        persisted.indexOf('<failed removed>')
       )
     })
 

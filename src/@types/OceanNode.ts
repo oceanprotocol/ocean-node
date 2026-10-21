@@ -152,7 +152,6 @@ export interface OceanNodeConfig {
   // when unset or invalid; serviceHfClientPatch undefined means "on when a mirror is set".
   serviceHfMirrorUrl?: string
   serviceHfClientPatch?: boolean
-  serviceHfPatchDir?: string // absolute; same path on the host and inside the node
   dockerRegistrysAuth: dockerRegistrysAuth
   authorizedDecrypters: string[]
   authorizedDecryptersList: AccessListContract | null

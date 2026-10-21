@@ -41,7 +41,7 @@ WORKDIR /usr/src/app
 COPY --chown=node:node --from=builder /usr/src/app/dist ./dist
 COPY --chown=node:node --from=builder /usr/src/app/node_modules ./node_modules
 COPY --chown=node:node --from=builder /usr/src/app/schemas ./schemas
-# sitecustomize.py the node bind-mounts into services (src/components/c2d/serviceHfMirror.ts)
+# sitecustomize.py the node copies into service containers (src/components/c2d/serviceHfMirror.ts)
 COPY --chown=node:node --from=builder /usr/src/app/hfpatch ./hfpatch
 COPY --chown=node:node --from=builder /usr/src/app/package.json ./
 COPY --chown=node:node --from=builder /usr/src/app/config.json ./

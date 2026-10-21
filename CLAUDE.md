@@ -326,7 +326,7 @@ Handler source is grouped under `src/components/core/`:
 ## 5. Docker & deployment
 
 Multi-stage `Dockerfile` (builder + slim runner) on `node:24`. The runner ships only
-`dist/`, `node_modules`, `schemas/`, `hfpatch/` (the `sitecustomize.py` the node bind-mounts
+`dist/`, `node_modules`, `schemas/`, `hfpatch/` (the `sitecustomize.py` the node copies
 into services — see `docs/services.md`) and `config.json` (`.dockerignore` excludes all of
 `docs/`) — no service templates. It exposes P2P ports `9000-9003,9005` and
 HTTP `8000`. `docker-entrypoint.sh` handles Docker socket group membership at runtime so C2D

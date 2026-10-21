@@ -265,13 +265,12 @@ declare resources, configure GPUs, set per-environment constraints, and price th
 Model servers (vLLM, TGI, ComfyUI nodes, notebooks) usually download their weights from
 huggingface.co on every start, because a service container starts with an empty HF cache.
 A node can point every service at a local caching mirror instead, so the second and later
-starts of the same model are served from the host's disk. Off by default; three env vars:
+starts of the same model are served from the host's disk. Off by default; two env vars:
 
 | Env var | Config field | Meaning |
 | --- | --- | --- |
 | `SERVICE_HF_MIRROR_URL` | `serviceHfMirrorUrl` | Mirror URL as **service containers** reach it, e.g. `http://172.17.0.1:8092`. When set, every service gets `HF_ENDPOINT=<url>` and `HF_HUB_DISABLE_XET=1`. Must be `http://` or `https://`; anything else is logged and the feature stays off (the node still starts). |
 | `SERVICE_HF_CLIENT_PATCH` | `serviceHfClientPatch` | Ship the node's download-client patch into services (see below). Defaults to `true` when a mirror is set, `false` otherwise; `false` turns it off, `true` without a mirror applies the patch alone. |
-| `SERVICE_HF_PATCH_DIR` | `serviceHfPatchDir` | Absolute directory the node writes the patch into and bind-mounts into services. It must be **the same path on the host and inside the node** (see below). A relative path is logged and ignored. |
 
 Only **service** containers get any of this; compute jobs are unchanged.
 
@@ -299,71 +298,37 @@ the stock client before a byte is written.
 
 How the node applies it to a service:
 
-- At startup, and again before each service start, it writes `sitecustomize.py` into the
-  patch dir (dir `0755`, file `0644`, written to a temp file and renamed; a file whose
-  SHA-256 already matches is left alone). The dir must pass the trust checks below first.
-- The dir is bind-mounted **read-only** at `/ocean/hfpatch`, and `PYTHONPATH` is set to
-  `/ocean/hfpatch` followed by what the container would have had without the node: the
-  service's own `PYTHONPATH` if its env sets one (as in plain Docker, that replaces the
-  image's), otherwise the image's `Config.Env` `PYTHONPATH`. That value is kept verbatim,
-  empty entries included (they mean "the working directory"); an unset or empty value gives
-  just `/ocean/hfpatch`.
+- After creating the service container and before starting it, the node copies
+  `sitecustomize.py` into it at `/ocean/hfpatch/sitecustomize.py` through the Docker archive
+  API (the same call that creates `/data/outputs`). The bytes travel over the Docker API, so there
+  is no host folder, volume or extra setting to configure, and it works the same for a
+  containerized node, a node on the host and a remote Docker daemon.
+- `PYTHONPATH` is set to `/ocean/hfpatch` followed by what the container would have had
+  without the node: the service's own `PYTHONPATH` if its env sets one (as in plain Docker,
+  that replaces the image's), otherwise the image's `Config.Env` `PYTHONPATH`. That value is
+  kept verbatim, empty entries included (they mean "the working directory"); an unset or
+  empty value gives just `/ocean/hfpatch`.
 - The patch chains to an image's own `sitecustomize.py` that it shadows.
-- Kill switches, as service env vars: `OCEAN_HFPATCH=0` makes the node skip the mount and
-  the `PYTHONPATH` change entirely; `OCEAN_HFPATCH_URLLIB=0` keeps the mount but leaves
+- Kill switches, as service env vars: `OCEAN_HFPATCH=0` makes the node skip the copy and
+  the `PYTHONPATH` change entirely; `OCEAN_HFPATCH_URLLIB=0` keeps the file but leaves
   `http_get` stock. `OCEAN_HFPATCH_DEBUG=1` prints one line per file to stderr.
 - It does not apply to `python -I`, `-E` or `-S`, or to a process that replaces `PYTHONPATH`.
 
-The patch never fails a start: if the dir cannot be written or trusted, or the image's env
-cannot be read, the node logs a warning and starts the service with the mirror env only. If
-Docker rejects the bind mount — at create (the path does not exist on the host) or at start
-(the runtime cannot mount it, e.g. the image has a file at `/ocean/hfpatch`) — the node
-removes that container and creates and starts it once more without the patch. Start errors
-that do not name the patch mount are not retried and fail the start as before.
+The patch never fails a start: if the shipped file cannot be read or the image's env cannot
+be read, the node logs a warning and starts the service with the mirror env only. If Docker
+refuses the copy — the container has a read-only rootfs, or the image has a regular file at
+`/ocean` or `/ocean/hfpatch` — the node removes that never-started container and creates it
+again without the patch, before anything else is copied in. Start errors are never retried
+for the patch.
 
-**Ownership and permissions.** The patch is code that runs in every Python service, so the
-node only publishes it from a dir that nobody but the node or root can change, and skips the
-patch (with a warning) otherwise:
-
-- the configured dir is resolved **once** to its canonical (symlink-free) path, and that path
-  is what every check below looks at and what the node mounts — never the configured path.
-  A symlink anywhere in `SERVICE_HF_PATCH_DIR` is therefore followed at preparation time and
-  logged; changing it later does not change what services get;
-- the canonical dir and `sitecustomize.py` are owned by the node's uid or root (the file is
-  never a symlink) and end up `0755` / `0644` (the node chmods them; a failed chmod skips the
-  patch);
-- every parent of the canonical dir is owned by the node's uid or root and is neither
-  group- nor world-writable, unless it has the sticky bit (as `/tmp` does — then the entry
-  below it must itself be node- or root-owned, which the previous rule already requires).
-  Group membership is never inferred, so a shared `0775` parent disables the patch;
-- the dir is not inside the persistent-storage `buckets/` tree, also after resolving
-  symlinks — bucket dirs are mounted read-write into services.
-
-The node in the official image runs as the `node` user (uid 1000), so on the host:
-
-```bash
-sudo install -d -o 1000 -g 1000 -m 0755 /srv/ocean/hfpatch   # parents: root-owned, 0755
-```
-
-**The patch dir must be a host path.** Bind-mount sources are resolved by the Docker daemon
-on the host, not inside the node container, so the canonical path the node mounts must exist
-at that same path on the host — keep `SERVICE_HF_PATCH_DIR` free of symlinks that resolve
-differently inside the node container than on the host. When `SERVICE_HF_PATCH_DIR` is unset the node
-uses, in order: `<persistentStorage folder>/hfpatch` when local persistent storage is on
-(that folder already has to be mounted at the same path, because bucket mounts use it the
-same way); `./databases/hfpatch` when the node is not running in a container; otherwise
-nothing, and the patch is skipped with a warning. For a containerized node, mount a host dir
-at the same path:
-
-```yaml
-services:
-  ocean-node:
-    volumes:
-      - /srv/ocean/hfpatch:/srv/ocean/hfpatch
-    environment:
-      SERVICE_HF_MIRROR_URL: http://172.17.0.1:8092
-      SERVICE_HF_PATCH_DIR: /srv/ocean/hfpatch
-```
+**Each container has its own copy.** It lives in the container's writable layer, so a
+stop/start of the same container keeps it, and every `serviceRestart` (which always creates
+a new container) gets a fresh copy of the node's current `hfpatch/sitecustomize.py` — a node
+upgrade reaches running services on their next restart. A non-root service cannot modify
+the file; a service running as root (the vLLM and ComfyUI images do) can change its own
+copy, which affects only that container, just as setting `OCEAN_HFPATCH=0` or its own
+`PYTHONPATH` would. If services are ever given a read-only rootfs, the copy fails on every
+start and the patch is silently skipped; delivering it would then need a read-only volume.
 
 ### Deploying DingoSpeed
 

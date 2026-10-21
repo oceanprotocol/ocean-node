@@ -1,5 +1,5 @@
-# Ocean HF download-client patch, urllib variant, loaded via PYTHONPATH=<this dir> (read-only
-# mount)
+# Ocean HF download-client patch, urllib variant, loaded via PYTHONPATH=<this dir> (copied
+# into each service container by the node)
 import os
 import sys
 import threading
