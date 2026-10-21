@@ -20,6 +20,8 @@ export interface PersistentStorageConfig {
   enabled: boolean
   type: PersistentStorageType
   accessLists: AccessList[]
+  /** Unless true, bucket access lists are ignored: only the bucket owner can use a bucket. Default false. */
+  allowBucketSharing?: boolean
   options: PersistentStorageLocalFSOptions | PersistentStorageS3Options
 }
 

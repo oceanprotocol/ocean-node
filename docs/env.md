@@ -36,6 +36,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `JWT_SECRET`: Secret used to sign JWT tokens. Default is `ocean-node-secret`. Example: `"my-secret-jwt-token"`
 - `PERSISTENT_STORAGE`: Persistent storage config. See [persistent storage](persistentStorage.md).
 - `UNSAFE_URLS`: Array or regular expression URLs to be excluded from access.Example: ["^.*(169.254.169.254).*","^.*(127.0.0.1).*"]
+- `PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING`: If set to `true`, bucket owners can share a bucket through its access list. Otherwise bucket access lists are ignored, only the bucket owner can use a bucket, and creating a bucket with a non-empty access list is rejected. Overrides `persistentStorage.allowBucketSharing`. Default is `false`. Example: `true`
 
 ## Database
 
