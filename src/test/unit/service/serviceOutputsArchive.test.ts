@@ -651,6 +651,64 @@ describe('service /data/outputs archives', () => {
       expect(job.outputArchives.map((a) => a.containerId)).to.deep.equal(['new'])
     })
 
+    it('a start retried without the HF patch carries the folder into the replacement', async () => {
+      // canonical: the node mounts (and Docker names) the symlink-resolved dir
+      const patchDir = path.join(fs.realpathSync(tempFolder), 'hfpatch')
+      const old = outputsContainer('old')
+      const created = newContainer({
+        start: sinon
+          .stub()
+          .rejects(
+            new Error(`OCI runtime create failed: error mounting "${patchDir}" to rootfs`)
+          )
+      })
+      const replacement = newContainer({ id: 'retry' })
+      const engine = restartEngine(old, created)
+      engine.config = {
+        serviceHfMirrorUrl: 'http://172.17.0.1:8092',
+        serviceHfPatchDir: patchDir
+      }
+      engine.docker.getImage = sinon
+        .stub()
+        .returns({ inspect: sinon.stub().resolves({ Config: { Env: [] } }) })
+      engine.docker.createContainer.onCall(1).resolves(replacement)
+      // the job object is mutated in place: record what each persist actually wrote
+      const persisted: string[] = []
+      engine.db.updateServiceJob.callsFake((j: ServiceJob) => {
+        persisted.push(j.containerId)
+        return Promise.resolve(1)
+      })
+      created.remove.callsFake(() => {
+        persisted.push('<failed removed>')
+        return Promise.resolve()
+      })
+      const job = makeJob({ containerId: 'old' })
+
+      await engine.doRestartService(job)
+
+      expect(job.status).to.equal(ServiceStatusNumber.Running)
+      expect(job.containerId).to.equal('retry')
+      expect(job.outputArchives ?? []).to.deep.equal([])
+      sinon.assert.calledOnce(created.start)
+      sinon.assert.calledOnce(replacement.start)
+      sinon.assert.calledOnce(replacement.putArchive)
+      // old → failed → replacement: each copy lands before its source is removed
+      sinon.assert.callOrder(
+        created.putArchive,
+        old.remove,
+        created.start,
+        created.getArchive,
+        replacement.putArchive,
+        created.remove,
+        replacement.start
+      )
+      // the switch to the replacement is persisted before the failed container is removed
+      expect(persisted.indexOf('retry')).to.be.greaterThan(-1)
+      expect(persisted.indexOf('retry')).to.be.lessThan(
+        persisted.indexOf('<failed removed>')
+      )
+    })
+
     it('a service with an output bucket removes the old container right away, copying nothing', async () => {
       const old = outputsContainer('old')
       const created = newContainer()

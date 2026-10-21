@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { getAddress } from 'ethers'
+import path from 'path'
 import { dhtFilterMethod } from '../../@types/OceanNode.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
 import {
@@ -33,6 +34,31 @@ function isValidUrl(urlString: string): boolean {
   } catch {
     return false
   }
+}
+
+// SERVICE_HF_MIRROR_URL: http(s) URL with a host, or undefined (unset, empty or invalid).
+function parseServiceHfMirrorUrl(value: string | undefined): string | undefined {
+  const v = value?.trim()
+  if (!v) return undefined
+  try {
+    const url = new URL(v)
+    if ((url.protocol === 'http:' || url.protocol === 'https:') && url.hostname) return v
+  } catch {}
+  CONFIG_LOGGER.error(
+    `serviceHfMirrorUrl "${v}" is not an http(s) URL — services start without the HF mirror`
+  )
+  return undefined
+}
+
+// SERVICE_HF_PATCH_DIR: absolute path, or undefined (unset, empty or relative).
+function parseServiceHfPatchDir(value: string | undefined): string | undefined {
+  const v = value?.trim()
+  if (!v) return undefined
+  if (path.isAbsolute(v)) return path.normalize(v)
+  CONFIG_LOGGER.error(
+    `serviceHfPatchDir "${v}" is not an absolute path — ignored (it is a Docker bind source)`
+  )
+  return undefined
 }
 
 /**
@@ -1026,6 +1052,22 @@ export const OceanNodeConfigSchema = z
       .default([]),
 
     serviceTemplatesPath: z.string().optional().default('databases/serviceTemplates/'),
+
+    // Service-on-Demand Hugging Face mirror (docs/services.md). All three are optional and
+    // fail soft: an invalid value is logged and dropped, which turns the feature (or the
+    // patch) off instead of refusing to start the node.
+    serviceHfMirrorUrl: z
+      .string()
+      .optional()
+      .transform((v) => parseServiceHfMirrorUrl(v)),
+    serviceHfClientPatch: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      booleanFromString.optional()
+    ),
+    serviceHfPatchDir: z
+      .string()
+      .optional()
+      .transform((v) => parseServiceHfPatchDir(v)),
 
     dockerRegistrysAuth: jsonFromString(DockerRegistrysSchema).optional().default({}),
 

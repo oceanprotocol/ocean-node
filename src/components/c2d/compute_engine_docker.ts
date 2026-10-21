@@ -109,6 +109,14 @@ import {
   type ServiceResult
 } from './serviceOutputsZip.js'
 import {
+  buildServiceHfPlan,
+  getServiceHfMirrorSettings,
+  isHfPatchMountError,
+  prepareHfPatchDir,
+  ServiceHfContainerSpec,
+  ServiceHfPlan
+} from './serviceHfMirror.js'
+import {
   buildSnapshot,
   describeSnapshot,
   formatBytes,
@@ -526,6 +534,17 @@ export class C2DEngineDocker extends C2DEngine {
 
     this.physicalLimits.set('cpu', sysinfo.NCPU)
     this.physicalLimits.set('ram', Math.floor(sysinfo.MemTotal / 1024 / 1024 / 1024))
+
+    // Write the HF client patch for services up front (re-verified on every service start).
+    const hf = getServiceHfMirrorSettings(config)
+    if (hf.patchHostDir) {
+      await prepareHfPatchDir(hf.patchHostDir, { bucketsRoot: hf.bucketsRoot })
+    } else if (hf.patch) {
+      CORE_LOGGER.warn(
+        'HF client patch is on but no host-visible dir is known (containerized node without ' +
+          'serviceHfPatchDir or localfs persistent storage) — services start without it'
+      )
+    }
 
     this.resolveConfiguredCpuList(envConfig, sysinfo.NCPU)
     try {
@@ -4095,6 +4114,90 @@ export class C2DEngineDocker extends C2DEngine {
     return true
   }
 
+  // HF mirror env + client-patch mount for a service container (serviceHfMirror.ts). A
+  // no-op plan when the node has no HF mirror config.
+  private serviceHfPlan(
+    image: string,
+    env: Record<string, string>,
+    serviceId: string
+  ): Promise<ServiceHfPlan> {
+    return buildServiceHfPlan(
+      getServiceHfMirrorSettings(this.getConfig()),
+      env,
+      async () => (await this.docker.getImage(image).inspect())?.Config?.Env,
+      serviceId
+    )
+  }
+
+  // Creates a service container from `build(spec)`, not yet started. `patched` is false when
+  // the create was retried without the patch (or no patch was planned).
+  private async createServiceContainer(
+    serviceId: string,
+    plan: ServiceHfPlan,
+    build: (spec: ServiceHfContainerSpec) => ContainerCreateOptions
+  ): Promise<{ container: Dockerode.Container; patched: boolean }> {
+    try {
+      const container = await this.docker.createContainer(build(plan))
+      return { container, patched: plan.withoutPatch !== null }
+    } catch (e) {
+      if (plan.withoutPatch === null || !isHfPatchMountError(e, plan.patchHostDir))
+        throw e
+      CORE_LOGGER.warn(
+        `service ${serviceId}: HF client patch mount ${plan.patchHostDir} failed at ` +
+          `container create (${e.message}) — retrying without the patch`
+      )
+      const container = await this.docker.createContainer(build(plan.withoutPatch))
+      return { container, patched: false }
+    }
+  }
+
+  // Starts a container from createServiceContainer. When the start fails over the patch
+  // mount, a replacement is created without the patch
+  private async startServiceContainer(
+    serviceId: string,
+    plan: ServiceHfPlan,
+    build: (spec: ServiceHfContainerSpec) => ContainerCreateOptions,
+    created: { container: Dockerode.Container; patched: boolean },
+    carryOver: (
+      failed: Dockerode.Container,
+      replacement: Dockerode.Container
+    ) => Promise<void>,
+    track: (container: Dockerode.Container) => void
+  ): Promise<Dockerode.Container> {
+    const failed = created.container
+    try {
+      await failed.start()
+      return failed
+    } catch (e) {
+      if (!created.patched || !isHfPatchMountError(e, plan.patchHostDir)) throw e
+      CORE_LOGGER.warn(
+        `service ${serviceId}: HF client patch mount ${plan.patchHostDir} failed at ` +
+          `container start (${e.message}) — retrying without the patch`
+      )
+      const replacement = await this.docker.createContainer(build(plan.withoutPatch))
+      try {
+        await carryOver(failed, replacement)
+        await failed.remove({ force: true })
+      } catch (err) {
+        // the caller's cleanup still holds the failed container (and whatever it carries)
+        await replacement.remove({ force: true }).catch((removeErr) => {
+          CORE_LOGGER.warn(
+            `service ${serviceId}: cannot remove replacement container ${replacement.id}: ` +
+              removeErr.message
+          )
+        })
+        CORE_LOGGER.warn(
+          `service ${serviceId}: cannot switch from the container that failed with the ` +
+            `HF patch: ${err.message}`
+        )
+        throw e
+      }
+      track(replacement)
+      await replacement.start()
+      return replacement
+    }
+  }
+
   // Handler-facing: persist the initial Starting record and return immediately so the HTTP
   // response carries the serviceId without waiting for escrow/image/container. The background
   // loop then calls processServiceStart() to advance it. Persisting Starting also reserves the
@@ -4427,11 +4530,13 @@ export class C2DEngineDocker extends C2DEngine {
         job.environment
       )
 
-      container = await this.docker.createContainer({
+      const outputMounts = await this.serviceOutputMounts(job)
+      const hfPlan = await this.serviceHfPlan(job.containerImage, env, serviceId)
+      const build = (spec: ServiceHfContainerSpec): ContainerCreateOptions => ({
         Image: job.containerImage,
         Cmd: cmd,
         Entrypoint: entrypoint,
-        Env: Object.entries(env).map(([k, v]) => `${k}=${v}`),
+        Env: Object.entries(spec.env).map(([k, v]) => `${k}=${v}`),
         ExposedPorts,
         HostConfig: {
           Memory,
@@ -4448,14 +4553,25 @@ export class C2DEngineDocker extends C2DEngine {
           ...(IpcMode ? { IpcMode } : {}),
           ...(ShmSize ? { ShmSize } : {}),
           PidsLimit: PidsLimit ?? SERVICE_DEFAULT_PIDS_LIMIT,
-          Mounts: await this.serviceOutputMounts(job)
+          Mounts: [...outputMounts, ...spec.mounts]
         }
       })
+      const created = await this.createServiceContainer(serviceId, hfPlan, build)
+      ;({ container } = created)
       CORE_LOGGER.debug(
         `start ${serviceId}: created container ${container.id} on network ${network.id} — starting`
       )
       await this.ensureServiceOutputsFolder(job, container)
-      await container.start()
+      container = await this.startServiceContainer(
+        serviceId,
+        hfPlan,
+        build,
+        created,
+        (_failed, replacement) => this.ensureServiceOutputsFolder(job, replacement),
+        (c) => {
+          container = c
+        }
+      )
 
       job.containerId = container.id
       job.networkId = network.id
@@ -5677,11 +5793,13 @@ export class C2DEngineDocker extends C2DEngine {
       )
 
       // 8. Create and start new container
-      container = await this.docker.createContainer({
+      const outputMounts = await this.serviceOutputMounts(job)
+      const hfPlan = await this.serviceHfPlan(effContainerImage, env, serviceId)
+      const build = (spec: ServiceHfContainerSpec): ContainerCreateOptions => ({
         Image: effContainerImage,
         Cmd: cmd,
         Entrypoint: entrypoint,
-        Env: Object.entries(env).map(([k, v]) => `${k}=${v}`),
+        Env: Object.entries(spec.env).map(([k, v]) => `${k}=${v}`),
         ExposedPorts,
         HostConfig: {
           Memory,
@@ -5695,9 +5813,11 @@ export class C2DEngineDocker extends C2DEngine {
           ...(IpcMode ? { IpcMode } : {}),
           ...(ShmSize ? { ShmSize } : {}),
           PidsLimit: PidsLimit ?? SERVICE_DEFAULT_PIDS_LIMIT,
-          Mounts: await this.serviceOutputMounts(job)
+          Mounts: [...outputMounts, ...spec.mounts]
         }
       })
+      const created = await this.createServiceContainer(serviceId, hfPlan, build)
+      ;({ container } = created)
       CORE_LOGGER.debug(
         `restart ${serviceId}: created container ${container.id} on network ${network.id} — starting`
       )
@@ -5725,7 +5845,34 @@ export class C2DEngineDocker extends C2DEngine {
         delete job.previousContainerId
       }
 
-      await container.start()
+      // A start retried without the HF patch gets a fresh container: the folder carried
+      // into the failed one moves along, and the switch is persisted like the one above.
+      container = await this.startServiceContainer(
+        serviceId,
+        hfPlan,
+        build,
+        created,
+        async (failed, replacement) => {
+          await this.ensureServiceOutputsFolder(job, replacement)
+          if (!job.outputBucketId) {
+            try {
+              await this.copyServiceOutputs(failed, replacement)
+            } catch (e: any) {
+              CORE_LOGGER.error(
+                `restart ${serviceId}: could not carry ${SERVICE_OUTPUTS_PATH} over (${e.message}) — archiving it instead`
+              )
+              await this.archiveServiceOutputs(job, failed)
+            }
+          }
+          if (job.containerId === failed.id) {
+            job.containerId = replacement.id
+            await this.db.updateServiceJob(job)
+          }
+        },
+        (c) => {
+          container = c
+        }
+      )
       CORE_LOGGER.debug(`restart ${serviceId}: container ${container.id} started`)
 
       // 9. Update record — same expiresAt, same payment, new container/network. In RESPEC

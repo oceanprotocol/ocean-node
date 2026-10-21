@@ -571,6 +571,21 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.SERVICE_TEMPLATES_PATH,
     required: false
   },
+  SERVICE_HF_MIRROR_URL: {
+    name: 'SERVICE_HF_MIRROR_URL',
+    value: process.env.SERVICE_HF_MIRROR_URL,
+    required: false
+  },
+  SERVICE_HF_CLIENT_PATCH: {
+    name: 'SERVICE_HF_CLIENT_PATCH',
+    value: process.env.SERVICE_HF_CLIENT_PATCH,
+    required: false
+  },
+  SERVICE_HF_PATCH_DIR: {
+    name: 'SERVICE_HF_PATCH_DIR',
+    value: process.env.SERVICE_HF_PATCH_DIR,
+    required: false
+  },
   DOCKER_REGISTRY_AUTHS: {
     name: 'DOCKER_REGISTRY_AUTHS',
     value: process.env.DOCKER_REGISTRY_AUTHS,

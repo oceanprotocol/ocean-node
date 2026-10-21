@@ -260,6 +260,216 @@ and services draw from and are counted against the same shared resource pool. Fo
 declare resources, configure GPUs, set per-environment constraints, and price them, see the
 [Compute Configuration guide](compute.md).
 
+## Hugging Face mirror (DingoSpeed)
+
+Model servers (vLLM, TGI, ComfyUI nodes, notebooks) usually download their weights from
+huggingface.co on every start, because a service container starts with an empty HF cache.
+A node can point every service at a local caching mirror instead, so the second and later
+starts of the same model are served from the host's disk. Off by default; three env vars:
+
+| Env var | Config field | Meaning |
+| --- | --- | --- |
+| `SERVICE_HF_MIRROR_URL` | `serviceHfMirrorUrl` | Mirror URL as **service containers** reach it, e.g. `http://172.17.0.1:8092`. When set, every service gets `HF_ENDPOINT=<url>` and `HF_HUB_DISABLE_XET=1`. Must be `http://` or `https://`; anything else is logged and the feature stays off (the node still starts). |
+| `SERVICE_HF_CLIENT_PATCH` | `serviceHfClientPatch` | Ship the node's download-client patch into services (see below). Defaults to `true` when a mirror is set, `false` otherwise; `false` turns it off, `true` without a mirror applies the patch alone. |
+| `SERVICE_HF_PATCH_DIR` | `serviceHfPatchDir` | Absolute directory the node writes the patch into and bind-mounts into services. It must be **the same path on the host and inside the node** (see below). A relative path is logged and ignored. |
+
+Only **service** containers get any of this; compute jobs are unchanged.
+
+**Precedence.** The service's own env (template `envVars` and the consumer's `userData`)
+wins, key by key: a service that sets `HF_ENDPOINT` itself keeps it, and then also keeps
+its own choice of `HF_HUB_DISABLE_XET` (the node does not add it — that endpoint is not the
+node's mirror). A service that sets only `HF_HUB_DISABLE_XET` (e.g. `0`) gets the mirror
+`HF_ENDPOINT` with its own Xet setting.
+
+**Why Xet is disabled.** With Xet on, `huggingface_hub` fetches a xet-read-token and pulls
+the file contents from huggingface.co's Xet storage directly, so the mirror would see only
+metadata requests. `HF_HUB_DISABLE_XET=1` makes hub use plain HTTP against `HF_ENDPOINT`.
+
+### The download-client patch
+
+Hub's stock plain-HTTP client is GIL-bound: a warm mirror hit tops out around 190-230 MB/s
+even on a 160-core host. The node ships `hfpatch/sitecustomize.py`, which swaps
+`huggingface_hub.file_download.http_get` for a `urllib` loop that reads into a reused 1 MiB
+buffer (the socket read runs without the GIL). Measured inside a vLLM v0.28 service on an
+H200, a warm load of the same model took 12.7 s (≈2.5 GB/s) against 157 s with the stock
+client and 44 s straight from huggingface.co over Xet. Hub keeps everything else (metadata,
+locks, `.incomplete` files, the size check); the swap only happens for hub 1.32-2.2, and any
+response it does not handle (an HTTP error, a compressed body, an unhonoured Range) goes to
+the stock client before a byte is written.
+
+How the node applies it to a service:
+
+- At startup, and again before each service start, it writes `sitecustomize.py` into the
+  patch dir (dir `0755`, file `0644`, written to a temp file and renamed; a file whose
+  SHA-256 already matches is left alone). The dir must pass the trust checks below first.
+- The dir is bind-mounted **read-only** at `/ocean/hfpatch`, and `PYTHONPATH` is set to
+  `/ocean/hfpatch` followed by what the container would have had without the node: the
+  service's own `PYTHONPATH` if its env sets one (as in plain Docker, that replaces the
+  image's), otherwise the image's `Config.Env` `PYTHONPATH`. That value is kept verbatim,
+  empty entries included (they mean "the working directory"); an unset or empty value gives
+  just `/ocean/hfpatch`.
+- The patch chains to an image's own `sitecustomize.py` that it shadows.
+- Kill switches, as service env vars: `OCEAN_HFPATCH=0` makes the node skip the mount and
+  the `PYTHONPATH` change entirely; `OCEAN_HFPATCH_URLLIB=0` keeps the mount but leaves
+  `http_get` stock. `OCEAN_HFPATCH_DEBUG=1` prints one line per file to stderr.
+- It does not apply to `python -I`, `-E` or `-S`, or to a process that replaces `PYTHONPATH`.
+
+The patch never fails a start: if the dir cannot be written or trusted, or the image's env
+cannot be read, the node logs a warning and starts the service with the mirror env only. If
+Docker rejects the bind mount — at create (the path does not exist on the host) or at start
+(the runtime cannot mount it, e.g. the image has a file at `/ocean/hfpatch`) — the node
+removes that container and creates and starts it once more without the patch. Start errors
+that do not name the patch mount are not retried and fail the start as before.
+
+**Ownership and permissions.** The patch is code that runs in every Python service, so the
+node only publishes it from a dir that nobody but the node or root can change, and skips the
+patch (with a warning) otherwise:
+
+- the configured dir is resolved **once** to its canonical (symlink-free) path, and that path
+  is what every check below looks at and what the node mounts — never the configured path.
+  A symlink anywhere in `SERVICE_HF_PATCH_DIR` is therefore followed at preparation time and
+  logged; changing it later does not change what services get;
+- the canonical dir and `sitecustomize.py` are owned by the node's uid or root (the file is
+  never a symlink) and end up `0755` / `0644` (the node chmods them; a failed chmod skips the
+  patch);
+- every parent of the canonical dir is owned by the node's uid or root and is neither
+  group- nor world-writable, unless it has the sticky bit (as `/tmp` does — then the entry
+  below it must itself be node- or root-owned, which the previous rule already requires).
+  Group membership is never inferred, so a shared `0775` parent disables the patch;
+- the dir is not inside the persistent-storage `buckets/` tree, also after resolving
+  symlinks — bucket dirs are mounted read-write into services.
+
+The node in the official image runs as the `node` user (uid 1000), so on the host:
+
+```bash
+sudo install -d -o 1000 -g 1000 -m 0755 /srv/ocean/hfpatch   # parents: root-owned, 0755
+```
+
+**The patch dir must be a host path.** Bind-mount sources are resolved by the Docker daemon
+on the host, not inside the node container, so the canonical path the node mounts must exist
+at that same path on the host — keep `SERVICE_HF_PATCH_DIR` free of symlinks that resolve
+differently inside the node container than on the host. When `SERVICE_HF_PATCH_DIR` is unset the node
+uses, in order: `<persistentStorage folder>/hfpatch` when local persistent storage is on
+(that folder already has to be mounted at the same path, because bucket mounts use it the
+same way); `./databases/hfpatch` when the node is not running in a container; otherwise
+nothing, and the patch is skipped with a warning. For a containerized node, mount a host dir
+at the same path:
+
+```yaml
+services:
+  ocean-node:
+    volumes:
+      - /srv/ocean/hfpatch:/srv/ocean/hfpatch
+    environment:
+      SERVICE_HF_MIRROR_URL: http://172.17.0.1:8092
+      SERVICE_HF_PATCH_DIR: /srv/ocean/hfpatch
+```
+
+### Deploying DingoSpeed
+
+[DingoSpeed](https://github.com/dingodb/dingospeed) is a Go Hugging Face mirror with no
+published image, so build it from source at a pinned commit. Each service runs on its own
+bridge network, where `host.docker.internal` does not resolve on Linux, but the docker0
+gateway (normally `172.17.0.1`) is reachable from every bridge. Publish the mirror on that
+address only — **never `0.0.0.0`**: Docker's published ports bypass ufw, so that would open
+an unauthenticated mirror (and the HF tokens services send it) to the internet.
+
+```yaml
+services:
+  dingospeed:
+    image: ocean-dingospeed:5671348
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM golang:1.23-bookworm AS build
+        ARG DINGOSPEED_COMMIT=567134812f76689d17069ead3d8ed527f5f8330f
+        ENV CGO_ENABLED=0 GOFLAGS=-mod=readonly
+        RUN git clone https://github.com/dingodb/dingospeed /src \
+         && cd /src && git -c advice.detachedHead=false checkout --detach "$$DINGOSPEED_COMMIT" \
+         && go build -trimpath -ldflags "-s -w" -o /out/dingospeed dingospeed/cmd
+        FROM debian:bookworm-slim
+        RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata \
+         && rm -rf /var/lib/apt/lists/*
+        COPY --from=build /out/dingospeed /usr/local/bin/dingospeed
+        WORKDIR /app
+        CMD ["/usr/local/bin/dingospeed"]
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    ports:
+      - '172.17.0.1:8092:8090' # docker0 gateway only, never 0.0.0.0
+    volumes:
+      - ./dingospeed/config.yaml:/app/config/config.yaml:ro
+      - /srv/dingospeed/repos:/app/repos # the cache; must be writable by the container
+      - /srv/dingospeed/log:/app/log
+```
+
+The container runs as root with every capability dropped, so root cannot write to a
+directory it does not own: create `/srv/dingospeed/repos` and `/srv/dingospeed/log` owned by
+uid 0 (or make them writable). `./dingospeed/config.yaml`:
+
+```yaml
+server:
+  mode: release
+  host: 0.0.0.0
+  port: 8090
+  pprof: false
+  metrics: true
+  online: true # check huggingface.co for every request (see caveats)
+  repos: ./repos
+  hfNetLoc: huggingface.co # the upstream sample points at hf-mirror.com, a third party: override it
+  bpHfNetLoc: huggingface.co
+  hfScheme: https
+scheduler:
+  mode: standalone
+  publicDomain: http://172.17.0.1:8092
+  linkDomain: http://172.17.0.1:8092
+download:
+  blockSize: 8388608
+  reqTimeout: 0
+  respChunkSize: 2048
+  respChanSize: 30
+  remoteFileBufferSize: 8388608
+  remoteFileRangeSize: 0 # one upstream request per file
+  remoteFileRangeWaitTime: 0
+  goroutineMaxNumPerFile: 8
+cache:
+  defaultExpiration: 30
+  cleanupInterval: 60
+  readBlock:
+    enabled: false
+retry:
+  delay: 1
+  attempts: 3
+diskClean:
+  enabled: false
+dynamicProxy:
+  enabled: false
+proxyPool:
+  enabled: false
+```
+
+Check it from a throwaway container on a fresh bridge, as a service would see it:
+`docker network create t && docker run --rm --network t curlimages/curl -sI http://172.17.0.1:8092/openai-community/gpt2/resolve/main/config.json`,
+then `docker network rm t`.
+
+### Caveats
+
+- **Cold fills are slow.** The first download of a file goes through the mirror at roughly
+  50-85 MB/s, against ~700 MB/s straight from huggingface.co over Xet. The mirror pays off
+  from the second start of the same revision; a node that rarely repeats a model gains little.
+- **HF rate limits in online mode.** `online: true` re-asks huggingface.co on every HEAD/GET,
+  so under anonymous HTTP 429s even cached files fail to serve. A service that passes its own
+  `HF_TOKEN` avoided that in testing; the token is forwarded to the mirror and on to HF.
+- **Gated repos are untested.** Whether a gated file cached with one consumer's token can be
+  read by another consumer without one has not been tested. Treat the mirror as able to leak
+  gated content between services until it is.
+- **Only `huggingface_hub` uses it.** Clients that do not read `HF_ENDPOINT` bypass the mirror
+  (curl/wget of absolute `huggingface.co` URLs, `git lfs`, ComfyUI nodes that download by
+  absolute URL). Non-hub clients that do honour it, such as `llama.cpp -hf`, get no speed-up
+  from the patch, which only replaces `huggingface_hub`'s own download function.
+- The mirror sees every service's model requests and any `HF_TOKEN` they send.
+
 ## Security model & important notices
 
 - **Container hardening.** Service containers are created with

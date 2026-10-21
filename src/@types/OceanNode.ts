@@ -148,6 +148,11 @@ export interface dockerRegistrysAuth {
 export interface OceanNodeConfig {
   dockerComputeEnvironments: C2DDockerConfig[]
   serviceTemplatesPath?: string // folder of *.json service templates; defaults to 'databases/serviceTemplates/'
+  // Service-on-Demand Hugging Face mirror (docs/services.md). serviceHfMirrorUrl is undefined
+  // when unset or invalid; serviceHfClientPatch undefined means "on when a mirror is set".
+  serviceHfMirrorUrl?: string
+  serviceHfClientPatch?: boolean
+  serviceHfPatchDir?: string // absolute; same path on the host and inside the node
   dockerRegistrysAuth: dockerRegistrysAuth
   authorizedDecrypters: string[]
   authorizedDecryptersList: AccessListContract | null
