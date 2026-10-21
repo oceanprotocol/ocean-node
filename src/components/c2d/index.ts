@@ -2,6 +2,7 @@ import { deleteKeysFromObject, sanitizeServiceFiles } from '../../utils/util.js'
 
 import { BaseFileObject, EncryptMethod } from '../../@types/fileObject.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
+import { errorSummary } from '../../utils/logging/redact.js'
 import { DBComputeJob } from '../../@types/index.js'
 import type {
   ContainerMetricsSnapshot,
@@ -66,7 +67,8 @@ export async function decryptFilesObject(
 
     return decryptedFileArray.files[0]
   } catch (err) {
-    CORE_LOGGER.error('Error decrypting files object: ' + err.message)
+    // err.message can quote a snippet of the decrypted payload (JSON.parse on Node >= 24)
+    CORE_LOGGER.debug(`Error decrypting files object: ${errorSummary(err)}`)
     return null
   }
 }

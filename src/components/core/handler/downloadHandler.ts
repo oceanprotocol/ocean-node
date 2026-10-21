@@ -4,7 +4,6 @@ import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { ProviderFees } from '../utils/feesHandler.js'
 import { FindDdoHandler } from './ddoHandler.js'
 import crypto from 'crypto'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { validateOrderTransaction } from '../utils/validateOrders.js'
 import {
   AssetUtils,
@@ -17,6 +16,7 @@ import { Storage } from '../../storage/index.js'
 import { isPolicyServerConfigured } from '../../../utils/index.js'
 import { checkCredentials } from '../../../utils/credentials.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { errorSummary, redactUrls } from '../../../utils/logging/redact.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { DownloadCommand, DownloadURLCommand } from '../../../@types/commands.js'
 import { EncryptMethod, isPersistentStorageType } from '../../../@types/fileObject.js'
@@ -61,7 +61,7 @@ export async function handleDownloadUrlCommand(
   task: DownloadURLCommand
 ): Promise<P2PCommandResponse> {
   const encryptFile = !!task.aes_encrypted_key
-  CORE_LOGGER.logMessage('DownloadCommand requires file encryption? ' + encryptFile, true)
+  CORE_LOGGER.debug('DownloadCommand requires file encryption? ' + encryptFile)
   const config = node.getConfig()
   try {
     // Persistent-storage files are only available within compute jobs, never via download.
@@ -81,11 +81,8 @@ export async function handleDownloadUrlCommand(
     // Validate storage configuration (checks if gateways are configured)
     const [isValid, validationError] = storage.validate()
     if (!isValid) {
-      CORE_LOGGER.logMessageWithEmoji(
-        `Failure executing downloadURL task: ${validationError}`,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
+      CORE_LOGGER.debug(
+        `Failure executing downloadURL task: ${redactUrls(String(validationError))}`
       )
       return {
         stream: null,
@@ -125,9 +122,6 @@ export async function handleDownloadUrlCommand(
       // )
       // Optional, we can also validate the original address of the sender (the client that created the message)
       // this could be part of the /directCommand payload for instance
-      // console.log(
-      //  'Got message from ' + senderAddress + ' secrets: ' + decryptedPayload.message
-      // )
       const secrets = JSON.parse(decryptedPayload.message)
 
       const cipher = crypto
@@ -158,11 +152,9 @@ export async function handleDownloadUrlCommand(
       }
     }
   } catch (err) {
-    CORE_LOGGER.logMessageWithEmoji(
-      'Failure executing downloadURL task: ' + err.message,
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEL_ERROR
+    // errorSummary: storage errors carry the decrypted file URL
+    CORE_LOGGER.warn(
+      `Download failed (storage=${(task.fileObject as { type?: string })?.type}): ${errorSummary(err)}`
     )
     return {
       stream: null,
@@ -221,11 +213,10 @@ export class DownloadHandler extends CommandHandler {
     const ddo = await handler.findAndFormatDdo(task.documentId)
 
     if (ddo) {
-      CORE_LOGGER.logMessage('DDO for asset found: ' + JSON.stringify(ddo), true)
+      CORE_LOGGER.debug(`DDO found for asset ${ddo.id}`)
     } else {
-      CORE_LOGGER.logMessage(
-        'No DDO for asset found. Cannot proceed with download.',
-        true
+      CORE_LOGGER.debug(
+        `No DDO found for asset ${task.documentId}. Cannot proceed with download.`
       )
       return {
         stream: null,
@@ -246,7 +237,7 @@ export class DownloadHandler extends CommandHandler {
 
     const isOrdable = isOrderingAllowedForAsset(ddo)
     if (!isOrdable.isOrdable) {
-      CORE_LOGGER.error(isOrdable.reason)
+      CORE_LOGGER.debug(`Download ${ddo.id}: ${isOrdable.reason}`)
       return {
         stream: null,
         status: {
@@ -258,7 +249,7 @@ export class DownloadHandler extends CommandHandler {
 
     // 2. Validate ddo and credentials
     if (!ddoChainId || !nftAddress || !metadata) {
-      CORE_LOGGER.logMessage('Error: DDO malformed or disabled', true)
+      CORE_LOGGER.debug(`Error: DDO ${ddo.id} malformed or disabled`)
       return {
         stream: null,
         status: {
@@ -298,7 +289,7 @@ export class DownloadHandler extends CommandHandler {
       }
       provider = await blockchain.getProvider()
     } catch (e) {
-      CORE_LOGGER.error('Download JsonRpcProvider ERROR: ' + e.message)
+      CORE_LOGGER.error(`Download: RPC error on chain ${chainId}: ${errorSummary(e)}`)
       return {
         stream: null,
         status: {
@@ -330,10 +321,7 @@ export class DownloadHandler extends CommandHandler {
         )
       }
       if (!accessGrantedDDOLevel) {
-        CORE_LOGGER.logMessage(
-          `Error: Access to asset ${ddoInstance.getDid()} was denied`,
-          true
-        )
+        CORE_LOGGER.debug(`Error: Access to asset ${ddoInstance.getDid()} was denied`)
         return {
           stream: null,
           status: {
@@ -372,10 +360,7 @@ export class DownloadHandler extends CommandHandler {
       }
 
       if (!accessGrantedServiceLevel) {
-        CORE_LOGGER.logMessage(
-          `Error: Access to service with id ${service.id} was denied`,
-          true
-        )
+        CORE_LOGGER.debug(`Error: Access to service with id ${service.id} was denied`)
         return {
           stream: null,
           status: {
@@ -397,7 +382,7 @@ export class DownloadHandler extends CommandHandler {
       if (!c2dEngines) {
         const msg =
           'Compute engines are not configured on this node; cannot validate compute download'
-        CORE_LOGGER.logMessage(msg, true)
+        CORE_LOGGER.debug(msg)
         return {
           stream: null,
           status: {
@@ -412,7 +397,7 @@ export class DownloadHandler extends CommandHandler {
 
       if (!computeAddrs.includes(task.consumerAddress?.toLowerCase())) {
         const msg = 'Not allowed to download this asset of type compute'
-        CORE_LOGGER.logMessage(msg)
+        CORE_LOGGER.debug(msg)
         return {
           stream: null,
           status: {
@@ -453,15 +438,9 @@ export class DownloadHandler extends CommandHandler {
     )
 
     if (paymentValidation.isValid) {
-      CORE_LOGGER.logMessage(
-        `Valid payment transaction. Result: ${paymentValidation.message}`,
-        true
-      )
+      CORE_LOGGER.debug(`Valid payment transaction. Result: ${paymentValidation.message}`)
     } else {
-      CORE_LOGGER.logMessage(
-        `Invalid payment transaction: ${paymentValidation.message}`,
-        true
-      )
+      CORE_LOGGER.debug(`Invalid payment transaction: ${paymentValidation.message}`)
       return {
         stream: null,
         status: {
@@ -487,7 +466,7 @@ export class DownloadHandler extends CommandHandler {
         if (!isTemplate4 || !(await isERC20Template4Active(ddo.chainId, signer))) {
           const errorMsg =
             'Cannot decrypt DDO files, Template 4 is not active for confidential EVM!'
-          CORE_LOGGER.error(errorMsg)
+          CORE_LOGGER.debug(errorMsg)
           return {
             stream: null,
             status: {
@@ -497,7 +476,7 @@ export class DownloadHandler extends CommandHandler {
           }
         } else {
           // TODO decrypt using Oasis SDK
-          CORE_LOGGER.info(
+          CORE_LOGGER.debug(
             'Downloading from Confidential EVM, try get filesObject from Smart Contract'
           )
 
@@ -538,12 +517,14 @@ export class DownloadHandler extends CommandHandler {
           url.searchParams.append(key, String(value))
         }
         decriptedFileObject.url = url.toString()
-        CORE_LOGGER.info('Appended userData to file url: ' + decriptedFileObject.url)
+        CORE_LOGGER.debug(
+          `Appended ${Object.keys(userDataObj).length} userData params to file url`
+        )
       }
 
       if (!validateFilesStructure(ddo, service, decryptedFileData)) {
-        CORE_LOGGER.error(
-          'Unauthorized download operation. Decrypted "nftAddress" and "datatokenAddress" do not match the original DDO'
+        CORE_LOGGER.warn(
+          `Unauthorized download operation for ${ddo.id}. Decrypted "nftAddress" and "datatokenAddress" do not match the original DDO`
         )
         return {
           stream: null,
@@ -561,7 +542,9 @@ export class DownloadHandler extends CommandHandler {
         command: PROTOCOL_COMMANDS.DOWNLOAD
       })
     } catch (e) {
-      CORE_LOGGER.logMessage('Decryption error: ' + e, true)
+      CORE_LOGGER.warn(
+        `Decryption error for ${ddo.id} service ${task.serviceId}: ${errorSummary(e)}`
+      )
       return {
         stream: null,
         status: {

@@ -14,6 +14,7 @@ import {
 import { parseUnits, Contract, ZeroAddress, isAddress } from 'ethers'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template.sol/ERC20Template.json' with { type: 'json' }
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { errorSummary } from '../../../utils/logging/redact.js'
 import { Readable } from 'stream'
 
 export class CollectFeesHandler extends AdminCommandHandler {
@@ -32,7 +33,7 @@ export class CollectFeesHandler extends AdminCommandHandler {
     }
     if (!isAddress(command.tokenAddress) || !isAddress(command.destinationAddress)) {
       const msg: string = `Invalid format for token address or destination address.`
-      CORE_LOGGER.error(msg)
+      CORE_LOGGER.debug(msg)
       return buildInvalidRequestMessage(msg)
     }
     return await super.validate(command)
@@ -49,7 +50,7 @@ export class CollectFeesHandler extends AdminCommandHandler {
       const msg: string = `Cannot run this command ${JSON.stringify(
         task
       )} on a different node.`
-      CORE_LOGGER.error(msg)
+      CORE_LOGGER.debug(`CollectFees rejected: command targets node ${task.node}`)
       return buildErrorResponse(msg)
     }
     const checkChainId = this.getOceanNode().checkSupportedChainId(task.chainId)
@@ -87,7 +88,7 @@ export class CollectFeesHandler extends AdminCommandHandler {
           const msg: string = `Amount too high to transfer native token! Balance: ${await provider.getBalance(
             providerWalletAddress
           )} vs. amount provided: ${ammountInEther}`
-          CORE_LOGGER.error(msg)
+          CORE_LOGGER.warn(msg)
           return buildErrorResponse(msg)
         }
 
@@ -110,7 +111,7 @@ export class CollectFeesHandler extends AdminCommandHandler {
           const msg: string = `Amount too high to transfer! Balance: ${await token.balanceOf(
             providerWalletAddress
           )} vs. amount provided: ${tokenAmount}`
-          CORE_LOGGER.error(msg)
+          CORE_LOGGER.warn(msg)
           return buildErrorResponse(msg)
         }
         const tx = await token.transfer(
@@ -121,7 +122,7 @@ export class CollectFeesHandler extends AdminCommandHandler {
       }
       if (!receipt) {
         const msg: string = `Receipt does not exist`
-        CORE_LOGGER.error(msg)
+        CORE_LOGGER.error(`Fee collection on chain ${chainId}: ${msg}`)
         return {
           stream: null,
           status: {
@@ -132,7 +133,9 @@ export class CollectFeesHandler extends AdminCommandHandler {
       }
       if (receipt.status !== 1) {
         const msg: string = `Reverted transaction: ${JSON.stringify(receipt.logs)}`
-        CORE_LOGGER.error(msg)
+        CORE_LOGGER.error(
+          `Fee collection tx ${receipt.hash} reverted on chain ${chainId}`
+        )
         return {
           stream: null,
           status: {
@@ -141,6 +144,9 @@ export class CollectFeesHandler extends AdminCommandHandler {
           }
         }
       }
+      CORE_LOGGER.info(
+        `Fees collected on chain ${chainId}: token=${task.tokenAddress} to=${task.destinationAddress} tx=${receipt.hash}`
+      )
       const response: AdminCollectFeesHandlerResponse = {
         tx: receipt.hash,
         message: 'Fees successfully transfered to admin!'
@@ -151,7 +157,9 @@ export class CollectFeesHandler extends AdminCommandHandler {
       }
     } catch (e) {
       const msg: string = `Error in collecting provider fees: ${e}`
-      CORE_LOGGER.error(msg)
+      CORE_LOGGER.error(
+        `Fee collection failed on chain ${task.chainId}: ${errorSummary(e)}`
+      )
       return {
         stream: null,
         status: {

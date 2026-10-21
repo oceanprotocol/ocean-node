@@ -10,6 +10,7 @@ import { getFile } from '../../../utils/file.js'
 import { Storage } from '../../storage/index.js'
 
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { errorSummary } from '../../../utils/logging/redact.js'
 import { createHash } from 'crypto'
 import { FindDdoHandler } from '../../core/handler/ddoHandler.js'
 import { DDOManager, VersionedDDO } from '@oceanprotocol/ddo-js'
@@ -45,7 +46,7 @@ export async function getAlgoChecksums(
   try {
     const algoDDO = await new FindDdoHandler(oceanNode).findAndFormatDdo(algoDID)
     if (!algoDDO) {
-      CORE_LOGGER.error(`Algorithm with id: ${algoDID} not found!`)
+      CORE_LOGGER.debug(`Algorithm with id: ${algoDID} not found!`)
       return checksums
     }
     const fileArray = await getFile(algoDDO, algoServiceId, oceanNode)
@@ -78,9 +79,23 @@ export async function getAlgoChecksums(
       .digest('hex')
     return checksums
   } catch (error) {
-    CORE_LOGGER.error(`Fetching algorithm checksums failed: ${error.message}`)
+    CORE_LOGGER.debug(
+      `Fetching algorithm checksums failed for ${algoDID}: ${errorSummary(error)}`
+    )
     return checksums
   }
+}
+
+// escrow.createLock failures caused by the consumer's funds/authorizations are client-side;
+// anything else (gas wallet, RPC, missing escrow contract) needs the operator's attention
+export function logCreateLockError(context: string, errMsg: string) {
+  const clientSide =
+    /does not have enough funds|No escrow auths found|No valid escrow auths found/i.test(
+      errMsg
+    )
+  const message = `${context}: ${errMsg}`
+  if (clientSide) CORE_LOGGER.debug(message)
+  else CORE_LOGGER.error(message)
 }
 
 export async function validateAlgoForDataset(
@@ -159,7 +174,9 @@ export async function validateAlgoForDataset(
 
     return compute.allowRawAlgorithm
   } catch (error) {
-    CORE_LOGGER.error(error.message)
+    CORE_LOGGER.debug(
+      `validateAlgoForDataset (dataset ${ddoInstance?.getDid?.()}, algo ${algoDID}): ${error.message}`
+    )
     return false
   }
 }

@@ -1,5 +1,4 @@
 import os from 'os'
-import { LOG_LEVELS_STR, GENERIC_EMOJIS } from '../../../utils/logging/Logger.js'
 import {
   OceanNodeStatus,
   OceanNodeProvider,
@@ -76,8 +75,7 @@ async function getIndexerBlockInfo(
   try {
     const database = await oceanNode.getDatabase()
     if (!database || !database.indexer) {
-      CORE_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_WARN,
+      CORE_LOGGER.debug(
         `Indexer database is not available for network ${supportedNetwork.network}`
       )
       return blockNr
@@ -85,9 +83,9 @@ async function getIndexerBlockInfo(
     const { lastIndexedBlock } = await database.indexer.retrieve(supportedNetwork.chainId)
     blockNr = lastIndexedBlock.toString()
   } catch (error) {
-    CORE_LOGGER.log(
-      LOG_LEVELS_STR.LEVEL_ERROR,
-      `Error fetching last indexed block for network ${supportedNetwork.network}`
+    // a chain that is not indexed yet has no entry; real DB errors are logged by the DB layer
+    CORE_LOGGER.debug(
+      `Error fetching last indexed block for network ${supportedNetwork.network}: ${error.message}`
     )
   }
   return blockNr
@@ -100,14 +98,9 @@ export async function status(
   nodeId?: string,
   detailed: boolean = false
 ): Promise<OceanNodeStatus> {
-  CORE_LOGGER.logMessage('Command status started execution...', true)
+  CORE_LOGGER.debug('Command status started execution...')
   if (!oceanNode) {
-    CORE_LOGGER.logMessageWithEmoji(
-      'Node object not found. Cannot proceed with status command.',
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEL_ERROR
-    )
+    CORE_LOGGER.error('Node object not found. Cannot proceed with status command.')
     return
   }
   const config = oceanNode.getConfig()
@@ -177,7 +170,12 @@ export async function status(
         })
       }
     } catch (error) {
-      CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error getting c2d clusters: ${error}`)
+      // also hit on every detailed status request of a node without C2D
+      CORE_LOGGER.throttled(
+        'status-c2d-clusters',
+        'warn',
+        `Error getting c2d clusters: ${error.message}`
+      )
     }
     nodeStatus.supportedSchemas = typesenseSchemas.ddoSchemas
   } else {

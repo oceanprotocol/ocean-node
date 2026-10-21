@@ -11,6 +11,8 @@ import {
   TransactionReceipt
 } from 'ethers'
 import { CORE_LOGGER } from './logging/common.js'
+import { LOG_LEVELS_STR } from './logging/Logger.js'
+import { errorSummary } from './logging/redact.js'
 import { ConnectionStatus, SupportedNetwork } from '../@types/blockchain.js'
 import { KeyManager } from '../components/KeyManager/index.js'
 
@@ -145,20 +147,36 @@ export class Blockchain {
 
   private async detectNetwork(): Promise<ConnectionStatus> {
     const provider = await this.getProvider()
+    const throttleKey = `detectNetwork:${this.chainId}`
     return new Promise((resolve) => {
+      let timedOut = false
       const timeout = setTimeout(() => {
         // timeout, hanging or invalid connection
-        CORE_LOGGER.error(`Unable to detect provider network: (TIMEOUT)`)
+        timedOut = true
+        CORE_LOGGER.throttled(
+          `${throttleKey}:timeout`,
+          LOG_LEVELS_STR.LEVEL_WARN,
+          `Chain ${this.chainId}: unable to detect provider network (TIMEOUT)`
+        )
         resolve({ ready: false, error: 'TIMEOUT' })
       }, 3000)
       provider
         .getBlock('latest')
         .then((block) => {
           clearTimeout(timeout)
+          CORE_LOGGER.resetThrottle(throttleKey)
+          CORE_LOGGER.resetThrottle(`${throttleKey}:timeout`)
           resolve({ ready: block.hash !== null })
         })
         .catch((err) => {
-          CORE_LOGGER.error(`Unable to detect provider network: ${err.message}`)
+          // the timeout branch already reported this probe
+          if (!timedOut) {
+            CORE_LOGGER.throttled(
+              throttleKey,
+              LOG_LEVELS_STR.LEVEL_ERROR,
+              `Chain ${this.chainId}: unable to detect provider network: ${errorSummary(err?.shortMessage ?? err)}`
+            )
+          }
           clearTimeout(timeout)
           resolve({ ready: false, error: err.message })
         })
@@ -220,7 +238,9 @@ export async function getDatatokenDecimals(
   try {
     return await datatokenContract.decimals()
   } catch (err) {
-    CORE_LOGGER.error(`${err}. Returning default 18 decimals.`)
+    CORE_LOGGER.warn(
+      `Cannot read decimals for token ${datatokenAddress}: ${errorSummary(err?.shortMessage ?? err)}; using 18`
+    )
     return 18
   }
 }
@@ -239,7 +259,7 @@ export function verifyMessage(
 ) {
   try {
     if (!isAddress(address)) {
-      CORE_LOGGER.error(`${address} is not a valid web3 address`)
+      CORE_LOGGER.debug(`${address} is not a valid web3 address`)
       return false
     }
     const signerAddr = ethers.verifyMessage(message, signature)

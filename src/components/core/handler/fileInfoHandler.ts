@@ -8,6 +8,7 @@ import {
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
 import { FileInfoCommand } from '../../../@types/commands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { errorSummary } from '../../../utils/logging/redact.js'
 import { Storage } from '../../storage/index.js'
 import { CommandHandler } from './handler.js'
 import { validateDDOIdentifier } from './ddoHandler.js'
@@ -44,7 +45,7 @@ async function formatMetadata(
   }
   const storage = Storage.getStorageClass(file, config, consumerAddress)
   const fileInfo = await storage.fetchSpecificFileMetadata(file, false)
-  CORE_LOGGER.logMessage(
+  CORE_LOGGER.debug(
     `Metadata for file: ${fileInfo.contentLength} ${fileInfo.contentType}`
   )
   return fileInfo
@@ -131,7 +132,7 @@ export class FileInfoHandler extends CommandHandler {
       } else {
         const errorMessage =
           'Invalid arguments. Please provide either file && Type OR did && serviceId'
-        CORE_LOGGER.error(errorMessage)
+        CORE_LOGGER.debug(errorMessage)
         return {
           stream: null,
           status: {
@@ -140,10 +141,7 @@ export class FileInfoHandler extends CommandHandler {
           }
         }
       }
-      CORE_LOGGER.logMessage(
-        'File Info Response: ' + JSON.stringify(fileInfo, null, 2),
-        true
-      )
+      CORE_LOGGER.debug(`File info returned for ${fileInfo.length} file(s)`)
 
       return {
         stream: Readable.from(JSON.stringify(fileInfo)),
@@ -152,7 +150,14 @@ export class FileInfoHandler extends CommandHandler {
         }
       }
     } catch (error) {
-      CORE_LOGGER.error(error.message)
+      // answered with a 500, but mostly caused by client input (unknown DID, unreachable
+      // file URL): visible on disk, at most once per hour, without letting clients flood it
+      CORE_LOGGER.debug(`FileInfo failed: ${errorSummary(error)}`)
+      CORE_LOGGER.throttled(
+        'fileinfo-failed',
+        'warn',
+        `FileInfo failed: ${errorSummary(error)}`
+      )
       return {
         stream: null,
         status: {

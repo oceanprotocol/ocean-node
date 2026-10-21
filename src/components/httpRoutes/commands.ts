@@ -2,9 +2,14 @@ import express, { Request, Response } from 'express'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
+import { errorSummary } from '../../utils/logging/redact.js'
 
 import { validateCommandParameters } from './validateCommands.js'
 import { Readable } from 'stream'
+
+function describeCommand(body: any): string {
+  return `${body?.command}${body?.node ? ' -> ' + body.node : ''}`
+}
 
 function mapChunkToBuffer(chunk: any): Buffer | Uint8Array {
   if (typeof chunk === 'string') {
@@ -46,7 +51,7 @@ async function streamToResponse(
       }
     }
   } catch (err) {
-    HTTP_LOGGER.error(`Stream error: ${err.message}`)
+    HTTP_LOGGER.debug(`Stream error: ${errorSummary(err)}`)
     throw err
   }
 }
@@ -67,12 +72,14 @@ directCommandRoute.post(
 
       res.on('close', () => {
         if (!closedResponse) {
-          HTTP_LOGGER.error('TCP connection was closed before we could send a response!')
+          HTTP_LOGGER.debug(
+            `directCommand ${describeCommand(req.body)}: client closed the connection before the response`
+          )
         }
         closedResponse = true
       })
 
-      HTTP_LOGGER.logMessage('Sending command : ' + JSON.stringify(req.body), true)
+      HTTP_LOGGER.debug(`directCommand ${describeCommand(req.body)}`)
 
       const isLocalCommand =
         !req.oceanNode.hasP2PInterface() ||
@@ -147,7 +154,13 @@ directCommandRoute.post(
         res.end()
       }
     } catch (err) {
-      HTTP_LOGGER.error(err.message)
+      // after the headers are sent, failures are mid-stream aborts (peer, storage or client)
+      const message = `directCommand ${describeCommand(req.body)} failed: ${errorSummary(err)}`
+      if (!res.headersSent) {
+        HTTP_LOGGER.error(message)
+      } else {
+        HTTP_LOGGER.debug(message)
+      }
       closedResponse = true
       if (!res.headersSent) {
         res.status(500).send(err.message)

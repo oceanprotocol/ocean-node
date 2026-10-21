@@ -1,6 +1,7 @@
 import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { errorSummary } from '../../../utils/logging/redact.js'
 import {
   FreeComputeStartCommand,
   PaidComputeStartCommand
@@ -10,6 +11,7 @@ import { OceanNode } from '../../../OceanNode.js'
 import {
   generateUniqueID,
   getAlgoChecksums,
+  logCreateLockError,
   validateAlgoForDataset,
   validateOutput,
   validateOutputBucket
@@ -114,7 +116,7 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
         engine = await node.getC2DEngines().getC2DByHash(hash)
       } catch (e) {
         const errMsg = e?.message || String(e)
-        CORE_LOGGER.error(`Invalid C2D Environment: ${errMsg}`)
+        CORE_LOGGER.debug(`Invalid C2D Environment: ${errMsg}`)
         return {
           stream: null,
           status: {
@@ -156,7 +158,7 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
         )
       } catch (e) {
         const errMsg = e?.message || String(e)
-        CORE_LOGGER.error(`Error checking and filling missing resources: ${errMsg}`)
+        CORE_LOGGER.debug(`Error checking and filling missing resources: ${errMsg}`)
         return {
           stream: null,
           status: {
@@ -169,12 +171,12 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
         await engine.checkIfResourcesAreAvailable(task.resources, env, false, allEnvs)
       } catch (e) {
         if (task.queueMaxWaitTime > 0) {
-          CORE_LOGGER.verbose(
+          CORE_LOGGER.debug(
             `Compute resources not available, queuing job for max ${task.queueMaxWaitTime} seconds`
           )
         } else {
           const errMsg = e?.message || String(e)
-          CORE_LOGGER.error(`Error checking if resources are available: ${errMsg}`)
+          CORE_LOGGER.debug(`Error checking if resources are available: ${errMsg}`)
           return {
             stream: null,
             status: {
@@ -250,7 +252,7 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
       if (!isRawCodeAlgorithm && !hasValidChecksums) {
         const errorMessage =
           'Failed to retrieve algorithm checksums. Both container and files checksums are required.'
-        CORE_LOGGER.error(errorMessage)
+        CORE_LOGGER.debug(errorMessage)
         return {
           stream: null,
           status: {
@@ -285,7 +287,9 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
           } = ddoInstance.getDDOFields()
           const isOrdable = isOrderingAllowedForAsset(ddo)
           if (!isOrdable.isOrdable) {
-            CORE_LOGGER.error(isOrdable.reason)
+            CORE_LOGGER.debug(
+              `Asset ${ddoInstance.getDid()} not orderable: ${isOrdable.reason}`
+            )
             return {
               stream: null,
               status: {
@@ -342,9 +346,8 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
               )
             }
             if (!accessGrantedDDOLevel) {
-              CORE_LOGGER.logMessage(
-                `Error: Access to asset ${ddoInstance.getDid()} was denied`,
-                true
+              CORE_LOGGER.debug(
+                `Access to asset ${ddoInstance.getDid()} denied for ${task.consumerAddress}`
               )
               return {
                 stream: null,
@@ -390,9 +393,8 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
             }
 
             if (!accessGrantedServiceLevel) {
-              CORE_LOGGER.logMessage(
-                `Error: Access to service with id ${service.id} was denied`,
-                true
+              CORE_LOGGER.debug(
+                `Access to service ${service.id} denied for ${task.consumerAddress}`
               )
               return {
                 stream: null,
@@ -448,7 +450,7 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
             }
           } catch (e) {
             // do nothing
-            CORE_LOGGER.error('Could not decrypt DDO files Object: ' + e.message)
+            CORE_LOGGER.debug(`Could not decrypt DDO files Object: ${errorSummary(e)}`)
           }
           if (service.type === 'compute' && !canDecrypt) {
             const error = `Service ${elem.serviceId} from DDO ${elem.documentId} cannot be used in compute on this provider`
@@ -582,9 +584,8 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
         task.maxJobDuration
       )
       let agreementId
-      CORE_LOGGER.logMessage(
-        `escrow.createLock cost=${cost} token=${task.payment.token} chainId=${task.payment.chainId} resources=${JSON.stringify(task.resources)} maxJobDuration=${task.maxJobDuration}`,
-        true
+      CORE_LOGGER.debug(
+        `escrow.createLock job=${jobId} cost=${cost} token=${task.payment.token} chainId=${task.payment.chainId} maxJobDuration=${task.maxJobDuration}`
       )
       try {
         agreementId = await engine.escrow.createLock(
@@ -599,7 +600,7 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
         )
       } catch (e) {
         const errMsg = e?.message || String(e)
-        CORE_LOGGER.error(`Error creating lock: ${errMsg}`)
+        logCreateLockError(`Error creating lock for job ${hash}-${jobId}`, errMsg)
         if (e.message.includes('insufficient funds for intrinsic transaction cost')) {
           return {
             stream: null,
@@ -655,10 +656,15 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
           task.encryptedDockerRegistryAuth,
           task.outputBucketId
         )
-        CORE_LOGGER.logMessage(
-          'ComputeStartCommand Response: ' + JSON.stringify(response, null, 2),
-          true
-        )
+        if (response?.length > 0) {
+          CORE_LOGGER.info(
+            `Compute job created: ${hash}-${jobId} env=${env.id} owner=${task.consumerAddress} chain=${task.payment.chainId} lockTx=${agreementId}`
+          )
+        } else {
+          CORE_LOGGER.error(
+            `Compute job ${hash}-${jobId} was not created (engine returned no job); lock ${agreementId} remains on chain ${task.payment.chainId} for ${task.consumerAddress}`
+          )
+        }
         try {
           cJobsStarted.add(1, { engine: hash, free: 'false' })
         } catch (e: any) {
@@ -673,7 +679,10 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
         }
       } catch (e) {
         const errMsg = e?.message || String(e)
-        CORE_LOGGER.error(`Error starting compute job: ${errMsg}`)
+        // errMsg can embed the algorithm object, keep it short
+        CORE_LOGGER.warn(
+          `Compute job ${hash}-${jobId} failed to start after lock ${agreementId} (payer ${task.consumerAddress}, chain ${task.payment.chainId}): ${errMsg.slice(0, 300)}`
+        )
         try {
           await engine.escrow.cancelExpiredLock(
             task.payment.chainId,
@@ -683,7 +692,9 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
           )
         } catch (cancelError) {
           const cancelErrMsg = cancelError?.message || String(cancelError)
-          CORE_LOGGER.error(`Error canceling expired locks: ${cancelErrMsg}`)
+          CORE_LOGGER.error(
+            `Error canceling expired locks for job ${hash}-${jobId} (lockTx ${agreementId}, payer ${task.consumerAddress}, chain ${task.payment.chainId}): ${cancelErrMsg}`
+          )
           // is fine if it fails
         }
         return {
@@ -696,7 +707,7 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
       }
     } catch (error) {
       const errMsg = error?.message || String(error)
-      CORE_LOGGER.error(`Error starting compute job: ${errMsg}`)
+      CORE_LOGGER.error(`Paid compute start failed: ${errMsg.slice(0, 300)}`)
       return {
         stream: null,
         status: {
@@ -844,7 +855,9 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
         const { chainId: ddoChainId, credentials, metadata } = ddoInstance.getDDOFields()
         const isOrdable = isOrderingAllowedForAsset(ddo)
         if (!isOrdable.isOrdable) {
-          CORE_LOGGER.error(isOrdable.reason)
+          CORE_LOGGER.debug(
+            `Asset ${ddoInstance.getDid()} not orderable: ${isOrdable.reason}`
+          )
           return {
             stream: null,
             status: {
@@ -899,9 +912,8 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
             )
           }
           if (!accessGrantedDDOLevel) {
-            CORE_LOGGER.logMessage(
-              `Error: Access to asset ${ddoInstance.getDid()} was denied`,
-              true
+            CORE_LOGGER.debug(
+              `Access to asset ${ddoInstance.getDid()} denied for ${task.consumerAddress}`
             )
             return {
               stream: null,
@@ -947,9 +959,8 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
           }
 
           if (!accessGrantedServiceLevel) {
-            CORE_LOGGER.logMessage(
-              `Error: Access to service with id ${service.id} was denied`,
-              true
+            CORE_LOGGER.debug(
+              `Access to service ${service.id} denied for ${task.consumerAddress}`
             )
             return {
               stream: null,
@@ -1001,7 +1012,7 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
           }
         } catch (e) {
           // do nothing
-          CORE_LOGGER.error('Could not decrypt DDO files Object: ' + e.message)
+          CORE_LOGGER.debug(`Could not decrypt DDO files Object: ${errorSummary(e)}`)
         }
         if (service.type === 'compute' && !canDecrypt) {
           const error = `Service ${elem.serviceId} from DDO ${elem.documentId} cannot be used in compute on this provider`
@@ -1078,7 +1089,7 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
           task.maxJobDuration = env.free.maxJobDuration
         }
       } catch (e) {
-        console.error(e)
+        CORE_LOGGER.debug(`Free compute request rejected: ${e?.message}`)
         return {
           stream: null,
           status: {
@@ -1091,7 +1102,7 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
         await engine.checkIfResourcesAreAvailable(task.resources, env, true, allFreeEnvs)
       } catch (e) {
         if (task.queueMaxWaitTime > 0) {
-          CORE_LOGGER.verbose(
+          CORE_LOGGER.debug(
             `Compute resources not available, queuing job for max ${task.queueMaxWaitTime} seconds`
           )
         } else {
@@ -1140,10 +1151,15 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
         task.outputBucketId
       )
 
-      CORE_LOGGER.logMessage(
-        'FreeComputeStartCommand Response: ' + JSON.stringify(response, null, 2),
-        true
-      )
+      if (response?.length > 0) {
+        CORE_LOGGER.info(
+          `Free compute job created: ${hash}-${jobId} env=${task.environment} owner=${task.consumerAddress}`
+        )
+      } else {
+        CORE_LOGGER.error(
+          `Free compute job ${hash}-${jobId} was not created (engine returned no job)`
+        )
+      }
       try {
         cJobsStarted.add(1, { engine: hash, free: 'true' })
       } catch (e: any) {
@@ -1157,7 +1173,10 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
         }
       }
     } catch (error) {
-      CORE_LOGGER.error(error.message)
+      // client-caused engine errors land here too, so keep this at warn and short
+      CORE_LOGGER.warn(
+        `Free compute start failed: ${String(error?.message).slice(0, 300)}`
+      )
       return {
         stream: null,
         status: {

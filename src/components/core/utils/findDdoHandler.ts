@@ -1,6 +1,5 @@
 import { OceanP2P, CACHE_TTL } from '../../P2P/index.js'
 import { FindDDOCommand } from '../../../@types/commands.js'
-import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { FindDDOResponse } from '../../../@types/index.js'
 import { Service } from '@oceanprotocol/ddo-js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
@@ -19,12 +18,8 @@ export function hasCachedDDO(task: FindDDOCommand, node: OceanP2P): boolean {
     if (now - cacheTime <= CACHE_TTL) {
       return true
     }
-    CORE_LOGGER.log(
-      LOG_LEVELS_STR.LEVEL_INFO,
-      `DDO cache for ${task.id} has expired, cache age(secs): ${
-        (now - cacheTime) / 1000
-      }`,
-      true
+    CORE_LOGGER.debug(
+      `DDO cache for ${task.id} has expired, cache age(secs): ${(now - cacheTime) / 1000}`
     )
   }
   return false
@@ -59,11 +54,7 @@ export async function findDDOLocally(
 ): Promise<FindDDOResponse> | undefined {
   const database = await node.getDatabase()
   if (!database || !database.ddo) {
-    CORE_LOGGER.log(
-      LOG_LEVELS_STR.LEVEL_WARN,
-      'DDO database is not available. Cannot retrieve DDO locally.',
-      true
-    )
+    CORE_LOGGER.debug('DDO database is not available. Cannot retrieve DDO locally.')
     return undefined
   }
 

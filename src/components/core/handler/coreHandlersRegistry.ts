@@ -316,7 +316,7 @@ export class CoreHandlersRegistry {
   // pass the handler name from the SUPPORTED_PROTOCOL_COMMANDS keys
   public getHandler(handlerName: string): any {
     if (!SUPPORTED_PROTOCOL_COMMANDS.includes(handlerName)) {
-      OCEAN_NODE_LOGGER.error(
+      OCEAN_NODE_LOGGER.debug(
         `Invalid handler "${handlerName}". No known associated protocol command!`
       )
       return null

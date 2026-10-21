@@ -2,6 +2,7 @@ import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { C2DClusterType } from '../../../@types/C2D/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { errorSummary } from '../../../utils/logging/redact.js'
 import { CommandHandler } from '../handler/handler.js'
 import { ComputeInitializeCommand } from '../../../@types/commands.js'
 import { ProviderComputeInitializeResults } from '../../../@types/Fees.js'
@@ -117,7 +118,7 @@ export class ComputeInitializeHandler extends CommandHandler {
       if (!isRawCodeAlgorithm && !hasValidChecksums) {
         const errorMessage =
           'Failed to retrieve algorithm checksums. Both container and files checksums are required.'
-        CORE_LOGGER.error(errorMessage)
+        CORE_LOGGER.debug(errorMessage)
         return {
           stream: null,
           status: {
@@ -267,7 +268,9 @@ export class ComputeInitializeHandler extends CommandHandler {
           } = ddoInstance.getDDOFields()
           const isOrdable = isOrderingAllowedForAsset(ddo)
           if (!isOrdable.isOrdable) {
-            CORE_LOGGER.error(isOrdable.reason)
+            CORE_LOGGER.debug(
+              `Asset ${ddoInstance.getDid()} not orderable: ${isOrdable.reason}`
+            )
             return {
               stream: null,
               status: {
@@ -346,9 +349,8 @@ export class ComputeInitializeHandler extends CommandHandler {
               )
             }
             if (!accessGrantedDDOLevel) {
-              CORE_LOGGER.logMessage(
-                `Error: Access to asset ${ddoInstance.getDid()} was denied`,
-                true
+              CORE_LOGGER.debug(
+                `Access to asset ${ddoInstance.getDid()} denied for ${task.consumerAddress}`
               )
               return {
                 stream: null,
@@ -394,9 +396,8 @@ export class ComputeInitializeHandler extends CommandHandler {
             }
 
             if (!accessGrantedServiceLevel) {
-              CORE_LOGGER.logMessage(
-                `Error: Access to service with id ${service.id} was denied`,
-                true
+              CORE_LOGGER.debug(
+                `Access to service ${service.id} denied for ${task.consumerAddress}`
               )
               return {
                 stream: null,
@@ -478,8 +479,8 @@ export class ComputeInitializeHandler extends CommandHandler {
               )
               if (isTemplate4) {
                 if (!task.signature) {
-                  CORE_LOGGER.error(
-                    'Could not decrypt ddo files on template 4, missing consumer signature!'
+                  CORE_LOGGER.debug(
+                    `Could not decrypt ddo files of ${ddoInstance.getDid()} on template 4, missing consumer signature!`
                   )
                 } else if (await isERC20Template4Active(ddoChainId, signer)) {
                   // we need to get the proper data for the signature
@@ -501,15 +502,17 @@ export class ComputeInitializeHandler extends CommandHandler {
                     canDecrypt = true
                   }
                 } else {
-                  CORE_LOGGER.error(
-                    'Could not decrypt ddo files on template 4, template is not active!'
+                  CORE_LOGGER.debug(
+                    `Could not decrypt ddo files of ${ddoInstance.getDid()} on template 4, template is not active!`
                   )
                 }
               }
             }
           } catch (e) {
             // do nothing
-            CORE_LOGGER.error(`Could not decrypt ddo files:  ${e.message} `)
+            CORE_LOGGER.debug(
+              `Could not decrypt ddo files of ${ddoInstance.getDid()}: ${errorSummary(e)}`
+            )
           }
           if (service.type === 'compute' && !canDecrypt) {
             const error = `Service ${elem.serviceId} from DDO ${elem.documentId} cannot be used in compute on this provider`
@@ -583,7 +586,7 @@ export class ComputeInitializeHandler extends CommandHandler {
         }
       }
     } catch (error) {
-      CORE_LOGGER.error(error.message)
+      CORE_LOGGER.error(`ComputeInitialize failed: ${error.message}`)
       return {
         stream: null,
         status: {

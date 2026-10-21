@@ -13,6 +13,7 @@ import {
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { errorSummary } from '../../../utils/logging/redact.js'
 
 // for encryption
 export const SUPPORTED_ENCRYPTION_ENCODINGS = ['string', 'base58']
@@ -72,10 +73,7 @@ export class EncryptHandler extends CommandHandler {
         task.policyServer
       )
       if (!response.success) {
-        CORE_LOGGER.logMessage(
-          `Error: Encrypt for ${task.consumerAddress} was denied`,
-          true
-        )
+        CORE_LOGGER.debug(`Error: Encrypt for ${task.consumerAddress} was denied`)
         return {
           stream: null,
           status: {
@@ -106,7 +104,7 @@ export class EncryptHandler extends CommandHandler {
         status: { httpStatus: 200 }
       }
     } catch (error) {
-      CORE_LOGGER.error(`Error while encrypting data: ${error} `)
+      CORE_LOGGER.error(`Error while encrypting data: ${errorSummary(error)}`)
       return {
         stream: null,
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
@@ -164,10 +162,7 @@ export class EncryptFileHandler extends CommandHandler {
         task.files
       )
       if (!response.success) {
-        CORE_LOGGER.logMessage(
-          `Error: EncryptFile for ${task.consumerAddress} was denied`,
-          true
-        )
+        CORE_LOGGER.debug(`Error: EncryptFile for ${task.consumerAddress} was denied`)
         return {
           stream: null,
           status: {
@@ -214,7 +209,8 @@ export class EncryptFileHandler extends CommandHandler {
         }
       }
     } catch (error) {
-      CORE_LOGGER.error(`Error while encrypting file: ${error} `)
+      // errorSummary: fetch errors carry the plaintext file URL being encrypted
+      CORE_LOGGER.warn(`Error while encrypting file: ${errorSummary(error)}`)
       return {
         stream: null,
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }

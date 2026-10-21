@@ -658,7 +658,9 @@ export abstract class C2DEngine {
     try {
       jobs = await this.db.getRunningJobs(this.getC2DConfig().hash)
     } catch (e) {
-      CORE_LOGGER.error('Failed to get running jobs:' + e.message)
+      CORE_LOGGER.error(
+        `Failed to get running jobs for engine ${this.getC2DConfig().hash}: ${e.message}`
+      )
     }
 
     const envResourceMap = new Map((env.resources || []).map((r) => [r.id, r]))
@@ -1098,7 +1100,10 @@ export abstract class C2DEngine {
       decryptedDockerRegistryAuth = JSON.parse(decryptedDockerRegistryAuthString)
     } catch (error: any) {
       const errorMessage = `Invalid encryptedDockerRegistryAuth: failed to parse JSON - ${error?.message || String(error)}`
-      CORE_LOGGER.error(errorMessage)
+      // error.message may quote a snippet of the decrypted credentials, keep it out of logs
+      CORE_LOGGER.debug(
+        `Invalid encryptedDockerRegistryAuth: cannot decrypt or parse (${error?.name || 'Error'})`
+      )
       return {
         valid: false,
         reason: errorMessage,
@@ -1115,7 +1120,7 @@ export abstract class C2DEngine {
         .map((err) => err.message)
         .join('; ')
       const errorMessage = `Invalid encryptedDockerRegistryAuth: ${errorMessageValidation}`
-      CORE_LOGGER.error(errorMessage)
+      CORE_LOGGER.debug(errorMessage)
       return {
         valid: false,
         reason: errorMessage,

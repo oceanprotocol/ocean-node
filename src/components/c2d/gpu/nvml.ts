@@ -41,6 +41,13 @@ export class NvmlGpuCollector implements GpuVendorCollector {
   private bindings: NvmlBindings | null = null
   private detected: boolean | null = null // null = not yet probed
   private initialized = false
+  // false when no declared GPU resource is NVIDIA: probe failures are then expected (debug)
+  public nvidiaConfigured = true
+
+  private logProbeFailure(message: string) {
+    if (this.nvidiaConfigured) CORE_LOGGER.warn(message)
+    else CORE_LOGGER.debug(message)
+  }
 
   private async loadKoffi(): Promise<any | null> {
     try {
@@ -50,7 +57,7 @@ export class NvmlGpuCollector implements GpuVendorCollector {
       const mod: any = await import(specifier)
       return mod?.default ?? mod
     } catch (e: any) {
-      CORE_LOGGER.warn(
+      this.logProbeFailure(
         `GPU metrics (nvidia): koffi FFI not available — NVIDIA GPU metrics disabled (${e?.message}). ` +
           `Install the 'koffi' optional dependency to enable them.`
       )
@@ -114,7 +121,7 @@ export class NvmlGpuCollector implements GpuVendorCollector {
         ])
       }
     } catch (e: any) {
-      CORE_LOGGER.warn(
+      this.logProbeFailure(
         `GPU metrics (nvidia): could not bind libnvidia-ml.so.1 — NVIDIA GPU metrics disabled (${e?.message})`
       )
       return null
@@ -130,14 +137,18 @@ export class NvmlGpuCollector implements GpuVendorCollector {
     try {
       const rc = bindings.init()
       if (rc !== NVML_SUCCESS) {
-        CORE_LOGGER.warn(`GPU metrics (nvidia): nvmlInit failed (code ${rc}) — disabled`)
+        this.logProbeFailure(
+          `GPU metrics (nvidia): nvmlInit failed (code ${rc}) — disabled`
+        )
         return (this.detected = false)
       }
       this.initialized = true
       this.bindings = bindings
       return (this.detected = true)
     } catch (e: any) {
-      CORE_LOGGER.warn(`GPU metrics (nvidia): nvmlInit threw — disabled (${e?.message})`)
+      this.logProbeFailure(
+        `GPU metrics (nvidia): nvmlInit threw — disabled (${e?.message})`
+      )
       return (this.detected = false)
     }
   }

@@ -12,6 +12,7 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import type { ComputeEnvironment } from '../../../@types/C2D/C2D.js'
 import { ServiceStatusNumber } from '../../../@types/C2D/ServiceOnDemand.js'
 import { validateAccess } from '../compute/startCompute.js'
+import { logCreateLockError } from '../compute/utils.js'
 import { findServiceJobAndEngine, toPublicServiceJob } from './utils.js'
 
 export class ServiceExtendHandler extends CommandHandler {
@@ -59,6 +60,13 @@ export class ServiceExtendHandler extends CommandHandler {
       return buildInvalidParametersResponse(
         buildInvalidRequestMessage('Service job not found: ' + task.serviceId)
       )
+    if (!engine) {
+      CORE_LOGGER.throttled(
+        `service-orphan:${job.clusterHash}`,
+        'warn',
+        `Service ${task.serviceId} belongs to cluster ${job.clusterHash}, which no configured engine owns; check DOCKER_COMPUTE_ENVIRONMENTS`
+      )
+    }
     if (!engine)
       return {
         stream: null,
@@ -206,9 +214,8 @@ export class ServiceExtendHandler extends CommandHandler {
               if (!cancelTx) throw new Error('cancelExpiredLock returned no tx')
               unresolved.cancelTx = cancelTx
               await engine.db.updateServiceJob(freshJob)
-              CORE_LOGGER.logMessage(
-                `Service ${task.serviceId}: refunded unresolved extension lock ${unresolved.lockTx} (${cancelTx})`,
-                true
+              CORE_LOGGER.info(
+                `Service ${task.serviceId}: cancelExpiredLock tx ${cancelTx} for unresolved extension lock ${unresolved.lockTx} (chain ${unresolved.chainId})`
               )
             } catch (e: any) {
               CORE_LOGGER.error(
@@ -236,7 +243,10 @@ export class ServiceExtendHandler extends CommandHandler {
               engine.escrow.getMinLockTime(task.additionalDuration)
             )
           } catch (e: any) {
-            CORE_LOGGER.error(`Service extend createLock failed: ${e.message}`)
+            logCreateLockError(
+              `Service ${task.serviceId} extend createLock failed (chain ${task.payment.chainId})`,
+              e.message
+            )
             return { stream: null, status: { httpStatus: 402, error: e.message } }
           }
           if (!lockTx)
@@ -249,7 +259,9 @@ export class ServiceExtendHandler extends CommandHandler {
           try {
             await engine.escrow.waitForTransaction(task.payment.chainId, lockTx)
           } catch (e: any) {
-            CORE_LOGGER.error(`Service extend lock not confirmed: ${e.message}`)
+            CORE_LOGGER.warn(
+              `Service ${task.serviceId} extend lock ${lockTx} not confirmed on chain ${task.payment.chainId}: ${e.message}`
+            )
             await engine.escrow
               .cancelExpiredLock(
                 task.payment.chainId,
@@ -258,7 +270,9 @@ export class ServiceExtendHandler extends CommandHandler {
                 task.consumerAddress
               )
               .catch((err) =>
-                CORE_LOGGER.error(`cancelExpiredLock failed: ${err.message}`)
+                CORE_LOGGER.error(
+                  `Service ${task.serviceId}: cancelExpiredLock failed for lock ${lockTx} (chain ${task.payment.chainId}): ${err.message}`
+                )
               )
             return {
               stream: null,
@@ -301,7 +315,9 @@ export class ServiceExtendHandler extends CommandHandler {
                 task.consumerAddress
               )
               .catch((e): string | null => {
-                CORE_LOGGER.error(`cancelExpiredLock failed: ${e.message}`)
+                CORE_LOGGER.error(
+                  `Service ${task.serviceId}: cancelExpiredLock failed for lock ${lockTx} (chain ${task.payment.chainId}): ${e.message}`
+                )
                 return null
               })
             if (!cancelTx)
@@ -323,6 +339,7 @@ export class ServiceExtendHandler extends CommandHandler {
           }
 
           let claimTx: string | null
+          let claimThrew = false
           try {
             claimTx = await engine.escrow.claimLock(
               task.payment.chainId,
@@ -334,9 +351,17 @@ export class ServiceExtendHandler extends CommandHandler {
             )
           } catch (e: any) {
             claimTx = null
-            CORE_LOGGER.error(`Service extend claimLock failed: ${e.message}`)
+            claimThrew = true
+            CORE_LOGGER.error(
+              `Service ${task.serviceId} extend claimLock failed for lock ${lockTx} (chain ${task.payment.chainId}): ${e.message}`
+            )
           }
           if (!claimTx) {
+            if (!claimThrew) {
+              CORE_LOGGER.error(
+                `Service ${task.serviceId}: claimLock returned no tx for lock ${lockTx} (chain ${task.payment.chainId})`
+              )
+            }
             const cancelTx = await engine.escrow
               .cancelExpiredLock(
                 task.payment.chainId,
@@ -345,7 +370,9 @@ export class ServiceExtendHandler extends CommandHandler {
                 task.consumerAddress
               )
               .catch((e): string | null => {
-                CORE_LOGGER.error(`cancelExpiredLock failed: ${e.message}`)
+                CORE_LOGGER.error(
+                  `Service ${task.serviceId}: cancelExpiredLock failed for lock ${lockTx} (chain ${task.payment.chainId}): ${e.message}`
+                )
                 return null
               })
             // close the intent (refunded) — or leave it unresolved for the next attempt
@@ -365,9 +392,8 @@ export class ServiceExtendHandler extends CommandHandler {
           freshJob.duration += task.additionalDuration
           await engine.db.updateServiceJob(freshJob)
 
-          CORE_LOGGER.logMessage(
-            `Service ${task.serviceId} extended by ${task.additionalDuration}s, new expiresAt: ${freshJob.expiresAt}`,
-            true
+          CORE_LOGGER.info(
+            `Service ${task.serviceId} extended by ${task.additionalDuration}s (expires ${new Date(freshJob.expiresAt).toISOString()}, claimTx=${claimTx})`
           )
           return {
             stream: Readable.from(JSON.stringify([toPublicServiceJob(freshJob)])),
@@ -378,7 +404,11 @@ export class ServiceExtendHandler extends CommandHandler {
     } catch (error: any) {
       // Lifecycle lock busy (a stop/restart/expiry owns the service) or engine stopped —
       // nothing was charged yet, the client simply retries shortly.
-      CORE_LOGGER.error(`ServiceExtend ${task.serviceId} rejected: ${error.message}`)
+      if (/operation in progress/i.test(String(error?.message))) {
+        CORE_LOGGER.debug(`ServiceExtend ${task.serviceId} rejected: ${error.message}`)
+      } else {
+        CORE_LOGGER.warn(`ServiceExtend ${task.serviceId} rejected: ${error.message}`)
+      }
       return { stream: null, status: { httpStatus: 400, error: error.message } }
     }
   }

@@ -3,6 +3,7 @@ import { fetchEventFromTransaction } from '../../../utils/util.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { errorSummary } from '../../../utils/logging/redact.js'
 import { EVENTS } from '../../../utils/index.js'
 
 interface ValidateTransactionResponse {
@@ -29,8 +30,7 @@ export async function fetchTransactionReceipt(
       }
       retries--
     } catch (error) {
-      const errorMsg = `Error fetching transaction receipt: ${error}`
-      CORE_LOGGER.logMessage(errorMsg)
+      CORE_LOGGER.warn(`RPC error fetching receipt for ${txId}: ${errorSummary(error)}`)
       return null
     }
   }
@@ -50,7 +50,7 @@ export async function validateOrderTransaction(
   let txReceiptMined = await fetchTransactionReceipt(txId, provider)
   if (!txReceiptMined) {
     const errorMsg = `Tx receipt cannot be processed, because tx id ${txId} was not mined.`
-    CORE_LOGGER.logMessage(errorMsg)
+    CORE_LOGGER.debug(errorMsg)
     return {
       isValid: false,
       message: errorMsg
@@ -71,7 +71,9 @@ export async function validateOrderTransaction(
     txReceiptMined = await fetchTransactionReceipt(reusedTxId, provider)
     if (!txReceiptMined) {
       const errorMsg = `Tx receipt cannot be processed, because tx id ${txId} was not mined.`
-      CORE_LOGGER.logMessage(errorMsg)
+      CORE_LOGGER.debug(
+        `Tx receipt cannot be processed, because reused tx id ${reusedTxId} was not mined.`
+      )
       return {
         isValid: false,
         message: errorMsg
@@ -128,7 +130,7 @@ export async function validateOrderTransaction(
   const currentTimestamp = Math.floor(Date.now() / 1000)
 
   const timeElapsed = currentTimestamp - eventTimestamp
-  CORE_LOGGER.logMessage(
+  CORE_LOGGER.debug(
     `serviceTimeout ${serviceTimeout} vs. timeElapsed ${timeElapsed} when validating order.`
   )
 

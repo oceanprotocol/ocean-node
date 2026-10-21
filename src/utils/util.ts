@@ -1,7 +1,7 @@
-import { LOG_LEVELS_STR } from './logging/Logger.js'
 import { Readable, Stream } from 'stream'
 import { Interface } from 'ethers'
-import { PROVIDER_LOGGER } from './logging/common.js'
+import { CORE_LOGGER } from './logging/common.js'
+import { errorSummary } from './logging/redact.js'
 
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -133,10 +133,8 @@ export function fetchEventFromTransaction(
 
     return events.length > 0 ? events : null
   } catch (error) {
-    PROVIDER_LOGGER.log(
-      LOG_LEVELS_STR.LEVEL_ERROR,
-      'Error fetching event from transaction: ' + error.message,
-      true
+    CORE_LOGGER.warn(
+      `Error fetching ${eventName} event from tx ${txReceipt?.hash}: ${errorSummary(error)}`
     )
     return null
   }

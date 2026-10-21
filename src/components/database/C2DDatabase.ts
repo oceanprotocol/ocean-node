@@ -22,7 +22,7 @@ export class C2DDatabase extends AbstractDatabase {
     super(config, schema)
     return (async (): Promise<C2DDatabase> => {
       // Fall back to SQLite
-      DATABASE_LOGGER.info('Creating C2DDatabase with SQLite')
+      DATABASE_LOGGER.debug('Creating C2DDatabase with SQLite')
 
       // Ensure the directory exists before instantiating SQLiteProvider
       const dbDir = path.dirname('databases/c2dDatabase.sqlite')
@@ -252,7 +252,7 @@ export class C2DDatabase extends AbstractDatabase {
       }
     }
 
-    DATABASE_LOGGER.info('Cleaned ' + cleaned + ' orphan C2D jobs')
+    DATABASE_LOGGER.debug('Cleaned ' + cleaned + ' orphan C2D jobs')
     return cleaned
   }
 }

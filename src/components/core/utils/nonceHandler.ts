@@ -1,8 +1,8 @@
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import { OceanNodeConfig, P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { ethers } from 'ethers'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { CORE_LOGGER, DATABASE_LOGGER } from '../../../utils/logging/common.js'
+import { errorSummary } from '../../../utils/logging/redact.js'
 import { AbstractNonceDatabase } from '../../database/BaseDatabase.js'
 import { CoreHandlersRegistry } from '../handler/coreHandlersRegistry.js'
 import { OceanNode } from '../../../OceanNode.js'
@@ -75,12 +75,7 @@ export async function getNonce(
     if (err.message.indexOf(address) > -1) {
       return getDefaultErrorResponse(err.message)
     } else {
-      DATABASE_LOGGER.logMessageWithEmoji(
-        'Failure executing nonce task: ' + err.message,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      DATABASE_LOGGER.error('Failure executing nonce task: ' + err.message)
       return getDefaultErrorResponse(err.message)
     }
   }
@@ -101,12 +96,7 @@ async function updateNonce(
       error: resp == null ? 'error updating nonce to: ' + nonce : null
     }
   } catch (err) {
-    DATABASE_LOGGER.logMessageWithEmoji(
-      'Failure executing nonce task: ' + err.message,
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEL_ERROR
-    )
+    DATABASE_LOGGER.error('Failure executing nonce task: ' + err.message)
     return {
       valid: false,
       error: err.message
@@ -145,12 +135,9 @@ export async function checkNonce(
       const updateStatus = await updateNonce(db, consumer, nonce)
       return updateStatus
     } else {
-      // log error level when validation failed
-      CORE_LOGGER.logMessageWithEmoji(
-        'Failure when validating nonce and signature: ' + validate.error,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
+      // invalid nonce / signature is client input
+      CORE_LOGGER.debug(
+        `Failure when validating nonce and signature for ${consumer}: ${validate.error}`
       )
       return {
         valid: false,
@@ -159,12 +146,7 @@ export async function checkNonce(
     }
     // return validation status and possible error msg
   } catch (err) {
-    DATABASE_LOGGER.logMessageWithEmoji(
-      'Failure executing nonce task: ' + err.message,
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEL_ERROR
-    )
+    DATABASE_LOGGER.error('Failure executing nonce task: ' + err.message)
     return {
       valid: false,
       error: err.message
@@ -311,7 +293,8 @@ async function verifySignatureForConsumer(
       }
     }
   } catch (error) {
-    CORE_LOGGER.error(`ERC-1271 signature validation error: ${error?.message}`)
+    // errorSummary: RPC errors can carry the RPC URL (with its API key)
+    CORE_LOGGER.error(`ERC-1271 signature validation error: ${errorSummary(error)}`)
   }
 
   return false

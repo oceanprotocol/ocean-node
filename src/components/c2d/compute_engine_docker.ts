@@ -51,6 +51,7 @@ import {
 } from 'fs'
 import { pipeline } from 'node:stream/promises'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
+import { errorSummary, safeStringify } from '../../utils/logging/redact.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { AssetUtils } from '../../utils/asset.js'
 import { FindDdoHandler } from '../core/handler/ddoHandler.js'
@@ -219,7 +220,9 @@ export class C2DEngineDocker extends C2DEngine {
       try {
         this.docker = new Dockerode({ socketPath: clusterConfig.connection.socketPath })
       } catch (e) {
-        CORE_LOGGER.error('Could not create Docker container: ' + e.message)
+        CORE_LOGGER.error(
+          `C2D Engine ${clusterConfig.hash}: could not create Docker client (${clusterConfig.connection.socketPath}): ${e.message}`
+        )
       }
     }
     this.retentionDays = clusterConfig.connection.imageRetentionDays || 7
@@ -240,7 +243,9 @@ export class C2DEngineDocker extends C2DEngine {
           port: clusterConfig.connection.port
         })
       } catch (e) {
-        CORE_LOGGER.error('Could not create Docker container: ' + e.message)
+        CORE_LOGGER.error(
+          `C2D Engine ${clusterConfig.hash}: could not create Docker client (${clusterConfig.connection.host}:${clusterConfig.connection.port}): ${e.message}`
+        )
       }
     }
     // trivy cache is the same for all engines
@@ -274,10 +279,12 @@ export class C2DEngineDocker extends C2DEngine {
       if (fees === null) fees = {}
       if (!(feeChain in fees)) fees[feeChain] = []
       const tmpFees: ComputeEnvFees[] = []
-      for (const feeEntry of rawFees[feeChain]) {
+      for (const [idx, feeEntry] of rawFees[feeChain].entries()) {
         if (!feeEntry.prices || feeEntry.prices.length === 0) {
-          CORE_LOGGER.error(
-            `Unable to find prices for fee ${JSON.stringify(feeEntry)} on chain ${feeChain}`
+          CORE_LOGGER.warn(
+            `Unable to find prices for fee entry #${idx} (token ${
+              feeEntry.feeToken ?? 'default'
+            }) on chain ${feeChain}`
           )
           continue
         }
@@ -287,7 +294,7 @@ export class C2DEngineDocker extends C2DEngine {
             feeEntry.feeToken = tokenAddress
             tmpFees.push(feeEntry)
           } else {
-            CORE_LOGGER.error(
+            CORE_LOGGER.warn(
               `Unable to find Ocean token address for chain ${feeChain} and no custom token provided`
             )
           }
@@ -673,7 +680,7 @@ export class C2DEngineDocker extends C2DEngine {
         // this.configuredCpuList (or another env's pool), so a mutation of one can't
         // corrupt the others.
         this.envCpuCoresMap.set(env.id, [...allCores])
-        CORE_LOGGER.info(
+        CORE_LOGGER.debug(
           `CPU affinity: environment ${env.id} shares pool of ${allCores.length} cores${
             this.configuredCpuList
               ? ` (restricted by cpuList to [${allCores.join(',')}])`
@@ -841,7 +848,7 @@ export class C2DEngineDocker extends C2DEngine {
     try {
       await this.db.updateImage(image)
     } catch (e) {
-      CORE_LOGGER.error(`Failed to update image usage for ${image}: ${e.message}`)
+      CORE_LOGGER.warn(`Failed to update image usage for ${image}: ${e.message}`)
     }
   }
 
@@ -873,7 +880,7 @@ export class C2DEngineDocker extends C2DEngine {
       C2DStatusNumber.ResultsUploadFailed,
       C2DStatusNumber.JobSettle
     ])
-    CORE_LOGGER.info(`ClaimPayments:  Got ${jobs.length} jobs to check`)
+    CORE_LOGGER.debug(`ClaimPayments: got ${jobs.length} jobs to check`)
     if (jobs.length > 0) {
       const providerAddress = this.getKeyManager().getEthAddress()
       const chains: Set<number> = new Set()
@@ -1025,12 +1032,12 @@ export class C2DEngineDocker extends C2DEngine {
               await this.db.updateJob(claim.job)
             }
             CORE_LOGGER.info(
-              `Successfully claimed ${claims.length} locks in batch transaction ${txId}`
+              `Claimed ${claims.length} locks on chain ${chainId} (tx ${txId})`
             )
           }
         } catch (e) {
-          CORE_LOGGER.error(
-            `Failed to batch claim locks for chain ${chainId}: ${e.message}`
+          CORE_LOGGER.warn(
+            `Failed to batch claim locks for chain ${chainId}: ${e.message}, falling back to one by one`
           )
           // Fallback to individual processing on batch failure
           for (const claim of claims) {
@@ -1096,12 +1103,12 @@ export class C2DEngineDocker extends C2DEngine {
               await this.db.updateJob(job)
             }
             CORE_LOGGER.info(
-              `Successfully cancelled ${jobsToCancelBatch.length} expired locks in batch transaction ${txId}`
+              `Cancelled ${jobsToCancelBatch.length} expired locks on chain ${chainId} (tx ${txId})`
             )
           }
         } catch (e) {
-          CORE_LOGGER.error(
-            `Failed to batch cancel locks for chain ${chainId}: ${e.message}`
+          CORE_LOGGER.warn(
+            `Failed to batch cancel locks for chain ${chainId}: ${e.message}, falling back to one by one`
           )
           // Fallback to individual processing on batch failure
           for (const job of jobsToCancelBatch) {
@@ -1160,7 +1167,12 @@ export class C2DEngineDocker extends C2DEngine {
         nodeAddress
       )
       if (!balocks || balocks.length === 0) {
-        CORE_LOGGER.warn(`Could not find any locks for chain ${chain}, skipping cleanup`)
+        // null: the lock query failed (escrow already logged it); []: nothing to clean up
+        CORE_LOGGER.debug(
+          balocks
+            ? `No locks found on chain ${chain}, skipping orphan-lock cleanup`
+            : `Skipping orphan-lock cleanup on chain ${chain} (lock query failed)`
+        )
         return
       }
       for (const lock of balocks) {
@@ -1180,14 +1192,18 @@ export class C2DEngineDocker extends C2DEngine {
             payer,
             false
           )
-          CORE_LOGGER.warn(` Canceled locks on chain ${chain}, tx:${tx}`)
+          CORE_LOGGER.info(
+            `Cancelled ${jobIds.length} expired orphan locks on chain ${chain} (tx ${tx})`
+          )
         } catch (e) {
           // not critical, since we will try to cancel them at next run
           CORE_LOGGER.warn(`Tried to cancel some locks, errored: ${e.message}`)
         }
       }
     } catch (e) {
-      CORE_LOGGER.error(`Error during cleanup of unknown locks: ${e.message}`)
+      CORE_LOGGER.error(
+        `Error during cleanup of unknown locks on chain ${chain}: ${e.message}`
+      )
     }
   }
 
@@ -1201,7 +1217,7 @@ export class C2DEngineDocker extends C2DEngine {
         return
       }
 
-      CORE_LOGGER.info(`Starting cleanup of ${oldImages.length} old Docker images`)
+      CORE_LOGGER.debug(`Starting cleanup of ${oldImages.length} old Docker images`)
       let cleaned = 0
       let failed = 0
 
@@ -1211,7 +1227,7 @@ export class C2DEngineDocker extends C2DEngine {
           await dockerImage.remove({ force: true })
           await this.db.deleteImage(image)
           cleaned++
-          CORE_LOGGER.info(`Successfully removed old image: ${image}`)
+          CORE_LOGGER.debug(`Successfully removed old image: ${image}`)
         } catch (e) {
           failed++
           // Image might be in use or already deleted - log but don't throw
@@ -1489,7 +1505,7 @@ export class C2DEngineDocker extends C2DEngine {
           CORE_LOGGER.debug(`Image ${image} found locally and platform is valid`)
           return { valid: true }
         } else {
-          CORE_LOGGER.warn(
+          CORE_LOGGER.debug(
             `Image ${image} found locally but platform mismatch: ` +
               `local=${localPlatform.architecture}/${localPlatform.os}, ` +
               `required=${platform.architecture}/${platform.os}`
@@ -1524,8 +1540,11 @@ export class C2DEngineDocker extends C2DEngine {
 
       return { valid: isValidPlatform }
     } catch (err: any) {
-      CORE_LOGGER.error(`Unable to get Manifest for image ${image}: ${err.message}`)
-      if (err.errors?.length) CORE_LOGGER.error(JSON.stringify(err.errors))
+      CORE_LOGGER.debug(
+        `Manifest for ${image} unavailable: ${errorSummary(err)}${
+          err.errors?.length ? ' ' + safeStringify(err.errors, { maxLength: 500 }) : ''
+        }`
+      )
 
       return {
         valid: false,
@@ -1571,10 +1590,9 @@ export class C2DEngineDocker extends C2DEngine {
     // ex: node@sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36
     if (!image) {
       // send a 500 with the error message
+      // the algorithm object carries file URLs, envs and custom data: never echo it
       throw new Error(
-        `Unable to extract docker image ${image} from algoritm: ${JSON.stringify(
-          algorithm
-        )}`
+        `Unable to extract docker image from algorithm (documentId: ${algorithm?.documentId}, serviceId: ${algorithm?.serviceId})`
       )
     }
     let additionalDockerFiles: { [key: string]: any } = null
@@ -1917,7 +1935,7 @@ export class C2DEngineDocker extends C2DEngine {
         follow: true
       })
     } catch (e) {
-      CORE_LOGGER.error(`getStreamableLogs failed for job ${jobId}: ${e?.message ?? e}`)
+      CORE_LOGGER.debug(`getStreamableLogs failed for job ${jobId}: ${e?.message ?? e}`)
       return null
     }
   }
@@ -2026,7 +2044,7 @@ export class C2DEngineDocker extends C2DEngine {
         this.getC2DConfig().hash
       )
       for (const svc of expiredServices) {
-        CORE_LOGGER.info(`Service ${svc.serviceId} expired — stopping`)
+        CORE_LOGGER.debug(`Service ${svc.serviceId} expired — stopping`)
         let stopped: ServiceJob | null
         try {
           // onlyIfExpired: doStopService re-checks expiresAt on the FRESH row under the
@@ -2037,9 +2055,13 @@ export class C2DEngineDocker extends C2DEngine {
           // Typically the lifecycle lock (a restart/stop already in flight). Marking
           // Expired without teardown would leak the container/ports, so defer the whole
           // sweep for this service to the next tick.
-          CORE_LOGGER.error(
-            `Failed to stop expired service ${svc.serviceId}: ${e.message} — retrying next tick`
-          )
+          const msg = `Failed to stop expired service ${svc.serviceId}: ${e.message} — retrying next tick`
+          // lock contention / stopped engine is expected and retried every tick
+          if (/operation in progress|engine is stopped/i.test(String(e?.message))) {
+            CORE_LOGGER.debug(msg)
+          } else {
+            CORE_LOGGER.throttled(`svc-expiry-stop-${svc.serviceId}`, 'warn', msg)
+          }
           continue
         }
         // Extended mid-sweep (expiresAt is in the future again on the fresh row) — not
@@ -2060,7 +2082,9 @@ export class C2DEngineDocker extends C2DEngine {
           (stopped.status !== ServiceStatusNumber.Stopped &&
             stopped.status !== ServiceStatusNumber.Expired)
         ) {
-          CORE_LOGGER.error(
+          CORE_LOGGER.throttled(
+            `svc-expiry-teardown-${svc.serviceId}`,
+            'warn',
             `Expired service ${svc.serviceId} teardown did not complete ` +
               `(status "${stopped?.statusText ?? 'gone'}") — retrying next tick`
           )
@@ -2077,14 +2101,24 @@ export class C2DEngineDocker extends C2DEngine {
           // here. Everywhere else — including an explicit user stop — the paid-for
           // reservation survives so the service can be restarted on the same endpoints.
           for (const ep of stoppedJob.endpoints ?? []) releaseHostPort(ep.hostPort)
-          CORE_LOGGER.debug(
-            `Service ${svc.serviceId} marked Expired — all resources released ` +
-              `(ports [${(stoppedJob.endpoints ?? []).map((ep) => ep.hostPort).join(',')}])`
+          CORE_LOGGER.resetThrottle(`svc-expiry-stop-${svc.serviceId}`)
+          CORE_LOGGER.resetThrottle(`svc-expiry-teardown-${svc.serviceId}`)
+          CORE_LOGGER.info(
+            `Service ${svc.serviceId} expired; ports [${(stoppedJob.endpoints ?? [])
+              .map((ep) => ep.hostPort)
+              .join(',')}] released`
           )
         }
       }
+      CORE_LOGGER.resetThrottle(`c2d-internal-loop-${this.getC2DConfig().hash}`)
     } catch (e) {
-      CORE_LOGGER.error(`Error in C2D InternalLoop: ${e.message}`)
+      // runs every tick: log the first failure, then at most once per interval
+      CORE_LOGGER.throttled(
+        `c2d-internal-loop-${this.getC2DConfig().hash}`,
+        'error',
+        `Error in C2D InternalLoop: ${e.message}`,
+        600_000
+      )
     } finally {
       // Reset the flag before setting the timer
       this.isInternalLoopRunning = false
@@ -2101,15 +2135,21 @@ export class C2DEngineDocker extends C2DEngine {
       const container = await this.docker.createContainer(containerInfo)
       return container
     } catch (e) {
-      CORE_LOGGER.error(`Unable to create docker container: ${e.message}`)
-      if (
+      const retryable =
         e.message
           .toLowerCase()
-          .includes('--storage-opt is supported only for overlay over xfs') &&
-        retry
-      ) {
+          .includes('--storage-opt is supported only for overlay over xfs') && retry
+      if (retryable) {
+        CORE_LOGGER.warn(
+          `Container ${containerInfo.name}: disk limit not supported by storage driver (${e.message}), retrying without HostConfig.StorageOpt`
+        )
+      } else {
+        CORE_LOGGER.error(
+          `Unable to create docker container ${containerInfo.name}: ${e.message}`
+        )
+      }
+      if (retryable) {
         delete containerInfo.HostConfig.StorageOpt
-        CORE_LOGGER.info('Retrying again without HostConfig.StorageOpt options...')
         // Retry without that option because it does not work
         return this.createDockerContainer(containerInfo)
       }
@@ -2122,7 +2162,9 @@ export class C2DEngineDocker extends C2DEngine {
       const data = await container.inspect()
       return data.State
     } catch (e) {
-      CORE_LOGGER.error(`Unable to inspect docker container: ${e.message}`)
+      CORE_LOGGER.warn(
+        `Unable to inspect docker container ${container?.id ?? ''}: ${e.message}`
+      )
       return null
     }
   }
@@ -2135,13 +2177,18 @@ export class C2DEngineDocker extends C2DEngine {
       await this.docker.createVolume(volume)
       return true
     } catch (e) {
-      CORE_LOGGER.error(`Unable to create docker volume: ${e.message}`)
-      if (
+      const retryable =
         e.message.toLowerCase().includes('quota size requested but no quota support') &&
         retry
-      ) {
+      if (retryable) {
+        CORE_LOGGER.warn(
+          `Volume ${volume.Name}: quota not supported by host (${e.message}), retrying without DriverOpts`
+        )
+      } else {
+        CORE_LOGGER.error(`Unable to create docker volume ${volume.Name}: ${e.message}`)
+      }
+      if (retryable) {
         delete volume.DriverOpts
-        CORE_LOGGER.info('Retrying again without DriverOpts options...')
         try {
           return this.createDockerVolume(volume)
         } catch (e) {
@@ -2165,7 +2212,7 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   private async processJob(job: DBComputeJob) {
-    CORE_LOGGER.info(
+    CORE_LOGGER.debug(
       `Process job ${job.jobId} started: [STATUS: ${job.status}: ${job.statusText}]`
     )
 
@@ -2432,7 +2479,7 @@ export class C2DEngineDocker extends C2DEngine {
         // DDO-derived persistent-storage assets and skips them.
         const fo = resolved as unknown as { bucketId?: string; fileName?: string }
         if (!fo.bucketId || !fo.fileName) {
-          CORE_LOGGER.error(
+          CORE_LOGGER.info(
             `Job ${job.jobId} asset ${i}: nodePersistentStorage requires bucketId and fileName`
           )
           await this.failJobDataProvisioning(job)
@@ -2440,7 +2487,7 @@ export class C2DEngineDocker extends C2DEngine {
         }
         const ps = OceanNode.getInstance().getPersistentStorage()
         if (!ps) {
-          CORE_LOGGER.error(
+          CORE_LOGGER.info(
             `Job ${job.jobId} asset ${i}: persistent storage is not configured on this node`
           )
           await this.failJobDataProvisioning(job)
@@ -2459,7 +2506,7 @@ export class C2DEngineDocker extends C2DEngine {
           mountVols[bindMount.Target] = {}
         } catch (e) {
           const errMsg = e instanceof Error ? e.message : String(e)
-          CORE_LOGGER.error(
+          CORE_LOGGER.warn(
             `Job ${job.jobId} asset ${i}: failed to resolve persistent storage bind: ${errMsg}`
           )
           await this.failJobDataProvisioning(job)
@@ -2483,7 +2530,7 @@ export class C2DEngineDocker extends C2DEngine {
           mountVols[outputMount.Target] = {}
         } catch (e) {
           const errMsg = e instanceof Error ? e.message : String(e)
-          CORE_LOGGER.error(
+          CORE_LOGGER.warn(
             `Job ${job.jobId}: failed to mount output bucket ${job.outputBucketId}: ${errMsg}`
           )
           await this.failJobDataProvisioning(job)
@@ -2531,10 +2578,8 @@ export class C2DEngineDocker extends C2DEngine {
         container = this.docker.getContainer(job.jobId + '-algoritm')
         details = await container.inspect()
       } catch (e) {
-        console.error(
-          'Could not retrieve container: ' +
-            e.message +
-            '\nBack to configuring volumes to create the container...'
+        CORE_LOGGER.warn(
+          `Job ${job.jobId}: could not retrieve container: ${e.message}, back to configuring volumes to create the container`
         )
         job.isStarted = false
         job.status = C2DStatusNumber.ConfiguringVolumes
@@ -2565,9 +2610,11 @@ export class C2DEngineDocker extends C2DEngine {
                 this.getStoragePath() + '/' + job.jobId + '/data/logs/algorithm.log'
               writeFileSync(algoLogFile, String(e.message))
             } catch (e) {
-              CORE_LOGGER.error('Failed to write algorithm log file: ' + e.message)
+              CORE_LOGGER.error(
+                `Job ${job.jobId}: failed to write algorithm log file: ${e.message}`
+              )
             }
-            CORE_LOGGER.error('Could not start container: ' + e.message)
+            CORE_LOGGER.warn(`Job ${job.jobId}: could not start container: ${e.message}`)
             job.status = C2DStatusNumber.AlgorithmFailed
             job.statusText = C2DStatusText.AlgorithmFailed
 
@@ -2615,7 +2662,9 @@ export class C2DEngineDocker extends C2DEngine {
               await container.stop()
             } catch (e) {
               // we should never reach this, unless the container is already stopped or deleted by someone else
-              CORE_LOGGER.debug('Could not stop container: ' + e.message)
+              const msg = `Job ${job.jobId}: could not stop container: ${e.message}`
+              if (isBenignDockerError(e)) CORE_LOGGER.debug(msg)
+              else CORE_LOGGER.warn(msg)
             }
           }
           job.isStarted = false
@@ -2655,7 +2704,7 @@ export class C2DEngineDocker extends C2DEngine {
       try {
         container = this.docker.getContainer(job.jobId + '-algoritm')
       } catch (e) {
-        CORE_LOGGER.debug('Could not retrieve container: ' + e.message)
+        CORE_LOGGER.debug(`Job ${job.jobId}: could not retrieve container: ${e.message}`)
         job.isRunning = false
         job.dateFinished = String(Date.now() / 1000)
         this.recordJobFinished(job)
@@ -2664,7 +2713,9 @@ export class C2DEngineDocker extends C2DEngine {
             this.getStoragePath() + '/' + job.jobId + '/data/logs/algorithm.log'
           writeFileSync(algoLogFile, String(e.message))
         } catch (e) {
-          CORE_LOGGER.error('Failed to write algorithm log file: ' + e.message)
+          CORE_LOGGER.error(
+            `Job ${job.jobId}: failed to write algorithm log file: ${e.message}`
+          )
         }
         await this.db.updateJob(job)
         await this.cleanupJob(job)
@@ -2689,7 +2740,7 @@ export class C2DEngineDocker extends C2DEngine {
       try {
         if (container) {
           if (job.outputBucketId) {
-            CORE_LOGGER.info(
+            CORE_LOGGER.debug(
               `Job ${job.jobId}: results stored in bucket ${job.outputBucketId}`
             )
           } else if (job.output) {
@@ -2741,7 +2792,9 @@ export class C2DEngineDocker extends C2DEngine {
           }
         }
       } catch (e) {
-        CORE_LOGGER.error('Failed to get outputs archive: ' + e.message)
+        CORE_LOGGER.warn(
+          `Job ${job.jobId}: failed to get outputs archive: ${errorSummary(e)}`
+        )
         job.status = C2DStatusNumber.ResultsUploadFailed
         job.statusText = C2DStatusText.ResultsUploadFailed
       }
@@ -2809,7 +2862,7 @@ export class C2DEngineDocker extends C2DEngine {
     const existing = this.cpuAllocations.get(jobId)
     if (existing && existing.length > 0) {
       const cpusetStr = existing.join(',')
-      CORE_LOGGER.info(
+      CORE_LOGGER.debug(
         `CPU affinity: reusing existing cores [${cpusetStr}] for job ${jobId}`
       )
       return cpusetStr
@@ -2839,14 +2892,14 @@ export class C2DEngineDocker extends C2DEngine {
 
     this.cpuAllocations.set(jobId, freeCores)
     const cpusetStr = freeCores.join(',')
-    CORE_LOGGER.info(`CPU affinity: allocated cores [${cpusetStr}] to job ${jobId}`)
+    CORE_LOGGER.debug(`CPU affinity: allocated cores [${cpusetStr}] to job ${jobId}`)
     return cpusetStr
   }
 
   private releaseCpus(jobId: string): void {
     const cores = this.cpuAllocations.get(jobId)
     if (cores) {
-      CORE_LOGGER.info(
+      CORE_LOGGER.debug(
         `CPU affinity: released cores [${cores.join(',')}] from job ${jobId}`
       )
       this.cpuAllocations.delete(jobId)
@@ -2869,7 +2922,7 @@ export class C2DEngineDocker extends C2DEngine {
             const cores = this.parseCpusetString(cpuset)
             if (cores.length > 0) {
               this.cpuAllocations.set(job.jobId, cores)
-              CORE_LOGGER.info(
+              CORE_LOGGER.debug(
                 `CPU affinity: recovered allocation [${cpuset}] for running job ${job.jobId}`
               )
             }
@@ -2904,7 +2957,7 @@ export class C2DEngineDocker extends C2DEngine {
             const cores = this.parseCpusetString(cpuset)
             if (cores.length > 0) {
               this.cpuAllocations.set(job.serviceId, cores)
-              CORE_LOGGER.info(
+              CORE_LOGGER.debug(
                 `CPU affinity: recovered allocation [${cpuset}] for running service ${job.serviceId}`
               )
             }
@@ -2946,7 +2999,11 @@ export class C2DEngineDocker extends C2DEngine {
         await container.remove()
       }
     } catch (e) {
-      // console.error('Container not found! ' + e.message)
+      if (!isBenignDockerError(e)) {
+        CORE_LOGGER.warn(
+          `Job ${job.jobId}: failed to remove container ${job.jobId}-algoritm: ${e.message}`
+        )
+      }
     }
     try {
       const volume = this.docker.getVolume(job.jobId + '-volume')
@@ -2954,11 +3011,14 @@ export class C2DEngineDocker extends C2DEngine {
         try {
           await volume.remove()
         } catch (e) {
-          CORE_LOGGER.error('Failed to remove volume: ' + e.message)
+          // 404: already removed by an earlier cleanup pass
+          const msg = `Job ${job.jobId}: failed to remove volume ${job.jobId}-volume: ${e.message}`
+          if (e?.statusCode === 404) CORE_LOGGER.debug(msg)
+          else CORE_LOGGER.warn(msg)
         }
       }
     } catch (e) {
-      CORE_LOGGER.error('Container volume not found! ' + e.message)
+      CORE_LOGGER.debug(`Job ${job.jobId}: container volume not found: ${e.message}`)
     }
     try {
       // remove folders
@@ -2967,10 +3027,8 @@ export class C2DEngineDocker extends C2DEngine {
         force: true
       })
     } catch (e) {
-      console.error(
-        `Could not delete inputs from path ${this.getStoragePath()} for job ID ${
-          job.jobId
-        }! ` + e.message
+      CORE_LOGGER.warn(
+        `Job ${job.jobId}: could not delete inputs from ${this.getStoragePath()}: ${e.message}`
       )
     }
     try {
@@ -2979,9 +3037,8 @@ export class C2DEngineDocker extends C2DEngine {
         force: true
       })
     } catch (e) {
-      console.error(
-        `Could not delete algorithms from path ${this.getStoragePath()} for job ID ${job.jobId}! ` +
-          e.message
+      CORE_LOGGER.warn(
+        `Job ${job.jobId}: could not delete algorithms from ${this.getStoragePath()}: ${e.message}`
       )
     }
   }
@@ -3018,7 +3075,7 @@ export class C2DEngineDocker extends C2DEngine {
       const actualBaseSize = (await this.getContainerDiskUsage(container.id, '/')) ?? 0
       this.jobImageSizes.set(job.jobId, actualBaseSize)
 
-      CORE_LOGGER.info(
+      CORE_LOGGER.debug(
         `Base container ${job.containerImage} runtime size: ${(
           actualBaseSize /
           1024 /
@@ -3027,7 +3084,9 @@ export class C2DEngineDocker extends C2DEngine {
         ).toFixed(2)}GB`
       )
     } catch (error) {
-      CORE_LOGGER.error(`Failed to measure base container size: ${error.message}`)
+      CORE_LOGGER.warn(
+        `Job ${job.jobId}: failed to measure base container size: ${error.message}`
+      )
       this.jobImageSizes.set(job.jobId, 0)
     }
   }
@@ -3067,7 +3126,7 @@ export class C2DEngineDocker extends C2DEngine {
       const match = output.match(/(\d+)\s/)
       return match ? parseInt(match[1], 10) : null
     } catch (error) {
-      CORE_LOGGER.error(
+      CORE_LOGGER.debug(
         `Failed to get container disk usage for ${containerName}: ${error.message}`
       )
       return null
@@ -3104,21 +3163,23 @@ export class C2DEngineDocker extends C2DEngine {
       100
     ).toFixed(1)
 
-    CORE_LOGGER.info(
+    CORE_LOGGER.debug(
       `Job ${job.jobId.slice(-8)} disk: ${usageGB}GB / ${quotaGB}GB (${usagePercent}%)`
     )
 
     if (algorithmUsage / 1024 / 1024 / 1024 > diskQuota) {
-      CORE_LOGGER.warn(
-        `DISK QUOTA EXCEEDED - Stopping job ${job.jobId}: ${usageGB}GB used, ${quotaGB}GB allowed`
+      CORE_LOGGER.info(
+        `Job ${job.jobId} stopped: disk quota exceeded (${usageGB}GB / ${quotaGB}GB)`
       )
 
       try {
         const container = this.docker.getContainer(containerName)
         await container.stop()
-        CORE_LOGGER.info(`Container stopped for job ${job.jobId}`)
+        CORE_LOGGER.debug(`Container stopped for job ${job.jobId}`)
       } catch (e) {
-        CORE_LOGGER.warn(`Could not stop container: ${e.message}`)
+        CORE_LOGGER.error(
+          `Job ${job.jobId}: could not stop container after disk quota exceeded: ${e.message}`
+        )
       }
 
       job.status = C2DStatusNumber.DiskQuotaExceeded
@@ -3134,7 +3195,6 @@ export class C2DEngineDocker extends C2DEngine {
       this.recordJobFinished(job)
       await this.db.updateJob(job)
       await this.cleanupJob(job)
-      CORE_LOGGER.info(`Job ${job.jobId} terminated - DISK QUOTA EXCEEDED`)
 
       return { canContinue: false, usedBytes: algorithmUsage }
     }
@@ -3164,6 +3224,13 @@ export class C2DEngineDocker extends C2DEngine {
   // turn a successful finalization into a failed one.
   private recordJobFinished(job: DBComputeJob): void {
     try {
+      // disk quota and image build failures already log their cause at info
+      if (
+        job.status !== C2DStatusNumber.DiskQuotaExceeded &&
+        job.status !== C2DStatusNumber.BuildImageFailed
+      ) {
+        CORE_LOGGER.info(`Job ${job.jobId} finished: ${job.statusText}`)
+      }
       cJobsFinished.add(1, {
         engine: this.getC2DConfig().hash,
         status: C2DStatusNumber[job.status] ?? String(job.status)
@@ -3440,12 +3507,16 @@ export class C2DEngineDocker extends C2DEngine {
           Number.isFinite(runtimeSeconds) &&
           runtimeSeconds > getMetricsIntervalSeconds() * 2
         ) {
-          CORE_LOGGER.warn(
+          // repeats every metrics interval while the condition holds: warn once per job
+          CORE_LOGGER.throttled(
+            `metrics-no-snapshot-${job.jobId}`,
+            'warn',
             `[metrics] job ${job.jobId}: no previous snapshot after ${runtimeSeconds.toFixed(
               0
             )}s of runtime — the snapshot is not being persisted, so cpu usagePercent stays 0 ` +
               'and the owner status response carries no runtimeMetrics. Check that this node runs ' +
-              'a build where runtimeMetrics is part of the c2djobs body blob.'
+              'a build where runtimeMetrics is part of the c2djobs body blob.',
+            24 * 3_600_000
           )
         } else {
           CORE_LOGGER.debug(
@@ -3514,7 +3585,6 @@ export class C2DEngineDocker extends C2DEngine {
       pullOptions.abortSignal = controller.signal
       const pullStream = await this.docker.pull(job.containerImage, pullOptions)
       await new Promise((resolve, reject) => {
-        let wroteStatusBanner = false
         this.docker.modem.followProgress(
           pullStream,
           (err: any, res: any) => {
@@ -3534,11 +3604,6 @@ export class C2DEngineDocker extends C2DEngine {
           },
           (progress: any) => {
             // onProgress
-            if (!wroteStatusBanner) {
-              wroteStatusBanner = true
-              CORE_LOGGER.debug('############# Pull docker image status: ##############')
-            }
-            // only write the status banner once, its cleaner
             let logText = ''
             if (progress.id) logText += progress.id + ' : ' + progress.status
             else logText = progress.status
@@ -3552,7 +3617,7 @@ export class C2DEngineDocker extends C2DEngine {
       this.db.updateJob(job)
     } catch (err) {
       const logText = `Unable to pull docker image: ${job.containerImage}: ${err.message}`
-      CORE_LOGGER.error(logText)
+      CORE_LOGGER.warn(`Job ${job.jobId}: ${logText}`)
       appendFileSync(imageLogFile, logText)
       job.status = C2DStatusNumber.PullImageFailed
       job.statusText = C2DStatusText.PullImageFailed
@@ -3698,12 +3763,12 @@ export class C2DEngineDocker extends C2DEngine {
       if (aborted) {
         // timeout-specific handling
         const msg = `Image build timed out after ${timeoutMs / 1000}s`
-        CORE_LOGGER.error(`Unable to build docker image: ${job.containerImage}: ${msg}`)
+        CORE_LOGGER.info(
+          `Job ${job.jobId}: image build timed out after ${timeoutMs / 1000}s`
+        )
         appendFileSync(imageLogFile, msg)
       } else {
-        CORE_LOGGER.error(
-          `Unable to build docker image: ${job.containerImage}: ${err.message}`
-        )
+        CORE_LOGGER.info(`Job ${job.jobId}: image build failed: ${err.message}`)
         appendFileSync(imageLogFile, String(err.message))
       }
       job.status = C2DStatusNumber.BuildImageFailed
@@ -4017,7 +4082,7 @@ export class C2DEngineDocker extends C2DEngine {
     // restartable on the same endpoints until expiresAt (the expiry sweep releases them,
     // and seedAllocatedPorts re-seeds them at boot). An unpaid one frees them.
     if (job.status !== ServiceStatusNumber.Starting) {
-      CORE_LOGGER.error(
+      CORE_LOGGER.warn(
         `processServiceStart: orphaned service ${serviceId} in state "${job.statusText}" — cleaning up`
       )
       await this.logServiceDockerState(
@@ -4121,7 +4186,7 @@ export class C2DEngineDocker extends C2DEngine {
           : ServiceStatusNumber.PullImageFailed
         job.statusText = String(imageError.message)
         await this.db.updateServiceJob(job)
-        CORE_LOGGER.error(
+        CORE_LOGGER.warn(
           `startService ${serviceId} image step failed (lock refunded): ${imageError.message}`
         )
         return
@@ -4232,9 +4297,11 @@ export class C2DEngineDocker extends C2DEngine {
       job.statusText = ServiceStatusText[ServiceStatusNumber.Running]
       await this.db.updateServiceJob(job)
       CORE_LOGGER.info(
-        `start ${serviceId}: completed — container ${container.id} Running on ` +
-          `ports [${job.endpoints.map((ep) => ep.hostPort).join(',')}]`
+        `Service ${serviceId} running on ports [${job.endpoints
+          .map((ep) => ep.hostPort)
+          .join(',')}]`
       )
+      CORE_LOGGER.debug(`start ${serviceId}: container ${container.id} running`)
     } catch (err: any) {
       await this.logServiceDockerState(
         `start ${serviceId}: FAILED (${err.message}) — docker state at failure`,
@@ -4260,7 +4327,7 @@ export class C2DEngineDocker extends C2DEngine {
       job.status = ServiceStatusNumber.Error
       job.statusText = String(err.message)
       await this.db.updateServiceJob(job)
-      CORE_LOGGER.error(`startService ${serviceId} failed: ${err.message}`)
+      CORE_LOGGER.warn(`startService ${serviceId} failed: ${err.message}`)
     }
   }
 
@@ -4387,7 +4454,7 @@ export class C2DEngineDocker extends C2DEngine {
       return network
     } catch (e: any) {
       if (e?.statusCode !== 409) throw e
-      CORE_LOGGER.error(
+      CORE_LOGGER.warn(
         `createNetwork conflict for ${Name} — removing stale network and retrying`
       )
       await this.logServiceDockerState(
@@ -4618,7 +4685,10 @@ export class C2DEngineDocker extends C2DEngine {
         fresh.runtimeMetrics = this.stampServiceExitInfo(fresh.runtimeMetrics, exitState)
       }
       await this.db.updateServiceJob(fresh)
-      CORE_LOGGER.error(`Service ${job.serviceId} container died — ${reason}`)
+      const msg = `Service ${job.serviceId} container died — ${reason}`
+      // 'container lost' is node-side (daemon unreachable / container removed externally)
+      if (reason.startsWith('container lost')) CORE_LOGGER.error(msg)
+      else CORE_LOGGER.warn(msg)
     } finally {
       await this.releaseServiceLifecycleLock(job.serviceId)
     }
@@ -4855,7 +4925,7 @@ export class C2DEngineDocker extends C2DEngine {
       // failed teardown the old container may still be running on those cores, and
       // handing them to another job would double-pin them.
       this.releaseCpus(serviceId)
-      CORE_LOGGER.debug(`stopService ${serviceId}: stopped, container + network removed`)
+      CORE_LOGGER.info(`Service ${serviceId} stopped`)
     }
     await this.db.updateServiceJob(job)
     return job
@@ -5150,9 +5220,11 @@ export class C2DEngineDocker extends C2DEngine {
       job.statusText = ServiceStatusText[ServiceStatusNumber.Running]
       await this.db.updateServiceJob(job)
       CORE_LOGGER.info(
-        `restart ${serviceId}: completed — container ${container.id} Running on ` +
-          `ports [${job.endpoints.map((ep) => ep.hostPort).join(',')}]`
+        `Service ${serviceId} restarted on ports [${job.endpoints
+          .map((ep) => ep.hostPort)
+          .join(',')}]`
       )
+      CORE_LOGGER.debug(`restart ${serviceId}: container ${container.id} running`)
       return job
     } catch (err: any) {
       // Dump the daemon state BEFORE cleanup, so the log shows what the failure saw
@@ -5167,7 +5239,7 @@ export class C2DEngineDocker extends C2DEngine {
       job.status = ServiceStatusNumber.Error
       job.statusText = String(err.message)
       await this.db.updateServiceJob(job)
-      CORE_LOGGER.error(`restartService ${serviceId} failed: ${err.message}`)
+      CORE_LOGGER.warn(`restartService ${serviceId} failed: ${err.message}`)
       throw err
     }
   }
@@ -5203,7 +5275,7 @@ export class C2DEngineDocker extends C2DEngine {
         ...(since !== undefined ? { since } : {})
       })) as unknown as NodeJS.ReadableStream
     } catch (e: any) {
-      CORE_LOGGER.error(
+      CORE_LOGGER.debug(
         `getServiceStreamableLogs failed for ${serviceId}: ${e?.message ?? e}`
       )
       return null
@@ -5221,7 +5293,6 @@ export class C2DEngineDocker extends C2DEngine {
         url.searchParams.append(key, String(value))
       }
       filesObject.url = url.toString()
-      CORE_LOGGER.info('Appended userData to file url: ' + filesObject.url)
     }
     return filesObject
   }
@@ -5260,9 +5331,10 @@ export class C2DEngineDocker extends C2DEngine {
         // ACL for persistent storage).
         const resolved = await resolveComputeFileObject(job.algorithm)
         if (!resolved) {
-          CORE_LOGGER.info(
-            'Could not extract any files object from the compute algorithm, skipping...'
-          )
+          const hasSource = !!(job.algorithm.fileObject || job.algorithm.documentId)
+          const msg = `Job ${job.jobId}: could not extract any files object from the compute algorithm, skipping`
+          if (hasSource) CORE_LOGGER.warn(msg)
+          else CORE_LOGGER.debug(msg)
           appendFileSync(
             configLogPath,
             'Could not extract any files object from the compute algorithm, skipping...\n'
@@ -5271,7 +5343,9 @@ export class C2DEngineDocker extends C2DEngine {
           try {
             storage = Storage.getStorageClass(resolved, config, job.owner)
           } catch (e) {
-            CORE_LOGGER.error(`Unable to get storage class for algorithm: ${e.message}`)
+            CORE_LOGGER.info(
+              `Job ${job.jobId}: unable to get storage class for algorithm: ${errorSummary(e)}`
+            )
             appendFileSync(
               configLogPath,
               `Unable to get storage class for algorithm: ${e.message}\n`
@@ -5288,8 +5362,8 @@ export class C2DEngineDocker extends C2DEngine {
         }
       }
     } catch (e) {
-      CORE_LOGGER.error(
-        'Unable to write algorithm to path: ' + fullAlgoPath + ': ' + e.message
+      CORE_LOGGER.warn(
+        `Job ${job.jobId}: unable to write algorithm to ${fullAlgoPath}: ${errorSummary(e)}`
       )
       appendFileSync(
         configLogPath,
@@ -5317,7 +5391,9 @@ export class C2DEngineDocker extends C2DEngine {
             }
             storage = Storage.getStorageClass(asset.fileObject, config)
           } else {
-            CORE_LOGGER.info('asset file object seems to be encrypted, checking it...')
+            CORE_LOGGER.debug(
+              `Job ${job.jobId} asset ${i}: file object seems to be encrypted, checking it`
+            )
             // get the encrypted bytes
             let filesObject: any = await decryptFilesObject(asset.fileObject)
             // persistent storage assets are bind-mounted during ConfiguringVolumes;
@@ -5334,7 +5410,9 @@ export class C2DEngineDocker extends C2DEngine {
             type: storage.getStorageType(asset.fileObject)
           })
         } catch (e) {
-          CORE_LOGGER.error(`Unable to get storage class for asset: ${e.message}`)
+          CORE_LOGGER.warn(
+            `Job ${job.jobId} asset ${i}: unable to get storage class: ${errorSummary(e)}`
+          )
           appendFileSync(
             configLogPath,
             `Unable to get storage class for asset: ${e.message}\n`
@@ -5374,7 +5452,9 @@ export class C2DEngineDocker extends C2DEngine {
               type: storage.getStorageType(decryptedFileObject)
             })
           } catch (e) {
-            CORE_LOGGER.error(`Unable to get storage class for asset: ${e.message}`)
+            CORE_LOGGER.warn(
+              `Job ${job.jobId} asset ${i}: unable to get storage class (DDO lookup): ${errorSummary(e)}`
+            )
             appendFileSync(
               configLogPath,
               `Unable to get storage class for asset: ${e.message}\n`
@@ -5396,8 +5476,8 @@ export class C2DEngineDocker extends C2DEngine {
             createWriteStream(fullPath)
           )
         } catch (e) {
-          CORE_LOGGER.error(
-            'Unable to write input data to path: ' + fullPath + ': ' + e.message
+          CORE_LOGGER.warn(
+            `Job ${job.jobId}: unable to write input data to ${fullPath}: ${errorSummary(e)}`
           )
           appendFileSync(
             configLogPath,
@@ -5409,16 +5489,18 @@ export class C2DEngineDocker extends C2DEngine {
           }
         }
       } else {
-        CORE_LOGGER.info(
-          'Could not extract any files object from the compute asset, skipping...'
-        )
+        const msg = `Job ${job.jobId} asset ${i}: could not extract any files object from the compute asset, skipping`
+        if (asset.fileObject || asset.documentId) CORE_LOGGER.warn(msg)
+        else CORE_LOGGER.debug(msg)
         appendFileSync(
           configLogPath,
           'Could not extract any files object from the compute asset, skipping...\n'
         )
       }
     }
-    CORE_LOGGER.info('All good with data provisioning, will start uploading it...')
+    CORE_LOGGER.debug(
+      `Job ${job.jobId}: data provisioning done, starting upload to container`
+    )
     appendFileSync(
       configLogPath,
       'All good with data provisioning, will start uploading it...\n'
@@ -5448,6 +5530,9 @@ export class C2DEngineDocker extends C2DEngine {
             path: '/data'
           })
         } catch (e) {
+          CORE_LOGGER.warn(
+            `Job ${job.jobId}: data upload to container failed: ${e.message}`
+          )
           appendFileSync(
             configLogPath,
             'Data upload to container failed: ' + e.message + '\n'
@@ -5462,7 +5547,7 @@ export class C2DEngineDocker extends C2DEngine {
         appendFileSync(configLogPath, `No data to upload, empty tar.gz\n`)
       }
     } catch (e) {
-      CORE_LOGGER.debug(e.message)
+      CORE_LOGGER.error(`Job ${job.jobId}: failed to create data archive: ${e.message}`)
       appendFileSync(configLogPath, `Error creating data archive: ${e.message}\n`)
       return {
         status: C2DStatusNumber.DataProvisioningFailed,
@@ -5507,7 +5592,9 @@ export class C2DEngineDocker extends C2DEngine {
       }
       return true
     } catch (e) {
-      CORE_LOGGER.error('Failed to create folders needed for the job: ' + e.message)
+      CORE_LOGGER.error(
+        `Job ${job.jobId}: failed to create folders needed for the job: ${e.message}`
+      )
       return false
     }
   }
@@ -5518,7 +5605,7 @@ export class C2DEngineDocker extends C2DEngine {
     isCleanAfterDownload: boolean = false
   ): Promise<boolean> {
     if (!job) return false
-    CORE_LOGGER.info('Cleaning up C2D storage for Job: ' + job.jobId)
+    CORE_LOGGER.debug(`Job ${job.jobId}: cleaning up C2D storage`)
     try {
       // delete the storage
       // for free env, the container is deleted as soon as we download the results
@@ -5533,7 +5620,7 @@ export class C2DEngineDocker extends C2DEngine {
       await this.db.deleteJob(job.jobId)
       return true
     } catch (e) {
-      CORE_LOGGER.error('Error cleaning up C2D storage and Job: ' + e.message)
+      CORE_LOGGER.error(`Job ${job.jobId}: error cleaning up C2D storage: ${e.message}`)
     }
     return false
   }
@@ -5565,17 +5652,17 @@ export class C2DEngineDocker extends C2DEngine {
           )
         })
 
-        CORE_LOGGER.info('Pull complete.')
+        CORE_LOGGER.info(`Trivy image ${trivyImage} pulled`)
         return true
       } else {
-        CORE_LOGGER.error(`Unable to pull ${trivyImage}: ${error.message}`)
+        CORE_LOGGER.error(`Unable to inspect Trivy image ${trivyImage}: ${error.message}`)
         return true
       }
     }
   }
 
   private async scanDBUpdate(): Promise<void> {
-    CORE_LOGGER.info('Starting Trivy database refresh cron')
+    CORE_LOGGER.debug('Starting Trivy database refresh cron')
     const hasImage = await this.checkscanDBImage()
     if (!hasImage) {
       // we cannot update without image
@@ -5592,7 +5679,7 @@ export class C2DEngineDocker extends C2DEngine {
     await updater.start()
     await updater.wait()
     await updater.remove()
-    CORE_LOGGER.info('Trivy database refreshed.')
+    CORE_LOGGER.debug('Trivy database refreshed')
   }
 
   private async scanImage(imageName: string) {
@@ -5672,23 +5759,19 @@ export class C2DEngineDocker extends C2DEngine {
         const jsonText = rawData.slice(firstBrace, lastBrace + 1).trim()
         if (!jsonText.includes('"SchemaVersion"')) {
           CORE_LOGGER.error(
-            'Trivy output did not contain SchemaVersion in extracted JSON. Truncated output: ' +
-              rawData.slice(0, 500)
+            `Trivy scan of ${imageName} returned unparseable output (no SchemaVersion)`
           )
+          CORE_LOGGER.debug(`Trivy raw output (truncated): ${rawData.slice(0, 500)}`)
           return null
         }
         return JSON.parse(jsonText)
       }
 
-      CORE_LOGGER.error(
-        `Failed to locate JSON in Trivy output. Truncated output: ${rawData.slice(
-          0,
-          1000
-        )}`
-      )
+      CORE_LOGGER.error(`Trivy scan of ${imageName} returned unparseable output`)
+      CORE_LOGGER.debug(`Trivy raw output (truncated): ${rawData.slice(0, 1000)}`)
       return null
     } catch (e) {
-      CORE_LOGGER.error('Failed to parse Trivy output: ' + e.message)
+      CORE_LOGGER.error(`Failed to parse Trivy output for ${imageName}: ${e.message}`)
       return null
     }
   }
@@ -5799,9 +5882,7 @@ export async function resolveComputeFileObject(
     }
     return null
   } catch (e) {
-    CORE_LOGGER.error(
-      `Unable to resolve compute file object: ${e instanceof Error ? e.message : String(e)}`
-    )
+    CORE_LOGGER.debug(`Unable to resolve compute file object: ${errorSummary(e)}`)
     return null
   }
 }

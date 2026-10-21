@@ -57,7 +57,35 @@ update_docker_compose() {
         sed -i '/restart: on-failure/a\    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock' docker-compose.yml
     fi
     
-    echo "Added C2D configuration and Docker socket mount to docker-compose.yml"    
+    echo "Added C2D configuration and Docker socket mount to docker-compose.yml"
+}
+
+# Persist the node's log files on the host (./logs), so they survive container recreation.
+# Runs on every update, independently of the C2D step.
+add_logs_mount() {
+    if grep -q "./logs:/usr/src/app/logs" docker-compose.yml; then
+        echo "Logs mount already present in docker-compose.yml"
+        return
+    fi
+    local tmp
+    tmp=$(mktemp) || return 1
+    # POSIX awk (works with GNU and BSD): add the mount to the ocean-node service's volumes,
+    # creating the volumes key if the service has none
+    awk '
+        function add_block() { print "    volumes:"; print "      - ./logs:/usr/src/app/logs"; done = 1 }
+        /^  ocean-node:/ { in_node = 1; print; next }
+        in_node && (/^[^ ]/ || /^  [^ ]/) { if (!done) add_block(); in_node = 0 }
+        in_node && /^    volumes:/ && !done { print; print "      - ./logs:/usr/src/app/logs"; done = 1; next }
+        { print }
+        END { if (in_node && !done) add_block() }
+    ' docker-compose.yml > "$tmp" && cat "$tmp" > docker-compose.yml
+    rm -f "$tmp"
+    if grep -q "./logs:/usr/src/app/logs" docker-compose.yml; then
+        mkdir -p logs
+        echo "Added logs mount (./logs:/usr/src/app/logs) to docker-compose.yml"
+    else
+        echo "Could not add the logs mount automatically; add '- ./logs:/usr/src/app/logs' under the ocean-node volumes"
+    fi
 }
 
 show_completion_message() {
@@ -69,6 +97,7 @@ show_completion_message() {
 main() {
     check_prerequisites
     configure_c2d
+    add_logs_mount
 }
 
 main
