@@ -4,6 +4,7 @@ import { Database } from '../../components/database/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { ENVIRONMENT_VARIABLES } from '../constants.js'
 import { OCEAN_NODE_LOGGER } from '../logging/common.js'
+import { LOG_LEVELS_STR } from '../logging/Logger.js'
 import { scheduleCron } from './scheduleCron.js'
 import { p2pAnnounceDDOS } from './p2pAnnounceDDOS.js'
 import { p2pAnnounceC2D } from './p2pAnnounceC2D.js'
@@ -13,6 +14,7 @@ import { sleep } from '../util.js'
 // re-announce the C2D capability to the network every 4 hours
 // (we can put smaller interval for testing purposes)
 const REPUBLISH_INTERVAL_HOURS = 1000 * 60 * 60 * 4 // 4 hours
+const CLEAN_EXPIRED_JOBS_THROTTLE_KEY = 'cron:cleanExpiredC2DJobs'
 
 export async function scheduleCronJobs(node: OceanNode) {
   await sleep(2000) // wait for 2 seconds to ensure the node is fully initialized
@@ -75,16 +77,13 @@ function scheduleDeleteLogsJob(dbconn: Database | null) {
     scheduleCron(expression, async () => {
       try {
         const deletedLogsNum = await dbconn.logs.deleteOldLogs()
-        OCEAN_NODE_LOGGER.logMessage(
-          `${deletedLogsNum} old logs deleted successfully.`,
-          true
-        )
+        OCEAN_NODE_LOGGER.debug(`${deletedLogsNum} old DB log entries deleted`)
       } catch (err) {
         OCEAN_NODE_LOGGER.error(`Error deleting old logs: ${err.message}`)
       }
     })
   } else {
-    OCEAN_NODE_LOGGER.warn(
+    OCEAN_NODE_LOGGER.debug(
       'Logs CronJob: Database connection not established or logs instance not available (skipped).'
     )
   }
@@ -99,9 +98,14 @@ function scheduleCleanExpiredC2DJobs(dbconn: Database | null) {
     scheduleCron(expression, async () => {
       try {
         const deleted = await dbconn.c2d.cleanStorageExpiredJobs()
-        OCEAN_NODE_LOGGER.info(`${deleted} expired C2D jobs cleaned successfully.`)
+        OCEAN_NODE_LOGGER.resetThrottle(CLEAN_EXPIRED_JOBS_THROTTLE_KEY)
+        OCEAN_NODE_LOGGER.debug(`${deleted} expired C2D jobs cleaned`)
       } catch (err) {
-        OCEAN_NODE_LOGGER.error(`Error deleting expired jobs: ${err.message}`)
+        OCEAN_NODE_LOGGER.throttled(
+          CLEAN_EXPIRED_JOBS_THROTTLE_KEY,
+          LOG_LEVELS_STR.LEVEL_ERROR,
+          `Error deleting expired jobs: ${err.message}`
+        )
       }
     })
   } else {

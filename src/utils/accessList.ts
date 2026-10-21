@@ -1,6 +1,8 @@
 import AccessListJson from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' with { type: 'json' }
 import { ethers, Signer } from 'ethers'
 import { CORE_LOGGER } from './logging/common.js'
+import { LOG_LEVELS_STR } from './logging/Logger.js'
+import { errorSummary } from './logging/redact.js'
 import { AccessList } from '../@types/AccessList.js'
 import { OceanNode } from '../OceanNode.js'
 
@@ -27,17 +29,20 @@ export async function checkAddressOnAccessListWithSigner(
   try {
     // if has at least 1 token than is is authorized
     const balance = await accessListContract.balanceOf(addressToCheck)
+    CORE_LOGGER.resetThrottle(`accessList:${accessListContractAddress}`)
     if (Number(balance) > 0) {
       return true
     } else {
-      CORE_LOGGER.error(
-        `Account ${addressToCheck} is NOT part of the given access list group.`
+      CORE_LOGGER.debug(
+        `Account ${addressToCheck} is not on access list ${accessListContractAddress}`
       )
       return false
     }
   } catch (error) {
-    CORE_LOGGER.error(
-      `Failed to check access list ${accessListContractAddress}: ${error.message}`
+    CORE_LOGGER.throttled(
+      `accessList:${accessListContractAddress}`,
+      LOG_LEVELS_STR.LEVEL_WARN,
+      `Failed to check access list ${accessListContractAddress}: ${errorSummary(error)}`
     )
     return false
   }
@@ -60,9 +65,8 @@ export async function checkAddressOnAccessList(
       try {
         const blockchain = oceanNode.getBlockchain(chainId)
         if (!blockchain) {
-          CORE_LOGGER.logMessage(
-            `Blockchain instance not available for chain ${chainId}, skipping access list check`,
-            true
+          CORE_LOGGER.warn(
+            `Blockchain instance not available for chain ${chainId}, skipping access list check`
           )
           continue
         }
@@ -78,9 +82,8 @@ export async function checkAddressOnAccessList(
           }
         }
       } catch (error) {
-        CORE_LOGGER.logMessage(
-          `Failed to check access lists on chain ${chain}: ${error.message}`,
-          true
+        CORE_LOGGER.warn(
+          `Failed to check access lists on chain ${chain}: ${errorSummary(error)}`
         )
       }
     }

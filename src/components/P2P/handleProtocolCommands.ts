@@ -5,7 +5,8 @@ import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
 import { P2P_LOGGER } from '../../utils/logging/common.js'
 import { Command } from '../../@types/commands.js'
 import { P2PCommandResponse } from '../../@types/OceanNode'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { errorSummary } from '../../utils/logging/redact.js'
 import { BaseHandler } from '../core/handler/handler.js'
 import { SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { p2pCommand } from '../../telemetry/metrics.js'
@@ -41,6 +42,8 @@ export class ReadableString extends Readable {
   }
 }
 
+const RATE_LIMIT_LOG_INTERVAL_MS = 60_000
+
 // `this` is the OceanP2P instance: libp2p receives this as
 // `handleProtocolCommands.bind(this)` (see index.ts, createNode)
 export async function handleProtocolCommands(
@@ -53,8 +56,7 @@ export async function handleProtocolCommands(
   // Pause the stream. We do async operations here before writing.
   stream.pause()
 
-  P2P_LOGGER.logMessage('Incoming connection from peer ' + remotePeer, true)
-  P2P_LOGGER.logMessage('Using ' + remoteAddr, true)
+  P2P_LOGGER.debug(`Incoming stream from ${remotePeer} via ${remoteAddr}`)
 
   stream.resume()
   const lp = lpFramedStream(stream)
@@ -73,7 +75,9 @@ export async function handleProtocolCommands(
   ) => {
     try {
       if (stream.status === 'closed' || stream.status === 'closing') {
-        P2P_LOGGER.warn('Stream already closed, cannot send error response')
+        P2P_LOGGER.debug(
+          `Stream from ${remotePeer} already closed, cannot send error response`
+        )
         return
       }
       const status = errorDebug
@@ -85,7 +89,7 @@ export async function handleProtocolCommands(
       await stream.close()
     } catch (e) {
       const msg = e instanceof Error ? e.message : e != null ? String(e) : 'Unknown error'
-      P2P_LOGGER.error(`Error sending error response: ${msg}`)
+      P2P_LOGGER.debug(`Error sending error response to ${remotePeer}: ${msg}`)
       try {
         stream.abort(e as Error)
       } catch {}
@@ -100,9 +104,8 @@ export async function handleProtocolCommands(
     const str = uint8ArrayToString(cmdBytes)
     task = JSON.parse(str) as Command
   } catch (err) {
-    P2P_LOGGER.log(
-      LOG_LEVELS_STR.LEVEL_ERROR,
-      `Unable to process P2P command: ${err?.message ?? err}`
+    P2P_LOGGER.debug(
+      `Unable to read P2P command from ${remotePeer}: ${errorSummary(err)}`
     )
     await sendErrorAndClose(400, 'Invalid command')
     return
@@ -113,7 +116,7 @@ export async function handleProtocolCommands(
   const { denyList } = configuration
 
   if (denyList.peers.includes(remotePeer.toString())) {
-    P2P_LOGGER.warn(`Incoming request denied to peer: ${remotePeer} (peer on deny list)`)
+    P2P_LOGGER.debug(`Incoming request denied to peer: ${remotePeer} (peer on deny list)`)
     await sendErrorAndClose(403, 'Unauthorized request')
     return
   }
@@ -121,8 +124,11 @@ export async function handleProtocolCommands(
   const now = Date.now()
   const rateLimitCheck = checkRequestsRateLimit(remoteAddr.toString(), configuration, now)
   if (!rateLimitCheck.valid) {
-    P2P_LOGGER.warn(
-      `Incoming request denied to peer: ${remotePeer} (rate limit exceeded)`
+    P2P_LOGGER.throttled(
+      'p2p-rate-limit',
+      LOG_LEVELS_STR.LEVEL_WARN,
+      `Incoming request denied to peer: ${remotePeer} (rate limit exceeded)`,
+      RATE_LIMIT_LOG_INTERVAL_MS
     )
     await sendErrorAndClose(403, 'Rate limit exceeded')
     return
@@ -130,20 +136,25 @@ export async function handleProtocolCommands(
 
   const connectionsRateValidation = checkGlobalConnectionsRateLimit(configuration, now)
   if (!connectionsRateValidation.valid) {
-    P2P_LOGGER.warn(
-      `Exceeded limit of connections per minute ${configuration.maxConnections}: ${connectionsRateValidation.error}`
+    P2P_LOGGER.throttled(
+      'p2p-connections-limit',
+      LOG_LEVELS_STR.LEVEL_WARN,
+      `Exceeded limit of connections per minute ${configuration.maxConnections}: ${connectionsRateValidation.error}`,
+      RATE_LIMIT_LOG_INTERVAL_MS
     )
     await sendErrorAndClose(403, 'Rate limit exceeded')
     return
   }
 
   if (!task) {
-    P2P_LOGGER.error('Invalid or missing task/command data!')
+    P2P_LOGGER.debug(`Invalid or missing command data from ${remotePeer}`)
     await sendErrorAndClose(400, 'Invalid command')
     return
   }
 
   const taskRecord = task as unknown as Record<string, unknown>
+  // set when the peer's request body could not be read (abort/timeout): peer-side, not a node bug
+  let bodyReadFailed = false
   if (taskRecord.p2pStreamBody === true) {
     delete taskRecord.p2pStreamBody
 
@@ -179,6 +190,9 @@ export async function handleProtocolCommands(
 
             yield buf
           }
+        } catch (e) {
+          bodyReadFailed = true
+          throw e
         } finally {
           // Whatever ended the loop - terminator, error, or a handler that stopped consuming -
           // the read side must not be left paused.
@@ -188,15 +202,8 @@ export async function handleProtocolCommands(
     )
   }
 
-  const logPayload = { ...taskRecord }
-  // Avoid JSON-stringifying the request stream itself.
-  if (logPayload.stream) {
-    logPayload.stream = '[request stream]'
-  }
-  if (Buffer.isBuffer(logPayload.rawData)) {
-    logPayload.rawData = `[${logPayload.rawData.length} bytes]`
-  }
-  P2P_LOGGER.logMessage('Performing P2P task: ' + JSON.stringify(logPayload), true)
+  // the (redacted) payload is logged by the handler's validate()
+  P2P_LOGGER.debug(`P2P command ${task.command} from ${remotePeer}`)
 
   // Bounded label for the `ocean.p2p.command` counter - never the raw, caller-supplied
   // string, so an unknown/garbage command cannot grow the metric's cardinality.
@@ -242,13 +249,13 @@ export async function handleProtocolCommands(
     p2pCommand.add(1, { command: commandLabel, outcome: 'ok' })
   } catch (err) {
     p2pCommand.add(1, { command: commandLabel, outcome: 'error' })
-    P2P_LOGGER.logMessageWithEmoji(
-      'handleProtocolCommands Error: ' +
-        (err instanceof Error ? err.message : String(err)),
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEL_ERROR
-    )
+    // after the status frame, failures are mostly the peer aborting the transfer
+    const failure = `P2P command ${task.command} from ${remotePeer} failed: ${errorSummary(err)}`
+    if (statusWritten || bodyReadFailed) {
+      P2P_LOGGER.debug(failure)
+    } else {
+      P2P_LOGGER.error(failure)
+    }
     const httpStatus =
       typeof (err as any)?.status === 'number' ? (err as any).status : 500
     const msg = err instanceof Error ? err.message : String(err)

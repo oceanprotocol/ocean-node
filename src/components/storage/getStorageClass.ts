@@ -46,7 +46,7 @@ export function getStorageClass(
         throw new Error(`Invalid storage type: ${type}`)
     }
   } catch (err) {
-    CORE_LOGGER.error(`Error in getStorageClass: ${err.message}`)
+    CORE_LOGGER.debug(`Error in getStorageClass: ${err.message}`)
     throw err
   }
 }

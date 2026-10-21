@@ -135,7 +135,10 @@ export const PersistentStorageConfigSchema = z
   .object({
     enabled: z.boolean().optional().default(false),
     type: z.enum(['localfs', 's3']).optional().default('localfs'),
-    accessLists: jsonFromString(z.array(z.record(z.string(), z.array(z.string()))))
+    accessLists: jsonFromString(
+      z.array(z.record(z.string(), z.array(z.string()))),
+      'accessLists'
+    )
       .optional()
       .default([]),
     // Unless true, bucket accessLists are ignored and only the bucket owner can use it.
@@ -422,6 +425,9 @@ const ServiceTemplateWorkflowSchema = z
     message: 'A workflow must set exactly one of "file" or "graph"'
   })
 
+// template ids (and command index) already warned about for shell invocation
+const shellTemplateWarnings = new Set<string>()
+
 export const ServiceTemplateSchema = z
   .object({
     id: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/, {
@@ -493,10 +499,17 @@ export const ServiceTemplateSchema = z
     // Warn on shell-injection-prone command patterns (security plan #3)
     ;(tmpl.command ?? []).forEach((arg, i) => {
       if (/sh\s+-c|`/.test(arg)) {
-        CONFIG_LOGGER.warn(
+        // templates are re-parsed on every getTemplates request: warn once per template
+        const warnKey = `${tmpl.id}:${i}`
+        const message =
           `Template "${tmpl.id}" command[${i}] contains shell invocation. ` +
-            'This enables injection when userData values are substituted.'
-        )
+          'This enables injection when userData values are substituted.'
+        if (shellTemplateWarnings.has(warnKey)) {
+          CONFIG_LOGGER.debug(message)
+        } else {
+          shellTemplateWarnings.add(warnKey)
+          CONFIG_LOGGER.warn(message)
+        }
       }
     })
 
@@ -776,7 +789,7 @@ export const C2DClusterInfoSchema = z.object({
 })
 
 export const OceanNodeP2PConfigSchema = z.object({
-  bootstrapNodes: jsonFromString(z.array(z.string())).default([
+  bootstrapNodes: jsonFromString(z.array(z.string()), 'bootstrapNodes').default([
     ...DEFAULT_BOOTSTRAP_ADDRESSES
   ]),
   bootstrapTimeout: z.coerce.number().optional().default(10000),
@@ -854,8 +867,13 @@ export const OceanNodeP2PConfigSchema = z.object({
   enableCircuitRelayClient: booleanFromString.optional().default(false),
   circuitRelays: z.coerce.number().optional().default(0),
   announcePrivateIp: booleanFromString.optional().default(false),
-  announceAddresses: jsonFromString(z.array(z.string())).optional().default([]),
-  filterAnnouncedAddresses: jsonFromString(z.array(z.string()))
+  announceAddresses: jsonFromString(z.array(z.string()), 'announceAddresses')
+    .optional()
+    .default([]),
+  filterAnnouncedAddresses: jsonFromString(
+    z.array(z.string()),
+    'filterAnnouncedAddresses'
+  )
     .optional()
     .default([...DEFAULT_FILTER_ANNOUNCED_ADDRESSES]),
   minConnections: z.coerce.number().optional().default(1),
@@ -1007,36 +1025,53 @@ export const OceanNodeP2PConfigSchema = z.object({
   )
 })
 
-const addressArrayFromString = jsonFromString(z.array(z.string())).transform(
-  (addresses) => {
+const addressArrayFromString = (field: string) =>
+  jsonFromString(z.array(z.string()), field).transform((addresses) => {
     if (!Array.isArray(addresses)) return []
     try {
       return addresses.map((addr) => getAddress(addr))
     } catch (error) {
-      CONFIG_LOGGER.error(`Invalid address in list: ${error.message}`)
+      CONFIG_LOGGER.error(`Invalid address in ${field}: ${error.message}`)
       return []
     }
-  }
-)
+  })
 
 export const OceanNodeConfigSchema = z
   .object({
-    dockerComputeEnvironments: jsonFromString(C2DDockerConfigSchema)
+    dockerComputeEnvironments: jsonFromString(
+      C2DDockerConfigSchema,
+      'dockerComputeEnvironments'
+    )
       .optional()
       .default([]),
 
     serviceTemplatesPath: z.string().optional().default('databases/serviceTemplates/'),
 
-    dockerRegistrysAuth: jsonFromString(DockerRegistrysSchema).optional().default({}),
+    dockerRegistrysAuth: jsonFromString(DockerRegistrysSchema, 'dockerRegistrysAuth')
+      .optional()
+      .default({}),
 
-    authorizedDecrypters: addressArrayFromString.optional().default([]),
-    authorizedDecryptersList: jsonFromString(AccessListContractSchema).optional(),
+    authorizedDecrypters: addressArrayFromString('authorizedDecrypters')
+      .optional()
+      .default([]),
+    authorizedDecryptersList: jsonFromString(
+      AccessListContractSchema,
+      'authorizedDecryptersList'
+    ).optional(),
 
-    allowedValidators: addressArrayFromString.optional().default([]),
-    allowedValidatorsList: jsonFromString(AccessListContractSchema).optional(),
+    allowedValidators: addressArrayFromString('allowedValidators').optional().default([]),
+    allowedValidatorsList: jsonFromString(
+      AccessListContractSchema,
+      'allowedValidatorsList'
+    ).optional(),
 
-    authorizedPublishers: addressArrayFromString.optional().default([]),
-    authorizedPublishersList: jsonFromString(AccessListContractSchema).optional(),
+    authorizedPublishers: addressArrayFromString('authorizedPublishers')
+      .optional()
+      .default([]),
+    authorizedPublishersList: jsonFromString(
+      AccessListContractSchema,
+      'authorizedPublishersList'
+    ).optional(),
 
     keys: OceanNodeConfigKeysSchema.optional(),
 
@@ -1123,11 +1158,14 @@ export const OceanNodeConfigSchema = z
     ipfsGateway: z.string().nullable().optional(),
     arweaveGateway: z.string().nullable().optional(),
 
-    supportedNetworks: jsonFromString(RPCSSchema).optional(),
+    supportedNetworks: jsonFromString(RPCSSchema, 'supportedNetworks').optional(),
 
     claimDurationTimeout: z.coerce.number().default(3600),
     indexingNetworks: z
-      .union([jsonFromString(RPCSSchema), z.array(z.union([z.string(), z.number()]))])
+      .union([
+        jsonFromString(RPCSSchema, 'indexingNetworks'),
+        z.array(z.union([z.string(), z.number()]))
+      ])
       .optional(),
 
     c2dClusters: z.array(C2DClusterInfoSchema).optional(),
@@ -1143,13 +1181,18 @@ export const OceanNodeConfigSchema = z
       .refine((url) => !url || isValidUrl(url), {
         message: 'assetPurgatoryUrl must be a valid URL'
       }),
-    allowedAdmins: addressArrayFromString.optional(),
-    allowedAdminsList: jsonFromString(AccessListContractSchema).optional(),
+    allowedAdmins: addressArrayFromString('allowedAdmins').optional(),
+    allowedAdminsList: jsonFromString(
+      AccessListContractSchema,
+      'allowedAdminsList'
+    ).optional(),
 
     codeHash: z.string().optional(),
     maxConnections: z.coerce.number().optional(),
-    denyList: jsonFromString(DenyListSchema).optional().default({ peers: [], ips: [] }),
-    unsafeURLs: jsonFromString(z.array(z.string()))
+    denyList: jsonFromString(DenyListSchema, 'denyList')
+      .optional()
+      .default({ peers: [], ips: [] }),
+    unsafeURLs: jsonFromString(z.array(z.string()), 'unsafeURLs')
       .optional()
       .default([...DEFAULT_UNSAFE_URLS]),
     isBootstrap: booleanFromString.optional().default(false),

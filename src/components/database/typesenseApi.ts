@@ -67,7 +67,9 @@ export class TypesenseApi {
     }
     this.currentNodeIndex = (this.currentNodeIndex + 1) % this.config.nodes.length
     candidateNode = this.config.nodes[this.currentNodeIndex]
-    this.config.logger.debug(`Updated current node to Node ${candidateNode}`)
+    this.config.logger.debug(
+      `Updated current node to Node ${candidateNode.host}:${candidateNode.port}`
+    )
     return candidateNode
   }
 
@@ -84,7 +86,6 @@ export class TypesenseApi {
       skipConnectionTimeout?: boolean
     }
   ): Promise<T> {
-    this.config.logger.debug(`Request ${endpoint}`)
     let lastException
     for (let numTries = 1; numTries <= this.config.numRetries + 1; numTries++) {
       const node = this.getNextNode()

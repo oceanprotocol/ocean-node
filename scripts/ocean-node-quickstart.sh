@@ -703,6 +703,7 @@ services:
 #      MAX_CONNECTIONS_PER_MINUTE: ''
 #      MAX_CHECKSUM_LENGTH: ''
 #      LOG_LEVEL: ''
+#      LOG_FILES_LEVEL: ''
       HTTP_API_PORT: '$HTTP_API_PORT'
       P2P_ENABLE_IPV4: 'true'
       P2P_ENABLE_IPV6: 'false'
@@ -738,6 +739,7 @@ $(
       - ocean_network
     volumes:
       - node-sqlite:/usr/src/app/databases
+      - ./logs:/usr/src/app/logs
       - /var/run/docker.sock:/var/run/docker.sock
 $(
   if [ "$enable_tls" == "y" ]; then
@@ -745,6 +747,11 @@ $(
     echo "      - $HTTP_KEY_PATH:/usr/src/app/certs/key.pem:ro"
   fi
 )
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
     depends_on:
       - typesense
 
@@ -788,7 +795,9 @@ echo -e "\e[1;32mP2P IPv4 WebSocket Port: $P2P_ipV4BindWsPort\e[0m"
 echo -e "\e[1;32mP2P IPv6 TCP Port: $P2P_ipV6BindTcpPort\e[0m"
 echo -e "\e[1;32mP2P IPv6 WebSocket Port: $P2P_ipV6BindWsPort\e[0m"
 echo ""
-echo -e "\e[1;32m4)\e[0m If using SSL/TLS with a custom domain name, make sure to listen on host port 443 for the HTTP API, or use a reverse proxy with TLS offloading"
+echo -e "\e[1;32m4)\e[0m Node logs (info and above, 30 days) are written to \e[1;32m./logs\e[0m on this host. Set LOG_FILES_LEVEL=debug in docker-compose.yml for more detail."
+echo ""
+echo -e "\e[1;32m5)\e[0m If using SSL/TLS with a custom domain name, make sure to listen on host port 443 for the HTTP API, or use a reverse proxy with TLS offloading"
 echo ""
 echo -e "If your node is not reachable by other peers (NAT, no public IP, port forwarding issues),"
 echo -e "refer to the networking guide for help with Dynamic DNS, port forwarding, and circuit relay:"

@@ -1,5 +1,7 @@
 import express, { Request, Response } from 'express'
 import { c2dBucketFor, c2dCapabilityContent } from '../P2P/c2dCapability.js'
+import { HTTP_LOGGER } from '../../utils/logging/common.js'
+import { errorSummary } from '../../utils/logging/redact.js'
 
 // Deliberately not imported from './index.js': that module imports the two routes exported
 // below, so importing back from it here would make this file circularly depend on itself.
@@ -115,7 +117,7 @@ getProvidersForStringsRoute.post(
         res.status(400).send('Expected an array of strings.')
       }
     } catch (error) {
-      console.error('Error processing request:', error)
+      HTTP_LOGGER.error(`getProvidersForStrings failed: ${errorSummary(error)}`)
       res.status(400).send(error)
     }
   }

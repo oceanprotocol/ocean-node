@@ -46,6 +46,13 @@ export class ServiceStopHandler extends CommandHandler {
       return buildInvalidParametersResponse(
         buildInvalidRequestMessage('Service job not found: ' + task.serviceId)
       )
+    if (!engine) {
+      CORE_LOGGER.throttled(
+        `service-orphan:${job.clusterHash}`,
+        'warn',
+        `Service ${task.serviceId} belongs to cluster ${job.clusterHash}, which no configured engine owns; check DOCKER_COMPUTE_ENVIRONMENTS`
+      )
+    }
     if (!engine)
       return {
         stream: null,
@@ -64,12 +71,17 @@ export class ServiceStopHandler extends CommandHandler {
         false, // onlyIfExpired
         task.release === true
       )
+      CORE_LOGGER.info(`Service ${task.serviceId} stopped by ${task.consumerAddress}`)
       return {
         stream: Readable.from(JSON.stringify([toPublicServiceJob(stopped)])),
         status: { httpStatus: 200 }
       }
     } catch (error: any) {
-      CORE_LOGGER.error(`ServiceStop ${task.serviceId} failed: ${error.message}`)
+      if (/operation in progress/i.test(String(error?.message))) {
+        CORE_LOGGER.debug(`ServiceStop ${task.serviceId} failed: ${error.message}`)
+      } else {
+        CORE_LOGGER.warn(`ServiceStop ${task.serviceId} failed: ${error.message}`)
+      }
       return { stream: null, status: { httpStatus: 500, error: error.message } }
     }
   }

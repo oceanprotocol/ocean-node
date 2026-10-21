@@ -112,7 +112,7 @@ export class GpuMetricsService {
           // not say which vendor it is. Name the resource and the fix, once per resource.
           if (!this.unresolvedWarned.has(res.id)) {
             this.unresolvedWarned.add(res.id)
-            CORE_LOGGER.debug(
+            CORE_LOGGER.warn(
               `[metrics] gpu: cannot determine the vendor of resource "${res.id}" — it has no ` +
                 '"platform" ("nvidia" | "amd" | "intel") and no init.deviceRequests.Driver. Set ' +
                 '"platform" on that resource in DOCKER_COMPUTE_ENVIRONMENTS to get GPU metrics.'
@@ -185,6 +185,10 @@ export class GpuMetricsService {
       // NVIDIA only today; AMD/Intel enumeration lands with their backends.
       const collector = this.getCollector('nvidia')
       if (!collector) return undefined
+      // only warn about a missing NVML when an NVIDIA GPU is actually declared
+      if (collector instanceof NvmlGpuCollector) {
+        collector.nvidiaConfigured = gpuResources.some((r) => inferVendor(r) === 'nvidia')
+      }
       const out = mapHostGpuDevices(await collector.sampleAll(), gpuResources)
       return out.length ? out : undefined
     } catch (e: any) {

@@ -2,27 +2,76 @@
 
 Refer to Logs section in the [environmental variables documentation](env.md#logs) for information on how to configure the logs.
 
+## Where logs go
+
+| Sink | Default | Level | Controlled by |
+| --- | --- | --- | --- |
+| Console (stdout) | on | `LOG_LEVEL` (`info` in production, `debug` otherwise) | `LOG_CONSOLE` (`false` turns it off) |
+| Files on disk (`logs/`) | on when `LOG_DB` is off | `LOG_FILES_LEVEL` (default `info`), 30 days retention | `LOG_FILES`, `LOG_FILES_*` |
+| Log database | off | `LOG_LEVEL` | `LOG_DB` (needs `DB_URL`), `LOG_RETENTION_TIME` |
+
+- The console stays on whatever `LOG_FILES` and `LOG_DB` are set to. Use `LOG_CONSOLE=false` to turn it off.
+- If `LOG_DB=true` but the log database cannot be used (no `DB_URL`, init failed, degraded mode), the node falls back to files on disk and logs a warning. `LOG_FILES=false` disables that fallback.
+- In Docker, mount `./logs:/usr/src/app/logs` (the quickstart compose file does) or the files are lost when the container is recreated. See [dockerDeployment.md](dockerDeployment.md).
+- With PM2, files are written to `logs/` in the node's working directory. PM2 also keeps stdout in `~/.pm2/logs`, which is not size-limited unless `pm2-logrotate` is installed.
+
+### Log files on disk
+
+One rotating file per module, plus one exceptions file:
+
+```text
+logs/
+  core-2025-06-01.log        # today's file for the CORE module
+  core-2025-05-31.log.gz     # older days are gzipped
+  core-2025-06-01.1.log      # part 2 of the day, created when LOG_FILES_MAX_SIZE is reached
+  core-current.log           # symlink to the active file
+  .core-audit.json           # rotation bookkeeping
+  exceptions-2025-06-01.log  # uncaught exceptions, all modules
+```
+
+- Modules: `oceannode`, `core`, `database`, `http`, `indexer`, `p2p`, `provider`, `config`, plus `reindexer` and `all` (lines from loggers with an unrecognised module name). A file appears when its module first logs something at or above `LOG_FILES_LEVEL`.
+- Unhandled promise rejections are logged at `error` in `oceannode-*.log`, not in the exceptions file.
+- Days are UTC. Files older than `LOG_FILES_RETENTION_DAYS` are deleted automatically.
+- Each line is a JSON object with sorted keys: `component`, `level`, `message`, `moduleName`, `timestamp` (ISO 8601).
+- The hidden `.<module>-audit.json` files track which files to rotate and delete. Do not delete or rename them.
+- Old `logs/<module>.log` and `<module>_exceptions.log` files from earlier versions have no timestamps and are never deleted by the rotator. They can be removed by hand.
+
+```bash
+tail -F logs/core-current.log                  # follow a module live
+zgrep -h '"level":"error"' logs/*.log*         # errors across modules, including .gz archives
+```
+
 ## Log Retrieval using HTTP
+
+Both endpoints are admin-only and signed (`POST`). Send `address`, `signature` and `nonce` in the body (auth tokens are not accepted for admin commands). The address must be in `ALLOWED_ADMINS`. The same parameters are available over P2P with the `getLogs` command (`PROTOCOL_COMMANDS.GET_LOGS`). See [API.md](API.md#logs).
 
 ### Get Multiple Logs
 
-HTTP GET /logs
+HTTP POST /logs
 
-This endpoint retrieves multiple log entries based on various query parameters. If query parameters are not provided, it defaults to the last 24 hours of logs and a maximum of 100 log entries. Please replace the `startTime`, `endTime` values with actual data as per your requirement when making requests.
+Retrieves log entries, newest first. Parameters are optional and can be sent as query parameters:
 
-**Query Parameters:**
+- `startTime`: start of the window, ISO 8601 or epoch milliseconds. Default: 7 days before `endTime`.
+- `endTime`: end of the window, ISO 8601 or epoch milliseconds. Default: now.
+- `maxLogs`: entries per page. Default `100`, maximum `1000`.
+- `moduleName`: filter by module name (case-insensitive, e.g. `core`). Uncaught exceptions are tagged `OCEANNODE`.
+- `level`: filter by exact level (e.g. `info`, `error`).
+- `page`: 1-based page number.
 
-- `startTime` (optional): The start time for logs retrieval in ISO 8601 format.
-- `endTime` (optional): The end time for logs retrieval in ISO 8601 format.
-- `maxLogs` (optional): The maximum number of log entries to retrieve.
-- `moduleName` (optional): The module name to filter the logs.
-- `level` (optional): The log level to filter the logs (e.g., "info", "error").
+An invalid `startTime`/`endTime` returns `400`.
+
+**Where results come from:**
+
+- Log database, when `LOG_DB` is on and the log database is available.
+- Otherwise the rotating files on disk. Entries come back newest first, have no `id`, and only include levels at or above `LOG_FILES_LEVEL`. If `moduleName` is not a known module, the result is empty.
 
 **Example Request:**
 
 ```http
-GET /logs?startTime=2023-01-01T00:00:00Z&endTime=2023-01-02T00:00:00Z&maxLogs=50&moduleName=auth&level=info
+POST /logs?startTime=2023-01-01T00:00:00Z&endTime=2023-01-02T00:00:00Z&maxLogs=50&moduleName=http&level=info
+Content-Type: application/json
 
+{ "address": "0x...", "signature": "0x...", "nonce": "1700569124" }
 ```
 
 **Example Response:**
@@ -45,22 +94,19 @@ GET /logs?startTime=2023-01-01T00:00:00Z&endTime=2023-01-02T00:00:00Z&maxLogs=50
 ]
 ```
 
-If no logs are found for the given criteria, you will receive a `404 Not Found` response.
+If no logs are found for the given criteria, the response is `200` with an empty array (`[]`).
 
 ### Get a Single Log by ID
 
-HTTP GET /log/:id
+HTTP POST /log/:id
 
-This endpoint retrieves a single log entry by its unique identifier.
-
-**Path Parameters:**
-
-- `id`: The unique identifier of the log entry.
-
-Example Request:
+Retrieves one log entry. The id is read from `logId` in the request body, together with the same auth fields. This works only with `LOG_DB` and an available log database, because file entries have no id; otherwise the response is `404`.
 
 ```http
-GET /log/123456789
+POST /log/123456789
+Content-Type: application/json
+
+{ "logId": "123456789", "address": "0x...", "signature": "0x...", "nonce": "1700569124" }
 ```
 
 ```json
@@ -77,49 +123,33 @@ If the log with the given ID is not found, you will receive a `404 Not Found` re
 
 ## Log Retrieval Using Script
 
-The logging system provides a convenient way to retrieve logs via a command-line script. The script is capable of fetching logs with various filters, such as start time, end time, maximum number of logs, module name, and log level.
-
-**Usage**
-You can call the script directly from your command line with optional parameters to filter the logs. The parameters are as follows:
-
-- `API_URL`: The URL of the logs API endpoint. Defaults to http://localhost:8000.
-- `START_TIME`: The start time for the logs you want to retrieve. Defaults to 24 hours before the current time.
-- `END_TIME`: The end time for the logs you want to retrieve. Defaults to the current time.
-- `MAX_LOGS`: The maximum number of logs to retrieve. Defaults to 100.
-- `MODULE_NAME`: The specific module name to filter the logs. Optional.
-- `LEVEL`: The specific log level to filter the logs. Optional.
-
-**Example Without Parameters (Uses Defaults):**
-
-```bash
-npm run logs
-```
-
-**Example With Specific Parameters:**
-
-```
-npm run logs http://localhost:8000 "2023-11-01T00:00:00Z" "2023-11-30T23:59:59Z" 50 "http" "info"
-```
+`scripts/logs.sh` (`npm run logs`) is currently broken: it sends an unsigned `GET`, but `/logs` is a signed `POST`, so it is rejected. Use `ocean-cli downloadNodeLogs` instead, or read the files in `logs/` directly.
 
 ## Compute/Service runtime metrics in the logs
 
 While compute jobs and services run, the node samples live container stats (CPU, RAM, disk,
 network, block I/O, PIDs, exit info, GPU) every `C2D_METRICS_INTERVAL_SECONDS` — see
 [env.md](env.md). Every one of those lines is logged at **debug** level by the `CORE` module
-with a `[metrics]` tag, so one filter shows the whole picture:
+with a `[metrics]` tag, so one filter shows the whole picture. Debug lines reach the console only with `LOG_LEVEL=debug` and reach disk only with `LOG_FILES_LEVEL=debug` (the default file level is `info`):
 
 ```bash
-# everything metrics-related (needs LOG_LEVEL=debug)
-grep '\[metrics\]' logs/*.log
+# follow live on disk
+tail -F logs/core-current.log | grep --line-buffered '\[metrics\]'
+
+# console instead (needs LOG_LEVEL=debug)
+docker logs ocean-node 2>&1 | grep '\[metrics\]'
+
+# everything metrics-related (needs LOG_FILES_LEVEL=debug; zgrep also reads .gz archives)
+zgrep '\[metrics\]' logs/core-*.log*
 
 # just the engine-wide roll-up: one line per sampling interval
-grep '\[metrics\] summary' logs/*.log
+zgrep '\[metrics\] summary' logs/core-*.log*
 
 # just the workloads close to a limit (mem/disk/pids/cpu-throttling)
-grep '\[metrics\] pressure' logs/*.log
+zgrep '\[metrics\] pressure' logs/core-*.log*
 
 # one specific job or service, sample by sample
-grep '\[metrics\] job 88ee41c8' logs/*.log
+zgrep '\[metrics\] job 88ee41c8' logs/core-*.log*
 ```
 
 What each tag means:

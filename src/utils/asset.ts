@@ -1,7 +1,7 @@
 import { Service, DDOManager, DDO } from '@oceanprotocol/ddo-js'
 import { DDO_IDENTIFIER_PREFIX } from './constants.js'
 import { CORE_LOGGER } from './logging/common.js'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './logging/Logger.js'
+import { errorSummary, safeStringify } from './logging/redact.js'
 import { createHash } from 'crypto'
 import { ethers, getAddress, Signer } from 'ethers'
 import { KNOWN_CONFIDENTIAL_EVMS } from './address.js'
@@ -80,7 +80,7 @@ export async function fetchFileMetadata(
     }
     contentLength = totalSize
   } catch (error) {
-    CORE_LOGGER.error(error)
+    CORE_LOGGER.debug(`fetchFileMetadata failed: ${errorSummary(error)}`)
   }
 
   return {
@@ -103,7 +103,7 @@ export function validateDDOHash(
   chainId: number
 ): boolean {
   if (!ddoID || !nftAddress || !chainId) {
-    CORE_LOGGER.error('Invalid or missing data for proper DDO id validation')
+    CORE_LOGGER.debug('Invalid or missing data for proper DDO id validation')
     return false
   }
   const hashAddressAndChain: string = generateDDOHash(nftAddress, chainId)
@@ -127,7 +127,7 @@ export function deleteIndexedMetadataIfExists(ddo: DDO): DDO {
  */
 export function generateDDOHash(nftAddress: string, chainId: number): string | null {
   if (!nftAddress || !chainId) {
-    CORE_LOGGER.error('Invalid or missing data for proper DDO id hash generation')
+    CORE_LOGGER.debug('Invalid or missing data for proper DDO id hash generation')
     return null
   }
   const hashAddressAndChain: string = createHash('sha256')
@@ -171,8 +171,8 @@ export async function isERC20Template4Active(
       }
     }
   } catch (err) {
-    CORE_LOGGER.error(
-      'Error checking if ERCTemplate4 is active on confidential EVM: ' + err.message
+    CORE_LOGGER.warn(
+      `Error checking if ERCTemplate4 is active on chain ${network}: ${errorSummary(err?.shortMessage ?? err)}`
     )
   }
 
@@ -192,8 +192,8 @@ export async function isDataTokenTemplate4(
     const id = await erc20Template.connect(owner).getId()
     return id.toString() === '4'
   } catch (err) {
-    CORE_LOGGER.error(
-      'Error checking if datatoken at address ' + templateAddress + ' has id 4'
+    CORE_LOGGER.warn(
+      `Error checking if datatoken ${templateAddress} has id 4: ${errorSummary(err?.shortMessage ?? err)}`
     )
     return false
   }
@@ -238,7 +238,9 @@ export async function getFilesObjectFromConfidentialEVM(
     const providerMessageHashBytes = ethers.toBeArray(providerMessage)
     const providerSignature = await signer.signMessage(providerMessageHashBytes)
 
-    CORE_LOGGER.info('Try getFilesObject from Confidential EVM (SC call)')
+    CORE_LOGGER.debug(
+      `getFilesObject from confidential EVM (datatoken ${datatokenAddress})`
+    )
     const contract = new ethers.Contract(datatokenAddress, ERC20Template4.abi, signer)
 
     // call smart contract to decrypt
@@ -253,8 +255,8 @@ export async function getFilesObjectFromConfidentialEVM(
     const filesObject: string = ethers.toUtf8String(bytesData)
     return filesObject
   } catch (err) {
-    CORE_LOGGER.error(
-      'Unable to decrypt files object from Template4 on confidential EVM: ' + err.message
+    CORE_LOGGER.warn(
+      `Unable to decrypt files object from Template4 ${datatokenAddress}: ${errorSummary(err?.shortMessage ?? err)}`
     )
     return null
   }
@@ -272,20 +274,11 @@ export async function validateDDO(ddo: Record<string, any>): Promise<boolean> {
 
   const validation = await ddoInstance.validate()
   if (validation[0] === true) {
-    CORE_LOGGER.logMessageWithEmoji(
-      `Validation of DDO with did: ${ddo.id} has passed`,
-      true,
-      GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
-      LOG_LEVELS_STR.LEVEL_DEBUG
-    )
+    CORE_LOGGER.debug(`Validation of DDO ${ddo.id} passed`)
     return true
   } else {
-    CORE_LOGGER.logMessageWithEmoji(
-      `Validation of DDO with schema version ${ddo.version} failed with errors: ` +
-        JSON.stringify(validation[1]),
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEL_WARN
+    CORE_LOGGER.debug(
+      `Validation of DDO ${ddo.id} (version ${ddo.version}) failed: ${safeStringify(validation[1], { maxLength: 1000 })}`
     )
     return false
   }

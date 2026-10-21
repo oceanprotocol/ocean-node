@@ -8,19 +8,20 @@ const TOKEN = 'eyJhbGciOiJIUzI1NiJ9.fake.token'
 const SIGNATURE = '0xdeadbeefsignature'
 const ERC20 = '0x0000000000000000000000000000000000000abc'
 
-// validateCommandParameters logs the whole command for every request, so anything that
-// authorizes the request must be redacted before it reaches the logs
+// validateCommandParameters logs the whole command for every request (at debug), so
+// anything that authorizes the request must be redacted before it reaches the logs
 describe('validateCommandParameters credential redaction', () => {
-  let info: sinon.SinonStub
+  let debug: sinon.SinonStub
 
   beforeEach(() => {
-    info = sinon.stub(CORE_LOGGER, 'info')
+    debug = sinon.stub(CORE_LOGGER, 'debug')
+    sinon.stub(CORE_LOGGER, 'isLevelEnabled').returns(true)
   })
   afterEach(() => sinon.restore())
 
   function loggedCommand(): string {
-    assert(info.called, 'the command should have been logged')
-    return info.firstCall.args[0] as string
+    assert(debug.called, 'the command should have been logged')
+    return debug.firstCall.args[0] as string
   }
 
   it('redacts the authorization token, signature and encrypted key material', () => {
@@ -44,7 +45,48 @@ describe('validateCommandParameters credential redaction', () => {
     expect(logged).to.contain('[REDACTED]')
     // non-sensitive fields are still logged, so the logs stay useful
     expect(logged).to.contain('did:op:1234')
-    expect(logged).to.contain('"nonce": "1"')
+    expect(logged).to.contain(ERC20)
+    // the nonce pairs with the signature: redacted too
+    expect(logged).to.contain('"nonce":"[REDACTED]"')
+    // one line per command
+    expect(logged).to.not.contain('\n')
+  })
+
+  it('does not build the payload dump when debug logging is off', () => {
+    ;(CORE_LOGGER.isLevelEnabled as sinon.SinonStub).returns(false)
+    const result = validateCommandParameters(
+      { command: PROTOCOL_COMMANDS.NONCE, address: ERC20 },
+      ['address']
+    )
+    expect(result.valid).to.equal(true)
+    expect(debug.called).to.equal(false)
+  })
+
+  it('redacts file objects, headers, user data and storage credentials', () => {
+    validateCommandParameters(
+      {
+        command: PROTOCOL_COMMANDS.FILE_INFO,
+        files: [{ type: 'url', url: 'https://private.example.com/data.csv' }],
+        file: {
+          type: 's3',
+          s3Access: { secretAccessKey: 'aws-secret', accessKeyId: 'aws-key-id' },
+          headers: { Authorization: 'Bearer abc' }
+        },
+        userData: { apiKey: 'user-secret' }
+      },
+      []
+    )
+    const logged = loggedCommand()
+    for (const secret of [
+      'private.example.com',
+      'aws-secret',
+      'aws-key-id',
+      'Bearer abc',
+      'user-secret'
+    ]) {
+      expect(logged).to.not.contain(secret)
+    }
+    expect(logged).to.contain('"type":"s3"')
   })
 
   it('redacts encryptedDockerRegistryAuth on compute commands', () => {

@@ -29,7 +29,7 @@ export class EscrowEventsHandler extends CommandHandler {
     try {
       const database = await this.getOceanNode().getDatabase()
       if (!database || !database.escrow) {
-        CORE_LOGGER.error('Escrow database is not available')
+        CORE_LOGGER.debug('Escrow database is not available')
         return {
           stream: null,
           status: { httpStatus: 503, error: 'Escrow database is not available' }

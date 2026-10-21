@@ -2,7 +2,7 @@ import express from 'express'
 import { getNonce } from '../core/utils/nonceHandler.js'
 import { streamToObject, streamToString } from '../../utils/util.js'
 import { Readable } from 'stream'
-import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { errorSummary } from '../../utils/logging/redact.js'
 import { PROTOCOL_COMMANDS, SERVICES_API_BASE_PATH } from '../../utils/constants.js'
 import { EncryptFileHandler, EncryptHandler } from '../core/handler/encryptHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
@@ -31,7 +31,7 @@ providerRoutes.post(`${SERVICES_API_BASE_PATH}/decrypt`, async (req, res) => {
       res.status(result.status.httpStatus).send(result.status.error)
     }
   } catch (error) {
-    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    HTTP_LOGGER.error(`Decrypt route failed: ${errorSummary(error)}`)
     res.status(500).send(`Internal Server error: ${error.message}`)
   }
 })
@@ -64,7 +64,7 @@ providerRoutes.post(
         res.status(result.status.httpStatus).send(result.status.error)
       }
     } catch (error) {
-      HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+      HTTP_LOGGER.error(`Encrypt route failed: ${errorSummary(error)}`)
       res.status(500).send('Internal Server Error')
     }
   }
@@ -158,7 +158,7 @@ providerRoutes.post(
           .send('Invalid request (missing body data or invalid content-type)')
       }
     } catch (error) {
-      HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+      HTTP_LOGGER.error(`EncryptFile route failed: ${errorSummary(error)}`)
       res.status(500).send('Internal Server Error')
     }
   }
@@ -188,7 +188,9 @@ providerRoutes.get(`${SERVICES_API_BASE_PATH}/initialize`, async (req, res) => {
       res.status(result.status.httpStatus).send(result.status.error)
     }
   } catch (error) {
-    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    HTTP_LOGGER.error(
+      `Initialize route failed for ${req.query.documentId}: ${errorSummary(error)}`
+    )
     res.status(500).send('Internal Server Error')
   }
 })
@@ -208,7 +210,7 @@ providerRoutes.get(`${SERVICES_API_BASE_PATH}/nonce`, async (req, res) => {
       res.status(400).send()
     }
   } catch (error) {
-    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    HTTP_LOGGER.error(`Nonce route failed: ${errorSummary(error)}`)
     res.status(500).send('Internal Server Error')
   }
 })
@@ -221,9 +223,8 @@ providerRoutes.get(
       res.sendStatus(400)
       return
     }
-    HTTP_LOGGER.logMessage(
-      `Download request received: ${JSON.stringify(req.query)}`,
-      true
+    HTTP_LOGGER.debug(
+      `Download request: ${req.query.documentId} service=${req.query.serviceId} file=${req.query.fileIndex} consumer=${req.query.consumerAddress}`
     )
     const authorization = req.headers?.authorization
     try {
@@ -243,7 +244,7 @@ providerRoutes.get(
         try {
           parsedUserData = JSON.parse(userdata as string)
         } catch (e) {
-          HTTP_LOGGER.logMessage(`Invalid userdata JSON: ${userdata}`, true)
+          HTTP_LOGGER.debug(`Invalid userdata JSON in download request for ${documentId}`)
           parsedUserData = null
         }
       }
@@ -279,7 +280,9 @@ providerRoutes.get(
         res.status(response.status.httpStatus).send(response.status.error)
       }
     } catch (error) {
-      HTTP_LOGGER.logMessage(`Error: ${error}`, true)
+      HTTP_LOGGER.error(
+        `Download route failed for ${req.query.documentId}: ${errorSummary(error)}`
+      )
       res.status(500).send(error)
     }
     // res.sendStatus(200)

@@ -93,7 +93,7 @@ export class SQLiteAuthToken implements AuthTokenDatabaseProvider {
     const now = Date.now()
 
     if (validUntilDate < now) {
-      DATABASE_LOGGER.info(`Auth token ${token} is invalid`)
+      DATABASE_LOGGER.debug('Expired auth token invalidated')
       await this.invalidateTokenEntry(token)
       return null
     }

@@ -406,11 +406,20 @@ byte array
 
 ## Log
 
-### `HTTP` GET /logs/:id"
+### `HTTP` POST /log/:id
 
 #### Description
 
-returns log by id
+returns log by id. Admin only. Works only with `LOG_DB` and an available log database; otherwise returns `404`.
+
+#### Parameters
+
+| name      | type   | required | description                                           |
+| --------- | ------ | -------- | ----------------------------------------------------- |
+| logId     | string | v        | id of the log entry (read from the body)              |
+| address   | string | v        | admin address (must be in `ALLOWED_ADMINS`)           |
+| signature | string | v        | signed message (auth tokens are not accepted for admin commands) |
+| nonce     | string | v        | nonce used for the signature                          |
 
 #### Response
 
@@ -428,21 +437,31 @@ returns log by id
 
 ## Logs
 
-### `HTTP` GET /logs/?
+### `HTTP` POST /logs
+
+### `P2P` command: getLogs (`PROTOCOL_COMMANDS.GET_LOGS`)
 
 #### Description
 
-returns list of logs
+returns list of logs, newest first. Admin only: send `address`, `signature` and `nonce` (auth tokens are not accepted for admin commands). The default window is the last 7 days.
 
-#### Query Parameters
+Source: the log database when `LOG_DB` is on and the log database is available; otherwise the rotating files in `logs/` (see [Logs.md](Logs.md)). Entries read from files have no `id` and only include levels at or above `LOG_FILES_LEVEL`. When nothing matches, the response is `200` with `[]`. An invalid `startTime`/`endTime` returns `400`.
 
-| name       | type   | required | description                |
-| ---------- | ------ | -------- | -------------------------- |
-| startTime  | string |          | filter logs from date      |
-| endTime    | string |          | filter logs to date        |
-| maxLogs    | string |          | logs per page              |
-| moduleName | string |          | filter logs by module name |
-| level      | string |          | filter logs by level       |
+#### Parameters
+
+| name       | type   | required | description                                                              |
+| ---------- | ------ | -------- | ------------------------------------------------------------------------ |
+| address    | string | v        | admin address (must be in `ALLOWED_ADMINS`)                              |
+| signature  | string | v        | signed message (auth tokens are not accepted for admin commands)         |
+| nonce      | string | v        | nonce used for the signature                                             |
+| startTime  | string |          | filter logs from date (ISO 8601 or epoch ms). Default: 7 days before end |
+| endTime    | string |          | filter logs to date (ISO 8601 or epoch ms). Default: now                 |
+| maxLogs    | number |          | logs per page. Default `100`, maximum `1000`                             |
+| moduleName | string |          | filter logs by module name (case-insensitive)                            |
+| level      | string |          | filter logs by level                                                     |
+| page       | number |          | 1-based page number                                                      |
+
+`startTime`, `endTime`, `maxLogs`, `moduleName`, `level` and `page` are sent as query parameters over HTTP.
 
 #### Response
 
@@ -458,6 +477,8 @@ returns list of logs
     }
 ]
 ```
+
+`id` is present only for entries from the log database.
 
 ---
 

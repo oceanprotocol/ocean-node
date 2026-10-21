@@ -49,7 +49,7 @@ import {
 } from '../../@types/OceanNode.js'
 import { KeyManager } from '../KeyManager/index.js'
 import ipaddr from 'ipaddr.js'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
 import { P2P_LOGGER } from '../../utils/logging/common.js'
 import { CoreHandlersRegistry } from '../core/handler/coreHandlersRegistry.js'
@@ -153,6 +153,11 @@ export type PeerResolution = {
 export type P2PSendResponse = {
   status: any
   stream: AsyncIterable<Uint8Array>
+}
+
+// command name of a serialized command, for logs (the message itself can carry credentials)
+function commandNameOf(message: string): string {
+  return message.match(/"command"\s*:\s*"([^"]{1,64})"/)?.[1] ?? 'unknown command'
 }
 
 function toUint8ArrayChunk(chunk: unknown): Uint8Array {
@@ -289,7 +294,7 @@ export class OceanP2P extends EventEmitter {
     })
     // listen for indexer events and advertise did
     INDEXER_DDO_EVENT_EMITTER.addListener(EVENTS.METADATA_CREATED, (did) => {
-      P2P_LOGGER.info(`Listened "${EVENTS.METADATA_CREATED}"`)
+      P2P_LOGGER.debug(`Advertising ${did} (${EVENTS.METADATA_CREATED})`)
       // Fire-and-forget, so the rejection has to be handled right here: `advertiseString`
       // reports a failed provide to its caller, and an unhandled rejection is fatal to the
       // process - the node installs an `unhandledRejection` handler that exits.
@@ -319,7 +324,7 @@ export class OceanP2P extends EventEmitter {
         this._libp2p.peerStore
           .merge(peerId, { tags: { [`${KEEP_ALIVE}-bootstrap`]: { value: 1 } } })
           .catch((err: unknown) => {
-            P2P_LOGGER.error(
+            P2P_LOGGER.warn(
               `Failed to tag bootstrap peer for keep-alive reconnect: ${describeP2PError(
                 err,
                 { peerId: peerId.toString() }
@@ -375,16 +380,14 @@ export class OceanP2P extends EventEmitter {
 
   handleCertificateProvision() {
     p2pCertEvent.add(1, { type: 'provision' })
-    P2P_LOGGER.info('----- A TLS certificate was provisioned -----')
+    P2P_LOGGER.info('TLS certificate provisioned')
     const interval = setInterval(() => {
       const mas = this._libp2p
         .getMultiaddrs()
         .filter((ma: any) => ma.toString().includes('/sni/'))
         .map((ma: any) => ma.toString())
       if (mas.length > 0) {
-        P2P_LOGGER.info('----- TLS addresses: -----')
-        P2P_LOGGER.info(mas.join('\n'))
-        P2P_LOGGER.info('----- End of TLS addresses -----')
+        P2P_LOGGER.info(`TLS addresses: ${mas.join(', ')}`)
       }
       clearInterval(interval)
     }, 1_000)
@@ -392,7 +395,7 @@ export class OceanP2P extends EventEmitter {
 
   handleCertificateRenew() {
     p2pCertEvent.add(1, { type: 'renew' })
-    P2P_LOGGER.info('----- A TLS certificate was renewed -----')
+    P2P_LOGGER.info('TLS certificate renewed')
   }
 
   handlePeerJoined(details: any) {
@@ -467,7 +470,12 @@ export class OceanP2P extends EventEmitter {
             return false
           }
         } catch (e) {
-          P2P_LOGGER.error(`Invalid CIDR filter in config: ${filter}`)
+          // runs on every getMultiaddrs() (per peer): warn once per filter per interval
+          P2P_LOGGER.throttled(
+            `invalid-cidr:${filter}`,
+            LOG_LEVELS_STR.LEVEL_WARN,
+            `Ignoring invalid CIDR in P2P_FILTER_ANNOUNCED_ADDRESSES: ${filter}`
+          )
         }
       }
       if (
@@ -646,7 +654,7 @@ export class OceanP2P extends EventEmitter {
       }
 
       let transports = []
-      P2P_LOGGER.info('Enabling P2P Transports: websockets, tcp, circuitRelay')
+      P2P_LOGGER.debug('Enabling P2P Transports: websockets, tcp, circuitRelay')
       // relay discovery is now automatic through the network's RandomWalk component
       transports = [webSockets(), tcp(), circuitRelayTransport()]
 
@@ -767,12 +775,7 @@ export class OceanP2P extends EventEmitter {
 
       return node
     } catch (e) {
-      P2P_LOGGER.logMessageWithEmoji(
-        'Unable to create node: ' + describeP2PError(e),
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      P2P_LOGGER.error('Unable to create node: ' + describeP2PError(e))
     }
     return null
   }
@@ -1505,17 +1508,12 @@ export class OceanP2P extends EventEmitter {
 
         let peerId
 
-        P2P_LOGGER.logMessage('SendTo() node ' + peerName + ' task: ' + message, true)
+        P2P_LOGGER.debug(`sendTo ${peerName}: ${commandNameOf(message)}`)
 
         try {
           peerId = peerIdFromString(peerName)
         } catch (e) {
-          P2P_LOGGER.logMessageWithEmoji(
-            'Invalid peer (for id): ' + peerName,
-            true,
-            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-            LOG_LEVELS_STR.LEVEL_ERROR
-          )
+          P2P_LOGGER.debug('Invalid peer (for id): ' + peerName)
           countSendToFailure(SENDTO_FAIL_REASONS.invalidPeer)
           return { status: { httpStatus: 404, error: 'Invalid peer' } }
         }
@@ -1553,7 +1551,7 @@ export class OceanP2P extends EventEmitter {
           known = pinnedAddrs
           if (pinnedAddrs.length < 1) {
             const error = `Cannot find any address to dial for peer: ${peerId}`
-            P2P_LOGGER.error(error)
+            P2P_LOGGER.debug(error)
             countSendToFailure(SENDTO_FAIL_REASONS.noAddress)
             return { status: { httpStatus: 404, error } }
           }
@@ -1563,7 +1561,7 @@ export class OceanP2P extends EventEmitter {
           })
           if (resolution.addresses.length < 1) {
             const error = `Cannot find any address to dial for peer: ${peerId}`
-            P2P_LOGGER.error(error)
+            P2P_LOGGER.debug(error)
             countSendToFailure(SENDTO_FAIL_REASONS.noAddress)
             return { status: { httpStatus: 404, error } }
           }
@@ -1742,13 +1740,13 @@ export class OceanP2P extends EventEmitter {
             const failure = classifyP2PError(e, P2P_ERROR.dialFailed)
             lastFailure = failure
             if (await retryAfterDialFailure(failure, attempt)) {
-              P2P_LOGGER.warn(
+              P2P_LOGGER.debug(
                 `Dial of ${peerId} failed (${failure.name}: ${failure.message}), retrying`
               )
               continue
             }
             const error = `Cannot connect to peer ${peerId} (${failure.name}): ${failure.message}`
-            P2P_LOGGER.error(error)
+            P2P_LOGGER.debug(error)
             countSendToFailure(SENDTO_FAIL_REASONS.dial)
             return { status: { httpStatus: 404, error } }
           }
@@ -1773,13 +1771,13 @@ export class OceanP2P extends EventEmitter {
               !deadline.aborted &&
               isRetryableP2PError(failure.name)
             ) {
-              P2P_LOGGER.warn(
+              P2P_LOGGER.debug(
                 `Opening a command stream to ${peerId} failed (${failure.name}: ${failure.message}), retrying`
               )
               continue
             }
             const error = `Cannot open a command stream to peer ${peerId} (${failure.name}): ${failure.message}`
-            P2P_LOGGER.error(error)
+            P2P_LOGGER.debug(error)
             countSendToFailure(SENDTO_FAIL_REASONS.streamOpen)
             return { status: { httpStatus: 404, error } }
           }
@@ -1845,19 +1843,25 @@ export class OceanP2P extends EventEmitter {
                 bodyConsumed &&
                 attempt < maxAttempts
               ) {
-                P2P_LOGGER.error(
+                P2P_LOGGER.debug(
                   `Not retrying ${peerId} after a ${failure.name} error: the request body is a stream and has already been partially consumed`
                 )
               }
-              P2P_LOGGER.error(
-                `P2P communication error${attempt > 1 ? ' on retry' : ''} (${failure.name}): ${failure.message}`
-              )
+              // a caller that cancelled (e.g. a losing FindDDO provider) is not a failure
+              const communicationError = `P2P communication error with ${peerId}${
+                attempt > 1 ? ' on retry' : ''
+              } (${failure.name}): ${failure.message}`
+              if (signal?.aborted) {
+                P2P_LOGGER.debug(communicationError)
+              } else {
+                P2P_LOGGER.warn(communicationError)
+              }
               countSendToFailure(SENDTO_FAIL_REASONS.stream)
               return {
                 status: { httpStatus: 500, error: `P2P error: ${failure.message}` }
               }
             }
-            P2P_LOGGER.warn(
+            P2P_LOGGER.debug(
               `Retrying ${peerId} after a ${failure.name} error: ${failure.message}`
             )
             // Close only a connection this attempt dialled. `dial()` returns an existing
@@ -1872,7 +1876,7 @@ export class OceanP2P extends EventEmitter {
         const exhausted = `P2P error: exhausted ${maxAttempts} attempt(s) to ${peerName}${
           lastFailure ? ` (${lastFailure.name}: ${lastFailure.message})` : ''
         }`
-        P2P_LOGGER.error(exhausted)
+        P2P_LOGGER.warn(exhausted)
         countSendToFailure(SENDTO_FAIL_REASONS.attemptsExhausted)
         return { status: { httpStatus: 500, error: exhausted } }
       } finally {
@@ -2030,7 +2034,7 @@ export class OceanP2P extends EventEmitter {
     timeout?: number,
     signal?: AbortSignal
   ): Promise<Array<{ id: string; multiaddrs: any[] }>> {
-    P2P_LOGGER.logMessage('Fetching providers for ' + input, true)
+    P2P_LOGGER.debug('Fetching providers for ' + input)
     const cid = await cidFromRawString(input)
     const peersFound = []
     // queryFuncTimeout no longer exists in kad-dht 16.x - without a signal the query
@@ -2049,7 +2053,9 @@ export class OceanP2P extends EventEmitter {
       p2pDhtFind.add(1, { kind: 'providers', outcome: 'ok' })
     } catch (e) {
       p2pDhtFind.add(1, { kind: 'providers', outcome: 'fail' })
-      P2P_LOGGER.error(`getProvidersForString(): ${describeP2PError(e)}`)
+      P2P_LOGGER.debug(
+        `getProvidersForString(${input.slice(0, 100)}): ${describeP2PError(e)}`
+      )
     }
     return peersFound.map((peer) => ({
       id: peer.id.toString(),
@@ -2097,18 +2103,14 @@ export class OceanP2P extends EventEmitter {
    */
   async storeAndAdvertiseDDOS(list: any[]): Promise<boolean> {
     if (!this.db) {
-      P2P_LOGGER.logMessage(
-        `storeAndAdvertiseDDOS() attempt aborted because there is no database!`,
-        true
+      P2P_LOGGER.debug(
+        `storeAndAdvertiseDDOS() attempt aborted because there is no database!`
       )
       return false
     }
     try {
       let count = 0
-      P2P_LOGGER.logMessage(
-        `Trying to store and advertise ${list.length} initial DDOS`,
-        true
-      )
+      P2P_LOGGER.debug(`Trying to store and advertise ${list.length} DDOs`)
       const db = this.db.ddo
       // forEach(async ...) returned before any body completed, so `count` - and
       // therefore the return value - was meaningless. Bounded concurrency + a real
@@ -2146,11 +2148,7 @@ export class OceanP2P extends EventEmitter {
       }
       return count === list.length
     } catch (err) {
-      P2P_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `Caught "${describeP2PError(err)}" on storeAndAdvertiseDDOS()`,
-        true
-      )
+      P2P_LOGGER.error(`Caught "${describeP2PError(err)}" on storeAndAdvertiseDDOS()`)
       return false
     }
   }
@@ -2171,7 +2169,7 @@ export class OceanP2P extends EventEmitter {
               await upnpService.mapIpAddresses()
             } catch (err) {
               P2P_LOGGER.info('Failed to configure UPNP Gateway(if you have one)')
-              P2P_LOGGER.debug(err)
+              P2P_LOGGER.debug(`UPnP mapping failed: ${describeP2PError(err)}`)
             }
             return
           }

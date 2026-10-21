@@ -1,7 +1,24 @@
 import { OceanNode } from '../../OceanNode.js'
-import { OCEAN_NODE_LOGGER } from '../logging/common.js'
+import { P2P_LOGGER } from '../logging/common.js'
 import { provideLimit } from '../../components/P2P/provideLimiter.js'
 import { c2dCapabilityContent } from '../../components/P2P/c2dCapability.js'
+import {
+  classifyP2PError,
+  describeP2PError,
+  P2P_ERROR
+} from '../../components/P2P/errors.js'
+
+// invalid resource configs are warned about once per process, then logged at debug
+const warnedInvalidResources = new Set<string>()
+
+function logInvalidResource(key: string, message: string): void {
+  if (warnedInvalidResources.has(key)) {
+    P2P_LOGGER.debug(message)
+    return
+  }
+  warnedInvalidResources.add(key)
+  P2P_LOGGER.warn(message)
+}
 
 /**
  * The name a resource is announced under: whatever the engine reports in `type` (the "hint
@@ -62,7 +79,8 @@ function collectCapabilities(
   for (const resource of resources) {
     const name = resourceName(resource)
     if (!name) {
-      OCEAN_NODE_LOGGER.warn(
+      logInvalidResource(
+        `${envId}:`,
         `p2pAnnounceC2D: env "${envId}" has a resource with neither "type" nor "id" set; not announced`
       )
       continue
@@ -71,7 +89,8 @@ function collectCapabilities(
     // A resource whose max is absent, non-numeric, non-integer or below 1 is not announced,
     // and the reason is logged — never silently skipped, which is the bug this replaces.
     if (!Number.isInteger(max) || max < 1) {
-      OCEAN_NODE_LOGGER.warn(
+      logInvalidResource(
+        `${envId}:${name}`,
         `p2pAnnounceC2D: env "${envId}" resource "${name}" has an invalid max (${max}); not announced`
       )
       continue
@@ -92,7 +111,7 @@ export async function p2pAnnounceC2D(node: OceanNode) {
     try {
       result = await computeEngines.fetchEnvironments()
     } catch (err) {
-      OCEAN_NODE_LOGGER.error(
+      P2P_LOGGER.error(
         `p2pAnnounceC2D: failed to fetch environments: ${err instanceof Error ? err.message : String(err)}`
       )
       return
@@ -115,6 +134,7 @@ export async function p2pAnnounceC2D(node: OceanNode) {
     // bounded concurrency and a real await. The bare `p2p.advertiseString(...)` in a
     // `for` loop launched one un-awaited provide per capability CID, all at once.
     let advertised = 0
+    let failed = 0
     await Promise.all(
       [...capabilities].map((content) =>
         provideLimit(async () => {
@@ -125,10 +145,10 @@ export async function p2pAnnounceC2D(node: OceanNode) {
               advertised++
             }
           } catch (err) {
-            OCEAN_NODE_LOGGER.error(
-              `p2pAnnounceC2D: failed to advertise ${content}: ${
-                err instanceof Error ? err.message : String(err)
-              }`
+            // timeouts are normal in a sparse DHT; only other failures reach the summary warn
+            if (classifyP2PError(err).name !== P2P_ERROR.timeout) failed++
+            P2P_LOGGER.debug(
+              `p2pAnnounceC2D: failed to advertise ${content}: ${describeP2PError(err)}`
             )
           }
         })
@@ -136,16 +156,19 @@ export async function p2pAnnounceC2D(node: OceanNode) {
     )
     // A real count: `advertiseString` rejects on a failed provide, so the catch wrapping it
     // fires and that string is not counted, and it returns false when it only queued.
-    OCEAN_NODE_LOGGER.debug(
-      `p2pAnnounceC2D: advertised ${advertised}/${capabilities.size} c2d capability strings`
-    )
+    const summary = `p2pAnnounceC2D: advertised ${advertised}/${capabilities.size} c2d capability strings`
+    if (failed > 0) {
+      P2P_LOGGER.warn(`${summary} (${failed} failed)`)
+    } else {
+      P2P_LOGGER.debug(summary)
+    }
   } catch (err) {
     // The scheduler starts this job fire-and-forget, on boot and on every tick. Anything that
     // escapes here is an unhandled rejection, which is fatal on Node >= 15 - and this process
     // installs an `unhandledRejection` handler that calls `process.exit(1)`, so an announce
     // failure would take the whole node down. Everything except the environment fetch - the
     // engine lookup, the resource range loops, the P2P handle - was outside any handler.
-    OCEAN_NODE_LOGGER.error(
+    P2P_LOGGER.error(
       `p2pAnnounceC2D: aborted: ${err instanceof Error ? err.message : String(err)}`
     )
   }

@@ -2,7 +2,6 @@ import { DDOManager } from '@oceanprotocol/ddo-js'
 import { ethers, Signer, FallbackProvider } from 'ethers'
 import { EVENTS, MetadataStates } from '../../../utils/constants.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
-import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
 import { getDid } from '../utils.js'
@@ -14,7 +13,7 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
     _signer: Signer,
     provider: FallbackProvider
   ): Promise<any> {
-    INDEXER_LOGGER.logMessage(`Processing metadata state event...`, true)
+    INDEXER_LOGGER.debug(`Processing metadata state event...`)
     const decodedEventData = await this.getEventData(
       provider,
       event.transactionHash,
@@ -22,25 +21,22 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
       EVENTS.METADATA_STATE
     )
     const metadataState = parseInt(decodedEventData.args[1].toString())
-    INDEXER_LOGGER.logMessage(`Processed new metadata state ${metadataState} `, true)
-    INDEXER_LOGGER.logMessage(
-      `NFT address in processing MetadataState: ${event.address} `,
-      true
-    )
+    INDEXER_LOGGER.debug(`Processed new metadata state ${metadataState} `)
+    INDEXER_LOGGER.debug(`NFT address in processing MetadataState: ${event.address} `)
     const did = getDid(event.address, chainId)
 
     try {
       const { ddo: ddoDatabase } = await this.getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
       if (!ddo) {
-        INDEXER_LOGGER.logMessage(
+        INDEXER_LOGGER.debug(
           `Detected MetadataState changed for ${did}, but it does not exists.`
         )
         return
       }
 
       const ddoInstance = DDOManager.getDDOClass(ddo)
-      INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}`)
+      INDEXER_LOGGER.debug(`Found did ${did} on network ${chainId}`)
 
       if (
         'nft' in ddoInstance.getAssetFields().indexedMetadata &&
@@ -51,7 +47,7 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
             MetadataStates.ACTIVE &&
           [MetadataStates.REVOKED, MetadataStates.DEPRECATED].includes(metadataState)
         ) {
-          INDEXER_LOGGER.logMessage(
+          INDEXER_LOGGER.debug(
             `DDO became non-visible from ${
               ddoInstance.getAssetFields().indexedMetadata.nft.state
             } to ${metadataState}`
@@ -86,14 +82,12 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
       ddoInstance.getDDOData().indexedMetadata.nft = {
         state: metadataState
       }
-      INDEXER_LOGGER.logMessage(
-        `Found did ${did} for state updating on network ${chainId}`
-      )
+      INDEXER_LOGGER.debug(`Found did ${did} for state updating on network ${chainId}`)
       const savedDDO = await this.createOrUpdateDDO(ddoInstance, EVENTS.METADATA_STATE)
       return savedDDO
     } catch (err) {
       this.rethrowIfProviderError(err)
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
+      INDEXER_LOGGER.error(`Error retrieving DDO: ${err}`)
     }
   }
 }

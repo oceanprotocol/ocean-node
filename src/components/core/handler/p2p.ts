@@ -48,7 +48,7 @@ export class FindPeerHandler extends CommandHandler {
         status: { httpStatus: 200 }
       }
     } catch (error) {
-      CORE_LOGGER.error(`Error in Handler: ${error.message}`)
+      CORE_LOGGER.error(`FindPeerHandler error: ${error.message}`)
       return {
         stream: null,
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
@@ -88,7 +88,7 @@ export class GetP2PPeerHandler extends CommandHandler {
         status: { httpStatus: 200 }
       }
     } catch (error) {
-      CORE_LOGGER.error(`Error in Handler: ${error.message}`)
+      CORE_LOGGER.error(`GetP2PPeerHandler error: ${error.message}`)
       return {
         stream: null,
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
@@ -128,7 +128,7 @@ export class GetP2PPeersHandler extends CommandHandler {
         status: { httpStatus: 200 }
       }
     } catch (error) {
-      CORE_LOGGER.error(`Error in Handler: ${error.message}`)
+      CORE_LOGGER.error(`GetP2PPeersHandler error: ${error.message}`)
       return {
         stream: null,
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
@@ -171,7 +171,7 @@ export class GetP2PNetworkStatsHandler extends CommandHandler {
         }
       }
     } catch (error) {
-      CORE_LOGGER.error(`Error in Handler: ${error.message}`)
+      CORE_LOGGER.error(`GetP2PNetworkStatsHandler error: ${error.message}`)
       return {
         stream: null,
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }

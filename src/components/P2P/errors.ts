@@ -320,9 +320,10 @@ export function describeP2PError(
  * The failure is still counted - `advertiseString` increments `p2pDhtProvide{outcome:fail}` -
  * so the downgrade loses no observability, only the noise.
  *
- * **Anything that is not a timeout stays loud** (`error`): a malformed CID, an
+ * **Anything that is not a timeout stays visible** (`warn`): a malformed CID, an
  * `InvalidParametersError`, a local `db.create`/`cacheDDO` failure caught alongside the
- * provide, or any unexpected throw is a real problem an operator should see. The split is made
+ * provide, or any unexpected throw is worth an operator's attention, but recoverable: the
+ * record is provided again on the next republish cycle. The split is made
  * by `classifyP2PError`, never by matching the message - see this module's header.
  *
  * `msg` is the call-site-specific prefix (which DID, from which loop); the classified error
@@ -330,7 +331,7 @@ export function describeP2PError(
  * here so the level policy lives in one place.
  */
 export function logProvideFailure(
-  logger: { debug(message: string): void; error(message: string): void },
+  logger: { debug(message: string): void; warn(message: string): void },
   err: unknown,
   msg: string
 ): void {
@@ -338,6 +339,6 @@ export function logProvideFailure(
   if (classifyP2PError(err).name === P2P_ERROR.timeout) {
     logger.debug(line)
   } else {
-    logger.error(line)
+    logger.warn(line)
   }
 }

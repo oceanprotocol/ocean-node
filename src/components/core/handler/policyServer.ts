@@ -46,7 +46,7 @@ export class PolicyServerPassthroughHandler extends CommandHandler {
       ).ddo.retrieve(task.policyServerPassthrough.documentId)
     } catch (error) {
       // just log it
-      CORE_LOGGER.warn(
+      CORE_LOGGER.debug(
         `PolicyServerPassthroughHandler: DDO not found for documentId ${task.policyServerPassthrough.documentId}: ${error.message}`
       )
     }

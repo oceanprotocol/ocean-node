@@ -89,6 +89,13 @@ export class ServiceRestartHandler extends CommandHandler {
       return buildInvalidParametersResponse(
         buildInvalidRequestMessage('Service job not found: ' + task.serviceId)
       )
+    if (!engine) {
+      CORE_LOGGER.throttled(
+        `service-orphan:${job.clusterHash}`,
+        'warn',
+        `Service ${task.serviceId} belongs to cluster ${job.clusterHash}, which no configured engine owns; check DOCKER_COMPUTE_ENVIRONMENTS`
+      )
+    }
     if (!engine)
       return {
         stream: null,
@@ -182,12 +189,17 @@ export class ServiceRestartHandler extends CommandHandler {
         task.dockerEntrypoint,
         task.metadata
       )
+      CORE_LOGGER.info(`Service ${task.serviceId} restarted by ${task.consumerAddress}`)
       return {
         stream: Readable.from(JSON.stringify([toPublicServiceJob(restarted)])),
         status: { httpStatus: 200 }
       }
     } catch (error: any) {
-      CORE_LOGGER.error(`ServiceRestart ${task.serviceId} failed: ${error.message}`)
+      if (/operation in progress/i.test(String(error?.message))) {
+        CORE_LOGGER.debug(`ServiceRestart ${task.serviceId} failed: ${error.message}`)
+      } else {
+        CORE_LOGGER.warn(`ServiceRestart ${task.serviceId} failed: ${error.message}`)
+      }
       // the owner lost access to the service's output bucket (checked before any teardown)
       const httpStatus = error instanceof PersistentStorageAccessDeniedError ? 403 : 500
       return { stream: null, status: { httpStatus, error: error.message } }
