@@ -197,7 +197,7 @@ describe('bindAlgorithmContainerToDDO (C2D trusted-algo container binding)', () 
     expect(image).to.equal(`${MALICIOUS_CONTAINER.image}@${MALICIOUS_CONTAINER.checksum}`)
   })
 
-  it('is a no-op when the published DDO cannot be resolved', async () => {
+  it('signals "invalid" when a published documentId cannot be resolved', async () => {
     findDdoStub.resolves(null)
 
     const algorithm: ComputeAlgorithm = {
@@ -206,10 +206,11 @@ describe('bindAlgorithmContainerToDDO (C2D trusted-algo container binding)', () 
       meta: { container: structuredClone(MALICIOUS_CONTAINER) as any }
     }
 
-    await bindAlgorithmContainerToDDO(algorithm, {} as any)
+    const outcome = await bindAlgorithmContainerToDDO(algorithm, {} as any)
 
-    // Nothing to bind: the caller (handler) is responsible for rejecting the
-    // missing-DDO case. The client meta is left as-is (handler denies the job).
+    // A claimed-published algorithm we cannot verify must be rejected (caller -> 400),
+    // not left for downstream checks. The client meta is left untouched (never run).
+    expect(outcome).to.equal('invalid')
     expect(algorithm.meta.container).to.deep.equal(MALICIOUS_CONTAINER)
   })
 
@@ -276,7 +277,7 @@ describe('bindAlgorithmContainerToDDO (C2D trusted-algo container binding)', () 
     expect(algorithm.meta.container).to.deep.equal(MALICIOUS_CONTAINER)
   })
 
-  it('signals "skipped" for a raw-code algorithm and for an unresolvable documentId', async () => {
+  it('signals "skipped" only for a raw-code algorithm (no documentId)', async () => {
     const rawAlgo: ComputeAlgorithm = {
       meta: {
         rawcode: 'print(1)',
@@ -285,10 +286,11 @@ describe('bindAlgorithmContainerToDDO (C2D trusted-algo container binding)', () 
     }
     expect(await bindAlgorithmContainerToDDO(rawAlgo, {} as any)).to.equal('skipped')
 
+    // A documentId that does not resolve is NOT skipped - it is rejected as 'invalid'.
     findDdoStub.resolves(null)
     const publishedButMissing: ComputeAlgorithm = { documentId: ALGO_DID, serviceId: '0' }
     expect(await bindAlgorithmContainerToDDO(publishedButMissing, {} as any)).to.equal(
-      'skipped'
+      'invalid'
     )
   })
 })

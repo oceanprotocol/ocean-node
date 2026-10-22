@@ -258,9 +258,9 @@ export class CommonComputeHandler extends CommandHandler {
   //  - the bind runs BEFORE any caller reads meta (e.g. the rawcode checksum gate), so a
   //    client meta.rawcode on a published algorithm cannot influence that gate.
   // Returns the resolved DDO so the asset-validation loop can reuse it instead of re-fetching,
-  // and a `response` set to a 400 when the documentId resolves to a NON-algorithm DDO (so a
-  // client-supplied container is never run under a non-algorithm documentId). An unresolved
-  // DDO is left to the downstream "DDO not found" handling (response stays null).
+  // and a `response` set to a 400 when the documentId cannot be bound to a usable published
+  // algorithm - either it resolves to a NON-algorithm DDO or it does not resolve at all (so a
+  // client-supplied container is never run under a documentId we cannot verify).
   protected async bindAndChecksumAlgorithm(
     task: FreeComputeStartCommand,
     node: OceanNode

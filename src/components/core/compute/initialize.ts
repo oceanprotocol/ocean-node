@@ -112,8 +112,9 @@ export class ComputeInitializeHandler extends CommandHandler {
       // SECURITY: bind the algorithm container to its DDO BEFORE anything reads meta
       // (the rawcode gate below, and getAlgorithmImage() -> checkDockerImage later), so fee
       // estimation validates the same image that paid/free start will actually run - not a
-      // client-supplied one. A documentId that resolves to a non-algorithm DDO is rejected
-      // (400) instead of letting the client's meta.container survive.
+      // client-supplied one. A documentId that cannot be bound to a usable published algorithm
+      // - a non-algorithm DDO, or one that does not resolve at all - is rejected (400) instead
+      // of letting the client's meta.container survive.
       const bindOutcome = await bindAlgorithmContainerToDDO(
         task.algorithm,
         node,

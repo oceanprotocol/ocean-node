@@ -145,14 +145,14 @@ export async function getAlgoChecksums(
  *
  * Returns a discriminated outcome so callers can react:
  *  - 'bound'   : a published algorithm DDO was resolved and its container bound.
- *  - 'skipped' : nothing to bind - either a raw-code/unpublished algorithm (no
- *                documentId, client meta is legitimate) or a documentId that did NOT
- *                resolve (the caller's downstream logic reports "DDO not found").
- *  - 'invalid' : the documentId resolved to a DDO that is NOT a usable algorithm
- *                (not type `algorithm`, or an algorithm with no container). The
- *                client meta is left untouched and the caller MUST reject the request
- *                (HTTP 400) - we must not run a client-supplied container under a
- *                non-algorithm documentId.
+ *  - 'skipped' : nothing to bind - a raw-code/unpublished algorithm (no documentId,
+ *                client meta is legitimate and governed by `allowRawAlgorithm`).
+ *  - 'invalid' : the documentId could not be bound to a usable published algorithm -
+ *                either it did NOT resolve to any DDO, or it resolved to a DDO that is
+ *                NOT a usable algorithm (not type `algorithm`, or an algorithm with no
+ *                container). In every case the client meta is left untouched and the
+ *                caller MUST reject the request (HTTP 400) - we must not run a
+ *                client-supplied container/code under a documentId we cannot verify.
  */
 export type BindAlgorithmOutcome = 'bound' | 'skipped' | 'invalid'
 
@@ -170,8 +170,13 @@ export async function bindAlgorithmContainerToDDO(
     resolvedAlgoDDO ??
     (await new FindDdoHandler(oceanNode).findAndFormatDdo(algorithm.documentId))
   if (!algoDDO) {
-    // Unresolved DDO: left to the caller's existing "DDO not found" handling.
-    return 'skipped'
+    // documentId was supplied but its DDO could not be resolved. We cannot verify what
+    // container/code this "published" algorithm should run, so the client-supplied meta /
+    // fileObject MUST NOT be trusted. Reject authoritatively (caller -> HTTP 400) instead
+    // of returning 'skipped' and relying on downstream checks (the paid checksum gate / the
+    // trust check) to catch it - the free path has no checksum gate, and a wildcard trusted
+    // list would otherwise let a client container run under an unresolvable documentId.
+    return 'invalid'
   }
   const ddoInstance = DDOManager.getDDOClass(algoDDO)
   const { metadata } = ddoInstance.getDDOFields() as any
