@@ -37,6 +37,7 @@ import { Credentials, DDOManager } from '@oceanprotocol/ddo-js'
 import { checkCredentials } from '../../../utils/credentials.js'
 import { PolicyServer } from '../../policyServer/index.js'
 import {
+  bindAlgorithmContainerToDDO,
   generateUniqueID,
   getAlgoChecksums,
   validateAlgoForDataset,
@@ -103,12 +104,38 @@ export class ComputeInitializeHandler extends CommandHandler {
         }
       }
 
+      // Resolve the algorithm DDO ONCE and reuse it for the bind, the checksums and the
+      // asset-validation loop below (no duplicate fetch, no cross-version drift).
+      const algorithmDDO = task.algorithm.documentId
+        ? await new FindDdoHandler(node).findAndFormatDdo(task.algorithm.documentId)
+        : null
+      // SECURITY: bind the algorithm container to its DDO BEFORE anything reads meta
+      // (the rawcode gate below, and getAlgorithmImage() -> checkDockerImage later), so fee
+      // estimation validates the same image that paid/free start will actually run - not a
+      // client-supplied one. A documentId that resolves to a non-algorithm DDO is rejected
+      // (400) instead of letting the client's meta.container survive.
+      const bindOutcome = await bindAlgorithmContainerToDDO(
+        task.algorithm,
+        node,
+        algorithmDDO
+      )
+      if (bindOutcome === 'invalid') {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: `Algorithm ${task.algorithm.documentId} is not a valid algorithm asset`
+          }
+        }
+      }
+
       const algoChecksums = await getAlgoChecksums(
         task.algorithm.documentId,
         task.algorithm.serviceId,
         node,
         config,
-        task.consumerAddress
+        task.consumerAddress,
+        algorithmDDO
       )
 
       const isRawCodeAlgorithm = task.algorithm.meta?.rawcode
@@ -247,7 +274,11 @@ export class ComputeInitializeHandler extends CommandHandler {
         if ('documentId' in elem && elem.documentId) {
           result.did = elem.documentId
           result.serviceId = elem.serviceId
-          const ddo = await new FindDdoHandler(node).findAndFormatDdo(elem.documentId)
+          // Reuse the algorithm DDO already fetched above instead of re-fetching it.
+          const ddo =
+            algorithmDDO && elem.documentId === task.algorithm.documentId
+              ? algorithmDDO
+              : await new FindDdoHandler(node).findAndFormatDdo(elem.documentId)
           if (!ddo) {
             const error = `DDO ${elem.documentId} not found`
             return {
