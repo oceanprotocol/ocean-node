@@ -127,6 +127,12 @@ export async function getAlgoChecksums(
  *    `rawcode`, `container.dockerfile` and `container.additionalDockerFiles`
  *    cannot be smuggled in: they are not part of the standard algorithm DDO
  *    schema, so a faithful copy of `metadata.algorithm` never contains them.
+ *  - DROPPED for a published algorithm: `fileObject`. It is client-owned and lives
+ *    OUTSIDE `meta`, but it is the algorithm CODE file that resolveComputeFileObject
+ *    executes (it wins over documentId+serviceId). Since the checksums are computed
+ *    from the DDO's service files, leaving a client `fileObject` would validate the
+ *    DDO's code but run the client's. We delete it so a bound algorithm's code also
+ *    comes from the DDO service. (Raw-code algorithms keep it - they never reach here.)
  *
  * `resolvedAlgoDDO` lets callers that already fetched the algorithm DDO (the
  * compute handlers, via getAlgoChecksums / the asset-validation loop) pass it in,
@@ -177,6 +183,16 @@ export async function bindAlgorithmContainerToDDO(
   // Deep-clone so we take a faithful, DDO-owned snapshot and never alias (or later
   // mutate) the cached DDO object.
   algorithm.meta = structuredClone(metadata.algorithm)
+  // SECURITY: the container is not the only thing read from the client - the algorithm
+  // CODE file is resolved by resolveComputeFileObject (uploadData), which honors a
+  // client-supplied `fileObject` BEFORE falling back to documentId+serviceId. The
+  // trusted-algorithm checksums are computed from the DDO's service files, so a published
+  // algorithm that still carried a client `fileObject` would validate the DDO's files but
+  // EXECUTE the client's code - the same bypass class as the container. Drop it so the
+  // bound (published) algorithm resolves its code from the DDO service (documentId +
+  // serviceId) only. Raw-code/unpublished algorithms keep their fileObject (early return
+  // above), governed by the dataset's allowRawAlgorithm.
+  delete algorithm.fileObject
   return 'bound'
 }
 

