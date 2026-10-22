@@ -20,7 +20,8 @@ const SENSITIVE_COMMAND_FIELDS = [
   'encryptedDockerRegistryAuth', // compute: encrypted docker registry credentials
   'headers', // file objects: per-request headers, often carry an Authorization token
   'accessKeyId', // s3 file objects: access key id
-  'secretAccessKey' // s3 file objects: secret access key
+  'secretAccessKey', // s3 file objects: secret access key
+  'rawcode' // compute: algorithm.meta.rawcode, the raw algorithm source (may embed secrets)
 ]
 
 // lower-cased once so field names can be matched case-insensitively: credentials nested in

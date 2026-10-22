@@ -342,6 +342,15 @@ describe('redactCommandForLogging', () => {
     expect(out).to.not.contain('s3-secret-value')
   })
 
+  it('redacts the raw algorithm source (algorithm.meta.rawcode)', () => {
+    const out = logged({
+      command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+      consumerAddress: ERC20,
+      algorithm: { meta: { rawcode: "console.log('secret-algo-source')" } }
+    })
+    expect(out).to.not.contain('secret-algo-source')
+  })
+
   it('redacts the encrypt plaintext blob', () => {
     const out = logged({
       command: PROTOCOL_COMMANDS.ENCRYPT,
