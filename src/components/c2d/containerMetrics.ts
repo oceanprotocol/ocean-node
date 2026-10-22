@@ -155,6 +155,22 @@ function sumNetworks(networks: any): { rxBytes: number; txBytes: number } | unde
   return { rxBytes: rx, txBytes: tx }
 }
 
+// Bytes the container has received over all its interfaces since it started. Null when Docker
+// cannot say, or the container has no network (NetworkMode 'none').
+export async function readContainerRxBytes(
+  container: Dockerode.Container
+): Promise<number | null> {
+  try {
+    const stats: any = await container.stats({ stream: false, 'one-shot': true } as any)
+    return sumNetworks(stats?.networks)?.rxBytes ?? null
+  } catch (e: any) {
+    CORE_LOGGER.debug(
+      `[metrics] could not read rx bytes of ${container.id}: ${e?.message}`
+    )
+    return null
+  }
+}
+
 // Pure transform: raw sample + previous snapshot → a new snapshot. Handles cgroup v1/v2
 // field drift (defaults missing fields to 0), self-computes CPU % from the previous
 // sample's cumulative counters (one-shot stats have no precpu_stats), tracks the memory

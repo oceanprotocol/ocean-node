@@ -14,12 +14,12 @@ import { resolveServiceEngine } from '../../../components/c2d/serviceEngines.js'
 import {
   buildModelDownload,
   fetchModelTotalBytes,
-  BLOB_EMPTY_REDISCOVER_MS,
   BLOB_REDISCOVER_MS,
   isModelDownloadComplete,
   ModelDownloadSampler,
   readModelDownloadBytes,
-  selectBlobPaths
+  selectBlobPaths,
+  withReceivedBytes
 } from '../../../components/c2d/modelDownload.js'
 
 describe('ImagePullTracker', () => {
@@ -338,6 +338,45 @@ describe('buildModelDownload', () => {
   })
 })
 
+describe('withReceivedBytes', () => {
+  const total = 1_000_000_000
+  // A Xet download: one file in flight, still empty on disk.
+  const xet = { downloadedBytes: 11_000_000, files: 5, inFlight: 1 }
+
+  it('reports the bytes received while the cache lags', () => {
+    const result = withReceivedBytes(xet, 600_000_000, total)
+    expect(result).to.deep.equal({ ...xet, downloadedBytes: 600_000_000 })
+    expect(buildModelDownload(result, total, 'a/b').percent).to.equal(60)
+  })
+
+  it('never completes a download from the bytes received alone', () => {
+    // Other traffic can push the bytes received past the model's size.
+    const result = withReceivedBytes(xet, 1_200_000_000, total)
+    const record = buildModelDownload(result, total, 'a/b')
+    expect(record.percent).to.equal(99)
+    expect(isModelDownloadComplete({ ...record, filesInFlight: 0 })).to.equal(false)
+  })
+
+  it('keeps the cache figure when it is ahead', () => {
+    // Xet ships compressed chunks: once the file is written, the cache is ahead.
+    const written = { downloadedBytes: total, files: 6, inFlight: 0 }
+    expect(withReceivedBytes(written, 960_000_000, total)).to.equal(written)
+    expect(isModelDownloadComplete(buildModelDownload(written, total, 'a/b'))).to.equal(
+      true
+    )
+  })
+
+  it('uses the bytes received as they are when the total is unknown', () => {
+    expect(withReceivedBytes(xet, 600_000_000, null).downloadedBytes).to.equal(
+      600_000_000
+    )
+  })
+
+  it('leaves the sample alone when the bytes received are unknown', () => {
+    expect(withReceivedBytes(xet, null, total)).to.equal(xet)
+  })
+})
+
 describe('probeCandidates', () => {
   it('brackets an IPv6 container address so the URL parses', () => {
     const job = { endpoints: [] } as any
@@ -559,15 +598,33 @@ describe('ModelDownloadSampler', () => {
     expect(state.changesCalls).to.equal(2)
   })
 
-  it('polls an empty cache on the shorter cadence', async () => {
+  it('re-lists an empty cache on every sample', async () => {
     const sampler = new ModelDownloadSampler()
     const { container, files, state } = liveContainer()
     expect(await sampler.sample('svc', container, 0)).to.equal(null)
     files[`${repo}/blobs/a.1a2b3c4d.incomplete`] = 10
-    expect(await sampler.sample('svc', container, 5_000)).to.equal(null)
-    expect(
-      (await sampler.sample('svc', container, BLOB_EMPTY_REDISCOVER_MS))?.downloadedBytes
-    ).to.equal(10)
+    expect((await sampler.sample('svc', container, 5_000))?.downloadedBytes).to.equal(10)
+    expect(state.changesCalls).to.equal(2)
+  })
+
+  it('sees weights that start after the tokenizer files finished', async () => {
+    const sampler = new ModelDownloadSampler()
+    const { container, files, state } = liveContainer()
+    files[`${repo}/blobs/tokenizer`] = 11
+    expect((await sampler.sample('svc', container, 0))?.downloadedBytes).to.equal(11)
+
+    // Nothing known is in flight, so the next sample re-lists instead of waiting 30s.
+    files[`${repo}/blobs/weights.1a2b3c4d.incomplete`] = 400
+    expect(await sampler.sample('svc', container, 5_000)).to.deep.equal({
+      downloadedBytes: 411,
+      files: 1,
+      inFlight: 1
+    })
+    // Once something is in flight, its growth is stat-ed without listing again.
+    files[`${repo}/blobs/weights.1a2b3c4d.incomplete`] = 900
+    expect((await sampler.sample('svc', container, 10_000))?.downloadedBytes).to.equal(
+      911
+    )
     expect(state.changesCalls).to.equal(2)
   })
 

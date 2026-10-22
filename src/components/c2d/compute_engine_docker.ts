@@ -98,7 +98,8 @@ import {
   buildModelDownload,
   fetchModelTotalBytes,
   isModelDownloadComplete,
-  ModelDownloadSampler
+  ModelDownloadSampler,
+  withReceivedBytes
 } from './modelDownload.js'
 import {
   MANIFEST_DISCOVERY_MS,
@@ -121,6 +122,7 @@ import {
   getMetricsIntervalSeconds,
   isMetricsCollectionEnabled,
   isSnapshotStale,
+  readContainerRxBytes,
   sampleContainerMetrics
 } from './containerMetrics.js'
 import { GpuMetricsService } from './gpu/index.js'
@@ -5030,7 +5032,8 @@ export class C2DEngineDocker extends C2DEngine {
    * This is the wait the image pull does not cover: the image is fetched once per node and cached
    * forever after, while the weights are fetched by the engine on EVERY container start, after it
    * reports Running. Nothing serves that number over HTTP at the time (there is no server yet), so
-   * it is read from the cache files themselves — see components/c2d/modelDownload.
+   * it is read from the cache files themselves — see components/c2d/modelDownload — raised to the
+   * bytes the container has received, which a Xet download reaches long before its files do.
    *
    * Best-effort throughout: an unreadable cache, an engine with no known cache path, or a model
    * whose size the Hub cannot tell us all degrade to less information, never to an error.
@@ -5065,7 +5068,13 @@ export class C2DEngineDocker extends C2DEngine {
       // the difference between a real denominator and one covering every quantization on offer.
       const quant = engine.modelQuantFromCommand?.(job.dockerCmd) ?? undefined
       const totalBytes = modelId ? await fetchModelTotalBytes(modelId, quant) : null
-      return buildModelDownload(downloaded, totalBytes, modelId)
+      // The cache lags a Xet download by most of its length; the bytes received do not.
+      const received = await readContainerRxBytes(container)
+      return buildModelDownload(
+        withReceivedBytes(downloaded, received, totalBytes),
+        totalBytes,
+        modelId
+      )
     } catch (e: any) {
       CORE_LOGGER.debug(
         `[model-download] service ${job.serviceId}: sample failed: ${e?.message}`

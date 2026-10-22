@@ -178,6 +178,12 @@ own (huggingface_hub's snapshot cache), measured with `du -sb`. A `bytes` of `0`
 be appended while the script runs; at most 64 entries are read. Without a manifest, the node falls
 back to the engine's own Hugging Face cache (vLLM, llama.cpp).
 
+From the engine's cache, `downloadedBytes` is raised to the bytes the container has received over
+the network. Xet, huggingface_hub's default transfer backend, holds most of a file in memory and
+writes it near the end, so the cache alone can read near zero for most of a download. The bytes
+received also count anything else the container fetches, so with a known total they are held below
+it: only the files in the cache complete a download.
+
 A service with no engine profile (an app that runs its engine behind its own port) still reports
 `modelDownload` from its manifest, with no `readiness`. With nothing to say when such a service is
 ready, the node checks it only within 30 minutes of the container starting unless a manifest has

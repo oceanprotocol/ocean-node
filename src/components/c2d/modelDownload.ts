@@ -235,12 +235,12 @@ export async function readModelDownloadBytes(
   return (await measureBlobPaths(container, blobPaths)).bytes
 }
 
-// Re-listing cadence. A known partial file finishing triggers a re-list on the next sample
-// regardless, since that is when the downloader starts its next file; these bound how late a file
-// that started on its own is noticed.
+// Re-listing cadence while a known file is still arriving. A known partial file finishing triggers
+// a re-list on the next sample regardless, since that is when the downloader starts its next file;
+// this bounds how late a file started alongside it is noticed. With nothing known to be arriving,
+// every sample re-lists: the weights usually start just after the config and tokenizer files have
+// finished, and a fast download can complete well within this period.
 export const BLOB_REDISCOVER_MS = 30_000
-// Before the cache holds anything: the first bytes should show up quickly.
-export const BLOB_EMPTY_REDISCOVER_MS = 10_000
 
 interface BlobDiscovery {
   containerId: string
@@ -254,8 +254,9 @@ interface BlobDiscovery {
  * Samples model downloads per service, re-listing the container's changes only when needed and
  * stat-ing the known paths in between — the stats are cheap, the listing is not.
  *
- * A file that starts without another finishing is counted up to BLOB_REDISCOVER_MS late, so the bar
- * can pause and then catch up; it never goes backwards. Readiness does not depend on any of this.
+ * A file that starts while another is still arriving is counted up to BLOB_REDISCOVER_MS late, so
+ * the bar can pause and then catch up; it never goes backwards. Readiness does not depend on any of
+ * this.
  */
 export class ModelDownloadSampler {
   private discoveries = new Map<string, BlobDiscovery>()
@@ -297,12 +298,10 @@ export class ModelDownloadSampler {
   }
 
   private isDue(discovery: BlobDiscovery, now: number): boolean {
-    if (discovery.stale) {
+    if (discovery.stale || !discovery.paths.some((path) => inFlightSuffix(path))) {
       return true
     }
-    const period =
-      discovery.paths.length === 0 ? BLOB_EMPTY_REDISCOVER_MS : BLOB_REDISCOVER_MS
-    return now - discovery.discoveredAt >= period
+    return now - discovery.discoveredAt >= BLOB_REDISCOVER_MS
   }
 }
 
@@ -503,5 +502,38 @@ export function buildModelDownload(
     filesComplete: downloaded.files,
     filesInFlight: downloaded.inFlight,
     updatedAt: Date.now()
+  }
+}
+
+// How close to the total the bytes received may bring the report: only the files decide it is done.
+const RECEIVED_BYTES_CEILING = 0.99
+
+/**
+ * Raises the bytes found in the cache to the bytes the container has received over the network.
+ *
+ * Xet, huggingface_hub's default transfer backend, holds most of a file in memory and writes it in
+ * bursts near the end, so the cache can read near zero for most of a download. The bytes received
+ * follow it instead: about 96% of the file over Xet, which ships compressed chunks, and about 100%
+ * over plain HTTP. They also count anything else the container fetches, so they never complete a
+ * download: with a known total they stay below it, and the files on disk decide completion.
+ */
+export function withReceivedBytes(
+  downloaded: ModelDownloadBytes,
+  receivedBytes: number | null,
+  totalBytes: number | null
+): ModelDownloadBytes {
+  if (!receivedBytes || receivedBytes <= downloaded.downloadedBytes) {
+    return downloaded
+  }
+  const ceiling =
+    totalBytes && totalBytes > 0
+      ? Math.floor(totalBytes * RECEIVED_BYTES_CEILING)
+      : receivedBytes
+  return {
+    ...downloaded,
+    downloadedBytes: Math.max(
+      downloaded.downloadedBytes,
+      Math.min(receivedBytes, ceiling)
+    )
   }
 }
