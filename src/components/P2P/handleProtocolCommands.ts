@@ -8,6 +8,7 @@ import { P2PCommandResponse } from '../../@types/OceanNode'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { BaseHandler } from '../core/handler/handler.js'
 import { SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { redactCommandForLogging } from '../httpRoutes/validateCommands.js'
 import { p2pCommand } from '../../telemetry/metrics.js'
 import {
   checkGlobalConnectionsRateLimit,
@@ -196,7 +197,13 @@ export async function handleProtocolCommands(
   if (Buffer.isBuffer(logPayload.rawData)) {
     logPayload.rawData = `[${logPayload.rawData.length} bytes]`
   }
-  P2P_LOGGER.logMessage('Performing P2P task: ' + JSON.stringify(logPayload), true)
+  // credentials (signature, authorization/token, file-object headers / s3 keys, encrypt
+  // blob) must not reach the logs on the P2P path either - redact them the same way the
+  // HTTP commands do
+  P2P_LOGGER.logMessage(
+    'Performing P2P task: ' + JSON.stringify(redactCommandForLogging(logPayload)),
+    true
+  )
 
   // Bounded label for the `ocean.p2p.command` counter - never the raw, caller-supplied
   // string, so an unknown/garbage command cannot grow the metric's cardinality.

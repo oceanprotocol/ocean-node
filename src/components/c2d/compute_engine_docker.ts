@@ -2055,12 +2055,18 @@ export class C2DEngineDocker extends C2DEngine {
       }
 
       if (jobs.length > 0) {
-        const promises: any = []
-        for (const job of jobs) {
-          promises.push(this.processJob(job))
-        }
-        // wait for all promises, there is no return
-        await Promise.all(promises)
+        // allSettled, not all: one throwing job used to abort the rest of this tick —
+        // service health check, expiry sweep and GPU snapshot below all stopped running.
+        const results = await Promise.allSettled(jobs.map((job) => this.processJob(job)))
+        results.forEach((result, i) => {
+          if (result.status === 'rejected') {
+            CORE_LOGGER.error(
+              `processJob ${jobs[i].jobId} failed: ${
+                result.reason?.message ?? result.reason
+              }`
+            )
+          }
+        })
       }
 
       // Service-on-Demand health check: catch Running services whose container died on its
@@ -2219,6 +2225,22 @@ export class C2DEngineDocker extends C2DEngine {
       `Process job ${job.jobId} started: [STATUS: ${job.status}: ${job.statusText}]`
     )
 
+    // An env id is a hash of its fees, so editing fees renames the env and strands every
+    // job already pointing at the old id. Such a job can never run — fail it once here
+    // rather than let each stage below retry or throw on the undefined env.
+    const env = this.envs.find((e) => e.id === job.environment)
+    if (!env) {
+      job.status = C2DStatusNumber.ContainerCreationFailed
+      job.statusText = `Environment ${job.environment} no longer exists`
+      job.isRunning = false
+      job.dateFinished = String(Date.now() / 1000)
+      CORE_LOGGER.error(`Job ${job.jobId} failed: ${job.statusText}`)
+      this.recordJobFinished(job)
+      await this.db.updateJob(job)
+      await this.cleanupJob(job)
+      return
+    }
+
     // has to :
     //  - monitor running containers and stop them if over limits
     //  - monitor disc space and clean up
@@ -2288,6 +2310,7 @@ export class C2DEngineDocker extends C2DEngine {
       try {
         const chainId = job.payment && job.payment.chainId ? job.payment.chainId : null
         const allEnvs = await this.getComputeEnvironments(chainId)
+        // chain-filtered view of the same env (fees narrowed to job.payment.chainId)
         const env = allEnvs.find((e) => e.id === job.environment)
         if (!env) throw new Error(`Environment ${job.environment} not found`)
         await this.checkIfResourcesAreAvailable(job.resources, env, job.isFree, allEnvs)
@@ -2348,8 +2371,7 @@ export class C2DEngineDocker extends C2DEngine {
       // create the volume & create container
       // TO DO C2D:  Choose driver & size
       // get environment-specific resources for Docker device/hardware configuration
-      const env = this.envs.find((e) => e.id === job.environment)
-      const envResource = env?.resources || []
+      const envResource = env.resources || []
       const volume: VolumeCreateOptions = {
         Name: job.jobId + '-volume'
       }

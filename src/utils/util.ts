@@ -23,6 +23,26 @@ export function sanitizeServiceFiles(serviceFiles: string): string {
 }
 
 /**
+ * Makes a caller-supplied value safe to interpolate into a single log line. Caller-controlled
+ * identifiers (did, serviceId, consumerAddress, command name, peer id, ...) can carry embedded
+ * CR/LF; interpolated raw they let an attacker forge extra log entries (CWE-117, log
+ * injection). This escapes the line breaks so the value stays readable on one line. Use it when
+ * a request-derived value is placed into a message by string interpolation - JSON.stringify
+ * already escapes control characters, so values logged that way do not need it.
+ *
+ * Only scalars are rendered; null, undefined and compound values (objects, arrays) become an
+ * empty string rather than "[object Object]" or a comma-joined dump of caller-supplied data.
+ */
+export function sanitizeLogValue(value: unknown): string {
+  const isScalar =
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint'
+  return (isScalar ? String(value) : '').replace(/\r/g, '\\r').replace(/\n/g, '\\n')
+}
+
+/**
  * Ceiling on what the two accumulating stream readers below will hold in memory.
  *
  * They are used on whole-payload responses - a DDO, a decrypted document, a nonce, a query

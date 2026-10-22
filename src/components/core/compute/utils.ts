@@ -1,5 +1,9 @@
 import { OceanNode } from '../../../OceanNode.js'
-import { AlgoChecksums, ComputeOutput } from '../../../@types/C2D/C2D.js'
+import {
+  AlgoChecksums,
+  ComputeAlgorithm,
+  ComputeOutput
+} from '../../../@types/C2D/C2D.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
 import {
   StorageObject,
@@ -31,7 +35,11 @@ export async function getAlgoChecksums(
   algoServiceId: string | undefined,
   oceanNode: OceanNode,
   config: OceanNodeConfig,
-  consumerAddress?: string
+  consumerAddress?: string,
+  // Optional already-resolved algorithm DDO. Passing it guarantees the checksums
+  // validated here are computed from the SAME DDO that bindAlgorithmContainerToDDO
+  // binds the container from (one fetch, no cross-version drift).
+  resolvedAlgoDDO?: any
 ): Promise<AlgoChecksums> {
   const checksums: AlgoChecksums = {
     files: '',
@@ -43,7 +51,8 @@ export async function getAlgoChecksums(
     return checksums
   }
   try {
-    const algoDDO = await new FindDdoHandler(oceanNode).findAndFormatDdo(algoDID)
+    const algoDDO =
+      resolvedAlgoDDO ?? (await new FindDdoHandler(oceanNode).findAndFormatDdo(algoDID))
     if (!algoDDO) {
       CORE_LOGGER.error(`Algorithm with id: ${algoDID} not found!`)
       return checksums
@@ -81,6 +90,144 @@ export async function getAlgoChecksums(
     CORE_LOGGER.error(`Fetching algorithm checksums failed: ${error.message}`)
     return checksums
   }
+}
+
+/**
+ * Binds the algorithm container to its published DDO.
+ *
+ * SECURITY: the trusted-algorithm checks (publisherTrustedAlgorithms /
+ * publisherTrustedAlgorithmPublishers in `validateAlgoForDataset`) validate
+ * checksums computed from the algorithm's DDO (see `getAlgoChecksums`), but the
+ * container that actually RUNS is read from `algorithm.meta.container`
+ * (see `getAlgorithmImage` in compute_engine_docker). Nothing otherwise binds
+ * the two. If a client-supplied `meta.container` were trusted for a published
+ * algorithm, a consumer could pass a trusted `documentId`+`serviceId` (so the
+ * checksum check passes) together with a DIFFERENT image and run arbitrary code
+ * on the dataset, exfiltrating `/data/inputs` through `/data/outputs`.
+ *
+ * Therefore, whenever the algorithm is a PUBLISHED one (`documentId` present)
+ * and its DDO is of type `algorithm`, the container meta MUST be taken from the
+ * DDO and any client-supplied `meta.container` ignored. The validated checksums
+ * and the executed container then come from the same source. This mutates the
+ * passed `algorithm` in place and is a no-op for raw-code algorithms.
+ *
+ * Field ownership decision:
+ *  - DDO-OWNED: EVERYTHING under the DDO's `metadata.algorithm` - the whole
+ *    `container` (entrypoint, image, tag, checksum and any DDO-declared
+ *    `consumerParameters`), `language`, `version`, `format`, etc. We copy the
+ *    DDO's `metadata.algorithm` wholesale rather than cherry-picking a handful of
+ *    fields, because the security property is "everything comes from the DDO,
+ *    nothing from the client" - a field-allowlist would silently drop legitimate
+ *    published fields (e.g. container.consumerParameters) AND risk re-opening the
+ *    hole if the allowlist ever misses a field getAlgorithmImage reads.
+ *  - CLIENT-OWNED (left untouched, they live OUTSIDE `meta`): `transferTxId`,
+ *    `serviceId`, `documentId`, `algocustomdata`, `userdata`, `envs`. `meta` is
+ *    rebuilt from scratch (deep-cloned from the DDO, never spread from the client
+ *    value) so NO client field survives for a published algorithm.
+ *  - STRIPPED from the bound `meta` even though they come from the DDO: `rawcode`,
+ *    `container.dockerfile` and `container.additionalDockerFiles`. These are NOT
+ *    covered by the trusted-algorithm checksums (containerSectionChecksum only hashes
+ *    entrypoint+checksum; filesChecksum only covers the service files), so leaving them
+ *    in would let a published algorithm's code/image change without changing the trusted
+ *    checksums. `rawcode` in particular IS a standard algorithm DDO field
+ *    (MetadataAlgorithm.rawcode), so structuredClone would preserve it - we delete it (and
+ *    the dockerfile build fields) so a bound algorithm always runs its checksummed service
+ *    files via its pinned, checksummed image. (See the delete block below for the exact
+ *    execution paths each field drives.)
+ *  - DROPPED for a published algorithm: `fileObject`. It is client-owned and lives
+ *    OUTSIDE `meta`, but it is the algorithm CODE file that resolveComputeFileObject
+ *    executes (it wins over documentId+serviceId). Since the checksums are computed
+ *    from the DDO's service files, leaving a client `fileObject` would validate the
+ *    DDO's code but run the client's. We delete it so a bound algorithm's code also
+ *    comes from the DDO service. (Raw-code algorithms keep it - they never reach here.)
+ *
+ * `resolvedAlgoDDO` lets callers that already fetched the algorithm DDO (the
+ * compute handlers, via getAlgoChecksums / the asset-validation loop) pass it in,
+ * so the container bound here and the checksums validated elsewhere come from ONE
+ * fetch and can never be two different DDO versions.
+ *
+ * This mirrors ocean-provider's original
+ * `if algorithm_did and not algo_data.get("meta")` behavior, but authoritative:
+ * the DDO always wins for a published algorithm, not only when meta was omitted.
+ *
+ * Returns a discriminated outcome so callers can react:
+ *  - 'bound'   : a published algorithm DDO was resolved and its container bound.
+ *  - 'skipped' : nothing to bind - a raw-code/unpublished algorithm (no documentId,
+ *                client meta is legitimate and governed by `allowRawAlgorithm`).
+ *  - 'invalid' : the documentId could not be bound to a usable published algorithm -
+ *                either it did NOT resolve to any DDO, or it resolved to a DDO that is
+ *                NOT a usable algorithm (not type `algorithm`, or an algorithm with no
+ *                container). In every case the client meta is left untouched and the
+ *                caller MUST reject the request (HTTP 400) - we must not run a
+ *                client-supplied container/code under a documentId we cannot verify.
+ */
+export type BindAlgorithmOutcome = 'bound' | 'skipped' | 'invalid'
+
+export async function bindAlgorithmContainerToDDO(
+  algorithm: ComputeAlgorithm,
+  oceanNode: OceanNode,
+  resolvedAlgoDDO?: any
+): Promise<BindAlgorithmOutcome> {
+  // Raw-code / unpublished algorithms have no DDO: their client meta is
+  // legitimate and governed by the dataset's `allowRawAlgorithm` flag.
+  if (!algorithm?.documentId) {
+    return 'skipped'
+  }
+  const algoDDO =
+    resolvedAlgoDDO ??
+    (await new FindDdoHandler(oceanNode).findAndFormatDdo(algorithm.documentId))
+  if (!algoDDO) {
+    // documentId was supplied but its DDO could not be resolved. We cannot verify what
+    // container/code this "published" algorithm should run, so the client-supplied meta /
+    // fileObject MUST NOT be trusted. Reject authoritatively (caller -> HTTP 400) instead
+    // of returning 'skipped' and relying on downstream checks (the paid checksum gate / the
+    // trust check) to catch it - the free path has no checksum gate, and a wildcard trusted
+    // list would otherwise let a client container run under an unresolvable documentId.
+    return 'invalid'
+  }
+  const ddoInstance = DDOManager.getDDOClass(algoDDO)
+  const { metadata } = ddoInstance.getDDOFields() as any
+  if (metadata?.type !== 'algorithm' || !metadata.algorithm?.container) {
+    // Resolved but NOT a usable algorithm asset - reject instead of silently leaving
+    // the client's meta.container in place.
+    return 'invalid'
+  }
+  // Deep-clone so we take a faithful, DDO-owned snapshot and never alias (or later
+  // mutate) the cached DDO object.
+  algorithm.meta = structuredClone(metadata.algorithm)
+  // SECURITY: strip build / raw-execution fields from the bound meta. These are NOT covered
+  // by the trusted-algorithm checksums - `containerSectionChecksum` only hashes
+  // (container.entrypoint + container.checksum) and `filesChecksum` only covers the DDO
+  // service files - so if they survived the clone, a published algorithm's executed code or
+  // image could change WITHOUT changing the checksums the dataset owner trusts. structuredClone
+  // copies whatever the DDO carries, and `rawcode` IS part of the standard algorithm DDO
+  // schema (MetadataAlgorithm.rawcode), so "the DDO never contains them" is not a safe
+  // assumption - we remove them explicitly:
+  //  - `rawcode`: uploadData writes meta.rawcode verbatim as the algorithm instead of the
+  //    checksummed service files, AND the paid checksum gate (enforceAlgoChecksums) treats any
+  //    rawcode as a raw algorithm and skips the checksum requirement entirely.
+  //  - `container.dockerfile` / `container.additionalDockerFiles`: getAlgorithmImage +
+  //    buildImage build a LOCAL image from the dockerfile instead of pulling the checksummed
+  //    image.
+  // A published (bound) algorithm must therefore always run its checksummed service files via
+  // its pinned, checksummed image. Raw code and dockerfile builds remain available only to
+  // raw/unpublished algorithms (no documentId, 'skipped' above), governed by allowRawAlgorithm.
+  delete (algorithm.meta as any).rawcode
+  if (algorithm.meta.container) {
+    delete (algorithm.meta.container as any).dockerfile
+    delete (algorithm.meta.container as any).additionalDockerFiles
+  }
+  // SECURITY: the container is not the only thing read from the client - the algorithm
+  // CODE file is resolved by resolveComputeFileObject (uploadData), which honors a
+  // client-supplied `fileObject` BEFORE falling back to documentId+serviceId. The
+  // trusted-algorithm checksums are computed from the DDO's service files, so a published
+  // algorithm that still carried a client `fileObject` would validate the DDO's files but
+  // EXECUTE the client's code - the same bypass class as the container. Drop it so the
+  // bound (published) algorithm resolves its code from the DDO service (documentId +
+  // serviceId) only. Raw-code/unpublished algorithms keep their fileObject (early return
+  // above), governed by the dataset's allowRawAlgorithm.
+  delete algorithm.fileObject
+  return 'bound'
 }
 
 export async function validateAlgoForDataset(

@@ -1505,7 +1505,18 @@ export class OceanP2P extends EventEmitter {
 
         let peerId
 
-        P2P_LOGGER.logMessage('SendTo() node ' + peerName + ' task: ' + message, true)
+        // do not log the raw message: forwarded commands carry credentials (signature,
+        // authorization/token, file-object headers / s3 keys). The command name is enough.
+        let sendToCommand: string
+        try {
+          sendToCommand = JSON.parse(message)?.command
+        } catch {
+          sendToCommand = undefined
+        }
+        P2P_LOGGER.logMessage(
+          `SendTo() node ${peerName} command: ${sendToCommand ?? 'unknown'}`,
+          true
+        )
 
         try {
           peerId = peerIdFromString(peerName)
