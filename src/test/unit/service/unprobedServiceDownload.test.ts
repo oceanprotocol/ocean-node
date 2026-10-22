@@ -106,6 +106,39 @@ describe('download progress for a service the node cannot probe', () => {
     sinon.assert.calledTwice(engine.getContainerDiskUsage)
   })
 
+  it('retries a folder it could not measure less often than one it measured', async () => {
+    const clock = sinon.useFakeTimers({ now: 1_000_000, toFake: ['Date'] })
+    try {
+      const engine = engineWith(null, null)
+      await engine.manifestDirectoryBytes(job(), CACHE)
+      clock.tick(30_000)
+      await engine.manifestDirectoryBytes(job(), CACHE)
+      sinon.assert.calledOnce(engine.getContainerDiskUsage)
+      clock.tick(30_000)
+      await engine.manifestDirectoryBytes(job(), CACHE)
+      sinon.assert.calledTwice(engine.getContainerDiskUsage)
+    } finally {
+      clock.restore()
+    }
+  })
+
+  it('starts the measuring period once a slow du has finished', async () => {
+    const clock = sinon.useFakeTimers({ now: 1_000_000, toFake: ['Date'] })
+    try {
+      const engine = engineWith(null, 400)
+      engine.getContainerDiskUsage.callsFake(() => {
+        clock.tick(14_000)
+        return Promise.resolve(400)
+      })
+      await engine.manifestDirectoryBytes(job(), CACHE)
+      clock.tick(10_000)
+      await engine.manifestDirectoryBytes(job(), CACHE)
+      sinon.assert.calledOnce(engine.getContainerDiskUsage)
+    } finally {
+      clock.restore()
+    }
+  })
+
   it('stops sampling six hours after the container started, complete or not', async () => {
     const engine = engineWith(`dir\t0\t${CACHE}\n`, 400)
     const unfinished = {

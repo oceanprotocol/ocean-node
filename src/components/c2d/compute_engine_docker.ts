@@ -154,6 +154,8 @@ const SERVICE_LOCK_STALE_MS = 120_000
 // `du` on a manifest folder runs in a user-controlled container, so it must not hold the probe.
 const MANIFEST_DU_TIMEOUT_MS = 15_000
 const MANIFEST_DIR_MEASURE_MS = 15_000
+// A folder not there yet, or a `du` that failed or timed out, is retried less often.
+const MANIFEST_DIR_RETRY_MS = 60_000
 
 // Identifies one engine instance as a service-lock holder across processes. pid alone is
 // not enough: pids are reused, and one process can host several engine instances.
@@ -4981,11 +4983,11 @@ export class C2DEngineDocker extends C2DEngine {
       sizes = new Map()
       this.manifestDirSizes.set(job.serviceId, sizes)
     }
-    const now = Date.now()
     const last = sizes.get(path)
     if (
       last?.containerId === job.containerId &&
-      now - last.at < MANIFEST_DIR_MEASURE_MS
+      Date.now() - last.at <
+        (last.bytes === null ? MANIFEST_DIR_RETRY_MS : MANIFEST_DIR_MEASURE_MS)
     ) {
       return last.bytes
     }
@@ -4994,7 +4996,8 @@ export class C2DEngineDocker extends C2DEngine {
       path,
       MANIFEST_DU_TIMEOUT_MS
     )
-    sizes.set(path, { containerId: job.containerId, bytes, at: now })
+    // Stamped once measured: a `du` near its timeout would otherwise be stale on arrival.
+    sizes.set(path, { containerId: job.containerId, bytes, at: Date.now() })
     return bytes
   }
 
