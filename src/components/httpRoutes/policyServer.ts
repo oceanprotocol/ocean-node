@@ -13,8 +13,12 @@ PolicyServerPassthroughRoute.post(
   `${SERVICES_API_BASE_PATH}/PolicyServerPassthrough`,
   express.urlencoded({ extended: true, type: '*/*' }),
   async (req: Request, res: Response): Promise<void> => {
+    // do not log the raw body: the free-form policyServerPassthrough blob can carry
+    // credentials (authorization token, signature)
     HTTP_LOGGER.logMessage(
-      `PolicyServerPassthroughRoute request received: ${JSON.stringify(req.body)}`,
+      `PolicyServerPassthroughRoute request received (action: ${
+        req.body?.policyServerPassthrough?.action ?? 'n/a'
+      })`,
       true
     )
     try {
@@ -43,8 +47,12 @@ PolicyServerPassthroughRoute.post(
   `${SERVICES_API_BASE_PATH}/initializePSVerification`,
   express.urlencoded({ extended: true, type: '*/*' }),
   async (req: Request, res: Response): Promise<void> => {
+    // do not log the raw body: it carries the consumer signature and the free-form
+    // policyServer blob, which can carry credentials
     HTTP_LOGGER.logMessage(
-      `initializePSVerificationRoute  request received: ${JSON.stringify(req.body)}`,
+      `initializePSVerificationRoute request received (did: ${
+        req.body?.documentId ?? 'n/a'
+      }, serviceId: ${req.body?.serviceId ?? 'n/a'})`,
       true
     )
     try {

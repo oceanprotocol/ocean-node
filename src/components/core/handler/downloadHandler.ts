@@ -221,7 +221,8 @@ export class DownloadHandler extends CommandHandler {
     const ddo = await handler.findAndFormatDdo(task.documentId)
 
     if (ddo) {
-      CORE_LOGGER.logMessage('DDO for asset found: ' + JSON.stringify(ddo), true)
+      // log only the id, not the whole DDO (it carries the encrypted files blob + metadata)
+      CORE_LOGGER.logMessage('DDO for asset found: ' + ddo.id, true)
     } else {
       CORE_LOGGER.logMessage(
         'No DDO for asset found. Cannot proceed with download.',
@@ -538,7 +539,9 @@ export class DownloadHandler extends CommandHandler {
           url.searchParams.append(key, String(value))
         }
         decriptedFileObject.url = url.toString()
-        CORE_LOGGER.info('Appended userData to file url: ' + decriptedFileObject.url)
+        // do not log the decrypted file url: it can embed credentials (FTP user:pass@host,
+        // presigned query tokens) and the consumer's appended userData
+        CORE_LOGGER.info('Appended userData to decrypted file url')
       }
 
       if (!validateFilesStructure(ddo, service, decryptedFileData)) {

@@ -297,10 +297,12 @@ export class OceanNode {
    */
   async handleDirectProtocolCommand(message: string): Promise<P2PCommandResponse> {
     OCEAN_NODE_LOGGER.logMessage('Incoming direct command for ocean peer', true)
-    OCEAN_NODE_LOGGER.logMessage('Performing task: ' + message, true)
 
     try {
       const task = JSON.parse(message)
+      // do not log the raw message: command payloads carry credentials. The command name
+      // is enough here; validateCommandParameters logs a redacted copy of the payload.
+      OCEAN_NODE_LOGGER.logMessage(`Performing task for command: ${task?.command}`, true)
       const handler: BaseHandler = this.coreHandlers.getHandler(task.command)
 
       if (!handler) {

@@ -18,7 +18,13 @@ fileInfoRoute.post(
   express.urlencoded({ extended: true, type: '*/*' }),
   async (req: Request, res: Response): Promise<void> => {
     const fileInfoReq: FileInfoHttpRequest = req.body as unknown as FileInfoHttpRequest
-    HTTP_LOGGER.logMessage(`FileInfo request received: ${JSON.stringify(req.body)}`, true)
+    // do not log the raw body: file objects carry credentials (headers, s3 keys, url userinfo)
+    HTTP_LOGGER.logMessage(
+      `FileInfo request received (type: ${req.body?.type ?? 'did'}${
+        req.body?.did ? `, did: ${req.body.did}` : ''
+      })`,
+      true
+    )
 
     try {
       const hasType =

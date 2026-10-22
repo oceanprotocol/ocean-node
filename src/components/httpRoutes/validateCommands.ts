@@ -17,7 +17,10 @@ const SENSITIVE_COMMAND_FIELDS = [
   'authorization', // auth token (JWT), usually taken from the Authorization header
   'signature', // consumer signature authorizing this command
   'aes_encrypted_key', // download: encrypted key material
-  'encryptedDockerRegistryAuth' // compute: encrypted docker registry credentials
+  'encryptedDockerRegistryAuth', // compute: encrypted docker registry credentials
+  'headers', // file objects: per-request headers, often carry an Authorization token
+  'accessKeyId', // s3 file objects: access key id
+  'secretAccessKey' // s3 file objects: secret access key
 ]
 
 // "token" is an ERC20 address on most commands (escrow, compute payment) and only a
@@ -76,25 +79,14 @@ function redactSensitiveFields(
 
 // add others when we add suppor
 
-// request level validation, just check if we have a "command" field and its a supported one
-// each command handler is responsible for the reamining validatio of the command fields
-export function validateCommandParameters(
-  commandData: any,
-  requiredFields: string[]
-): ValidateParams {
-  if (!commandData) {
-    return buildInvalidRequestMessage('Missing request body/data')
-  }
-
-  const commandStr: string = commandData.command as string
-
-  if (!commandStr) {
-    return buildInvalidRequestMessage('Invalid Request: "command" is mandatory!')
-  }
-  // direct commands
-  else if (!SUPPORTED_PROTOCOL_COMMANDS.includes(commandStr)) {
-    return buildInvalidRequestMessage(`Invalid or unrecognized command: "${commandStr}"`)
-  }
+/**
+ * Returns a copy of a command that is safe to log: non-cloneable fields (streams, buffers)
+ * are summarized and every credential field is redacted, at any depth. Use this anywhere a
+ * command payload is about to be logged - HTTP routes, the P2P inbound/outbound paths - so
+ * that credentials never reach the logs through a path that skips validateCommandParameters.
+ */
+export function redactCommandForLogging(commandData: any): any {
+  const commandStr: string = commandData?.command as string
 
   // deep copy for logging (must not throw for non-cloneable payloads like streams)
   let logCommandData: any
@@ -116,18 +108,44 @@ export function validateCommandParameters(
 
   if (commandStr === PROTOCOL_COMMANDS.ENCRYPT) {
     logCommandData.files = [] // hide files data (sensitive) + rawData (long buffer) from logging
+    if (isDefined(logCommandData.blob)) {
+      logCommandData.blob = REDACTED // the plaintext the caller wants encrypted
+    }
   } else if (commandStr === PROTOCOL_COMMANDS.ENCRYPT_FILE && commandData.rawData) {
     logCommandData.rawData = []
   }
 
   // never log the caller's credentials, whatever the command is. credentials also show up
-  // nested (the free-form "policyServer" / "policyServerPassthrough" blobs), so this walks
-  // the whole payload
-  logCommandData = redactSensitiveFields(
+  // nested (the free-form "policyServer" / "policyServerPassthrough" blobs, dataset file
+  // objects), so this walks the whole payload
+  return redactSensitiveFields(
     logCommandData,
     SENSITIVE_TOKEN_COMMANDS.includes(commandStr),
     new WeakSet()
   )
+}
+
+// request level validation, just check if we have a "command" field and its a supported one
+// each command handler is responsible for the reamining validatio of the command fields
+export function validateCommandParameters(
+  commandData: any,
+  requiredFields: string[]
+): ValidateParams {
+  if (!commandData) {
+    return buildInvalidRequestMessage('Missing request body/data')
+  }
+
+  const commandStr: string = commandData.command as string
+
+  if (!commandStr) {
+    return buildInvalidRequestMessage('Invalid Request: "command" is mandatory!')
+  }
+  // direct commands
+  else if (!SUPPORTED_PROTOCOL_COMMANDS.includes(commandStr)) {
+    return buildInvalidRequestMessage(`Invalid or unrecognized command: "${commandStr}"`)
+  }
+
+  const logCommandData = redactCommandForLogging(commandData)
 
   CORE_LOGGER.info(
     `Checking received command data for Command "${commandStr}": ${JSON.stringify(

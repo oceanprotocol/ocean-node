@@ -221,8 +221,11 @@ providerRoutes.get(
       res.sendStatus(400)
       return
     }
+    // do not log the raw query: it carries the consumer signature, nonce and userdata
     HTTP_LOGGER.logMessage(
-      `Download request received: ${JSON.stringify(req.query)}`,
+      `Download request received (did: ${req.query?.documentId ?? 'n/a'}, serviceId: ${
+        req.query?.serviceId ?? 'n/a'
+      }, consumer: ${req.query?.consumerAddress ?? 'n/a'})`,
       true
     )
     const authorization = req.headers?.authorization
@@ -243,7 +246,8 @@ providerRoutes.get(
         try {
           parsedUserData = JSON.parse(userdata as string)
         } catch (e) {
-          HTTP_LOGGER.logMessage(`Invalid userdata JSON: ${userdata}`, true)
+          // do not log the raw userdata value; it is caller-supplied and may carry secrets
+          HTTP_LOGGER.logMessage('Invalid userdata JSON in download request', true)
           parsedUserData = null
         }
       }
