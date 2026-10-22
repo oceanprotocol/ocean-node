@@ -5,6 +5,7 @@ import {
 } from '../core/handler/policyServer.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { PROTOCOL_COMMANDS, SERVICES_API_BASE_PATH } from '../../utils/constants.js'
+import { sanitizeLogValue } from '../../utils/util.js'
 
 export const PolicyServerPassthroughRoute = express.Router()
 PolicyServerPassthroughRoute.use(express.json()) // Ensure JSON parsing middleware is used
@@ -16,9 +17,9 @@ PolicyServerPassthroughRoute.post(
     // do not log the raw body: the free-form policyServerPassthrough blob can carry
     // credentials (authorization token, signature)
     HTTP_LOGGER.logMessage(
-      `PolicyServerPassthroughRoute request received (action: ${
+      `PolicyServerPassthroughRoute request received (action: ${sanitizeLogValue(
         req.body?.policyServerPassthrough?.action ?? 'n/a'
-      })`,
+      )})`,
       true
     )
     try {
@@ -50,9 +51,9 @@ PolicyServerPassthroughRoute.post(
     // do not log the raw body: it carries the consumer signature and the free-form
     // policyServer blob, which can carry credentials
     HTTP_LOGGER.logMessage(
-      `initializePSVerificationRoute request received (did: ${
+      `initializePSVerificationRoute request received (did: ${sanitizeLogValue(
         req.body?.documentId ?? 'n/a'
-      }, serviceId: ${req.body?.serviceId ?? 'n/a'})`,
+      )}, serviceId: ${sanitizeLogValue(req.body?.serviceId ?? 'n/a')})`,
       true
     )
     try {

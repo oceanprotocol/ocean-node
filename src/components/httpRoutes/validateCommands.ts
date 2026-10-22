@@ -33,6 +33,29 @@ const SENSITIVE_TOKEN_COMMANDS: string[] = [
 const REDACTED = '[REDACTED]'
 
 /**
+ * Strips credentials and query strings from a URL-looking string before it reaches the logs.
+ * File objects carry URLs as plain string values (not under a redacted key): an FtpFileObject
+ * `url` can embed `user:password@host` (see FtpFileObject) and an http(s) URL can carry a
+ * presigned token in the query string. Those would otherwise survive the key-based redaction
+ * below and be logged in full. Non-URL strings (DIDs, addresses, multiaddrs, ...) are returned
+ * unchanged.
+ */
+function stripUrlSecrets(value: string): string {
+  if (!value.includes('://')) {
+    return value
+  }
+  try {
+    const url = new URL(value)
+    url.username = ''
+    url.password = ''
+    url.search = ''
+    return url.toString()
+  } catch {
+    return value
+  }
+}
+
+/**
  * Returns a copy of the payload with every credential field redacted, at any depth.
  *
  * This must not mutate its input: the clone the caller hands us can be a *shallow* copy
@@ -49,7 +72,7 @@ function redactSensitiveFields(
   seen: WeakSet<object>
 ): any {
   if (value === null || typeof value !== 'object') {
-    return value
+    return typeof value === 'string' ? stripUrlSecrets(value) : value
   }
   if (seen.has(value)) {
     return '[CIRCULAR]'

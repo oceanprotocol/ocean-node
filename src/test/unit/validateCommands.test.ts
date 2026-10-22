@@ -318,6 +318,28 @@ describe('redactCommandForLogging', () => {
     expect(out).to.not.contain('super-secret-plaintext')
   })
 
+  it('strips user:password credentials from FTP URLs in file objects', () => {
+    const out = logged({
+      command: PROTOCOL_COMMANDS.FILE_INFO,
+      type: 'ftp',
+      url: 'ftp://ftp-user:ftp-secret@host.example/path/file.csv'
+    })
+    expect(out).to.not.contain('ftp-user')
+    expect(out).to.not.contain('ftp-secret')
+    // the non-secret host/path is kept, useful for debugging
+    expect(out).to.contain('host.example')
+  })
+
+  it('strips presigned query tokens from URLs in file objects', () => {
+    const out = logged({
+      command: PROTOCOL_COMMANDS.FILE_INFO,
+      type: 'url',
+      url: 'https://host.example/file?X-Amz-Signature=presigned-token-value'
+    })
+    expect(out).to.not.contain('presigned-token-value')
+    expect(out).to.contain('host.example')
+  })
+
   it('summarizes a non-cloneable request stream instead of throwing', () => {
     const out = logged({
       command: PROTOCOL_COMMANDS.DOWNLOAD,

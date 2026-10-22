@@ -1,6 +1,6 @@
 import express from 'express'
 import { getNonce } from '../core/utils/nonceHandler.js'
-import { streamToObject, streamToString } from '../../utils/util.js'
+import { streamToObject, streamToString, sanitizeLogValue } from '../../utils/util.js'
 import { Readable } from 'stream'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { PROTOCOL_COMMANDS, SERVICES_API_BASE_PATH } from '../../utils/constants.js'
@@ -223,9 +223,11 @@ providerRoutes.get(
     }
     // do not log the raw query: it carries the consumer signature, nonce and userdata
     HTTP_LOGGER.logMessage(
-      `Download request received (did: ${req.query?.documentId ?? 'n/a'}, serviceId: ${
+      `Download request received (did: ${sanitizeLogValue(
+        req.query?.documentId ?? 'n/a'
+      )}, serviceId: ${sanitizeLogValue(
         req.query?.serviceId ?? 'n/a'
-      }, consumer: ${req.query?.consumerAddress ?? 'n/a'})`,
+      )}, consumer: ${sanitizeLogValue(req.query?.consumerAddress ?? 'n/a')})`,
       true
     )
     const authorization = req.headers?.authorization
