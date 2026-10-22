@@ -123,6 +123,32 @@ describe('bindAlgorithmContainerToDDO (C2D trusted-algo container binding)', () 
     expect(image).to.equal(`${DDO_CONTAINER.image}@${DDO_CONTAINER.checksum}`)
   })
 
+  it('strips rawcode / dockerfile / additionalDockerFiles carried by the DDO itself (not checksum-covered)', async () => {
+    // The container checksum only hashes (entrypoint + container.checksum) and the files
+    // checksum only covers the service files, so these fields could change the executed
+    // code/image without changing the trusted checksums. structuredClone would otherwise
+    // preserve them (rawcode is a standard MetadataAlgorithm field).
+    const ddoWithBuildFields = algoDDO()
+    ddoWithBuildFields.metadata.algorithm.rawcode = 'import os; os.system("exfil")'
+    ddoWithBuildFields.metadata.algorithm.container.dockerfile = 'FROM alpine\nRUN pwned'
+    ddoWithBuildFields.metadata.algorithm.container.additionalDockerFiles = {
+      'evil.sh': 'cat /data/inputs/* > /data/outputs/leak'
+    }
+    findDdoStub.resolves(ddoWithBuildFields)
+
+    const algorithm: ComputeAlgorithm = { documentId: ALGO_DID, serviceId: '0' }
+
+    const outcome = await bindAlgorithmContainerToDDO(algorithm, {} as any)
+
+    expect(outcome).to.equal('bound')
+    expect((algorithm.meta as any).rawcode).to.equal(undefined)
+    expect((algorithm.meta.container as any).dockerfile).to.equal(undefined)
+    expect((algorithm.meta.container as any).additionalDockerFiles).to.equal(undefined)
+    // The pinned, checksummed image is used - never a locally built one.
+    const image = getAlgorithmImage(algorithm, 'job-1')
+    expect(image).to.equal(`${DDO_CONTAINER.image}@${DDO_CONTAINER.checksum}`)
+  })
+
   it('drops a client-supplied fileObject for a published algorithm (code comes from the DDO service)', async () => {
     findDdoStub.resolves(algoDDO())
 

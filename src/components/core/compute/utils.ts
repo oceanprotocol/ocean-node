@@ -123,10 +123,17 @@ export async function getAlgoChecksums(
  *  - CLIENT-OWNED (left untouched, they live OUTSIDE `meta`): `transferTxId`,
  *    `serviceId`, `documentId`, `algocustomdata`, `userdata`, `envs`. `meta` is
  *    rebuilt from scratch (deep-cloned from the DDO, never spread from the client
- *    value) so NO client field survives for a published algorithm. In particular
- *    `rawcode`, `container.dockerfile` and `container.additionalDockerFiles`
- *    cannot be smuggled in: they are not part of the standard algorithm DDO
- *    schema, so a faithful copy of `metadata.algorithm` never contains them.
+ *    value) so NO client field survives for a published algorithm.
+ *  - STRIPPED from the bound `meta` even though they come from the DDO: `rawcode`,
+ *    `container.dockerfile` and `container.additionalDockerFiles`. These are NOT
+ *    covered by the trusted-algorithm checksums (containerSectionChecksum only hashes
+ *    entrypoint+checksum; filesChecksum only covers the service files), so leaving them
+ *    in would let a published algorithm's code/image change without changing the trusted
+ *    checksums. `rawcode` in particular IS a standard algorithm DDO field
+ *    (MetadataAlgorithm.rawcode), so structuredClone would preserve it - we delete it (and
+ *    the dockerfile build fields) so a bound algorithm always runs its checksummed service
+ *    files via its pinned, checksummed image. (See the delete block below for the exact
+ *    execution paths each field drives.)
  *  - DROPPED for a published algorithm: `fileObject`. It is client-owned and lives
  *    OUTSIDE `meta`, but it is the algorithm CODE file that resolveComputeFileObject
  *    executes (it wins over documentId+serviceId). Since the checksums are computed
@@ -188,6 +195,28 @@ export async function bindAlgorithmContainerToDDO(
   // Deep-clone so we take a faithful, DDO-owned snapshot and never alias (or later
   // mutate) the cached DDO object.
   algorithm.meta = structuredClone(metadata.algorithm)
+  // SECURITY: strip build / raw-execution fields from the bound meta. These are NOT covered
+  // by the trusted-algorithm checksums - `containerSectionChecksum` only hashes
+  // (container.entrypoint + container.checksum) and `filesChecksum` only covers the DDO
+  // service files - so if they survived the clone, a published algorithm's executed code or
+  // image could change WITHOUT changing the checksums the dataset owner trusts. structuredClone
+  // copies whatever the DDO carries, and `rawcode` IS part of the standard algorithm DDO
+  // schema (MetadataAlgorithm.rawcode), so "the DDO never contains them" is not a safe
+  // assumption - we remove them explicitly:
+  //  - `rawcode`: uploadData writes meta.rawcode verbatim as the algorithm instead of the
+  //    checksummed service files, AND the paid checksum gate (enforceAlgoChecksums) treats any
+  //    rawcode as a raw algorithm and skips the checksum requirement entirely.
+  //  - `container.dockerfile` / `container.additionalDockerFiles`: getAlgorithmImage +
+  //    buildImage build a LOCAL image from the dockerfile instead of pulling the checksummed
+  //    image.
+  // A published (bound) algorithm must therefore always run its checksummed service files via
+  // its pinned, checksummed image. Raw code and dockerfile builds remain available only to
+  // raw/unpublished algorithms (no documentId, 'skipped' above), governed by allowRawAlgorithm.
+  delete (algorithm.meta as any).rawcode
+  if (algorithm.meta.container) {
+    delete (algorithm.meta.container as any).dockerfile
+    delete (algorithm.meta.container as any).additionalDockerFiles
+  }
   // SECURITY: the container is not the only thing read from the client - the algorithm
   // CODE file is resolved by resolveComputeFileObject (uploadData), which honors a
   // client-supplied `fileObject` BEFORE falling back to documentId+serviceId. The
