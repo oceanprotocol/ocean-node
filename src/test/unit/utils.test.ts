@@ -1,5 +1,10 @@
 import { expect, assert } from 'chai'
-import { sleep, getEventFromTx, sanitizeServiceFiles } from '../../utils/util.js'
+import {
+  sleep,
+  getEventFromTx,
+  sanitizeServiceFiles,
+  sanitizeLogValue
+} from '../../utils/util.js'
 import { URLUtils } from '../../utils/url.js'
 import { validateConsumerParameters } from '../../utils/validators.js'
 import { ConsumerParameter } from '../../@types/DDO/ConsumerParameter.js'
@@ -302,5 +307,25 @@ describe('Utilities Functions', () => {
         rmSync(fileName)
       } catch (err) {}
     }
+  })
+
+  describe('sanitizeLogValue function', () => {
+    it('escapes CR/LF so a value cannot forge extra log lines', () => {
+      expect(sanitizeLogValue('did:op:1\nFORGED LINE')).to.equal('did:op:1\\nFORGED LINE')
+      expect(sanitizeLogValue('a\r\nb')).to.equal('a\\r\\nb')
+    })
+
+    it('renders scalars as text', () => {
+      expect(sanitizeLogValue('plain')).to.equal('plain')
+      expect(sanitizeLogValue(42)).to.equal('42')
+      expect(sanitizeLogValue(true)).to.equal('true')
+    })
+
+    it('treats null, undefined and compound values as empty string', () => {
+      expect(sanitizeLogValue(null)).to.equal('')
+      expect(sanitizeLogValue(undefined)).to.equal('')
+      expect(sanitizeLogValue({ a: 1 })).to.equal('')
+      expect(sanitizeLogValue(['a', 'b'])).to.equal('')
+    })
   })
 })

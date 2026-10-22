@@ -136,6 +136,38 @@ describe('validateCommandParameters credential redaction', () => {
     expect(loggedCommand()).to.contain(ERC20)
   })
 
+  it('redacts a "token" credential on policyServerPassthrough', () => {
+    validateCommandParameters(
+      {
+        command: PROTOCOL_COMMANDS.POLICY_SERVER_PASSTHROUGH,
+        consumerAddress: ERC20,
+        policyServerPassthrough: { action: 'download', token: TOKEN }
+      },
+      []
+    )
+    expect(loggedCommand()).to.not.contain(TOKEN)
+  })
+
+  it('redacts credential fields regardless of casing', () => {
+    validateCommandParameters(
+      {
+        command: PROTOCOL_COMMANDS.POLICY_SERVER_PASSTHROUGH,
+        consumerAddress: ERC20,
+        policyServerPassthrough: {
+          Authorization: TOKEN,
+          Signature: SIGNATURE,
+          s3Access: { AccessKeyId: 's3-key-id', SecretAccessKey: 's3-secret-value' }
+        }
+      },
+      []
+    )
+    const logged = loggedCommand()
+    expect(logged).to.not.contain(TOKEN)
+    expect(logged).to.not.contain(SIGNATURE)
+    expect(logged).to.not.contain('s3-key-id')
+    expect(logged).to.not.contain('s3-secret-value')
+  })
+
   it('redacts credentials nested inside the policyServerPassthrough blob', () => {
     validateCommandParameters(
       {

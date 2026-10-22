@@ -29,11 +29,17 @@ export function sanitizeServiceFiles(serviceFiles: string): string {
  * injection). This escapes the line breaks so the value stays readable on one line. Use it when
  * a request-derived value is placed into a message by string interpolation - JSON.stringify
  * already escapes control characters, so values logged that way do not need it.
+ *
+ * Only scalars are rendered; null, undefined and compound values (objects, arrays) become an
+ * empty string rather than "[object Object]" or a comma-joined dump of caller-supplied data.
  */
 export function sanitizeLogValue(value: unknown): string {
-  return String(value ?? '')
-    .replace(/\r/g, '\\r')
-    .replace(/\n/g, '\\n')
+  const isScalar =
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint'
+  return (isScalar ? String(value) : '').replace(/\r/g, '\\r').replace(/\n/g, '\\n')
 }
 
 /**

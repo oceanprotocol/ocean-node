@@ -23,11 +23,20 @@ const SENSITIVE_COMMAND_FIELDS = [
   'secretAccessKey' // s3 file objects: secret access key
 ]
 
+// lower-cased once so field names can be matched case-insensitively: credentials nested in
+// the free-form policyServer / policyServerPassthrough blobs can arrive under any casing
+// (e.g. "Authorization", "AccessKeyId"), and the exact-case check used to let those through
+const SENSITIVE_COMMAND_FIELDS_LOWER = SENSITIVE_COMMAND_FIELDS.map((field) =>
+  field.toLowerCase()
+)
+
 // "token" is an ERC20 address on most commands (escrow, compute payment) and only a
-// credential on the auth-token commands, so it is redacted per-command instead
+// credential on the auth-token commands and the policy-server passthrough (whose free-form
+// blob can carry a policy-server auth token), so it is redacted per-command instead
 const SENSITIVE_TOKEN_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
-  PROTOCOL_COMMANDS.VALIDATE_AUTH_TOKEN
+  PROTOCOL_COMMANDS.VALIDATE_AUTH_TOKEN,
+  PROTOCOL_COMMANDS.POLICY_SERVER_PASSTHROUGH
 ]
 
 const REDACTED = '[REDACTED]'
@@ -90,7 +99,11 @@ function redactSensitiveFields(
   seen.add(value)
   const copy: any = {}
   for (const [key, item] of Object.entries(value)) {
-    if (SENSITIVE_COMMAND_FIELDS.includes(key) || (redactToken && key === 'token')) {
+    const keyLower = key.toLowerCase()
+    if (
+      SENSITIVE_COMMAND_FIELDS_LOWER.includes(keyLower) ||
+      (redactToken && keyLower === 'token')
+    ) {
       copy[key] = isDefined(item) ? REDACTED : item
     } else {
       copy[key] = redactSensitiveFields(item, redactToken, seen)
