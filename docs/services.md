@@ -172,8 +172,9 @@ returned by `SERVICE_GET_STATUS`:
 `modelDownload` comes from the launch script's download manifest when it writes one: a
 tab-separated `/tmp/ocean/downloads.tsv` in the container, one `<kind> <bytes> <path> [<source>]`
 line per item, written before the first download. A `file` entry is complete once `<path>` exists
-and in flight while `<path>.part` does; a `dir` entry is a folder filled under names of its own
-(huggingface_hub's snapshot cache), measured with `du -sb`. A `bytes` of `0` means unknown. Lines may
+and in flight while `<path>.part` does, or while a `.xet-<name>` folder beside it does (a Xet
+download staging there, measured with `du -sb`); a `dir` entry is a folder filled under names of its
+own (huggingface_hub's snapshot cache), measured with `du -sb`. A `bytes` of `0` means unknown. Lines may
 be appended while the script runs; at most 64 entries are read. Without a manifest, the node falls
 back to the engine's own Hugging Face cache (vLLM, llama.cpp).
 

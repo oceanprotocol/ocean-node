@@ -46,7 +46,7 @@ interface ContainerPathStat {
 }
 
 /** One path's stat, read from Docker's stat header. null when the path is gone or unreadable. */
-async function statContainerPath(
+export async function statContainerPath(
   container: Dockerode.Container,
   path: string
 ): Promise<ContainerPathStat | null> {

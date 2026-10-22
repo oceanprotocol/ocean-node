@@ -137,6 +137,86 @@ describe('sampleDownloadManifest', () => {
     expect(download).to.include({ filesComplete: 1, filesInFlight: 0, percent: 100 })
   })
 
+  it('measures a file Xet is fetching through its staging folder', async () => {
+    const staging = `${MODELS}/loras/.xet-b.safetensors`
+    const container = fakeContainer(manifest, {
+      [`${MODELS}/vae/a.safetensors`]: 1000,
+      [staging]: 4096
+    })
+    const measured: string[] = []
+    const download = await sampleDownloadManifest(container, (path) => {
+      measured.push(path)
+      return Promise.resolve(path === staging ? 800 : path === GEMMA ? 7000 : null)
+    })
+    expect(measured).to.deep.equal([staging, GEMMA])
+    expect(download).to.include({
+      downloadedBytes: 8800,
+      filesComplete: 2,
+      filesInFlight: 1
+    })
+  })
+
+  it('caps a staging folder at the declared size', async () => {
+    const staging = `${MODELS}/vae/.xet-a.safetensors`
+    const container = fakeContainer(`file\t1000\t${MODELS}/vae/a.safetensors`, {
+      [staging]: 4096
+    })
+    const download = await sampleDownloadManifest(container, () => Promise.resolve(1500))
+    expect(download).to.include({
+      downloadedBytes: 1000,
+      filesComplete: 0,
+      filesInFlight: 1
+    })
+  })
+
+  it('counts a finished file once, without measuring a staging folder left beside it', async () => {
+    const container = fakeContainer(`file\t1000\t${MODELS}/vae/a.safetensors`, {
+      [`${MODELS}/vae/a.safetensors`]: 1000,
+      [`${MODELS}/vae/.xet-a.safetensors`]: 4096
+    })
+    let measures = 0
+    const download = await sampleDownloadManifest(container, () => {
+      measures++
+      return Promise.resolve(1000)
+    })
+    expect(measures).to.equal(0)
+    expect(download).to.include({
+      downloadedBytes: 1000,
+      filesComplete: 1,
+      filesInFlight: 0
+    })
+  })
+
+  it('measures no folder for a file that has not started', async () => {
+    const container = fakeContainer(`file\t1000\t${MODELS}/vae/a.safetensors`, {})
+    let measures = 0
+    const download = await sampleDownloadManifest(container, () => {
+      measures++
+      return Promise.resolve(0)
+    })
+    expect(measures).to.equal(0)
+    expect(download).to.include({
+      downloadedBytes: 0,
+      filesComplete: 0,
+      filesInFlight: 0
+    })
+  })
+
+  it('measures at most two staging folders per sample', async () => {
+    const paths = [0, 1, 2].map((i) => `${MODELS}/vae/f${i}`)
+    const container = fakeContainer(
+      paths.map((p) => `file\t100\t${p}`).join('\n'),
+      Object.fromEntries(paths.map((p) => [p.replace('/f', '/.xet-f'), 4096]))
+    )
+    let measures = 0
+    const download = await sampleDownloadManifest(container, () => {
+      measures++
+      return Promise.resolve(50)
+    })
+    expect(measures).to.equal(2)
+    expect(download).to.include({ downloadedBytes: 100, filesInFlight: 3 })
+  })
+
   it('reports no total when a size is unknown', async () => {
     const container = fakeContainer(`file\t0\t${MODELS}/vae/a.safetensors`, {})
     const download = await sampleDownloadManifest(container, () => Promise.resolve(null))

@@ -2,13 +2,14 @@ import type Dockerode from 'dockerode'
 import { pipeline } from 'stream'
 import * as tarStream from 'tar-stream'
 import type { ServiceModelDownload } from '../../@types/C2D/ServiceOnDemand.js'
-import { buildModelDownload, fileSize } from './modelDownload.js'
+import { buildModelDownload, fileSize, statContainerPath } from './modelDownload.js'
 
 /**
  * Download progress from a manifest the service's launch script writes before its first download,
  * one `<kind>\t<bytes>\t<path>[\t<source>]` line per item (`bytes` 0 = unknown):
  *
- *   file  written to `<path>.part`, renamed to `<path>` once complete
+ *   file  written to `<path>.part`, or fetched by Xet into a `.xet-<name>` folder beside it,
+ *         and renamed to `<path>` once complete
  *   dir   a folder filled under names of its own, measured with `du`
  *
  * Re-read on every sample, since the script may append to it. Untrusted: it only affects this
@@ -18,6 +19,8 @@ export const MANIFEST_PATH = '/tmp/ocean/downloads.tsv'
 const MAX_DOWNLOAD_ENTRIES = 64
 // Each `dir` entry costs a `du` inside the container.
 const MAX_DIR_ENTRIES = 8
+// So does each Xet staging folder; files are fetched one at a time, so normally only one exists.
+const MAX_STAGING_MEASURES = 2
 // For a service the node cannot probe: how long after start to look for a manifest, and the
 // longest it is sampled, so a download that never completes is not sampled forever.
 export const MANIFEST_DISCOVERY_MS = 30 * 60 * 1000
@@ -32,6 +35,12 @@ export interface DownloadEntry {
 }
 
 export type DirectoryBytes = (path: string) => Promise<number | null>
+
+/** The folder Xet fetches `<path>` into before renaming the finished file onto `<path>`. */
+function xetStagingPath(path: string): string {
+  const slash = path.lastIndexOf('/')
+  return `${path.slice(0, slash + 1)}.xet-${path.slice(slash + 1)}`
+}
 
 async function readContainerFile(
   container: Dockerode.Container,
@@ -105,6 +114,7 @@ export async function sampleDownloadManifest(
   let downloadedBytes = 0
   let files = 0
   let inFlight = 0
+  let stagingMeasures = 0
   for (const { kind, path, bytes } of entries) {
     if (kind === 'dir') {
       const held = await directoryBytes(path)
@@ -120,7 +130,9 @@ export async function sampleDownloadManifest(
       }
       continue
     }
-    // Finished first, so a stale .part beside it cannot keep the file in flight.
+    // Finished first, so a stale .part or staging folder beside it cannot keep the file in
+    // flight. Both downloaders rename onto `<path>` only once the file is complete, so a file is
+    // never counted in two places; one renamed mid-sample is missed for that sample only.
     const finished = await fileSize(container, path)
     if (finished !== null) {
       downloadedBytes += finished
@@ -131,6 +143,21 @@ export async function sampleDownloadManifest(
     if (partial !== null) {
       downloadedBytes += partial
       inFlight++
+      continue
+    }
+    // A stat before the `du`, so a file not started yet costs no exec.
+    const staging = xetStagingPath(path)
+    if (!(await statContainerPath(container, staging))) {
+      continue
+    }
+    inFlight++
+    if (stagingMeasures >= MAX_STAGING_MEASURES) {
+      continue
+    }
+    stagingMeasures++
+    const staged = await directoryBytes(staging)
+    if (staged !== null) {
+      downloadedBytes += bytes ? Math.min(staged, bytes) : staged
     }
   }
   const totalBytes =
