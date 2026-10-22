@@ -1970,12 +1970,22 @@ export class C2DEngineDocker extends C2DEngine {
     return null
   }
 
-  public override async getStreamableLogs(jobId: string): Promise<NodeJS.ReadableStream> {
+  public override async getStreamableLogs(
+    jobId: string,
+    consumerAddress: string
+  ): Promise<NodeJS.ReadableStream> {
+    if (!consumerAddress) return null
     const jobRes: DBComputeJob[] = await this.db.getJob(jobId)
     if (jobRes.length === 0) return null
     if (!jobRes[0].isRunning) return null
     try {
       const job = jobRes[0]
+      if (
+        !sameAddress(job.owner, consumerAddress) &&
+        !includesAddress(job.additionalViewers, consumerAddress)
+      ) {
+        return null
+      }
       const container = this.docker.getContainer(job.jobId + '-algoritm')
       const details = await container.inspect()
       if (details.State.Running === false) return null
