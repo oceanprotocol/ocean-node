@@ -90,15 +90,22 @@ import {
   runReadinessProbe,
   PROBE_INITIAL_DELAY_SECONDS,
   PROBE_PERIOD_SECONDS,
-  READY_PROBE_PERIOD_SECONDS
+  READY_PROBE_PERIOD_SECONDS,
+  READINESS_WARN_AFTER_SECONDS
 } from './serviceReadiness.js'
 import { resolveServiceEngine, type ServiceEngineProfile } from './serviceEngines.js'
 import {
   buildModelDownload,
   fetchModelTotalBytes,
   isModelDownloadComplete,
-  ModelDownloadSampler
+  ModelDownloadSampler,
+  withReceivedBytes
 } from './modelDownload.js'
+import {
+  MANIFEST_DISCOVERY_MS,
+  MANIFEST_SAMPLING_MS,
+  sampleDownloadManifest
+} from './downloadManifest.js'
 import type { DockerMountObject } from '../../@types/PersistentStorage.js'
 import { resolveServiceImage } from './serviceResourceMatching.js'
 import {
@@ -123,6 +130,7 @@ import {
   getMetricsIntervalSeconds,
   isMetricsCollectionEnabled,
   isSnapshotStale,
+  readContainerRxBytes,
   sampleContainerMetrics
 } from './containerMetrics.js'
 import { GpuMetricsService } from './gpu/index.js'
@@ -153,6 +161,11 @@ const trivyImage = 'aquasec/trivy:0.69.3' // Use pinned versions for safety
 // doesn't get a live operation's resources torn down under it.
 const SERVICE_LOCK_HEARTBEAT_MS = 30_000
 const SERVICE_LOCK_STALE_MS = 120_000
+// `du` on a manifest folder runs in a user-controlled container, so it must not hold the probe.
+const MANIFEST_DU_TIMEOUT_MS = 15_000
+const MANIFEST_DIR_MEASURE_MS = 15_000
+// A folder not there yet, or a `du` that failed or timed out, is retried less often.
+const MANIFEST_DIR_RETRY_MS = 60_000
 
 // Identifies one engine instance as a service-lock holder across processes. pid alone is
 // not enough: pids are reused, and one process can host several engine instances.
@@ -223,6 +236,15 @@ export class C2DEngineDocker extends C2DEngine {
   private serviceProbeUrls: Map<string, string> = new Map()
   // Per-service model-download sampling state (which cache files to stat, when to re-list them).
   private modelDownloadSampler = new ModelDownloadSampler()
+  // serviceId -> last manifest check, for services the node cannot probe.
+  private manifestCheckedAt: Map<string, number> = new Map()
+  // serviceId -> containerId the "still not ready" warning was logged for.
+  private readinessWarned: Map<string, string> = new Map()
+  // serviceId -> manifest folder path -> last `du`.
+  private manifestDirSizes: Map<
+    string,
+    Map<string, { containerId: string; bytes: number | null; at: number }>
+  > = new Map()
   // serviceId -> its readiness probe (+ model-download sample) still running in the background.
   // The probe is launched fire-and-forget so a slow engine, Docker daemon or Hub never holds up
   // InternalLoop; this keeps one probe per service at a time and lets stop() drain them.
@@ -3116,7 +3138,8 @@ export class C2DEngineDocker extends C2DEngine {
   // never report an unmeasurable container as "0 bytes used".
   private async getContainerDiskUsage(
     containerName: string,
-    path: string = '/data'
+    path: string = '/data',
+    timeoutMs?: number
   ): Promise<number | null> {
     try {
       const container = this.docker.getContainer(containerName)
@@ -3128,22 +3151,47 @@ export class C2DEngineDocker extends C2DEngine {
         return null
       }
 
+      // Without a TTY, Docker's 8-byte stream headers can read as digits prepended to the size.
       const exec = await container.exec({
         Cmd: ['du', '-sb', path],
         AttachStdout: true,
-        AttachStderr: true
+        AttachStderr: true,
+        Tty: true
       })
 
-      const stream = await exec.start({ Detach: false, Tty: false })
+      const stream = await exec.start({ Detach: false, Tty: true })
 
+      let timedOut = false
+      const timer =
+        timeoutMs !== undefined
+          ? setTimeout(() => {
+              timedOut = true
+              stream.destroy()
+            }, timeoutMs)
+          : undefined
       const chunks: Buffer[] = []
-      for await (const chunk of stream) {
-        chunks.push(chunk as Buffer)
+      try {
+        for await (const chunk of stream) {
+          chunks.push(chunk as Buffer)
+        }
+      } catch (error) {
+        if (!timedOut) {
+          throw error
+        }
+      } finally {
+        clearTimeout(timer)
+      }
+      if (timedOut) {
+        CORE_LOGGER.warn(
+          `du ${path} in ${containerName} did not finish within ${timeoutMs / 1000}s`
+        )
+        return null
       }
 
       const output = Buffer.concat(chunks).toString()
 
-      const match = output.match(/(\d+)\s/)
+      // The size line follows any "du: cannot access" lines, which the TTY merges in.
+      const match = output.match(/^(\d+)\t/m)
       return match ? parseInt(match[1], 10) : null
     } catch (error) {
       CORE_LOGGER.error(
@@ -4741,9 +4789,16 @@ export class C2DEngineDocker extends C2DEngine {
     // expired), whichever path ended them.
     const running = new Set(services.map((svc) => svc.serviceId))
     this.modelDownloadSampler.retain(running)
-    for (const serviceId of this.serviceProbeUrls.keys()) {
-      if (!running.has(serviceId)) {
-        this.serviceProbeUrls.delete(serviceId)
+    for (const state of [
+      this.serviceProbeUrls,
+      this.manifestCheckedAt,
+      this.readinessWarned,
+      this.manifestDirSizes
+    ]) {
+      for (const serviceId of state.keys()) {
+        if (!running.has(serviceId)) {
+          state.delete(serviceId)
+        }
       }
     }
     return runningOnly
@@ -4818,7 +4873,10 @@ export class C2DEngineDocker extends C2DEngine {
   ): Promise<void> {
     try {
       const engine = resolveServiceEngine(job)
-      if (!engine) return
+      if (!engine) {
+        await this.sampleUnprobedServiceDownload(job, details)
+        return
+      }
       if (this.serviceOpsInFlight.has(job.serviceId)) return
 
       const now = Date.now()
@@ -4921,24 +4979,24 @@ export class C2DEngineDocker extends C2DEngine {
         ? undefined
         : await this.sampleModelDownload(job, engine)
 
-      // Same cross-process guard as the metrics write: a lifecycle transition must win.
+      // Usually a node that cannot reach its container: tell the operator once per container.
       if (
-        this.serviceOpsInFlight.has(job.serviceId) ||
-        (await this.db.isServiceLocked(job.serviceId, SERVICE_LOCK_STALE_MS))
+        readiness.state === 'waiting' &&
+        Number.isFinite(startedAt) &&
+        now - startedAt >= READINESS_WARN_AFTER_SECONDS * 1000 &&
+        this.readinessWarned.get(job.serviceId) !== job.containerId
       ) {
-        return
+        this.readinessWarned.set(job.serviceId, job.containerId)
+        const download = modelDownload ?? job.modelDownload
+        CORE_LOGGER.warn(
+          `[readiness] service ${job.serviceId} (${engine.id}) not ready ` +
+            `${Math.round((now - startedAt) / 60_000)} min after its container started: ` +
+            `${readiness.lastError ?? `HTTP ${readiness.httpStatus}`} via ${readiness.probedUrl}` +
+            (download ? `; model download at ${download.percent ?? '?'}%` : '')
+        )
       }
-      await this.db.updateServiceJobReadiness(
-        job.serviceId,
-        {
-          owner: job.owner,
-          clusterHash: job.clusterHash,
-          status: ServiceStatusNumber.Running,
-          containerId: job.containerId
-        },
-        readiness,
-        modelDownload
-      )
+
+      await this.persistServiceReadiness(job, readiness, modelDownload)
     } catch (e: any) {
       CORE_LOGGER.debug(
         `[readiness] service ${job.serviceId}: probe failed: ${e?.message}`
@@ -4946,13 +5004,106 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
+  // Same cross-process guard as the metrics write: a lifecycle transition must win.
+  private async persistServiceReadiness(
+    job: ServiceJob,
+    readiness: ServiceReadiness | undefined,
+    modelDownload: ServiceModelDownload | undefined
+  ): Promise<void> {
+    if (
+      this.serviceOpsInFlight.has(job.serviceId) ||
+      (await this.db.isServiceLocked(job.serviceId, SERVICE_LOCK_STALE_MS))
+    ) {
+      return
+    }
+    await this.db.updateServiceJobReadiness(
+      job.serviceId,
+      {
+        owner: job.owner,
+        clusterHash: job.clusterHash,
+        status: ServiceStatusNumber.Running,
+        containerId: job.containerId
+      },
+      readiness,
+      modelDownload
+    )
+  }
+
   /**
-   * How much of its model the container has pulled down, read from the engine's own cache.
+   * Manifest download progress for a service the node cannot probe; no readiness, so Running stays
+   * the signal. With no readiness to end it, sampling is bounded by MANIFEST_DISCOVERY_MS /
+   * MANIFEST_SAMPLING_MS and stops once the listed download is complete.
+   */
+  private async sampleUnprobedServiceDownload(
+    job: ServiceJob,
+    details: Dockerode.ContainerInspectInfo
+  ): Promise<void> {
+    if (
+      this.serviceOpsInFlight.has(job.serviceId) ||
+      isModelDownloadComplete(job.modelDownload)
+    ) {
+      return
+    }
+    const now = Date.now()
+    const startedAt = Date.parse(details.State?.StartedAt ?? '')
+    if (
+      Number.isFinite(startedAt) &&
+      now - startedAt > (job.modelDownload ? MANIFEST_SAMPLING_MS : MANIFEST_DISCOVERY_MS)
+    ) {
+      return
+    }
+    if (
+      now - (this.manifestCheckedAt.get(job.serviceId) ?? 0) <
+      PROBE_PERIOD_SECONDS * 1000
+    ) {
+      return
+    }
+    this.manifestCheckedAt.set(job.serviceId, now)
+    const modelDownload = await sampleDownloadManifest(
+      this.docker.getContainer(job.containerId),
+      (path) => this.manifestDirectoryBytes(job, path)
+    )
+    if (modelDownload) {
+      await this.persistServiceReadiness(job, undefined, modelDownload)
+    }
+  }
+
+  private async manifestDirectoryBytes(
+    job: ServiceJob,
+    path: string
+  ): Promise<number | null> {
+    let sizes = this.manifestDirSizes.get(job.serviceId)
+    if (!sizes) {
+      sizes = new Map()
+      this.manifestDirSizes.set(job.serviceId, sizes)
+    }
+    const last = sizes.get(path)
+    if (
+      last?.containerId === job.containerId &&
+      Date.now() - last.at <
+        (last.bytes === null ? MANIFEST_DIR_RETRY_MS : MANIFEST_DIR_MEASURE_MS)
+    ) {
+      return last.bytes
+    }
+    const bytes = await this.getContainerDiskUsage(
+      job.containerId,
+      path,
+      MANIFEST_DU_TIMEOUT_MS
+    )
+    // Stamped once measured: a `du` near its timeout would otherwise be stale on arrival.
+    sizes.set(path, { containerId: job.containerId, bytes, at: Date.now() })
+    return bytes
+  }
+
+  /**
+   * How much of its model the container has pulled down: from the launch script's download
+   * manifest when it writes one, otherwise from the engine's own cache.
    *
    * This is the wait the image pull does not cover: the image is fetched once per node and cached
    * forever after, while the weights are fetched by the engine on EVERY container start, after it
    * reports Running. Nothing serves that number over HTTP at the time (there is no server yet), so
-   * it is read from the cache files themselves — see components/c2d/modelDownload.
+   * it is read from the cache files themselves — see components/c2d/modelDownload — raised to the
+   * bytes the container has received, which a Xet download reaches long before its files do.
    *
    * Best-effort throughout: an unreadable cache, an engine with no known cache path, or a model
    * whose size the Hub cannot tell us all degrade to less information, never to an error.
@@ -4961,14 +5112,23 @@ export class C2DEngineDocker extends C2DEngine {
     job: ServiceJob,
     engine: ServiceEngineProfile
   ): Promise<ServiceModelDownload | undefined> {
-    if (!engine.modelCachePath) return undefined
-    // Downloaded: what remains is the engine loading weights, which the cache says nothing about.
-    // Returning nothing keeps the stored 100% record as it is.
-    if (isModelDownloadComplete(job.modelDownload)) {
-      return undefined
-    }
     try {
       const container = this.docker.getContainer(job.containerId)
+      // Before the completion check: a script can append to its manifest after earlier downloads.
+      const fromManifest = await sampleDownloadManifest(container, (path) =>
+        this.manifestDirectoryBytes(job, path)
+      )
+      if (fromManifest) {
+        return fromManifest
+      }
+      if (!engine.modelCachePath) {
+        return undefined
+      }
+      // Downloaded: what remains is the engine loading weights, which the cache says nothing about.
+      // Returning nothing keeps the stored 100% record as it is.
+      if (isModelDownloadComplete(job.modelDownload)) {
+        return undefined
+      }
       const downloaded = await this.modelDownloadSampler.sample(job.serviceId, container)
       if (!downloaded) return undefined
       // Only a Hugging Face repo has a size the node can look up; a local path or an object-store
@@ -4978,7 +5138,13 @@ export class C2DEngineDocker extends C2DEngine {
       // the difference between a real denominator and one covering every quantization on offer.
       const quant = engine.modelQuantFromCommand?.(job.dockerCmd) ?? undefined
       const totalBytes = modelId ? await fetchModelTotalBytes(modelId, quant) : null
-      return buildModelDownload(downloaded, totalBytes, modelId)
+      // The cache lags a Xet download by most of its length; the bytes received do not.
+      const received = await readContainerRxBytes(container)
+      return buildModelDownload(
+        withReceivedBytes(downloaded, received, totalBytes),
+        totalBytes,
+        modelId
+      )
     } catch (e: any) {
       CORE_LOGGER.debug(
         `[model-download] service ${job.serviceId}: sample failed: ${e?.message}`

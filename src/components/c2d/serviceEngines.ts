@@ -132,6 +132,12 @@ export const SERVICE_ENGINE_PROFILES: ServiceEngineProfile[] = [
     modelCachePath: '/root/.cache/huggingface/hub',
     modelIdFromCommand: hfRepoIdFromLlamaCppCommand,
     modelQuantFromCommand: quantFromLlamaCppCommand
+  },
+  {
+    id: 'comfyui',
+    matchesImage: (image) => /(^|\/)yanwk\/comfyui-boot$/.test(image),
+    // Binds its port only after models are fetched and custom nodes loaded.
+    probe: { path: '/system_stats', port: 8188, expectStatus: [200] }
   }
 ]
 
@@ -148,11 +154,26 @@ function stripImageRef(image: string): string {
   return colon === -1 ? withoutDigest : withoutDigest.slice(0, colon)
 }
 
-/** The engine profile for a service, or null when the node does not recognize the image. */
+/**
+ * Null for an unrecognized image, or when the engine's port is not published (an app running the
+ * engine behind its own port has nothing to probe).
+ */
 export function resolveServiceEngine(job: ServiceJob): ServiceEngineProfile | null {
   const image = stripImageRef((job.image || job.containerImage || '').trim())
   if (!image) {
     return null
   }
-  return SERVICE_ENGINE_PROFILES.find((profile) => profile.matchesImage(image)) ?? null
+  const profile = SERVICE_ENGINE_PROFILES.find((candidate) =>
+    candidate.matchesImage(image)
+  )
+  if (!profile) {
+    return null
+  }
+  if (
+    profile.probe.port !== undefined &&
+    !job.exposedPorts?.includes(profile.probe.port)
+  ) {
+    return null
+  }
+  return profile
 }
