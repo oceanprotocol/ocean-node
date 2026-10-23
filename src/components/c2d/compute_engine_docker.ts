@@ -2463,11 +2463,23 @@ export class C2DEngineDocker extends C2DEngine {
         )
         containerInfo.Entrypoint = newEntrypoint.split(' ')
       }
+      // Environment variables for the algorithm container. On top of any algorithm-provided
+      // envs we expose the pod-configuration contract (DIDS + TRANSFORMATION_DID) so the
+      // algorithm can map each /data/inputs/<index> folder back to its input DID.
+      const envVars: string[] = []
       if (job.algorithm.envs) {
-        const envVars: string[] = []
         for (const key of Object.keys(job.algorithm.envs)) {
           envVars.push(`${key}=${job.algorithm.envs[key]}`)
         }
+      }
+      // one entry per asset, in the same order as the /data/inputs/<index> folders;
+      // raw fileObject inputs (free compute) have no DID, so their slot is null
+      const inputDids = (job.assets || []).map((asset) => asset.documentId ?? null)
+      envVars.push(`DIDS=${JSON.stringify(inputDids)}`)
+      if (job.algorithm.documentId) {
+        envVars.push(`TRANSFORMATION_DID=${job.algorithm.documentId}`)
+      }
+      if (envVars.length > 0) {
         containerInfo.Env = envVars
       }
       // persistent Storage: bind-mount bucket files into the job container (localfs backend)
@@ -6056,7 +6068,35 @@ export class C2DEngineDocker extends C2DEngine {
       const asset = job.assets[i]
       let storage = null
       let fileInfo = null
-      appendFileSync(configLogPath, `Downloading asset ${i} to /data/inputs/\n`)
+      appendFileSync(configLogPath, `Downloading asset ${i} to /data/inputs/${i}/\n`)
+      // Fill /data/ddos/<did> with this input's DDO (pod-configuration contract), so the
+      // algorithm can read the dataset metadata. Raw fileObject inputs have no DDO to write.
+      if (asset.documentId) {
+        try {
+          const ddo = await new FindDdoHandler(OceanNode.getInstance()).findAndFormatDdo(
+            asset.documentId
+          )
+          if (ddo) {
+            // basename strips any directory components so a crafted documentId cannot
+            // escape /data/ddos; a well-formed DID has no '/', so it is left intact
+            const ddoPath = path.join(
+              jobFolderPath,
+              'data/ddos',
+              path.basename(asset.documentId)
+            )
+            writeFileSync(ddoPath, JSON.stringify(ddo))
+            appendFileSync(
+              configLogPath,
+              `Wrote DDO for ${asset.documentId} to /data/ddos/\n`
+            )
+          }
+        } catch (e) {
+          appendFileSync(
+            configLogPath,
+            `Could not write DDO for ${asset.documentId}: ${e.message}\n`
+          )
+        }
+      }
       // without this check it would break if no fileObject is present
       if (asset.fileObject) {
         try {
@@ -6138,7 +6178,21 @@ export class C2DEngineDocker extends C2DEngine {
       }
 
       if (storage && fileInfo) {
-        const fullPath = jobFolderPath + '/data/inputs/' + fileInfo[0].name
+        // Each input gets its own folder keyed by its position in job.assets, so two
+        // inputs can never collide on a shared file name (and a dataset can no longer
+        // overwrite the consumer's /data/inputs/algoCustomData.json). The DIDS env var
+        // maps the folder index back to the input DID.
+        const inputFolder = path.join(jobFolderPath, 'data/inputs', i)
+        if (!existsSync(inputFolder)) {
+          mkdirSync(inputFolder, { recursive: true })
+        }
+        // match the 0o777 used for the job's top-level data dirs so the (non-root)
+        // container user can read the inputs
+        chmodSync(inputFolder, 0o777)
+        // basename strips any directory components a storage driver might return, keeping
+        // the file inside its index folder; fall back to the index when there is no name
+        const inputName = path.basename(fileInfo[0].name || '') || i
+        const fullPath = path.join(inputFolder, inputName)
         appendFileSync(configLogPath, `Downloading asset to ${fullPath}\n`)
         try {
           await pipeline(
