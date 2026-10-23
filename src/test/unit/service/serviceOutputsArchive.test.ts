@@ -651,6 +651,52 @@ describe('service /data/outputs archives', () => {
       expect(job.outputArchives.map((a) => a.containerId)).to.deep.equal(['new'])
     })
 
+    it('a refused HF patch copy recreates the container before the folder is carried over', async () => {
+      const old = outputsContainer('old')
+      const refused = newContainer({
+        id: 'refused',
+        putArchive: sinon
+          .stub()
+          .rejects(
+            new Error(
+              '(HTTP code 500) server error - container rootfs is marked read-only'
+            )
+          )
+      })
+      const replacement = newContainer({ id: 'retry' })
+      const engine = restartEngine(old, refused)
+      engine.config = { serviceHfMirrorUrl: 'http://172.17.0.1:8092' }
+      engine.docker.getImage = sinon
+        .stub()
+        .returns({ inspect: sinon.stub().resolves({ Config: { Env: [] } }) })
+      engine.docker.createContainer.onCall(1).resolves(replacement)
+      const job = makeJob({ containerId: 'old' })
+
+      await engine.doRestartService(job)
+
+      expect(job.status).to.equal(ServiceStatusNumber.Running)
+      expect(job.containerId).to.equal('retry')
+      expect(job.outputArchives ?? []).to.deep.equal([])
+      // only the patch went to the refused container, which never started
+      sinon.assert.calledOnce(refused.putArchive)
+      expect(refused.putArchive.firstCall.args[1]).to.deep.equal({
+        path: '/',
+        noOverwriteDirNonDir: true
+      })
+      sinon.assert.notCalled(refused.start)
+      // the folder lands straight in the replacement; old is removed after the copy
+      sinon.assert.calledOnce(replacement.putArchive)
+      expect(replacement.putArchive.firstCall.args[1]).to.deep.equal({ path: '/data' })
+      sinon.assert.callOrder(
+        refused.putArchive,
+        refused.remove,
+        old.getArchive,
+        replacement.putArchive,
+        old.remove,
+        replacement.start
+      )
+    })
+
     it('a service with an output bucket removes the old container right away, copying nothing', async () => {
       const old = outputsContainer('old')
       const created = newContainer()
