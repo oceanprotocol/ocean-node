@@ -91,11 +91,15 @@ export async function validateOrderTransaction(
     // consumer must be userAddress AND payer must be payerAddress. Without it
     // (download path) we keep the original position-agnostic OR so the caller can be
     // either the consumer or the payer.
-    const addressMatch = payerAddress
-      ? userAddress?.toLowerCase() === event.args[0]?.toLowerCase() &&
-        payerAddress?.toLowerCase() === event.args[1]?.toLowerCase()
-      : userAddress?.toLowerCase() === event.args[0]?.toLowerCase() ||
-        userAddress?.toLowerCase() === event.args[1]?.toLowerCase()
+    // Use `!== undefined` (not truthiness): an empty-string payerAddress must still take
+    // the strict AND branch (where it can never match a real payer) rather than fall back
+    // to the permissive OR — fail-closed.
+    const addressMatch =
+      payerAddress !== undefined
+        ? userAddress?.toLowerCase() === event.args[0]?.toLowerCase() &&
+          payerAddress?.toLowerCase() === event.args[1]?.toLowerCase()
+        : userAddress?.toLowerCase() === event.args[0]?.toLowerCase() ||
+          userAddress?.toLowerCase() === event.args[1]?.toLowerCase()
     if (
       addressMatch &&
       erc20Address?.toLowerCase() === datatokenAddress?.toLowerCase() &&

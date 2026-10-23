@@ -526,7 +526,10 @@ describe('**********         Compute', () => {
         token: paymentToken
       },
       maxJobDuration: computeJobDuration,
-      consumerAddress: firstEnv.consumerAddress,
+      // consumer must be the order's payer (consumerAccount started the order), not the
+      // env address: the order check now binds payer === caller, so validOrder is only
+      // returned for the wallet that actually paid.
+      consumerAddress: await consumerAccount.getAddress(),
       command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
     }
     const resp = await new ComputeInitializeHandler(oceanNode).handle(
@@ -622,7 +625,10 @@ describe('**********         Compute', () => {
         token: paymentToken
       },
       maxJobDuration: computeJobDuration,
-      consumerAddress: firstEnv.consumerAddress,
+      // consumer must be the order's payer (consumerAccount started both orders), not the
+      // env address: the order check now binds payer === caller, so validOrder is only
+      // returned for the wallet that actually paid.
+      consumerAddress: await consumerAccount.getAddress(),
       command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
     }
     const resp = await new ComputeInitializeHandler(oceanNode).handle(
