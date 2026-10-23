@@ -56,7 +56,10 @@ export class ComputeInitializeHandler extends CommandHandler {
       // we might also need a "signature" (did + nonce) for confidential evm template 4
     ])
     if (validation.valid) {
-      if (command.consumerAddress && !isAddress(command.consumerAddress)) {
+      // Reject empty as well as malformed addresses (isAddress('') === false). An empty
+      // consumerAddress must not pass: it is the payer the order check binds against, and a
+      // falsy value would otherwise weaken that check. Matches the paid/free start handlers.
+      if (!isAddress(command.consumerAddress)) {
         return buildInvalidRequestMessage(
           'Parameter : "consumerAddress" is not a valid web3 address'
         )
@@ -566,6 +569,10 @@ export class ComputeInitializeHandler extends CommandHandler {
           const fees = new ProviderFees(node)
           if ('transferTxId' in elem && elem.transferTxId) {
             // search for that compute env and see if it has access to dataset
+            // Option B (env-AND) early-warning check: consumer must be this env AND the
+            // payer must be the caller. result.consumerAddress above stays env.consumerAddress
+            // (the address the client must set as the order's consumer); validOrder is only set
+            // when the AND passes, so the consumer learns early if their order will be rejected.
             const paymentValidation = await validateOrderTransaction(
               elem.transferTxId,
               env.consumerAddress,
@@ -574,7 +581,8 @@ export class ComputeInitializeHandler extends CommandHandler {
               service.datatokenAddress,
               AssetUtils.getServiceIndexById(ddo, service.id),
               service.timeout,
-              await blockchain.getSigner()
+              await blockchain.getSigner(),
+              task.consumerAddress
             )
             if (paymentValidation.isValid === true) {
               // order is valid, so let's check providerFees
