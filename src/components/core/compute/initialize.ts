@@ -56,7 +56,10 @@ export class ComputeInitializeHandler extends CommandHandler {
       // we might also need a "signature" (did + nonce) for confidential evm template 4
     ])
     if (validation.valid) {
-      if (command.consumerAddress && !isAddress(command.consumerAddress)) {
+      // Reject empty as well as malformed addresses (isAddress('') === false). An empty
+      // consumerAddress must not pass: it is the payer the order check binds against, and a
+      // falsy value would otherwise weaken that check. Matches the paid/free start handlers.
+      if (!isAddress(command.consumerAddress)) {
         return buildInvalidRequestMessage(
           'Parameter : "consumerAddress" is not a valid web3 address'
         )
