@@ -44,7 +44,8 @@ export async function validateOrderTransaction(
   datatokenAddress: string,
   serviceIndex: number,
   serviceTimeout: number,
-  signer: Signer
+  signer: Signer,
+  payerAddress?: string
 ): Promise<ValidateTransactionResponse> {
   const contractInterface = new Interface(ERC20Template.abi)
   let txReceiptMined = await fetchTransactionReceipt(txId, provider)
@@ -85,9 +86,18 @@ export async function validateOrderTransaction(
   )
   let orderEvent
   for (const event of OrderStartedEvent) {
+    // event.args[0] = consumer, event.args[1] = payer (ERC20Template OrderStarted).
+    // When payerAddress is provided (compute path) we bind positions explicitly:
+    // consumer must be userAddress AND payer must be payerAddress. Without it
+    // (download path) we keep the original position-agnostic OR so the caller can be
+    // either the consumer or the payer.
+    const addressMatch = payerAddress
+      ? userAddress?.toLowerCase() === event.args[0]?.toLowerCase() &&
+        payerAddress?.toLowerCase() === event.args[1]?.toLowerCase()
+      : userAddress?.toLowerCase() === event.args[0]?.toLowerCase() ||
+        userAddress?.toLowerCase() === event.args[1]?.toLowerCase()
     if (
-      (userAddress?.toLowerCase() === event.args[0]?.toLowerCase() ||
-        userAddress?.toLowerCase() === event.args[1]?.toLowerCase()) &&
+      addressMatch &&
       erc20Address?.toLowerCase() === datatokenAddress?.toLowerCase() &&
       erc721Address?.toLowerCase() === dataNftAddress?.toLowerCase()
     ) {

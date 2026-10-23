@@ -696,6 +696,9 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
           }
 
           // search for that compute env and see if it has access to dataset
+          // Option B (env-AND): the order's consumer must be this env (so the node can
+          // retrieve/decrypt the dataset, incl. from a remote encrypting node) AND the
+          // order's payer must be the signature-verified caller (the reuse-vuln fix).
           const paymentValidation = await validateOrderTransaction(
             elem.transferTxId,
             env.consumerAddress,
@@ -704,7 +707,8 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
             service.datatokenAddress,
             AssetUtils.getServiceIndexById(ddo, service.id),
             service.timeout,
-            await blockchain.getSigner()
+            await blockchain.getSigner(),
+            task.consumerAddress
           )
           if (paymentValidation.isValid === false) {
             return buildComputeError(
@@ -918,22 +922,53 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
         return bindResponse
       }
 
-      const policyServer = new PolicyServer()
-      const assetsResponse = await this.validateAssets(task, node, algoChecksums, {
-        policyServer,
-        algorithmDDO,
-        datasetServiceId: (elem) => elem.serviceId
-      })
-      if (assetsResponse) {
-        return assetsResponse
-      }
-
+      // Resolve the environment before validateAssets so env.consumerAddress is available
+      // to the free authorizeAsset callback (the order's required consumer under Option B).
+      // Only the position of this resolve moves up; the validateAccess / resources steps
+      // below still run in their original order.
       const envResult = await this.resolveEnvironment(task, engine)
       if (envResult.response) {
         return envResult.response
       }
       const { env } = envResult
       const allFreeEnvs = envResult.allEnvs
+
+      const policyServer = new PolicyServer()
+      const assetsResponse = await this.validateAssets(task, node, algoChecksums, {
+        policyServer,
+        algorithmDDO,
+        datasetServiceId: (elem) => elem.serviceId,
+        // Free compute may reference a paid asset. Omitting transferTxId runs it free
+        // without an order (intended, allowed) - skip. If a transferTxId IS supplied it is
+        // validated with Option B (env-AND) so a reused/foreign order is rejected here too.
+        authorizeAsset: async ({ elem, ddo, nftAddress, service, blockchain }) => {
+          if (!('transferTxId' in elem) || !elem.transferTxId) {
+            return null
+          }
+          const provider = await blockchain.getProvider()
+          const paymentValidation = await validateOrderTransaction(
+            elem.transferTxId,
+            env.consumerAddress,
+            provider,
+            nftAddress,
+            service.datatokenAddress,
+            AssetUtils.getServiceIndexById(ddo, service.id),
+            service.timeout,
+            await blockchain.getSigner(),
+            task.consumerAddress
+          )
+          if (paymentValidation.isValid === false) {
+            return buildComputeError(
+              500,
+              `TxId Service ${elem.transferTxId} is not valid for DDO ${elem.documentId} and service ${service.id}`
+            )
+          }
+          return null
+        }
+      })
+      if (assetsResponse) {
+        return assetsResponse
+      }
 
       try {
         const accessGranted = await validateAccess(
