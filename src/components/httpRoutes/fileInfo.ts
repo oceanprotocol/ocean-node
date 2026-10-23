@@ -8,6 +8,7 @@ import { PROTOCOL_COMMANDS, SERVICES_API_BASE_PATH } from '../../utils/constants
 import { FileInfoHandler } from '../core/handler/fileInfoHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { FileInfoCommand } from '../../@types/commands.js'
+import { sanitizeLogValue } from '../../utils/util.js'
 
 export const fileInfoRoute = express.Router()
 fileInfoRoute.use(express.json()) // Ensure JSON parsing middleware is used
@@ -18,7 +19,13 @@ fileInfoRoute.post(
   express.urlencoded({ extended: true, type: '*/*' }),
   async (req: Request, res: Response): Promise<void> => {
     const fileInfoReq: FileInfoHttpRequest = req.body as unknown as FileInfoHttpRequest
-    HTTP_LOGGER.logMessage(`FileInfo request received: ${JSON.stringify(req.body)}`, true)
+    // do not log the raw body: file objects carry credentials (headers, s3 keys, url userinfo)
+    HTTP_LOGGER.logMessage(
+      `FileInfo request received (type: ${sanitizeLogValue(req.body?.type ?? 'did')}${
+        req.body?.did ? `, did: ${sanitizeLogValue(req.body.did)}` : ''
+      })`,
+      true
+    )
 
     try {
       const hasType =

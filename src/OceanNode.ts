@@ -23,6 +23,7 @@ import { createPersistentStorage } from './components/persistentStorage/createPe
 import { PersistentStorageFactory } from './components/persistentStorage/PersistentStorageFactory.js'
 import { isAddress, FallbackProvider, ethers } from 'ethers'
 import { create256Hash } from './utils/crypt.js'
+import { SUPPORTED_PROTOCOL_COMMANDS } from './utils/constants.js'
 
 export interface RequestLimiter {
   requester: string | string[] // IP address or peer ID
@@ -297,10 +298,17 @@ export class OceanNode {
    */
   async handleDirectProtocolCommand(message: string): Promise<P2PCommandResponse> {
     OCEAN_NODE_LOGGER.logMessage('Incoming direct command for ocean peer', true)
-    OCEAN_NODE_LOGGER.logMessage('Performing task: ' + message, true)
 
     try {
       const task = JSON.parse(message)
+      // do not log the raw message: command payloads carry credentials. The command name
+      // is enough here; validateCommandParameters logs a redacted copy of the payload.
+      // Only log it when it is a known command - a raw, caller-supplied string could embed
+      // control characters and forge extra log lines (CWE-117); fall back to 'unknown'.
+      const commandName = SUPPORTED_PROTOCOL_COMMANDS.includes(task?.command)
+        ? task.command
+        : 'unknown'
+      OCEAN_NODE_LOGGER.logMessage(`Performing task for command: ${commandName}`, true)
       const handler: BaseHandler = this.coreHandlers.getHandler(task.command)
 
       if (!handler) {
