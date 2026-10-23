@@ -61,6 +61,7 @@ describe('compute output archives', () => {
       jobId: 'job-1',
       owner: OWNER,
       additionalViewers: [VIEWER],
+      environment: 'env-1',
       status: C2DStatusNumber.PublishingResults,
       statusText: C2DStatusText.PublishingResults,
       terminationDetails: {}
@@ -70,6 +71,10 @@ describe('compute output archives', () => {
       getArchive: sinon.stub().callsFake(async () => Readable.from(await outputsTar()))
     }
     engine = Object.create(C2DEngineDocker.prototype)
+    // processJob() first looks up the job's env (this.envs.find(...)) and fails the job if
+    // it's missing. The hand-rolled engine skips the constructor, so stub a matching env;
+    // the PublishingResults path this suite exercises doesn't read any env fields beyond id.
+    engine.envs = [{ id: 'env-1' }]
     engine.clusterConfig = { hash: 'cluster', tempFolder: folder + '/' }
     engine.docker = { getContainer: sinon.stub().returns(container) }
     engine.db = {
