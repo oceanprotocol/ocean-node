@@ -6183,12 +6183,26 @@ export class C2DEngineDocker extends C2DEngine {
         // overwrite the consumer's /data/inputs/algoCustomData.json). The DIDS env var
         // maps the folder index back to the input DID.
         const inputFolder = path.join(jobFolderPath, 'data/inputs', i)
-        if (!existsSync(inputFolder)) {
-          mkdirSync(inputFolder, { recursive: true })
+        try {
+          if (!existsSync(inputFolder)) {
+            mkdirSync(inputFolder, { recursive: true })
+          }
+          // match the 0o777 used for the job's top-level data dirs so the (non-root)
+          // container user can read the inputs
+          chmodSync(inputFolder, 0o777)
+        } catch (e) {
+          CORE_LOGGER.error(
+            'Unable to create input folder: ' + inputFolder + ': ' + e.message
+          )
+          appendFileSync(
+            configLogPath,
+            'Unable to create input folder: ' + inputFolder + ': ' + e.message + '\n'
+          )
+          return {
+            status: C2DStatusNumber.DataProvisioningFailed,
+            statusText: C2DStatusText.DataProvisioningFailed
+          }
         }
-        // match the 0o777 used for the job's top-level data dirs so the (non-root)
-        // container user can read the inputs
-        chmodSync(inputFolder, 0o777)
         // basename strips any directory components a storage driver might return, keeping
         // the file inside its index folder; fall back to the index when there is no name
         const inputName = path.basename(fileInfo[0].name || '') || i
