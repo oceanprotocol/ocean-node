@@ -6,6 +6,7 @@ import {
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { errorSummary } from '../../utils/logging/redact.js'
 import { PROTOCOL_COMMANDS, SERVICES_API_BASE_PATH } from '../../utils/constants.js'
+import { sanitizeLogValue } from '../../utils/util.js'
 
 export const PolicyServerPassthroughRoute = express.Router()
 PolicyServerPassthroughRoute.use(express.json()) // Ensure JSON parsing middleware is used
@@ -15,7 +16,7 @@ PolicyServerPassthroughRoute.post(
   express.urlencoded({ extended: true, type: '*/*' }),
   async (req: Request, res: Response): Promise<void> => {
     HTTP_LOGGER.debug(
-      `PolicyServerPassthrough request: action=${req.body?.policyServerPassthrough?.action ?? '-'}`
+      `PolicyServerPassthrough request: action=${sanitizeLogValue(req.body?.policyServerPassthrough?.action ?? '-')}`
     )
     try {
       const response = await new PolicyServerPassthroughHandler(req.oceanNode).handle({
@@ -47,7 +48,7 @@ PolicyServerPassthroughRoute.post(
   express.urlencoded({ extended: true, type: '*/*' }),
   async (req: Request, res: Response): Promise<void> => {
     HTTP_LOGGER.debug(
-      `initializePSVerification request: ${req.body?.documentId} service=${req.body?.serviceId}`
+      `initializePSVerification request: ${sanitizeLogValue(req.body?.documentId ?? '-')} service=${sanitizeLogValue(req.body?.serviceId ?? '-')}`
     )
     try {
       const response = await new PolicyServerInitializeHandler(req.oceanNode).handle({

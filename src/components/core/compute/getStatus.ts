@@ -128,12 +128,7 @@ export class ComputeGetStatusHandler extends CommandHandler {
         }
       }
     } catch (error) {
-      // an unknown engine hash comes from a client-supplied jobId prefix
-      if (String(error?.message).includes('C2D Engine not found')) {
-        CORE_LOGGER.debug(`getComputeStatus ${task.jobId}: ${error.message}`)
-      } else {
-        CORE_LOGGER.error(`getComputeStatus ${task.jobId ?? ''} failed: ${error.message}`)
-      }
+      CORE_LOGGER.error(`getComputeStatus ${task.jobId ?? ''} failed: ${error.message}`)
       return {
         stream: null,
         status: {

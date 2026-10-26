@@ -30,7 +30,7 @@ export async function fetchTransactionReceipt(
       }
       retries--
     } catch (error) {
-      CORE_LOGGER.warn(`RPC error fetching receipt for ${txId}: ${errorSummary(error)}`)
+      CORE_LOGGER.error(`RPC error fetching receipt for ${txId}: ${errorSummary(error)}`)
       return null
     }
   }
@@ -44,7 +44,8 @@ export async function validateOrderTransaction(
   datatokenAddress: string,
   serviceIndex: number,
   serviceTimeout: number,
-  signer: Signer
+  signer: Signer,
+  payerAddress?: string
 ): Promise<ValidateTransactionResponse> {
   const contractInterface = new Interface(ERC20Template.abi)
   let txReceiptMined = await fetchTransactionReceipt(txId, provider)
@@ -87,9 +88,22 @@ export async function validateOrderTransaction(
   )
   let orderEvent
   for (const event of OrderStartedEvent) {
+    // event.args[0] = consumer, event.args[1] = payer (ERC20Template OrderStarted).
+    // When payerAddress is provided (compute path) we bind positions explicitly:
+    // consumer must be userAddress AND payer must be payerAddress. Without it
+    // (download path) we keep the original position-agnostic OR so the caller can be
+    // either the consumer or the payer.
+    // Use `!== undefined` (not truthiness): an empty-string payerAddress must still take
+    // the strict AND branch (where it can never match a real payer) rather than fall back
+    // to the permissive OR — fail-closed.
+    const addressMatch =
+      payerAddress !== undefined
+        ? userAddress?.toLowerCase() === event.args[0]?.toLowerCase() &&
+          payerAddress?.toLowerCase() === event.args[1]?.toLowerCase()
+        : userAddress?.toLowerCase() === event.args[0]?.toLowerCase() ||
+          userAddress?.toLowerCase() === event.args[1]?.toLowerCase()
     if (
-      (userAddress?.toLowerCase() === event.args[0]?.toLowerCase() ||
-        userAddress?.toLowerCase() === event.args[1]?.toLowerCase()) &&
+      addressMatch &&
       erc20Address?.toLowerCase() === datatokenAddress?.toLowerCase() &&
       erc721Address?.toLowerCase() === dataNftAddress?.toLowerCase()
     ) {

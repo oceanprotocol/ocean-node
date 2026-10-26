@@ -382,7 +382,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         false,
         error.message
       )
-      INDEXER_LOGGER.warn(
+      INDEXER_LOGGER.error(
         `Chain ${chainId}: failed to index ${did} (tx ${event.transactionHash}): ${errorSummary(error)}`
       )
     }

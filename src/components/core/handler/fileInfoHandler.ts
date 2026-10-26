@@ -152,10 +152,10 @@ export class FileInfoHandler extends CommandHandler {
     } catch (error) {
       // answered with a 500, but mostly caused by client input (unknown DID, unreachable
       // file URL): visible on disk, at most once per hour, without letting clients flood it
-      CORE_LOGGER.debug(`FileInfo failed: ${errorSummary(error)}`)
+      CORE_LOGGER.error(`FileInfo failed: ${errorSummary(error)}`)
       CORE_LOGGER.throttled(
         'fileinfo-failed',
-        'warn',
+        'error',
         `FileInfo failed: ${errorSummary(error)}`
       )
       return {

@@ -39,7 +39,7 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
       exchange = await freContract.getExchange(exchangeId)
     } catch (e) {
       this.rethrowIfProviderError(e)
-      INDEXER_LOGGER.debug(`Could not fetch exchange ${exchangeId} details: ${e.message}`)
+      INDEXER_LOGGER.error(`Could not fetch exchange ${exchangeId} details: ${e.message}`)
     }
     if (!exchange) {
       INDEXER_LOGGER.debug(

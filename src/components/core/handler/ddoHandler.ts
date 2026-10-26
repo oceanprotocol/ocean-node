@@ -207,7 +207,7 @@ export class DecryptDdoHandler extends CommandHandler {
       try {
         decrypterAddress = ethers.getAddress(task.decrypterAddress)
       } catch (error) {
-        CORE_LOGGER.debug(`Decrypt DDO: error ${errorSummary(error)}`)
+        CORE_LOGGER.error(`Decrypt DDO: error ${errorSummary(error)}`)
         return {
           stream: null,
           status: {
@@ -327,7 +327,7 @@ export class DecryptDdoHandler extends CommandHandler {
           encryptedDocument = ethers.getBytes(eventData.args[4])
           documentHash = eventData.args[5]
         } catch (error) {
-          CORE_LOGGER.debug(`Decrypt DDO: error ${errorSummary(error)}`)
+          CORE_LOGGER.error(`Decrypt DDO: error ${errorSummary(error)}`)
           return {
             stream: null,
             status: {
@@ -343,7 +343,7 @@ export class DecryptDdoHandler extends CommandHandler {
           // eslint-disable-next-line prefer-destructuring
           documentHash = task.documentHash
         } catch (error) {
-          CORE_LOGGER.debug(`Decrypt DDO: error ${errorSummary(error)}`)
+          CORE_LOGGER.error(`Decrypt DDO: error ${errorSummary(error)}`)
           return {
             stream: null,
             status: {
@@ -398,7 +398,7 @@ export class DecryptDdoHandler extends CommandHandler {
             .getKeyManager()
             .decrypt(encryptedDocument, EncryptMethod.ECIES)
         } catch (error) {
-          CORE_LOGGER.debug(`Decrypt DDO: error ${errorSummary(error)}`)
+          CORE_LOGGER.error(`Decrypt DDO: error ${errorSummary(error)}`)
           return {
             stream: null,
             status: {
@@ -420,7 +420,7 @@ export class DecryptDdoHandler extends CommandHandler {
           )
           */
         } catch (error) {
-          CORE_LOGGER.debug(`Decrypt DDO: error ${errorSummary(error)}`)
+          CORE_LOGGER.error(`Decrypt DDO: error ${errorSummary(error)}`)
           return {
             stream: null,
             status: {
@@ -657,7 +657,7 @@ export class FindDdoHandler extends CommandHandler {
             `Cannot confirm validity of ${ddo.id} from remote node ${peer}, skipping it`
           )
         } catch (err) {
-          CORE_LOGGER.debug(
+          CORE_LOGGER.error(
             `FindDDO: invalid response from peer ${peer}: ${errorSummary(err)}`
           )
         }
@@ -746,7 +746,7 @@ export class FindDdoHandler extends CommandHandler {
           throw findProvidersError
         }
         // deadline reached while looking for providers: return what we already have
-        CORE_LOGGER.debug(
+        CORE_LOGGER.error(
           `FindDDO: provider lookup ended early for id ${task.id}: ${findProvidersError.message}`
         )
         endFindDdo()
@@ -863,7 +863,7 @@ export class FindDdoHandler extends CommandHandler {
                 // One provider failing, timing out, or being cancelled because another
                 // answered is not a FindDDO failure. The overall outcome is whatever the
                 // result list holds when every branch has settled.
-                CORE_LOGGER.debug(
+                CORE_LOGGER.error(
                   `FindDDO: provider ${peer} did not answer for ${task.id}: ${innerException.message}`
                 )
               }
@@ -911,7 +911,7 @@ export class FindDdoHandler extends CommandHandler {
           CORE_LOGGER.debug(`DDO database is not available. Proceeding to call findDDO`)
         }
       } catch (error) {
-        CORE_LOGGER.warn(
+        CORE_LOGGER.error(
           `Local DDO lookup failed for ${ddoId}, falling back to findDDO: ${errorSummary(error)}`
         )
       }
@@ -1051,7 +1051,7 @@ export class ValidateDDOHandler extends CommandHandler {
         status: { httpStatus: 200 }
       }
     } catch (error) {
-      CORE_LOGGER.warn(`Error occurred on validateDDO command: ${errorSummary(error)}`)
+      CORE_LOGGER.error(`Error occurred on validateDDO command: ${errorSummary(error)}`)
       return {
         stream: null,
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
@@ -1081,7 +1081,7 @@ export function validateDdoSignedByPublisher(
       addressFromBytesSignature?.toLowerCase() === publisherAddress?.toLowerCase()
     )
   } catch (error) {
-    CORE_LOGGER.debug(
+    CORE_LOGGER.error(
       `validateDdoSignedByPublisher failed for ${ddo?.id}: ${errorSummary(error)}`
     )
     return false

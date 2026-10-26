@@ -18,7 +18,7 @@ export const jsonFromString = <T>(schema: z.ZodType<T>, field?: string) =>
       try {
         return JSON.parse(v)
       } catch (error) {
-        CONFIG_LOGGER.warn(
+        CONFIG_LOGGER.error(
           `Failed to parse JSON${field ? ` for ${field}` : ''}: ${errorSummary(error)}`
         )
         return v

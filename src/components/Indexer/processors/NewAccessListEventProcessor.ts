@@ -41,7 +41,7 @@ export class NewAccessListEventProcessor extends BaseEventProcessor {
         symbol = symbolRaw
       } catch (err) {
         this.rethrowIfProviderError(err)
-        INDEXER_LOGGER.debug(
+        INDEXER_LOGGER.error(
           `Failed to read on-chain metadata for ${contractAddress}: ${err.message}`
         )
       }

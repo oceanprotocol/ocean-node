@@ -36,6 +36,8 @@ export const ENV_TO_CONFIG_MAPPING = {
   ALLOWED_ADMINS_LIST: 'allowedAdminsList',
   DOCKER_COMPUTE_ENVIRONMENTS: 'dockerComputeEnvironments',
   SERVICE_TEMPLATES_PATH: 'serviceTemplatesPath',
+  SERVICE_HF_MIRROR_URL: 'serviceHfMirrorUrl',
+  SERVICE_HF_CLIENT_PATCH: 'serviceHfClientPatch',
   DOCKER_REGISTRY_AUTHS: 'dockerRegistrysAuth',
   P2P_BOOTSTRAP_NODES: 'p2pConfig.bootstrapNodes',
   P2P_BOOTSTRAP_TIMEOUT: 'p2pConfig.bootstrapTimeout',

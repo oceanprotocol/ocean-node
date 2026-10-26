@@ -74,7 +74,7 @@ export class Purgatory {
       } catch (err) {
         INDEXER_LOGGER.throttled(
           ASSETS_THROTTLE_KEY,
-          LOG_LEVELS_STR.LEVEL_WARN,
+          LOG_LEVELS_STR.LEVEL_ERROR,
           `Error fetching purgatory list for assets: ${errorSummary(err)}`
         )
       }
@@ -114,7 +114,7 @@ export class Purgatory {
       } catch (err) {
         INDEXER_LOGGER.throttled(
           ACCOUNTS_THROTTLE_KEY,
-          LOG_LEVELS_STR.LEVEL_WARN,
+          LOG_LEVELS_STR.LEVEL_ERROR,
           `Error fetching purgatory list for accounts: ${errorSummary(err)}`
         )
       }

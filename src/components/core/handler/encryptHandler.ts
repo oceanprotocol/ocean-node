@@ -210,7 +210,7 @@ export class EncryptFileHandler extends CommandHandler {
       }
     } catch (error) {
       // errorSummary: fetch errors carry the plaintext file URL being encrypted
-      CORE_LOGGER.warn(`Error while encrypting file: ${errorSummary(error)}`)
+      CORE_LOGGER.error(`Error while encrypting file: ${errorSummary(error)}`)
       return {
         stream: null,
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }

@@ -147,12 +147,12 @@ export class TypesenseApi {
         }
       } catch (error: any) {
         lastException = error
-        this.config.logger.debug(
+        this.config.logger.error(
           `Request ${endpoint}: Request to Node ${node.host} failed due to "${
             error.cause?.code ?? error.code
           } ${error.message}"`
         )
-        this.config.logger.debug(
+        this.config.logger.error(
           `Request ${endpoint}: Sleeping for ${this.config.retryIntervalSeconds}s and then retrying request...`
         )
         await setTimeout(this.config.retryIntervalSeconds)

@@ -80,7 +80,7 @@ export async function fetchFileMetadata(
     }
     contentLength = totalSize
   } catch (error) {
-    CORE_LOGGER.debug(`fetchFileMetadata failed: ${errorSummary(error)}`)
+    CORE_LOGGER.error(`fetchFileMetadata failed: ${errorSummary(error)}`)
   }
 
   return {
@@ -171,7 +171,7 @@ export async function isERC20Template4Active(
       }
     }
   } catch (err) {
-    CORE_LOGGER.warn(
+    CORE_LOGGER.error(
       `Error checking if ERCTemplate4 is active on chain ${network}: ${errorSummary(err?.shortMessage ?? err)}`
     )
   }
@@ -192,7 +192,7 @@ export async function isDataTokenTemplate4(
     const id = await erc20Template.connect(owner).getId()
     return id.toString() === '4'
   } catch (err) {
-    CORE_LOGGER.warn(
+    CORE_LOGGER.error(
       `Error checking if datatoken ${templateAddress} has id 4: ${errorSummary(err?.shortMessage ?? err)}`
     )
     return false
@@ -255,7 +255,7 @@ export async function getFilesObjectFromConfidentialEVM(
     const filesObject: string = ethers.toUtf8String(bytesData)
     return filesObject
   } catch (err) {
-    CORE_LOGGER.warn(
+    CORE_LOGGER.error(
       `Unable to decrypt files object from Template4 ${datatokenAddress}: ${errorSummary(err?.shortMessage ?? err)}`
     )
     return null

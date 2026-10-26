@@ -122,7 +122,7 @@ export abstract class AdminCommandHandler
           } catch (error) {
             // Isolate per-chain failures (RPC rate limit / downtime) so one bad
             // chain does not abort the whole loop and deny an otherwise-valid admin.
-            CORE_LOGGER.warn(
+            CORE_LOGGER.error(
               `Error checking admin access list for chain ${chainId}: ${errorSummary(error)}`
             )
             continue

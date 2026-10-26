@@ -185,7 +185,7 @@ export class ProviderFees {
       try {
         providerData = JSON.parse(utf)
       } catch (e) {
-        CORE_LOGGER.debug(`ProviderFee event JSON parsing failed for tx ${txId}`)
+        CORE_LOGGER.error(`ProviderFee event JSON parsing failed for tx ${txId}`)
         continue
       }
 

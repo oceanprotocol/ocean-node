@@ -111,7 +111,7 @@ export const retrieveChunkEvents = async (
     return blockLogs
   } catch (error) {
     // the caller logs the failed range at error
-    INDEXER_LOGGER.debug(
+    INDEXER_LOGGER.error(
       `Error retrieving events from block ${lastIndexedBlock + 1} to ${
         lastIndexedBlock + count
       }: ${errorSummary(error)}`
@@ -260,7 +260,7 @@ export async function getPricesByDt(
     dispensers = await datatoken.getDispensers()
   } catch (e) {
     if (isProviderError(e)) throw e
-    INDEXER_LOGGER.warn(
+    INDEXER_LOGGER.error(
       `Failed to get dispensers for datatoken ${datatoken.target}: ${errorSummary(e)}`
     )
   }
@@ -268,7 +268,7 @@ export async function getPricesByDt(
     fixedRates = await datatoken.getFixedRates()
   } catch (e) {
     if (isProviderError(e)) throw e
-    INDEXER_LOGGER.warn(
+    INDEXER_LOGGER.error(
       `Failed to get fixed rate exchanges for datatoken ${datatoken.target}: ${errorSummary(e)}`
     )
   }
@@ -292,7 +292,7 @@ export async function getPricesByDt(
           }
         } catch (e) {
           if (isProviderError(e)) throw e
-          INDEXER_LOGGER.warn(
+          INDEXER_LOGGER.error(
             `Failed to get status of dispenser ${dispenser} for datatoken ${datatoken.target}: ${errorSummary(e)}`
           )
         }
@@ -320,7 +320,7 @@ export async function getPricesByDt(
           }
         } catch (e) {
           if (isProviderError(e)) throw e
-          INDEXER_LOGGER.warn(
+          INDEXER_LOGGER.error(
             `Failed to get status of exchange ${fixedRate[1]} for datatoken ${datatoken.target}: ${errorSummary(e)}`
           )
         }
@@ -357,7 +357,7 @@ export async function getPricingStatsForDddo(
       dispensers = await datatoken.getDispensers()
     } catch (e) {
       if (isProviderError(e)) throw e
-      INDEXER_LOGGER.warn(
+      INDEXER_LOGGER.error(
         `Failed to get dispensers for datatoken ${service.datatokenAddress}: ${errorSummary(e)}`
       )
     }
@@ -365,7 +365,7 @@ export async function getPricingStatsForDddo(
       fixedRates = await datatoken.getFixedRates()
     } catch (e) {
       if (isProviderError(e)) throw e
-      INDEXER_LOGGER.warn(
+      INDEXER_LOGGER.error(
         `Failed to get fixed rate exchanges for datatoken ${service.datatokenAddress}: ${errorSummary(e)}`
       )
     }
@@ -404,7 +404,7 @@ export async function getPricingStatsForDddo(
             }
           } catch (e) {
             if (isProviderError(e)) throw e
-            INDEXER_LOGGER.warn(
+            INDEXER_LOGGER.error(
               `Failed to get status of dispenser ${dispenser} for datatoken ${service.datatokenAddress}: ${errorSummary(e)}`
             )
           }
@@ -441,7 +441,7 @@ export async function getPricingStatsForDddo(
           }
         } catch (e) {
           if (isProviderError(e)) throw e
-          INDEXER_LOGGER.warn(
+          INDEXER_LOGGER.error(
             `Failed to get status of exchange ${fixedRate[1]} for datatoken ${service.datatokenAddress}: ${errorSummary(e)}`
           )
         }

@@ -138,7 +138,7 @@ export class TypesenseOrderDatabase extends AbstractOrderDatabase {
         .retrieve(orderId)
     } catch (error) {
       const errorMsg = `Error when retrieving order ${orderId}: ` + error.message
-      DATABASE_LOGGER.logByStatus(getTsStatusCode(error), errorMsg)
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -288,7 +288,7 @@ export class TypesenseEscrowDatabase extends AbstractEscrowDatabase {
       const errorMsg =
         `Error when searching escrow events (filters ${safeStringify(filters, { maxLength: 200 })}): ` +
         error.message
-      DATABASE_LOGGER.logByStatus(getTsStatusCode(error), errorMsg)
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -371,7 +371,7 @@ export class TypesenseDdoStateDatabase extends AbstractDdoStateDatabase {
       const errorMsg =
         `Error when searching ddo state (query ${safeStringify(query, { maxLength: 200 })}): ` +
         error.message
-      DATABASE_LOGGER.debug(errorMsg)
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -413,7 +413,7 @@ export class TypesenseDdoStateDatabase extends AbstractDdoStateDatabase {
       return await this.provider.collections(this.schema.name).documents().delete(did)
     } catch (error) {
       const errorMsg = `Error when deleting ddo state ${did}: ` + error.message
-      DATABASE_LOGGER.logByStatus(getTsStatusCode(error), errorMsg)
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -527,7 +527,7 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
       const errorMsg =
         `Error when searching by query (query ${safeStringify(query, { maxLength: 200 })}): ` +
         error.message
-      DATABASE_LOGGER.debug(errorMsg)
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -552,12 +552,7 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
       }
     } catch (error) {
       const errorMsg = `Error when creating DDO entry ${ddo.id}: ` + error.message
-      if (isDdoValidationError(error)) {
-        // invalid third-party DDOs are already reported by validateDDO
-        DATABASE_LOGGER.debug(errorMsg)
-      } else {
-        DATABASE_LOGGER.error(errorMsg)
-      }
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -618,12 +613,7 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
         return await this.create(ddo)
       }
       const errorMsg = `Error when updating DDO entry ${ddo.id}: ` + error.message
-      if (isDdoValidationError(error)) {
-        // invalid third-party DDOs are already reported by validateDDO
-        DATABASE_LOGGER.debug(errorMsg)
-      } else {
-        DATABASE_LOGGER.error(errorMsg)
-      }
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -741,7 +731,7 @@ export class TypesenseIndexerDatabase extends AbstractIndexerDatabase {
       const errorMsg =
         `Error when retrieving indexer entry on network ${network.toString()}: ` +
         error.message
-      DATABASE_LOGGER.logByStatus(getTsStatusCode(error), errorMsg)
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -832,7 +822,7 @@ export class TypesenseLogDatabase extends AbstractLogDatabase {
       // one line per failed write would double the output during a log DB outage
       DATABASE_LOGGER.throttled(
         LOG_INSERT_FAILED_KEY,
-        LOG_LEVELS_STR.LEVEL_WARN,
+        LOG_LEVELS_STR.LEVEL_ERROR,
         errorMsg
       )
       return null
@@ -844,7 +834,7 @@ export class TypesenseLogDatabase extends AbstractLogDatabase {
       return await this.provider.collections(this.schema.name).documents().retrieve(id)
     } catch (error) {
       const errorMsg = `Error when retrieving log entry: ` + error.message
-      DATABASE_LOGGER.logByStatus(getTsStatusCode(error), errorMsg)
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -937,7 +927,7 @@ export class TypesenseLogDatabase extends AbstractLogDatabase {
       await this.provider.collections(this.schema.name).documents().delete(logId)
       DATABASE_LOGGER.debug(`Deleted log with ID: ${logId}`)
     } catch (error) {
-      DATABASE_LOGGER.debug(`Error when deleting log entry: ${error.message}`)
+      DATABASE_LOGGER.error(`Error when deleting log entry: ${error.message}`)
       throw error
     }
   }
@@ -968,7 +958,7 @@ export class TypesenseLogDatabase extends AbstractLogDatabase {
       }
       return oldLogs.length
     } catch (error) {
-      DATABASE_LOGGER.warn(`Error when deleting old log entries: ${error.message}`)
+      DATABASE_LOGGER.error(`Error when deleting old log entries: ${error.message}`)
     }
   }
 
@@ -1152,14 +1142,4 @@ function stripId(doc: any): any {
   if (!doc) return doc
   const { id: _id, ...rest } = doc
   return rest
-}
-
-function getTsStatusCode(error: any): number | undefined {
-  return error instanceof TypesenseError ? error.httpStatus : undefined
-}
-
-function isDdoValidationError(error: any): boolean {
-  return (
-    typeof error?.message === 'string' && error.message.startsWith('Validation of DDO')
-  )
 }

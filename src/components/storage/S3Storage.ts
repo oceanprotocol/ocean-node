@@ -85,7 +85,7 @@ export class S3Storage extends Storage {
           : undefined
       }
     } catch (err) {
-      CORE_LOGGER.debug(`Error fetching object from S3: ${err}`)
+      CORE_LOGGER.error(`Error fetching object from S3: ${err}`)
       throw err
     }
   }

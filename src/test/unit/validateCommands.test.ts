@@ -2,7 +2,11 @@ import { expect, assert } from 'chai'
 import sinon from 'sinon'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
-import { validateCommandParameters } from '../../components/httpRoutes/validateCommands.js'
+import {
+  redactCommandForLogging,
+  validateCommandParameters
+} from '../../components/httpRoutes/validateCommands.js'
+import { Readable } from 'stream'
 
 const TOKEN = 'eyJhbGciOiJIUzI1NiJ9.fake.token'
 const SIGNATURE = '0xdeadbeefsignature'
@@ -101,6 +105,50 @@ describe('validateCommandParameters credential redaction', () => {
     expect(loggedCommand()).to.not.contain('registry-secret')
   })
 
+  it('redacts file-object credentials (headers, s3 keys) nested in datasets', () => {
+    validateCommandParameters(
+      {
+        command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+        consumerAddress: ERC20,
+        datasets: [
+          {
+            fileObject: {
+              type: 's3',
+              headers: { Authorization: 'Bearer file-object-token' },
+              s3Access: {
+                accessKeyId: 's3-key-id',
+                secretAccessKey: 's3-secret-value'
+              }
+            }
+          }
+        ]
+      },
+      []
+    )
+    const logged = loggedCommand()
+    expect(logged).to.not.contain('file-object-token')
+    expect(logged).to.not.contain('s3-key-id')
+    expect(logged).to.not.contain('s3-secret-value')
+    expect(logged).to.contain('[REDACTED]')
+  })
+
+  it('redacts the plaintext blob on encrypt', () => {
+    validateCommandParameters(
+      {
+        command: PROTOCOL_COMMANDS.ENCRYPT,
+        blob: 'super-secret-plaintext',
+        encoding: 'string',
+        encryptionType: 'ECIES'
+      },
+      []
+    )
+    const logged = loggedCommand()
+    expect(logged).to.not.contain('super-secret-plaintext')
+    expect(logged).to.contain('[REDACTED]')
+    // the encoding is non-sensitive and still logged
+    expect(logged).to.contain('string')
+  })
+
   it('redacts the auth token on invalidateAuthToken', () => {
     validateCommandParameters(
       {
@@ -128,6 +176,38 @@ describe('validateCommandParameters credential redaction', () => {
       []
     )
     expect(loggedCommand()).to.contain(ERC20)
+  })
+
+  it('redacts a "token" credential on policyServerPassthrough', () => {
+    validateCommandParameters(
+      {
+        command: PROTOCOL_COMMANDS.POLICY_SERVER_PASSTHROUGH,
+        consumerAddress: ERC20,
+        policyServerPassthrough: { action: 'download', token: TOKEN }
+      },
+      []
+    )
+    expect(loggedCommand()).to.not.contain(TOKEN)
+  })
+
+  it('redacts credential fields regardless of casing', () => {
+    validateCommandParameters(
+      {
+        command: PROTOCOL_COMMANDS.POLICY_SERVER_PASSTHROUGH,
+        consumerAddress: ERC20,
+        policyServerPassthrough: {
+          Authorization: TOKEN,
+          Signature: SIGNATURE,
+          s3Access: { AccessKeyId: 's3-key-id', SecretAccessKey: 's3-secret-value' }
+        }
+      },
+      []
+    )
+    const logged = loggedCommand()
+    expect(logged).to.not.contain(TOKEN)
+    expect(logged).to.not.contain(SIGNATURE)
+    expect(logged).to.not.contain('s3-key-id')
+    expect(logged).to.not.contain('s3-secret-value')
   })
 
   it('redacts credentials nested inside the policyServerPassthrough blob', () => {
@@ -260,5 +340,96 @@ describe('validateCommandParameters credential redaction', () => {
     expect(validation.valid).to.equal(false)
     expect(validation.status).to.equal(400)
     expect(validation.reason).to.contain('documentId')
+  })
+})
+
+// redactCommandForLogging is the shared redactor used by both the HTTP command logging and
+// the P2P inbound/forward paths, so credentials are stripped consistently on every path
+describe('redactCommandForLogging', () => {
+  function logged(command: any): string {
+    return JSON.stringify(redactCommandForLogging(command))
+  }
+
+  it('redacts credentials without mutating the original command', () => {
+    const command: any = {
+      command: PROTOCOL_COMMANDS.DOWNLOAD,
+      documentId: 'did:op:1234',
+      signature: SIGNATURE,
+      authorization: TOKEN
+    }
+    const out = logged(command)
+    expect(out).to.not.contain(SIGNATURE)
+    expect(out).to.not.contain(TOKEN)
+    expect(out).to.contain('did:op:1234')
+    // original keeps the real credentials for the handler
+    expect(command.signature).to.equal(SIGNATURE)
+    expect(command.authorization).to.equal(TOKEN)
+  })
+
+  it('redacts file-object headers and s3 keys nested in datasets', () => {
+    const out = logged({
+      command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+      consumerAddress: ERC20,
+      datasets: [
+        {
+          fileObject: {
+            headers: { Authorization: 'file-object-token' },
+            s3Access: { accessKeyId: 's3-key-id', secretAccessKey: 's3-secret-value' }
+          }
+        }
+      ]
+    })
+    expect(out).to.not.contain('file-object-token')
+    expect(out).to.not.contain('s3-key-id')
+    expect(out).to.not.contain('s3-secret-value')
+  })
+
+  it('redacts the raw algorithm source (algorithm.meta.rawcode)', () => {
+    const out = logged({
+      command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+      consumerAddress: ERC20,
+      algorithm: { meta: { rawcode: "console.log('secret-algo-source')" } }
+    })
+    expect(out).to.not.contain('secret-algo-source')
+  })
+
+  it('redacts the encrypt plaintext blob', () => {
+    const out = logged({
+      command: PROTOCOL_COMMANDS.ENCRYPT,
+      blob: 'super-secret-plaintext'
+    })
+    expect(out).to.not.contain('super-secret-plaintext')
+  })
+
+  it('strips user:password credentials from FTP URLs in file objects', () => {
+    const out = logged({
+      command: PROTOCOL_COMMANDS.FILE_INFO,
+      type: 'ftp',
+      url: 'ftp://ftp-user:ftp-secret@host.example/path/file.csv'
+    })
+    expect(out).to.not.contain('ftp-user')
+    expect(out).to.not.contain('ftp-secret')
+    // the non-secret host/path is kept, useful for debugging
+    expect(out).to.contain('host.example')
+  })
+
+  it('strips presigned query tokens from URLs in file objects', () => {
+    const out = logged({
+      command: PROTOCOL_COMMANDS.FILE_INFO,
+      type: 'url',
+      url: 'https://host.example/file?X-Amz-Signature=presigned-token-value'
+    })
+    expect(out).to.not.contain('presigned-token-value')
+    expect(out).to.contain('host.example')
+  })
+
+  it('summarizes a non-cloneable request stream instead of throwing', () => {
+    const out = logged({
+      command: PROTOCOL_COMMANDS.DOWNLOAD,
+      signature: SIGNATURE,
+      stream: Readable.from(['body'])
+    })
+    expect(out).to.not.contain(SIGNATURE)
+    expect(out).to.contain('[STREAM]')
   })
 })

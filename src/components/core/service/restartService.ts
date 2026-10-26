@@ -195,11 +195,7 @@ export class ServiceRestartHandler extends CommandHandler {
         status: { httpStatus: 200 }
       }
     } catch (error: any) {
-      if (/operation in progress/i.test(String(error?.message))) {
-        CORE_LOGGER.debug(`ServiceRestart ${task.serviceId} failed: ${error.message}`)
-      } else {
-        CORE_LOGGER.warn(`ServiceRestart ${task.serviceId} failed: ${error.message}`)
-      }
+      CORE_LOGGER.error(`ServiceRestart ${task.serviceId} failed: ${error.message}`)
       // the owner lost access to the service's output bucket (checked before any teardown)
       const httpStatus = error instanceof PersistentStorageAccessDeniedError ? 403 : 500
       return { stream: null, status: { httpStatus, error: error.message } }

@@ -41,7 +41,7 @@ export async function checkAddressOnAccessListWithSigner(
   } catch (error) {
     CORE_LOGGER.throttled(
       `accessList:${accessListContractAddress}`,
-      LOG_LEVELS_STR.LEVEL_WARN,
+      LOG_LEVELS_STR.LEVEL_ERROR,
       `Failed to check access list ${accessListContractAddress}: ${errorSummary(error)}`
     )
     return false
@@ -82,7 +82,7 @@ export async function checkAddressOnAccessList(
           }
         }
       } catch (error) {
-        CORE_LOGGER.warn(
+        CORE_LOGGER.error(
           `Failed to check access lists on chain ${chain}: ${errorSummary(error)}`
         )
       }

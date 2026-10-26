@@ -1,6 +1,6 @@
 import express from 'express'
 import { getNonce } from '../core/utils/nonceHandler.js'
-import { streamToObject, streamToString } from '../../utils/util.js'
+import { streamToObject, streamToString, sanitizeLogValue } from '../../utils/util.js'
 import { Readable } from 'stream'
 import { errorSummary } from '../../utils/logging/redact.js'
 import { PROTOCOL_COMMANDS, SERVICES_API_BASE_PATH } from '../../utils/constants.js'
@@ -224,7 +224,7 @@ providerRoutes.get(
       return
     }
     HTTP_LOGGER.debug(
-      `Download request: ${req.query.documentId} service=${req.query.serviceId} file=${req.query.fileIndex} consumer=${req.query.consumerAddress}`
+      `Download request: ${sanitizeLogValue(req.query.documentId)} service=${sanitizeLogValue(req.query.serviceId)} file=${sanitizeLogValue(req.query.fileIndex)} consumer=${sanitizeLogValue(req.query.consumerAddress)}`
     )
     const authorization = req.headers?.authorization
     try {
@@ -244,7 +244,9 @@ providerRoutes.get(
         try {
           parsedUserData = JSON.parse(userdata as string)
         } catch (e) {
-          HTTP_LOGGER.debug(`Invalid userdata JSON in download request for ${documentId}`)
+          HTTP_LOGGER.error(
+            `Invalid userdata JSON in download request for ${sanitizeLogValue(documentId)}`
+          )
           parsedUserData = null
         }
       }

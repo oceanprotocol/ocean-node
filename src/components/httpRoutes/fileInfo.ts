@@ -9,6 +9,7 @@ import { FileInfoHandler } from '../core/handler/fileInfoHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { errorSummary } from '../../utils/logging/redact.js'
 import { FileInfoCommand } from '../../@types/commands.js'
+import { sanitizeLogValue } from '../../utils/util.js'
 
 export const fileInfoRoute = express.Router()
 fileInfoRoute.use(express.json()) // Ensure JSON parsing middleware is used
@@ -20,7 +21,7 @@ fileInfoRoute.post(
   async (req: Request, res: Response): Promise<void> => {
     const fileInfoReq: FileInfoHttpRequest = req.body as unknown as FileInfoHttpRequest
     HTTP_LOGGER.debug(
-      `FileInfo request: type=${req.body?.type ?? '-'} did=${req.body?.did ?? '-'}`
+      `FileInfo request: type=${sanitizeLogValue(req.body?.type ?? '-')} did=${sanitizeLogValue(req.body?.did ?? '-')}`
     )
 
     try {

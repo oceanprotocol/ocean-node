@@ -12,7 +12,7 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import type { ComputeEnvironment } from '../../../@types/C2D/C2D.js'
 import { ServiceStatusNumber } from '../../../@types/C2D/ServiceOnDemand.js'
 import { validateAccess } from '../compute/startCompute.js'
-import { logCreateLockError, validateOutputBucket } from '../compute/utils.js'
+import { validateOutputBucket } from '../compute/utils.js'
 import { findServiceJobAndEngine, toPublicServiceJob } from './utils.js'
 
 export class ServiceExtendHandler extends CommandHandler {
@@ -256,9 +256,8 @@ export class ServiceExtendHandler extends CommandHandler {
               engine.escrow.getMinLockTime(task.additionalDuration)
             )
           } catch (e: any) {
-            logCreateLockError(
-              `Service ${task.serviceId} extend createLock failed (chain ${task.payment.chainId})`,
-              e.message
+            CORE_LOGGER.error(
+              `Service ${task.serviceId} extend createLock failed (chain ${task.payment.chainId}): ${e.message}`
             )
             return { stream: null, status: { httpStatus: 402, error: e.message } }
           }
@@ -272,7 +271,7 @@ export class ServiceExtendHandler extends CommandHandler {
           try {
             await engine.escrow.waitForTransaction(task.payment.chainId, lockTx)
           } catch (e: any) {
-            CORE_LOGGER.warn(
+            CORE_LOGGER.error(
               `Service ${task.serviceId} extend lock ${lockTx} not confirmed on chain ${task.payment.chainId}: ${e.message}`
             )
             await engine.escrow
@@ -417,11 +416,7 @@ export class ServiceExtendHandler extends CommandHandler {
     } catch (error: any) {
       // Lifecycle lock busy (a stop/restart/expiry owns the service) or engine stopped —
       // nothing was charged yet, the client simply retries shortly.
-      if (/operation in progress/i.test(String(error?.message))) {
-        CORE_LOGGER.debug(`ServiceExtend ${task.serviceId} rejected: ${error.message}`)
-      } else {
-        CORE_LOGGER.warn(`ServiceExtend ${task.serviceId} rejected: ${error.message}`)
-      }
+      CORE_LOGGER.error(`ServiceExtend ${task.serviceId} rejected: ${error.message}`)
       return { stream: null, status: { httpStatus: 400, error: error.message } }
     }
   }

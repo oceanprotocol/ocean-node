@@ -4,7 +4,6 @@ import {
   configureCustomDBTransport,
   getLoggingConfig,
   isFileLoggingActive,
-  LOG_LEVELS_STR,
   USE_DB_TRANSPORT
 } from '../../utils/logging/Logger.js'
 import { errorSummary } from '../../utils/logging/redact.js'
@@ -72,10 +71,8 @@ export class Database {
     error: unknown,
     allowPartial: boolean
   ): void {
-    DATABASE_LOGGER.log(
-      allowPartial ? LOG_LEVELS_STR.LEVEL_ERROR : LOG_LEVELS_STR.LEVEL_WARN,
-      `${name} database initialization failed: ${errorSummary(error)}`,
-      true
+    DATABASE_LOGGER.error(
+      `${name} database initialization failed${allowPartial ? '' : ' (will retry)'}: ${errorSummary(error)}`
     )
   }
 
@@ -114,7 +111,7 @@ export class Database {
       // Node metrics history is a best-effort, non-critical feature: a failure here must not
       // stop the node from starting. Leave db.nodeMetrics undefined; the cron jobs and history
       // handler guard on its presence.
-      DATABASE_LOGGER.warn(`Node metrics database initialization failed: ${error}`)
+      DATABASE_LOGGER.error(`Node metrics database initialization failed: ${error}`)
     }
 
     if (hasValidDBConfiguration(config)) {

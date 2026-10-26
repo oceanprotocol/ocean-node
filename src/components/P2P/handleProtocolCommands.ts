@@ -9,6 +9,7 @@ import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { errorSummary } from '../../utils/logging/redact.js'
 import { BaseHandler } from '../core/handler/handler.js'
 import { SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { sanitizeLogValue } from '../../utils/util.js'
 import { p2pCommand } from '../../telemetry/metrics.js'
 import {
   checkGlobalConnectionsRateLimit,
@@ -89,7 +90,7 @@ export async function handleProtocolCommands(
       await stream.close()
     } catch (e) {
       const msg = e instanceof Error ? e.message : e != null ? String(e) : 'Unknown error'
-      P2P_LOGGER.debug(`Error sending error response to ${remotePeer}: ${msg}`)
+      P2P_LOGGER.error(`Error sending error response to ${remotePeer}: ${msg}`)
       try {
         stream.abort(e as Error)
       } catch {}
@@ -104,7 +105,7 @@ export async function handleProtocolCommands(
     const str = uint8ArrayToString(cmdBytes)
     task = JSON.parse(str) as Command
   } catch (err) {
-    P2P_LOGGER.debug(
+    P2P_LOGGER.error(
       `Unable to read P2P command from ${remotePeer}: ${errorSummary(err)}`
     )
     await sendErrorAndClose(400, 'Invalid command')
@@ -153,8 +154,6 @@ export async function handleProtocolCommands(
   }
 
   const taskRecord = task as unknown as Record<string, unknown>
-  // set when the peer's request body could not be read (abort/timeout): peer-side, not a node bug
-  let bodyReadFailed = false
   if (taskRecord.p2pStreamBody === true) {
     delete taskRecord.p2pStreamBody
 
@@ -190,9 +189,6 @@ export async function handleProtocolCommands(
 
             yield buf
           }
-        } catch (e) {
-          bodyReadFailed = true
-          throw e
         } finally {
           // Whatever ended the loop - terminator, error, or a handler that stopped consuming -
           // the read side must not be left paused.
@@ -203,7 +199,7 @@ export async function handleProtocolCommands(
   }
 
   // the (redacted) payload is logged by the handler's validate()
-  P2P_LOGGER.debug(`P2P command ${task.command} from ${remotePeer}`)
+  P2P_LOGGER.debug(`P2P command ${sanitizeLogValue(task.command)} from ${remotePeer}`)
 
   // Bounded label for the `ocean.p2p.command` counter - never the raw, caller-supplied
   // string, so an unknown/garbage command cannot grow the metric's cardinality.
@@ -249,13 +245,9 @@ export async function handleProtocolCommands(
     p2pCommand.add(1, { command: commandLabel, outcome: 'ok' })
   } catch (err) {
     p2pCommand.add(1, { command: commandLabel, outcome: 'error' })
-    // after the status frame, failures are mostly the peer aborting the transfer
-    const failure = `P2P command ${task.command} from ${remotePeer} failed: ${errorSummary(err)}`
-    if (statusWritten || bodyReadFailed) {
-      P2P_LOGGER.debug(failure)
-    } else {
-      P2P_LOGGER.error(failure)
-    }
+    P2P_LOGGER.error(
+      `P2P command ${sanitizeLogValue(task.command)} from ${remotePeer} failed: ${errorSummary(err)}`
+    )
     const httpStatus =
       typeof (err as any)?.status === 'number' ? (err as any).status : 500
     const msg = err instanceof Error ? err.message : String(err)

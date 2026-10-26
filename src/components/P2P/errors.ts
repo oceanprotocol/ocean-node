@@ -331,14 +331,9 @@ export function describeP2PError(
  * here so the level policy lives in one place.
  */
 export function logProvideFailure(
-  logger: { debug(message: string): void; warn(message: string): void },
+  logger: { error(message: string): void },
   err: unknown,
   msg: string
 ): void {
-  const line = `${msg}: ${describeP2PError(err)}`
-  if (classifyP2PError(err).name === P2P_ERROR.timeout) {
-    logger.debug(line)
-  } else {
-    logger.warn(line)
-  }
+  logger.error(`${msg}: ${describeP2PError(err)}`)
 }

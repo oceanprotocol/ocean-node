@@ -351,7 +351,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     try {
       this.db.exec('BEGIN IMMEDIATE;')
     } catch (err) {
-      DATABASE_LOGGER.warn(
+      DATABASE_LOGGER.error(
         `${what} update for service job ${serviceId}: could not begin transaction: ${err.message}`
       )
       return false
@@ -387,7 +387,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       this.db.exec('COMMIT;')
       return changes > 0
     } catch (err) {
-      DATABASE_LOGGER.warn(
+      DATABASE_LOGGER.error(
         `Error while updating ${what} of service job ${serviceId}: ${err.message}`
       )
       try {
@@ -417,6 +417,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
 
   // Same guarantees as updateServiceJobMetrics, for the readiness probe result: it is sampled from
   // the same lease-free background loop, so it must never overwrite a lifecycle transition either.
+  // `readiness` is undefined for a service the node cannot probe.
   // eslint-disable-next-line require-await
   async updateServiceJobReadiness(
     serviceId: string,
@@ -426,11 +427,13 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       status: number
       containerId: string
     },
-    readiness: ServiceReadiness,
+    readiness: ServiceReadiness | undefined,
     modelDownload?: ServiceModelDownload
   ): Promise<boolean> {
     return this.patchServiceJobBody(serviceId, expected, 'readiness', (body) => {
-      body.readiness = readiness
+      if (readiness) {
+        body.readiness = readiness
+      }
       // Only overwritten when a fresh sample was taken: once the engine is ready the walk stops,
       // and the last figures stay as the record of what was downloaded.
       if (modelDownload) body.modelDownload = modelDownload

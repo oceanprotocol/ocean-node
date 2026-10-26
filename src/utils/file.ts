@@ -45,7 +45,7 @@ export async function getFile(
     return decryptedFileArray.files
   } catch (error) {
     const did = typeof didOrDdo === 'string' ? didOrDdo : didOrDdo?.id
-    CORE_LOGGER.debug(
+    CORE_LOGGER.error(
       `getFile failed for ${did} service ${serviceId}: ${errorSummary(error)}`
     )
     throw new Error('Unable to decrypt files, files not served by the current node!')

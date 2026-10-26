@@ -44,7 +44,7 @@ import {
   ServiceGetResultHandler
 } from '../core/service/index.js'
 
-import { streamToObject, streamToString } from '../../utils/util.js'
+import { streamToObject, streamToString, sanitizeLogValue } from '../../utils/util.js'
 import { PROTOCOL_COMMANDS, SERVICES_API_BASE_PATH } from '../../utils/constants.js'
 import { Readable, pipeline } from 'stream'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
@@ -86,7 +86,7 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeEnvironments`, async (req, r
     // always return the array, even if it's empty
     res.json(computeEnvironments)
   } catch (error) {
-    logRouteError('computeEnvironments', error, response?.status)
+    logRouteError('computeEnvironments', error)
     res.status(500).send('Internal Server Error')
   }
 })
@@ -95,7 +95,7 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeEnvironments`, async (req, r
 computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
   try {
     HTTP_LOGGER.debug(
-      `computeStart request: consumer=${req.body.consumerAddress} env=${req.body.environment}`
+      `computeStart request: consumer=${sanitizeLogValue(req.body?.consumerAddress)} env=${sanitizeLogValue(req.body?.environment)}`
     )
 
     const startComputeTask: PaidComputeStartCommand = {
@@ -146,7 +146,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
 computeRoutes.post(`${SERVICES_API_BASE_PATH}/freeCompute`, async (req, res) => {
   try {
     HTTP_LOGGER.debug(
-      `freeCompute request: consumer=${req.body.consumerAddress} env=${req.body.environment}`
+      `freeCompute request: consumer=${sanitizeLogValue(req.body?.consumerAddress)} env=${sanitizeLogValue(req.body?.environment)}`
     )
     const startComputeTask: FreeComputeStartCommand = {
       command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
@@ -214,7 +214,7 @@ computeRoutes.put(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
     const jobs = await streamToObject(response.stream as Readable)
     res.status(200).json(jobs)
   } catch (error) {
-    logRouteError('computeStop', error, response?.status)
+    logRouteError('computeStop', error)
     res.status(500).send('Internal Server Error')
   }
 })
@@ -224,7 +224,7 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
   let response: P2PCommandResponse
   try {
     HTTP_LOGGER.debug(
-      `computeStatus request: job=${req.query.jobId ?? '-'} consumer=${req.query.consumerAddress}`
+      `computeStatus request: job=${sanitizeLogValue(req.query.jobId ?? '-')} consumer=${sanitizeLogValue(req.query.consumerAddress)}`
     )
     const statusComputeTask: ComputeGetStatusCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
@@ -247,7 +247,7 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
     const jobs = await streamToObject(response.stream as Readable)
     res.status(200).json(jobs)
   } catch (error) {
-    logRouteError('computeStatus', error, response?.status)
+    logRouteError('computeStatus', error)
     res.status(500).send('Internal Server Error')
   }
 })
@@ -256,7 +256,7 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
 computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeResult`, async (req, res) => {
   try {
     HTTP_LOGGER.debug(
-      `computeResult request: job=${req.query.jobId} index=${req.query.index ?? '-'}`
+      `computeResult request: job=${sanitizeLogValue(req.query.jobId)} index=${sanitizeLogValue(req.query.index ?? '-')}`
     )
     const resultComputeTask: ComputeGetResultCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
@@ -324,7 +324,7 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeStreamableLogs`, async (req,
 computeRoutes.post(`${SERVICES_API_BASE_PATH}/initializeCompute`, async (req, res) => {
   try {
     HTTP_LOGGER.debug(
-      `initializeCompute request: consumer=${req.body?.consumerAddress} datasets=${req.body?.datasets?.length ?? 0}`
+      `initializeCompute request: consumer=${sanitizeLogValue(req.body?.consumerAddress)} datasets=${req.body?.datasets?.length ?? 0}`
     )
     const { body } = req
     if (!body) {
@@ -573,7 +573,7 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/serviceResult`, async (req, res) =>
   try {
     // the query carries the consumer's signature and nonce: log ids only
     HTTP_LOGGER.debug(
-      `serviceResult request: service=${req.query.serviceId ?? '-'} consumer=${req.query.consumerAddress ?? '-'} index=${req.query.index ?? '-'} live=${req.query.live === 'true'}`
+      `serviceResult request: service=${sanitizeLogValue(req.query.serviceId ?? '-')} consumer=${sanitizeLogValue(req.query.consumerAddress ?? '-')} index=${sanitizeLogValue(req.query.index ?? '-')} live=${req.query.live === 'true'}`
     )
     const task: ServiceGetResultCommand = {
       command: PROTOCOL_COMMANDS.SERVICE_GET_RESULT,

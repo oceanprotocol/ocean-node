@@ -35,6 +35,20 @@ function isValidUrl(urlString: string): boolean {
   }
 }
 
+// SERVICE_HF_MIRROR_URL: http(s) URL with a host, or undefined (unset, empty or invalid).
+function parseServiceHfMirrorUrl(value: string | undefined): string | undefined {
+  const v = value?.trim()
+  if (!v) return undefined
+  try {
+    const url = new URL(v)
+    if ((url.protocol === 'http:' || url.protocol === 'https:') && url.hostname) return v
+  } catch {}
+  CONFIG_LOGGER.error(
+    `serviceHfMirrorUrl "${v}" is not an http(s) URL — services start without the HF mirror`
+  )
+  return undefined
+}
+
 /**
  * One schema shape for every P2P timeout / attempt budget.
  *
@@ -1046,6 +1060,18 @@ export const OceanNodeConfigSchema = z
       .default([]),
 
     serviceTemplatesPath: z.string().optional().default('databases/serviceTemplates/'),
+
+    // Service-on-Demand Hugging Face mirror (docs/services.md). Both are optional and
+    // fail soft: an invalid value is logged and dropped, which turns the feature (or the
+    // patch) off instead of refusing to start the node.
+    serviceHfMirrorUrl: z
+      .string()
+      .optional()
+      .transform((v) => parseServiceHfMirrorUrl(v)),
+    serviceHfClientPatch: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      booleanFromString.optional()
+    ),
 
     dockerRegistrysAuth: jsonFromString(DockerRegistrysSchema, 'dockerRegistrysAuth')
       .optional()

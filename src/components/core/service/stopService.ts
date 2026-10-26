@@ -77,11 +77,7 @@ export class ServiceStopHandler extends CommandHandler {
         status: { httpStatus: 200 }
       }
     } catch (error: any) {
-      if (/operation in progress/i.test(String(error?.message))) {
-        CORE_LOGGER.debug(`ServiceStop ${task.serviceId} failed: ${error.message}`)
-      } else {
-        CORE_LOGGER.warn(`ServiceStop ${task.serviceId} failed: ${error.message}`)
-      }
+      CORE_LOGGER.error(`ServiceStop ${task.serviceId} failed: ${error.message}`)
       return { stream: null, status: { httpStatus: 500, error: error.message } }
     }
   }

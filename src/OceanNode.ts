@@ -23,6 +23,7 @@ import { createPersistentStorage } from './components/persistentStorage/createPe
 import { PersistentStorageFactory } from './components/persistentStorage/PersistentStorageFactory.js'
 import { isAddress, FallbackProvider, ethers } from 'ethers'
 import { create256Hash } from './utils/crypt.js'
+import { SUPPORTED_PROTOCOL_COMMANDS } from './utils/constants.js'
 
 export interface RequestLimiter {
   requester: string | string[] // IP address or peer ID
@@ -128,7 +129,7 @@ export class OceanNode {
           try {
             await instanceToTearDown.tearDownAll()
           } catch (err: unknown) {
-            OCEAN_NODE_LOGGER.warn(
+            OCEAN_NODE_LOGGER.error(
               `Failed to tear down previous OceanNode instance: ${
                 err instanceof Error ? err.message : String(err)
               }`
@@ -176,7 +177,7 @@ export class OceanNode {
     this.indexer = _indexer
     if (previous) {
       previous.stop().catch((err: unknown) => {
-        OCEAN_NODE_LOGGER.warn(
+        OCEAN_NODE_LOGGER.error(
           `Failed to stop replaced indexer: ${err instanceof Error ? err.message : String(err)}`
         )
       })
@@ -297,7 +298,11 @@ export class OceanNode {
     let command: string | undefined
     try {
       const task = JSON.parse(message)
-      command = task?.command
+      // only known command names are logged: a raw, caller-supplied string could embed
+      // control characters and forge extra log lines (CWE-117)
+      command = SUPPORTED_PROTOCOL_COMMANDS.includes(task?.command)
+        ? task.command
+        : 'unknown'
       OCEAN_NODE_LOGGER.debug(`Direct command: ${command}`)
       const handler: BaseHandler = this.coreHandlers.getHandler(task.command)
 

@@ -85,7 +85,7 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
       return result._source
     } catch (error) {
       const errorMsg = `Error when retrieving indexer entry on network ${network}: ${error.message}`
-      DATABASE_LOGGER.logByStatus(getEsStatusCode(error), errorMsg)
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -225,7 +225,7 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
         return normalizeDocumentId(hit._source, hit._id)
       })
     } catch (error) {
-      DATABASE_LOGGER.debug(
+      DATABASE_LOGGER.error(
         `Error when searching ddo state (query ${safeStringify(query, { maxLength: 200 })}): ${error.message}`
       )
       return null
@@ -279,7 +279,7 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
       return { id: did }
     } catch (error) {
       const errorMessage = `Error when deleting ddo state ${did}: ${error.message}`
-      DATABASE_LOGGER.logByStatus(getEsStatusCode(error), errorMessage)
+      DATABASE_LOGGER.error(errorMessage)
       return null
     }
   }
@@ -377,7 +377,7 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
       return normalizeDocumentId(result._source, result._id)
     } catch (error) {
       const errorMsg = `Error when retrieving order ${orderId}: ` + error.message
-      DATABASE_LOGGER.logByStatus(getEsStatusCode(error), errorMsg)
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -515,7 +515,7 @@ export class ElasticsearchEscrowDatabase extends AbstractEscrowDatabase {
       const errorMsg =
         `Error when searching escrow events (filters ${safeStringify(filters, { maxLength: 200 })}): ` +
         error.message
-      DATABASE_LOGGER.logByStatus(getEsStatusCode(error), errorMsg)
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -631,7 +631,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         }
       } catch (error) {
         const schemaErrorMsg = `Error for schema ${query.index}: ${error.message}`
-        DATABASE_LOGGER.debug(schemaErrorMsg)
+        DATABASE_LOGGER.error(schemaErrorMsg)
       }
     } else {
       for (const schema of this.getSchemas()) {
@@ -652,7 +652,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
           }
         } catch (error) {
           const schemaErrorMsg = `Error for schema ${schema.index}: ${error.message}`
-          DATABASE_LOGGER.debug(schemaErrorMsg)
+          DATABASE_LOGGER.error(schemaErrorMsg)
           continue
         }
       }
@@ -683,12 +683,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       }
     } catch (error) {
       const errorMsg = `Error when creating DDO entry ${ddo.id}: ${error.message}`
-      if (isDdoValidationError(error)) {
-        // invalid third-party DDOs are already reported by validateDDO
-        DATABASE_LOGGER.debug(errorMsg)
-      } else {
-        DATABASE_LOGGER.error(errorMsg)
-      }
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -761,12 +756,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         return response
       }
       const errorMsg = `Error when updating DDO entry ${ddo.id}: ${error.message}`
-      if (isDdoValidationError(error)) {
-        // invalid third-party DDOs are already reported by validateDDO
-        DATABASE_LOGGER.debug(errorMsg)
-      } else {
-        DATABASE_LOGGER.error(errorMsg)
-      }
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -898,7 +888,7 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
       // one line per failed write would double the output during a log DB outage
       DATABASE_LOGGER.throttled(
         LOG_INSERT_FAILED_KEY,
-        LOG_LEVELS_STR.LEVEL_WARN,
+        LOG_LEVELS_STR.LEVEL_ERROR,
         errorMsg
       )
       return null
@@ -914,7 +904,7 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
       return normalizeDocumentId(result._source, result._id)
     } catch (error) {
       const errorMsg = `Error when retrieving log entry: ${error.message}`
-      DATABASE_LOGGER.logByStatus(getEsStatusCode(error), errorMsg)
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -1025,7 +1015,7 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
       })
       DATABASE_LOGGER.debug(`Deleted log with ID: ${logId}`)
     } catch (error) {
-      DATABASE_LOGGER.debug(`Error when deleting log entry: ${error.message}`)
+      DATABASE_LOGGER.error(`Error when deleting log entry: ${error.message}`)
       throw error
     }
   }
@@ -1047,7 +1037,7 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
 
       return oldLogs ? oldLogs.length : 0
     } catch (error) {
-      DATABASE_LOGGER.warn(`Error when deleting old log entries: ${error.message}`)
+      DATABASE_LOGGER.error(`Error when deleting old log entries: ${error.message}`)
       return 0
     }
   }
@@ -1246,7 +1236,7 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
       return { id }
     } catch (error) {
       if (error?.meta?.statusCode === 404) {
-        DATABASE_LOGGER.debug(
+        DATABASE_LOGGER.error(
           `AddressRemoved on missing access list ${id} (tokenId=${tokenId}); ignoring.`
         )
         return null
@@ -1318,12 +1308,3 @@ export function normalizeDocumentId(dbResult: any, _id?: any): any {
 }
 
 // ES client errors carry the HTTP status as statusCode (and meta.statusCode)
-function getEsStatusCode(error: any): number | undefined {
-  return error?.meta?.statusCode ?? error?.statusCode
-}
-
-function isDdoValidationError(error: any): boolean {
-  return (
-    typeof error?.message === 'string' && error.message.startsWith('Validation of DDO')
-  )
-}

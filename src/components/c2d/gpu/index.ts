@@ -166,7 +166,7 @@ export class GpuMetricsService {
       }
       return out.length ? out : undefined
     } catch (e: any) {
-      CORE_LOGGER.debug(`[metrics] gpu: collection failed: ${e?.message}`)
+      CORE_LOGGER.error(`[metrics] gpu: collection failed: ${e?.message}`)
       return undefined
     }
   }
@@ -192,7 +192,7 @@ export class GpuMetricsService {
       const out = mapHostGpuDevices(await collector.sampleAll(), gpuResources)
       return out.length ? out : undefined
     } catch (e: any) {
-      CORE_LOGGER.debug(`[metrics] gpu: host sample failed: ${e?.message}`)
+      CORE_LOGGER.error(`[metrics] gpu: host sample failed: ${e?.message}`)
       return undefined
     }
   }

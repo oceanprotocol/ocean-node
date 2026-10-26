@@ -125,7 +125,7 @@ async function gracefulShutdown(signal: string): Promise<void> {
   try {
     await (await import('./telemetry/otel.js')).shutdownTelemetry()
   } catch (e) {
-    OCEAN_NODE_LOGGER.warn(
+    OCEAN_NODE_LOGGER.error(
       `Telemetry shutdown failed: ${e instanceof Error ? e.message : e}`
     )
   }
@@ -281,6 +281,7 @@ if (config.hasHttp) {
   app.use(removeExtraSlashes)
   app.use('/', httpRoutes)
 
+  let httpsStarted = false
   if (config.httpCertPath && config.httpKeyPath) {
     try {
       const options = {
@@ -290,14 +291,14 @@ if (config.hasHttp) {
       https.createServer(options, app).listen(config.httpPort, () => {
         OCEAN_NODE_LOGGER.info(`HTTPS server listening on port ${config.httpPort}`)
       })
+      httpsStarted = true
     } catch (err) {
-      OCEAN_NODE_LOGGER.error(`Error starting HTTPS server: ${err.message}`)
-      OCEAN_NODE_LOGGER.warn(`Falling back to HTTP`)
-      app.listen(config.httpPort, () => {
-        OCEAN_NODE_LOGGER.info(`HTTP server listening on port ${config.httpPort}`)
-      })
+      OCEAN_NODE_LOGGER.error(
+        `Error starting HTTPS server, falling back to HTTP: ${err.message}`
+      )
     }
-  } else {
+  }
+  if (!httpsStarted) {
     app.listen(config.httpPort, () => {
       OCEAN_NODE_LOGGER.info(`HTTP server listening on port ${config.httpPort}`)
     })

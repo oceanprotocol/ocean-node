@@ -48,7 +48,7 @@ export class PolicyServer {
     } catch (e) {
       CORE_LOGGER.throttled(
         POLICY_SERVER_UNREACHABLE,
-        LOG_LEVELS_STR.LEVEL_WARN,
+        LOG_LEVELS_STR.LEVEL_ERROR,
         `Policy server ${redactUrls(this.serverUrl)} unreachable: ${errorSummary(e)}`
       )
       const errorText =

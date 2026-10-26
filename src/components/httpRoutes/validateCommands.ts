@@ -13,13 +13,61 @@ export type ValidateParams = {
 }
 
 // "token" is an ERC20 address on most commands (escrow, compute payment) and only a
-// credential on the auth-token commands, so it is redacted per-command instead
+// credential on the auth-token commands and the policy-server passthrough (whose free-form
+// blob can carry a policy-server auth token), so it is redacted per-command instead
 const SENSITIVE_TOKEN_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
-  PROTOCOL_COMMANDS.VALIDATE_AUTH_TOKEN
+  PROTOCOL_COMMANDS.VALIDATE_AUTH_TOKEN,
+  PROTOCOL_COMMANDS.POLICY_SERVER_PASSTHROUGH
 ]
 
-// add others when we add suppor
+const REDACTED = '[REDACTED]'
+
+/**
+ * Returns a copy of a command that is safe to log: non-cloneable fields (streams, buffers)
+ * are summarized and every credential field is redacted, at any depth (see
+ * utils/logging/redact.ts: sensitive keys are matched case-insensitively and URLs in any
+ * string are reduced to their origin). Use this anywhere a command payload is about to be
+ * logged, so that credentials never reach the logs through a path that skips
+ * validateCommandParameters.
+ */
+export function redactCommandForLogging(commandData: any): any {
+  const commandStr: string = commandData?.command as string
+
+  // deep copy for logging (must not throw for non-cloneable payloads like streams)
+  let logCommandData: any
+  try {
+    // For some commands, the task contains non-cloneable fields (e.g. Node streams).
+    // We redact those before cloning to avoid DataCloneError.
+    const sanitized = { ...(commandData ?? {}) }
+    if ('stream' in sanitized) {
+      sanitized.stream = '[STREAM]'
+    }
+    logCommandData = structuredClone(sanitized)
+  } catch {
+    // Last resort: shallow clone; avoid crashing validation because of logging.
+    logCommandData = { ...(commandData ?? {}) }
+    if ('stream' in logCommandData) {
+      logCommandData.stream = '[STREAM]'
+    }
+  }
+
+  if (commandStr === PROTOCOL_COMMANDS.ENCRYPT) {
+    logCommandData.files = [] // hide files data (sensitive) + rawData (long buffer) from logging
+    if (logCommandData.blob !== undefined && logCommandData.blob !== null) {
+      logCommandData.blob = REDACTED // the plaintext the caller wants encrypted
+    }
+  } else if (commandStr === PROTOCOL_COMMANDS.ENCRYPT_FILE && commandData.rawData) {
+    logCommandData.rawData = []
+  }
+
+  // never log the caller's credentials, whatever the command is. credentials also show up
+  // nested (the free-form "policyServer" / "policyServerPassthrough" blobs, dataset file
+  // objects), so this walks the whole payload
+  return redactSensitiveFields(logCommandData, {
+    redactToken: SENSITIVE_TOKEN_COMMANDS.includes(commandStr)
+  })
+}
 
 // request level validation, just check if we have a "command" field and its a supported one
 // each command handler is responsible for the reamining validatio of the command fields
@@ -44,40 +92,9 @@ export function validateCommandParameters(
   // the dump is only built when some transport takes debug lines: cloning and redacting
   // every command (rawData buffers included) is not free
   if (CORE_LOGGER.isLevelEnabled(LOG_LEVELS_STR.LEVEL_DEBUG)) {
-    // deep copy for logging (must not throw for non-cloneable payloads like streams)
-    let logCommandData: any
-    try {
-      // For some commands, the task contains non-cloneable fields (e.g. Node streams).
-      // We redact those before cloning to avoid DataCloneError.
-      const sanitized = { ...(commandData ?? {}) }
-      if ('stream' in sanitized) {
-        sanitized.stream = '[STREAM]'
-      }
-      logCommandData = structuredClone(sanitized)
-    } catch {
-      // Last resort: shallow clone; avoid crashing validation because of logging.
-      logCommandData = { ...(commandData ?? {}) }
-      if ('stream' in logCommandData) {
-        logCommandData.stream = '[STREAM]'
-      }
-    }
-
-    if (commandStr === PROTOCOL_COMMANDS.ENCRYPT) {
-      logCommandData.files = [] // hide files data (sensitive) + rawData (long buffer) from logging
-    } else if (commandStr === PROTOCOL_COMMANDS.ENCRYPT_FILE && commandData.rawData) {
-      logCommandData.rawData = []
-    }
-
-    // never log the caller's credentials, whatever the command is. credentials also show up
-    // nested (the free-form "policyServer" / "policyServerPassthrough" blobs), so this walks
-    // the whole payload
-    logCommandData = redactSensitiveFields(logCommandData, {
-      redactToken: SENSITIVE_TOKEN_COMMANDS.includes(commandStr)
-    })
-
     CORE_LOGGER.debug(
       `Checking received command data for Command "${commandStr}": ${JSON.stringify(
-        logCommandData
+        redactCommandForLogging(commandData)
       )}`
     )
   }

@@ -14,12 +14,12 @@ import { resolveServiceEngine } from '../../../components/c2d/serviceEngines.js'
 import {
   buildModelDownload,
   fetchModelTotalBytes,
-  BLOB_EMPTY_REDISCOVER_MS,
   BLOB_REDISCOVER_MS,
   isModelDownloadComplete,
   ModelDownloadSampler,
   readModelDownloadBytes,
-  selectBlobPaths
+  selectBlobPaths,
+  withReceivedBytes
 } from '../../../components/c2d/modelDownload.js'
 
 describe('ImagePullTracker', () => {
@@ -118,7 +118,7 @@ describe('ImagePullTracker', () => {
 })
 
 describe('resolveServiceEngine', () => {
-  const job = (image: string) => ({ image }) as ServiceJob
+  const job = (image: string) => ({ image, exposedPorts: [8000, 8080] }) as ServiceJob
 
   it('recognizes the vLLM image, including a registry mirror of it', () => {
     expect(resolveServiceEngine(job('vllm/vllm-openai'))?.id).to.equal('vllm')
@@ -140,7 +140,10 @@ describe('resolveServiceEngine', () => {
   })
 
   it('falls back to containerImage when image is missing', () => {
-    const noImage = { containerImage: 'vllm/vllm-openai:v0.28.0' } as ServiceJob
+    const noImage = {
+      containerImage: 'vllm/vllm-openai:v0.28.0',
+      exposedPorts: [8000]
+    } as ServiceJob
     expect(resolveServiceEngine(noImage)?.id).to.equal('vllm')
   })
 
@@ -148,6 +151,15 @@ describe('resolveServiceEngine', () => {
     expect(resolveServiceEngine(job('nginxinc/nginx-unprivileged'))).to.equal(null)
     expect(resolveServiceEngine(job('someone/vllm-openai-fork'))).to.equal(null)
     expect(resolveServiceEngine(job(''))).to.equal(null)
+  })
+
+  it('leaves an app that runs the engine behind its own port unrecognized', () => {
+    // A bundle that publishes only its app (vLLM on loopback inside) has nothing to probe.
+    const app = { image: 'vllm/vllm-openai', exposedPorts: [9119] } as ServiceJob
+    expect(resolveServiceEngine(app)).to.equal(null)
+    expect(resolveServiceEngine({ image: 'vllm/vllm-openai' } as ServiceJob)).to.equal(
+      null
+    )
   })
 
   it('reads the Hugging Face repo id out of the vLLM command', () => {
@@ -168,8 +180,21 @@ describe('resolveServiceEngine', () => {
   })
 })
 
+describe('resolveServiceEngine — ComfyUI', () => {
+  const job = (image: string) => ({ image, exposedPorts: [8188] }) as ServiceJob
+
+  it('recognizes the comfyui-boot image under any tag', () => {
+    expect(resolveServiceEngine(job('yanwk/comfyui-boot'))?.id).to.equal('comfyui')
+    expect(
+      resolveServiceEngine(job('yanwk/comfyui-boot:cu130-megapak-pt211'))?.id
+    ).to.equal('comfyui')
+    expect(resolveServiceEngine(job('someone/comfyui-boot'))).to.equal(null)
+  })
+})
+
 describe('resolveServiceEngine — llama.cpp', () => {
-  const job = (image: string, cmd?: string[]) => ({ image, dockerCmd: cmd }) as ServiceJob
+  const job = (image: string, cmd?: string[]) =>
+    ({ image, dockerCmd: cmd, exposedPorts: [8000, 8080] }) as ServiceJob
 
   it('recognizes the llama.cpp image and probes /health', () => {
     const engine = resolveServiceEngine(job('ghcr.io/ggml-org/llama.cpp'))
@@ -310,6 +335,45 @@ describe('buildModelDownload', () => {
       'a/b'
     )
     expect(result.percent).to.equal(100)
+  })
+})
+
+describe('withReceivedBytes', () => {
+  const total = 1_000_000_000
+  // A Xet download: one file in flight, still empty on disk.
+  const xet = { downloadedBytes: 11_000_000, files: 5, inFlight: 1 }
+
+  it('reports the bytes received while the cache lags', () => {
+    const result = withReceivedBytes(xet, 600_000_000, total)
+    expect(result).to.deep.equal({ ...xet, downloadedBytes: 600_000_000 })
+    expect(buildModelDownload(result, total, 'a/b').percent).to.equal(60)
+  })
+
+  it('never completes a download from the bytes received alone', () => {
+    // Other traffic can push the bytes received past the model's size.
+    const result = withReceivedBytes(xet, 1_200_000_000, total)
+    const record = buildModelDownload(result, total, 'a/b')
+    expect(record.percent).to.equal(99)
+    expect(isModelDownloadComplete({ ...record, filesInFlight: 0 })).to.equal(false)
+  })
+
+  it('keeps the cache figure when it is ahead', () => {
+    // Xet ships compressed chunks: once the file is written, the cache is ahead.
+    const written = { downloadedBytes: total, files: 6, inFlight: 0 }
+    expect(withReceivedBytes(written, 960_000_000, total)).to.equal(written)
+    expect(isModelDownloadComplete(buildModelDownload(written, total, 'a/b'))).to.equal(
+      true
+    )
+  })
+
+  it('uses the bytes received as they are when the total is unknown', () => {
+    expect(withReceivedBytes(xet, 600_000_000, null).downloadedBytes).to.equal(
+      600_000_000
+    )
+  })
+
+  it('leaves the sample alone when the bytes received are unknown', () => {
+    expect(withReceivedBytes(xet, null, total)).to.equal(xet)
   })
 })
 
@@ -534,15 +598,33 @@ describe('ModelDownloadSampler', () => {
     expect(state.changesCalls).to.equal(2)
   })
 
-  it('polls an empty cache on the shorter cadence', async () => {
+  it('re-lists an empty cache on every sample', async () => {
     const sampler = new ModelDownloadSampler()
     const { container, files, state } = liveContainer()
     expect(await sampler.sample('svc', container, 0)).to.equal(null)
     files[`${repo}/blobs/a.1a2b3c4d.incomplete`] = 10
-    expect(await sampler.sample('svc', container, 5_000)).to.equal(null)
-    expect(
-      (await sampler.sample('svc', container, BLOB_EMPTY_REDISCOVER_MS))?.downloadedBytes
-    ).to.equal(10)
+    expect((await sampler.sample('svc', container, 5_000))?.downloadedBytes).to.equal(10)
+    expect(state.changesCalls).to.equal(2)
+  })
+
+  it('sees weights that start after the tokenizer files finished', async () => {
+    const sampler = new ModelDownloadSampler()
+    const { container, files, state } = liveContainer()
+    files[`${repo}/blobs/tokenizer`] = 11
+    expect((await sampler.sample('svc', container, 0))?.downloadedBytes).to.equal(11)
+
+    // Nothing known is in flight, so the next sample re-lists instead of waiting 30s.
+    files[`${repo}/blobs/weights.1a2b3c4d.incomplete`] = 400
+    expect(await sampler.sample('svc', container, 5_000)).to.deep.equal({
+      downloadedBytes: 411,
+      files: 1,
+      inFlight: 1
+    })
+    // Once something is in flight, its growth is stat-ed without listing again.
+    files[`${repo}/blobs/weights.1a2b3c4d.incomplete`] = 900
+    expect((await sampler.sample('svc', container, 10_000))?.downloadedBytes).to.equal(
+      911
+    )
     expect(state.changesCalls).to.equal(2)
   })
 

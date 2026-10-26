@@ -211,7 +211,7 @@ export async function checkSingleCredential(
       )
       return hasAccess
     } catch (error) {
-      CORE_LOGGER.debug(
+      CORE_LOGGER.error(
         `Error checking accessList credential ${accessListCredential.accessList}: ${errorSummary(error)}`
       )
       return false

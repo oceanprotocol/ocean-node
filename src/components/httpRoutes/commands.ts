@@ -6,9 +6,13 @@ import { errorSummary } from '../../utils/logging/redact.js'
 
 import { validateCommandParameters } from './validateCommands.js'
 import { Readable } from 'stream'
+import { sanitizeLogValue } from '../../utils/util.js'
 
+// caller-supplied values: sanitized so they cannot forge log lines (CWE-117)
 function describeCommand(body: any): string {
-  return `${body?.command}${body?.node ? ' -> ' + body.node : ''}`
+  return `${sanitizeLogValue(body?.command)}${
+    body?.node ? ' -> ' + sanitizeLogValue(body.node) : ''
+  }`
 }
 
 function mapChunkToBuffer(chunk: any): Buffer | Uint8Array {
@@ -51,7 +55,7 @@ async function streamToResponse(
       }
     }
   } catch (err) {
-    HTTP_LOGGER.debug(`Stream error: ${errorSummary(err)}`)
+    HTTP_LOGGER.error(`Stream error: ${errorSummary(err)}`)
     throw err
   }
 }
@@ -156,11 +160,7 @@ directCommandRoute.post(
     } catch (err) {
       // after the headers are sent, failures are mid-stream aborts (peer, storage or client)
       const message = `directCommand ${describeCommand(req.body)} failed: ${errorSummary(err)}`
-      if (!res.headersSent) {
-        HTTP_LOGGER.error(message)
-      } else {
-        HTTP_LOGGER.debug(message)
-      }
+      HTTP_LOGGER.error(message)
       closedResponse = true
       if (!res.headersSent) {
         res.status(500).send(err.message)

@@ -479,7 +479,7 @@ export class ChainIndexer {
           this.reindexQueue.unshift(reindexTask)
           throw error
         }
-        INDEXER_LOGGER.warn(`REINDEX Error for tx ${reindexTask.txId}: ${error.message}`)
+        INDEXER_LOGGER.error(`REINDEX Error for tx ${reindexTask.txId}: ${error.message}`)
       }
     }
   }
@@ -490,19 +490,12 @@ export class ChainIndexer {
   private logLoopFailure(message: string): void {
     this.consecutiveFailures++
     const chainId = this.blockchain.getSupportedChain()
-    if (this.consecutiveFailures >= FAILURE_ESCALATION_THRESHOLD) {
-      INDEXER_LOGGER.throttled(
-        `indexer-loop-error-${chainId}`,
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `${message} (${this.consecutiveFailures} consecutive failures)`
-      )
-    } else {
-      INDEXER_LOGGER.throttled(
-        `indexer-loop-warn-${chainId}`,
-        LOG_LEVELS_STR.LEVEL_WARN,
-        message
-      )
-    }
+    // throttled: the loop retries every interval while the RPC/DB problem lasts
+    INDEXER_LOGGER.throttled(
+      `indexer-loop-error-${chainId}`,
+      LOG_LEVELS_STR.LEVEL_ERROR,
+      `${message} (${this.consecutiveFailures} consecutive failures)`
+    )
   }
 
   private logLoopRecovered(): void {
@@ -514,7 +507,6 @@ export class ChainIndexer {
     if (this.consecutiveFailures >= FAILURE_ESCALATION_THRESHOLD) {
       INDEXER_LOGGER.info(message)
       INDEXER_LOGGER.resetThrottle(`indexer-loop-error-${chainId}`)
-      INDEXER_LOGGER.resetThrottle(`indexer-loop-warn-${chainId}`)
     } else {
       INDEXER_LOGGER.debug(message)
     }

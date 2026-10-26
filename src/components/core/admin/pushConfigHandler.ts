@@ -56,6 +56,9 @@ export class PushConfigHandler extends AdminCommandHandler {
       const currentConfig = JSON.parse(configContent)
 
       const mergedConfig = { ...currentConfig, ...task.config }
+      // a client that echoed an older pushConfig response back may have saved `over` - a
+      // copy of the raw private key - into the file; this write drops it
+      delete mergedConfig.over
       await this.saveConfigToFile(mergedConfig)
 
       const newConfig = await getConfiguration(true, false)

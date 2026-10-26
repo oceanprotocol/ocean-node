@@ -172,9 +172,9 @@ export async function p2pAnnounceDDOS(node: OceanNode) {
                 advertised++
               }
             } catch (e) {
-              // timeouts are normal in a sparse DHT; only other failures reach the summary warn
+              // timeouts are normal in a sparse DHT: only other failures count towards the summary
               if (classifyP2PError(e).name !== P2P_ERROR.timeout) failed++
-              P2P_LOGGER.debug(
+              P2P_LOGGER.error(
                 `Caught error while republishing ${ddo?.id} on republishStoredDDOS(): ${describeP2PError(e)}`
               )
             }
@@ -188,7 +188,7 @@ export async function p2pAnnounceDDOS(node: OceanNode) {
               p2pNode.cacheDDO(ddo)
             } catch (e) {
               cacheFailed++
-              P2P_LOGGER.debug(
+              P2P_LOGGER.error(
                 `Caught "${e.message}" while caching ${ddo?.id} on republishStoredDDOS()`
               )
             }

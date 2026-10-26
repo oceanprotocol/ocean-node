@@ -52,16 +52,8 @@ function requirePersistentStorage(handler: CommandHandler): PersistentStorageFac
   return storage
 }
 
-// storage disabled on this node and invalid client input are expected; the rest needs attention
-const EXPECTED_STORAGE_ERRORS =
-  /^(Persistent storage is not (available on this node|configured or disabled)|Invalid (bucketId|fileName))$/
-
 function logHandlerError(handlerName: string, message: string): void {
-  CORE_LOGGER.log(
-    EXPECTED_STORAGE_ERRORS.test(message) ? 'debug' : 'error',
-    `${handlerName} error: ${message}`,
-    true
-  )
+  CORE_LOGGER.error(`${handlerName} error: ${message}`)
 }
 
 export class PersistentStorageCreateBucketHandler extends CommandHandler {

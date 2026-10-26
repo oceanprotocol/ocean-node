@@ -21,7 +21,7 @@ export function getOceanArtifactsAdresses(): any {
   } catch (error) {
     CORE_LOGGER.throttled(
       'addressFile',
-      LOG_LEVELS_STR.LEVEL_WARN,
+      LOG_LEVELS_STR.LEVEL_ERROR,
       `Cannot read ADDRESS_FILE ${process.env.ADDRESS_FILE}: ${errorSummary(error)}; using bundled addresses`
     )
     return addresses

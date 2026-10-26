@@ -128,7 +128,7 @@ class ElasticsearchClientSingleton {
           try {
             this.client.close()
           } catch (err) {
-            DATABASE_LOGGER.debug(
+            DATABASE_LOGGER.error(
               `Error closing Elasticsearch client during health check: ${err instanceof Error ? err.message : String(err)}`
             )
           }
@@ -181,7 +181,7 @@ class ElasticsearchClientSingleton {
       await this.client.ping()
       return true
     } catch (error) {
-      DATABASE_LOGGER.debug(`Elasticsearch health check failed: ${error.message}`)
+      DATABASE_LOGGER.error(`Elasticsearch health check failed: ${error.message}`)
       return false
     }
   }
@@ -231,7 +231,7 @@ class ElasticsearchClientSingleton {
       // fires every health-check interval during an outage
       DATABASE_LOGGER.throttled(
         ES_CONNECT_FAILED_KEY,
-        LOG_LEVELS_STR.LEVEL_WARN,
+        LOG_LEVELS_STR.LEVEL_ERROR,
         `Failed to connect to Elasticsearch at ${this.maskUrl(config.url)} (attempt ${this.connectionAttempts}): ${error.message}`
       )
       throw error

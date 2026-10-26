@@ -238,7 +238,7 @@ export async function getDatatokenDecimals(
   try {
     return await datatokenContract.decimals()
   } catch (err) {
-    CORE_LOGGER.warn(
+    CORE_LOGGER.error(
       `Cannot read decimals for token ${datatokenAddress}: ${errorSummary(err?.shortMessage ?? err)}; using 18`
     )
     return 18

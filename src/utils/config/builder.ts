@@ -50,7 +50,7 @@ function preprocessConfigData(data: any): void {
         data.hasP2P = interfaces.includes('P2P')
       }
     } catch (error) {
-      CONFIG_LOGGER.warn(`Failed to parse INTERFACES: ${error.message}`)
+      CONFIG_LOGGER.error(`Failed to parse INTERFACES: ${error.message}`)
     }
     delete data.INTERFACES
   }
@@ -223,19 +223,9 @@ export function buildMergedConfig(): OceanNodeConfig {
     throw new Error('Invalid PRIVATE_KEY')
   }
 
-  // const keys = getPeerIdFromPrivateKey(privateKey)
-  // Set key provider type and raw private key for KeyManager
-  // Type will be validated by KeyManager when initializing
-  const over = {
-    privateKey
-  }
-
-  const { env } = process
-  const envOverrides: Record<string, any> = { over }
-
-  Object.assign(envOverrides, mapEnvToConfig(env, ENV_TO_CONFIG_MAPPING))
-
+  const envOverrides = mapEnvToConfig(process.env, ENV_TO_CONFIG_MAPPING)
   const merged = lodash.merge({}, baseConfig, envOverrides)
+  delete merged.over
 
   preprocessConfigData(merged)
   const parsed = OceanNodeConfigSchema.safeParse(merged)

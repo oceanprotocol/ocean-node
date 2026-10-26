@@ -68,7 +68,7 @@ export async function decryptFilesObject(
     return decryptedFileArray.files[0]
   } catch (err) {
     // err.message can quote a snippet of the decrypted payload (JSON.parse on Node >= 24)
-    CORE_LOGGER.debug(`Error decrypting files object: ${errorSummary(err)}`)
+    CORE_LOGGER.error(`Error decrypting files object: ${errorSummary(err)}`)
     return null
   }
 }

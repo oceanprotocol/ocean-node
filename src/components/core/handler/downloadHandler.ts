@@ -153,7 +153,7 @@ export async function handleDownloadUrlCommand(
     }
   } catch (err) {
     // errorSummary: storage errors carry the decrypted file URL
-    CORE_LOGGER.warn(
+    CORE_LOGGER.error(
       `Download failed (storage=${(task.fileObject as { type?: string })?.type}): ${errorSummary(err)}`
     )
     return {
@@ -542,7 +542,7 @@ export class DownloadHandler extends CommandHandler {
         command: PROTOCOL_COMMANDS.DOWNLOAD
       })
     } catch (e) {
-      CORE_LOGGER.warn(
+      CORE_LOGGER.error(
         `Decryption error for ${ddo.id} service ${task.serviceId}: ${errorSummary(e)}`
       )
       return {

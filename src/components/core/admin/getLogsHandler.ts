@@ -139,7 +139,7 @@ export class GetLogsHandler extends AdminCommandHandler {
           // the logger falls back to files when the DB is unusable: read them instead
           CORE_LOGGER.throttled(
             'get-logs-db',
-            'warn',
+            'error',
             `Reading logs from the database failed, using log files: ${errorSummary(error)}`
           )
         }

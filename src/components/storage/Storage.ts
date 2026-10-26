@@ -68,7 +68,7 @@ export abstract class Storage {
         response.push(fileInfo)
       }
     } catch (error) {
-      CORE_LOGGER.debug(`getFileInfo failed: ${error.message}`)
+      CORE_LOGGER.error(`getFileInfo failed: ${error.message}`)
       throw error
     }
     return response

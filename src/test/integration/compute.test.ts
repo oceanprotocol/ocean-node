@@ -526,7 +526,10 @@ describe('**********         Compute', () => {
         token: paymentToken
       },
       maxJobDuration: computeJobDuration,
-      consumerAddress: firstEnv.consumerAddress,
+      // consumer must be the order's payer (consumerAccount started the order), not the
+      // env address: the order check now binds payer === caller, so validOrder is only
+      // returned for the wallet that actually paid.
+      consumerAddress: await consumerAccount.getAddress(),
       command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
     }
     const resp = await new ComputeInitializeHandler(oceanNode).handle(
@@ -622,7 +625,10 @@ describe('**********         Compute', () => {
         token: paymentToken
       },
       maxJobDuration: computeJobDuration,
-      consumerAddress: firstEnv.consumerAddress,
+      // consumer must be the order's payer (consumerAccount started both orders), not the
+      // env address: the order check now binds payer === caller, so validOrder is only
+      // returned for the wallet that actually paid.
+      consumerAddress: await consumerAccount.getAddress(),
       command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
     }
     const resp = await new ComputeInitializeHandler(oceanNode).handle(
@@ -2891,10 +2897,103 @@ describe('**********         Compute', () => {
         'mixed-result.txt'
       )
       // the persistent-storage dataset is bind-mounted, the URL dataset is downloaded
-      // into /data/inputs alongside algoCustomData.json
+      // into its own /data/inputs/<index> folder (counted here as a directory entry)
       assert(written.startsWith(secret + '|inputs='), `unexpected output: ${written}`)
       const count = parseInt(written.split('|inputs=')[1], 10)
       assert(count >= 1, `expected at least one downloaded non-PS input, got ${count}`)
+    })
+
+    it('writes same-named inputs to separate per-index folders (no collision)', async function () {
+      // two datasets whose URLs end in the same file name (README.md). Before the
+      // per-index layout the second silently overwrote the first in /data/inputs/README.md.
+      const rawcode = [
+        "const fs = require('fs');",
+        "const root = '/data/inputs';",
+        'const dirs = fs',
+        '  .readdirSync(root)',
+        "  .filter((f) => fs.statSync(root + '/' + f).isDirectory());",
+        'const found = dirs',
+        '  .map((d) => {',
+        "    const name = fs.readdirSync(root + '/' + d)[0];",
+        "    return { dir: d, name, size: fs.statSync(root + '/' + d + '/' + name).size };",
+        '  })',
+        '  .sort((a, b) => a.dir.localeCompare(b.dir));',
+        "fs.mkdirSync('/data/outputs', { recursive: true });",
+        "fs.writeFileSync('/data/outputs/collision.json', JSON.stringify(found), 'utf8');"
+      ].join('\n')
+      const algoMeta = publishedAlgoDataset.ddo.metadata.algorithm
+
+      const written = await runFreeJobAndReadOutput(
+        consumerAccount,
+        [
+          {
+            fileObject: {
+              type: 'url',
+              method: 'GET',
+              url: 'https://raw.githubusercontent.com/oceanprotocol/ocean-node/main/README.md'
+            } as any
+          },
+          {
+            fileObject: {
+              type: 'url',
+              method: 'GET',
+              url: 'https://raw.githubusercontent.com/oceanprotocol/contracts/main/README.md'
+            } as any
+          }
+        ],
+        { meta: { ...algoMeta, rawcode } },
+        'collision.json'
+      )
+      const found = JSON.parse(written)
+      // both inputs survived, each in its own index folder, both keep their real name
+      assert.equal(found.length, 2, `expected 2 inputs, got ${written}`)
+      assert.deepEqual(
+        found.map((f: any) => f.dir),
+        ['0', '1']
+      )
+      assert(
+        found.every((f: any) => f.name === 'README.md'),
+        `expected both named README.md, got ${written}`
+      )
+      // different sizes => distinct files, i.e. neither overwrote the other
+      assert.notEqual(found[0].size, found[1].size, 'inputs should be distinct files')
+    })
+
+    it('a dataset named algoCustomData.json cannot overwrite the consumer parameters', async function () {
+      // the dataset URL ends in algoCustomData.json; the consumer parameters live at
+      // /data/inputs/algoCustomData.json while the dataset lands in /data/inputs/0/.
+      const rawcode = [
+        "const fs = require('fs');",
+        "const params = fs.readFileSync('/data/inputs/algoCustomData.json', 'utf8');",
+        "fs.mkdirSync('/data/outputs', { recursive: true });",
+        "fs.writeFileSync('/data/outputs/params.json', params, 'utf8');"
+      ].join('\n')
+      const algoMeta = publishedAlgoDataset.ddo.metadata.algorithm
+
+      const written = await runFreeJobAndReadOutput(
+        consumerAccount,
+        [
+          {
+            fileObject: {
+              type: 'url',
+              method: 'GET',
+              // any URL whose path ends in algoCustomData.json reproduces the old clash
+              url: 'https://httpbin.org/anything/algoCustomData.json'
+            } as any
+          }
+        ],
+        {
+          meta: { ...algoMeta, rawcode },
+          algocustomdata: { threshold: 'set-by-consumer' }
+        },
+        'params.json'
+      )
+      const params = JSON.parse(written)
+      assert.equal(
+        params.threshold,
+        'set-by-consumer',
+        `consumer parameters were overwritten by the dataset: ${written}`
+      )
     })
 
     it('denies a persistent-storage ALGORITHM when the consumer is not on the bucket ACL', async function () {

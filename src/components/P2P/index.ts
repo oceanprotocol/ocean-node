@@ -324,7 +324,7 @@ export class OceanP2P extends EventEmitter {
         this._libp2p.peerStore
           .merge(peerId, { tags: { [`${KEEP_ALIVE}-bootstrap`]: { value: 1 } } })
           .catch((err: unknown) => {
-            P2P_LOGGER.warn(
+            P2P_LOGGER.error(
               `Failed to tag bootstrap peer for keep-alive reconnect: ${describeP2PError(
                 err,
                 { peerId: peerId.toString() }
@@ -363,7 +363,7 @@ export class OceanP2P extends EventEmitter {
               // The address count matters here more than anywhere: a discovered peer with
               // no dialable address and one that refuses every address it advertised
               // produce the same message and are completely different problems.
-              P2P_LOGGER.debug(
+              P2P_LOGGER.error(
                 `Failed to dial discovered peer: ${describeP2PError(err, {
                   peerId: peerInfo.id.toString(),
                   addresses: peerInfo.multiaddrs?.length
@@ -470,10 +470,10 @@ export class OceanP2P extends EventEmitter {
             return false
           }
         } catch (e) {
-          // runs on every getMultiaddrs() (per peer): warn once per filter per interval
+          // runs on every getMultiaddrs() (per peer): throttled per filter
           P2P_LOGGER.throttled(
             `invalid-cidr:${filter}`,
-            LOG_LEVELS_STR.LEVEL_WARN,
+            LOG_LEVELS_STR.LEVEL_ERROR,
             `Ignoring invalid CIDR in P2P_FILTER_ANNOUNCED_ADDRESSES: ${filter}`
           )
         }
@@ -1513,7 +1513,7 @@ export class OceanP2P extends EventEmitter {
         try {
           peerId = peerIdFromString(peerName)
         } catch (e) {
-          P2P_LOGGER.debug('Invalid peer (for id): ' + peerName)
+          P2P_LOGGER.error('Invalid peer (for id): ' + peerName)
           countSendToFailure(SENDTO_FAIL_REASONS.invalidPeer)
           return { status: { httpStatus: 404, error: 'Invalid peer' } }
         }
@@ -1532,7 +1532,7 @@ export class OceanP2P extends EventEmitter {
               multiaddrs: addresses as any[]
             })
           } catch (e) {
-            P2P_LOGGER.debug(
+            P2P_LOGGER.error(
               `Could not store resolved addresses: ${describeP2PError(e, {
                 peerId: peerId.toString(),
                 addresses: addresses.length
@@ -1740,13 +1740,13 @@ export class OceanP2P extends EventEmitter {
             const failure = classifyP2PError(e, P2P_ERROR.dialFailed)
             lastFailure = failure
             if (await retryAfterDialFailure(failure, attempt)) {
-              P2P_LOGGER.debug(
+              P2P_LOGGER.error(
                 `Dial of ${peerId} failed (${failure.name}: ${failure.message}), retrying`
               )
               continue
             }
             const error = `Cannot connect to peer ${peerId} (${failure.name}): ${failure.message}`
-            P2P_LOGGER.debug(error)
+            P2P_LOGGER.error(error)
             countSendToFailure(SENDTO_FAIL_REASONS.dial)
             return { status: { httpStatus: 404, error } }
           }
@@ -1771,13 +1771,13 @@ export class OceanP2P extends EventEmitter {
               !deadline.aborted &&
               isRetryableP2PError(failure.name)
             ) {
-              P2P_LOGGER.debug(
+              P2P_LOGGER.error(
                 `Opening a command stream to ${peerId} failed (${failure.name}: ${failure.message}), retrying`
               )
               continue
             }
             const error = `Cannot open a command stream to peer ${peerId} (${failure.name}): ${failure.message}`
-            P2P_LOGGER.debug(error)
+            P2P_LOGGER.error(error)
             countSendToFailure(SENDTO_FAIL_REASONS.streamOpen)
             return { status: { httpStatus: 404, error } }
           }
@@ -1843,25 +1843,20 @@ export class OceanP2P extends EventEmitter {
                 bodyConsumed &&
                 attempt < maxAttempts
               ) {
-                P2P_LOGGER.debug(
+                P2P_LOGGER.error(
                   `Not retrying ${peerId} after a ${failure.name} error: the request body is a stream and has already been partially consumed`
                 )
               }
-              // a caller that cancelled (e.g. a losing FindDDO provider) is not a failure
               const communicationError = `P2P communication error with ${peerId}${
                 attempt > 1 ? ' on retry' : ''
               } (${failure.name}): ${failure.message}`
-              if (signal?.aborted) {
-                P2P_LOGGER.debug(communicationError)
-              } else {
-                P2P_LOGGER.warn(communicationError)
-              }
+              P2P_LOGGER.error(communicationError)
               countSendToFailure(SENDTO_FAIL_REASONS.stream)
               return {
                 status: { httpStatus: 500, error: `P2P error: ${failure.message}` }
               }
             }
-            P2P_LOGGER.debug(
+            P2P_LOGGER.error(
               `Retrying ${peerId} after a ${failure.name} error: ${failure.message}`
             )
             // Close only a connection this attempt dialled. `dial()` returns an existing
@@ -2053,7 +2048,7 @@ export class OceanP2P extends EventEmitter {
       p2pDhtFind.add(1, { kind: 'providers', outcome: 'ok' })
     } catch (e) {
       p2pDhtFind.add(1, { kind: 'providers', outcome: 'fail' })
-      P2P_LOGGER.debug(
+      P2P_LOGGER.error(
         `getProvidersForString(${input.slice(0, 100)}): ${describeP2PError(e)}`
       )
     }
@@ -2168,8 +2163,8 @@ export class OceanP2P extends EventEmitter {
             try {
               await upnpService.mapIpAddresses()
             } catch (err) {
-              P2P_LOGGER.info('Failed to configure UPNP Gateway(if you have one)')
-              P2P_LOGGER.debug(`UPnP mapping failed: ${describeP2PError(err)}`)
+              P2P_LOGGER.error('Failed to configure UPNP Gateway(if you have one)')
+              P2P_LOGGER.error(`UPnP mapping failed: ${describeP2PError(err)}`)
             }
             return
           }

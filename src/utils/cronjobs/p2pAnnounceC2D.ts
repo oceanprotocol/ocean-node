@@ -145,9 +145,9 @@ export async function p2pAnnounceC2D(node: OceanNode) {
               advertised++
             }
           } catch (err) {
-            // timeouts are normal in a sparse DHT; only other failures reach the summary warn
+            // timeouts are normal in a sparse DHT: only other failures count towards the summary
             if (classifyP2PError(err).name !== P2P_ERROR.timeout) failed++
-            P2P_LOGGER.debug(
+            P2P_LOGGER.error(
               `p2pAnnounceC2D: failed to advertise ${content}: ${describeP2PError(err)}`
             )
           }

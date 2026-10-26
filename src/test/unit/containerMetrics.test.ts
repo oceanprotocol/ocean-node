@@ -6,7 +6,8 @@ import {
   getMetricsIntervalSeconds,
   isMetricsCollectionEnabled,
   isSnapshotStale,
-  RawContainerSample
+  RawContainerSample,
+  readContainerRxBytes
 } from '../../components/c2d/containerMetrics.js'
 import { parseMemoryTotalToBytes } from '../../components/c2d/gpu/types.js'
 import { NvmlGpuCollector } from '../../components/c2d/gpu/nvml.js'
@@ -204,6 +205,26 @@ describe('containerMetrics.buildSnapshot', () => {
     expect(snap.memory.usageBytes).to.equal(150 * MB) // 200 - 50 cache
     expect(snap.blockIO).to.deep.equal({ readBytes: 0, writeBytes: 0 })
     expect(snap.network).to.equal(undefined)
+  })
+})
+
+describe('containerMetrics.readContainerRxBytes', () => {
+  const containerWith = (stats: () => Promise<any>) => ({ id: 'c1', stats }) as any
+
+  it('sums the bytes received across interfaces', async () => {
+    const container = containerWith(() =>
+      Promise.resolve({ networks: { eth0: { rx_bytes: 100 }, eth1: { rx_bytes: 11 } } })
+    )
+    expect(await readContainerRxBytes(container)).to.equal(111)
+  })
+
+  it('returns null with no network or when Docker cannot answer', async () => {
+    expect(await readContainerRxBytes(containerWith(() => Promise.resolve({})))).to.equal(
+      null
+    )
+    expect(
+      await readContainerRxBytes(containerWith(() => Promise.reject(new Error('gone'))))
+    ).to.equal(null)
   })
 })
 

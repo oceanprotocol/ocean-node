@@ -224,7 +224,7 @@ export class ServiceStartHandler extends CommandHandler {
           )
         }
       } catch (e: any) {
-        CORE_LOGGER.debug(
+        CORE_LOGGER.error(
           `SERVICE_START: escrow funds pre-check skipped (${e.message}) — the background Locking step will verify`
         )
       }

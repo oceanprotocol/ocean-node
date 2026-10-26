@@ -126,7 +126,7 @@ export async function sampleContainerMetrics(
     )
     return { stats, state: { ...info.State, SizeRw: info.SizeRw } }
   } catch (e: any) {
-    CORE_LOGGER.debug(
+    CORE_LOGGER.error(
       `[metrics] could not sample container ${containerId}: ${e?.message}`
     )
     return null
@@ -153,6 +153,22 @@ function sumNetworks(networks: any): { rxBytes: number; txBytes: number } | unde
     tx += toNum(iface?.tx_bytes)
   }
   return { rxBytes: rx, txBytes: tx }
+}
+
+// Bytes the container has received over all its interfaces since it started. Null when Docker
+// cannot say, or the container has no network (NetworkMode 'none').
+export async function readContainerRxBytes(
+  container: Dockerode.Container
+): Promise<number | null> {
+  try {
+    const stats: any = await container.stats({ stream: false, 'one-shot': true } as any)
+    return sumNetworks(stats?.networks)?.rxBytes ?? null
+  } catch (e: any) {
+    CORE_LOGGER.error(
+      `[metrics] could not read rx bytes of ${container.id}: ${e?.message}`
+    )
+    return null
+  }
 }
 
 // Pure transform: raw sample + previous snapshot → a new snapshot. Handles cgroup v1/v2

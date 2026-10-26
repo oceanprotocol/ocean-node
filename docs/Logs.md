@@ -129,8 +129,12 @@ If the log with the given ID is not found, you will receive a `404 Not Found` re
 
 While compute jobs and services run, the node samples live container stats (CPU, RAM, disk,
 network, block I/O, PIDs, exit info, GPU) every `C2D_METRICS_INTERVAL_SECONDS` — see
-[env.md](env.md). Every one of those lines is logged at **debug** level by the `CORE` module
-with a `[metrics]` tag, so one filter shows the whole picture. Debug lines reach the console only with `LOG_LEVEL=debug` and reach disk only with `LOG_FILES_LEVEL=debug` (the default file level is `info`):
+[env.md](env.md). All of those lines come from the `CORE` module with a `[metrics]` tag, so one
+filter shows the whole picture. Samples, summaries and pressure lines are logged at **debug**:
+they reach the console only with `LOG_LEVEL=debug` and disk only with `LOG_FILES_LEVEL=debug`
+(the default file level is `info`). Collection failures (`collection failed`, `could not
+sample`, `… sample failed`, `… counter failed`) are logged at **error**, so they are visible at
+the default levels:
 
 ```bash
 # follow live on disk

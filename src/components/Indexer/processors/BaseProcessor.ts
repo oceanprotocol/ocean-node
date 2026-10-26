@@ -227,7 +227,7 @@ export abstract class BaseEventProcessor {
           : ddo.getAssetFields().indexedMetadata?.event?.txid
 
       await ddoState.update(this.networkId, id, nftAddress, tx, true, err.message)
-      INDEXER_LOGGER.warn(
+      INDEXER_LOGGER.error(
         `Chain ${this.networkId}: failed to save DDO ${id} (${method}): ${errorSummary(err)}`
       )
     }
@@ -261,7 +261,7 @@ export abstract class BaseEventProcessor {
         return Date.now().toString()
       }
     } catch (err) {
-      INDEXER_LOGGER.debug(
+      INDEXER_LOGGER.error(
         `decryptDDO: Error getting nonce, using timestamp: ${errorSummary(err)}`
       )
       return Date.now().toString()
@@ -367,7 +367,7 @@ export abstract class BaseEventProcessor {
                 err.cause?.code === 'ECONNREFUSED' ||
                 (err.message && err.message.includes('ECONNREFUSED'))
               ) {
-                INDEXER_LOGGER.debug(
+                INDEXER_LOGGER.error(
                   `Decrypt request to ${decryptorURL} failed with ECONNREFUSED, retrying...`
                 )
                 throw err
@@ -398,7 +398,7 @@ export abstract class BaseEventProcessor {
           }
         } catch (err) {
           const message = `Provider exception on decrypt DDO. Status: ${errorSummary(err)}`
-          INDEXER_LOGGER.debug(
+          INDEXER_LOGGER.error(
             `decryptDDO: decrypt via ${decryptorURL} failed for tx ${txId}: ${errorSummary(err)}`
           )
           throw new Error(message)
@@ -558,7 +558,7 @@ export abstract class BaseEventProcessor {
             ddo = JSON.parse(uint8ArrayToString(data))
           } catch (error) {
             const message = `Exception from remote nodeId ${nodeId}. Status: ${errorSummary(error)}`
-            INDEXER_LOGGER.debug(
+            INDEXER_LOGGER.error(
               `decryptDDO: remote node ${decryptorURL} failed for tx ${txId}: ${errorSummary(error)}`
             )
             throw new Error(message)

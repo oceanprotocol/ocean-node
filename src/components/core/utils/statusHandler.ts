@@ -84,7 +84,7 @@ async function getIndexerBlockInfo(
     blockNr = lastIndexedBlock.toString()
   } catch (error) {
     // a chain that is not indexed yet has no entry; real DB errors are logged by the DB layer
-    CORE_LOGGER.debug(
+    CORE_LOGGER.error(
       `Error fetching last indexed block for network ${supportedNetwork.network}: ${error.message}`
     )
   }
@@ -173,7 +173,7 @@ export async function status(
       // also hit on every detailed status request of a node without C2D
       CORE_LOGGER.throttled(
         'status-c2d-clusters',
-        'warn',
+        'error',
         `Error getting c2d clusters: ${error.message}`
       )
     }
