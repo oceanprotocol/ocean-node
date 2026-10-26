@@ -211,6 +211,18 @@ describe('GetLogsHandler', () => {
     expect(body.map((r: any) => r.message)).to.deep.equal(['CORE:\tsecond'])
   })
 
+  it('defaults startTime to 7 days before an endTime in the past', async () => {
+    // the fixture is from 2026-02-01: a window ending the next day must still include it
+    const task = command({ endTime: '2026-02-02T00:00:00.000Z' })
+    delete task.startTime
+    const { response, body } = await run(
+      fakeNode(() => Promise.resolve(null)),
+      task
+    )
+    expect(response.status.httpStatus).to.equal(200)
+    expectFileLogs(body)
+  })
+
   it('rejects an invalid startTime or endTime with 400', async () => {
     const node = fakeNode(() => Promise.resolve(null))
     const start = await run(node, command({ startTime: 'yesterday-ish' }))

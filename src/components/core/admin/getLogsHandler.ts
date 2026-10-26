@@ -100,9 +100,11 @@ export class GetLogsHandler extends AdminCommandHandler {
           buildInvalidRequestMessage('Invalid endTime: expected an ISO date or epoch ms')
         )
       }
+      // the default window ends at endTime, not now: an endTime in the past without a
+      // startTime must still cover the 7 days before it
       const startTime = parseLogsTime(
         task.startTime,
-        new Date(Date.now() - DEFAULT_LOGS_WINDOW_MS)
+        new Date(endTime.getTime() - DEFAULT_LOGS_WINDOW_MS)
       )
       if (!startTime) {
         return buildInvalidParametersResponse(

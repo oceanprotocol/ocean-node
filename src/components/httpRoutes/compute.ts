@@ -49,7 +49,7 @@ import { PROTOCOL_COMMANDS, SERVICES_API_BASE_PATH } from '../../utils/constants
 import { Readable, pipeline } from 'stream'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { errorSummary } from '../../utils/logging/redact.js'
-import type { P2PCommandResponse, P2PStatusResponse } from '../../@types/OceanNode.js'
+import type { P2PStatusResponse } from '../../@types/OceanNode.js'
 
 export const computeRoutes = express.Router()
 
@@ -67,10 +67,9 @@ function logRouteError(route: string, error: unknown, status?: P2PStatusResponse
 }
 
 computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeEnvironments`, async (req, res) => {
-  let response: P2PCommandResponse
   try {
     HTTP_LOGGER.debug(
-      `computeEnvironments request: chainId=${req.query.chainId ?? '-'} node=${req.query.node ?? '-'}`
+      `computeEnvironments request: chainId=${sanitizeLogValue(req.query.chainId ?? '-')} node=${sanitizeLogValue(req.query.node ?? '-')}`
     )
     const getEnvironmentsTask = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS,
@@ -78,13 +77,18 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeEnvironments`, async (req, r
       node: (req.query.node as string) || null,
       caller: req.caller
     }
-    response = await new ComputeGetEnvironmentsHandler(req.oceanNode).handle(
+    const response = await new ComputeGetEnvironmentsHandler(req.oceanNode).handle(
       getEnvironmentsTask
     ) // get compute environments
-    const computeEnvironments = await streamToObject(response.stream as Readable)
-
-    // always return the array, even if it's empty
-    res.json(computeEnvironments)
+    // a non-200 answer has no stream: return the handler's status and error
+    if (response?.status?.httpStatus === 200) {
+      const computeEnvironments = await streamToObject(response.stream as Readable)
+      // always return the array, even if it's empty
+      res.json(computeEnvironments)
+    } else {
+      logRouteError('computeEnvironments', null, response?.status)
+      res.status(response?.status?.httpStatus || 500).json(response?.status?.error)
+    }
   } catch (error) {
     logRouteError('computeEnvironments', error)
     res.status(500).send('Internal Server Error')
@@ -193,10 +197,9 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/freeCompute`, async (req, res) => 
 
 // stop compute
 computeRoutes.put(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
-  let response: P2PCommandResponse
   try {
     HTTP_LOGGER.debug(
-      `computeStop request: job=${req.query.jobId ?? '-'} consumer=${req.query.consumerAddress}`
+      `computeStop request: job=${sanitizeLogValue(req.query.jobId ?? '-')} consumer=${sanitizeLogValue(req.query.consumerAddress)}`
     )
 
     const stopComputeTask: ComputeStopCommand = {
@@ -210,9 +213,14 @@ computeRoutes.put(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       authorization: req.headers?.authorization || null,
       caller: req.caller
     }
-    response = await new ComputeStopHandler(req.oceanNode).handle(stopComputeTask)
-    const jobs = await streamToObject(response.stream as Readable)
-    res.status(200).json(jobs)
+    const response = await new ComputeStopHandler(req.oceanNode).handle(stopComputeTask)
+    if (response?.status?.httpStatus === 200) {
+      const jobs = await streamToObject(response.stream as Readable)
+      res.status(200).json(jobs)
+    } else {
+      logRouteError('computeStop', null, response?.status)
+      res.status(response?.status?.httpStatus || 500).json(response?.status?.error)
+    }
   } catch (error) {
     logRouteError('computeStop', error)
     res.status(500).send('Internal Server Error')
@@ -221,7 +229,6 @@ computeRoutes.put(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
 
 // get status
 computeRoutes.get(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
-  let response: P2PCommandResponse
   try {
     HTTP_LOGGER.debug(
       `computeStatus request: job=${sanitizeLogValue(req.query.jobId ?? '-')} consumer=${sanitizeLogValue(req.query.consumerAddress)}`
@@ -243,9 +250,16 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       authorization: req.headers?.authorization || null,
       caller: req.caller
     }
-    response = await new ComputeGetStatusHandler(req.oceanNode).handle(statusComputeTask)
-    const jobs = await streamToObject(response.stream as Readable)
-    res.status(200).json(jobs)
+    const response = await new ComputeGetStatusHandler(req.oceanNode).handle(
+      statusComputeTask
+    )
+    if (response?.status?.httpStatus === 200) {
+      const jobs = await streamToObject(response.stream as Readable)
+      res.status(200).json(jobs)
+    } else {
+      logRouteError('computeStatus', null, response?.status)
+      res.status(response?.status?.httpStatus || 500).json(response?.status?.error)
+    }
   } catch (error) {
     logRouteError('computeStatus', error)
     res.status(500).send('Internal Server Error')
