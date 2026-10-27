@@ -207,6 +207,18 @@ Powers the `getNodeMetrics` (live snapshot) and `getNodeMetricsHistory` (hourly 
 
 - `SERVICE_HF_CLIENT_PATCH`: Copy the node's `huggingface_hub` download-client patch (`hfpatch/sitecustomize.py`) into each service container at `/ocean/hfpatch/sitecustomize.py` (root-owned `0644`, via the Docker archive API before the container starts; no host folder or volume needed) and prepend `/ocean/hfpatch` to `PYTHONPATH` (keeping the image's or the service's own `PYTHONPATH` after it). Defaults to `true` when `SERVICE_HF_MIRROR_URL` is set and `false` otherwise. Never fails a service start: if the patch cannot be read or copied in, the service starts without it. Maps to `serviceHfClientPatch`. Example: `false`
 
+- `PASS_CONTAINER_ENVS`: Node-owner environment variables injected into **every container the node spawns** — both C2D algorithm containers and Service-on-Demand containers. Use it for infrastructure that should be in effect for all jobs regardless of what the algorithm/service author set, e.g. `HF_ENDPOINT` for a local Hugging Face cache/mirror, an `HTTP_PROXY`/`NO_PROXY`, a registry mirror, or a `LOG_LEVEL`. Accepts **either** a JSON object or a JSON array of `KEY=value` strings (array entries split on the first `=`, so values may contain `=`):
+
+  ```bash
+  export PASS_CONTAINER_ENVS='{"HF_ENDPOINT":"http://172.17.0.1:8092","LOG_LEVEL":"debug"}'
+  # equivalently:
+  export PASS_CONTAINER_ENVS='["HF_ENDPOINT=http://172.17.0.1:8092","LOG_LEVEL=debug"]'
+  ```
+
+  **Precedence:** these node-owner vars **override** the algorithm/service author's own env on a key collision (the owner controls the infrastructure — this is also why an owner-set `HF_ENDPOINT` takes precedence over the `SERVICE_HF_MIRROR_URL` mirror default). The node's own pod-contract keys `DIDS` and `TRANSFORMATION_DID` are **reserved** and can never be overridden. Fail-soft: unset, empty or malformed input (bad JSON, non-string values, array entries that are not `KEY=value`) is logged and dropped — the node still starts with the valid entries (or none). Maps to `passContainerEnvs`. Unset by default.
+
+  > ⚠️ **Security:** every value is readable inside the container, which may run third-party algorithm/service code. Only put values that are safe to expose to compute consumers (endpoints, proxies, mirrors, log levels). **Never** put secrets, API tokens, cloud credentials or the node's `PRIVATE_KEY` here.
+
 The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable is used to configure Docker-based compute environments in Ocean Node. For the full guide — resources, GPU setup, constraints and pricing — see [Compute Configuration](compute.md).
 
 `cpu`, `ram`, and `disk` resources are **auto-detected** from the host at startup. All resource values are expressed in natural units: CPU in cores, RAM and disk in GB.

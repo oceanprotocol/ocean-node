@@ -7,6 +7,7 @@ import {
   DEFAULT_SERVICE_MIN_DURATION_SECONDS
 } from '../../@types/C2D/ServiceOnDemand.js'
 import { CONFIG_LOGGER } from '../logging/common.js'
+import { parsePassContainerEnvs } from '../../components/c2d/containerEnvs.js'
 import { booleanFromString, jsonFromString } from './transforms.js'
 import {
   DEFAULT_BOOTSTRAP_ADDRESSES,
@@ -1052,6 +1053,13 @@ export const OceanNodeConfigSchema = z
       (v) => (v === '' ? undefined : v),
       booleanFromString.optional()
     ),
+
+    // Node-owner env vars injected into every spawned container (C2D + services). Accepts a
+    // JSON object or a JSON array of KEY=value strings; fail-soft to {} on anything invalid.
+    passContainerEnvs: z
+      .unknown()
+      .optional()
+      .transform((v) => parsePassContainerEnvs(v)),
 
     dockerRegistrysAuth: jsonFromString(DockerRegistrysSchema).optional().default({}),
 
