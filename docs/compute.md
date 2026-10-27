@@ -359,9 +359,9 @@ environments.
 
 ```json
 "resources": [
-  { "id": "gpu0", "kind": "discrete", "type": "gpu", "total": 1,
+  { "id": "gpu0", "kind": "discrete", "type": "gpu", "total": 1, "memoryTotal": "40960 MiB",
     "init": { "deviceRequests": { "Driver": "nvidia", "DeviceIDs": ["GPU-uuid-a"], "Capabilities": [["gpu"]] } } },
-  { "id": "gpu1", "kind": "discrete", "type": "gpu", "total": 1,
+  { "id": "gpu1", "kind": "discrete", "type": "gpu", "total": 1, "memoryTotal": "40960 MiB",
     "init": { "deviceRequests": { "Driver": "nvidia", "DeviceIDs": ["GPU-uuid-b"], "Capabilities": [["gpu"]] } } }
 ],
 "environments": [

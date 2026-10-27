@@ -1057,7 +1057,15 @@ const addressArrayFromString = jsonFromString(z.array(z.string())).transform(
 
 export const OceanNodeConfigSchema = z
   .object({
+    // `jsonFromString` JSON-parses the env-var string but does NOT re-validate the parsed
+    // value against the inner schema (its union matches `z.string()`, then the transform
+    // returns the parsed object as-is). Without the `.pipe(...)` below, a GPU missing
+    // `memoryTotal` — or any other C2DDockerConfigSchema violation — passed via the
+    // `DOCKER_COMPUTE_ENVIRONMENTS` env var would slip through unvalidated, while the same
+    // config supplied as a `config.json` array is validated. The pipe re-runs
+    // C2DDockerConfigSchema on the parsed result so both entrypoints are validated identically.
     dockerComputeEnvironments: jsonFromString(C2DDockerConfigSchema)
+      .pipe(C2DDockerConfigSchema.optional().default([]))
       .optional()
       .default([]),
 
