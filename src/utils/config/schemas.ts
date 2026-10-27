@@ -1059,13 +1059,32 @@ export const OceanNodeConfigSchema = z
   .object({
     // `jsonFromString` JSON-parses the env-var string but does NOT re-validate the parsed
     // value against the inner schema (its union matches `z.string()`, then the transform
-    // returns the parsed object as-is). Without the `.pipe(...)` below, a GPU missing
-    // `memoryTotal` — or any other C2DDockerConfigSchema violation — passed via the
-    // `DOCKER_COMPUTE_ENVIRONMENTS` env var would slip through unvalidated, while the same
-    // config supplied as a `config.json` array is validated. The pipe re-runs
-    // C2DDockerConfigSchema on the parsed result so both entrypoints are validated identically.
+    // returns the parsed object as-is). A config.json array is validated by the union's first
+    // member, but a `DOCKER_COMPUTE_ENVIRONMENTS` env-var string skips validation entirely, so
+    // a GPU missing `memoryTotal` — or any other C2DDockerConfigSchema violation — slipped
+    // through. We re-validate here with `safeParse` and surface the issues, but deliberately
+    // keep the ORIGINAL parsed value (we do not swap in `safeParse`'s output): piping through
+    // the schema would also inject its operational defaults (e.g. `paymentClaimInterval: 3600`)
+    // onto env-var configs that previously carried none, which changes runtime behaviour — the
+    // engine-creation guard in compute_engines.ts treats an unset paymentClaimInterval as "no
+    // limit", so defaulting it there wrongly blocks engine creation. Validation only, no defaults.
     dockerComputeEnvironments: jsonFromString(C2DDockerConfigSchema)
-      .pipe(C2DDockerConfigSchema.optional().default([]))
+      .superRefine((val, ctx) => {
+        // config.json (array) input was already validated by the union above; only the
+        // env-var (JSON-parsed) path needs re-checking. undefined is handled by the
+        // optional/default wrappers below.
+        if (val === undefined) return
+        const result = C2DDockerConfigSchema.safeParse(val)
+        if (!result.success) {
+          for (const issue of result.error.issues) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: issue.message,
+              path: issue.path as (string | number)[]
+            })
+          }
+        }
+      })
       .optional()
       .default([]),
 
