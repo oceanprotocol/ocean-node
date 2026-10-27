@@ -645,17 +645,32 @@ get_all_gpus_json() {
 if command -v jq &> /dev/null; then
   echo "Checking for GPUs..."
   DETECTED_GPUS=$(get_all_gpus_json)
-  GPU_COUNT=$(echo "$DETECTED_GPUS" | jq 'length')
+
+  # Every type:"gpu" resource must declare its VRAM (memoryTotal); the node refuses to start
+  # otherwise. When VRAM detection returned no usable value the memoryTotal key was dropped as
+  # null above, so partition the detected GPUs: keep only those whose memoryTotal looks like a
+  # real amount (starts with a digit, e.g. "3072 MiB"), and set the rest aside. This preserves
+  # the previous behaviour for GPUs whose VRAM was detected, and omits the others instead of
+  # writing an invalid entry that would stop the node from booting.
+  USABLE_GPUS=$(echo "$DETECTED_GPUS" | jq '[ .[] | select((.memoryTotal // "") | tostring | test("^[0-9]")) ]')
+  SKIPPED_GPUS=$(echo "$DETECTED_GPUS" | jq '[ .[] | select(((.memoryTotal // "") | tostring | test("^[0-9]")) | not) ]')
+  GPU_COUNT=$(echo "$USABLE_GPUS" | jq 'length')
+  SKIPPED_COUNT=$(echo "$SKIPPED_GPUS" | jq 'length')
+
+  if [ "$SKIPPED_COUNT" -gt 0 ]; then
+    echo "WARNING: $SKIPPED_COUNT GPU(s) were detected but their VRAM (memoryTotal) could not be determined, so they were left out of the configuration — a GPU without memoryTotal would stop the node from starting. To use them, add each to DOCKER_COMPUTE_ENVIRONMENTS manually with an explicit memoryTotal (e.g. \"16 GiB\"):"
+    echo "$SKIPPED_GPUS" | jq -r '.[] | "  - " + (.description // .id)'
+  fi
 
   if [ "$GPU_COUNT" -gt 0 ]; then
-    echo "Detected $GPU_COUNT GPU type(s). Updating configuration..."
-    DOCKER_COMPUTE_ENVIRONMENTS=$(echo "$DOCKER_COMPUTE_ENVIRONMENTS" | jq --argjson gpus "$DETECTED_GPUS" '
+    echo "Detected $GPU_COUNT usable GPU(s). Updating configuration..."
+    DOCKER_COMPUTE_ENVIRONMENTS=$(echo "$DOCKER_COMPUTE_ENVIRONMENTS" | jq --argjson gpus "$USABLE_GPUS" '
       .[0].resources += $gpus |
       .[0].environments[0].resources += ($gpus | map({ id: .id }))
     ')
     echo "GPUs added to connection-level resources; environment refs updated."
   else
-    echo "No GPUs detected."
+    echo "No usable GPUs detected."
   fi
 fi
 
