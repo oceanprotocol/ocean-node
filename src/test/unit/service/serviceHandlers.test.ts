@@ -590,7 +590,11 @@ describe('Service handlers', () => {
     it('400 when expiresAt has already passed, whatever the status says', async () => {
       // the expiry sweep is a cron job, so a de-facto expired service can still carry a
       // live status for a while — extend must reject it on expiresAt alone
-      for (const status of [ServiceStatusNumber.Running, ServiceStatusNumber.Stopped]) {
+      for (const status of [
+        ServiceStatusNumber.Running,
+        ServiceStatusNumber.Stopped,
+        ServiceStatusNumber.DiskQuotaExceeded
+      ]) {
         const { node, escrow } = buildFakes({
           serviceJobInDb: makeJob({ status, expiresAt: Date.now() - 1000 })
         })
@@ -613,6 +617,7 @@ describe('Service handlers', () => {
         ServiceStatusNumber.Restarting,
         ServiceStatusNumber.Stopping,
         ServiceStatusNumber.Stopped,
+        ServiceStatusNumber.DiskQuotaExceeded,
         ServiceStatusNumber.Error
       ]) {
         const job = makeJob({ status })

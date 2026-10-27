@@ -59,7 +59,8 @@ export function toPublicServiceJob(
   opts: { includeMetrics?: boolean } = {}
 ): Omit<ServiceJob, 'userData'> | null {
   if (!job) return null
-  const { userData, runtimeMetrics, previousContainerId, ...rest } = job
+  const { userData, runtimeMetrics, previousContainerId, terminationReason, ...rest } =
+    job
   // userData is ALWAYS stripped. The owner-scoped status path may opt in to the sanitized
   // runtime metrics (internal `prev` accumulator dropped); otherwise they stay absent.
   // SERVICE_LIST uses toListedServiceJob, which never includes metrics.
@@ -99,6 +100,7 @@ export function toListedServiceJob(
     additionalDockerFiles,
     outputArchives,
     previousContainerId,
+    terminationReason,
     readiness,
     modelDownload,
     ...pub
