@@ -311,6 +311,11 @@ starts of the same model are served from the host's disk. Off by default; two en
 
 Only **service** containers get any of this; compute jobs are unchanged.
 
+> For injecting arbitrary env vars (including `HF_ENDPOINT`) into **both** service **and** C2D
+> compute containers, see [`PASS_CONTAINER_ENVS`](env.md) — a general node-owner knob. Unlike the
+> HF mirror above, node-owner `PASS_CONTAINER_ENVS` values **override** the service's own env on a
+> key collision.
+
 **Precedence.** The service's own env (template `envVars` and the consumer's `userData`)
 wins, key by key: a service that sets `HF_ENDPOINT` itself keeps it, and then also keeps
 its own choice of `HF_HUB_DISABLE_XET` (the node does not add it — that endpoint is not the

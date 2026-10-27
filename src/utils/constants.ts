@@ -581,6 +581,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.SERVICE_HF_CLIENT_PATCH,
     required: false
   },
+  PASS_CONTAINER_ENVS: {
+    name: 'PASS_CONTAINER_ENVS',
+    value: process.env.PASS_CONTAINER_ENVS,
+    required: false
+  },
   DOCKER_REGISTRY_AUTHS: {
     name: 'DOCKER_REGISTRY_AUTHS',
     value: process.env.DOCKER_REGISTRY_AUTHS,

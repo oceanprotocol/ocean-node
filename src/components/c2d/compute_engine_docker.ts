@@ -123,6 +123,7 @@ import {
   ServiceHfContainerSpec,
   ServiceHfPlan
 } from './serviceHfMirror.js'
+import { buildAlgoContainerEnv, mergeOwnerEnvs } from './containerEnvs.js'
 import {
   buildSnapshot,
   describeSnapshot,
@@ -2503,22 +2504,23 @@ export class C2DEngineDocker extends C2DEngine {
         )
         containerInfo.Entrypoint = newEntrypoint.split(' ')
       }
-      // Environment variables for the algorithm container. On top of any algorithm-provided
-      // envs we expose the pod-configuration contract (DIDS + TRANSFORMATION_DID) so the
-      // algorithm can map each /data/inputs/<index> folder back to its input DID.
-      const envVars: string[] = []
-      if (job.algorithm.envs) {
-        for (const key of Object.keys(job.algorithm.envs)) {
-          envVars.push(`${key}=${job.algorithm.envs[key]}`)
-        }
-      }
-      // one entry per asset, in the same order as the /data/inputs/<index> folders;
-      // raw fileObject inputs (free compute) have no DID, so their slot is null
+      // Environment variables for the algorithm container. buildAlgoContainerEnv layers:
+      // algorithm-provided envs, then the node owner's PASS_CONTAINER_ENVS on top (the owner
+      // controls the infrastructure — e.g. HF_ENDPOINT for a local mirror), and finally the
+      // authoritative pod-configuration contract (DIDS + TRANSFORMATION_DID) so the algorithm can
+      // map each /data/inputs/<index> folder back to its input DID. The contract vars are
+      // reserved, so neither the algorithm nor the owner can shadow them.
+      // inputDids: one entry per asset, in /data/inputs/<index> order; raw fileObject inputs
+      // (free compute) have no DID, so their slot is null.
       const inputDids = (job.assets || []).map((asset) => asset.documentId ?? null)
-      envVars.push(`DIDS=${JSON.stringify(inputDids)}`)
-      if (job.algorithm.documentId) {
-        envVars.push(`TRANSFORMATION_DID=${job.algorithm.documentId}`)
-      }
+      const envVars = buildAlgoContainerEnv(
+        {
+          algoEnvs: job.algorithm.envs,
+          inputDids,
+          transformationDid: job.algorithm.documentId
+        },
+        this.getConfig()?.passContainerEnvs ?? {}
+      )
       if (envVars.length > 0) {
         containerInfo.Env = envVars
       }
@@ -4550,8 +4552,13 @@ export class C2DEngineDocker extends C2DEngine {
       network = await this.createServiceNetwork(serviceId)
 
       // Container env from the decrypted (in-memory) userData; command/entrypoint from the request.
+      // Node-owner PASS_CONTAINER_ENVS is merged on top (owner wins) before the HF plan, so an
+      // owner-set HF_ENDPOINT also takes precedence over the HF mirror default.
       const decryptedUserData = await decryptUserData(job.userData, this.keyManager)
-      const env = userDataToEnv(decryptedUserData)
+      const env = mergeOwnerEnvs(
+        userDataToEnv(decryptedUserData),
+        this.getConfig()?.passContainerEnvs ?? {}
+      )
       const cmd = job.dockerCmd?.length ? job.dockerCmd : undefined
       const entrypoint = job.dockerEntrypoint?.length ? job.dockerEntrypoint : undefined
 
@@ -5911,8 +5918,12 @@ export class C2DEngineDocker extends C2DEngine {
       // 3. Decrypt the effective userData (empty in RESPEC mode when the caller omitted it).
       const decryptedUserData = await decryptUserData(effUserData, this.keyManager)
 
-      // 4. Rebuild env (from userData) + command/entrypoint
-      const env = userDataToEnv(decryptedUserData)
+      // 4. Rebuild env (from userData) + command/entrypoint. Node-owner PASS_CONTAINER_ENVS is
+      //    merged on top (owner wins), matching the start path above.
+      const env = mergeOwnerEnvs(
+        userDataToEnv(decryptedUserData),
+        this.getConfig()?.passContainerEnvs ?? {}
+      )
       const cmd = effDockerCmd?.length ? effDockerCmd : undefined
       const entrypoint = effDockerEntrypoint?.length ? effDockerEntrypoint : undefined
 
