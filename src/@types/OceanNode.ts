@@ -152,6 +152,9 @@ export interface OceanNodeConfig {
   // when unset or invalid; serviceHfClientPatch undefined means "on when a mirror is set".
   serviceHfMirrorUrl?: string
   serviceHfClientPatch?: boolean
+  // Node-owner env vars injected into every spawned container (C2D + services). Parsed from
+  // PASS_CONTAINER_ENVS; always a (possibly empty) map after config load. See containerEnvs.ts.
+  passContainerEnvs: Record<string, string>
   dockerRegistrysAuth: dockerRegistrysAuth
   authorizedDecrypters: string[]
   authorizedDecryptersList: AccessListContract | null

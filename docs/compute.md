@@ -65,6 +65,13 @@ constraints, availability gating, and the fee structure.
 If both are set, the environment variable overrides the config. See [env.md](env.md) for all
 available fields.
 
+> **Injecting node-owner env vars into algorithm containers.** To push infrastructure env vars
+> (e.g. `HF_ENDPOINT` for a local Hugging Face cache, an `HTTP_PROXY`, or a `LOG_LEVEL`) into every
+> C2D algorithm container, set [`PASS_CONTAINER_ENVS`](env.md) — the same knob also applies to
+> Service-on-Demand containers. Node-owner values override the algorithm's own env; the pod-contract
+> vars `DIDS` and `TRANSFORMATION_DID` are reserved. Never put secrets there — values are readable
+> inside the (third-party) algorithm container.
+
 ---
 
 ## Configuration layout
