@@ -108,7 +108,7 @@ These fields go in the `resources` array at the Docker-connection level:
 | `type` | Hint string used for grouping and display: `"cpu"`, `"ram"`, `"disk"`, `"gpu"`, `"fpga"`, … Group constraints (see below) match on this. |
 | `description` | Human-readable label shown in `getComputeEnvironments` |
 | `driverVersion` | GPU driver version string |
-| `memoryTotal` | GPU VRAM string (e.g. `"40960 MiB"`) |
+| `memoryTotal` | GPU VRAM string (e.g. `"40960 MiB"`). **Required for `type: "gpu"` resources**; must be a number with an optional unit (`"16 GiB"`, `"40960 MiB"`, `"8GB"`). Returned in `getComputeEnvironments`. |
 | `platform` | GPU vendor: `"nvidia"`, `"amd"`, `"intel"` |
 | `init` | Docker container configuration (`deviceRequests` for NVIDIA, `advanced` for AMD/Intel, and `advanced` on any vendor for shared-memory/IPC/process settings — see [Multi-GPU workloads](#multi-gpu-workloads-shared-memory)). Makes `kind` default to `"discrete"`. |
 | `constraints` | Companion resource requirements — see [Resource constraints](#resource-constraints). |
@@ -144,6 +144,9 @@ Supporting GPUs comes down to:
 - Environment `resources` are **lightweight refs** (`id` + optional
   `total`/`min`/`max`/`constraints`). Hardware details (`init`, `driverVersion`, `platform`,
   etc.) live only at connection level.
+- Every `type: "gpu"` resource **must declare its VRAM** via `memoryTotal` (e.g.
+  `"16 GiB"`, `"40960 MiB"`, `"8GB"`). The node refuses to start if it is missing or not a
+  valid amount, and the value is returned to consumers in `getComputeEnvironments`.
 
 > **Security note**: `init.advanced` entries (`Binds`, `CapAdd`, `Devices`, `SecurityOpt`)
 > apply to every job in every environment that references the resource. Review them carefully

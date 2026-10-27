@@ -7,6 +7,7 @@ import {
   DEFAULT_SERVICE_MIN_DURATION_SECONDS
 } from '../../@types/C2D/ServiceOnDemand.js'
 import { CONFIG_LOGGER } from '../logging/common.js'
+import { parseMemoryTotalToBytes } from '../../components/c2d/gpu/types.js'
 import { booleanFromString, jsonFromString } from './transforms.js'
 import {
   DEFAULT_BOOTSTRAP_ADDRESSES,
@@ -335,6 +336,27 @@ export const ComputeResourceSchema = z
     constraints: z.array(ResourceConstraintSchema).optional()
   })
   .superRefine((res, ctx) => {
+    // GPU resources must declare their VRAM (`memoryTotal`): consumers rely on it to size
+    // workloads, and it is exposed verbatim in getComputeEnvironments. It is only informational
+    // for other resource kinds, so the requirement is gated on `type: "gpu"`.
+    if (String(res.type ?? '').toLowerCase() === 'gpu') {
+      if (res.memoryTotal === undefined || String(res.memoryTotal).trim() === '') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `GPU resource "${res.id}": "memoryTotal" (VRAM, e.g. "16 GiB" or "40960 MiB") is required`,
+          path: ['memoryTotal']
+        })
+      } else {
+        const bytes = parseMemoryTotalToBytes(res.memoryTotal)
+        if (bytes === undefined || bytes <= 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `GPU resource "${res.id}": "memoryTotal" ("${res.memoryTotal}") is not a valid VRAM amount — use a number with an optional unit, e.g. "16 GiB", "40960 MiB" or "8GB"`,
+            path: ['memoryTotal']
+          })
+        }
+      }
+    }
     if (res.cpuList === undefined) return
     if (res.id !== 'cpu') {
       ctx.addIssue({

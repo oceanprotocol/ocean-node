@@ -297,7 +297,8 @@ The config has a two-level structure:
   - **total**: Total units available. Capped at the physical host limit.
   - **cpuList** *(cpu resource only)*: Restricts which host core IDs compute containers may be pinned to. Comma-separated core IDs and/or integer ranges, e.g. `"3"`, `"0-1,3"` or `"32-63"`. Ranges `a-b` must have `b` strictly greater than `a`, all parts must be ascending and non-overlapping, core IDs may not exceed `8192`, and every core ID must exist on the host — otherwise the node fails to start with an error. Mutually exclusive with **total**: the cpu resource must specify exactly one of the two, and with `cpuList` the effective total is the number of listed cores.
   - **min** / **max**: Per-job minimum/maximum.
-  - **description**, **platform**, **driverVersion**, **memoryTotal**: Informational metadata.
+  - **description**, **platform**, **driverVersion**: Informational metadata.
+  - **memoryTotal**: GPU VRAM string (e.g. `"16 GiB"`, `"40960 MiB"`, `"8GB"`). **Required for `type: "gpu"` resources** — the node fails to start if it is missing or not a valid amount. Returned to consumers in `getComputeEnvironments`. Informational for other resource kinds.
   - **init**: Docker device configuration (`deviceRequests` for NVIDIA, `advanced` for AMD/Intel). See [Compute Configuration](compute.md#configuring-gpus).
   - **constraints**: Cross-resource requirements. `{ "id": "ram", "min": 4 }` means renting this resource also requires 4 GB RAM.
 
