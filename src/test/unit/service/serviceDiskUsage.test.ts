@@ -978,3 +978,83 @@ describe('adaptive service disk polling', () => {
     expect(inspect.calledTwice).to.equal(true)
   })
 })
+
+describe('service metrics reuse the disk check usage', () => {
+  afterEach(() => sinon.restore())
+
+  function makeMetricsEngine(job: ServiceJob, inspect: sinon.SinonStub): any {
+    const engine = makeEngine(job, inspect)
+    engine.docker.getContainer.returns({
+      inspect,
+      stats: sinon.stub().resolves({ memory_stats: {}, cpu_stats: {} })
+    })
+    engine.gpuMetrics = { collect: sinon.stub().resolves(undefined) }
+    sinon.stub(engine, 'getC2DConfig').returns({ connection: {} })
+    return engine
+  }
+
+  it('reports the disk check usage against the booked disk and skips the size walk', async () => {
+    const job = makeJob()
+    const inspect = sinon.stub().resolves({ State: { Running: true }, SizeRw: 2 * GiB })
+    const engine = makeMetricsEngine(job, inspect)
+    engine.serviceDiskSamples.set(job.serviceId, {
+      containerId: job.containerId,
+      usedBytes: 18 * GiB,
+      at: Date.now(),
+      growthBytesPerSecond: 0,
+      intervalMs: SERVICE_DISK_CHECK_INTERVAL_MS
+    })
+
+    await engine.captureFinalServiceSnapshot(job)
+
+    expect(inspect.firstCall.args[0]).to.equal(undefined)
+    expect(job.runtimeMetrics.disk).to.deep.equal({
+      usedBytes: 18 * GiB,
+      quotaBytes: 20 * GiB,
+      usagePercent: 90
+    })
+  })
+
+  it('falls back to SizeRw when the disk sample belongs to another container', async () => {
+    const job = makeJob()
+    const inspect = sinon.stub().resolves({ State: { Running: true }, SizeRw: 2 * GiB })
+    const engine = makeMetricsEngine(job, inspect)
+    engine.serviceDiskSamples.set(job.serviceId, {
+      containerId: 'old-container',
+      usedBytes: 18 * GiB,
+      at: Date.now(),
+      growthBytesPerSecond: 0,
+      intervalMs: SERVICE_DISK_CHECK_INTERVAL_MS
+    })
+
+    await engine.captureFinalServiceSnapshot(job)
+
+    expect(inspect.firstCall.args[0]).to.deep.equal({ size: true })
+    expect(job.runtimeMetrics.disk.usedBytes).to.equal(2 * GiB)
+    expect(job.runtimeMetrics.disk.quotaBytes).to.equal(20 * GiB)
+  })
+
+  it('the persisted sample uses the disk check usage too', async () => {
+    const job = makeJob()
+    const inspect = sinon.stub().resolves({ State: { Running: true }, SizeRw: 2 * GiB })
+    const engine = makeMetricsEngine(job, inspect)
+    engine.db.isServiceLocked = sinon.stub().resolves(false)
+    engine.db.updateServiceJobMetrics = sinon.stub().resolves(1)
+    engine.serviceDiskSamples.set(job.serviceId, {
+      containerId: job.containerId,
+      usedBytes: 5 * GiB,
+      at: Date.now(),
+      growthBytesPerSecond: 0,
+      intervalMs: SERVICE_DISK_CHECK_INTERVAL_MS
+    })
+
+    await engine.sampleAndPersistServiceMetrics(job)
+
+    expect(inspect.firstCall.args[0]).to.equal(undefined)
+    const persisted = engine.db.updateServiceJobMetrics.firstCall.args.find(
+      (arg: any) => arg?.disk
+    )
+    expect(persisted.disk.usedBytes).to.equal(5 * GiB)
+    expect(persisted.disk.quotaBytes).to.equal(20 * GiB)
+  })
+})

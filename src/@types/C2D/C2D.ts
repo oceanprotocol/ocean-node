@@ -310,8 +310,8 @@ export interface ContainerMetricsSnapshot {
     peakUsageBytes: number // max across samples (we track it; cgroup v2 has no max_usage)
   }
   disk: {
-    usedBytes: number // jobs: du(/) − base image; services: SizeRw
-    quotaBytes?: number // jobs with a 'disk' resource
+    usedBytes: number // jobs: du(/) − base image; services: disk-check usage, else SizeRw
+    quotaBytes?: number // jobs and services with a 'disk' resource
     usagePercent?: number
   }
   network?: { rxBytes: number; txBytes: number } // absent when NetworkMode 'none'

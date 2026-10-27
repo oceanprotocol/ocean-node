@@ -137,8 +137,9 @@ A REUSE restart starts from a clean disk, so it only helps when the data that hi
 was written at run time.
 Retained output archives are excluded from live disk checks: they can be downloaded with
 `SERVICE_GET_RESULT` but cannot be deleted through the API, so counting them would trap
-restarts in repeated quota stops. Archives retain normal storageExpiry cleanup. A service
-without a positive `disk` amount is not checked.
+restarts in repeated quota stops. Archives retain normal storageExpiry cleanup. When the
+environment has a `disk` resource, `SERVICE_START` rejects a service whose resolved `disk`
+amount (requested, or filled from the env min) is not greater than 0.
 
 **`Running` is monitored too.** The same background loop that advances a starting service also
 checks every `Running` service's container on each tick (~every few seconds). If the container

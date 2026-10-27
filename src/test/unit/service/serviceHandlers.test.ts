@@ -1057,6 +1057,51 @@ describe('Service handlers', () => {
       expect(res.status.httpStatus).to.equal(403)
     })
 
+    describe('disk amount', () => {
+      const withDiskEnv = () => {
+        const fakes = buildFakes()
+        fakes.env.resources.push({ id: 'disk', kind: 'fungible', total: 100, min: 0 })
+        return fakes
+      }
+
+      it('400 when the env has disk and the service omits it (fills to min 0)', async () => {
+        const { node, engine } = withDiskEnv()
+        const res = await new ServiceStartHandler(node).handle({
+          ...baseTask,
+          resources: [{ id: 'cpu', amount: 2 }]
+        } as any)
+        expect(res.status.httpStatus).to.equal(400)
+        expect(String(res.status.error)).to.contain('disk amount greater than 0')
+        expect(engine.createServiceJob.called).to.equal(false)
+      })
+
+      it('400 when the service asks for disk 0', async () => {
+        const { node, engine } = withDiskEnv()
+        const res = await new ServiceStartHandler(node).handle({
+          ...baseTask,
+          resources: [
+            { id: 'cpu', amount: 2 },
+            { id: 'disk', amount: 0 }
+          ]
+        } as any)
+        expect(res.status.httpStatus).to.equal(400)
+        expect(engine.createServiceJob.called).to.equal(false)
+      })
+
+      it('200 with a positive disk amount', async () => {
+        const { node, engine } = withDiskEnv()
+        const res = await new ServiceStartHandler(node).handle({
+          ...baseTask,
+          resources: [
+            { id: 'cpu', amount: 2 },
+            { id: 'disk', amount: 10 }
+          ]
+        } as any)
+        expect(res.status.httpStatus).to.equal(200)
+        expect(engine.createServiceJob.calledOnce).to.equal(true)
+      })
+    })
+
     it('400 when image is missing', async () => {
       const { node } = buildFakes()
       const { image, ...noImage } = baseTask

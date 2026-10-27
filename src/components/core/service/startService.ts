@@ -178,6 +178,15 @@ export class ServiceStartHandler extends CommandHandler {
           buildInvalidRequestMessage(e?.message || String(e))
         )
       }
+      // The disk check only runs for a positive disk amount, and an omitted one fills to the
+      // env min (0 by default), so a service without one would never be checked.
+      if (
+        env.resources?.some((r) => r.id === 'disk') &&
+        !((resources.find((r) => r.id === 'disk')?.amount ?? 0) > 0)
+      )
+        return buildInvalidParametersResponse(
+          buildInvalidRequestMessage('A service needs a disk amount greater than 0')
+        )
 
       // 6. Server-side cost (used to size the escrow lock the background loop will create).
       const cost = engine.calculateResourcesCost(
