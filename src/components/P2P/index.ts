@@ -363,7 +363,7 @@ export class OceanP2P extends EventEmitter {
               // The address count matters here more than anywhere: a discovered peer with
               // no dialable address and one that refuses every address it advertised
               // produce the same message and are completely different problems.
-              P2P_LOGGER.error(
+              P2P_LOGGER.debug(
                 `Failed to dial discovered peer: ${describeP2PError(err, {
                   peerId: peerInfo.id.toString(),
                   addresses: peerInfo.multiaddrs?.length
@@ -1551,7 +1551,7 @@ export class OceanP2P extends EventEmitter {
           known = pinnedAddrs
           if (pinnedAddrs.length < 1) {
             const error = `Cannot find any address to dial for peer: ${peerId}`
-            P2P_LOGGER.debug(error)
+            P2P_LOGGER.error(error)
             countSendToFailure(SENDTO_FAIL_REASONS.noAddress)
             return { status: { httpStatus: 404, error } }
           }
@@ -1561,7 +1561,7 @@ export class OceanP2P extends EventEmitter {
           })
           if (resolution.addresses.length < 1) {
             const error = `Cannot find any address to dial for peer: ${peerId}`
-            P2P_LOGGER.debug(error)
+            P2P_LOGGER.error(error)
             countSendToFailure(SENDTO_FAIL_REASONS.noAddress)
             return { status: { httpStatus: 404, error } }
           }
@@ -1740,7 +1740,7 @@ export class OceanP2P extends EventEmitter {
             const failure = classifyP2PError(e, P2P_ERROR.dialFailed)
             lastFailure = failure
             if (await retryAfterDialFailure(failure, attempt)) {
-              P2P_LOGGER.error(
+              P2P_LOGGER.warn(
                 `Dial of ${peerId} failed (${failure.name}: ${failure.message}), retrying`
               )
               continue
@@ -1771,7 +1771,7 @@ export class OceanP2P extends EventEmitter {
               !deadline.aborted &&
               isRetryableP2PError(failure.name)
             ) {
-              P2P_LOGGER.error(
+              P2P_LOGGER.warn(
                 `Opening a command stream to ${peerId} failed (${failure.name}: ${failure.message}), retrying`
               )
               continue
@@ -1856,7 +1856,7 @@ export class OceanP2P extends EventEmitter {
                 status: { httpStatus: 500, error: `P2P error: ${failure.message}` }
               }
             }
-            P2P_LOGGER.error(
+            P2P_LOGGER.warn(
               `Retrying ${peerId} after a ${failure.name} error: ${failure.message}`
             )
             // Close only a connection this attempt dialled. `dial()` returns an existing
@@ -1871,7 +1871,7 @@ export class OceanP2P extends EventEmitter {
         const exhausted = `P2P error: exhausted ${maxAttempts} attempt(s) to ${peerName}${
           lastFailure ? ` (${lastFailure.name}: ${lastFailure.message})` : ''
         }`
-        P2P_LOGGER.warn(exhausted)
+        P2P_LOGGER.error(exhausted)
         countSendToFailure(SENDTO_FAIL_REASONS.attemptsExhausted)
         return { status: { httpStatus: 500, error: exhausted } }
       } finally {
@@ -2163,8 +2163,10 @@ export class OceanP2P extends EventEmitter {
             try {
               await upnpService.mapIpAddresses()
             } catch (err) {
-              P2P_LOGGER.error('Failed to configure UPNP Gateway(if you have one)')
-              P2P_LOGGER.error(`UPnP mapping failed: ${describeP2PError(err)}`)
+              // UPnP is on by default, so every host without a gateway lands here at startup
+              P2P_LOGGER.warn(
+                `Failed to configure UPNP Gateway (if you have one): ${describeP2PError(err)}`
+              )
             }
             return
           }

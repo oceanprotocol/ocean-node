@@ -124,6 +124,7 @@ import {
   ServiceHfContainerSpec,
   ServiceHfPlan
 } from './serviceHfMirror.js'
+import { buildAlgoContainerEnv, mergeOwnerEnvs } from './containerEnvs.js'
 import {
   buildSnapshot,
   describeSnapshot,
@@ -176,6 +177,11 @@ const makeServiceLockHolderId = () =>
 // "Already gone" Docker errors (404 missing, 304 already stopped) are the desired end
 // state of a teardown, so treat them as success.
 const isBenignDockerError = (e: any) => e?.statusCode === 404 || e?.statusCode === 304
+
+// Cleanup runs more than once and races the container's own exit, so "already stopped" /
+// "already gone" is logged at debug and only a real failure at error.
+const logDockerCleanupError = (e: any, msg: string) =>
+  isBenignDockerError(e) ? CORE_LOGGER.debug(msg) : CORE_LOGGER.error(msg)
 
 // Cap on processes/threads a service container may spawn, to stop a runaway workload from
 // exhausting the host's pid space. Overridable per resource via init.advanced.PidsLimit,
@@ -1314,8 +1320,10 @@ export class C2DEngineDocker extends C2DEngine {
           CORE_LOGGER.debug(`Successfully removed old image: ${image}`)
         } catch (e) {
           failed++
-          // Image might be in use or already deleted - log but don't throw
-          CORE_LOGGER.error(`Could not remove image ${image}: ${e.message}`)
+          // Image might be in use (409) or already deleted (404) - log but don't throw
+          const msg = `Could not remove image ${image}: ${e.message}`
+          if (e?.statusCode === 404 || e?.statusCode === 409) CORE_LOGGER.debug(msg)
+          else CORE_LOGGER.warn(msg)
         }
       }
 
@@ -1604,7 +1612,7 @@ export class C2DEngineDocker extends C2DEngine {
         }
       } catch (localErr: any) {
         // Image not found locally or error inspecting - fall through to remote check
-        CORE_LOGGER.error(
+        CORE_LOGGER.debug(
           `Image ${image} not found locally (${localErr.message}), checking remote registry`
         )
       }
@@ -2541,22 +2549,23 @@ export class C2DEngineDocker extends C2DEngine {
         )
         containerInfo.Entrypoint = newEntrypoint.split(' ')
       }
-      // Environment variables for the algorithm container. On top of any algorithm-provided
-      // envs we expose the pod-configuration contract (DIDS + TRANSFORMATION_DID) so the
-      // algorithm can map each /data/inputs/<index> folder back to its input DID.
-      const envVars: string[] = []
-      if (job.algorithm.envs) {
-        for (const key of Object.keys(job.algorithm.envs)) {
-          envVars.push(`${key}=${job.algorithm.envs[key]}`)
-        }
-      }
-      // one entry per asset, in the same order as the /data/inputs/<index> folders;
-      // raw fileObject inputs (free compute) have no DID, so their slot is null
+      // Environment variables for the algorithm container. buildAlgoContainerEnv layers:
+      // algorithm-provided envs, then the node owner's PASS_CONTAINER_ENVS on top (the owner
+      // controls the infrastructure — e.g. HF_ENDPOINT for a local mirror), and finally the
+      // authoritative pod-configuration contract (DIDS + TRANSFORMATION_DID) so the algorithm can
+      // map each /data/inputs/<index> folder back to its input DID. The contract vars are
+      // reserved, so neither the algorithm nor the owner can shadow them.
+      // inputDids: one entry per asset, in /data/inputs/<index> order; raw fileObject inputs
+      // (free compute) have no DID, so their slot is null.
       const inputDids = (job.assets || []).map((asset) => asset.documentId ?? null)
-      envVars.push(`DIDS=${JSON.stringify(inputDids)}`)
-      if (job.algorithm.documentId) {
-        envVars.push(`TRANSFORMATION_DID=${job.algorithm.documentId}`)
-      }
+      const envVars = buildAlgoContainerEnv(
+        {
+          algoEnvs: job.algorithm.envs,
+          inputDids,
+          transformationDid: job.algorithm.documentId
+        },
+        this.getConfig()?.passContainerEnvs ?? {}
+      )
       if (envVars.length > 0) {
         containerInfo.Env = envVars
       }
@@ -2757,8 +2766,10 @@ export class C2DEngineDocker extends C2DEngine {
               await container.stop()
             } catch (e) {
               // we should never reach this, unless the container is already stopped or deleted by someone else
-              const msg = `Job ${job.jobId}: could not stop container: ${e.message}`
-              CORE_LOGGER.error(msg)
+              logDockerCleanupError(
+                e,
+                `Job ${job.jobId}: could not stop container: ${e.message}`
+              )
             }
           }
           job.isStarted = false
@@ -3115,8 +3126,10 @@ export class C2DEngineDocker extends C2DEngine {
           await volume.remove()
         } catch (e) {
           // 404: already removed by an earlier cleanup pass
-          const msg = `Job ${job.jobId}: failed to remove volume ${job.jobId}-volume: ${e.message}`
-          CORE_LOGGER.error(msg)
+          logDockerCleanupError(
+            e,
+            `Job ${job.jobId}: failed to remove volume ${job.jobId}-volume: ${e.message}`
+          )
         }
       }
     } catch (e) {
@@ -3305,7 +3318,8 @@ export class C2DEngineDocker extends C2DEngine {
         await container.stop()
         CORE_LOGGER.debug(`Container stopped for job ${job.jobId}`)
       } catch (e) {
-        CORE_LOGGER.error(
+        logDockerCleanupError(
+          e,
           `Job ${job.jobId}: could not stop container after disk quota exceeded: ${e.message}`
         )
       }
@@ -4181,7 +4195,7 @@ export class C2DEngineDocker extends C2DEngine {
       } catch (e: any) {
         // no /data/outputs in the container, or the container is already gone
         if (e?.statusCode === 404) {
-          CORE_LOGGER.error(`service ${job.serviceId}: nothing to archive: ${e.message}`)
+          CORE_LOGGER.debug(`service ${job.serviceId}: nothing to archive: ${e.message}`)
           return
         }
         throw e
@@ -4604,8 +4618,13 @@ export class C2DEngineDocker extends C2DEngine {
       network = await this.createServiceNetwork(serviceId)
 
       // Container env from the decrypted (in-memory) userData; command/entrypoint from the request.
+      // Node-owner PASS_CONTAINER_ENVS is merged on top (owner wins) before the HF plan, so an
+      // owner-set HF_ENDPOINT also takes precedence over the HF mirror default.
       const decryptedUserData = await decryptUserData(job.userData, this.keyManager)
-      const env = userDataToEnv(decryptedUserData)
+      const env = mergeOwnerEnvs(
+        userDataToEnv(decryptedUserData),
+        this.getConfig()?.passContainerEnvs ?? {}
+      )
       const cmd = job.dockerCmd?.length ? job.dockerCmd : undefined
       const entrypoint = job.dockerEntrypoint?.length ? job.dockerEntrypoint : undefined
 
@@ -4789,7 +4808,7 @@ export class C2DEngineDocker extends C2DEngine {
         info = await network.inspect()
       } catch (e: any) {
         if (isBenignDockerError(e)) {
-          CORE_LOGGER.error(`removeServiceNetwork ${serviceId}: "${ref}" already gone`)
+          CORE_LOGGER.debug(`removeServiceNetwork ${serviceId}: "${ref}" already gone`)
           continue
         }
         throw e
@@ -5858,11 +5877,14 @@ export class C2DEngineDocker extends C2DEngine {
       let stopped = true
       await c.stop({ t: 10 }).catch((e) => {
         if (!isBenignDockerError(e)) stopped = false
-        CORE_LOGGER.error(`restart ${serviceId}: old container stop: ${e.message}`)
+        logDockerCleanupError(e, `restart ${serviceId}: old container stop: ${e.message}`)
       })
       if (job.outputBucketId) {
         await c.remove({ force: true }).catch((e) => {
-          CORE_LOGGER.error(`restart ${serviceId}: old container remove: ${e.message}`)
+          logDockerCleanupError(
+            e,
+            `restart ${serviceId}: old container remove: ${e.message}`
+          )
         })
       } else if (!stopped) {
         // It can't be kept for the carry-over: it may still be running, and
@@ -5874,7 +5896,10 @@ export class C2DEngineDocker extends C2DEngine {
         )
         await this.archiveServiceOutputs(job, c)
         await c.remove({ force: true }).catch((e) => {
-          CORE_LOGGER.error(`restart ${serviceId}: old container remove: ${e.message}`)
+          logDockerCleanupError(
+            e,
+            `restart ${serviceId}: old container remove: ${e.message}`
+          )
         })
       } else {
         previous = c
@@ -5976,8 +6001,12 @@ export class C2DEngineDocker extends C2DEngine {
       // 3. Decrypt the effective userData (empty in RESPEC mode when the caller omitted it).
       const decryptedUserData = await decryptUserData(effUserData, this.keyManager)
 
-      // 4. Rebuild env (from userData) + command/entrypoint
-      const env = userDataToEnv(decryptedUserData)
+      // 4. Rebuild env (from userData) + command/entrypoint. Node-owner PASS_CONTAINER_ENVS is
+      //    merged on top (owner wins), matching the start path above.
+      const env = mergeOwnerEnvs(
+        userDataToEnv(decryptedUserData),
+        this.getConfig()?.passContainerEnvs ?? {}
+      )
       const cmd = effDockerCmd?.length ? effDockerCmd : undefined
       const entrypoint = effDockerEntrypoint?.length ? effDockerEntrypoint : undefined
 
@@ -6057,7 +6086,10 @@ export class C2DEngineDocker extends C2DEngine {
         job.containerId = container.id
         await this.db.updateServiceJob(job)
         await previous.remove({ force: true }).catch((e) => {
-          CORE_LOGGER.error(`restart ${serviceId}: old container remove: ${e.message}`)
+          logDockerCleanupError(
+            e,
+            `restart ${serviceId}: old container remove: ${e.message}`
+          )
         })
         previous = null
         delete job.previousContainerId

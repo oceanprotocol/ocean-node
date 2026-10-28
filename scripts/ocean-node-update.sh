@@ -70,14 +70,18 @@ add_logs_mount() {
     local tmp
     tmp=$(mktemp) || return 1
     # POSIX awk (works with GNU and BSD): add the mount to the ocean-node service's volumes,
-    # creating the volumes key if the service has none
+    # creating the volumes key if the service has none. Comment and blank lines never end the
+    # service (the quickstart writes "#      KEY: ''" lines inside environment), they are held
+    # back and printed after whatever comes next, so a new volumes block lands before them
     awk '
         function add_block() { print "    volumes:"; print "      - ./logs:/usr/src/app/logs"; done = 1 }
+        function flush() { printf "%s", held; held = "" }
         /^  ocean-node:/ { in_node = 1; print; next }
+        in_node && (/^[ \t]*#/ || /^[ \t]*$/) { held = held $0 "\n"; next }
         in_node && (/^[^ ]/ || /^  [^ ]/) { if (!done) add_block(); in_node = 0 }
-        in_node && /^    volumes:/ && !done { print; print "      - ./logs:/usr/src/app/logs"; done = 1; next }
-        { print }
-        END { if (in_node && !done) add_block() }
+        in_node && /^    volumes:/ && !done { flush(); print; print "      - ./logs:/usr/src/app/logs"; done = 1; next }
+        { flush(); print }
+        END { if (in_node && !done) add_block(); flush() }
     ' docker-compose.yml > "$tmp" && cat "$tmp" > docker-compose.yml
     rm -f "$tmp"
     if grep -q "./logs:/usr/src/app/logs" docker-compose.yml; then

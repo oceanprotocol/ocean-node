@@ -65,6 +65,13 @@ constraints, availability gating, and the fee structure.
 If both are set, the environment variable overrides the config. See [env.md](env.md) for all
 available fields.
 
+> **Injecting node-owner env vars into algorithm containers.** To push infrastructure env vars
+> (e.g. `HF_ENDPOINT` for a local Hugging Face cache, an `HTTP_PROXY`, or a `LOG_LEVEL`) into every
+> C2D algorithm container, set [`PASS_CONTAINER_ENVS`](env.md) — the same knob also applies to
+> Service-on-Demand containers. Node-owner values override the algorithm's own env; the pod-contract
+> vars `DIDS` and `TRANSFORMATION_DID` are reserved. Never put secrets there — values are readable
+> inside the (third-party) algorithm container.
+
 ---
 
 ## Configuration layout
@@ -108,7 +115,7 @@ These fields go in the `resources` array at the Docker-connection level:
 | `type` | Hint string used for grouping and display: `"cpu"`, `"ram"`, `"disk"`, `"gpu"`, `"fpga"`, … Group constraints (see below) match on this. |
 | `description` | Human-readable label shown in `getComputeEnvironments` |
 | `driverVersion` | GPU driver version string |
-| `memoryTotal` | GPU VRAM string (e.g. `"40960 MiB"`) |
+| `memoryTotal` | GPU VRAM string (e.g. `"40960 MiB"`). **Required for `type: "gpu"` resources**; must be a number with an optional unit (`"16 GiB"`, `"40960 MiB"`, `"8GB"`). Returned in `getComputeEnvironments`. |
 | `platform` | GPU vendor: `"nvidia"`, `"amd"`, `"intel"` |
 | `init` | Docker container configuration (`deviceRequests` for NVIDIA, `advanced` for AMD/Intel, and `advanced` on any vendor for shared-memory/IPC/process settings — see [Multi-GPU workloads](#multi-gpu-workloads-shared-memory)). Makes `kind` default to `"discrete"`. |
 | `constraints` | Companion resource requirements — see [Resource constraints](#resource-constraints). |
@@ -144,6 +151,9 @@ Supporting GPUs comes down to:
 - Environment `resources` are **lightweight refs** (`id` + optional
   `total`/`min`/`max`/`constraints`). Hardware details (`init`, `driverVersion`, `platform`,
   etc.) live only at connection level.
+- Every `type: "gpu"` resource **must declare its VRAM** via `memoryTotal` (e.g.
+  `"16 GiB"`, `"40960 MiB"`, `"8GB"`). The node refuses to start if it is missing or not a
+  valid amount, and the value is returned to consumers in `getComputeEnvironments`.
 
 > **Security note**: `init.advanced` entries (`Binds`, `CapAdd`, `Devices`, `SecurityOpt`)
 > apply to every job in every environment that references the resource. Review them carefully
@@ -356,9 +366,9 @@ environments.
 
 ```json
 "resources": [
-  { "id": "gpu0", "kind": "discrete", "type": "gpu", "total": 1,
+  { "id": "gpu0", "kind": "discrete", "type": "gpu", "total": 1, "memoryTotal": "40960 MiB",
     "init": { "deviceRequests": { "Driver": "nvidia", "DeviceIDs": ["GPU-uuid-a"], "Capabilities": [["gpu"]] } } },
-  { "id": "gpu1", "kind": "discrete", "type": "gpu", "total": 1,
+  { "id": "gpu1", "kind": "discrete", "type": "gpu", "total": 1, "memoryTotal": "40960 MiB",
     "init": { "deviceRequests": { "Driver": "nvidia", "DeviceIDs": ["GPU-uuid-b"], "Capabilities": [["gpu"]] } } }
 ],
 "environments": [

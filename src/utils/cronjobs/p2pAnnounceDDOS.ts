@@ -6,7 +6,7 @@ import { P2P_LOGGER } from '../logging/common.js'
 import { provideLimit } from '../../components/P2P/provideLimiter.js'
 import {
   classifyP2PError,
-  describeP2PError,
+  logProvideFailure,
   P2P_ERROR
 } from '../../components/P2P/errors.js'
 
@@ -174,8 +174,10 @@ export async function p2pAnnounceDDOS(node: OceanNode) {
             } catch (e) {
               // timeouts are normal in a sparse DHT: only other failures count towards the summary
               if (classifyP2PError(e).name !== P2P_ERROR.timeout) failed++
-              P2P_LOGGER.error(
-                `Caught error while republishing ${ddo?.id} on republishStoredDDOS(): ${describeP2PError(e)}`
+              logProvideFailure(
+                P2P_LOGGER,
+                e,
+                `Caught error while republishing ${ddo?.id} on republishStoredDDOS()`
               )
             }
             try {

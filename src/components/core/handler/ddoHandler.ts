@@ -207,7 +207,7 @@ export class DecryptDdoHandler extends CommandHandler {
       try {
         decrypterAddress = ethers.getAddress(task.decrypterAddress)
       } catch (error) {
-        CORE_LOGGER.error(`Decrypt DDO: error ${errorSummary(error)}`)
+        CORE_LOGGER.logByStatus(400, `Decrypt DDO: error ${errorSummary(error)}`)
         return {
           stream: null,
           status: {
@@ -327,7 +327,7 @@ export class DecryptDdoHandler extends CommandHandler {
           encryptedDocument = ethers.getBytes(eventData.args[4])
           documentHash = eventData.args[5]
         } catch (error) {
-          CORE_LOGGER.error(`Decrypt DDO: error ${errorSummary(error)}`)
+          CORE_LOGGER.logByStatus(400, `Decrypt DDO: error ${errorSummary(error)}`)
           return {
             stream: null,
             status: {
@@ -343,7 +343,7 @@ export class DecryptDdoHandler extends CommandHandler {
           // eslint-disable-next-line prefer-destructuring
           documentHash = task.documentHash
         } catch (error) {
-          CORE_LOGGER.error(`Decrypt DDO: error ${errorSummary(error)}`)
+          CORE_LOGGER.logByStatus(400, `Decrypt DDO: error ${errorSummary(error)}`)
           return {
             stream: null,
             status: {
@@ -398,7 +398,7 @@ export class DecryptDdoHandler extends CommandHandler {
             .getKeyManager()
             .decrypt(encryptedDocument, EncryptMethod.ECIES)
         } catch (error) {
-          CORE_LOGGER.error(`Decrypt DDO: error ${errorSummary(error)}`)
+          CORE_LOGGER.logByStatus(400, `Decrypt DDO: error ${errorSummary(error)}`)
           return {
             stream: null,
             status: {
@@ -420,7 +420,7 @@ export class DecryptDdoHandler extends CommandHandler {
           )
           */
         } catch (error) {
-          CORE_LOGGER.error(`Decrypt DDO: error ${errorSummary(error)}`)
+          CORE_LOGGER.logByStatus(400, `Decrypt DDO: error ${errorSummary(error)}`)
           return {
             stream: null,
             status: {
@@ -746,7 +746,7 @@ export class FindDdoHandler extends CommandHandler {
           throw findProvidersError
         }
         // deadline reached while looking for providers: return what we already have
-        CORE_LOGGER.error(
+        CORE_LOGGER.warn(
           `FindDDO: provider lookup ended early for id ${task.id}: ${findProvidersError.message}`
         )
         endFindDdo()

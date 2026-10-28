@@ -265,3 +265,80 @@ describe('Should validate persistent storage bucket sharing configuration', () =
     delete process.env.PRIVATE_KEY
   })
 })
+
+// Guards the DOCKER_COMPUTE_ENVIRONMENTS *environment-variable* entrypoint. Unlike the
+// config.json path (which lands on the schema as an array and is validated directly), the
+// env var arrives as a JSON string; the config schema must still run C2DDockerConfigSchema
+// on the parsed value, otherwise an invalid compute config — e.g. a GPU missing its
+// mandatory `memoryTotal` (VRAM) — would slip through buildMergedConfig unvalidated.
+describe('Should validate DOCKER_COMPUTE_ENVIRONMENTS from the environment variable', () => {
+  const DB_ENV_VARS = [ENVIRONMENT_VARIABLES.DB_TYPE, ENVIRONMENT_VARIABLES.DB_URL]
+  const DB_ENV_VALUES = ['typesense', 'http://localhost:8108/?apiKey=xyz']
+
+  // Builds the config with DOCKER_COMPUTE_ENVIRONMENTS set to the given JSON string, and
+  // returns the built config or the thrown error. Mirrors the retry-config helper above.
+  async function configWithDockerEnv(
+    dockerEnvJson: string
+  ): Promise<{ config?: OceanNodeConfig; error?: Error }> {
+    const overrides = buildEnvOverrideConfig(
+      [...DB_ENV_VARS, ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS],
+      [...DB_ENV_VALUES, dockerEnvJson]
+    )
+    try {
+      await setupEnvironment(TEST_ENV_CONFIG_PATH, overrides)
+      return { config: await getConfiguration(true) }
+    } catch (error) {
+      return { error }
+    } finally {
+      await tearDownEnvironment(overrides)
+    }
+  }
+
+  const dockerEnvWithGpu = (gpuExtra: Record<string, unknown>) =>
+    JSON.stringify([
+      {
+        socketPath: '/var/run/docker.sock',
+        resources: [{ id: 'gpu0', kind: 'discrete', type: 'gpu', total: 1, ...gpuExtra }],
+        environments: [
+          {
+            storageExpiry: 604800,
+            maxJobDuration: 3600,
+            minJobDuration: 60,
+            resources: [{ id: 'cpu' }, { id: 'ram' }, { id: 'disk' }, { id: 'gpu0' }],
+            fees: { '1': [{ feeToken: '0x123', prices: [{ id: 'gpu0', price: 5 }] }] }
+          }
+        ]
+      }
+    ])
+
+  it('rejects a GPU missing memoryTotal supplied via the env var', async () => {
+    const { config: conf, error } = await configWithDockerEnv(dockerEnvWithGpu({}))
+    expect(conf, 'a GPU without memoryTotal must not produce a config').to.be.equal(
+      undefined
+    )
+    expect(error?.message).to.be.equal('Configuration validation failed')
+  })
+
+  it('rejects a GPU with an unparseable memoryTotal supplied via the env var', async () => {
+    const { config: conf, error } = await configWithDockerEnv(
+      dockerEnvWithGpu({ memoryTotal: 'lots' })
+    )
+    expect(conf).to.be.equal(undefined)
+    expect(error?.message).to.be.equal('Configuration validation failed')
+  })
+
+  it('accepts a GPU with a valid memoryTotal supplied via the env var', async () => {
+    const { config: conf, error } = await configWithDockerEnv(
+      dockerEnvWithGpu({ memoryTotal: '16 GiB' })
+    )
+    expect(error).to.be.equal(undefined)
+    expect(conf.dockerComputeEnvironments[0].resources[0].memoryTotal).to.be.equal(
+      '16 GiB'
+    )
+  })
+
+  after(() => {
+    delete process.env.CONFIG_PATH
+    delete process.env.PRIVATE_KEY
+  })
+})
