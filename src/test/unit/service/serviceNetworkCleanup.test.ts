@@ -118,7 +118,7 @@ describe('service network cleanup (leaked ocean-svc-<id> networks)', () => {
       expect(byId.remove.called).to.equal(false)
     })
 
-    it('force-removes stale attached containers (with their anonymous volumes) before removing the network', async () => {
+    it('force-removes stale attached containers before removing the network', async () => {
       const engine = makeEngine()
       const network = fakeNetwork({ inspect: { Containers: { cid1: {}, cid2: {} } } })
       engine.docker.getNetwork.returns(network)
@@ -129,7 +129,7 @@ describe('service network cleanup (leaked ocean-svc-<id> networks)', () => {
 
       expect(engine.docker.getContainer.calledWith('cid1')).to.equal(true)
       expect(engine.docker.getContainer.calledWith('cid2')).to.equal(true)
-      expect(containerRemove.alwaysCalledWith({ force: true, v: true })).to.equal(true)
+      expect(containerRemove.alwaysCalledWith({ force: true })).to.equal(true)
       expect(network.remove.calledOnce).to.equal(true)
       expect(containerRemove.calledBefore(network.remove)).to.equal(true)
     })

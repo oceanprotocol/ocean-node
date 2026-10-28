@@ -4743,9 +4743,9 @@ export class C2DEngineDocker extends C2DEngine {
   // container starts, so a node crash mid-start leaves networkId='' in the DB while the
   // named network still exists — removal must never depend solely on the persisted field.
   // Any container still attached at this point is a stale leftover of the same service
-  // (every caller tears down the known container first), so it is force-removed, with its
-  // anonymous volumes, to unblock network.remove(). Benign "already gone" errors resolve
-  // silently; anything else propagates so callers can decide whether teardown failure matters.
+  // (every caller tears down the known container first), so it is force-removed to
+  // unblock network.remove(). Benign "already gone" errors resolve silently; anything
+  // else propagates so callers can decide whether teardown failure matters.
   private async removeServiceNetwork(
     serviceId: string,
     networkId?: string
@@ -4772,7 +4772,7 @@ export class C2DEngineDocker extends C2DEngine {
       for (const containerId of attached) {
         await this.docker
           .getContainer(containerId)
-          .remove({ force: true, v: true })
+          .remove({ force: true })
           .catch((e) => {
             if (!isBenignDockerError(e)) throw e
           })
@@ -5399,8 +5399,8 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   // Resolves a service's requested allocation as bytes/cores for the metrics snapshot.
-  // diskBytes is the booked disk, the same quota the disk check enforces, so the snapshot
-  // reports the node's own usage % against it.
+  // Services have no /data volume, so disk usage comes from the container writable layer
+  // (SizeRw) rather than a quota — diskBytes is left 0 (no quota to report a % against).
   private getServiceMetricsAllocation(job: ServiceJob): {
     cpu: number
     ramBytes: number
@@ -5408,16 +5408,7 @@ export class C2DEngineDocker extends C2DEngine {
   } {
     const cpu = job.resources?.find((r) => r.id === 'cpu')?.amount || 0
     const ramGb = job.resources?.find((r) => r.id === 'ram')?.amount || 0
-    const diskGb = job.resources?.find((r) => r.id === 'disk')?.amount || 0
-    return { cpu, ramBytes: ramGb * 1024 ** 3, diskBytes: diskGb * 1024 ** 3 }
-  }
-
-  // The disk check's last usage for this container (writable layer + image VOLUMEs + writable
-  // mounts), or undefined when it has none. Metrics report it instead of SizeRw alone, so the
-  // gauge shows the number the quota stops on, and skip their own size walk.
-  private serviceDiskUsedBytes(job: ServiceJob): number | undefined {
-    const sample = this.serviceDiskSamples?.get(job.serviceId)
-    return sample && sample.containerId === job.containerId ? sample.usedBytes : undefined
+    return { cpu, ramBytes: ramGb * 1024 * 1024 * 1024, diskBytes: 0 }
   }
 
   // Samples a running service container (+ its GPUs) and persists the snapshot. Throttled to
@@ -5435,9 +5426,8 @@ export class C2DEngineDocker extends C2DEngine {
       if (!isMetricsCollectionEnabled()) return
       if (!isSnapshotStale(job.runtimeMetrics, getMetricsIntervalSeconds())) return
       if (this.serviceOpsInFlight.has(job.serviceId)) return
-      const diskUsedBytes = this.serviceDiskUsedBytes(job)
       const raw = await sampleContainerMetrics(this.docker, job.containerId, {
-        size: diskUsedBytes === undefined
+        size: true
       })
       if (!raw) return
       const [fresh] = await this.db.getServiceJob(job.serviceId, job.owner)
@@ -5458,7 +5448,7 @@ export class C2DEngineDocker extends C2DEngine {
         raw,
         fresh.runtimeMetrics,
         this.getServiceMetricsAllocation(fresh),
-        diskUsedBytes
+        undefined
       )
       const connResources: ComputeResource[] =
         this.getC2DConfig().connection?.resources ?? []
@@ -5599,16 +5589,15 @@ export class C2DEngineDocker extends C2DEngine {
   private async captureFinalServiceSnapshot(job: ServiceJob): Promise<void> {
     try {
       if (!isMetricsCollectionEnabled() || !job.containerId) return
-      const diskUsedBytes = this.serviceDiskUsedBytes(job)
       const raw = await sampleContainerMetrics(this.docker, job.containerId, {
-        size: diskUsedBytes === undefined
+        size: true
       })
       if (!raw) return
       const snap = buildSnapshot(
         raw,
         job.runtimeMetrics,
         this.getServiceMetricsAllocation(job),
-        diskUsedBytes
+        undefined
       )
       const connResources: ComputeResource[] =
         this.getC2DConfig().connection?.resources ?? []

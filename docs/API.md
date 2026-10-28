@@ -1950,8 +1950,8 @@ Clients MUST treat every part as optional and render a field only when present.
 
 | field        | type    | unit / notes                                                                       |
 | ------------ | ------- | ---------------------------------------------------------------------------------- |
-| usedBytes    | number  | compute jobs: bytes written under `/` (excludes base image); services: the disk check's usage (writable layer + image-declared volumes + writable mounts), else the writable layer |
-| quotaBytes   | number? | present only for jobs and services with a `disk` resource                           |
+| usedBytes    | number  | compute jobs: bytes written under `/` (excludes base image); services: writable layer |
+| quotaBytes   | number? | present only for jobs with a `disk` resource                                        |
 | usagePercent | number? | present only when `quotaBytes` is known                                             |
 
 `gpu[]` entry:

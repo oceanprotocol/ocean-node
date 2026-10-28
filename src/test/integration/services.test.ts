@@ -496,9 +496,11 @@ describe('**********         Service on Demand', () => {
       tag: 'alpine',
       exposedPorts: [8080],
       duration: SERVICE_DURATION,
+      // Services must book a positive disk amount (SERVICE_START rejects 0 / omitted).
       resources: [
         { id: 'cpu', amount: 1 },
-        { id: 'ram', amount: 1 }
+        { id: 'ram', amount: 1 },
+        { id: 'disk', amount: 1 }
       ],
       userData: await encryptUserData({ EXTRA: 'hello123' }),
       payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken }
@@ -1267,9 +1269,11 @@ describe('**********         Service on Demand', () => {
       tag: 'alpine',
       exposedPorts: [8080],
       duration: EXPIRY_DURATION,
+      // Services must book a positive disk amount (SERVICE_START rejects 0 / omitted).
       resources: [
         { id: 'cpu', amount: 1 },
-        { id: 'ram', amount: 1 }
+        { id: 'ram', amount: 1 },
+        { id: 'disk', amount: 1 }
       ],
       payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken }
     }
@@ -1313,9 +1317,11 @@ describe('**********         Service on Demand', () => {
       dockerCmd: ['nginx', '-g', 'daemon off;'],
       exposedPorts: [8080],
       duration: SERVICE_DURATION,
+      // Services must book a positive disk amount (SERVICE_START rejects 0 / omitted).
       resources: [
         { id: 'cpu', amount: 1 },
-        { id: 'ram', amount: 1 }
+        { id: 'ram', amount: 1 },
+        { id: 'disk', amount: 1 }
       ],
       payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken }
     }
