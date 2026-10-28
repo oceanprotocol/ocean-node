@@ -34,7 +34,9 @@ describe('**********         Docker Image Cleanup Integration Tests', () => {
           {
             socketPath: '/var/run/docker.sock',
             imageRetentionDays: 7,
-            imageCleanupInterval: 60, // 1 minute for testing
+            // Schema minimum (1h); the tests trigger cleanupOldImages() manually and only
+            // assert the timer exists/clears, so the interval value itself is never awaited.
+            imageCleanupInterval: 3600,
             environments: [
               {
                 storageExpiry: 604800,

@@ -7,6 +7,7 @@ import {
   DEFAULT_SERVICE_MIN_DURATION_SECONDS
 } from '../../@types/C2D/ServiceOnDemand.js'
 import { CONFIG_LOGGER } from '../logging/common.js'
+import { parseMemoryTotalToBytes } from '../../components/c2d/gpu/types.js'
 import { parsePassContainerEnvs } from '../../components/c2d/containerEnvs.js'
 import { booleanFromString, jsonFromString } from './transforms.js'
 import {
@@ -336,6 +337,27 @@ export const ComputeResourceSchema = z
     constraints: z.array(ResourceConstraintSchema).optional()
   })
   .superRefine((res, ctx) => {
+    // GPU resources must declare their VRAM (`memoryTotal`): consumers rely on it to size
+    // workloads, and it is exposed verbatim in getComputeEnvironments. It is only informational
+    // for other resource kinds, so the requirement is gated on `type: "gpu"`.
+    if (String(res.type ?? '').toLowerCase() === 'gpu') {
+      if (res.memoryTotal === undefined || String(res.memoryTotal).trim() === '') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `GPU resource "${res.id}": "memoryTotal" (VRAM, e.g. "16 GiB" or "40960 MiB") is required`,
+          path: ['memoryTotal']
+        })
+      } else {
+        const bytes = parseMemoryTotalToBytes(res.memoryTotal)
+        if (bytes === undefined || bytes <= 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `GPU resource "${res.id}": "memoryTotal" ("${res.memoryTotal}") is not a valid VRAM amount — use a number with an optional unit, e.g. "16 GiB", "40960 MiB" or "8GB"`,
+            path: ['memoryTotal']
+          })
+        }
+      }
+    }
     if (res.cpuList === undefined) return
     if (res.id !== 'cpu') {
       ctx.addIssue({
@@ -1036,7 +1058,34 @@ const addressArrayFromString = jsonFromString(z.array(z.string())).transform(
 
 export const OceanNodeConfigSchema = z
   .object({
+    // `jsonFromString` JSON-parses the env-var string but does NOT re-validate the parsed
+    // value against the inner schema (its union matches `z.string()`, then the transform
+    // returns the parsed object as-is). A config.json array is validated by the union's first
+    // member, but a `DOCKER_COMPUTE_ENVIRONMENTS` env-var string skips validation entirely, so
+    // a GPU missing `memoryTotal` — or any other C2DDockerConfigSchema violation — slipped
+    // through. We re-validate here with `safeParse` and surface the issues, but deliberately
+    // keep the ORIGINAL parsed value (we do not swap in `safeParse`'s output): piping through
+    // the schema would also inject its operational defaults (e.g. `paymentClaimInterval: 3600`)
+    // onto env-var configs that previously carried none, which changes runtime behaviour — the
+    // engine-creation guard in compute_engines.ts treats an unset paymentClaimInterval as "no
+    // limit", so defaulting it there wrongly blocks engine creation. Validation only, no defaults.
     dockerComputeEnvironments: jsonFromString(C2DDockerConfigSchema)
+      .superRefine((val, ctx) => {
+        // config.json (array) input was already validated by the union above; only the
+        // env-var (JSON-parsed) path needs re-checking. undefined is handled by the
+        // optional/default wrappers below.
+        if (val === undefined) return
+        const result = C2DDockerConfigSchema.safeParse(val)
+        if (!result.success) {
+          for (const issue of result.error.issues) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: issue.message,
+              path: issue.path as (string | number)[]
+            })
+          }
+        }
+      })
       .optional()
       .default([]),
 
