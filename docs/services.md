@@ -297,6 +297,54 @@ and services draw from and are counted against the same shared resource pool. Fo
 declare resources, configure GPUs, set per-environment constraints, and price them, see the
 [Compute Configuration guide](compute.md).
 
+### Template resource recommendations
+
+A template may declare `recommendedResources` — its **only** resource declaration. It is
+advisory: the node does **not** check it at `SERVICE_START`. Choosing an environment and the
+exact resources to request is the client's job; what the node enforces is the environment's
+own `min`/`max`, granularity, availability and [constraints](compute.md#resource-constraints).
+Templates have no `min`, and the retired `requiredResources` key (or any `min` inside an
+entry) makes the loader skip the template with a warning.
+
+At most one entry per resource, each strict:
+
+```json
+"recommendedResources": [
+  { "id": "cpu", "recommended": 8, "unit": "cores" },
+  { "id": "ram", "recommended": 64, "unit": "GB" },
+  { "id": "disk", "recommended": 200, "unit": "GB" },
+  {
+    "kind": "discrete",
+    "type": "gpu",
+    "recommended": 564,
+    "unit": "GB",
+    "gpuCountEnv": "QWEN_TP_SIZE",
+    "layouts": [
+      { "gpuCount": 2, "vramPerGpu": 282 },
+      { "gpuCount": 4, "vramPerGpu": 141 },
+      { "gpuCount": 8, "vramPerGpu": 141 }
+    ]
+  }
+]
+```
+
+- `cpu` is in cores; `ram`, `disk` and the GPU `recommended` are decimal GB (1 GB = 10⁹ bytes).
+- The GPU `recommended` is the **total** VRAM the workload needs — the headline figure clients
+  search and display, normally the smallest layout's total.
+- `layouts` (mandatory, 1–8 entries, strictly ascending by `gpuCount`) lists every allowed way
+  to place it on identical GPUs of **one** type on **one** host. `gpuCount` (1–64) is exactly
+  the number of GPUs booked and used — the tensor-parallel width, or one model per card.
+  A one-card layout is `{ "gpuCount": 1 }` and omits `vramPerGpu`: that single card must hold
+  `recommended` (cards are never pooled to reach it). A multi-card layout must state
+  `vramPerGpu`, the VRAM each card needs including headroom, and `gpuCount × vramPerGpu` must
+  be ≥ `recommended`. Clients compare these figures to each GPU's
+  [`memoryTotal`](compute.md#node-wide-connection-level-resources).
+- `gpuCountEnv` (optional) names the `userConfigurableEnvVars` key that forces the GPU width at
+  runtime, so a client can keep the booked count and the runtime width equal. The key must be
+  declared in `userConfigurableEnvVars`, every layout's `gpuCount` must pass its `validation`
+  regex, and it must not also be an operator `envVars` key (clients never see those values).
+- No GPU entry means the template declares no GPU demand.
+
 ## Hugging Face mirror (DingoSpeed)
 
 Model servers (vLLM, TGI, ComfyUI nodes, notebooks) usually download their weights from

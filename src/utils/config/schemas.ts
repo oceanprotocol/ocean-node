@@ -398,25 +398,111 @@ const ComputeEnvFeaturesSchema = z
 
 // ── Template resource requirements ────────────────────────────────────
 
-const TemplateResourceRequirementSchema = z
+// Advisory recommendations only: the node never gates SERVICE_START on them (choosing an
+// environment is the client's job). There is no `min` — environment minima, granularity and
+// constraints are what the node enforces. A template still using the retired
+// `requiredResources` / `min` shape fails here and the loader skips it with a warning.
+
+const NonNegativeNumber = z.number().finite().min(0)
+const PositiveNumber = z.number().finite().positive()
+
+// One allowed way to spread the recommended VRAM over identical GPUs of one type on one host.
+const GpuLayoutSchema = z
   .object({
-    id: z.string().optional(),
-    kind: z.enum(['discrete', 'fungible']).optional(),
-    type: z.string().optional(),
-    min: z.number().min(0),
-    recommended: z.number().min(0).optional(),
-    unit: z.string().optional(),
+    gpuCount: z.number().int().min(1).max(64),
+    vramPerGpu: PositiveNumber.optional()
+  })
+  .strict()
+  .superRefine((l, ctx) => {
+    if (l.gpuCount === 1 && l.vramPerGpu !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'a one-GPU layout uses "recommended" as its VRAM; omit vramPerGpu',
+        path: ['vramPerGpu']
+      })
+    }
+    if (l.gpuCount > 1 && l.vramPerGpu === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'a multi-GPU layout must state vramPerGpu (GB per GPU)',
+        path: ['vramPerGpu']
+      })
+    }
+  })
+
+const CpuRequirementSchema = z
+  .object({
+    id: z.literal('cpu'),
+    recommended: NonNegativeNumber,
+    unit: z.literal('cores'),
     description: z.string().optional()
   })
   .strict()
-  .refine((r) => r.id !== undefined || r.kind !== undefined, {
-    message: 'Each resource requirement must specify either "id" or "kind"'
+
+const MemoryRequirementSchema = z
+  .object({
+    id: z.enum(['ram', 'disk']),
+    recommended: NonNegativeNumber, // decimal GB
+    unit: z.literal('GB'),
+    description: z.string().optional()
   })
-  .refine((r) => !(r.id !== undefined && r.kind !== undefined), {
-    message: '"id" and "kind" are mutually exclusive in a resource requirement'
+  .strict()
+
+const GpuRequirementSchema = z
+  .object({
+    kind: z.literal('discrete'),
+    type: z.literal('gpu'),
+    recommended: PositiveNumber, // TOTAL VRAM, decimal GB
+    unit: z.literal('GB'),
+    layouts: z.array(GpuLayoutSchema).nonempty().max(8),
+    gpuCountEnv: z
+      .string()
+      .regex(/^[A-Za-z_][A-Za-z0-9_]*$/)
+      .optional(),
+    description: z.string().optional()
   })
-  .refine((r) => r.recommended === undefined || r.recommended >= r.min, {
-    message: '"recommended" must be >= "min"'
+  .strict()
+  .superRefine((r, ctx) => {
+    r.layouts.forEach((l, i) => {
+      if (i > 0 && l.gpuCount <= r.layouts[i - 1].gpuCount) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'layouts must be strictly ascending by gpuCount',
+          path: ['layouts', i]
+        })
+      }
+      const total = l.gpuCount * (l.vramPerGpu ?? r.recommended)
+      if (total < r.recommended) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'gpuCount x vramPerGpu is below the recommended total VRAM',
+          path: ['layouts', i]
+        })
+      }
+    })
+  })
+
+export const TemplateResourceRequirementSchema = z.union([
+  CpuRequirementSchema,
+  MemoryRequirementSchema,
+  GpuRequirementSchema
+])
+
+export const RecommendedResourcesSchema = z
+  .array(TemplateResourceRequirementSchema)
+  .superRefine((list, ctx) => {
+    const seen = new Set<string>()
+    list.forEach((r, i) => {
+      const key = 'id' in r ? r.id : 'gpu'
+      if (seen.has(key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `duplicate "${key}" requirement`,
+          path: [i]
+        })
+      }
+      seen.add(key)
+    })
   })
 
 // ── Template ──────────────────────────────────────────────────────────
@@ -506,8 +592,7 @@ export const ServiceTemplateSchema = z
     command: z.array(z.string()).optional(),
     commandFile: z.string().min(1).optional(),
     entrypoint: z.array(z.string()).optional(),
-    requiredResources: z.array(TemplateResourceRequirementSchema).optional(),
-    recommendedResources: z.array(TemplateResourceRequirementSchema).optional(),
+    recommendedResources: RecommendedResourcesSchema.optional(),
     workflows: z.array(ServiceTemplateWorkflowSchema).optional()
   })
   .strict()
@@ -527,6 +612,52 @@ export const ServiceTemplateSchema = z
         }
       }
     })
+
+    // A GPU recommendation's `gpuCountEnv` names the user-set env var that forces the exact
+    // GPU width at runtime, so clients can only offer layouts that var accepts.
+    const gpu = (tmpl.recommendedResources ?? []).find(
+      (r): r is Extract<typeof r, { type: 'gpu' }> => 'type' in r && r.type === 'gpu'
+    )
+    if (gpu?.gpuCountEnv) {
+      const key = gpu.gpuCountEnv
+      const env = (tmpl.userConfigurableEnvVars ?? []).find((v) => v.key === key)
+      if (!env) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'gpuCountEnv must reference a declared userConfigurableEnvVars key',
+          path: ['recommendedResources']
+        })
+      } else if (env.validation) {
+        // an uncompilable regex is already reported by the loop above
+        let re: RegExp | undefined
+        try {
+          // eslint-disable-next-line security/detect-non-literal-regexp
+          re = new RegExp(env.validation)
+        } catch {
+          re = undefined
+        }
+        gpu.layouts.forEach((l, i) => {
+          if (re && !re.test(String(l.gpuCount))) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `layouts[${i}].gpuCount ${l.gpuCount} is not accepted by ${key}'s validation`,
+              path: ['recommendedResources']
+            })
+          }
+        })
+      }
+      // envVars values are stripped before templates reach clients (compute_engines.ts), so
+      // an operator-fixed forced width would be invisible to every planner.
+      if (tmpl.envVars && Object.hasOwn(tmpl.envVars, key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'gpuCountEnv must not be an operator-fixed envVars key: clients cannot see its value',
+          path: ['recommendedResources']
+        })
+      }
+    }
+
     // Warn on shell-injection-prone command patterns (security plan #3)
     ;(tmpl.command ?? []).forEach((arg, i) => {
       if (/sh\s+-c|`/.test(arg)) {
