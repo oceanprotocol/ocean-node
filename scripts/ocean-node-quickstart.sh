@@ -653,7 +653,7 @@ if command -v jq &> /dev/null; then
   # a missing/empty/junk memoryTotal AND non-positive values such as "0 MiB" (e.g. the Intel PCI
   # fallback integer-dividing a sub-MiB BAR size down to zero), which the node would reject at
   # startup. GPUs with a real, positive VRAM are handled exactly as before.
-  POSITIVE_VRAM='((.memoryTotal // "") | tostring | gsub("[^0-9.].*$"; "") | (try tonumber catch 0)) > 0'
+  POSITIVE_VRAM='((.memoryTotal // "") | tostring | ascii_downcase | capture("^\\s*(?<n>[0-9]+(\\.[0-9]+)?)\\s*(?<u>[a-z]{1,3})?\\s*$") | select((.u // "") | IN("", "b", "kb", "mb", "gb", "tb", "kib", "mib", "gib", "tib")) | .n | tonumber) > 0'
   USABLE_GPUS=$(echo "$DETECTED_GPUS" | jq "[ .[] | select($POSITIVE_VRAM) ]")
   SKIPPED_GPUS=$(echo "$DETECTED_GPUS" | jq "[ .[] | select(($POSITIVE_VRAM) | not) ]")
   GPU_COUNT=$(echo "$USABLE_GPUS" | jq 'length')
