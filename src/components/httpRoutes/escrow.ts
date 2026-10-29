@@ -4,15 +4,24 @@ import { EscrowEventsHandler } from '../core/handler/escrowHandler.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { streamToString } from '../../utils/util.js'
 import { GetEscrowEventsCommand, RangeFilter } from '../../@types/commands.js'
+import { ALLOWED_RANGE_FIELDS } from '../database/escrowSearch.js'
 
 export const escrowRoutes = express.Router()
 
+// Only these field names may become range keys. Whitelisting here (rather than relying on the
+// handler to reject unknown fields *after* parsing) also closes a prototype-pollution vector:
+// without it, a key like `__proto__Min` would resolve `field` to `__proto__` and
+// `ranges[field][bound] = ...` would write onto Object.prototype.
+const ALLOWED_RANGE_FIELD_SET = new Set(ALLOWED_RANGE_FIELDS)
+
 // Fold `<field>Min` / `<field>Max` query params into a ranges map, e.g.
 // ?blockMin=100&blockMax=200&subsidyAmountMin=1000 -> { block:{min,max}, subsidyAmount:{min} }.
-// Unknown/unsupported fields are rejected later by the handler's range validation.
+// Fields outside ALLOWED_RANGE_FIELDS are ignored here; the handler re-validates the rest.
 function parseRangeParams(query: Record<string, any>): Record<string, RangeFilter> {
-  const ranges: Record<string, RangeFilter> = {}
+  // null-prototype map: belt-and-suspenders so an attacker-named field can never reach a prototype.
+  const ranges: Record<string, RangeFilter> = Object.create(null)
   const assign = (field: string, bound: keyof RangeFilter, value: any) => {
+    if (!ALLOWED_RANGE_FIELD_SET.has(field)) return
     if (!ranges[field]) ranges[field] = {}
     ranges[field][bound] = String(value)
   }
