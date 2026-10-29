@@ -38,6 +38,9 @@ export const ENV_TO_CONFIG_MAPPING = {
   SUBSIDY_PROVIDER_FILTER: 'subsidyProviderFilter',
   DOCKER_COMPUTE_ENVIRONMENTS: 'dockerComputeEnvironments',
   SERVICE_TEMPLATES_PATH: 'serviceTemplatesPath',
+  SERVICE_HF_MIRROR_URL: 'serviceHfMirrorUrl',
+  SERVICE_HF_CLIENT_PATCH: 'serviceHfClientPatch',
+  PASS_CONTAINER_ENVS: 'passContainerEnvs',
   DOCKER_REGISTRY_AUTHS: 'dockerRegistrysAuth',
   P2P_BOOTSTRAP_NODES: 'p2pConfig.bootstrapNodes',
   P2P_BOOTSTRAP_TIMEOUT: 'p2pConfig.bootstrapTimeout',
@@ -117,7 +120,10 @@ export const ENV_TO_CONFIG_MAPPING = {
   HTTP_CERT_PATH: 'httpCertPath',
   HTTP_KEY_PATH: 'httpKeyPath',
   ENABLE_BENCHMARK: 'enableBenchmark',
-  PERSISTENT_STORAGE: 'persistentStorage'
+  PERSISTENT_STORAGE: 'persistentStorage',
+  // NOTE: deliberately flat (not under persistentStorage.*) — PERSISTENT_STORAGE is a JSON
+  // string until the schema parses it, so buildMergedConfig() applies this after parsing.
+  PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING: 'PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING'
 } as const
 
 // Configuration defaults

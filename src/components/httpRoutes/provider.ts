@@ -1,6 +1,6 @@
 import express from 'express'
 import { getNonce } from '../core/utils/nonceHandler.js'
-import { streamToObject, streamToString } from '../../utils/util.js'
+import { streamToObject, streamToString, sanitizeLogValue } from '../../utils/util.js'
 import { Readable } from 'stream'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { PROTOCOL_COMMANDS, SERVICES_API_BASE_PATH } from '../../utils/constants.js'
@@ -221,8 +221,13 @@ providerRoutes.get(
       res.sendStatus(400)
       return
     }
+    // do not log the raw query: it carries the consumer signature, nonce and userdata
     HTTP_LOGGER.logMessage(
-      `Download request received: ${JSON.stringify(req.query)}`,
+      `Download request received (did: ${sanitizeLogValue(
+        req.query?.documentId ?? 'n/a'
+      )}, serviceId: ${sanitizeLogValue(
+        req.query?.serviceId ?? 'n/a'
+      )}, consumer: ${sanitizeLogValue(req.query?.consumerAddress ?? 'n/a')})`,
       true
     )
     const authorization = req.headers?.authorization
@@ -243,7 +248,8 @@ providerRoutes.get(
         try {
           parsedUserData = JSON.parse(userdata as string)
         } catch (e) {
-          HTTP_LOGGER.logMessage(`Invalid userdata JSON: ${userdata}`, true)
+          // do not log the raw userdata value; it is caller-supplied and may carry secrets
+          HTTP_LOGGER.logMessage('Invalid userdata JSON in download request', true)
           parsedUserData = null
         }
       }

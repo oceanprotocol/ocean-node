@@ -41,6 +41,7 @@ and `signature` as query parameters (or an auth-token `Authorization` header).
 | `SERVICE_STOP` | `/api/services/serviceStop` | POST | Tear down the container; the paid resource reservation (cpu/ram/gpu + host ports) is kept until `expiresAt`, so the service can be restarted anytime on the same endpoints. `release: true` ends the paid window now and frees it instead (no refund, no restart) |
 | `SERVICE_GET_TEMPLATES` | `/api/services/serviceTemplates` | GET | List operator-published service templates |
 | `SERVICE_GET_STREAMABLE_LOGS` | `/api/services/serviceStreamableLogs` | GET | Stream the container's live stdout/stderr logs — authenticated, owner-scoped; available while `Running` or `Error`; optional `since` to skip history |
+| `SERVICE_GET_RESULT` | `/api/services/serviceResult` | GET | Download the service's `/data/outputs` as a zip — one of its archives (`index`, resumable with `offset`) or the running container's (`live=true`); authenticated, owner-scoped. See [Service outputs](#service-outputs) |
 
 **Start is asynchronous.** `serviceStart` does only the fast, synchronous validation and then
 returns the `serviceId` right away — it does **not** wait for escrow or the (potentially
@@ -76,7 +77,10 @@ and watch `Restarting` → `PullImage`/`BuildImage` → `Running` (or `Error` wi
 reason in `statusText`). A service whose start payment was **never claimed** — the escrow
 lock failed outright (e.g. insufficient funds) or was refunded before being claimed —
 cannot be restarted: it was never paid for, so restarting it would run the service for
-free. Start a new service instead.
+free. Start a new service instead. A service with an `outputBucketId` the owner can no
+longer use (the bucket was deleted, or it belongs to someone else and bucket sharing is
+disabled or the owner was removed from its access list) is refused with `403` before
+anything is torn down, so the running container is left as it was.
 
 **Restart can change the image — atomically.** A restart is either *all-old* or *all-new*;
 it never mixes new request params over the stored job:
@@ -153,6 +157,86 @@ redeploy) cannot run conflicting operations on the same service. Leases are hear
 every 30 s while the operation runs; a lease not refreshed for 2 minutes belongs to a
 crashed process and is stolen automatically, so no manual cleanup is ever needed.
 
+## Readiness and startup progress
+
+`Running` only means the container started. For workloads it recognizes, the node also reports
+whether the service can serve requests and how far its startup downloads have got, on the job
+returned by `SERVICE_GET_STATUS`:
+
+- `readiness` — `waiting`, `ready` or `failing`, from a request the node makes to the workload
+  itself: vLLM `GET /v1/models` on 8000, llama.cpp `GET /health` on 8080, ComfyUI
+  `GET /system_stats` on 8188. A profile applies only when the service publishes that port, so an
+  app that runs an engine behind its own port reports no readiness and `Running` stays the signal.
+  A service still `waiting` 15 minutes after its container started is logged once as a node warning
+  with the last probe error — usually a node that cannot reach its containers.
+- `imagePull` — byte progress of the image pull.
+- `modelDownload` — bytes downloaded against the total, and `filesComplete` / `filesTotal` when the
+  download is listed up front.
+
+`modelDownload` comes from the launch script's download manifest when it writes one: a
+tab-separated `/tmp/ocean/downloads.tsv` in the container, one `<kind> <bytes> <path> [<source>]`
+line per item, written before the first download. A `file` entry is complete once `<path>` exists
+and in flight while `<path>.part` does, or while a `.xet-<name>` folder beside it does (a Xet
+download staging there, measured with `du -sb`); a `dir` entry is a folder filled under names of its
+own (huggingface_hub's snapshot cache), measured with `du -sb`. A `bytes` of `0` means unknown. Lines may
+be appended while the script runs; at most 64 entries are read. Without a manifest, the node falls
+back to the engine's own Hugging Face cache (vLLM, llama.cpp).
+
+From the engine's cache, `downloadedBytes` is raised to the bytes the container has received over
+the network. Xet, huggingface_hub's default transfer backend, holds most of a file in memory and
+writes it near the end, so the cache alone can read near zero for most of a download. The bytes
+received also count anything else the container fetches, so with a known total they are held below
+it: only the files in the cache complete a download.
+
+A service with no engine profile (an app that runs its engine behind its own port) still reports
+`modelDownload` from its manifest, with no `readiness`. With nothing to say when such a service is
+ready, the node checks it only within 30 minutes of the container starting unless a manifest has
+appeared, and stops once everything listed is complete. All of it is best-effort and owner-only: a
+missing or wrong manifest only changes what that service's own progress report says.
+
+## Service outputs
+
+A service writes its results to `/data/outputs`. With an `outputBucketId` that folder is the
+bucket, bind-mounted into the container, and everything below does not apply — the results
+are in the bucket. Without a bucket, the node handles `/data/outputs` like it handles a
+compute job's outputs:
+
+- **The folder always exists.** Before starting a container the node creates
+  `/data/outputs` in it (mode `0777`, so a non-root service user can write), unless the image
+  already has one. An existing `/data` is left untouched.
+- **A restart keeps it.** `serviceRestart` replaces the container, so the node carries the
+  folder over: the old container is stopped (not removed), and once the new one is created
+  its `/data/outputs` is copied in, before the new container starts and the old one is
+  removed. The service comes back with the files it had, and a restart normally produces no
+  archive. If the old container can't be stopped, the copy fails, or the restart itself
+  fails, the folder is archived instead, so nothing is lost. A service with an output bucket needs none of
+  this: the bucket is mounted into the new container again.
+- **It is archived when the service's container goes away for good**: `serviceStop`, the
+  expiry sweep, and the crash recovery at node start. The folder lives in the container's
+  writable layer, so it is zipped right before the container is removed. Each such container
+  gives one archive, `outputs-<n>.zip` under `<c2d storage>/services/<serviceId>/`, listed on
+  `serviceStatus` as `outputArchives` (`index`, `filename`, `filesize`, `createdAt` and
+  `containerId`). Archiving is best-effort: if it fails, teardown continues and the error is
+  only logged by the node. A container without `/data/outputs`, or with an empty one, produces
+  no archive. A service that is stopped and later restarted starts with an empty folder;
+  what it had is in the stop archive.
+- **The zip holds the folder's regular files and folders**, uncompressed, with their mtimes
+  and permission bits. Symlinks, hardlinks, devices and entries with an absolute or `..`
+  path are left out, so an archive can't write outside the folder it is extracted into.
+- **Download it any time.** `serviceResult?serviceId&index=<n>` streams an archive, in any
+  status, including `Expired`; add `offset=<bytes>` to resume a broken download.
+  `serviceResult?serviceId&live=true` zips the running container's `/data/outputs` on the
+  fly (while `Running`, or `Error` before teardown) — a service can run for weeks, and its
+  owner shouldn't have to stop it to get results. A live download isn't written to the
+  node's disk and can't be resumed. Files the service is writing at that moment may come out
+  partial.
+- **Archives expire like job results.** They are deleted `storageExpiry` seconds (of the
+  service's environment, default 604800) after `expiresAt`, by the same cron that cleans
+  expired compute jobs (`CRON_CLEANUP_C2D_STORAGE`). An early `release` moves `expiresAt` to
+  the stop time, and `serviceExtend` moves it later. The service record is kept, with
+  `outputArchives: []`.
+- There is no size cap on archives beyond the node's free disk.
+
 ## Configuration
 
 Service-on-demand is configured per Docker connection under `serviceOnDemand`:
@@ -217,6 +301,186 @@ and services draw from and are counted against the same shared resource pool. Fo
 declare resources, configure GPUs, set per-environment constraints, and price them, see the
 [Compute Configuration guide](compute.md).
 
+## Hugging Face mirror (DingoSpeed)
+
+Model servers (vLLM, TGI, ComfyUI nodes, notebooks) usually download their weights from
+huggingface.co on every start, because a service container starts with an empty HF cache.
+A node can point every service at a local caching mirror instead, so the second and later
+starts of the same model are served from the host's disk. Off by default; two env vars:
+
+| Env var | Config field | Meaning |
+| --- | --- | --- |
+| `SERVICE_HF_MIRROR_URL` | `serviceHfMirrorUrl` | Mirror URL as **service containers** reach it, e.g. `http://172.17.0.1:8092`. When set, every service gets `HF_ENDPOINT=<url>` and `HF_HUB_DISABLE_XET=1`. Must be `http://` or `https://`; anything else is logged and the feature stays off (the node still starts). |
+| `SERVICE_HF_CLIENT_PATCH` | `serviceHfClientPatch` | Ship the node's download-client patch into services (see below). Defaults to `true` when a mirror is set, `false` otherwise; `false` turns it off, `true` without a mirror applies the patch alone. |
+
+Only **service** containers get any of this; compute jobs are unchanged.
+
+> For injecting arbitrary env vars (including `HF_ENDPOINT`) into **both** service **and** C2D
+> compute containers, see [`PASS_CONTAINER_ENVS`](env.md) — a general node-owner knob. Unlike the
+> HF mirror above, node-owner `PASS_CONTAINER_ENVS` values **override** the service's own env on a
+> key collision.
+
+**Precedence.** The service's own env (template `envVars` and the consumer's `userData`)
+wins, key by key: a service that sets `HF_ENDPOINT` itself keeps it, and then also keeps
+its own choice of `HF_HUB_DISABLE_XET` (the node does not add it — that endpoint is not the
+node's mirror). A service that sets only `HF_HUB_DISABLE_XET` (e.g. `0`) gets the mirror
+`HF_ENDPOINT` with its own Xet setting.
+
+**Why Xet is disabled.** With Xet on, `huggingface_hub` fetches a xet-read-token and pulls
+the file contents from huggingface.co's Xet storage directly, so the mirror would see only
+metadata requests. `HF_HUB_DISABLE_XET=1` makes hub use plain HTTP against `HF_ENDPOINT`.
+
+### The download-client patch
+
+Hub's stock plain-HTTP client is GIL-bound: a warm mirror hit tops out around 190-230 MB/s
+even on a 160-core host. The node ships `hfpatch/sitecustomize.py`, which swaps
+`huggingface_hub.file_download.http_get` for a `urllib` loop that reads into a reused 1 MiB
+buffer (the socket read runs without the GIL). Measured inside a vLLM v0.28 service on an
+H200, a warm load of the same model took 12.7 s (≈2.5 GB/s) against 157 s with the stock
+client and 44 s straight from huggingface.co over Xet. Hub keeps everything else (metadata,
+locks, `.incomplete` files, the size check); the swap only happens for hub 1.32-2.2, and any
+response it does not handle (an HTTP error, a compressed body, an unhonoured Range) goes to
+the stock client before a byte is written.
+
+How the node applies it to a service:
+
+- After creating the service container and before starting it, the node copies
+  `sitecustomize.py` into it at `/ocean/hfpatch/sitecustomize.py` through the Docker archive
+  API (the same call that creates `/data/outputs`). The bytes travel over the Docker API, so there
+  is no host folder, volume or extra setting to configure, and it works the same for a
+  containerized node, a node on the host and a remote Docker daemon.
+- `PYTHONPATH` is set to `/ocean/hfpatch` followed by what the container would have had
+  without the node: the service's own `PYTHONPATH` if its env sets one (as in plain Docker,
+  that replaces the image's), otherwise the image's `Config.Env` `PYTHONPATH`. That value is
+  kept verbatim, empty entries included (they mean "the working directory"); an unset or
+  empty value gives just `/ocean/hfpatch`.
+- The patch chains to an image's own `sitecustomize.py` that it shadows.
+- Kill switches, as service env vars: `OCEAN_HFPATCH=0` makes the node skip the copy and
+  the `PYTHONPATH` change entirely; `OCEAN_HFPATCH_URLLIB=0` keeps the file but leaves
+  `http_get` stock. `OCEAN_HFPATCH_DEBUG=1` prints one line per file to stderr.
+- It does not apply to `python -I`, `-E` or `-S`, or to a process that replaces `PYTHONPATH`.
+
+The patch never fails a start: if the shipped file cannot be read or the image's env cannot
+be read, the node logs a warning and starts the service with the mirror env only. If Docker
+refuses the copy — the container has a read-only rootfs, or the image has a regular file at
+`/ocean` or `/ocean/hfpatch` — the node removes that never-started container and creates it
+again without the patch, before anything else is copied in. Start errors are never retried
+for the patch.
+
+**Each container has its own copy.** It lives in the container's writable layer, so a
+stop/start of the same container keeps it, and every `serviceRestart` (which always creates
+a new container) gets a fresh copy of the node's current `hfpatch/sitecustomize.py` — a node
+upgrade reaches running services on their next restart. A non-root service cannot modify
+the file; a service running as root (the vLLM and ComfyUI images do) can change its own
+copy, which affects only that container, just as setting `OCEAN_HFPATCH=0` or its own
+`PYTHONPATH` would. If services are ever given a read-only rootfs, the copy fails on every
+start and the patch is silently skipped; delivering it would then need a read-only volume.
+
+### Deploying DingoSpeed
+
+[DingoSpeed](https://github.com/dingodb/dingospeed) is a Go Hugging Face mirror with no
+published image, so build it from source at a pinned commit. Each service runs on its own
+bridge network, where `host.docker.internal` does not resolve on Linux, but the docker0
+gateway (normally `172.17.0.1`) is reachable from every bridge. Publish the mirror on that
+address only — **never `0.0.0.0`**: Docker's published ports bypass ufw, so that would open
+an unauthenticated mirror (and the HF tokens services send it) to the internet.
+
+```yaml
+services:
+  dingospeed:
+    image: ocean-dingospeed:5671348
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM golang:1.23-bookworm AS build
+        ARG DINGOSPEED_COMMIT=567134812f76689d17069ead3d8ed527f5f8330f
+        ENV CGO_ENABLED=0 GOFLAGS=-mod=readonly
+        RUN git clone https://github.com/dingodb/dingospeed /src \
+         && cd /src && git -c advice.detachedHead=false checkout --detach "$$DINGOSPEED_COMMIT" \
+         && go build -trimpath -ldflags "-s -w" -o /out/dingospeed dingospeed/cmd
+        FROM debian:bookworm-slim
+        RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata \
+         && rm -rf /var/lib/apt/lists/*
+        COPY --from=build /out/dingospeed /usr/local/bin/dingospeed
+        WORKDIR /app
+        CMD ["/usr/local/bin/dingospeed"]
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    ports:
+      - '172.17.0.1:8092:8090' # docker0 gateway only, never 0.0.0.0
+    volumes:
+      - ./dingospeed/config.yaml:/app/config/config.yaml:ro
+      - /srv/dingospeed/repos:/app/repos # the cache; must be writable by the container
+      - /srv/dingospeed/log:/app/log
+```
+
+The container runs as root with every capability dropped, so root cannot write to a
+directory it does not own: create `/srv/dingospeed/repos` and `/srv/dingospeed/log` owned by
+uid 0 (or make them writable). `./dingospeed/config.yaml`:
+
+```yaml
+server:
+  mode: release
+  host: 0.0.0.0
+  port: 8090
+  pprof: false
+  metrics: true
+  online: true # check huggingface.co for every request (see caveats)
+  repos: ./repos
+  hfNetLoc: huggingface.co # the upstream sample points at hf-mirror.com, a third party: override it
+  bpHfNetLoc: huggingface.co
+  hfScheme: https
+scheduler:
+  mode: standalone
+  publicDomain: http://172.17.0.1:8092
+  linkDomain: http://172.17.0.1:8092
+download:
+  blockSize: 8388608
+  reqTimeout: 0
+  respChunkSize: 2048
+  respChanSize: 30
+  remoteFileBufferSize: 8388608
+  remoteFileRangeSize: 0 # one upstream request per file
+  remoteFileRangeWaitTime: 0
+  goroutineMaxNumPerFile: 8
+cache:
+  defaultExpiration: 30
+  cleanupInterval: 60
+  readBlock:
+    enabled: false
+retry:
+  delay: 1
+  attempts: 3
+diskClean:
+  enabled: false
+dynamicProxy:
+  enabled: false
+proxyPool:
+  enabled: false
+```
+
+Check it from a throwaway container on a fresh bridge, as a service would see it:
+`docker network create t && docker run --rm --network t curlimages/curl -sI http://172.17.0.1:8092/openai-community/gpt2/resolve/main/config.json`,
+then `docker network rm t`.
+
+### Caveats
+
+- **Cold fills are slow.** The first download of a file goes through the mirror at roughly
+  50-85 MB/s, against ~700 MB/s straight from huggingface.co over Xet. The mirror pays off
+  from the second start of the same revision; a node that rarely repeats a model gains little.
+- **HF rate limits in online mode.** `online: true` re-asks huggingface.co on every HEAD/GET,
+  so under anonymous HTTP 429s even cached files fail to serve. A service that passes its own
+  `HF_TOKEN` avoided that in testing; the token is forwarded to the mirror and on to HF.
+- **Gated repos are untested.** Whether a gated file cached with one consumer's token can be
+  read by another consumer without one has not been tested. Treat the mirror as able to leak
+  gated content between services until it is.
+- **Only `huggingface_hub` uses it.** Clients that do not read `HF_ENDPOINT` bypass the mirror
+  (curl/wget of absolute `huggingface.co` URLs, `git lfs`, ComfyUI nodes that download by
+  absolute URL). Non-hub clients that do honour it, such as `llama.cpp -hf`, get no speed-up
+  from the patch, which only replaces `huggingface_hub`'s own download function.
+- The mirror sees every service's model requests and any `HF_TOKEN` they send.
+
 ## Security model & important notices
 
 - **Container hardening.** Service containers are created with
@@ -238,7 +502,11 @@ declare resources, configure GPUs, set per-environment constraints, and price th
 - **Access lists apply to the whole lifecycle.** `start`, `extend`, and `restart` all
   re-check the environment's `access` allow-list (access lists are mutable, so a
   revoked consumer cannot keep a service alive). `stop` is owner-gated only, so a
-  revoked owner can still shut their own service down.
+  revoked owner can still shut their own service down. The same goes for the
+  `outputBucketId`: `start`, `extend` and `restart` all check that the owner may still use
+  the bucket, and refuse with `403` (before any payment or teardown) once they may not —
+  e.g. bucket sharing was turned off, the owner was removed from the bucket's access list,
+  or the bucket was deleted. A running service keeps its mount until `expiresAt`.
 
 - **No privileged/advanced Docker config, with three narrow exceptions.** The service path
   deliberately omits most of the advanced Docker config the compute path supports — host
@@ -279,6 +547,10 @@ declare resources, configure GPUs, set per-environment constraints, and price th
   the stream switches to following live output — for a service that has been running for
   days or weeks that can be a lot of data, so pass `since` (a Unix timestamp, or a relative
   duration like `1h`) to skip straight to recent output.
+
+- **`serviceResult` is authenticated and owner-scoped, like `serviceStreamableLogs`.** A
+  service's outputs are its owner's data; a non-owner gets the same `400` as an unknown
+  `serviceId`. The node-wide `serviceList` leaves out `outputArchives`.
 
 - **`allowImageBuild` runs arbitrary build instructions.** When enabled, a consumer's
   inline `dockerfile` is built by the Docker daemon, so its `RUN` steps execute arbitrary

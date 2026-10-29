@@ -645,17 +645,34 @@ get_all_gpus_json() {
 if command -v jq &> /dev/null; then
   echo "Checking for GPUs..."
   DETECTED_GPUS=$(get_all_gpus_json)
-  GPU_COUNT=$(echo "$DETECTED_GPUS" | jq 'length')
+
+  # Every type:"gpu" resource must declare its VRAM (memoryTotal), and the node accepts it only
+  # when it parses to a POSITIVE amount — the same rule ComputeResourceSchema enforces
+  # (parseMemoryTotalToBytes must be > 0). Partition the detected GPUs on the leading numeric
+  # value of memoryTotal: keep only those whose VRAM is > 0, and set the rest aside. This drops
+  # a missing/empty/junk memoryTotal AND non-positive values such as "0 MiB" (e.g. the Intel PCI
+  # fallback integer-dividing a sub-MiB BAR size down to zero), which the node would reject at
+  # startup. GPUs with a real, positive VRAM are handled exactly as before.
+  POSITIVE_VRAM='((.memoryTotal // "") | tostring | ascii_downcase | capture("^\\s*(?<n>[0-9]+(\\.[0-9]+)?)\\s*(?<u>[a-z]{1,3})?\\s*$") | select((.u // "") | IN("", "b", "kb", "mb", "gb", "tb", "kib", "mib", "gib", "tib")) | .n | tonumber) > 0'
+  USABLE_GPUS=$(echo "$DETECTED_GPUS" | jq "[ .[] | select($POSITIVE_VRAM) ]")
+  SKIPPED_GPUS=$(echo "$DETECTED_GPUS" | jq "[ .[] | select(($POSITIVE_VRAM) | not) ]")
+  GPU_COUNT=$(echo "$USABLE_GPUS" | jq 'length')
+  SKIPPED_COUNT=$(echo "$SKIPPED_GPUS" | jq 'length')
+
+  if [ "$SKIPPED_COUNT" -gt 0 ]; then
+    echo "WARNING: $SKIPPED_COUNT GPU(s) were detected but their VRAM (memoryTotal) was missing or not a positive amount, so they were left out of the configuration — the node would reject such a GPU and refuse to start. To use them, add each to DOCKER_COMPUTE_ENVIRONMENTS manually with an explicit, positive memoryTotal (e.g. \"16 GiB\"):"
+    echo "$SKIPPED_GPUS" | jq -r '.[] | "  - " + (.description // .id)'
+  fi
 
   if [ "$GPU_COUNT" -gt 0 ]; then
-    echo "Detected $GPU_COUNT GPU type(s). Updating configuration..."
-    DOCKER_COMPUTE_ENVIRONMENTS=$(echo "$DOCKER_COMPUTE_ENVIRONMENTS" | jq --argjson gpus "$DETECTED_GPUS" '
+    echo "Detected $GPU_COUNT usable GPU(s). Updating configuration..."
+    DOCKER_COMPUTE_ENVIRONMENTS=$(echo "$DOCKER_COMPUTE_ENVIRONMENTS" | jq --argjson gpus "$USABLE_GPUS" '
       .[0].resources += $gpus |
       .[0].environments[0].resources += ($gpus | map({ id: .id }))
     ')
     echo "GPUs added to connection-level resources; environment refs updated."
   else
-    echo "No GPUs detected."
+    echo "No usable GPUs detected."
   fi
 fi
 

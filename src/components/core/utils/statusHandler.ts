@@ -194,6 +194,8 @@ export async function status(
     nodeStatus.persistentStorage = {}
     if (config.persistentStorage.accessLists)
       nodeStatus.persistentStorage.accessLists = config.persistentStorage.accessLists
+    nodeStatus.persistentStorage.allowBucketSharing =
+      config.persistentStorage.allowBucketSharing === true
   }
   return nodeStatus
 }

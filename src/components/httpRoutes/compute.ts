@@ -29,7 +29,8 @@ import type {
   ServiceRestartCommand,
   ServiceGetStatusCommand,
   GetServicesCommand,
-  ServiceGetStreamableLogsCommand
+  ServiceGetStreamableLogsCommand,
+  ServiceGetResultCommand
 } from '../../@types/commands.js'
 import {
   ServiceGetTemplatesHandler,
@@ -39,12 +40,13 @@ import {
   ServiceRestartHandler,
   ServiceGetStatusHandler,
   GetServicesHandler,
-  ServiceGetStreamableLogsHandler
+  ServiceGetStreamableLogsHandler,
+  ServiceGetResultHandler
 } from '../core/service/index.js'
 
-import { streamToObject, streamToString } from '../../utils/util.js'
+import { streamToObject, streamToString, sanitizeLogValue } from '../../utils/util.js'
 import { PROTOCOL_COMMANDS, SERVICES_API_BASE_PATH } from '../../utils/constants.js'
-import { Readable } from 'stream'
+import { Readable, pipeline } from 'stream'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 
@@ -78,8 +80,11 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeEnvironments`, async (req, r
 // start compute
 computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
   try {
+    // do not log the raw body: datasets/algorithm file objects carry credentials
     HTTP_LOGGER.logMessage(
-      `ComputeStartCommand request received as body params: ${JSON.stringify(req.body)}`,
+      `ComputeStartCommand request received (consumer: ${sanitizeLogValue(
+        req.body?.consumerAddress ?? 'n/a'
+      )}, environment: ${sanitizeLogValue(req.body?.environment ?? 'n/a')})`,
       true
     )
 
@@ -133,10 +138,11 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
 // free compute
 computeRoutes.post(`${SERVICES_API_BASE_PATH}/freeCompute`, async (req, res) => {
   try {
+    // do not log the raw body: datasets/algorithm file objects carry credentials
     HTTP_LOGGER.logMessage(
-      `FreeComputeStartCommand request received as body params: ${JSON.stringify(
-        req.body
-      )}`,
+      `FreeComputeStartCommand request received (consumer: ${sanitizeLogValue(
+        req.body?.consumerAddress ?? 'n/a'
+      )}, environment: ${sanitizeLogValue(req.body?.environment ?? 'n/a')})`,
       true
     )
     const startComputeTask: FreeComputeStartCommand = {
@@ -215,8 +221,11 @@ computeRoutes.put(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
 // get status
 computeRoutes.get(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
   try {
+    // do not log the raw query: it carries the consumer signature and nonce
     HTTP_LOGGER.logMessage(
-      `ComputeGetStatusCommand request received with query: ${JSON.stringify(req.query)}`,
+      `ComputeGetStatusCommand request received (consumer: ${sanitizeLogValue(
+        req.query?.consumerAddress ?? 'n/a'
+      )}, jobId: ${sanitizeLogValue(req.query?.jobId ?? 'n/a')})`,
       true
     )
     const statusComputeTask: ComputeGetStatusCommand = {
@@ -250,8 +259,11 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
 // compute results
 computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeResult`, async (req, res) => {
   try {
+    // do not log the raw query: it carries the consumer signature and nonce
     HTTP_LOGGER.logMessage(
-      `ComputeGetResultCommand request received with query: ${JSON.stringify(req.query)}`,
+      `ComputeGetResultCommand request received (consumer: ${sanitizeLogValue(
+        req.query?.consumerAddress ?? 'n/a'
+      )}, jobId: ${sanitizeLogValue(req.query?.jobId ?? 'n/a')})`,
       true
     )
     const resultComputeTask: ComputeGetResultCommand = {
@@ -324,8 +336,11 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeStreamableLogs`, async (req,
 
 computeRoutes.post(`${SERVICES_API_BASE_PATH}/initializeCompute`, async (req, res) => {
   try {
+    // do not log the raw body: datasets/algorithm file objects carry credentials
     HTTP_LOGGER.logMessage(
-      `POST initializeCompute request received with query: ${JSON.stringify(req.body)}`,
+      `POST initializeCompute request received (consumer: ${sanitizeLogValue(
+        req.body?.consumerAddress ?? 'n/a'
+      )}, environment: ${sanitizeLogValue(req.body?.environment ?? 'n/a')})`,
       true
     )
     const { body } = req
@@ -566,6 +581,62 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/serviceStreamableLogs`, async (req,
           ? 'Service not found or not running'
           : 'Error')
       res.status(response.status.httpStatus).send(body)
+    }
+  } catch (error) {
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    res.status(500).send('Internal Server Error')
+  }
+})
+
+// A numeric query param, undefined when absent. An empty or non-numeric value becomes NaN so
+// the handler rejects it instead of reading it as 0 (Number('') === 0); parseInt() is not used
+// because it accepts trailing garbage ("1abc").
+function queryNumber(value: unknown): number | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'string' || value.trim() === '') return NaN
+  return Number(value)
+}
+
+// zip of a service's /data/outputs: an archived one (index[, offset]) or the live container's
+computeRoutes.get(`${SERVICES_API_BASE_PATH}/serviceResult`, async (req, res) => {
+  try {
+    // do not log the raw query: it carries the consumer signature and nonce
+    HTTP_LOGGER.logMessage(
+      `ServiceGetResultCommand request received (consumer: ${sanitizeLogValue(
+        req.query?.consumerAddress ?? 'n/a'
+      )}, jobId: ${sanitizeLogValue(req.query?.jobId ?? 'n/a')})`,
+      true
+    )
+    const task: ServiceGetResultCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_GET_RESULT,
+      node: (req.query.node as string) || null,
+      consumerAddress: (req.query.consumerAddress as string) || null,
+      serviceId: (req.query.serviceId as string) || null,
+      index: queryNumber(req.query.index),
+      offset: queryNumber(req.query.offset),
+      live: req.query.live === 'true',
+      signature: (req.query.signature as string) || null,
+      nonce: (req.query.nonce as string) || null,
+      authorization: req.headers?.authorization,
+      caller: req.caller
+    }
+
+    const response = await new ServiceGetResultHandler(req.oceanNode).handle(task)
+    if (response.stream) {
+      res.status(response.status.httpStatus)
+      res.set(response.status.headers)
+      // pipeline, not pipe: a live zip fails mid-stream when its container goes away, and an
+      // unhandled error on the source would take the node down; a client that disconnects
+      // must also release the container's archive stream instead of leaving it stalled.
+      pipeline(response.stream as Readable, res, (err) => {
+        if (err)
+          HTTP_LOGGER.log(
+            LOG_LEVELS_STR.LEVEL_ERROR,
+            `serviceResult ${task.serviceId}: download aborted: ${err.message}`
+          )
+      })
+    } else {
+      res.status(response.status.httpStatus).send(response.status.error)
     }
   } catch (error) {
     HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)

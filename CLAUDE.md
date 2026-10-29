@@ -12,16 +12,16 @@ of which dispatch to the same set of command handlers.
 
 ## 1. Environment & tooling prerequisites
 
-- **Node.js 24 is required** (`.nvmrc` pins `24.19.0` — the current Node 24 LTS "Krypton" —
-  matching the Dockerfile and CI; `package.json` `engines` requires `>=24`, so Node 22 is
-  no longer a supported runtime). The Dockerfile additionally pins each base
-  image by digest, so bumping the version means updating the `sha256:` alongside the tag —
-  resolve it with `docker buildx imagetools inspect node:<version>-trixie`, not from the tag
-  alone. Always run `nvm use` (or `source ~/.nvm/nvm.sh && nvm use`) before
-  any `npm`, build, or test command. The wrong Node version fails with errors like
-  `Unexpected token 'with'`, missing `GLIBC_2.38`, or — since the SQLite layer uses the
-  built-in `node:sqlite` module — `ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite` on Node < 22.13.
-  This is enforced by `.cursor/rules/tests-nvm.mdc` and the in-repo `CLAUDE.md`.
+- **Node.js 24 is required** (`.nvmrc` pins 24.22.1`— the current Node 24 LTS "Krypton" —
+matching the Dockerfile and CI;`package.json` `engines`requires`>=24`, so Node 22 is
+no longer a supported runtime). The Dockerfile additionally pins each base
+image by digest, so bumping the version means updating the `sha256:`alongside the tag —
+resolve it with`docker buildx imagetools inspect node:<version>-trixie`, not from the tag
+alone. Always run `nvm use`(or`source ~/.nvm/nvm.sh && nvm use`) before
+any `npm`, build, or test command. The wrong Node version fails with errors like
+`Unexpected token 'with'`, missing `GLIBC_2.38`, or — since the SQLite layer uses the
+built-in `node:sqlite`module —`ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite`on Node < 22.13.
+This is enforced by`.cursor/rules/tests-nvm.mdc`and the in-repo`CLAUDE.md`.
 - **There is no `postinstall` step.** `npm install` is plain. (Historically a `postinstall`
   ran `scripts/fix-libp2p-http-utils.js` to default a missing URL port to 443/80 in
   `@libp2p/http-utils`; upstream shipped that fix in `2.0.3`, so both the hook and the
@@ -89,7 +89,7 @@ eslint to flat config, so the preset is composed in-repo from `@eslint/js`,
 `eslint-plugin-prettier`. Only `**/*.ts` is linted; `.js` is ignored as build output.
 Notable rules: `require-await` is an **error**, `no-unused-vars` is an **error** (with
 `args: 'none'`, `caughtErrors: 'none'`), empty catch blocks are allowed. `@typescript-eslint`'s
-`recommended` set is deliberately *not* extended, and a few rules that eslint 9/10 and the
+`recommended` set is deliberately _not_ extended, and a few rules that eslint 9/10 and the
 newer plugins added are switched off — see the comments in `eslint.config.js`. Prettier:
 no semicolons, single quotes, `printWidth: 90`, no trailing commas, 2-space tabs.
 
@@ -326,7 +326,8 @@ Handler source is grouped under `src/components/core/`:
 ## 5. Docker & deployment
 
 Multi-stage `Dockerfile` (builder + slim runner) on `node:24`. The runner ships only
-`dist/`, `node_modules`, `schemas/`, and `config.json` (`.dockerignore` excludes all of
+`dist/`, `node_modules`, `schemas/`, `hfpatch/` (the `sitecustomize.py` the node copies
+into services — see `docs/services.md`) and `config.json` (`.dockerignore` excludes all of
 `docs/`) — no service templates. It exposes P2P ports `9000-9003,9005` and
 HTTP `8000`. `docker-entrypoint.sh` handles Docker socket group membership at runtime so C2D
 can talk to `/var/run/docker.sock`. Deployment options (Docker, local Docker build via

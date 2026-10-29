@@ -1529,6 +1529,7 @@ describe('Schema validation (C2DDockerConfigSchema)', () => {
             kind: 'discrete',
             type: 'gpu',
             total: 1,
+            memoryTotal: '16 GiB',
             init: {
               deviceRequests: {
                 Driver: 'nvidia',
@@ -1559,6 +1560,7 @@ describe('Schema validation (C2DDockerConfigSchema)', () => {
       kind: 'discrete',
       type: 'gpu',
       total: 1,
+      memoryTotal: '16 GiB',
       init: {
         deviceRequests: {
           Driver: 'nvidia',
@@ -1971,6 +1973,68 @@ describe('Schema validation (C2DDockerConfigSchema)', () => {
         expect(msgs).to.include(expectedFragment)
       })
     }
+  })
+
+  describe('GPU VRAM (memoryTotal) validation', function () {
+    const withResource = (resource: any) => [{ ...validBase, resources: [resource] }]
+
+    it('GPU resource with a valid memoryTotal parses successfully', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withResource({ id: 'gpu0', type: 'gpu', total: 1, memoryTotal: '40960 MiB' })
+      )
+      expect(result.success).to.equal(true)
+    })
+
+    it('GPU resource without memoryTotal is rejected', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withResource({ id: 'gpu0', type: 'gpu', total: 1 })
+      )
+      expect(result.success).to.equal(false)
+      const msgs = result.error?.issues.map((i) => i.message).join(' ')
+      expect(msgs).to.include('"memoryTotal" (VRAM')
+      expect(msgs).to.include('is required')
+    })
+
+    it('GPU resource with an empty memoryTotal is rejected', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withResource({ id: 'gpu0', type: 'gpu', total: 1, memoryTotal: '   ' })
+      )
+      expect(result.success).to.equal(false)
+      const msgs = result.error?.issues.map((i) => i.message).join(' ')
+      expect(msgs).to.include('is required')
+    })
+
+    it('GPU resource with an unparseable memoryTotal is rejected', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withResource({ id: 'gpu0', type: 'gpu', total: 1, memoryTotal: 'lots' })
+      )
+      expect(result.success).to.equal(false)
+      const msgs = result.error?.issues.map((i) => i.message).join(' ')
+      expect(msgs).to.include('not a valid VRAM amount')
+    })
+
+    it('GPU type match is case-insensitive', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withResource({ id: 'gpu0', type: 'GPU', total: 1 })
+      )
+      expect(result.success).to.equal(false)
+      const msgs = result.error?.issues.map((i) => i.message).join(' ')
+      expect(msgs).to.include('is required')
+    })
+
+    it('non-GPU resources do not require memoryTotal', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withResource({ id: 'nic0', type: 'nic', total: 1 })
+      )
+      expect(result.success).to.equal(true)
+    })
+
+    it('bare "GB" unit is accepted', function () {
+      const result = C2DDockerConfigSchema.safeParse(
+        withResource({ id: 'gpu0', type: 'gpu', total: 1, memoryTotal: '16GB' })
+      )
+      expect(result.success).to.equal(true)
+    })
   })
 })
 

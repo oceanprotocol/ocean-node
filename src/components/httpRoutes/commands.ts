@@ -5,6 +5,7 @@ import { HTTP_LOGGER } from '../../utils/logging/common.js'
 
 import { validateCommandParameters } from './validateCommands.js'
 import { Readable } from 'stream'
+import { sanitizeLogValue } from '../../utils/util.js'
 
 function mapChunkToBuffer(chunk: any): Buffer | Uint8Array {
   if (typeof chunk === 'string') {
@@ -72,7 +73,15 @@ directCommandRoute.post(
         closedResponse = true
       })
 
-      HTTP_LOGGER.logMessage('Sending command : ' + JSON.stringify(req.body), true)
+      // do not log the raw body: command payloads carry credentials (signatures, file
+      // object headers / s3 keys, encrypt plaintext). validateCommandParameters already
+      // logs a redacted copy of every command.
+      HTTP_LOGGER.logMessage(
+        `Sending command "${req.body?.command}"${
+          req.body?.node ? ` to node ${sanitizeLogValue(req.body.node)}` : ''
+        }`,
+        true
+      )
 
       const isLocalCommand =
         !req.oceanNode.hasP2PInterface() ||

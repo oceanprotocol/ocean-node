@@ -91,7 +91,22 @@ import {
   PersistentStorageUploadFileHandler
 } from '../../components/core/handler/persistentStorage.js'
 import { deployAndGetAccessListConfig } from '../utils/contracts.js'
-import * as tar from 'tar'
+import yauzl from 'yauzl'
+
+async function readOutputZip(file: string, filename: string): Promise<string> {
+  const zip = await yauzl.openPromise(file)
+  try {
+    for await (const entry of zip.eachEntry()) {
+      if (entry.fileName !== filename) continue
+      const chunks: Buffer[] = []
+      for await (const chunk of await zip.openReadStreamPromise(entry)) chunks.push(chunk)
+      return Buffer.concat(chunks).toString('utf8')
+    }
+    throw new Error(`Expected ${filename} inside ${file}`)
+  } finally {
+    zip.close()
+  }
+}
 
 /**
  * Polls getComputeEnvironments until every environment's resources (and free.resources)
@@ -511,7 +526,10 @@ describe('**********         Compute', () => {
         token: paymentToken
       },
       maxJobDuration: computeJobDuration,
-      consumerAddress: firstEnv.consumerAddress,
+      // consumer must be the order's payer (consumerAccount started the order), not the
+      // env address: the order check now binds payer === caller, so validOrder is only
+      // returned for the wallet that actually paid.
+      consumerAddress: await consumerAccount.getAddress(),
       command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
     }
     const resp = await new ComputeInitializeHandler(oceanNode).handle(
@@ -607,7 +625,10 @@ describe('**********         Compute', () => {
         token: paymentToken
       },
       maxJobDuration: computeJobDuration,
-      consumerAddress: firstEnv.consumerAddress,
+      // consumer must be the order's payer (consumerAccount started both orders), not the
+      // env address: the order check now binds payer === caller, so validOrder is only
+      // returned for the wallet that actually paid.
+      consumerAddress: await consumerAccount.getAddress(),
       command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
     }
     const resp = await new ComputeInitializeHandler(oceanNode).handle(
@@ -2435,7 +2456,7 @@ describe('**********         Compute', () => {
       status === C2DStatusNumber.JobFinished || status === C2DStatusNumber.JobSettle,
       `Job ${jobWithOutputURL} did not reach status 70 (JobFinished) in time (last status: ${status})`
     )
-    const outputUrl = `http://172.15.0.7:80/outputs-${jobWithOutputURL}.tar`
+    const outputUrl = `http://172.15.0.7:80/outputs-${jobWithOutputURL}.zip`
     const downloadResponse = await fetch(outputUrl)
     assert(
       downloadResponse.ok,
@@ -2606,23 +2627,10 @@ describe('**********         Compute', () => {
       await waitForComputeJobFinished(oceanNode, fullJobId, 180_000)
 
       const base = (psDockerEngine as any).getStoragePath() as string
-      const outputsTarPath = path.join(base, innerJobId, 'data/outputs/outputs.tar')
+      const outputsZipPath = path.join(base, innerJobId, 'data/outputs/outputs.zip')
       /* eslint-disable security/detect-non-literal-fs-filename -- job paths from C2D engine */
-      assert(existsSync(outputsTarPath), `expected outputs archive at ${outputsTarPath}`)
-      const extractDir = await fsp.mkdtemp(path.join(tmpdir(), 'ocean-ps-out-'))
-      try {
-        await tar.x({ file: outputsTarPath, cwd: extractDir }, [
-          `outputs/${outputFileName}`
-        ])
-        const extracted = path.join(extractDir, `outputs/${outputFileName}`)
-        assert(
-          existsSync(extracted),
-          `expected outputs/${outputFileName} inside outputs.tar`
-        )
-        return await fsp.readFile(extracted, 'utf8')
-      } finally {
-        await fsp.rm(extractDir, { recursive: true, force: true })
-      }
+      assert(existsSync(outputsZipPath), `expected outputs archive at ${outputsZipPath}`)
+      return readOutputZip(outputsZipPath, outputFileName)
       /* eslint-enable security/detect-non-literal-fs-filename */
     }
 
@@ -2817,31 +2825,11 @@ describe('**********         Compute', () => {
       await waitForComputeJobFinished(oceanNode, fullJobId, 180_000)
 
       const base = (psDockerEngine as any).getStoragePath() as string
-      const outputsTarPath = path.join(base, innerJobId, 'data/outputs/outputs.tar')
+      const outputsZipPath = path.join(base, innerJobId, 'data/outputs/outputs.zip')
       /* eslint-disable security/detect-non-literal-fs-filename -- job paths from C2D engine */
-      assert(
-        existsSync(outputsTarPath),
-        `expected outputs archive at ${outputsTarPath} (algorithm should write into /data/outputs before tar)`
-      )
-      const extractDir = await fsp.mkdtemp(path.join(tmpdir(), 'ocean-ps-tar-'))
-      try {
-        await tar.x(
-          {
-            file: outputsTarPath,
-            cwd: extractDir
-          },
-          ['outputs/ps-result.txt']
-        )
-        const extractedFile = path.join(extractDir, 'outputs/ps-result.txt')
-        assert(
-          existsSync(extractedFile),
-          'expected outputs/ps-result.txt inside outputs.tar'
-        )
-        const written = await fsp.readFile(extractedFile, 'utf8')
-        assert.equal(written, secret)
-      } finally {
-        await fsp.rm(extractDir, { recursive: true, force: true })
-      }
+      assert(existsSync(outputsZipPath), `expected outputs archive at ${outputsZipPath}`)
+      const written = await readOutputZip(outputsZipPath, 'ps-result.txt')
+      assert.equal(written, secret)
       /* eslint-enable security/detect-non-literal-fs-filename */
     })
 
@@ -3073,10 +3061,103 @@ describe('**********         Compute', () => {
         'mixed-result.txt'
       )
       // the persistent-storage dataset is bind-mounted, the URL dataset is downloaded
-      // into /data/inputs alongside algoCustomData.json
+      // into its own /data/inputs/<index> folder (counted here as a directory entry)
       assert(written.startsWith(secret + '|inputs='), `unexpected output: ${written}`)
       const count = parseInt(written.split('|inputs=')[1], 10)
       assert(count >= 1, `expected at least one downloaded non-PS input, got ${count}`)
+    })
+
+    it('writes same-named inputs to separate per-index folders (no collision)', async function () {
+      // two datasets whose URLs end in the same file name (README.md). Before the
+      // per-index layout the second silently overwrote the first in /data/inputs/README.md.
+      const rawcode = [
+        "const fs = require('fs');",
+        "const root = '/data/inputs';",
+        'const dirs = fs',
+        '  .readdirSync(root)',
+        "  .filter((f) => fs.statSync(root + '/' + f).isDirectory());",
+        'const found = dirs',
+        '  .map((d) => {',
+        "    const name = fs.readdirSync(root + '/' + d)[0];",
+        "    return { dir: d, name, size: fs.statSync(root + '/' + d + '/' + name).size };",
+        '  })',
+        '  .sort((a, b) => a.dir.localeCompare(b.dir));',
+        "fs.mkdirSync('/data/outputs', { recursive: true });",
+        "fs.writeFileSync('/data/outputs/collision.json', JSON.stringify(found), 'utf8');"
+      ].join('\n')
+      const algoMeta = publishedAlgoDataset.ddo.metadata.algorithm
+
+      const written = await runFreeJobAndReadOutput(
+        consumerAccount,
+        [
+          {
+            fileObject: {
+              type: 'url',
+              method: 'GET',
+              url: 'https://raw.githubusercontent.com/oceanprotocol/ocean-node/main/README.md'
+            } as any
+          },
+          {
+            fileObject: {
+              type: 'url',
+              method: 'GET',
+              url: 'https://raw.githubusercontent.com/oceanprotocol/contracts/main/README.md'
+            } as any
+          }
+        ],
+        { meta: { ...algoMeta, rawcode } },
+        'collision.json'
+      )
+      const found = JSON.parse(written)
+      // both inputs survived, each in its own index folder, both keep their real name
+      assert.equal(found.length, 2, `expected 2 inputs, got ${written}`)
+      assert.deepEqual(
+        found.map((f: any) => f.dir),
+        ['0', '1']
+      )
+      assert(
+        found.every((f: any) => f.name === 'README.md'),
+        `expected both named README.md, got ${written}`
+      )
+      // different sizes => distinct files, i.e. neither overwrote the other
+      assert.notEqual(found[0].size, found[1].size, 'inputs should be distinct files')
+    })
+
+    it('a dataset named algoCustomData.json cannot overwrite the consumer parameters', async function () {
+      // the dataset URL ends in algoCustomData.json; the consumer parameters live at
+      // /data/inputs/algoCustomData.json while the dataset lands in /data/inputs/0/.
+      const rawcode = [
+        "const fs = require('fs');",
+        "const params = fs.readFileSync('/data/inputs/algoCustomData.json', 'utf8');",
+        "fs.mkdirSync('/data/outputs', { recursive: true });",
+        "fs.writeFileSync('/data/outputs/params.json', params, 'utf8');"
+      ].join('\n')
+      const algoMeta = publishedAlgoDataset.ddo.metadata.algorithm
+
+      const written = await runFreeJobAndReadOutput(
+        consumerAccount,
+        [
+          {
+            fileObject: {
+              type: 'url',
+              method: 'GET',
+              // any URL whose path ends in algoCustomData.json reproduces the old clash
+              url: 'https://httpbin.org/anything/algoCustomData.json'
+            } as any
+          }
+        ],
+        {
+          meta: { ...algoMeta, rawcode },
+          algocustomdata: { threshold: 'set-by-consumer' }
+        },
+        'params.json'
+      )
+      const params = JSON.parse(written)
+      assert.equal(
+        params.threshold,
+        'set-by-consumer',
+        `consumer parameters were overwritten by the dataset: ${written}`
+      )
     })
 
     it('denies a persistent-storage ALGORITHM when the consumer is not on the bucket ACL', async function () {
@@ -3270,7 +3351,7 @@ describe('**********         Compute', () => {
       })
 
       /* eslint-disable security/detect-non-literal-fs-filename -- test paths */
-      it('stores job results directly in the bucket as individual files (no outputs.tar)', async function () {
+      it('stores job results directly in the bucket as individual files (no output archive)', async function () {
         this.timeout(300_000)
         const { job, innerJobId } = await startFreeJobAndWait(
           seedFileName,
@@ -3287,8 +3368,12 @@ describe('**********         Compute', () => {
         )
 
         const base = (psDockerEngine as any).getStoragePath() as string
-        const outputsTarPath = path.join(base, innerJobId, 'data/outputs/outputs.tar')
-        assert(!existsSync(outputsTarPath), 'outputs.tar should not exist')
+        for (const filename of ['outputs.zip', 'outputs.tar']) {
+          assert(
+            !existsSync(path.join(base, innerJobId, 'data/outputs', filename)),
+            `${filename} should not exist`
+          )
+        }
         assert(
           !(job.results || []).some((r: any) => r.type === 'output'),
           'no output entry expected in results'

@@ -24,6 +24,9 @@ export class FetchConfigHandler extends AdminCommandHandler {
     try {
       const config = loadConfigFromFile()
       config.keys.privateKey = '[*** HIDDEN CONTENT ***]'
+      // the file can still hold an `over` copy of the raw private key, saved by a client
+      // that echoed an older pushConfig response back
+      delete (config as Record<string, any>).over
 
       return new Promise<P2PCommandResponse>((resolve) => {
         resolve({

@@ -148,6 +148,13 @@ export interface dockerRegistrysAuth {
 export interface OceanNodeConfig {
   dockerComputeEnvironments: C2DDockerConfig[]
   serviceTemplatesPath?: string // folder of *.json service templates; defaults to 'databases/serviceTemplates/'
+  // Service-on-Demand Hugging Face mirror (docs/services.md). serviceHfMirrorUrl is undefined
+  // when unset or invalid; serviceHfClientPatch undefined means "on when a mirror is set".
+  serviceHfMirrorUrl?: string
+  serviceHfClientPatch?: boolean
+  // Node-owner env vars injected into every spawned container (C2D + services). Parsed from
+  // PASS_CONTAINER_ENVS; always a (possibly empty) map after config load. See containerEnvs.ts.
+  passContainerEnvs: Record<string, string>
   dockerRegistrysAuth: dockerRegistrysAuth
   authorizedDecrypters: string[]
   authorizedDecryptersList: AccessListContract | null
@@ -278,6 +285,7 @@ export interface OceanNodeStatus {
   supportedSchemas?: Schema[]
   persistentStorage?: {
     accessLists?: AccessList[]
+    allowBucketSharing?: boolean
   }
 }
 

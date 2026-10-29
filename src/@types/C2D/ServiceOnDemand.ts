@@ -4,9 +4,6 @@ import type {
   ComputeResourceRequestWithPrice,
   ContainerMetricsSnapshot
 } from './C2D.js'
-
-// ── Resource requirements ─────────────────────────────────────────────
-
 export interface TemplateResourceRequirement {
   // Exactly one of `id` or `kind` must be set.
   id?: string // exact resource id: 'cpu' | 'ram' | 'disk' | named GPU ('gpu-0')
@@ -18,17 +15,12 @@ export interface TemplateResourceRequirement {
   unit?: string // display hint: 'cores' | 'GB' | 'count'
   description?: string // shown in UI: "CUDA GPU — 2 recommended for large models"
 }
-
-// ── Template definition ───────────────────────────────────────────────
-
 export interface UserConfigurableEnvVar {
   key: string // env var name, passed in userData
   validation?: string // optional regex; validated at SERVICE_START time
   sensitive?: boolean // advisory hint for clients/UI (e.g. mask on input). The node receives ALL userData ECIES-encrypted, so this does not change node-side storage.
   required?: boolean // advisory hint: the app cannot do its job without it (e.g. HF_TOKEN for a gated model). Not enforced node-side.
 }
-
-// ── Catalogue classification (advisory; consumed by UIs) ───────────────
 
 // How an entry presents itself. Absent means 'service' — every template published before this field.
 export type ServiceTemplateKind = 'service' | 'bundle'
@@ -126,7 +118,63 @@ export interface ServiceOnDemandConfig {
   allowImageBuild?: boolean // default: false — gates Dockerfile-based services per daemon
 }
 
-// ── Runtime service job ───────────────────────────────────────────────
+/**
+ * Whether a service can actually serve requests, as opposed to merely having a running container.
+ */
+export type ServiceReadinessState =
+  | 'waiting' // not answering as expected yet — the normal warm-up window
+  | 'ready' // answered the engine's readiness request
+  | 'failing' // it WAS ready and stopped answering
+
+export interface ServiceReadiness {
+  state: ServiceReadinessState
+  engine: string // which profile decided this ('vllm'), so a client can say what was checked
+  readySince?: number // Unix ms of the first successful check of THIS container
+  lastCheckedAt?: number // Unix ms
+  consecutiveFailures?: number
+  httpStatus?: number // last response status (absent when the connection itself failed)
+  lastError?: string // owner-only: stripped from SERVICE_LIST
+  probedUrl?: string // owner-only: which candidate address answered (diagnostics)
+}
+
+/**
+ * Live progress of the image pull, aggregated from the Docker daemon's own per-layer byte
+ * counts.
+ */
+export interface ServiceImagePullProgress {
+  phase: 'downloading' | 'extracting' | 'complete'
+  downloadedBytes: number
+  totalBytes: number
+  percent: number
+  layersTotal: number
+  layersDone: number
+  updatedAt: number // Unix ms
+}
+
+/**
+ * How much of its model a recognized engine has downloaded, read from the container's own cache.
+ */
+export interface ServiceModelDownload {
+  modelId?: string // the repo being fetched, when it is a Hub id
+  downloadedBytes: number
+  totalBytes?: number
+  percent?: number
+  filesComplete: number
+  filesInFlight: number // the hub fetches files in parallel, so only the aggregate is meaningful
+  filesTotal?: number // from the download manifest
+  updatedAt: number // Unix ms
+}
+
+// One zip of /data/outputs, taken right before a container of the service was removed. A
+// service without an output bucket gets one per container it ran, downloadable through
+// SERVICE_GET_RESULT until expiresAt + the environment's storageExpiry.
+export interface ServiceOutputArchive {
+  index: number
+  filename: string // e.g. outputs-0.zip, under <storage>/services/<serviceId>/
+  filesize: number // bytes
+  createdAt: number // Unix ms timestamp
+  containerId: string // container it was taken from — a retried teardown must not archive it twice
+}
 
 export interface ServiceEndpoint {
   containerPort: number
@@ -215,10 +263,23 @@ export interface ServiceJob {
   // compute equivalent is readable by anyone holding the jobId, whereas this is owner-only.
   metadata?: DBComputeJobMetadata
   outputBucketId?: string // persistent-storage bucket bind-mounted at /data/outputs
+  // Archives of /data/outputs, only for services without an outputBucketId.
+  outputArchives?: ServiceOutputArchive[]
+  // Internal, only while a restart is in flight: the stopped old container, kept until its
+  // /data/outputs has been carried over into the new one (orphan recovery archives and
+  // removes it if the node dies before that). Never returned to clients.
+  previousContainerId?: string
   resources: ComputeResourceRequestWithPrice[]
   payment: DBComputeJobPayment // initial start payment
   extendPayments?: DBComputeJobPayment[] // one entry per successful SERVICE_EXTEND
   // Best-effort Docker/NVML runtime metrics sampled while the service container runs.
   // DB-only: stripped from every public response by toPublicServiceJob / toListedServiceJob.
   runtimeMetrics?: ContainerMetricsSnapshot
+  // Whether the workload can serve requests yet, for engines the node recognizes. Absent otherwise,
+  // which clients read as "not reported" and fall back to treating Running as usable.
+  readiness?: ServiceReadiness
+  // Image pull byte progress, written while the job is in PullImage.
+  imagePull?: ServiceImagePullProgress
+  // Model-weight download progress, sampled from the container's cache while it warms up.
+  modelDownload?: ServiceModelDownload
 }
