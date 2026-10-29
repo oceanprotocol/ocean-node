@@ -312,8 +312,10 @@ export class DecryptDdoHandler extends CommandHandler {
       let documentHash: string
 
       if (transactionId) {
+        let receiptFetched = false
         try {
           const receipt = await provider.getTransactionReceipt(transactionId)
+          receiptFetched = true
           if (!receipt || !receipt.logs.length) {
             throw new Error('receipt logs 0')
           }
@@ -327,7 +329,14 @@ export class DecryptDdoHandler extends CommandHandler {
           encryptedDocument = ethers.getBytes(eventData.args[4])
           documentHash = eventData.args[5]
         } catch (error) {
-          CORE_LOGGER.logByStatus(400, `Decrypt DDO: error ${errorSummary(error)}`)
+          // a malformed id, a missing receipt or a transaction without the event is the
+          // caller's input; the RPC call failing on a well-formed id is the node's own problem
+          const msg = `Decrypt DDO: error ${errorSummary(error)}`
+          if (!receiptFetched && ethers.isHexString(transactionId, 32)) {
+            CORE_LOGGER.error(msg)
+          } else {
+            CORE_LOGGER.logByStatus(400, msg)
+          }
           return {
             stream: null,
             status: {
@@ -398,7 +407,9 @@ export class DecryptDdoHandler extends CommandHandler {
             .getKeyManager()
             .decrypt(encryptedDocument, EncryptMethod.ECIES)
         } catch (error) {
-          CORE_LOGGER.logByStatus(400, `Decrypt DDO: error ${errorSummary(error)}`)
+          // answered with a 400, but the node's own key failed: a key provider outage must
+          // stay visible
+          CORE_LOGGER.error(`Decrypt DDO: error ${errorSummary(error)}`)
           return {
             stream: null,
             status: {
@@ -863,9 +874,9 @@ export class FindDdoHandler extends CommandHandler {
                 // One provider failing, timing out, or being cancelled because another
                 // answered is not a FindDDO failure. The overall outcome is whatever the
                 // result list holds when every branch has settled.
-                CORE_LOGGER.error(
-                  `FindDDO: provider ${peer} did not answer for ${task.id}: ${innerException.message}`
-                )
+                const msg = `FindDDO: provider ${peer} did not answer for ${task.id}: ${innerException.message}`
+                if (answered.signal.aborted) CORE_LOGGER.debug(msg)
+                else CORE_LOGGER.warn(msg)
               }
             })
           )

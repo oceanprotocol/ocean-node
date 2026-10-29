@@ -4,7 +4,7 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import { EVENT_HASHES, isDefined } from '../../utils/index.js'
 import { NetworkEvent } from '../../@types/blockchain.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
-import { errorSummary } from '../../utils/logging/redact.js'
+import { errorSummary, redactUrls } from '../../utils/logging/redact.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
 import { getOceanArtifactsAdressesByChainId } from '../../utils/address.js'
 import { CommandStatus, JobStatus } from '../../@types/commands.js'
@@ -110,11 +110,11 @@ export const retrieveChunkEvents = async (
     const blockLogs = await provider.getLogs(details)
     return blockLogs
   } catch (error) {
-    // the caller logs the failed range at error
-    INDEXER_LOGGER.error(
+    // the caller logs the failed range at error; the stack is kept here for debugging
+    INDEXER_LOGGER.debug(
       `Error retrieving events from block ${lastIndexedBlock + 1} to ${
         lastIndexedBlock + count
-      }: ${errorSummary(error)}`
+      }: ${redactUrls(error?.stack ?? errorSummary(error))}`
     )
     throw new Error(` Error processing chunk of blocks events ${error.message}`)
   }

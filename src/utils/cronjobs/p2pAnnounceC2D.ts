@@ -4,7 +4,7 @@ import { provideLimit } from '../../components/P2P/provideLimiter.js'
 import { c2dCapabilityContent } from '../../components/P2P/c2dCapability.js'
 import {
   classifyP2PError,
-  describeP2PError,
+  logProvideFailure,
   P2P_ERROR
 } from '../../components/P2P/errors.js'
 
@@ -147,8 +147,10 @@ export async function p2pAnnounceC2D(node: OceanNode) {
           } catch (err) {
             // timeouts are normal in a sparse DHT: only other failures count towards the summary
             if (classifyP2PError(err).name !== P2P_ERROR.timeout) failed++
-            P2P_LOGGER.error(
-              `p2pAnnounceC2D: failed to advertise ${content}: ${describeP2PError(err)}`
+            logProvideFailure(
+              P2P_LOGGER,
+              err,
+              `p2pAnnounceC2D: failed to advertise ${content}`
             )
           }
         })

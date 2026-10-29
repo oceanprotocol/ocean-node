@@ -324,7 +324,8 @@ export class CommonComputeHandler extends CommandHandler {
       await engine.checkIfResourcesAreAvailable(task.resources, env, isFree, allEnvs)
     } catch (e) {
       if (task.queueMaxWaitTime > 0) {
-        CORE_LOGGER.error(
+        // the job is queued, not failed: a busy node is normal
+        CORE_LOGGER.debug(
           `Compute resources not available, queuing job for max ${task.queueMaxWaitTime} seconds`
         )
       } else {

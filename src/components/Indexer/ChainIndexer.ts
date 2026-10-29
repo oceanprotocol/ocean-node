@@ -19,7 +19,7 @@ import {
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { Database } from '../database/index.js'
 
-// consecutive loop failures logged at warn before escalating to error
+// consecutive loop failures after which a recovery is logged at info and the throttle reset
 const FAILURE_ESCALATION_THRESHOLD = 5
 
 export interface ReindexTask {
@@ -235,8 +235,13 @@ export class ChainIndexer {
               if (isProviderError(error)) throw error
               chunkSize = Math.floor(chunkSize / 2) < 1 ? 1 : Math.floor(chunkSize / 2)
               successfulRetrievalCount = 0
-              INDEXER_LOGGER.error(
-                `Chain ${this.blockchain.getSupportedChain()}: getLogs ${startBlock + 1}-${startBlock + blocksToProcess} failed (${errorSummary(error)}); range skipped, chunk size -> ${chunkSize}`
+              // throttled: the chunk size halves on every failure, so a bad RPC fails tick
+              // after tick
+              INDEXER_LOGGER.throttled(
+                `indexer-getlogs-error-${this.blockchain.getSupportedChain()}`,
+                LOG_LEVELS_STR.LEVEL_ERROR,
+                `Chain ${this.blockchain.getSupportedChain()}: getLogs ${startBlock + 1}-${startBlock + blocksToProcess} failed (${errorSummary(error)}); range skipped, chunk size -> ${chunkSize}. ` +
+                  'Consider that there may be an issue with your RPC provider. We recommend using private RPCs from reliable providers such as Infura or Alchemy.'
               )
             }
 
@@ -433,6 +438,9 @@ export class ChainIndexer {
       }
       return true
     } else {
+      INDEXER_LOGGER.error(
+        `Chain ${this.blockchain.getSupportedChain()}: reindex from block ${this.reindexBlock} dropped, the last indexed block could not be reset. Continue indexing normally...`
+      )
       this.reindexBlock = null
       return false
     }
@@ -502,8 +510,8 @@ export class ChainIndexer {
     if (this.consecutiveFailures === 0) return
     const chainId = this.blockchain.getSupportedChain()
     const message = `Chain ${chainId}: indexing recovered after ${this.consecutiveFailures} consecutive failures`
-    // throttles are only reset after an escalation: a flapping RPC that recovers between
-    // failures keeps its warn rate-limited instead of logging one line per flap
+    // the throttle is only reset after a long run of failures: a flapping RPC that recovers
+    // between failures keeps its error rate-limited instead of logging one line per flap
     if (this.consecutiveFailures >= FAILURE_ESCALATION_THRESHOLD) {
       INDEXER_LOGGER.info(message)
       INDEXER_LOGGER.resetThrottle(`indexer-loop-error-${chainId}`)

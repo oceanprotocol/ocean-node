@@ -1419,7 +1419,9 @@ export class C2DEngineDocker extends C2DEngine {
             resourceSnapshot[`${computeEnv.id}:free`] = perFreeEnv
           }
         } catch (e) {
-          CORE_LOGGER.error(
+          CORE_LOGGER.throttled(
+            `metrics:env-snapshot:${computeEnv?.id}`,
+            'warn',
             `[metrics] env resource snapshot failed for ${computeEnv?.id}: ${e?.message}`
           )
         }
@@ -3378,7 +3380,11 @@ export class C2DEngineDocker extends C2DEngine {
         status: C2DStatusNumber[job.status] ?? String(job.status)
       })
     } catch (e: any) {
-      CORE_LOGGER.error(`[metrics] jobs.finished counter failed: ${e?.message}`)
+      CORE_LOGGER.throttled(
+        'metrics:jobs-finished',
+        'warn',
+        `[metrics] jobs.finished counter failed: ${e?.message}`
+      )
     }
   }
 
@@ -3413,7 +3419,11 @@ export class C2DEngineDocker extends C2DEngine {
         powerWatts: g.powerWatts
       }))
     } catch (e: any) {
-      CORE_LOGGER.error(`[metrics] host gpu sample failed: ${e?.message}`)
+      CORE_LOGGER.throttled(
+        'metrics:host-gpu',
+        'warn',
+        `[metrics] host gpu sample failed: ${e?.message}`
+      )
     }
   }
 
@@ -3600,7 +3610,11 @@ export class C2DEngineDocker extends C2DEngine {
         gpus: Array.from(gpuByResourceId.values())
       }
     } catch (e: any) {
-      CORE_LOGGER.error(`[metrics] summary failed: ${e?.message}`)
+      CORE_LOGGER.throttled(
+        'metrics:summary',
+        'warn',
+        `[metrics] summary failed: ${e?.message}`
+      )
     }
   }
 
@@ -3669,7 +3683,11 @@ export class C2DEngineDocker extends C2DEngine {
       }
       return true
     } catch (e: any) {
-      CORE_LOGGER.error(`[metrics] job ${job.jobId}: collection failed: ${e?.message}`)
+      CORE_LOGGER.throttled(
+        'metrics:job-collection',
+        'warn',
+        `[metrics] job ${job.jobId}: collection failed: ${e?.message}`
+      )
       return false
     }
   }
@@ -4932,7 +4950,11 @@ export class C2DEngineDocker extends C2DEngine {
     // unhandled rejection.
     const probe = this.probeServiceReadiness(job, details)
       .catch((e: any) =>
-        CORE_LOGGER.error(`[readiness] service ${job.serviceId}: ${e?.message}`)
+        CORE_LOGGER.throttled(
+          `readiness:${job.serviceId}`,
+          'warn',
+          `[readiness] service ${job.serviceId}: ${e?.message}`
+        )
       )
       .finally(() => this.serviceProbesInFlight.delete(job.serviceId))
     this.serviceProbesInFlight.set(job.serviceId, probe)
@@ -5085,7 +5107,9 @@ export class C2DEngineDocker extends C2DEngine {
 
       await this.persistServiceReadiness(job, readiness, modelDownload)
     } catch (e: any) {
-      CORE_LOGGER.error(
+      CORE_LOGGER.throttled(
+        `readiness:probe:${job.serviceId}`,
+        'warn',
         `[readiness] service ${job.serviceId}: probe failed: ${e?.message}`
       )
     }
@@ -5324,7 +5348,9 @@ export class C2DEngineDocker extends C2DEngine {
           describeSnapshot(snap)
       )
     } catch (e: any) {
-      CORE_LOGGER.error(
+      CORE_LOGGER.throttled(
+        `metrics:service:${job.serviceId}`,
+        'warn',
         `[metrics] service ${job.serviceId}: collection failed: ${e?.message}`
       )
     }

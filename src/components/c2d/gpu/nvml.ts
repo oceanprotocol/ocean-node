@@ -57,7 +57,7 @@ export class NvmlGpuCollector implements GpuVendorCollector {
       const mod: any = await import(specifier)
       return mod?.default ?? mod
     } catch (e: any) {
-      CORE_LOGGER.error(
+      this.logProbeFailure(
         `GPU metrics (nvidia): koffi FFI not available — NVIDIA GPU metrics disabled (${e?.message}). ` +
           `Install the 'koffi' optional dependency to enable them.`
       )
@@ -121,7 +121,7 @@ export class NvmlGpuCollector implements GpuVendorCollector {
         ])
       }
     } catch (e: any) {
-      CORE_LOGGER.error(
+      this.logProbeFailure(
         `GPU metrics (nvidia): could not bind libnvidia-ml.so.1 — NVIDIA GPU metrics disabled (${e?.message})`
       )
       return null
@@ -146,7 +146,9 @@ export class NvmlGpuCollector implements GpuVendorCollector {
       this.bindings = bindings
       return (this.detected = true)
     } catch (e: any) {
-      CORE_LOGGER.error(`GPU metrics (nvidia): nvmlInit threw — disabled (${e?.message})`)
+      this.logProbeFailure(
+        `GPU metrics (nvidia): nvmlInit threw — disabled (${e?.message})`
+      )
       return (this.detected = false)
     }
   }
@@ -223,7 +225,9 @@ export class NvmlGpuCollector implements GpuVendorCollector {
       if (b.getHandleByUUID(handle.uuid, devOut) !== NVML_SUCCESS) return base
       this.applyDeviceReadings(devOut[0], base)
     } catch (e: any) {
-      CORE_LOGGER.error(
+      CORE_LOGGER.throttled(
+        `gpu:nvml:sample:${handle.resourceId}`,
+        'warn',
         `GPU metrics (nvidia): sample of ${handle.resourceId} failed: ${e?.message}`
       )
     }
@@ -264,14 +268,20 @@ export class NvmlGpuCollector implements GpuVendorCollector {
         try {
           this.applyDeviceReadings(device, base)
         } catch (e: any) {
-          CORE_LOGGER.error(
+          CORE_LOGGER.throttled(
+            `gpu:nvml:device:${i}`,
+            'warn',
             `GPU metrics (nvidia): sample of device ${i} failed: ${e?.message}`
           )
         }
         out.push(base)
       }
     } catch (e: any) {
-      CORE_LOGGER.error(`GPU metrics (nvidia): host enumeration failed: ${e?.message}`)
+      CORE_LOGGER.throttled(
+        'gpu:nvml:enumeration',
+        'warn',
+        `GPU metrics (nvidia): host enumeration failed: ${e?.message}`
+      )
     }
     return out
   }
