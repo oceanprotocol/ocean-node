@@ -2308,7 +2308,9 @@ skip the template with a warning):
 that VRAM on identical GPUs of one type on one host. Each is `{ "gpuCount": <1..64> }` for one
 card — which must itself hold `recommended` (cards are never pooled) — or
 `{ "gpuCount": n, "vramPerGpu": <GB per card> }` for `n > 1`; `gpuCount` is exactly the number
-of GPUs booked and used, and `gpuCount × vramPerGpu` must be ≥ `recommended`. Compare against
+of GPUs booked and used, and `gpuCount × vramPerGpu` must be ≥ `recommended`. Each per-card
+figure is the smallest card `memoryTotal` the default configuration starts on (memory
+utilisation and per-card overhead included), not a GPU class size. Compare against
 each GPU's `memoryTotal` from `getComputeEnvironments` (see
 [compute.md](compute.md#node-wide-connection-level-resources)). `gpuCountEnv` optionally names
 a `userConfigurableEnvVars` key that forces the GPU width at runtime: every layout's `gpuCount`

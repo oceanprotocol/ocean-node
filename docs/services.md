@@ -316,13 +316,13 @@ At most one entry per resource, each strict:
   {
     "kind": "discrete",
     "type": "gpu",
-    "recommended": 564,
+    "recommended": 130,
     "unit": "GB",
-    "gpuCountEnv": "QWEN_TP_SIZE",
+    "gpuCountEnv": "MODEL_TP_SIZE",
     "layouts": [
-      { "gpuCount": 2, "vramPerGpu": 282 },
-      { "gpuCount": 4, "vramPerGpu": 141 },
-      { "gpuCount": 8, "vramPerGpu": 141 }
+      { "gpuCount": 1 },
+      { "gpuCount": 2, "vramPerGpu": 68 },
+      { "gpuCount": 4, "vramPerGpu": 38 }
     ]
   }
 ]
@@ -339,6 +339,14 @@ At most one entry per resource, each strict:
   `vramPerGpu`, the VRAM each card needs including headroom, and `gpuCount × vramPerGpu` must
   be ≥ `recommended`. Clients compare these figures to each GPU's
   [`memoryTotal`](compute.md#node-wide-connection-level-resources).
+- Each per-card figure (`vramPerGpu`, and `recommended` for the one-card layout) is the
+  **smallest advertised `memoryTotal`** on which the template's default configuration starts
+  and serves: the runtime need divided by the engine's memory-utilisation fraction, plus any
+  per-card overhead that does not shrink with more cards (CUDA context, activations,
+  replicated KV cache) and the driver reserve. It is not the size of the GPU the template was
+  tested on: declaring a GPU class size (e.g. 141 for "an H200") hides every smaller card
+  that would also work. In the example above, one 141 GB card, two 80 GB cards or four
+  48 GB cards all qualify, and a newer, larger card matches without editing the template.
 - `gpuCountEnv` (optional) names the `userConfigurableEnvVars` key that forces the GPU width at
   runtime, so a client can keep the booked count and the runtime width equal. The key must be
   declared in `userConfigurableEnvVars`, every layout's `gpuCount` must pass its `validation`
