@@ -23,7 +23,6 @@ import EventEmitter from 'node:events'
 import { Database } from '../database/index.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
 import { ChainIndexer, ReindexTask } from './ChainIndexer.js'
-import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import {
   Blockchain,
@@ -207,9 +206,9 @@ export class OceanIndexer {
     if (indexer) {
       await indexer.stop()
       this.indexers.delete(chainID)
-      INDEXER_LOGGER.logMessage(`Stopped indexer for chain ${chainID}`)
+      INDEXER_LOGGER.debug(`Stopped indexer for chain ${chainID}`)
     } else {
-      INDEXER_LOGGER.error('Unable to find running indexer for chain ' + chainID)
+      INDEXER_LOGGER.warn('Unable to find running indexer for chain ' + chainID)
     }
   }
 
@@ -234,12 +233,14 @@ export class OceanIndexer {
         return false
       }
       if (result) {
-        INDEXER_LOGGER.info('Blockchain connection succeffully established!')
+        INDEXER_LOGGER.debug(
+          `Blockchain connection established for chain ${blockchain.getSupportedChain()}`
+        )
         // processNetworkData(blockchain.getProvider(), blockchain.getSigner())
         return true
       } else {
         INDEXER_LOGGER.warn(
-          `Blockchain connection is not established, retrying again in ${
+          `Chain ${blockchain.getSupportedChain()}: blockchain connection is not established, retrying again in ${
             retryInterval / 1000
           } secs....`
         )
@@ -267,9 +268,7 @@ export class OceanIndexer {
     // If an indexer is already running, stop it first
     const existingIndexer = this.indexers.get(chainID)
     if (existingIndexer && existingIndexer.isIndexing()) {
-      INDEXER_LOGGER.logMessage(
-        `Stopping existing indexer for chain ${chainID} before starting new one...`
-      )
+      INDEXER_LOGGER.info(`Restarting indexer for chain ${chainID}`)
       await existingIndexer.stop()
       this.indexers.delete(chainID)
       await sleep(1000) // Give the indexer time to stop
@@ -291,7 +290,9 @@ export class OceanIndexer {
     }
     const canStartIndexer = await this.retryCrawlerWithDelay(blockchain)
     if (!canStartIndexer) {
-      INDEXER_LOGGER.error(`Cannot start indexer. Check DB and RPC connections!`)
+      INDEXER_LOGGER.error(
+        `Cannot start indexer for chain ${chainID}. Check DB and RPC connections!`
+      )
       return null
     }
 
@@ -304,10 +305,8 @@ export class OceanIndexer {
       this.config
     )
 
-    INDEXER_LOGGER.log(
-      LOG_LEVELS_STR.LEVEL_INFO,
-      `Starting indexer for network ${rpcDetails.network} (chainId: ${chainID})`,
-      true
+    INDEXER_LOGGER.info(
+      `Starting indexer for network ${rpcDetails.network} (chainId: ${chainID})`
     )
 
     // Start indexing (runs in background, doesn't block)
@@ -361,23 +360,19 @@ export class OceanIndexer {
       INDEXER_CRAWLING_EVENT_EMITTER.on(eventType, async (event: any) => {
         try {
           if (!event.data) {
-            INDEXER_LOGGER.log(
-              LOG_LEVELS_STR.LEVEL_ERROR,
-              `Missing event data (ddo) for ${eventType}. Something is wrong!`,
-              true
+            INDEXER_LOGGER.debug(
+              `Missing event data (ddo) for ${eventType} on chain ${event.chainId}`
             )
             return
           }
 
-          INDEXER_LOGGER.logMessage(
+          INDEXER_LOGGER.debug(
             `Emitting "${eventType}" for DDO: ${event.data.id} from network: ${event.chainId}`
           )
           await Promise.resolve(INDEXER_DDO_EVENT_EMITTER.emit(eventType, event.data.id))
         } catch (err) {
-          INDEXER_LOGGER.log(
-            LOG_LEVELS_STR.LEVEL_ERROR,
-            `Event handler failed for ${eventType}: ${err?.message ?? err}`,
-            true
+          INDEXER_LOGGER.error(
+            `Event handler failed for ${eventType}: ${err?.message ?? err}`
           )
         }
       })
@@ -397,11 +392,7 @@ export class OceanIndexer {
             CommandStatus.SUCCESS
           )
         } catch (err) {
-          INDEXER_LOGGER.log(
-            LOG_LEVELS_STR.LEVEL_ERROR,
-            `Reindex queue pop handler failed: ${err?.message ?? err}`,
-            true
-          )
+          INDEXER_LOGGER.error(`Reindex queue pop handler failed: ${err?.message ?? err}`)
         }
       }
     )
@@ -417,11 +408,7 @@ export class OceanIndexer {
             event.result ? CommandStatus.SUCCESS : CommandStatus.FAILURE
           )
         } catch (err) {
-          INDEXER_LOGGER.log(
-            LOG_LEVELS_STR.LEVEL_ERROR,
-            `Reindex chain handler failed: ${err?.message ?? err}`,
-            true
-          )
+          INDEXER_LOGGER.error(`Reindex chain handler failed: ${err?.message ?? err}`)
         }
       }
     )
@@ -430,8 +417,8 @@ export class OceanIndexer {
     INDEXER_CRAWLING_EVENT_EMITTER.on(
       INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED,
       (event: any) => {
-        INDEXER_LOGGER.logMessage(
-          `Crawling started for chain ${event.chainId} from block ${event.startBlock}`
+        INDEXER_LOGGER.info(
+          `Chain ${event.chainId}: crawling from block ${event.startBlock}`
         )
       }
     )
@@ -449,7 +436,7 @@ export class OceanIndexer {
       this.addJob(job)
       return job
     }
-    INDEXER_LOGGER.error(`No indexer found for chain ${reindexTask.chainId}`)
+    INDEXER_LOGGER.warn(`No indexer found for chain ${reindexTask.chainId}`)
     return null
   }
 
@@ -466,7 +453,7 @@ export class OceanIndexer {
       )
       indexer = await this.startChainIndexer(chainId)
       if (!indexer) {
-        INDEXER_LOGGER.error('Could not start indexer, aborting...')
+        INDEXER_LOGGER.error(`Could not start indexer for chain ${chainId}, aborting...`)
         return null
       }
     }
@@ -557,9 +544,9 @@ export class OceanIndexer {
       return
     }
     const dbVersion = await dbActive.sqliteConfig?.retrieveValue()
-    INDEXER_LOGGER.info(
+    INDEXER_LOGGER.debug(
       `Node version check: Current=${currentVersion}, DB=${
-        dbVersion || 'not set'
+        dbVersion?.value ?? 'not set'
       }, Min Required=${this.MIN_REQUIRED_VERSION}`
     )
 
@@ -574,8 +561,8 @@ export class OceanIndexer {
       for (const chainID of this.supportedChains) {
         const chainIdNum = Number(chainID)
 
-        INDEXER_LOGGER.info(
-          `Triggering reindexing for chain ${chainIdNum} by resetting to block null`
+        INDEXER_LOGGER.debug(
+          `Triggering reindexing for chain ${chainIdNum} by resetting to the deployment block`
         )
 
         try {
@@ -596,7 +583,7 @@ export class OceanIndexer {
             )
           } else {
             INDEXER_LOGGER.info(
-              `Successfully reset indexing for chain ${chainIdNum} to block null`
+              `Chain ${chainIdNum}: index reset to deployment block ${contractDeploymentBlock}`
             )
           }
         } catch (error) {
@@ -608,7 +595,7 @@ export class OceanIndexer {
       await dbActive.sqliteConfig?.createOrUpdateConfig('version', currentVersion)
       INDEXER_LOGGER.info(`Updated node version in database to ${currentVersion}`)
     } else {
-      INDEXER_LOGGER.info('No reindexing needed based on version check')
+      INDEXER_LOGGER.debug('No reindexing needed based on version check')
     }
   }
 

@@ -5,7 +5,7 @@ export const rootEndpointRoutes = express.Router()
 rootEndpointRoutes.get('/', (req, res) => {
   const config = req.oceanNode.getConfig()
   if (!config.supportedNetworks) {
-    HTTP_LOGGER.warn(`Supported networks not defined`)
+    HTTP_LOGGER.debug(`Supported networks not defined`)
   }
   const keyManager = req.oceanNode.getKeyManager()
   res.json({

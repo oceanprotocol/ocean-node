@@ -24,7 +24,10 @@ adminConfigRoutes.get('/api/admin/config', express.json(), async (req, res) => {
       const result = await streamToObject(response.stream as Readable)
       res.status(200).json(result)
     } else {
-      HTTP_LOGGER.log('LEVEL_ERROR', `Error fetching config: ${response.status.error}`)
+      HTTP_LOGGER.logByStatus(
+        response.status.httpStatus,
+        `Fetch config failed (${response.status.httpStatus}): ${response.status.error}`
+      )
       res.status(response.status.httpStatus).json({ error: response.status.error })
     }
   } catch (error) {
@@ -50,7 +53,10 @@ adminConfigRoutes.post('/api/admin/config/update', express.json(), async (req, r
       const result = await streamToObject(response.stream as Readable)
       res.status(200).json(result)
     } else {
-      HTTP_LOGGER.log('LEVEL_ERROR', `Error pushing config: ${response.status.error}`)
+      HTTP_LOGGER.logByStatus(
+        response.status.httpStatus,
+        `Push config failed (${response.status.httpStatus}): ${response.status.error}`
+      )
       res.status(response.status.httpStatus).json({ error: response.status.error })
     }
   } catch (error) {

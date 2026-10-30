@@ -15,10 +15,14 @@ import { createElasticsearchClientWithRetry } from './ElasticsearchConfigHelper.
 import { OceanNodeDBConfig } from '../../@types'
 import { ElasticsearchSchema } from './ElasticSchemas.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { safeStringify } from '../../utils/logging/redact.js'
 
 import { validateDDO } from '../../utils/asset.js'
 import { DDOManager } from '@oceanprotocol/ddo-js'
+
+const LOG_INSERT_FAILED_KEY = 'es-log-insert-failed'
+let logInsertFailing = false
 
 export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
   private client: Client
@@ -52,7 +56,7 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
         })
       }
     } catch (e) {
-      DATABASE_LOGGER.error(e.message)
+      DATABASE_LOGGER.error(`Failed to create ES index '${this.index}': ${e.message}`)
     }
   }
 
@@ -67,12 +71,7 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
       return { id: network.toString(), lastIndexedBlock }
     } catch (error) {
       const errorMsg = `Error when creating indexer entry on network ${network} with last indexed block ${lastIndexedBlock}: ${error.message}`
-      DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -87,12 +86,7 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
       return result._source
     } catch (error) {
       const errorMsg = `Error when retrieving indexer entry on network ${network}: ${error.message}`
-      DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -120,12 +114,7 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
       return { id: network.toString(), lastIndexedBlock }
     } catch (error) {
       const errorMsg = `Error when updating indexer entry on network ${network} with last indexed block ${lastIndexedBlock}: ${error.message}`
-      DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -140,12 +129,7 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
       return { id: network.toString() }
     } catch (error) {
       const errorMsg = `Error when deleting indexer entry on network ${network}: ${error.message}`
-      DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -188,7 +172,7 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
         })
       }
     } catch (e) {
-      DATABASE_LOGGER.error(e.message)
+      DATABASE_LOGGER.error(`Failed to create ES index '${this.index}': ${e.message}`)
     }
   }
 
@@ -211,12 +195,7 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
       return { id: did, chainId, nft: nftAddress, txId, valid, error: errorMsg }
     } catch (error) {
       const errorMessage = `Error when saving ddo state for: ${did} Error: ${error.message}`
-      DATABASE_LOGGER.logMessageWithEmoji(
-        errorMessage,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      DATABASE_LOGGER.error(errorMessage)
       return null
     }
   }
@@ -230,12 +209,7 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
       return result._source
     } catch (error) {
       const errorMessage = `Error when retrieving the state of the ddo with id: ${did}: ${error.message}`
-      DATABASE_LOGGER.logMessageWithEmoji(
-        errorMessage,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      DATABASE_LOGGER.error(errorMessage)
       return null
     }
   }
@@ -248,19 +222,12 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
           query
         }
       })
-      console.log('Query result: ', result)
       return result.hits.hits.map((hit: any) => {
         return normalizeDocumentId(hit._source, hit._id)
       })
     } catch (error) {
-      const errorMsg = `Error when searching by query ${JSON.stringify(query)}: ${
-        error.message
-      }`
-      DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
+      DATABASE_LOGGER.error(
+        `Error when searching ddo state (query ${safeStringify(query, { maxLength: 200 })}): ${error.message}`
       )
       return null
     }
@@ -297,12 +264,7 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
       return { id: did, chainId, nft: nftAddress, txId, valid, error: errorMsg }
     } catch (error) {
       const errorMessage = `Error when updating ddo state for: ${did} Error: ${error.message}`
-      DATABASE_LOGGER.logMessageWithEmoji(
-        errorMessage,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      DATABASE_LOGGER.error(errorMessage)
       return null
     }
   }
@@ -318,12 +280,7 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
       return { id: did }
     } catch (error) {
       const errorMessage = `Error when deleting ddo state ${did}: ${error.message}`
-      DATABASE_LOGGER.logMessageWithEmoji(
-        errorMessage,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      DATABASE_LOGGER.error(errorMessage)
       return null
     }
   }
@@ -368,10 +325,8 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
         return normalizeDocumentId(hit._source, hit._id)
       })
     } catch (error) {
-      const errorMsg =
-        `Error when searching order entry by query ${JSON.stringify(query)}: ` +
-        error.message
-      DATABASE_LOGGER.logMessageWithEmoji(errorMsg, true, LOG_LEVELS_STR.LEVEL_ERROR)
+      const errorMsg = `Error when searching order entries: ` + error.message
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -409,7 +364,7 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
       const errorMsg =
         `Error when creating order entry ${orderId} at timestamp ${timestamp} by payer ${payer} for consumer ${consumer}: ` +
         error.message
-      DATABASE_LOGGER.logMessageWithEmoji(errorMsg, true, LOG_LEVELS_STR.LEVEL_ERROR)
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -423,7 +378,7 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
       return normalizeDocumentId(result._source, result._id)
     } catch (error) {
       const errorMsg = `Error when retrieving order ${orderId}: ` + error.message
-      DATABASE_LOGGER.logMessageWithEmoji(errorMsg, true, LOG_LEVELS_STR.LEVEL_ERROR)
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -459,7 +414,7 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
       const errorMsg =
         `Error when updating order entry ${orderId} at timestamp ${timestamp} by payer ${payer} for consumer ${consumer}: ` +
         error.message
-      DATABASE_LOGGER.logMessageWithEmoji(errorMsg, true, LOG_LEVELS_STR.LEVEL_ERROR)
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -473,7 +428,7 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
       return { id: orderId }
     } catch (error) {
       const errorMsg = `Error when deleting order ${orderId}: ` + error.message
-      DATABASE_LOGGER.logMessageWithEmoji(errorMsg, true, LOG_LEVELS_STR.LEVEL_ERROR)
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -521,7 +476,7 @@ export class ElasticsearchEscrowDatabase extends AbstractEscrowDatabase {
       return event
     } catch (error) {
       const errorMsg = `Error when creating escrow event ${event.id}: ` + error.message
-      DATABASE_LOGGER.logMessageWithEmoji(errorMsg, true, LOG_LEVELS_STR.LEVEL_ERROR)
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -535,7 +490,7 @@ export class ElasticsearchEscrowDatabase extends AbstractEscrowDatabase {
       return normalizeDocumentId(result._source, result._id)
     } catch (error) {
       const errorMsg = `Error when retrieving escrow event ${id}: ` + error.message
-      DATABASE_LOGGER.logMessageWithEmoji(errorMsg, true, LOG_LEVELS_STR.LEVEL_ERROR)
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -557,9 +512,9 @@ export class ElasticsearchEscrowDatabase extends AbstractEscrowDatabase {
       return result.hits.hits.map((hit: any) => normalizeDocumentId(hit._source, hit._id))
     } catch (error) {
       const errorMsg =
-        `Error when searching escrow events by ${JSON.stringify(filters)}: ` +
+        `Error when searching escrow events (filters ${safeStringify(filters, { maxLength: 200 })}): ` +
         error.message
-      DATABASE_LOGGER.logMessageWithEmoji(errorMsg, true, LOG_LEVELS_STR.LEVEL_ERROR)
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -573,7 +528,7 @@ export class ElasticsearchEscrowDatabase extends AbstractEscrowDatabase {
       return { id }
     } catch (error) {
       const errorMsg = `Error when deleting escrow event ${id}: ` + error.message
-      DATABASE_LOGGER.logMessageWithEmoji(errorMsg, true, LOG_LEVELS_STR.LEVEL_ERROR)
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -623,12 +578,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       schemaName = `op_ddo_v${ddo.version}`
     }
     const schema = this.getSchemas().find((s) => s.index === schemaName)
-    DATABASE_LOGGER.logMessageWithEmoji(
-      `Returning schema: ${schemaName}`,
-      true,
-      GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
-      LOG_LEVELS_STR.LEVEL_INFO
-    )
+    DATABASE_LOGGER.debug(`Returning schema: ${schemaName}`)
     return schema
   }
 
@@ -648,11 +598,8 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         })
       } catch (error) {
         if (error.statusCode !== 404) {
-          DATABASE_LOGGER.logMessageWithEmoji(
-            `Error when deleting stale DDO entry ${id} from schema ${schema.index}: ${error.message}`,
-            true,
-            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-            LOG_LEVELS_STR.LEVEL_ERROR
+          DATABASE_LOGGER.error(
+            `Error when deleting stale DDO entry ${id} from schema ${schema.index}: ${error.message}`
           )
         }
       }
@@ -683,12 +630,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         }
       } catch (error) {
         const schemaErrorMsg = `Error for schema ${query.index}: ${error.message}`
-        DATABASE_LOGGER.logMessageWithEmoji(
-          schemaErrorMsg,
-          true,
-          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-          LOG_LEVELS_STR.LEVEL_WARN
-        )
+        DATABASE_LOGGER.error(schemaErrorMsg)
       }
     } else {
       for (const schema of this.getSchemas()) {
@@ -709,12 +651,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
           }
         } catch (error) {
           const schemaErrorMsg = `Error for schema ${schema.index}: ${error.message}`
-          DATABASE_LOGGER.logMessageWithEmoji(
-            schemaErrorMsg,
-            true,
-            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-            LOG_LEVELS_STR.LEVEL_WARN
-          )
+          DATABASE_LOGGER.error(schemaErrorMsg)
           continue
         }
       }
@@ -745,12 +682,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       }
     } catch (error) {
       const errorMsg = `Error when creating DDO entry ${ddo.id}: ${error.message}`
-      DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -769,23 +701,15 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         }
       } catch (error) {
         if (error.statusCode !== 404) {
-          DATABASE_LOGGER.logMessageWithEmoji(
-            `Error when retrieving DDO entry ${id} from schema ${schema.index}: ${error.message}`,
-            true,
-            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-            LOG_LEVELS_STR.LEVEL_ERROR
+          DATABASE_LOGGER.error(
+            `Error when retrieving DDO entry ${id} from schema ${schema.index}: ${error.message}`
           )
         }
       }
     }
 
     if (!ddo) {
-      DATABASE_LOGGER.logMessageWithEmoji(
-        `DDO entry with ID ${id} not found in any schema.`,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      DATABASE_LOGGER.debug(`DDO entry with ID ${id} not found in any schema.`)
     }
 
     return ddo
@@ -831,12 +755,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         return response
       }
       const errorMsg = `Error when updating DDO entry ${ddo.id}: ${error.message}`
-      DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -858,22 +777,16 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         }
       } catch (error) {
         if (error.statusCode !== 404) {
-          DATABASE_LOGGER.logMessageWithEmoji(
-            `Error when deleting DDO entry ${id} from schema ${schema.index}: ${error.message}`,
-            true,
-            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-            LOG_LEVELS_STR.LEVEL_ERROR
+          DATABASE_LOGGER.error(
+            `Error when deleting DDO entry ${id} from schema ${schema.index}: ${error.message}`
           )
         }
       }
     }
 
     if (!isDeleted) {
-      DATABASE_LOGGER.logMessageWithEmoji(
-        `DDO entry with ID ${id} not found in any schema or could not be deleted.`,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
+      DATABASE_LOGGER.debug(
+        `DDO entry with ID ${id} not found in any schema or could not be deleted.`
       )
     }
   }
@@ -899,11 +812,8 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         numDeleted += response.deleted
       } catch (error) {
         if (error.statusCode !== 404) {
-          DATABASE_LOGGER.logMessageWithEmoji(
-            `Error when deleting DDOs from schema ${schema.index}: ${error.message}`,
-            true,
-            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-            LOG_LEVELS_STR.LEVEL_ERROR
+          DATABASE_LOGGER.error(
+            `Error when deleting DDOs from schema ${schema.index}: ${error.message}`
           )
         }
       }
@@ -948,7 +858,7 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
         })
       }
     } catch (e) {
-      DATABASE_LOGGER.error(e.message)
+      DATABASE_LOGGER.error(`Failed to create ES index '${this.index}': ${e.message}`)
     }
   }
 
@@ -961,6 +871,11 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
         // refresh: 'wait_for'
         refresh: true
       })
+      if (logInsertFailing) {
+        logInsertFailing = false
+        DATABASE_LOGGER.resetThrottle(LOG_INSERT_FAILED_KEY)
+        DATABASE_LOGGER.info('Log DB writes resumed')
+      }
       // uniformize result response (we need an id for the retrieveLog API)
       if (result._id) {
         return normalizeDocumentId(logEntry, result._id)
@@ -968,11 +883,12 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
       return logEntry
     } catch (error) {
       const errorMsg = `Error when inserting log entry: ${error.message}`
-      DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
+      logInsertFailing = true
+      // one line per failed write would double the output during a log DB outage
+      DATABASE_LOGGER.throttled(
+        LOG_INSERT_FAILED_KEY,
+        LOG_LEVELS_STR.LEVEL_ERROR,
+        errorMsg
       )
       return null
     }
@@ -987,12 +903,7 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
       return normalizeDocumentId(result._source, result._id)
     } catch (error) {
       const errorMsg = `Error when retrieving log entry: ${error.message}`
-      DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -1033,11 +944,8 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
 
         // Elasticsearch result window limit
         if (from + size > 10000) {
-          DATABASE_LOGGER.logMessageWithEmoji(
-            `Reached Elasticsearch result window limit (10000). Returning ${allLogs.length} logs.`,
-            true,
-            GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
-            LOG_LEVELS_STR.LEVEL_INFO
+          DATABASE_LOGGER.debug(
+            `Reached Elasticsearch result window limit (10000). Returning ${allLogs.length} logs.`
           )
           break
         }
@@ -1064,12 +972,7 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
       return allLogs.slice(0, maxLogs)
     } catch (error) {
       const errorMsg = `Error when retrieving multiple log entries: ${error.message}`
-      DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      DATABASE_LOGGER.error(errorMsg)
       return []
     }
   }
@@ -1081,11 +984,8 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
   ): Promise<Record<string, any>[]> {
     const from = page * size
     if (from + size > 10000) {
-      DATABASE_LOGGER.logMessageWithEmoji(
-        `Result window is too large, from + size must be less than or equal to: [10000]. "from": ${from}, "size": ${size}`,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
+      DATABASE_LOGGER.debug(
+        `Result window is too large, from + size must be less than or equal to: [10000]. "from": ${from}, "size": ${size}`
       )
       return []
     }
@@ -1112,19 +1012,9 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
         // refresh: 'wait_for'
         refresh: true
       })
-      DATABASE_LOGGER.logMessageWithEmoji(
-        `Deleted log with ID: ${logId}`,
-        true,
-        GENERIC_EMOJIS.EMOJI_CHECK_MARK,
-        LOG_LEVELS_STR.LEVEL_INFO
-      )
+      DATABASE_LOGGER.debug(`Deleted log with ID: ${logId}`)
     } catch (error) {
-      DATABASE_LOGGER.logMessageWithEmoji(
-        `Error when deleting log entry: ${error.message}`,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      DATABASE_LOGGER.error(`Error when deleting log entry: ${error.message}`)
       throw error
     }
   }
@@ -1146,12 +1036,7 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
 
       return oldLogs ? oldLogs.length : 0
     } catch (error) {
-      DATABASE_LOGGER.logMessageWithEmoji(
-        `Error when deleting old log entries: ${error.message}`,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      DATABASE_LOGGER.error(`Error when deleting old log entries: ${error.message}`)
       return 0
     }
   }
@@ -1219,7 +1104,7 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
         })
       }
     } catch (e) {
-      DATABASE_LOGGER.error(e.message)
+      DATABASE_LOGGER.error(`Failed to create ES index '${this.index}': ${e.message}`)
     }
   }
 
@@ -1266,12 +1151,7 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
       return { id }
     } catch (error) {
       const errorMsg = `Error when upserting access list ${id}: ${error.message}`
-      DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -1290,12 +1170,7 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
         return null
       }
       const errorMsg = `Error when retrieving access list ${id}: ${error.message}`
-      DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -1333,12 +1208,7 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
       return { id }
     } catch (error) {
       const errorMsg = `Error when adding user ${normalized.wallet} to access list ${id}: ${error.message}`
-      DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -1365,21 +1235,13 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
       return { id }
     } catch (error) {
       if (error?.meta?.statusCode === 404) {
-        DATABASE_LOGGER.logMessageWithEmoji(
-          `AddressRemoved on missing access list ${id} (tokenId=${tokenId}); ignoring.`,
-          true,
-          GENERIC_EMOJIS.EMOJI_CHECK_MARK,
-          LOG_LEVELS_STR.LEVEL_WARN
+        DATABASE_LOGGER.error(
+          `AddressRemoved on missing access list ${id} (tokenId=${tokenId}); ignoring.`
         )
         return null
       }
       const errorMsg = `Error when removing tokenId ${tokenId} from access list ${id}: ${error.message}`
-      DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -1408,12 +1270,7 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
       return result.hits.hits.map((h: any) => h._source)
     } catch (error) {
       const errorMsg = `Error when searching access lists by wallet ${lowerWallet}: ${error.message}`
-      DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      DATABASE_LOGGER.error(errorMsg)
       return []
     }
   }
@@ -1429,12 +1286,7 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
       return { id }
     } catch (error) {
       const errorMsg = `Error when deleting access list ${id}: ${error.message}`
-      DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      DATABASE_LOGGER.error(errorMsg)
       return null
     }
   }
@@ -1453,3 +1305,5 @@ export function normalizeDocumentId(dbResult: any, _id?: any): any {
   }
   return dbResult
 }
+
+// ES client errors carry the HTTP status as statusCode (and meta.statusCode)

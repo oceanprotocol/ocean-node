@@ -132,7 +132,9 @@ export class Escrow {
       const funds = await contract.getUserFunds(payer, token)
       return funds.available
     } catch (e) {
-      CORE_LOGGER.error('Failed to get user available funds: ' + e.message)
+      CORE_LOGGER.error(
+        `Failed to get available funds on chain ${chain} (payer ${payer}, token ${token}): ${e.message}`
+      )
       return null
     }
   }
@@ -149,7 +151,9 @@ export class Escrow {
     try {
       return await contract.getLocks(token, payer, payee)
     } catch (e) {
-      CORE_LOGGER.error('Failed to get locks: ' + e.message)
+      CORE_LOGGER.error(
+        `Failed to get locks on chain ${chain} (payer ${payer}, payee ${payee}, token ${token}): ${e.message}`
+      )
       return null
     }
   }
@@ -166,7 +170,9 @@ export class Escrow {
     try {
       return await contract.getAuthorizations(token, payer, payee)
     } catch (e) {
-      CORE_LOGGER.error('Failed to get authorizations: ' + e.message)
+      CORE_LOGGER.error(
+        `Failed to get authorizations on chain ${chain} (payer ${payer}, payee ${payee}, token ${token}): ${e.message}`
+      )
       return null
     }
   }
@@ -226,7 +232,7 @@ export class Escrow {
     while (retries > 0) {
       auths = await this.getAuthorizations(chain, token, payer, signerAddress)
       if (!auths || auths.length !== 1) {
-        CORE_LOGGER.error(
+        CORE_LOGGER.debug(
           `No escrow auths found for: chain=${chain}, token=${token}, payer=${payer}, nodeAddress=${signerAddress}. Found ${
             auths?.length || 0
           } authorizations. ${retries > 0 ? 'Retrying..' : ''}`
@@ -315,7 +321,9 @@ export class Escrow {
       )
       return tx.hash
     } catch (e) {
-      CORE_LOGGER.error('Failed to create lock: ' + e.message)
+      CORE_LOGGER.error(
+        `Failed to create lock for job ${job} on chain ${chain}: ${e.message}`
+      )
       throw new Error(String(e.message))
     }
   }
@@ -368,7 +376,9 @@ export class Escrow {
       }
       return null
     } catch (e) {
-      CORE_LOGGER.error('Failed to claim lock: ' + e.message)
+      CORE_LOGGER.error(
+        `Failed to claim lock for job ${job} on chain ${chain}: ${e.message}`
+      )
       throw new Error(String(e.message))
     }
   }
@@ -409,7 +419,9 @@ export class Escrow {
       }
       return null
     } catch (e) {
-      CORE_LOGGER.error('Failed to cancel expired locks: ' + e.message)
+      CORE_LOGGER.error(
+        `Failed to cancel expired lock for job ${job} on chain ${chain}: ${e.message}`
+      )
       throw new Error(String(e.message))
     }
   }
@@ -478,7 +490,9 @@ export class Escrow {
       )
       return tx.hash
     } catch (e) {
-      CORE_LOGGER.error('Failed to claim lock: ' + e.message)
+      CORE_LOGGER.error(
+        `Failed to batch claim ${jobs.length} locks on chain ${chain}: ${e.message}`
+      )
       throw new Error(String(e.message))
     }
   }
@@ -526,7 +540,9 @@ export class Escrow {
 
       return tx.hash
     } catch (e) {
-      CORE_LOGGER.error('Failed to cancel expired locks: ' + e.message)
+      CORE_LOGGER.error(
+        `Failed to batch cancel ${jobs.length} expired locks on chain ${chain}: ${e.message}`
+      )
       throw new Error(String(e.message))
     }
   }

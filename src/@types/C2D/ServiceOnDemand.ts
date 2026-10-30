@@ -197,6 +197,7 @@ export enum ServiceStatusNumber {
   Stopping = 50,
   Stopped = 70,
   Expired = 75,
+  DiskQuotaExceeded = 76, // stopped after exceeding disk; reservation remains restartable
   Error = 99
 }
 /* eslint-enable no-unused-vars */
@@ -215,7 +216,18 @@ export const ServiceStatusText: Record<ServiceStatusNumber, string> = {
   [ServiceStatusNumber.Stopping]: 'Stopping',
   [ServiceStatusNumber.Stopped]: 'Stopped',
   [ServiceStatusNumber.Expired]: 'Expired',
+  [ServiceStatusNumber.DiskQuotaExceeded]: 'DiskQuotaExceeded',
   [ServiceStatusNumber.Error]: 'Error'
+}
+
+// Both states keep the paid reservation and allow restart/edit until expiresAt.
+export const SERVICE_STOPPED_STATUSES: readonly ServiceStatusNumber[] = [
+  ServiceStatusNumber.Stopped,
+  ServiceStatusNumber.DiskQuotaExceeded
+]
+
+export function isStoppedLike(status: ServiceStatusNumber): boolean {
+  return SERVICE_STOPPED_STATUSES.includes(status)
 }
 
 // Statuses of a service job that is mid-start/restart and owned by an exclusive
@@ -249,6 +261,8 @@ export interface ServiceJob {
   networkId: string // per-service Docker network id
   status: ServiceStatusNumber
   statusText: string
+  // Internal pending disk-stop reason: retry failed teardown without ending the reservation.
+  terminationReason?: ServiceStatusNumber.DiskQuotaExceeded
   dateCreated: string // ISO timestamp
   updatedAt?: number
   expiresAt: number // Unix ms timestamp

@@ -113,6 +113,38 @@ job `Expired`, and only then releases everything. The sweep refuses to mark `Exp
 teardown fails (e.g. Docker unreachable) — the job stays `Error` and is retried every tick,
 so a resource release is never silently skipped.
 
+**The `disk` amount is enforced.** The node first checks on the next service tick (normally
+about 2 seconds after `Running`), then measures every 27–30 seconds below 50% usage,
+9–10 seconds at 50–80%, and 2 seconds at 80% or above. Recent growth can shorten these
+intervals to as little as 2 seconds. Volume sizes are refreshed near the limit and cached
+for no longer than the current interval otherwise; services checked in the same tick share
+one volume scan. Two service measurements run at once across the node, prioritising higher
+usage with aging to keep queued services progressing; waiting for the volume scan does not
+take one of those slots. A measurement that fails, or loses a mount it could size before,
+keeps the last usage and doubles its interval (up to 30 seconds), so a service whose scan
+keeps timing out cannot monopolise the node's measurements.
+These are polling targets: slow scans, queueing, delayed ticks or unavailable Docker can
+delay detection, and a sudden write burst can exceed the quota before the next check.
+The node measures what each `Running`
+service has written to its disk: the container's writable layer, plus the volumes its image
+declares (e.g. `VOLUME /root` in `yanwk/comfyui-boot`, where ComfyUI keeps its models), any
+other writable mount (`/data/outputs` of a bucket service is billed by the bucket, not here).
+Usage above `disk` GB (1024³ bytes, as for compute jobs) stops the service through the
+normal stop path: outputs archived, container and anonymous volumes removed. Status
+`DiskQuotaExceeded` (`76`) explains the stop and behaves like `Stopped` (`70`): payment,
+resources, endpoints and `expiresAt` remain reserved. Before expiry, use `SERVICE_RESTART`
+(REUSE, or RESPEC to change image/template, user data and commands) or `SERVICE_EXTEND`.
+Restart follows the normal start flow to `Running`; at `expiresAt`, status becomes `Expired`.
+Neither restart nor extend changes the paid `disk` amount: a workload that needs more must
+use a smaller model/template, or be started again as a new service with a larger `disk`.
+A REUSE restart starts from a clean disk, so it only helps when the data that hit the limit
+was written at run time.
+Retained output archives are excluded from live disk checks: they can be downloaded with
+`SERVICE_GET_RESULT` but cannot be deleted through the API, so counting them would trap
+restarts in repeated quota stops. Archives retain normal storageExpiry cleanup. When the
+environment has a `disk` resource, `SERVICE_START` rejects a service whose resolved `disk`
+amount (requested, or filled from the env min) is not greater than 0.
+
 **`Running` is monitored too.** The same background loop that advances a starting service also
 checks every `Running` service's container on each tick (~every few seconds). If the container
 exits on its own — crash, OOM, or the Docker daemon itself becoming unreachable — the job is

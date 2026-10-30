@@ -2,10 +2,18 @@ import express, { Request, Response } from 'express'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
+import { errorSummary } from '../../utils/logging/redact.js'
 
 import { validateCommandParameters } from './validateCommands.js'
 import { Readable } from 'stream'
 import { sanitizeLogValue } from '../../utils/util.js'
+
+// caller-supplied values: sanitized so they cannot forge log lines (CWE-117)
+function describeCommand(body: any): string {
+  return `${sanitizeLogValue(body?.command)}${
+    body?.node ? ' -> ' + sanitizeLogValue(body.node) : ''
+  }`
+}
 
 function mapChunkToBuffer(chunk: any): Buffer | Uint8Array {
   if (typeof chunk === 'string') {
@@ -47,7 +55,7 @@ async function streamToResponse(
       }
     }
   } catch (err) {
-    HTTP_LOGGER.error(`Stream error: ${err.message}`)
+    HTTP_LOGGER.error(`Stream error: ${errorSummary(err)}`)
     throw err
   }
 }
@@ -68,20 +76,14 @@ directCommandRoute.post(
 
       res.on('close', () => {
         if (!closedResponse) {
-          HTTP_LOGGER.error('TCP connection was closed before we could send a response!')
+          HTTP_LOGGER.debug(
+            `directCommand ${describeCommand(req.body)}: client closed the connection before the response`
+          )
         }
         closedResponse = true
       })
 
-      // do not log the raw body: command payloads carry credentials (signatures, file
-      // object headers / s3 keys, encrypt plaintext). validateCommandParameters already
-      // logs a redacted copy of every command.
-      HTTP_LOGGER.logMessage(
-        `Sending command "${req.body?.command}"${
-          req.body?.node ? ` to node ${sanitizeLogValue(req.body.node)}` : ''
-        }`,
-        true
-      )
+      HTTP_LOGGER.debug(`directCommand ${describeCommand(req.body)}`)
 
       const isLocalCommand =
         !req.oceanNode.hasP2PInterface() ||
@@ -156,7 +158,9 @@ directCommandRoute.post(
         res.end()
       }
     } catch (err) {
-      HTTP_LOGGER.error(err.message)
+      // after the headers are sent, failures are mid-stream aborts (peer, storage or client)
+      const message = `directCommand ${describeCommand(req.body)} failed: ${errorSummary(err)}`
+      HTTP_LOGGER.error(message)
       closedResponse = true
       if (!res.headersSent) {
         res.status(500).send(err.message)

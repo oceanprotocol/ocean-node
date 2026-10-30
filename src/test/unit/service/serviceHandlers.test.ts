@@ -590,7 +590,11 @@ describe('Service handlers', () => {
     it('400 when expiresAt has already passed, whatever the status says', async () => {
       // the expiry sweep is a cron job, so a de-facto expired service can still carry a
       // live status for a while — extend must reject it on expiresAt alone
-      for (const status of [ServiceStatusNumber.Running, ServiceStatusNumber.Stopped]) {
+      for (const status of [
+        ServiceStatusNumber.Running,
+        ServiceStatusNumber.Stopped,
+        ServiceStatusNumber.DiskQuotaExceeded
+      ]) {
         const { node, escrow } = buildFakes({
           serviceJobInDb: makeJob({ status, expiresAt: Date.now() - 1000 })
         })
@@ -613,6 +617,7 @@ describe('Service handlers', () => {
         ServiceStatusNumber.Restarting,
         ServiceStatusNumber.Stopping,
         ServiceStatusNumber.Stopped,
+        ServiceStatusNumber.DiskQuotaExceeded,
         ServiceStatusNumber.Error
       ]) {
         const job = makeJob({ status })
@@ -1071,6 +1076,51 @@ describe('Service handlers', () => {
       const { node } = buildFakes({ serviceEnabled: false })
       const res = await new ServiceStartHandler(node).handle({ ...baseTask } as any)
       expect(res.status.httpStatus).to.equal(403)
+    })
+
+    describe('disk amount', () => {
+      const withDiskEnv = () => {
+        const fakes = buildFakes()
+        fakes.env.resources.push({ id: 'disk', kind: 'fungible', total: 100, min: 0 })
+        return fakes
+      }
+
+      it('400 when the env has disk and the service omits it (fills to min 0)', async () => {
+        const { node, engine } = withDiskEnv()
+        const res = await new ServiceStartHandler(node).handle({
+          ...baseTask,
+          resources: [{ id: 'cpu', amount: 2 }]
+        } as any)
+        expect(res.status.httpStatus).to.equal(400)
+        expect(String(res.status.error)).to.contain('disk amount greater than 0')
+        expect(engine.createServiceJob.called).to.equal(false)
+      })
+
+      it('400 when the service asks for disk 0', async () => {
+        const { node, engine } = withDiskEnv()
+        const res = await new ServiceStartHandler(node).handle({
+          ...baseTask,
+          resources: [
+            { id: 'cpu', amount: 2 },
+            { id: 'disk', amount: 0 }
+          ]
+        } as any)
+        expect(res.status.httpStatus).to.equal(400)
+        expect(engine.createServiceJob.called).to.equal(false)
+      })
+
+      it('200 with a positive disk amount', async () => {
+        const { node, engine } = withDiskEnv()
+        const res = await new ServiceStartHandler(node).handle({
+          ...baseTask,
+          resources: [
+            { id: 'cpu', amount: 2 },
+            { id: 'disk', amount: 10 }
+          ]
+        } as any)
+        expect(res.status.httpStatus).to.equal(200)
+        expect(engine.createServiceJob.calledOnce).to.equal(true)
+      })
     })
 
     it('400 when image is missing', async () => {

@@ -35,6 +35,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `VALIDATE_UNSIGNED_DDO`: If set to `false`, the node will not validate unsigned DDOs and will request a signed message with the publisher address, nonce and signature. Default is `true`. Example: `false`
 - `JWT_SECRET`: Secret used to sign JWT tokens. Default is `ocean-node-secret`. Example: `"my-secret-jwt-token"`
 - `PERSISTENT_STORAGE`: Persistent storage config. See [persistent storage](persistentStorage.md).
+- `UNSAFE_URLS`: Array or regular expression URLs to be excluded from access.Example: ["^.*(169.254.169.254).*","^.*(127.0.0.1).*"]
 - `PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING`: If set to `true`, bucket owners can share a bucket through its access list. Otherwise bucket access lists are ignored, only the bucket owner can use a bucket, and creating a bucket with a non-empty access list is rejected. Overrides `persistentStorage.allowBucketSharing`. Default is `false`. Example: `true`
 
 ## Database
@@ -62,11 +63,21 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 
 ## Logs
 
-- `LOG_LEVEL`: Define the default log level. Example: `debug`
-- `LOG_CONSOLE`: Write logs to the console. Default is `false`, but becomes `true` if neither `LOG_FILES` or `LOG_DB` are set.
-- `LOG_FILES`: Write logs to files. Default is `false`
-- `LOG_DB`: Write logs to noSQL database. Default is `false`
-- `UNSAFE_URLS`: Array or regular expression URLs to be excluded from access.Example: ["^.*(169.254.169.254).*","^.*(127.0.0.1).*"]
+Console, disk and database are independent log sinks. See [Logs.md](Logs.md) for where each one writes and how to read the logs back.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `LOG_LEVEL` | `debug` when `NODE_ENV` is unset or development, `info` in production (the Docker image sets production) | Level for the console and the log database. Case-insensitive. Example: `debug` |
+| `LOG_CONSOLE` | `true` | Write logs to stdout. Set `false` to turn the console off. If the console, the files and the database would all be off, the console is turned back on and a warning is logged |
+| `LOG_FILES` | `true` when `LOG_DB` is off, `false` when `LOG_DB` is on | Write daily-rotating log files (one per module, plus one exceptions file). `false` disables all disk output, including exceptions and the fallback used when `LOG_DB` is set but the log database is unavailable |
+| `LOG_FILES_LEVEL` | `info` | Minimum level written to disk, independent of `LOG_LEVEL`. Can be more verbose than `LOG_LEVEL`. Example: `debug` |
+| `LOG_FILES_RETENTION_DAYS` | `30` | Days of log files to keep. Older files (including `.gz` archives) are deleted when the log rotates. Integer, minimum `1` |
+| `LOG_FILES_MAX_SIZE` | `20m` | Size at which one module's daily file splits into `.1`, `.2`, ... parts. Accepts `<number>k`, `m` or `g` |
+| `LOG_FILES_DIR` | `logs` | Directory for log files, relative to the working directory (`/usr/src/app/logs` in Docker) |
+| `LOG_DB` | `false` | Write logs to the noSQL database (needs `DB_URL`). Turning it on switches off default file logging unless `LOG_FILES=true` |
+| `LOG_RETENTION_TIME` | `2592000000` | Retention of logs in the database, in milliseconds (30 days). DB logs only |
+
+Invalid levels, retention values or sizes fall back to their defaults and log a warning at startup. Files are written to `<LOG_FILES_DIR>/<module>-YYYY-MM-DD.log` (UTC days); see [Logs.md](Logs.md#log-files-on-disk).
 
 ## HTTP
 
@@ -184,7 +195,7 @@ setting it through the environment reaches both.
 
 ## Cron Jobs
 
-- `CRON_DELETE_DB_LOGS`: Delete old logs from database Cron expression. Example: `0 0 * * *` (runs every day at midnight)
+- `CRON_DELETE_DB_LOGS`: Delete old logs from database Cron expression (DB logs only; file retention is `LOG_FILES_RETENTION_DAYS`). Example: `0 0 * * *` (runs every day at midnight)
 - `CRON_CLEANUP_C2D_STORAGE`: Clear c2d expired resources/storage and delete old jobs. Example: `*/5 * * * *` (runs every 5 minutes)
 
 ## Node Metrics History

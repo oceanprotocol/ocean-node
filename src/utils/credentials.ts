@@ -1,6 +1,7 @@
 import { Signer } from 'ethers'
 import { AccessListContract } from '../@types/OceanNode.js'
 import { CORE_LOGGER } from './logging/common.js'
+import { errorSummary } from './logging/redact.js'
 import { Credential, Credentials, MATCH_RULES } from '@oceanprotocol/ddo-js'
 import { CREDENTIALS_TYPES } from '../@types/DDO/Credentials.js'
 import { checkAddressOnAccessListWithSigner } from './accessList.js'
@@ -55,7 +56,7 @@ export async function checkCredentials(
 
     // If evaluation says to deny, return false
     if (denyResult.shouldDeny) {
-      CORE_LOGGER.logMessage(
+      CORE_LOGGER.debug(
         `Access denied: Consumer address ${consumerAddress} matched deny rule(s)`
       )
       return false
@@ -100,7 +101,7 @@ async function evaluateCredentialList(
 
       if (listType === 'allow' && matchRule === 'all') {
         // Unknown type in allow list with match_all='all' -> DENY
-        CORE_LOGGER.warn(
+        CORE_LOGGER.debug(
           `Unknown credential type '${credential.type}' in allow list with match_allow='all'. Access denied.`
         )
         return { shouldAllow: false, shouldDeny: false }
@@ -197,7 +198,7 @@ export async function checkSingleCredential(
 
     // AccessList credentials need a contract address to check
     if (!isDefined(accessListCredential.accessList)) {
-      CORE_LOGGER.warn('AccessList credential missing accessList contract address')
+      CORE_LOGGER.debug('AccessList credential missing accessList contract address')
       return false
     }
 
@@ -210,7 +211,9 @@ export async function checkSingleCredential(
       )
       return hasAccess
     } catch (error) {
-      CORE_LOGGER.error(`Error checking accessList credential: ${error.message}`)
+      CORE_LOGGER.error(
+        `Error checking accessList credential ${accessListCredential.accessList}: ${errorSummary(error)}`
+      )
       return false
     }
   }
@@ -219,14 +222,14 @@ export async function checkSingleCredential(
   // Handle VERIFIABLE CREDENTIAL (future support)
   // ========================================
   if (credentialType === 'verifiablecredential') {
-    CORE_LOGGER.warn('VerifiableCredential type is not yet supported')
+    CORE_LOGGER.debug('VerifiableCredential type is not yet supported')
     return null // Unknown/unsupported type
   }
 
   // ========================================
   // Unknown credential type
   // ========================================
-  CORE_LOGGER.warn(`Unknown credential type: ${credential.type}`)
+  CORE_LOGGER.debug(`Unknown credential type: ${credential.type}`)
   return null
 }
 
@@ -263,8 +266,8 @@ export async function checkCredentialOnAccessList(
       }
     }
     if (!isAuthorized) {
-      CORE_LOGGER.error(
-        `Account ${addressToCheck} is NOT part of the given access list group.`
+      CORE_LOGGER.debug(
+        `Account ${addressToCheck} is not on any access list for chain ${chainId}`
       )
     }
     return isAuthorized

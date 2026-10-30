@@ -12,7 +12,7 @@ import { Database } from './components/database/index.js'
 import { Escrow } from './components/core/utils/escrow.js'
 import { CoreHandlersRegistry } from './components/core/handler/coreHandlersRegistry.js'
 import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
+import { errorSummary } from './utils/logging/redact.js'
 import { BaseHandler } from './components/core/handler/handler.js'
 import { C2DEngines } from './components/c2d/compute_engines.js'
 import { Auth } from './components/Auth/index.js'
@@ -85,11 +85,11 @@ export class OceanNode {
       )
       if (this.config.persistentStorage?.enabled) {
         OCEAN_NODE_LOGGER.info(
-          `Starting PersistenStorage with type ${this.config.persistentStorage.type}`
+          `Persistent storage enabled (type: ${this.config.persistentStorage.type})`
         )
         this.persistentStorage = createPersistentStorage(this)
       } else {
-        OCEAN_NODE_LOGGER.info(`Starting without PersistenStorage`)
+        OCEAN_NODE_LOGGER.info('Persistent storage disabled')
         this.persistentStorage = null
       }
     }
@@ -130,7 +130,7 @@ export class OceanNode {
           try {
             await instanceToTearDown.tearDownAll()
           } catch (err: unknown) {
-            OCEAN_NODE_LOGGER.warn(
+            OCEAN_NODE_LOGGER.error(
               `Failed to tear down previous OceanNode instance: ${
                 err instanceof Error ? err.message : String(err)
               }`
@@ -148,8 +148,6 @@ export class OceanNode {
         keyManager,
         blockchainRegistry
       )
-    } else {
-      OCEAN_NODE_LOGGER.debug('Return cached OceanNode instance')
     }
     return this.instance
   }
@@ -180,7 +178,7 @@ export class OceanNode {
     this.indexer = _indexer
     if (previous) {
       previous.stop().catch((err: unknown) => {
-        OCEAN_NODE_LOGGER.warn(
+        OCEAN_NODE_LOGGER.error(
           `Failed to stop replaced indexer: ${err instanceof Error ? err.message : String(err)}`
         )
       })
@@ -299,18 +297,15 @@ export class OceanNode {
    * @param message - JSON command string
    */
   async handleDirectProtocolCommand(message: string): Promise<P2PCommandResponse> {
-    OCEAN_NODE_LOGGER.logMessage('Incoming direct command for ocean peer', true)
-
+    let command: string | undefined
     try {
       const task = JSON.parse(message)
-      // do not log the raw message: command payloads carry credentials. The command name
-      // is enough here; validateCommandParameters logs a redacted copy of the payload.
-      // Only log it when it is a known command - a raw, caller-supplied string could embed
-      // control characters and forge extra log lines (CWE-117); fall back to 'unknown'.
-      const commandName = SUPPORTED_PROTOCOL_COMMANDS.includes(task?.command)
+      // only known command names are logged: a raw, caller-supplied string could embed
+      // control characters and forge extra log lines (CWE-117)
+      command = SUPPORTED_PROTOCOL_COMMANDS.includes(task?.command)
         ? task.command
         : 'unknown'
-      OCEAN_NODE_LOGGER.logMessage(`Performing task for command: ${commandName}`, true)
+      OCEAN_NODE_LOGGER.debug(`Direct command: ${command}`)
       const handler: BaseHandler = this.coreHandlers.getHandler(task.command)
 
       if (!handler) {
@@ -326,11 +321,8 @@ export class OceanNode {
       // Return response directly without buffering
       return await handler.handle(task)
     } catch (err) {
-      OCEAN_NODE_LOGGER.logMessageWithEmoji(
-        'handleDirectProtocolCommands Error: ' + err.message,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
+      OCEAN_NODE_LOGGER.error(
+        `Direct command ${command ?? '(unparsed)'} failed: ${errorSummary(err)}`
       )
 
       return {
@@ -359,7 +351,7 @@ export class OceanNode {
 
   checkSupportedChainId(chainId: number): ValidateChainId {
     if (!chainId || !(`${chainId.toString()}` in this.config.supportedNetworks)) {
-      OCEAN_NODE_LOGGER.error(`Chain ID ${chainId} is not supported`)
+      OCEAN_NODE_LOGGER.debug(`Chain ID ${chainId} is not supported`)
       return {
         validation: false,
         networkRpc: ''
@@ -419,7 +411,7 @@ export class OceanNode {
       const s = ethers.hexlify(signatureSplitted.s)
       return { hash: hashedDDO, publicKey: providerWallet.address, r, s, v }
     } catch (error) {
-      OCEAN_NODE_LOGGER.logMessage(`Validation signature error: ${error}`, true)
+      OCEAN_NODE_LOGGER.error(`Validation signature error: ${errorSummary(error)}`)
       return { hash: '', publicKey: '', r: '', s: '', v: '' }
     }
   }

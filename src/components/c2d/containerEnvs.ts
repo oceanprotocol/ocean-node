@@ -35,7 +35,7 @@ export function parsePassContainerEnvs(raw: unknown): Record<string, string> {
     try {
       parsed = JSON.parse(trimmed)
     } catch (e) {
-      CORE_LOGGER.warn(`PASS_CONTAINER_ENVS: not valid JSON (${e?.message}) — ignored`)
+      CORE_LOGGER.error(`PASS_CONTAINER_ENVS: not valid JSON (${e?.message}) — ignored`)
       return {}
     }
   }

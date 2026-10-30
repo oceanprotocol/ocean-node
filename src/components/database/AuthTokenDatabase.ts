@@ -21,7 +21,7 @@ export class AuthTokenDatabase extends AbstractDatabase {
   }
 
   static async create(config: OceanNodeDBConfig): Promise<AuthTokenDatabase> {
-    DATABASE_LOGGER.info('Creating AuthTokenDatabase with SQLite')
+    DATABASE_LOGGER.debug('Creating AuthTokenDatabase with SQLite')
     // SqliteClient creates the parent directory on construction.
     const provider = new SQLiteAuthToken('databases/authTokenDatabase.sqlite')
     await provider.createTable()

@@ -13,10 +13,19 @@ import {
   ENVIRONMENT_VARIABLES
 } from './utils/index.js'
 
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
+import {
+  enableFileLoggingFallback,
+  ensureLogOutput,
+  flushLogs,
+  GENERIC_EMOJIS,
+  getLoggingSummary,
+  LOG_LEVELS_STR,
+  USE_DB_TRANSPORT
+} from './utils/logging/Logger.js'
 import fs from 'fs'
 import https from 'https'
 import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
+import { redactUrls } from './utils/logging/redact.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import cors from 'cors'
@@ -77,15 +86,23 @@ async function initDatabaseWithRetry(
   return null
 }
 
+// log the stack, then give the log files a moment to flush before exiting
+let crashing = false
+function exitAfterCrash(message: string, err: unknown): void {
+  OCEAN_NODE_LOGGER.error(
+    `${message}: ${redactUrls(
+      err instanceof Error ? err.stack || err.message : String(err)
+    )}`
+  )
+  if (crashing) return
+  crashing = true
+  void flushLogs().finally(() => process.exit(1))
+}
 process.on('uncaughtException', (err) => {
-  OCEAN_NODE_LOGGER.error(`Uncaught exception: ${err.message}`)
-  process.exit(1)
+  exitAfterCrash('Uncaught exception', err)
 })
 process.on('unhandledRejection', (err) => {
-  OCEAN_NODE_LOGGER.error(
-    `Unhandled rejection: ${err instanceof Error ? err.message : String(err)}`
-  )
-  process.exit(1)
+  exitAfterCrash('Unhandled rejection', err)
 })
 
 // Graceful shutdown: flush the final telemetry batch before exiting so a deploy does not lose the
@@ -108,10 +125,11 @@ async function gracefulShutdown(signal: string): Promise<void> {
   try {
     await (await import('./telemetry/otel.js')).shutdownTelemetry()
   } catch (e) {
-    OCEAN_NODE_LOGGER.warn(
+    OCEAN_NODE_LOGGER.error(
       `Telemetry shutdown failed: ${e instanceof Error ? e.message : e}`
     )
   }
+  await flushLogs()
   clearTimeout(forceExit)
   process.exit(0)
 }
@@ -178,15 +196,27 @@ if (!dbconn) {
   )
 }
 
-if (!hasValidDBConfiguration(config.dbConfig)) {
-  // once we create a database instance, we check the environment and possibly add the DB transport
-  // after that, all loggers will eventually have it too (if in production/staging environments)
-  // it creates dinamically DDO schemas
-  config.hasIndexer = false
-  OCEAN_NODE_LOGGER.warn(
-    `Missing or invalid property: "${ENVIRONMENT_VARIABLES.DB_URL.name}". This means Indexer module will not be enabled.`
-  )
+// LOG_DB is on but there is no usable log database (no/invalid DB config, failed init or
+// DEGRADED mode): keep the logs on disk instead
+if (USE_DB_TRANSPORT() && !dbconn?.logs) {
+  const reason = dbconn ? 'log DB not initialized' : 'DB init failed'
+  // LOG_FILES=false as well: never leave the node without any log output
+  if (!enableFileLoggingFallback(reason)) ensureLogOutput(reason)
 }
+
+if (!hasValidDBConfiguration(config.dbConfig)) {
+  config.hasIndexer = false
+  if (config.dbConfig?.url) {
+    OCEAN_NODE_LOGGER.warn(
+      `Invalid metadata DB configuration (check ${ENVIRONMENT_VARIABLES.DB_URL.name}, ${ENVIRONMENT_VARIABLES.DB_TYPE.name} and credentials): Indexer disabled`
+    )
+  } else {
+    OCEAN_NODE_LOGGER.info(
+      `${ENVIRONMENT_VARIABLES.DB_URL.name} not set: running without metadata DB (Indexer disabled)`
+    )
+  }
+}
+OCEAN_NODE_LOGGER.info(getLoggingSummary())
 
 // Create KeyManager and BlockchainRegistry
 // KeyManager will determine provider type from config.keys.type and initialize in constructor
@@ -251,6 +281,7 @@ if (config.hasHttp) {
   app.use(removeExtraSlashes)
   app.use('/', httpRoutes)
 
+  let httpsStarted = false
   if (config.httpCertPath && config.httpKeyPath) {
     try {
       const options = {
@@ -258,18 +289,18 @@ if (config.hasHttp) {
         key: fs.readFileSync(config.httpKeyPath)
       }
       https.createServer(options, app).listen(config.httpPort, () => {
-        OCEAN_NODE_LOGGER.logMessage(`HTTPS port: ${config.httpPort}`, true)
+        OCEAN_NODE_LOGGER.info(`HTTPS server listening on port ${config.httpPort}`)
       })
+      httpsStarted = true
     } catch (err) {
-      OCEAN_NODE_LOGGER.error(`Error starting HTTPS server: ${err.message}`)
-      OCEAN_NODE_LOGGER.logMessage(`Falling back to HTTP`, true)
-      app.listen(config.httpPort, () => {
-        OCEAN_NODE_LOGGER.logMessage(`HTTP port: ${config.httpPort}`, true)
-      })
+      OCEAN_NODE_LOGGER.error(
+        `Error starting HTTPS server, falling back to HTTP: ${err.message}`
+      )
     }
-  } else {
+  }
+  if (!httpsStarted) {
     app.listen(config.httpPort, () => {
-      OCEAN_NODE_LOGGER.logMessage(`HTTP port: ${config.httpPort}`, true)
+      OCEAN_NODE_LOGGER.info(`HTTP server listening on port ${config.httpPort}`)
     })
   }
 

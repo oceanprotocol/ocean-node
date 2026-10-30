@@ -8,6 +8,7 @@ import {
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { safeStringify } from '../../../utils/logging/redact.js'
 
 export class QueryHandler extends CommandHandler {
   validate(command: QueryCommand): ValidateParams {
@@ -22,7 +23,7 @@ export class QueryHandler extends CommandHandler {
     try {
       const database = await this.getOceanNode().getDatabase()
       if (!database || !database.ddo) {
-        CORE_LOGGER.error('DDO database is not available')
+        CORE_LOGGER.debug('DDO database is not available')
         return {
           stream: null,
           status: { httpStatus: 503, error: 'DDO database is not available' }
@@ -55,7 +56,7 @@ export class QueryDdoStateHandler extends QueryHandler {
     try {
       const database = await this.getOceanNode().getDatabase()
       if (!database || !database.ddoState) {
-        CORE_LOGGER.error('DDO State database is not available')
+        CORE_LOGGER.debug('DDO State database is not available')
         return {
           stream: null,
           status: { httpStatus: 503, error: 'DDO State database is not available' }
@@ -64,10 +65,10 @@ export class QueryDdoStateHandler extends QueryHandler {
 
       const result = await database.ddoState.search(task.query)
 
-      CORE_LOGGER.debug(`DDO State search result: ${JSON.stringify(result)}`)
+      CORE_LOGGER.debug(`DDO State search result: ${safeStringify(result)}`)
 
       if (result === null) {
-        CORE_LOGGER.error('Database search returned null')
+        CORE_LOGGER.debug('Database search returned null')
         return {
           stream: null,
           status: { httpStatus: 500, error: 'Database search failed' }

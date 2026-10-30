@@ -68,10 +68,13 @@ export class ComputeStopHandler extends CommandHandler {
         agreementId
       )
 
-      CORE_LOGGER.logMessage(
-        'StopComputeCommand Response: ' + JSON.stringify(response, null, 2),
-        true
-      )
+      if (response?.length > 0) {
+        CORE_LOGGER.info(
+          `Compute job stop requested: ${task.jobId} by ${task.consumerAddress} (${response.length} job(s))`
+        )
+      } else {
+        CORE_LOGGER.debug(`Compute job stop: no job matched ${task.jobId}`)
+      }
 
       return {
         stream: Readable.from(JSON.stringify(response)),
@@ -80,7 +83,7 @@ export class ComputeStopHandler extends CommandHandler {
         }
       }
     } catch (error) {
-      CORE_LOGGER.error(error.message)
+      CORE_LOGGER.error(`stopCompute ${task.jobId} failed: ${error.message}`)
       return {
         stream: null,
         status: {

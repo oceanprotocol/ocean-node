@@ -8,6 +8,8 @@ import {
 import {
   ServiceStatusNumber,
   SERVICE_START_PENDING_STATUSES,
+  SERVICE_STOPPED_STATUSES,
+  isStoppedLike,
   type ServiceJob,
   type ServiceModelDownload,
   type ServiceReadiness
@@ -295,7 +297,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
         Buffer.from(JSON.stringify({ ...job, updatedAt: Date.now() }))
       ])
     } catch (err) {
-      DATABASE_LOGGER.error('Could not insert service job on DB: ' + err.message)
+      DATABASE_LOGGER.error(
+        `Could not insert service job ${job.serviceId} on DB: ${err.message}`
+      )
       throw err
     }
   }
@@ -318,7 +322,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       ])
       return changes
     } catch (err) {
-      DATABASE_LOGGER.error(`Error while updating service job: ${err.message}`)
+      DATABASE_LOGGER.error(
+        `Error while updating service job ${job.serviceId}: ${err.message}`
+      )
       throw err
     }
   }
@@ -347,7 +353,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     try {
       this.db.exec('BEGIN IMMEDIATE;')
     } catch (err) {
-      DATABASE_LOGGER.error(`${what} update: could not begin transaction: ${err.message}`)
+      DATABASE_LOGGER.error(
+        `${what} update for service job ${serviceId}: could not begin transaction: ${err.message}`
+      )
       return false
     }
     try {
@@ -381,7 +389,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       this.db.exec('COMMIT;')
       return changes > 0
     } catch (err) {
-      DATABASE_LOGGER.error(`Error while updating service job ${what}: ${err.message}`)
+      DATABASE_LOGGER.error(
+        `Error while updating ${what} of service job ${serviceId}: ${err.message}`
+      )
       try {
         this.db.exec('ROLLBACK;')
       } catch {
@@ -457,7 +467,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       const rows = this.db.all(selectSQL, params)
       return this.mapServiceRows(rows)
     } catch (err) {
-      DATABASE_LOGGER.error(err.message)
+      DATABASE_LOGGER.error(`getServiceJob query failed: ${err.message}`)
       throw err
     }
   }
@@ -469,7 +479,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     // (Starting) through the whole start pipeline (Locking, image, Claiming), while
     // Running/Restarting/Stopping, through Error (container died on its own) AND through
     // an explicit Stopped — a stopped service can be restarted anytime on the same
-    // resources until expiresAt. Only the expiry sweep (→ Expired) releases the
+    // resources until expiresAt. Only expiry releases the
     // reservation; nothing else may free it inside the paid window.
     const activeStatuses = [
       ServiceStatusNumber.Starting,
@@ -480,7 +490,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       ServiceStatusNumber.Running,
       ServiceStatusNumber.Restarting,
       ServiceStatusNumber.Stopping,
-      ServiceStatusNumber.Stopped,
+      ...SERVICE_STOPPED_STATUSES,
       ServiceStatusNumber.Error
     ]
     const placeholders = activeStatuses.map(() => '?').join(',')
@@ -500,12 +510,11 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       // JS-side filter because payment lives in the JSON body, not a SQL column.
       return this.mapServiceRows(rows).filter(
         (j) =>
-          (j.status !== ServiceStatusNumber.Error &&
-            j.status !== ServiceStatusNumber.Stopped) ||
+          (j.status !== ServiceStatusNumber.Error && !isStoppedLike(j.status)) ||
           !!j.payment?.claimTx
       )
     } catch (err) {
-      DATABASE_LOGGER.error(err.message)
+      DATABASE_LOGGER.error(`getRunningServiceJobs query failed: ${err.message}`)
       throw err
     }
   }
@@ -550,7 +559,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     const expirableStatuses = [
       ServiceStatusNumber.Running,
       ServiceStatusNumber.Error,
-      ServiceStatusNumber.Stopped,
+      ...SERVICE_STOPPED_STATUSES,
       ServiceStatusNumber.Stopping
     ]
     const placeholders = expirableStatuses.map(() => '?').join(',')
@@ -564,7 +573,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       const rows = this.db.all(selectSQL, params)
       return this.mapServiceRows(rows)
     } catch (err) {
-      DATABASE_LOGGER.error(err.message)
+      DATABASE_LOGGER.error(`getExpiredServiceJobs query failed: ${err.message}`)
       throw err
     }
   }
@@ -586,7 +595,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       const rows = this.db.all(selectSQL, params)
       return this.mapServiceRows(rows)
     } catch (err) {
-      DATABASE_LOGGER.error(err.message)
+      DATABASE_LOGGER.error(`getPendingServiceStarts query failed: ${err.message}`)
       throw err
     }
   }
@@ -675,10 +684,12 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
         job.environment,
         generateBlobFromJSON(job)
       ])
-      DATABASE_LOGGER.info('Successfully inserted job with id:' + job.jobId)
+      DATABASE_LOGGER.debug(
+        `C2D job ${job.clusterHash}-${job.jobId} created (env ${job.environment})`
+      )
       return job.jobId
     } catch (err) {
-      DATABASE_LOGGER.error('Could not insert C2D job on DB: ' + err.message)
+      DATABASE_LOGGER.error(`Could not insert C2D job ${job.jobId} on DB: ${err.message}`)
       throw err
     }
   }
@@ -723,7 +734,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     try {
       rows = this.db.all(selectSQL, params)
     } catch (err) {
-      DATABASE_LOGGER.error(err.message)
+      DATABASE_LOGGER.error(`getJob query failed: ${err.message}`)
       throw err
     }
     // also decode the internal data into job data
@@ -738,7 +749,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       })
       return all
     }
-    DATABASE_LOGGER.error(
+    DATABASE_LOGGER.debug(
       `Could not find any job with jobId: ${jobId}, agreementId: ${agreementId}, or owner: ${owner} in database!`
     )
     return []
@@ -776,7 +787,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       const { changes } = this.db.run(updateSQL, data)
       return changes
     } catch (err) {
-      DATABASE_LOGGER.error(`Error while updating job: ${err.message}`)
+      DATABASE_LOGGER.error(`Error while updating job ${job.jobId}: ${err.message}`)
       throw err
     }
   }
@@ -790,7 +801,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     try {
       rows = this.db.all(selectSQL)
     } catch (err) {
-      DATABASE_LOGGER.error(err.message)
+      DATABASE_LOGGER.error(`getRunningJobs query failed: ${err.message}`)
       throw err
     }
     // also decode the internal data into job data
@@ -842,7 +853,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     try {
       rows = this.db.all(selectSQL, params)
     } catch (err) {
-      DATABASE_LOGGER.error(err.message)
+      DATABASE_LOGGER.error(`getFinishedJobs query failed: ${err.message}`)
       throw err
     }
     // also decode the internal data into job data
@@ -859,10 +870,10 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       return all
     }
     environments
-      ? DATABASE_LOGGER.info(
+      ? DATABASE_LOGGER.debug(
           'No jobs found for the specified enviroments: ' + environments.join(',')
         )
-      : DATABASE_LOGGER.info('No jobs found')
+      : DATABASE_LOGGER.debug('No jobs found')
     return []
   }
 
@@ -972,7 +983,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     try {
       rows = this.db.all(selectSQL, params)
     } catch (err) {
-      DATABASE_LOGGER.error(err.message)
+      DATABASE_LOGGER.error(`C2D jobs query failed: ${err.message}`)
       throw err
     }
     // also decode the internal data into job data
@@ -992,10 +1003,10 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       return all
     }
     environments
-      ? DATABASE_LOGGER.info(
+      ? DATABASE_LOGGER.debug(
           'No jobs found for the specified enviroments: ' + environments.join(',')
         )
-      : DATABASE_LOGGER.info('No jobs found')
+      : DATABASE_LOGGER.debug('No jobs found')
     return []
   }
 }

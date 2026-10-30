@@ -406,11 +406,20 @@ byte array
 
 ## Log
 
-### `HTTP` GET /logs/:id"
+### `HTTP` POST /log/:id
 
 #### Description
 
-returns log by id
+returns log by id. Admin only. Works only with `LOG_DB` and an available log database; otherwise returns `404`.
+
+#### Parameters
+
+| name      | type   | required | description                                           |
+| --------- | ------ | -------- | ----------------------------------------------------- |
+| logId     | string | v        | id of the log entry (read from the body)              |
+| address   | string | v        | admin address (must be in `ALLOWED_ADMINS`)           |
+| signature | string | v        | signed message (auth tokens are not accepted for admin commands) |
+| nonce     | string | v        | nonce used for the signature                          |
 
 #### Response
 
@@ -428,21 +437,31 @@ returns log by id
 
 ## Logs
 
-### `HTTP` GET /logs/?
+### `HTTP` POST /logs
+
+### `P2P` command: getLogs (`PROTOCOL_COMMANDS.GET_LOGS`)
 
 #### Description
 
-returns list of logs
+returns list of logs, newest first. Admin only: send `address`, `signature` and `nonce` (auth tokens are not accepted for admin commands). The default window is the last 7 days.
 
-#### Query Parameters
+Source: the log database when `LOG_DB` is on and the log database is available; otherwise the rotating files in `logs/` (see [Logs.md](Logs.md)). Entries read from files have no `id` and only include levels at or above `LOG_FILES_LEVEL`. When nothing matches, the response is `200` with `[]`. An invalid `startTime`/`endTime` returns `400`.
 
-| name       | type   | required | description                |
-| ---------- | ------ | -------- | -------------------------- |
-| startTime  | string |          | filter logs from date      |
-| endTime    | string |          | filter logs to date        |
-| maxLogs    | string |          | logs per page              |
-| moduleName | string |          | filter logs by module name |
-| level      | string |          | filter logs by level       |
+#### Parameters
+
+| name       | type   | required | description                                                              |
+| ---------- | ------ | -------- | ------------------------------------------------------------------------ |
+| address    | string | v        | admin address (must be in `ALLOWED_ADMINS`)                              |
+| signature  | string | v        | signed message (auth tokens are not accepted for admin commands)         |
+| nonce      | string | v        | nonce used for the signature                                             |
+| startTime  | string |          | filter logs from date (ISO 8601 or epoch ms). Default: 7 days before end |
+| endTime    | string |          | filter logs to date (ISO 8601 or epoch ms). Default: now                 |
+| maxLogs    | number |          | logs per page. Default `100`, maximum `1000`                             |
+| moduleName | string |          | filter logs by module name (case-insensitive)                            |
+| level      | string |          | filter logs by level                                                     |
+| page       | number |          | 1-based page number                                                      |
+
+`startTime`, `endTime`, `maxLogs`, `moduleName`, `level` and `page` are sent as query parameters over HTTP.
 
 #### Response
 
@@ -458,6 +477,8 @@ returns list of logs
     }
 ]
 ```
+
+`id` is present only for entries from the log database.
 
 ---
 
@@ -2373,7 +2394,7 @@ The encrypted `userData` is never returned. Key fields:
 | serviceId      | string   | unique id of the running service                                                                                                                                                                                    |
 | environment    | string   | envId the service runs on                                                                                                                                                                                           |
 | owner          | string   | consumerAddress                                                                                                                                                                                                     |
-| status         | number   | `10` Starting, `20` Locking, `11` PullImage, `13` BuildImage, `30` Claiming, `40` Running, `12` PullImageFailed, `14` BuildImageFailed, `15` VulnerableImage, `50` Stopping, `70` Stopped, `75` Expired, `99` Error |
+| status         | number   | `10` Starting, `20` Locking, `11` PullImage, `13` BuildImage, `30` Claiming, `40` Running, `12` PullImageFailed, `14` BuildImageFailed, `15` VulnerableImage, `50` Stopping, `70` Stopped, `75` Expired, `76` DiskQuotaExceeded (restartable/editable like Stopped until expiresAt), `99` Error |
 | statusText     | string   | human-readable status                                                                                                                                                                                               |
 | dateCreated    | string   | ISO timestamp                                                                                                                                                                                                       |
 | expiresAt      | number   | Unix ms timestamp when the paid window ends                                                                                                                                                                         |
@@ -2544,7 +2565,7 @@ Node-wide service listing. **Authenticated but NOT owner-scoped** — any authen
 consumer identity sees every owner's services. By default it returns only the services
 **currently holding a resource reservation** (exactly what the engines count against the
 shared pools): `Running`/`Restarting`/`Stopping`, the mid-start pipeline states, paid
-`Error` (container died, restartable), and explicitly `Stopped` within the paid window.
+`Error` (container died, restartable), and `Stopped` / `DiskQuotaExceeded` within the paid window.
 `Expired` and never-paid jobs hold nothing and are not listed by default.
 
 #### Query Parameters
@@ -2712,7 +2733,9 @@ instead — no refund, no restart.
 
 #### Response (200)
 
-The `ServiceJob` with `status: 70` (Stopped).
+The `ServiceJob` with `status: 70` (Stopped). An already disk-stopped service keeps
+`status: 76` (`DiskQuotaExceeded`); both states allow RESTART (REUSE or RESPEC) and EXTEND
+until `expiresAt`. Only `release: true` ends the paid window early.
 
 ---
 

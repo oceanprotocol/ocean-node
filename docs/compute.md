@@ -408,8 +408,10 @@ never affected and container-level metrics (cpu, memory, disk, network, block I/
 being collected — the snapshot just has no `gpu[]` entry.
 
 All messages come from the `CORE` module. The NVML load/init failures below are logged at
-**warn**, so they are visible at the default log level, and only once per process (the probe
-result is cached). The `[metrics] gpu:` lines are **debug**, so they need `LOG_LEVEL=debug`;
+**error** (**warn** when `nvmlInit` returns an error code), so they are visible at the default
+log level, and only once per process (the probe result is cached). The `[metrics] gpu:`
+`collection failed` / `host sample failed` lines are **error**; the other `[metrics] gpu:` lines
+are **debug**, so they need `LOG_LEVEL=debug` on the console or `LOG_FILES_LEVEL=debug` on disk;
 their frequency is noted per message.
 
 #### `could not bind libnvidia-ml.so.1 — NVIDIA GPU metrics disabled (Failed to load shared library: cannot open shared object file: No such file or directory)`

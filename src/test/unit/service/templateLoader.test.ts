@@ -250,17 +250,19 @@ describe('loadServiceTemplates', () => {
       JSON.stringify({ name: 'service-templates', private: true, type: 'module' })
     )
     const warn = sinon.stub(CORE_LOGGER, 'warn')
+    const throttled = sinon.stub(CORE_LOGGER, 'throttled')
     try {
       const templates = await loadServiceTemplates(dir)
       expect(templates.map((t) => t.id)).to.deep.equal(['my-flow'])
       expect(
-        warn
-          .getCalls()
-          .map((c) => String(c.args[0]))
-          .filter((m) => m.includes('package.json'))
+        [
+          ...warn.getCalls().map((c) => String(c.args[0])),
+          ...throttled.getCalls().map((c) => String(c.args[2]))
+        ].filter((m) => m.includes('package.json'))
       ).to.deep.equal([])
     } finally {
       warn.restore()
+      throttled.restore()
     }
   })
 })
