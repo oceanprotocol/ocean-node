@@ -2,7 +2,6 @@ import { DDOManager } from '@oceanprotocol/ddo-js'
 import { ethers, Signer, FallbackProvider } from 'ethers'
 import { EVENTS } from '../../../utils/constants.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
-import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import {
   getDtContract,
   getDid,
@@ -28,7 +27,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
     const startOrderId = decodedEventData.args[0].toString()
     const timestamp = parseInt(decodedEventData.args[2].toString())
     const payer = decodedEventData.args[1].toString()
-    INDEXER_LOGGER.logMessage(`Processed reused order at ${timestamp}`, true)
+    INDEXER_LOGGER.debug(`Processed reused order at ${timestamp}`)
 
     const datatokenContract = getDtContract(signer, event.address)
 
@@ -38,14 +37,14 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
       const { ddo: ddoDatabase, order: orderDatabase } = await this.getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
       if (!ddo) {
-        INDEXER_LOGGER.logMessage(
+        INDEXER_LOGGER.debug(
           `Detected OrderReused changed for ${did}, but it does not exists.`
         )
         return
       }
       const existingOrder = await orderDatabase.retrieve(event.transactionHash)
       if (existingOrder) {
-        INDEXER_LOGGER.logMessage(
+        INDEXER_LOGGER.debug(
           `OrderReused already processed for tx ${event.transactionHash}, skipping duplicate`
         )
         return ddo
@@ -67,10 +66,10 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
           }
         }
       } else {
-        INDEXER_LOGGER.logMessage(`[OrderReused] - No stats were found on the ddo`)
+        INDEXER_LOGGER.debug(`[OrderReused] - No stats were found on the ddo`)
         const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, event.address)
         if (!serviceIdToFind) {
-          INDEXER_LOGGER.logMessage(
+          INDEXER_LOGGER.debug(
             `[OrderReused] - This datatoken does not contain this service. Invalid service id!`
           )
           return
@@ -95,7 +94,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
       try {
         const startOrder = await orderDatabase.retrieve(startOrderId)
         if (!startOrder) {
-          INDEXER_LOGGER.logMessage(
+          INDEXER_LOGGER.debug(
             `Detected OrderReused changed for order ${startOrderId}, but it does not exists.`
           )
           return
@@ -112,18 +111,14 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
           startOrderId
         )
       } catch (error) {
-        INDEXER_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_ERROR,
-          `Error retrieving startOrder for reuseOrder: ${error}`,
-          true
-        )
+        INDEXER_LOGGER.error(`Error retrieving startOrder for reuseOrder: ${error}`)
       }
 
       const savedDDO = await this.createOrUpdateDDO(ddoInstance, EVENTS.ORDER_REUSED)
       return savedDDO
     } catch (err) {
       this.rethrowIfProviderError(err)
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
+      INDEXER_LOGGER.error(`Error retrieving DDO: ${err}`)
     }
   }
 }

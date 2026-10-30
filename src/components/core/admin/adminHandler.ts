@@ -16,6 +16,7 @@ import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import { CommonValidation } from '../../../utils/validators.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { errorSummary } from '../../../utils/logging/redact.js'
 import { normalizeCommandAddresses } from '../../../utils/evmAddress.js'
 import { isAddress } from 'ethers'
 
@@ -90,7 +91,7 @@ export abstract class AdminCommandHandler
           // contract. getBlockchain() returns null when that chain has no RPC configured.
           const blockchain = oceanNode.getBlockchain(parseInt(chainId))
           if (!blockchain) {
-            CORE_LOGGER.error(
+            CORE_LOGGER.warn(
               `Cannot check admin access list for chain ${chainId}: no RPC configured for that chain. Skipping.`
             )
             continue
@@ -103,7 +104,7 @@ export abstract class AdminCommandHandler
             isAddress(addr)
           )
           if (validContracts.length === 0) {
-            CORE_LOGGER.error(
+            CORE_LOGGER.warn(
               `No valid access list contract address configured for admin check on chain ${chainId}. Skipping.`
             )
             continue
@@ -122,7 +123,7 @@ export abstract class AdminCommandHandler
             // Isolate per-chain failures (RPC rate limit / downtime) so one bad
             // chain does not abort the whole loop and deny an otherwise-valid admin.
             CORE_LOGGER.error(
-              `Error checking admin access list for chain ${chainId}: ${error}`
+              `Error checking admin access list for chain ${chainId}: ${errorSummary(error)}`
             )
             continue
           }
@@ -133,11 +134,19 @@ export abstract class AdminCommandHandler
       }
 
       const errorMsg = `The address which signed the message is not on the allowed admins list. Therefore signature ${signature} is rejected`
-      CORE_LOGGER.logMessage(errorMsg)
+      // the signature stays out of the log. Keyed per command only: callers pick the signing
+      // address, so per-address keys would neither throttle nor stay bounded
+      CORE_LOGGER.throttled(
+        `admin-denied:${command}`,
+        'warn',
+        `Admin command ${command} rejected: ${address} is not an allowed admin`
+      )
       return { valid: false, error: errorMsg }
     } catch (e) {
       const errorMsg = `Error during signature validation: ${e}`
-      CORE_LOGGER.error(errorMsg)
+      CORE_LOGGER.error(
+        `Admin signature validation failed for ${command}: ${errorSummary(e)}`
+      )
       return { valid: false, error: errorMsg }
     }
   }

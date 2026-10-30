@@ -67,7 +67,8 @@ export class PushConfigHandler extends AdminCommandHandler {
 
       const responseConfig = structuredClone(newConfig)
       responseConfig.keys.privateKey = '[*** HIDDEN CONTENT ***]'
-      CORE_LOGGER.logMessage('Configuration reloaded successfully')
+      CORE_LOGGER.info(`Admin pushed config: saved to ${configPath} and reloaded`)
+      CORE_LOGGER.debug(`Pushed config keys: ${Object.keys(task.config).join(', ')}`)
 
       return new Promise<P2PCommandResponse>((resolve) => {
         resolve({
@@ -90,6 +91,6 @@ export class PushConfigHandler extends AdminCommandHandler {
     const configPath = getConfigFilePath()
     const content = JSON.stringify(config, null, 4)
     await fs.promises.writeFile(configPath, content, 'utf-8')
-    CORE_LOGGER.logMessage(`Config saved to: ${configPath}`)
+    CORE_LOGGER.debug(`Config saved to: ${configPath}`)
   }
 }

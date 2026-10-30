@@ -98,7 +98,8 @@ describe('**********         LogDatabase CRUD', () => {
   it('should save a log in the database when a log.logMessage is called', async () => {
     const newLogEntry = {
       timestamp: Date.now(),
-      level: 'debug',
+      // logMessage defaults to info
+      level: 'info',
       message: `logMessage: Test log message ${Date.now()}`,
       moduleName: 'testModule-3',
       meta: 'Test meta information'
@@ -129,7 +130,8 @@ describe('**********         LogDatabase CRUD', () => {
   it('should save a log in the database when a log.logMessageWithEmoji is called', async () => {
     const newLogEntry = {
       timestamp: Date.now(),
-      level: 'debug',
+      // logMessageWithEmoji defaults to info
+      level: 'info',
       message: `logMessageWithEmoji: Test log message ${Date.now()}`,
       moduleName: 'testModule-4',
       meta: 'Test meta information'

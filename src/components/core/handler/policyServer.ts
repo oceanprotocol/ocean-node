@@ -45,8 +45,8 @@ export class PolicyServerPassthroughHandler extends CommandHandler {
         await this.getOceanNode().getDatabase()
       ).ddo.retrieve(task.policyServerPassthrough.documentId)
     } catch (error) {
-      // just log it
-      CORE_LOGGER.warn(
+      // just log it: the documentId comes from the caller and the request goes on without it
+      CORE_LOGGER.debug(
         `PolicyServerPassthroughHandler: DDO not found for documentId ${task.policyServerPassthrough.documentId}: ${error.message}`
       )
     }
