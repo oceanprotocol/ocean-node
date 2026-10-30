@@ -13,6 +13,20 @@ const valid = (id: string) => ({
   exposedPorts: [8888]
 })
 
+// Stub CORE_LOGGER.warn for a single test. CORE_LOGGER is a process-wide singleton, so another
+// unit-test file running earlier in the full suite can leave its own stub/replacement on
+// `.warn` (e.g. an unrestored sandbox stub). That wrapper would swallow the loader's warnings
+// and this test's fresh stub would capture nothing — the full-suite flake behind the
+// "expected [] to have a length of 1" failure. Restore any such wrapper first so we always
+// stub the pristine method and capture reliably regardless of suite order.
+function stubCoreWarn(): sinon.SinonStub {
+  const current = CORE_LOGGER.warn as unknown as Partial<sinon.SinonStub>
+  if (typeof current.restore === 'function') {
+    current.restore()
+  }
+  return sinon.stub(CORE_LOGGER, 'warn')
+}
+
 describe('loadServiceTemplates', () => {
   let dir: string
   beforeEach(() => {
@@ -249,7 +263,7 @@ describe('loadServiceTemplates', () => {
       join(dir, 'package.json'),
       JSON.stringify({ name: 'service-templates', private: true, type: 'module' })
     )
-    const warn = sinon.stub(CORE_LOGGER, 'warn')
+    const warn = stubCoreWarn()
     try {
       const templates = await loadServiceTemplates(dir)
       expect(templates.map((t) => t.id)).to.deep.equal(['my-flow'])
@@ -289,7 +303,7 @@ describe('loadServiceTemplates', () => {
         ]
       })
     )
-    const warn = sinon.stub(CORE_LOGGER, 'warn')
+    const warn = stubCoreWarn()
     try {
       const templates = await loadServiceTemplates(dir)
       expect(templates.map((t) => t.id)).to.deep.equal(['new-shape'])
