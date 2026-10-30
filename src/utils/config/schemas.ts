@@ -613,6 +613,23 @@ export const ServiceTemplateSchema = z
       }
     })
 
+    // Duplicate userConfigurableEnvVars keys are ambiguous: a client cannot tell which
+    // declaration (and which validation regex) applies, and the gpuCountEnv layout check below
+    // resolves the key with .find(), so it would only ever see the first. Reject duplicates,
+    // pointing at each later occurrence, so every linked variable has one authoritative regex.
+    const seenEnvKeys = new Set<string>()
+    ;(tmpl.userConfigurableEnvVars ?? []).forEach((uvar, i) => {
+      if (seenEnvKeys.has(uvar.key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `userConfigurableEnvVars[${i}].key "${uvar.key}" is declared more than once — keys must be unique`,
+          path: ['userConfigurableEnvVars', i, 'key']
+        })
+      } else {
+        seenEnvKeys.add(uvar.key)
+      }
+    })
+
     // A GPU recommendation's `gpuCountEnv` names the user-set env var that forces the exact
     // GPU width at runtime, so clients can only offer layouts that var accepts.
     const gpu = (tmpl.recommendedResources ?? []).find(

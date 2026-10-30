@@ -272,6 +272,36 @@ describe('ServiceTemplateSchema', () => {
         }).success
       ).to.equal(true)
     })
+    it('duplicate userConfigurableEnvVars keys → invalid (both orders), closing the gpuCountEnv regex bypass', () => {
+      // Two declarations of the same key: gpuCountEnv resolves it with .find(), so only the
+      // first regex was ever checked against the layouts and a second, contradictory regex
+      // (^8$, which rejects the 2 and 4 layouts) used to slip through.
+      const dupLax = parse([{ ...gpuMulti, gpuCountEnv: 'QWEN_TP_SIZE' }], {
+        userConfigurableEnvVars: [
+          { key: 'QWEN_TP_SIZE', validation: '^(2|4|8)$' },
+          { key: 'QWEN_TP_SIZE', validation: '^8$' }
+        ]
+      })
+      expect(dupLax.success).to.equal(false)
+      expect(dupLax.error.issues.map((i) => i.message).join(' ')).to.contain(
+        'declared more than once'
+      )
+      // Reverse declaration order is just as invalid.
+      expect(
+        parse([{ ...gpuMulti, gpuCountEnv: 'QWEN_TP_SIZE' }], {
+          userConfigurableEnvVars: [
+            { key: 'QWEN_TP_SIZE', validation: '^8$' },
+            { key: 'QWEN_TP_SIZE', validation: '^(2|4|8)$' }
+          ]
+        }).success
+      ).to.equal(false)
+      // Duplicates are rejected even without a gpuCountEnv link.
+      expect(
+        parse([cpu, gpuMulti], {
+          userConfigurableEnvVars: [{ key: 'DUP' }, { key: 'DUP' }]
+        }).success
+      ).to.equal(false)
+    })
   })
   it('a ComfyUI-shaped bundle (parent, commandFile, workflows) matches ServiceTemplateSchema', () => {
     const bundle = {
