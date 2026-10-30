@@ -148,6 +148,85 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
     expect(job.containerId).to.equal('newc')
   })
 
+  for (const image of [undefined, 'different-template']) {
+    it(`restarts DiskQuotaExceeded with ${image ? 'RESPEC' : 'REUSE'} and clears disk state`, async () => {
+      const engine = makeEngine()
+      const job = makeJob({
+        status: ServiceStatusNumber.DiskQuotaExceeded,
+        statusText: 'DiskQuotaExceeded',
+        containerId: '',
+        networkId: ''
+      })
+      const { expiresAt } = job
+      engine.db.getServiceJob.resolves([job])
+      engine.serviceDiskCheckedAt = new Map([[SERVICE_ID, Date.now()]])
+      engine.serviceDiskUnmeasured = new Map([[SERVICE_ID, 'old mount']])
+      engine.docker.createNetwork.resolves({ id: 'newnet' })
+      engine.docker.createContainer.resolves({ ...stubContainer(), id: 'newc' })
+      engine.pullImageRef = sinon.stub().resolves()
+      const snapshot = await engine.restartService(
+        SERVICE_ID,
+        OWNER,
+        image,
+        image ? 'v2' : undefined
+      )
+      expect(snapshot.status).to.equal(ServiceStatusNumber.Restarting)
+      expect(engine.serviceDiskCheckedAt.has(SERVICE_ID)).to.equal(false)
+      expect(engine.serviceDiskUnmeasured.has(SERVICE_ID)).to.equal(false)
+      await drainServiceOps(engine)
+      expect(job.status).to.equal(ServiceStatusNumber.Running)
+      expect(job.statusText).to.equal('Running')
+      expect(job.image).to.equal(image ?? 'img')
+      expect(job.containerImage).to.equal(image ? 'different-template:v2' : 'img:latest')
+      expect(job.expiresAt).to.equal(expiresAt)
+      expect(job.terminationReason).to.equal(undefined)
+      expect(engine.docker.createContainer.firstCall.args[0].Image).to.equal(
+        job.containerImage
+      )
+    })
+  }
+
+  // A disk stop whose teardown failed (Error + pending reason) is restartable like any
+  // paid Error; the owner editing the service there must cancel the abandoned disk stop.
+  it('restarting a failed disk stop (Error + pending reason) with a new spec drops the reason for good', async () => {
+    const engine = makeEngine()
+    const job = makeJob({
+      status: ServiceStatusNumber.Error,
+      statusText: 'DiskQuotaExceeded: stop failed: daemon busy',
+      terminationReason: ServiceStatusNumber.DiskQuotaExceeded
+    })
+    engine.db.getServiceJob.resolves([job])
+    const old = stubContainer({ stop: sinon.stub().rejects(new Error('daemon busy')) })
+    engine.docker.getContainer.returns(old)
+    sinon.stub(engine, 'archiveServiceOutputs').resolves()
+    engine.docker.createNetwork.resolves({ id: 'newnet' })
+    engine.docker.createContainer.resolves({ ...stubContainer(), id: 'newc' })
+    engine.pullImageRef = sinon.stub().resolves()
+    await engine.restartService(
+      SERVICE_ID,
+      OWNER,
+      'smaller-model',
+      'v2',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ['serve', '--model', 'small']
+    )
+    await drainServiceOps(engine)
+    expect(job.status).to.equal(ServiceStatusNumber.Running)
+    expect(job.terminationReason).to.equal(undefined)
+    expect(job.containerImage).to.equal('smaller-model:v2')
+    expect(job.dockerCmd).to.deep.equal(['serve', '--model', 'small'])
+    expect(engine.docker.createContainer.firstCall.args[0].Cmd).to.deep.equal([
+      'serve',
+      '--model',
+      'small'
+    ])
+    // the old container's anonymous volumes (models) go with it
+    expect(old.remove.calledWith({ force: true, v: true })).to.equal(true)
+  })
+
   it('restartService releases the lock and persists Error on the failure path', async () => {
     const engine = makeEngine()
     const job = makeJob()
@@ -545,25 +624,30 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
     expect(expired.status).to.equal(ServiceStatusNumber.Expired)
   })
 
-  it('the expiry sweep flips a Stopped service past expiresAt to Expired without touching docker', async () => {
-    const engine = makeEngine()
-    const stopped = makeJob({
-      status: ServiceStatusNumber.Stopped,
-      statusText: 'Stopped',
-      containerId: '',
-      networkId: '',
-      expiresAt: Date.now() - 1000
+  for (const status of [
+    ServiceStatusNumber.Stopped,
+    ServiceStatusNumber.DiskQuotaExceeded
+  ]) {
+    it(`the expiry sweep flips stopped-like ${status} service past expiresAt to Expired without touching docker`, async () => {
+      const engine = makeEngine()
+      const stopped = makeJob({
+        status,
+        statusText: 'Stopped',
+        containerId: '',
+        networkId: '',
+        expiresAt: Date.now() - 1000
+      })
+      engine.db.getExpiredServiceJobs.resolves([stopped])
+      engine.db.getServiceJob.resolves([stopped])
+
+      await engine.InternalLoop()
+      await drainServiceOps(engine)
+
+      expect(stopped.status).to.equal(ServiceStatusNumber.Expired)
+      // resources were already released at stop time — no docker teardown must happen
+      expect(engine.docker.getContainer.called).to.equal(false)
     })
-    engine.db.getExpiredServiceJobs.resolves([stopped])
-    engine.db.getServiceJob.resolves([stopped])
-
-    await engine.InternalLoop()
-    await drainServiceOps(engine)
-
-    expect(stopped.status).to.equal(ServiceStatusNumber.Expired)
-    // resources were already released at stop time — no docker teardown must happen
-    expect(engine.docker.getContainer.called).to.equal(false)
-  })
+  }
 
   it('processServiceStart ignores a stale pending snapshot (job already Running again)', async () => {
     const engine = makeEngine()

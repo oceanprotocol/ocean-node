@@ -77,7 +77,8 @@ import { getAddress, ZeroAddress } from 'ethers'
 import {
   ServiceStatusNumber,
   ServiceStatusText,
-  SERVICE_START_PENDING_STATUSES
+  SERVICE_START_PENDING_STATUSES,
+  isStoppedLike
 } from '../../@types/C2D/ServiceOnDemand.js'
 import type {
   ServiceJob,
@@ -150,6 +151,20 @@ import type {
   EnvResourceSnapshot
 } from '../../telemetry/computeTypes.js'
 import { cJobsFinished } from '../../telemetry/metrics.js'
+import {
+  addServiceVolumeUsage,
+  createVolumeSizeCache,
+  measureServiceLocalDiskUsage,
+  SERVICE_DISK_CHECK_INTERVAL_MS,
+  SERVICE_DISK_NEAR_RATIO,
+  scheduleServiceDiskMeasurement,
+  serviceDiskBackoffIntervalMs,
+  serviceDiskCheckIntervalMs,
+  serviceDiskTimeToQuotaMs,
+  type ServiceDiskSample,
+  type ServiceDiskUsage,
+  type VolumeSizes
+} from './serviceDiskUsage.js'
 
 const C2D_CONTAINER_UID = 1000
 const C2D_CONTAINER_GID = 1000
@@ -237,6 +252,12 @@ export class C2DEngineDocker extends C2DEngine {
   // process; the service_locks DB lease (acquired alongside it) extends the guarantee
   // across processes sharing the same DB file + Docker daemon.
   private serviceOpsInFlight: Set<string> = new Set()
+  private serviceDiskCheckedAt: Map<string, number> = new Map()
+  private serviceDiskChecksInFlight: Map<string, Promise<void>> = new Map()
+  // serviceId -> the mounts last reported as unmeasurable, so the warning is logged once
+  private serviceDiskUnmeasured: Map<string, string> = new Map()
+  private serviceDiskSamples: Map<string, ServiceDiskSample> = new Map()
+  private serviceVolumeSizes?: VolumeSizes
   // serviceId -> the address the readiness probe last reached the container on. Which address
   // works depends on how this node is deployed (on the host, or itself in Docker), so the probe
   // discovers it once and reuses it instead of walking the candidate list every few seconds.
@@ -899,6 +920,10 @@ export class C2DEngineDocker extends C2DEngine {
     if (this.internalLoopPromise) {
       await this.internalLoopPromise.catch(() => {})
       this.internalLoopPromise = null
+    }
+    if (this.serviceDiskChecksInFlight?.size > 0) {
+      await Promise.allSettled([...this.serviceDiskChecksInFlight.values()])
+      this.serviceDiskChecksInFlight.clear()
     }
     // Drain any in-flight service lifecycle ops — start pipelines launched by the loop
     // AND handler-driven stopService/restartService calls — so none continue (and touch
@@ -2120,6 +2145,7 @@ export class C2DEngineDocker extends C2DEngine {
       // Service-on-Demand health check: catch Running services whose container died on its
       // own (crash, OOM, or Docker daemon down) instead of only noticing at expiresAt.
       const runningServices = await this.checkRunningServices()
+      for (const svc of runningServices ?? []) this.launchServiceDiskCheck(svc)
 
       // Roll this tick's snapshots into one engine-wide line (+ pressure lines) so an admin
       // sees the whole live picture without correlating per-container samples by hand.
@@ -4222,9 +4248,9 @@ export class C2DEngineDocker extends C2DEngine {
       let skipped = 0
       let empty = false
       await pipeline(
-        tarToZip(tar, (stats) => {
-          skipped = stats.skipped
-          empty = stats.files === 0 && stats.directories === 0
+        tarToZip(tar, ({ skipped: skippedEntries, files, directories }) => {
+          skipped = skippedEntries
+          empty = files === 0 && directories === 0
         }),
         createWriteStream(partialPath)
       )
@@ -4317,7 +4343,7 @@ export class C2DEngineDocker extends C2DEngine {
       )
     }
     try {
-      await container.remove({ force: true })
+      await container.remove({ force: true, v: true })
     } catch (e) {
       // Keep it rather than leak it: its only extra is a PYTHONPATH entry for a dir that
       // does not exist, which Python ignores.
@@ -4467,7 +4493,7 @@ export class C2DEngineDocker extends C2DEngine {
         if (previousContainerId)
           await this.docker
             .getContainer(previousContainerId)
-            .remove({ force: true })
+            .remove({ force: true, v: true })
             .catch(() => {})
         delete job.previousContainerId
       }
@@ -4800,7 +4826,7 @@ export class C2DEngineDocker extends C2DEngine {
     this.releaseCpus(serviceId)
     if (container) {
       await container.stop({ t: 5 }).catch(() => {})
-      await container.remove({ force: true }).catch(() => {})
+      await container.remove({ force: true, v: true }).catch(() => {})
     }
     await this.removeServiceNetwork(serviceId, network?.id).catch(() => {})
   }
@@ -4882,6 +4908,27 @@ export class C2DEngineDocker extends C2DEngine {
   // snapshots into the engine-wide metrics summary without re-querying.
   private async checkRunningServices(): Promise<ServiceJob[]> {
     const services = await this.db.getRunningServiceJobs(this.getC2DConfig().hash)
+    // Retry failed/interrupted disk teardown without shortening the paid window.
+    // The pending reason lives in the DB so a node restart cannot lose it.
+    for (const svc of services) {
+      if (!svc.terminationReason || Date.now() >= svc.expiresAt) continue
+      if (!(await this.tryAcquireServiceLifecycleLock(svc.serviceId))) continue
+      // Archiving can be slow. Match the expiry sweep: hold the lease in a tracked
+      // background operation so retries never block compute jobs or service health.
+      const retry = (async () => {
+        const [fresh] = await this.db.getServiceJob(svc.serviceId, svc.owner)
+        if (fresh?.terminationReason && Date.now() < fresh.expiresAt) {
+          await this.doStopService(fresh.serviceId, fresh.owner)
+        }
+      })().finally(() => {
+        this.serviceOpPromises.delete(retry)
+        return this.releaseServiceLifecycleLock(svc.serviceId)
+      })
+      this.serviceOpPromises.add(retry)
+      retry.catch((e: any) =>
+        CORE_LOGGER.error(`Disk stop retry ${svc.serviceId} failed: ${e.message}`)
+      )
+    }
     // Skip services with a lifecycle op in flight: a restart intentionally kills the
     // container mid-way, which must not be reported as an unexpected death.
     const runningOnly = services.filter(
@@ -4896,17 +4943,203 @@ export class C2DEngineDocker extends C2DEngine {
     this.modelDownloadSampler.retain(running)
     for (const state of [
       this.serviceProbeUrls,
+      this.serviceDiskCheckedAt,
+      this.serviceDiskSamples,
+      this.serviceDiskUnmeasured,
       this.manifestCheckedAt,
       this.readinessWarned,
       this.manifestDirSizes
     ]) {
-      for (const serviceId of state.keys()) {
+      for (const serviceId of state?.keys() ?? []) {
         if (!running.has(serviceId)) {
           state.delete(serviceId)
         }
       }
     }
     return runningOnly
+  }
+
+  // Fire-and-forget, independently of optional runtime metrics. Reserves the check slot
+  // synchronously; checkServiceDiskUsage takes the lifecycle lease only to stop.
+  private launchServiceDiskCheck(snapshot: ServiceJob): void {
+    const { serviceId } = snapshot
+    const quota = snapshot.resources.find((resource) => resource.id === 'disk')?.amount
+    this.serviceDiskSamples ??= new Map()
+    const previous = this.serviceDiskSamples.get(serviceId)
+    if (previous && previous.containerId !== snapshot.containerId) {
+      this.serviceDiskSamples.delete(serviceId)
+      this.serviceDiskCheckedAt.delete(serviceId)
+    }
+    const interval =
+      this.serviceDiskSamples.get(serviceId)?.intervalMs ?? SERVICE_DISK_CHECK_INTERVAL_MS
+    // Negative after the wall clock stepped back: check now rather than wait it out.
+    const sinceChecked =
+      Date.now() - (this.serviceDiskCheckedAt.get(serviceId) ?? -Infinity)
+    if (
+      this.stopped ||
+      snapshot.status !== ServiceStatusNumber.Running ||
+      !snapshot.containerId ||
+      !Number.isFinite(quota) ||
+      !(quota > 0) ||
+      this.serviceOpsInFlight.has(serviceId) ||
+      this.serviceDiskChecksInFlight.has(serviceId) ||
+      (sinceChecked >= 0 && sinceChecked < interval)
+    )
+      return
+    const check = this.checkServiceDiskUsage(snapshot, quota)
+      .catch((e: any) =>
+        CORE_LOGGER.warn(`service ${serviceId}: disk check unmeasurable: ${e?.message}`)
+      )
+      .finally(() => this.serviceDiskChecksInFlight.delete(serviceId))
+    this.serviceDiskChecksInFlight.set(serviceId, check)
+  }
+
+  // Measures OUTSIDE the lifecycle lease: sizing a big writable layer or volume can take
+  // seconds, and holding the lease that long would reject the owner's STOP / RESTART /
+  // EXTEND with "retry shortly" once a minute. The lease is taken only to stop, and the
+  // row is re-read under it, so a sample of a container a restart has since replaced (or
+  // a service stopped meanwhile) never stops anything.
+  private async checkServiceDiskUsage(
+    snapshot: ServiceJob,
+    quota: number
+  ): Promise<void> {
+    const { serviceId } = snapshot
+    const quotaBytes = quota * 1024 ** 3
+    const previous = this.serviceDiskSamples.get(serviceId)
+    // Any df requested after this check fell due is fresh enough for it, so services
+    // checked in the same tick share one daemon scan instead of one each.
+    const dueAt = Date.now()
+    let at: number | undefined
+    let usage: ServiceDiskUsage
+    try {
+      const local = await scheduleServiceDiskMeasurement(
+        previous ? previous.usedBytes / quotaBytes : 0,
+        async () => {
+          // Queued work can outlive a tick, restart or shutdown. Do not launch a
+          // stale scan, and never retain a limiter slot during stop/archive work.
+          if (
+            this.stopped ||
+            this.serviceOpsInFlight.has(serviceId) ||
+            this.serviceDiskSamples.get(serviceId) !== previous
+          )
+            return undefined
+          at = Date.now()
+          this.serviceDiskCheckedAt.set(serviceId, at)
+          return await measureServiceLocalDiskUsage(
+            this.docker.getContainer(snapshot.containerId),
+            snapshot
+          )
+        }
+      )
+      if (!local) return
+      const interval = previous?.intervalMs ?? SERVICE_DISK_CHECK_INTERVAL_MS
+      const predicted = previous
+        ? serviceDiskTimeToQuotaMs(
+            previous.usedBytes,
+            quotaBytes,
+            previous.growthBytesPerSecond
+          ) - Math.max(0, at - previous.at)
+        : 0
+      this.serviceVolumeSizes ??= createVolumeSizeCache(this.docker)
+      // Outside the measurement slot: df is serialized node-wide on its own.
+      usage = await addServiceVolumeUsage(local, snapshot, this.serviceVolumeSizes, {
+        maxAgeMs: interval,
+        forceFresh:
+          !previous ||
+          previous.usedBytes / quotaBytes >= SERVICE_DISK_NEAR_RATIO ||
+          predicted <= interval,
+        freshAfter: dueAt
+      })
+    } catch (e) {
+      if (
+        previous &&
+        at !== undefined &&
+        this.serviceDiskCheckedAt.get(serviceId) === at &&
+        this.serviceDiskSamples.get(serviceId) === previous
+      )
+        this.serviceDiskSamples.set(serviceId, {
+          ...previous,
+          intervalMs: serviceDiskBackoffIntervalMs(previous.intervalMs)
+        })
+      throw e
+    }
+    // Restart clears checkedAt while an old measurement may still complete.
+    if (
+      this.serviceDiskCheckedAt.get(serviceId) !== at ||
+      this.serviceDiskSamples.get(serviceId) !== previous
+    )
+      return
+    if (
+      previous &&
+      previous.intervalMs < SERVICE_DISK_CHECK_INTERVAL_MS &&
+      usage.unmeasured.some((mount) => !previous.unmeasured?.includes(mount))
+    ) {
+      // A mount that was sized before failed (e.g. a df timeout): the lower bound is not
+      // a real drop, so keep the last usage and growth rather than relax the cadence.
+      // Once backed off to the coarse interval, a lasting failure becomes the baseline.
+      this.serviceDiskSamples.set(serviceId, {
+        ...previous,
+        intervalMs: serviceDiskBackoffIntervalMs(previous.intervalMs)
+      })
+    } else {
+      const growth =
+        previous && at > previous.at
+          ? Math.max(
+              0,
+              ((usage.usedBytes - previous.usedBytes) * 1000) / (at - previous.at)
+            )
+          : 0
+      this.serviceDiskSamples.set(serviceId, {
+        containerId: snapshot.containerId,
+        usedBytes: usage.usedBytes,
+        at,
+        growthBytesPerSecond: growth,
+        intervalMs: serviceDiskCheckIntervalMs(usage.usedBytes, quotaBytes, growth),
+        unmeasured: usage.unmeasured
+      })
+    }
+    if (!usage) return
+    const { usedBytes, unmeasured } = usage
+    const unmeasuredKey = unmeasured.join(', ')
+    if (unmeasuredKey && this.serviceDiskUnmeasured.get(serviceId) !== unmeasuredKey)
+      CORE_LOGGER.warn(
+        `service ${serviceId}: disk quota counts only what it can measure — ` +
+          `could not size ${unmeasuredKey}`
+      )
+    this.serviceDiskUnmeasured.set(serviceId, unmeasuredKey)
+    CORE_LOGGER.debug(
+      `service ${serviceId} disk: ${(usedBytes / 1024 ** 3).toFixed(2)}GB / ` +
+        `${quota.toFixed(1)}GB`
+    )
+    if (this.stopped || usedBytes <= quota * 1024 ** 3) return
+    if (!(await this.tryAcquireServiceLifecycleLock(serviceId))) {
+      // Another operation owns the service: re-measure on the next tick, not in a minute.
+      this.serviceDiskCheckedAt.delete(serviceId)
+      return
+    }
+    try {
+      const [job] = await this.db.getServiceJob(serviceId, snapshot.owner)
+      if (
+        this.stopped ||
+        !job ||
+        job.status !== ServiceStatusNumber.Running ||
+        job.containerId !== snapshot.containerId
+      )
+        return
+      CORE_LOGGER.warn(
+        `DISK QUOTA EXCEEDED - Stopping service ${serviceId}: ` +
+          `${(usedBytes / 1024 ** 3).toFixed(2)}GB used, ${quota.toFixed(1)}GB allowed`
+      )
+      await this.doStopService(
+        serviceId,
+        job.owner,
+        false,
+        false,
+        ServiceStatusNumber.DiskQuotaExceeded
+      )
+    } finally {
+      await this.releaseServiceLifecycleLock(serviceId)
+    }
   }
 
   private async checkServiceContainerHealth(job: ServiceJob): Promise<void> {
@@ -5565,13 +5798,10 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
-  // Expiry teardown of one service, launched in the background by InternalLoop: stop it,
-  // then mark it Expired, which releases its reservation. Must only run while holding the
-  // service lifecycle lock, kept across both steps so no other operation (e.g. a
-  // SERVICE_EXTEND) lands in between. Anything that leaves the service short of Expired is
-  // logged and retried on the next tick.
+  // Expiry teardown releases the reservation only once Docker cleanup completes.
+  // Caller holds the lifecycle lease across teardown and the terminal transition.
   private async expireService(svc: ServiceJob): Promise<void> {
-    // repeats every tick while the teardown keeps failing: the outcome is logged below
+    const finalStatus = ServiceStatusNumber.Expired
     CORE_LOGGER.debug(`Service ${svc.serviceId} expired — stopping`)
     let stopped: ServiceJob | null
     try {
@@ -5600,8 +5830,7 @@ export class C2DEngineDocker extends C2DEngine {
     // Left as Error, the job stays in the expirable set and is retried next tick.
     if (
       !stopped ||
-      (stopped.status !== ServiceStatusNumber.Stopped &&
-        stopped.status !== ServiceStatusNumber.Expired)
+      (!isStoppedLike(stopped.status) && stopped.status !== ServiceStatusNumber.Expired)
     ) {
       CORE_LOGGER.throttled(
         `svc-expiry-teardown-${svc.serviceId}`,
@@ -5611,14 +5840,14 @@ export class C2DEngineDocker extends C2DEngine {
       )
       return
     }
-    // mark the (now stopped) record as Expired so it is not picked up again
+    // Only expiry ends the reservation; disk-stopped services remain reserved until now.
     const [stoppedJob] = await this.db.getServiceJob(svc.serviceId, svc.owner)
     if (stoppedJob) {
-      stoppedJob.status = ServiceStatusNumber.Expired
-      stoppedJob.statusText = ServiceStatusText[ServiceStatusNumber.Expired]
+      delete stoppedJob.terminationReason
+      stoppedJob.status = finalStatus
+      stoppedJob.statusText = ServiceStatusText[finalStatus]
       await this.db.updateServiceJob(stoppedJob)
-      // Expired is the ONLY transition that releases the reservation: amounts stop
-      // counting (Expired is not an active status) and the host ports are freed
+      // Expiry releases the reservation: amounts stop counting and host ports are freed
       // here. Everywhere else — including an explicit user stop — the paid-for
       // reservation survives so the service can be restarted on the same endpoints.
       for (const ep of stoppedJob.endpoints ?? []) releaseHostPort(ep.hostPort)
@@ -5666,7 +5895,8 @@ export class C2DEngineDocker extends C2DEngine {
     serviceId: string,
     owner: string,
     onlyIfExpired: boolean = false,
-    release: boolean = false
+    release: boolean = false,
+    terminationReason?: ServiceStatusNumber.DiskQuotaExceeded
   ): Promise<ServiceJob | null> {
     const [job] = await this.db.getServiceJob(serviceId, owner)
     if (!job) {
@@ -5689,16 +5919,15 @@ export class C2DEngineDocker extends C2DEngine {
     const released = release && job.status !== ServiceStatusNumber.Expired
     if (released) job.expiresAt = Date.now()
 
-    if (
-      job.status === ServiceStatusNumber.Stopped ||
-      job.status === ServiceStatusNumber.Expired
-    ) {
+    if (isStoppedLike(job.status) || job.status === ServiceStatusNumber.Expired) {
       CORE_LOGGER.debug(
         `stopService ${serviceId}: already "${job.statusText}" — nothing to tear down`
       )
       if (released) await this.db.updateServiceJob(job)
       return job
     }
+    // Persisted with Stopping below, so a failed or interrupted teardown keeps the reason.
+    if (terminationReason) job.terminationReason = terminationReason
 
     CORE_LOGGER.debug(
       `stopService ${serviceId}: stopping (status=${job.statusText}, ` +
@@ -5722,7 +5951,10 @@ export class C2DEngineDocker extends C2DEngine {
           if (!isBenignDockerError(e)) throw e
         })
         await this.archiveServiceOutputs(job, c)
-        await c.remove({ force: true }).catch((e) => {
+        // v: also drop the anonymous volumes the image declared (e.g. comfyui-boot's
+        // VOLUME /root, where it keeps its models): no later container can attach them,
+        // so without it every stop/restart leaves that data on node disk forever.
+        await c.remove({ force: true, v: true }).catch((e) => {
           if (!isBenignDockerError(e)) throw e
         })
       }
@@ -5741,10 +5973,11 @@ export class C2DEngineDocker extends C2DEngine {
         serviceId
       )
       job.status = ServiceStatusNumber.Error
-      job.statusText = `stop failed: ${cleanupError.message}`
+      job.statusText = `${job.terminationReason ? ServiceStatusText[job.terminationReason] + ': ' : ''}stop failed: ${cleanupError.message}`
     } else {
-      job.status = ServiceStatusNumber.Stopped
-      job.statusText = ServiceStatusText[ServiceStatusNumber.Stopped]
+      job.status = job.terminationReason ?? ServiceStatusNumber.Stopped
+      job.statusText = ServiceStatusText[job.status]
+      delete job.terminationReason
       // The docker objects are confirmed gone — drop the stale ids so nothing later
       // mistakes them for live resources (a restart re-creates and re-persists both).
       job.containerId = ''
@@ -5824,6 +6057,10 @@ export class C2DEngineDocker extends C2DEngine {
       // from here on leaves a pending-status record the boot loop orphan-recovers
       // (Restarting is in SERVICE_START_PENDING_STATUSES) instead of a bare Starting
       // record that would be double-started with a second escrow lock.
+      delete job.terminationReason
+      this.serviceDiskCheckedAt?.delete(serviceId)
+      this.serviceDiskUnmeasured?.delete(serviceId)
+      this.serviceDiskSamples?.delete(serviceId)
       job.status = ServiceStatusNumber.Restarting
       job.statusText = ServiceStatusText[ServiceStatusNumber.Restarting]
       // Replace the stored metadata only when the request carries a new bag; otherwise the
@@ -5876,10 +6113,9 @@ export class C2DEngineDocker extends C2DEngine {
   ): Promise<ServiceJob | null> {
     const { serviceId } = job
 
-    // Re-reserve the job's host ports in the in-memory allocator: a Stopped service
-    // released them, so without this a concurrent start could be handed the same port
-    // this restart is about to re-bind. For a Running service the adds are no-ops (the
-    // ports are still reserved).
+    // Re-reserve the job's host ports in the in-memory allocator after node restart:
+    // stopped-like services retain their endpoints, so concurrent starts must not reuse
+    // ports this restart will re-bind. Already reserved ports make these adds no-ops.
     for (const ep of job.endpoints) reserveHostPort(ep.hostPort)
 
     await this.logServiceDockerState(`restart ${serviceId}: before teardown`, serviceId)
@@ -5906,7 +6142,7 @@ export class C2DEngineDocker extends C2DEngine {
         logDockerCleanupError(e, `restart ${serviceId}: old container stop: ${e.message}`)
       })
       if (job.outputBucketId) {
-        await c.remove({ force: true }).catch((e) => {
+        await c.remove({ force: true, v: true }).catch((e) => {
           logDockerCleanupError(
             e,
             `restart ${serviceId}: old container remove: ${e.message}`
@@ -5921,7 +6157,7 @@ export class C2DEngineDocker extends C2DEngine {
           `restart ${serviceId}: could not stop old container ${job.containerId} — archiving ${SERVICE_OUTPUTS_PATH} instead of carrying it over`
         )
         await this.archiveServiceOutputs(job, c)
-        await c.remove({ force: true }).catch((e) => {
+        await c.remove({ force: true, v: true }).catch((e) => {
           logDockerCleanupError(
             e,
             `restart ${serviceId}: old container remove: ${e.message}`
@@ -6111,7 +6347,7 @@ export class C2DEngineDocker extends C2DEngine {
         }
         job.containerId = container.id
         await this.db.updateServiceJob(job)
-        await previous.remove({ force: true }).catch((e) => {
+        await previous.remove({ force: true, v: true }).catch((e) => {
           logDockerCleanupError(
             e,
             `restart ${serviceId}: old container remove: ${e.message}`
@@ -6162,7 +6398,7 @@ export class C2DEngineDocker extends C2DEngine {
         if (holder) await this.archiveServiceOutputs(job, holder)
       }
       if (previous) {
-        await previous.remove({ force: true }).catch(() => {})
+        await previous.remove({ force: true, v: true }).catch(() => {})
         delete job.previousContainerId
       }
       await this.cleanupServiceDocker(container, network, serviceId)

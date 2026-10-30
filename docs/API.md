@@ -2324,7 +2324,7 @@ The encrypted `userData` is never returned. Key fields:
 | serviceId      | string   | unique id of the running service                                                                                                                                                                                    |
 | environment    | string   | envId the service runs on                                                                                                                                                                                           |
 | owner          | string   | consumerAddress                                                                                                                                                                                                     |
-| status         | number   | `10` Starting, `20` Locking, `11` PullImage, `13` BuildImage, `30` Claiming, `40` Running, `12` PullImageFailed, `14` BuildImageFailed, `15` VulnerableImage, `50` Stopping, `70` Stopped, `75` Expired, `99` Error |
+| status         | number   | `10` Starting, `20` Locking, `11` PullImage, `13` BuildImage, `30` Claiming, `40` Running, `12` PullImageFailed, `14` BuildImageFailed, `15` VulnerableImage, `50` Stopping, `70` Stopped, `75` Expired, `76` DiskQuotaExceeded (restartable/editable like Stopped until expiresAt), `99` Error |
 | statusText     | string   | human-readable status                                                                                                                                                                                               |
 | dateCreated    | string   | ISO timestamp                                                                                                                                                                                                       |
 | expiresAt      | number   | Unix ms timestamp when the paid window ends                                                                                                                                                                         |
@@ -2495,7 +2495,7 @@ Node-wide service listing. **Authenticated but NOT owner-scoped** — any authen
 consumer identity sees every owner's services. By default it returns only the services
 **currently holding a resource reservation** (exactly what the engines count against the
 shared pools): `Running`/`Restarting`/`Stopping`, the mid-start pipeline states, paid
-`Error` (container died, restartable), and explicitly `Stopped` within the paid window.
+`Error` (container died, restartable), and `Stopped` / `DiskQuotaExceeded` within the paid window.
 `Expired` and never-paid jobs hold nothing and are not listed by default.
 
 #### Query Parameters
@@ -2663,7 +2663,9 @@ instead — no refund, no restart.
 
 #### Response (200)
 
-The `ServiceJob` with `status: 70` (Stopped).
+The `ServiceJob` with `status: 70` (Stopped). An already disk-stopped service keeps
+`status: 76` (`DiskQuotaExceeded`); both states allow RESTART (REUSE or RESPEC) and EXTEND
+until `expiresAt`. Only `release: true` ends the paid window early.
 
 ---
 
