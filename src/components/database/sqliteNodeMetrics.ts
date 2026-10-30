@@ -71,7 +71,7 @@ export class NodeMetricsDatabase {
     // SqliteClient creates the parent directory on construction.
     this.db = new SqliteClient(dbFilePath)
     this.createTables()
-    DATABASE_LOGGER.info('Node metrics Database initiated with SQLite provider')
+    DATABASE_LOGGER.debug('Node metrics Database initiated with SQLite provider')
   }
 
   private createTables(): void {

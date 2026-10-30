@@ -155,7 +155,7 @@ async function discoverBlobPaths(
   try {
     return selectBlobPaths(await container.changes())
   } catch (error: any) {
-    CORE_LOGGER.debug(`[model-download] listing changes failed: ${error?.message}`)
+    CORE_LOGGER.error(`[model-download] listing changes failed: ${error?.message}`)
     return null
   }
 }
@@ -411,7 +411,7 @@ async function lookupModelTotalBytes(
     return null
   } catch (error: any) {
     // Network error, timeout, unparseable body: no answer, but not evidence there is none.
-    CORE_LOGGER.debug(
+    CORE_LOGGER.error(
       `[model-download] hub lookup for ${modelId} failed: ${error?.message}`
     )
     return undefined
@@ -458,7 +458,7 @@ async function fetchGgufFileBytes(
     const size = Number(match?.size ?? match?.lfs?.size)
     return Number.isFinite(size) && size > 0 ? size : null
   } catch (error: any) {
-    CORE_LOGGER.debug(
+    CORE_LOGGER.error(
       `[model-download] gguf lookup for ${modelId}:${quant} failed: ${error?.message}`
     )
     return undefined

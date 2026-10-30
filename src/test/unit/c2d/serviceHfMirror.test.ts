@@ -601,6 +601,29 @@ describe('Service HF mirror: service start and restart containers', () => {
         expect(c.putArchive.getCalls().some(isPatchPut)).to.equal(false)
       })
 
+      it('injects node-owner PASS_CONTAINER_ENVS (owner wins, HF_ENDPOINT beats the mirror)', async () => {
+        const c = stubContainer('c-new')
+        const engine = makeEngine(
+          {
+            serviceHfMirrorUrl: MIRROR,
+            passContainerEnvs: {
+              OWNER_ONLY: 'from-owner',
+              SHARED: 'owner-wins',
+              HF_ENDPOINT: 'http://owner-hf:9000'
+            }
+          },
+          { SHARED: 'user-value', FOO: 'bar' },
+          [c]
+        )
+        const job = await run(lifecycle, engine)
+        expect(job.status).to.equal(ServiceStatusNumber.Running)
+        const env = envOf(engine.docker.createContainer.firstCall)
+        expect(env.OWNER_ONLY).to.equal('from-owner')
+        expect(env.SHARED).to.equal('owner-wins') // owner overrides the userData value
+        expect(env.FOO).to.equal('bar')
+        expect(env.HF_ENDPOINT).to.equal('http://owner-hf:9000') // owner beats the mirror default
+      })
+
       it('skips the copy for OCEAN_HFPATCH=0', async () => {
         const c = stubContainer('c-new')
         const engine = makeEngine(

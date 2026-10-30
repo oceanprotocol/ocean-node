@@ -37,9 +37,8 @@ export class ComputeGetEnvironmentsHandler extends CommandHandler {
       }
       const result = await computeEngines.fetchEnvironments(task.chainId)
 
-      CORE_LOGGER.logMessage(
-        'ComputeGetEnvironmentsCommand Response: ' + JSON.stringify(result, null, 2),
-        true
+      CORE_LOGGER.debug(
+        `getComputeEnvironments: returned ${result.length} env(s) (chainId=${task.chainId ?? 'all'})`
       )
 
       return {
@@ -49,7 +48,7 @@ export class ComputeGetEnvironmentsHandler extends CommandHandler {
         }
       }
     } catch (error) {
-      CORE_LOGGER.error(error.message)
+      CORE_LOGGER.error(`getComputeEnvironments failed: ${error.message}`)
       return {
         stream: null,
         status: {

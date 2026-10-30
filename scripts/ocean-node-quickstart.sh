@@ -645,17 +645,34 @@ get_all_gpus_json() {
 if command -v jq &> /dev/null; then
   echo "Checking for GPUs..."
   DETECTED_GPUS=$(get_all_gpus_json)
-  GPU_COUNT=$(echo "$DETECTED_GPUS" | jq 'length')
+
+  # Every type:"gpu" resource must declare its VRAM (memoryTotal), and the node accepts it only
+  # when it parses to a POSITIVE amount — the same rule ComputeResourceSchema enforces
+  # (parseMemoryTotalToBytes must be > 0). Partition the detected GPUs on the leading numeric
+  # value of memoryTotal: keep only those whose VRAM is > 0, and set the rest aside. This drops
+  # a missing/empty/junk memoryTotal AND non-positive values such as "0 MiB" (e.g. the Intel PCI
+  # fallback integer-dividing a sub-MiB BAR size down to zero), which the node would reject at
+  # startup. GPUs with a real, positive VRAM are handled exactly as before.
+  POSITIVE_VRAM='((.memoryTotal // "") | tostring | ascii_downcase | capture("^\\s*(?<n>[0-9]+(\\.[0-9]+)?)\\s*(?<u>[a-z]{1,3})?\\s*$") | select((.u // "") | IN("", "b", "kb", "mb", "gb", "tb", "kib", "mib", "gib", "tib")) | .n | tonumber) > 0'
+  USABLE_GPUS=$(echo "$DETECTED_GPUS" | jq "[ .[] | select($POSITIVE_VRAM) ]")
+  SKIPPED_GPUS=$(echo "$DETECTED_GPUS" | jq "[ .[] | select(($POSITIVE_VRAM) | not) ]")
+  GPU_COUNT=$(echo "$USABLE_GPUS" | jq 'length')
+  SKIPPED_COUNT=$(echo "$SKIPPED_GPUS" | jq 'length')
+
+  if [ "$SKIPPED_COUNT" -gt 0 ]; then
+    echo "WARNING: $SKIPPED_COUNT GPU(s) were detected but their VRAM (memoryTotal) was missing or not a positive amount, so they were left out of the configuration — the node would reject such a GPU and refuse to start. To use them, add each to DOCKER_COMPUTE_ENVIRONMENTS manually with an explicit, positive memoryTotal (e.g. \"16 GiB\"):"
+    echo "$SKIPPED_GPUS" | jq -r '.[] | "  - " + (.description // .id)'
+  fi
 
   if [ "$GPU_COUNT" -gt 0 ]; then
-    echo "Detected $GPU_COUNT GPU type(s). Updating configuration..."
-    DOCKER_COMPUTE_ENVIRONMENTS=$(echo "$DOCKER_COMPUTE_ENVIRONMENTS" | jq --argjson gpus "$DETECTED_GPUS" '
+    echo "Detected $GPU_COUNT usable GPU(s). Updating configuration..."
+    DOCKER_COMPUTE_ENVIRONMENTS=$(echo "$DOCKER_COMPUTE_ENVIRONMENTS" | jq --argjson gpus "$USABLE_GPUS" '
       .[0].resources += $gpus |
       .[0].environments[0].resources += ($gpus | map({ id: .id }))
     ')
     echo "GPUs added to connection-level resources; environment refs updated."
   else
-    echo "No GPUs detected."
+    echo "No usable GPUs detected."
   fi
 fi
 
@@ -703,6 +720,7 @@ services:
 #      MAX_CONNECTIONS_PER_MINUTE: ''
 #      MAX_CHECKSUM_LENGTH: ''
 #      LOG_LEVEL: ''
+#      LOG_FILES_LEVEL: ''
       HTTP_API_PORT: '$HTTP_API_PORT'
       P2P_ENABLE_IPV4: 'true'
       P2P_ENABLE_IPV6: 'false'
@@ -738,6 +756,7 @@ $(
       - ocean_network
     volumes:
       - node-sqlite:/usr/src/app/databases
+      - ./logs:/usr/src/app/logs
       - /var/run/docker.sock:/var/run/docker.sock
 $(
   if [ "$enable_tls" == "y" ]; then
@@ -745,6 +764,11 @@ $(
     echo "      - $HTTP_KEY_PATH:/usr/src/app/certs/key.pem:ro"
   fi
 )
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
     depends_on:
       - typesense
 
@@ -788,7 +812,9 @@ echo -e "\e[1;32mP2P IPv4 WebSocket Port: $P2P_ipV4BindWsPort\e[0m"
 echo -e "\e[1;32mP2P IPv6 TCP Port: $P2P_ipV6BindTcpPort\e[0m"
 echo -e "\e[1;32mP2P IPv6 WebSocket Port: $P2P_ipV6BindWsPort\e[0m"
 echo ""
-echo -e "\e[1;32m4)\e[0m If using SSL/TLS with a custom domain name, make sure to listen on host port 443 for the HTTP API, or use a reverse proxy with TLS offloading"
+echo -e "\e[1;32m4)\e[0m Node logs (info and above, 30 days) are written to \e[1;32m./logs\e[0m on this host. Set LOG_FILES_LEVEL=debug in docker-compose.yml for more detail."
+echo ""
+echo -e "\e[1;32m5)\e[0m If using SSL/TLS with a custom domain name, make sure to listen on host port 443 for the HTTP API, or use a reverse proxy with TLS offloading"
 echo ""
 echo -e "If your node is not reachable by other peers (NAT, no public IP, port forwarding issues),"
 echo -e "refer to the networking guide for help with Dynamic DNS, port forwarding, and circuit relay:"

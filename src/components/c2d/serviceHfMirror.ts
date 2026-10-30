@@ -141,7 +141,7 @@ export async function buildServiceHfPlan(
   try {
     patch = await archive()
   } catch (e) {
-    CORE_LOGGER.warn(
+    CORE_LOGGER.error(
       `service ${serviceId}: HF client patch unavailable (${e?.message}) — starting without it`
     )
     return unpatched
@@ -150,7 +150,7 @@ export async function buildServiceHfPlan(
   try {
     imageEnv = await readImageEnv()
   } catch (e) {
-    CORE_LOGGER.warn(
+    CORE_LOGGER.error(
       `service ${serviceId}: cannot read image env (${e?.message}) — starting without the HF client patch`
     )
     return unpatched

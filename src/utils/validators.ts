@@ -155,7 +155,7 @@ export function validateConsumerParameters(
     }
     return validation
   } catch (error) {
-    CORE_LOGGER.error(error.message)
+    CORE_LOGGER.error(`Invalid consumer parameters: ${error.message}`)
     validation.valid = false
     validation.reason = error.message
     validation.status = 400

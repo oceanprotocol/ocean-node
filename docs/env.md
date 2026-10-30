@@ -35,6 +35,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `VALIDATE_UNSIGNED_DDO`: If set to `false`, the node will not validate unsigned DDOs and will request a signed message with the publisher address, nonce and signature. Default is `true`. Example: `false`
 - `JWT_SECRET`: Secret used to sign JWT tokens. Default is `ocean-node-secret`. Example: `"my-secret-jwt-token"`
 - `PERSISTENT_STORAGE`: Persistent storage config. See [persistent storage](persistentStorage.md).
+- `UNSAFE_URLS`: Array or regular expression URLs to be excluded from access.Example: ["^.*(169.254.169.254).*","^.*(127.0.0.1).*"]
 - `PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING`: If set to `true`, bucket owners can share a bucket through its access list. Otherwise bucket access lists are ignored, only the bucket owner can use a bucket, and creating a bucket with a non-empty access list is rejected. Overrides `persistentStorage.allowBucketSharing`. Default is `false`. Example: `true`
 
 ## Database
@@ -60,11 +61,21 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 
 ## Logs
 
-- `LOG_LEVEL`: Define the default log level. Example: `debug`
-- `LOG_CONSOLE`: Write logs to the console. Default is `false`, but becomes `true` if neither `LOG_FILES` or `LOG_DB` are set.
-- `LOG_FILES`: Write logs to files. Default is `false`
-- `LOG_DB`: Write logs to noSQL database. Default is `false`
-- `UNSAFE_URLS`: Array or regular expression URLs to be excluded from access.Example: ["^.*(169.254.169.254).*","^.*(127.0.0.1).*"]
+Console, disk and database are independent log sinks. See [Logs.md](Logs.md) for where each one writes and how to read the logs back.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `LOG_LEVEL` | `debug` when `NODE_ENV` is unset or development, `info` in production (the Docker image sets production) | Level for the console and the log database. Case-insensitive. Example: `debug` |
+| `LOG_CONSOLE` | `true` | Write logs to stdout. Set `false` to turn the console off. If the console, the files and the database would all be off, the console is turned back on and a warning is logged |
+| `LOG_FILES` | `true` when `LOG_DB` is off, `false` when `LOG_DB` is on | Write daily-rotating log files (one per module, plus one exceptions file). `false` disables all disk output, including exceptions and the fallback used when `LOG_DB` is set but the log database is unavailable |
+| `LOG_FILES_LEVEL` | `info` | Minimum level written to disk, independent of `LOG_LEVEL`. Can be more verbose than `LOG_LEVEL`. Example: `debug` |
+| `LOG_FILES_RETENTION_DAYS` | `30` | Days of log files to keep. Older files (including `.gz` archives) are deleted when the log rotates. Integer, minimum `1` |
+| `LOG_FILES_MAX_SIZE` | `20m` | Size at which one module's daily file splits into `.1`, `.2`, ... parts. Accepts `<number>k`, `m` or `g` |
+| `LOG_FILES_DIR` | `logs` | Directory for log files, relative to the working directory (`/usr/src/app/logs` in Docker) |
+| `LOG_DB` | `false` | Write logs to the noSQL database (needs `DB_URL`). Turning it on switches off default file logging unless `LOG_FILES=true` |
+| `LOG_RETENTION_TIME` | `2592000000` | Retention of logs in the database, in milliseconds (30 days). DB logs only |
+
+Invalid levels, retention values or sizes fall back to their defaults and log a warning at startup. Files are written to `<LOG_FILES_DIR>/<module>-YYYY-MM-DD.log` (UTC days); see [Logs.md](Logs.md#log-files-on-disk).
 
 ## HTTP
 
@@ -182,7 +193,7 @@ setting it through the environment reaches both.
 
 ## Cron Jobs
 
-- `CRON_DELETE_DB_LOGS`: Delete old logs from database Cron expression. Example: `0 0 * * *` (runs every day at midnight)
+- `CRON_DELETE_DB_LOGS`: Delete old logs from database Cron expression (DB logs only; file retention is `LOG_FILES_RETENTION_DAYS`). Example: `0 0 * * *` (runs every day at midnight)
 - `CRON_CLEANUP_C2D_STORAGE`: Clear c2d expired resources/storage and delete old jobs. Example: `*/5 * * * *` (runs every 5 minutes)
 
 ## Node Metrics History
@@ -206,6 +217,18 @@ Powers the `getNodeMetrics` (live snapshot) and `getNodeMetricsHistory` (hourly 
 - `SERVICE_HF_MIRROR_URL`: Hugging Face mirror (e.g. DingoSpeed) for Service-on-Demand containers, as the containers reach it. When set, every service container gets `HF_ENDPOINT=<url>` and `HF_HUB_DISABLE_XET=1`, unless the service's own env (template `envVars` / `userData`) sets them; compute jobs are unaffected. Must be an `http://` or `https://` URL; an invalid value is logged and the feature stays off. Maps to `serviceHfMirrorUrl`. Unset by default. See [Services → Hugging Face mirror](services.md#hugging-face-mirror-dingospeed) for the DingoSpeed deployment. Example: `http://172.17.0.1:8092`
 
 - `SERVICE_HF_CLIENT_PATCH`: Copy the node's `huggingface_hub` download-client patch (`hfpatch/sitecustomize.py`) into each service container at `/ocean/hfpatch/sitecustomize.py` (root-owned `0644`, via the Docker archive API before the container starts; no host folder or volume needed) and prepend `/ocean/hfpatch` to `PYTHONPATH` (keeping the image's or the service's own `PYTHONPATH` after it). Defaults to `true` when `SERVICE_HF_MIRROR_URL` is set and `false` otherwise. Never fails a service start: if the patch cannot be read or copied in, the service starts without it. Maps to `serviceHfClientPatch`. Example: `false`
+
+- `PASS_CONTAINER_ENVS`: Node-owner environment variables injected into **every container the node spawns** — both C2D algorithm containers and Service-on-Demand containers. Use it for infrastructure that should be in effect for all jobs regardless of what the algorithm/service author set, e.g. `HF_ENDPOINT` for a local Hugging Face cache/mirror, an `HTTP_PROXY`/`NO_PROXY`, a registry mirror, or a `LOG_LEVEL`. Accepts **either** a JSON object or a JSON array of `KEY=value` strings (array entries split on the first `=`, so values may contain `=`):
+
+  ```bash
+  export PASS_CONTAINER_ENVS='{"HF_ENDPOINT":"http://172.17.0.1:8092","LOG_LEVEL":"debug"}'
+  # equivalently:
+  export PASS_CONTAINER_ENVS='["HF_ENDPOINT=http://172.17.0.1:8092","LOG_LEVEL=debug"]'
+  ```
+
+  **Precedence:** these node-owner vars **override** the algorithm/service author's own env on a key collision (the owner controls the infrastructure — this is also why an owner-set `HF_ENDPOINT` takes precedence over the `SERVICE_HF_MIRROR_URL` mirror default). The node's own pod-contract keys `DIDS` and `TRANSFORMATION_DID` are **reserved** and can never be overridden. Fail-soft: invalid input never blocks startup — it is logged and dropped, and the node still starts with the valid entries (or none). In the object form, numeric and boolean values are **converted to strings** (`{"RETRIES":3}` → `RETRIES=3`), while values that are neither string, number nor boolean (objects, arrays, `null`) are dropped. Invalid JSON, array entries that are not `KEY=value`, and invalid env-var names are also dropped. Maps to `passContainerEnvs`. Unset by default.
+
+  > ⚠️ **Security:** every value is readable inside the container, which may run third-party algorithm/service code. Only put values that are safe to expose to compute consumers (endpoints, proxies, mirrors, log levels). **Never** put secrets, API tokens, cloud credentials or the node's `PRIVATE_KEY` here.
 
 The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable is used to configure Docker-based compute environments in Ocean Node. For the full guide — resources, GPU setup, constraints and pricing — see [Compute Configuration](compute.md).
 
@@ -297,7 +320,8 @@ The config has a two-level structure:
   - **total**: Total units available. Capped at the physical host limit.
   - **cpuList** *(cpu resource only)*: Restricts which host core IDs compute containers may be pinned to. Comma-separated core IDs and/or integer ranges, e.g. `"3"`, `"0-1,3"` or `"32-63"`. Ranges `a-b` must have `b` strictly greater than `a`, all parts must be ascending and non-overlapping, core IDs may not exceed `8192`, and every core ID must exist on the host — otherwise the node fails to start with an error. Mutually exclusive with **total**: the cpu resource must specify exactly one of the two, and with `cpuList` the effective total is the number of listed cores.
   - **min** / **max**: Per-job minimum/maximum.
-  - **description**, **platform**, **driverVersion**, **memoryTotal**: Informational metadata.
+  - **description**, **platform**, **driverVersion**: Informational metadata.
+  - **memoryTotal**: GPU VRAM string (e.g. `"16 GiB"`, `"40960 MiB"`, `"8GB"`). **Required for `type: "gpu"` resources** — the node fails to start if it is missing or not a valid amount. Returned to consumers in `getComputeEnvironments`. Informational for other resource kinds.
   - **init**: Docker device configuration (`deviceRequests` for NVIDIA, `advanced` for AMD/Intel). See [Compute Configuration](compute.md#configuring-gpus).
   - **constraints**: Cross-resource requirements. `{ "id": "ram", "min": 4 }` means renting this resource also requires 4 GB RAM.
 

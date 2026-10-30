@@ -11,7 +11,6 @@ import {
   formatService
 } from '../utils/findDdoHandler.js'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import {
   readStream,
   streamToUint8Array,
@@ -19,6 +18,7 @@ import {
 } from '../../../utils/util.js'
 import { P2P_TIMEOUTS } from '../../P2P/timeouts.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { errorSummary } from '../../../utils/logging/redact.js'
 import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
 // import lzma from 'lzma-native'
@@ -182,7 +182,7 @@ export class DecryptDdoHandler extends CommandHandler {
 
     // check if supported chainId
     if (!supportedNetwork) {
-      CORE_LOGGER.logMessage(`Decrypt DDO: Unsupported chain id ${chainId}`, true)
+      CORE_LOGGER.debug(`Decrypt DDO: Unsupported chain id ${chainId}`)
       return {
         stream: null,
         status: {
@@ -207,7 +207,7 @@ export class DecryptDdoHandler extends CommandHandler {
       try {
         decrypterAddress = ethers.getAddress(task.decrypterAddress)
       } catch (error) {
-        CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+        CORE_LOGGER.logByStatus(400, `Decrypt DDO: error ${errorSummary(error)}`)
         return {
           stream: null,
           status: {
@@ -226,7 +226,7 @@ export class DecryptDdoHandler extends CommandHandler {
             .includes(decrypterAddress?.toLowerCase()) &&
           decrypterAddress?.toLowerCase() !== ourEthAddress.toLowerCase()
         ) {
-          CORE_LOGGER.logMessage('Decrypt DDO: Decrypter not authorized', true)
+          CORE_LOGGER.debug(`Decrypt DDO: Decrypter ${decrypterAddress} not authorized`)
           return {
             stream: null,
             status: {
@@ -272,9 +272,8 @@ export class DecryptDdoHandler extends CommandHandler {
         dataNftAddress
       )
       if (!wasDeployedByUs) {
-        CORE_LOGGER.logMessage(
-          'Decrypt DDO: Asset not deployed by the data NFT factory',
-          true
+        CORE_LOGGER.debug(
+          `Decrypt DDO: Asset ${dataNftAddress} not deployed by the data NFT factory`
         )
         return {
           stream: null,
@@ -295,9 +294,8 @@ export class DecryptDdoHandler extends CommandHandler {
         signer
       )
       if (!isAllowed) {
-        CORE_LOGGER.logMessage(
-          'Decrypt DDO: Decrypter not authorized per access list',
-          true
+        CORE_LOGGER.debug(
+          `Decrypt DDO: Decrypter ${decrypterAddress} not authorized per access list`
         )
         return {
           stream: null,
@@ -314,8 +312,10 @@ export class DecryptDdoHandler extends CommandHandler {
       let documentHash: string
 
       if (transactionId) {
+        let receiptFetched = false
         try {
           const receipt = await provider.getTransactionReceipt(transactionId)
+          receiptFetched = true
           if (!receipt || !receipt.logs.length) {
             throw new Error('receipt logs 0')
           }
@@ -329,7 +329,14 @@ export class DecryptDdoHandler extends CommandHandler {
           encryptedDocument = ethers.getBytes(eventData.args[4])
           documentHash = eventData.args[5]
         } catch (error) {
-          CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+          // a malformed id, a missing receipt or a transaction without the event is the
+          // caller's input; the RPC call failing on a well-formed id is the node's own problem
+          const msg = `Decrypt DDO: error ${errorSummary(error)}`
+          if (!receiptFetched && ethers.isHexString(transactionId, 32)) {
+            CORE_LOGGER.error(msg)
+          } else {
+            CORE_LOGGER.logByStatus(400, msg)
+          }
           return {
             stream: null,
             status: {
@@ -345,7 +352,7 @@ export class DecryptDdoHandler extends CommandHandler {
           // eslint-disable-next-line prefer-destructuring
           documentHash = task.documentHash
         } catch (error) {
-          CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+          CORE_LOGGER.logByStatus(400, `Decrypt DDO: error ${errorSummary(error)}`)
           return {
             stream: null,
             status: {
@@ -364,7 +371,7 @@ export class DecryptDdoHandler extends CommandHandler {
       const metaData = await templateContract.getMetaData()
       const metaDataState = Number(metaData[2])
       if ([MetadataStates.DEPRECATED, MetadataStates.REVOKED].includes(metaDataState)) {
-        CORE_LOGGER.logMessage(`Decrypt DDO: error metadata state ${metaDataState}`, true)
+        CORE_LOGGER.debug(`Decrypt DDO: error metadata state ${metaDataState}`)
         return {
           stream: null,
           status: {
@@ -382,7 +389,7 @@ export class DecryptDdoHandler extends CommandHandler {
           MetadataStates.UNLISTED
         ].includes(metaDataState)
       ) {
-        CORE_LOGGER.logMessage(`Decrypt DDO: error metadata state ${metaDataState}`, true)
+        CORE_LOGGER.debug(`Decrypt DDO: error metadata state ${metaDataState}`)
         return {
           stream: null,
           status: {
@@ -400,7 +407,9 @@ export class DecryptDdoHandler extends CommandHandler {
             .getKeyManager()
             .decrypt(encryptedDocument, EncryptMethod.ECIES)
         } catch (error) {
-          CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+          // answered with a 400, but the node's own key failed: a key provider outage must
+          // stay visible
+          CORE_LOGGER.error(`Decrypt DDO: error ${errorSummary(error)}`)
           return {
             stream: null,
             status: {
@@ -422,7 +431,7 @@ export class DecryptDdoHandler extends CommandHandler {
           )
           */
         } catch (error) {
-          CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+          CORE_LOGGER.logByStatus(400, `Decrypt DDO: error ${errorSummary(error)}`)
           return {
             stream: null,
             status: {
@@ -439,7 +448,9 @@ export class DecryptDdoHandler extends CommandHandler {
       const updatedDdo = deleteIndexedMetadataIfExists(clonedDdo)
       const ddoInstance = DDOManager.getDDOClass(updatedDdo)
       if (updatedDdo.id !== ddoInstance.makeDid(dataNftAddress, chainId)) {
-        CORE_LOGGER.error(`Decrypted DDO ID is not matching the generated hash for DID.`)
+        CORE_LOGGER.debug(
+          `Decrypt DDO: DID ${updatedDdo.id} does not match nft ${dataNftAddress} on chain ${chainId}`
+        )
         return {
           stream: null,
           status: {
@@ -452,9 +463,8 @@ export class DecryptDdoHandler extends CommandHandler {
       // checksum matches
       const decryptedDocumentHash = create256Hash(decryptedDocument.toString())
       if (decryptedDocumentHash !== documentHash) {
-        CORE_LOGGER.logMessage(
-          `Decrypt DDO: error checksum does not match ${decryptedDocumentHash} with ${documentHash}`,
-          true
+        CORE_LOGGER.debug(
+          `Decrypt DDO: error checksum does not match ${decryptedDocumentHash} with ${documentHash}`
         )
         return {
           stream: null,
@@ -470,7 +480,8 @@ export class DecryptDdoHandler extends CommandHandler {
         status: { httpStatus: 200 }
       }
     } catch (error) {
-      CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+      // errorSummary: a JSON.parse error would otherwise quote the decrypted document
+      CORE_LOGGER.error(`Decrypt DDO failed on chain ${chainId}: ${errorSummary(error)}`)
       return {
         stream: null,
         status: { httpStatus: 500, error: `Decrypt DDO: Unknown error ${error}` }
@@ -497,7 +508,7 @@ export class GetDdoHandler extends CommandHandler {
     try {
       const database = await this.getOceanNode().getDatabase()
       if (!database || !database.ddo) {
-        CORE_LOGGER.error('DDO database is not available')
+        CORE_LOGGER.debug('DDO database is not available')
         return {
           stream: null,
           status: { httpStatus: 503, error: 'DDO database is not available' }
@@ -515,7 +526,7 @@ export class GetDdoHandler extends CommandHandler {
         status: { httpStatus: 200 }
       }
     } catch (error) {
-      CORE_LOGGER.error(`Get DDO error: ${error}`)
+      CORE_LOGGER.error(`Get DDO ${task.id} error: ${errorSummary(error)}`)
       return {
         stream: null,
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
@@ -563,7 +574,7 @@ export class FindDdoHandler extends CommandHandler {
       // if we have the result cached recently we return that result
       if (hasCachedDDO(task, p2pNode)) {
         // 'found cached DDO'
-        CORE_LOGGER.logMessage('Found local cached version for DDO id: ' + task.id, true)
+        CORE_LOGGER.debug('Found local cached version for DDO id: ' + task.id)
         resultList.push(p2pNode.getDDOCache().dht.get(task.id))
         return {
           stream: Readable.from(JSON.stringify(resultList, null, 4)),
@@ -588,9 +599,8 @@ export class FindDdoHandler extends CommandHandler {
       // of the search for a short while, which is the half a hot loop of requests for a
       // non-existent id is repeatedly paying for.
       if (isDdoKnownMissing(task.id)) {
-        CORE_LOGGER.logMessage(
-          `Skipping the provider search for DDO id ${task.id}: a recent search found it nowhere`,
-          true
+        CORE_LOGGER.debug(
+          `Skipping the provider search for DDO id ${task.id}: a recent search found it nowhere`
         )
         return {
           stream: Readable.from(JSON.stringify(sortFindDDOResults(resultList), null, 4)),
@@ -622,9 +632,8 @@ export class FindDdoHandler extends CommandHandler {
             }
             resultList.push(ddoInfo)
 
-            CORE_LOGGER.logMessage(
-              `Successfully processed DDO info, id: ${ddo.id} from remote peer: ${peer}`,
-              true
+            CORE_LOGGER.debug(
+              `Successfully processed DDO info, id: ${ddo.id} from remote peer: ${peer}`
             )
 
             // Update cache
@@ -655,15 +664,12 @@ export class FindDdoHandler extends CommandHandler {
             }
             return true
           }
-          CORE_LOGGER.warn(
-            `Cannot confirm validity of ${ddo.id} from remote node, skipping it...`
+          CORE_LOGGER.debug(
+            `Cannot confirm validity of ${ddo.id} from remote node ${peer}, skipping it`
           )
         } catch (err) {
-          CORE_LOGGER.logMessageWithEmoji(
-            'FindDDO: Error on sink function: ' + err.message,
-            true,
-            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-            LOG_LEVELS_STR.LEVEL_ERROR
+          CORE_LOGGER.error(
+            `FindDDO: invalid response from peer ${peer}: ${errorSummary(err)}`
           )
         }
         return false
@@ -683,7 +689,7 @@ export class FindDdoHandler extends CommandHandler {
       // would still fire - and log a spurious 'Timeout reached' - long after the
       // request returned. clearTimeout below really does cancel it
       const findDdoDeadline = setTimeout(() => {
-        CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_DEBUG, 'FindDDO: Timeout reached: ', true)
+        CORE_LOGGER.debug(`FindDDO: deadline ${findDdoMs}ms reached for ${task.id}`)
         findDdoController.abort(
           new Error(
             `FindDDO aborted after ${findDdoMs}ms, returning whatever info we have available`
@@ -868,9 +874,9 @@ export class FindDdoHandler extends CommandHandler {
                 // One provider failing, timing out, or being cancelled because another
                 // answered is not a FindDDO failure. The overall outcome is whatever the
                 // result list holds when every branch has settled.
-                CORE_LOGGER.debug(
-                  `FindDDO: provider ${peer} did not answer for ${task.id}: ${innerException.message}`
-                )
+                const msg = `FindDDO: provider ${peer} did not answer for ${task.id}: ${innerException.message}`
+                if (answered.signal.aborted) CORE_LOGGER.debug(msg)
+                else CORE_LOGGER.warn(msg)
               }
             })
           )
@@ -891,12 +897,7 @@ export class FindDdoHandler extends CommandHandler {
       }
     } catch (error) {
       // 'FindDDO big error: '
-      CORE_LOGGER.logMessageWithEmoji(
-        `Error: '${error.message}' was caught while getting DDO info for id: ${task.id}`,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      CORE_LOGGER.error(`FindDDO failed for ${task.id}: ${errorSummary(error)}`)
       return {
         stream: null,
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
@@ -918,15 +919,11 @@ export class FindDdoHandler extends CommandHandler {
           const ddo = await database.ddo.retrieve(ddoId)
           return ddo as DDO
         } else {
-          CORE_LOGGER.logMessage(
-            `DDO database is not available. Proceeding to call findDDO`,
-            true
-          )
+          CORE_LOGGER.debug(`DDO database is not available. Proceeding to call findDDO`)
         }
       } catch (error) {
-        CORE_LOGGER.logMessage(
-          `Unable to find DDO locally. Proceeding to call findDDO`,
-          true
+        CORE_LOGGER.error(
+          `Local DDO lookup failed for ${ddoId}, falling back to findDDO: ${errorSummary(error)}`
         )
       }
     }
@@ -973,10 +970,11 @@ export class FindDdoHandler extends CommandHandler {
 
       return null
     } catch (error) {
-      CORE_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `Error finding DDO: ${error.message}`,
-        true
+      // fires on every FindDDO fallback until the response format mismatch is fixed
+      CORE_LOGGER.throttled(
+        'find-and-format-ddo',
+        'error',
+        `Error finding DDO ${ddoId}: ${errorSummary(error)}`
       )
       return null
     }
@@ -1027,11 +1025,8 @@ export class ValidateDDOHandler extends CommandHandler {
       const ddoInstance = DDOManager.getDDOClass(task.ddo)
       const validation = await ddoInstance.validate()
       if (validation[0] === false) {
-        CORE_LOGGER.logMessageWithEmoji(
-          `Validation failed with error: ${validation[1]}`,
-          true,
-          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-          LOG_LEVELS_STR.LEVEL_ERROR
+        CORE_LOGGER.debug(
+          `Validation of ${task.ddo.id} failed with error: ${validation[1]}`
         )
         return {
           stream: null,
@@ -1046,10 +1041,7 @@ export class ValidateDDOHandler extends CommandHandler {
           task.policyServer
         )
         if (!response.success) {
-          CORE_LOGGER.logMessage(
-            `Error: Validation for ${task.publisherAddress} was denied`,
-            true
-          )
+          CORE_LOGGER.debug(`Error: Validation for ${task.publisherAddress} was denied`)
           return {
             stream: null,
             status: {
@@ -1070,12 +1062,7 @@ export class ValidateDDOHandler extends CommandHandler {
         status: { httpStatus: 200 }
       }
     } catch (error) {
-      CORE_LOGGER.logMessageWithEmoji(
-        `Error occurred on validateDDO command: ${error}`,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      CORE_LOGGER.error(`Error occurred on validateDDO command: ${errorSummary(error)}`)
       return {
         stream: null,
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
@@ -1105,7 +1092,9 @@ export function validateDdoSignedByPublisher(
       addressFromBytesSignature?.toLowerCase() === publisherAddress?.toLowerCase()
     )
   } catch (error) {
-    CORE_LOGGER.logMessage(`Error: ${error}`, true)
+    CORE_LOGGER.error(
+      `validateDdoSignedByPublisher failed for ${ddo?.id}: ${errorSummary(error)}`
+    )
     return false
   }
 }
@@ -1141,7 +1130,7 @@ async function checkIfDDOResponseIsLegit(
   let isValid = validateDDOHash(updatedDdo.id, nftAddress, chainId)
   // 1) check hash sha256(nftAddress + chainId)
   if (!isValid) {
-    CORE_LOGGER.error(`Asset ${updatedDdo.id} does not have a valid hash`)
+    CORE_LOGGER.debug(`Asset ${updatedDdo.id} does not have a valid hash`)
     return false
   }
 
@@ -1162,7 +1151,7 @@ async function checkIfDDOResponseIsLegit(
   // `indexedMetadata.event.tx`: the DDO has to carry an indexed event before any of that can be
   // verified. Testing that also stops step 5 throwing on a DDO that has no `indexedMetadata`.
   if (!indexedMetadata?.event) {
-    CORE_LOGGER.error(
+    CORE_LOGGER.debug(
       `Asset ${updatedDdo.id} carries no indexed event, cannot confirm validation.`
     )
     return false
@@ -1172,15 +1161,15 @@ async function checkIfDDOResponseIsLegit(
   const config = oceanNode.getConfig()
   const network = config.supportedNetworks[chainId.toString()]
   if (!network) {
-    CORE_LOGGER.error(
-      `We do not support the newtwork ${chainId}, cannot confirm validation.`
+    CORE_LOGGER.debug(
+      `We do not support the network ${chainId}, cannot confirm validation of ${updatedDdo.id}`
     )
     return false
   }
   // 4) check if was deployed by our factory
   const blockchain = oceanNode.getBlockchain(chainId as number)
   if (!blockchain) {
-    CORE_LOGGER.error(
+    CORE_LOGGER.warn(
       `Blockchain instance not available for chain ${chainId}, cannot confirm validation.`
     )
     return false
@@ -1194,7 +1183,7 @@ async function checkIfDDOResponseIsLegit(
   )
 
   if (!wasDeployedByUs) {
-    CORE_LOGGER.error(`Asset ${updatedDdo.id} not deployed by the data NFT factory`)
+    CORE_LOGGER.debug(`Asset ${updatedDdo.id} not deployed by the data NFT factory`)
     return false
   }
 
@@ -1205,8 +1194,8 @@ async function checkIfDDOResponseIsLegit(
     indexedMetadata.event.block < 0 ||
     networkBlock < indexedMetadata.event.block
   ) {
-    CORE_LOGGER.error(
-      `Event block: ${indexedMetadata.event.block} is either missing or invalid`
+    CORE_LOGGER.debug(
+      `Asset ${updatedDdo.id}: event block ${indexedMetadata.event.block} is either missing or invalid`
     )
     return false
   }
@@ -1214,7 +1203,9 @@ async function checkIfDDOResponseIsLegit(
   // check events on logs
   const txId: string = indexedMetadata.event.tx || indexedMetadata.event.txid // NOTE: DDO is txid, Asset is tx
   if (!txId) {
-    CORE_LOGGER.error(`DDO event missing tx data, cannot confirm transaction`)
+    CORE_LOGGER.debug(
+      `Asset ${updatedDdo.id}: event missing tx data, cannot confirm transaction`
+    )
     return false
   }
   const provider = await blockchain.getProvider()

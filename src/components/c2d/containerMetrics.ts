@@ -126,7 +126,7 @@ export async function sampleContainerMetrics(
     )
     return { stats, state: { ...info.State, SizeRw: info.SizeRw } }
   } catch (e: any) {
-    CORE_LOGGER.debug(
+    CORE_LOGGER.error(
       `[metrics] could not sample container ${containerId}: ${e?.message}`
     )
     return null
@@ -164,7 +164,7 @@ export async function readContainerRxBytes(
     const stats: any = await container.stats({ stream: false, 'one-shot': true } as any)
     return sumNetworks(stats?.networks)?.rxBytes ?? null
   } catch (e: any) {
-    CORE_LOGGER.debug(
+    CORE_LOGGER.error(
       `[metrics] could not read rx bytes of ${container.id}: ${e?.message}`
     )
     return null

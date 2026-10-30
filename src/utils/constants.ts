@@ -409,6 +409,7 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     required: false // without a value set, it defaults to 30 secs
   },
   LOG_RETENTION_TIME: {
+    // DB logs only: max age in ms (default 30 days)
     name: 'LOG_RETENTION_TIME',
     value: process.env.LOG_RETENTION_TIME,
     required: false
@@ -458,25 +459,51 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     required: false
   },
   LOG_LEVEL: {
-    // default log level (if not specified, "debug" for "development" and "info" for "production")
+    // console and DB log level (if not specified, "debug" for "development" and "info" otherwise)
     name: 'LOG_LEVEL',
     value: process.env.LOG_LEVEL,
     required: false
   },
   LOG_CONSOLE: {
-    // log to console output? true if no other bellow is set
+    // log to console output? default true; "false" is ignored if there is no other output
     name: 'LOG_CONSOLE',
     value: process.env.LOG_CONSOLE,
     required: false
   },
   LOG_FILES: {
-    // log to files?
+    // log to daily rotating files? default true unless LOG_DB=true. "false" disables all
+    // disk logging (including the exceptions file and the fallback when the log DB is down)
     name: 'LOG_FILES',
     value: process.env.LOG_FILES,
     required: false
   },
+  LOG_FILES_LEVEL: {
+    // log files level, default "info"
+    name: 'LOG_FILES_LEVEL',
+    value: process.env.LOG_FILES_LEVEL,
+    required: false
+  },
+  LOG_FILES_RETENTION_DAYS: {
+    // days to keep log files, default 30
+    name: 'LOG_FILES_RETENTION_DAYS',
+    value: process.env.LOG_FILES_RETENTION_DAYS,
+    required: false
+  },
+  LOG_FILES_MAX_SIZE: {
+    // max size of a module's daily file before it splits (.1, .2...), e.g. 500k, 20m, 1g. default 20m
+    name: 'LOG_FILES_MAX_SIZE',
+    value: process.env.LOG_FILES_MAX_SIZE,
+    required: false
+  },
+  LOG_FILES_DIR: {
+    // log files directory, default "logs" (relative to the working directory)
+    name: 'LOG_FILES_DIR',
+    value: process.env.LOG_FILES_DIR,
+    required: false
+  },
   LOG_DB: {
-    // log to DB?
+    // log to the DB (Typesense / Elasticsearch)? default false. falls back to files when the
+    // log DB is not available
     name: 'LOG_DB',
     value: process.env.LOG_DB,
     required: false
@@ -579,6 +606,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   SERVICE_HF_CLIENT_PATCH: {
     name: 'SERVICE_HF_CLIENT_PATCH',
     value: process.env.SERVICE_HF_CLIENT_PATCH,
+    required: false
+  },
+  PASS_CONTAINER_ENVS: {
+    name: 'PASS_CONTAINER_ENVS',
+    value: process.env.PASS_CONTAINER_ENVS,
     required: false
   },
   DOCKER_REGISTRY_AUTHS: {

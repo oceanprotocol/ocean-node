@@ -2,7 +2,6 @@ import { DDOManager } from '@oceanprotocol/ddo-js'
 import { ethers, Signer, FallbackProvider, ZeroAddress } from 'ethers'
 import { EVENTS } from '../../../utils/constants.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
-import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import {
   getDtContract,
   getDid,
@@ -23,8 +22,8 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
   ): Promise<any> {
     try {
       if (!(await isValidFreContract(event.address, chainId, signer))) {
-        INDEXER_LOGGER.error(
-          `Fixed Rate Exhange contract ${event.address} is not approved by Router. Abort updating DDO pricing!`
+        INDEXER_LOGGER.debug(
+          `Fixed Rate Exchange contract ${event.address} is not approved by Router, DDO pricing not updated`
         )
         return null
       }
@@ -33,10 +32,6 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
         event.transactionHash,
         FixedRateExchange.abi,
         EVENTS.EXCHANGE_ACTIVATED
-      )
-      INDEXER_LOGGER.logMessage(`event: ${JSON.stringify(event)}`)
-      INDEXER_LOGGER.logMessage(
-        `decodedEventData in exchange activated: ${JSON.stringify(decodedEventData)}`
       )
       const exchangeId = decodedEventData.args[0].toString()
       const freContract = new ethers.Contract(
@@ -48,8 +43,8 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
 
       const datatokenAddress = exchange[1]
       if (datatokenAddress === ZeroAddress) {
-        INDEXER_LOGGER.error(
-          `Datatoken address is ZERO ADDRESS. Cannot find DDO by ZERO ADDRESS contract.`
+        INDEXER_LOGGER.debug(
+          `Datatoken address is ZERO ADDRESS, no DDO to update (tx ${event.transactionHash})`
         )
         return null
       }
@@ -60,7 +55,7 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
       const { ddo: ddoDatabase } = await this.getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
       if (!ddo) {
-        INDEXER_LOGGER.logMessage(
+        INDEXER_LOGGER.debug(
           `Detected ExchangeActivated changed for ${did}, but it does not exists.`
         )
         return null
@@ -93,10 +88,10 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
           }
         }
       } else {
-        INDEXER_LOGGER.logMessage(`[ExchangeActivated] - No stats were found on the ddo`)
+        INDEXER_LOGGER.debug(`[ExchangeActivated] - No stats were found on the ddo`)
         const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
         if (!serviceIdToFind) {
-          INDEXER_LOGGER.logMessage(
+          INDEXER_LOGGER.debug(
             `[ExchangeActivated] - This datatoken does not contain this service. Invalid service id!`
           )
           return null
@@ -121,7 +116,7 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
       return savedDDO
     } catch (err) {
       this.rethrowIfProviderError(err)
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
+      INDEXER_LOGGER.error(`Error retrieving DDO: ${err}`)
     }
   }
 }

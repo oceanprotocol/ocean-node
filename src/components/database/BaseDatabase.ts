@@ -2,7 +2,6 @@ import { Schema } from '.'
 import { OceanNodeDBConfig } from '../../@types'
 import { AccessListUser } from '../../@types/AccessList.js'
 import { EscrowEvent } from '../../@types/Escrow.js'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { ElasticsearchSchema } from './ElasticSchemas.js'
 import { TypesenseSchema } from './TypesenseSchemas.js'
@@ -24,12 +23,7 @@ export abstract class AbstractNonceDatabase extends AbstractDatabase {
 
   protected logError(message: string, error: any) {
     const errorMsg = `${message}: ${error.message}`
-    DATABASE_LOGGER.logMessageWithEmoji(
-      errorMsg,
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEL_ERROR
-    )
+    DATABASE_LOGGER.error(errorMsg)
   }
 }
 
