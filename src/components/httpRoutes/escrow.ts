@@ -3,9 +3,37 @@ import { Readable } from 'stream'
 import { EscrowEventsHandler } from '../core/handler/escrowHandler.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { streamToString } from '../../utils/util.js'
-import { GetEscrowEventsCommand } from '../../@types/commands.js'
+import { GetEscrowEventsCommand, RangeFilter } from '../../@types/commands.js'
+import { ALLOWED_RANGE_FIELDS } from '../database/escrowSearch.js'
 
 export const escrowRoutes = express.Router()
+
+// Only these field names may become range keys. Whitelisting here (rather than relying on the
+// handler to reject unknown fields *after* parsing) also closes a prototype-pollution vector:
+// without it, a key like `__proto__Min` would resolve `field` to `__proto__` and
+// `ranges[field][bound] = ...` would write onto Object.prototype.
+const ALLOWED_RANGE_FIELD_SET = new Set(ALLOWED_RANGE_FIELDS)
+
+// Fold `<field>Min` / `<field>Max` query params into a ranges map, e.g.
+// ?blockMin=100&blockMax=200&subsidyAmountMin=1000 -> { block:{min,max}, subsidyAmount:{min} }.
+// Fields outside ALLOWED_RANGE_FIELDS are ignored here; the handler re-validates the rest.
+function parseRangeParams(query: Record<string, any>): Record<string, RangeFilter> {
+  // null-prototype map: belt-and-suspenders so an attacker-named field can never reach a prototype.
+  const ranges: Record<string, RangeFilter> = Object.create(null)
+  const assign = (field: string, bound: keyof RangeFilter, value: any) => {
+    if (!ALLOWED_RANGE_FIELD_SET.has(field)) return
+    if (!ranges[field]) ranges[field] = {}
+    ranges[field][bound] = String(value)
+  }
+  for (const key of Object.keys(query)) {
+    const value = query[key]
+    if (value === undefined || value === '') continue
+    let match: RegExpMatchArray | null
+    if ((match = key.match(/^(.+)Min$/))) assign(match[1], 'min', value)
+    else if ((match = key.match(/^(.+)Max$/))) assign(match[1], 'max', value)
+  }
+  return ranges
+}
 
 escrowRoutes.get(
   '/api/services/escrow/events',
@@ -20,6 +48,13 @@ escrowRoutes.get(
       }
     }
 
+    let reclaimable: boolean | undefined
+    if (req.query.reclaimable !== undefined) {
+      reclaimable = String(req.query.reclaimable).toLowerCase() === 'true'
+    }
+
+    const ranges = parseRangeParams(req.query as Record<string, any>)
+
     const command: GetEscrowEventsCommand = {
       command: PROTOCOL_COMMANDS.GET_ESCROW_EVENTS,
       chainId: parsedChainId,
@@ -27,8 +62,12 @@ escrowRoutes.get(
       payer: req.query.payer ? String(req.query.payer) : undefined,
       payee: req.query.payee ? String(req.query.payee) : undefined,
       token: req.query.token ? String(req.query.token) : undefined,
+      provider: req.query.provider ? String(req.query.provider) : undefined,
+      contract: req.query.contract ? String(req.query.contract) : undefined,
+      reclaimable,
       jobId: req.query.jobId ? String(req.query.jobId) : undefined,
       txId: req.query.txId ? String(req.query.txId) : undefined,
+      ranges: Object.keys(ranges).length ? ranges : undefined,
       offset: req.query.offset ? Number(req.query.offset) : undefined,
       size: req.query.size ? Number(req.query.size) : undefined,
       caller: req.caller

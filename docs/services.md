@@ -11,6 +11,10 @@ an algorithm to completion and exits — a service stays up for a requested **du
 exposes one or more network **endpoints** (`http://<nodeHost>:<hostPort>`) that the
 consumer can connect to while it runs.
 
+> Service payments (start and extend) can be **subsidized** by a third party — covering part or
+> all of the cost, including **zero-deposit** services where the consumer pays nothing. See
+> [subsidyProviders.md](subsidyProviders.md).
+
 The consumer supplies the container spec directly in the request: an `image`
 (referenced by `tag` or `checksum`, or an inline `dockerfile` when the operator allows
 building), optional `dockerCmd` / `dockerEntrypoint`, the container ports to expose, the
