@@ -577,9 +577,11 @@ describe('**********         Service on Demand', () => {
       tag: 'alpine',
       exposedPorts: [8080],
       duration: SERVICE_DURATION,
+      // Services must book a positive disk amount (SERVICE_START rejects 0 / omitted).
       resources: [
         { id: 'cpu', amount: 1 },
-        { id: 'ram', amount: 1 }
+        { id: 'ram', amount: 1 },
+        { id: 'disk', amount: 1 }
       ],
       payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken },
       // not a valid EVM address → rejected before any escrow interaction
@@ -609,9 +611,11 @@ describe('**********         Service on Demand', () => {
           tag: 'alpine',
           exposedPorts: [8080],
           duration: SERVICE_DURATION,
+          // Services must book a positive disk amount (SERVICE_START rejects 0 / omitted).
           resources: [
             { id: 'cpu', amount: 1 },
-            { id: 'ram', amount: 1 }
+            { id: 'ram', amount: 1 },
+            { id: 'disk', amount: 1 }
           ],
           payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken },
           subsidyProviders: [NON_WHITELISTED_PROVIDER]
@@ -1488,9 +1492,11 @@ describe('**********         Service on Demand', () => {
           tag: 'alpine',
           exposedPorts: [8080],
           duration: SERVICE_DURATION,
+          // Services must book a positive disk amount (SERVICE_START rejects 0 / omitted).
           resources: [
             { id: 'cpu', amount: 1 },
-            { id: 'ram', amount: 1 }
+            { id: 'ram', amount: 1 },
+            { id: 'disk', amount: 1 }
           ],
           payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken },
           // lower-case on input; the resolver must store the EIP-55 checksummed form
