@@ -10,9 +10,11 @@ import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { errorSummary } from '../../utils/logging/redact.js'
 import { FileInfoCommand } from '../../@types/commands.js'
 import { sanitizeLogValue } from '../../utils/util.js'
+import { LP_MAX_FRAME_BYTES } from '../P2P/lpFraming.js'
 
 export const fileInfoRoute = express.Router()
-fileInfoRoute.use(express.json()) // Ensure JSON parsing middleware is used
+// Also parses every route mounted after this router (compute, services, auth, ...).
+fileInfoRoute.use(express.json({ limit: LP_MAX_FRAME_BYTES }))
 
 // Validation function
 fileInfoRoute.post(
