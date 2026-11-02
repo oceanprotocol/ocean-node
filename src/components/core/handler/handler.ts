@@ -16,6 +16,8 @@ import { ReadableString } from '../../P2P/handlers.js'
 import { CONNECTION_HISTORY_DELETE_THRESHOLD } from '../../../utils/constants.js'
 import { normalizeCommandAddresses, sameAddress } from '../../../utils/evmAddress.js'
 
+const RATE_LIMIT_LOG_KEY = 'core-rate-limit'
+const RATE_LIMIT_LOG_INTERVAL_MS = 60_000
 export abstract class BaseHandler implements ICommandHandler {
   public nodeInstance: OceanNode
   public constructor(oceanNode: OceanNode) {
@@ -48,7 +50,7 @@ export abstract class BaseHandler implements ICommandHandler {
 
     // we have to clear this from time to time, so it does not grow forever
     if (requestMap.size > CONNECTION_HISTORY_DELETE_THRESHOLD) {
-      CORE_LOGGER.info('Request history reached threeshold, cleaning cache...')
+      CORE_LOGGER.debug('Request history reached threshold, cleaning cache')
       requestMap.clear()
     }
 
@@ -79,10 +81,14 @@ export abstract class BaseHandler implements ICommandHandler {
         }
         // do not proceed any further
         if (!isOK) {
-          CORE_LOGGER.warn(
-            `Request denied (rate limit exceeded) for remote caller ${remote}. Current request map: ${JSON.stringify(
-              requestMap.get(remote)
-            )}`
+          // a client hammering the node must not flood the logs: one line per minute
+          CORE_LOGGER.throttled(
+            RATE_LIMIT_LOG_KEY,
+            'warn',
+            `Request denied (rate limit exceeded) for remote caller ${remote} (${
+              requestMap.get(remote)?.numRequests
+            } requests in the current window)`,
+            RATE_LIMIT_LOG_INTERVAL_MS
           )
           return false
         }
@@ -100,10 +106,13 @@ export abstract class BaseHandler implements ICommandHandler {
         updateRequestData(caller)
         // log if request was denied
         if (!isOK) {
-          CORE_LOGGER.warn(
-            `Request denied (rate limit exceeded) for remote caller ${caller}. Current request map: ${JSON.stringify(
-              requestMap.get(caller)
-            )}`
+          CORE_LOGGER.throttled(
+            RATE_LIMIT_LOG_KEY,
+            'warn',
+            `Request denied (rate limit exceeded) for remote caller ${caller} (${
+              requestMap.get(caller)?.numRequests
+            } requests in the current window)`,
+            RATE_LIMIT_LOG_INTERVAL_MS
           )
         }
       }

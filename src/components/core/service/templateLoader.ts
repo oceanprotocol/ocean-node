@@ -20,13 +20,21 @@ async function readTemplateFile(
 ): Promise<string | null> {
   const target = resolve(baseDir, relPath)
   if (target !== resolvedRoot && !target.startsWith(resolvedRoot + sep)) {
-    CORE_LOGGER.warn(`${what}: "${relPath}" resolves outside the templates dir`)
+    CORE_LOGGER.throttled(
+      `template:escape:${target}`,
+      'warn',
+      `${what}: "${relPath}" resolves outside the templates dir`
+    )
     return null
   }
   try {
     return await readFile(target, 'utf8')
   } catch (e) {
-    CORE_LOGGER.warn(`${what}: cannot read "${relPath}" (${e.message})`)
+    CORE_LOGGER.throttled(
+      `template:read:${target}`,
+      'error',
+      `${what}: cannot read "${relPath}" (${e.message})`
+    )
     return null
   }
 }
@@ -51,14 +59,21 @@ export async function loadServiceTemplates(dir?: string): Promise<ServiceTemplat
       .filter((f) => (folderLayout ? basename(f) === 'template.json' : !f.includes(sep)))
       .sort() // deterministic order → stable duplicate resolution
   } catch (e) {
-    // A missing folder is the normal "no templates" state — the default path
-    // (databases/serviceTemplates/) need not exist — so stay quiet on ENOENT.
+    // A missing folder is the normal "no templates" state (the default path
+    // databases/serviceTemplates/ need not exist). Templates are re-read on every request,
+    // so both cases are throttled to at most one line per hour.
     if (e.code === 'ENOENT') {
-      CORE_LOGGER.debug(
+      CORE_LOGGER.throttled(
+        `template:dir:${dir}`,
+        'error',
         `serviceTemplatesPath "${dir}" does not exist — no service templates loaded`
       )
     } else {
-      CORE_LOGGER.error(`serviceTemplatesPath "${dir}" is not readable: ${e.message}`)
+      CORE_LOGGER.throttled(
+        `template:dir:${dir}`,
+        'error',
+        `serviceTemplatesPath "${dir}" is not readable: ${e.message}`
+      )
     }
     return []
   }
@@ -73,7 +88,9 @@ export async function loadServiceTemplates(dir?: string): Promise<ServiceTemplat
     try {
       raw = JSON.parse(await readFile(join(dir, file), 'utf8'))
     } catch (e) {
-      CORE_LOGGER.warn(
+      CORE_LOGGER.throttled(
+        `template:json:${resolve(dir, file)}`,
+        'error',
         `Skipping service template file "${file}": invalid JSON (${e.message})`
       )
       continue
@@ -82,16 +99,19 @@ export async function loadServiceTemplates(dir?: string): Promise<ServiceTemplat
     for (const candidate of Array.isArray(raw) ? raw : [raw]) {
       const parsed = ServiceTemplateSchema.safeParse(candidate)
       if (!parsed.success) {
-        CORE_LOGGER.warn(
-          `Skipping invalid template in "${file}": ${parsed.error.issues
-            .map((i) => i.message)
-            .join('; ')}`
+        const reasons = parsed.error.issues.map((i) => i.message).join('; ')
+        CORE_LOGGER.throttled(
+          `template:schema:${resolve(dir, file)}:${reasons}`,
+          'warn',
+          `Skipping invalid template in "${file}": ${reasons}`
         )
         continue
       }
       const tmpl = parsed.data as ServiceTemplate
       if (byId.has(tmpl.id)) {
-        CORE_LOGGER.warn(
+        CORE_LOGGER.throttled(
+          `template:dup:${tmpl.id}:${resolve(dir, file)}`,
+          'warn',
           `Duplicate service template id "${tmpl.id}" (in "${file}") — keeping the first occurrence`
         )
         continue
@@ -123,7 +143,11 @@ export async function loadServiceTemplates(dir?: string): Promise<ServiceTemplat
             const { file, ...rest } = wf
             resolved.push({ ...rest, graph: JSON.parse(content) })
           } catch (e) {
-            CORE_LOGGER.warn(`${dropping} — invalid JSON in "${wf.file}" (${e.message})`)
+            CORE_LOGGER.throttled(
+              `template:wf:${tmpl.id}:${wf.id}:${resolve(baseDir, wf.file)}`,
+              'error',
+              `${dropping} — invalid JSON in "${wf.file}" (${e.message})`
+            )
           }
         }
         tmpl.workflows = resolved

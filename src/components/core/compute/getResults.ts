@@ -80,7 +80,7 @@ export class ComputeGetResultHandler extends CommandHandler {
       }
       return response
     } catch (error) {
-      CORE_LOGGER.error(error.message)
+      CORE_LOGGER.error(`getComputeResult ${task.jobId}: ${error.message}`)
       return {
         stream: null,
         status: {

@@ -1,6 +1,5 @@
 import { ethers, Signer, FallbackProvider, Interface } from 'ethers'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
-import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
 import AccessListFactory from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessListFactory.sol/AccessListFactory.json' with { type: 'json' }
 import AccessList from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' with { type: 'json' }
@@ -42,8 +41,7 @@ export class NewAccessListEventProcessor extends BaseEventProcessor {
         symbol = symbolRaw
       } catch (err) {
         this.rethrowIfProviderError(err)
-        INDEXER_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_WARN,
+        INDEXER_LOGGER.error(
           `Failed to read on-chain metadata for ${contractAddress}: ${err.message}`
         )
       }
@@ -59,17 +57,13 @@ export class NewAccessListEventProcessor extends BaseEventProcessor {
         symbol
       )
 
-      INDEXER_LOGGER.logMessage(
+      INDEXER_LOGGER.debug(
         `[NewAccessList] Indexed access list ${contractAddress} on chain ${chainId} (name=${name}, symbol=${symbol}, transferable=${transferable})`
       )
       return result
     } catch (err) {
       this.rethrowIfProviderError(err)
-      INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `Error processing NewAccessList event: ${err.message}`,
-        true
-      )
+      INDEXER_LOGGER.error(`Error processing NewAccessList event: ${err.message}`)
       return null
     }
   }

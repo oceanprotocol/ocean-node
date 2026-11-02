@@ -6,6 +6,7 @@ import {
   buildInvalidParametersResponse
 } from '../../httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { flushLogs } from '../../../utils/logging/Logger.js'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 
 export class StopNodeHandler extends AdminCommandHandler {
@@ -20,9 +21,10 @@ export class StopNodeHandler extends AdminCommandHandler {
         resolve(buildInvalidParametersResponse(validation))
       })
     }
-    CORE_LOGGER.logMessage(`Stopping node execution...`)
+    CORE_LOGGER.info('Admin requested node shutdown, exiting in 2s')
     setTimeout(() => {
-      process.exit()
+      // write the last lines to the log files before exiting
+      void flushLogs().finally(() => process.exit())
     }, 2000)
     return new Promise<P2PCommandResponse>((resolve, reject) => {
       resolve({

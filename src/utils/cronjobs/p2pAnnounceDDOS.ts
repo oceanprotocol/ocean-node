@@ -4,7 +4,11 @@
 import { OceanNode } from '../../OceanNode.js'
 import { P2P_LOGGER } from '../logging/common.js'
 import { provideLimit } from '../../components/P2P/provideLimiter.js'
-import { logProvideFailure } from '../../components/P2P/errors.js'
+import {
+  classifyP2PError,
+  logProvideFailure,
+  P2P_ERROR
+} from '../../components/P2P/errors.js'
 
 /**
  * How many documents to ask each schema for per round trip. Kept well under the Typesense
@@ -123,8 +127,8 @@ export async function p2pAnnounceDDOS(node: OceanNode) {
     const db = await node.getDatabase()
     const p2pNode = node.getP2PNode()
     if (!db || !db.ddo || !p2pNode) {
-      P2P_LOGGER.info(
-        `republishStoredDDOS() attempt aborted because there is no database or P2P is not available!`
+      P2P_LOGGER.debug(
+        'republishStoredDDOS() skipped: no database or P2P is not available'
       )
       return
     }
@@ -133,6 +137,8 @@ export async function p2pAnnounceDDOS(node: OceanNode) {
 
     let advertised = 0
     let seen = 0
+    let failed = 0
+    let cacheFailed = 0
     let page = 1
     // Walk until the store is exhausted. Fetching a single page and stopping meant everything
     // past the first page - and, on Typesense, everything outside the first collection - was
@@ -149,9 +155,8 @@ export async function p2pAnnounceDDOS(node: OceanNode) {
         break
       }
       seen += documents.length
-      P2P_LOGGER.logMessage(
-        `Will republish cid for ${documents.length} documents (page ${page})`,
-        true
+      P2P_LOGGER.debug(
+        `Will republish cid for ${documents.length} documents (page ${page})`
       )
       // bounded concurrency and a real await. `hits.forEach(hit => advertiseString(...))`
       // returned before a single provide had completed, so nothing capped the fan-out and the
@@ -167,6 +172,8 @@ export async function p2pAnnounceDDOS(node: OceanNode) {
                 advertised++
               }
             } catch (e) {
+              // timeouts are normal in a sparse DHT: only other failures count towards the summary
+              if (classifyP2PError(e).name !== P2P_ERROR.timeout) failed++
               logProvideFailure(
                 P2P_LOGGER,
                 e,
@@ -182,6 +189,7 @@ export async function p2pAnnounceDDOS(node: OceanNode) {
               // the provide, made the failure read as a DHT failure it was not.
               p2pNode.cacheDDO(ddo)
             } catch (e) {
+              cacheFailed++
               P2P_LOGGER.error(
                 `Caught "${e.message}" while caching ${ddo?.id} on republishStoredDDOS()`
               )
@@ -204,12 +212,19 @@ export async function p2pAnnounceDDOS(node: OceanNode) {
     }
 
     if (seen === 0) {
-      P2P_LOGGER.logMessage('There is nothing to republish, skipping...', true)
+      P2P_LOGGER.debug('There is nothing to republish, skipping...')
       return
     }
     // A real count: `advertiseString` rejects on a failed provide, so the catch above fires
     // and that hit is not counted, and it returns false when it only queued the DID.
-    P2P_LOGGER.logMessage(`Republished cid for ${advertised}/${seen} documents`, true)
+    const summary = `Re-announced ${advertised}/${seen} DDOs to the DHT`
+    if (failed > 0 || cacheFailed > 0) {
+      P2P_LOGGER.warn(
+        `${summary} (${failed} provide failures, ${cacheFailed} cache failures)`
+      )
+    } else {
+      P2P_LOGGER.info(summary)
+    }
   } catch (err) {
     P2P_LOGGER.error(`Caught "${err.message}" on republishStoredDDOS()`)
   }

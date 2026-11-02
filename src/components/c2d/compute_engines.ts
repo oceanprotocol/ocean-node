@@ -39,7 +39,7 @@ export class C2DEngines {
           const claimDurationTimeout = escrow.getMinLockTime(0)
           if (cluster.connection.paymentClaimInterval * limit > claimDurationTimeout) {
             CORE_LOGGER.error(
-              `Cannot create engine ${cluster.connection.hash}.\r\nConfig.claimDurationTimeout is not high enough to claim at least ${limit} times. Either decrease environment.paymentClaimInterval${cluster.connection.paymentClaimInterval} or increase config.claimDurationTimeout(${claimDurationTimeout})`
+              `Cannot create engine ${cluster.connection.hash}: paymentClaimInterval (${cluster.connection.paymentClaimInterval}) x ${limit} exceeds claimDurationTimeout (${claimDurationTimeout}); decrease the interval or increase config.claimDurationTimeout`
             )
           } else {
             const cfg = JSON.parse(JSON.stringify(cluster)) as C2DClusterInfo

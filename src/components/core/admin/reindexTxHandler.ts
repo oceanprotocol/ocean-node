@@ -29,7 +29,6 @@ export class ReindexTxHandler extends AdminCommandHandler {
     if (!validation.valid) {
       return buildInvalidParametersResponse(validation)
     }
-    CORE_LOGGER.logMessage(`Reindexing tx...`)
     const checkChainId = this.getOceanNode().checkSupportedChainId(task.chainId)
     if (!checkChainId.validation) {
       return buildErrorResponse(
@@ -47,6 +46,9 @@ export class ReindexTxHandler extends AdminCommandHandler {
       })
 
       if (job) {
+        CORE_LOGGER.info(
+          `Admin reindex requested for tx ${task.txId} on chain ${task.chainId}`
+        )
         return {
           status: { httpStatus: 200 },
           stream: new ReadableString(JSON.stringify(job))

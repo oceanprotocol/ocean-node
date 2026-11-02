@@ -9,6 +9,7 @@ import {
   ValidateParams
 } from '../../httpRoutes/validateCommands.js'
 import { AdminCommandHandler } from './adminHandler.js'
+import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
 export class IndexingThreadHandler extends AdminCommandHandler {
   async validateAdminCommand(command: StartStopIndexingCommand): Promise<ValidateParams> {
@@ -35,6 +36,7 @@ export class IndexingThreadHandler extends AdminCommandHandler {
     if (!indexer) {
       return buildErrorResponse('Node is not running an indexer instance!')
     }
+    CORE_LOGGER.info(`Admin ${task.action} for chain ${task.chainId ?? 'all'}`)
     if (task.action === IndexingCommand.START_THREAD) {
       const output = task.chainId
         ? indexer.startChainIndexer(task.chainId)

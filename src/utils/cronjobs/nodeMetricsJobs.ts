@@ -7,6 +7,7 @@ import { Database } from '../../components/database/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { ENVIRONMENT_VARIABLES } from '../constants.js'
 import { OCEAN_NODE_LOGGER } from '../logging/common.js'
+import { LOG_LEVELS_STR } from '../logging/Logger.js'
 import {
   collectNodeMetricsSnapshot,
   hasFreshAggregate
@@ -26,10 +27,8 @@ const DEFAULT_SAMPLE_CRON = '* * * * *'
 // Raw minute samples are consumed by the hourly roll-up; this is only the safety window after
 // which any leftover samples are purged unconditionally.
 const SAMPLE_BUFFER_MS = 3 * HOUR_MS
-// Don't emit a "skipped, no fresh aggregate" warning more than once per hour.
-const SKIP_WARN_INTERVAL_MS = HOUR_MS
-
-let lastSkipWarnAt = 0
+const SAMPLER_SKIP_THROTTLE_KEY = 'nodeMetrics:samplerSkip'
+const SAMPLER_ERROR_THROTTLE_KEY = 'nodeMetrics:samplerError'
 
 function getSampleCronExpression(): string {
   return (
@@ -56,24 +55,27 @@ export function scheduleNodeMetricsJobs(node: OceanNode, dbconn: Database | null
   // 1. Minute sampler
   scheduleCron(getSampleCronExpression(), () => {
     try {
-      // Warn-and-skip when there is no fresh compute aggregate (metrics collection disabled or
-      // no engine has sampled yet). Persisting all-zero rows would skew hourly averages.
+      // Skip when there is no fresh compute aggregate (metrics collection disabled or no
+      // engine has sampled yet). Persisting all-zero rows would skew hourly averages.
       if (!hasFreshAggregate(node)) {
-        const now = Date.now()
-        if (now - lastSkipWarnAt >= SKIP_WARN_INTERVAL_MS) {
-          lastSkipWarnAt = now
-          OCEAN_NODE_LOGGER.warn(
-            'Node metrics sampler: no fresh compute aggregate (C2D metrics collection disabled ' +
-              'or no engine sampled yet) — skipping sample. This warning is rate-limited.'
-          )
-        }
+        OCEAN_NODE_LOGGER.throttled(
+          SAMPLER_SKIP_THROTTLE_KEY,
+          LOG_LEVELS_STR.LEVEL_DEBUG,
+          'Node metrics sampler: no fresh compute aggregate (C2D metrics collection disabled ' +
+            'or no engine sampled yet), skipping sample',
+          HOUR_MS
+        )
         return
       }
       const snapshot = collectNodeMetricsSnapshot(node)
       db.insertSample(snapshot)
+      OCEAN_NODE_LOGGER.resetThrottle(SAMPLER_ERROR_THROTTLE_KEY)
     } catch (err) {
-      OCEAN_NODE_LOGGER.error(
-        `Node metrics sampler error: ${err instanceof Error ? err.message : String(err)}`
+      OCEAN_NODE_LOGGER.throttled(
+        SAMPLER_ERROR_THROTTLE_KEY,
+        LOG_LEVELS_STR.LEVEL_ERROR,
+        `Node metrics sampler error: ${err instanceof Error ? err.message : String(err)}`,
+        HOUR_MS
       )
     }
   })
@@ -90,7 +92,7 @@ export function scheduleNodeMetricsJobs(node: OceanNode, dbconn: Database | null
       // Safety net for any orphaned samples the roll-up did not consume.
       const purged = db.purgeOldSamples(Date.now() - SAMPLE_BUFFER_MS)
       if (rolled > 0 || purged > 0) {
-        OCEAN_NODE_LOGGER.info(
+        OCEAN_NODE_LOGGER.debug(
           `Node metrics roll-up: ${rolled} hour(s) aggregated, ${purged} stale sample(s) purged.`
         )
       }
@@ -107,7 +109,7 @@ export function scheduleNodeMetricsJobs(node: OceanNode, dbconn: Database | null
       const cutoff = Date.now() - getMetricsRetentionDays() * 24 * HOUR_MS
       const deleted = db.deleteHourlyOlderThan(cutoff)
       if (deleted > 0) {
-        OCEAN_NODE_LOGGER.info(
+        OCEAN_NODE_LOGGER.debug(
           `Node metrics retention: deleted ${deleted} hourly row(s) older than ${getMetricsRetentionDays()} days.`
         )
       }

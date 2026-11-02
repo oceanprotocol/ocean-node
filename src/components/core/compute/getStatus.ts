@@ -46,7 +46,7 @@ export class ComputeGetStatusHandler extends CommandHandler {
         )
       } else if (!command.consumerAddress && !command.jobId && !command.agreementId) {
         const error = 'Missing one of ["jobId","consumerAddress","agreementId"]'
-        CORE_LOGGER.logMessage(error, true)
+        CORE_LOGGER.debug(error)
         return buildInvalidRequestMessage(error)
       }
     }
@@ -119,10 +119,7 @@ export class ComputeGetStatusHandler extends CommandHandler {
 
         if (jobs && jobs.length > 0) response.push(...jobs)
       }
-      CORE_LOGGER.logMessage(
-        'ComputeGetStatusCommand Response: ' + JSON.stringify(response, null, 2),
-        true
-      )
+      CORE_LOGGER.debug(`getComputeStatus: returned ${response.length} job(s)`)
 
       return {
         stream: Readable.from(JSON.stringify(response)),
@@ -131,7 +128,7 @@ export class ComputeGetStatusHandler extends CommandHandler {
         }
       }
     } catch (error) {
-      CORE_LOGGER.error(error.message)
+      CORE_LOGGER.error(`getComputeStatus ${task.jobId ?? ''} failed: ${error.message}`)
       return {
         stream: null,
         status: {

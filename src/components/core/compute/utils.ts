@@ -14,6 +14,7 @@ import { getFile } from '../../../utils/file.js'
 import { Storage } from '../../storage/index.js'
 
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { errorSummary } from '../../../utils/logging/redact.js'
 import { createHash } from 'crypto'
 import { FindDdoHandler } from '../../core/handler/ddoHandler.js'
 import { DDOManager, VersionedDDO } from '@oceanprotocol/ddo-js'
@@ -54,7 +55,7 @@ export async function getAlgoChecksums(
     const algoDDO =
       resolvedAlgoDDO ?? (await new FindDdoHandler(oceanNode).findAndFormatDdo(algoDID))
     if (!algoDDO) {
-      CORE_LOGGER.error(`Algorithm with id: ${algoDID} not found!`)
+      CORE_LOGGER.debug(`Algorithm with id: ${algoDID} not found!`)
       return checksums
     }
     const fileArray = await getFile(algoDDO, algoServiceId, oceanNode)
@@ -87,7 +88,9 @@ export async function getAlgoChecksums(
       .digest('hex')
     return checksums
   } catch (error) {
-    CORE_LOGGER.error(`Fetching algorithm checksums failed: ${error.message}`)
+    CORE_LOGGER.error(
+      `Fetching algorithm checksums failed for ${algoDID}: ${errorSummary(error)}`
+    )
     return checksums
   }
 }
@@ -306,7 +309,9 @@ export async function validateAlgoForDataset(
 
     return compute.allowRawAlgorithm
   } catch (error) {
-    CORE_LOGGER.error(error.message)
+    CORE_LOGGER.error(
+      `validateAlgoForDataset (dataset ${ddoInstance?.getDid?.()}, algo ${algoDID}): ${error.message}`
+    )
     return false
   }
 }

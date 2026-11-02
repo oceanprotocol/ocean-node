@@ -84,11 +84,13 @@ You can use the following PM2 commands to manage your Ocean Node:
 
 ```bash
 pm2 list # View running processes
-pm2 logs ocean-node # View logs
+pm2 logs ocean-node # View logs (console output)
 pm2 restart ocean-node # Restart the node
 pm2 stop ocean-node # Stop the node
 pm2 delete ocean-node # Delete the process
 ```
+
+The node also writes daily-rotating log files to `logs/` in its working directory (see [Logs](docs/Logs.md)). PM2 keeps its own copy of stdout in `~/.pm2/logs` with no size limit unless `pm2-logrotate` is installed.
 
 ## Option 3: Running Ocean Nodes With NPM
 
@@ -152,7 +154,7 @@ Your node is now running. To start additional nodes, repeat these steps in a new
 - [Persistent storage for c2d jobs](docs/persistentStorage.md)
 - [Testing Guide](docs/testing.md)
 - [Network Configuration](docs/networking.md)
-- [Logging & accessing logs](docs/networking.md)
+- [Logging & accessing logs](docs/Logs.md)
 - [Docker Deployment Guide](docs/dockerDeployment.md)
 - [Compute (C2D) Configuration — resources, GPUs, constraints, pricing](docs/compute.md)
 - [Services (Service-on-Demand)](docs/services.md)

@@ -137,7 +137,7 @@ the compiled output. In tests, do **not** mutate `process.env` directly — use 
 `config.json` points the DB at Typesense on `http://localhost:8108`.
 
 Other useful scripts: `npm run client` (2-node download flow demo), `npm run check-nonce`
-(nonce tracking; needs DB), `npm run logs` (tail logs), and k6 perf tests
+(nonce tracking; needs DB), `npm run logs` (calls the signed `/logs` API; currently broken, see `docs/Logs.md`), and k6 perf tests
 `test:smoke` / `test:load` / `test:stress` / `test:request:rate` (require k6 installed and
 a running node).
 
@@ -310,8 +310,8 @@ Handler source is grouped under `src/components/core/`:
 - `src/@types/` — shared TypeScript types (`OceanNode.ts` for config/response shapes,
   `commands.ts` for `Command`/handler interfaces, `blockchain.ts`, `C2D/`).
 - `src/utils/` — cross-cutting helpers: `config/` (config builder + zod schemas),
-  `constants.ts`, `crypt.ts` (hashing/signing), `blockchain.ts`, `logging/` (winston, with a
-  DB transport in prod/staging), `cronjobs/`, `validators.ts`, `credentials.ts`,
+  `constants.ts`, `crypt.ts` (hashing/signing), `blockchain.ts`, `logging/` (winston: console, per-module
+  rotating files in `logs/` by default when `LOG_DB` is off, optional DB transport), `cronjobs/`, `validators.ts`, `credentials.ts`,
   `accessList.ts`, `asset.ts`, `attestation.ts`.
 - Runtime data dirs: `databases/` (SQLite files + libp2p LevelDB store), `c2d_storage/` (C2D
   job working data), `logs/`, `schemas/` (SHACL DDO validation schemas — shipped into the

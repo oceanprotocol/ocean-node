@@ -25,16 +25,13 @@ export class ServiceGetTemplatesHandler extends CommandHandler {
         }
 
       const templates = await engines.fetchServiceTemplates()
-      CORE_LOGGER.logMessage(
-        `ServiceGetTemplates: returning ${templates.length} template(s)`,
-        true
-      )
+      CORE_LOGGER.debug(`ServiceGetTemplates: returning ${templates.length} template(s)`)
       return {
         stream: Readable.from(JSON.stringify(templates)),
         status: { httpStatus: 200 }
       }
     } catch (error: any) {
-      CORE_LOGGER.error(error.message)
+      CORE_LOGGER.error(`ServiceGetTemplates failed: ${error.message}`)
       return { stream: null, status: { httpStatus: 500, error: error.message } }
     }
   }

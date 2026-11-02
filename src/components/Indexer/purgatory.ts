@@ -1,8 +1,13 @@
 import { PurgatoryAccounts, PurgatoryAssets } from '../../@types/Purgatory.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { errorSummary } from '../../utils/logging/redact.js'
 import { URLUtils } from '../../utils/url.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
+
+// the lists are re-fetched on every metadata event while empty, so failures are throttled
+const ASSETS_THROTTLE_KEY = 'purgatory-assets'
+const ACCOUNTS_THROTTLE_KEY = 'purgatory-accounts'
 
 export class Purgatory {
   private bannedAccounts: Array<PurgatoryAccounts>
@@ -46,18 +51,16 @@ export class Purgatory {
           signal: AbortSignal.timeout(2000)
         })
         if (response.status !== 200) {
-          INDEXER_LOGGER.log(
-            LOG_LEVELS_STR.LEVEL_ERROR,
-            `PURGATORY: Failure when retrieving new purgatory list from ASSET_PURGATORY_URL env var.
-                Response: ${await response.text()}, status: ${
-                  response.status + response.statusText
-                }`,
-            true
+          INDEXER_LOGGER.throttled(
+            ASSETS_THROTTLE_KEY,
+            LOG_LEVELS_STR.LEVEL_WARN,
+            `Failed to fetch asset purgatory list (ASSET_PURGATORY_URL): ${response.status} ${response.statusText}`
           )
           return purgatoryAssets
         }
-        INDEXER_LOGGER.logMessage(
-          `PURGATORY: Successfully retrieved new purgatory list from ASSET_PURGATORY_URL env var.`
+        INDEXER_LOGGER.resetThrottle(ASSETS_THROTTLE_KEY)
+        INDEXER_LOGGER.debug(
+          `Purgatory: retrieved new purgatory list from ASSET_PURGATORY_URL`
         )
 
         const assets = await response.json()
@@ -69,10 +72,10 @@ export class Purgatory {
         this.setBannedAssets(purgatoryAssets)
         return purgatoryAssets
       } catch (err) {
-        INDEXER_LOGGER.log(
+        INDEXER_LOGGER.throttled(
+          ASSETS_THROTTLE_KEY,
           LOG_LEVELS_STR.LEVEL_ERROR,
-          `Error fetching purgatory list for assets: ${err}`,
-          true
+          `Error fetching purgatory list for assets: ${errorSummary(err)}`
         )
       }
     }
@@ -89,18 +92,16 @@ export class Purgatory {
           signal: AbortSignal.timeout(2000) // small increase
         })
         if (response.status !== 200) {
-          INDEXER_LOGGER.log(
-            LOG_LEVELS_STR.LEVEL_ERROR,
-            `PURGATORY: Failure when retrieving new purgatory list from ACCOUNT_PURGATORY_URL env var.
-              Response: ${await response.text()}, status: ${
-                response.status + response.statusText
-              }`,
-            true
+          INDEXER_LOGGER.throttled(
+            ACCOUNTS_THROTTLE_KEY,
+            LOG_LEVELS_STR.LEVEL_WARN,
+            `Failed to fetch account purgatory list (ACCOUNT_PURGATORY_URL): ${response.status} ${response.statusText}`
           )
           return purgatoryAccounts
         }
-        INDEXER_LOGGER.logMessage(
-          `PURGATORY: Successfully retrieved new purgatory list from ACCOUNT_PURGATORY_URL env var.`
+        INDEXER_LOGGER.resetThrottle(ACCOUNTS_THROTTLE_KEY)
+        INDEXER_LOGGER.debug(
+          `Purgatory: retrieved new purgatory list from ACCOUNT_PURGATORY_URL`
         )
         const accounts = await response.json()
         for (const account of accounts) {
@@ -111,10 +112,10 @@ export class Purgatory {
         this.setBannedAccounts(purgatoryAccounts)
         return purgatoryAccounts
       } catch (err) {
-        INDEXER_LOGGER.log(
+        INDEXER_LOGGER.throttled(
+          ACCOUNTS_THROTTLE_KEY,
           LOG_LEVELS_STR.LEVEL_ERROR,
-          `Error fetching purgatory list for accounts: ${err}`,
-          true
+          `Error fetching purgatory list for accounts: ${errorSummary(err)}`
         )
       }
     }

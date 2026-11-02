@@ -21,7 +21,7 @@ export { parseFromTimestamp }
 // SERVICE_LIST: the node-wide service listing, shaped like GetJobsHandler. Default (no
 // filters) returns exactly what the engines count against the shared resource pools
 // (getRunningServiceJobs): Running/Restarting/Stopping, the mid-start pipeline states,
-// paid Error (container died, restartable), and explicitly Stopped (reservation kept
+// paid Error (container died, restartable), and stopped-like states (Stopped/DiskQuotaExceeded, reservation kept
 // until expiresAt). `status` narrows to ONE specific status (any, incl. Expired);
 // `includeAllStatuses` returns everything; `fromTimestamp` keeps only services created
 // at/after that moment. Unlike SERVICE_GET_STATUS this is NOT owner-scoped: any

@@ -17,7 +17,7 @@ import { EVENT_HASHES, PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { timestampToDateTime } from '../../../utils/conversions.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
-import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
+import { errorSummary } from '../../../utils/logging/redact.js'
 import { URLUtils } from '../../../utils/url.js'
 import { streamToString, streamToUint8Array } from '../../../utils/util.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
@@ -103,9 +103,10 @@ export abstract class BaseEventProcessor {
         symbol = `DT${services.indexOf(service)}`
       } else {
         name = await datatoken.name()
-        INDEXER_LOGGER.logMessage(`name.datatoken: ${name}`)
         symbol = await datatoken.symbol()
-        INDEXER_LOGGER.logMessage(`symbol.datatoken: ${symbol}`)
+        INDEXER_LOGGER.debug(
+          `Datatoken ${service.datatokenAddress}: name=${name}, symbol=${symbol}`
+        )
       }
 
       datatokens.push({
@@ -129,8 +130,8 @@ export abstract class BaseEventProcessor {
     let receipt: ethers.TransactionReceipt
     try {
       receipt = await fetchTransactionReceipt(transactionHash, provider)
-    } catch (e) {
-      INDEXER_LOGGER.error(`Error retrieving receipt: ${e.message}`)
+    } catch {
+      // fetchTransactionReceipt returns null instead of throwing
     }
     if (receipt) {
       let eventHash: string
@@ -165,7 +166,9 @@ export abstract class BaseEventProcessor {
 
       return iface.parseLog(eventObj)
     } else {
-      INDEXER_LOGGER.error('Receipt could not be fetched')
+      INDEXER_LOGGER.error(
+        `Receipt could not be fetched for tx ${transactionHash} on chain ${this.networkId}`
+      )
     }
   }
 
@@ -211,8 +214,8 @@ export abstract class BaseEventProcessor {
         saveDDO.indexedMetadata?.event?.tx,
         true
       )
-      INDEXER_LOGGER.logMessage(
-        `Saved or updated DDO  : ${saveDDO.id} from network: ${this.networkId} triggered by: ${method}`
+      INDEXER_LOGGER.debug(
+        `Saved or updated DDO ${saveDDO.id} on chain ${this.networkId} (${method})`
       )
       return saveDDO
     } catch (err) {
@@ -224,10 +227,8 @@ export abstract class BaseEventProcessor {
           : ddo.getAssetFields().indexedMetadata?.event?.txid
 
       await ddoState.update(this.networkId, id, nftAddress, tx, true, err.message)
-      INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `Error found on ${this.networkId} triggered by: ${method} while creating or updating DDO: ${err}`,
-        true
+      INDEXER_LOGGER.error(
+        `Chain ${this.networkId}: failed to save DDO ${id} (${method}): ${errorSummary(err)}`
       )
     }
   }
@@ -236,7 +237,7 @@ export abstract class BaseEventProcessor {
     const utf8Bytes = toUtf8Bytes(JSON.stringify(decryptedDocument))
     const expectedMetadata = hexlify(utf8Bytes)
     if (create256Hash(expectedMetadata.toString()) !== documentHashFromContract) {
-      INDEXER_LOGGER.error(`DDO checksum does not match.`)
+      INDEXER_LOGGER.debug(`DDO checksum does not match`)
       return false
     }
     return true
@@ -245,7 +246,7 @@ export abstract class BaseEventProcessor {
   private async getNonce(decryptorURL: string, address: string) {
     try {
       if (URLUtils.isValidUrl(decryptorURL)) {
-        INDEXER_LOGGER.logMessage(
+        INDEXER_LOGGER.debug(
           `decryptDDO: Making HTTP request for nonce. DecryptorURL: ${decryptorURL}`
         )
         const nonceResponse = await fetch(
@@ -260,9 +261,8 @@ export abstract class BaseEventProcessor {
         return Date.now().toString()
       }
     } catch (err) {
-      INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `decryptDDO: Error getting nonce, using timestamp: ${err.message}`
+      INDEXER_LOGGER.error(
+        `decryptDDO: Error getting nonce, using timestamp: ${errorSummary(err)}`
       )
       return Date.now().toString()
     }
@@ -282,8 +282,8 @@ export abstract class BaseEventProcessor {
     // Log the flag value
     INDEXER_LOGGER.debug(`decryptDDO: flag=${flag}`)
     if ((parseInt(flag) & 2) !== 0) {
-      INDEXER_LOGGER.logMessage(
-        `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} encrypted by: ${decryptorURL}`
+      INDEXER_LOGGER.debug(
+        `Decrypting DDO from network: ${this.networkId} created by: ${eventCreator} encrypted by: ${decryptorURL}`
       )
 
       const oceanNode = OceanNode.getInstance()
@@ -296,7 +296,7 @@ export abstract class BaseEventProcessor {
         try {
           const response = await withRetrial(async () => {
             const nonce: string = await this.getNonce(decryptorURL, ethAddress)
-            INDEXER_LOGGER.logMessage(
+            INDEXER_LOGGER.debug(
               `decryptDDO: Fetched fresh nonce ${nonce} for decrypt attempt`
             )
 
@@ -341,23 +341,21 @@ export abstract class BaseEventProcessor {
                 data: parsedBody
               }
 
-              INDEXER_LOGGER.log(
-                LOG_LEVELS_STR.LEVEL_INFO,
-                `Decrypt request successful. Status: ${res.status}, ${res.statusText}`
+              INDEXER_LOGGER.debug(
+                `decryptDDO: response ${res.status} ${res.statusText} from ${decryptorURL}`
               )
 
               if (res.status === 400 || res.status === 403) {
                 // Return error response, to avoid retry for unnecessary errors
-                INDEXER_LOGGER.log(
-                  LOG_LEVELS_STR.LEVEL_ERROR,
-                  `bProvider exception on decrypt DDO. Status: ${res.status}, ${res.statusText}`
+                INDEXER_LOGGER.debug(
+                  `Provider exception on decrypt DDO for tx ${txId}. Status: ${res.status}, ${res.statusText}`
                 )
                 return res
               }
 
               if (res.status !== 200 && res.status !== 201) {
                 const message = `bProvider exception on decrypt DDO. Status: ${res.status}, ${res.statusText}`
-                INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
+                INDEXER_LOGGER.debug(message)
                 throw new Error(message) // Retry 5XX errors
               }
               return res
@@ -369,10 +367,8 @@ export abstract class BaseEventProcessor {
                 err.cause?.code === 'ECONNREFUSED' ||
                 (err.message && err.message.includes('ECONNREFUSED'))
               ) {
-                INDEXER_LOGGER.log(
-                  LOG_LEVELS_STR.LEVEL_ERROR,
-                  `Decrypt request failed with ECONNREFUSED, retrying...`,
-                  true
+                INDEXER_LOGGER.error(
+                  `Decrypt request to ${decryptorURL} failed with ECONNREFUSED, retrying...`
                 )
                 throw err
               }
@@ -395,12 +391,16 @@ export abstract class BaseEventProcessor {
           }
           if (responseHash !== metadataHash) {
             const msg = `Hash check failed: response=${ddo}, decrypted ddo hash=${responseHash}\n metadata hash=${metadataHash}`
-            INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, msg)
+            INDEXER_LOGGER.debug(
+              `decryptDDO: hash check failed for tx ${txId} (decrypted ${responseHash}, metadata ${metadataHash})`
+            )
             throw new Error(msg)
           }
         } catch (err) {
-          const message = `Provider exception on decrypt DDO. Status: ${err.message}`
-          INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
+          const message = `Provider exception on decrypt DDO. Status: ${errorSummary(err)}`
+          INDEXER_LOGGER.error(
+            `decryptDDO: decrypt via ${decryptorURL} failed for tx ${txId}: ${errorSummary(err)}`
+          )
           throw new Error(message)
         }
       } else {
@@ -425,8 +425,10 @@ export abstract class BaseEventProcessor {
               ) + 1
             )
           } catch (error) {
-            const message = `Node exception on getting nonce from local nodeId ${nodeId}. Status: ${error.message}`
-            INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
+            const message = `Node exception on getting nonce from local nodeId ${nodeId}. Status: ${errorSummary(error)}`
+            INDEXER_LOGGER.error(
+              `decryptDDO: local nonce lookup failed for tx ${txId}: ${errorSummary(error)}`
+            )
             throw new Error(message)
           }
           INDEXER_LOGGER.debug(
@@ -458,8 +460,10 @@ export abstract class BaseEventProcessor {
               await streamToString(response.stream as Readable, MAX_DDO_RESPONSE_BYTES)
             )
           } catch (error) {
-            const message = `Node exception on decrypt DDO from local nodeId ${nodeId}. Status: ${error.message}`
-            INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
+            const message = `Node exception on decrypt DDO from local nodeId ${nodeId}. Status: ${errorSummary(error)}`
+            INDEXER_LOGGER.error(
+              `decryptDDO: local decrypt failed for tx ${txId}: ${errorSummary(error)}`
+            )
             throw new Error(message)
           }
         } else {
@@ -482,13 +486,17 @@ export abstract class BaseEventProcessor {
 
             if (response.status.httpStatus !== 200) {
               const logMessage = `Node exception on get nonce from remote nodeId ${nodeId}. Status: ${response.status.httpStatus} ${response.status.error}`
-              INDEXER_LOGGER.warn(logMessage)
+              INDEXER_LOGGER.debug(
+                `decryptDDO: get nonce from remote node ${decryptorURL} failed (tx ${txId}): ${response.status.httpStatus} ${response.status.error}`
+              )
               throw new Error(logMessage)
             }
 
             if (!response.stream) {
               const logMessage = `No stream for get nonce from remote nodeId ${nodeId}. Status: ${response.status.httpStatus} ${response.status.error}`
-              INDEXER_LOGGER.warn(logMessage)
+              INDEXER_LOGGER.debug(
+                `decryptDDO: get nonce from remote node ${decryptorURL} returned no stream (tx ${txId}): ${response.status.httpStatus} ${response.status.error}`
+              )
               throw new Error(logMessage)
             }
 
@@ -528,13 +536,17 @@ export abstract class BaseEventProcessor {
 
             if (response.status.httpStatus !== 200) {
               const logMessage = `Node exception on decryptDDO from remote nodeId ${nodeId}. Status: ${response.status.httpStatus} ${response.status.error}`
-              INDEXER_LOGGER.warn(logMessage)
+              INDEXER_LOGGER.debug(
+                `decryptDDO: decrypt request to remote node ${decryptorURL} failed (tx ${txId}): ${response.status.httpStatus} ${response.status.error}`
+              )
               throw new Error(logMessage)
             }
 
             if (!response.stream) {
               const logMessage = `No stream for decryptDDO from remote nodeId ${nodeId}. Status: ${response.status.httpStatus} ${response.status.error}`
-              INDEXER_LOGGER.warn(logMessage)
+              INDEXER_LOGGER.debug(
+                `decryptDDO: decrypt request to remote node ${decryptorURL} returned no stream (tx ${txId}): ${response.status.httpStatus} ${response.status.error}`
+              )
               throw new Error(logMessage)
             }
 
@@ -545,15 +557,17 @@ export abstract class BaseEventProcessor {
             )
             ddo = JSON.parse(uint8ArrayToString(data))
           } catch (error) {
-            const message = `Exception from remote nodeId ${nodeId}. Status: ${error.message}`
-            INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
+            const message = `Exception from remote nodeId ${nodeId}. Status: ${errorSummary(error)}`
+            INDEXER_LOGGER.error(
+              `decryptDDO: remote node ${decryptorURL} failed for tx ${txId}: ${errorSummary(error)}`
+            )
             throw new Error(message)
           }
         }
       }
     } else {
       INDEXER_LOGGER.debug(
-        `Decompressing DDO  from network: ${this.networkId} created by: ${eventCreator} ecnrypted by: ${decryptorURL}`
+        `Decompressing DDO  from network: ${this.networkId} created by: ${eventCreator} encrypted by: ${decryptorURL}`
       )
       const byteArray = getBytes(metadata)
       const utf8String = toUtf8String(byteArray)

@@ -4,6 +4,7 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import { EVENT_HASHES, isDefined } from '../../utils/index.js'
 import { NetworkEvent } from '../../@types/blockchain.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
+import { errorSummary, redactUrls } from '../../utils/logging/redact.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
 import { getOceanArtifactsAdressesByChainId } from '../../utils/address.js'
 import { CommandStatus, JobStatus } from '../../@types/commands.js'
@@ -109,12 +110,12 @@ export const retrieveChunkEvents = async (
     const blockLogs = await provider.getLogs(details)
     return blockLogs
   } catch (error) {
-    INDEXER_LOGGER.error(
+    // the caller logs the failed range at error; the stack is kept here for debugging
+    INDEXER_LOGGER.debug(
       `Error retrieving events from block ${lastIndexedBlock + 1} to ${
         lastIndexedBlock + count
-      }:`
+      }: ${redactUrls(error?.stack ?? errorSummary(error))}`
     )
-    INDEXER_LOGGER.error(error)
     throw new Error(` Error processing chunk of blocks events ${error.message}`)
   }
 }
@@ -259,14 +260,16 @@ export async function getPricesByDt(
     dispensers = await datatoken.getDispensers()
   } catch (e) {
     if (isProviderError(e)) throw e
-    INDEXER_LOGGER.error(`[GET PRICES] failure when retrieving dispensers: ${e}`)
+    INDEXER_LOGGER.error(
+      `Failed to get dispensers for datatoken ${datatoken.target}: ${errorSummary(e)}`
+    )
   }
   try {
     fixedRates = await datatoken.getFixedRates()
   } catch (e) {
     if (isProviderError(e)) throw e
     INDEXER_LOGGER.error(
-      `[GET PRICES] failure when retrieving fixed rate exchanges: ${e}`
+      `Failed to get fixed rate exchanges for datatoken ${datatoken.target}: ${errorSummary(e)}`
     )
   }
   if (dispensers.length === 0 && fixedRates.length === 0) {
@@ -290,7 +293,7 @@ export async function getPricesByDt(
         } catch (e) {
           if (isProviderError(e)) throw e
           INDEXER_LOGGER.error(
-            `[GET PRICES] failure when retrieving dispenser status from contracts: ${e}`
+            `Failed to get status of dispenser ${dispenser} for datatoken ${datatoken.target}: ${errorSummary(e)}`
           )
         }
       }
@@ -318,7 +321,7 @@ export async function getPricesByDt(
         } catch (e) {
           if (isProviderError(e)) throw e
           INDEXER_LOGGER.error(
-            `[GET PRICES] failure when retrieving exchange status from contracts: ${e}`
+            `Failed to get status of exchange ${fixedRate[1]} for datatoken ${datatoken.target}: ${errorSummary(e)}`
           )
         }
       }
@@ -354,14 +357,16 @@ export async function getPricingStatsForDddo(
       dispensers = await datatoken.getDispensers()
     } catch (e) {
       if (isProviderError(e)) throw e
-      INDEXER_LOGGER.error(`Contract call fails when retrieving dispensers: ${e}`)
+      INDEXER_LOGGER.error(
+        `Failed to get dispensers for datatoken ${service.datatokenAddress}: ${errorSummary(e)}`
+      )
     }
     try {
       fixedRates = await datatoken.getFixedRates()
     } catch (e) {
       if (isProviderError(e)) throw e
       INDEXER_LOGGER.error(
-        `Contract call fails when retrieving fixed rate exchanges: ${e}`
+        `Failed to get fixed rate exchanges for datatoken ${service.datatokenAddress}: ${errorSummary(e)}`
       )
     }
     if (dispensers.length === 0 && fixedRates.length === 0) {
@@ -400,7 +405,7 @@ export async function getPricingStatsForDddo(
           } catch (e) {
             if (isProviderError(e)) throw e
             INDEXER_LOGGER.error(
-              `[GET PRICES] failure when retrieving dispenser status from contracts: ${e}`
+              `Failed to get status of dispenser ${dispenser} for datatoken ${service.datatokenAddress}: ${errorSummary(e)}`
             )
           }
         }
@@ -437,7 +442,7 @@ export async function getPricingStatsForDddo(
         } catch (e) {
           if (isProviderError(e)) throw e
           INDEXER_LOGGER.error(
-            `[GET PRICES] failure when retrieving exchange status from contracts: ${e}`
+            `Failed to get status of exchange ${fixedRate[1]} for datatoken ${service.datatokenAddress}: ${errorSummary(e)}`
           )
         }
       }

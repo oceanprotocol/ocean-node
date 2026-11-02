@@ -3,8 +3,8 @@ import { GetFeesCommand } from '../../../@types/commands.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { ProviderFees } from '../utils/feesHandler.js'
 import { Readable } from 'stream'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { PROVIDER_LOGGER } from '../../../utils/logging/common.js'
+import { errorSummary } from '../../../utils/logging/redact.js'
 import {
   ValidateParams,
   buildInvalidRequestMessage,
@@ -38,9 +38,8 @@ export class FeesHandler extends CommandHandler {
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
-    PROVIDER_LOGGER.logMessage(
-      `Try to calculate fees for DDO with id: ${task.ddoId} and serviceId: ${task.serviceId}`,
-      true
+    PROVIDER_LOGGER.debug(
+      `Try to calculate fees for DDO with id: ${task.ddoId} and serviceId: ${task.serviceId}`
     )
     let errorMsg: string = null
     const ddo = await new FindDdoHandler(this.getOceanNode()).findAndFormatDdo(task.ddoId)
@@ -50,7 +49,7 @@ export class FeesHandler extends CommandHandler {
 
     const isOrdable = isOrderingAllowedForAsset(ddo)
     if (!isOrdable.isOrdable) {
-      PROVIDER_LOGGER.error(isOrdable.reason)
+      PROVIDER_LOGGER.debug(`getFees ${task.ddoId}: ${isOrdable.reason}`)
       return {
         stream: null,
         status: {
@@ -82,12 +81,7 @@ export class FeesHandler extends CommandHandler {
     }
 
     if (errorMsg) {
-      PROVIDER_LOGGER.logMessageWithEmoji(
-        errorMsg,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
+      PROVIDER_LOGGER.debug(`getFees ${task.ddoId}/${task.serviceId}: ${errorMsg}`)
       return {
         stream: null,
         status: {
@@ -116,12 +110,7 @@ export class FeesHandler extends CommandHandler {
         }
       } else {
         const error = `Unable to calculate fees (null) for DDO with id: ${task.ddoId} and serviceId: ${task.serviceId}`
-        PROVIDER_LOGGER.logMessageWithEmoji(
-          error,
-          true,
-          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-          LOG_LEVELS_STR.LEVEL_ERROR
-        )
+        PROVIDER_LOGGER.error(error)
         return {
           stream: null,
           status: {
@@ -131,11 +120,8 @@ export class FeesHandler extends CommandHandler {
         }
       }
     } catch (error) {
-      PROVIDER_LOGGER.logMessageWithEmoji(
-        error.message,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
+      PROVIDER_LOGGER.error(
+        `Fee calculation failed for ${task.ddoId}/${task.serviceId}: ${errorSummary(error)}`
       )
       return {
         stream: null,

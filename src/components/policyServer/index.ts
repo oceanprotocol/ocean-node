@@ -3,6 +3,11 @@ import { PolicyServerResult } from '../../@types/policyServer.js'
 import { isDefined } from '../../utils/util.js'
 import { BaseFileObject } from '../../@types/fileObject.js'
 import { OceanNode } from '../../OceanNode.js'
+import { CORE_LOGGER } from '../../utils/logging/common.js'
+import { errorSummary, redactUrls } from '../../utils/logging/redact.js'
+import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+
+const POLICY_SERVER_UNREACHABLE = 'policy-server-unreachable'
 
 export class PolicyServer {
   serverUrl: string
@@ -41,6 +46,11 @@ export class PolicyServer {
         body: JSON.stringify(commandWithNodeAddress)
       })
     } catch (e) {
+      CORE_LOGGER.throttled(
+        POLICY_SERVER_UNREACHABLE,
+        LOG_LEVELS_STR.LEVEL_ERROR,
+        `Policy server ${redactUrls(this.serverUrl)} unreachable: ${errorSummary(e)}`
+      )
       const errorText =
         e instanceof Error ? e.message : typeof e === 'string' ? e : JSON.stringify(e)
       return {
@@ -49,6 +59,7 @@ export class PolicyServer {
         httpStatus: 400
       }
     }
+    CORE_LOGGER.resetThrottle(POLICY_SERVER_UNREACHABLE)
     if (response.status === 200) {
       return {
         success: true,

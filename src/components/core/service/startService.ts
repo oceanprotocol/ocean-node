@@ -178,6 +178,15 @@ export class ServiceStartHandler extends CommandHandler {
           buildInvalidRequestMessage(e?.message || String(e))
         )
       }
+      // The disk check only runs for a positive disk amount, and an omitted one fills to the
+      // env min (0 by default), so a service without one would never be checked.
+      if (
+        env.resources?.some((r) => r.id === 'disk') &&
+        !((resources.find((r) => r.id === 'disk')?.amount ?? 0) > 0)
+      )
+        return buildInvalidParametersResponse(
+          buildInvalidRequestMessage('A service needs a disk amount greater than 0')
+        )
 
       // 6. Server-side cost (used to size the escrow lock the background loop will create).
       const cost = engine.calculateResourcesCost(
@@ -224,7 +233,7 @@ export class ServiceStartHandler extends CommandHandler {
           )
         }
       } catch (e: any) {
-        CORE_LOGGER.debug(
+        CORE_LOGGER.error(
           `SERVICE_START: escrow funds pre-check skipped (${e.message}) — the background Locking step will verify`
         )
       }
@@ -271,12 +280,17 @@ export class ServiceStartHandler extends CommandHandler {
         task.outputBucketId
       )
 
+      CORE_LOGGER.info(
+        `Service ${job.serviceId} started: env=${task.environment} owner=${task.consumerAddress}`
+      )
       return {
         stream: Readable.from(JSON.stringify([toPublicServiceJob(job)])),
         status: { httpStatus: 200 }
       }
     } catch (error: any) {
-      CORE_LOGGER.error(`ServiceStart failed: ${error.message}`)
+      CORE_LOGGER.error(
+        `ServiceStart failed (env=${task.environment}, owner=${task.consumerAddress}): ${error.message}`
+      )
       return { stream: null, status: { httpStatus: 500, error: error.message } }
     }
   }

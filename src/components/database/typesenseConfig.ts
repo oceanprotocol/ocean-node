@@ -3,6 +3,7 @@ import {
   TypesenseConfigOptions,
   TypesenseNode
 } from '../../@types'
+import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 
 /**
  * TypesenseConfig class is used to specify configuration parameters for Typesense
@@ -24,6 +25,6 @@ export class TypesenseConfig {
     this.connectionTimeoutSeconds = options.connectionTimeoutSeconds || 5
     this.retryIntervalSeconds = options.retryIntervalSeconds || 0.1
     this.logLevel = options.logLevel || 'debug'
-    this.logger = options.logger || { debug: (log: any) => console.log(log) }
+    this.logger = options.logger || DATABASE_LOGGER
   }
 }

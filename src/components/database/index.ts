@@ -2,8 +2,11 @@ import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { hasValidDBConfiguration } from '../../utils/database.js'
 import {
   configureCustomDBTransport,
+  getLoggingConfig,
+  isFileLoggingActive,
   USE_DB_TRANSPORT
 } from '../../utils/logging/Logger.js'
+import { errorSummary } from '../../utils/logging/redact.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import {
   AbstractAccessListDatabase,
@@ -53,12 +56,24 @@ export class Database {
     allowPartial: boolean
   ): Database | null {
     if (allowPartial) {
-      DATABASE_LOGGER.warn(
+      // src/index.ts reports DEGRADED mode to the operator
+      DATABASE_LOGGER.debug(
         'Metadata database unreachable — starting in DEGRADED mode: Indexer and DDO features are disabled, C2D / nonce / auth remain available'
       )
       return db
     }
     return null
+  }
+
+  // a retry follows unless this is the final (allowPartial) attempt
+  private static logMetadataInitFailure(
+    name: string,
+    error: unknown,
+    allowPartial: boolean
+  ): void {
+    DATABASE_LOGGER.error(
+      `${name} database initialization failed${allowPartial ? '' : ' (will retry)'}: ${errorSummary(error)}`
+    )
   }
 
   static async init(
@@ -100,66 +115,83 @@ export class Database {
     }
 
     if (hasValidDBConfiguration(config)) {
-      if (USE_DB_TRANSPORT()) {
-        configureCustomDBTransport(db, DATABASE_LOGGER)
-      } else {
-        DATABASE_LOGGER.warn('LOG_DB is false. Logs will NOT be saved to DB!')
+      if (!USE_DB_TRANSPORT()) {
+        if (isFileLoggingActive()) {
+          DATABASE_LOGGER.info(
+            `LOG_DB disabled; logs are written to disk (${getLoggingConfig().dir})`
+          )
+        } else {
+          DATABASE_LOGGER.warn(
+            'LOG_DB and file logging are disabled: logs are not persisted'
+          )
+        }
       }
       try {
         db.ddo = await DatabaseFactory.createDdoDatabase(config)
       } catch (error) {
-        DATABASE_LOGGER.error(`DDO database initialization failed: ${error}`)
+        Database.logMetadataInitFailure('DDO', error, allowPartial)
         return Database.handleMetadataInitFailure(db, allowPartial)
       }
       try {
         db.indexer = await DatabaseFactory.createIndexerDatabase(config)
       } catch (error) {
-        DATABASE_LOGGER.error(`Indexer database initialization failed: ${error}`)
+        Database.logMetadataInitFailure('Indexer', error, allowPartial)
         return Database.handleMetadataInitFailure(db, allowPartial)
       }
 
       try {
         db.logs = await DatabaseFactory.createLogDatabase(config)
       } catch (error) {
-        DATABASE_LOGGER.error(`Logs database initialization failed: ${error}`)
+        Database.logMetadataInitFailure('Logs', error, allowPartial)
         return Database.handleMetadataInitFailure(db, allowPartial)
+      }
+      // attach the DB log transport only once the log database exists; a later call (retry)
+      // rebinds it to the new instance
+      if (USE_DB_TRANSPORT()) {
+        configureCustomDBTransport(db, DATABASE_LOGGER)
       }
 
       try {
         db.order = await DatabaseFactory.createOrderDatabase(config)
       } catch (error) {
-        DATABASE_LOGGER.error(`Order database initialization failed: ${error}`)
+        Database.logMetadataInitFailure('Order', error, allowPartial)
         return Database.handleMetadataInitFailure(db, allowPartial)
       }
 
       try {
         db.ddoState = await DatabaseFactory.createDdoStateDatabase(config)
       } catch (error) {
-        DATABASE_LOGGER.error(`DDO State database initialization failed: ${error}`)
+        Database.logMetadataInitFailure('DDO State', error, allowPartial)
         return Database.handleMetadataInitFailure(db, allowPartial)
       }
 
       try {
         db.accessList = await DatabaseFactory.createAccessListDatabase(config)
       } catch (error) {
-        DATABASE_LOGGER.error(`AccessList database initialization failed: ${error}`)
+        Database.logMetadataInitFailure('AccessList', error, allowPartial)
         return Database.handleMetadataInitFailure(db, allowPartial)
       }
 
       try {
         db.escrow = await DatabaseFactory.createEscrowDatabase(config)
       } catch (error) {
-        DATABASE_LOGGER.error(`Escrow database initialization failed: ${error}`)
+        Database.logMetadataInitFailure('Escrow', error, allowPartial)
         return Database.handleMetadataInitFailure(db, allowPartial)
       }
       // All metadata databases initialized successfully — this is a full (non-degraded) node.
       db.metadataInitialized = true
     } else {
-      DATABASE_LOGGER.info(
+      // src/index.ts reports the missing / invalid DB_URL to the operator
+      DATABASE_LOGGER.debug(
         'Invalid DB URL. Only Nonce, C2D, Auth Token and Config Databases are initialized.'
       )
     }
 
+    DATABASE_LOGGER.info(
+      `Database ready: SQLite (nonce, config, c2d, auth${
+        db.nodeMetrics ? ', metrics' : ''
+      })${db.metadataInitialized ? ` + ${config.dbType} metadata DB` : ', no metadata DB'}`
+    )
     return db
   }
 

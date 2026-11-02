@@ -62,7 +62,7 @@ export class StopJobHandler extends AdminCommandHandler {
 
       // Empty owner bypasses the DB owner filter — admin can stop any job regardless of owner
       const response = await engine.stopComputeJob(jobId, '')
-      CORE_LOGGER.logMessage(`Admin stopJob response: ${JSON.stringify(response)}`, true)
+      CORE_LOGGER.info(`Admin stopped compute job ${task.jobId}`)
 
       return {
         stream: Readable.from(JSON.stringify(response)),
@@ -70,7 +70,7 @@ export class StopJobHandler extends AdminCommandHandler {
       }
     } catch (error: any) {
       const errorMessage = error instanceof Error ? error.message : String(error)
-      CORE_LOGGER.error(errorMessage)
+      CORE_LOGGER.error(`Admin stopJob ${task.jobId} failed: ${errorMessage}`)
       return {
         stream: null,
         status: { httpStatus: 500, error: errorMessage }

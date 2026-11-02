@@ -67,7 +67,9 @@ export class TypesenseApi {
     }
     this.currentNodeIndex = (this.currentNodeIndex + 1) % this.config.nodes.length
     candidateNode = this.config.nodes[this.currentNodeIndex]
-    this.config.logger.debug(`Updated current node to Node ${candidateNode}`)
+    this.config.logger.debug(
+      `Updated current node to Node ${candidateNode.host}:${candidateNode.port}`
+    )
     return candidateNode
   }
 
@@ -84,7 +86,6 @@ export class TypesenseApi {
       skipConnectionTimeout?: boolean
     }
   ): Promise<T> {
-    this.config.logger.debug(`Request ${endpoint}`)
     let lastException
     for (let numTries = 1; numTries <= this.config.numRetries + 1; numTries++) {
       const node = this.getNextNode()
@@ -146,18 +147,28 @@ export class TypesenseApi {
         }
       } catch (error: any) {
         lastException = error
+        // each failed attempt is a debug line: the request is only a failure once every
+        // retry is used up, and that is logged once at error below
         this.config.logger.debug(
           `Request ${endpoint}: Request to Node ${node.host} failed due to "${
             error.cause?.code ?? error.code
           } ${error.message}"`
         )
-        this.config.logger.debug(
-          `Request ${endpoint}: Sleeping for ${this.config.retryIntervalSeconds}s and then retrying request...`
-        )
-        await setTimeout(this.config.retryIntervalSeconds)
+        if (numTries <= this.config.numRetries) {
+          this.config.logger.debug(
+            `Request ${endpoint}: Sleeping for ${this.config.retryIntervalSeconds}s and then retrying request...`
+          )
+          await setTimeout(this.config.retryIntervalSeconds)
+        }
       }
     }
-    this.config.logger.debug(`Request: No retries left. Raising last error`)
+    this.config.logger.error(
+      `Request ${endpoint}: ${requestType.toUpperCase()} failed after ${
+        this.config.numRetries + 1
+      } attempts: "${lastException?.cause?.code ?? lastException?.code} ${
+        lastException?.message
+      }"`
+    )
     return Promise.reject(lastException)
   }
 

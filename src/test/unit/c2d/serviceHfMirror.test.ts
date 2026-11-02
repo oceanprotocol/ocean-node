@@ -671,7 +671,7 @@ describe('Service HF mirror: service start and restart containers', () => {
         const job = await run(lifecycle, engine)
         expect(job.status).to.equal(ServiceStatusNumber.Running)
         expect(job.containerId).to.equal('c-retry')
-        expect(failed.remove.calledOnceWith({ force: true })).to.equal(true)
+        expect(failed.remove.calledOnceWith({ force: true, v: true })).to.equal(true)
         expect(failed.start.called).to.equal(false)
         expect(engine.docker.createContainer.callCount).to.equal(2)
         const first = engine.docker.createContainer.firstCall

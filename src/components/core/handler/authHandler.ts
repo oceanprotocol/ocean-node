@@ -9,6 +9,8 @@ import { Command } from '../../../@types/commands.js'
 import { Readable } from 'stream'
 import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
 import jwt from 'jsonwebtoken'
+import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { errorSummary } from '../../../utils/logging/redact.js'
 
 export interface AuthMessage {
   address: string
@@ -79,6 +81,7 @@ export class CreateAuthTokenHandler extends CommandHandler {
         status: { httpStatus: 200, error: null }
       }
     } catch (error) {
+      CORE_LOGGER.error(`CreateAuthToken failed: ${errorSummary(error)}`)
       return {
         stream: null,
         status: { httpStatus: 500, error: `Error creating auth token: ${error}` }
@@ -124,6 +127,7 @@ export class InvalidateAuthTokenHandler extends CommandHandler {
         status: { httpStatus: 200, error: null }
       }
     } catch (error) {
+      CORE_LOGGER.error(`InvalidateAuthToken failed: ${errorSummary(error)}`)
       return {
         stream: null,
         status: { httpStatus: 500, error: `Error invalidating auth token: ${error}` }
@@ -168,6 +172,7 @@ export class ValidateAuthTokenHandler extends CommandHandler {
         status: { httpStatus: 200, error: null }
       }
     } catch (error) {
+      CORE_LOGGER.error(`ValidateAuthToken failed: ${errorSummary(error)}`)
       return {
         stream: null,
         status: { httpStatus: 500, error: `Error validating auth token: ${error}` }
