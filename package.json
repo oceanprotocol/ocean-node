@@ -118,7 +118,7 @@
     "zod": "^4.6.6"
   },
   "optionalDependencies": {
-    "koffi": "^3.1.6"
+    "koffi": "^3.3.4"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
