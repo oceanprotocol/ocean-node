@@ -7,6 +7,7 @@ import { errorSummary } from '../../utils/logging/redact.js'
 import { validateCommandParameters } from './validateCommands.js'
 import { Readable } from 'stream'
 import { sanitizeLogValue } from '../../utils/util.js'
+import { LP_MAX_FRAME_BYTES } from '../P2P/lpFraming.js'
 
 // caller-supplied values: sanitized so they cannot forge log lines (CWE-117)
 function describeCommand(body: any): string {
@@ -63,7 +64,8 @@ async function streamToResponse(
 export const directCommandRoute = express.Router()
 directCommandRoute.post(
   '/directCommand',
-  express.json(),
+  // Same cap as a P2P command frame; the 100kb default rejects large service templates.
+  express.json({ limit: LP_MAX_FRAME_BYTES }),
   async (req: Request, res: Response): Promise<void> => {
     let closedResponse = false
 
