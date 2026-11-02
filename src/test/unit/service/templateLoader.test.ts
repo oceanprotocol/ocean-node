@@ -19,12 +19,14 @@ const valid = (id: string) => ({
 // and this test's fresh stub would capture nothing — the full-suite flake behind the
 // "expected [] to have a length of 1" failure. Restore any such wrapper first so we always
 // stub the pristine method and capture reliably regardless of suite order.
-function stubCoreWarn(): sinon.SinonStub {
-  const current = CORE_LOGGER.warn as unknown as Partial<sinon.SinonStub>
+// The loader logs through CORE_LOGGER.throttled(key, level, message), which writes via
+// log() — never warn() — so the throttled call itself is what a test has to observe.
+function stubCoreThrottled(): sinon.SinonStub {
+  const current = CORE_LOGGER.throttled as unknown as Partial<sinon.SinonStub>
   if (typeof current.restore === 'function') {
     current.restore()
   }
-  return sinon.stub(CORE_LOGGER, 'warn')
+  return sinon.stub(CORE_LOGGER, 'throttled')
 }
 
 describe('loadServiceTemplates', () => {
@@ -305,18 +307,19 @@ describe('loadServiceTemplates', () => {
         ]
       })
     )
-    const warn = stubCoreWarn()
+    const throttled = stubCoreThrottled()
     try {
       const templates = await loadServiceTemplates(dir)
       expect(templates.map((t) => t.id)).to.deep.equal(['new-shape'])
       expect(
-        warn
+        throttled
           .getCalls()
-          .map((c) => String(c.args[0]))
+          .filter((c) => c.args[1] === 'warn')
+          .map((c) => String(c.args[2]))
           .filter((m) => m.startsWith('Skipping invalid template in "old.json"'))
       ).to.have.length(1)
     } finally {
-      warn.restore()
+      throttled.restore()
     }
   })
 })
