@@ -35,7 +35,10 @@ function getEnvOverrides(): OverrideEnvConfig[] {
       ENVIRONMENT_VARIABLES.RPCS,
       ENVIRONMENT_VARIABLES.PRIVATE_KEY,
       ENVIRONMENT_VARIABLES.DB_TYPE,
-      ENVIRONMENT_VARIABLES.DB_URL
+      ENVIRONMENT_VARIABLES.DB_URL,
+      // the test node's indexer calls its own HTTP API (decryptor) on loopback,
+      // same as Barge's node.yml
+      ENVIRONMENT_VARIABLES.ALLOWED_PRIVATE_URL_RANGES
     ],
     [
       'http://172.15.0.16:8080/',
@@ -45,7 +48,8 @@ function getEnvOverrides(): OverrideEnvConfig[] {
       SELECTED_RUN_DATABASE,
       SELECTED_RUN_DATABASE === DB_TYPES.ELASTIC_SEARCH
         ? 'http://localhost:9200'
-        : 'http://localhost:8108/?apiKey=xyz'
+        : 'http://localhost:8108/?apiKey=xyz',
+      '["127.0.0.1/32"]'
     ]
   )
 }
