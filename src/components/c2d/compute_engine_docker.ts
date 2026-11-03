@@ -52,7 +52,8 @@ import {
 } from 'fs'
 import { pipeline } from 'node:stream/promises'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
-import { checkUrlHost } from '../../utils/safeUrl.js'
+import { checkUrlHost, getSafeDispatcher } from '../../utils/safeUrl.js'
+import { fetchHeadersTimeout } from '../../utils/http.js'
 import { errorSummary, safeStringify } from '../../utils/logging/redact.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { AssetUtils } from '../../utils/asset.js'
@@ -1545,7 +1546,8 @@ export class C2DEngineDocker extends C2DEngine {
       )
     }
 
-    let response = await fetch(url, { headers })
+    const safeDispatcher = getSafeDispatcher(this.config)
+    let response = await fetchHeadersTimeout(url, { headers, dispatcher: safeDispatcher }, 30000)
 
     if (response.status === 401) {
       const match = (response.headers.get('www-authenticate') || '').match(
@@ -1577,13 +1579,16 @@ export class C2DEngineDocker extends C2DEngine {
           tokenHeaders.Authorization = `Basic ${authString}`
         }
 
-        const { token } = (await fetch(tokenUrl.toString(), {
-          headers: tokenHeaders
-        }).then((r) => r.json())) as {
+        const tokenResp = await fetchHeadersTimeout(
+          tokenUrl.toString(),
+          { headers: tokenHeaders, dispatcher: safeDispatcher },
+          20000
+        )
+        const { token } = (await tokenResp.json()) as {
           token: string
         }
         headers = { ...headers, Authorization: `Bearer ${token}` }
-        response = await fetch(url, { headers })
+        response = await fetchHeadersTimeout(url, { headers, dispatcher: safeDispatcher }, 30000)
       }
     }
 
