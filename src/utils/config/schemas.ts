@@ -10,6 +10,7 @@ import { CONFIG_LOGGER } from '../logging/common.js'
 import { parseMemoryTotalToBytes } from '../../components/c2d/gpu/types.js'
 import { parsePassContainerEnvs } from '../../components/c2d/containerEnvs.js'
 import { booleanFromString, jsonFromString } from './transforms.js'
+import { parseAllowedRange } from '../safeUrl.js'
 import {
   DEFAULT_BOOTSTRAP_ADDRESSES,
   DEFAULT_RATE_LIMIT_PER_MINUTE,
@@ -1073,6 +1074,53 @@ const addressArrayFromString = (field: string) =>
     }
   })
 
+/**
+ * `unsafeURLs`: operator regexes extend the built-in defaults (cloud metadata endpoints
+ * and loopback). Setting UNSAFE_URLS used to replace the defaults, so an operator adding
+ * one pattern silently dropped the metadata-endpoint protection.
+ */
+function withDefaultUnsafeUrls(value: unknown): string[] {
+  const defaults: string[] = [...DEFAULT_UNSAFE_URLS]
+  if (value === undefined || value === null) {
+    return defaults
+  }
+  if (!Array.isArray(value)) {
+    CONFIG_LOGGER.error(
+      'unsafeURLs must be a JSON array of regex strings; using the built-in defaults'
+    )
+    return defaults
+  }
+  const extra = value.filter((entry) => typeof entry === 'string' && entry.length > 0)
+  return Array.from(new Set([...defaults, ...extra]))
+}
+
+/**
+ * `allowedPrivateUrlRanges`: keep only valid CIDR / IP entries, log and drop the rest.
+ * Invalid input never widens the allow-list.
+ */
+function normalizeAllowedPrivateUrlRanges(value: unknown): string[] {
+  if (value === undefined || value === null) {
+    return []
+  }
+  if (!Array.isArray(value)) {
+    CONFIG_LOGGER.error(
+      'allowedPrivateUrlRanges must be a JSON array of CIDR strings; ignoring it'
+    )
+    return []
+  }
+  const valid: string[] = []
+  for (const entry of value) {
+    if (parseAllowedRange(entry)) {
+      valid.push(String(entry).trim())
+    } else {
+      CONFIG_LOGGER.error(
+        `Ignoring invalid ALLOWED_PRIVATE_URL_RANGES entry (expected CIDR or IP): ${String(entry)}`
+      )
+    }
+  }
+  return valid
+}
+
 export const OceanNodeConfigSchema = z
   .object({
     // `jsonFromString` JSON-parses the env-var string but does NOT re-validate the parsed
@@ -1275,9 +1323,17 @@ export const OceanNodeConfigSchema = z
     denyList: jsonFromString(DenyListSchema, 'denyList')
       .optional()
       .default({ peers: [], ips: [] }),
+    // operator patterns are added to the built-in defaults (cloud metadata endpoints),
+    // never replace them
     unsafeURLs: jsonFromString(z.array(z.string()), 'unsafeURLs')
       .optional()
-      .default([...DEFAULT_UNSAFE_URLS]),
+      .transform(withDefaultUnsafeUrls),
+    allowedPrivateUrlRanges: jsonFromString(
+      z.array(z.string()),
+      'allowedPrivateUrlRanges'
+    )
+      .optional()
+      .transform(normalizeAllowedPrivateUrlRanges),
     isBootstrap: booleanFromString.optional().default(false),
     validateUnsignedDDO: booleanFromString.optional().default(true),
     jwtSecret: z.string(),

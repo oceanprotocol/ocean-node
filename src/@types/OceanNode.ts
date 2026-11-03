@@ -189,6 +189,8 @@ export interface OceanNodeConfig {
   maxConnections?: number // global, regardless of client address(es)
   denyList?: DenyList
   unsafeURLs?: string[]
+  // CIDRs / IPs exempt from the private-address block on caller-supplied URLs
+  allowedPrivateUrlRanges?: string[]
   isBootstrap?: boolean
   validateUnsignedDDO?: boolean
   jwtSecret?: string

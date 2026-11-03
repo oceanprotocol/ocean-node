@@ -19,6 +19,8 @@ import { create256Hash } from '../../../utils/crypt.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import { errorSummary } from '../../../utils/logging/redact.js'
 import { URLUtils } from '../../../utils/url.js'
+import { checkUrlHost, getSafeDispatcher } from '../../../utils/safeUrl.js'
+import { fetchHeadersTimeout } from '../../../utils/http.js'
 import { streamToString, streamToUint8Array } from '../../../utils/util.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
@@ -245,13 +247,15 @@ export abstract class BaseEventProcessor {
 
   private async getNonce(decryptorURL: string, address: string) {
     try {
-      if (URLUtils.isValidUrl(decryptorURL)) {
+      const ssrfErr = checkUrlHost(decryptorURL, this.config)
+      if (URLUtils.isValidUrl(decryptorURL) && !ssrfErr) {
         INDEXER_LOGGER.debug(
           `decryptDDO: Making HTTP request for nonce. DecryptorURL: ${decryptorURL}`
         )
-        const nonceResponse = await fetch(
+        const nonceResponse = await fetchHeadersTimeout(
           `${decryptorURL}/api/services/nonce?userAddress=${address}`,
-          { signal: AbortSignal.timeout(20000) }
+          { dispatcher: getSafeDispatcher(this.config) },
+          20000
         )
         const nonceData = nonceResponse.status === 200 ? await nonceResponse.json() : null
         return nonceData?.nonce !== undefined
@@ -292,7 +296,8 @@ export abstract class BaseEventProcessor {
       const wallet = keyManager.getEthWallet()
       const ethAddress = wallet.address
 
-      if (URLUtils.isValidUrl(decryptorURL)) {
+      const ssrfErrHttp = checkUrlHost(decryptorURL, this.config)
+      if (URLUtils.isValidUrl(decryptorURL) && !ssrfErrHttp) {
         try {
           const response = await withRetrial(async () => {
             const nonce: string = await this.getNonce(decryptorURL, ethAddress)
@@ -317,12 +322,16 @@ export abstract class BaseEventProcessor {
               // fetch never throws on HTTP status; the manual status checks below
               // reproduce the previous axios validateStatus contract (2xx/400/403
               // handled here, everything else throws and is retried by withRetrial).
-              const fetchRes = await fetch(`${decryptorURL}/api/services/decrypt`, {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify(payload),
-                signal: AbortSignal.timeout(30000)
-              })
+              const fetchRes = await fetchHeadersTimeout(
+                `${decryptorURL}/api/services/decrypt`,
+                {
+                  method: 'POST',
+                  headers: { 'content-type': 'application/json' },
+                  body: JSON.stringify(payload),
+                  dispatcher: getSafeDispatcher(this.config)
+                },
+                30000
+              )
               // axios's default transformResponse parsed JSON regardless of the
               // content-type, falling back to the raw string. The decrypt endpoint
               // returns the DDO as JSON but with a text/plain content-type, so a

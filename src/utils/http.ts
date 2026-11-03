@@ -1,4 +1,13 @@
 import { Readable } from 'stream'
+import { fetch as undiciFetch } from 'undici'
+import type { Dispatcher } from 'undici'
+
+/**
+ * `RequestInit` plus undici's `dispatcher`. Pass `getSafeDispatcher(config)` (see
+ * `safeUrl.ts`) for any request whose URL comes from a remote caller: the request is then
+ * sent with undici's own fetch so the dispatcher's SSRF connector is honoured on every hop.
+ */
+export type FetchInit = RequestInit & { dispatcher?: Dispatcher }
 
 /**
  * Convert a fetch `Headers` instance into a plain object with lowercase keys,
@@ -24,7 +33,7 @@ export function headersToObject(headers: Headers): Record<string, string> {
  */
 export async function fetchHeadersTimeout(
   url: string,
-  init: RequestInit,
+  init: FetchInit,
   timeoutMs: number
 ): Promise<Response> {
   const controller = new AbortController()
@@ -33,7 +42,17 @@ export async function fetchHeadersTimeout(
     timeoutMs
   )
   try {
-    return await fetch(url, { ...init, signal: controller.signal })
+    const { dispatcher, ...rest } = init
+    if (dispatcher) {
+      // the global fetch is Node's bundled undici; a dispatcher built from the npm
+      // package must be used with the npm package's fetch. Same semantics otherwise.
+      return (await undiciFetch(url, {
+        ...(rest as any),
+        dispatcher,
+        signal: controller.signal
+      })) as unknown as Response
+    }
+    return await fetch(url, { ...rest, signal: controller.signal })
   } finally {
     clearTimeout(timer)
   }
@@ -48,7 +67,7 @@ export async function fetchHeadersTimeout(
  */
 export async function fetchStream(
   url: string,
-  init: RequestInit = {},
+  init: FetchInit = {},
   timeoutMs = 30000
 ): Promise<{ httpStatus: number; stream: Readable; headers: Record<string, string> }> {
   const response = await fetchHeadersTimeout(url, init, timeoutMs)

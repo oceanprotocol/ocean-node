@@ -52,6 +52,7 @@ import {
 } from 'fs'
 import { pipeline } from 'node:stream/promises'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
+import { checkUrlHost } from '../../utils/safeUrl.js'
 import { errorSummary, safeStringify } from '../../utils/logging/redact.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { AssetUtils } from '../../utils/asset.js'
@@ -1551,6 +1552,15 @@ export class C2DEngineDocker extends C2DEngine {
         /Bearer realm="([^"]+)",service="([^"]+)"/
       )
       if (match) {
+        // Guard against a malicious registry directing us to fetch an internal URL
+        // via the www-authenticate realm field.
+        const realmSsrfErr = checkUrlHost(match[1], this.config)
+        if (realmSsrfErr) {
+          CORE_LOGGER.warn(
+            `getDockerManifest: rejecting www-authenticate realm ${match[1]} for ${image}: ${realmSsrfErr}`
+          )
+          throw new Error(`Registry token endpoint is not reachable: ${realmSsrfErr}`)
+        }
         const tokenUrl = new URL(match[1])
         tokenUrl.searchParams.set('service', match[2])
         tokenUrl.searchParams.set('scope', `repository:${name}:pull`)
