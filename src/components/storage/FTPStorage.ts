@@ -36,8 +36,13 @@ function parseFtpUrl(url: string): {
       ? DEFAULT_FTPS_PORT
       : DEFAULT_FTP_PORT
   const path = parsed.pathname && parsed.pathname !== '/' ? parsed.pathname : ''
+  // URL.hostname returns bracketed IPv6 literals (e.g. "[::1]");
+  // strip the brackets so isIP() and TLS servername use the bare address.
+  const rawHost = parsed.hostname
+  const host =
+    rawHost.startsWith('[') && rawHost.endsWith(']') ? rawHost.slice(1, -1) : rawHost
   return {
-    host: parsed.hostname,
+    host,
     port,
     user: decodeURIComponent(parsed.username || 'anonymous'),
     password: decodeURIComponent(parsed.password || 'anonymous@'),

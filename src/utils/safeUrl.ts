@@ -55,7 +55,17 @@ export function parseAllowedRange(entry: unknown): AllowedRange | null {
   }
   try {
     if (value.includes('/')) {
-      return ipaddr.parseCIDR(value)
+      const [addr, bits] = ipaddr.parseCIDR(value)
+      // ipaddr.process() unwraps IPv4-mapped IPv6 addresses to IPv4 before the
+      // allow-list check in isBlockedAddress. Normalize CIDRs of the same form
+      // (::ffff:x.x.x.x/N, N >= 96) to IPv4 equivalents so the kinds match.
+      if (addr.kind() === 'ipv6' && bits >= 96) {
+        const v6 = addr as ipaddr.IPv6
+        if (v6.isIPv4MappedAddress()) {
+          return [v6.toIPv4Address(), bits - 96]
+        }
+      }
+      return [addr, bits]
     }
     const addr = ipaddr.parse(value)
     return [addr, addr.kind() === 'ipv4' ? 32 : 128]
@@ -235,6 +245,20 @@ export function createSafeAgent(allowedRanges: unknown): Agent {
   return new Agent({ connect: createSafeConnector(parseAllowedRanges(allowedRanges)) })
 }
 
+/**
+ * LRU cache for safe dispatchers keyed by JSON-serialised allowedPrivateUrlRanges.
+ *
+ * The node normally runs with a single configuration so the cache stays at one
+ * entry. The cap (16) guards against unbounded growth when pushConfig is used to
+ * cycle through many distinct allowedPrivateUrlRanges values.
+ *
+ * Evicted agents are NEVER closed: a caller that received an agent reference
+ * before eviction may still have in-flight requests dispatched through it, and
+ * closing the agent would abort those connections. The agent is simply removed
+ * from the map; existing references remain valid and the agent's connection pool
+ * drains naturally as idle connections time out and GC collects the object.
+ */
+const DISPATCHER_CACHE_MAX = 16
 const dispatcherCache = new Map<string, Agent>()
 
 /**
@@ -247,11 +271,24 @@ export function getSafeDispatcher(config: SafeUrlConfig): Dispatcher {
     ? config.allowedPrivateUrlRanges
     : []
   const key = JSON.stringify(entries)
-  let agent = dispatcherCache.get(key)
-  if (!agent) {
-    agent = createSafeAgent(entries)
-    dispatcherCache.set(key, agent)
+
+  // Cache hit: move to end (most-recently-used position) and return.
+  const existing = dispatcherCache.get(key)
+  if (existing) {
+    dispatcherCache.delete(key)
+    dispatcherCache.set(key, existing)
+    return existing
   }
+
+  const agent = createSafeAgent(entries)
+
+  // Evict the least-recently-used entry when at capacity. Do NOT close it —
+  // see the cache comment above.
+  if (dispatcherCache.size >= DISPATCHER_CACHE_MAX) {
+    dispatcherCache.delete(dispatcherCache.keys().next().value as string)
+  }
+
+  dispatcherCache.set(key, agent)
   return agent
 }
 

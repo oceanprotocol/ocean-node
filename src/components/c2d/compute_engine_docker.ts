@@ -1546,8 +1546,18 @@ export class C2DEngineDocker extends C2DEngine {
       )
     }
 
+    // Synchronous guard: reject IP literals and localhost names in the registry URL
+    // up front before any connection is attempted.
+    const registryUrlSsrfErr = checkUrlHost(url, this.config)
+    if (registryUrlSsrfErr) {
+      throw new Error(`Registry URL is not reachable: ${registryUrlSsrfErr}`)
+    }
     const safeDispatcher = getSafeDispatcher(this.config)
-    let response = await fetchHeadersTimeout(url, { headers, dispatcher: safeDispatcher }, 30000)
+    let response = await fetchHeadersTimeout(
+      url,
+      { headers, dispatcher: safeDispatcher },
+      30000
+    )
 
     if (response.status === 401) {
       const match = (response.headers.get('www-authenticate') || '').match(
@@ -1588,7 +1598,11 @@ export class C2DEngineDocker extends C2DEngine {
           token: string
         }
         headers = { ...headers, Authorization: `Bearer ${token}` }
-        response = await fetchHeadersTimeout(url, { headers, dispatcher: safeDispatcher }, 30000)
+        response = await fetchHeadersTimeout(
+          url,
+          { headers, dispatcher: safeDispatcher },
+          30000
+        )
       }
     }
 
