@@ -271,8 +271,11 @@ if (config.hasHttp) {
   app.set('trust proxy', config.trustProxy ?? false)
   app.use(cors())
   app.use((req, res, next) => {
-    // req.ip respects the `trust proxy` setting above (see requestValidator for details).
-    req.caller = req.ip || req.socket.remoteAddress
+    // req.ip respects the `trust proxy` setting above (see requestValidator for details). The
+    // `|| ''` fallback (matching requestValidator) guarantees a defined string: otherwise an
+    // undefined req.caller would make handleDirectProtocolCommand's `caller !== undefined` guard
+    // skip the override and fall back to trusting a client-supplied body `caller`.
+    req.caller = req.ip || req.socket.remoteAddress || ''
     req.oceanNode = oceanNode
     // Express 4 left req.body as {} when there was nothing to parse; Express 5 leaves
     // it undefined, which turns every `req.body.x` read and `const {x} = req.body`
