@@ -169,28 +169,52 @@ export function checkUrlHost(url: string, config: SafeUrlConfig): string | null 
 }
 
 /**
- * dns.lookup wrapper that rejects when any resolved address is blocked. Node may ask
- * for all addresses (`all: true`, happy eyeballs) and try them in turn, so every one of
- * them has to be acceptable.
+ * dns.lookup wrapper that only ever hands out addresses that pass the check. Node asks
+ * for all addresses (`all: true`, happy eyeballs) and tries them in turn, so blocked
+ * entries are dropped and the connection is made to the remaining ones. A name whose
+ * answers are all blocked is refused. A name that mixes public and blocked answers still
+ * works, and the blocked address is never contacted: this matters for `localhost`, which
+ * resolves to both `::1` and `127.0.0.1` on most hosts while an operator typically
+ * allow-lists only `127.0.0.1/32`. Single-address lookups (`all: false`) are checked as is.
  */
-export function createSafeLookup(allowed: AllowedRange[]): LookupFunction {
+export function createSafeLookup(
+  allowed: AllowedRange[],
+  resolver: typeof dnsLookup = dnsLookup
+): LookupFunction {
   return (hostname, options, callback) => {
-    dnsLookup(hostname, options as LookupOptions, (err, address, family) => {
-      if (!err) {
-        const addresses = Array.isArray(address)
-          ? address.map((entry) => entry.address)
-          : [address]
-        const blocked = addresses.find((entry) => isBlockedAddress(entry, allowed))
-        if (blocked !== undefined) {
+    resolver(hostname, options as LookupOptions, (err, address, family) => {
+      if (err) {
+        callback(err, address as any, family)
+        return
+      }
+      if (!Array.isArray(address)) {
+        if (isBlockedAddress(address, allowed)) {
           callback(
-            new Error(`${PRIVATE_URL_ERROR} (${hostname} resolves to ${blocked})`),
+            new Error(`${PRIVATE_URL_ERROR} (${hostname} resolves to ${address})`),
             address as any,
             family
           )
           return
         }
+        callback(err, address as any, family)
+        return
       }
-      callback(err, address as any, family)
+      const permitted = address.filter(
+        (entry) => !isBlockedAddress(entry.address, allowed)
+      )
+      if (permitted.length === 0) {
+        callback(
+          new Error(
+            `${PRIVATE_URL_ERROR} (${hostname} resolves to ${address
+              .map((entry) => entry.address)
+              .join(', ')})`
+          ),
+          address as any,
+          family
+        )
+        return
+      }
+      callback(err, permitted as any, family)
     })
   }
 }
@@ -216,12 +240,13 @@ export async function resolveSafeAddress(
   if (!results.length) {
     throw new Error(`Could not resolve host ${host}`)
   }
-  for (const result of results) {
-    if (isBlockedAddress(result.address, allowed)) {
-      throw new Error(`${PRIVATE_URL_ERROR} (${host} resolves to ${result.address})`)
-    }
+  const permitted = results.filter((result) => !isBlockedAddress(result.address, allowed))
+  if (permitted.length === 0) {
+    throw new Error(
+      `${PRIVATE_URL_ERROR} (${host} resolves to ${results.map((r) => r.address).join(', ')})`
+    )
   }
-  return { address: results[0].address, family: results[0].family }
+  return { address: permitted[0].address, family: permitted[0].family }
 }
 
 /**

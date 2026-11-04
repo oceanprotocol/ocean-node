@@ -27,9 +27,11 @@ treats every `url`, `ftp` and `s3` target as untrusted:
   ranges, plus their IPv6 equivalents (`::1`, `fc00::/7`, `fe80::/10`, IPv4-mapped and
   translated addresses). `localhost` names and IP literals in any encoding (decimal, hex,
   octal, bracketed IPv6) are rejected when the file object is validated.
-- DNS names are checked at connect time, against every address they resolve to, and the
-  check runs again for every redirect, so a public name that resolves to an internal
-  address (DNS rebinding) or a public URL that redirects to one is also refused.
+- DNS names are checked at connect time and the check runs again for every redirect. Only
+  addresses that pass the check are ever contacted: a name that resolves only to blocked
+  addresses (DNS rebinding) or a public URL that redirects to one is refused. If a name
+  returns both allowed and blocked addresses (for example `localhost` returning `::1` and
+  `127.0.0.1` while only `127.0.0.1/32` is allow-listed), the blocked ones are skipped.
 - `unsafeURLs` (env `UNSAFE_URLS`) adds regular expressions on top of the built-in list of
   cloud metadata endpoints; operator entries extend the defaults, they do not replace them.
 - `allowedPrivateUrlRanges` (env `ALLOWED_PRIVATE_URL_RANGES`) lists CIDRs or single IPs

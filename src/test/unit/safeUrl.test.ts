@@ -377,6 +377,44 @@ describe('safeUrl: connect-time enforcement (local server)', () => {
     expect((addresses as unknown[]).length).to.be.greaterThan(0)
   })
 
+  it('dual-stack name: connects to the allow-listed address, never the blocked one', async () => {
+    // localhost on most CI hosts answers [::1, 127.0.0.1]; only 127.0.0.1 is allow-listed
+    const fake: any = (_h: string, _o: unknown, cb: any) =>
+      cb(null, [
+        { address: '::1', family: 6 },
+        { address: '127.0.0.1', family: 4 }
+      ])
+    const lookup = createSafeLookup(parseAllowedRanges(['127.0.0.1/32']), fake)
+    const result: any = await new Promise((resolve, reject) =>
+      lookup('localhost', { all: true }, (err, address) =>
+        err ? reject(err) : resolve(address)
+      )
+    )
+    expect(result.map((entry: any) => entry.address)).to.deep.equal(['127.0.0.1'])
+    // every answer blocked: refused
+    const allBlocked = createSafeLookup([], fake)
+    const text = await rejects(
+      new Promise((resolve, reject) =>
+        allBlocked('localhost', { all: true }, (err, address) =>
+          err ? reject(err) : resolve(address)
+        )
+      )
+    )
+    expect(text).to.include(PRIVATE_URL_ERROR)
+    // public + private mix (rebinding style): only the public one is handed out
+    const mixed: any = (_h: string, _o: unknown, cb: any) =>
+      cb(null, [
+        { address: '10.0.0.1', family: 4 },
+        { address: '93.184.216.34', family: 4 }
+      ])
+    const out: any = await new Promise((resolve, reject) =>
+      createSafeLookup([], mixed)('x.example', { all: true }, (err, address) =>
+        err ? reject(err) : resolve(address)
+      )
+    )
+    expect(out.map((entry: any) => entry.address)).to.deep.equal(['93.184.216.34'])
+  })
+
   it('allows it when the range is allow-listed and streams the body', async () => {
     const dispatcher = createSafeAgent(['127.0.0.0/8', '::1/128'])
     const res = await fetchStream(`http://localhost:${port}/ok`, { dispatcher })

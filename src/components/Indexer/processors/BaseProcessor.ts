@@ -268,7 +268,9 @@ export abstract class BaseEventProcessor {
       }
     } catch (err) {
       INDEXER_LOGGER.error(
-        `decryptDDO: Error getting nonce, using timestamp: ${errorSummary(err)}`
+        `decryptDDO: Error getting nonce, using timestamp: ${errorSummary(err)}${
+          err?.cause ? ` (cause: ${errorSummary(err.cause)})` : ''
+        }`
       )
       return Date.now().toString()
     }
