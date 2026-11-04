@@ -24,7 +24,7 @@ import {
   ProcessorConstructor
 } from './processors/index.js'
 import { findEventByKey } from './utils.js'
-import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
+import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
 import AccessListContract from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' with { type: 'json' }
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 
@@ -110,7 +110,7 @@ export const processChunkLogs = async (
             const metadataProofs = fetchEventFromTransaction(
               txReceipt,
               'MetadataValidated',
-              new Interface(ERC20Template.abi),
+              new Interface(ERC721Template.abi),
               log.address
             )
             if (!metadataProofs) {
