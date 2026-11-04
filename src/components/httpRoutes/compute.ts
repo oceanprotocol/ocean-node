@@ -360,6 +360,10 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/initializeCompute`, async (req, re
       }
     }
     body.command = PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
+    // Use the trustworthy request IP as the caller, never a client-supplied body value, so the
+    // handler-level rate limiter (keyed on task.caller) cannot be evaded here. Matches the other
+    // compute routes and the /directCommand local path.
+    body.caller = req.caller
     const result = await new ComputeInitializeHandler(req.oceanNode).handle(body)
     if (result.stream) {
       const queryResult = JSON.parse(await streamToString(result.stream as Readable))

@@ -87,6 +87,22 @@ describe('HTTP rate limiting', () => {
     expect(tryAdmit('10.4.0.3', configuration, later)).to.equal(200)
   })
 
+  it('different clients share one global fixed window that resets after expiry', () => {
+    const configuration = cfg({ maxConnections: 2, rateLimit: 1000 })
+    const base = 11_000_000
+    // Two different clients fill the single shared global window within the same window.
+    expect(tryAdmit('10.6.0.1', configuration, base)).to.equal(200)
+    expect(tryAdmit('10.6.0.2', configuration, base)).to.equal(200)
+    // Cap reached for this window — a third distinct client is rejected.
+    expect(tryAdmit('10.6.0.3', configuration, base)).to.equal(403)
+    // After the window expires the global counter resets: admissions flow again...
+    const next = base + CONNECTIONS_RATE_INTERVAL + 1
+    expect(tryAdmit('10.6.0.4', configuration, next)).to.equal(200)
+    expect(tryAdmit('10.6.0.5', configuration, next)).to.equal(200)
+    // ...until the new window reaches its cap.
+    expect(tryAdmit('10.6.0.6', configuration, next)).to.equal(403)
+  })
+
   it('prunes stale entries so they stop counting after the window passes', () => {
     const configuration = cfg({ maxConnections: 3 })
     const base = 9_000_000

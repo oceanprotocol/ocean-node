@@ -85,17 +85,11 @@ export function checkGlobalConnectionsRateLimit(
   const maxConnections =
     configuration.maxConnections || DEFAULT_MAX_CONNECTIONS_PER_MINUTE
 
-  // Prune stale per-IP entries so the map cannot grow without bound over time (defense in
-  // depth against memory exhaustion). This does not drive the decision below.
-  for (const [key, clientData] of connectionsData.entries()) {
-    if (now - clientData.lastRequestTime > CONNECTIONS_RATE_INTERVAL) {
-      connectionsData.delete(key)
-    }
-  }
-
   // Global accepted requests within the current fixed window. If the window has elapsed, nothing
   // is counted yet (recordAcceptedRequest will open a fresh one). Admit only when there is room
   // for one more; since only accepted requests are recorded, this never reflects rejected ones.
+  // This is a pure read — stale per-IP entries are pruned in recordAcceptedRequest on rollover,
+  // not here, so a peek does not pay an O(n) scan on every request.
   const windowActive = now - globalWindowStart <= CONNECTIONS_RATE_INTERVAL
   const used = windowActive ? globalAcceptedCount : 0
   const valid = used < maxConnections
@@ -104,7 +98,7 @@ export function checkGlobalConnectionsRateLimit(
     valid,
     error: valid
       ? ''
-      : `Too many active connections (${used}/${maxConnections}) in the last minute.`
+      : `Too many requests (${used}/${maxConnections}) in the last minute.`
   }
 }
 
@@ -125,10 +119,17 @@ export function recordAcceptedRequest(requestIP: string, now: number): void {
     clientData.numRequests += 1
   }
 
-  // Global fixed window: reset when the previous one has elapsed, then count this request.
+  // Global fixed window: reset when the previous one has elapsed, then count this request. The
+  // rollover is also the moment we prune stale per-IP entries, so the map stays bounded without
+  // paying an O(n) scan on every request (it runs at most once per window under load).
   if (now - globalWindowStart > CONNECTIONS_RATE_INTERVAL) {
     globalWindowStart = now
     globalAcceptedCount = 0
+    for (const [key, data] of connectionsData.entries()) {
+      if (now - data.lastRequestTime > CONNECTIONS_RATE_INTERVAL) {
+        connectionsData.delete(key)
+      }
+    }
   }
   globalAcceptedCount += 1
 }
