@@ -3,7 +3,10 @@ import { OceanNodeConfig } from '../@types/OceanNode.js'
 import { ValidateParams } from '../components/httpRoutes/validateCommands.js'
 import { RequestLimiter } from '../OceanNode.js'
 import { CORE_LOGGER } from './logging/common.js'
-import { CONNECTIONS_RATE_INTERVAL } from './constants.js'
+import {
+  CONNECTIONS_RATE_INTERVAL,
+  CONNECTION_HISTORY_DELETE_THRESHOLD
+} from './constants.js'
 import { DEFAULT_MAX_CONNECTIONS_PER_MINUTE } from './index.js'
 
 // TODO we should group common stuff,
@@ -132,6 +135,23 @@ export function recordAcceptedRequest(requestIP: string, now: number): void {
     }
   }
   globalAcceptedCount += 1
+
+  // Hard cap (defense-in-depth): keep the per-IP map bounded even between window rollovers.
+  // Keys here are un-spoofable (req.ip), so this is secondary to the pruning above, but it
+  // guarantees the map can never grow without bound. Evict the LEAST-ACTIVE entries first
+  // (lowest request count, ties broken by oldest window start), mirroring the handler-level
+  // limiter: a flood of singleton callers is dropped before an actively rate-limited caller, so
+  // the flood cannot reset a victim's counter. O(n) only when at/over the cap.
+  if (connectionsData.size > CONNECTION_HISTORY_DELETE_THRESHOLD) {
+    const byLeastActive = [...connectionsData.entries()].sort(
+      (a, b) =>
+        a[1].numRequests - b[1].numRequests || a[1].lastRequestTime - b[1].lastRequestTime
+    )
+    const removeCount = connectionsData.size - CONNECTION_HISTORY_DELETE_THRESHOLD
+    for (let i = 0; i < removeCount && i < byLeastActive.length; i++) {
+      connectionsData.delete(byLeastActive[i][0])
+    }
+  }
 }
 
 // Test-only helper: clear ALL shared rate-limiter state — the per-IP map and the global window
@@ -143,6 +163,12 @@ export function resetRateLimiterState(): void {
   connectionsData.clear()
   globalWindowStart = 0
   globalAcceptedCount = 0
+}
+
+// Test-only helper: current number of per-IP entries, so a test can assert the hard cap bounds
+// the map under a flood of distinct IPs. Not used in production code.
+export function connectionsDataSize(): number {
+  return connectionsData.size
 }
 
 export function validateConsumerParameters(

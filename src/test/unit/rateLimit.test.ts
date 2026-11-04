@@ -4,9 +4,13 @@ import {
   checkRequestsRateLimit,
   checkGlobalConnectionsRateLimit,
   recordAcceptedRequest,
-  resetRateLimiterState
+  resetRateLimiterState,
+  connectionsDataSize
 } from '../../utils/validators.js'
-import { CONNECTIONS_RATE_INTERVAL } from '../../utils/constants.js'
+import {
+  CONNECTIONS_RATE_INTERVAL,
+  CONNECTION_HISTORY_DELETE_THRESHOLD
+} from '../../utils/constants.js'
 
 // These exercise the pure rate-limit helpers. The per-IP map AND the global window counter are
 // module-level shared state, so each test must start from a clean slate — unique IPs do not
@@ -117,5 +121,22 @@ describe('HTTP rate limiting', () => {
     // so the node is available again instead of staying tripped.
     const later = base + CONNECTIONS_RATE_INTERVAL + 1
     expect(tryAdmit(ip, configuration, later)).to.equal(200)
+  })
+
+  it('hard-caps the per-IP map, evicting oldest-first under a flood of distinct IPs', () => {
+    // Defense-in-depth (ON-05 residual): even within a single window, the per-IP map must not
+    // grow without bound. Admit more than the hard cap of distinct IPs with strictly increasing
+    // timestamps (so the oldest are well-defined) and assert the map stays bounded.
+    const configuration = cfg({ rateLimit: 1000, maxConnections: 10_000_000 })
+    const base = 13_000_000
+    const total = CONNECTION_HISTORY_DELETE_THRESHOLD + 50
+    for (let i = 0; i < total; i++) {
+      const ip = `172.16.${Math.floor(i / 256)}.${i % 256}`
+      expect(tryAdmit(ip, configuration, base + i)).to.equal(200)
+    }
+    // Bounded by the hard cap, not grown to `total`.
+    expect(connectionsDataSize()).to.be.lessThanOrEqual(
+      CONNECTION_HISTORY_DELETE_THRESHOLD
+    )
   })
 })
