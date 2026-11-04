@@ -263,9 +263,16 @@ function removeExtraSlashes(req: any, res: any, next: any) {
 }
 
 if (config.hasHttp) {
+  // Controls how req.ip / req.caller are derived from the connection and X-Forwarded-For.
+  // Default (false) ignores the client-supplied header and uses the real socket peer, so a
+  // client cannot spoof its address to evade rate limiting or the deny list. Operators who
+  // terminate behind a trusted reverse proxy set TRUST_PROXY (e.g. 1, 'loopback', or a
+  // CIDR list) so Express resolves the real client IP from the trusted hops only.
+  app.set('trust proxy', config.trustProxy ?? false)
   app.use(cors())
   app.use((req, res, next) => {
-    req.caller = req.headers['x-forwarded-for'] || req.socket.remoteAddress
+    // req.ip respects the `trust proxy` setting above (see requestValidator for details).
+    req.caller = req.ip || req.socket.remoteAddress
     req.oceanNode = oceanNode
     // Express 4 left req.body as {} when there was nothing to parse; Express 5 leaves
     // it undefined, which turns every `req.body.x` read and `const {x} = req.body`

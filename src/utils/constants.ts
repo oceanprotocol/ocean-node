@@ -446,6 +446,15 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.MAX_CONNECTIONS_PER_MINUTE,
     required: false
   },
+  TRUST_PROXY: {
+    // Express "trust proxy" setting controlling how the client IP is derived from
+    // X-Forwarded-For. Default off (ignore the header, use the socket peer). Set to the
+    // number of trusted proxy hops, 'loopback', or a comma-separated list of trusted
+    // IPs/CIDRs when the node runs behind a reverse proxy. See docs/env.md.
+    name: 'TRUST_PROXY',
+    value: process.env.TRUST_PROXY,
+    required: false
+  },
   RATE_DENY_LIST: {
     // rate limit / deny list (peers and ips)
     name: 'RATE_DENY_LIST',

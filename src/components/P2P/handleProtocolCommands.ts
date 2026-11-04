@@ -13,7 +13,8 @@ import { sanitizeLogValue } from '../../utils/util.js'
 import { p2pCommand } from '../../telemetry/metrics.js'
 import {
   checkGlobalConnectionsRateLimit,
-  checkRequestsRateLimit
+  checkRequestsRateLimit,
+  recordAcceptedRequest
 } from '../../utils/validators.js'
 import type { Connection, Stream } from '@libp2p/interface'
 import {
@@ -146,6 +147,9 @@ export async function handleProtocolCommands(
     await sendErrorAndClose(403, 'Rate limit exceeded')
     return
   }
+
+  // Admitted by both limits: record it now so only accepted requests consume capacity.
+  recordAcceptedRequest(remoteAddr.toString(), now)
 
   if (!task) {
     P2P_LOGGER.debug(`Invalid or missing command data from ${remotePeer}`)
