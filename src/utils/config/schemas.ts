@@ -13,6 +13,7 @@ import { booleanFromString, jsonFromString } from './transforms.js'
 import {
   DEFAULT_BOOTSTRAP_ADDRESSES,
   DEFAULT_RATE_LIMIT_PER_MINUTE,
+  DEFAULT_MAX_CONNECTIONS_PER_MINUTE,
   DEFAULT_UNSAFE_URLS,
   DEFAULT_FILTER_ANNOUNCED_ADDRESSES,
   DEFAULT_DB_INIT_MAX_ATTEMPTS,
@@ -1213,6 +1214,48 @@ export const OceanNodeConfigSchema = z
 
     httpPort: z.coerce.number().optional().default(3000),
     rateLimit: z.coerce.number().optional().default(DEFAULT_RATE_LIMIT_PER_MINUTE),
+    // Express `trust proxy` value. Env vars arrive as strings, so normalise: 'true'/'false'
+    // -> boolean, a numeric value -> number (so a bad hop count is caught below), anything else
+    // (e.g. 'loopback' or a CIDR list) passed through as a string for Express to interpret.
+    // Defaults to false (do not trust any proxy / ignore X-Forwarded-For) so address-based
+    // limits are not spoofable by default.
+    trustProxy: z
+      .preprocess(
+        (val) => {
+          if (val === undefined || val === null || val === '') return false
+          if (typeof val !== 'string') return val
+          const v = val.trim()
+          if (v.toLowerCase() === 'true') return true
+          if (v.toLowerCase() === 'false') return false
+          // Numeric-looking values (incl. signed/decimal) become numbers so the refine below
+          // can reject a fractional or negative hop count. A dotted IP or CIDR is not a finite
+          // number, so it stays a string for Express to interpret.
+          const asNumber = Number(v)
+          if (Number.isFinite(asNumber)) return asNumber
+          return v
+        },
+        z.union([z.boolean(), z.number(), z.string()])
+      )
+      // Reject bare `true`. In Express, trust proxy === true trusts the WHOLE chain and makes
+      // req.ip the left-most, client-claimed X-Forwarded-For address — which silently re-opens
+      // the exact spoofing DoS this setting exists to prevent. Operators must instead name what
+      // they actually trust: a hop count, a preset, or an explicit IP/CIDR list.
+      .refine((val) => val !== true, {
+        message:
+          'TRUST_PROXY=true is not allowed: it trusts the entire proxy chain and lets clients ' +
+          'spoof their IP via X-Forwarded-For. Use the number of trusted proxy hops (e.g. 1), ' +
+          'a preset (loopback/linklocal/uniquelocal), or a comma-separated list of trusted ' +
+          'proxy IPs/CIDRs.'
+      })
+      // A numeric hop count must be a non-negative integer. Fractional or negative values are
+      // operator typos, not valid Express config. (String presets and IP/CIDR lists are left
+      // untouched — Express validates those, and they are the most precise, safest option.)
+      .refine((val) => typeof val !== 'number' || (Number.isInteger(val) && val >= 0), {
+        message:
+          'TRUST_PROXY as a number must be a non-negative integer hop count (e.g. 0, 1, 2).'
+      })
+      .optional()
+      .default(false),
 
     // Startup database-init retry knobs. int().min(1) is load-bearing, not decoration:
     // maxAttempts of 0 would skip Database.init() altogether and boot the node with no
@@ -1271,7 +1314,13 @@ export const OceanNodeConfigSchema = z
     ).optional(),
 
     codeHash: z.string().optional(),
-    maxConnections: z.coerce.number().optional(),
+    // Node-wide request throughput ceiling per minute (sum across all clients). Defaulted
+    // here so the schema and the runtime fallback in checkGlobalConnectionsRateLimit agree
+    // on a single value instead of silently diverging.
+    maxConnections: z.coerce
+      .number()
+      .optional()
+      .default(DEFAULT_MAX_CONNECTIONS_PER_MINUTE),
     denyList: jsonFromString(DenyListSchema, 'denyList')
       .optional()
       .default({ peers: [], ips: [] }),

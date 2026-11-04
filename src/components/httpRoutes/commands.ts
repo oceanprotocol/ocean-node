@@ -93,9 +93,14 @@ directCommandRoute.post(
         req.oceanNode.getP2PNode()?.isTargetPeerSelf(req.body.node)
 
       if (isLocalCommand) {
-        // Local command - call handler directly
+        // Local command - call handler directly. Pass the trustworthy request IP (req.caller,
+        // derived from req.ip honouring `trust proxy`) as the trusted caller;
+        // handleDirectProtocolCommand stamps it over any client-supplied body value. Otherwise
+        // the handler-level rate limiter, which keys on task.caller, could be evaded on this
+        // path by putting a fresh random caller in the request body.
         const response = await req.oceanNode.handleDirectProtocolCommand(
-          JSON.stringify(req.body)
+          JSON.stringify(req.body),
+          req.caller
         )
 
         res.status(response.status.httpStatus)

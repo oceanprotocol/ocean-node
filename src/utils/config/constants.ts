@@ -25,6 +25,7 @@ export const ENV_TO_CONFIG_MAPPING = {
   JWT_SECRET: 'jwtSecret',
   MAX_REQ_PER_MINUTE: 'rateLimit',
   MAX_CONNECTIONS_PER_MINUTE: 'maxConnections',
+  TRUST_PROXY: 'trustProxy',
   RATE_DENY_LIST: 'denyList',
   AUTHORIZED_DECRYPTERS: 'authorizedDecrypters',
   AUTHORIZED_DECRYPTERS_LIST: 'authorizedDecryptersList',
