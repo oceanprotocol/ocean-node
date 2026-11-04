@@ -57,14 +57,19 @@ export async function validateOrderTransaction(
       message: errorMsg
     }
   }
-  const erc20Address = txReceiptMined.to
-  const datatokenContract = new Contract(erc20Address, ERC20Template.abi, signer)
+  // The authenticity of the order is bound to the datatoken named by the DDO service, NOT to
+  // the receipt `to`: a tx addressed to the datatoken can still carry logs emitted by other
+  // (attacker-controlled) contracts, and `receipt.to` of the submitted tx is attacker-chosen.
+  // So derive the NFT from the DDO datatoken and require every order event below to be emitted
+  // BY that datatoken (ON-01 - forged-order emitter).
+  const datatokenContract = new Contract(datatokenAddress, ERC20Template.abi, signer)
   const erc721Address = await datatokenContract.getERC721Address()
 
   const orderReusedEvent = fetchEventFromTransaction(
     txReceiptMined,
     EVENTS.ORDER_REUSED,
-    contractInterface
+    contractInterface,
+    datatokenAddress
   )
 
   if (orderReusedEvent && orderReusedEvent?.length > 0) {
@@ -84,8 +89,18 @@ export async function validateOrderTransaction(
   const OrderStartedEvent = fetchEventFromTransaction(
     txReceiptMined,
     EVENTS.ORDER_STARTED,
-    contractInterface
+    contractInterface,
+    datatokenAddress
   )
+  // Fail closed: if the datatoken from the DDO never emitted an OrderStarted in this tx (e.g. a
+  // forged order self-emitted by another contract was filtered out), the order is not valid.
+  if (!OrderStartedEvent || OrderStartedEvent.length === 0) {
+    return {
+      isValid: false,
+      message:
+        'No OrderStarted event emitted by the datatoken was found for this transaction.'
+    }
+  }
   let orderEvent
   for (const event of OrderStartedEvent) {
     // event.args[0] = consumer, event.args[1] = payer (ERC20Template OrderStarted).
@@ -102,11 +117,10 @@ export async function validateOrderTransaction(
           payerAddress?.toLowerCase() === event.args[1]?.toLowerCase()
         : userAddress?.toLowerCase() === event.args[0]?.toLowerCase() ||
           userAddress?.toLowerCase() === event.args[1]?.toLowerCase()
-    if (
-      addressMatch &&
-      erc20Address?.toLowerCase() === datatokenAddress?.toLowerCase() &&
-      erc721Address?.toLowerCase() === dataNftAddress?.toLowerCase()
-    ) {
+    // The datatoken<->emitter binding is already enforced by fetchEventFromTransaction
+    // (the event was emitted by datatokenAddress); here we only still need the NFT of that
+    // datatoken to match the DDO's data NFT.
+    if (addressMatch && erc721Address?.toLowerCase() === dataNftAddress?.toLowerCase()) {
       orderEvent = event
       break
     }

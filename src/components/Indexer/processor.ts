@@ -110,7 +110,8 @@ export const processChunkLogs = async (
             const metadataProofs = fetchEventFromTransaction(
               txReceipt,
               'MetadataValidated',
-              new Interface(ERC20Template.abi)
+              new Interface(ERC20Template.abi),
+              log.address
             )
             if (!metadataProofs) {
               INDEXER_LOGGER.debug(
