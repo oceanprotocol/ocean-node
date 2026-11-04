@@ -115,7 +115,7 @@ These fields go in the `resources` array at the Docker-connection level:
 | `type` | Hint string used for grouping and display: `"cpu"`, `"ram"`, `"disk"`, `"gpu"`, `"fpga"`, … Group constraints (see below) match on this. |
 | `description` | Human-readable label shown in `getComputeEnvironments` |
 | `driverVersion` | GPU driver version string |
-| `memoryTotal` | GPU VRAM string (e.g. `"40960 MiB"`). **Required for `type: "gpu"` resources**; must be a number with an optional unit (`"16 GiB"`, `"40960 MiB"`, `"8GB"`). Returned in `getComputeEnvironments`. |
+| `memoryTotal` | GPU VRAM string (e.g. `"40960 MiB"`). **Required for `type: "gpu"` resources**; must be a number with an optional unit (`"16 GiB"`, `"40960 MiB"`, `"8GB"`). Returned in `getComputeEnvironments`; it is the VRAM of **one** physical device, which clients compare to a service template's per-GPU layout sizes (see [Template resource recommendations](services.md#template-resource-recommendations)). |
 | `platform` | GPU vendor: `"nvidia"`, `"amd"`, `"intel"` |
 | `init` | Docker container configuration (`deviceRequests` for NVIDIA, `advanced` for AMD/Intel, and `advanced` on any vendor for shared-memory/IPC/process settings — see [Multi-GPU workloads](#multi-gpu-workloads-shared-memory)). Makes `kind` default to `"discrete"`. |
 | `constraints` | Companion resource requirements — see [Resource constraints](#resource-constraints). |
@@ -154,6 +154,11 @@ Supporting GPUs comes down to:
 - Every `type: "gpu"` resource **must declare its VRAM** via `memoryTotal` (e.g.
   `"16 GiB"`, `"40960 MiB"`, `"8GB"`). The node refuses to start if it is missing or not a
   valid amount, and the value is returned to consumers in `getComputeEnvironments`.
+  State the VRAM of one card, not a sum: clients match it against the per-GPU sizes in a
+  service template's `recommendedResources` GPU `layouts` (see
+  [Template resource recommendations](services.md#template-resource-recommendations)). Those
+  recommendations are advisory — the node does not gate `SERVICE_START` on them; this
+  environment's own `min`/`max`, availability and constraints are what it enforces.
 
 > **Security note**: `init.advanced` entries (`Binds`, `CapAdd`, `Devices`, `SecurityOpt`)
 > apply to every job in every environment that references the resource. Review them carefully
