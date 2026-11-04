@@ -133,6 +133,17 @@ export function recordAcceptedRequest(requestIP: string, now: number): void {
   globalAcceptedCount += 1
 }
 
+// Test-only helper: clear ALL shared rate-limiter state — the per-IP map and the global window
+// counter — so a test starts from an empty limiter regardless of what earlier suites recorded.
+// The global counter is a single process-wide bucket that unique IPs and spaced timestamps do
+// not isolate (a real Date.now() recorded by an earlier suite sits far in the future relative to
+// a small fixed test timestamp, so the window never looks expired). Not used in production code.
+export function resetRateLimiterState(): void {
+  connectionsData.clear()
+  globalWindowStart = 0
+  globalAcceptedCount = 0
+}
+
 export function validateConsumerParameters(
   ddoConsumerParameters: ConsumerParameter | ConsumerParameter[],
   userSentObject: any | any[]

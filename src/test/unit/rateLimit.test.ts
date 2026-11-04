@@ -3,13 +3,16 @@ import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import {
   checkRequestsRateLimit,
   checkGlobalConnectionsRateLimit,
-  recordAcceptedRequest
+  recordAcceptedRequest,
+  resetRateLimiterState
 } from '../../utils/validators.js'
 import { CONNECTIONS_RATE_INTERVAL } from '../../utils/constants.js'
 
-// These exercise the pure rate-limit helpers. The module-level connectionsData map is shared
-// across calls, so every test uses its own IP namespace and its own base timestamp (far apart
-// in time) to avoid cross-test interference; stale entries are pruned by the global check.
+// These exercise the pure rate-limit helpers. The per-IP map AND the global window counter are
+// module-level shared state, so each test must start from a clean slate — unique IPs do not
+// isolate the single global counter, and a real Date.now() recorded by an earlier suite would
+// leak into these fixed-timestamp, low-cap assertions. resetRateLimiterState() in beforeEach
+// provides that isolation.
 function cfg(partial: Partial<OceanNodeConfig>): OceanNodeConfig {
   return { rateLimit: 1000, maxConnections: 1000, ...partial } as OceanNodeConfig
 }
@@ -24,6 +27,10 @@ function tryAdmit(ip: string, configuration: OceanNodeConfig, now: number): numb
 }
 
 describe('HTTP rate limiting', () => {
+  beforeEach(() => {
+    resetRateLimiterState()
+  })
+
   it('per-IP limit blocks the same IP once it exceeds rateLimit', () => {
     const configuration = cfg({ rateLimit: 3 })
     const now = 1_000_000
@@ -81,9 +88,6 @@ describe('HTTP rate limiting', () => {
   })
 
   it('prunes stale entries so they stop counting after the window passes', () => {
-    // Base must be later than every earlier test's timestamps: the shared connectionsData map
-    // persists across tests, and the global check treats any entry within the window (including
-    // future-dated ones from a later-numbered-but-earlier-running test) as active.
     const configuration = cfg({ maxConnections: 3 })
     const base = 9_000_000
     const ip = '10.3.0.1'
