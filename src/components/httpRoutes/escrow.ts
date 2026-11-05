@@ -4,24 +4,24 @@ import { EscrowEventsHandler } from '../core/handler/escrowHandler.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { streamToString } from '../../utils/util.js'
 import { GetEscrowEventsCommand, RangeFilter } from '../../@types/commands.js'
-import { ALLOWED_RANGE_FIELDS } from '../database/escrowSearch.js'
 
 export const escrowRoutes = express.Router()
 
-// Only these field names may become range keys. Whitelisting here (rather than relying on the
-// handler to reject unknown fields *after* parsing) also closes a prototype-pollution vector:
-// without it, a key like `__proto__Min` would resolve `field` to `__proto__` and
-// `ranges[field][bound] = ...` would write onto Object.prototype.
-const ALLOWED_RANGE_FIELD_SET = new Set(ALLOWED_RANGE_FIELDS)
-
 // Fold `<field>Min` / `<field>Max` query params into a ranges map, e.g.
 // ?blockMin=100&blockMax=200&subsidyAmountMin=1000 -> { block:{min,max}, subsidyAmount:{min} }.
-// Fields outside ALLOWED_RANGE_FIELDS are ignored here; the handler re-validates the rest.
-function parseRangeParams(query: Record<string, any>): Record<string, RangeFilter> {
-  // null-prototype map: belt-and-suspenders so an attacker-named field can never reach a prototype.
+// Unknown fields are NOT dropped here: they flow into the map and are rejected (400) by
+// validateEscrowRanges() in the handler, which is the single source of truth for which fields
+// are range-filterable — keeping the HTTP path consistent with the P2P path. (Previously this
+// silently dropped unknown fields, so e.g. ?payerMin=1 produced an empty ranges map and the
+// query ran unfiltered, returning 200 with all rows instead of 400.)
+export function parseRangeParams(
+  query: Record<string, any>
+): Record<string, RangeFilter> {
+  // null-prototype map so an attacker-named field (e.g. `__proto__Min`, `constructorMax`) can
+  // never reach a real prototype: on a null-proto object such a key is just a harmless own
+  // property, and it is then surfaced by Object.entries() and rejected by validateEscrowRanges.
   const ranges: Record<string, RangeFilter> = Object.create(null)
   const assign = (field: string, bound: keyof RangeFilter, value: any) => {
-    if (!ALLOWED_RANGE_FIELD_SET.has(field)) return
     if (!ranges[field]) ranges[field] = {}
     ranges[field][bound] = String(value)
   }
@@ -43,7 +43,7 @@ escrowRoutes.get(
     if (chainId !== undefined) {
       parsedChainId = Number(chainId)
       if (Number.isNaN(parsedChainId)) {
-        res.status(400).send('chainId must be a number')
+        res.status(400).type('text/plain').send('chainId must be a number')
         return
       }
     }
@@ -78,7 +78,10 @@ escrowRoutes.get(
       const data = JSON.parse(await streamToString(result.stream as Readable))
       res.json(data)
     } else {
-      res.status(result.status.httpStatus).send(result.status.error)
+      // Send errors as text/plain, not Express's default text/html: the error string can echo a
+      // caller-supplied field name (e.g. an unknown range field), so an HTML content type would
+      // make that a reflected-XSS vector if a victim opened the URL in a browser.
+      res.status(result.status.httpStatus).type('text/plain').send(result.status.error)
     }
   }
 )

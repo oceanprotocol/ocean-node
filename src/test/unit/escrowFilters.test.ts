@@ -9,6 +9,7 @@ import {
   NATIVE_RANGE_FIELDS,
   CLIENT_RANGE_FIELDS
 } from '../../components/database/escrowSearch.js'
+import { parseRangeParams } from '../../components/httpRoutes/escrow.js'
 
 describe('escrow search filter helpers', () => {
   describe('isRangeFilter', () => {
@@ -65,6 +66,49 @@ describe('escrow search filter helpers', () => {
     it('rejects a range object with no bounds', () => {
       const res = validateEscrowRanges({ block: {} as any })
       expect(res.valid).to.equal(false)
+    })
+  })
+
+  describe('parseRangeParams (HTTP route -> ranges map)', () => {
+    it('folds <field>Min/<field>Max into a ranges map for known fields', () => {
+      const ranges = parseRangeParams({
+        blockMin: '100',
+        blockMax: '200',
+        subsidyAmountMin: '1000'
+      })
+      expect(ranges.block).to.deep.equal({ min: '100', max: '200' })
+      expect(ranges.subsidyAmount).to.deep.equal({ min: '1000' })
+    })
+
+    it('skips undefined/empty bound values', () => {
+      const ranges = parseRangeParams({ blockMin: '', blockMax: undefined })
+      expect(Object.keys(ranges)).to.have.length(0)
+    })
+
+    // Regression: a range bound on a NON-range field must NOT be silently dropped. It has to
+    // reach the ranges map so validateEscrowRanges rejects it (-> 400), matching the P2P path.
+    // Previously ?payerMin=1 was dropped, the query ran unfiltered and returned 200 with all rows.
+    it('keeps a range bound on a non-range field so the handler can reject it (400)', () => {
+      const ranges = parseRangeParams({ payerMin: '1' })
+      expect(ranges.payer).to.deep.equal({ min: '1' })
+      const check = validateEscrowRanges(ranges)
+      expect(check.valid).to.equal(false)
+      expect(check.reason).to.contain('payer')
+    })
+
+    // Prototype-pollution guard: a hostile key like `__proto__Min` or `constructorMax` must
+    // never write onto a real prototype, and must still be rejected (400) by validateEscrowRanges.
+    it('does not pollute Object.prototype and still rejects hostile field names (400)', () => {
+      const ranges = parseRangeParams({ __proto__Min: '1', constructorMax: '2' })
+      // harmless OWN properties on the null-proto map, visible to Object.entries
+      expect(Object.keys(ranges).sort()).to.deep.equal(
+        ['__proto__', 'constructor'].sort()
+      )
+      // Object.prototype was not touched
+      expect(({} as any).min).to.equal(undefined)
+      expect((Object.prototype as any).min).to.equal(undefined)
+      const check = validateEscrowRanges(ranges)
+      expect(check.valid).to.equal(false)
     })
   })
 
