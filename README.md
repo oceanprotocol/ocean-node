@@ -22,7 +22,8 @@ directory (indexed at the bottom) for the detailed references.
 - **Service-on-Demand** — template-driven long-running services (start/stop/restart/extend).
 - **Escrow / payment settlement** — on-chain settlement for paid compute and services.
 - **Auth tokens** — JWT-based auth as an alternative to per-request signatures.
-- **Persistent storage** — pluggable S3 / IPFS storage for C2D outputs and user buckets.
+- **Persistent storage** — local filesystem (`localfs`) storage for C2D outputs and user
+  buckets, configured via `PERSISTENT_STORAGE` (the S3 backend is a stub).
 - **Policy Server integration** — delegate access decisions to an external policy server.
 - **Pluggable key management** — node identity and signer behind a KeyManager abstraction.
 - **Observability** — OpenTelemetry traces/metrics and rotating file logging.
@@ -64,7 +65,7 @@ The recommended way to host a node and be eligible for incentives. Follow the
 [Docker deployment guide](docs/dockerDeployment.md). The other options below are aimed at
 developers who want to tinker.
 
-### Option 2 — Local Docker build via the quickstart script
+### Option 2 — Docker Compose via the quickstart script (pulls the published image)
 
 ```bash
 npm run quickstart
@@ -89,13 +90,24 @@ PM2 is a process manager that makes it easy to run and monitor Node.js apps.
 ```bash
 npm install -g pm2
 
-# set up env vars interactively…
-npm run setupEnv
-# …or manually (PRIVATE_KEY is the only mandatory one; keep the 0x prefix):
-export PRIVATE_KEY="0x_your_private_key_here"
-# if you use a JSON config file instead, point CONFIG_PATH at its absolute path:
-export CONFIG_PATH="/absolute/path/to/config.json"
+# 1. Start a metadata database (Typesense is the default in config.json)
+docker-compose -f typesense-compose.yml up -d
 
+# 2. Install deps and build — `npm run start` runs dist/index.js, so a prior build is required
+npm install
+npm run build
+
+# 3. Set up env vars. The node does NOT auto-load .env at runtime (dotenv is only used in
+#    tests), so the vars must be in the shell environment before `pm2 start`.
+#    Interactive helper, then load the generated .env into this shell:
+npm run setupEnv
+source .env
+# …or set them manually (PRIVATE_KEY is the only mandatory one; keep the 0x prefix):
+# export PRIVATE_KEY="0x<64-hex-characters>"   # or generate one: node dist/helpers/scripts/generatePK.js
+# if you use a JSON config file instead, point CONFIG_PATH at its absolute path:
+# export CONFIG_PATH="/absolute/path/to/config.json"
+
+# 4. Start under PM2
 pm2 start npm --name "ocean-node" -- run start
 ```
 
@@ -139,13 +151,15 @@ prior `npm run build` is required.
 
 ## Configuration
 
-- **`PRIVATE_KEY`** (with the `0x` prefix) is the **only mandatory** variable. It seeds the
-  node identity (libp2p peerId), the EVM signer and the encryption keys; everything else has
-  defaults.
-- **Two config sources**: environment variables, or a JSON file. The file is resolved from
-  `CONFIG_PATH`, else `./config.json` in the working directory. The repo ships a ready-to-run
-  [`config.json`](config.json) (Typesense DB, chain `8996`/development, a single Docker C2D
-  environment).
+- **`PRIVATE_KEY`** (exactly 66 characters: `0x` + 64 hex) is the **only mandatory**
+  variable. It seeds the node identity (libp2p peerId), the EVM signer and the encryption
+  keys; everything else has defaults. Generate one with
+  `node dist/helpers/scripts/generatePK.js`.
+- **Config sources**: a JSON config file plus environment-variable overrides. The file is
+  resolved from `CONFIG_PATH`, else `./config.json` in the working directory, and must exist —
+  the repo ships a ready-to-run [`config.json`](config.json) (Typesense DB, chain
+  `8996`/development, a single Docker C2D environment). Environment variables are merged on
+  top of the file and take precedence.
 - **`INTERFACES`** (JSON array, e.g. `["HTTP","P2P"]`) toggles which front doors are enabled;
   omitted means both.
 - [`docs/env.md`](docs/env.md) is the authoritative reference. Key groups worth knowing:
@@ -168,8 +182,10 @@ The metadata backend is pluggable: **Typesense** (default) or **Elasticsearch**,
 orders, access lists and escrow events.
 
 **SQLite is always on**, independent of the metadata DB: it backs the nonce, config, C2D-job
-and auth-token stores via Node's built-in `node:sqlite` module (no native addon). Without a
-valid metadata DB config the indexer is disabled, but the SQLite stores still work. See
+and auth-token stores via Node's built-in `node:sqlite` module (no native addon). An
+unsupported `DB_TYPE` value or a missing/invalid `DB_URL` simply disables the indexer while
+the SQLite stores keep working; a config value of the wrong type instead fails
+`OceanNodeConfigSchema` (zod) validation and stops startup before any DB is initialized. See
 [Database guide](docs/database.md).
 
 ## Compute (C2D) & services

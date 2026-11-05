@@ -80,8 +80,8 @@ flowchart TB
     PROV --> DB
     IDX --> DB
     C2D --> ESC
-    PROV --> KM
-    PROV --> BR
+    ON --> KM
+    ON --> BR
     classDef layer fill:#e8f0fe,stroke:#4066b0,color:#13284b;
     class NET,DISPATCH,COMP layer;
 ```
@@ -92,11 +92,11 @@ flowchart TB
   signer, and the encryption keys ([libp2p supports ECDSA key pairs](https://github.com/libp2p/specs/blob/master/peer-ids/peer-ids.md#ecdsa)).
 - Each component can be enabled/disabled at startup (e.g. run with `INTERFACES=["HTTP"]`
   only, or without the Indexer when no metadata DB is configured).
-- Multiple C2D engine types are supported: a light Docker engine (edge nodes) and external
-  Ocean C2D / third-party clusters.
+- C2D: only the Docker engine (`C2DEngineDocker`) is implemented. OPF_K8 clusters configured
+  via `OPERATOR_SERVICE_URL` are accepted into the config (added to `c2dClusters`), but no
+  engine is instantiated for them.
 - URL/metadata protection: the node encrypts URLs on publish and only ever streams data,
-  never the URL. Confidential-compute (TEE) and MPC approaches are described in
-  [§6](#6-security-modules).
+  never the URL.
 
 ---
 
@@ -132,9 +132,8 @@ sequenceDiagram
 
     ON->>REG: getHandler(task.command)
     REG-->>ON: handler instance
-    ON->>H: verifyParamsAndRateLimits(task)
-    H->>H: rate-limit + param checks
     ON->>H: handle(task)
+    H->>H: verifyParamsAndRateLimits(task): rate-limit + param checks
     H->>DB: read/write (DDO, orders, chain calls)
     DB-->>H: result
     H-->>Client: streamed response (binary or text)
@@ -160,12 +159,12 @@ flowchart LR
 
     ON --> IDX["Indexer<br/>multi-chain event cache"]
     ON --> PROV["Provider<br/>data access / encrypt"]
-    ON --> C2D["C2D engines<br/>Docker + external"]
+    ON --> C2D["C2D engines<br/>Docker engine (OPF_K8 not implemented)"]
     ON --> ESC["Escrow<br/>payment settlement"]
     ON --> AUTH["Auth<br/>JWT tokens"]
     ON --> KM["KeyManager<br/>node key provider"]
     ON --> BR["BlockchainRegistry<br/>per-chain signers"]
-    ON --> PS["PersistentStorage<br/>S3 / IPFS buckets"]
+    ON --> PS["PersistentStorage<br/>local filesystem (localfs)"]
     ON --> POL["PolicyServer<br/>external access policy"]
     ON --> P2P["OceanP2P<br/>libp2p node"]
 
@@ -189,7 +188,7 @@ events.
 - Monitors `MetadataCreated` / `MetadataUpdated` / `MetadataState` and stores/validates DDOs
   against multiple SHACL schemas; provides proof for valid DDOs.
 - Monitors datatoken contracts and stores orders (`OrderStarted` / `OrderReused`).
-- Monitors Escrow events (Auth, Lock, Claimed, Canceled, Deposit, Withdraw) and exchange /
+- Monitors Escrow events (Auth, Lock, Relock, Claimed, Canceled, Deposit, Withdraw) and exchange /
   dispenser / access-list lifecycle events.
 - Supports queries for all of the above, version-based + admin-triggered reindexing, and a
   purgatory. Communicates via module-level `EventEmitter`s.
@@ -215,7 +214,8 @@ config, C2D-job, and auth-token DBs — so the node works even with no metadata 
 - **BlockchainRegistry** — per-chain `Blockchain` instances giving handlers RPC
   providers/signers keyed by `chainId`.
 - **Escrow** — on-chain settlement for paid compute and orders.
-- **PersistentStorage** — pluggable S3 / IPFS buckets for C2D outputs and user buckets.
+- **PersistentStorage** — local filesystem (`localfs`) buckets for C2D outputs and user
+  buckets, configured via `PERSISTENT_STORAGE` (the S3 backend is a stub).
 - **PolicyServer** — passthrough integration to an external policy server (`POLICY_SERVER_URL`)
   for access decisions.
 
