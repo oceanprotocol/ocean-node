@@ -53,7 +53,7 @@ import {
 import { pipeline } from 'node:stream/promises'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { errorSummary, safeStringify } from '../../utils/logging/redact.js'
-import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import { ENVIRONMENT_VARIABLES, JobType } from '../../utils/constants.js'
 import { AssetUtils } from '../../utils/asset.js'
 import { FindDdoHandler } from '../core/handler/ddoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
@@ -1126,6 +1126,10 @@ export class C2DEngineDocker extends C2DEngine {
           const payers = jobs.map((j) => j.owner)
           const amounts = claims.map((c) => c.cost)
           const proofs = claims.map((c) => c.proof)
+          // Per-job subsidy overrides. An explicit user list ([] or non-empty) was frozen onto the
+          // job at request time and is passed through unchanged; `undefined`/null here means the
+          // user opted out, so the escrow falls back to the node config read live at claim time.
+          const subsidyOverrides = jobs.map((j) => j.payment!.subsidyProviders ?? null)
 
           const txId = await this.escrow.claimLocks(
             chainId,
@@ -1133,7 +1137,9 @@ export class C2DEngineDocker extends C2DEngine {
             tokens,
             payers,
             amounts,
-            proofs
+            proofs,
+            JobType.COMPUTE,
+            subsidyOverrides
           )
           if (txId) {
             // Update all jobs with the transaction ID
@@ -1163,7 +1169,9 @@ export class C2DEngineDocker extends C2DEngine {
                 claim.job.payment!.token,
                 claim.job.owner,
                 claim.cost,
-                claim.proof
+                claim.proof,
+                JobType.COMPUTE,
+                claim.job.payment!.subsidyProviders ?? null
               )
               if (txId) {
                 if (claim.job.payment) {
@@ -4524,7 +4532,11 @@ export class C2DEngineDocker extends C2DEngine {
         token,
         job.owner,
         job.payment.cost,
-        this.escrow.getMinLockTime(job.duration)
+        this.escrow.getMinLockTime(job.duration),
+        JobType.SERVICE,
+        // Same subsidy-provider list the matching claimLock uses (see below) — lock & claim
+        // must agree, so the sponsored lock can be settled from the same providers.
+        job.payment.subsidyProviders ?? null
       )
       if (!lockTx) throw new Error('Escrow lock failed')
       await this.escrow.waitForTransaction(chainId, lockTx)
@@ -4624,7 +4636,9 @@ export class C2DEngineDocker extends C2DEngine {
         token,
         job.owner,
         job.payment.cost,
-        `service-start:${serviceId}`
+        `service-start:${serviceId}`,
+        JobType.SERVICE,
+        job.payment.subsidyProviders ?? null
       )
       if (!claimTx) {
         job.payment.cancelTx = await this.safeCancelLock(

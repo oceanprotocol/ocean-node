@@ -412,15 +412,14 @@ describe('**********         Trusted algorithms Flow', () => {
       .connect(consumerAccount)
       .deposit(initializeResponse.payment.token, balance)
     await depositTx.wait()
-    const authorizeTx = await escrowContract
-      .connect(consumerAccount)
-      .authorize(
-        initializeResponse.payment.token,
-        firstEnv.consumerAddress,
-        balance,
-        initializeResponse.payment.minLockSeconds,
-        10
-      )
+    const authorizeTx = await escrowContract.connect(consumerAccount).authorize(
+      initializeResponse.payment.token,
+      firstEnv.consumerAddress,
+      balance,
+      initializeResponse.payment.minLockSeconds,
+      10,
+      0 // expiryTimestamp: 0 = indefinite (Escrow v2)
+    )
     await authorizeTx.wait()
     const locks = await oceanNode.escrow.getLocks(
       DEVELOPMENT_CHAIN_ID,

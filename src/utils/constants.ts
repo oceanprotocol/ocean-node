@@ -142,6 +142,18 @@ export const MetadataStates = {
   UNLISTED: 5
 }
 
+// jobType passed to the Escrow claim functions so a Subsidy Provider can gate on the kind of
+// job being settled. The numeric values are part of the on-chain claim ABI — the escrow and any
+// Subsidy Provider contract read them directly, so they MUST NOT be renumbered. Future features
+// add their own id.
+/* eslint-disable no-unused-vars */
+export enum JobType {
+  NONE = 0,
+  COMPUTE = 1, // C2D compute jobs
+  SERVICE = 2 // service-on-demand
+}
+/* eslint-enable no-unused-vars */
+
 export const EVENTS = {
   METADATA_CREATED: 'MetadataCreated',
   METADATA_UPDATED: 'MetadataUpdated',
@@ -166,7 +178,11 @@ export const EVENTS = {
   ESCROW_CLAIMED: 'Claimed',
   ESCROW_CANCELED: 'Canceled',
   ESCROW_DEPOSIT: 'Deposit',
-  ESCROW_WITHDRAW: 'Withdraw'
+  ESCROW_WITHDRAW: 'Withdraw',
+  ESCROW_SUBSIDIZED: 'Subsidized',
+  // Escrow v2 lock-time ("prepaid") sponsorship events.
+  ESCROW_LOCK_SPONSORED: 'LockSponsored',
+  ESCROW_SPONSOR_REFUNDED: 'SponsorRefunded'
 }
 
 export const ESCROW_EVENTS = [
@@ -176,7 +192,10 @@ export const ESCROW_EVENTS = [
   EVENTS.ESCROW_CLAIMED,
   EVENTS.ESCROW_CANCELED,
   EVENTS.ESCROW_DEPOSIT,
-  EVENTS.ESCROW_WITHDRAW
+  EVENTS.ESCROW_WITHDRAW,
+  EVENTS.ESCROW_SUBSIDIZED,
+  EVENTS.ESCROW_LOCK_SPONSORED,
+  EVENTS.ESCROW_SPONSOR_REFUNDED
 ]
 
 export const INDEXER_CRAWLING_EVENTS = {
@@ -259,9 +278,9 @@ export const EVENT_HASHES: Hashes = {
     type: EVENTS.NEW_ACCESS_LIST,
     text: 'NewAccessList(address,address)'
   },
-  '0x5a3021f46552b1ac3c96e967ff1ecfeb100603ccc2940941cad97db3ee2baec7': {
+  '0x47f2ef7a6a140df663e93e9dd0adaec413cb4dbe13624c53a5247c47eda35a45': {
     type: EVENTS.ESCROW_AUTH,
-    text: 'Auth(address,address,address,uint256,uint256,uint256)'
+    text: 'Auth(address,address,address,uint256,uint256,uint256,uint256)'
   },
   '0xb746b0421b0b98debe76bb312ec9fb701603af22ddb107f7e639b0187e4ff880': {
     type: EVENTS.ESCROW_LOCK,
@@ -286,6 +305,18 @@ export const EVENT_HASHES: Hashes = {
   '0x9b1bfa7fa9ee420a16e124f794c35ac9f90472acc99140eb2f6447c714cad8eb': {
     type: EVENTS.ESCROW_WITHDRAW,
     text: 'Withdraw(address,address,uint256)'
+  },
+  '0x04e202f6138ce0268067aab74c4038deaca9e8f15460867eff076939f0b06336': {
+    type: EVENTS.ESCROW_SUBSIDIZED,
+    text: 'Subsidized(address,address,uint256,address,address,uint256,uint256)'
+  },
+  '0xe7e10d1edd43df8fcf505863fbef6140798ab67b9d2a9bf0a84a1aa11c0d3825': {
+    type: EVENTS.ESCROW_LOCK_SPONSORED,
+    text: 'LockSponsored(address,address,uint256,address,address,uint256)'
+  },
+  '0x481f34587ff8179417e483b191c864eb16743e5d059e88b3f4e67f65ca23ab74': {
+    type: EVENTS.ESCROW_SPONSOR_REFUNDED,
+    text: 'SponsorRefunded(address,address,uint256,address,address,uint256,bool)'
   }
 }
 
@@ -422,6 +453,19 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   ALLOWED_ADMINS_LIST: {
     name: 'ALLOWED_ADMINS_LIST',
     value: process.env.ALLOWED_ADMINS_LIST,
+    required: false
+  },
+  SUBSIDY_PROVIDERS: {
+    // per-chain map of Subsidy Provider contract addresses passed to the escrow at claim time
+    name: 'SUBSIDY_PROVIDERS',
+    value: process.env.SUBSIDY_PROVIDERS,
+    required: false
+  },
+  SUBSIDY_PROVIDER_FILTER: {
+    // when ON, a user-supplied subsidy-provider list may only contain addresses already present
+    // in this node's SUBSIDY_PROVIDERS whitelist for the request chain; anything else is rejected
+    name: 'SUBSIDY_PROVIDER_FILTER',
+    value: process.env.SUBSIDY_PROVIDER_FILTER,
     required: false
   },
   ASSET_PURGATORY_URL: {
@@ -724,6 +768,11 @@ export const CONNECTION_HISTORY_DELETE_THRESHOLD = 300
 export const CONNECTIONS_RATE_INTERVAL = 60 * 1000
 // Typesense's maximum limit to send 250 hits at a time
 export const TYPESENSE_HITS_CAP = 250
+
+// Upper bound on how many escrow rows the handler will scan from the store when a client-side
+// (BigInt) range filter is active. Keeps deep pagination bounded; beyond this the result is
+// whatever matched within the scanned window.
+export const MAX_ESCROW_CLIENT_SCAN = 2000
 export const DDO_IDENTIFIER_PREFIX = 'did:op:'
 // global ocean node API services path
 export const SERVICES_API_BASE_PATH = '/api/services'

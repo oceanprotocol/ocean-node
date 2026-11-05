@@ -85,15 +85,22 @@ describe('**********         Config Database', () => {
     expect(database.sqliteConfig).to.be.instanceOf(SQLLiteConfigDatabase)
   })
 
+  // Use a dedicated config key (not 'version'): the live OceanIndexer started by this suite
+  // writes the running node version to the 'version' key in the shared config.sqlite during its
+  // background reindex (see checkAndTriggerReindexing), which would race these CRUD assertions.
+  const TEST_CONFIG_KEY = 'test-config-version'
+
   it('should set and retrieve version', async () => {
     // Set a specific test version
     const testVersion = '0.9.9'
     await oceanIndexer
       .getDatabase()
-      .sqliteConfig.createOrUpdateConfig('version', testVersion)
+      .sqliteConfig.createOrUpdateConfig(TEST_CONFIG_KEY, testVersion)
 
     // Verify we can retrieve it
-    const version = await oceanIndexer.getDatabase().sqliteConfig.retrieveValue()
+    const version = await oceanIndexer
+      .getDatabase()
+      .sqliteConfig.retrieveValue(TEST_CONFIG_KEY)
     assert(version.value === testVersion, `Version should be ${testVersion}`)
   })
 
@@ -104,15 +111,17 @@ describe('**********         Config Database', () => {
     // Set initial version
     await oceanIndexer
       .getDatabase()
-      .sqliteConfig.createOrUpdateConfig('version', initialVersion)
-    let version = await oceanIndexer.getDatabase().sqliteConfig.retrieveValue()
+      .sqliteConfig.createOrUpdateConfig(TEST_CONFIG_KEY, initialVersion)
+    let version = await oceanIndexer
+      .getDatabase()
+      .sqliteConfig.retrieveValue(TEST_CONFIG_KEY)
     assert(version.value === initialVersion, `Version should be ${initialVersion}`)
 
     // Update to new version
     await oceanIndexer
       .getDatabase()
-      .sqliteConfig.createOrUpdateConfig('version', updatedVersion)
-    version = await oceanIndexer.getDatabase().sqliteConfig.retrieveValue()
+      .sqliteConfig.createOrUpdateConfig(TEST_CONFIG_KEY, updatedVersion)
+    version = await oceanIndexer.getDatabase().sqliteConfig.retrieveValue(TEST_CONFIG_KEY)
     assert(version.value === updatedVersion, `Version should be ${updatedVersion}`)
   })
 })
@@ -128,13 +137,20 @@ describe('VersionDatabase CRUD (without Elastic or Typesense config)', () => {
     expect(database.sqliteConfig).to.be.instanceOf(SQLLiteConfigDatabase)
   })
 
+  // Dedicated key (not 'version'): isolates these CRUD assertions from the node 'version' key
+  // that a background indexer reindex may write to the shared config.sqlite.
+  const TEST_CONFIG_KEY = 'test-crud-version'
+
   it('create version', async () => {
-    const result = await database.sqliteConfig.createOrUpdateConfig('version', '0.1.0')
+    const result = await database.sqliteConfig.createOrUpdateConfig(
+      TEST_CONFIG_KEY,
+      '0.1.0'
+    )
     expect(result?.value).to.equal('0.1.0')
   })
 
   it('retrieve latest version', async () => {
-    const result = await database.sqliteConfig.retrieveValue('version')
+    const result = await database.sqliteConfig.retrieveValue(TEST_CONFIG_KEY)
     expect(result?.value).to.equal('0.1.0')
   })
 })

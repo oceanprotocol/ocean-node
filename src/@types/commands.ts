@@ -119,6 +119,15 @@ export interface QueryCommand extends Command {
   pageNumber?: number
 }
 
+// A numeric range filter. Bounds are given as strings or numbers so uint256 values
+// (which overflow JS `number`) can be passed losslessly; they are compared with BigInt.
+export interface RangeFilter {
+  min?: string | number // inclusive lower bound (>=)
+  max?: string | number // inclusive upper bound (<=)
+  gt?: string | number // exclusive lower bound (>)
+  lt?: string | number // exclusive upper bound (<)
+}
+
 export interface GetEscrowEventsCommand extends Command {
   chainId?: number
   eventType?: string
@@ -127,6 +136,12 @@ export interface GetEscrowEventsCommand extends Command {
   token?: string
   jobId?: string
   txId?: string
+  // additional equality filters
+  provider?: string
+  contract?: string
+  reclaimable?: boolean
+  // range filters keyed by record field, e.g. { block: { min, max }, subsidyAmount: { min } }
+  ranges?: Record<string, RangeFilter>
   offset?: number
   size?: number
 }
@@ -278,6 +293,10 @@ export interface FreeComputeStartCommand extends Command {
   additionalViewers?: string[] // addresses of additional addresses that can get results
   queueMaxWaitTime?: number // max time in seconds a job can wait in the queue before being started
   encryptedDockerRegistryAuth?: string
+  // Optional user-supplied Subsidy Provider contract addresses for the request chain. undefined =
+  // use the node config; [] = no providers; non-empty = use ONLY these (ignoring node config).
+  // Ignored for free compute (no escrow claim). See resolveUserSubsidyProviders.
+  subsidyProviders?: string[]
 }
 export interface PaidComputeStartCommand extends FreeComputeStartCommand {
   payment: ComputePayment
@@ -454,6 +473,10 @@ export interface ServiceStartCommand extends Command {
   metadata?: DBComputeJobMetadata // optional user-defined labels for the service; node-opaque, ≤1 KB
   outputBucketId?: string // persistent-storage bucket bind-mounted at /data/outputs
   payment: { chainId: number; token: string }
+  // Optional user-supplied Subsidy Provider contract addresses for payment.chainId. undefined =
+  // use the node config; [] = no providers; non-empty = use ONLY these. See
+  // resolveUserSubsidyProviders.
+  subsidyProviders?: string[]
 }
 
 export interface ServiceStopCommand extends Command {
@@ -559,4 +582,8 @@ export interface ServiceExtendCommand extends Command {
   serviceId: string
   additionalDuration: number
   payment: { chainId: number; token: string }
+  // Optional user-supplied Subsidy Provider contract addresses for payment.chainId. undefined =
+  // use the node config; [] = no providers; non-empty = use ONLY these. See
+  // resolveUserSubsidyProviders.
+  subsidyProviders?: string[]
 }
