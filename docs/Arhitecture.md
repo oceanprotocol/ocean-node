@@ -188,7 +188,7 @@ events.
 - Monitors `MetadataCreated` / `MetadataUpdated` / `MetadataState` and stores/validates DDOs
   against multiple SHACL schemas; provides proof for valid DDOs.
 - Monitors datatoken contracts and stores orders (`OrderStarted` / `OrderReused`).
-- Monitors Escrow events (Auth, Lock, Relock, Claimed, Canceled, Deposit, Withdraw) and exchange /
+- Monitors Escrow events (Auth, Lock, ReLock, Claimed, Canceled, Deposit, Withdraw) and exchange /
   dispenser / access-list lifecycle events.
 - Supports queries for all of the above, version-based + admin-triggered reindexing, and a
   purgatory. Communicates via module-level `EventEmitter`s.

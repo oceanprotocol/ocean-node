@@ -160,6 +160,12 @@ prior `npm run build` is required.
   the repo ships a ready-to-run [`config.json`](config.json) (Typesense DB, chain
   `8996`/development, a single Docker C2D environment). Environment variables are merged on
   top of the file and take precedence.
+  - ⚠️ **Blank env vars override the file.** Only *unset* variables fall through to
+    `config.json`; an **empty** value (e.g. `export HTTP_API_PORT=`) is treated as set and
+    overrides the file's value. `npm run setupEnv` creates `.env` by copying
+    [`.env.example`](.env.example), which has many blank `export VAR=` lines, so after
+    `source .env` those blanks shadow your `config.json`. Remove or comment out the lines you
+    are not actually setting, and keep only the vars you want to override.
 - **`INTERFACES`** (JSON array, e.g. `["HTTP","P2P"]`) toggles which front doors are enabled;
   omitted means both.
 - [`docs/env.md`](docs/env.md) is the authoritative reference. Key groups worth knowing:
@@ -176,15 +182,23 @@ prior `npm run build` is required.
 
 ## Databases
 
-The metadata backend is pluggable: **Typesense** (default) or **Elasticsearch**, chosen via
-`DB_TYPE`. Both ship with a compose file ([`typesense-compose.yml`](typesense-compose.yml),
+The metadata backend is pluggable: **Typesense** or **Elasticsearch**, chosen via `DB_TYPE`.
+Both ship with a compose file ([`typesense-compose.yml`](typesense-compose.yml),
 [`elasticsearch-compose.yml`](elasticsearch-compose.yml)) and hold DDOs, indexer state, logs,
 orders, access lists and escrow events.
 
+> **Default differs by config source.** The shipped [`config.json`](config.json) defaults to
+> **Typesense**, but when you supply the DB through **environment variables** (`DB_URL`, e.g.
+> via `npm run setupEnv`) the builder sets `dbConfig.dbType` to `DB_TYPE || 'elasticsearch'`.
+> So if you enable the DB via env vars and want Typesense, you must set `DB_TYPE=typesense`
+> explicitly — otherwise the node tries to talk to your Typesense endpoint as Elasticsearch.
+
 **SQLite is always on**, independent of the metadata DB: it backs the nonce, config, C2D-job
-and auth-token stores via Node's built-in `node:sqlite` module (no native addon). An
-unsupported `DB_TYPE` value or a missing/invalid `DB_URL` simply disables the indexer while
-the SQLite stores keep working; a config value of the wrong type instead fails
+and auth-token stores via Node's built-in `node:sqlite` module (no native addon). A valid
+`dbConfig` in `config.json` is **retained** when `DB_URL` is unset or empty (env `DB_TYPE`
+alone does not build or override it), so the indexer keeps running against the file's DB; it
+is disabled only when **neither** the file nor the environment provides a valid DB config
+(the SQLite stores keep working regardless). A config value of the wrong type instead fails
 `OceanNodeConfigSchema` (zod) validation and stops startup before any DB is initialized. See
 [Database guide](docs/database.md).
 
