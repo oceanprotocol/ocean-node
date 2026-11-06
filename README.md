@@ -196,9 +196,13 @@ orders, access lists and escrow events.
 **SQLite is always on**, independent of the metadata DB: it backs the nonce, config, C2D-job
 and auth-token stores via Node's built-in `node:sqlite` module (no native addon). A valid
 `dbConfig` in `config.json` is **retained** when `DB_URL` is unset or empty (env `DB_TYPE`
-alone does not build or override it), so the indexer keeps running against the file's DB; it
-is disabled only when **neither** the file nor the environment provides a valid DB config
-(the SQLite stores keep working regardless). A config value of the wrong type instead fails
+alone does not build or override it), so the file's DB config still drives the indexer; it is
+disabled outright only when **neither** the file nor the environment provides a valid DB
+config (the SQLite stores keep working regardless). A valid `dbConfig` is **necessary but not
+sufficient**, though: if the metadata DB is unreachable when the node starts (connection
+fails after the init retries), the node logs *DEGRADED mode*, disables the indexer, and keeps
+only the SQLite-backed C2D / nonce / auth stores — so also make sure the configured
+Typesense/Elasticsearch endpoint is actually up and reachable. A config value of the wrong type instead fails
 `OceanNodeConfigSchema` (zod) validation and stops startup before any DB is initialized. See
 [Database guide](docs/database.md).
 
