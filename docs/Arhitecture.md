@@ -1,121 +1,313 @@
-# ![](https://img.shields.io/badge/status-wip-orange.svg?style=flat-square) Ocean Node Architecture Overview
+# ![](https://img.shields.io/badge/status-living%20doc-blue.svg?style=flat-square) Ocean Node Architecture Overview
 
-
-**Authors(s)**:
+**Author(s)**:
 - [Alex Coseru](https://github.com/alexcos20)
 
-
 **Maintainer(s)**:
-- N/A
+- Ocean Protocol core team
 
 * * *
 
 **Abstract**
 
-This spec document defines the Ocean Node arhitecture, interfaces, layers, components,modules and how it all fits together.
+This document describes the Ocean Node architecture: its layers, components, modules,
+and how a request flows through the system. Ocean Node is the all-in-one backend for the
+Ocean Protocol stack — a single process that replaces three legacy components:
+**Provider** (data access / encryption / compute), **Aquarius** (metadata cache), and the
+**subgraph** (on-chain event indexing).
 
-Note, this document is not meant to be an introduction of the concepts in OceanProtocol and is not recommended as a first pass to understanding how Ocean works. For that, please refer to the [Docs](https://docs.oceanprotocol.com/).
-Below text requires advanced Ocean terminology and features.
+This is not an introduction to Ocean Protocol concepts. For that, start with the
+[Ocean docs](https://docs.oceanprotocol.com/). The text below assumes familiarity with
+Ocean terminology (DDOs, data NFTs, datatokens, C2D, fees).
+
+> **Note on the filename.** The file is intentionally named `Arhitecture.md` for backward
+> compatibility with existing links; the content uses the correct spelling throughout.
 
 # Table of Contents
-- 1. Arhitecture Overview
-- 2. Features
-- 3. Nodes and Network Model
-- 4. Components
-- 5. Modules
-- 6. P2P Messages & HTTP Endpoints
+- [1. Architecture Overview](#1-architecture-overview)
+- [2. Request & Command Flow](#2-request--command-flow)
+- [3. Components](#3-components)
+- [4. Nodes & Network Model](#4-nodes--network-model)
+- [5. Compute-to-Data (C2D)](#5-compute-to-data-c2d)
+- [6. Related Documentation](#6-related-documentation)
 
+---
 
-# 1. Arhitecture Overview
+# 1. Architecture Overview
 
-Node stack is divided in the following layers:
- - network layer  (libp2p & http api)
- - components layer (indexer, provider)
- - modules layer
+The node stack is divided into three layers:
 
-Here is a quick overview: 
-![No image](imgs/OceanNode-arhitecture.drawio.png "Arhitecture")
+- **Network layer** — the two front doors: an Express **HTTP API** and a **libp2p** P2P
+  interface. Both normalize an incoming request into a single `Command` object.
+- **Components layer** — the long-lived services wired together by the `OceanNode`
+  singleton: Indexer, Provider, C2D engines, Database, P2P, Auth, KeyManager,
+  BlockchainRegistry, Escrow, PersistentStorage, PolicyServer.
+- **Handlers (modules) layer** — the concrete command handlers under
+  `src/components/core/` that execute the actual work.
 
+The key architectural idea: **every capability is a command handler**, reachable
+identically over HTTP `/directCommand`, over P2P, and (for most) via a dedicated REST route.
 
-# 2. Features
-- [libp2p supports ECDSA key pairs](https://github.com/libp2p/specs/blob/master/peer-ids/peer-ids.md#ecdsa), and node identity should be defined as public key
-- multiple ways of storing URLS:
-    - choose one node, use that private key to encrypt URL (enterprise approach)
-    - choose several nodes, so your file(s) can be accessed even if one node goes down (given at least one node is still alive)
-    - use MPC to have the key divided by multiple nodes (so no one has the entire key)
-- protecting URL during download:  use a TEE enclave to decrypt the key (make sense only for MPC approach) and read content in the enclave
-- should support multiple C2D Types:
-    - light docker only  (for edge nodes)
-    - Ocean C2D (k8)
-- each component can be enabled/disabled on startup (Ie: start node without Indexer)
+```mermaid
+flowchart TB
+    subgraph NET["Network layer — front doors"]
+        HTTP["HTTP API (Express)<br/>POST /directCommand + REST routes"]
+        P2P["libp2p<br/>Ocean protocol stream"]
+    end
 
-# 3. Nodes and Network Model
-Nodes can receive user requests in two ways:
-- HTTP API
-- libp2p from another node
-They are merged into a common object and passed to the right component.
+    subgraph DISPATCH["Dispatch"]
+        ON["OceanNode singleton<br/>handleDirectProtocolCommand()"]
+        REG["CoreHandlersRegistry<br/>command → handler"]
+    end
 
-Nodes should be able to forward requests between them if local database is missing objects.
-(Example:   ALice wants to get DDO id #123 from Node A.  Node A checks local database. If the DDO is found, then it's send back to Alice.  If not, NodeA can query the network and grab the DDO from another node, who has it)
+    subgraph COMP["Components layer"]
+        IDX["Indexer"]
+        PROV["Provider"]
+        C2D["C2D engines"]
+        DB["Database"]
+        AUTH["Auth"]
+        KM["KeyManager"]
+        BR["BlockchainRegistry"]
+        ESC["Escrow"]
+        PS["PersistentStorage"]
+        POL["PolicyServer"]
+    end
 
-Nodes lip2p implementation:
- - should support core protocols (ping,identify,kad-dht (for peering), circuit relay for connections)
- - for Peer disover, we should support both mDNS & Kademlia DHT
- - all Ocean Nodes should subscribe to topic:  OceanProtocol. If any intresting messages are received, each Node is going to reply
+    HTTP --> ON
+    P2P --> ON
+    ON --> REG
+    REG --> IDX & PROV & C2D & AUTH & ESC & PS & POL
+    PROV --> DB
+    IDX --> DB
+    C2D --> ESC
+    ON --> KM
+    ON --> BR
+    classDef layer fill:#e8f0fe,stroke:#4066b0,color:#13284b;
+    class NET,DISPATCH,COMP layer;
+```
 
+**Design features**
 
-# 4. Components & Modules
+- Node identity is derived from a single `PRIVATE_KEY`: it seeds the libp2p peerId, the EVM
+  signer, and the encryption keys ([libp2p supports ECDSA key pairs](https://github.com/libp2p/specs/blob/master/peer-ids/peer-ids.md#ecdsa)).
+- Each component can be enabled/disabled at startup (e.g. run with `INTERFACES=["HTTP"]`
+  only, or without the Indexer when no metadata DB is configured).
+- C2D: only the Docker engine (`C2DEngineDocker`) is implemented. OPF_K8 clusters configured
+  via `OPERATOR_SERVICE_URL` are accepted into the config (added to `c2dClusters`), but no
+  engine is instantiated for them.
+- URL/metadata protection: the node encrypts URLs on publish and only ever streams data,
+  never the URL.
 
-## 4.1 Indexer
-An off-chain, multi-chain metadata & chain events cache. It continually monitors the chains for well known events and caches them.  (V4 equivalence: Aquarius)
+---
 
-**Architecture:**
-  - **Single-threaded, non-blocking design**: Uses Node.js async/await for concurrent execution across multiple chains
-  - **ChainIndexer instances**: Each blockchain network is monitored by a dedicated ChainIndexer instance running concurrently via the event loop
-  - **Event-driven communication**: Components communicate through EventEmitter for clean separation of concerns
-  - **Efficient I/O handling**: All RPC calls, database operations, and network requests are non-blocking, allowing high concurrency without worker threads
+# 2. Request & Command Flow
 
-**Features:**
-  - monitors MetadataCreated & MetadataUpdated and stores DDO
-  - validates DDO, according to multiple SHACL schemas
-  - provides proof for valid DDOs
-  - monitors datatokens contracts & stores orders
-  - monitors the Escrow contract events (Auth, Lock, Claimed, Canceled, Deposit, Withdraw) and stores them for querying
-  - allows querys for all the above
-  - supports graceful shutdown and chain-specific reindexing
+There are two front doors but a single dispatcher. `OceanNode.handleDirectProtocolCommand()`
+is the one choke point: it JSON-parses the command, looks up the handler by `task.command`
+in the `CoreHandlersRegistry`, and calls `handler.handle(task)`. Handlers first run
+`verifyParamsAndRateLimits()` (shared rate limiting against `OceanNode.requestMap`), then
+execute and stream the response back.
 
-## 4.2 Provider
-- Performs checks on chain for buyer permissions and payments
-- Encrypts the URL and metadata during publish
-- Decrypts the URL when the dataset is downloaded or a compute job is started
-- Encrypts/decrypts files before storage/while accessing
-- Provides access to data assets by streaming data (and never the URL)
-- Provides compute services (connects to multiple C2D engines (light, Ocean C2D, 3rd parties))
+```mermaid
+sequenceDiagram
+    actor Client
+    participant HTTP as HTTP API
+    participant P2P as libp2p
+    participant ON as OceanNode
+    participant REG as CoreHandlersRegistry
+    participant H as Command handler
+    participant DB as Database / chain
 
+    alt Local command (HTTP)
+        Client->>HTTP: POST /directCommand { command, ... }
+        HTTP->>ON: handleDirectProtocolCommand(msg)
+    else Remote target peer
+        Client->>HTTP: POST /directCommand { node: <peerId> }
+        HTTP->>P2P: sendTo(peer, msg, multiAddrs)
+        P2P->>ON: dispatch on remote node
+    else P2P inbound
+        Client->>P2P: Ocean protocol stream (length-prefixed frame)
+        P2P->>ON: handleDirectProtocolCommand(msg)
+    end
 
-# 5. Modules
+    ON->>REG: getHandler(task.command)
+    REG-->>ON: handler instance
+    ON->>H: handle(task)
+    H->>H: verifyParamsAndRateLimits(task): rate-limit + param checks
+    H->>DB: read/write (DDO, orders, chain calls)
+    DB-->>H: result
+    H-->>Client: streamed response (binary or text)
+```
 
-## 5.1 MPC
-Instead of encrypting with private key, we can leverage MPC to construct the key
+**Forwarding.** If a node receives a request for an object it does not have locally and P2P
+is enabled, it can forward the request to the network and relay the answer back. (Example:
+Alice asks Node A for DDO `#123`; Node A checks its local DB, and if missing, queries the
+network and returns the DDO from a peer that has it.)
 
-Used in encrypting & decrypting URL and file contents
+**To add a new command:** add the name to `PROTOCOL_COMMANDS` + `SUPPORTED_PROTOCOL_COMMANDS`
+(`src/utils/constants.ts`), create a handler under `src/components/core/`, register it in the
+`CoreHandlersRegistry` constructor, add param validation, and optionally add a REST route in
+`src/components/httpRoutes/`.
 
-## 5.2 TEE
-Once a URL is decrypted (based on an consume requests), Node operator can log that URL and thus asset is compromised.
+---
 
-We can move the entire encryption/decryption/MPC process to TEE, thus giving us full security regarding plain data.
+# 3. Components
 
-A Node that supports TEE should expose it's proof in the status endpoint. 
+```mermaid
+flowchart LR
+    ON["OceanNode<br/>(singleton)"]
 
-With MPC encryption (both assets & files), other nodes should refuse to assemble the private key back if the node does not expose & passes the proof check
+    ON --> IDX["Indexer<br/>multi-chain event cache"]
+    ON --> PROV["Provider<br/>data access / encrypt"]
+    ON --> C2D["C2D engines<br/>Docker engine (OPF_K8 not implemented)"]
+    ON --> ESC["Escrow<br/>payment settlement"]
+    ON --> AUTH["Auth<br/>JWT tokens"]
+    ON --> KM["KeyManager<br/>node key provider"]
+    ON --> BR["BlockchainRegistry<br/>per-chain signers"]
+    ON --> PS["PersistentStorage<br/>local filesystem (localfs)"]
+    ON --> POL["PolicyServer<br/>external access policy"]
+    ON --> P2P["OceanP2P<br/>libp2p node"]
 
-## 5.3 Database Storage Wrapper
-TBD
+    subgraph DBLAYER["Database"]
+        META["Metadata DB<br/>Typesense OR Elasticsearch"]
+        SQL["SQLite (node:sqlite)<br/>nonce · config · C2D jobs · auth tokens"]
+    end
+    ON --> DBLAYER
+    IDX --> META
+    PROV --> META
+    C2D --> SQL
+    AUTH --> SQL
+```
 
-## 5.4 Light Docker C2D
-Ocean C2D is flexible, scalable, etc, but if has one major drawback: it requires K8.
+### 3.1 Indexer
+An off-chain, multi-chain metadata & chain-events cache (the V4 Aquarius + subgraph
+equivalent). Single-threaded, non-blocking: one `ChainIndexer` per configured chain runs
+concurrently on the event loop (**no worker threads**); event **processors** handle specific
+events.
 
-For edge nodes (ie: installed in a car, or a weather station running on RaspPI), we can have a light engine, that is only using the docker system install on the host.  All orchestration (creating & provisioning input volumes, publishing results) can be handled by this module, while only the actual algorithm job is levereged to docker, with local provisioned folders mounted.
+- Monitors `MetadataCreated` / `MetadataUpdated` / `MetadataState` and stores/validates DDOs
+  against multiple SHACL schemas; provides proof for valid DDOs.
+- Monitors datatoken contracts and stores orders (`OrderStarted` / `OrderReused`).
+- Monitors Escrow events (Auth, Lock, ReLock, Claimed, Canceled, Deposit, Withdraw) and exchange /
+  dispenser / access-list lifecycle events.
+- Supports queries for all of the above, version-based + admin-triggered reindexing, and a
+  purgatory. Communicates via module-level `EventEmitter`s.
 
-# 6. P2P Messages & HTTP Endpoints
+### 3.2 Provider
+Deliberately thin — the real behavior lives in the core handlers and REST routes. It:
+- checks on-chain buyer permissions and payments;
+- encrypts URLs/metadata on publish and decrypts on download or compute start;
+- streams data to consumers and **never** exposes the URL;
+- connects to the C2D engines for compute services.
 
+### 3.3 Database
+The metadata DB backend is pluggable — **Typesense or Elasticsearch** (chosen by `DB_TYPE`)
+for DDOs, indexer state, logs, orders, ddoState, access lists, and escrow events.
+**SQLite** is always used (via Node's built-in `node:sqlite`, no native addon) for the nonce,
+config, C2D-job, and auth-token DBs — so the node works even with no metadata DB configured.
+
+### 3.4 Supporting components
+- **Auth** — JWT-based auth-token issuance/validation (`JWT_SECRET`) as an alternative to
+  per-request signatures.
+- **KeyManager** — provider abstraction over the node key (today `RawPrivateKeyProvider` from
+  `PRIVATE_KEY`; designed to add KMS providers later).
+- **BlockchainRegistry** — per-chain `Blockchain` instances giving handlers RPC
+  providers/signers keyed by `chainId`.
+- **Escrow** — on-chain settlement for paid compute and orders.
+- **PersistentStorage** — local filesystem (`localfs`) buckets for C2D outputs and user
+  buckets, configured via `PERSISTENT_STORAGE` (the S3 backend is a stub).
+- **PolicyServer** — passthrough integration to an external policy server (`POLICY_SERVER_URL`)
+  for access decisions.
+
+---
+
+# 4. Nodes & Network Model
+
+Nodes receive requests over HTTP or over libp2p from another node; both are merged into a
+common `Command` object and routed to the right handler. Nodes forward requests to peers when
+their local database is missing objects.
+
+The libp2p implementation supports core protocols (ping, identify, kad-DHT for peering,
+circuit-relay v2 for connectivity), peer discovery via both **mDNS** and **Kademlia DHT**,
+plus AutoNAT, UPnP, dcutr, and auto-TLS. All Ocean Nodes subscribe to the `OceanProtocol`
+topic and reply to messages of interest. A LevelDB datastore persists P2P state at
+`./databases/p2p-store`.
+
+```mermaid
+flowchart LR
+    subgraph OceanNetwork["OceanProtocol topic (libp2p)"]
+        A["Node A"]
+        B["Node B"]
+        C["Node C"]
+    end
+    Alice(["Client / Alice"]) -->|"POST /directCommand (DDO #123)"| A
+    A -->|"local DB miss → query network"| B
+    B -->|"has DDO #123"| A
+    A -->|"streamed DDO"| Alice
+    A <-->|"kad-DHT · mDNS · circuit-relay"| C
+    B <--> C
+```
+
+---
+
+# 5. Compute-to-Data (C2D)
+
+C2D runs algorithms next to the data without exposing the raw files. `C2DEngines` builds
+engines from `config.c2dClusters`; the implemented engine is `C2DEngineDocker`, which
+orchestrates jobs over the host Docker socket. Resource matching
+(`serviceResourceMatching.ts`) maps requested cpu/ram/disk/gpu against environment pools
+(dual gate: per-env ceiling + engine-wide pool; GPUs tracked globally). Paid compute settles
+through the **Escrow** component; free compute (`freeStartCompute`) skips settlement.
+
+```mermaid
+sequenceDiagram
+    actor Consumer
+    participant Node as Ocean Node (C2D)
+    participant Esc as Escrow
+    participant Docker as Docker engine
+
+    Consumer->>Node: initializeCompute (env, assets, resources)
+    Node-->>Consumer: price + requirements
+    alt Paid
+        Consumer->>Node: startCompute (+ payment)
+        Node->>Esc: lock funds
+    else Free
+        Consumer->>Node: freeStartCompute
+    end
+    Node->>Docker: provision volumes + run algorithm job
+    loop Until finished
+        Consumer->>Node: getComputeStatus
+        Node-->>Consumer: status
+        Consumer->>Node: getComputeStreamableLogs
+    end
+    Docker-->>Node: job finished → results
+    Node->>Esc: settle / claim (paid)
+    Consumer->>Node: getComputeResult
+    Node-->>Consumer: streamed result
+    opt
+        Consumer->>Node: stopCompute
+    end
+```
+
+See [compute.md](compute.md) for configuration (resources, GPUs, constraints, pricing) and
+[services.md](services.md) for the related Service-on-Demand lifecycle.
+
+---
+
+# 6. Related Documentation
+
+| Topic | Doc |
+|---|---|
+| HTTP API reference | [API.md](API.md) + the Postman collection |
+| Environment variables (authoritative) | [env.md](env.md) |
+| Compute-to-Data | [compute.md](compute.md) |
+| Service-on-Demand | [services.md](services.md) |
+| Databases | [database.md](database.md) |
+| Persistent storage | [persistentStorage.md](persistentStorage.md) · [Storage.md](Storage.md) |
+| Key management | [KeyManager.md](KeyManager.md) |
+| Policy server | [PolicyServer.md](PolicyServer.md) |
+| Networking / P2P | [networking.md](networking.md) |
+| Observability | [telemetry.md](telemetry.md) · [Logs.md](Logs.md) |
+| Publishing | [Publishing.md](Publishing.md) |
+| Deployment | [dockerDeployment.md](dockerDeployment.md) |
+| Testing | [testing.md](testing.md) |
