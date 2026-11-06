@@ -110,6 +110,14 @@ directCommandRoute.post(
 
         if (response.stream) {
           await streamToResponse(res, response.stream as Readable, isBinaryContent)
+        } else if (response.status.code) {
+          // The remote path (P2P sendTo) aborts and drops the response stream for a non-200,
+          // so a maintenance 503 arrives here as status-only (no stream). Serialize `code`
+          // into the JSON body — matching the local streamed body — so clients can still
+          // discriminate on it (e.g. MAINTENANCE_MODE) rather than only on the status.
+          res.write(
+            JSON.stringify({ error: response.status.error, code: response.status.code })
+          )
         } else if (response.status.error) {
           res.write(response.status.error)
         }
@@ -148,6 +156,14 @@ directCommandRoute.post(
 
         if (response.stream) {
           await streamToResponse(res, response.stream as Readable, isBinaryContent)
+        } else if (response.status.code) {
+          // The remote path (P2P sendTo) aborts and drops the response stream for a non-200,
+          // so a maintenance 503 arrives here as status-only (no stream). Serialize `code`
+          // into the JSON body — matching the local streamed body — so clients can still
+          // discriminate on it (e.g. MAINTENANCE_MODE) rather than only on the status.
+          res.write(
+            JSON.stringify({ error: response.status.error, code: response.status.code })
+          )
         } else if (response.status.error) {
           res.write(response.status.error)
         }

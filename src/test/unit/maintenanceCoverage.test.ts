@@ -282,6 +282,41 @@ describe('Maintenance mode - QA coverage gaps', () => {
     }
   })
 
+  describe('remote /directCommand (sendTo drops the stream on non-200)', () => {
+    // On the remote path, OceanP2P.sendTo aborts and drops the response stream for a non-200
+    // and returns status-only. The maintenance `code` survives on status.code (serialized in
+    // the P2P frame), and the route must write it into the JSON body so remote clients can
+    // still discriminate on it.
+    it('serializes status.code into the body when sendTo returns a stream-less 503', async () => {
+      const remoteResp = {
+        status: {
+          httpStatus: 503,
+          error: 'Node is in maintenance mode',
+          code: MAINTENANCE_MODE_CODE
+        }
+      }
+      const fakeOceanNode: any = {
+        hasP2PInterface: () => true,
+        getP2PNode: () => ({
+          isTargetPeerSelf: () => false,
+          sendTo: () => Promise.resolve(remoteResp)
+        })
+      }
+      const req: any = {
+        body: { command: PROTOCOL_COMMANDS.COMPUTE_START, node: 'RemotePeerId' },
+        oceanNode: fakeOceanNode,
+        headers: {},
+        caller: '127.0.0.1'
+      }
+      const res = fakeRes()
+      await routeHandler(directCommandRoute, 'post', '/directCommand')(req, res)
+      expect(res.statusCode).to.equal(503)
+      const parsed = JSON.parse(res.chunks.join(''))
+      expect(parsed.code).to.equal(MAINTENANCE_MODE_CODE)
+      expect(parsed.error).to.be.a('string')
+    })
+  })
+
   describe('real REST routes (handler NOT stubbed)', () => {
     const routes = [
       {
