@@ -181,6 +181,9 @@ export interface GetFeesCommand extends Command {
 }
 // admin commands
 export interface AdminStopNodeCommand extends SignedCommand {}
+export interface AdminSetMaintenanceCommand extends SignedCommand {
+  enabled: boolean
+}
 export interface AdminStopJobCommand extends SignedCommand {
   jobId: string // composite format: "<clusterHash>-<actualJobId>"
 }

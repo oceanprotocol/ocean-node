@@ -66,6 +66,18 @@ function logRouteError(route: string, error: unknown, status?: P2PStatusResponse
   HTTP_LOGGER.error(`${route} failed: ${errorSummary(error)}`)
 }
 
+// Send a handler's non-200 status to the HTTP client. When the handler set a machine-readable
+// `code` (e.g. MAINTENANCE_MODE), emit `{ error, code }` so clients can discriminate on it;
+// otherwise keep the legacy shape (the bare error string) for backwards compatibility.
+function sendCommandError(res: express.Response, status?: P2PStatusResponse): void {
+  const httpStatus = status?.httpStatus || 500
+  if (status?.code) {
+    res.status(httpStatus).json({ error: status.error, code: status.code })
+  } else {
+    res.status(httpStatus).json(status?.error)
+  }
+}
+
 computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeEnvironments`, async (req, res) => {
   try {
     HTTP_LOGGER.debug(
@@ -138,7 +150,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       res.status(200).json(jobs)
     } else {
       logRouteError('computeStart', null, response?.status)
-      res.status(response?.status.httpStatus).json(response?.status?.error)
+      sendCommandError(res, response?.status)
     }
   } catch (error) {
     logRouteError('computeStart', error)
@@ -187,7 +199,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/freeCompute`, async (req, res) => 
       res.status(200).json(jobs)
     } else {
       logRouteError('freeCompute', null, response?.status)
-      res.status(response?.status.httpStatus).json(response?.status?.error)
+      sendCommandError(res, response?.status)
     }
   } catch (error) {
     logRouteError('freeCompute', error)
@@ -361,12 +373,15 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/initializeCompute`, async (req, re
     }
     body.command = PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
     const result = await new ComputeInitializeHandler(req.oceanNode).handle(body)
-    if (result.stream) {
+    // Branch on the status, NOT on the presence of a stream: a maintenance-mode rejection
+    // carries BOTH a 503 status and a stream body, so a `if (result.stream)` here would answer
+    // 200 and clients would proceed to pay for an order the node will not run.
+    if (result.status.httpStatus === 200) {
       const queryResult = JSON.parse(await streamToString(result.stream as Readable))
       res.json(queryResult)
     } else {
       logRouteError('initializeCompute', null, result.status)
-      res.status(result.status.httpStatus).send(result.status.error)
+      sendCommandError(res, result.status)
     }
   } catch (error) {
     logRouteError('initializeCompute', error)
@@ -392,7 +407,7 @@ async function runServiceCommand(
       res.status(200).json(result)
     } else {
       logRouteError(task?.command, null, response?.status ?? { httpStatus: 500 })
-      res.status(response?.status?.httpStatus || 500).json(response?.status?.error)
+      sendCommandError(res, response?.status)
     }
   } catch (error) {
     logRouteError(task?.command, error)

@@ -194,6 +194,7 @@ function buildFakes(opts: FakeOpts = {}) {
   }
 
   const node: any = {
+    isInMaintenance: () => false,
     getRequestMap: () => new Map(),
     getConfig: (): any => ({
       rateLimit: undefined as number | undefined,
