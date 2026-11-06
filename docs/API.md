@@ -1459,15 +1459,18 @@ in the JSON response body:
 > `"Compute engines not configured"`). Clients MUST discriminate on the `code` field
 > (`"MAINTENANCE_MODE"`), not on the status code alone. The same `code` is also carried in the
 > P2P status frame for node-to-node requests, and the REST routes
-> (`/api/services/computeStart`, `/freeCompute`, `/initializeCompute`, `/serviceStart`,
+> (`/api/services/compute`, `/freeCompute`, `/initializeCompute`, `/serviceStart`,
 > `/serviceExtend`) return the same `{ "error": ..., "code": ... }` JSON body.
 
 > **Timing note (inherent to the design):** maintenance gates each request independently. A
 > client can call `initializeCompute` and pay/authorize an order a moment before an admin
 > enables maintenance, then have the follow-up `startCompute` rejected with `MAINTENANCE_MODE`.
 > The node creates no new order itself in that window, but a client that already has a valid,
-> unused order should retry `startCompute` on another provider (orders are reusable until their
-> timeout) rather than treating the rejection as fatal.
+> unused order should retry `startCompute` on another provider rather than treating the
+> rejection as fatal. Note that an order can only be reused on another provider whose compute
+> environment resolves to the **same on-chain `consumerAddress`** the order was created for; if
+> no such provider is available, the client should wait until maintenance ends or obtain a new
+> order for the alternative environment.
 
 ### `HTTP` POST /api/admin/maintenance
 

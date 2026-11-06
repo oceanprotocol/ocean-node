@@ -9,7 +9,18 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
+/**
+ * Admin command handler that toggles maintenance (drain) mode. Gated by the standard
+ * `AdminCommandHandler` auth (nonce + signature against `ALLOWED_ADMINS` / access lists).
+ */
 export class SetMaintenanceHandler extends AdminCommandHandler {
+  /**
+   * Validate the command: `enabled` must be an explicit boolean, then the standard admin
+   * signature/nonce/address checks run via `super.validate`.
+   *
+   * @param command - the setMaintenance command to validate.
+   * @returns the validation result.
+   */
   async validate(command: AdminSetMaintenanceCommand): Promise<ValidateParams> {
     // `enabled` must be an explicit boolean — a missing/stringy value must not silently
     // toggle the node in or out of drain mode.
@@ -19,6 +30,13 @@ export class SetMaintenanceHandler extends AdminCommandHandler {
     return await super.validate(command)
   }
 
+  /**
+   * Validate, then persist + apply the new maintenance state. Returns 500 if the flag could
+   * not be persisted (the cache is left unchanged), else 200 with `{ maintenance: <enabled> }`.
+   *
+   * @param task - the setMaintenance command.
+   * @returns the command response.
+   */
   async handle(task: AdminSetMaintenanceCommand): Promise<P2PCommandResponse> {
     const validation = await this.validate(task)
     if (!validation.valid) {
