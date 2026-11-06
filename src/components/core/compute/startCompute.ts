@@ -51,6 +51,7 @@ import { checkAddressOnAccessList } from '../../../utils/accessList.js'
 import { ensureConsumerAllowedForPersistentStorageLocalfsFileObject } from '../../persistentStorage/PersistentStorageFactory.js'
 import { resolveComputeFileObject } from '../../c2d/compute_engine_docker.js'
 import { cJobsStarted } from '../../../telemetry/metrics.js'
+import { maintenanceGuard } from '../utils/maintenance.js'
 
 // Small helper so the many error short-circuits stay byte-identical across both
 // handlers (same shape the originals returned: { stream: null, status: {...} }).
@@ -119,6 +120,13 @@ export class CommonComputeHandler extends CommandHandler {
     const validationResponse = await this.verifyParamsAndRateLimits(task)
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
+    }
+    // Maintenance (drain) gate — covers BOTH paid and free start via this shared choke point.
+    // Placed before any auth/order/payment/escrow work so a draining node creates no new
+    // commitment (no paid order for an unusable job).
+    const maintenanceResponse = maintenanceGuard(this.getOceanNode())
+    if (maintenanceResponse) {
+      return maintenanceResponse
     }
     if (!task.queueMaxWaitTime) {
       task.queueMaxWaitTime = 0

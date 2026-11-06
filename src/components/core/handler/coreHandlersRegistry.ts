@@ -34,6 +34,7 @@ import {
   ComputeGetStreamableLogsHandler
 } from '../compute/index.js'
 import { StopNodeHandler } from '../admin/stopNodeHandler.js'
+import { SetMaintenanceHandler } from '../admin/setMaintenanceHandler.js'
 import { StopJobHandler } from '../admin/stopJob.js'
 import { ReindexTxHandler } from '../admin/reindexTxHandler.js'
 import { ReindexChainHandler } from '../admin/reindexChainHandler.js'
@@ -200,6 +201,10 @@ export class CoreHandlersRegistry {
       new ServiceGetResultHandler(node)
     )
     this.registerCoreHandler(PROTOCOL_COMMANDS.STOP_NODE, new StopNodeHandler(node))
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.SET_MAINTENANCE,
+      new SetMaintenanceHandler(node)
+    )
     this.registerCoreHandler(PROTOCOL_COMMANDS.STOP_JOB, new StopJobHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.REINDEX_TX, new ReindexTxHandler(node))
     this.registerCoreHandler(

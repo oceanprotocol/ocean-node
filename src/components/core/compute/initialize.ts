@@ -45,6 +45,7 @@ import {
   validateOutput
 } from './utils.js'
 import { ensureConsumerAllowedForPersistentStorageLocalfsFileObject } from '../../persistentStorage/PersistentStorageFactory.js'
+import { maintenanceGuard } from '../utils/maintenance.js'
 
 export class ComputeInitializeHandler extends CommandHandler {
   validate(command: ComputeInitializeCommand): ValidateParams {
@@ -82,6 +83,12 @@ export class ComputeInitializeHandler extends CommandHandler {
     const validationResponse = await this.verifyParamsAndRateLimits(task)
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
+    }
+    // Maintenance (drain) gate — BEFORE any order/payment/escrow work, so a draining node
+    // never creates a paid order for a job it will not run.
+    const maintenanceResponse = maintenanceGuard(this.getOceanNode())
+    if (maintenanceResponse) {
+      return maintenanceResponse
     }
     if (!task.queueMaxWaitTime) {
       task.queueMaxWaitTime = 0

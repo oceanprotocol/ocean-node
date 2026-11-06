@@ -253,6 +253,9 @@ const oceanNode = OceanNode.getInstance(
   blockchainRegistry
 )
 await oceanNode.addC2DEngines()
+// Load the persisted maintenance (drain) flag into the in-memory cache (and apply the
+// MAINTENANCE_MODE env override if set). Guards internally for a missing config DB.
+await oceanNode.loadMaintenanceMode()
 // Attach the compute observable-gauge callbacks. No-ops cleanly when C2D is disabled
 // (getC2DEngines() is undefined) or when telemetry is unconfigured.
 registerComputeGauges(oceanNode.getC2DEngines())

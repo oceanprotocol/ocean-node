@@ -255,7 +255,7 @@ Handler source is grouped under `src/components/core/`:
   `getTemplates`, plus `templateLoader`).
 - `admin/` — privileged handlers gated by `ALLOWED_ADMINS`: `stopNode`, `stopJob`,
   `reindexTx`, `reindexChain`, `IndexingThreadHandler`, `collectFees`, `fetchConfig`,
-  `pushConfig`, `getLogs`.
+  `pushConfig`, `getLogs`, `setMaintenance` (toggle maintenance/drain mode; persisted + sticky).
 - `utils/` — shared logic: `escrow`, `feesHandler`, `findDdoHandler`, `nonceHandler`,
   `statusHandler`, `validateOrders`.
 
