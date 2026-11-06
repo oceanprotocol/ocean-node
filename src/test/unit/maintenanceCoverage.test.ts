@@ -241,6 +241,9 @@ describe('Maintenance mode - QA coverage gaps', () => {
 
   after(async () => {
     await oceanNode.setMaintenanceMode(false)
+    // Reset the singleton we created with newInstance=true so a later test file calling
+    // getInstance() without newInstance does not inherit this (admin-less) instance.
+    await oceanNode.tearDownAll()
     await tearDownEnvironment(envOverrides)
   })
 
@@ -425,6 +428,15 @@ describe('Maintenance mode - QA coverage gaps', () => {
       sinon.stub(db.sqliteConfig, 'retrieveValue').resolves({ value: null } as any)
       await oceanNode.loadMaintenanceMode()
       expect(oceanNode.isInMaintenance()).to.equal(false)
+    })
+
+    it('config read ERROR (retrieveValue returns null) -> fail-closed (stays in maintenance)', async () => {
+      await oceanNode.setMaintenanceMode(false)
+      // retrieveValue returns null (not { value: null }) on a DB error -- distinct from a
+      // confirmed-absent key. A failed read must NOT silently resume accepting work.
+      sinon.stub(db.sqliteConfig, 'retrieveValue').resolves(null as any)
+      await oceanNode.loadMaintenanceMode()
+      expect(oceanNode.isInMaintenance()).to.equal(true)
     })
 
     it('no sqliteConfig: toggle works in-memory only and does not throw', async () => {
@@ -619,6 +631,25 @@ describe('Maintenance mode - QA coverage gaps', () => {
       expect(s.maintenance.runningComputeJobs).to.equal(3)
       expect(s.maintenance.runningServices).to.equal(2)
       expect(s.maintenance.latestExpectedEndTime).to.equal(1730009999)
+    })
+
+    it('ETA uses algoStartTimestamp (runtime start) over dateCreated once the algo has started', async () => {
+      await oceanNode.setMaintenanceMode(true)
+      // Queued at dateCreated, began executing ~900s later: maxJobDuration is the runtime budget
+      // measured from algoStartTimestamp, so the end is 1730000900 + 100 = 1730001000, NOT
+      // dateCreated + maxJobDuration (1730000100).
+      sinon.stub(db.c2d, 'getRunningJobs').resolves([
+        {
+          dateCreated: '1730000000',
+          algoStartTimestamp: '1730000900',
+          maxJobDuration: 100
+        }
+      ] as any)
+      sinon
+        .stub(oceanNode, 'getC2DEngines')
+        .returns({ getAllEngines: () => Promise.resolve([]) } as any)
+      const s = await statusOf(true)
+      expect(s.maintenance.latestExpectedEndTime).to.equal(1730001000)
     })
 
     it('non-finished-jobs count (S3): real c2d DB rows with dateFinished NULL are counted, finished are not', async () => {

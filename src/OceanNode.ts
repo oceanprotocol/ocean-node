@@ -385,12 +385,25 @@ export class OceanNode {
     }
     try {
       const stored = await sqliteConfig.retrieveValue(MAINTENANCE_MODE_CONFIG_KEY)
-      // retrieveValue swallows DB errors and returns { value: null }. A genuinely absent key is
-      // normal (never toggled) and also yields null, so this is a warning, not an error: we fail
-      // open (maintenance off) but make it visible in the logs.
-      if (!stored || stored.value === null || stored.value === undefined) {
+      // Distinguish a FAILED query from a confirmed-absent key: SQLLiteConfigDatabase
+      // .retrieveValue returns null on a DB error, but { value: null } when the key simply
+      // isn't there (never toggled).
+      if (stored === null) {
+        // The read FAILED — we cannot confirm the node isn't supposed to be draining. Fail
+        // CLOSED (stay in maintenance) rather than silently resume accepting work, which is
+        // exactly the "restarts mid-drain and silently accepts work again" failure the
+        // persisted flag exists to prevent. An admin resumes with setMaintenance{enabled:false}
+        // once the config DB is healthy.
+        this.maintenanceMode = true
+        OCEAN_NODE_LOGGER.error(
+          'Could not read the maintenance mode flag from the config DB; staying in MAINTENANCE (fail-closed) until it can be confirmed'
+        )
+        return
+      }
+      if (stored.value === null || stored.value === undefined) {
+        // Confirmed absent (never toggled): normal, default OFF.
         OCEAN_NODE_LOGGER.warn(
-          'Maintenance mode flag not present or unreadable in the config DB; defaulting to OFF'
+          'Maintenance mode flag not present in the config DB; defaulting to OFF'
         )
         this.maintenanceMode = false
         return
@@ -402,8 +415,13 @@ export class OceanNode {
         )
       }
     } catch (error) {
+      // retrieveValue does not throw today, but if it ever does, fail CLOSED too rather than
+      // silently resume accepting work.
+      this.maintenanceMode = true
       OCEAN_NODE_LOGGER.error(
-        `Failed to load maintenance mode flag: ${errorSummary(error)}`
+        `Failed to load maintenance mode flag; staying in MAINTENANCE (fail-closed): ${errorSummary(
+          error
+        )}`
       )
     }
   }

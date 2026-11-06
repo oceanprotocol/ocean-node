@@ -203,9 +203,17 @@ export async function status(
         const jobs = await database.c2d.getRunningJobs()
         maintenance.runningComputeJobs = jobs.length
         for (const job of jobs) {
-          // dateCreated is decimal seconds stored as TEXT. Parse it as a float: Date.parse()
-          // returns NaN for "1730000000.123", which would silently drop every job from the ETA.
-          const start = parseFloat(job.dateCreated)
+          // maxJobDuration is the RUNTIME budget, measured from when the algorithm starts
+          // executing (algoStartTimestamp, decimal-seconds TEXT, "0"/absent until then), NOT
+          // from creation. A job that queued or provisioned first finishes LATER than
+          // dateCreated + maxJobDuration, so the ETA must use the runtime start once it is set,
+          // or it can fall before a still-running job's real completion. Fall back to
+          // dateCreated before execution begins. parseFloat, not Date.parse: the latter returns
+          // NaN for "1730000000.123" and would silently drop every job from the ETA.
+          const start = Math.max(
+            parseFloat(job.algoStartTimestamp) || 0,
+            parseFloat(job.dateCreated)
+          )
           const end = start + (job.maxJobDuration ?? 0)
           if (Number.isFinite(end) && end > latestExpectedEndTime) {
             latestExpectedEndTime = end

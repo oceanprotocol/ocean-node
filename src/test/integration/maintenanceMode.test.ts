@@ -80,6 +80,12 @@ describe('Maintenance mode drain scenario (integration)', () => {
 
   after(async () => {
     await oceanNode.setMaintenanceMode(false)
+    // Reset the OceanNode singleton we created with newInstance=true. Without this, a later
+    // integration test file that calls getInstance() WITHOUT newInstance (e.g.
+    // operationsDashboard) would inherit this instance — whose config has no ALLOWED_ADMINS —
+    // and its admin-command validation would wrongly fail. tearDownAll() nulls the singleton
+    // so the next getInstance() builds a correctly-configured one.
+    await oceanNode.tearDownAll()
     await tearDownEnvironment(envOverrides)
   })
 

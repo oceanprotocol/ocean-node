@@ -93,6 +93,9 @@ describe('Maintenance mode', () => {
 
   after(async () => {
     await oceanNode.setMaintenanceMode(false)
+    // Reset the singleton we created with newInstance=true so a later test file calling
+    // getInstance() without newInstance does not inherit this (admin-less) instance.
+    await oceanNode.tearDownAll()
     await tearDownEnvironment(envOverrides)
   })
 
