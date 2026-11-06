@@ -433,6 +433,7 @@ describe('Start handlers bind the DDO container end-to-end (handler-level regres
       startComputeJob: sinon.stub().resolves({ jobId: 'job-xyz' })
     }
     const node: any = {
+      isInMaintenance: () => false,
       getC2DEngines: () => ({ getC2DByHash: () => Promise.resolve(engine) }),
       getConfig: () => ({ supportedNetworks: { 8996: { chainId: 8996 } } }),
       getKeyManager: () => ({
