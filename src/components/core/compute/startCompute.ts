@@ -609,6 +609,24 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
           return envResult.response
         }
         ;({ env, allEnvs } = envResult)
+      } catch (e) {
+        const errMsg = e?.message || String(e)
+        CORE_LOGGER.error(`Error resolving environment: ${errMsg}`)
+        return buildComputeError(400, errMsg)
+      }
+
+      // Authorize the caller as early as possible, before any resource, registry, DDO or
+      // policy-server work is done on their behalf.
+      const accessGranted = await validateAccess(
+        task.consumerAddress,
+        env.access,
+        this.getOceanNode()
+      )
+      if (!accessGranted) {
+        return buildComputeError(403, 'Access denied')
+      }
+
+      try {
         this.applyMaxJobDuration(task, env)
         task.resources = await engine.checkAndFillMissingResources(
           task.resources,
@@ -638,15 +656,6 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
       }
 
       const { algorithm } = task
-
-      const accessGranted = await validateAccess(
-        task.consumerAddress,
-        env.access,
-        this.getOceanNode()
-      )
-      if (!accessGranted) {
-        return buildComputeError(403, 'Access denied')
-      }
 
       const psResponse = await this.checkPersistentStorageAcl(task, node)
       if (psResponse) {
@@ -911,6 +920,29 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
         return engineResponse
       }
 
+      // Resolve the environment first: it is needed for env.consumerAddress (free
+      // authorizeAsset callback, Option B) and to authorize the caller before doing any
+      // registry, output, DDO or policy-server work on their behalf.
+      const envResult = await this.resolveEnvironment(task, engine)
+      if (envResult.response) {
+        return envResult.response
+      }
+      const { env } = envResult
+      const allFreeEnvs = envResult.allEnvs
+
+      // A missing free tier must never fall through to validateAccess(undefined) (= open).
+      if (!env.free) {
+        return buildComputeError(403, 'Free compute is not enabled on this environment')
+      }
+      const accessGranted = await validateAccess(
+        task.consumerAddress,
+        env.free.access,
+        this.getOceanNode()
+      )
+      if (!accessGranted) {
+        return buildComputeError(403, 'Access denied')
+      }
+
       const dockerAuthResponse = await this.validateDockerRegistryAuth(task, engine)
       if (dockerAuthResponse) {
         return dockerAuthResponse
@@ -934,17 +966,6 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
       if (bindResponse) {
         return bindResponse
       }
-
-      // Resolve the environment before validateAssets so env.consumerAddress is available
-      // to the free authorizeAsset callback (the order's required consumer under Option B).
-      // Only the position of this resolve moves up; the validateAccess / resources steps
-      // below still run in their original order.
-      const envResult = await this.resolveEnvironment(task, engine)
-      if (envResult.response) {
-        return envResult.response
-      }
-      const { env } = envResult
-      const allFreeEnvs = envResult.allEnvs
 
       const policyServer = new PolicyServer()
       const assetsResponse = await this.validateAssets(task, node, algoChecksums, {
@@ -984,15 +1005,6 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
       }
 
       try {
-        const accessGranted = await validateAccess(
-          task.consumerAddress,
-          env.free.access,
-          this.getOceanNode()
-        )
-        if (!accessGranted) {
-          return buildComputeError(403, 'Access denied')
-        }
-
         task.resources = await engine.checkAndFillMissingResources(
           task.resources,
           env,
@@ -1085,15 +1097,19 @@ export async function validateAccess(
     return true
   }
 
-  if (
-    !access.accessLists ||
-    (access.accessLists.length === 0 && access.addresses.length === 0)
-  ) {
+  // A missing/null accessLists is the node's "not configured" value; treat it as an empty
+  // list so a configured `addresses` allow-list is still enforced. Open access is granted
+  // only when BOTH lists are empty.
+  const lists = access.accessLists ?? []
+  const addresses = (access.addresses ?? []).map((a) => String(a).toLowerCase())
+  if (lists.length === 0 && addresses.length === 0) {
     return true
   }
-
-  if (access.addresses.includes(consumerAddress)) {
+  if (consumerAddress && addresses.includes(consumerAddress.toLowerCase())) {
     return true
   }
-  return await checkAddressOnAccessList(consumerAddress, access.accessLists, oceanNode)
+  if (lists.length === 0) {
+    return false
+  }
+  return await checkAddressOnAccessList(consumerAddress, lists, oceanNode)
 }
