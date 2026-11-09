@@ -190,6 +190,12 @@ services:
     container_name: ocean-node
     restart: on-failure
     ports:
+      # Publishes the HTTP API on every host interface. If you set TRUST_PROXY (below) and put
+      # a reverse proxy in front, the proxy MUST be the only route to this port — otherwise a
+      # client can connect directly to 8000, bypass the proxy, and forge X-Forwarded-For to
+      # choose the IP used by the per-IP rate limit and the deny list. Bind the API to loopback
+      # (or an internal Docker network the proxy shares) instead, e.g. '127.0.0.1:8000:8000',
+      # and let only the proxy publish a public port. See docs/env.md (TRUST_PROXY).
       - '8000:8000'
       - '9000:9000'
       - '9001:9001'
@@ -216,6 +222,8 @@ services:
       #      INDEXER_INTERVAL: ''
       #      RATE_DENY_LIST: ''
       #      MAX_REQ_PER_MINUTE: ''
+      #      MAX_CONNECTIONS_PER_MINUTE: ''
+      #      TRUST_PROXY: ''
       #      MAX_CHECKSUM_LENGTH: ''
       #      LOG_LEVEL: ''
       #      LOG_FILES_LEVEL: ''

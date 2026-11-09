@@ -5,6 +5,7 @@ import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import {
   checkGlobalConnectionsRateLimit,
   checkRequestsRateLimit,
+  recordAcceptedRequest,
   CommonValidation
 } from '../../utils/validators.js'
 
@@ -13,9 +14,14 @@ const RATE_LIMIT_LOG_INTERVAL_MS = 60_000
 // Middleware to validate IP and apply rate limiting
 export const requestValidator = async function (req: Request, res: Response, next: any) {
   const now = Date.now()
-  const requestIP = (req.headers['x-forwarded-for'] ||
-    req.socket.remoteAddress ||
-    '') as string
+  // req.ip honours the Express `trust proxy` setting, which is configured from
+  // config.trustProxy in index.ts. With it off (the default) req.ip is the real socket
+  // peer and the client-supplied X-Forwarded-For header is ignored; with trusted proxies
+  // declared, Express returns the first hop that is not itself a trusted proxy. Either way
+  // the value is NOT freely client-spoofable, so it is safe to use as the rate-limit and
+  // deny-list key. Reading the raw X-Forwarded-For header here let any client rotate the
+  // header to dodge the per-IP limit and inflate the global cap into a node-wide DoS.
+  const requestIP = (req.ip || req.socket.remoteAddress || '') as string
 
   const configuration = req.oceanNode.getConfig()
 
@@ -27,7 +33,6 @@ export const requestValidator = async function (req: Request, res: Response, nex
 
   const rateLimitCheck = checkRequestsRateLimit(requestIP, configuration, now)
   if (!rateLimitCheck.valid) {
-    // one key for all IPs: the IP comes from X-Forwarded-For, so it is client-controlled
     HTTP_LOGGER.throttled(
       'http-rate-limit',
       LOG_LEVELS_STR.LEVEL_WARN,
@@ -49,6 +54,8 @@ export const requestValidator = async function (req: Request, res: Response, nex
     return
   }
 
+  // Admitted by both limits: record it now so only accepted requests consume capacity.
+  recordAcceptedRequest(requestIP, now)
   next()
 }
 
