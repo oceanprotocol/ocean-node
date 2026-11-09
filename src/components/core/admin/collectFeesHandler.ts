@@ -103,8 +103,12 @@ export class CollectFeesHandler extends AdminCommandHandler {
           ERC20Template.abi,
           await blockchain.getSigner()
         )
+        // Rescale with the token's real decimals (e.g. 6 for USDC), not a
+        // hardcoded 18 ('ether'). Only fetch decimals() when an explicit amount
+        // was given: a full-balance sweep reads balanceOf directly and must not
+        // depend on decimals() being present/non-reverting.
         const tokenAmount = task.tokenAmount
-          ? parseUnits(task.tokenAmount.toString(), 'ether')
+          ? parseUnits(task.tokenAmount.toString(), Number(await token.decimals()))
           : await token.balanceOf(providerWalletAddress)
 
         if ((await token.balanceOf(providerWalletAddress)) < tokenAmount) {
