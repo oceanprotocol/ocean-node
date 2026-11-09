@@ -19,8 +19,11 @@ libp2p P2P interface, both of which dispatch to the same set of command handlers
   them in lockstep when bumping. The Dockerfile also pins each base image by digest, so a
   bump means updating the `sha256:` alongside the tag — resolve it with
   `docker buildx imagetools inspect node:<version>-trixie-slim`, not from the tag alone.
-  Always run `nvm use` (or `source ~/.nvm/nvm.sh && nvm use`) before any `npm`, build, or
-  test command. The wrong Node version fails with errors like `Unexpected token 'with'`,
+  Run `nvm use` (or `source ~/.nvm/nvm.sh && nvm use`) before any `npm`, build, or
+  test command. If the pinned version is already installed directly (no nvm available),
+  verifying the active runtime against `.nvmrc` instead is sufficient — e.g.
+  `test "v$(cat .nvmrc)" = "$(node -v)"`; do not abort the build just because `nvm` is
+  absent. The wrong Node version fails with errors like `Unexpected token 'with'`,
   missing `GLIBC_2.38`, or — since the SQLite layer uses the built-in `node:sqlite`
   module — `ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite` on Node < 22.13. This is enforced by
   `.cursor/rules/tests-nvm.mdc` and this `AGENTS.md`.
@@ -171,7 +174,10 @@ via `src/utils/config/index.ts` and `src/utils/index.ts`). Key facts:
   file: `buildMergedConfig()` always calls `loadConfigFromFile()` first, then deep-merges the
   mapped env overrides (`ENV_TO_CONFIG_MAPPING`) on top and validates the result with zod.
   The file is resolved from the `CONFIG_PATH` env var (must be absolute), else
-  `./config.json` in cwd; if it is missing, startup fails with
+  `./config.json` in cwd. `CONFIG_PATH` may begin with a literal `$HOME` prefix: the loader
+  (`builder.ts`) expands it from `process.env.HOME`/`os.homedir()` **before** the absolute
+  check (and errors `Config path contains $HOME but HOME is not set` if `HOME` is unset).
+  If it is missing, startup fails with
   `Config file not found at path: ...`, even when every setting is given via env. The repo
   ships a ready `config.json` (Typesense DB, chain `8996`/development, HTTP port `8001`,
   single Docker C2D env).
@@ -179,8 +185,19 @@ via `src/utils/config/index.ts` and `src/utils/index.ts`). Key facts:
   Omitted = both enabled. `DB_URL`/`DB_TYPE` presence drives `hasIndexer` — without a valid
   metadata DB config the Indexer and the metadata-backed features (DDOs, orders, access
   lists, escrow events, DB logs) are disabled, but the SQLite core still runs: nonce, auth
-  tokens, C2D jobs, node config (and best-effort node metrics). So C2D, nonce and auth
-  services keep working.
+  tokens, C2D jobs, node config (and best-effort node metrics). So nonce and auth services
+  keep working. This graceful-degrade path only applies when the config itself is
+  schema-valid: `dbConfig.dbType` is `z.string().nullable()` (`schemas.ts`), so a non-string
+  value (number/bool/object) fails zod validation in `buildMergedConfig()` and aborts the
+  **whole node** at startup — it does not disable just the metadata DB. A `null`/absent
+  `dbType` is valid and selects the no-metadata-DB mode above.
+  - **Paid/free compute still needs the metadata DB to resolve a published dataset.** SQLite
+    preserves C2D **job storage**, but `FindDdoHandler.findAndFormatDdo` (`ddoHandler.ts`)
+    falls back to the P2P `FIND_DDO` lookup when no local DDO DB exists, and that network
+    response is a **summary** (`{id,lastUpdateTx,lastUpdateTime,provider}`), not the full
+    DDO. Parsing it for `services`/`indexedMetadata` throws and returns `null`, so
+    `initialize`/`startCompute` cannot resolve the asset. "C2D keeps working" means the job
+    runtime, not compute against a published DID without a metadata DB.
 - The full catalog of env vars is defined as `ENVIRONMENT_VARIABLES` in
   `src/utils/constants.ts` and documented in `docs/env.md` (long file — the authoritative
   reference). `.env.example` lists them grouped as core / p2p / compute.
@@ -320,10 +337,12 @@ Handler source is grouped under `src/components/core/`:
   giving handlers RPC providers/signers keyed by `chainId` (`OceanNode.getBlockchain(chainId)`).
 - **Auth/** — auth-token issuance/validation (JWT-based, `JWT_SECRET`) as an alternative to
   per-request signatures.
-- **persistentStorage/** — pluggable storage for C2D job outputs and user buckets. The
-  implemented backends are `localfs` (`PersistentStorageLocalFS`) and `s3`
-  (`PersistentStorageS3`), selected by `type` in `createPersistentStorage.ts`; there is no
-  IPFS backend. See `docs/persistentStorage.md`, `docs/Storage.md`.
+- **persistentStorage/** — pluggable storage for C2D job outputs and user buckets. Only
+  `localfs` (`PersistentStorageLocalFS`) is implemented; the `s3` backend
+  (`PersistentStorageS3`) is a stub — every operation throws
+  `PersistentStorageS3 is not implemented yet`, so selecting `type: s3` yields no usable
+  persistent storage. Backend is selected by `type` in `createPersistentStorage.ts`; there is
+  no IPFS backend. See `docs/persistentStorage.md`, `docs/Storage.md`.
 - **policyServer/** — passthrough integration to an external policy server for access
   decisions (`POLICY_SERVER_URL`, `docs/PolicyServer.md`).
 

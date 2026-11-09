@@ -5,10 +5,16 @@ alwaysApply: true
 
 # Running tests
 
-Before running any test commands in this project (e.g. `npm test`, `npm run mocha`, `npm run test:unit`), run:
+Before running any test commands in this project (e.g. `npm test`, `npm run mocha`, `npm run test:unit`), make sure the Node version from `.nvmrc` is active:
 
 ```bash
 nvm use
 ```
 
 This ensures the Node version from `.nvmrc` is active. Skipping it can cause SyntaxError or other version-related failures.
+
+If the pinned version is already installed directly and `nvm` is not available, verifying the active runtime against `.nvmrc` is sufficient — do not abort just because `nvm` is missing:
+
+```bash
+test "v$(cat .nvmrc)" = "$(node -v)"
+```
