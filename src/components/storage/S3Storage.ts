@@ -5,18 +5,30 @@ import {
 } from '../../@types/fileObject.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { GetObjectCommand, HeadObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { NodeHttpHandler } from '@smithy/node-http-handler'
 import { Upload } from '@aws-sdk/lib-storage'
 import { Readable } from 'stream'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 
 import { Storage } from './Storage.js'
+import { checkUrlHost, createSafeHttpAgents } from '../../utils/safeUrl.js'
 
-function createS3Client(s3Access: S3FileObject['s3Access']): S3Client {
-  const endpoint = s3Access.endpoint.startsWith('http')
-    ? s3Access.endpoint
-    : `https://${s3Access.endpoint}`
+function normalizeEndpoint(endpoint: string): string {
+  return endpoint.startsWith('http') ? endpoint : `https://${endpoint}`
+}
+
+function createS3Client(
+  s3Access: S3FileObject['s3Access'],
+  config: OceanNodeConfig
+): S3Client {
+  const endpoint = normalizeEndpoint(s3Access.endpoint)
+  // SSRF: the endpoint is caller-supplied. Resolve it through the validating lookup so a
+  // name that points at a private address is refused at connect time (IP literals are
+  // refused earlier, in validate()).
+  const { httpAgent, httpsAgent } = createSafeHttpAgents(config?.allowedPrivateUrlRanges)
   return new S3Client({
     endpoint,
+    requestHandler: new NodeHttpHandler({ httpAgent, httpsAgent }),
     // Region is optional; default to us-east-1 if not provided
     region: s3Access.region ?? 'us-east-1',
     // Path-style (e.g. endpoint/bucket/key) required for some S3-compatible services (e.g. MinIO); default false for AWS virtual-host style
@@ -58,12 +70,16 @@ export class S3Storage extends Storage {
     if (!secretAccessKey?.trim()) {
       return [false, 'Missing secretAccessKey']
     }
+    const hostError = checkUrlHost(normalizeEndpoint(endpoint.trim()), this.config)
+    if (hostError) {
+      return [false, hostError]
+    }
     return [true, '']
   }
 
   override async getReadableStream(): Promise<StorageReadable> {
     const { s3Access } = this.getFile() as S3FileObject
-    const s3Client = createS3Client(s3Access)
+    const s3Client = createS3Client(s3Access, this.config)
 
     try {
       const response = await s3Client.send(
@@ -99,7 +115,7 @@ export class S3Storage extends Storage {
     stream: Readable
   ): Promise<{ httpStatus: number; headers?: Record<string, string | string[]> }> {
     const { s3Access } = this.getFile() as S3FileObject
-    const s3Client = createS3Client(s3Access)
+    const s3Client = createS3Client(s3Access, this.config)
     let key = s3Access.objectKey
     if (key.endsWith('/')) {
       key = `${key.replace(/\/+$/, '')}/${filename}`
@@ -126,7 +142,7 @@ export class S3Storage extends Storage {
     _forceChecksum: boolean
   ): Promise<FileInfoResponse> {
     const { s3Access } = fileObject
-    const s3Client = createS3Client(s3Access)
+    const s3Client = createS3Client(s3Access, this.config)
 
     const data = await s3Client.send(
       new HeadObjectCommand({

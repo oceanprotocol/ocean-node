@@ -192,6 +192,8 @@ export interface OceanNodeConfig {
   trustProxy?: boolean | number | string
   denyList?: DenyList
   unsafeURLs?: string[]
+  // CIDRs / IPs exempt from the private-address block on caller-supplied URLs
+  allowedPrivateUrlRanges?: string[]
   isBootstrap?: boolean
   validateUnsignedDDO?: boolean
   jwtSecret?: string

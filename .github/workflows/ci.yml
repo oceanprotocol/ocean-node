@@ -342,6 +342,7 @@ jobs:
           DOCKER_REGISTRY_AUTHS: ${{ steps.docker_auths.outputs.value }}
           PERSISTENT_STORAGE: '{"enabled": true, "type": "localfs", "options": {"folder": "/tmp/ocean-persistent-storage"}}'
           PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING: 'true'
+          ALLOWED_PRIVATE_URL_RANGES: '["127.0.0.1/32"]'
       - name: Check Ocean Node is running
         run: |
           for i in $(seq 1 12); do

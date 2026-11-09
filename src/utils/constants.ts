@@ -522,6 +522,12 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.UNSAFE_URLS,
     required: false
   },
+  ALLOWED_PRIVATE_URL_RANGES: {
+    // CIDRs / IPs that caller-supplied URLs may point at although they are private
+    name: 'ALLOWED_PRIVATE_URL_RANGES',
+    value: process.env.ALLOWED_PRIVATE_URL_RANGES,
+    required: false
+  },
   DB_TYPE: {
     name: 'DB_TYPE',
     value: process.env.DB_TYPE,
