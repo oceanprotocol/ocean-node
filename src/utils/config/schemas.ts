@@ -475,7 +475,8 @@ const GpuRequirementSchema = z
         })
       }
       const total = l.gpuCount * (l.vramPerGpu ?? r.recommended)
-      if (total < r.recommended) {
+      // Compare with a small tolerance (1e-6 GB ≈ 1 KB — far below any real VRAM granularity).
+      if (total < r.recommended - 1e-6) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: 'gpuCount x vramPerGpu is below the recommended total VRAM',

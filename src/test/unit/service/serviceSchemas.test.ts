@@ -210,6 +210,20 @@ describe('ServiceTemplateSchema', () => {
         parse([{ ...gpuMulti, layouts: [{ gpuCount: 4, vramPerGpu: 80 }] }]).success
       ).to.equal(false)
     })
+    it('layout total exactly meets recommended despite float error → valid', () => {
+      // 3 x 21.4 === 64.19999999999999 in IEEE-754, which a bare `<` reads as below 64.2.
+      // The decimal-aware comparison must accept this boundary layout.
+      expect(3 * 21.4).to.be.lessThan(64.2) // guard: the float error this test defends against
+      expect(
+        parse([
+          {
+            ...gpuSingle,
+            recommended: 64.2,
+            layouts: [{ gpuCount: 1 }, { gpuCount: 3, vramPerGpu: 21.4 }]
+          }
+        ]).success
+      ).to.equal(true)
+    })
     it('duplicate resource entries → invalid', () => {
       expect(parse([cpu, { ...cpu, recommended: 8 }]).success).to.equal(false)
       expect(parse([ram, disk, ram]).success).to.equal(false)

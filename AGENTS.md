@@ -175,8 +175,11 @@ via `src/utils/config/index.ts` and `src/utils/index.ts`). Key facts:
   mapped env overrides (`ENV_TO_CONFIG_MAPPING`) on top and validates the result with zod.
   The file is resolved from the `CONFIG_PATH` env var (must be absolute), else
   `./config.json` in cwd. `CONFIG_PATH` may begin with a literal `$HOME` prefix: the loader
-  (`builder.ts`) expands it from `process.env.HOME`/`os.homedir()` **before** the absolute
-  check (and errors `Config path contains $HOME but HOME is not set` if `HOME` is unset).
+  (`builder.ts`) expands it **before** the absolute check: it uses `process.env.HOME`, and
+  when that is unset **falls back to `os.homedir()`**. It errors
+  `Config path contains $HOME but HOME is not set` only when `HOME` is unset **and** that
+  `os.homedir()` fallback is also empty — an unset `HOME` alone does not fail if the OS can
+  still resolve a home directory.
   If it is missing, startup fails with
   `Config file not found at path: ...`, even when every setting is given via env. The repo
   ships a ready `config.json` (Typesense DB, chain `8996`/development, HTTP port `8001`,
@@ -189,8 +192,11 @@ via `src/utils/config/index.ts` and `src/utils/index.ts`). Key facts:
   keep working. This graceful-degrade path only applies when the config itself is
   schema-valid: `dbConfig.dbType` is `z.string().nullable()` (`schemas.ts`), so a non-string
   value (number/bool/object) fails zod validation in `buildMergedConfig()` and aborts the
-  **whole node** at startup — it does not disable just the metadata DB. A `null`/absent
-  `dbType` is valid and selects the no-metadata-DB mode above.
+  **whole node** at startup — it does not disable just the metadata DB. Because the field is
+  `.nullable()` and **not** `.optional()`, `dbType` must be **present**: `null` is valid and
+  selects the no-metadata-DB mode above, but **omitting the key** from a supplied `dbConfig`
+  (e.g. a config file with `DB_URL` unset) is undefined and also fails zod and aborts the
+  whole node. Use `dbType: null`, not an absent key, for the no-DB mode.
   - **Paid/free compute still needs the metadata DB to resolve a published dataset.** SQLite
     preserves C2D **job storage**, but `FindDdoHandler.findAndFormatDdo` (`ddoHandler.ts`)
     falls back to the P2P `FIND_DDO` lookup when no local DDO DB exists, and that network
