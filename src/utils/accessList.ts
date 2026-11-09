@@ -18,8 +18,10 @@ export async function checkAddressOnAccessListWithSigner(
   addressToCheck: string,
   signer: Signer
 ): Promise<boolean> {
-  if (!accessListContractAddress) {
-    return true
+  // Fail closed: an empty/invalid contract address must never grant access. ("No list
+  // configured = open" is decided by the callers, before they get here.)
+  if (!accessListContractAddress || !ethers.isAddress(accessListContractAddress)) {
+    return false
   }
   const accessListContract = new ethers.Contract(
     accessListContractAddress,
@@ -61,7 +63,14 @@ export async function checkAddressOnAccessList(
   for (const accessListMap of access) {
     if (!accessListMap) continue
     for (const chain of Object.keys(accessListMap)) {
-      const { chainId } = supportedNetworks[chain]
+      const network = supportedNetworks?.[chain]
+      if (!network) {
+        CORE_LOGGER.warn(
+          `Access list references chain ${chain}, which is not a supported network, skipping`
+        )
+        continue
+      }
+      const { chainId } = network
       try {
         const blockchain = oceanNode.getBlockchain(chainId)
         if (!blockchain) {
@@ -71,7 +80,18 @@ export async function checkAddressOnAccessList(
           continue
         }
         const signer = await blockchain.getSigner()
-        for (const accessListAddress of accessListMap[chain]) {
+        for (const accessListAddress of accessListMap[chain] ?? []) {
+          // An empty/invalid entry must never grant access (the signer-level helper treats a
+          // falsy contract address as "no restriction"), so skip anything that is not an address.
+          if (
+            typeof accessListAddress !== 'string' ||
+            !ethers.isAddress(accessListAddress)
+          ) {
+            CORE_LOGGER.warn(
+              `Ignoring invalid access list entry "${accessListAddress}" on chain ${chain}`
+            )
+            continue
+          }
           const hasAccess = await checkAddressOnAccessListWithSigner(
             accessListAddress,
             consumerAddress,

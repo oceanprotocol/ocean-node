@@ -260,6 +260,7 @@ jobs:
         with:
           persist-credentials: false
           repository: 'oceanprotocol/ocean.js'
+          ref: 'v9.2.2'
           path: 'ocean.js'
       - name: Build ocean-js
         working-directory: ${{ github.workspace }}/ocean.js
@@ -341,6 +342,7 @@ jobs:
           DOCKER_REGISTRY_AUTHS: ${{ steps.docker_auths.outputs.value }}
           PERSISTENT_STORAGE: '{"enabled": true, "type": "localfs", "options": {"folder": "/tmp/ocean-persistent-storage"}}'
           PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING: 'true'
+          ALLOWED_PRIVATE_URL_RANGES: '["127.0.0.1/32"]'
       - name: Check Ocean Node is running
         run: |
           for i in $(seq 1 12); do

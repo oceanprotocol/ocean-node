@@ -1,4 +1,6 @@
 import { Service, DDOManager, DDO } from '@oceanprotocol/ddo-js'
+import type { Dispatcher } from 'undici'
+import { PRIVATE_URL_ERROR } from './safeUrl.js'
 import { DDO_IDENTIFIER_PREFIX } from './constants.js'
 import { CORE_LOGGER } from './logging/common.js'
 import { errorSummary, safeStringify } from './logging/redact.js'
@@ -42,11 +44,30 @@ export const AssetUtils = {
   }
 }
 
+/**
+ * undici wraps connector failures as TypeError('fetch failed', { cause }); walk the chain
+ * and return a plain Error with the SSRF guard's message when that is what failed.
+ */
+function findBlockedUrlError(error: unknown): Error | null {
+  let current: any = error
+  for (let depth = 0; current && depth < 5; depth++) {
+    if (
+      typeof current.message === 'string' &&
+      current.message.includes(PRIVATE_URL_ERROR)
+    ) {
+      return new Error(current.message)
+    }
+    current = current.cause
+  }
+  return null
+}
+
 export async function fetchFileMetadata(
   url: string,
   method: string,
   forceChecksum: boolean,
-  headers?: HeadersObject
+  headers?: HeadersObject,
+  options: { dispatcher?: Dispatcher } = {}
 ): Promise<{ contentLength: string; contentType: string; contentChecksum: string }> {
   let contentType: string = ''
   let contentLength: number = 0
@@ -57,7 +78,7 @@ export async function fetchFileMetadata(
   try {
     const response = await fetchHeadersTimeout(
       url,
-      { method: method || 'GET', headers },
+      { method: method || 'GET', headers, dispatcher: options.dispatcher },
       30000
     )
     if (!response.ok) {
@@ -81,6 +102,12 @@ export async function fetchFileMetadata(
     contentLength = totalSize
   } catch (error) {
     CORE_LOGGER.error(`fetchFileMetadata failed: ${errorSummary(error)}`)
+    // network errors are swallowed (caller gets empty metadata), but a URL refused by the
+    // SSRF guard is a client error worth reporting as such, with the reason
+    const blocked = findBlockedUrlError(error)
+    if (blocked) {
+      throw blocked
+    }
   }
 
   return {

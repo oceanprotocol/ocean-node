@@ -335,6 +335,8 @@ returns decrypted document
 
 returns file information
 
+Files whose host is, or resolves to, a private, loopback, link-local or otherwise reserved address are rejected (for example `URL points to a private, loopback or reserved network address`). Node operators can allow specific ranges with `ALLOWED_PRIVATE_URL_RANGES`; see [Storage](Storage.md#private-network-protection-ssrf).
+
 #### Parameters
 
 | name      | type   | required | description                              |

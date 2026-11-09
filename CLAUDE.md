@@ -1,4 +1,4 @@
-# AGENTS.md
+# CLAUDE.md
 
 This file provides guidance to coding agents (Claude Code, Codex, Cursor, and others) when
 working with code in this repository.
@@ -26,7 +26,7 @@ libp2p P2P interface, both of which dispatch to the same set of command handlers
   absent. The wrong Node version fails with errors like `Unexpected token 'with'`,
   missing `GLIBC_2.38`, or — since the SQLite layer uses the built-in `node:sqlite`
   module — `ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite` on Node < 22.13. This is enforced by
-  `.cursor/rules/tests-nvm.mdc` and this `AGENTS.md`.
+  `.cursor/rules/tests-nvm.mdc` and this `CLAUDE.md`.
 - **There is no `postinstall` step.** `npm install` is plain. (Historically a `postinstall`
   ran `scripts/fix-libp2p-http-utils.js` to default a missing URL port to 443/80 in
   `@libp2p/http-utils`; upstream shipped that fix in `2.0.3`, so both the hook and the

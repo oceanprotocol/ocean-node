@@ -10,9 +10,11 @@ import { CONFIG_LOGGER } from '../logging/common.js'
 import { parseMemoryTotalToBytes } from '../../components/c2d/gpu/types.js'
 import { parsePassContainerEnvs } from '../../components/c2d/containerEnvs.js'
 import { booleanFromString, jsonFromString } from './transforms.js'
+import { parseAllowedRange } from '../safeUrl.js'
 import {
   DEFAULT_BOOTSTRAP_ADDRESSES,
   DEFAULT_RATE_LIMIT_PER_MINUTE,
+  DEFAULT_MAX_CONNECTIONS_PER_MINUTE,
   DEFAULT_UNSAFE_URLS,
   DEFAULT_FILTER_ANNOUNCED_ADDRESSES,
   DEFAULT_DB_INIT_MAX_ATTEMPTS,
@@ -1222,6 +1224,53 @@ const addressArrayFromString = (field: string) =>
     }
   })
 
+/**
+ * `unsafeURLs`: operator regexes extend the built-in defaults (cloud metadata endpoints
+ * and loopback). Setting UNSAFE_URLS used to replace the defaults, so an operator adding
+ * one pattern silently dropped the metadata-endpoint protection.
+ */
+function withDefaultUnsafeUrls(value: unknown): string[] {
+  const defaults: string[] = [...DEFAULT_UNSAFE_URLS]
+  if (value === undefined || value === null) {
+    return defaults
+  }
+  if (!Array.isArray(value)) {
+    CONFIG_LOGGER.error(
+      'unsafeURLs must be a JSON array of regex strings; using the built-in defaults'
+    )
+    return defaults
+  }
+  const extra = value.filter((entry) => typeof entry === 'string' && entry.length > 0)
+  return Array.from(new Set([...defaults, ...extra]))
+}
+
+/**
+ * `allowedPrivateUrlRanges`: keep only valid CIDR / IP entries, log and drop the rest.
+ * Invalid input never widens the allow-list.
+ */
+function normalizeAllowedPrivateUrlRanges(value: unknown): string[] {
+  if (value === undefined || value === null) {
+    return []
+  }
+  if (!Array.isArray(value)) {
+    CONFIG_LOGGER.error(
+      'allowedPrivateUrlRanges must be a JSON array of CIDR strings; ignoring it'
+    )
+    return []
+  }
+  const valid: string[] = []
+  for (const entry of value) {
+    if (parseAllowedRange(entry)) {
+      valid.push(String(entry).trim())
+    } else {
+      CONFIG_LOGGER.error(
+        `Ignoring invalid ALLOWED_PRIVATE_URL_RANGES entry (expected CIDR or IP): ${String(entry)}`
+      )
+    }
+  }
+  return valid
+}
+
 export const OceanNodeConfigSchema = z
   .object({
     // `jsonFromString` JSON-parses the env-var string but does NOT re-validate the parsed
@@ -1362,6 +1411,48 @@ export const OceanNodeConfigSchema = z
 
     httpPort: z.coerce.number().optional().default(3000),
     rateLimit: z.coerce.number().optional().default(DEFAULT_RATE_LIMIT_PER_MINUTE),
+    // Express `trust proxy` value. Env vars arrive as strings, so normalise: 'true'/'false'
+    // -> boolean, a numeric value -> number (so a bad hop count is caught below), anything else
+    // (e.g. 'loopback' or a CIDR list) passed through as a string for Express to interpret.
+    // Defaults to false (do not trust any proxy / ignore X-Forwarded-For) so address-based
+    // limits are not spoofable by default.
+    trustProxy: z
+      .preprocess(
+        (val) => {
+          if (val === undefined || val === null || val === '') return false
+          if (typeof val !== 'string') return val
+          const v = val.trim()
+          if (v.toLowerCase() === 'true') return true
+          if (v.toLowerCase() === 'false') return false
+          // Numeric-looking values (incl. signed/decimal) become numbers so the refine below
+          // can reject a fractional or negative hop count. A dotted IP or CIDR is not a finite
+          // number, so it stays a string for Express to interpret.
+          const asNumber = Number(v)
+          if (Number.isFinite(asNumber)) return asNumber
+          return v
+        },
+        z.union([z.boolean(), z.number(), z.string()])
+      )
+      // Reject bare `true`. In Express, trust proxy === true trusts the WHOLE chain and makes
+      // req.ip the left-most, client-claimed X-Forwarded-For address — which silently re-opens
+      // the exact spoofing DoS this setting exists to prevent. Operators must instead name what
+      // they actually trust: a hop count, a preset, or an explicit IP/CIDR list.
+      .refine((val) => val !== true, {
+        message:
+          'TRUST_PROXY=true is not allowed: it trusts the entire proxy chain and lets clients ' +
+          'spoof their IP via X-Forwarded-For. Use the number of trusted proxy hops (e.g. 1), ' +
+          'a preset (loopback/linklocal/uniquelocal), or a comma-separated list of trusted ' +
+          'proxy IPs/CIDRs.'
+      })
+      // A numeric hop count must be a non-negative integer. Fractional or negative values are
+      // operator typos, not valid Express config. (String presets and IP/CIDR lists are left
+      // untouched — Express validates those, and they are the most precise, safest option.)
+      .refine((val) => typeof val !== 'number' || (Number.isInteger(val) && val >= 0), {
+        message:
+          'TRUST_PROXY as a number must be a non-negative integer hop count (e.g. 0, 1, 2).'
+      })
+      .optional()
+      .default(false),
 
     // Startup database-init retry knobs. int().min(1) is load-bearing, not decoration:
     // maxAttempts of 0 would skip Database.init() altogether and boot the node with no
@@ -1420,13 +1511,27 @@ export const OceanNodeConfigSchema = z
     ).optional(),
 
     codeHash: z.string().optional(),
-    maxConnections: z.coerce.number().optional(),
+    // Node-wide request throughput ceiling per minute (sum across all clients). Defaulted
+    // here so the schema and the runtime fallback in checkGlobalConnectionsRateLimit agree
+    // on a single value instead of silently diverging.
+    maxConnections: z.coerce
+      .number()
+      .optional()
+      .default(DEFAULT_MAX_CONNECTIONS_PER_MINUTE),
     denyList: jsonFromString(DenyListSchema, 'denyList')
       .optional()
       .default({ peers: [], ips: [] }),
+    // operator patterns are added to the built-in defaults (cloud metadata endpoints),
+    // never replace them
     unsafeURLs: jsonFromString(z.array(z.string()), 'unsafeURLs')
       .optional()
-      .default([...DEFAULT_UNSAFE_URLS]),
+      .transform(withDefaultUnsafeUrls),
+    allowedPrivateUrlRanges: jsonFromString(
+      z.array(z.string()),
+      'allowedPrivateUrlRanges'
+    )
+      .optional()
+      .transform(normalizeAllowedPrivateUrlRanges),
     isBootstrap: booleanFromString.optional().default(false),
     validateUnsignedDDO: booleanFromString.optional().default(true),
     jwtSecret: z.string(),

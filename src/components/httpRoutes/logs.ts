@@ -34,7 +34,9 @@ logRoutes.post('/logs', express.json(), async (req, res) => {
       maxLogs,
       moduleName,
       level,
-      page
+      page,
+      // trusted transport caller (request IP), never a body-supplied value — keys the limiter
+      caller: req.caller
     })
 
     if (response.status.httpStatus === 200) {
@@ -65,7 +67,9 @@ logRoutes.post('/log/:id', express.json(), async (req, res) => {
       signature,
       nonce,
       address,
-      logId
+      logId,
+      // trusted transport caller (request IP), never a body-supplied value — keys the limiter
+      caller: req.caller
     })
 
     if (response.status.httpStatus === 200) {

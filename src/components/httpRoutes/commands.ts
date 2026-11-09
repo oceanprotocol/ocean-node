@@ -7,6 +7,7 @@ import { errorSummary } from '../../utils/logging/redact.js'
 import { validateCommandParameters } from './validateCommands.js'
 import { Readable } from 'stream'
 import { sanitizeLogValue } from '../../utils/util.js'
+import { LP_MAX_FRAME_BYTES } from '../P2P/lpFraming.js'
 
 // caller-supplied values: sanitized so they cannot forge log lines (CWE-117)
 function describeCommand(body: any): string {
@@ -63,7 +64,8 @@ async function streamToResponse(
 export const directCommandRoute = express.Router()
 directCommandRoute.post(
   '/directCommand',
-  express.json(),
+  // Same cap as a P2P command frame; the 100kb default rejects large service templates.
+  express.json({ limit: LP_MAX_FRAME_BYTES }),
   async (req: Request, res: Response): Promise<void> => {
     let closedResponse = false
 
@@ -91,9 +93,14 @@ directCommandRoute.post(
         req.oceanNode.getP2PNode()?.isTargetPeerSelf(req.body.node)
 
       if (isLocalCommand) {
-        // Local command - call handler directly
+        // Local command - call handler directly. Pass the trustworthy request IP (req.caller,
+        // derived from req.ip honouring `trust proxy`) as the trusted caller;
+        // handleDirectProtocolCommand stamps it over any client-supplied body value. Otherwise
+        // the handler-level rate limiter, which keys on task.caller, could be evaded on this
+        // path by putting a fresh random caller in the request body.
         const response = await req.oceanNode.handleDirectProtocolCommand(
-          JSON.stringify(req.body)
+          JSON.stringify(req.body),
+          req.caller
         )
 
         res.status(response.status.httpStatus)
