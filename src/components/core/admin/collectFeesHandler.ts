@@ -72,7 +72,13 @@ export class CollectFeesHandler extends AdminCommandHandler {
       const provider = await blockchain.getProvider()
       const providerWallet = blockchain.getWallet()
       const providerWalletAddress = await providerWallet.getAddress()
-      const ammountInEther = task.tokenAmount
+      // Distinguish "no amount given" (sweep the whole balance) from an explicit
+      // amount. A literal 0 is truthy here on purpose: `tokenAmount: 0` means
+      // "transfer zero", NOT "drain the wallet" — `task.tokenAmount ?` would
+      // treat 0 as falsy and sweep everything.
+      const hasExplicitAmount =
+        task.tokenAmount !== undefined && task.tokenAmount !== null
+      const ammountInEther = hasExplicitAmount
         ? parseUnits(task.tokenAmount.toString(), 'ether')
         : await provider.getBalance(providerWalletAddress)
 
@@ -107,9 +113,30 @@ export class CollectFeesHandler extends AdminCommandHandler {
         // hardcoded 18 ('ether'). Only fetch decimals() when an explicit amount
         // was given: a full-balance sweep reads balanceOf directly and must not
         // depend on decimals() being present/non-reverting.
-        const tokenAmount = task.tokenAmount
-          ? parseUnits(task.tokenAmount.toString(), Number(await token.decimals()))
-          : await token.balanceOf(providerWalletAddress)
+        let tokenAmount: bigint
+        if (hasExplicitAmount) {
+          let tokenDecimals: number
+          try {
+            tokenDecimals = Number(await token.decimals())
+          } catch (e) {
+            // A non-standard token (or wrong address) whose decimals() reverts.
+            // Report it clearly instead of surfacing the raw ethers error as a 500.
+            const msg: string = `Could not read decimals() for token ${task.tokenAddress}. It may not be a standard ERC20 contract.`
+            CORE_LOGGER.error(`${msg} ${errorSummary(e)}`)
+            return buildErrorResponse(msg)
+          }
+          try {
+            tokenAmount = parseUnits(task.tokenAmount.toString(), tokenDecimals)
+          } catch (e) {
+            // e.g. an amount with more fractional digits than the token supports.
+            // This is caller input, so fail as a 400 validation error, not a 500.
+            const msg: string = `Invalid tokenAmount "${task.tokenAmount}": token ${task.tokenAddress} supports at most ${tokenDecimals} decimals.`
+            CORE_LOGGER.debug(`${msg} ${errorSummary(e)}`)
+            return buildInvalidParametersResponse(buildInvalidRequestMessage(msg))
+          }
+        } else {
+          tokenAmount = await token.balanceOf(providerWalletAddress)
+        }
 
         if ((await token.balanceOf(providerWalletAddress)) < tokenAmount) {
           const msg: string = `Amount too high to transfer! Balance: ${await token.balanceOf(

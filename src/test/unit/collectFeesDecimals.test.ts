@@ -35,7 +35,12 @@ interface Captured {
 // nonpayable `transfer` goes through `runner.sendTransaction`, and ethers' own
 // ContractTransactionResponse.wait() then re-reads the receipt via
 // `runner.provider.getTransactionReceipt`, so we supply that too.
-function makeFakeRunner(decimals: number, balance: bigint, captured: Captured): any {
+function makeFakeRunner(
+  decimals: number,
+  balance: bigint,
+  captured: Captured,
+  opts: { decimalsReverts?: boolean } = {}
+): any {
   const provider = {
     getBalance: () => Promise.resolve(balance),
     getTransactionReceipt: () =>
@@ -62,6 +67,9 @@ function makeFakeRunner(decimals: number, balance: bigint, captured: Captured): 
     call: (tx: any) => {
       const fn = iface.getFunction(tx.data.slice(0, 10))
       if (fn.name === 'decimals') {
+        if (opts.decimalsReverts) {
+          return Promise.reject(new Error('execution reverted: decimals()'))
+        }
         return Promise.resolve(coder.encode(['uint8'], [decimals]))
       }
       if (fn.name === 'balanceOf') {
@@ -99,11 +107,12 @@ function makeFakeOceanNode(runner: any): OceanNode {
   } as unknown as OceanNode
 }
 
-function makeTask(tokenAmount: number): AdminCollectFeesCommand {
+function makeTask(tokenAmount?: number): AdminCollectFeesCommand {
   return {
     command: PROTOCOL_COMMANDS.COLLECT_FEES,
     chainId: CHAIN_ID,
     tokenAddress: USDC_ADDRESS,
+    // left undefined (field absent) when no amount is passed -> full sweep
     tokenAmount,
     destinationAddress: DESTINATION_ADDRESS,
     node: undefined,
@@ -166,6 +175,69 @@ describe('CollectFeesHandler ERC20 decimals scaling', () => {
     expect(response.status.httpStatus).to.not.equal(200)
     expect(response.status.error).to.contain('Amount too high to transfer')
     // No transfer was ever submitted.
+    expect(captured.name).to.equal(undefined)
+  })
+
+  it('treats an explicit tokenAmount of 0 as a zero transfer, NOT a full sweep', async () => {
+    const captured: Captured = {}
+    // Wallet holds 5 USDC. A `tokenAmount: 0` (e.g. a dry-run) must transfer 0,
+    // not drain the whole balance.
+    const runner = makeFakeRunner(6, parseUnits('5', 6), captured)
+    const handler = new CollectFeesHandler(makeFakeOceanNode(runner))
+    sinon.stub(handler, 'validate').resolves({ valid: true })
+
+    const response = await handler.handle(makeTask(0))
+
+    expect(response.status.httpStatus).to.equal(200)
+    expect(captured.name).to.equal('transfer')
+    expect(captured.amount).to.equal('0')
+    // Must NOT have swept the 5 USDC balance.
+    expect(captured.amount).to.not.equal(parseUnits('5', 6).toString())
+  })
+
+  it('sweeps the full balance when tokenAmount is omitted', async () => {
+    const captured: Captured = {}
+    const balance = parseUnits('5', 6)
+    const runner = makeFakeRunner(6, balance, captured)
+    const handler = new CollectFeesHandler(makeFakeOceanNode(runner))
+    sinon.stub(handler, 'validate').resolves({ valid: true })
+
+    const response = await handler.handle(makeTask())
+
+    expect(response.status.httpStatus).to.equal(200)
+    expect(captured.name).to.equal('transfer')
+    // Full balance moved (balanceOf), in the token's own base units.
+    expect(captured.amount).to.equal(balance.toString())
+  })
+
+  it('returns a clear 400 (no transfer) when decimals() reverts', async () => {
+    const captured: Captured = {}
+    const runner = makeFakeRunner(6, parseUnits('5', 6), captured, {
+      decimalsReverts: true
+    })
+    const handler = new CollectFeesHandler(makeFakeOceanNode(runner))
+    sinon.stub(handler, 'validate').resolves({ valid: true })
+
+    const response = await handler.handle(makeTask(5))
+
+    expect(response.status.httpStatus).to.equal(400)
+    expect(response.status.error).to.contain('decimals()')
+    // Not a raw 500 with an opaque ethers error, and nothing was transferred.
+    expect(response.status.httpStatus).to.not.equal(500)
+    expect(captured.name).to.equal(undefined)
+  })
+
+  it('returns a 400 validation error (no transfer) for excess-precision amounts', async () => {
+    const captured: Captured = {}
+    // 0.1234567 has 7 fractional digits; a 6-decimal token cannot represent it.
+    const runner = makeFakeRunner(6, parseUnits('5', 6), captured)
+    const handler = new CollectFeesHandler(makeFakeOceanNode(runner))
+    sinon.stub(handler, 'validate').resolves({ valid: true })
+
+    const response = await handler.handle(makeTask(0.1234567))
+
+    expect(response.status.httpStatus).to.equal(400)
+    expect(response.status.error).to.contain('6 decimals')
     expect(captured.name).to.equal(undefined)
   })
 
