@@ -1,27 +1,29 @@
 # AGENTS.md
 
-This file provides guidance to Codex (claude.ai/code) when working with code in this repository.
+This file provides guidance to coding agents (Claude Code, Codex, Cursor, and others) when
+working with code in this repository.
 
 Ocean Node is the all-in-one backend for the Ocean Protocol stack. A single Node process
 replaces three legacy components: **Provider** (data access / encryption / compute),
 **Aquarius** (metadata cache) and the **subgraph** (on-chain event indexing). It is a
-TypeScript ESM project (Node 24) that exposes an HTTP API and a libp2p P2P interface, both
-of which dispatch to the same set of command handlers.
+TypeScript ESM project (Node >= 24, pinned to 26.12.1) that exposes an HTTP API and a
+libp2p P2P interface, both of which dispatch to the same set of command handlers.
 
 ---
 
 ## 1. Environment & tooling prerequisites
 
-- **Node.js 24 is required** (`.nvmrc` pins 24.22.1`— the current Node 24 LTS "Krypton" —
-matching the Dockerfile and CI;`package.json` `engines`requires`>=24`, so Node 22 is
-no longer a supported runtime). The Dockerfile additionally pins each base
-image by digest, so bumping the version means updating the `sha256:`alongside the tag —
-resolve it with`docker buildx imagetools inspect node:<version>-trixie`, not from the tag
-alone. Always run `nvm use`(or`source ~/.nvm/nvm.sh && nvm use`) before
-any `npm`, build, or test command. The wrong Node version fails with errors like
-`Unexpected token 'with'`, missing `GLIBC_2.38`, or — since the SQLite layer uses the
-built-in `node:sqlite`module —`ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite`on Node < 22.13.
-This is enforced by`.cursor/rules/tests-nvm.mdc`and the in-repo`AGENTS.md`.
+- **Node.js >= 24 is required; 26.12.1 is the pinned runtime.** `package.json` `engines`
+  requires `>=24` (Node 22 is no longer supported). `.nvmrc`, both `Dockerfile` stages
+  (`node:26.12.1-trixie-slim`) and CI (`.github/workflows/ci.yml`) all pin `26.12.1`; keep
+  them in lockstep when bumping. The Dockerfile also pins each base image by digest, so a
+  bump means updating the `sha256:` alongside the tag — resolve it with
+  `docker buildx imagetools inspect node:<version>-trixie-slim`, not from the tag alone.
+  Always run `nvm use` (or `source ~/.nvm/nvm.sh && nvm use`) before any `npm`, build, or
+  test command. The wrong Node version fails with errors like `Unexpected token 'with'`,
+  missing `GLIBC_2.38`, or — since the SQLite layer uses the built-in `node:sqlite`
+  module — `ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite` on Node < 22.13. This is enforced by
+  `.cursor/rules/tests-nvm.mdc` and this `AGENTS.md`.
 - **There is no `postinstall` step.** `npm install` is plain. (Historically a `postinstall`
   ran `scripts/fix-libp2p-http-utils.js` to default a missing URL port to 443/80 in
   `@libp2p/http-utils`; upstream shipped that fix in `2.0.3`, so both the hook and the
@@ -40,11 +42,12 @@ This is enforced by`.cursor/rules/tests-nvm.mdc`and the in-repo`AGENTS.md`.
     ~123 errors), and `typescript-eslint` has to support TS 7 — its peer range is
     `>=4.8.4 <6.1.0`, so it pins us below 7 today.
 
-### Only-mandatory config: `PRIVATE_KEY`
+### Mandatory config: `PRIVATE_KEY` + a config file
 
-`PRIVATE_KEY` (with the `0x` prefix) is the **only** required environment variable — it
-seeds the node identity (libp2p peerId), the EVM signer, and encryption keys. Everything
-else has defaults. Generate one with:
+`PRIVATE_KEY` (with the `0x` prefix, 66 chars) is the **only** required environment
+variable — it seeds the node identity (libp2p peerId), the EVM signer, and encryption keys.
+A JSON config file must also exist (see §3); every other setting has a default or comes
+from that file / env overrides. Generate a key with:
 
 ```bash
 node dist/helpers/scripts/generatePK.js            # prints a key/address to stdout
@@ -137,9 +140,18 @@ the compiled output. In tests, do **not** mutate `process.env` directly — use 
 `config.json` points the DB at Typesense on `http://localhost:8108`.
 
 Other useful scripts: `npm run client` (2-node download flow demo), `npm run check-nonce`
-(nonce tracking; needs DB), `npm run logs` (tail logs), and k6 perf tests
-`test:smoke` / `test:load` / `test:stress` / `test:request:rate` (require k6 installed and
-a running node).
+(nonce tracking; needs DB), and k6 perf tests `test:smoke` / `test:load` / `test:stress` /
+`test:request:rate` (require k6 installed and a running node).
+
+`npm run logs` runs `scripts/logs.sh`, which makes **one** HTTP request to `<url>/logs` and
+pipes the response to `jq` — it does not tail local log files. Arguments are positional:
+`npm run logs -- [url] [startTime] [endTime] [maxLogs] [moduleName] [level]`. `url`
+defaults to `http://localhost:8000` (the Docker `HTTP_API_PORT`), but the repo
+`config.json` sets `httpPort: 8001`, so pass `http://localhost:8001` for a local
+`npm run start`. The default `startTime` uses GNU `date -d` (Linux only; pass it explicitly
+on macOS). **The script is currently broken:** it sends an unsigned `GET`, while `/logs` is
+an admin-only signed `POST`, so the node rejects it. Use `ocean-cli downloadNodeLogs` or read
+the files in `logs/` instead (see `docs/Logs.md`).
 
 ### Databases for local dev
 
@@ -155,12 +167,20 @@ docker-compose -f elasticsearch-compose.yml up -d   # Elasticsearch alternative
 Config is resolved by `getConfiguration()` in `src/utils/config/builder.ts` (re-exported
 via `src/utils/config/index.ts` and `src/utils/index.ts`). Key facts:
 
-- **Two config sources.** Either environment variables, or a JSON file. `getConfigFilePath()`
-  resolves the file from `CONFIG_PATH` env var, else `./config.json` in cwd. The repo ships a
-  ready `config.json` (Typesense DB, chain `8996`/development, single Docker C2D env).
+- **Required JSON file + environment overrides.** Env vars are not an alternative to the
+  file: `buildMergedConfig()` always calls `loadConfigFromFile()` first, then deep-merges the
+  mapped env overrides (`ENV_TO_CONFIG_MAPPING`) on top and validates the result with zod.
+  The file is resolved from the `CONFIG_PATH` env var (must be absolute), else
+  `./config.json` in cwd; if it is missing, startup fails with
+  `Config file not found at path: ...`, even when every setting is given via env. The repo
+  ships a ready `config.json` (Typesense DB, chain `8996`/development, HTTP port `8001`,
+  single Docker C2D env).
 - **`INTERFACES`** env var (JSON array like `["HTTP","P2P"]`) toggles `hasHttp` / `hasP2P`.
   Omitted = both enabled. `DB_URL`/`DB_TYPE` presence drives `hasIndexer` — without a valid
-  DB config the Indexer is disabled and only the SQLite nonce DB is available.
+  metadata DB config the Indexer and the metadata-backed features (DDOs, orders, access
+  lists, escrow events, DB logs) are disabled, but the SQLite core still runs: nonce, auth
+  tokens, C2D jobs, node config (and best-effort node metrics). So C2D, nonce and auth
+  services keep working.
 - The full catalog of env vars is defined as `ENVIRONMENT_VARIABLES` in
   `src/utils/constants.ts` and documented in `docs/env.md` (long file — the authoritative
   reference). `.env.example` lists them grouped as core / p2p / compute.
@@ -300,8 +320,10 @@ Handler source is grouped under `src/components/core/`:
   giving handlers RPC providers/signers keyed by `chainId` (`OceanNode.getBlockchain(chainId)`).
 - **Auth/** — auth-token issuance/validation (JWT-based, `JWT_SECRET`) as an alternative to
   per-request signatures.
-- **persistentStorage/** — pluggable storage (S3 / IPFS, `PersistentStorageFactory`) for C2D
-  job outputs and user buckets. See `docs/persistentStorage.md`, `docs/Storage.md`.
+- **persistentStorage/** — pluggable storage for C2D job outputs and user buckets. The
+  implemented backends are `localfs` (`PersistentStorageLocalFS`) and `s3`
+  (`PersistentStorageS3`), selected by `type` in `createPersistentStorage.ts`; there is no
+  IPFS backend. See `docs/persistentStorage.md`, `docs/Storage.md`.
 - **policyServer/** — passthrough integration to an external policy server for access
   decisions (`POLICY_SERVER_URL`, `docs/PolicyServer.md`).
 
@@ -310,8 +332,8 @@ Handler source is grouped under `src/components/core/`:
 - `src/@types/` — shared TypeScript types (`OceanNode.ts` for config/response shapes,
   `commands.ts` for `Command`/handler interfaces, `blockchain.ts`, `C2D/`).
 - `src/utils/` — cross-cutting helpers: `config/` (config builder + zod schemas),
-  `constants.ts`, `crypt.ts` (hashing/signing), `blockchain.ts`, `logging/` (winston, with a
-  DB transport in prod/staging), `cronjobs/`, `validators.ts`, `credentials.ts`,
+  `constants.ts`, `crypt.ts` (hashing/signing), `blockchain.ts`, `logging/` (winston: console, per-module
+  rotating files in `logs/` by default when `LOG_DB` is off, optional DB transport), `cronjobs/`, `validators.ts`, `credentials.ts`,
   `accessList.ts`, `asset.ts`, `attestation.ts`.
 - Runtime data dirs: `databases/` (SQLite files + libp2p LevelDB store), `c2d_storage/` (C2D
   job working data), `logs/`, `schemas/` (SHACL DDO validation schemas — shipped into the
@@ -325,7 +347,8 @@ Handler source is grouped under `src/components/core/`:
 
 ## 5. Docker & deployment
 
-Multi-stage `Dockerfile` (builder + slim runner) on `node:24`. The runner ships only
+Multi-stage `Dockerfile` (builder + runner), both stages on
+`node:26.12.1-trixie-slim` pinned by digest. The runner ships only
 `dist/`, `node_modules`, `schemas/`, `hfpatch/` (the `sitecustomize.py` the node copies
 into services — see `docs/services.md`) and `config.json` (`.dockerignore` excludes all of
 `docs/`) — no service templates. It exposes P2P ports `9000-9003,9005` and
