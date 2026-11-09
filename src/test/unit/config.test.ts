@@ -52,6 +52,11 @@ describe('Should validate configuration from JSON', () => {
     expect(config.httpPort).to.be.equal(8001)
   })
 
+  it('should default trustProxy to false when unset', () => {
+    // Secure default: X-Forwarded-For is not trusted unless the operator opts in.
+    expect(config.trustProxy).to.be.equal(false)
+  })
+
   it('should have P2P', () => {
     expect(config.hasP2P).to.be.equal(true)
     expect(config.p2pConfig).to.not.be.equal(null)

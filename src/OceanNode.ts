@@ -295,11 +295,22 @@ export class OceanNode {
    * v3: Direct protocol command handler - no P2P, just call handler directly
    * Returns {status, stream} without buffering
    * @param message - JSON command string
+   * @param caller - trusted caller supplied by the transport (HTTP request IP, P2P peer id).
+   *   When provided it is stamped over any `caller` present in the message body, so the
+   *   handler-level rate limiter (which keys on task.caller) cannot be evaded by putting a
+   *   fresh/forged caller in the request body. Never trust a body-supplied caller.
    */
-  async handleDirectProtocolCommand(message: string): Promise<P2PCommandResponse> {
+  async handleDirectProtocolCommand(
+    message: string,
+    caller?: string | string[]
+  ): Promise<P2PCommandResponse> {
     let command: string | undefined
     try {
       const task = JSON.parse(message)
+      // Override any client-supplied caller with the trusted transport value.
+      if (caller !== undefined) {
+        task.caller = caller
+      }
       // only known command names are logged: a raw, caller-supplied string could embed
       // control characters and forge extra log lines (CWE-117)
       command = SUPPORTED_PROTOCOL_COMMANDS.includes(task?.command)

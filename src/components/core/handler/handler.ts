@@ -13,7 +13,10 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { ReadableString } from '../../P2P/handlers.js'
-import { CONNECTION_HISTORY_DELETE_THRESHOLD } from '../../../utils/constants.js'
+import {
+  CONNECTION_HISTORY_DELETE_THRESHOLD,
+  CONNECTIONS_RATE_INTERVAL
+} from '../../../utils/constants.js'
 import { normalizeCommandAddresses, sameAddress } from '../../../utils/evmAddress.js'
 
 const RATE_LIMIT_LOG_KEY = 'core-rate-limit'
@@ -48,10 +51,17 @@ export abstract class BaseHandler implements ICommandHandler {
       return true
     }
 
-    // we have to clear this from time to time, so it does not grow forever
-    if (requestMap.size > CONNECTION_HISTORY_DELETE_THRESHOLD) {
-      CORE_LOGGER.debug('Request history reached threshold, cleaning cache')
-      requestMap.clear()
+    // Keep the request history bounded WITHOUT wiping everyone's counters. The previous
+    // behaviour cleared the whole map at the threshold, which let an attacker reset every
+    // caller's rate-limit state just by sending enough distinct `caller` values. Instead, once
+    // we reach the hard cap we drop entries whose window has already elapsed and, if still at
+    // the cap, evict the LEAST-ACTIVE callers (lowest request count) first. This is O(n) only
+    // at/over the cap.
+    if (requestMap.size >= CONNECTION_HISTORY_DELETE_THRESHOLD) {
+      CORE_LOGGER.debug(
+        'Request history reached threshold, evicting stale/oldest entries'
+      )
+      this.evictRequestHistory(requestMap, requestTime)
     }
 
     const self = this
@@ -121,6 +131,45 @@ export abstract class BaseHandler implements ICommandHandler {
   }
 
   /**
+   * Bound the request-history map without discarding live counters. First removes entries whose
+   * rate-limit window has already elapsed (stale), then — if still at/over the hard cap because a
+   * lot of callers are genuinely active — evicts the LEAST-ACTIVE callers (lowest request count,
+   * ties broken by oldest window start) until the map is back under the cap. Only ever called
+   * at/over the cap, so the common path stays O(1).
+   *
+   * Evicting by request count (not by window-start age) is what actually defeats the ON-08b
+   * counter-reset: a flood of distinct callers each sends ~1 request, so those singleton entries
+   * are dropped before a caller we are actively rate-limiting (high numRequests). An attacker can
+   * neither reset a victim's counter by filling the map, nor reset their own by self-eviction (a
+   * high count is kept; a low count resetting from 1→1 is harmless). `lastRequestTime` is the
+   * window start, not last-activity, so it is only a stable tie-breaker here, never the key.
+   * @param requestMap the shared per-caller request history
+   * @param now current time in ms
+   */
+  evictRequestHistory(requestMap: Map<string, RequestLimiter>, now: number): void {
+    // 1) Drop entries whose window has already expired — they no longer count toward any limit.
+    for (const [key, data] of requestMap) {
+      if (now - data.lastRequestTime > CONNECTIONS_RATE_INTERVAL) {
+        requestMap.delete(key)
+      }
+    }
+    // 2) Still at/over the cap (many active callers): evict least-active first (lowest request
+    // count, then oldest window start) until we drop below the cap, so actively rate-limited
+    // callers are kept and a flood of singleton callers cannot displace them.
+    if (requestMap.size >= CONNECTION_HISTORY_DELETE_THRESHOLD) {
+      const byLeastActive = [...requestMap.entries()].sort(
+        (a, b) =>
+          a[1].numRequests - b[1].numRequests ||
+          a[1].lastRequestTime - b[1].lastRequestTime
+      )
+      const removeCount = requestMap.size - CONNECTION_HISTORY_DELETE_THRESHOLD + 1
+      for (let i = 0; i < removeCount && i < byLeastActive.length; i++) {
+        requestMap.delete(byLeastActive[i][0])
+      }
+    }
+  }
+
+  /**
    * Checks if the request is within the rate limit defined
    * @param remote remote endpoint (ip or peer identifier)
    * @param ratePerMinute number of calls per minute allowed (per ip or peer identifier)
@@ -133,10 +182,13 @@ export abstract class BaseHandler implements ICommandHandler {
   ): RequestDataCheck {
     const requestMap = this.getOceanNode().getRequestMap()
     const requestData: RequestLimiter = requestMap.get(remote)
-    const diffMinutes = ((currentTime - requestData.lastRequestTime) / 1000) * 60
-    // more than 1 minute difference means no problem
-    if (diffMinutes >= 1) {
-      // its fine
+    // Real elapsed time (ms) since this caller's last window start. The rate window is a fixed
+    // 60s interval (CONNECTIONS_RATE_INTERVAL); once it elapses, the caller's counter resets.
+    // (The previous `(Δms / 1000) * 60` was Δms * 0.06, so the "1 minute" window actually reset
+    // after ~17ms and MAX_REQ_PER_MINUTE went effectively unenforced.)
+    const elapsedMs = currentTime - requestData.lastRequestTime
+    // a full window has elapsed: start a fresh 60s window for this caller
+    if (elapsedMs >= CONNECTIONS_RATE_INTERVAL) {
       requestData.lastRequestTime = currentTime
       requestData.numRequests = 1
       return {
@@ -144,7 +196,7 @@ export abstract class BaseHandler implements ICommandHandler {
         updatedRequestData: requestData
       }
     } else {
-      // requests in the same interval of 1 second
+      // another request within the same 60s window
       requestData.numRequests++
       return {
         valid: requestData.numRequests <= ratePerMinute,

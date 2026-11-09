@@ -192,6 +192,9 @@ export interface OceanNodeConfig {
   codeHash?: string
   rateLimit?: number // per request ip or peer
   maxConnections?: number // global, regardless of client address(es)
+  // Express `trust proxy` value: false (default, ignore X-Forwarded-For), a hop count,
+  // 'loopback'/'linklocal'/'uniquelocal', or a comma-separated list of trusted IPs/CIDRs.
+  trustProxy?: boolean | number | string
   denyList?: DenyList
   unsafeURLs?: string[]
   isBootstrap?: boolean
