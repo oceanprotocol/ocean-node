@@ -109,9 +109,13 @@ export class FileInfoHandler extends CommandHandler {
       let fileInfo = []
 
       if (task.file && task.type) {
-        // ON-07: the raw-`file` object is a caller-controlled outbound fetch primitive.
-        // 1) dedicated, stricter rate limit (separate bucket from the global limiter),
-        // 2) require a valid signature/token (unless the transition flag is set).
+        // ON-07: the raw-`file` object is a caller-controlled outbound fetch primitive. It needs
+        // NO authentication — it only returns metadata of a URL the caller already supplied, so a
+        // signature would be proof-of-key-ownership, not authorization, and gates nothing. It IS
+        // an amplification-prone outbound fetch, so apply a dedicated, stricter rate limit
+        // (separate bucket from the global limiter). Abuse is contained by this limit, the SSRF
+        // guard (#1575) and the forwarded-header allow-list below — all keyed on transport
+        // identity, not on a signature.
         if (
           !(await this.checkRateLimitForBucket(
             task.caller,
@@ -120,19 +124,6 @@ export class FileInfoHandler extends CommandHandler {
           ))
         ) {
           return buildRateLimitReachedResponse()
-        }
-        if (!config.fileInfoAllowUnauthenticated) {
-          const signerAddress = task.address ?? task.consumerAddress
-          const authResponse = await this.validateTokenOrSignature(
-            task.authorization,
-            signerAddress,
-            task.nonce,
-            task.signature,
-            task.command
-          )
-          if (authResponse.status.httpStatus !== 200) {
-            return authResponse
-          }
         }
         // Headers on a raw caller-supplied `file` are untrusted: allow-list them before they
         // are forwarded upstream (prevents header injection to internal services).

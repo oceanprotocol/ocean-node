@@ -384,31 +384,25 @@ Files whose host is, or resolves to, a private, loopback, link-local or otherwis
 | fileIndex | number |          | file index in files array                           |
 | file      | object |          | file data                                           |
 | checksum  | number |          | index in transaction events list                    |
-| address   | string |          | signer address (raw-`file` path, see Auth below)    |
-| nonce     | string |          | nonce (raw-`file` path, see Auth below)             |
-| signature | string |          | signature (raw-`file` path, see Auth below)         |
 
-#### Authentication (raw-`file` path, ON-07)
+#### Raw-`file` path hardening (ON-07)
 
-When a raw `file` object is supplied (as opposed to `did` + `serviceId`), the request **must be
-authenticated**. Provide either:
+A raw `file` object (as opposed to `did` + `serviceId`) needs **no signature or auth token** — it
+only returns metadata (`contentLength`, `contentType`, `checksum`) of a URL the caller already
+supplied, so authentication would gate nothing. Two protections apply instead, both independent of
+caller identity:
 
-- a **signature**: sign the message `address + nonce + command` (where `command` is `"fileInfo"`)
-  with the `address` key — identical to the `download`/`encrypt` convention — and send `address`,
-  `nonce` and `signature`; or
-- an **auth token** in the `Authorization` request header.
+- **Forwarded-header allow-list.** Any custom headers supplied inside the `file` object are
+  filtered to an allow-list (`accept`, `accept-encoding`, `range`, `content-type`, extended by
+  `FILEINFO_ALLOWED_HEADERS`) before the node fetches the target; `authorization`, `cookie` and
+  other headers are dropped, so the caller cannot inject credentials into a request to an internal
+  service.
+- **Dedicated rate limit.** The raw-`file` path can be throttled independently of the global limit
+  via `FILEINFO_MAX_REQ_PER_MINUTE` (separate bucket), bounding its use as an amplification
+  primitive. SSRF to private/loopback/metadata targets is blocked by the address guard
+  (`ALLOWED_PRIVATE_URL_RANGES` / `UNSAFE_URLS`).
 
-An unauthenticated raw-`file` request is answered with `401`. Operators migrating older clients can
-temporarily disable this check with `FILEINFO_ALLOW_UNAUTHENTICATED=true` (see
-[env.md](env.md)) — this is a transition flag, not a recommended steady state.
-
-Any custom headers supplied inside the `file` object are filtered to an allow-list
-(`accept`, `accept-encoding`, `range`, `content-type`, extended by `FILEINFO_ALLOWED_HEADERS`)
-before the node fetches the target; `authorization`, `cookie` and other headers are dropped. The
-raw-`file` path can also be throttled independently via `FILEINFO_MAX_REQ_PER_MINUTE`.
-
-The `did` + `serviceId` path is unchanged: it keeps its existing DDO-based access control and
-needs no signature.
+The `did` + `serviceId` path is unchanged: it keeps its existing DDO-based access control.
 
 #### Request
 

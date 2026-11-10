@@ -542,13 +542,6 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.ALLOWED_DOCKER_REGISTRY_REALMS,
     required: false
   },
-  FILEINFO_ALLOW_UNAUTHENTICATED: {
-    // ON-07: when "true", the raw-`file` fileInfo path skips the signature/token check.
-    // Default false (secure). Temporary transition flag until clients sign fileInfo requests.
-    name: 'FILEINFO_ALLOW_UNAUTHENTICATED',
-    value: process.env.FILEINFO_ALLOW_UNAUTHENTICATED,
-    required: false
-  },
   FILEINFO_ALLOWED_HEADERS: {
     // ON-07: JSON array of extra request-header names allowed through to the upstream when a
     // caller supplies `file.headers` on the raw-`file` fileInfo path (the only path whose caller

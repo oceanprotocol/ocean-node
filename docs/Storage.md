@@ -18,10 +18,8 @@ All file objects can optionally include encryption metadata: `encryptedBy` and `
 
 ## Private network protection (SSRF)
 
-File objects are supplied by remote callers, who choose the target URL, so the node
-treats every `url`, `ftp` and `s3` target as untrusted (the `fileInfo` raw-`file` path is
-additionally authenticated — see [env.md → `FILEINFO_ALLOW_UNAUTHENTICATED`](env.md) — but
-the target is still caller-chosen and must be validated):
+File objects are supplied by remote callers, who choose the target URL (and `fileInfo` on a raw
+`file` needs no signature), so the node treats every `url`, `ftp` and `s3` target as untrusted:
 
 - Hosts that are, or resolve to, a non-public address are refused: loopback, RFC 1918
   private ranges, link-local (`169.254.0.0/16`, which includes the cloud metadata

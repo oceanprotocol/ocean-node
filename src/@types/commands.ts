@@ -87,13 +87,6 @@ export interface FileInfoCommand extends Command {
   checksum?: boolean
   // required only for nodePersistentStorage files, to gate on the bucket ACL
   consumerAddress?: string
-  // ON-07: auth for the raw-`file` object path. Signed message follows the provider
-  // convention: address + nonce + command (verified like download/encrypt). `address` is
-  // the signer; falls back to `consumerAddress` when omitted. base `Command.authorization`
-  // carries an auth token as an alternative to a signature.
-  address?: string
-  nonce?: string
-  signature?: string
 }
 // group these 2
 export interface DDOCommand extends Command {

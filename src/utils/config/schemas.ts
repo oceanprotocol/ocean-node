@@ -1422,9 +1422,6 @@ export const OceanNodeConfigSchema = z
       })
       .optional()
       .default([]),
-    // ON-07: skip the signature/token check on the raw-`file` fileInfo path. Default false
-    // (secure). Temporary transition flag; see docs/env.md.
-    fileInfoAllowUnauthenticated: booleanFromString.optional().default(false),
     // ON-07: extra request-header names forwarded to the upstream when a caller supplies
     // `file.headers`. EXTENDS the built-in default allow-list. Invalid input is logged and
     // dropped to [] (fail-closed to only the defaults, never crash config load).

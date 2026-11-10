@@ -22,7 +22,6 @@ export const ENV_TO_CONFIG_MAPPING = {
   ALLOWED_PRIVATE_URL_RANGES: 'allowedPrivateUrlRanges',
   ALLOWED_DOCKER_REGISTRIES: 'allowedDockerRegistries',
   ALLOWED_DOCKER_REGISTRY_REALMS: 'allowedDockerRegistryRealms',
-  FILEINFO_ALLOW_UNAUTHENTICATED: 'fileInfoAllowUnauthenticated',
   FILEINFO_ALLOWED_HEADERS: 'fileInfoAllowedHeaders',
   FILEINFO_MAX_REQ_PER_MINUTE: 'fileInfoRateLimit',
   IS_BOOTSTRAP: 'isBootstrap',
