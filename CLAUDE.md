@@ -202,12 +202,15 @@ HTTP/HTTPS → `scheduleCronJobs()`.
 `OceanNode` (`src/OceanNode.ts`) is the central singleton wiring everything together. It
 holds the `CoreHandlersRegistry`, `C2DEngines`, `Escrow`, `Auth`, `PersistentStorage`,
 `Database`, `KeyManager`, `BlockchainRegistry`, and the per-caller rate-limit `requestMap`.
-`handleDirectProtocolCommand(message)` is the single choke point for dispatch: it JSON-parses
-the command, looks up the handler by `task.command`, and calls `handler.handle(task)`.
+The common dispatch primitive is `CoreHandlersRegistry.getHandler(task.command)` followed by
+`handler.handle(task)`. `handleDirectProtocolCommand(message)` is the HTTP `/directCommand`
+wrapper around that (it JSON-parses the command, looks up the handler, and calls it); P2P
+inbound and the REST routes resolve/instantiate the handler and call `handle(task)` directly,
+without going through `handleDirectProtocolCommand`.
 
 ### Request / command flow
 
-Two front doors, one dispatcher:
+Multiple front doors, one shared `handler.handle(task)` primitive:
 
 - **HTTP `POST /directCommand`** (`src/components/httpRoutes/commands.ts`): validates the
   body, then decides _local vs remote_. If the command targets this node (or no P2P), it
