@@ -75,6 +75,8 @@ describe('**********         [Download Flow] - Should run a complete node flow.'
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ALLOWED_ADMINS,
+          ENVIRONMENT_VARIABLES.SUBSIDY_PROVIDERS,
+          ENVIRONMENT_VARIABLES.SUBSIDY_PROVIDER_FILTER,
           ENVIRONMENT_VARIABLES.ADDRESS_FILE
         ],
         [
@@ -83,6 +85,8 @@ describe('**********         [Download Flow] - Should run a complete node flow.'
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
+          JSON.stringify({ '8996': ['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'] }),
+          'true',
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
@@ -127,6 +131,15 @@ describe('**********         [Download Flow] - Should run a complete node flow.'
         '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'?.toLowerCase(),
       'incorrect admin address'
     )
+    assert(
+      status.subsidyProviders?.['8996']?.[0]?.toLowerCase() ===
+        '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'?.toLowerCase(),
+      'incorrect subsidy provider address'
+    )
+    assert(
+      status.subsidyProviderFilter === true,
+      'subsidyProviderFilter should reflect SUBSIDY_PROVIDER_FILTER=true'
+    )
     assert(status.c2dClusters === undefined, 'clusters info should be undefined')
     assert(status.supportedSchemas === undefined, 'schemas info should be undefined')
   })
@@ -142,6 +155,15 @@ describe('**********         [Download Flow] - Should run a complete node flow.'
     const status = JSON.parse(resp)
     assert(status.c2dClusters !== undefined, 'clusters info should not be undefined')
     assert(status.supportedSchemas !== undefined, 'schemas info should not be undefined')
+    assert(
+      status.subsidyProviders?.['8996']?.[0]?.toLowerCase() ===
+        '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'?.toLowerCase(),
+      'subsidy providers should be present in detailed status'
+    )
+    assert(
+      status.subsidyProviderFilter === true,
+      'subsidyProviderFilter should be present in detailed status'
+    )
   })
 
   it('should get file info before publishing', async () => {

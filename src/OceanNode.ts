@@ -90,7 +90,8 @@ export class OceanNode {
       this.escrow = new Escrow(
         this.config.supportedNetworks,
         this.config.claimDurationTimeout,
-        this.blockchainRegistry
+        this.blockchainRegistry,
+        this.config.subsidyProviders
       )
       if (this.config.persistentStorage?.enabled) {
         OCEAN_NODE_LOGGER.info(
@@ -290,7 +291,8 @@ export class OceanNode {
       this.escrow = new Escrow(
         this.config.supportedNetworks,
         this.config.claimDurationTimeout,
-        this.blockchainRegistry
+        this.blockchainRegistry,
+        this.config.subsidyProviders
       )
     }
   }

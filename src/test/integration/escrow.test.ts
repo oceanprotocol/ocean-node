@@ -17,6 +17,7 @@ import {
 import {
   ENVIRONMENT_VARIABLES,
   EVENTS,
+  JobType,
   PROTOCOL_COMMANDS
 } from '../../utils/constants.js'
 import {
@@ -183,7 +184,8 @@ describe('Indexer stores Escrow contract events', () => {
       payeeAddress,
       depositAmount,
       expiry,
-      10
+      10,
+      0 // expiryTimestamp: 0 = indefinite (Escrow v2)
     )
     const receipt = await tx.wait()
     authTxHash = receipt.hash
@@ -199,6 +201,8 @@ describe('Indexer stores Escrow contract events', () => {
     expect(event.token).to.equal(paymentToken.toLowerCase())
     expect(event.maxLockedAmount).to.equal(depositAmount.toString())
     expect(event.maxLockCounts).to.equal('10')
+    // Escrow v2: authorize was called with expiryTimestamp 0 (indefinite)
+    expect(event.expiryTimestamp).to.equal('0')
   })
 
   it('indexes a Lock event', async function () {
@@ -207,7 +211,8 @@ describe('Indexer stores Escrow contract events', () => {
 
     const tx = await escrowContract
       .connect(publisherAccount)
-      .createLock(jobId, paymentToken, payerAddress, lockAmount, expiry)
+      // Escrow v2: + jobType (0 = NONE) + subsidyProviders ([] = plain payer-funded lock)
+      .createLock(jobId, paymentToken, payerAddress, lockAmount, expiry, 0, [])
     const receipt = await tx.wait()
     lockTxHash = receipt.hash
 
@@ -237,7 +242,8 @@ describe('Indexer stores Escrow contract events', () => {
     const reLockExpiry = Math.floor(expiry / 2)
     const tx = await escrowContract
       .connect(publisherAccount)
-      .reLock(jobId, paymentToken, payerAddress, newLockAmount, reLockExpiry)
+      // Escrow v2: + jobType (0 = NONE) + subsidyProviders ([] = plain payer-funded lock)
+      .reLock(jobId, paymentToken, payerAddress, newLockAmount, reLockExpiry, 0, [])
     const receipt = await tx.wait()
     const reLockTxHash = receipt.hash
 
@@ -255,6 +261,89 @@ describe('Indexer stores Escrow contract events', () => {
     expect(event.token).to.equal(paymentToken.toLowerCase())
     // expiry is emitted as an absolute timestamp; just assert it is populated
     assert(event.newExpiry, 'newExpiry should be populated')
+  })
+
+  // Subsidy Providers claim-with-subsidy flow. This is gated on the republished
+  // @oceanprotocol/contracts (the new claim ABI carrying jobType + subsidyProviders) AND a
+  // Barge deployment that ships a MockSubsidyProvider address in the artifacts file. Until both
+  // are present the test self-skips, so it stays green against the current escrow while
+  // documenting the intended end-to-end assertion. Once the contracts are bumped, drop the
+  // guards below and fund/register the MockSubsidyProvider in `before()`.
+  it('indexes a Subsidized event on a claim carrying a subsidy provider', async function () {
+    if (!escrowAddress || !paymentToken) this.skip()
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+
+    // Guard 1: the installed escrow ABI must be the new one (claimLock takes jobType +
+    // subsidyProviders, i.e. 7 inputs). The pre-subsidy ABI has 6.
+    let claimFragment: any
+    try {
+      claimFragment = escrowContract.interface.getFunction('claimLock')
+    } catch {
+      claimFragment = null
+    }
+    if (!claimFragment || claimFragment.inputs.length < 7) {
+      this.skip()
+    }
+
+    // Guard 2: Barge must ship a deployed MockSubsidyProvider we can name as a provider.
+    let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
+    if (!artifactsAddresses) {
+      artifactsAddresses = getOceanArtifactsAdresses().development
+    }
+    const subsidyProvider =
+      artifactsAddresses?.MockSubsidyProvider ?? artifactsAddresses?.SubsidyProvider
+    if (!subsidyProvider) {
+      this.skip()
+    }
+
+    // Payee (publisher) claims the lock created for `jobId` earlier, naming the subsidy
+    // provider and a COMPUTE jobType. A contributing provider makes the escrow emit Subsidized.
+    const tx = await escrowContract
+      .connect(publisherAccount)
+      .claimLock(
+        jobId,
+        paymentToken,
+        payerAddress,
+        lockAmount,
+        ethers.toUtf8Bytes('subsidy-proof'),
+        JobType.COMPUTE,
+        [subsidyProvider]
+      )
+    const receipt = await tx.wait()
+    const claimTxHash = receipt.hash
+
+    const events = await waitForEscrowEvents({
+      txHash: claimTxHash,
+      eventType: EVENTS.ESCROW_SUBSIDIZED
+    })
+    assert(events && events.length > 0, 'Subsidized event should be indexed')
+    const event = events[0]
+    expect(event.payee).to.equal(payeeAddress.toLowerCase())
+    expect(event.payer).to.equal(payerAddress.toLowerCase())
+    expect(event.jobId).to.equal(jobId.toString())
+    expect(event.token).to.equal(paymentToken.toLowerCase())
+    expect(event.provider).to.equal(subsidyProvider.toLowerCase())
+    assert(event.subsidyAmount !== undefined, 'subsidyAmount should be populated')
+    assert(event.bonusAmount !== undefined, 'bonusAmount should be populated')
+
+    // And it is queryable through the getEscrowEvents command.
+    const response = await new EscrowEventsHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.GET_ESCROW_EVENTS,
+      chainId,
+      eventType: EVENTS.ESCROW_SUBSIDIZED,
+      payer: payerAddress,
+      caller: '127.0.0.1'
+    })
+    expect(response.status.httpStatus).to.equal(200)
+    const result = JSON.parse(await streamToString(response.stream as Readable))
+    assert(
+      result.some((e: any) => e.txHash === claimTxHash),
+      'query should return the indexed Subsidized event'
+    )
+    const queried = result.find((e: any) => e.txHash === claimTxHash)
+    expect(queried.provider).to.equal(subsidyProvider.toLowerCase())
+    expect(queried.subsidyAmount).to.equal(event.subsidyAmount)
+    expect(queried.bonusAmount).to.equal(event.bonusAmount)
   })
 
   it('returns indexed events through the EscrowEventsHandler (query command)', async function () {
@@ -287,5 +376,106 @@ describe('Indexer stores Escrow contract events', () => {
     const next = await database.escrow.search({ chainId }, 1, 1)
     assert(next && next.length === 1, 'offset + size should return a single row')
     expect(next[0].id).to.not.equal(page[0].id) // offset advanced past the first row
+  })
+
+  it('filters by a native block range (store-side)', async function () {
+    if (!escrowAddress || !paymentToken) this.skip()
+    this.timeout(DEFAULT_TEST_TIMEOUT)
+
+    const all = await database.escrow.search({ chainId }, 0, 250)
+    assert(all && all.length > 0, 'there should be indexed events')
+    const minBlock = Math.min(...all.map((e: any) => Number(e.block)))
+
+    // direct DB search with a range-object value
+    const fromMin = await database.escrow.search(
+      { chainId, block: { min: minBlock } },
+      0,
+      250
+    )
+    assert(fromMin && fromMin.length === all.length, 'min=lowest block returns all rows')
+    assert(
+      fromMin.every((e: any) => Number(e.block) >= minBlock),
+      'every row is at or above the lower bound'
+    )
+
+    // a lower bound above every block returns nothing
+    const maxBlock = Math.max(...all.map((e: any) => Number(e.block)))
+    const none = await database.escrow.search(
+      { chainId, block: { min: maxBlock + 1 } },
+      0,
+      250
+    )
+    assert(!none || none.length === 0, 'min above max block returns no rows')
+
+    // and the same range is reachable through the command via `ranges`
+    const response = await new EscrowEventsHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.GET_ESCROW_EVENTS,
+      chainId,
+      ranges: { block: { min: minBlock, max: maxBlock } },
+      caller: '127.0.0.1'
+    })
+    expect(response.status.httpStatus).to.equal(200)
+    const result = JSON.parse(await streamToString(response.stream as Readable))
+    assert(
+      result.length > 0 &&
+        result.every(
+          (e: any) => Number(e.block) >= minBlock && Number(e.block) <= maxBlock
+        ),
+      'command range filter returns rows within [min,max]'
+    )
+  })
+
+  it('filters by a client-side uint256 amount range (subsidyAmount)', async function () {
+    if (!escrowAddress || !paymentToken) this.skip()
+    this.timeout(DEFAULT_TEST_TIMEOUT)
+
+    const subsidized = await database.escrow.search(
+      { chainId, eventType: EVENTS.ESCROW_SUBSIDIZED },
+      0,
+      250
+    )
+    if (!subsidized || subsidized.length === 0) this.skip()
+    const target = subsidized[0].subsidyAmount as string
+
+    // a range that includes the target value returns it
+    const included = await new EscrowEventsHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.GET_ESCROW_EVENTS,
+      chainId,
+      eventType: EVENTS.ESCROW_SUBSIDIZED,
+      ranges: { subsidyAmount: { min: target, max: target } },
+      caller: '127.0.0.1'
+    })
+    expect(included.status.httpStatus).to.equal(200)
+    const inResult = JSON.parse(await streamToString(included.stream as Readable))
+    assert(
+      inResult.some((e: any) => e.subsidyAmount === target),
+      'range [target,target] returns the matching event'
+    )
+
+    // an exclusive lower bound at the target value filters it out
+    const excluded = await new EscrowEventsHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.GET_ESCROW_EVENTS,
+      chainId,
+      eventType: EVENTS.ESCROW_SUBSIDIZED,
+      ranges: { subsidyAmount: { gt: target } },
+      caller: '127.0.0.1'
+    })
+    expect(excluded.status.httpStatus).to.equal(200)
+    const exResult = JSON.parse(await streamToString(excluded.stream as Readable))
+    assert(
+      !exResult.some((e: any) => e.subsidyAmount === target),
+      'exclusive bound gt=target excludes the matching event'
+    )
+  })
+
+  it('rejects an unsupported range field with 400', async function () {
+    if (!escrowAddress || !paymentToken) this.skip()
+    const response = await new EscrowEventsHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.GET_ESCROW_EVENTS,
+      chainId,
+      ranges: { payer: { min: 1 } } as any,
+      caller: '127.0.0.1'
+    })
+    expect(response.status.httpStatus).to.equal(400)
   })
 })

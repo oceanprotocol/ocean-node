@@ -149,6 +149,8 @@ jobs:
         working-directory: ${{ github.workspace }}/barge
         run: |
           bash -x start_ocean.sh --no-node --with-typesense 2>&1 > start_ocean.log &
+        env:
+          CONTRACTS_VERSION: 3.2.0-rc.1
       - run: npm ci
       - run: npm run build
       - run: docker image ls
@@ -251,6 +253,8 @@ jobs:
         working-directory: ${{ github.workspace }}/barge
         run: |
           bash -x start_ocean.sh --no-node --with-typesense 2>&1 > start_ocean.log &
+        env:
+          CONTRACTS_VERSION: 3.2.0-rc.1
       - run: docker image ls
       - name: Delete default runner images
         run: |
@@ -260,13 +264,14 @@ jobs:
         with:
           persist-credentials: false
           repository: 'oceanprotocol/ocean-cli'
+          ref: 'feature/subsidy_provider'
           path: 'ocean-cli'
       - name: Checkout Ocean-js
         uses: actions/checkout@v7
         with:
           persist-credentials: false
           repository: 'oceanprotocol/ocean.js'
-          ref: 'v9.2.2'
+          ref: 'v9.3.0-next.4'
           path: 'ocean.js'
           ref: 'v9.2.3'
       - name: Build ocean-js

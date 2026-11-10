@@ -299,6 +299,21 @@ export async function getConfiguration(
     previousConfiguration.codeHash = await computeCodebaseHash(__dirname)
   }
 
+  if (isStartup) {
+    // Insecure-default warning: with SUBSIDY_PROVIDER_FILTER off, the whitelist check in
+    // resolveUserSubsidyProviders is skipped entirely, so an untrusted consumer may name ANY
+    // sponsor address in a request and have this node lock/claim against it (an open,
+    // sybil-drainable sponsorship program). This exposure is a property of the filter being
+    // off, NOT of SUBSIDY_PROVIDERS being populated — a pure-default node (no providers set,
+    // filter off) is the most exposed and least likely to have chosen it deliberately — so we
+    // warn whenever the filter is off, regardless of whether any providers are configured.
+    if (!previousConfiguration.subsidyProviderFilter) {
+      CONFIG_LOGGER.warn(
+        'SUBSIDY_PROVIDER_FILTER is OFF: any consumer may name ANY sponsor address through this node (open, sybil-drainable sponsorship). Set SUBSIDY_PROVIDER_FILTER=true to restrict callers to this node’s configured SUBSIDY_PROVIDERS.'
+      )
+    }
+  }
+
   return previousConfiguration
 }
 
