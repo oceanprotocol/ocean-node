@@ -1384,20 +1384,24 @@ export const OceanNodeConfigSchema = z
       .optional()
       .transform(normalizeAllowedPrivateUrlRanges),
     // ON-18: opt-in Docker registry allow-list (JSON array of registry host strings, e.g.
-    // ["registry-1.docker.io","ghcr.io"]). Empty (the default) keeps current behaviour: any
-    // public registry allowed. Invalid input is logged and dropped to [] (fail-open to the
-    // previous non-breaking behaviour, never crash config load).
+    // ["registry-1.docker.io","ghcr.io"]). Unset (undefined) keeps current behaviour: any public
+    // registry allowed. But this is a SECURITY control: a value that is PRESENT-but-malformed must
+    // NOT silently collapse to [] (which checkRegistryAllowList reads as "allow any registry") —
+    // that fail-open would let a typo disable the restriction. So invalid input fails config load
+    // (fail-closed); getConfiguration() surfaces the issue and refuses to start.
     allowedDockerRegistries: jsonFromString(
       z.array(z.string()),
       'allowedDockerRegistries'
     )
-      .transform((val) => {
+      .transform((val, ctx) => {
         if (val === undefined) return []
         if (!Array.isArray(val) || !val.every((v) => typeof v === 'string')) {
-          CONFIG_LOGGER.error(
-            'Invalid ALLOWED_DOCKER_REGISTRIES: expected a JSON array of registry host strings, dropping to []'
-          )
-          return []
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              'Invalid ALLOWED_DOCKER_REGISTRIES: expected a JSON array of registry host strings'
+          })
+          return z.NEVER
         }
         return val
       })

@@ -737,12 +737,13 @@ returns file information
 | fileIndex | number |          | file index in files array                |
 | file      | object |          | file data                                |
 | checksum  | number |          | index in transaction events list         |
-| address   | string |          | signer address (raw-`file` path)         |
-| nonce     | string |          | nonce (raw-`file` path)                  |
-| signature | string |          | signature over `address + nonce + command` (raw-`file` path) |
 
-> **ON-07 auth:** a raw `file` object requires a signature (`address + nonce + command`) or an
-> auth token, the same as the HTTP endpoint above. The `did` + `serviceId` path is unchanged.
+> **ON-07 (raw-`file` path):** a raw `file` object needs **no signature or auth token** — it only
+> returns metadata of a URL the caller already supplied. Caller-supplied `file.headers` are
+> filtered to the allow-list (`accept`, `accept-encoding`, `range`, `content-type`, extended by
+> `FILEINFO_ALLOWED_HEADERS`) and the path can be throttled independently via
+> `FILEINFO_MAX_REQ_PER_MINUTE`. The `did` + `serviceId` path is unchanged (DDO-based access
+> control).
 
 #### Request
 

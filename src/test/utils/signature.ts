@@ -23,12 +23,23 @@ export function createHashForSignature(
   const message = String(
     String(consumer) + String(nonce) + String(command) + String(issuerPeerId)
   )
+  return createHashForMessage(message)
+}
+
+/**
+ * Hashes an already-assembled signed message (e.g. the resource-bound DECRYPT_DDO message from
+ * `buildDecryptDDOSignatureMessage`) the same way `createHashForSignature` does, so the resulting
+ * bytes verify against the node's `verifyConsumerSignature`.
+ *
+ * @param message - the full message string to sign
+ * @returns the message-hash bytes ready for signing
+ */
+export function createHashForMessage(message: string): Uint8Array {
   const consumerMessage = ethers.solidityPackedKeccak256(
     ['bytes'],
     [ethers.hexlify(ethers.toUtf8Bytes(message))]
   )
-  const messageHashBytes = ethers.toBeArray(consumerMessage)
-  return messageHashBytes
+  return ethers.toBeArray(consumerMessage)
 }
 
 /**
