@@ -771,7 +771,10 @@ export const ServiceOnDemandConfigSchema = z
       .min(60)
       .optional()
       .default(DEFAULT_SERVICE_MAX_DURATION_SECONDS),
-    allowImageBuild: z.boolean().optional().default(false)
+    allowImageBuild: z.boolean().optional().default(false),
+    // No schema default: the 300s fallback is applied once at runtime
+    // (resolveBuildTimeoutSeconds), so an operator's value can win the resolution chain.
+    buildTimeoutSeconds: z.number().int().min(1).optional()
   })
   .strict()
 
@@ -799,7 +802,10 @@ export const ComputeEnvironmentFreeOptionsSchema = z.object({
         .optional()
     })
     .optional(),
-  allowImageBuild: z.boolean().optional().default(false)
+  allowImageBuild: z.boolean().optional().default(false),
+  // No schema default: the 300s fallback is applied once at runtime
+  // (resolveBuildTimeoutSeconds), so an operator's value can win the resolution chain.
+  buildTimeoutSeconds: z.number().int().min(1).optional()
 })
 
 // Config-time schema for the free block — resources are refs, not full ComputeResource objects.
@@ -817,7 +823,10 @@ export const C2DEnvironmentFreeConfigSchema = z.object({
         .optional()
     })
     .optional(),
-  allowImageBuild: z.boolean().optional().default(false)
+  allowImageBuild: z.boolean().optional().default(false),
+  // No schema default: the 300s fallback is applied once at runtime
+  // (resolveBuildTimeoutSeconds), so an operator's value can win the resolution chain.
+  buildTimeoutSeconds: z.number().int().min(1).optional()
 })
 
 export const C2DEnvironmentConfigSchema = z
@@ -834,6 +843,9 @@ export const C2DEnvironmentConfigSchema = z
     // which is resolved at engine start and clamped there if this exceeds it.
     maxServiceDuration: z.number().int().min(1).optional(),
     maxJobs: z.number().int().optional(),
+    // No schema default: the 300s fallback is applied once at runtime
+    // (resolveBuildTimeoutSeconds), so an operator's value can win the resolution chain.
+    buildTimeoutSeconds: z.number().int().min(1).optional(),
     fees: z.record(z.string(), z.array(ComputeEnvFeesSchema)).optional(),
     access: z
       .object({

@@ -261,7 +261,8 @@ The config has a two-level structure:
       "hostPortRange": [30000, 32767],
       "minDurationSeconds": 0,
       "maxDurationSeconds": 86400,
-      "allowImageBuild": false
+      "allowImageBuild": false,
+      "buildTimeoutSeconds": 300
     },
 
     "environments": [
@@ -337,6 +338,7 @@ The config has a two-level structure:
 - **minServiceDuration** *(optional)*: Minimum **service** duration in seconds, for service-on-demand. SERVICE_START rejects a shorter duration and SERVICE_EXTEND rejects a shorter top-up — it is a minimum purchase, not a rounding rule, so anything accepted is billed for its actual duration (rounded up to whole minutes). Must not exceed `maxServiceDuration`, or the node refuses to start. Omit to fall back to this environment's `minJobDuration` — which is what services were already priced at. A value below the daemon's `serviceOnDemand.minDurationSeconds` is raised to it at startup, with a warning. Advertised to clients as `minServiceDuration`.
 - **maxServiceDuration** *(optional)*: Maximum **service** duration in seconds, for service-on-demand. Omit to inherit the daemon's `serviceOnDemand.maxDurationSeconds` (default 86400). That daemon value is a hard ceiling — an environment can only lower it, and a larger value is clamped at startup with a warning. Advertised to clients on every environment as `maxServiceDuration`.
 - **maxJobs**: Maximum simultaneous paid jobs.
+- **buildTimeoutSeconds** *(optional)*: Maximum wall-clock seconds an inline-`dockerfile` image build may run for **paid** jobs in this environment, before the build is aborted. This is a short budget separate from `maxJobDuration` (a build should take minutes, not the job's full lifetime), and it is always capped at the job's own duration. Omit to fall back to the daemon's `serviceOnDemand.buildTimeoutSeconds`, then the built-in default of `300`. (Free jobs use `free.buildTimeoutSeconds` instead.)
 - **enableNetwork**: Whether algorithm containers can make outbound network connections. Default: `false`
 - **access**: Access control for paid jobs.
   - **addresses**: Ethereum addresses allowed to submit jobs. Empty + no accessLists = open access.
@@ -352,6 +354,7 @@ The config has a two-level structure:
 - **free** *(optional)*: Free tier configuration.
   - **maxJobDuration** / **minJobDuration** / **maxJobs**: Free job limits.
   - **allowImageBuild**: Allow image builds on free jobs. Default: `false`
+  - **buildTimeoutSeconds** *(optional)*: Maximum wall-clock seconds an inline-`dockerfile` image build may run for **free** jobs, before the build is aborted. Separate from `maxJobDuration` and always capped at the job's own duration. Omit to fall back to the daemon's `serviceOnDemand.buildTimeoutSeconds`, then the built-in default of `300`.
   - **access**: Same structure as the paid access field.
   - **resources**: Same structure as environment resources — lightweight refs limiting what free jobs can request.
 
