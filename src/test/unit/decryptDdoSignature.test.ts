@@ -43,9 +43,16 @@ describe('ON-02 DECRYPT_DDO signature binding', () => {
       txId: txId1,
       dataNftAddress: nft1
     })
-    // byte-for-byte: address + nonce + command + peerId + chainId + txId + nft
+    // byte-for-byte: address + nonce + command + peerId + chainId + txId + nft.
+    // The nft address is bound in LOWER case so the message is casing-agnostic.
     expect(m).to.equal(
-      consumer + nonce + PROTOCOL_COMMANDS.DECRYPT_DDO + peerIdA + chainId + txId1 + nft1
+      consumer +
+        nonce +
+        PROTOCOL_COMMANDS.DECRYPT_DDO +
+        peerIdA +
+        chainId +
+        txId1 +
+        nft1.toLowerCase()
     )
     // differs when any binding field differs
     expect(m).to.not.equal(
@@ -140,17 +147,52 @@ describe('ON-02 DECRYPT_DDO signature binding', () => {
     expect(okNft).to.equal(false)
   })
 
-  it('local monotonic nonce (Date.now scheme) is non-decreasing across calls', () => {
-    // The Indexer signer uses Date.now().toString() as the DECRYPT_DDO nonce. Assert the
-    // property the verifier relies on: successive reads never go backwards.
-    const first = Date.now()
-    let last = first
-    for (let i = 0; i < 1000; i++) {
-      const n = Date.now()
-      expect(n).to.be.at.least(last)
-      last = n
+  it('local monotonic nonce scheme is STRICTLY increasing even within one millisecond', () => {
+    // The Indexer signer (BaseProcessor.getLocalNonce) hands out max(now, last + 1) from a
+    // per-processor high-water mark. Mirror that algorithm and assert the property the verifier
+    // relies on: successive nonces strictly increase, even when the clock does not advance (same
+    // millisecond) or steps backwards — the cases plain Date.now() could not guarantee.
+    let last = 0
+    const nextNonce = (now: number) => {
+      last = Math.max(now, last + 1)
+      return last
     }
-    expect(last).to.be.at.least(first)
+    // Clock frozen, then jumping backwards: nonces still strictly increase.
+    const frozen = 1_700_000_000_000
+    let prev = nextNonce(frozen)
+    for (const now of [frozen, frozen, frozen - 5, frozen - 100, frozen + 1]) {
+      const n = nextNonce(now)
+      expect(n).to.be.greaterThan(prev)
+      prev = n
+    }
+  })
+
+  it('accepts a signature that bound the NFT address in LOWER case (casing tolerance)', async () => {
+    // A client (or SDK) may sign the message with the NFT address lower-cased, while the node
+    // checksum-normalizes it on ingress. Because the shared helper lower-cases dataNftAddress on
+    // both sides, the signature still verifies when the verifier is handed the CHECKSUMMED form.
+    const lowerNft = nft1.toLowerCase()
+    const message = buildDecryptDDOSignatureMessage({
+      decrypterAddress: consumer,
+      nonce,
+      issuerPeerId: peerIdA,
+      chainId,
+      txId: txId1,
+      dataNftAddress: lowerNft
+    })
+    const signature = await signNodeMessage(wallet, message)
+    // Verifier receives the checksummed address (as it would after ingress normalization).
+    const ok = await verifyConsumerSignature(
+      consumer,
+      nonce,
+      signature,
+      peerIdA,
+      PROTOCOL_COMMANDS.DECRYPT_DDO,
+      EMPTY_CONFIG,
+      chainId,
+      { txId: txId1, dataNftAddress: nft1 }
+    )
+    expect(ok).to.equal(true)
   })
 
   it('REGRESSION: non-DECRYPT_DDO commands verify with the unchanged message, ignoring binding fields', async () => {

@@ -185,6 +185,69 @@ describe('ON-18: Docker registry body-reflection, realm binding, allow-list', ()
     })
   })
 
+  // Regression: `parseImage` must classify the first path segment the same way `docker.pull`
+  // resolves it (Docker `splitDockerDomain`). Otherwise `localhost/x` and `MyReg/x` (uppercase
+  // single-label host) are mis-read as Docker Hub and slip past a Hub-only allow-list, yet Docker
+  // pulls them from the local / `MyReg` registry.
+  describe('ALLOWED_DOCKER_REGISTRIES: localhost / uppercase host are not mis-classified as Hub', () => {
+    const HUB_ONLY = { allowedDockerRegistries: ['registry-1.docker.io'] }
+
+    it('parseImage treats localhost and an uppercase single-label host as a registry', () => {
+      const engine = makeEngine(HUB_ONLY)
+      const parse = (img: string) => (engine as any).parseImage(img)
+
+      expect(parse('localhost/evil:latest').registry).to.equal('http://localhost')
+      expect(parse('localhost/evil:latest').name).to.equal('evil')
+      expect(parse('localhost:5000/evil').registry).to.equal('http://localhost:5000')
+      // Uppercase single-label host → registry (not the Hub `library/<name>` form).
+      expect(parse('MyReg/evil').registry).to.equal('https://MyReg')
+      expect(parse('MyReg/evil').name).to.equal('evil')
+      // A normal Hub image is still Hub.
+      expect(parse('alpine:latest').registry).to.equal('https://registry-1.docker.io')
+    })
+
+    it('checkDockerImage rejects localhost/x under a Hub-only allow-list, no manifest fetch', async () => {
+      const engine = makeEngine(HUB_ONLY)
+      const manifestStub = sinon.stub(engine, 'getDockerManifest').resolves({})
+
+      const result = await engine.checkDockerImage('localhost/evil:latest')
+      expect(result.valid).to.be.false
+      expect(result.status).to.equal(400)
+      expect(result.reason).to.contain('allowed registries')
+      expect(manifestStub.called).to.be.false
+    })
+
+    it('checkDockerImage rejects MyReg/x under a Hub-only allow-list, no manifest fetch', async () => {
+      const engine = makeEngine(HUB_ONLY)
+      const manifestStub = sinon.stub(engine, 'getDockerManifest').resolves({})
+
+      const result = await engine.checkDockerImage('MyReg/evil:latest')
+      expect(result.valid).to.be.false
+      expect(result.status).to.equal(400)
+      expect(result.reason).to.contain('allowed registries')
+      expect(manifestStub.called).to.be.false
+    })
+
+    it('service pull path (pullImageRef) rejects localhost/x and MyReg/x without calling docker.pull', async () => {
+      const engine = makeEngine(HUB_ONLY)
+      const pull = sinon.stub().resolves({})
+      ;(engine as any).docker = { pull }
+      sinon.stub(engine as any, 'getImagePullTimeoutMs').returns(1000)
+
+      for (const img of ['localhost/evil:latest', 'MyReg/evil:latest']) {
+        let threw = false
+        try {
+          await (engine as any).pullImageRef(img)
+        } catch (e: any) {
+          threw = true
+          expect(e.message).to.contain('allowed registries')
+        }
+        expect(threw, `expected ${img} to be rejected`).to.be.true
+      }
+      expect(pull.called).to.be.false
+    })
+  })
+
   describe('getDockerManifest binds www-authenticate realm host to registry host', () => {
     const servers: https.Server[] = []
     let savedTlsReject: string | undefined

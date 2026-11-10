@@ -1493,10 +1493,22 @@ export class C2DEngineDocker extends C2DEngine {
     const firstSlash = name.indexOf('/')
     if (firstSlash !== -1) {
       const potential = name.slice(0, firstSlash)
-      if (potential.includes('.') || potential.includes(':')) {
-        registry = potential.includes('localhost')
-          ? `http://${potential}`
-          : `https://${potential}`
+      // Docker's own domain detection (distribution/reference `splitDockerDomain`): the first
+      // path segment is a REGISTRY host (not part of a Docker Hub repo name) when it contains a
+      // '.' or ':', OR it equals 'localhost', OR it carries an uppercase letter. Matching this
+      // exactly is a security requirement, not a nicety: `checkRegistryAllowList` must classify
+      // the image the same way `docker.pull` will resolve it. If we only looked for '.'/':' then
+      // `localhost/x` or `MyReg/x` would be treated as Docker Hub and sail past a Hub-only
+      // allow-list, yet Docker would pull them from the local/`MyReg` registry instead.
+      const isRegistryHost =
+        potential.includes('.') ||
+        potential.includes(':') ||
+        potential === 'localhost' ||
+        potential !== potential.toLowerCase()
+      if (isRegistryHost) {
+        const isLocalhost =
+          potential === 'localhost' || potential.startsWith('localhost:')
+        registry = isLocalhost ? `http://${potential}` : `https://${potential}`
         name = name.slice(firstSlash + 1)
       }
     }

@@ -265,20 +265,26 @@ export abstract class BaseEventProcessor {
   }
 
   /**
-   * ON-02: local, monotonic nonce for the DECRYPT_DDO signature.
+   * ON-02: local, strictly-monotonic nonce for the DECRYPT_DDO signature.
    *
    * The remote `${decryptorURL}/api/services/nonce` GET was a nonce ORACLE: an attacker-chosen
    * host returned any value it liked (e.g. 9e15), which the node then signed over, so a harvested
    * signature sailed past every verifier's `nonce <= stored` check. We no longer trust a remote
-   * nonce at all. `Date.now()` is monotonic across the single-threaded indexer loop and is large
-   * enough to clear any verifier's stored value.
+   * nonce at all.
    *
-   * Edge cases (benign): a backwards wall-clock adjustment, or two decrypts within the same
-   * millisecond, can yield a non-increasing nonce; the verifier then rejects with
-   * "not a valid nonce" and the crawl retries on the next pass. No signature is ever leaked.
+   * `Date.now()` on its own is not enough: a backwards wall-clock adjustment, or two decrypts
+   * within the same millisecond, can yield a non-increasing nonce. That is NOT self-healing — a
+   * decrypt the verifier rejects with a 400/403 is deliberately not retried (see the status
+   * handling in the `withRetrial` block below), so the DDO would silently fail to index until a
+   * later Metadata event or a manual reindex. We therefore keep a per-processor high-water mark
+   * and always return `max(now, last + 1)`: synchronous, so it is race-free on the single-threaded
+   * indexer loop, and the value can only ever increase. No signature is ever leaked.
    */
+  private lastLocalNonce = 0
+
   private getLocalNonce(): string {
-    return Date.now().toString()
+    this.lastLocalNonce = Math.max(Date.now(), this.lastLocalNonce + 1)
+    return this.lastLocalNonce.toString()
   }
 
   /**

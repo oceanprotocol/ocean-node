@@ -26,6 +26,13 @@ export function create256Hash(input: string): string {
  * All fields are stringified exactly as the legacy construction did, so a value is bound by its
  * string form. Empty/undefined binding fields collapse to '' — never pass this helper for a
  * non-DECRYPT_DDO command (those keep their byte-for-byte original message).
+ *
+ * `dataNftAddress` is lower-cased so the binding is casing-agnostic: a caller that signs the
+ * lower-case form of the NFT address still verifies, exactly the tolerance `verifyConsumerSignature`
+ * already gives the decrypter address (via `addressCasingVariants`). Because both the signer and
+ * the verifier go through this one helper, lower-casing here keeps node↔node identical while also
+ * accepting a lower-case-signing client — the node checksum-normalizes the address on ingress, so
+ * without this an SDK that signed the lower-case form would never match.
  */
 export function buildDecryptDDOSignatureMessage(fields: {
   decrypterAddress: string
@@ -42,7 +49,7 @@ export function buildDecryptDDOSignatureMessage(fields: {
       String(fields.issuerPeerId ?? '') +
       String(fields.chainId ?? '') +
       String(fields.txId ?? '') +
-      String(fields.dataNftAddress ?? '')
+      String(fields.dataNftAddress ?? '').toLowerCase()
   )
 }
 
