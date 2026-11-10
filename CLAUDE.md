@@ -12,7 +12,7 @@ of which dispatch to the same set of command handlers.
 
 ## 1. Environment & tooling prerequisites
 
-- **Node.js 24 is required** (`.nvmrc` pins 24.22.1`— the current Node 24 LTS "Krypton" —
+- **Node.js 26 is required** (`.nvmrc` pins 26.12.1`— the current Node 26 LTS  —
 matching the Dockerfile and CI;`package.json` `engines`requires`>=24`, so Node 22 is
 no longer a supported runtime). The Dockerfile additionally pins each base
 image by digest, so bumping the version means updating the `sha256:`alongside the tag —
@@ -255,7 +255,7 @@ Handler source is grouped under `src/components/core/`:
   `getTemplates`, plus `templateLoader`).
 - `admin/` — privileged handlers gated by `ALLOWED_ADMINS`: `stopNode`, `stopJob`,
   `reindexTx`, `reindexChain`, `IndexingThreadHandler`, `collectFees`, `fetchConfig`,
-  `pushConfig`, `getLogs`.
+  `pushConfig`, `getLogs`, `setMaintenance` (toggle maintenance/drain mode; persisted + sticky).
 - `utils/` — shared logic: `escrow`, `feesHandler`, `findDdoHandler`, `nonceHandler`,
   `statusHandler`, `validateOrders`.
 

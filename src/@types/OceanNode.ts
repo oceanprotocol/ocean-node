@@ -197,6 +197,8 @@ export interface OceanNodeConfig {
   trustProxy?: boolean | number | string
   denyList?: DenyList
   unsafeURLs?: string[]
+  // CIDRs / IPs exempt from the private-address block on caller-supplied URLs
+  allowedPrivateUrlRanges?: string[]
   isBootstrap?: boolean
   validateUnsignedDDO?: boolean
   jwtSecret?: string
@@ -210,6 +212,10 @@ export interface P2PStatusResponse {
   httpStatus: number
   error?: string
   headers?: any
+  // Stable machine-readable error code (e.g. MAINTENANCE_MODE) clients discriminate on when
+  // the HTTP status alone is ambiguous. Carried in the P2P status frame; also echoed in the
+  // streamed JSON body so it reaches HTTP clients (which only see the body + status line).
+  code?: string
 }
 export interface P2PCommandResponse {
   status: P2PStatusResponse
@@ -289,6 +295,15 @@ export interface OceanNodeStatus {
   persistentStorage?: {
     accessLists?: AccessList[]
     allowBucketSharing?: boolean
+  }
+  // Maintenance (drain) mode. `enabled` is the always-present signal clients/dashboard read.
+  // The drain-visibility counts are populated for detailed status only, so an admin can tell
+  // when the node has finished draining and is safe to reboot.
+  maintenance?: {
+    enabled: boolean
+    runningComputeJobs?: number
+    runningServices?: number
+    latestExpectedEndTime?: number // max job/service end time (unix seconds), the drain ETA
   }
 }
 

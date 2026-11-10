@@ -20,6 +20,7 @@ import { validateAccess } from '../compute/startCompute.js'
 import { isJobMetadataSizeValid, INVALID_JOB_METADATA_MESSAGE } from '../../c2d/index.js'
 import { decryptUserData, toPublicServiceJob } from './utils.js'
 import { resolveUserSubsidyProviders } from '../utils/subsidyProviders.js'
+import { maintenanceGuard } from '../utils/maintenance.js'
 
 export class ServiceStartHandler extends CommandHandler {
   validate(command: ServiceStartCommand): ValidateParams {
@@ -53,6 +54,10 @@ export class ServiceStartHandler extends CommandHandler {
   async handle(task: ServiceStartCommand): Promise<P2PCommandResponse> {
     const validationResponse = await this.verifyParamsAndRateLimits(task)
     if (this.shouldDenyTaskHandling(validationResponse)) return validationResponse
+
+    // Maintenance (drain) gate — reject new service commitment before any auth/escrow work.
+    const maintenanceResponse = maintenanceGuard(this.getOceanNode())
+    if (maintenanceResponse) return maintenanceResponse
 
     const auth = await this.validateTokenOrSignature(
       task.authorization,

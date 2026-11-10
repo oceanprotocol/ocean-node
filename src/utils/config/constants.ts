@@ -19,6 +19,7 @@ export const ENV_TO_CONFIG_MAPPING = {
   ACCOUNT_PURGATORY_URL: 'accountPurgatoryUrl',
   ASSET_PURGATORY_URL: 'assetPurgatoryUrl',
   UNSAFE_URLS: 'unsafeURLs',
+  ALLOWED_PRIVATE_URL_RANGES: 'allowedPrivateUrlRanges',
   IS_BOOTSTRAP: 'isBootstrap',
   ESCROW_CLAIM_TIMEOUT: 'claimDurationTimeout',
   VALIDATE_UNSIGNED_DDO: 'validateUnsignedDDO',

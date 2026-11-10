@@ -65,7 +65,8 @@ export const PROTOCOL_COMMANDS = {
   SERVICE_LIST: 'serviceList',
   SERVICE_EXTEND: 'serviceExtend',
   SERVICE_GET_STREAMABLE_LOGS: 'serviceGetStreamableLogs',
-  SERVICE_GET_RESULT: 'serviceGetResult'
+  SERVICE_GET_RESULT: 'serviceGetResult',
+  SET_MAINTENANCE: 'setMaintenance'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -130,8 +131,21 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.SERVICE_LIST,
   PROTOCOL_COMMANDS.SERVICE_EXTEND,
   PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,
-  PROTOCOL_COMMANDS.SERVICE_GET_RESULT
+  PROTOCOL_COMMANDS.SERVICE_GET_RESULT,
+  PROTOCOL_COMMANDS.SET_MAINTENANCE
 ]
+
+// Maintenance (drain) mode. When enabled, the node refuses NEW commitment (compute/service
+// starts, initialize, extend) but keeps serving already-committed work. The flag persists in
+// the SQLite config DB under this key and is cached in memory on the OceanNode singleton.
+export const MAINTENANCE_MODE_CONFIG_KEY = 'maintenanceMode'
+// Stable machine-readable code clients discriminate on. 503 is already reused in these handlers
+// for "subsystem unavailable" (e.g. "Compute engines not configured"), so the status alone is
+// NOT enough — clients must branch on this `code`.
+export const MAINTENANCE_MODE_CODE = 'MAINTENANCE_MODE'
+// Stable human-readable rejection message.
+export const MAINTENANCE_MODE_ERROR =
+  'Node is in maintenance mode; not accepting new compute or service requests'
 
 export const MetadataStates = {
   ACTIVE: 0,
@@ -450,6 +464,15 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.ALLOWED_ADMINS,
     required: false
   },
+  MAINTENANCE_MODE: {
+    // boot the node directly into maintenance (drain) mode. "true" enables it; the value is
+    // written through to the SQLite config DB and is STICKY across restarts — returning to
+    // normal service requires an explicit `setMaintenance { enabled: false }` admin command
+    // AND unsetting this env before the next restart.
+    name: 'MAINTENANCE_MODE',
+    value: process.env.MAINTENANCE_MODE,
+    required: false
+  },
   ALLOWED_ADMINS_LIST: {
     name: 'ALLOWED_ADMINS_LIST',
     value: process.env.ALLOWED_ADMINS_LIST,
@@ -564,6 +587,12 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   UNSAFE_URLS: {
     name: 'UNSAFE_URLS',
     value: process.env.UNSAFE_URLS,
+    required: false
+  },
+  ALLOWED_PRIVATE_URL_RANGES: {
+    // CIDRs / IPs that caller-supplied URLs may point at although they are private
+    name: 'ALLOWED_PRIVATE_URL_RANGES',
+    value: process.env.ALLOWED_PRIVATE_URL_RANGES,
     required: false
   },
   DB_TYPE: {

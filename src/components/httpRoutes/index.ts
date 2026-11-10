@@ -13,6 +13,7 @@ import { jobsRoutes } from './jobs.js'
 import { PolicyServerPassthroughRoute } from './policyServer.js'
 import { authRoutes } from './auth.js'
 import { adminConfigRoutes } from './adminConfig.js'
+import { maintenanceRoutes } from './maintenance.js'
 import { persistentStorageRoutes } from './persistentStorage.js'
 import { accessListRoutes } from './accessList.js'
 import { escrowRoutes } from './escrow.js'
@@ -64,6 +65,8 @@ httpRoutes.use(PolicyServerPassthroughRoute)
 httpRoutes.use(authRoutes)
 // admin config routes
 httpRoutes.use(adminConfigRoutes)
+// admin maintenance (drain) route: POST /api/admin/maintenance
+httpRoutes.use(maintenanceRoutes)
 // persistent storage routes
 httpRoutes.use(persistentStorageRoutes)
 // access list routes

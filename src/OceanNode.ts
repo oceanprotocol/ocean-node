@@ -23,7 +23,10 @@ import { createPersistentStorage } from './components/persistentStorage/createPe
 import { PersistentStorageFactory } from './components/persistentStorage/PersistentStorageFactory.js'
 import { isAddress, FallbackProvider, ethers } from 'ethers'
 import { create256Hash } from './utils/crypt.js'
-import { SUPPORTED_PROTOCOL_COMMANDS } from './utils/constants.js'
+import {
+  MAINTENANCE_MODE_CONFIG_KEY,
+  SUPPORTED_PROTOCOL_COMMANDS
+} from './utils/constants.js'
 
 export interface RequestLimiter {
   requester: string | string[] // IP address or peer ID
@@ -53,6 +56,13 @@ export class OceanNode {
   private auth: Auth
   private persistentStorage: PersistentStorageFactory
   private database: Database
+  // In-memory cache of the maintenance (drain) flag so the hot path (every compute/service
+  // start) does not hit SQLite per request. Source of truth is the SQLite config DB; this is
+  // loaded from it at startup (loadMaintenanceMode) and kept in sync on every toggle.
+  private maintenanceMode = false
+  // Serializes maintenance toggles so a DB write and its cache update are atomic relative to
+  // any concurrent toggle (prevents DB/cache divergence under overlapping calls).
+  private maintenanceWriteLock: Promise<unknown> = Promise.resolve()
 
   private constructor(
     private config: OceanNodeConfig,
@@ -289,6 +299,133 @@ export class OceanNode {
 
   public getConfig(): OceanNodeConfig {
     return this.config
+  }
+
+  /**
+   * Whether the node is in maintenance (drain) mode. Hot-path read of the in-memory cache.
+   */
+  public isInMaintenance(): boolean {
+    return this.maintenanceMode
+  }
+
+  /**
+   * Toggle maintenance mode. Persists the flag to the SQLite config DB (durable, sticky across
+   * restarts) and only THEN updates the in-memory cache, so a failed write never leaves the
+   * cache claiming a drain that was not persisted (it would silently revert on reboot). Calls
+   * are serialized on a promise chain so two overlapping toggles cannot end with the DB and the
+   * cache disagreeing. Throws if the write fails — the admin handler maps that to a 500.
+   */
+  public setMaintenanceMode(enabled: boolean): Promise<void> {
+    // Serialize: chain onto the previous write so DB-write + cache-assignment are atomic
+    // relative to any concurrent toggle. Keep the chain alive even if an op throws.
+    const run = this.maintenanceWriteLock.then(() => this.applyMaintenanceMode(enabled))
+    this.maintenanceWriteLock = run.catch(() => {})
+    return run
+  }
+
+  private async applyMaintenanceMode(enabled: boolean): Promise<void> {
+    const db = await this.getDatabase()
+    if (db?.sqliteConfig) {
+      // createOrUpdateConfig swallows DB errors and returns null; treat that as a failure and
+      // do NOT update the cache, so the node never reports an un-persisted drain.
+      const result = await db.sqliteConfig.createOrUpdateConfig(
+        MAINTENANCE_MODE_CONFIG_KEY,
+        enabled ? 'true' : 'false'
+      )
+      if (result === null) {
+        throw new Error('Failed to persist maintenance mode flag to the config DB')
+      }
+    } else {
+      OCEAN_NODE_LOGGER.warn(
+        'Maintenance mode set without a config DB: the flag will NOT persist across restarts'
+      )
+    }
+    this.maintenanceMode = enabled
+    OCEAN_NODE_LOGGER.info(`Maintenance mode ${enabled ? 'ENABLED' : 'DISABLED'}`)
+  }
+
+  /**
+   * Load the persisted maintenance flag into the in-memory cache at startup. If the
+   * MAINTENANCE_MODE env var is set it wins at boot and is written through to the DB, so the
+   * persisted state stays consistent with the env override. Guards for a missing config DB.
+   */
+  public async loadMaintenanceMode(): Promise<void> {
+    const envValue = process.env.MAINTENANCE_MODE
+    const db = await this.getDatabase()
+    const sqliteConfig = db?.sqliteConfig
+    // Env override wins at boot and is written through to the DB (per design). Only the exact
+    // strings "true"/"false" are honored; any other non-empty value (a typo, "1", "yes") is
+    // IGNORED with a warning, so a leftover malformed env var cannot silently clear a drain.
+    if (envValue !== undefined && envValue.trim() !== '') {
+      const normalized = envValue.trim().toLowerCase()
+      if (normalized !== 'true' && normalized !== 'false') {
+        OCEAN_NODE_LOGGER.warn(
+          `Ignoring invalid MAINTENANCE_MODE value "${envValue}" (expected "true" or "false"); falling back to the persisted flag`
+        )
+      } else {
+        const enabled = normalized === 'true'
+        this.maintenanceMode = enabled
+        if (sqliteConfig) {
+          const result = await sqliteConfig.createOrUpdateConfig(
+            MAINTENANCE_MODE_CONFIG_KEY,
+            enabled ? 'true' : 'false'
+          )
+          if (result === null) {
+            OCEAN_NODE_LOGGER.warn(
+              'MAINTENANCE_MODE env override could not be persisted to the config DB; it applies for this process only'
+            )
+          }
+        }
+        OCEAN_NODE_LOGGER.info(
+          `Maintenance mode ${enabled ? 'ENABLED' : 'DISABLED'} from MAINTENANCE_MODE env var`
+        )
+        return
+      }
+    }
+    if (!sqliteConfig) {
+      return
+    }
+    try {
+      const stored = await sqliteConfig.retrieveValue(MAINTENANCE_MODE_CONFIG_KEY)
+      // Distinguish a FAILED query from a confirmed-absent key: SQLLiteConfigDatabase
+      // .retrieveValue returns null on a DB error, but { value: null } when the key simply
+      // isn't there (never toggled).
+      if (stored === null) {
+        // The read FAILED — we cannot confirm the node isn't supposed to be draining. Fail
+        // CLOSED (stay in maintenance) rather than silently resume accepting work, which is
+        // exactly the "restarts mid-drain and silently accepts work again" failure the
+        // persisted flag exists to prevent. An admin resumes with setMaintenance{enabled:false}
+        // once the config DB is healthy.
+        this.maintenanceMode = true
+        OCEAN_NODE_LOGGER.error(
+          'Could not read the maintenance mode flag from the config DB; staying in MAINTENANCE (fail-closed) until it can be confirmed'
+        )
+        return
+      }
+      if (stored.value === null || stored.value === undefined) {
+        // Confirmed absent (never toggled): normal, default OFF.
+        OCEAN_NODE_LOGGER.warn(
+          'Maintenance mode flag not present in the config DB; defaulting to OFF'
+        )
+        this.maintenanceMode = false
+        return
+      }
+      this.maintenanceMode = stored.value === 'true'
+      if (this.maintenanceMode) {
+        OCEAN_NODE_LOGGER.warn(
+          'Node started in MAINTENANCE mode (persisted flag): new compute/service requests are rejected until an admin sends setMaintenance { enabled: false }'
+        )
+      }
+    } catch (error) {
+      // retrieveValue does not throw today, but if it ever does, fail CLOSED too rather than
+      // silently resume accepting work.
+      this.maintenanceMode = true
+      OCEAN_NODE_LOGGER.error(
+        `Failed to load maintenance mode flag; staying in MAINTENANCE (fail-closed): ${errorSummary(
+          error
+        )}`
+      )
+    }
   }
 
   /**

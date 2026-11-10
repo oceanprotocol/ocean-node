@@ -76,9 +76,9 @@ const TEMPLATE_JSON = {
   image: 'nginxinc/nginx-unprivileged',
   tag: 'alpine',
   exposedPorts: [8080],
-  requiredResources: [
-    { id: 'cpu', min: 1 },
-    { id: 'ram', min: 1 }
+  recommendedResources: [
+    { id: 'cpu', recommended: 1, unit: 'cores' },
+    { id: 'ram', recommended: 1, unit: 'GB' }
   ],
   userConfigurableEnvVars: [{ key: 'EXTRA', validation: '^[a-zA-Z0-9]{1,20}$' }]
 }
