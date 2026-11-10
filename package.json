@@ -153,7 +153,12 @@
   },
   "overrides": {
     "serialize-javascript": "^7.1.4",
-    "ws": "^8.21.3"
+    "ws": "^8.21.3",
+    "minimatch": "^11.0.5",
+    "glob": "^14.0.4",
+    "get-uri": {
+      "basic-ftp": "^6.2.6"
+    }
   },
   "release-it": {
     "hooks": {
