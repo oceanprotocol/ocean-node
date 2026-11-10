@@ -199,6 +199,18 @@ export interface OceanNodeConfig {
   unsafeURLs?: string[]
   // CIDRs / IPs exempt from the private-address block on caller-supplied URLs
   allowedPrivateUrlRanges?: string[]
+  // ON-18: opt-in Docker registry host allow-list. Empty = any registry allowed.
+  allowedDockerRegistries?: string[]
+  // ON-18: extra token-realm hosts trusted to receive registry credentials, kept separate from
+  // allowedDockerRegistries. Built-in realms (Docker Hub, GitLab) are always trusted.
+  allowedDockerRegistryRealms?: string[]
+  // ON-07: operator-supplied extra request headers allowed through to the upstream when a
+  // caller provides `file.headers`. EXTENDS the built-in default allow-list
+  // (accept, accept-encoding, range, content-type). Everything else is dropped.
+  fileInfoAllowedHeaders?: string[]
+  // ON-07: dedicated, stricter per-caller rate limit (requests/minute) for the raw-`file`
+  // fileInfo path, counted in a separate bucket from the global rate limit. 0 = disabled.
+  fileInfoRateLimit?: number
   isBootstrap?: boolean
   validateUnsignedDDO?: boolean
   jwtSecret?: string

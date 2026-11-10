@@ -1123,15 +1123,15 @@ export abstract class C2DEngine {
 
       decryptedDockerRegistryAuth = JSON.parse(decryptedDockerRegistryAuthString)
     } catch (error: any) {
-      const errorMessage = `Invalid encryptedDockerRegistryAuth: failed to parse JSON - ${error?.message || String(error)}`
-      // error.message may quote a snippet of the decrypted credentials, keep it out of logs
+      // error.message may quote a snippet of the decrypted credentials, keep it out of BOTH
+      // the logs AND the caller-facing reason (ON-18: no internals reflected to the caller).
       CORE_LOGGER.logByStatus(
         400,
         `Invalid encryptedDockerRegistryAuth: cannot decrypt or parse (${error?.name || 'Error'})`
       )
       return {
         valid: false,
-        reason: errorMessage,
+        reason: 'Invalid encryptedDockerRegistryAuth: could not decrypt or parse',
         status: 400
       }
     }

@@ -23,7 +23,8 @@ export class UrlStorage extends Storage {
   async getReadableStream(): Promise<StorageReadable> {
     const input = this.getDownloadUrl()
     const file = this.getFile()
-    const { headers } = file
+    // ON-07: only forward allow-listed caller headers to the upstream
+    const headers = this.filterForwardedHeaders(file.headers)
     // download always uses GET regardless of file.method (which applies to metadata fetch)
     return await fetchStream(
       input,
@@ -140,11 +141,13 @@ export class UrlStorage extends Storage {
     forceChecksum: boolean
   ): Promise<FileInfoResponse> {
     const { url, method, headers } = fileObject
+    // ON-07: only forward allow-listed caller headers to the upstream
+    const safeHeaders = this.filterForwardedHeaders(headers)
     const { contentLength, contentType, contentChecksum } = await fetchFileMetadata(
       url,
       method || 'get',
       forceChecksum,
-      headers,
+      safeHeaders,
       { dispatcher: getSafeDispatcher(this.config) }
     )
     return {

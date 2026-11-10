@@ -20,6 +20,10 @@ export const ENV_TO_CONFIG_MAPPING = {
   ASSET_PURGATORY_URL: 'assetPurgatoryUrl',
   UNSAFE_URLS: 'unsafeURLs',
   ALLOWED_PRIVATE_URL_RANGES: 'allowedPrivateUrlRanges',
+  ALLOWED_DOCKER_REGISTRIES: 'allowedDockerRegistries',
+  ALLOWED_DOCKER_REGISTRY_REALMS: 'allowedDockerRegistryRealms',
+  FILEINFO_ALLOWED_HEADERS: 'fileInfoAllowedHeaders',
+  FILEINFO_MAX_REQ_PER_MINUTE: 'fileInfoRateLimit',
   IS_BOOTSTRAP: 'isBootstrap',
   ESCROW_CLAIM_TIMEOUT: 'claimDurationTimeout',
   VALIDATE_UNSIGNED_DDO: 'validateUnsignedDDO',
@@ -130,6 +134,17 @@ export const ENV_TO_CONFIG_MAPPING = {
 
 // Configuration defaults
 export const DEFAULT_RATE_LIMIT_PER_MINUTE = 30
+// ON-07: built-in allow-list of request headers forwarded to the upstream when a caller
+// supplies `file.headers` on the raw-`file` fileInfo path (the only path whose caller headers
+// are treated as untrusted and filtered; DDO-sourced headers for download / compute /
+// did+serviceId are trusted and pass through unfiltered).
+// FILEINFO_ALLOWED_HEADERS extends (not replaces) this set. Compared case-insensitively.
+export const DEFAULT_FILEINFO_ALLOWED_HEADERS = [
+  'accept',
+  'accept-encoding',
+  'range',
+  'content-type'
+] as const
 // Database init retry at node startup. Worst case wait before giving up with these defaults is
 // 2 + 4 + 8 + 16 + 30 * 5 = 180 seconds, so a container health probe must tolerate that.
 export const DEFAULT_DB_INIT_MAX_ATTEMPTS = 10

@@ -840,6 +840,91 @@ bounded by `free.buildTimeoutSeconds` (default `300`).
 
 ---
 
+## Container registry security
+
+Algorithm images are referenced by the consumer as part of the compute request, so the node
+treats the registry host as untrusted input. Two protections apply during image validation
+(`initializeCompute`), in addition to the SSRF address guard:
+
+- **Registry allow-list (`ALLOWED_DOCKER_REGISTRIES`, opt-in).** Set this global env var to a
+  JSON array of registry **hosts** (e.g. `["registry-1.docker.io","ghcr.io"]`) to restrict
+  which registries algorithm images may come from. An image whose parsed registry host is not
+  listed is rejected **before any outbound request** is made. Leaving it empty (the default)
+  keeps the current behaviour — any public registry is allowed — so this change is non-breaking.
+  Localhost/private registries remain gated by the SSRF guard regardless of this list.
+- **`www-authenticate` realm-host credential binding.** When a registry answers with a `401`
+  bearer challenge, the node fetches a token from the challenge's `realm` URL. The operator's
+  Basic credentials are attached **only** when the realm host is **trusted** and the realm is
+  `https`; otherwise the token is fetched **anonymously**. A realm host is trusted when it equals
+  the registry host, is a **built-in** well-known realm for that registry (Docker Hub →
+  `auth.docker.io`, GitLab → `gitlab.com` — so **authenticated/private** pulls from them work out
+  of the box), is listed in `ALLOWED_DOCKER_REGISTRY_REALMS`, or is listed in
+  `ALLOWED_DOCKER_REGISTRIES`. This lets standard registries that serve tokens on a separate host
+  keep working — including for private images — while stopping a malicious registry from
+  harvesting the operator's credentials via an attacker-controlled `realm`. See `docs/env.md` →
+  "Docker Registry Authentication" for the credential-scoping details.
+
+Registry/manifest errors returned to the caller are **generic** (e.g. "Image manifest could not
+be retrieved"); the detailed upstream error is kept in the node's server logs only, so the
+unauthenticated `initializeCompute` endpoint cannot be used as a registry probe/oracle.
+
+### Private-registry support at a glance
+
+| Registry setup | Works out of the box? | Why / what to do |
+| --- | --- | --- |
+| Docker Hub private image | ✅ | built-in realm map (`registry-1.docker.io` → `auth.docker.io`) |
+| **gitlab.com** (SaaS) private image | ✅ | built-in realm map (`registry.gitlab.com` → `gitlab.com`) |
+| GHCR / Quay / GCR private image | ✅ | token host equals the registry host (`realmHost === registryHost`) |
+| Self-hosted registry accepting **Basic** on `/v2/` (Harbor, plain `registry`+htpasswd) | ✅ | no realm dance — the initial Basic header authenticates the request |
+| Self-hosted registry whose **token host == registry host** | ✅ | `realmHost === registryHost` |
+| **Self-hosted GitLab** (split host: `registry.* ` ≠ `/jwt/auth` host) | ❌ → needs config | add the auth host to `ALLOWED_DOCKER_REGISTRY_REALMS` (see below) |
+| Any registry whose token host differs **and** isn't built-in | ❌ → needs config | add the token host to `ALLOWED_DOCKER_REGISTRY_REALMS` |
+
+In all cases the credentials themselves come from `DOCKER_REGISTRY_AUTHS` (node-level) or the
+per-job `encryptedDockerRegistryAuth`; the table above is only about **whether the node will send
+those credentials to the registry's token host**. "Needs config" entries are an operator action,
+not something the compute consumer can set.
+
+### Private images on a self-hosted GitLab (or any split-host registry)
+
+A **self-hosted GitLab** serves its container registry and its token/JWT auth endpoint on
+**different hosts**, for example:
+
+- registry host: `registry.gitlab.mycompany.com` (or `gitlab.mycompany.com:5050`)
+- token realm:  `https://gitlab.mycompany.com/jwt/auth`
+
+Because the realm host (`gitlab.mycompany.com`) does not equal the registry host and is **not** one
+of the built-in well-known realms (which cover only Docker Hub and **gitlab.com SaaS**), the node
+would fetch the validation token **anonymously** and a **private** image would be rejected at
+`initializeCompute` ("Image manifest could not be retrieved"). To make it work, the node operator
+must trust that auth host explicitly:
+
+```bash
+# the GitLab host that serves /jwt/auth — NOT the registry host
+export ALLOWED_DOCKER_REGISTRY_REALMS='["gitlab.mycompany.com"]'
+```
+
+Notes:
+
+- This is a **node-operator** setting, not a per-job parameter — the compute **consumer** cannot
+  set it. A user whose private image lives on their own self-hosted GitLab needs either their own
+  node, or the public node's operator to add their auth host here.
+- `ALLOWED_DOCKER_REGISTRY_REALMS` is kept **separate** from `ALLOWED_DOCKER_REGISTRIES` on
+  purpose: trusting a token realm does **not** turn on registry allow-list mode (any registry
+  stays pullable unless you *also* set `ALLOWED_DOCKER_REGISTRIES`).
+- Registries that accept **Basic auth directly** on `/v2/` (Harbor, a plain `registry` with
+  htpasswd, etc.), or that serve their token endpoint on the **same host** as the registry, need
+  no extra configuration — the credentials are already sent on the first request / to the matching
+  realm host.
+- Credentials themselves still come from `DOCKER_REGISTRY_AUTHS` (node-level) or the per-job
+  `encryptedDockerRegistryAuth`; this setting only controls **which realm host** they may be sent
+  to.
+
+Node-level registry credentials are configured with `DOCKER_REGISTRY_AUTHS`; per-job encrypted
+credentials are documented in `docs/env.md`.
+
+---
+
 ## Verify
 
 ```bash

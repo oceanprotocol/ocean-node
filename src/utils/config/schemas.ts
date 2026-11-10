@@ -1600,6 +1600,68 @@ export const OceanNodeConfigSchema = z
     )
       .optional()
       .transform(normalizeAllowedPrivateUrlRanges),
+    // ON-18: opt-in Docker registry allow-list (JSON array of registry host strings, e.g.
+    // ["registry-1.docker.io","ghcr.io"]). Unset (undefined) keeps current behaviour: any public
+    // registry allowed. But this is a SECURITY control: a value that is PRESENT-but-malformed must
+    // NOT silently collapse to [] (which checkRegistryAllowList reads as "allow any registry") —
+    // that fail-open would let a typo disable the restriction. So invalid input fails config load
+    // (fail-closed); getConfiguration() surfaces the issue and refuses to start.
+    allowedDockerRegistries: jsonFromString(
+      z.array(z.string()),
+      'allowedDockerRegistries'
+    )
+      .transform((val, ctx) => {
+        if (val === undefined) return []
+        if (!Array.isArray(val) || !val.every((v) => typeof v === 'string')) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              'Invalid ALLOWED_DOCKER_REGISTRIES: expected a JSON array of registry host strings'
+          })
+          return z.NEVER
+        }
+        return val
+      })
+      .optional()
+      .default([]),
+    // ON-18: extra token-realm hosts trusted to receive the operator's registry credentials,
+    // kept SEPARATE from the registry allow-list so trusting a realm never enables allow-list
+    // mode. JSON array of host strings. Invalid input is logged and dropped to [].
+    allowedDockerRegistryRealms: jsonFromString(
+      z.array(z.string()),
+      'allowedDockerRegistryRealms'
+    )
+      .transform((val) => {
+        if (val === undefined) return []
+        if (!Array.isArray(val) || !val.every((v) => typeof v === 'string')) {
+          CONFIG_LOGGER.error(
+            'Invalid ALLOWED_DOCKER_REGISTRY_REALMS: expected a JSON array of realm host strings, dropping to []'
+          )
+          return []
+        }
+        return val
+      })
+      .optional()
+      .default([]),
+    // ON-07: extra request-header names forwarded to the upstream when a caller supplies
+    // `file.headers`. EXTENDS the built-in default allow-list. Invalid input is logged and
+    // dropped to [] (fail-closed to only the defaults, never crash config load).
+    fileInfoAllowedHeaders: jsonFromString(z.array(z.string()), 'fileInfoAllowedHeaders')
+      .transform((val) => {
+        if (val === undefined) return []
+        if (!Array.isArray(val) || !val.every((v) => typeof v === 'string')) {
+          CONFIG_LOGGER.error(
+            'Invalid FILEINFO_ALLOWED_HEADERS: expected a JSON array of header-name strings, dropping to []'
+          )
+          return []
+        }
+        return val
+      })
+      .optional()
+      .default([]),
+    // ON-07: dedicated stricter per-caller rate limit for the raw-`file` fileInfo path
+    // (separate bucket). 0 = disabled. A negative/non-numeric value fails validation.
+    fileInfoRateLimit: z.coerce.number().int().min(0).optional().default(0),
     isBootstrap: booleanFromString.optional().default(false),
     validateUnsignedDDO: booleanFromString.optional().default(true),
     jwtSecret: z.string(),
