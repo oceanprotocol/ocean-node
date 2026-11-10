@@ -235,3 +235,64 @@ describe('C2DEngineDocker.buildImage additionalDockerFiles duplicates', () => {
     expect(lastUpdate.status).to.equal(C2DStatusNumber.BuildImageFailed)
   })
 })
+
+describe('C2DEngineDocker.withAbortSignal / bounded post-build scan', () => {
+  let engine: any
+
+  before(async () => {
+    const tempFolder = path.join(os.tmpdir(), 'ocean-node-abort-test')
+    ;({ engine } = await makeEngine({ tempFolder }))
+  })
+
+  afterEach(() => {
+    sinon.restore()
+  })
+
+  it('rejects with ABORT_ERR when the signal aborts before the promise settles', async () => {
+    const controller = new AbortController()
+    setTimeout(() => controller.abort(), 10)
+    let caught: any
+    try {
+      // a promise that never settles on its own — only the abort can end the wait
+      await engine.withAbortSignal(controller.signal, new Promise(() => {}))
+    } catch (e) {
+      caught = e
+    }
+    expect(caught).to.not.equal(undefined)
+    expect(caught.code).to.equal('ABORT_ERR')
+  })
+
+  it('resolves with the underlying value when the signal never aborts', async () => {
+    const controller = new AbortController()
+    const value = await engine.withAbortSignal(controller.signal, Promise.resolve(42))
+    expect(value).to.equal(42)
+  })
+
+  it('rejects immediately when the signal is already aborted', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    let caught: any
+    try {
+      await engine.withAbortSignal(controller.signal, Promise.resolve('unused'))
+    } catch (e) {
+      caught = e
+    }
+    expect(caught?.code).to.equal('ABORT_ERR')
+  })
+
+  it('aborts a hung Trivy scan via the signal instead of hanging the job', async () => {
+    engine.scanImages = true
+    // checkImageVulnerability never resolves — without the signal guard this would hang forever
+    sinon.stub(engine, 'checkImageVulnerability').returns(new Promise(() => {}))
+    const controller = new AbortController()
+    setTimeout(() => controller.abort(), 10)
+    let caught: any
+    try {
+      await engine.scanAndRemoveIfVulnerable('img:latest', controller.signal)
+    } catch (e) {
+      caught = e
+    }
+    engine.scanImages = false
+    expect(caught?.code).to.equal('ABORT_ERR')
+  })
+})

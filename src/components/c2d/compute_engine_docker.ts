@@ -3890,12 +3890,39 @@ export class C2DEngineDocker extends C2DEngine {
     return Math.min(base, jobDurationSeconds)
   }
 
+  // Rejects as soon as `signal` aborts, so an await that does not itself observe the signal
+  // (docker inspect, the Trivy scan) cannot hang a job past its build budget or ignore a stop
+  // request. The underlying docker/Trivy call is not truly cancelled and keeps running in the
+  // background, but the job settles (→ BuildImageFailed) and cleanup proceeds.
+  private withAbortSignal<T>(signal: AbortSignal, promise: Promise<T>): Promise<T> {
+    const abortError = () => {
+      const err = new Error('Image build aborted') as NodeJS.ErrnoException
+      err.code = 'ABORT_ERR'
+      err.name = 'AbortError'
+      return err
+    }
+    if (signal.aborted) return Promise.reject(abortError())
+    let onAbort: () => void
+    const abortPromise = new Promise<never>((_resolve, reject) => {
+      onAbort = () => reject(abortError())
+      signal.addEventListener('abort', onAbort, { once: true })
+    })
+    return Promise.race([promise, abortPromise]).finally(() => {
+      signal.removeEventListener('abort', onAbort)
+    }) as Promise<T>
+  }
+
   // Shared Trivy gate for freshly-built images. When image scanning is on, scan the image and,
   // if vulnerable, remove it (swallowing removal errors) and throw so the build fails. A no-op
-  // when scanning is disabled.
-  private async scanAndRemoveIfVulnerable(imageRef: string): Promise<void> {
+  // when scanning is disabled. An optional abort signal bounds the scan so a hung Trivy run
+  // cannot stall the job past its build budget or a stop request.
+  private async scanAndRemoveIfVulnerable(
+    imageRef: string,
+    signal?: AbortSignal
+  ): Promise<void> {
     if (!this.scanImages) return
-    const scanResult = await this.checkImageVulnerability(imageRef)
+    const scan = this.checkImageVulnerability(imageRef)
+    const scanResult = signal ? await this.withAbortSignal(signal, scan) : await scan
     if (scanResult.vulnerable) {
       await this.docker
         .getImage(imageRef)
@@ -4032,11 +4059,19 @@ export class C2DEngineDocker extends C2DEngine {
       })
 
       // The build stream completed. Run the existence check and the vulnerability scan OUTSIDE
-      // the stream callback so a hung or throwing scan is bounded by the outer try/catch
-      // (→ BuildImageFailed → cleanup) rather than leaving the build promise hanging.
+      // the stream callback. Neither call observes the abort signal on its own, so wrap them in
+      // controller.signal: without this a hung inspect/scan would NOT be bounded by the outer
+      // try/catch (which only catches a *throwing* scan, not a hung one) and the job would stall,
+      // unresponsive to the build timer and to stop requests. On abort/timeout they reject →
+      // outer catch → BuildImageFailed → cleanup.
       try {
-        await this.docker.getImage(job.containerImage).inspect()
+        await this.withAbortSignal(
+          controller.signal,
+          this.docker.getImage(job.containerImage).inspect()
+        )
       } catch (e) {
+        // Preserve the abort classification so the outer catch reports a timeout, not a missing image.
+        if ((e as NodeJS.ErrnoException)?.code === 'ABORT_ERR') throw e
         throw new Error(
           `Cannot find image '${job.containerImage}' after building. Most likely it failed: ${
             (e as Error)?.message || String(e)
@@ -4044,9 +4079,10 @@ export class C2DEngineDocker extends C2DEngine {
         )
       }
 
-      // Image scanning — same Trivy gate used by the service build path. On a vulnerable image
-      // this removes it and throws, so the job fails like any other build failure.
-      await this.scanAndRemoveIfVulnerable(job.containerImage)
+      // Image scanning — same Trivy gate used by the service build path, bounded by the same
+      // abort signal. On a vulnerable image this removes it and throws, so the job fails like
+      // any other build failure.
+      await this.scanAndRemoveIfVulnerable(job.containerImage, controller.signal)
 
       CORE_LOGGER.debug(`Image '${job.containerImage}' built successfully.`)
       this.updateImageUsage(job.containerImage).catch((e) => {
@@ -4223,12 +4259,16 @@ export class C2DEngineDocker extends C2DEngine {
           err ? reject(err) : resolve()
         )
       })
-      // Verify image exists after build
-      await this.docker.getImage(imageRef).inspect()
+      // Verify image exists after build. Bound by the same abort signal so a hung inspect/scan
+      // cannot stall the service build past its timeout (the plain awaits do not observe it).
+      await this.withAbortSignal(
+        controller.signal,
+        this.docker.getImage(imageRef).inspect()
+      )
 
       // Image scanning — same Trivy gate used by pullImageRef(). A built image must clear
       // it too; on failure the built image is removed so it cannot be used to start a service.
-      await this.scanAndRemoveIfVulnerable(imageRef)
+      await this.scanAndRemoveIfVulnerable(imageRef, controller.signal)
     } finally {
       clearTimeout(timer)
     }
