@@ -95,18 +95,22 @@ flowchart TB
 - C2D: only the Docker engine (`C2DEngineDocker`) is implemented. OPF_K8 clusters configured
   via `OPERATOR_SERVICE_URL` are accepted into the config (added to `c2dClusters`), but no
   engine is instantiated for them.
-- URL/metadata protection: the node encrypts URLs on publish and only ever streams data,
-  never the URL.
+- URL/metadata protection: the node encrypts URLs on publish and only ever streams the file
+  contents back to the consumer, never the URL itself. (The node operator is trusted: the
+  node decrypts the URL and fetches the file server-side, so the operator can see it.)
 
 ---
 
 # 2. Request & Command Flow
 
-There are two front doors but a single dispatcher. `OceanNode.handleDirectProtocolCommand()`
-is the one choke point: it JSON-parses the command, looks up the handler by `task.command`
-in the `CoreHandlersRegistry`, and calls `handler.handle(task)`. Handlers first run
-`verifyParamsAndRateLimits()` (shared rate limiting against `OceanNode.requestMap`), then
-execute and stream the response back.
+There are multiple front doors but one common primitive: every path resolves a handler from
+the `CoreHandlersRegistry` and calls `handler.handle(task)`. The paths differ in how they get
+there. HTTP `POST /directCommand` goes through `OceanNode.handleDirectProtocolCommand()`,
+which JSON-parses the command, looks up the handler by `task.command`, and calls it. P2P
+inbound (`handleProtocolCommands`) and the ergonomic REST routes (e.g. `compute.ts`) skip that
+wrapper — they look up or instantiate the handler and call `handle(task)` directly. In every
+case the handler first runs `verifyParamsAndRateLimits()` (shared rate limiting against
+`OceanNode.requestMap`), then executes and streams the response back.
 
 ```mermaid
 sequenceDiagram
@@ -127,7 +131,7 @@ sequenceDiagram
         P2P->>ON: dispatch on remote node
     else P2P inbound
         Client->>P2P: Ocean protocol stream (length-prefixed frame)
-        P2P->>ON: handleDirectProtocolCommand(msg)
+        P2P->>REG: getHandler(task.command) (skips handleDirectProtocolCommand)
     end
 
     ON->>REG: getHandler(task.command)
@@ -139,10 +143,13 @@ sequenceDiagram
     H-->>Client: streamed response (binary or text)
 ```
 
-**Forwarding.** If a node receives a request for an object it does not have locally and P2P
-is enabled, it can forward the request to the network and relay the answer back. (Example:
-Alice asks Node A for DDO `#123`; Node A checks its local DB, and if missing, queries the
-network and returns the DDO from a peer that has it.)
+**Forwarding.** Cross-node forwarding on a local miss is not general dispatch behaviour — it
+is specific to the `findDDO` command. `FindDdoHandler` checks the local DB and, if the DDO is
+missing and P2P is enabled, queries the network (`p2pNode.sendTo(...)`) and relays the answer
+back. (Example: Alice asks Node A for DDO `#123` via `findDDO`; Node A checks its local DB,
+and if missing, queries the network and returns the DDO from a peer that has it.) Other
+commands, including `getDDO`, simply return a 404 on a local miss. Separately, `/directCommand`
+can forward a whole command to a specific peer when the request names a target `node`.
 
 **To add a new command:** add the name to `PROTOCOL_COMMANDS` + `SUPPORTED_PROTOCOL_COMMANDS`
 (`src/utils/constants.ts`), create a handler under `src/components/core/`, register it in the
@@ -197,7 +204,8 @@ events.
 Deliberately thin — the real behavior lives in the core handlers and REST routes. It:
 - checks on-chain buyer permissions and payments;
 - encrypts URLs/metadata on publish and decrypts on download or compute start;
-- streams data to consumers and **never** exposes the URL;
+- streams data to consumers and **never exposes the URL to the consumer** (the node operator,
+  which decrypts and fetches it server-side, is trusted);
 - connects to the C2D engines for compute services.
 
 ### 3.3 Database
@@ -213,7 +221,7 @@ config, C2D-job, and auth-token DBs — so the node works even with no metadata 
   `PRIVATE_KEY`; designed to add KMS providers later).
 - **BlockchainRegistry** — per-chain `Blockchain` instances giving handlers RPC
   providers/signers keyed by `chainId`.
-- **Escrow** — on-chain settlement for paid compute and orders.
+- **Escrow** — on-chain settlement for paid compute and services (not orders/downloads).
 - **PersistentStorage** — local filesystem (`localfs`) buckets for C2D outputs and user
   buckets, configured via `PERSISTENT_STORAGE` (the S3 backend is a stub).
 - **PolicyServer** — passthrough integration to an external policy server (`POLICY_SERVER_URL`)
@@ -224,18 +232,20 @@ config, C2D-job, and auth-token DBs — so the node works even with no metadata 
 # 4. Nodes & Network Model
 
 Nodes receive requests over HTTP or over libp2p from another node; both are merged into a
-common `Command` object and routed to the right handler. Nodes forward requests to peers when
-their local database is missing objects.
+common `Command` object and routed to the right handler. For `findDDO`, a node queries peers
+when the DDO is missing from its local database; `/directCommand` can also forward a command
+to an explicitly targeted peer.
 
 The libp2p implementation supports core protocols (ping, identify, kad-DHT for peering,
 circuit-relay v2 for connectivity), peer discovery via both **mDNS** and **Kademlia DHT**,
-plus AutoNAT, UPnP, dcutr, and auto-TLS. All Ocean Nodes subscribe to the `OceanProtocol`
-topic and reply to messages of interest. A LevelDB datastore persists P2P state at
-`./databases/p2p-store`.
+plus AutoNAT, UPnP, dcutr, and auto-TLS. There is no pubsub/gossipsub topic: nodes talk to
+each other over a custom request/response stream protocol (`/ocean/nodes/1.0.0`, registered
+with `libp2p.handle`) dialed per peer, and locate DDOs through the Kademlia DHT. A LevelDB
+datastore persists P2P state at `./databases/p2p-store`.
 
 ```mermaid
 flowchart LR
-    subgraph OceanNetwork["OceanProtocol topic (libp2p)"]
+    subgraph OceanNetwork["Ocean Nodes (libp2p /ocean/nodes/1.0.0)"]
         A["Node A"]
         B["Node B"]
         C["Node C"]
