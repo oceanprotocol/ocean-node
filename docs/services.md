@@ -277,6 +277,7 @@ Service-on-demand is configured per Docker connection under `serviceOnDemand`:
 | `minDurationSeconds` | Hard floor under a service's duration for this daemon (default 0 — no floor). An environment may raise it with its own `minServiceDuration`; a smaller per-env value is clamped up to this one at startup, with a warning. |
 | `maxDurationSeconds` | Hard ceiling on a service's lifetime for this daemon (default 86400). An environment may lower it with its own `maxServiceDuration`; a larger per-env value is clamped to this one at startup, with a warning. |
 | `allowImageBuild` | If true, consumers may submit an inline `dockerfile` to build. |
+| `buildTimeoutSeconds` | Max wall-clock seconds an inline-`dockerfile` build may run before it is aborted. Separate from the service duration and capped at it. Optional; defaults to `300`. An environment may override it per-env with its own `buildTimeoutSeconds`. |
 
 Whether a given environment accepts services is gated by its `features.services` flag,
 and access can be restricted with the environment's `access` allow-list
@@ -583,4 +584,9 @@ then `docker network rm t`.
 - **`allowImageBuild` runs arbitrary build instructions.** When enabled, a consumer's
   inline `dockerfile` is built by the Docker daemon, so its `RUN` steps execute arbitrary
   commands in the daemon's build sandbox. Leave it disabled unless you intend to offer
-  build-from-source and trust the consumer set.
+  build-from-source and trust the consumer set. Builds are bounded by `buildTimeoutSeconds`
+  (default `300`), any built image is Trivy-scanned when `scanImages` is enabled, and
+  `additionalDockerFiles` entry names are sanitised (no absolute paths, `..` traversal,
+  backslashes, Windows drive prefixes, or names that would overwrite the controlled
+  `Dockerfile` / `.dockerignore`). Note that build steps still run as root **with network
+  access** on the host daemon — the timeout and scan reduce, but do not eliminate, the risk.

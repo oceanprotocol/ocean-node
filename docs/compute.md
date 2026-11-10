@@ -47,8 +47,12 @@ constraints, availability gating, and the fee structure.
   **price × amount × duration (in minutes, rounded up)**.
 - **Free tier**: Environments can have a `free` block that permits jobs with no payment, but
   with tighter resource limits.
-- **Image building**: Free jobs cannot build images (Dockerfiles are not allowed). For paid
-  jobs, image build time counts toward billable duration.
+- **Image building**: Building an image from an inline `dockerfile` is **disabled by default**.
+  Enable it per environment with `free.allowImageBuild` (free jobs) or on the service-on-demand
+  config (`serviceOnDemand.allowImageBuild`). When enabled, each build is bounded by a separate
+  short timeout (`buildTimeoutSeconds`, default `300`, capped at the job's own duration) rather
+  than the full `maxJobDuration`. For paid jobs, image build time still counts toward billable
+  duration.
 
 ---
 
@@ -807,7 +811,9 @@ token when starting a job, and the node uses the matching `prices`.
 
 An environment may expose a `free` block permitting jobs with no payment but tighter limits.
 List the same resource ids under `free.resources`; a resource not listed there is unavailable
-to free jobs even if the paid environment offers it. Free jobs cannot build images.
+to free jobs even if the paid environment offers it. Free jobs may build images from an inline
+`dockerfile` only when `free.allowImageBuild` is enabled (disabled by default); such builds are
+bounded by `free.buildTimeoutSeconds` (default `300`).
 
 ```json
 "free": {
