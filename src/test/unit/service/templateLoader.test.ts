@@ -13,6 +13,22 @@ const valid = (id: string) => ({
   exposedPorts: [8888]
 })
 
+// Stub CORE_LOGGER.warn for a single test. CORE_LOGGER is a process-wide singleton, so another
+// unit-test file running earlier in the full suite can leave its own stub/replacement on
+// `.warn` (e.g. an unrestored sandbox stub). That wrapper would swallow the loader's warnings
+// and this test's fresh stub would capture nothing — the full-suite flake behind the
+// "expected [] to have a length of 1" failure. Restore any such wrapper first so we always
+// stub the pristine method and capture reliably regardless of suite order.
+// The loader logs through CORE_LOGGER.throttled(key, level, message), which writes via
+// log() — never warn() — so the throttled call itself is what a test has to observe.
+function stubCoreThrottled(): sinon.SinonStub {
+  const current = CORE_LOGGER.throttled as unknown as Partial<sinon.SinonStub>
+  if (typeof current.restore === 'function') {
+    current.restore()
+  }
+  return sinon.stub(CORE_LOGGER, 'throttled')
+}
+
 describe('loadServiceTemplates', () => {
   let dir: string
   beforeEach(() => {
@@ -262,6 +278,47 @@ describe('loadServiceTemplates', () => {
       ).to.deep.equal([])
     } finally {
       warn.restore()
+      throttled.restore()
+    }
+  })
+
+  it('21. a template with the retired requiredResources / min shape is skipped with a warning', async () => {
+    writeFileSync(
+      join(dir, 'old.json'),
+      JSON.stringify({
+        ...valid('old-shape'),
+        requiredResources: [{ id: 'cpu', min: 1 }],
+        recommendedResources: [{ kind: 'discrete', type: 'gpu', min: 1, recommended: 2 }]
+      })
+    )
+    writeFileSync(
+      join(dir, 'new.json'),
+      JSON.stringify({
+        ...valid('new-shape'),
+        recommendedResources: [
+          { id: 'cpu', recommended: 4, unit: 'cores' },
+          {
+            kind: 'discrete',
+            type: 'gpu',
+            recommended: 141,
+            unit: 'GB',
+            layouts: [{ gpuCount: 1 }, { gpuCount: 2, vramPerGpu: 80 }]
+          }
+        ]
+      })
+    )
+    const throttled = stubCoreThrottled()
+    try {
+      const templates = await loadServiceTemplates(dir)
+      expect(templates.map((t) => t.id)).to.deep.equal(['new-shape'])
+      expect(
+        throttled
+          .getCalls()
+          .filter((c) => c.args[1] === 'warn')
+          .map((c) => String(c.args[2]))
+          .filter((m) => m.startsWith('Skipping invalid template in "old.json"'))
+      ).to.have.length(1)
+    } finally {
       throttled.restore()
     }
   })

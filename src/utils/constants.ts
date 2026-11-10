@@ -65,7 +65,8 @@ export const PROTOCOL_COMMANDS = {
   SERVICE_LIST: 'serviceList',
   SERVICE_EXTEND: 'serviceExtend',
   SERVICE_GET_STREAMABLE_LOGS: 'serviceGetStreamableLogs',
-  SERVICE_GET_RESULT: 'serviceGetResult'
+  SERVICE_GET_RESULT: 'serviceGetResult',
+  SET_MAINTENANCE: 'setMaintenance'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -130,8 +131,21 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.SERVICE_LIST,
   PROTOCOL_COMMANDS.SERVICE_EXTEND,
   PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,
-  PROTOCOL_COMMANDS.SERVICE_GET_RESULT
+  PROTOCOL_COMMANDS.SERVICE_GET_RESULT,
+  PROTOCOL_COMMANDS.SET_MAINTENANCE
 ]
+
+// Maintenance (drain) mode. When enabled, the node refuses NEW commitment (compute/service
+// starts, initialize, extend) but keeps serving already-committed work. The flag persists in
+// the SQLite config DB under this key and is cached in memory on the OceanNode singleton.
+export const MAINTENANCE_MODE_CONFIG_KEY = 'maintenanceMode'
+// Stable machine-readable code clients discriminate on. 503 is already reused in these handlers
+// for "subsystem unavailable" (e.g. "Compute engines not configured"), so the status alone is
+// NOT enough — clients must branch on this `code`.
+export const MAINTENANCE_MODE_CODE = 'MAINTENANCE_MODE'
+// Stable human-readable rejection message.
+export const MAINTENANCE_MODE_ERROR =
+  'Node is in maintenance mode; not accepting new compute or service requests'
 
 export const MetadataStates = {
   ACTIVE: 0,
@@ -141,6 +155,18 @@ export const MetadataStates = {
   ORDERING_DISABLED: 4,
   UNLISTED: 5
 }
+
+// jobType passed to the Escrow claim functions so a Subsidy Provider can gate on the kind of
+// job being settled. The numeric values are part of the on-chain claim ABI — the escrow and any
+// Subsidy Provider contract read them directly, so they MUST NOT be renumbered. Future features
+// add their own id.
+/* eslint-disable no-unused-vars */
+export enum JobType {
+  NONE = 0,
+  COMPUTE = 1, // C2D compute jobs
+  SERVICE = 2 // service-on-demand
+}
+/* eslint-enable no-unused-vars */
 
 export const EVENTS = {
   METADATA_CREATED: 'MetadataCreated',
@@ -166,7 +192,11 @@ export const EVENTS = {
   ESCROW_CLAIMED: 'Claimed',
   ESCROW_CANCELED: 'Canceled',
   ESCROW_DEPOSIT: 'Deposit',
-  ESCROW_WITHDRAW: 'Withdraw'
+  ESCROW_WITHDRAW: 'Withdraw',
+  ESCROW_SUBSIDIZED: 'Subsidized',
+  // Escrow v2 lock-time ("prepaid") sponsorship events.
+  ESCROW_LOCK_SPONSORED: 'LockSponsored',
+  ESCROW_SPONSOR_REFUNDED: 'SponsorRefunded'
 }
 
 export const ESCROW_EVENTS = [
@@ -176,7 +206,10 @@ export const ESCROW_EVENTS = [
   EVENTS.ESCROW_CLAIMED,
   EVENTS.ESCROW_CANCELED,
   EVENTS.ESCROW_DEPOSIT,
-  EVENTS.ESCROW_WITHDRAW
+  EVENTS.ESCROW_WITHDRAW,
+  EVENTS.ESCROW_SUBSIDIZED,
+  EVENTS.ESCROW_LOCK_SPONSORED,
+  EVENTS.ESCROW_SPONSOR_REFUNDED
 ]
 
 export const INDEXER_CRAWLING_EVENTS = {
@@ -259,9 +292,9 @@ export const EVENT_HASHES: Hashes = {
     type: EVENTS.NEW_ACCESS_LIST,
     text: 'NewAccessList(address,address)'
   },
-  '0x5a3021f46552b1ac3c96e967ff1ecfeb100603ccc2940941cad97db3ee2baec7': {
+  '0x47f2ef7a6a140df663e93e9dd0adaec413cb4dbe13624c53a5247c47eda35a45': {
     type: EVENTS.ESCROW_AUTH,
-    text: 'Auth(address,address,address,uint256,uint256,uint256)'
+    text: 'Auth(address,address,address,uint256,uint256,uint256,uint256)'
   },
   '0xb746b0421b0b98debe76bb312ec9fb701603af22ddb107f7e639b0187e4ff880': {
     type: EVENTS.ESCROW_LOCK,
@@ -286,6 +319,18 @@ export const EVENT_HASHES: Hashes = {
   '0x9b1bfa7fa9ee420a16e124f794c35ac9f90472acc99140eb2f6447c714cad8eb': {
     type: EVENTS.ESCROW_WITHDRAW,
     text: 'Withdraw(address,address,uint256)'
+  },
+  '0x04e202f6138ce0268067aab74c4038deaca9e8f15460867eff076939f0b06336': {
+    type: EVENTS.ESCROW_SUBSIDIZED,
+    text: 'Subsidized(address,address,uint256,address,address,uint256,uint256)'
+  },
+  '0xe7e10d1edd43df8fcf505863fbef6140798ab67b9d2a9bf0a84a1aa11c0d3825': {
+    type: EVENTS.ESCROW_LOCK_SPONSORED,
+    text: 'LockSponsored(address,address,uint256,address,address,uint256)'
+  },
+  '0x481f34587ff8179417e483b191c864eb16743e5d059e88b3f4e67f65ca23ab74': {
+    type: EVENTS.ESCROW_SPONSOR_REFUNDED,
+    text: 'SponsorRefunded(address,address,uint256,address,address,uint256,bool)'
   }
 }
 
@@ -419,9 +464,31 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.ALLOWED_ADMINS,
     required: false
   },
+  MAINTENANCE_MODE: {
+    // boot the node directly into maintenance (drain) mode. "true" enables it; the value is
+    // written through to the SQLite config DB and is STICKY across restarts — returning to
+    // normal service requires an explicit `setMaintenance { enabled: false }` admin command
+    // AND unsetting this env before the next restart.
+    name: 'MAINTENANCE_MODE',
+    value: process.env.MAINTENANCE_MODE,
+    required: false
+  },
   ALLOWED_ADMINS_LIST: {
     name: 'ALLOWED_ADMINS_LIST',
     value: process.env.ALLOWED_ADMINS_LIST,
+    required: false
+  },
+  SUBSIDY_PROVIDERS: {
+    // per-chain map of Subsidy Provider contract addresses passed to the escrow at claim time
+    name: 'SUBSIDY_PROVIDERS',
+    value: process.env.SUBSIDY_PROVIDERS,
+    required: false
+  },
+  SUBSIDY_PROVIDER_FILTER: {
+    // when ON, a user-supplied subsidy-provider list may only contain addresses already present
+    // in this node's SUBSIDY_PROVIDERS whitelist for the request chain; anything else is rejected
+    name: 'SUBSIDY_PROVIDER_FILTER',
+    value: process.env.SUBSIDY_PROVIDER_FILTER,
     required: false
   },
   ASSET_PURGATORY_URL: {
@@ -444,6 +511,15 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     // rate connections limit per minute (MAX requests per minute that the node will process)
     name: 'MAX_CONNECTIONS_PER_MINUTE',
     value: process.env.MAX_CONNECTIONS_PER_MINUTE,
+    required: false
+  },
+  TRUST_PROXY: {
+    // Express "trust proxy" setting controlling how the client IP is derived from
+    // X-Forwarded-For. Default off (ignore the header, use the socket peer). Set to the
+    // number of trusted proxy hops, 'loopback', or a comma-separated list of trusted
+    // IPs/CIDRs when the node runs behind a reverse proxy. See docs/env.md.
+    name: 'TRUST_PROXY',
+    value: process.env.TRUST_PROXY,
     required: false
   },
   RATE_DENY_LIST: {
@@ -511,6 +587,43 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   UNSAFE_URLS: {
     name: 'UNSAFE_URLS',
     value: process.env.UNSAFE_URLS,
+    required: false
+  },
+  ALLOWED_PRIVATE_URL_RANGES: {
+    // CIDRs / IPs that caller-supplied URLs may point at although they are private
+    name: 'ALLOWED_PRIVATE_URL_RANGES',
+    value: process.env.ALLOWED_PRIVATE_URL_RANGES,
+    required: false
+  },
+  ALLOWED_DOCKER_REGISTRIES: {
+    // ON-18: opt-in allow-list of Docker registry hosts (JSON array). Empty = any registry.
+    name: 'ALLOWED_DOCKER_REGISTRIES',
+    value: process.env.ALLOWED_DOCKER_REGISTRIES,
+    required: false
+  },
+  ALLOWED_DOCKER_REGISTRY_REALMS: {
+    // ON-18: opt-in extra token-realm hosts trusted to receive registry credentials (JSON
+    // array). Separate from ALLOWED_DOCKER_REGISTRIES so trusting a realm never enables the
+    // registry allow-list. Built-in realms (Docker Hub, GitLab) are always trusted.
+    name: 'ALLOWED_DOCKER_REGISTRY_REALMS',
+    value: process.env.ALLOWED_DOCKER_REGISTRY_REALMS,
+    required: false
+  },
+  FILEINFO_ALLOWED_HEADERS: {
+    // ON-07: JSON array of extra request-header names allowed through to the upstream when a
+    // caller supplies `file.headers` on the raw-`file` fileInfo path (the only path whose caller
+    // headers are treated as untrusted and filtered). Extends the default allow-list (accept,
+    // accept-encoding, range, content-type); everything else (authorization, cookie, x-* keys) is
+    // dropped. DDO-sourced headers (download / compute / did+serviceId) are trusted, not filtered.
+    name: 'FILEINFO_ALLOWED_HEADERS',
+    value: process.env.FILEINFO_ALLOWED_HEADERS,
+    required: false
+  },
+  FILEINFO_MAX_REQ_PER_MINUTE: {
+    // ON-07: dedicated, stricter per-caller rate limit for the raw-`file` fileInfo path
+    // (separate bucket from MAX_REQ_PER_MINUTE). 0 or unset = disabled.
+    name: 'FILEINFO_MAX_REQ_PER_MINUTE',
+    value: process.env.FILEINFO_MAX_REQ_PER_MINUTE,
     required: false
   },
   DB_TYPE: {
@@ -724,6 +837,11 @@ export const CONNECTION_HISTORY_DELETE_THRESHOLD = 300
 export const CONNECTIONS_RATE_INTERVAL = 60 * 1000
 // Typesense's maximum limit to send 250 hits at a time
 export const TYPESENSE_HITS_CAP = 250
+
+// Upper bound on how many escrow rows the handler will scan from the store when a client-side
+// (BigInt) range filter is active. Keeps deep pagination bounded; beyond this the result is
+// whatever matched within the scanned window.
+export const MAX_ESCROW_CLIENT_SCAN = 2000
 export const DDO_IDENTIFIER_PREFIX = 'did:op:'
 // global ocean node API services path
 export const SERVICES_API_BASE_PATH = '/api/services'

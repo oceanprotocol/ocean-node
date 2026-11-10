@@ -164,10 +164,10 @@ describe('**********         AccessLists tests', () => {
 
   it(`should have ${ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS_LIST.name} access lists`, () => {
     assert(
-      config.authorizedPublishersList !== null,
+      config.authorizedDecryptersList !== null,
       `${ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS_LIST.name}  accessList is not defined`
     )
-    console.log(config.authorizedPublishersList)
+    console.log(config.authorizedDecryptersList)
   })
 
   it('should check if wallets are on accessList (with Access)', async function () {

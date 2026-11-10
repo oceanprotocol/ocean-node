@@ -52,8 +52,10 @@ import {
 } from 'fs'
 import { pipeline } from 'node:stream/promises'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
+import { checkUrlHost, getSafeDispatcher } from '../../utils/safeUrl.js'
+import { fetchHeadersTimeout } from '../../utils/http.js'
 import { errorSummary, safeStringify } from '../../utils/logging/redact.js'
-import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import { ENVIRONMENT_VARIABLES, JobType } from '../../utils/constants.js'
 import { AssetUtils } from '../../utils/asset.js'
 import { FindDdoHandler } from '../core/handler/ddoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
@@ -78,7 +80,8 @@ import {
   ServiceStatusNumber,
   ServiceStatusText,
   SERVICE_START_PENDING_STATUSES,
-  isStoppedLike
+  isStoppedLike,
+  DEFAULT_BUILD_TIMEOUT_SECONDS
 } from '../../@types/C2D/ServiceOnDemand.js'
 import type {
   ServiceJob,
@@ -735,6 +738,8 @@ export class C2DEngineDocker extends C2DEngine {
       if (envDef.minJobDuration !== undefined) env.minJobDuration = envDef.minJobDuration
       if (envDef.maxJobDuration !== undefined) env.maxJobDuration = envDef.maxJobDuration
       if (envDef.maxJobs !== undefined) env.maxJobs = envDef.maxJobs
+      if (envDef.buildTimeoutSeconds !== undefined)
+        env.buildTimeoutSeconds = envDef.buildTimeoutSeconds
       if (envDef.description !== undefined) env.description = envDef.description
 
       // Free tier config for this environment
@@ -751,6 +756,8 @@ export class C2DEngineDocker extends C2DEngine {
         if (envDef.free.maxJobs !== undefined) env.free.maxJobs = envDef.free.maxJobs
         if (envDef.free.allowImageBuild !== undefined)
           env.free.allowImageBuild = envDef.free.allowImageBuild
+        if (envDef.free.buildTimeoutSeconds !== undefined)
+          env.free.buildTimeoutSeconds = envDef.free.buildTimeoutSeconds
         // Resolve free resource refs → full ComputeResource[] using the same connection pool.
         if (envDef.free.resources) {
           env.free.resources = this.resolveEnvironmentResources(
@@ -1126,6 +1133,10 @@ export class C2DEngineDocker extends C2DEngine {
           const payers = jobs.map((j) => j.owner)
           const amounts = claims.map((c) => c.cost)
           const proofs = claims.map((c) => c.proof)
+          // Per-job subsidy overrides. An explicit user list ([] or non-empty) was frozen onto the
+          // job at request time and is passed through unchanged; `undefined`/null here means the
+          // user opted out, so the escrow falls back to the node config read live at claim time.
+          const subsidyOverrides = jobs.map((j) => j.payment!.subsidyProviders ?? null)
 
           const txId = await this.escrow.claimLocks(
             chainId,
@@ -1133,7 +1144,9 @@ export class C2DEngineDocker extends C2DEngine {
             tokens,
             payers,
             amounts,
-            proofs
+            proofs,
+            JobType.COMPUTE,
+            subsidyOverrides
           )
           if (txId) {
             // Update all jobs with the transaction ID
@@ -1163,7 +1176,9 @@ export class C2DEngineDocker extends C2DEngine {
                 claim.job.payment!.token,
                 claim.job.owner,
                 claim.cost,
-                claim.proof
+                claim.proof,
+                JobType.COMPUTE,
+                claim.job.payment!.subsidyProviders ?? null
               )
               if (txId) {
                 if (claim.job.payment) {
@@ -1491,10 +1506,22 @@ export class C2DEngineDocker extends C2DEngine {
     const firstSlash = name.indexOf('/')
     if (firstSlash !== -1) {
       const potential = name.slice(0, firstSlash)
-      if (potential.includes('.') || potential.includes(':')) {
-        registry = potential.includes('localhost')
-          ? `http://${potential}`
-          : `https://${potential}`
+      // Docker's own domain detection (distribution/reference `splitDockerDomain`): the first
+      // path segment is a REGISTRY host (not part of a Docker Hub repo name) when it contains a
+      // '.' or ':', OR it equals 'localhost', OR it carries an uppercase letter. Matching this
+      // exactly is a security requirement, not a nicety: `checkRegistryAllowList` must classify
+      // the image the same way `docker.pull` will resolve it. If we only looked for '.'/':' then
+      // `localhost/x` or `MyReg/x` would be treated as Docker Hub and sail past a Hub-only
+      // allow-list, yet Docker would pull them from the local/`MyReg` registry instead.
+      const isRegistryHost =
+        potential.includes('.') ||
+        potential.includes(':') ||
+        potential === 'localhost' ||
+        potential !== potential.toLowerCase()
+      if (isRegistryHost) {
+        const isLocalhost =
+          potential === 'localhost' || potential.startsWith('localhost:')
+        registry = isLocalhost ? `http://${potential}` : `https://${potential}`
         name = name.slice(firstSlash + 1)
       }
     }
@@ -1504,6 +1531,60 @@ export class C2DEngineDocker extends C2DEngine {
     }
 
     return { registry, name, ref }
+  }
+
+  // ON-18: well-known registries serve their bearer-token endpoint on a DIFFERENT host than the
+  // registry itself, so a private pull from them needs the operator's credentials sent to that
+  // separate realm host. This fixed built-in list maps a registry host to the token-realm
+  // host(s) trusted to receive those credentials, so authenticated Docker Hub / GitLab pulls keep
+  // working without the operator having to configure anything. Operators add their own via
+  // ALLOWED_DOCKER_REGISTRY_REALMS, which is kept SEPARATE from ALLOWED_DOCKER_REGISTRIES so that
+  // trusting a token realm never turns on registry allow-list mode.
+  private static readonly KNOWN_REGISTRY_REALM_HOSTS: Record<string, string[]> = {
+    'registry-1.docker.io': ['auth.docker.io'],
+    'index.docker.io': ['auth.docker.io'],
+    'docker.io': ['auth.docker.io'],
+    'registry.gitlab.com': ['gitlab.com']
+  }
+
+  // ON-18: extract the host portion of a parsed registry URL (e.g. "ghcr.io" from
+  // "https://ghcr.io"). Falls back to the raw string if it is not a parseable URL.
+  // Normalize a host for comparison: lowercase and strip a trailing dot. `URL.host`
+  // already lowercases the hostname and drops the scheme's default port (:443/:80), so
+  // operator allow-list entries are run through the same normalization.
+  private normalizeRegistryHost(host: string): string {
+    return (host || '').trim().toLowerCase().replace(/\.$/, '')
+  }
+
+  private getRegistryHost(registry: string): string {
+    try {
+      return this.normalizeRegistryHost(new URL(registry).host)
+    } catch {
+      return this.normalizeRegistryHost(registry)
+    }
+  }
+
+  // ON-18: when ALLOWED_DOCKER_REGISTRIES is set (non-empty), reject images whose parsed
+  // registry host is not listed, BEFORE any outbound request. Returns a rejection
+  // ValidateParams when the registry is not allowed, or null when it is allowed / the
+  // allow-list is disabled (empty = current behaviour, non-breaking).
+  private checkRegistryAllowList(registry: string): ValidateParams | null {
+    const allowedRegistries = (this.getConfig()?.allowedDockerRegistries || []).map(
+      (entry) => this.normalizeRegistryHost(entry)
+    )
+    if (allowedRegistries.length === 0) return null
+    const host = this.getRegistryHost(registry)
+    if (!allowedRegistries.includes(host)) {
+      CORE_LOGGER.warn(
+        `Rejecting image from registry host "${host}": not in ALLOWED_DOCKER_REGISTRIES`
+      )
+      return {
+        valid: false,
+        status: 400,
+        reason: 'Image registry is not in the allowed registries list'
+      }
+    }
+    return null
   }
 
   public async getDockerManifest(
@@ -1544,36 +1625,100 @@ export class C2DEngineDocker extends C2DEngine {
       )
     }
 
-    let response = await fetch(url, { headers })
+    // Synchronous guard: reject IP literals and localhost names in the registry URL
+    // up front before any connection is attempted.
+    const registryUrlSsrfErr = checkUrlHost(url, this.config)
+    if (registryUrlSsrfErr) {
+      throw new Error(`Registry URL is not reachable: ${registryUrlSsrfErr}`)
+    }
+    const safeDispatcher = getSafeDispatcher(this.config)
+    let response = await fetchHeadersTimeout(
+      url,
+      { headers, dispatcher: safeDispatcher },
+      30000
+    )
 
     if (response.status === 401) {
       const match = (response.headers.get('www-authenticate') || '').match(
         /Bearer realm="([^"]+)",service="([^"]+)"/
       )
       if (match) {
+        // Guard against a malicious registry directing us to fetch an internal URL
+        // via the www-authenticate realm field.
+        const realmSsrfErr = checkUrlHost(match[1], this.config)
+        if (realmSsrfErr) {
+          CORE_LOGGER.warn(
+            `getDockerManifest: rejecting www-authenticate realm ${match[1]} for ${image}: ${realmSsrfErr}`
+          )
+          throw new Error(`Registry token endpoint is not reachable: ${realmSsrfErr}`)
+        }
         const tokenUrl = new URL(match[1])
+
+        // ON-18: never forward the operator's Basic registry credentials to a token-endpoint
+        // (`www-authenticate` realm) host the registry does not own. A malicious/misconfigured
+        // registry can point `realm` at an arbitrary host to harvest those credentials.
+        // Standard registries legitimately serve the token endpoint on a DIFFERENT host than
+        // the registry (Docker Hub: registry-1.docker.io -> auth.docker.io; GitLab:
+        // registry.gitlab.com -> gitlab.com). Those well-known realm hosts are trusted via the
+        // built-in KNOWN_REGISTRY_REALM_HOSTS map (so authenticated pulls from them work), and an
+        // operator can trust additional realm hosts via ALLOWED_DOCKER_REGISTRY_REALMS — kept
+        // SEPARATE from ALLOWED_DOCKER_REGISTRIES so trusting a realm does not enable allow-list
+        // mode. When the realm host is not trusted the token is fetched ANONYMOUSLY (public pulls
+        // keep working, credentials are never leaked). Credentials are sent only over https.
+        const registryHost = this.getRegistryHost(registry)
+        const realmHost = this.normalizeRegistryHost(tokenUrl.host)
+        const allowedRegistries = (this.getConfig()?.allowedDockerRegistries || []).map(
+          (entry) => this.normalizeRegistryHost(entry)
+        )
+        const knownRealmHosts =
+          C2DEngineDocker.KNOWN_REGISTRY_REALM_HOSTS[registryHost] || []
+        const extraRealmHosts = (this.getConfig()?.allowedDockerRegistryRealms || []).map(
+          (entry) => this.normalizeRegistryHost(entry)
+        )
+        const realmTrusted =
+          realmHost === registryHost ||
+          knownRealmHosts.includes(realmHost) ||
+          extraRealmHosts.includes(realmHost) ||
+          allowedRegistries.includes(realmHost)
+
         tokenUrl.searchParams.set('service', match[2])
         tokenUrl.searchParams.set('scope', `repository:${name}:pull`)
 
-        // Add Basic auth to token request if we have credentials
+        // Attach Basic auth to the token request only when the realm host is trusted and the
+        // realm is https. `redirect: 'error'` prevents the credential header from following a
+        // redirect off the vetted host.
         const tokenHeaders: Record<string, string> = {}
+        let tokenRedirect: 'follow' | 'error' = 'follow'
         if (dockerRegistryAuth) {
-          // Use auth string if available, otherwise encode username:password
-          const authString = dockerRegistryAuth.auth
-            ? dockerRegistryAuth.auth
-            : Buffer.from(
-                `${dockerRegistryAuth.username}:${dockerRegistryAuth.password}`
-              ).toString('base64')
-          tokenHeaders.Authorization = `Basic ${authString}`
+          if (realmTrusted && tokenUrl.protocol === 'https:') {
+            const authString = dockerRegistryAuth.auth
+              ? dockerRegistryAuth.auth
+              : Buffer.from(
+                  `${dockerRegistryAuth.username}:${dockerRegistryAuth.password}`
+                ).toString('base64')
+            tokenHeaders.Authorization = `Basic ${authString}`
+            tokenRedirect = 'error'
+          } else {
+            CORE_LOGGER.warn(
+              `Not forwarding registry credentials to token realm host "${realmHost}" (registry host "${registryHost}", scheme "${tokenUrl.protocol}"); fetching token anonymously`
+            )
+          }
         }
 
-        const { token } = (await fetch(tokenUrl.toString(), {
-          headers: tokenHeaders
-        }).then((r) => r.json())) as {
+        const tokenResp = await fetchHeadersTimeout(
+          tokenUrl.toString(),
+          { headers: tokenHeaders, redirect: tokenRedirect, dispatcher: safeDispatcher },
+          20000
+        )
+        const { token } = (await tokenResp.json()) as {
           token: string
         }
         headers = { ...headers, Authorization: `Bearer ${token}` }
-        response = await fetch(url, { headers })
+        response = await fetchHeadersTimeout(
+          url,
+          { headers, dispatcher: safeDispatcher },
+          30000
+        )
       }
     }
 
@@ -1598,6 +1743,14 @@ export class C2DEngineDocker extends C2DEngine {
     encryptedDockerRegistryAuth?: string,
     platform?: RunningPlatform
   ): Promise<ValidateParams> {
+    // ON-18: enforce the opt-in registry allow-list BEFORE any local or remote lookup, so a
+    // non-listed registry is rejected without issuing an outbound request.
+    const { registry } = this.parseImage(image)
+    const allowListError = this.checkRegistryAllowList(registry)
+    if (allowListError) {
+      return allowListError
+    }
+
     // Step 1: Try to check local image first
     if (this.docker) {
       try {
@@ -1659,6 +1812,9 @@ export class C2DEngineDocker extends C2DEngine {
 
       return { valid: isValidPlatform }
     } catch (err: any) {
+      // ON-18: keep the detailed upstream registry error (err.errors / err.message) in the
+      // server log ONLY — never reflect it to the caller. initializeCompute is unauthenticated,
+      // so an echoed upstream body would leak registry internals / act as an SSRF oracle.
       CORE_LOGGER.error(
         `Manifest for ${image} unavailable: ${errorSummary(err)}${
           err.errors?.length ? ' ' + safeStringify(err.errors, { maxLength: 500 }) : ''
@@ -1668,7 +1824,7 @@ export class C2DEngineDocker extends C2DEngine {
       return {
         valid: false,
         status: 404,
-        reason: err.errors?.length ? JSON.stringify(err.errors) : err.message
+        reason: 'Image manifest could not be retrieved'
       }
     }
   }
@@ -3818,6 +3974,125 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
+  // Validates a user-supplied additionalDockerFiles entry name before it is written into the
+  // build-context tar. An untrusted name could otherwise escape the build context (absolute
+  // path, `..` traversal, backslash separators, Windows drive), overwrite the Dockerfile /
+  // .dockerignore we control, or smuggle control characters. Throws on anything suspicious so
+  // the whole build fails rather than silently dropping the file. Returns the normalised,
+  // build-context-relative name.
+  private sanitizeDockerfileEntryName(name: string): string {
+    if (typeof name !== 'string')
+      throw new Error('additionalDockerFiles: entry name must be a string')
+    const trimmed = name.trim()
+    if (!trimmed)
+      throw new Error('additionalDockerFiles: empty entry name is not allowed')
+    // Reject NUL and other control characters (charCode < 32).
+    for (let i = 0; i < trimmed.length; i++) {
+      if (trimmed.charCodeAt(i) < 32)
+        throw new Error(
+          `additionalDockerFiles: control character in entry name "${name}" is not allowed`
+        )
+    }
+    if (trimmed.includes('\\'))
+      throw new Error(
+        `additionalDockerFiles: backslash in entry name "${name}" is not allowed`
+      )
+    // Normalise posix-style, then strip a single leading "./".
+    let norm = path.posix.normalize(trimmed)
+    if (norm.startsWith('./')) norm = norm.slice(2)
+    // After normalising/stripping, a bare "." or an empty string names no file (it refers to
+    // the build-context root itself), so reject it rather than returning a useless tar entry.
+    if (norm === '' || norm === '.')
+      throw new Error(
+        `additionalDockerFiles: entry name "${name}" does not name a file in the build context`
+      )
+    if (norm.startsWith('/'))
+      throw new Error(
+        `additionalDockerFiles: absolute path "${name}" is not allowed in the build context`
+      )
+    if (norm === '..' || norm.startsWith('../'))
+      throw new Error(
+        `additionalDockerFiles: path traversal ("..") in entry name "${name}" is not allowed`
+      )
+    if (/^[A-Za-z]:/.test(norm))
+      throw new Error(
+        `additionalDockerFiles: Windows drive path "${name}" is not allowed`
+      )
+    if (norm.endsWith('/'))
+      throw new Error(`additionalDockerFiles: directory entry "${name}" is not allowed`)
+    const lower = norm.toLowerCase()
+    if (lower === 'dockerfile' || lower === '.dockerignore')
+      throw new Error(
+        `additionalDockerFiles: entry name "${name}" would overwrite a reserved build file`
+      )
+    return norm
+  }
+
+  // Resolves the image-build abort budget: the configured value (or the shared default), never
+  // exceeding the job/service runtime duration. Guards against a non-finite OR non-positive
+  // duration (NaN, Infinity, 0, negative) so the AbortController timer can never be fed NaN or a
+  // value that would abort the build instantly.
+  private resolveBuildTimeoutSeconds(
+    configured: number | undefined,
+    jobDurationSeconds: number
+  ): number {
+    const base = configured ?? DEFAULT_BUILD_TIMEOUT_SECONDS
+    if (!Number.isFinite(jobDurationSeconds) || jobDurationSeconds <= 0) return base
+    return Math.min(base, jobDurationSeconds)
+  }
+
+  // Rejects as soon as `signal` aborts, so an await that does not itself observe the signal
+  // (docker inspect, the Trivy scan) cannot hang a job past its build budget or ignore a stop
+  // request. The underlying docker/Trivy call is not truly cancelled and keeps running in the
+  // background, but the job settles (→ BuildImageFailed) and cleanup proceeds.
+  private withAbortSignal<T>(signal: AbortSignal, promise: Promise<T>): Promise<T> {
+    const abortError = () => {
+      const err = new Error('Image build aborted') as NodeJS.ErrnoException
+      err.code = 'ABORT_ERR'
+      err.name = 'AbortError'
+      return err
+    }
+    if (signal.aborted) {
+      // Attach a no-op handler so a later rejection of the already-running promise does not
+      // surface as an unhandled rejection (which can crash the process). The underlying
+      // docker/Trivy call keeps running in the background; we just stop observing it.
+      promise.catch(() => {})
+      return Promise.reject(abortError())
+    }
+    let onAbort: () => void
+    const abortPromise = new Promise<never>((_resolve, reject) => {
+      onAbort = () => reject(abortError())
+      signal.addEventListener('abort', onAbort, { once: true })
+    })
+    return Promise.race([promise, abortPromise]).finally(() => {
+      signal.removeEventListener('abort', onAbort)
+    }) as Promise<T>
+  }
+
+  // Shared Trivy gate for freshly-built images. When image scanning is on, scan the image and,
+  // if vulnerable, remove it (swallowing removal errors) and throw so the build fails. A no-op
+  // when scanning is disabled. An optional abort signal bounds the scan so a hung Trivy run
+  // cannot stall the job past its build budget or a stop request.
+  private async scanAndRemoveIfVulnerable(
+    imageRef: string,
+    signal?: AbortSignal
+  ): Promise<void> {
+    if (!this.scanImages) return
+    const scan = this.checkImageVulnerability(imageRef)
+    const scanResult = signal ? await this.withAbortSignal(signal, scan) : await scan
+    if (scanResult.vulnerable) {
+      await this.docker
+        .getImage(imageRef)
+        .remove({ force: true })
+        .catch(() => {})
+      // Drop any usage record so cleanupOldImages does not later chase a now-removed image.
+      await this.db.deleteImage(imageRef).catch(() => {})
+      throw new Error(
+        `Image "${imageRef}" failed security scan: ${JSON.stringify(scanResult.summary)}`
+      )
+    }
+  }
+
   private async buildImage(
     originaljob: DBComputeJob,
     additionalDockerFiles: { [key: string]: any }
@@ -3825,7 +4100,21 @@ export class C2DEngineDocker extends C2DEngine {
     const job = JSON.parse(JSON.stringify(originaljob)) as DBComputeJob
     const imageLogFile = this.getStoragePath() + '/' + job.jobId + '/data/logs/image.log'
     const controller = new AbortController()
-    const timeoutMs = job.maxJobDuration * 1000
+    // Image build gets its own short budget, SEPARATE from the job's full runtime duration: a
+    // build should take minutes, so a short cap limits how long an untrusted Dockerfile can keep
+    // the daemon busy. Free and paid jobs read DIFFERENT per-env knobs (a free-tier setting must
+    // not govern paid builds): free → env.free.buildTimeoutSeconds, paid → env.buildTimeoutSeconds.
+    // Both fall back to the daemon-wide serviceOnDemand value, then the default, and neither may
+    // exceed the job's own maxJobDuration.
+    const env = this.envs.find((e) => e.id === job.environment)
+    const configuredBuildTimeout =
+      (job.isFree ? env?.free?.buildTimeoutSeconds : env?.buildTimeoutSeconds) ??
+      this.getC2DConfig().connection?.serviceOnDemand?.buildTimeoutSeconds
+    const buildTimeoutSeconds = this.resolveBuildTimeoutSeconds(
+      configuredBuildTimeout,
+      job.maxJobDuration
+    )
+    const timeoutMs = buildTimeoutSeconds * 1000
     const timer = setTimeout(() => controller.abort(), timeoutMs)
     this.activeBuildAborts.set(job.jobId, controller)
     try {
@@ -3835,8 +4124,15 @@ export class C2DEngineDocker extends C2DEngine {
       pack.entry({ name: 'Dockerfile' }, job.algorithm.meta.container.dockerfile)
       // Append any additional files to the tar archive
       if (additionalDockerFiles) {
+        const seenNames = new Set<string>()
         for (const filePath of Object.keys(additionalDockerFiles)) {
-          pack.entry({ name: filePath }, additionalDockerFiles[filePath])
+          const safeName = this.sanitizeDockerfileEntryName(filePath)
+          if (seenNames.has(safeName))
+            throw new Error(
+              `additionalDockerFiles: duplicate entry name "${safeName}" in build context`
+            )
+          seenNames.add(safeName)
+          pack.entry({ name: safeName }, additionalDockerFiles[filePath])
         }
       }
       pack.finalize()
@@ -3901,27 +4197,9 @@ export class C2DEngineDocker extends C2DEngine {
         }
         controller.signal.addEventListener('abort', onAbort, { once: true })
         const onSuccess = () => {
-          finish(async () => {
+          finish(() => {
             detachBuildLog()
             controller.signal.removeEventListener('abort', onAbort)
-
-            // Build stream completed, but does the image actually exist?
-            try {
-              await this.docker.getImage(job.containerImage).inspect()
-            } catch (e) {
-              return reject(
-                new Error(
-                  `Cannot find image '${job.containerImage}' after building. Most likely it failed: ${
-                    (e as Error)?.message || String(e)
-                  }`
-                )
-              )
-            }
-
-            CORE_LOGGER.debug(`Image '${job.containerImage}' built successfully.`)
-            this.updateImageUsage(job.containerImage).catch((e) => {
-              CORE_LOGGER.error(`Failed to track image usage: ${e.message}`)
-            })
             resolve()
           })
         }
@@ -3938,6 +4216,43 @@ export class C2DEngineDocker extends C2DEngine {
           })
         })
       })
+
+      // The build stream completed. Run the existence check and the vulnerability scan OUTSIDE
+      // the stream callback. Neither call observes the abort signal on its own, so wrap them in
+      // controller.signal: without this a hung inspect/scan would NOT be bounded by the outer
+      // try/catch (which only catches a *throwing* scan, not a hung one) and the job would stall,
+      // unresponsive to the build timer and to stop requests. On abort/timeout they reject →
+      // outer catch → BuildImageFailed → cleanup.
+      try {
+        await this.withAbortSignal(
+          controller.signal,
+          this.docker.getImage(job.containerImage).inspect()
+        )
+      } catch (e) {
+        // Preserve the abort classification so the outer catch reports a timeout, not a missing image.
+        if ((e as NodeJS.ErrnoException)?.code === 'ABORT_ERR') throw e
+        throw new Error(
+          `Cannot find image '${job.containerImage}' after building. Most likely it failed: ${
+            (e as Error)?.message || String(e)
+          }`
+        )
+      }
+
+      // Record image usage as soon as the build is confirmed on disk (inspect succeeded),
+      // BEFORE the vulnerability scan. A scan that throws for any reason other than "vulnerable"
+      // (Trivy error, abort/timeout) must not leave the built image on disk untracked —
+      // otherwise cleanupOldImages never reclaims it and it lingers indefinitely. Awaited so
+      // the record is persisted before a vulnerable image can be removed (and un-recorded) below.
+      // updateImageUsage swallows its own errors, so this never throws.
+      await this.updateImageUsage(job.containerImage)
+
+      // Image scanning — same Trivy gate used by the service build path, bounded by the same
+      // abort signal. On a vulnerable image this removes it (and its usage record) and throws,
+      // so the job fails like any other build failure.
+      await this.scanAndRemoveIfVulnerable(job.containerImage, controller.signal)
+
+      CORE_LOGGER.debug(`Image '${job.containerImage}' built successfully.`)
+
       job.status = C2DStatusNumber.ConfiguringVolumes
       job.statusText = C2DStatusText.ConfiguringVolumes
       job.buildStopTimestamp = String(Date.now() / 1000)
@@ -3985,6 +4300,13 @@ export class C2DEngineDocker extends C2DEngine {
     const timer = setTimeout(() => controller.abort(), this.getImagePullTimeoutMs())
     try {
       const { registry } = this.parseImage(imageRef)
+      // ON-18: enforce ALLOWED_DOCKER_REGISTRIES on the service-on-demand pull path too
+      // (the image ref here is caller-supplied via SERVICE_START). Without this the allow-list
+      // would only constrain compute-algorithm images, leaving service pulls unconstrained.
+      const allowListError = this.checkRegistryAllowList(registry)
+      if (allowListError) {
+        throw new Error(allowListError.reason)
+      }
       let dockerRegistryAuthForPull: any
       if (encryptedDockerRegistryAuth) {
         const decryptedDockerRegistryAuth = await this.keyManager.decrypt(
@@ -4076,8 +4398,16 @@ export class C2DEngineDocker extends C2DEngine {
     try {
       const pack = tarStream.pack()
       pack.entry({ name: 'Dockerfile' }, dockerfile)
-      for (const [name, content] of Object.entries(additionalDockerFiles))
-        pack.entry({ name }, content)
+      const seenNames = new Set<string>()
+      for (const [name, content] of Object.entries(additionalDockerFiles)) {
+        const safeName = this.sanitizeDockerfileEntryName(name)
+        if (seenNames.has(safeName))
+          throw new Error(
+            `additionalDockerFiles: duplicate entry name "${safeName}" in build context`
+          )
+        seenNames.add(safeName)
+        pack.entry({ name: safeName }, content)
+      }
       pack.finalize()
 
       const buildOptions: Dockerode.ImageBuildOptions = {
@@ -4100,23 +4430,16 @@ export class C2DEngineDocker extends C2DEngine {
           err ? reject(err) : resolve()
         )
       })
-      // Verify image exists after build
-      await this.docker.getImage(imageRef).inspect()
+      // Verify image exists after build. Bound by the same abort signal so a hung inspect/scan
+      // cannot stall the service build past its timeout (the plain awaits do not observe it).
+      await this.withAbortSignal(
+        controller.signal,
+        this.docker.getImage(imageRef).inspect()
+      )
 
       // Image scanning — same Trivy gate used by pullImageRef(). A built image must clear
-      // it too; on failure remove the built image so it cannot be used to start a service.
-      if (this.scanImages) {
-        const scanResult = await this.checkImageVulnerability(imageRef)
-        if (scanResult.vulnerable) {
-          await this.docker
-            .getImage(imageRef)
-            .remove({ force: true })
-            .catch(() => {})
-          throw new Error(
-            `Image "${imageRef}" failed security scan: ${JSON.stringify(scanResult.summary)}`
-          )
-        }
-      }
+      // it too; on failure the built image is removed so it cannot be used to start a service.
+      await this.scanAndRemoveIfVulnerable(imageRef, controller.signal)
     } finally {
       clearTimeout(timer)
     }
@@ -4524,7 +4847,11 @@ export class C2DEngineDocker extends C2DEngine {
         token,
         job.owner,
         job.payment.cost,
-        this.escrow.getMinLockTime(job.duration)
+        this.escrow.getMinLockTime(job.duration),
+        JobType.SERVICE,
+        // Same subsidy-provider list the matching claimLock uses (see below) — lock & claim
+        // must agree, so the sponsored lock can be settled from the same providers.
+        job.payment.subsidyProviders ?? null
       )
       if (!lockTx) throw new Error('Escrow lock failed')
       await this.escrow.waitForTransaction(chainId, lockTx)
@@ -4544,11 +4871,17 @@ export class C2DEngineDocker extends C2DEngine {
           await this.db.updateServiceJob(job)
           const ram = job.resources.find((r) => r.id === 'ram')?.amount
           const cpu = job.resources.find((r) => r.id === 'cpu')?.amount
+          // Image build gets its own short budget, not the service's full runtime duration, and
+          // is capped so it can never exceed that duration.
+          const buildTimeoutSeconds = this.resolveBuildTimeoutSeconds(
+            sod?.buildTimeoutSeconds,
+            job.duration
+          )
           await this.buildImageFromSpec(
             job.containerImage,
             job.dockerfile,
             job.additionalDockerFiles ?? {},
-            sod?.maxDurationSeconds ?? job.duration,
+            buildTimeoutSeconds,
             ram,
             cpu
           )
@@ -4624,7 +4957,9 @@ export class C2DEngineDocker extends C2DEngine {
         token,
         job.owner,
         job.payment.cost,
-        `service-start:${serviceId}`
+        `service-start:${serviceId}`,
+        JobType.SERVICE,
+        job.payment.subsidyProviders ?? null
       )
       if (!claimTx) {
         job.payment.cancelTx = await this.safeCancelLock(
@@ -6245,11 +6580,17 @@ export class C2DEngineDocker extends C2DEngine {
         await this.db.updateServiceJob(job)
         const ram = job.resources.find((r) => r.id === 'ram')?.amount
         const cpu = job.resources.find((r) => r.id === 'cpu')?.amount
+        // Image build gets its own short budget, not the service's full runtime duration, and
+        // is capped so it can never exceed that duration.
+        const buildTimeoutSeconds = this.resolveBuildTimeoutSeconds(
+          sod?.buildTimeoutSeconds,
+          job.duration
+        )
         await this.buildImageFromSpec(
           effContainerImage,
           effDockerfile,
           effAdditionalDockerFiles ?? {},
-          sod?.maxDurationSeconds ?? job.duration,
+          buildTimeoutSeconds,
           ram,
           cpu
         )

@@ -1,4 +1,4 @@
-import { Contract, ethers, JsonRpcProvider, Signer } from 'ethers'
+import { Contract, ethers, FallbackProvider, JsonRpcProvider, Signer } from 'ethers'
 import { AccessListContract } from '../../@types'
 import {
   getOceanArtifactsAdressesByChainId,
@@ -60,9 +60,14 @@ export async function deployAccessListContract(
   try {
     // Get the current nonce to ensure we're using the correct one
     const signerAddress = await signer.getAddress()
-    const currentNonce = await signer.provider.getTransactionCount(
-      signerAddress,
-      'pending'
+    // the node signer sits on a FallbackProvider (no send()), so use the RPC it wraps
+    const rpc = (
+      signer.provider instanceof FallbackProvider
+        ? signer.provider.providerConfigs[0].provider
+        : signer.provider
+    ) as JsonRpcProvider
+    const currentNonce = Number(
+      await rpc.send('eth_getTransactionCount', [signerAddress, 'pending'])
     )
 
     const tx = await contract.deployAccessListContract(

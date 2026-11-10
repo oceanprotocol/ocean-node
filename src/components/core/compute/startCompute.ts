@@ -51,6 +51,9 @@ import { checkAddressOnAccessList } from '../../../utils/accessList.js'
 import { ensureConsumerAllowedForPersistentStorageLocalfsFileObject } from '../../persistentStorage/PersistentStorageFactory.js'
 import { resolveComputeFileObject } from '../../c2d/compute_engine_docker.js'
 import { cJobsStarted } from '../../../telemetry/metrics.js'
+import { resolveUserSubsidyProviders } from '../utils/subsidyProviders.js'
+import { JobType } from '../../../utils/constants.js'
+import { maintenanceGuard } from '../utils/maintenance.js'
 
 // Small helper so the many error short-circuits stay byte-identical across both
 // handlers (same shape the originals returned: { stream: null, status: {...} }).
@@ -119,6 +122,13 @@ export class CommonComputeHandler extends CommandHandler {
     const validationResponse = await this.verifyParamsAndRateLimits(task)
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
+    }
+    // Maintenance (drain) gate — covers BOTH paid and free start via this shared choke point.
+    // Placed before any auth/order/payment/escrow work so a draining node creates no new
+    // commitment (no paid order for an unusable job).
+    const maintenanceResponse = maintenanceGuard(this.getOceanNode())
+    if (maintenanceResponse) {
+      return maintenanceResponse
     }
     if (!task.queueMaxWaitTime) {
       task.queueMaxWaitTime = 0
@@ -609,6 +619,24 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
           return envResult.response
         }
         ;({ env, allEnvs } = envResult)
+      } catch (e) {
+        const errMsg = e?.message || String(e)
+        CORE_LOGGER.error(`Error resolving environment: ${errMsg}`)
+        return buildComputeError(400, errMsg)
+      }
+
+      // Authorize the caller as early as possible, before any resource, registry, DDO or
+      // policy-server work is done on their behalf.
+      const accessGranted = await validateAccess(
+        task.consumerAddress,
+        env.access,
+        this.getOceanNode()
+      )
+      if (!accessGranted) {
+        return buildComputeError(403, 'Access denied')
+      }
+
+      try {
         this.applyMaxJobDuration(task, env)
         task.resources = await engine.checkAndFillMissingResources(
           task.resources,
@@ -638,15 +666,6 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
       }
 
       const { algorithm } = task
-
-      const accessGranted = await validateAccess(
-        task.consumerAddress,
-        env.access,
-        this.getOceanNode()
-      )
-      if (!accessGranted) {
-        return buildComputeError(403, 'Access denied')
-      }
 
       const psResponse = await this.checkPersistentStorageAcl(task, node)
       if (psResponse) {
@@ -770,6 +789,35 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
         task.payment.token,
         task.maxJobDuration
       )
+      // Resolve the user-supplied subsidy providers (if any) for the payment chain, enforcing the
+      // node's whitelist filter when enabled. Done before locking funds so a bad list fails fast;
+      // the resolved value is persisted on the job so the (batched) claim later uses the user's
+      // choice rather than whatever the node config holds at claim time.
+      const subsidyResolution = resolveUserSubsidyProviders(
+        task.subsidyProviders,
+        task.payment.chainId,
+        node.getConfig()
+      )
+      if (!subsidyResolution.valid) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: subsidyResolution.reason
+          }
+        }
+      }
+      // Snapshot the EFFECTIVE provider list now and reuse the SAME array for both the lock and the
+      // (batched) claim, so they can never disagree. An explicit user list is used as-is; when the
+      // user opted out (`resolved === undefined`) we snapshot the node's configured list for this
+      // chain AT LOCK TIME, rather than letting the lock and the much-later claim each re-read
+      // SUBSIDY_PROVIDERS live — for a prefunded lock those two live reads could straddle an
+      // operator config change and settle the claim against a different provider set than the lock
+      // was funded from. `??` (not `||`) so an explicit `[]` (no providers) survives.
+      const effectiveSubsidy =
+        subsidyResolution.resolved ??
+        node.getConfig().subsidyProviders?.[String(task.payment.chainId)] ??
+        []
       let agreementId
       CORE_LOGGER.debug(
         `escrow.createLock job=${jobId} cost=${cost} token=${task.payment.token} chainId=${task.payment.chainId} maxJobDuration=${task.maxJobDuration}`
@@ -783,7 +831,11 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
           cost,
           engine.escrow.getMinLockTime(
             Number(task.maxJobDuration) + Number(task.queueMaxWaitTime)
-          )
+          ),
+          JobType.COMPUTE,
+          // The snapshotted list, also persisted on the job (below) and handed to claimLock —
+          // lock & claim settle from the exact same provider set.
+          effectiveSubsidy
         )
       } catch (e) {
         const errMsg = e?.message || String(e)
@@ -817,7 +869,8 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
             lockTx: agreementId,
             claimTx: null,
             cancelTx: null,
-            cost: 0
+            cost: 0,
+            subsidyProviders: effectiveSubsidy
           },
           jobId,
           task.metadata,
@@ -911,6 +964,29 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
         return engineResponse
       }
 
+      // Resolve the environment first: it is needed for env.consumerAddress (free
+      // authorizeAsset callback, Option B) and to authorize the caller before doing any
+      // registry, output, DDO or policy-server work on their behalf.
+      const envResult = await this.resolveEnvironment(task, engine)
+      if (envResult.response) {
+        return envResult.response
+      }
+      const { env } = envResult
+      const allFreeEnvs = envResult.allEnvs
+
+      // A missing free tier must never fall through to validateAccess(undefined) (= open).
+      if (!env.free) {
+        return buildComputeError(403, 'Free compute is not enabled on this environment')
+      }
+      const accessGranted = await validateAccess(
+        task.consumerAddress,
+        env.free.access,
+        this.getOceanNode()
+      )
+      if (!accessGranted) {
+        return buildComputeError(403, 'Access denied')
+      }
+
       const dockerAuthResponse = await this.validateDockerRegistryAuth(task, engine)
       if (dockerAuthResponse) {
         return dockerAuthResponse
@@ -934,17 +1010,6 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
       if (bindResponse) {
         return bindResponse
       }
-
-      // Resolve the environment before validateAssets so env.consumerAddress is available
-      // to the free authorizeAsset callback (the order's required consumer under Option B).
-      // Only the position of this resolve moves up; the validateAccess / resources steps
-      // below still run in their original order.
-      const envResult = await this.resolveEnvironment(task, engine)
-      if (envResult.response) {
-        return envResult.response
-      }
-      const { env } = envResult
-      const allFreeEnvs = envResult.allEnvs
 
       const policyServer = new PolicyServer()
       const assetsResponse = await this.validateAssets(task, node, algoChecksums, {
@@ -984,15 +1049,6 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
       }
 
       try {
-        const accessGranted = await validateAccess(
-          task.consumerAddress,
-          env.free.access,
-          this.getOceanNode()
-        )
-        if (!accessGranted) {
-          return buildComputeError(403, 'Access denied')
-        }
-
         task.resources = await engine.checkAndFillMissingResources(
           task.resources,
           env,
@@ -1085,15 +1141,19 @@ export async function validateAccess(
     return true
   }
 
-  if (
-    !access.accessLists ||
-    (access.accessLists.length === 0 && access.addresses.length === 0)
-  ) {
+  // A missing/null accessLists is the node's "not configured" value; treat it as an empty
+  // list so a configured `addresses` allow-list is still enforced. Open access is granted
+  // only when BOTH lists are empty.
+  const lists = access.accessLists ?? []
+  const addresses = (access.addresses ?? []).map((a) => String(a).toLowerCase())
+  if (lists.length === 0 && addresses.length === 0) {
     return true
   }
-
-  if (access.addresses.includes(consumerAddress)) {
+  if (consumerAddress && addresses.includes(consumerAddress.toLowerCase())) {
     return true
   }
-  return await checkAddressOnAccessList(consumerAddress, access.accessLists, oceanNode)
+  if (lists.length === 0) {
+    return false
+  }
+  return await checkAddressOnAccessList(consumerAddress, lists, oceanNode)
 }

@@ -11,6 +11,8 @@ on:
       - 'main'
       - 'next-4'
       - 'deps/node_v24'
+      - 'feature/user_input_subsidy'
+      - 'feature/subsidy_provider'
 
 env:
   DOCKERHUB_IMAGE: ${{ 'oceanprotocol/ocean-node' }}
@@ -18,6 +20,12 @@ env:
 
 permissions:
   contents: read
+
+# One run per PR (or per branch/tag ref); a newer push cancels the older run.
+# Tags each get their own ref, so a release build is never cancelled by another.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:

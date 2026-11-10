@@ -1,4 +1,5 @@
 import { Readable, PassThrough } from 'stream'
+import { isIP } from 'node:net'
 import { Client as FtpClient } from 'basic-ftp'
 import {
   FileInfoResponse,
@@ -7,6 +8,11 @@ import {
 } from '../../@types/fileObject.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { Storage } from './Storage.js'
+import {
+  checkHostnameSync,
+  getAllowedRanges,
+  resolveSafeAddress
+} from '../../utils/safeUrl.js'
 
 const DEFAULT_FTP_PORT = 21
 const DEFAULT_FTPS_PORT = 990
@@ -30,8 +36,13 @@ function parseFtpUrl(url: string): {
       ? DEFAULT_FTPS_PORT
       : DEFAULT_FTP_PORT
   const path = parsed.pathname && parsed.pathname !== '/' ? parsed.pathname : ''
+  // URL.hostname returns bracketed IPv6 literals (e.g. "[::1]");
+  // strip the brackets so isIP() and TLS servername use the bare address.
+  const rawHost = parsed.hostname
+  const host =
+    rawHost.startsWith('[') && rawHost.endsWith(']') ? rawHost.slice(1, -1) : rawHost
   return {
-    host: parsed.hostname,
+    host,
     port,
     user: decodeURIComponent(parsed.username || 'anonymous'),
     password: decodeURIComponent(parsed.password || 'anonymous@'),
@@ -49,20 +60,39 @@ export class FTPStorage extends Storage {
     }
   }
 
-  async getReadableStream(): Promise<StorageReadable> {
-    const file = this.getFile() as FtpFileObject
-    const { host, port, user, password, path, secure } = parseFtpUrl(file.url)
+  /**
+   * Open an FTP(S) session for `url`. SSRF guard: the host is resolved and every address
+   * checked before connecting, and the control connection is made to the vetted IP (for
+   * FTPS the original host name is kept as TLS servername so certificate validation is
+   * unchanged). basic-ftp refuses PASV replies that point at another host, so data
+   * connections stay on the same vetted address.
+   */
+  private async openClient(url: string): Promise<{ client: FtpClient; path: string }> {
+    const { host, port, user, password, path, secure } = parseFtpUrl(url)
+    const { address } = await resolveSafeAddress(host, getAllowedRanges(this.config))
     const client = new FtpClient(30000)
-    const passThrough = new PassThrough()
-
     try {
       await client.access({
-        host,
+        host: address,
         port,
         user,
         password,
-        secure
+        secure,
+        secureOptions: secure && !isIP(host) ? { host, servername: host } : undefined
       })
+    } catch (err) {
+      client.close()
+      throw err
+    }
+    return { client, path }
+  }
+
+  async getReadableStream(): Promise<StorageReadable> {
+    const file = this.getFile() as FtpFileObject
+    const { client, path } = await this.openClient(file.url)
+    const passThrough = new PassThrough()
+
+    try {
       client.downloadTo(passThrough, path).then(
         () => {
           client.close()
@@ -92,22 +122,15 @@ export class FTPStorage extends Storage {
     stream: Readable
   ): Promise<{ httpStatus: number; headers?: Record<string, string | string[]> }> {
     const file = this.getFile() as FtpFileObject
-    let { host, port, user, password, path, secure } = parseFtpUrl(file.url)
+    const { client, path: basePath } = await this.openClient(file.url)
+    let path = basePath
     if (path.endsWith('/')) {
       path = `${path.replace(/\/+$/, '')}/${encodeURIComponent(filename)}`
     } else if (!path || path === '/') {
       path = `/${encodeURIComponent(filename)}`
     }
 
-    const client = new FtpClient(30000)
     try {
-      await client.access({
-        host,
-        port,
-        user,
-        password,
-        secure
-      })
       await client.uploadFrom(stream, path)
       return { httpStatus: 200, headers: {} }
     } finally {
@@ -120,8 +143,9 @@ export class FTPStorage extends Storage {
     if (!file.url) {
       return [false, 'FTP URL is missing']
     }
+    let parsed: URL
     try {
-      const parsed = new URL(file.url)
+      parsed = new URL(file.url)
       if (parsed.protocol !== 'ftp:' && parsed.protocol !== 'ftps:') {
         return [false, 'URL must be ftp:// or ftps://']
       }
@@ -141,6 +165,11 @@ export class FTPStorage extends Storage {
         }
       }
     }
+    // SSRF: IP literals / localhost are rejected here; DNS names in openClient()
+    const hostError = checkHostnameSync(parsed.hostname, getAllowedRanges(this.config))
+    if (hostError) {
+      return [false, hostError]
+    }
     return [true, '']
   }
 
@@ -155,16 +184,8 @@ export class FTPStorage extends Storage {
     fileObject: FtpFileObject,
     _forceChecksum: boolean
   ): Promise<FileInfoResponse> {
-    const { host, port, user, password, path, secure } = parseFtpUrl(fileObject.url)
-    const client = new FtpClient(30000)
+    const { client, path } = await this.openClient(fileObject.url)
     try {
-      await client.access({
-        host,
-        port,
-        user,
-        password,
-        secure
-      })
       let size = 0
       try {
         size = await client.size(path)

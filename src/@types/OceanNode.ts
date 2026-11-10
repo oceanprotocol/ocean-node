@@ -184,11 +184,33 @@ export interface OceanNodeConfig {
   assetPurgatoryUrl: string | null
   allowedAdmins?: string[]
   allowedAdminsList?: AccessListContract | null
+  // per-chain map of Subsidy Provider contract addresses passed to the escrow at claim time
+  subsidyProviders?: AccessListContract | null
+  // when ON, a user-supplied subsidy-provider list may only contain addresses already present in
+  // `subsidyProviders` for the request chain; otherwise the request is rejected. Default false.
+  subsidyProviderFilter?: boolean
   codeHash?: string
   rateLimit?: number // per request ip or peer
   maxConnections?: number // global, regardless of client address(es)
+  // Express `trust proxy` value: false (default, ignore X-Forwarded-For), a hop count,
+  // 'loopback'/'linklocal'/'uniquelocal', or a comma-separated list of trusted IPs/CIDRs.
+  trustProxy?: boolean | number | string
   denyList?: DenyList
   unsafeURLs?: string[]
+  // CIDRs / IPs exempt from the private-address block on caller-supplied URLs
+  allowedPrivateUrlRanges?: string[]
+  // ON-18: opt-in Docker registry host allow-list. Empty = any registry allowed.
+  allowedDockerRegistries?: string[]
+  // ON-18: extra token-realm hosts trusted to receive registry credentials, kept separate from
+  // allowedDockerRegistries. Built-in realms (Docker Hub, GitLab) are always trusted.
+  allowedDockerRegistryRealms?: string[]
+  // ON-07: operator-supplied extra request headers allowed through to the upstream when a
+  // caller provides `file.headers`. EXTENDS the built-in default allow-list
+  // (accept, accept-encoding, range, content-type). Everything else is dropped.
+  fileInfoAllowedHeaders?: string[]
+  // ON-07: dedicated, stricter per-caller rate limit (requests/minute) for the raw-`file`
+  // fileInfo path, counted in a separate bucket from the global rate limit. 0 = disabled.
+  fileInfoRateLimit?: number
   isBootstrap?: boolean
   validateUnsignedDDO?: boolean
   jwtSecret?: string
@@ -202,6 +224,10 @@ export interface P2PStatusResponse {
   httpStatus: number
   error?: string
   headers?: any
+  // Stable machine-readable error code (e.g. MAINTENANCE_MODE) clients discriminate on when
+  // the HTTP status alone is ambiguous. Carried in the P2P status frame; also echoed in the
+  // streamed JSON body so it reaches HTTP clients (which only see the body + status line).
+  code?: string
 }
 export interface P2PCommandResponse {
   status: P2PStatusResponse
@@ -271,12 +297,25 @@ export interface OceanNodeStatus {
   uptime?: number // seconds since start
   codeHash?: string
   allowedAdmins?: { addresses: string[]; accessLists: AccessListContract }
+  // per-chain map of Subsidy Provider contract addresses configured on this node
+  subsidyProviders?: AccessListContract
+  // whether this node restricts user-supplied subsidy providers to the configured whitelist
+  subsidyProviderFilter?: boolean
   // detailed information
   c2dClusters?: any[]
   supportedSchemas?: Schema[]
   persistentStorage?: {
     accessLists?: AccessList[]
     allowBucketSharing?: boolean
+  }
+  // Maintenance (drain) mode. `enabled` is the always-present signal clients/dashboard read.
+  // The drain-visibility counts are populated for detailed status only, so an admin can tell
+  // when the node has finished draining and is safe to reboot.
+  maintenance?: {
+    enabled: boolean
+    runningComputeJobs?: number
+    runningServices?: number
+    latestExpectedEndTime?: number // max job/service end time (unix seconds), the drain ETA
   }
 }
 

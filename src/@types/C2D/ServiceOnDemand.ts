@@ -4,17 +4,32 @@ import type {
   ComputeResourceRequestWithPrice,
   ContainerMetricsSnapshot
 } from './C2D.js'
-export interface TemplateResourceRequirement {
-  // Exactly one of `id` or `kind` must be set.
-  id?: string // exact resource id: 'cpu' | 'ram' | 'disk' | named GPU ('gpu-0')
-  kind?: 'discrete' | 'fungible' // match ANY resource of this kind across the env pool
-  type?: string // optional: further filter within kind ('gpu', 'fpga', 'tpu')
-
-  min: number // MUST have at least this much — service is rejected otherwise
-  recommended?: number // ideal amount; below this the env gets a lower score
-  unit?: string // display hint: 'cores' | 'GB' | 'count'
-  description?: string // shown in UI: "CUDA GPU — 2 recommended for large models"
+/**
+ * One allowed way to spread the recommended VRAM over identical GPUs of ONE type on ONE host.
+ * `gpuCount` is exactly what gets booked and used (TP width, TEP width, or one-model-per-card placement).
+ */
+export interface GpuLayout {
+  gpuCount: number // integer >= 1; layouts strictly ascending by gpuCount
+  // VRAM each GPU must have for this layout, decimal GB, including headroom (compile peaks, replicated KV).
+  // REQUIRED when gpuCount > 1. FORBIDDEN when gpuCount === 1: that one GPU must hold `recommended`.
+  vramPerGpu?: number
 }
+
+// A template's resource recommendation. Advisory only: the node does NOT gate SERVICE_START
+// on it — choosing an environment (and the exact resources to request) is the client's job.
+// There is no `min`: environment minima, granularity and constraints are what the node enforces.
+export type TemplateResourceRequirement =
+  | { id: 'cpu'; recommended: number; unit: 'cores'; description?: string } // recommended >= 0
+  | { id: 'ram' | 'disk'; recommended: number; unit: 'GB'; description?: string } // decimal GB, >= 0
+  | {
+      kind: 'discrete'
+      type: 'gpu'
+      recommended: number // > 0. TOTAL VRAM, decimal GB: the headline. normally the smallest layout total (authoring convention).
+      unit: 'GB'
+      gpuCountEnv?: string // userConfigurableEnvVars key forcing exact GPU width; never an envVars key
+      layouts: GpuLayout[] // mandatory; runtime schema requires nonempty
+      description?: string // human prose, never parsed
+    }
 export interface UserConfigurableEnvVar {
   key: string // env var name, passed in userData
   validation?: string // optional regex; validated at SERVICE_START time
@@ -83,8 +98,9 @@ export interface ServiceTemplate {
   // (mutually exclusive with `command`)
   commandFile?: string
   entrypoint?: string[] // Docker ENTRYPOINT override
-  requiredResources?: TemplateResourceRequirement[] // MUST satisfy — gates SERVICE_START
-  recommendedResources?: TemplateResourceRequirement[] // SHOULD satisfy — used for scoring + UI
+  // The ONLY resource declaration (at most one entry per cpu/ram/disk/gpu). Absent GPU entry =
+  // no template GPU demand. Never checked at SERVICE_START; clients use it to pick an env.
+  recommendedResources?: TemplateResourceRequirement[]
   workflows?: ServiceTemplateWorkflow[] // client-selectable graphs; no operator secrets, so public
 }
 
@@ -109,6 +125,12 @@ export const DEFAULT_SERVICE_MAX_DURATION_SECONDS = 86400 // 24 h
 // minJobDuration) is what applies — keeping an unconfigured node billing exactly as before.
 export const DEFAULT_SERVICE_MIN_DURATION_SECONDS = 0
 
+// Hard ceiling on how long a Dockerfile image build may run before it is aborted. This is a
+// SEPARATE budget from a job/service's full runtime duration: a build is only meant to take a
+// few minutes, so a short cap limits how long an untrusted, user-supplied Dockerfile can keep
+// the daemon busy. Always capped by the job/service maxDuration so it can never exceed it.
+export const DEFAULT_BUILD_TIMEOUT_SECONDS = 300 // 5 min
+
 export interface ServiceOnDemandConfig {
   enabled: boolean
   nodeHost: string // host (or IP) clients use to reach forwarded service ports; e.g. 'localhost'
@@ -116,6 +138,7 @@ export interface ServiceOnDemandConfig {
   minDurationSeconds?: number // default: DEFAULT_SERVICE_MIN_DURATION_SECONDS (no daemon floor)
   maxDurationSeconds?: number // default: DEFAULT_SERVICE_MAX_DURATION_SECONDS (24 h)
   allowImageBuild?: boolean // default: false — gates Dockerfile-based services per daemon
+  buildTimeoutSeconds?: number // max image-build runtime; unset → runtime default (DEFAULT_BUILD_TIMEOUT_SECONDS)
 }
 
 /**

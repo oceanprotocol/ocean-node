@@ -16,6 +16,33 @@ All file objects can optionally include encryption metadata: `encryptedBy` and `
 
 ---
 
+## Private network protection (SSRF)
+
+File objects are supplied by remote callers, who choose the target URL (and `fileInfo` on a raw
+`file` needs no signature), so the node treats every `url`, `ftp` and `s3` target as untrusted:
+
+- Hosts that are, or resolve to, a non-public address are refused: loopback, RFC 1918
+  private ranges, link-local (`169.254.0.0/16`, which includes the cloud metadata
+  endpoints), CGNAT (`100.64.0.0/10`), multicast, broadcast, unspecified and other reserved
+  ranges, plus their IPv6 equivalents (`::1`, `fc00::/7`, `fe80::/10`, IPv4-mapped and
+  translated addresses). `localhost` names and IP literals in any encoding (decimal, hex,
+  octal, bracketed IPv6) are rejected when the file object is validated.
+- DNS names are checked at connect time and the check runs again for every redirect. Only
+  addresses that pass the check are ever contacted: a name that resolves only to blocked
+  addresses (DNS rebinding) or a public URL that redirects to one is refused. If a name
+  returns both allowed and blocked addresses (for example `localhost` returning `::1` and
+  `127.0.0.1` while only `127.0.0.1/32` is allow-listed), the blocked ones are skipped.
+- `unsafeURLs` (env `UNSAFE_URLS`) adds regular expressions on top of the built-in list of
+  cloud metadata endpoints; operator entries extend the defaults, they do not replace them.
+- `allowedPrivateUrlRanges` (env `ALLOWED_PRIVATE_URL_RANGES`) lists CIDRs or single IPs
+  that may be contacted although they are private, for example a LAN object store:
+  `["10.0.5.20/32"]`.
+
+A rejected file object fails validation with `URL points to a private, loopback or reserved
+network address`; a DNS name blocked at connect time fails the request itself.
+
+---
+
 ## URL storage
 
 Files are fetched from a given URL using HTTP GET or POST.
@@ -42,12 +69,14 @@ Files are fetched from a given URL using HTTP GET or POST.
 
 - `url` and `method` must be present.
 - `method` must be `get` or `post` (case-insensitive).
-- If the node config defines `unsafeURLs` (list of regex patterns), any URL matching a pattern is rejected.
+- Any URL matching one of the `unsafeURLs` regex patterns (built-in defaults plus operator entries) is rejected.
 - The URL must look like a real URL (`http://` or `https://`); path-like values are rejected.
+- The host must not be a private, loopback or reserved address (see [Private network protection](#private-network-protection-ssrf)); the same check runs on every DNS answer and redirect when the file is fetched.
 
 ### Node configuration
 
-- Optional: `unsafeURLs` – array of regex strings; URLs matching any of them are considered unsafe and rejected.
+- Optional: `unsafeURLs` – array of regex strings added to the built-in defaults; URLs matching any of them are considered unsafe and rejected.
+- Optional: `allowedPrivateUrlRanges` – array of CIDRs / IPs exempt from the private-address check.
 
 ---
 
@@ -157,10 +186,12 @@ Files are stored in S3-compatible object storage. The node uses the AWS SDK and 
 - `s3Access` must be present.
 - Within `s3Access`, `bucket`, `objectKey`, `endpoint`, `accessKeyId`, and `secretAccessKey` must be present and non-empty.
 - `region` and `forcePathStyle` are optional; when provided they are used when creating the S3 client.
+- The `endpoint` host must not be a private, loopback or reserved address (see [Private network protection](#private-network-protection-ssrf)); DNS names are checked when the client connects.
 
 ### Node configuration
 
-- None. All S3 connection details (endpoint, credentials, bucket, key) come from the file object’s `s3Access`.
+- All S3 connection details (endpoint, credentials, bucket, key) come from the file object’s `s3Access`.
+- Optional: `allowedPrivateUrlRanges` – array of CIDRs / IPs exempt from the private-address check.
 
 ---
 
@@ -195,11 +226,13 @@ For FTPS (TLS):
 
 - `url` must be present.
 - URL must use protocol `ftp://` or `ftps://`.
-- If the node config defines `unsafeURLs` (list of regex patterns), any URL matching a pattern is rejected.
+- Any URL matching one of the `unsafeURLs` regex patterns (built-in defaults plus operator entries) is rejected.
+- The host must not be a private, loopback or reserved address (see [Private network protection](#private-network-protection-ssrf)). DNS names are resolved and checked before connecting, and the control connection is made to the vetted address (the host name is kept as TLS server name for FTPS).
 
 ### Node configuration
 
-- Optional: `unsafeURLs` – array of regex strings; URLs matching any of them are considered unsafe and rejected (same as URL storage).
+- Optional: `unsafeURLs` – array of regex strings added to the built-in defaults; URLs matching any of them are considered unsafe and rejected (same as URL storage).
+- Optional: `allowedPrivateUrlRanges` – array of CIDRs / IPs exempt from the private-address check.
 
 ### Upload
 

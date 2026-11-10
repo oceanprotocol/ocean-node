@@ -252,6 +252,11 @@ const oceanNode = OceanNode.getInstance(
   keyManager,
   blockchainRegistry
 )
+// Load the persisted maintenance (drain) flag into the in-memory cache (and apply the
+// MAINTENANCE_MODE env override if set) BEFORE engines come up, to minimize the startup
+// window in which an early P2P command could be dispatched before the flag is loaded.
+// Guards internally for a missing config DB.
+await oceanNode.loadMaintenanceMode()
 await oceanNode.addC2DEngines()
 // Attach the compute observable-gauge callbacks. No-ops cleanly when C2D is disabled
 // (getC2DEngines() is undefined) or when telemetry is unconfigured.
@@ -263,9 +268,19 @@ function removeExtraSlashes(req: any, res: any, next: any) {
 }
 
 if (config.hasHttp) {
+  // Controls how req.ip / req.caller are derived from the connection and X-Forwarded-For.
+  // Default (false) ignores the client-supplied header and uses the real socket peer, so a
+  // client cannot spoof its address to evade rate limiting or the deny list. Operators who
+  // terminate behind a trusted reverse proxy set TRUST_PROXY (e.g. 1, 'loopback', or a
+  // CIDR list) so Express resolves the real client IP from the trusted hops only.
+  app.set('trust proxy', config.trustProxy ?? false)
   app.use(cors())
   app.use((req, res, next) => {
-    req.caller = req.headers['x-forwarded-for'] || req.socket.remoteAddress
+    // req.ip respects the `trust proxy` setting above (see requestValidator for details). The
+    // `|| ''` fallback (matching requestValidator) guarantees a defined string: otherwise an
+    // undefined req.caller would make handleDirectProtocolCommand's `caller !== undefined` guard
+    // skip the override and fall back to trusting a client-supplied body `caller`.
+    req.caller = req.ip || req.socket.remoteAddress || ''
     req.oceanNode = oceanNode
     // Express 4 left req.body as {} when there was nothing to parse; Express 5 leaves
     // it undefined, which turns every `req.body.x` read and `const {x} = req.body`

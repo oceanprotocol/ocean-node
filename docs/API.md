@@ -1,5 +1,24 @@
 # Ocean Node Api
 
+## Release note — `decryptDDO` signed-message change (ON-02, BREAKING)
+
+As of Ocean Node **v4.8.0**, the `decryptDDO` signature scheme is bound to the destination node's
+peerId and to the specific resource (`chainId + transactionId + dataNftAddress`), and the signing
+node uses a local monotonic nonce instead of trusting a nonce fetched from the on-chain
+`decryptorURL`. See the HTTP `POST /api/services/decrypt` and P2P `decryptDDO` sections for the
+exact message.
+
+This is a coordinated signer/verifier change and is **not backwards compatible** between node
+versions. When nodes on different versions talk to each other over **HTTP**, the signed message
+will not match, the HTTP decrypt attempt fails, and the Indexer **falls back to the existing P2P
+decrypt path** — which is safe (no silent downgrade). Mixed-version HTTP decrypt therefore keeps
+working via P2P until **both** sides are upgraded. There is intentionally no "accept the old
+message too" path, because that would re-open the cross-node signature-replay vulnerability this
+change closes. Client libraries that construct the `decryptDDO` message themselves
+(`ocean.js` / indexer clients) must adopt the new format.
+
+---
+
 ## Address casing
 
 Every EVM address you send (`consumerAddress`, `owner`, `address`, `decrypterAddress`,
@@ -294,7 +313,25 @@ returns decrypted document
 | flags             | number |          | metadata flags if DDO is ECIES encrypted or lzma compressed                                   |
 | documentHash      | string |          | hash based on sha256 of asset                                                                 |
 | nonce             | string | v        | is required to verify a request paired with a signature                                       |
-| signature         | string | v        | signed message based on `transactionId + dataNftAddress + decrypterAddress + chainId + nonce` |
+| signature         | string | v        | signed message (see below)                                                                    |
+
+> **ON-02 signed-message format (BREAKING, since Ocean Node v4.8.0).** The `decryptDDO`
+> signature now binds the **destination node** and the **exact resource**, so a signature cannot
+> be replayed against another node or for another asset. The signed message is:
+>
+> ```
+> decrypterAddress + nonce + "decryptDDO" + issuerPeerId + chainId + transactionId + dataNftAddress
+> ```
+>
+> - `issuerPeerId` is the **target (decrypting) node's own peerId** — i.e. the `nodeId` returned
+>   by that node's root `GET /` endpoint. A signature minted for node A is rejected by node B.
+> - `chainId`, `transactionId`, `dataNftAddress` bind the signature to a single decrypt.
+> - `nonce` is a client-local monotonic value (the Indexer uses `Date.now()`); the node no longer
+>   fetches a nonce from the (untrusted) `decryptorURL`.
+>
+> This is a coordinated signer/verifier change. A node on the old scheme talking to a node on the
+> new scheme will **fail the HTTP decrypt and fall back to the P2P decrypt path** (see the release
+> note below); there is deliberately no "accept the old message" fallback.
 
 #### Request
 
@@ -335,16 +372,37 @@ returns decrypted document
 
 returns file information
 
+Files whose host is, or resolves to, a private, loopback, link-local or otherwise reserved address are rejected (for example `URL points to a private, loopback or reserved network address`). Node operators can allow specific ranges with `ALLOWED_PRIVATE_URL_RANGES`; see [Storage](Storage.md#private-network-protection-ssrf).
+
 #### Parameters
 
-| name      | type   | required | description                              |
-| --------- | ------ | -------- | ---------------------------------------- |
-| type      | string |          | type of storage `url or arweave or ipfs` |
-| did       | string |          | document id or did                       |
-| serviceId | number |          | service id of services list              |
-| fileIndex | number |          | file index in files array                |
-| file      | object |          | file data                                |
-| checksum  | number |          | index in transaction events list         |
+| name      | type   | required | description                                         |
+| --------- | ------ | -------- | --------------------------------------------------- |
+| type      | string |          | type of storage `url or arweave or ipfs`            |
+| did       | string |          | document id or did                                  |
+| serviceId | number |          | service id of services list                         |
+| fileIndex | number |          | file index in files array                           |
+| file      | object |          | file data                                           |
+| checksum  | number |          | index in transaction events list                    |
+
+#### Raw-`file` path hardening (ON-07)
+
+A raw `file` object (as opposed to `did` + `serviceId`) needs **no signature or auth token** — it
+only returns metadata (`contentLength`, `contentType`, `checksum`) of a URL the caller already
+supplied, so authentication would gate nothing. Two protections apply instead, both independent of
+caller identity:
+
+- **Forwarded-header allow-list.** Any custom headers supplied inside the `file` object are
+  filtered to an allow-list (`accept`, `accept-encoding`, `range`, `content-type`, extended by
+  `FILEINFO_ALLOWED_HEADERS`) before the node fetches the target; `authorization`, `cookie` and
+  other headers are dropped, so the caller cannot inject credentials into a request to an internal
+  service.
+- **Dedicated rate limit.** The raw-`file` path can be throttled independently of the global limit
+  via `FILEINFO_MAX_REQ_PER_MINUTE` (separate bucket), bounding its use as an amplification
+  primitive. SSRF to private/loopback/metadata targets is blocked by the address guard
+  (`ALLOWED_PRIVATE_URL_RANGES` / `UNSAFE_URLS`).
+
+The `did` + `serviceId` path is unchanged: it keeps its existing DDO-based access control.
 
 #### Request
 
@@ -680,6 +738,13 @@ returns file information
 | file      | object |          | file data                                |
 | checksum  | number |          | index in transaction events list         |
 
+> **ON-07 (raw-`file` path):** a raw `file` object needs **no signature or auth token** — it only
+> returns metadata of a URL the caller already supplied. Caller-supplied `file.headers` are
+> filtered to the allow-list (`accept`, `accept-encoding`, `range`, `content-type`, extended by
+> `FILEINFO_ALLOWED_HEADERS`) and the path can be throttled independently via
+> `FILEINFO_MAX_REQ_PER_MINUTE`. The `did` + `serviceId` path is unchanged (DDO-based access
+> control).
+
 #### Request
 
 ```json
@@ -893,6 +958,13 @@ returns status of node
       "arwave": true
       "url": true
     },
+    "escrowAddress": {
+      "8996": "0x123"
+    },
+    "subsidyProviders": {
+      "8996": ["0x123", "0x456"]
+    },
+    "subsidyProviderFilter": false,
     "uptime": 123,
     "platform": {
       "cpus": "123",
@@ -909,6 +981,33 @@ returns status of node
     }
   }
 ```
+
+`escrowAddress` and `subsidyProviders` are per-chain maps (keyed by chainId). `subsidyProviders`
+reflects the node's `SUBSIDY_PROVIDERS` configuration — the Subsidy Provider contract addresses the
+node passes to the escrow at **lock and claim** time (lock-time "prepaid" sponsorship and claim-time
+"refund" sponsorship); it is `{}` when none are configured. Both are present in
+the normal and detailed status. `subsidyProviderFilter` reflects the node's
+`SUBSIDY_PROVIDER_FILTER` setting: when `true`, a user-supplied `subsidyProviders` list on a
+compute/service request is restricted to addresses already in this map for the request's chain
+(see the per-request `subsidyProviders` field below).
+
+### Per-request `subsidyProviders`
+
+`startCompute` (paid), `serviceStart`, and `serviceExtend` accept an optional top-level
+`subsidyProviders` field: a plain array of Subsidy Provider contract addresses for the request's
+payment chain. The node hands the **same** list to both the escrow lock (lock-time "prepaid"
+sponsorship) and the later claim (claim-time "refund" sponsorship). It overrides the node's
+`SUBSIDY_PROVIDERS` for that request only:
+
+- **omitted / `undefined`** → the node's configured `SUBSIDY_PROVIDERS` for the chain are used.
+- **`[]`** (empty array) → the lock/claim are made with **no** subsidy providers (plain payer-funded).
+- **non-empty array** → the lock/claim use **only** these addresses, ignoring node config.
+
+Every address must be a valid EVM address (otherwise HTTP 400). Duplicates are collapsed, and the
+list may name at most **10 unique** providers (the escrow's `maxSponsorsPerLock()`); more is rejected
+with HTTP 400. When the node has `SUBSIDY_PROVIDER_FILTER` enabled, every supplied address must also
+be in the node's `SUBSIDY_PROVIDERS` for that chain, or the request is rejected with HTTP 400 (an
+empty array is always allowed). Free compute has no escrow lock/claim, so the field is ignored there.
 
 ---
 
@@ -1127,7 +1226,17 @@ returns decrypted document
 | flags             | number |          | metadata flags if DDO is ECIES encrypted or lzma compressed                                   |
 | documentHash      | string |          | hash based on sha256 of asset                                                                 |
 | nonce             | string | v        | is required to verify a request paired with a signature                                       |
-| signature         | string | v        | signed message based on `transactionId + dataNftAddress + decrypterAddress + chainId + nonce` |
+| signature         | string | v        | signed message (see below)                                                                    |
+
+> **ON-02 signed-message format (BREAKING, since Ocean Node v4.8.0).** Same bound message as the
+> HTTP `/api/services/decrypt` endpoint:
+>
+> ```
+> decrypterAddress + nonce + "decryptDDO" + issuerPeerId + chainId + transactionId + dataNftAddress
+> ```
+>
+> Over P2P the `issuerPeerId` is the peerId of the node the command is sent to (the destination),
+> which is already known. See the HTTP decrypt section above for the full rationale.
 
 #### Request
 
@@ -1426,6 +1535,129 @@ updates node configuration and reloads it gracefully (admin only)
 
 ---
 
+## Maintenance (drain) mode
+
+Maintenance mode is an intermediate state between "running normally" and `stopNode` (immediate
+process kill). While it is ON, the node:
+
+- **Rejects new commitment**: `startCompute`, `freeStartCompute`, `initializeCompute`,
+  `serviceStart`, `serviceExtend` are rejected (see the error contract below).
+- **Keeps serving already-committed work**: `getComputeStatus`, `getComputeResult`,
+  `getComputeStreamableLogs`, `stopCompute`, `serviceGetStatus`, `serviceGetResult`,
+  `serviceStop`, `serviceGetStreamableLogs`, `serviceRestart` all keep working.
+- **Everything else is unchanged**: download, DDO query/validate, indexer, P2P, admin, fees,
+  nonce, persistent storage, access lists, escrow events, auth tokens.
+
+The flag is persisted in the SQLite config DB, so it is **sticky across restarts**: a node that
+reboots while in maintenance comes back up still in maintenance and will not accept new work
+until an admin disables it. It can also be set at boot with the `MAINTENANCE_MODE` env var (see
+`docs/env.md`). There is **no TTL and no auto-exit**: reaching zero running jobs does nothing on
+its own — an admin reads the running counts in `status` to decide it is safe to reboot, then
+explicitly disables maintenance (or stops the node).
+
+#### Rejection error contract
+
+Rejected requests return HTTP **`503 Service Unavailable`** with a stable machine-readable code
+in the JSON response body:
+
+```json
+{ "error": "Node is in maintenance mode; not accepting new compute or service requests", "code": "MAINTENANCE_MODE" }
+```
+
+> **Important:** `503` is also returned by these handlers for other reasons (e.g.
+> `"Compute engines not configured"`). Clients MUST discriminate on the `code` field
+> (`"MAINTENANCE_MODE"`), not on the status code alone. The same `code` is also carried in the
+> P2P status frame for node-to-node requests, and the REST routes
+> (`/api/services/compute`, `/freeCompute`, `/initializeCompute`, `/serviceStart`,
+> `/serviceExtend`) return the same `{ "error": ..., "code": ... }` JSON body.
+
+> **Timing note (inherent to the design):** maintenance gates each request independently. A
+> client can call `initializeCompute` and pay/authorize an order a moment before an admin
+> enables maintenance, then have the follow-up `startCompute` rejected with `MAINTENANCE_MODE`.
+> The node creates no new order itself in that window, but a client that already has a valid,
+> unused order should retry `startCompute` on another provider rather than treating the
+> rejection as fatal. Note that an order can only be reused on another provider whose compute
+> environment resolves to the **same on-chain `consumerAddress`** the order was created for; if
+> no such provider is available, the client should wait until maintenance ends or obtain a new
+> order for the alternative environment.
+
+### `HTTP` POST /api/admin/maintenance
+
+### `HTTP` POST /directCommand
+
+### `P2P` command: setMaintenance
+
+#### Description
+
+Toggles maintenance mode (admin only). Signed with the standard admin fields and gated by
+`ALLOWED_ADMINS` / `ALLOWED_ADMINS_LIST`.
+
+#### Parameters
+
+| name      | type    | required | description                                      |
+| --------- | ------- | -------- | ------------------------------------------------ |
+| command   | string  | POST /directCommand | command name (`setMaintenance`)       |
+| enabled   | boolean | v        | `true` enables maintenance, `false` disables it  |
+| nonce     | string  | v        | request nonce                                    |
+| address   | string  | v        | admin address                                    |
+| signature | string  | v        | signed message to authenticate the admin request |
+
+#### Request (POST /api/admin/maintenance)
+
+```json
+{
+  "enabled": true,
+  "nonce": "1700000000000",
+  "address": "0xAdminAddress",
+  "signature": "0x..."
+}
+```
+
+#### Request (POST /directCommand)
+
+```json
+{
+  "command": "setMaintenance",
+  "enabled": true,
+  "nonce": "1700000000000",
+  "address": "0xAdminAddress",
+  "signature": "0x..."
+}
+```
+
+#### Response
+
+```json
+{ "maintenance": true }
+```
+
+### Status visibility
+
+Both `status` and `detailedStatus` expose a `maintenance` object. `enabled` is always present
+(the signal clients/dashboards read). The drain-visibility counts are populated for
+`detailedStatus` only, so an admin can tell when the node has finished draining:
+
+```json
+{
+  "...": "...",
+  "maintenance": {
+    "enabled": true,
+    "runningComputeJobs": 2,
+    "runningServices": 1,
+    "latestExpectedEndTime": 1700003600
+  }
+}
+```
+
+| field                   | type    | status level | description                                           |
+| ----------------------- | ------- | ------------ | ----------------------------------------------------- |
+| `enabled`               | boolean | always       | whether the node is in maintenance mode               |
+| `runningComputeJobs`    | number  | detailed     | compute jobs still holding resources                  |
+| `runningServices`       | number  | detailed     | service-on-demand jobs still running                  |
+| `latestExpectedEndTime` | number  | detailed     | max job/service end time (unix seconds), the drain ETA |
+
+---
+
 ## Get Escrow Events
 
 ### `HTTP` GET /api/services/escrow/events?
@@ -1440,18 +1672,43 @@ Returns indexed Escrow contract events. The indexer matches Escrow logs by topic
 
 #### Parameters
 
-| name      | type   | required  | description                                               |
-| --------- | ------ | --------- | --------------------------------------------------------- |
-| command   | string | POST only | command name (`getEscrowEvents`)                          |
-| chainId   | number |           | chain id                                                  |
-| eventType | string |           | one of `Auth, Lock, Claimed, Canceled, Deposit, Withdraw` |
-| payer     | string |           | payer address (case-insensitive)                          |
-| payee     | string |           | payee address (case-insensitive)                          |
-| token     | string |           | token address (case-insensitive)                          |
-| jobId     | string |           | compute job id                                            |
-| txId      | string |           | transaction hash                                          |
-| offset    | number |           | rows to skip (default 0)                                  |
-| size      | number |           | page size (default 100, max 250)                          |
+| name        | type    | required  | description                                               |
+| ----------- | ------- | --------- | --------------------------------------------------------- |
+| command     | string  | POST only | command name (`getEscrowEvents`)                          |
+| chainId     | number  |           | chain id                                                  |
+| eventType   | string  |           | one of `Auth, Lock, ReLock, Claimed, Canceled, Deposit, Withdraw, Subsidized, LockSponsored, SponsorRefunded` |
+| payer       | string  |           | payer address (case-insensitive)                          |
+| payee       | string  |           | payee address (case-insensitive)                          |
+| token       | string  |           | token address (case-insensitive)                          |
+| provider    | string  |           | subsidy/sponsor provider address (case-insensitive)       |
+| contract    | string  |           | Escrow contract address                                   |
+| reclaimable | boolean |           | filter `SponsorRefunded` rows by their reclaimable flag   |
+| jobId       | string  |           | compute job id                                            |
+| txId        | string  |           | transaction hash                                          |
+| ranges      | object  | POST only | range filters keyed by field (see below)                  |
+| offset      | number  |           | rows to skip (default 0)                                  |
+| size        | number  |           | page size (default 100, max 250)                          |
+
+No authentication is required (both the HTTP route and the P2P command are public reads).
+
+#### Range filters
+
+Any field above is an exact-match filter. Numeric fields also support range filtering.
+
+- **Over P2P / `POST /directCommand`**: use the `ranges` object, keyed by record field, where each
+  value is `{ "min"?, "max"?, "gt"?, "lt"? }` (`min`/`max` inclusive, `gt`/`lt` exclusive). Bounds
+  may be strings or numbers; uint256 values are compared as big integers, so pass them as strings.
+- **Over HTTP GET**: use `<field>Min` / `<field>Max` query params (e.g.
+  `?blockMin=100&blockMax=200&subsidyAmountMin=1000`).
+
+Range-filterable fields:
+
+| field                                                                                     | pushed to store? |
+| ----------------------------------------------------------------------------------------- | ---------------- |
+| `block`, `chainId`                                                                         | yes (native numeric) |
+| `amount`, `subsidyAmount`, `bonusAmount`, `oldAmount`, `newAmount`, `maxLockedAmount`, `maxLockSeconds`, `maxLockCounts`, `expiry`, `newExpiry`, `expiryTimestamp` | no — filtered node-side with BigInt comparison over paginated store results (bounded scan; a highly selective amount range over a very large result set may be truncated) |
+
+A range on any field not in this list (e.g. an address field) is rejected with `400`.
 
 #### Request (POST /directCommand)
 
@@ -1459,15 +1716,26 @@ Returns indexed Escrow contract events. The indexer matches Escrow logs by topic
 {
   "command": "getEscrowEvents",
   "chainId": 8996,
-  "eventType": "Deposit",
+  "eventType": "Subsidized",
+  "provider": "0xabc...",
+  "ranges": {
+    "block": { "min": 100, "max": 500 },
+    "subsidyAmount": { "min": "1000000000000000000" }
+  },
   "offset": 0,
   "size": 50
 }
 ```
 
+#### Request (HTTP GET)
+
+```
+GET /api/services/escrow/events?chainId=8996&eventType=Subsidized&provider=0xabc...&blockMin=100&blockMax=500&subsidyAmountMin=1000000000000000000&size=50
+```
+
 #### Response
 
-Every row has `id, eventType, chainId, contract, block, txHash` plus event-specific fields (`payer, payee, token, jobId, amount, expiry, proof, maxLockedAmount, maxLockSeconds, maxLockCounts`).
+Every row has `id, eventType, chainId, contract, block, txHash` plus event-specific fields (`payer, payee, token, jobId, amount, expiry, proof, maxLockedAmount, maxLockSeconds, maxLockCounts`). An `Auth` row additionally carries `expiryTimestamp` (Escrow v2: `0` = indefinite, otherwise the unix ts after which the payee can no longer create/extend locks). A `Subsidized` row (emitted once per contributing Subsidy Provider at claim time) additionally carries `provider, subsidyAmount, bonusAmount`. Escrow v2 lock-time sponsorship adds two events, each emitted once per contributing provider: a `LockSponsored` row (a provider pre-funds a lock at `createLock`) carries `provider, amount`; a `SponsorRefunded` row (unused sponsored tokens returned on partial claim / expiry / reLock-shrink) carries `provider, amount, reclaimable` (`reclaimable: true` ⇒ the push to the provider failed and the amount is parked for the provider to `sweepReclaimable`).
 
 ```json
 [
@@ -2312,8 +2580,30 @@ Operator-published blueprint. Secret `envVars` values are never returned — onl
 | envVarKeys                  | string[] | keys of operator-set env vars (values never returned)    |
 | userConfigurableEnvVars     | object[] | `{ key, validation?, sensitive? }` passed via `userData` |
 | command / entrypoint        | string[] | Docker CMD / ENTRYPOINT overrides                        |
-| requiredResources           | object[] | resources the service MUST have to run                   |
-| recommendedResources        | object[] | resources for best performance                           |
+| recommendedResources        | object[] | advisory cpu/ram/disk/gpu sizing — see below             |
+
+`recommendedResources` is the template's only resource declaration and is **advisory**: the
+node does not check it at `serviceStart` — picking an environment and the exact resources to
+request is the client's job, and the environment's own `min`/`max`/constraints are what the node
+enforces. At most one entry per resource; templates have no `min`. Entry shapes (strict — any
+other key, including the retired `min` or a template-level `requiredResources`, makes the node
+skip the template with a warning):
+
+- `{ "id": "cpu", "recommended": <cores ≥ 0>, "unit": "cores", "description"? }`
+- `{ "id": "ram" | "disk", "recommended": <decimal GB ≥ 0>, "unit": "GB", "description"? }`
+- `{ "kind": "discrete", "type": "gpu", "recommended": <total VRAM, decimal GB > 0>, "unit": "GB", "layouts": [...], "gpuCountEnv"?, "description"? }`
+
+`layouts` (1–8 entries, strictly ascending by `gpuCount`) lists every allowed way to place
+that VRAM on identical GPUs of one type on one host. Each is `{ "gpuCount": <1..64> }` for one
+card — which must itself hold `recommended` (cards are never pooled) — or
+`{ "gpuCount": n, "vramPerGpu": <GB per card> }` for `n > 1`; `gpuCount` is exactly the number
+of GPUs booked and used, and `gpuCount × vramPerGpu` must be ≥ `recommended`. Each per-card
+figure is the smallest card `memoryTotal` the default configuration starts on (memory
+utilisation and per-card overhead included), not a GPU class size. Compare against
+each GPU's `memoryTotal` from `getComputeEnvironments` (see
+[compute.md](compute.md#node-wide-connection-level-resources)). `gpuCountEnv` optionally names
+a `userConfigurableEnvVars` key that forces the GPU width at runtime: every layout's `gpuCount`
+must pass that key's `validation`, and the key may not also be an operator `envVars` key.
 
 #### `ServiceJob` (returned by start / status / extend / restart / stop)
 
@@ -2361,9 +2651,9 @@ List the operator-published service templates (sanitized). Not authenticated.
     "tag": "latest",
     "exposedPorts": [8888],
     "userConfigurableEnvVars": [{ "key": "JUPYTER_TOKEN", "sensitive": true }],
-    "requiredResources": [
-      { "id": "cpu", "min": 1 },
-      { "id": "ram", "min": 2 }
+    "recommendedResources": [
+      { "id": "cpu", "recommended": 2, "unit": "cores" },
+      { "id": "ram", "recommended": 4, "unit": "GB" }
     ]
   }
 ]

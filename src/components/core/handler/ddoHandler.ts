@@ -145,7 +145,12 @@ export function findMetadataEventInLogs(
     (log) => log.address.toLowerCase() === dataNftAddress.toLowerCase()
   )
   for (const eventName of [EVENTS.METADATA_CREATED, EVENTS.METADATA_UPDATED]) {
-    const events = fetchEventFromTransaction({ logs: nftLogs }, eventName, abiInterface)
+    const events = fetchEventFromTransaction(
+      { logs: nftLogs },
+      eventName,
+      abiInterface,
+      dataNftAddress
+    )
     if (events && events.length > 0) {
       return events[0]
     }
@@ -191,12 +196,21 @@ export class DecryptDdoHandler extends CommandHandler {
         }
       }
     }
+    // ON-02: bind the DECRYPT_DDO signature to THIS node (peerId, added by the verifier) and to
+    // the exact resource (chainId + txId + dataNftAddress), so a signature harvested from one
+    // node/asset cannot be replayed against another. dataNftAddress was already checksum-
+    // normalized by verifyParamsAndRateLimits; the Indexer signer checksums it to match.
     const isAuthRequestValid = await this.validateTokenOrSignature(
       task.authorization,
       task.decrypterAddress,
       task.nonce,
       task.signature,
-      task.command
+      task.command,
+      {
+        chainId,
+        txId: task.transactionId,
+        dataNftAddress: task.dataNftAddress
+      }
     )
     if (isAuthRequestValid.status.httpStatus !== 200) {
       return isAuthRequestValid

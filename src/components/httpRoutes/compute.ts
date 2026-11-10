@@ -66,6 +66,18 @@ function logRouteError(route: string, error: unknown, status?: P2PStatusResponse
   HTTP_LOGGER.error(`${route} failed: ${errorSummary(error)}`)
 }
 
+// Send a handler's non-200 status to the HTTP client. When the handler set a machine-readable
+// `code` (e.g. MAINTENANCE_MODE), emit `{ error, code }` so clients can discriminate on it;
+// otherwise keep the legacy shape (the bare error string) for backwards compatibility.
+function sendCommandError(res: express.Response, status?: P2PStatusResponse): void {
+  const httpStatus = status?.httpStatus || 500
+  if (status?.code) {
+    res.status(httpStatus).json({ error: status.error, code: status.code })
+  } else {
+    res.status(httpStatus).json(status?.error)
+  }
+}
+
 computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeEnvironments`, async (req, res) => {
   try {
     HTTP_LOGGER.debug(
@@ -121,7 +133,10 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       queueMaxWaitTime: req.body.queueMaxWaitTime || 0,
       caller: req.caller,
       encryptedDockerRegistryAuth:
-        (req.body.encryptedDockerRegistryAuth as string) || null
+        (req.body.encryptedDockerRegistryAuth as string) || null,
+      // Tri-state preserved: undefined (absent) = use node config, [] = no providers, array = use
+      // exactly these. Passing the raw value through keeps the absent-vs-empty distinction.
+      subsidyProviders: req.body.subsidyProviders as string[] | undefined
     }
     if (req.body.output) {
       startComputeTask.output = req.body.output
@@ -138,7 +153,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       res.status(200).json(jobs)
     } else {
       logRouteError('computeStart', null, response?.status)
-      res.status(response?.status.httpStatus).json(response?.status?.error)
+      sendCommandError(res, response?.status)
     }
   } catch (error) {
     logRouteError('computeStart', error)
@@ -187,7 +202,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/freeCompute`, async (req, res) => 
       res.status(200).json(jobs)
     } else {
       logRouteError('freeCompute', null, response?.status)
-      res.status(response?.status.httpStatus).json(response?.status?.error)
+      sendCommandError(res, response?.status)
     }
   } catch (error) {
     logRouteError('freeCompute', error)
@@ -360,13 +375,20 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/initializeCompute`, async (req, re
       }
     }
     body.command = PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
+    // Use the trustworthy request IP as the caller, never a client-supplied body value, so the
+    // handler-level rate limiter (keyed on task.caller) cannot be evaded here. Matches the other
+    // compute routes and the /directCommand local path.
+    body.caller = req.caller
     const result = await new ComputeInitializeHandler(req.oceanNode).handle(body)
-    if (result.stream) {
+    // Branch on the status, NOT on the presence of a stream: a maintenance-mode rejection
+    // carries BOTH a 503 status and a stream body, so a `if (result.stream)` here would answer
+    // 200 and clients would proceed to pay for an order the node will not run.
+    if (result.status.httpStatus === 200) {
       const queryResult = JSON.parse(await streamToString(result.stream as Readable))
       res.json(queryResult)
     } else {
       logRouteError('initializeCompute', null, result.status)
-      res.status(result.status.httpStatus).send(result.status.error)
+      sendCommandError(res, result.status)
     }
   } catch (error) {
     logRouteError('initializeCompute', error)
@@ -392,7 +414,7 @@ async function runServiceCommand(
       res.status(200).json(result)
     } else {
       logRouteError(task?.command, null, response?.status ?? { httpStatus: 500 })
-      res.status(response?.status?.httpStatus || 500).json(response?.status?.error)
+      sendCommandError(res, response?.status)
     }
   } catch (error) {
     logRouteError(task?.command, error)
@@ -435,6 +457,8 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/serviceStart`, async (req, res) =>
     metadata: req.body.metadata ?? undefined,
     outputBucketId: (req.body.outputBucketId as string) || undefined,
     payment: req.body.payment,
+    // Tri-state preserved: undefined = use node config, [] = no providers, array = use these.
+    subsidyProviders: req.body.subsidyProviders as string[] | undefined,
     authorization: req.headers?.authorization,
     caller: req.caller
   }
@@ -466,6 +490,8 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/serviceExtend`, async (req, res) =
     serviceId: (req.body.serviceId as string) || null,
     additionalDuration: req.body.additionalDuration as number,
     payment: req.body.payment,
+    // Tri-state preserved: undefined = use node config, [] = no providers, array = use these.
+    subsidyProviders: req.body.subsidyProviders as string[] | undefined,
     authorization: req.headers?.authorization,
     caller: req.caller
   }

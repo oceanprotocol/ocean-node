@@ -202,12 +202,15 @@ HTTP/HTTPS → `scheduleCronJobs()`.
 `OceanNode` (`src/OceanNode.ts`) is the central singleton wiring everything together. It
 holds the `CoreHandlersRegistry`, `C2DEngines`, `Escrow`, `Auth`, `PersistentStorage`,
 `Database`, `KeyManager`, `BlockchainRegistry`, and the per-caller rate-limit `requestMap`.
-`handleDirectProtocolCommand(message)` is the single choke point for dispatch: it JSON-parses
-the command, looks up the handler by `task.command`, and calls `handler.handle(task)`.
+The common dispatch primitive is `CoreHandlersRegistry.getHandler(task.command)` followed by
+`handler.handle(task)`. `handleDirectProtocolCommand(message)` is the HTTP `/directCommand`
+wrapper around that (it JSON-parses the command, looks up the handler, and calls it); P2P
+inbound and the REST routes resolve/instantiate the handler and call `handle(task)` directly,
+without going through `handleDirectProtocolCommand`.
 
 ### Request / command flow
 
-Two front doors, one dispatcher:
+Multiple front doors, one shared `handler.handle(task)` primitive:
 
 - **HTTP `POST /directCommand`** (`src/components/httpRoutes/commands.ts`): validates the
   body, then decides _local vs remote_. If the command targets this node (or no P2P), it
@@ -255,7 +258,7 @@ Handler source is grouped under `src/components/core/`:
   `getTemplates`, plus `templateLoader`).
 - `admin/` — privileged handlers gated by `ALLOWED_ADMINS`: `stopNode`, `stopJob`,
   `reindexTx`, `reindexChain`, `IndexingThreadHandler`, `collectFees`, `fetchConfig`,
-  `pushConfig`, `getLogs`.
+  `pushConfig`, `getLogs`, `setMaintenance` (toggle maintenance/drain mode; persisted + sticky).
 - `utils/` — shared logic: `escrow`, `feesHandler`, `findDdoHandler`, `nonceHandler`,
   `statusHandler`, `validateOrders`.
 
@@ -341,5 +344,7 @@ can talk to `/var/run/docker.sock`. Deployment options (Docker, local Docker bui
 `Arhitecture.md` (note the spelling), `API.md` (full HTTP API reference — very large, plus a
 Postman collection), `env.md` (authoritative env-var reference), `database.md`,
 `Storage.md` / `persistentStorage.md`, `KeyManager.md`, `PolicyServer.md`, `services.md`
-(Service-on-Demand), `compute.md` (C2D configuration: resources, GPUs, constraints, pricing), `networking.md`, `Logs.md`,
+(Service-on-Demand), `compute.md` (C2D configuration: resources, GPUs, constraints, pricing),
+`subsidyProviders.md` (third-party sponsorship of paid compute/services: prepaid vs refund,
+zero-deposit, `SUBSIDY_PROVIDERS`), `networking.md`, `Logs.md`,
 `Publishing.md`, `testing.md`, `dockerDeployment.md`.

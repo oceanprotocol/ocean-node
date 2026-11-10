@@ -93,9 +93,14 @@ directCommandRoute.post(
         req.oceanNode.getP2PNode()?.isTargetPeerSelf(req.body.node)
 
       if (isLocalCommand) {
-        // Local command - call handler directly
+        // Local command - call handler directly. Pass the trustworthy request IP (req.caller,
+        // derived from req.ip honouring `trust proxy`) as the trusted caller;
+        // handleDirectProtocolCommand stamps it over any client-supplied body value. Otherwise
+        // the handler-level rate limiter, which keys on task.caller, could be evaded on this
+        // path by putting a fresh random caller in the request body.
         const response = await req.oceanNode.handleDirectProtocolCommand(
-          JSON.stringify(req.body)
+          JSON.stringify(req.body),
+          req.caller
         )
 
         res.status(response.status.httpStatus)
@@ -110,6 +115,14 @@ directCommandRoute.post(
 
         if (response.stream) {
           await streamToResponse(res, response.stream as Readable, isBinaryContent)
+        } else if (response.status.code) {
+          // The remote path (P2P sendTo) aborts and drops the response stream for a non-200,
+          // so a maintenance 503 arrives here as status-only (no stream). Serialize `code`
+          // into the JSON body — matching the local streamed body — so clients can still
+          // discriminate on it (e.g. MAINTENANCE_MODE) rather than only on the status.
+          res.write(
+            JSON.stringify({ error: response.status.error, code: response.status.code })
+          )
         } else if (response.status.error) {
           res.write(response.status.error)
         }
@@ -148,6 +161,14 @@ directCommandRoute.post(
 
         if (response.stream) {
           await streamToResponse(res, response.stream as Readable, isBinaryContent)
+        } else if (response.status.code) {
+          // The remote path (P2P sendTo) aborts and drops the response stream for a non-200,
+          // so a maintenance 503 arrives here as status-only (no stream). Serialize `code`
+          // into the JSON body — matching the local streamed body — so clients can still
+          // discriminate on it (e.g. MAINTENANCE_MODE) rather than only on the status.
+          res.write(
+            JSON.stringify({ error: response.status.error, code: response.status.code })
+          )
         } else if (response.status.error) {
           res.write(response.status.error)
         }
