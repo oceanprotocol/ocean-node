@@ -13,7 +13,8 @@ import { sanitizeLogValue } from '../../utils/util.js'
 import { p2pCommand } from '../../telemetry/metrics.js'
 import {
   checkGlobalConnectionsRateLimit,
-  checkRequestsRateLimit
+  checkRequestsRateLimit,
+  recordAcceptedRequest
 } from '../../utils/validators.js'
 import type { Connection, Stream } from '@libp2p/interface'
 import {
@@ -123,7 +124,12 @@ export async function handleProtocolCommands(
   }
 
   const now = Date.now()
-  const rateLimitCheck = checkRequestsRateLimit(remoteAddr.toString(), configuration, now)
+  // Key the P2P rate limiter by the authenticated peer id, NOT the connection multiaddr: the
+  // multiaddr carries an ephemeral port that changes when a peer reconnects, so an attacker
+  // could reset their budget by reconnecting. remotePeer is stable and unspoofable, and matches
+  // the key the handler-level limiter uses (task.caller = remotePeer.toString(), below).
+  const rateLimitKey = remotePeer.toString()
+  const rateLimitCheck = checkRequestsRateLimit(rateLimitKey, configuration, now)
   if (!rateLimitCheck.valid) {
     P2P_LOGGER.throttled(
       'p2p-rate-limit',
@@ -146,6 +152,10 @@ export async function handleProtocolCommands(
     await sendErrorAndClose(403, 'Rate limit exceeded')
     return
   }
+
+  // Admitted by both limits: record it now so only accepted requests consume capacity. Same key
+  // as the check above.
+  recordAcceptedRequest(rateLimitKey, now)
 
   if (!task) {
     P2P_LOGGER.debug(`Invalid or missing command data from ${remotePeer}`)

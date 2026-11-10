@@ -13,6 +13,12 @@ on:
 permissions:
   contents: read
 
+# One run per PR (or per branch/tag ref). A newer push cancels the older,
+# still-running set of jobs instead of letting both finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -29,8 +35,8 @@ jobs:
           cache-name: cache-node-modules
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-lint-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: ${{ runner.os }}-lint-${{ env.cache-name }}-
+          key: ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-${{ env.cache-name }}-
       - run: npm ci
       - run: npm run lint
 
@@ -64,8 +70,8 @@ jobs:
           cache-name: cache-node-modules
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-${{ matrix.node }}-build-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: ${{ runner.os }}-${{ matrix.node }}-build-${{ env.cache-name }}-
+          key: ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-${{ env.cache-name }}-
       - run: npm ci
       - run: npm run build
 
@@ -84,8 +90,8 @@ jobs:
           cache-name: cache-node-modules
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-test-unit-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: ${{ runner.os }}-test-unit-${{ env.cache-name }}-
+          key: ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-${{ env.cache-name }}-
       - run: npm ci
       - run: npm run test:unit:cover
         env:
@@ -122,8 +128,8 @@ jobs:
           cache-name: cache-node-modules
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-test-integration-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: ${{ runner.os }}-test-integration-${{ env.cache-name }}-
+          key: ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-${{ env.cache-name }}-
       - name: Set ADDRESS_FILE
         run: echo "ADDRESS_FILE=${HOME}/.ocean/ocean-contracts/artifacts/address.json" >> $GITHUB_ENV
       - name: Checkout Barge
@@ -220,8 +226,8 @@ jobs:
           cache-name: cache-node-modules
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-test-integration-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: ${{ runner.os }}-test-integration-${{ env.cache-name }}-
+          key: ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-${{ env.cache-name }}-
 
       - name: Set ADDRESS_FILE
         run: echo "ADDRESS_FILE=${HOME}/.ocean/ocean-contracts/artifacts/address.json" >> $GITHUB_ENV
@@ -260,6 +266,7 @@ jobs:
         with:
           persist-credentials: false
           repository: 'oceanprotocol/ocean.js'
+          ref: 'v9.2.2'
           path: 'ocean.js'
           ref: 'v9.2.3'
       - name: Build ocean-js
@@ -342,6 +349,7 @@ jobs:
           DOCKER_REGISTRY_AUTHS: ${{ steps.docker_auths.outputs.value }}
           PERSISTENT_STORAGE: '{"enabled": true, "type": "localfs", "options": {"folder": "/tmp/ocean-persistent-storage"}}'
           PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING: 'true'
+          ALLOWED_PRIVATE_URL_RANGES: '["127.0.0.1/32"]'
       - name: Check Ocean Node is running
         run: |
           for i in $(seq 1 12); do

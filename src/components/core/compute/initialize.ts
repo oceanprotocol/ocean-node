@@ -17,6 +17,7 @@ import { ProviderFees } from '../utils/feesHandler.js'
 
 import { validateOrderTransaction } from '../utils/validateOrders.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
+import { validateAccess } from './startCompute.js'
 
 import {
   ValidateParams,
@@ -182,6 +183,18 @@ export class ComputeInitializeHandler extends CommandHandler {
             status: {
               httpStatus: 500,
               error: 'Invalid C2D Environment'
+            }
+          }
+        }
+        // Early-fail only: this handler does not authenticate consumerAddress, so this is not a
+        // security boundary (startCompute enforces access with an authenticated caller). It
+        // just avoids quoting an environment the caller would be refused on anyway.
+        if (!(await validateAccess(task.consumerAddress, env.access, node))) {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 403,
+              error: 'Access denied'
             }
           }
         }

@@ -372,6 +372,10 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/initializeCompute`, async (req, re
       }
     }
     body.command = PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
+    // Use the trustworthy request IP as the caller, never a client-supplied body value, so the
+    // handler-level rate limiter (keyed on task.caller) cannot be evaded here. Matches the other
+    // compute routes and the /directCommand local path.
+    body.caller = req.caller
     const result = await new ComputeInitializeHandler(req.oceanNode).handle(body)
     // Branch on the status, NOT on the presence of a stream: a maintenance-mode rejection
     // carries BOTH a 503 status and a stream body, so a `if (result.stream)` here would answer

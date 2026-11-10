@@ -52,6 +52,8 @@ import {
 } from 'fs'
 import { pipeline } from 'node:stream/promises'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
+import { checkUrlHost, getSafeDispatcher } from '../../utils/safeUrl.js'
+import { fetchHeadersTimeout } from '../../utils/http.js'
 import { errorSummary, safeStringify } from '../../utils/logging/redact.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { AssetUtils } from '../../utils/asset.js'
@@ -1544,13 +1546,33 @@ export class C2DEngineDocker extends C2DEngine {
       )
     }
 
-    let response = await fetch(url, { headers })
+    // Synchronous guard: reject IP literals and localhost names in the registry URL
+    // up front before any connection is attempted.
+    const registryUrlSsrfErr = checkUrlHost(url, this.config)
+    if (registryUrlSsrfErr) {
+      throw new Error(`Registry URL is not reachable: ${registryUrlSsrfErr}`)
+    }
+    const safeDispatcher = getSafeDispatcher(this.config)
+    let response = await fetchHeadersTimeout(
+      url,
+      { headers, dispatcher: safeDispatcher },
+      30000
+    )
 
     if (response.status === 401) {
       const match = (response.headers.get('www-authenticate') || '').match(
         /Bearer realm="([^"]+)",service="([^"]+)"/
       )
       if (match) {
+        // Guard against a malicious registry directing us to fetch an internal URL
+        // via the www-authenticate realm field.
+        const realmSsrfErr = checkUrlHost(match[1], this.config)
+        if (realmSsrfErr) {
+          CORE_LOGGER.warn(
+            `getDockerManifest: rejecting www-authenticate realm ${match[1]} for ${image}: ${realmSsrfErr}`
+          )
+          throw new Error(`Registry token endpoint is not reachable: ${realmSsrfErr}`)
+        }
         const tokenUrl = new URL(match[1])
         tokenUrl.searchParams.set('service', match[2])
         tokenUrl.searchParams.set('scope', `repository:${name}:pull`)
@@ -1567,13 +1589,20 @@ export class C2DEngineDocker extends C2DEngine {
           tokenHeaders.Authorization = `Basic ${authString}`
         }
 
-        const { token } = (await fetch(tokenUrl.toString(), {
-          headers: tokenHeaders
-        }).then((r) => r.json())) as {
+        const tokenResp = await fetchHeadersTimeout(
+          tokenUrl.toString(),
+          { headers: tokenHeaders, dispatcher: safeDispatcher },
+          20000
+        )
+        const { token } = (await tokenResp.json()) as {
           token: string
         }
         headers = { ...headers, Authorization: `Bearer ${token}` }
-        response = await fetch(url, { headers })
+        response = await fetchHeadersTimeout(
+          url,
+          { headers, dispatcher: safeDispatcher },
+          30000
+        )
       }
     }
 

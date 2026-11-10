@@ -7,6 +7,7 @@ import {
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { fetchFileMetadata } from '../../utils/asset.js'
 import { fetchStream, fetchHeadersTimeout, headersToObject } from '../../utils/http.js'
+import { checkUrlHost, getSafeDispatcher } from '../../utils/safeUrl.js'
 
 import { Storage } from './Storage.js'
 
@@ -24,7 +25,11 @@ export class UrlStorage extends Storage {
     const file = this.getFile()
     const { headers } = file
     // download always uses GET regardless of file.method (which applies to metadata fetch)
-    return await fetchStream(input, { method: 'GET', headers }, 30000)
+    return await fetchStream(
+      input,
+      { method: 'GET', headers, dispatcher: getSafeDispatcher(this.config) },
+      30000
+    )
   }
 
   /**
@@ -55,7 +60,8 @@ export class UrlStorage extends Storage {
         // plus duplex: 'half' (mandatory in undici) — chunked, no content-length.
         // duplex isn't in the DOM RequestInit type, so cast the whole init.
         body: Readable.toWeb(stream) as any,
-        duplex: 'half'
+        duplex: 'half',
+        dispatcher: getSafeDispatcher(this.config)
       } as RequestInit,
       30000
     )
@@ -93,6 +99,22 @@ export class UrlStorage extends Storage {
     if (this.isFilePath() === true) {
       return [false, 'URL looks like a file path']
     }
+    let parsed: URL
+    try {
+      parsed = new URL(file.url)
+    } catch (e) {
+      return [false, 'Invalid URL']
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return [false, 'URL must be http:// or https://']
+    }
+    // SSRF: reject private / loopback / reserved targets. This is the synchronous part
+    // (IP literals, localhost); DNS names are validated at connect time by the safe
+    // dispatcher used for every request below.
+    const hostError = checkUrlHost(file.url, this.config)
+    if (hostError) {
+      return [false, hostError]
+    }
 
     return [true, '']
   }
@@ -122,7 +144,8 @@ export class UrlStorage extends Storage {
       url,
       method || 'get',
       forceChecksum,
-      headers
+      headers,
+      { dispatcher: getSafeDispatcher(this.config) }
     )
     return {
       valid: true,

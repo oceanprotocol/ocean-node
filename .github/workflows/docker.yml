@@ -19,6 +19,12 @@ env:
 permissions:
   contents: read
 
+# One run per PR (or per branch/tag ref); a newer push cancels the older run.
+# Tags each get their own ref, so a release build is never cancelled by another.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest

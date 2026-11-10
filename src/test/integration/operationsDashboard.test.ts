@@ -172,6 +172,7 @@ describe('**********         OperationsDashboard tests', () => {
       adminWallet
     )
     const balanceBefore = await token.balanceOf(await destinationWallet.getAddress())
+    const tokenDecimals = Number(await token.decimals())
     const result = await collectFeesHandler.handle(collectFeesCommand)
     expect(result.status.httpStatus).to.be.equal(200) // OK
 
@@ -180,7 +181,7 @@ describe('**********         OperationsDashboard tests', () => {
     expect(obj.tx).to.be.not.equal(null) // OK
     expect(obj.message).to.be.equal('Fees successfully transfered to admin!') // OK
     expect(await token.balanceOf(await destinationWallet.getAddress())).to.be.equal(
-      balanceBefore + parseUnits(collectFeesCommand.tokenAmount.toString(), 'ether')
+      balanceBefore + parseUnits(collectFeesCommand.tokenAmount.toString(), tokenDecimals)
     )
     // Test incorrect values for command: node ID and big amount
     await sleep(100)

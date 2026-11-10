@@ -335,6 +335,8 @@ returns decrypted document
 
 returns file information
 
+Files whose host is, or resolves to, a private, loopback, link-local or otherwise reserved address are rejected (for example `URL points to a private, loopback or reserved network address`). Node operators can allow specific ranges with `ALLOWED_PRIVATE_URL_RANGES`; see [Storage](Storage.md#private-network-protection-ssrf).
+
 #### Parameters
 
 | name      | type   | required | description                              |
@@ -2435,8 +2437,30 @@ Operator-published blueprint. Secret `envVars` values are never returned — onl
 | envVarKeys                  | string[] | keys of operator-set env vars (values never returned)    |
 | userConfigurableEnvVars     | object[] | `{ key, validation?, sensitive? }` passed via `userData` |
 | command / entrypoint        | string[] | Docker CMD / ENTRYPOINT overrides                        |
-| requiredResources           | object[] | resources the service MUST have to run                   |
-| recommendedResources        | object[] | resources for best performance                           |
+| recommendedResources        | object[] | advisory cpu/ram/disk/gpu sizing — see below             |
+
+`recommendedResources` is the template's only resource declaration and is **advisory**: the
+node does not check it at `serviceStart` — picking an environment and the exact resources to
+request is the client's job, and the environment's own `min`/`max`/constraints are what the node
+enforces. At most one entry per resource; templates have no `min`. Entry shapes (strict — any
+other key, including the retired `min` or a template-level `requiredResources`, makes the node
+skip the template with a warning):
+
+- `{ "id": "cpu", "recommended": <cores ≥ 0>, "unit": "cores", "description"? }`
+- `{ "id": "ram" | "disk", "recommended": <decimal GB ≥ 0>, "unit": "GB", "description"? }`
+- `{ "kind": "discrete", "type": "gpu", "recommended": <total VRAM, decimal GB > 0>, "unit": "GB", "layouts": [...], "gpuCountEnv"?, "description"? }`
+
+`layouts` (1–8 entries, strictly ascending by `gpuCount`) lists every allowed way to place
+that VRAM on identical GPUs of one type on one host. Each is `{ "gpuCount": <1..64> }` for one
+card — which must itself hold `recommended` (cards are never pooled) — or
+`{ "gpuCount": n, "vramPerGpu": <GB per card> }` for `n > 1`; `gpuCount` is exactly the number
+of GPUs booked and used, and `gpuCount × vramPerGpu` must be ≥ `recommended`. Each per-card
+figure is the smallest card `memoryTotal` the default configuration starts on (memory
+utilisation and per-card overhead included), not a GPU class size. Compare against
+each GPU's `memoryTotal` from `getComputeEnvironments` (see
+[compute.md](compute.md#node-wide-connection-level-resources)). `gpuCountEnv` optionally names
+a `userConfigurableEnvVars` key that forces the GPU width at runtime: every layout's `gpuCount`
+must pass that key's `validation`, and the key may not also be an operator `envVars` key.
 
 #### `ServiceJob` (returned by start / status / extend / restart / stop)
 
@@ -2484,9 +2508,9 @@ List the operator-published service templates (sanitized). Not authenticated.
     "tag": "latest",
     "exposedPorts": [8888],
     "userConfigurableEnvVars": [{ "key": "JUPYTER_TOKEN", "sensitive": true }],
-    "requiredResources": [
-      { "id": "cpu", "min": 1 },
-      { "id": "ram", "min": 2 }
+    "recommendedResources": [
+      { "id": "cpu", "recommended": 2, "unit": "cores" },
+      { "id": "ram", "recommended": 4, "unit": "GB" }
     ]
   }
 ]

@@ -88,6 +88,7 @@
     "ips": []
   },
   "unsafeURLs": [],
+  "allowedPrivateUrlRanges": ["127.0.0.1/32"],
   "isBootstrap": false,
   "claimDurationTimeout": 600,
   "validateUnsignedDDO": true,
