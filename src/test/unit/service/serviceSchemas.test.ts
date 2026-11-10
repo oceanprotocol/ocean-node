@@ -2,7 +2,9 @@ import { expect } from 'chai'
 import {
   ServiceTemplateSchema,
   ServiceOnDemandConfigSchema,
-  C2DEnvironmentConfigSchema
+  C2DEnvironmentConfigSchema,
+  ComputeEnvironmentFreeOptionsSchema,
+  C2DEnvironmentFreeConfigSchema
 } from '../../../utils/config/schemas.js'
 import {
   DEFAULT_SERVICE_MAX_DURATION_SECONDS,
@@ -311,6 +313,78 @@ describe('C2DEnvironmentConfigSchema features', () => {
     expect(
       C2DEnvironmentConfigSchema.safeParse({ ...base, features: { compute: true } })
         .success
+    ).to.equal(false)
+  })
+})
+
+describe('buildTimeoutSeconds schema field', () => {
+  // The 300s default is applied at runtime (resolveBuildTimeoutSeconds), NOT by the schema,
+  // so an omitted value must parse to undefined and let the operator's serviceOnDemand value
+  // win the runtime resolution chain.
+  const cases: Array<{ name: string; parse: (v: unknown) => any; base: object }> = [
+    {
+      name: 'ServiceOnDemandConfigSchema',
+      parse: (v: unknown) =>
+        ServiceOnDemandConfigSchema.safeParse(
+          v === undefined
+            ? { enabled: true, nodeHost: 'localhost' }
+            : { enabled: true, nodeHost: 'localhost', buildTimeoutSeconds: v }
+        ),
+      base: { enabled: true, nodeHost: 'localhost' }
+    },
+    {
+      name: 'ComputeEnvironmentFreeOptionsSchema',
+      parse: (v: unknown) =>
+        ComputeEnvironmentFreeOptionsSchema.safeParse(
+          v === undefined ? {} : { buildTimeoutSeconds: v }
+        ),
+      base: {}
+    },
+    {
+      name: 'C2DEnvironmentFreeConfigSchema',
+      parse: (v: unknown) =>
+        C2DEnvironmentFreeConfigSchema.safeParse(
+          v === undefined ? {} : { buildTimeoutSeconds: v }
+        ),
+      base: {}
+    }
+  ]
+
+  for (const c of cases) {
+    describe(c.name, () => {
+      it('omitted → undefined (no schema default)', () => {
+        const res = c.parse(undefined)
+        expect(res.success).to.equal(true)
+        expect(res.data.buildTimeoutSeconds).to.equal(undefined)
+      })
+      it('accepts positive integers', () => {
+        for (const v of [1, 600, 3600]) {
+          const res = c.parse(v)
+          expect(res.success, `value ${v}`).to.equal(true)
+          expect(res.data.buildTimeoutSeconds).to.equal(v)
+        }
+      })
+      it('rejects 0, negatives, non-integers and strings', () => {
+        for (const v of [0, -5, 1.5, '300']) {
+          expect(c.parse(v).success, `value ${JSON.stringify(v)}`).to.equal(false)
+        }
+      })
+    })
+  }
+
+  it('ServiceOnDemandConfigSchema still rejects unknown keys and defaults allowImageBuild=false', () => {
+    const parsed = ServiceOnDemandConfigSchema.parse({
+      enabled: true,
+      nodeHost: 'localhost'
+    })
+    expect(parsed.allowImageBuild).to.equal(false)
+    expect(parsed.buildTimeoutSeconds).to.equal(undefined)
+    expect(
+      ServiceOnDemandConfigSchema.safeParse({
+        enabled: true,
+        nodeHost: 'localhost',
+        bogus: 1
+      }).success
     ).to.equal(false)
   })
 })

@@ -78,7 +78,8 @@ import {
   ServiceStatusNumber,
   ServiceStatusText,
   SERVICE_START_PENDING_STATUSES,
-  isStoppedLike
+  isStoppedLike,
+  DEFAULT_BUILD_TIMEOUT_SECONDS
 } from '../../@types/C2D/ServiceOnDemand.js'
 import type {
   ServiceJob,
@@ -735,6 +736,8 @@ export class C2DEngineDocker extends C2DEngine {
       if (envDef.minJobDuration !== undefined) env.minJobDuration = envDef.minJobDuration
       if (envDef.maxJobDuration !== undefined) env.maxJobDuration = envDef.maxJobDuration
       if (envDef.maxJobs !== undefined) env.maxJobs = envDef.maxJobs
+      if (envDef.buildTimeoutSeconds !== undefined)
+        env.buildTimeoutSeconds = envDef.buildTimeoutSeconds
       if (envDef.description !== undefined) env.description = envDef.description
 
       // Free tier config for this environment
@@ -751,6 +754,8 @@ export class C2DEngineDocker extends C2DEngine {
         if (envDef.free.maxJobs !== undefined) env.free.maxJobs = envDef.free.maxJobs
         if (envDef.free.allowImageBuild !== undefined)
           env.free.allowImageBuild = envDef.free.allowImageBuild
+        if (envDef.free.buildTimeoutSeconds !== undefined)
+          env.free.buildTimeoutSeconds = envDef.free.buildTimeoutSeconds
         // Resolve free resource refs → full ComputeResource[] using the same connection pool.
         if (envDef.free.resources) {
           env.free.resources = this.resolveEnvironmentResources(
@@ -3818,6 +3823,90 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
+  // Validates a user-supplied additionalDockerFiles entry name before it is written into the
+  // build-context tar. An untrusted name could otherwise escape the build context (absolute
+  // path, `..` traversal, backslash separators, Windows drive), overwrite the Dockerfile /
+  // .dockerignore we control, or smuggle control characters. Throws on anything suspicious so
+  // the whole build fails rather than silently dropping the file. Returns the normalised,
+  // build-context-relative name.
+  private sanitizeDockerfileEntryName(name: string): string {
+    if (typeof name !== 'string')
+      throw new Error('additionalDockerFiles: entry name must be a string')
+    const trimmed = name.trim()
+    if (!trimmed)
+      throw new Error('additionalDockerFiles: empty entry name is not allowed')
+    // Reject NUL and other control characters (charCode < 32).
+    for (let i = 0; i < trimmed.length; i++) {
+      if (trimmed.charCodeAt(i) < 32)
+        throw new Error(
+          `additionalDockerFiles: control character in entry name "${name}" is not allowed`
+        )
+    }
+    if (trimmed.includes('\\'))
+      throw new Error(
+        `additionalDockerFiles: backslash in entry name "${name}" is not allowed`
+      )
+    // Normalise posix-style, then strip a single leading "./".
+    let norm = path.posix.normalize(trimmed)
+    if (norm.startsWith('./')) norm = norm.slice(2)
+    // After normalising/stripping, a bare "." or an empty string names no file (it refers to
+    // the build-context root itself), so reject it rather than returning a useless tar entry.
+    if (norm === '' || norm === '.')
+      throw new Error(
+        `additionalDockerFiles: entry name "${name}" does not name a file in the build context`
+      )
+    if (norm.startsWith('/'))
+      throw new Error(
+        `additionalDockerFiles: absolute path "${name}" is not allowed in the build context`
+      )
+    if (norm === '..' || norm.startsWith('../'))
+      throw new Error(
+        `additionalDockerFiles: path traversal ("..") in entry name "${name}" is not allowed`
+      )
+    if (/^[A-Za-z]:/.test(norm))
+      throw new Error(
+        `additionalDockerFiles: Windows drive path "${name}" is not allowed`
+      )
+    if (norm.endsWith('/'))
+      throw new Error(`additionalDockerFiles: directory entry "${name}" is not allowed`)
+    const lower = norm.toLowerCase()
+    if (lower === 'dockerfile' || lower === '.dockerignore')
+      throw new Error(
+        `additionalDockerFiles: entry name "${name}" would overwrite a reserved build file`
+      )
+    return norm
+  }
+
+  // Resolves the image-build abort budget: the configured value (or the shared default), never
+  // exceeding the job/service runtime duration. Guards against a non-finite OR non-positive
+  // duration (NaN, Infinity, 0, negative) so the AbortController timer can never be fed NaN or a
+  // value that would abort the build instantly.
+  private resolveBuildTimeoutSeconds(
+    configured: number | undefined,
+    jobDurationSeconds: number
+  ): number {
+    const base = configured ?? DEFAULT_BUILD_TIMEOUT_SECONDS
+    if (!Number.isFinite(jobDurationSeconds) || jobDurationSeconds <= 0) return base
+    return Math.min(base, jobDurationSeconds)
+  }
+
+  // Shared Trivy gate for freshly-built images. When image scanning is on, scan the image and,
+  // if vulnerable, remove it (swallowing removal errors) and throw so the build fails. A no-op
+  // when scanning is disabled.
+  private async scanAndRemoveIfVulnerable(imageRef: string): Promise<void> {
+    if (!this.scanImages) return
+    const scanResult = await this.checkImageVulnerability(imageRef)
+    if (scanResult.vulnerable) {
+      await this.docker
+        .getImage(imageRef)
+        .remove({ force: true })
+        .catch(() => {})
+      throw new Error(
+        `Image "${imageRef}" failed security scan: ${JSON.stringify(scanResult.summary)}`
+      )
+    }
+  }
+
   private async buildImage(
     originaljob: DBComputeJob,
     additionalDockerFiles: { [key: string]: any }
@@ -3825,7 +3914,21 @@ export class C2DEngineDocker extends C2DEngine {
     const job = JSON.parse(JSON.stringify(originaljob)) as DBComputeJob
     const imageLogFile = this.getStoragePath() + '/' + job.jobId + '/data/logs/image.log'
     const controller = new AbortController()
-    const timeoutMs = job.maxJobDuration * 1000
+    // Image build gets its own short budget, SEPARATE from the job's full runtime duration: a
+    // build should take minutes, so a short cap limits how long an untrusted Dockerfile can keep
+    // the daemon busy. Free and paid jobs read DIFFERENT per-env knobs (a free-tier setting must
+    // not govern paid builds): free → env.free.buildTimeoutSeconds, paid → env.buildTimeoutSeconds.
+    // Both fall back to the daemon-wide serviceOnDemand value, then the default, and neither may
+    // exceed the job's own maxJobDuration.
+    const env = this.envs.find((e) => e.id === job.environment)
+    const configuredBuildTimeout =
+      (job.isFree ? env?.free?.buildTimeoutSeconds : env?.buildTimeoutSeconds) ??
+      this.getC2DConfig().connection?.serviceOnDemand?.buildTimeoutSeconds
+    const buildTimeoutSeconds = this.resolveBuildTimeoutSeconds(
+      configuredBuildTimeout,
+      job.maxJobDuration
+    )
+    const timeoutMs = buildTimeoutSeconds * 1000
     const timer = setTimeout(() => controller.abort(), timeoutMs)
     this.activeBuildAborts.set(job.jobId, controller)
     try {
@@ -3835,8 +3938,15 @@ export class C2DEngineDocker extends C2DEngine {
       pack.entry({ name: 'Dockerfile' }, job.algorithm.meta.container.dockerfile)
       // Append any additional files to the tar archive
       if (additionalDockerFiles) {
+        const seenNames = new Set<string>()
         for (const filePath of Object.keys(additionalDockerFiles)) {
-          pack.entry({ name: filePath }, additionalDockerFiles[filePath])
+          const safeName = this.sanitizeDockerfileEntryName(filePath)
+          if (seenNames.has(safeName))
+            throw new Error(
+              `additionalDockerFiles: duplicate entry name "${safeName}" in build context`
+            )
+          seenNames.add(safeName)
+          pack.entry({ name: safeName }, additionalDockerFiles[filePath])
         }
       }
       pack.finalize()
@@ -3901,27 +4011,9 @@ export class C2DEngineDocker extends C2DEngine {
         }
         controller.signal.addEventListener('abort', onAbort, { once: true })
         const onSuccess = () => {
-          finish(async () => {
+          finish(() => {
             detachBuildLog()
             controller.signal.removeEventListener('abort', onAbort)
-
-            // Build stream completed, but does the image actually exist?
-            try {
-              await this.docker.getImage(job.containerImage).inspect()
-            } catch (e) {
-              return reject(
-                new Error(
-                  `Cannot find image '${job.containerImage}' after building. Most likely it failed: ${
-                    (e as Error)?.message || String(e)
-                  }`
-                )
-              )
-            }
-
-            CORE_LOGGER.debug(`Image '${job.containerImage}' built successfully.`)
-            this.updateImageUsage(job.containerImage).catch((e) => {
-              CORE_LOGGER.error(`Failed to track image usage: ${e.message}`)
-            })
             resolve()
           })
         }
@@ -3938,6 +4030,29 @@ export class C2DEngineDocker extends C2DEngine {
           })
         })
       })
+
+      // The build stream completed. Run the existence check and the vulnerability scan OUTSIDE
+      // the stream callback so a hung or throwing scan is bounded by the outer try/catch
+      // (→ BuildImageFailed → cleanup) rather than leaving the build promise hanging.
+      try {
+        await this.docker.getImage(job.containerImage).inspect()
+      } catch (e) {
+        throw new Error(
+          `Cannot find image '${job.containerImage}' after building. Most likely it failed: ${
+            (e as Error)?.message || String(e)
+          }`
+        )
+      }
+
+      // Image scanning — same Trivy gate used by the service build path. On a vulnerable image
+      // this removes it and throws, so the job fails like any other build failure.
+      await this.scanAndRemoveIfVulnerable(job.containerImage)
+
+      CORE_LOGGER.debug(`Image '${job.containerImage}' built successfully.`)
+      this.updateImageUsage(job.containerImage).catch((e) => {
+        CORE_LOGGER.error(`Failed to track image usage: ${e.message}`)
+      })
+
       job.status = C2DStatusNumber.ConfiguringVolumes
       job.statusText = C2DStatusText.ConfiguringVolumes
       job.buildStopTimestamp = String(Date.now() / 1000)
@@ -4076,8 +4191,16 @@ export class C2DEngineDocker extends C2DEngine {
     try {
       const pack = tarStream.pack()
       pack.entry({ name: 'Dockerfile' }, dockerfile)
-      for (const [name, content] of Object.entries(additionalDockerFiles))
-        pack.entry({ name }, content)
+      const seenNames = new Set<string>()
+      for (const [name, content] of Object.entries(additionalDockerFiles)) {
+        const safeName = this.sanitizeDockerfileEntryName(name)
+        if (seenNames.has(safeName))
+          throw new Error(
+            `additionalDockerFiles: duplicate entry name "${safeName}" in build context`
+          )
+        seenNames.add(safeName)
+        pack.entry({ name: safeName }, content)
+      }
       pack.finalize()
 
       const buildOptions: Dockerode.ImageBuildOptions = {
@@ -4104,19 +4227,8 @@ export class C2DEngineDocker extends C2DEngine {
       await this.docker.getImage(imageRef).inspect()
 
       // Image scanning — same Trivy gate used by pullImageRef(). A built image must clear
-      // it too; on failure remove the built image so it cannot be used to start a service.
-      if (this.scanImages) {
-        const scanResult = await this.checkImageVulnerability(imageRef)
-        if (scanResult.vulnerable) {
-          await this.docker
-            .getImage(imageRef)
-            .remove({ force: true })
-            .catch(() => {})
-          throw new Error(
-            `Image "${imageRef}" failed security scan: ${JSON.stringify(scanResult.summary)}`
-          )
-        }
-      }
+      // it too; on failure the built image is removed so it cannot be used to start a service.
+      await this.scanAndRemoveIfVulnerable(imageRef)
     } finally {
       clearTimeout(timer)
     }
@@ -4544,11 +4656,17 @@ export class C2DEngineDocker extends C2DEngine {
           await this.db.updateServiceJob(job)
           const ram = job.resources.find((r) => r.id === 'ram')?.amount
           const cpu = job.resources.find((r) => r.id === 'cpu')?.amount
+          // Image build gets its own short budget, not the service's full runtime duration, and
+          // is capped so it can never exceed that duration.
+          const buildTimeoutSeconds = this.resolveBuildTimeoutSeconds(
+            sod?.buildTimeoutSeconds,
+            job.duration
+          )
           await this.buildImageFromSpec(
             job.containerImage,
             job.dockerfile,
             job.additionalDockerFiles ?? {},
-            sod?.maxDurationSeconds ?? job.duration,
+            buildTimeoutSeconds,
             ram,
             cpu
           )
@@ -6245,11 +6363,17 @@ export class C2DEngineDocker extends C2DEngine {
         await this.db.updateServiceJob(job)
         const ram = job.resources.find((r) => r.id === 'ram')?.amount
         const cpu = job.resources.find((r) => r.id === 'cpu')?.amount
+        // Image build gets its own short budget, not the service's full runtime duration, and
+        // is capped so it can never exceed that duration.
+        const buildTimeoutSeconds = this.resolveBuildTimeoutSeconds(
+          sod?.buildTimeoutSeconds,
+          job.duration
+        )
         await this.buildImageFromSpec(
           effContainerImage,
           effDockerfile,
           effAdditionalDockerFiles ?? {},
-          sod?.maxDurationSeconds ?? job.duration,
+          buildTimeoutSeconds,
           ram,
           cpu
         )

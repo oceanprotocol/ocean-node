@@ -109,6 +109,12 @@ export const DEFAULT_SERVICE_MAX_DURATION_SECONDS = 86400 // 24 h
 // minJobDuration) is what applies — keeping an unconfigured node billing exactly as before.
 export const DEFAULT_SERVICE_MIN_DURATION_SECONDS = 0
 
+// Hard ceiling on how long a Dockerfile image build may run before it is aborted. This is a
+// SEPARATE budget from a job/service's full runtime duration: a build is only meant to take a
+// few minutes, so a short cap limits how long an untrusted, user-supplied Dockerfile can keep
+// the daemon busy. Always capped by the job/service maxDuration so it can never exceed it.
+export const DEFAULT_BUILD_TIMEOUT_SECONDS = 300 // 5 min
+
 export interface ServiceOnDemandConfig {
   enabled: boolean
   nodeHost: string // host (or IP) clients use to reach forwarded service ports; e.g. 'localhost'
@@ -116,6 +122,7 @@ export interface ServiceOnDemandConfig {
   minDurationSeconds?: number // default: DEFAULT_SERVICE_MIN_DURATION_SECONDS (no daemon floor)
   maxDurationSeconds?: number // default: DEFAULT_SERVICE_MAX_DURATION_SECONDS (24 h)
   allowImageBuild?: boolean // default: false — gates Dockerfile-based services per daemon
+  buildTimeoutSeconds?: number // max image-build runtime; unset → runtime default (DEFAULT_BUILD_TIMEOUT_SECONDS)
 }
 
 /**
