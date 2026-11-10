@@ -44,7 +44,13 @@ describe('Indexer processor MetadataValidated check', () => {
     const provider = {
       getTransactionReceipt: () =>
         Promise.resolve({
-          logs: [{ topics: metadataValidated.topics, data: metadataValidated.data }]
+          logs: [
+            {
+              topics: metadataValidated.topics,
+              data: metadataValidated.data,
+              address: nftAddress
+            }
+          ]
         })
     }
     const config = {

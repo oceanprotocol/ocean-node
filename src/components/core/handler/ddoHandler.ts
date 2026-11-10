@@ -145,7 +145,12 @@ export function findMetadataEventInLogs(
     (log) => log.address.toLowerCase() === dataNftAddress.toLowerCase()
   )
   for (const eventName of [EVENTS.METADATA_CREATED, EVENTS.METADATA_UPDATED]) {
-    const events = fetchEventFromTransaction({ logs: nftLogs }, eventName, abiInterface)
+    const events = fetchEventFromTransaction(
+      { logs: nftLogs },
+      eventName,
+      abiInterface,
+      dataNftAddress
+    )
     if (events && events.length > 0) {
       return events[0]
     }

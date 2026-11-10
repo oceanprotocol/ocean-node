@@ -161,19 +161,29 @@ export class ProviderFees {
     const contractInterface = new Interface(ERC20Template.abi)
     const now = Math.round(new Date().getTime() / 1000)
     const txReceiptMined = await fetchTransactionReceipt(txId, provider)
-    const blockMined = await txReceiptMined.getBlock()
 
     if (!txReceiptMined) {
       const message = `Tx receipt cannot be processed, because tx id ${txId} was not mined.`
       CORE_LOGGER.debug(message)
       return { isValid: false, message, validUntil: 0 }
     }
+    // read the block only after confirming the receipt exists (fail-safe against NPE)
+    const blockMined = await txReceiptMined.getBlock()
 
+    // Bind the ProviderFee event to the service's datatoken emitter: a ProviderFee log
+    // self-emitted by an attacker-controlled contract must not be accepted (ON-01).
     const providerFeesEvents = fetchEventFromTransaction(
       txReceiptMined,
       'ProviderFee',
-      contractInterface
+      contractInterface,
+      service.datatokenAddress
     )
+
+    if (!providerFeesEvents || providerFeesEvents.length === 0) {
+      const message = 'No valid providerFee events'
+      CORE_LOGGER.debug(`${message} in tx ${txId} on chain ${chainId}`)
+      return { isValid: false, message, validUntil: 0 }
+    }
 
     let foundValid = false
     let providerData

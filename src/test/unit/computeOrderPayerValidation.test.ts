@@ -43,7 +43,9 @@ function buildOrderStartedLog(consumer: string, payer: string): any {
     PUBLISH_MARKET,
     7n // blockNumber
   ])
-  return { topics: [...encoded.topics], data: encoded.data }
+  // The order event must be emitted BY the datatoken (ERC20_ADDR) for validation to bind it
+  // to the DDO - fetchEventFromTransaction now filters logs by emitter (ON-01).
+  return { address: ERC20_ADDR, topics: [...encoded.topics], data: encoded.data }
 }
 
 // Fake ethers runner (works as both provider and signer runner): answers the two read
@@ -160,7 +162,8 @@ describe('validateOrderTransaction - OrderReused path (compute payer binding)', 
       BigInt(Math.floor(Date.now() / 1000)),
       8n
     ])
-    return { topics: [...encoded.topics], data: encoded.data }
+    // OrderReused must also be emitted by the datatoken (ERC20_ADDR) to be bound (ON-01).
+    return { address: ERC20_ADDR, topics: [...encoded.topics], data: encoded.data }
   }
 
   function runReused(
