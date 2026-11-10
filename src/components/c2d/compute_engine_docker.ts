@@ -3901,7 +3901,13 @@ export class C2DEngineDocker extends C2DEngine {
       err.name = 'AbortError'
       return err
     }
-    if (signal.aborted) return Promise.reject(abortError())
+    if (signal.aborted) {
+      // Attach a no-op handler so a later rejection of the already-running promise does not
+      // surface as an unhandled rejection (which can crash the process). The underlying
+      // docker/Trivy call keeps running in the background; we just stop observing it.
+      promise.catch(() => {})
+      return Promise.reject(abortError())
+    }
     let onAbort: () => void
     const abortPromise = new Promise<never>((_resolve, reject) => {
       onAbort = () => reject(abortError())
@@ -3928,6 +3934,8 @@ export class C2DEngineDocker extends C2DEngine {
         .getImage(imageRef)
         .remove({ force: true })
         .catch(() => {})
+      // Drop any usage record so cleanupOldImages does not later chase a now-removed image.
+      await this.db.deleteImage(imageRef).catch(() => {})
       throw new Error(
         `Image "${imageRef}" failed security scan: ${JSON.stringify(scanResult.summary)}`
       )
@@ -4079,15 +4087,20 @@ export class C2DEngineDocker extends C2DEngine {
         )
       }
 
+      // Record image usage as soon as the build is confirmed on disk (inspect succeeded),
+      // BEFORE the vulnerability scan. A scan that throws for any reason other than "vulnerable"
+      // (Trivy error, abort/timeout) must not leave the built image on disk untracked —
+      // otherwise cleanupOldImages never reclaims it and it lingers indefinitely. Awaited so
+      // the record is persisted before a vulnerable image can be removed (and un-recorded) below.
+      // updateImageUsage swallows its own errors, so this never throws.
+      await this.updateImageUsage(job.containerImage)
+
       // Image scanning — same Trivy gate used by the service build path, bounded by the same
-      // abort signal. On a vulnerable image this removes it and throws, so the job fails like
-      // any other build failure.
+      // abort signal. On a vulnerable image this removes it (and its usage record) and throws,
+      // so the job fails like any other build failure.
       await this.scanAndRemoveIfVulnerable(job.containerImage, controller.signal)
 
       CORE_LOGGER.debug(`Image '${job.containerImage}' built successfully.`)
-      this.updateImageUsage(job.containerImage).catch((e) => {
-        CORE_LOGGER.error(`Failed to track image usage: ${e.message}`)
-      })
 
       job.status = C2DStatusNumber.ConfiguringVolumes
       job.statusText = C2DStatusText.ConfiguringVolumes
