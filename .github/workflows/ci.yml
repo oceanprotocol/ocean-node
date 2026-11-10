@@ -268,6 +268,7 @@ jobs:
           repository: 'oceanprotocol/ocean.js'
           ref: 'v9.2.2'
           path: 'ocean.js'
+          ref: 'v9.2.3'
       - name: Build ocean-js
         working-directory: ${{ github.workspace }}/ocean.js
         run: |

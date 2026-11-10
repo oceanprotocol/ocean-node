@@ -14,6 +14,7 @@ import { ServiceStatusNumber } from '../../../@types/C2D/ServiceOnDemand.js'
 import { validateAccess } from '../compute/startCompute.js'
 import { validateOutputBucket } from '../compute/utils.js'
 import { findServiceJobAndEngine, toPublicServiceJob } from './utils.js'
+import { maintenanceGuard } from '../utils/maintenance.js'
 
 export class ServiceExtendHandler extends CommandHandler {
   validate(command: ServiceExtendCommand): ValidateParams {
@@ -33,6 +34,11 @@ export class ServiceExtendHandler extends CommandHandler {
   async handle(task: ServiceExtendCommand): Promise<P2PCommandResponse> {
     const validationResponse = await this.verifyParamsAndRateLimits(task)
     if (this.shouldDenyTaskHandling(validationResponse)) return validationResponse
+
+    // Maintenance (drain) gate — an extend is new commitment (another lock+claim), so reject
+    // it while draining, before any auth/escrow work.
+    const maintenanceResponse = maintenanceGuard(this.getOceanNode())
+    if (maintenanceResponse) return maintenanceResponse
 
     const auth = await this.validateTokenOrSignature(
       task.authorization,
