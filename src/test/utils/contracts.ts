@@ -60,9 +60,14 @@ export async function deployAccessListContract(
   try {
     // Get the current nonce to ensure we're using the correct one
     const signerAddress = await signer.getAddress()
-    const currentNonce = await signer.provider.getTransactionCount(
-      signerAddress,
-      'pending'
+    const rpc =
+      signer.provider instanceof JsonRpcProvider
+        ? signer.provider
+        : new JsonRpcProvider('http://127.0.0.1:8545', DEVELOPMENT_CHAIN_ID, {
+            staticNetwork: true
+          })
+    const currentNonce = Number(
+      await rpc.send('eth_getTransactionCount', [signerAddress, 'pending'])
     )
 
     const tx = await contract.deployAccessListContract(
