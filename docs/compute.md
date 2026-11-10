@@ -853,6 +853,58 @@ Registry/manifest errors returned to the caller are **generic** (e.g. "Image man
 be retrieved"); the detailed upstream error is kept in the node's server logs only, so the
 unauthenticated `initializeCompute` endpoint cannot be used as a registry probe/oracle.
 
+### Private-registry support at a glance
+
+| Registry setup | Works out of the box? | Why / what to do |
+| --- | --- | --- |
+| Docker Hub private image | ✅ | built-in realm map (`registry-1.docker.io` → `auth.docker.io`) |
+| **gitlab.com** (SaaS) private image | ✅ | built-in realm map (`registry.gitlab.com` → `gitlab.com`) |
+| GHCR / Quay / GCR private image | ✅ | token host equals the registry host (`realmHost === registryHost`) |
+| Self-hosted registry accepting **Basic** on `/v2/` (Harbor, plain `registry`+htpasswd) | ✅ | no realm dance — the initial Basic header authenticates the request |
+| Self-hosted registry whose **token host == registry host** | ✅ | `realmHost === registryHost` |
+| **Self-hosted GitLab** (split host: `registry.* ` ≠ `/jwt/auth` host) | ❌ → needs config | add the auth host to `ALLOWED_DOCKER_REGISTRY_REALMS` (see below) |
+| Any registry whose token host differs **and** isn't built-in | ❌ → needs config | add the token host to `ALLOWED_DOCKER_REGISTRY_REALMS` |
+
+In all cases the credentials themselves come from `DOCKER_REGISTRY_AUTHS` (node-level) or the
+per-job `encryptedDockerRegistryAuth`; the table above is only about **whether the node will send
+those credentials to the registry's token host**. "Needs config" entries are an operator action,
+not something the compute consumer can set.
+
+### Private images on a self-hosted GitLab (or any split-host registry)
+
+A **self-hosted GitLab** serves its container registry and its token/JWT auth endpoint on
+**different hosts**, for example:
+
+- registry host: `registry.gitlab.mycompany.com` (or `gitlab.mycompany.com:5050`)
+- token realm:  `https://gitlab.mycompany.com/jwt/auth`
+
+Because the realm host (`gitlab.mycompany.com`) does not equal the registry host and is **not** one
+of the built-in well-known realms (which cover only Docker Hub and **gitlab.com SaaS**), the node
+would fetch the validation token **anonymously** and a **private** image would be rejected at
+`initializeCompute` ("Image manifest could not be retrieved"). To make it work, the node operator
+must trust that auth host explicitly:
+
+```bash
+# the GitLab host that serves /jwt/auth — NOT the registry host
+export ALLOWED_DOCKER_REGISTRY_REALMS='["gitlab.mycompany.com"]'
+```
+
+Notes:
+
+- This is a **node-operator** setting, not a per-job parameter — the compute **consumer** cannot
+  set it. A user whose private image lives on their own self-hosted GitLab needs either their own
+  node, or the public node's operator to add their auth host here.
+- `ALLOWED_DOCKER_REGISTRY_REALMS` is kept **separate** from `ALLOWED_DOCKER_REGISTRIES` on
+  purpose: trusting a token realm does **not** turn on registry allow-list mode (any registry
+  stays pullable unless you *also* set `ALLOWED_DOCKER_REGISTRIES`).
+- Registries that accept **Basic auth directly** on `/v2/` (Harbor, a plain `registry` with
+  htpasswd, etc.), or that serve their token endpoint on the **same host** as the registry, need
+  no extra configuration — the credentials are already sent on the first request / to the matching
+  realm host.
+- Credentials themselves still come from `DOCKER_REGISTRY_AUTHS` (node-level) or the per-job
+  `encryptedDockerRegistryAuth`; this setting only controls **which realm host** they may be sent
+  to.
+
 Node-level registry credentials are configured with `DOCKER_REGISTRY_AUTHS`; per-job encrypted
 credentials are documented in `docs/env.md`.
 
