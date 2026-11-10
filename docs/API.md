@@ -1,5 +1,24 @@
 # Ocean Node Api
 
+## Release note — `decryptDDO` signed-message change (ON-02, BREAKING)
+
+As of Ocean Node **v4.8.0**, the `decryptDDO` signature scheme is bound to the destination node's
+peerId and to the specific resource (`chainId + transactionId + dataNftAddress`), and the signing
+node uses a local monotonic nonce instead of trusting a nonce fetched from the on-chain
+`decryptorURL`. See the HTTP `POST /api/services/decrypt` and P2P `decryptDDO` sections for the
+exact message.
+
+This is a coordinated signer/verifier change and is **not backwards compatible** between node
+versions. When nodes on different versions talk to each other over **HTTP**, the signed message
+will not match, the HTTP decrypt attempt fails, and the Indexer **falls back to the existing P2P
+decrypt path** — which is safe (no silent downgrade). Mixed-version HTTP decrypt therefore keeps
+working via P2P until **both** sides are upgraded. There is intentionally no "accept the old
+message too" path, because that would re-open the cross-node signature-replay vulnerability this
+change closes. Client libraries that construct the `decryptDDO` message themselves
+(`ocean.js` / indexer clients) must adopt the new format.
+
+---
+
 ## Address casing
 
 Every EVM address you send (`consumerAddress`, `owner`, `address`, `decrypterAddress`,
@@ -294,7 +313,25 @@ returns decrypted document
 | flags             | number |          | metadata flags if DDO is ECIES encrypted or lzma compressed                                   |
 | documentHash      | string |          | hash based on sha256 of asset                                                                 |
 | nonce             | string | v        | is required to verify a request paired with a signature                                       |
-| signature         | string | v        | signed message based on `transactionId + dataNftAddress + decrypterAddress + chainId + nonce` |
+| signature         | string | v        | signed message (see below)                                                                    |
+
+> **ON-02 signed-message format (BREAKING, since Ocean Node v4.8.0).** The `decryptDDO`
+> signature now binds the **destination node** and the **exact resource**, so a signature cannot
+> be replayed against another node or for another asset. The signed message is:
+>
+> ```
+> decrypterAddress + nonce + "decryptDDO" + issuerPeerId + chainId + transactionId + dataNftAddress
+> ```
+>
+> - `issuerPeerId` is the **target (decrypting) node's own peerId** — i.e. the `nodeId` returned
+>   by that node's root `GET /` endpoint. A signature minted for node A is rejected by node B.
+> - `chainId`, `transactionId`, `dataNftAddress` bind the signature to a single decrypt.
+> - `nonce` is a client-local monotonic value (the Indexer uses `Date.now()`); the node no longer
+>   fetches a nonce from the (untrusted) `decryptorURL`.
+>
+> This is a coordinated signer/verifier change. A node on the old scheme talking to a node on the
+> new scheme will **fail the HTTP decrypt and fall back to the P2P decrypt path** (see the release
+> note below); there is deliberately no "accept the old message" fallback.
 
 #### Request
 
@@ -339,14 +376,39 @@ Files whose host is, or resolves to, a private, loopback, link-local or otherwis
 
 #### Parameters
 
-| name      | type   | required | description                              |
-| --------- | ------ | -------- | ---------------------------------------- |
-| type      | string |          | type of storage `url or arweave or ipfs` |
-| did       | string |          | document id or did                       |
-| serviceId | number |          | service id of services list              |
-| fileIndex | number |          | file index in files array                |
-| file      | object |          | file data                                |
-| checksum  | number |          | index in transaction events list         |
+| name      | type   | required | description                                         |
+| --------- | ------ | -------- | --------------------------------------------------- |
+| type      | string |          | type of storage `url or arweave or ipfs`            |
+| did       | string |          | document id or did                                  |
+| serviceId | number |          | service id of services list                         |
+| fileIndex | number |          | file index in files array                           |
+| file      | object |          | file data                                           |
+| checksum  | number |          | index in transaction events list                    |
+| address   | string |          | signer address (raw-`file` path, see Auth below)    |
+| nonce     | string |          | nonce (raw-`file` path, see Auth below)             |
+| signature | string |          | signature (raw-`file` path, see Auth below)         |
+
+#### Authentication (raw-`file` path, ON-07)
+
+When a raw `file` object is supplied (as opposed to `did` + `serviceId`), the request **must be
+authenticated**. Provide either:
+
+- a **signature**: sign the message `address + nonce + command` (where `command` is `"fileInfo"`)
+  with the `address` key — identical to the `download`/`encrypt` convention — and send `address`,
+  `nonce` and `signature`; or
+- an **auth token** in the `Authorization` request header.
+
+An unauthenticated raw-`file` request is answered with `401`. Operators migrating older clients can
+temporarily disable this check with `FILEINFO_ALLOW_UNAUTHENTICATED=true` (see
+[env.md](env.md)) — this is a transition flag, not a recommended steady state.
+
+Any custom headers supplied inside the `file` object are filtered to an allow-list
+(`accept`, `accept-encoding`, `range`, `content-type`, extended by `FILEINFO_ALLOWED_HEADERS`)
+before the node fetches the target; `authorization`, `cookie` and other headers are dropped. The
+raw-`file` path can also be throttled independently via `FILEINFO_MAX_REQ_PER_MINUTE`.
+
+The `did` + `serviceId` path is unchanged: it keeps its existing DDO-based access control and
+needs no signature.
 
 #### Request
 
@@ -681,6 +743,12 @@ returns file information
 | fileIndex | number |          | file index in files array                |
 | file      | object |          | file data                                |
 | checksum  | number |          | index in transaction events list         |
+| address   | string |          | signer address (raw-`file` path)         |
+| nonce     | string |          | nonce (raw-`file` path)                  |
+| signature | string |          | signature over `address + nonce + command` (raw-`file` path) |
+
+> **ON-07 auth:** a raw `file` object requires a signature (`address + nonce + command`) or an
+> auth token, the same as the HTTP endpoint above. The `did` + `serviceId` path is unchanged.
 
 #### Request
 
@@ -1129,7 +1197,17 @@ returns decrypted document
 | flags             | number |          | metadata flags if DDO is ECIES encrypted or lzma compressed                                   |
 | documentHash      | string |          | hash based on sha256 of asset                                                                 |
 | nonce             | string | v        | is required to verify a request paired with a signature                                       |
-| signature         | string | v        | signed message based on `transactionId + dataNftAddress + decrypterAddress + chainId + nonce` |
+| signature         | string | v        | signed message (see below)                                                                    |
+
+> **ON-02 signed-message format (BREAKING, since Ocean Node v4.8.0).** Same bound message as the
+> HTTP `/api/services/decrypt` endpoint:
+>
+> ```
+> decrypterAddress + nonce + "decryptDDO" + issuerPeerId + chainId + transactionId + dataNftAddress
+> ```
+>
+> Over P2P the `issuerPeerId` is the peerId of the node the command is sent to (the destination),
+> which is already known. See the HTTP decrypt section above for the full rationale.
 
 #### Request
 

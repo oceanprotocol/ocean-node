@@ -825,6 +825,39 @@ to free jobs even if the paid environment offers it. Free jobs cannot build imag
 
 ---
 
+## Container registry security
+
+Algorithm images are referenced by the consumer as part of the compute request, so the node
+treats the registry host as untrusted input. Two protections apply during image validation
+(`initializeCompute`), in addition to the SSRF address guard:
+
+- **Registry allow-list (`ALLOWED_DOCKER_REGISTRIES`, opt-in).** Set this global env var to a
+  JSON array of registry **hosts** (e.g. `["registry-1.docker.io","ghcr.io"]`) to restrict
+  which registries algorithm images may come from. An image whose parsed registry host is not
+  listed is rejected **before any outbound request** is made. Leaving it empty (the default)
+  keeps the current behaviour — any public registry is allowed — so this change is non-breaking.
+  Localhost/private registries remain gated by the SSRF guard regardless of this list.
+- **`www-authenticate` realm-host credential binding.** When a registry answers with a `401`
+  bearer challenge, the node fetches a token from the challenge's `realm` URL. The operator's
+  Basic credentials are attached **only** when the realm host is **trusted** and the realm is
+  `https`; otherwise the token is fetched **anonymously**. A realm host is trusted when it equals
+  the registry host, is a **built-in** well-known realm for that registry (Docker Hub →
+  `auth.docker.io`, GitLab → `gitlab.com` — so **authenticated/private** pulls from them work out
+  of the box), is listed in `ALLOWED_DOCKER_REGISTRY_REALMS`, or is listed in
+  `ALLOWED_DOCKER_REGISTRIES`. This lets standard registries that serve tokens on a separate host
+  keep working — including for private images — while stopping a malicious registry from
+  harvesting the operator's credentials via an attacker-controlled `realm`. See `docs/env.md` →
+  "Docker Registry Authentication" for the credential-scoping details.
+
+Registry/manifest errors returned to the caller are **generic** (e.g. "Image manifest could not
+be retrieved"); the detailed upstream error is kept in the node's server logs only, so the
+unauthenticated `initializeCompute` endpoint cannot be used as a registry probe/oracle.
+
+Node-level registry credentials are configured with `DOCKER_REGISTRY_AUTHS`; per-job encrypted
+credentials are documented in `docs/env.md`.
+
+---
+
 ## Verify
 
 ```bash

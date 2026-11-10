@@ -10,6 +10,7 @@ import { NonceCommand } from '../../../@types/commands.js'
 import { streamToString } from '../../../utils/util.js'
 import { Readable } from 'node:stream'
 import { addressCasingVariants } from '../../../utils/evmAddress.js'
+import { buildDecryptDDOSignatureMessage } from '../../../utils/crypt.js'
 
 export function getDefaultErrorResponse(errorMessage: string): P2PCommandResponse {
   return {
@@ -111,7 +112,9 @@ export async function checkNonce(
   nonce: number,
   signature: string,
   command: string,
-  chainId?: string | null
+  chainId?: string | null,
+  // ON-02: resource-binding fields, appended to the signed message ONLY for DECRYPT_DDO.
+  extraSignedFields?: { txId?: string; dataNftAddress?: string }
 ): Promise<NonceResponse> {
   try {
     // get nonce from db
@@ -128,7 +131,8 @@ export async function checkNonce(
       signature,
       command,
       config,
-      chainId
+      chainId,
+      extraSignedFields
     )
     if (validate.valid) {
       const updateStatus = await updateNonce(db, consumer, nonce)
@@ -169,7 +173,8 @@ async function validateNonceAndSignature(
   signature: string,
   command: string = null,
   config: OceanNodeConfig,
-  chainId?: string | null
+  chainId?: string | null,
+  extraSignedFields?: { txId?: string; dataNftAddress?: string }
 ): Promise<NonceResponse> {
   if (nonce <= existingNonce) {
     return {
@@ -177,8 +182,11 @@ async function validateNonceAndSignature(
       error: 'nonce: ' + nonce + ' is not a valid nonce'
     }
   }
+  // ON-02: DECRYPT_DDO binds the signed message to THIS (verifier) node's peerId, exactly as
+  // CREATE_AUTH_TOKEN does, so a signature harvested from one node cannot be replayed at another.
   const issuerPeerId =
-    command === PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN
+    command === PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN ||
+    command === PROTOCOL_COMMANDS.DECRYPT_DDO
       ? OceanNode.getInstance().getKeyManager().getPeerIdString()
       : ''
   if (
@@ -189,7 +197,8 @@ async function validateNonceAndSignature(
       issuerPeerId,
       command,
       config,
-      chainId
+      chainId,
+      extraSignedFields
     )
   ) {
     return { valid: true }
@@ -207,7 +216,8 @@ export async function verifyConsumerSignature(
   issuerPeerId: string,
   command: string = null,
   config?: OceanNodeConfig,
-  chainId?: string | null
+  chainId?: string | null,
+  extraSignedFields?: { txId?: string; dataNftAddress?: string }
 ): Promise<boolean> {
   // The signed message embeds the consumer address as a STRING, so its casing is part of what
   // was signed. Addresses are checksum-normalized on ingress (utils/evmAddress.ts), which would
@@ -222,7 +232,8 @@ export async function verifyConsumerSignature(
         issuerPeerId,
         command,
         config,
-        chainId
+        chainId,
+        extraSignedFields
       )
     ) {
       return true
@@ -238,11 +249,23 @@ async function verifySignatureForConsumer(
   issuerPeerId: string,
   command: string = null,
   config?: OceanNodeConfig,
-  chainId?: string | null
+  chainId?: string | null,
+  extraSignedFields?: { txId?: string; dataNftAddress?: string }
 ): Promise<boolean> {
-  const message = String(
-    String(consumer) + String(nonce) + String(command) + String(issuerPeerId)
-  )
+  // ON-02: DECRYPT_DDO uses a resource- and destination-bound message built by the SHARED
+  // helper that the Indexer signer also uses, so signer and verifier cannot drift. Every other
+  // command keeps its byte-for-byte original message (consumer + nonce + command + issuerPeerId).
+  const message =
+    command === PROTOCOL_COMMANDS.DECRYPT_DDO
+      ? buildDecryptDDOSignatureMessage({
+          decrypterAddress: String(consumer),
+          nonce,
+          issuerPeerId: String(issuerPeerId),
+          chainId: chainId ?? '',
+          txId: extraSignedFields?.txId ?? '',
+          dataNftAddress: extraSignedFields?.dataNftAddress ?? ''
+        })
+      : String(String(consumer) + String(nonce) + String(command) + String(issuerPeerId))
   const consumerMessage = ethers.solidityPackedKeccak256(
     ['bytes'],
     [ethers.hexlify(ethers.toUtf8Bytes(message))]

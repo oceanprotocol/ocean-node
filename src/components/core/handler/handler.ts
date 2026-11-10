@@ -205,6 +205,51 @@ export abstract class BaseHandler implements ICommandHandler {
     }
   }
 
+  /**
+   * ON-07: a dedicated, stricter rate limit for a specific command path, counted in a
+   * SEPARATE bucket (namespaced key) so it does not share counters with the global limiter.
+   * `ratePerMinute <= 0` disables it (returns true). Reuses `checkRequestData` plumbing.
+   */
+  // eslint-disable-next-line require-await
+  async checkRateLimitForBucket(
+    caller: string | string[],
+    ratePerMinute: number,
+    bucket: string
+  ): Promise<boolean> {
+    if (!caller || !ratePerMinute || ratePerMinute <= 0) {
+      return true
+    }
+    const node = this.getOceanNode()
+    const requestMap = node.getRequestMap()
+    const requestTime = new Date().getTime()
+    const callers = Array.isArray(caller) ? caller : [caller]
+    for (const remote of callers) {
+      const key = `${bucket}:${remote}`
+      if (!requestMap.has(key)) {
+        requestMap.set(key, {
+          requester: key,
+          lastRequestTime: requestTime,
+          numRequests: 1
+        })
+        continue
+      }
+      const updated = this.checkRequestData(key, requestTime, ratePerMinute)
+      requestMap.set(key, updated.updatedRequestData)
+      if (!updated.valid) {
+        CORE_LOGGER.throttled(
+          RATE_LIMIT_LOG_KEY,
+          'warn',
+          `Request denied (${bucket} rate limit exceeded) for remote caller ${remote} (${
+            requestMap.get(key)?.numRequests
+          } requests in the current window)`,
+          RATE_LIMIT_LOG_INTERVAL_MS
+        )
+        return false
+      }
+    }
+    return true
+  }
+
   shouldDenyTaskHandling(validationResponse: P2PCommandResponse): boolean {
     return (
       validationResponse.status.httpStatus !== 200 ||
@@ -245,7 +290,12 @@ export abstract class CommandHandler
     address: string,
     nonce: string,
     signature: string,
-    command: string
+    command: string,
+    // ON-02: OPTIONAL resource/destination binding fields forwarded to the nonce verifier.
+    // They are appended to the signed message ONLY for DECRYPT_DDO; callers that pass nothing
+    // (e.g. ON-07 fileInfo, validateDDO, download) keep the unchanged message, so this stays
+    // fully backward-compatible.
+    extraSignedFields?: { chainId?: string; txId?: string; dataNftAddress?: string }
   ): Promise<P2PCommandResponse & { consumerAddress?: string }> {
     const oceanNode = this.getOceanNode()
     const auth = oceanNode.getAuth()
@@ -260,7 +310,10 @@ export abstract class CommandHandler
       address,
       nonce,
       signature,
-      command
+      command,
+      chainId: extraSignedFields?.chainId,
+      txId: extraSignedFields?.txId,
+      dataNftAddress: extraSignedFields?.dataNftAddress
     })
     if (!isAuthRequestValid.valid) {
       return {

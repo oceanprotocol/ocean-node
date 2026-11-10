@@ -62,6 +62,12 @@ fileInfoRoute.post(
           file: fileObject,
           type: fileObject.type as FileObjectType,
           consumerAddress,
+          // ON-07: auth for the raw-`file` path. Token from the Authorization header, or a
+          // signature over (address + nonce + command) from the body.
+          authorization: req.headers?.authorization,
+          address: (req.body as { address?: string })?.address,
+          nonce: (req.body as { nonce?: string })?.nonce,
+          signature: (req.body as { signature?: string })?.signature,
           caller: req.caller
         }
       }

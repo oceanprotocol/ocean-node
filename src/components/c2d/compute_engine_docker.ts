@@ -1508,6 +1508,60 @@ export class C2DEngineDocker extends C2DEngine {
     return { registry, name, ref }
   }
 
+  // ON-18: well-known registries serve their bearer-token endpoint on a DIFFERENT host than the
+  // registry itself, so a private pull from them needs the operator's credentials sent to that
+  // separate realm host. This fixed built-in list maps a registry host to the token-realm
+  // host(s) trusted to receive those credentials, so authenticated Docker Hub / GitLab pulls keep
+  // working without the operator having to configure anything. Operators add their own via
+  // ALLOWED_DOCKER_REGISTRY_REALMS, which is kept SEPARATE from ALLOWED_DOCKER_REGISTRIES so that
+  // trusting a token realm never turns on registry allow-list mode.
+  private static readonly KNOWN_REGISTRY_REALM_HOSTS: Record<string, string[]> = {
+    'registry-1.docker.io': ['auth.docker.io'],
+    'index.docker.io': ['auth.docker.io'],
+    'docker.io': ['auth.docker.io'],
+    'registry.gitlab.com': ['gitlab.com']
+  }
+
+  // ON-18: extract the host portion of a parsed registry URL (e.g. "ghcr.io" from
+  // "https://ghcr.io"). Falls back to the raw string if it is not a parseable URL.
+  // Normalize a host for comparison: lowercase and strip a trailing dot. `URL.host`
+  // already lowercases the hostname and drops the scheme's default port (:443/:80), so
+  // operator allow-list entries are run through the same normalization.
+  private normalizeRegistryHost(host: string): string {
+    return (host || '').trim().toLowerCase().replace(/\.$/, '')
+  }
+
+  private getRegistryHost(registry: string): string {
+    try {
+      return this.normalizeRegistryHost(new URL(registry).host)
+    } catch {
+      return this.normalizeRegistryHost(registry)
+    }
+  }
+
+  // ON-18: when ALLOWED_DOCKER_REGISTRIES is set (non-empty), reject images whose parsed
+  // registry host is not listed, BEFORE any outbound request. Returns a rejection
+  // ValidateParams when the registry is not allowed, or null when it is allowed / the
+  // allow-list is disabled (empty = current behaviour, non-breaking).
+  private checkRegistryAllowList(registry: string): ValidateParams | null {
+    const allowedRegistries = (this.getConfig()?.allowedDockerRegistries || []).map(
+      (entry) => this.normalizeRegistryHost(entry)
+    )
+    if (allowedRegistries.length === 0) return null
+    const host = this.getRegistryHost(registry)
+    if (!allowedRegistries.includes(host)) {
+      CORE_LOGGER.warn(
+        `Rejecting image from registry host "${host}": not in ALLOWED_DOCKER_REGISTRIES`
+      )
+      return {
+        valid: false,
+        status: 400,
+        reason: 'Image registry is not in the allowed registries list'
+      }
+    }
+    return null
+  }
+
   public async getDockerManifest(
     image: string,
     encryptedDockerRegistryAuth?: string
@@ -1574,24 +1628,61 @@ export class C2DEngineDocker extends C2DEngine {
           throw new Error(`Registry token endpoint is not reachable: ${realmSsrfErr}`)
         }
         const tokenUrl = new URL(match[1])
+
+        // ON-18: never forward the operator's Basic registry credentials to a token-endpoint
+        // (`www-authenticate` realm) host the registry does not own. A malicious/misconfigured
+        // registry can point `realm` at an arbitrary host to harvest those credentials.
+        // Standard registries legitimately serve the token endpoint on a DIFFERENT host than
+        // the registry (Docker Hub: registry-1.docker.io -> auth.docker.io; GitLab:
+        // registry.gitlab.com -> gitlab.com). Those well-known realm hosts are trusted via the
+        // built-in KNOWN_REGISTRY_REALM_HOSTS map (so authenticated pulls from them work), and an
+        // operator can trust additional realm hosts via ALLOWED_DOCKER_REGISTRY_REALMS — kept
+        // SEPARATE from ALLOWED_DOCKER_REGISTRIES so trusting a realm does not enable allow-list
+        // mode. When the realm host is not trusted the token is fetched ANONYMOUSLY (public pulls
+        // keep working, credentials are never leaked). Credentials are sent only over https.
+        const registryHost = this.getRegistryHost(registry)
+        const realmHost = this.normalizeRegistryHost(tokenUrl.host)
+        const allowedRegistries = (this.getConfig()?.allowedDockerRegistries || []).map(
+          (entry) => this.normalizeRegistryHost(entry)
+        )
+        const knownRealmHosts =
+          C2DEngineDocker.KNOWN_REGISTRY_REALM_HOSTS[registryHost] || []
+        const extraRealmHosts = (this.getConfig()?.allowedDockerRegistryRealms || []).map(
+          (entry) => this.normalizeRegistryHost(entry)
+        )
+        const realmTrusted =
+          realmHost === registryHost ||
+          knownRealmHosts.includes(realmHost) ||
+          extraRealmHosts.includes(realmHost) ||
+          allowedRegistries.includes(realmHost)
+
         tokenUrl.searchParams.set('service', match[2])
         tokenUrl.searchParams.set('scope', `repository:${name}:pull`)
 
-        // Add Basic auth to token request if we have credentials
+        // Attach Basic auth to the token request only when the realm host is trusted and the
+        // realm is https. `redirect: 'error'` prevents the credential header from following a
+        // redirect off the vetted host.
         const tokenHeaders: Record<string, string> = {}
+        let tokenRedirect: 'follow' | 'error' = 'follow'
         if (dockerRegistryAuth) {
-          // Use auth string if available, otherwise encode username:password
-          const authString = dockerRegistryAuth.auth
-            ? dockerRegistryAuth.auth
-            : Buffer.from(
-                `${dockerRegistryAuth.username}:${dockerRegistryAuth.password}`
-              ).toString('base64')
-          tokenHeaders.Authorization = `Basic ${authString}`
+          if (realmTrusted && tokenUrl.protocol === 'https:') {
+            const authString = dockerRegistryAuth.auth
+              ? dockerRegistryAuth.auth
+              : Buffer.from(
+                  `${dockerRegistryAuth.username}:${dockerRegistryAuth.password}`
+                ).toString('base64')
+            tokenHeaders.Authorization = `Basic ${authString}`
+            tokenRedirect = 'error'
+          } else {
+            CORE_LOGGER.warn(
+              `Not forwarding registry credentials to token realm host "${realmHost}" (registry host "${registryHost}", scheme "${tokenUrl.protocol}"); fetching token anonymously`
+            )
+          }
         }
 
         const tokenResp = await fetchHeadersTimeout(
           tokenUrl.toString(),
-          { headers: tokenHeaders, dispatcher: safeDispatcher },
+          { headers: tokenHeaders, redirect: tokenRedirect, dispatcher: safeDispatcher },
           20000
         )
         const { token } = (await tokenResp.json()) as {
@@ -1627,6 +1718,14 @@ export class C2DEngineDocker extends C2DEngine {
     encryptedDockerRegistryAuth?: string,
     platform?: RunningPlatform
   ): Promise<ValidateParams> {
+    // ON-18: enforce the opt-in registry allow-list BEFORE any local or remote lookup, so a
+    // non-listed registry is rejected without issuing an outbound request.
+    const { registry } = this.parseImage(image)
+    const allowListError = this.checkRegistryAllowList(registry)
+    if (allowListError) {
+      return allowListError
+    }
+
     // Step 1: Try to check local image first
     if (this.docker) {
       try {
@@ -1688,6 +1787,9 @@ export class C2DEngineDocker extends C2DEngine {
 
       return { valid: isValidPlatform }
     } catch (err: any) {
+      // ON-18: keep the detailed upstream registry error (err.errors / err.message) in the
+      // server log ONLY — never reflect it to the caller. initializeCompute is unauthenticated,
+      // so an echoed upstream body would leak registry internals / act as an SSRF oracle.
       CORE_LOGGER.error(
         `Manifest for ${image} unavailable: ${errorSummary(err)}${
           err.errors?.length ? ' ' + safeStringify(err.errors, { maxLength: 500 }) : ''
@@ -1697,7 +1799,7 @@ export class C2DEngineDocker extends C2DEngine {
       return {
         valid: false,
         status: 404,
-        reason: err.errors?.length ? JSON.stringify(err.errors) : err.message
+        reason: 'Image manifest could not be retrieved'
       }
     }
   }
@@ -4014,6 +4116,13 @@ export class C2DEngineDocker extends C2DEngine {
     const timer = setTimeout(() => controller.abort(), this.getImagePullTimeoutMs())
     try {
       const { registry } = this.parseImage(imageRef)
+      // ON-18: enforce ALLOWED_DOCKER_REGISTRIES on the service-on-demand pull path too
+      // (the image ref here is caller-supplied via SERVICE_START). Without this the allow-list
+      // would only constrain compute-algorithm images, leaving service pulls unconstrained.
+      const allowListError = this.checkRegistryAllowList(registry)
+      if (allowListError) {
+        throw new Error(allowListError.reason)
+      }
       let dockerRegistryAuthForPull: any
       if (encryptedDockerRegistryAuth) {
         const decryptedDockerRegistryAuth = await this.keyManager.decrypt(

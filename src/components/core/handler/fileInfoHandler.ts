@@ -15,6 +15,7 @@ import { validateDDOIdentifier } from './ddoHandler.js'
 import {
   ValidateParams,
   buildInvalidRequestMessage,
+  buildRateLimitReachedResponse,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 import { getFile } from '../../../utils/file.js'
@@ -108,7 +109,38 @@ export class FileInfoHandler extends CommandHandler {
       let fileInfo = []
 
       if (task.file && task.type) {
-        const storage = Storage.getStorageClass(task.file, config, task.consumerAddress)
+        // ON-07: the raw-`file` object is a caller-controlled outbound fetch primitive.
+        // 1) dedicated, stricter rate limit (separate bucket from the global limiter),
+        // 2) require a valid signature/token (unless the transition flag is set).
+        if (
+          !(await this.checkRateLimitForBucket(
+            task.caller,
+            config.fileInfoRateLimit,
+            'fileinfo'
+          ))
+        ) {
+          return buildRateLimitReachedResponse()
+        }
+        if (!config.fileInfoAllowUnauthenticated) {
+          const signerAddress = task.address ?? task.consumerAddress
+          const authResponse = await this.validateTokenOrSignature(
+            task.authorization,
+            signerAddress,
+            task.nonce,
+            task.signature,
+            task.command
+          )
+          if (authResponse.status.httpStatus !== 200) {
+            return authResponse
+          }
+        }
+        // Headers on a raw caller-supplied `file` are untrusted: allow-list them before they
+        // are forwarded upstream (prevents header injection to internal services).
+        const storage = Storage.getStorageClass(
+          task.file,
+          config,
+          task.consumerAddress
+        ).markHeadersUntrusted()
 
         fileInfo = await storage.getFileInfo({
           type: task.type,

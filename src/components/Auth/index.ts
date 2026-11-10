@@ -51,6 +51,9 @@ export interface AuthValidation {
   signature?: string
   command?: string
   chainId?: string | null
+  // ON-02: resource-binding fields appended to the signed message ONLY for DECRYPT_DDO.
+  txId?: string
+  dataNftAddress?: string
 }
 
 export class Auth {
@@ -222,7 +225,8 @@ export class Auth {
   async validateAuthenticationOrToken(
     authValidation: AuthValidation
   ): Promise<CommonValidation & { address?: string }> {
-    const { token, address, nonce, signature, command, chainId } = authValidation
+    const { token, address, nonce, signature, command, chainId, txId, dataNftAddress } =
+      authValidation
     try {
       if (signature && address && nonce) {
         const oceanNode = OceanNode.getInstance()
@@ -233,7 +237,8 @@ export class Auth {
           parseInt(nonce),
           signature,
           command,
-          chainId
+          chainId,
+          { txId, dataNftAddress }
         )
 
         if (!nonceCheckResult.valid) {

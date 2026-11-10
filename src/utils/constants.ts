@@ -528,6 +528,44 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.ALLOWED_PRIVATE_URL_RANGES,
     required: false
   },
+  ALLOWED_DOCKER_REGISTRIES: {
+    // ON-18: opt-in allow-list of Docker registry hosts (JSON array). Empty = any registry.
+    name: 'ALLOWED_DOCKER_REGISTRIES',
+    value: process.env.ALLOWED_DOCKER_REGISTRIES,
+    required: false
+  },
+  ALLOWED_DOCKER_REGISTRY_REALMS: {
+    // ON-18: opt-in extra token-realm hosts trusted to receive registry credentials (JSON
+    // array). Separate from ALLOWED_DOCKER_REGISTRIES so trusting a realm never enables the
+    // registry allow-list. Built-in realms (Docker Hub, GitLab) are always trusted.
+    name: 'ALLOWED_DOCKER_REGISTRY_REALMS',
+    value: process.env.ALLOWED_DOCKER_REGISTRY_REALMS,
+    required: false
+  },
+  FILEINFO_ALLOW_UNAUTHENTICATED: {
+    // ON-07: when "true", the raw-`file` fileInfo path skips the signature/token check.
+    // Default false (secure). Temporary transition flag until clients sign fileInfo requests.
+    name: 'FILEINFO_ALLOW_UNAUTHENTICATED',
+    value: process.env.FILEINFO_ALLOW_UNAUTHENTICATED,
+    required: false
+  },
+  FILEINFO_ALLOWED_HEADERS: {
+    // ON-07: JSON array of extra request-header names allowed through to the upstream when a
+    // caller supplies `file.headers` on the raw-`file` fileInfo path (the only path whose caller
+    // headers are treated as untrusted and filtered). Extends the default allow-list (accept,
+    // accept-encoding, range, content-type); everything else (authorization, cookie, x-* keys) is
+    // dropped. DDO-sourced headers (download / compute / did+serviceId) are trusted, not filtered.
+    name: 'FILEINFO_ALLOWED_HEADERS',
+    value: process.env.FILEINFO_ALLOWED_HEADERS,
+    required: false
+  },
+  FILEINFO_MAX_REQ_PER_MINUTE: {
+    // ON-07: dedicated, stricter per-caller rate limit for the raw-`file` fileInfo path
+    // (separate bucket from MAX_REQ_PER_MINUTE). 0 or unset = disabled.
+    name: 'FILEINFO_MAX_REQ_PER_MINUTE',
+    value: process.env.FILEINFO_MAX_REQ_PER_MINUTE,
+    required: false
+  },
   DB_TYPE: {
     name: 'DB_TYPE',
     value: process.env.DB_TYPE,
