@@ -9,17 +9,14 @@ import {
   GetNodeMetricsCommand,
   GetNodeMetricsHistoryCommand
 } from '../../@types/commands.js'
-import {
-  NodeMetricsDatabase,
-  floorToHour
-} from '../../components/database/sqliteNodeMetrics.js'
+import { Client } from '@elastic/elasticsearch'
+import { floorToHour } from '../../components/database/nodeMetricsAggregate.js'
+import { ElasticsearchNodeMetrics } from '../../components/database/ElasticsearchNodeMetrics.js'
+import { createElasticsearchClientWithRetry } from '../../components/database/ElasticsearchConfigHelper.js'
 import type { NodeMetricsSnapshot } from '../../@types/nodeMetrics.js'
 import { getConfiguration } from '../../utils/config.js'
 import { OceanNode } from '../../OceanNode.js'
 import { KeyManager } from '../../components/KeyManager/index.js'
-import fs from 'fs'
-import path from 'path'
-import os from 'os'
 import {
   getMetricsRetentionDays,
   isNodeMetricsHistoryEnabled
@@ -60,32 +57,44 @@ function baseSnapshot(overrides: Partial<NodeMetricsSnapshot> = {}): NodeMetrics
 
 // Spies on getHourly() so param clamping/capping can be asserted without needing thousands of
 // real rows in the DB.
-class SpyingNodeMetricsDatabase extends NodeMetricsDatabase {
-  public lastCall: { from: number; to: number; limit: number } | undefined
-  getHourly(from: number, to: number, limit: number) {
-    this.lastCall = { from, to, limit }
-    return super.getHourly(from, to, limit)
+interface SpyingNodeMetricsDatabase extends ElasticsearchNodeMetrics {
+  lastCall?: { instanceId: string; from: number; to: number; limit: number }
+}
+
+function spyOnGetHourly(store: ElasticsearchNodeMetrics): SpyingNodeMetricsDatabase {
+  const spy: SpyingNodeMetricsDatabase = Object.create(store)
+  spy.getHourly = (instanceId: string, from: number, to: number, limit: number) => {
+    spy.lastCall = { instanceId, from, to, limit }
+    return store.getHourly(instanceId, from, to, limit)
   }
+  return spy
 }
 
 describe('nodeMetrics handlers', () => {
   let node: OceanNode
-  let tempDir: string
+  let instanceId: string
+  let store: ElasticsearchNodeMetrics
+  let client: Client
   let metricsDb: SpyingNodeMetricsDatabase
 
   before(async () => {
     const config = await getConfiguration()
     const keyManager = new KeyManager(config)
     node = OceanNode.getInstance(config, null, null, null, null, keyManager, null, true)
+    instanceId = node.getInstanceId()
+    store = await ElasticsearchNodeMetrics.create(config.dbConfig)
+    client = await createElasticsearchClientWithRetry(config.dbConfig)
   })
 
-  beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'node-metrics-handler-test-'))
-    metricsDb = new SpyingNodeMetricsDatabase(path.join(tempDir, 'nodeMetrics.sqlite'))
-  })
-
-  afterEach(() => {
-    fs.rmSync(tempDir, { recursive: true, force: true })
+  // sample inserts use refresh: 'wait_for', so no index refresh is needed first
+  beforeEach(async () => {
+    await client.deleteByQuery({
+      index: ['node_metrics_samples', 'node_metrics_hourly'],
+      query: { match_all: {} },
+      refresh: true,
+      conflicts: 'proceed'
+    })
+    metricsDb = spyOnGetHourly(store)
   })
 
   describe('GetNodeMetricsHandler (live snapshot)', () => {
@@ -105,7 +114,7 @@ describe('nodeMetrics handlers', () => {
   describe('GetNodeMetricsHistoryHandler (param parse/validate/clamp/cap)', () => {
     function nodeWithMetricsDb(): OceanNode {
       // Override getDatabase() to hand back only what the handler reads (db.nodeMetrics),
-      // avoiding any dependency on a real metadata DB or the shared repo-level SQLite files.
+      // avoiding any dependency on the rest of the database.
       const fakeNode = Object.create(node)
       fakeNode.getDatabase = () => Promise.resolve({ nodeMetrics: metricsDb })
       return fakeNode as OceanNode
@@ -235,13 +244,14 @@ describe('nodeMetrics handlers', () => {
       }
       await new GetNodeMetricsHistoryHandler(nodeWithMetricsDb()).handle(command)
       expect(metricsDb.lastCall?.limit).to.equal(10000)
+      expect(metricsDb.lastCall?.instanceId).to.equal(instanceId)
     })
 
     it('returns real hourly buckets stored in the database within the requested range', async () => {
       // Use a recent hour (a few hours before "now") so it stays inside the retention window.
       const hour = floorToHour(Date.now() - 5 * 60 * 60 * 1000)
-      metricsDb.insertSample(baseSnapshot({ collectedAt: hour + 1000 }))
-      metricsDb.rollupHour(hour)
+      await metricsDb.insertSample(instanceId, baseSnapshot({ collectedAt: hour + 1000 }))
+      await metricsDb.rollupHour(instanceId, hour)
 
       const command: GetNodeMetricsHistoryCommand = {
         command: PROTOCOL_COMMANDS.GET_NODE_METRICS_HISTORY,
@@ -277,13 +287,15 @@ describe('nodeMetrics handlers', () => {
     it('appends a live partial:true bucket for the current, not-yet-rolled-up hour', async () => {
       // Raw samples in the CURRENT hour, deliberately NOT rolled up.
       const currentHour = floorToHour(Date.now())
-      metricsDb.insertSample(
+      await metricsDb.insertSample(
+        instanceId,
         baseSnapshot({
           collectedAt: currentHour + 1000,
           cpu: { ...baseSnapshot().cpu, usagePercent: 40 }
         })
       )
-      metricsDb.insertSample(
+      await metricsDb.insertSample(
+        instanceId,
         baseSnapshot({
           collectedAt: currentHour + 2000,
           cpu: { ...baseSnapshot().cpu, usagePercent: 60 }
@@ -303,8 +315,11 @@ describe('nodeMetrics handlers', () => {
 
     it('does not append a partial bucket when the current hour has already been rolled up', async () => {
       const currentHour = floorToHour(Date.now())
-      metricsDb.insertSample(baseSnapshot({ collectedAt: currentHour + 1000 }))
-      metricsDb.rollupHour(currentHour) // stored → no partial should be added on top
+      await metricsDb.insertSample(
+        instanceId,
+        baseSnapshot({ collectedAt: currentHour + 1000 })
+      )
+      await metricsDb.rollupHour(instanceId, currentHour) // stored → no partial should be added on top
 
       const result = await new GetNodeMetricsHistoryHandler(nodeWithMetricsDb()).handle({
         command: PROTOCOL_COMMANDS.GET_NODE_METRICS_HISTORY

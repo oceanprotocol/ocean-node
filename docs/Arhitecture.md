@@ -91,7 +91,7 @@ flowchart TB
 - Node identity is derived from a single `PRIVATE_KEY`: it seeds the libp2p peerId, the EVM
   signer, and the encryption keys ([libp2p supports ECDSA key pairs](https://github.com/libp2p/specs/blob/master/peer-ids/peer-ids.md#ecdsa)).
 - Each component can be enabled/disabled at startup (e.g. run with `INTERFACES=["HTTP"]`
-  only, or without the Indexer when no metadata DB is configured).
+  only).
 - C2D: only the Docker engine (`C2DEngineDocker`) is implemented. OPF_K8 clusters configured
   via `OPERATOR_SERVICE_URL` are accepted into the config (added to `c2dClusters`), but no
   engine is instantiated for them.
@@ -176,14 +176,14 @@ flowchart LR
     ON --> P2P["OceanP2P<br/>libp2p node"]
 
     subgraph DBLAYER["Database"]
-        META["Metadata DB<br/>Typesense OR Elasticsearch"]
-        SQL["SQLite (node:sqlite)<br/>nonce · config · C2D jobs · auth tokens"]
+        META["Metadata indices<br/>Elasticsearch"]
+        STATE["Node state indices<br/>Elasticsearch<br/>nonce · config · C2D jobs · auth tokens"]
     end
     ON --> DBLAYER
     IDX --> META
     PROV --> META
-    C2D --> SQL
-    AUTH --> SQL
+    C2D --> STATE
+    AUTH --> STATE
 ```
 
 ### 3.1 Indexer
@@ -209,10 +209,11 @@ Deliberately thin — the real behavior lives in the core handlers and REST rout
 - connects to the C2D engines for compute services.
 
 ### 3.3 Database
-The metadata DB backend is pluggable — **Typesense or Elasticsearch** (chosen by `DB_TYPE`)
-for DDOs, indexer state, logs, orders, ddoState, access lists, and escrow events.
-**SQLite** is always used (via Node's built-in `node:sqlite`, no native addon) for the nonce,
-config, C2D-job, and auth-token DBs — so the node works even with no metadata DB configured.
+**Elasticsearch** is the only database and is required (`DB_URL`, `DB_USERNAME`,
+`DB_PASSWORD`). It holds DDOs, indexer state, logs, orders, ddoState, access lists and escrow
+events, and the node state indices `nonce`, `node_config`, `auth_tokens`, `buckets`,
+`node_metrics_samples`, `node_metrics_hourly`, `c2d_jobs`, `service_jobs`, `docker_images`
+and `service_locks`. There is no mode that runs without it.
 
 ### 3.4 Supporting components
 - **Auth** — JWT-based auth-token issuance/validation (`JWT_SECRET`) as an alternative to

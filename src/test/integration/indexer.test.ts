@@ -496,7 +496,7 @@ describe('**********         Indexer stores a new metadata events and orders.', 
       const resultOrder = await database.order.retrieve(orderTxId)
       if (resultOrder) {
         if (resultOrder.id) {
-          // typesense response
+          // response keyed by id
           expect(resultOrder.id).to.equal(orderTxId)
         } else if (resultOrder.orderId) {
           // elastic search response
@@ -591,7 +591,7 @@ describe('**********         Indexer stores a new metadata events and orders.', 
       const resultOrder = await database.order.retrieve(reuseOrderTxId)
       if (resultOrder) {
         if (resultOrder.id) {
-          // typesense
+          // response keyed by id
           expect(resultOrder.id).to.equal(reuseOrderTxId)
         } else if (resultOrder.orderId) {
           // elastic

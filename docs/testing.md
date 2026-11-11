@@ -2,8 +2,28 @@
 
 ## Unit tests
 
+Unit tests need a running Elasticsearch, because every state store lives there. The unit
+suite deletes all documents in the `auth_tokens`, `c2d_jobs`, `service_jobs`,
+`service_locks`, `docker_images`, `buckets`, `node_metrics_samples` and
+`node_metrics_hourly` indices in `beforeEach`, and writes nonces and the maintenance flag to
+the `nonce` and `node_config` indices. Never point the tests at an Elasticsearch that a
+running node uses.
+
+Start Elasticsearch, export a node key, then run the tests:
+
 ```bash
+docker-compose -f elasticsearch-compose.yml up -d
+export PRIVATE_KEY=0x<your test key>
 npm run test:unit
+```
+
+On macOS, Elasticsearch sniffing returns the container-internal address, which the host
+cannot reach. Turn sniffing off before you run the tests:
+
+```bash
+export ELASTICSEARCH_SNIFF_ON_START=false
+export ELASTICSEARCH_SNIFF_INTERVAL=false
+export ELASTICSEARCH_SNIFF_ON_CONNECTION_FAULT=false
 ```
 
 ## Integration tests

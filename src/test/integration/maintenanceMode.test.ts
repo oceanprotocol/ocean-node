@@ -28,7 +28,7 @@ import { P2PCommandResponse } from '../../@types/OceanNode.js'
 /**
  * Drain-scenario integration coverage that does NOT require Barge: the maintenance guards
  * short-circuit before any chain / Docker / escrow work, so this exercises the real handlers,
- * the real SQLite-config persistence and the real status handler end-to-end.
+ * the real config-DB persistence and the real status handler end-to-end.
  *
  * NOT covered here (requires a running Barge chain + Docker): that a compute job / service
  * STARTED before enabling maintenance still returns status/results/logs and can be stopped.
@@ -62,7 +62,7 @@ describe('Maintenance mode drain scenario (integration)', () => {
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     delete process.env.MAINTENANCE_MODE
     const config = await getConfiguration(true)
-    db = await Database.init({ url: 'http://localhost:9999', dbType: 'none' } as any)
+    db = await Database.init(config.dbConfig)
     const keyManager = new KeyManager(config)
     const blockchainRegistry = new BlockchainRegistry(keyManager, config)
     oceanNode = OceanNode.getInstance(
@@ -145,7 +145,7 @@ describe('Maintenance mode drain scenario (integration)', () => {
     const status = await body(resp)
     expect(status.maintenance).to.not.equal(undefined)
     expect(status.maintenance.enabled).to.equal(true)
-    // drain-visibility count is present as a number (the shared SQLite C2D DB may carry
+    // drain-visibility count is present as a number (the shared C2D DB may carry
     // leftover rows from other suites, so we assert the field exists rather than a fixed value)
     expect(status.maintenance.runningComputeJobs).to.be.a('number')
   })
@@ -182,7 +182,7 @@ describe('Maintenance mode drain scenario (integration)', () => {
 
   it('persists the flag across a simulated restart (reload from DB)', async () => {
     await oceanNode.setMaintenanceMode(true)
-    // Wipe the in-memory cache and reload from the SQLite config DB, as startup does.
+    // Wipe the in-memory cache and reload from the config DB, as startup does.
     ;(oceanNode as any).maintenanceMode = false
     await oceanNode.loadMaintenanceMode()
     expect(oceanNode.isInMaintenance()).to.equal(true)

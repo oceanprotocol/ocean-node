@@ -38,8 +38,8 @@ pk_file_path+=$generated_files_path$pk_file
 #configure database
 configure_database() {
     echo "------------------------ Configure Database ----------------------------------"
-    read -p "Database URL? [ http://localhost:8108/?apiKey=xyz ]: " DB_URL
-    DB_URL=${DB_URL:-http://localhost:8108/?apiKey=xyz}
+    read -p "Database URL? [ http://localhost:9200 ]: " DB_URL
+    DB_URL=${DB_URL:-http://localhost:9200}
     REPLACE_STR="DB_URL=$DB_URL"
     if [ "$(uname)" == "Darwin" ]; then
         sed -i '' -e 's;DB_URL=;'$REPLACE_STR';' "$env_file_path"

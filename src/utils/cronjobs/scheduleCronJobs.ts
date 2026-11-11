@@ -15,6 +15,9 @@ import { sleep } from '../util.js'
 // (we can put smaller interval for testing purposes)
 const REPUBLISH_INTERVAL_HOURS = 1000 * 60 * 60 * 4 // 4 hours
 const CLEAN_EXPIRED_JOBS_THROTTLE_KEY = 'cron:cleanExpiredC2DJobs'
+const CLEAN_EXPIRED_AUTH_TOKENS_THROTTLE_KEY = 'cron:cleanExpiredAuthTokens'
+// daily, at a quiet off-the-hour minute
+const CLEAN_EXPIRED_AUTH_TOKENS_SCHEDULE = '17 2 * * *'
 
 export async function scheduleCronJobs(node: OceanNode) {
   await sleep(2000) // wait for 2 seconds to ensure the node is fully initialized
@@ -27,6 +30,11 @@ export async function scheduleCronJobs(node: OceanNode) {
     scheduleCleanExpiredC2DJobs(await node.getDatabase())
   } catch (e) {
     OCEAN_NODE_LOGGER.error(`Error when deleting expired c2d jobs: ${e.message}`)
+  }
+  try {
+    scheduleAuthTokenCleanup(await node.getDatabase())
+  } catch (e) {
+    OCEAN_NODE_LOGGER.error(`Error when deleting expired auth tokens: ${e.message}`)
   }
   try {
     scheduleNodeMetricsJobs(node, await node.getDatabase())
@@ -111,6 +119,28 @@ function scheduleCleanExpiredC2DJobs(dbconn: Database | null) {
   } else {
     OCEAN_NODE_LOGGER.warn(
       'C2D CronJob: Database connection not established or C2D instance not available (skipped).'
+    )
+  }
+}
+
+function scheduleAuthTokenCleanup(dbconn: Database | null) {
+  if (dbconn && dbconn.authToken) {
+    scheduleCron(CLEAN_EXPIRED_AUTH_TOKENS_SCHEDULE, async () => {
+      try {
+        const deleted = await dbconn.authToken.deleteExpiredTokens(Date.now())
+        OCEAN_NODE_LOGGER.resetThrottle(CLEAN_EXPIRED_AUTH_TOKENS_THROTTLE_KEY)
+        OCEAN_NODE_LOGGER.debug(`${deleted} expired auth tokens deleted`)
+      } catch (err) {
+        OCEAN_NODE_LOGGER.throttled(
+          CLEAN_EXPIRED_AUTH_TOKENS_THROTTLE_KEY,
+          LOG_LEVELS_STR.LEVEL_ERROR,
+          `Error deleting expired auth tokens: ${err.message}`
+        )
+      }
+    })
+  } else {
+    OCEAN_NODE_LOGGER.warn(
+      'Auth token CronJob: Database connection not established or auth token instance not available (skipped).'
     )
   }
 }

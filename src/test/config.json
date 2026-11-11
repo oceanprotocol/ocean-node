@@ -61,9 +61,8 @@
   "httpPort": 8001,
   "dbConfig": {
     "url": "http://localhost:9200",
-    "username": "",
-    "password": "",
-    "dbType": "elasticsearch"
+    "username": "elastic",
+    "password": "changeme"
   },
   "supportedNetworks": {
     "8996": {

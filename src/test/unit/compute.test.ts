@@ -1,7 +1,6 @@
 import { C2DDatabase } from '../../components/database/C2DDatabase.js'
 // import { existsEnvironmentVariable, getConfiguration } from '../../utils/config.js'
 import { getConfiguration } from '../../utils/config.js'
-import { typesenseSchemas } from '../../components/database/TypesenseSchemas.js'
 import {
   C2DStatusNumber,
   C2DStatusText,
@@ -16,11 +15,6 @@ import {
 } from '../../@types/C2D/C2D.js'
 // import { computeAsset } from '../data/assets'
 import { assert, expect } from 'chai'
-import {
-  convertArrayToString,
-  convertStringToArray,
-  STRING_SEPARATOR
-} from '../../components/database/sqliteCompute.js'
 import os from 'os'
 import {
   buildEnvOverrideConfig,
@@ -150,7 +144,7 @@ describe('Compute Jobs Database', () => {
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
-    db = await new C2DDatabase(config.dbConfig, typesenseSchemas.c2dSchemas)
+    db = await new C2DDatabase(config.dbConfig)
   })
 
   it('should create a new C2D Job', async () => {
@@ -328,19 +322,6 @@ describe('Compute Jobs Database', () => {
   it('should delete the job by jobId', async () => {
     const deleted = await db.deleteJob(jobId)
     expect(deleted === true, `Job ${jobId} was not deleted!`)
-  })
-
-  it('should convert array of strings to a string', () => {
-    const inputDID = ['did:op:1', 'did:op:2', 'did:op:3']
-    const expectedStr =
-      'did:op:1' + STRING_SEPARATOR + 'did:op:2' + STRING_SEPARATOR + 'did:op:3'
-    expect(convertArrayToString(inputDID)).to.equal(expectedStr)
-  })
-
-  it('should convert concatenated string to a string array', () => {
-    const expectedArray = ['did:op:1', 'did:op:2', 'did:op:3']
-    const str = 'did:op:1' + STRING_SEPARATOR + 'did:op:2' + STRING_SEPARATOR + 'did:op:3'
-    expect(convertStringToArray(str)).to.deep.equal(expectedArray)
   })
 
   it('should convert DBComputeJob to ComputeJob and omit internal DB data', () => {

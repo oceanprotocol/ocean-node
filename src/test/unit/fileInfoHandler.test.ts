@@ -56,9 +56,7 @@ describe('FileInfoHandler ON-07 (header allow-list + rate limit; raw-file needs 
   before(async () => {
     const config = await getConfiguration()
     const keyManager = new KeyManager(config)
-    // This suite only needs the SQLite-backed nonce/auth DBs. Drop the metadata DB url so
-    // Database.init() cannot depend on an Elasticsearch/Typesense being up.
-    const db = await Database.init({ ...config.dbConfig, url: '' })
+    const db = await Database.init(config.dbConfig)
     node = OceanNode.getInstance(config, db, null, null, null, keyManager, null, true)
   })
 
@@ -144,7 +142,7 @@ describe('FileInfoHandler ON-07 (header allow-list + rate limit; raw-file needs 
               range: 'bytes=0-10',
               authorization: 'Bearer secret-token',
               cookie: 'session=abc',
-              'x-typesense-api-key': 'super-secret'
+              'x-api-key': 'super-secret'
             }
           } as any,
           {
@@ -160,7 +158,7 @@ describe('FileInfoHandler ON-07 (header allow-list + rate limit; raw-file needs 
         // everything else dropped
         expect(received.authorization).to.equal(undefined)
         expect(received.cookie).to.equal(undefined)
-        expect(received['x-typesense-api-key']).to.equal(undefined)
+        expect(received['x-api-key']).to.equal(undefined)
       } finally {
         await stopServer(server)
       }

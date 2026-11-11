@@ -7,11 +7,7 @@ import { OceanNode } from './OceanNode.js'
 import { KeyManager } from './components/KeyManager/index.js'
 import { BlockchainRegistry } from './components/BlockchainRegistry/index.js'
 import { httpRoutes } from './components/httpRoutes/index.js'
-import {
-  getConfiguration,
-  computeCodebaseHash,
-  ENVIRONMENT_VARIABLES
-} from './utils/index.js'
+import { getConfiguration, computeCodebaseHash } from './utils/index.js'
 
 import {
   enableFileLoggingFallback,
@@ -31,7 +27,7 @@ import { fileURLToPath } from 'url'
 import cors from 'cors'
 import { scheduleCronJobs } from './utils/cronjobs/scheduleCronJobs.js'
 import { requestValidator } from './components/httpRoutes/requestValidator.js'
-import { hasValidDBConfiguration, isReachableConnection } from './utils/database.js'
+import { isReachableConnection } from './utils/database.js'
 import type { OceanNodeDBConfig } from './@types/OceanNode.js'
 // Telemetry gauge registration. These modules depend on `@opentelemetry/api` only (no SDK), so
 // importing them here does not pull the OTel SDK into the graph ahead of the `--import` bootstrap
@@ -41,7 +37,7 @@ import { registerComputeGauges } from './telemetry/computeGauges.js'
 
 const app: Express = express()
 
-// Database services (Elasticsearch/Typesense) frequently take longer to accept
+// Database services (Elasticsearch) frequently take longer to accept
 // connections than the node itself takes to boot. Database.init() gives
 // up after a single failed attempt, which leaves the node running permanently
 // without Indexer and without C2D.
@@ -54,17 +50,10 @@ async function initDatabaseWithRetry(
 ): Promise<Database | null> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const isLastAttempt = attempt === maxAttempts
-    const notReachable =
-      !isLastAttempt &&
-      hasValidDBConfiguration(dbConfig) &&
-      !(await isReachableConnection(dbConfig.url))
-
-    if (!notReachable) {
-      // On the final attempt allow a partial (DEGRADED) init: if the metadata DB is still
-      // unreachable we keep the working SQLite core (C2D / nonce / auth) instead of returning
-      // null. Earlier attempts keep returning null on metadata failure so we retry with backoff
-      // and give a slow-starting metadata DB time to come up (yielding a full node).
-      const database = await Database.init(dbConfig, isLastAttempt)
+    // the last attempt always calls init, so a failed probe never skips it
+    const reachable = isLastAttempt || (await isReachableConnection(dbConfig.url))
+    if (reachable) {
+      const database = await Database.init(dbConfig)
       if (database) {
         if (attempt > 1) {
           OCEAN_NODE_LOGGER.info(`Database initialized after ${attempt} attempts`)
@@ -78,7 +67,7 @@ async function initDatabaseWithRetry(
     const delay = Math.min(retryDelay * 2 ** (attempt - 1), maxRetryDelay)
     OCEAN_NODE_LOGGER.warn(
       `Database ${
-        notReachable ? 'not reachable yet' : 'initialization failed'
+        reachable ? 'initialization failed' : 'not reachable yet'
       } (attempt ${attempt}/${maxAttempts}), retrying in ${delay}ms`
     )
     await new Promise((resolve) => setTimeout(resolve, delay))
@@ -177,7 +166,6 @@ if (!config) {
 let node: OceanP2P = null
 let indexer = null
 let provider = null
-// If there is no DB URL only the nonce database will be available
 const dbconn: Database | null = await initDatabaseWithRetry(
   config.dbConfig,
   config.dbInitMaxAttempts,
@@ -186,35 +174,13 @@ const dbconn: Database | null = await initDatabaseWithRetry(
 )
 if (!dbconn) {
   OCEAN_NODE_LOGGER.error('Database failed to initialize')
-} else if (hasValidDBConfiguration(config.dbConfig) && !dbconn.metadataInitialized) {
-  // DEGRADED mode: SQLite core (C2D / nonce / auth) is up but the metadata DB (Typesense/
-  // Elasticsearch) is unreachable. The Indexer eagerly touches the metadata databases in its
-  // constructor, so it must not be started here.
-  config.hasIndexer = false
-  OCEAN_NODE_LOGGER.warn(
-    'Running in DEGRADED mode: metadata database is unavailable, Indexer is disabled. C2D / nonce / auth remain available.'
-  )
 }
 
-// LOG_DB is on but there is no usable log database (no/invalid DB config, failed init or
-// DEGRADED mode): keep the logs on disk instead
+// LOG_DB is on but there is no usable log database (failed init): keep the logs on disk instead
 if (USE_DB_TRANSPORT() && !dbconn?.logs) {
   const reason = dbconn ? 'log DB not initialized' : 'DB init failed'
   // LOG_FILES=false as well: never leave the node without any log output
   if (!enableFileLoggingFallback(reason)) ensureLogOutput(reason)
-}
-
-if (!hasValidDBConfiguration(config.dbConfig)) {
-  config.hasIndexer = false
-  if (config.dbConfig?.url) {
-    OCEAN_NODE_LOGGER.warn(
-      `Invalid metadata DB configuration (check ${ENVIRONMENT_VARIABLES.DB_URL.name}, ${ENVIRONMENT_VARIABLES.DB_TYPE.name} and credentials): Indexer disabled`
-    )
-  } else {
-    OCEAN_NODE_LOGGER.info(
-      `${ENVIRONMENT_VARIABLES.DB_URL.name} not set: running without metadata DB (Indexer disabled)`
-    )
-  }
 }
 OCEAN_NODE_LOGGER.info(getLoggingSummary())
 

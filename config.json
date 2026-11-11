@@ -60,10 +60,9 @@
   },
   "httpPort": 8001,
   "dbConfig": {
-    "url": "http://localhost:8108/?apiKey=xyz",
-    "username": "",
-    "password": "",
-    "dbType": "typesense"
+    "url": "http://localhost:9200",
+    "username": "elastic",
+    "password": "changeme"
   },
   "supportedNetworks": {
     "8996": {

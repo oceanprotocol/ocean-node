@@ -1,7 +1,6 @@
 import { expect, assert } from 'chai'
-import { SQLiteCompute } from '../../components/database/sqliteCompute.js'
+import sinon from 'sinon'
 import { C2DDatabase } from '../../components/database/C2DDatabase.js'
-import { typesenseSchemas } from '../../components/database/TypesenseSchemas.js'
 import { getConfiguration } from '../../utils/config.js'
 import {
   buildEnvOverrideConfig,
@@ -18,11 +17,14 @@ import { KeyManager } from '../../components/KeyManager/index.js'
 import { C2DClusterInfo } from '../../@types/C2D/C2D.js'
 import Dockerode from 'dockerode'
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+// a negative retention puts the cutoff in the future: every tracked image is listed
+const ALL_IMAGES = -1
+
 describe('**********         Docker Image Cleanup Integration Tests', () => {
   let envOverrides: OverrideEnvConfig[]
   let config: OceanNodeConfig
   let db: C2DDatabase
-  let sqliteProvider: SQLiteCompute
   let dockerEngine: C2DEngineDocker
   let docker: Dockerode
 
@@ -67,12 +69,24 @@ describe('**********         Docker Image Cleanup Integration Tests', () => {
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
-    db = await new C2DDatabase(config.dbConfig, typesenseSchemas.c2dSchemas)
-    sqliteProvider = (db as any).provider as SQLiteCompute
+    db = await new C2DDatabase(config.dbConfig)
 
     // Initialize Docker connection for testing
     docker = new Dockerode()
   })
+
+  // records the image as last used `days` ago: only Date is faked, timers stay real
+  async function updateImageDaysAgo(image: string, days: number): Promise<void> {
+    const clock = sinon.useFakeTimers({
+      now: Date.now() - days * MS_PER_DAY,
+      toFake: ['Date']
+    })
+    try {
+      await db.updateImage(image)
+    } finally {
+      clock.restore()
+    }
+  }
 
   after(async () => {
     await tearDownEnvironment(envOverrides)
@@ -82,82 +96,43 @@ describe('**********         Docker Image Cleanup Integration Tests', () => {
   })
 
   describe('Image Tracking Database Methods', () => {
-    it('should create docker_images table', async () => {
-      await sqliteProvider.createImageTable()
-      // If no error is thrown, table creation succeeded
-      assert(true, 'Table creation should succeed')
-    })
-
     it('should update image usage timestamp', async () => {
       const testImage = 'test-image:latest'
-      await sqliteProvider.updateImage(testImage)
+      await db.updateImage(testImage)
 
-      // Verify image was recorded by querying directly via the SqliteClient handle.
-      // getOldImages(0) looks for images older than now, so we query the DB directly.
-      const sqliteClient = (sqliteProvider as any).db
-      const imageRecord = sqliteClient.get(
-        'SELECT image, lastUsedTimestamp FROM docker_images WHERE image = ?',
-        [testImage]
-      )
-
-      assert(imageRecord, 'Image should be recorded in database')
-      expect(imageRecord.image).to.equal(testImage)
-      expect(imageRecord.lastUsedTimestamp).to.be.a('number')
-      const currentTimestamp = Math.floor(Date.now() / 1000)
-      expect(imageRecord.lastUsedTimestamp).to.be.at.least(currentTimestamp - 1)
+      expect(await db.getOldImages(ALL_IMAGES)).to.include(testImage)
+      expect(await db.getOldImages(7)).to.not.include(testImage)
     })
 
     it('should update existing image timestamp', async () => {
       const testImage = 'test-image-update:latest'
-      const firstTimestamp = Math.floor(Date.now() / 1000)
 
-      // Insert image first time
-      await sqliteProvider.updateImage(testImage)
+      await updateImageDaysAgo(testImage, 8)
+      expect(await db.getOldImages(7)).to.include(testImage)
 
-      // Wait a bit to ensure timestamp difference
-      await new Promise((resolve) => setTimeout(resolve, 1100))
-
-      // Update image again - timestamp should be newer
-      await sqliteProvider.updateImage(testImage)
-
-      // Verify image exists with updated timestamp
-      const sqliteClient = (sqliteProvider as any).db
-      const imageRecord = sqliteClient.get(
-        'SELECT image, lastUsedTimestamp FROM docker_images WHERE image = ?',
-        [testImage]
-      )
-
-      assert(imageRecord, 'Image should be recorded in database')
-      expect(imageRecord.image).to.equal(testImage)
-      expect(imageRecord.lastUsedTimestamp).to.be.greaterThan(firstTimestamp)
+      // using the image again makes it recent
+      await db.updateImage(testImage)
+      expect(await db.getOldImages(7)).to.not.include(testImage)
     })
 
     it('should return old images based on retention days', async () => {
       const recentImage = 'recent-image:latest'
       const oldImage = 'old-image:latest'
 
-      // Update recent image
-      await sqliteProvider.updateImage(recentImage)
-
-      // Manually insert an old image by directly updating the database
-      const oldTimestamp = Math.floor(Date.now() / 1000) - 8 * 24 * 60 * 60 // 8 days ago
-      const sqliteClient = (sqliteProvider as any).db
-      sqliteClient.run(
-        'INSERT OR REPLACE INTO docker_images (image, lastUsedTimestamp) VALUES (?, ?)',
-        [oldImage, oldTimestamp]
-      )
+      await db.updateImage(recentImage)
+      await updateImageDaysAgo(oldImage, 8)
 
       // Get images older than 7 days
-      const oldImages = await sqliteProvider.getOldImages(7)
+      const oldImages = await db.getOldImages(7)
       expect(oldImages).to.include(oldImage)
       expect(oldImages).to.not.include(recentImage)
     })
 
     it('should return empty array when no old images exist', async () => {
       const recentImage = 'very-recent-image:latest'
-      await sqliteProvider.updateImage(recentImage)
+      await db.updateImage(recentImage)
 
-      const oldImages = await sqliteProvider.getOldImages(30) // 30 days retention
+      const oldImages = await db.getOldImages(30) // 30 days retention
       expect(oldImages).to.not.include(recentImage)
     })
   })
@@ -189,15 +164,10 @@ describe('**********         Docker Image Cleanup Integration Tests', () => {
       // Call updateImageUsage directly (using private method access for testing)
       await (dockerEngine as any).updateImageUsage(testImage)
 
-      // Verify image was recorded in database
-      const sqliteClient = (sqliteProvider as any).db
-      const imageRecord = sqliteClient.get(
-        'SELECT image, lastUsedTimestamp FROM docker_images WHERE image = ?',
-        [testImage]
-      )
-
-      assert(imageRecord, 'Image should be recorded in database after updateImageUsage')
-      expect(imageRecord.image).to.equal(testImage)
+      expect(
+        await db.getOldImages(ALL_IMAGES),
+        'Image should be recorded in database after updateImageUsage'
+      ).to.include(testImage)
     })
 
     it('should start image cleanup timer on engine start', () => {
@@ -217,7 +187,7 @@ describe('**********         Docker Image Cleanup Integration Tests', () => {
       const nonExistentImage = 'non-existent-image:999999'
 
       // Manually insert into database
-      await sqliteProvider.updateImage(nonExistentImage)
+      await db.updateImage(nonExistentImage)
 
       // Try to clean it up - should not throw error
       try {
@@ -261,12 +231,7 @@ describe('**********         Docker Image Cleanup Integration Tests', () => {
       }
 
       // Track the image with old timestamp (8 days ago)
-      const oldTimestamp = Math.floor(Date.now() / 1000) - 8 * 24 * 60 * 60
-      const sqliteClient = (sqliteProvider as any).db
-      sqliteClient.run(
-        'INSERT OR REPLACE INTO docker_images (image, lastUsedTimestamp) VALUES (?, ?)',
-        [testImageName, oldTimestamp]
-      )
+      await updateImageDaysAgo(testImageName, 8)
 
       // Verify image exists before cleanup
       const imagesBefore = await docker.listImages()

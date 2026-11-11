@@ -23,16 +23,15 @@ libp2p P2P interface, both of which dispatch to the same set of command handlers
   test command. If the pinned version is already installed directly (no nvm available),
   verifying the active runtime against `.nvmrc` instead is sufficient — e.g.
   `test "v$(cat .nvmrc)" = "$(node -v)"`; do not abort the build just because `nvm` is
-  absent. The wrong Node version fails with errors like `Unexpected token 'with'`,
-  missing `GLIBC_2.38`, or — since the SQLite layer uses the built-in `node:sqlite`
-  module — `ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite` on Node < 22.13. This is enforced by
+  absent. The wrong Node version fails with errors like `Unexpected token 'with'` or
+  missing `GLIBC_2.38`. This is enforced by
   `.cursor/rules/tests-nvm.mdc` and this `AGENTS.md`.
 - **There is no `postinstall` step.** `npm install` is plain. (Historically a `postinstall`
   ran `scripts/fix-libp2p-http-utils.js` to default a missing URL port to 443/80 in
   `@libp2p/http-utils`; upstream shipped that fix in `2.0.3`, so both the hook and the
   script were removed.)
-- **Docker + docker-compose** are needed for the metadata database (Typesense or
-  Elasticsearch) and for C2D (Compute-to-Data) via the local Docker socket.
+- **Docker + docker-compose** are needed for the metadata database (Elasticsearch)
+  and for C2D (Compute-to-Data) via the local Docker socket.
 - TypeScript config: **TypeScript 6**, ESM (`module: esnext`, `target: ES2022`,
   `moduleResolution: node`), `experimentalDecorators` + `emitDecoratorMetadata` enabled,
   `rootDir: ./src`, `outDir: ./dist`. Most local imports use the `.js` extension
@@ -49,8 +48,9 @@ libp2p P2P interface, both of which dispatch to the same set of command handlers
 
 `PRIVATE_KEY` (with the `0x` prefix, 66 chars) is the **only** required environment
 variable — it seeds the node identity (libp2p peerId), the EVM signer, and encryption keys.
-A JSON config file must also exist (see §3); every other setting has a default or comes
-from that file / env overrides. Generate a key with:
+A JSON config file must also exist (see §3) and supply the Elasticsearch `dbConfig` unless
+`DB_URL`, `DB_USERNAME` and `DB_PASSWORD` are set; every other setting has a default or
+comes from that file / env overrides. Generate a key with:
 
 ```bash
 node dist/helpers/scripts/generatePK.js            # prints a key/address to stdout
@@ -139,8 +139,8 @@ the compiled output. In tests, do **not** mutate `process.env` directly — use 
 
 **Integration tests require a running local chain + services (Barge).** Clone
 `oceanprotocol/barge`, `git checkout feature/nodes`, then `./start_ocean.sh -with-c2d`
-(see `docs/testing.md` and `docs/database.md` for the exact flags per DB type). The default
-`config.json` points the DB at Typesense on `http://localhost:8108`.
+(see `docs/testing.md` and `docs/database.md` for the exact flags). The default
+`config.json` points the DB at Elasticsearch on `http://localhost:9200`.
 
 Other useful scripts: `npm run client` (2-node download flow demo), `npm run check-nonce`
 (nonce tracking; needs DB), and k6 perf tests `test:smoke` / `test:load` / `test:stress` /
@@ -159,8 +159,7 @@ the files in `logs/` instead (see `docs/Logs.md`).
 ### Databases for local dev
 
 ```bash
-docker-compose -f typesense-compose.yml up -d       # Typesense (default in config.json)
-docker-compose -f elasticsearch-compose.yml up -d   # Elasticsearch alternative
+docker-compose -f elasticsearch-compose.yml up -d   # Elasticsearch (default in config.json)
 ```
 
 ---
@@ -182,28 +181,14 @@ via `src/utils/config/index.ts` and `src/utils/index.ts`). Key facts:
   still resolve a home directory.
   If it is missing, startup fails with
   `Config file not found at path: ...`, even when every setting is given via env. The repo
-  ships a ready `config.json` (Typesense DB, chain `8996`/development, HTTP port `8001`,
+  ships a ready `config.json` (Elasticsearch DB, chain `8996`/development, HTTP port `8001`,
   single Docker C2D env).
 - **`INTERFACES`** env var (JSON array like `["HTTP","P2P"]`) toggles `hasHttp` / `hasP2P`.
-  Omitted = both enabled. `DB_URL`/`DB_TYPE` presence drives `hasIndexer` — without a valid
-  metadata DB config the Indexer and the metadata-backed features (DDOs, orders, access
-  lists, escrow events, DB logs) are disabled, but the SQLite core still runs: nonce, auth
-  tokens, C2D jobs, node config (and best-effort node metrics). So nonce and auth services
-  keep working. This graceful-degrade path only applies when the config itself is
-  schema-valid: `dbConfig.dbType` is `z.string().nullable()` (`schemas.ts`), so a non-string
-  value (number/bool/object) fails zod validation in `buildMergedConfig()` and aborts the
-  **whole node** at startup — it does not disable just the metadata DB. Because the field is
-  `.nullable()` and **not** `.optional()`, `dbType` must be **present**: `null` is valid and
-  selects the no-metadata-DB mode above, but **omitting the key** from a supplied `dbConfig`
-  (e.g. a config file with `DB_URL` unset) is undefined and also fails zod and aborts the
-  whole node. Use `dbType: null`, not an absent key, for the no-DB mode.
-  - **Paid/free compute still needs the metadata DB to resolve a published dataset.** SQLite
-    preserves C2D **job storage**, but `FindDdoHandler.findAndFormatDdo` (`ddoHandler.ts`)
-    falls back to the P2P `FIND_DDO` lookup when no local DDO DB exists, and that network
-    response is a **summary** (`{id,lastUpdateTx,lastUpdateTime,provider}`), not the full
-    DDO. Parsing it for `services`/`indexedMetadata` throws and returns `null`, so
-    `initialize`/`startCompute` cannot resolve the asset. "C2D keeps working" means the job
-    runtime, not compute against a published DID without a metadata DB.
+  Omitted = both enabled. `DB_URL`, `DB_USERNAME` and `DB_PASSWORD` (or `dbConfig` in the
+  file) are **required**: `dbConfig` is `{ url, username, password }`, each a non-empty
+  string (`OceanNodeDBConfigSchema` in `schemas.ts`), and a missing or invalid value fails
+  validation in `buildMergedConfig()` and aborts the node at startup. Elasticsearch holds
+  all node state; there is no DEGRADED / no-DB mode.
 - The full catalog of env vars is defined as `ENVIRONMENT_VARIABLES` in
   `src/utils/constants.ts` and documented in `docs/env.md` (long file — the authoritative
   reference). `.env.example` lists them grouped as core / p2p / compute.
@@ -211,7 +196,7 @@ via `src/utils/config/index.ts` and `src/utils/index.ts`). Key facts:
   logging (config is read from many places; there's a known TODO to centralize access on the
   `OceanNode` class).
 
-Selected env vars worth knowing: `RPCS` (per-chain RPC map, JSON), `DB_URL`/`DB_TYPE`,
+Selected env vars worth knowing: `RPCS` (per-chain RPC map, JSON), `DB_URL`,
 `ALLOWED_ADMINS`(+`_LIST`) (gate admin commands), `AUTHORIZED_DECRYPTERS`/`_PUBLISHERS`/
 `ALLOWED_VALIDATORS` (+ their access-list variants), `MAX_REQ_PER_MINUTE` (rate limit),
 `RATE_DENY_LIST`, `HTTP_API_PORT`, `JWT_SECRET`, `OPERATOR_SERVICE_URL` (external C2D
@@ -329,13 +314,13 @@ Handler source is grouped under `src/components/core/`:
   the `Escrow` component; `serviceResourceMatching.ts` maps requested cpu/ram/disk/gpu against
   environment pools (dual-gate: per-env ceiling + engine-wide pool; GPUs tracked globally).
   See `docs/compute.md`.
-- **database/** — `Database.init()` factory (`index.ts`, `DatabaseFactory.ts`). The metadata
-  DB backend is pluggable: **Typesense or Elasticsearch** (chosen by `DB_TYPE`) for DDOs,
-  indexer state, logs, orders, ddoState, access lists, escrow events — behind the
-  `Abstract*Database` interfaces in `BaseDatabase.ts`. **SQLite** is always used for the
-  nonce DB, config DB, C2D job DB, and auth-token DB (works even with no metadata DB
-  configured) — via Node's built-in `node:sqlite` module (no native addon), wrapped by
-  `SqliteClient` in `src/components/database/sqliteClient.ts`. See `docs/database.md`.
+- **database/** — `Database.init()` factory (`index.ts`, `DatabaseFactory.ts`).
+  **Elasticsearch** is the only database and is required. It holds DDOs, indexer state,
+  logs, orders, ddoState, access lists and escrow events — behind the
+  `Abstract*Database` interfaces in `BaseDatabase.ts` — and the node state indices `nonce`,
+  `node_config`, `auth_tokens`, `buckets`, `node_metrics_samples`, `node_metrics_hourly`,
+  `c2d_jobs`, `service_jobs`, `docker_images` and `service_locks` (index mappings in
+  `ElasticSchemas.ts`). Node metrics are kept per `INSTANCE_ID`. See `docs/database.md`.
 - **KeyManager/** — provider-abstraction over the node key (`docs/KeyManager.md`). Currently
   `RawPrivateKeyProvider` (from `PRIVATE_KEY`); derives the libp2p peerId/keys and the EVM
   address, and caches the ethers signer. Designed to add KMS providers (GCP/AWS) later.
@@ -360,9 +345,8 @@ Handler source is grouped under `src/components/core/`:
   `constants.ts`, `crypt.ts` (hashing/signing), `blockchain.ts`, `logging/` (winston: console, per-module
   rotating files in `logs/` by default when `LOG_DB` is off, optional DB transport), `cronjobs/`, `validators.ts`, `credentials.ts`,
   `accessList.ts`, `asset.ts`, `attestation.ts`.
-- Runtime data dirs: `databases/` (SQLite files + libp2p LevelDB store), `c2d_storage/` (C2D
-  job working data), `logs/`, `schemas/` (SHACL DDO validation schemas — shipped into the
-  Docker image). Service-on-demand templates are not shipped: the node reads
+- Runtime data dirs: `databases/` (only `p2p-store`, the libp2p LevelDB store),
+  `c2d_storage/` (C2D job working data), `logs/`. Service-on-demand templates are not shipped: the node reads
   them from the folder given by `serviceTemplatesPath` / `SERVICE_TEMPLATES_PATH`, which the
   operator mounts in at run time.
 - `tsoa.json` configures OpenAPI spec generation from `src/components/httpRoutes/**`; the
@@ -374,7 +358,7 @@ Handler source is grouped under `src/components/core/`:
 
 Multi-stage `Dockerfile` (builder + runner), both stages on
 `node:26.12.1-trixie-slim` pinned by digest. The runner ships only
-`dist/`, `node_modules`, `schemas/`, `hfpatch/` (the `sitecustomize.py` the node copies
+`dist/`, `node_modules`, `hfpatch/` (the `sitecustomize.py` the node copies
 into services — see `docs/services.md`) and `config.json` (`.dockerignore` excludes all of
 `docs/`) — no service templates. It exposes P2P ports `9000-9003,9005` and
 HTTP `8000`. `docker-entrypoint.sh` handles Docker socket group membership at runtime so C2D

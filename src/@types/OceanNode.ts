@@ -8,10 +8,9 @@ import type { PersistentStorageConfig } from './PersistentStorage.js'
 import type { AccessList } from './AccessList'
 
 export interface OceanNodeDBConfig {
-  url: string | null
-  username?: string
-  password?: string
-  dbType: string | null
+  url: string
+  username: string
+  password: string
 }
 
 // deny list of peer ids and ips (for rate limiting purposes)
@@ -167,7 +166,7 @@ export interface OceanNodeConfig {
   p2pConfig: OceanNodeP2PConfig | null
   hasIndexer: boolean
   hasHttp: boolean
-  dbConfig?: OceanNodeDBConfig
+  dbConfig: OceanNodeDBConfig
   // startup database-init retry: attempts, initial backoff (ms) and backoff ceiling (ms)
   dbInitMaxAttempts: number
   dbInitRetryDelay: number
@@ -214,6 +213,8 @@ export interface OceanNodeConfig {
   isBootstrap?: boolean
   validateUnsignedDDO?: boolean
   jwtSecret?: string
+  // keys per-instance state (node metrics); getInstanceId() falls back to os.hostname()
+  instanceId?: string
   httpCertPath?: string
   httpKeyPath?: string
   enableBenchmark?: boolean

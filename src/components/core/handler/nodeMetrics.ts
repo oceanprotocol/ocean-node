@@ -16,9 +16,8 @@ import {
   getMetricsRetentionDays,
   isNodeMetricsHistoryEnabled
 } from '../../../utils/nodeMetricsConfig.js'
-import { floorToHour } from '../../database/sqliteNodeMetrics.js'
+import { HOUR_MS, floorToHour } from '../../database/nodeMetricsAggregate.js'
 
-const HOUR_MS = 60 * 60 * 1000
 // Hard ceiling on returned buckets, independent of the range asked for. 180 days of hourly rows
 // is 4320; keeping some headroom above the retention window bounds a single response.
 const MAX_HISTORY_ROWS = 10000
@@ -138,7 +137,13 @@ export class GetNodeMetricsHistoryHandler extends CommandHandler {
       // coherent and getHourly returns an empty (not malformed) result.
       if (start > stop) start = stop
 
-      const buckets = db.nodeMetrics.getHourly(start, stop, MAX_HISTORY_ROWS)
+      const instanceId = this.getOceanNode().getInstanceId()
+      const buckets = await db.nodeMetrics.getHourly(
+        instanceId,
+        start,
+        stop,
+        MAX_HISTORY_ROWS
+      )
 
       // Append the live, not-yet-rolled-up current hour (averaged from raw samples) when it falls
       // in range and the roll-up has not already stored it. Lets a caller see fresh data without
@@ -152,7 +157,7 @@ export class GetNodeMetricsHistoryHandler extends CommandHandler {
         currentHour <= stop &&
         buckets.length < MAX_HISTORY_ROWS
       ) {
-        const partial = db.nodeMetrics.getPartialHour(currentHour)
+        const partial = await db.nodeMetrics.getPartialHour(instanceId, currentHour)
         if (partial) buckets.push(partial)
       }
 

@@ -16,6 +16,7 @@ import {
   OCEAN_ARTIFACTS_ADDRESSES_PER_CHAIN
 } from '../address.js'
 import { create256Hash } from '../crypt.js'
+import { hasValidDBConfiguration } from '../database.js'
 import { CONFIG_LOGGER } from '../logging/common.js'
 import { redactUrls, safeStringify } from '../logging/redact.js'
 import { OceanNodeConfigSchema } from './schemas.js'
@@ -26,6 +27,9 @@ import { fileURLToPath } from 'url'
 import lodash from 'lodash'
 
 let previousConfiguration: OceanNodeConfig = null
+
+const DB_CONFIG_REQUIRED =
+  'DB_URL, DB_USERNAME and DB_PASSWORD are required: Ocean Node stores all state in Elasticsearch'
 
 function mapEnvToConfig(
   env: NodeJS.ProcessEnv,
@@ -56,17 +60,19 @@ function preprocessConfigData(data: any): void {
   }
 
   // Transform DB_* env vars to dbConfig
-  if (data.DB_URL) {
+  if (
+    data.DB_URL !== undefined ||
+    data.DB_USERNAME !== undefined ||
+    data.DB_PASSWORD !== undefined
+  ) {
     data.dbConfig = {
       url: data.DB_URL,
       username: data.DB_USERNAME,
-      password: data.DB_PASSWORD,
-      dbType: data.DB_TYPE || 'elasticsearch'
+      password: data.DB_PASSWORD
     }
     delete data.DB_URL
     delete data.DB_USERNAME
     delete data.DB_PASSWORD
-    delete data.DB_TYPE
   }
 
   // Transform FEE_* env vars to feeStrategy
@@ -235,10 +241,18 @@ export function buildMergedConfig(): OceanNodeConfig {
       .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
       .join('; ')
     CONFIG_LOGGER.error(`Invalid Ocean Node configuration: ${issues}`)
+    if (parsed.error.issues.some((issue) => issue.path[0] === 'dbConfig')) {
+      CONFIG_LOGGER.error(DB_CONFIG_REQUIRED)
+    }
     throw new Error('Configuration validation failed')
   }
 
   const config = parsed.data as any
+  // zod checks the presence; the URL format is checked here
+  if (!hasValidDBConfiguration(config.dbConfig)) {
+    CONFIG_LOGGER.error(DB_CONFIG_REQUIRED)
+    throw new Error('Configuration validation failed')
+  }
 
   // PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING overrides persistentStorage.allowBucketSharing.
   // Applied after parsing because PERSISTENT_STORAGE may still be a JSON string before it.

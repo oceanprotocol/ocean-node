@@ -3,7 +3,7 @@ import { Client } from '@elastic/elasticsearch'
 import { OceanNodeDBConfig } from '../../@types'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { DB_TYPES } from '../../utils/constants.js'
+import { ElasticsearchSchema } from './ElasticSchemas.js'
 
 export const DB_EVENTS = {
   CONNECTION_LOST: 'db:connection:lost',
@@ -61,21 +61,10 @@ class ElasticsearchClientSingleton {
     return ElasticsearchClientSingleton.instance
   }
 
-  private isElasticsearchDatabase(config: OceanNodeDBConfig): boolean {
-    return config.dbType === DB_TYPES.ELASTIC_SEARCH
-  }
-
   public async getClient(
     config: OceanNodeDBConfig,
     customConfig: Partial<ElasticsearchRetryConfig> = {}
   ): Promise<Client> {
-    if (!this.isElasticsearchDatabase(config)) {
-      DATABASE_LOGGER.debug(
-        `Skipping Elasticsearch connection - database type is set to '${config.dbType || 'unknown'}', not '${DB_TYPES.ELASTIC_SEARCH}'`
-      )
-      throw new Error(`Database type '${config.dbType}' is not Elasticsearch`)
-    }
-
     if (this.client && this.config) {
       // Skip the extra ping here: 5 DB-class constructors all call getClient()
       // during reconnect reinit, and concurrent pings cause false errors that trigger another LOST/RESTORED cycle.
@@ -96,6 +85,13 @@ class ElasticsearchClientSingleton {
       }
     }
 
+    // The health monitor is the only reconnect path while it runs: its reconnect resets
+    // connectionLostEmitted and emits CONNECTION_RESTORED, which restarts the indexers. A
+    // reconnect from a store call would skip both, so store calls fail fast here instead.
+    if (this.isMonitoring) {
+      throw new Error('Elasticsearch connection not available (reconnecting)')
+    }
+
     const client = await this.createNewConnection(config, customConfig)
     this.startHealthMonitoring(config, customConfig)
     return client
@@ -105,7 +101,7 @@ class ElasticsearchClientSingleton {
     config: OceanNodeDBConfig,
     customConfig: Partial<ElasticsearchRetryConfig> = {}
   ): void {
-    if (this.isMonitoring || !this.client || !this.isElasticsearchDatabase(config)) return
+    if (this.isMonitoring || !this.client) return
 
     const finalConfig = {
       ...DEFAULT_ELASTICSEARCH_CONFIG,
@@ -190,10 +186,6 @@ class ElasticsearchClientSingleton {
     config: OceanNodeDBConfig,
     customConfig: Partial<ElasticsearchRetryConfig> = {}
   ): Promise<Client> {
-    if (!this.isElasticsearchDatabase(config)) {
-      throw new Error(`Database type '${config.dbType}' is not Elasticsearch`)
-    }
-
     this.connectionAttempts++
     this.lastConnectionTime = Date.now()
 
@@ -306,4 +298,41 @@ export function getElasticsearchConnectionStats(): {
 } {
   const singleton = ElasticsearchClientSingleton.getInstance()
   return singleton.getConnectionStats()
+}
+
+// creates the index with its mappings when it does not exist yet; throws on failure
+export async function ensureIndex(
+  config: OceanNodeDBConfig,
+  schema: ElasticsearchSchema
+): Promise<void> {
+  const client = await createElasticsearchClientWithRetry(config)
+  if (await client.indices.exists({ index: schema.index })) return
+  try {
+    await client.indices.create({ index: schema.index, body: schema.body as any })
+  } catch (error) {
+    // another instance created it between the two calls
+    if (error?.meta?.body?.error?.type === 'resource_already_exists_exception') return
+    throw error
+  }
+}
+
+// real-time read by id; a missing document is null, any other error (a missing index too)
+// is thrown
+export async function getOrNull<T>(
+  client: Client,
+  index: string,
+  id: string
+): Promise<{ source: T; seqNo: number; primaryTerm: number } | null> {
+  try {
+    const result = await client.get<T>({ index, id })
+    return {
+      source: result._source,
+      seqNo: result._seq_no,
+      primaryTerm: result._primary_term
+    }
+  } catch (error) {
+    const missingIndex = error?.meta?.body?.error?.type === 'index_not_found_exception'
+    if (error?.meta?.statusCode === 404 && !missingIndex) return null
+    throw error
+  }
 }

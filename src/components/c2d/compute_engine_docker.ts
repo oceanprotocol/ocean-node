@@ -6069,10 +6069,9 @@ export class C2DEngineDocker extends C2DEngine {
         SERVICE_LOCK_STALE_MS
       )
     } catch (e: any) {
-      // Fail CLOSED: proceeding without the SQLite lease would disable cross-process
-      // exclusion exactly when it matters most — SQLITE_BUSY-style errors are most
-      // likely precisely when two processes contend. Deferring costs little: every
-      // lifecycle operation writes to the same SQLite file moments later anyway, so it
+      // Fail CLOSED: proceeding without the DB lease would disable cross-process
+      // exclusion exactly when it matters most. Deferring costs little: every
+      // lifecycle operation writes to the same database moments later anyway, so it
       // could not complete with a broken DB regardless. Callers reject with "retry
       // shortly" (handlers) or retry on the next tick (the loop).
       CORE_LOGGER.error(

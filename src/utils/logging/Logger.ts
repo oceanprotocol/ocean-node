@@ -151,7 +151,7 @@ export class CustomOceanNodesTransport extends Transport {
       this.emit('logged', info)
     })
 
-    // Prevent feedback loop: writing a log to the DB triggers Typesense API calls,
+    // Prevent feedback loop: writing a log to the DB triggers Elasticsearch API calls,
     // which generate debug logs, which would trigger more DB writes, and so on.
     if (this.isLogging) {
       callback()

@@ -1548,7 +1548,7 @@ process kill). While it is ON, the node:
 - **Everything else is unchanged**: download, DDO query/validate, indexer, P2P, admin, fees,
   nonce, persistent storage, access lists, escrow events, auth tokens.
 
-The flag is persisted in the SQLite config DB, so it is **sticky across restarts**: a node that
+The flag is persisted in the Elasticsearch `node_config` index, so it is **sticky across restarts**: a node that
 reboots while in maintenance comes back up still in maintenance and will not accept new work
 until an admin disables it. It can also be set at boot with the `MAINTENANCE_MODE` env var (see
 `docs/env.md`). There is **no TTL and no auto-exit**: reaching zero running jobs does nothing on
@@ -1823,7 +1823,7 @@ Returns a live per-node resource snapshot, rolled up across every C2D engine (th
 
 #### Description
 
-Returns ordered hourly averages of the per-node resource snapshot, persisted to SQLite by the sampler/roll-up cron jobs and retained for `NODE_METRICS_RETENTION_DAYS` (default 180). Scalars are arithmetic means over the hour's minute-samples; `sampleCount` is how many samples fed each bucket; GPU entries are averaged per `resourceId`, env entries per `env`+`resource`. Requires the node-metrics database (returns `503` when unavailable, e.g. history disabled via `NODE_METRICS_HISTORY_ENABLED=false`).
+Returns ordered hourly averages of the per-node resource snapshot, persisted to Elasticsearch per instance (`INSTANCE_ID`) by the sampler/roll-up cron jobs and retained for `NODE_METRICS_RETENTION_DAYS` (default 180). Scalars are arithmetic means over the hour's minute-samples; `sampleCount` is how many samples fed each bucket; GPU entries are averaged per `resourceId`, env entries per `env`+`resource`. Requires the node-metrics database (returns `503` when unavailable, e.g. history disabled via `NODE_METRICS_HISTORY_ENABLED=false`).
 
 When the requested range includes the current, in-progress hour, the last bucket is a **live** average computed on the fly from the raw samples collected so far this hour (before the top-of-hour roll-up has stored it). It is flagged `"partial": true` and is the only bucket that carries that flag; every completed hour is a finalized, stored average. This lets a caller see fresh data without waiting for the hourly roll-up.
 

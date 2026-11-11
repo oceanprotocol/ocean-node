@@ -1,6 +1,8 @@
 import { assert, expect } from 'chai'
+import { Client } from '@elastic/elasticsearch'
 import { C2DDatabase } from '../../../components/database/C2DDatabase.js'
-import { typesenseSchemas } from '../../../components/database/TypesenseSchemas.js'
+import { createElasticsearchClientWithRetry } from '../../../components/database/ElasticsearchConfigHelper.js'
+import { stateSchemas } from '../../../components/database/ElasticSchemas.js'
 import { getConfiguration } from '../../../utils/config.js'
 import {
   C2DStatusNumber,
@@ -38,11 +40,6 @@ const BOUND_SEC = 1785760660
 const OLD_SEC = BOUND_SEC - 7200
 const NEW_FINISHED = '1785760660.961'
 const NINE_DIGIT = '999999999.5'
-
-// The C2D SQLite file survives between test runs, so every environment/jobId below is
-// namespaced per run: each test then sees only the rows it seeded.
-const RUN = String(Date.now())
-const envName = (base: string) => `${base}-${RUN}`
 
 const algorithm: ComputeAlgorithm = { documentId: 'did:op:1', serviceId: '0xabc' }
 const dataset: ComputeAsset = { documentId: 'did:op:2', serviceId: '0xdef' }
@@ -86,6 +83,7 @@ describe('getJobs filters', () => {
   let envOverrides: OverrideEnvConfig[]
   let config: OceanNodeConfig
   let db: C2DDatabase = null
+  let client: Client
 
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
@@ -96,7 +94,22 @@ describe('getJobs filters', () => {
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
-    db = await new C2DDatabase(config.dbConfig, typesenseSchemas.c2dSchemas)
+    db = await new C2DDatabase(config.dbConfig)
+    client = await createElasticsearchClientWithRetry(config.dbConfig)
+  })
+
+  // every write uses refresh: 'wait_for', so no index refresh is needed first
+  beforeEach(async () => {
+    await client.deleteByQuery({
+      index: [
+        stateSchemas.c2dJobs.index,
+        stateSchemas.serviceJobs.index,
+        stateSchemas.dockerImages.index
+      ],
+      query: { match_all: {} },
+      refresh: true,
+      conflicts: 'proceed'
+    })
   })
 
   after(async () => {
@@ -106,34 +119,35 @@ describe('getJobs filters', () => {
   // Seeds finished jobs into a run-private environment, with dateCreated == dateFinished so
   // one fixture serves both the fromTimestamp filter (dateFinished) and the ordering
   // assertion (dateCreated).
-  async function seedFinished(envId: string, finishedSecs: string[]): Promise<string[]> {
-    const ids: string[] = []
-    for (const [i, finished] of finishedSecs.entries()) {
-      const jobId = await db.newJob(
-        baseJob({
-          jobId: `${envId}-${i}`,
-          environment: envId,
-          dateCreated: finished
-        })
-      )
-      // dateFinished is only written by updateJob
-      await db.updateJob(
-        baseJob({
-          jobId,
-          environment: envId,
-          dateCreated: finished,
-          dateFinished: finished
-        })
-      )
-      ids.push(jobId)
-    }
-    return ids
+  // Jobs are seeded in parallel: each write waits for the next index refresh.
+  function seedFinished(envId: string, finishedSecs: string[]): Promise<string[]> {
+    return Promise.all(
+      finishedSecs.map(async (finished, i) => {
+        const jobId = await db.newJob(
+          baseJob({
+            jobId: `${envId}-${i}`,
+            environment: envId,
+            dateCreated: finished
+          })
+        )
+        // dateFinished is only written by updateJob
+        await db.updateJob(
+          baseJob({
+            jobId,
+            environment: envId,
+            dateCreated: finished,
+            dateFinished: finished
+          })
+        )
+        return jobId
+      })
+    )
   }
 
   describe('fromTimestamp is compared numerically', () => {
-    const envId = envName('env-fromTimestamp')
+    const envId = 'env-fromTimestamp'
 
-    before(async () => {
+    beforeEach(async () => {
       await seedFinished(envId, [String(OLD_SEC), NINE_DIGIT, NEW_FINISHED])
     })
 
@@ -172,7 +186,7 @@ describe('getJobs filters', () => {
   })
 
   it('includes a row sitting exactly on the bound', async () => {
-    const envId = envName('env-boundary')
+    const envId = 'env-boundary'
     // the filter is >=, so an exact match must be returned
     await seedFinished(envId, [String(BOUND_SEC)])
     const jobs = await db.getJobs([envId], BOUND_SEC)
@@ -180,7 +194,7 @@ describe('getJobs filters', () => {
   })
 
   it('orders by numeric dateCreated, not lexicographically', async () => {
-    const envId = envName('env-ordering')
+    const envId = 'env-ordering'
     // 9-digit vs 10-digit: as text "999999999.5" sorts above "1785760660.961", so pre-fix
     // the OLDER job came back first under ORDER BY dateCreated DESC.
     const tenDigits = NEW_FINISHED
@@ -194,9 +208,9 @@ describe('getJobs filters', () => {
   })
 
   describe('status filter', () => {
-    const envId = envName('env-status')
+    const envId = 'env-status'
 
-    before(async () => {
+    beforeEach(async () => {
       // JobStarted is 0 — the value a truthiness guard drops
       await db.newJob(
         baseJob({
@@ -244,6 +258,91 @@ describe('getJobs filters', () => {
       const jobs = await db.getJobs([envId])
       assert(jobs.length === 2, `expected 2 jobs, got ${jobs.length}`)
     })
+  })
+
+  describe('getJob matching', () => {
+    beforeEach(async () => {
+      await db.newJob(baseJob({ jobId: 'job-match', agreementId: '0xabc123' }))
+    })
+
+    it('finds a job by agreementId given without 0x', async () => {
+      const jobs = await db.getJob(undefined, 'abc123')
+      expect(jobs.map((j) => j.jobId)).to.deep.equal(['job-match'])
+    })
+
+    it('finds a checksummed owner by its lower-cased address', async () => {
+      const owner = baseJob({}).owner.toLowerCase()
+      const jobs = await db.getJob(undefined, undefined, owner)
+      expect(jobs.map((j) => j.jobId)).to.deep.equal(['job-match'])
+      expect(jobs[0].owner).to.equal(baseJob({}).owner)
+    })
+
+    it('applies agreementId and owner to a read by jobId', async () => {
+      const owner = baseJob({}).owner.toLowerCase()
+      const found = await db.getJob('job-match', 'abc123', owner)
+      expect(found.map((j) => j.jobId)).to.deep.equal(['job-match'])
+      expect(await db.getJob('job-match', '0xother')).to.deep.equal([])
+      expect(await db.getJob('job-match', undefined, '0xsomeoneelse')).to.deep.equal([])
+      expect(await db.getJob('missing-job')).to.deep.equal([])
+    })
+
+    it('fills jobIdHash and maxJobDuration on read', async () => {
+      const [job] = await db.getJob('job-match')
+      expect(job.jobIdHash).to.be.a('string')
+      expect(job.maxJobDuration).to.equal(3600)
+    })
+  })
+
+  it('updateJob sets dateFinished: running excludes it, finished lists newest first', async () => {
+    const envId = 'env-finish'
+    await db.newJob(baseJob({ jobId: 'running', environment: envId, dateCreated: '100' }))
+    const [older, newer] = await seedFinished(envId, ['200.5', '300.25'])
+
+    const running = await db.getRunningJobs()
+    expect(running.map((j) => j.jobId)).to.deep.equal(['running'])
+    expect(running[0].dateFinished).to.equal(null)
+
+    const finished = await db.getFinishedJobs([envId])
+    expect(finished.map((j) => j.jobId)).to.deep.equal([newer, older])
+    expect(Number(finished[0].dateFinished)).to.equal(300.25)
+    expect(await db.getFinishedJobs(['other-env'])).to.deep.equal([])
+  })
+
+  it('getJobsByStatus filters on environments and statuses', async () => {
+    const envId = 'env-by-status'
+    await db.newJob(
+      baseJob({
+        jobId: 'started',
+        environment: envId,
+        status: C2DStatusNumber.JobStarted,
+        dateCreated: '10'
+      })
+    )
+    await db.newJob(baseJob({ jobId: 'finished', environment: envId, dateCreated: '20' }))
+    await db.newJob(baseJob({ jobId: 'elsewhere', environment: 'other-env' }))
+
+    const started = await db.getJobsByStatus([envId], [C2DStatusNumber.JobStarted])
+    expect(started.map((j) => j.jobId)).to.deep.equal(['started'])
+    const all = await db.getJobsByStatus([envId], [])
+    expect(all.map((j) => j.jobId)).to.deep.equal(['finished', 'started'])
+  })
+
+  it('deleteJob returns true once, then false', async () => {
+    const jobId = await db.newJob(baseJob({ jobId: 'to-delete' }))
+    expect(await db.deleteJob(jobId)).to.equal(true)
+    expect(await db.deleteJob(jobId)).to.equal(false)
+    expect(await db.getJob(jobId)).to.deep.equal([])
+  })
+
+  it('tracks docker image usage', async () => {
+    const image = 'quay.io/test/image:latest'
+    await db.updateImage(image)
+    expect(await db.getOldImages(7)).to.deep.equal([])
+    // timestamps are whole seconds: wait for the next second so the image is "old"
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+    expect(await db.getOldImages(0)).to.deep.equal([image])
+    await db.deleteImage(image)
+    expect(await db.getOldImages(0)).to.deep.equal([])
   })
 })
 

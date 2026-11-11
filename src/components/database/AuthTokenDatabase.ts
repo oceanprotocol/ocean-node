@@ -1,30 +1,42 @@
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { AbstractDatabase } from './BaseDatabase.js'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
-import { SQLiteAuthToken } from './sqliteAuthToken.js'
+import { create256Hash } from '../../utils/crypt.js'
+import { ElasticsearchAuthToken } from './ElasticsearchAuthToken.js'
 
 export interface AuthToken {
-  token: string
   address: string
-  created: Date
-  validUntil: Date | null
+  createdAt: number
+  validUntil: number | null
   isValid: boolean
   chainId?: string | null
 }
 
-export class AuthTokenDatabase extends AbstractDatabase {
-  private provider: SQLiteAuthToken
+// providers get the sha256 of the token (tokenId), never the token itself
+export interface AuthTokenDatabaseProvider {
+  createToken(
+    tokenId: string,
+    address: string,
+    createdAt: number,
+    validUntil: number | null,
+    chainId?: string | null
+  ): Promise<void>
+  validateTokenEntry(tokenId: string): Promise<AuthToken | null>
+  invalidateTokenEntry(tokenId: string): Promise<void>
+  deleteExpiredTokens(now: number): Promise<number>
+}
 
-  private constructor(config: OceanNodeDBConfig, provider?: SQLiteAuthToken) {
+export class AuthTokenDatabase extends AbstractDatabase {
+  private provider: AuthTokenDatabaseProvider
+
+  private constructor(config: OceanNodeDBConfig, provider?: AuthTokenDatabaseProvider) {
     super(config)
     this.provider = provider
   }
 
   static async create(config: OceanNodeDBConfig): Promise<AuthTokenDatabase> {
-    DATABASE_LOGGER.debug('Creating AuthTokenDatabase with SQLite')
-    // SqliteClient creates the parent directory on construction.
-    const provider = new SQLiteAuthToken('databases/authTokenDatabase.sqlite')
-    await provider.createTable()
+    DATABASE_LOGGER.debug('Creating AuthTokenDatabase with Elasticsearch')
+    const provider = await ElasticsearchAuthToken.create(config)
     return new AuthTokenDatabase(config, provider)
   }
 
@@ -35,20 +47,26 @@ export class AuthTokenDatabase extends AbstractDatabase {
     createdAt: number,
     chainId?: string | null
   ): Promise<string> {
-    await this.provider.createToken(token, address, createdAt, validUntil, chainId)
+    await this.provider.createToken(
+      create256Hash(token),
+      address,
+      createdAt,
+      validUntil,
+      chainId
+    )
     return token
   }
 
   async validateToken(token: string): Promise<AuthToken | null> {
-    const tokenEntry = await this.provider.validateTokenEntry(token)
-    if (!tokenEntry) {
-      return null
-    }
-
-    return tokenEntry
+    return await this.provider.validateTokenEntry(create256Hash(token))
   }
 
   async invalidateToken(token: string): Promise<void> {
-    await this.provider.invalidateTokenEntry(token)
+    await this.provider.invalidateTokenEntry(create256Hash(token))
+  }
+
+  // removes expired and invalidated tokens; returns how many were deleted
+  async deleteExpiredTokens(now: number): Promise<number> {
+    return await this.provider.deleteExpiredTokens(now)
   }
 }

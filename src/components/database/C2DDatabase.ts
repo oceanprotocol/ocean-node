@@ -1,5 +1,3 @@
-import path from 'path'
-import fs from 'fs'
 import {
   ComputeEnvironment,
   DBComputeJob,
@@ -11,34 +9,78 @@ import {
   ServiceModelDownload,
   ServiceReadiness
 } from '../../@types/C2D/ServiceOnDemand.js'
-import { SQLiteCompute } from './sqliteCompute.js'
+import { ElasticsearchCompute } from './ElasticsearchCompute.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
-import { TypesenseSchema } from './TypesenseSchemas.js'
 import { AbstractDatabase } from './BaseDatabase.js'
 import { OceanNode } from '../../OceanNode.js'
 
 import { generateUniqueID } from '../core/compute/utils.js'
+
+// the lifecycle fields a best-effort service job body patch must still find unchanged
+export type ServiceJobExpected = {
+  owner: string
+  clusterHash: string
+  status: number
+  containerId: string
+}
+
+export interface ComputeDatabaseProvider {
+  newJob(job: DBComputeJob): Promise<string>
+  getJob(jobId?: string, agreementId?: string, owner?: string): Promise<DBComputeJob[]>
+  updateJob(job: DBComputeJob): Promise<number>
+  getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]>
+  deleteJob(jobId: string): Promise<boolean>
+  getFinishedJobs(environments?: string[]): Promise<DBComputeJob[]>
+  getJobs(
+    environments?: string[],
+    fromTimestamp?: number,
+    consumerAddrs?: string[],
+    status?: C2DStatusNumber,
+    runningJobs?: boolean
+  ): Promise<DBComputeJob[]>
+  getJobsByStatus(
+    environments: string[],
+    status: C2DStatusNumber[]
+  ): Promise<DBComputeJob[]>
+  updateImage(image: string): Promise<void>
+  deleteImage(image: string): Promise<void>
+  getOldImages(retentionDays: number): Promise<string[]>
+  newServiceJob(job: ServiceJob): Promise<void>
+  getServiceJob(serviceId?: string, owner?: string): Promise<ServiceJob[]>
+  updateServiceJob(job: ServiceJob): Promise<number>
+  updateServiceJobMetrics(
+    serviceId: string,
+    expected: ServiceJobExpected,
+    runtimeMetrics: ContainerMetricsSnapshot
+  ): Promise<boolean>
+  updateServiceJobReadiness(
+    serviceId: string,
+    expected: ServiceJobExpected,
+    readiness: ServiceReadiness | undefined,
+    modelDownload?: ServiceModelDownload
+  ): Promise<boolean>
+  getRunningServiceJobs(clusterHash?: string): Promise<ServiceJob[]>
+  getExpiredServiceJobs(clusterHash?: string): Promise<ServiceJob[]>
+  getExpiredServiceJobsBefore(
+    expiresBefore: number,
+    clusterHash?: string
+  ): Promise<ServiceJob[]>
+  getPendingServiceStarts(clusterHash?: string): Promise<ServiceJob[]>
+  acquireServiceLock(serviceId: string, holder: string, staleMs: number): Promise<boolean>
+  releaseServiceLock(serviceId: string, holder: string): Promise<void>
+  refreshServiceLocks(holder: string): Promise<void>
+  isServiceLocked(serviceId: string, staleMs: number): Promise<boolean>
+}
+
 export class C2DDatabase extends AbstractDatabase {
-  private provider: SQLiteCompute
+  private provider: ComputeDatabaseProvider
 
-  constructor(config: OceanNodeDBConfig, schema: TypesenseSchema) {
-    super(config, schema)
+  constructor(config: OceanNodeDBConfig) {
+    super(config)
     return (async (): Promise<C2DDatabase> => {
-      // Fall back to SQLite
-      DATABASE_LOGGER.debug('Creating C2DDatabase with SQLite')
-
-      // Ensure the directory exists before instantiating SQLiteProvider
-      const dbDir = path.dirname('databases/c2dDatabase.sqlite')
-      if (!fs.existsSync(dbDir)) {
-        fs.mkdirSync(dbDir, { recursive: true })
-      }
-      this.provider = new SQLiteCompute('databases/c2dDatabase.sqlite')
-      await this.provider.createTable()
-      await this.provider.createImageTable()
-      await this.provider.createServiceTable()
-      await this.provider.createServiceLocksTable()
-
+      DATABASE_LOGGER.debug('Creating C2DDatabase with Elasticsearch')
+      this.provider = await ElasticsearchCompute.create(config)
       return this
     })() as unknown as C2DDatabase
   }
@@ -97,12 +139,7 @@ export class C2DDatabase extends AbstractDatabase {
   // only when the row still matches the expected owner/clusterHash/status/containerId. Best-effort.
   async updateServiceJobMetrics(
     serviceId: string,
-    expected: {
-      owner: string
-      clusterHash: string
-      status: number
-      containerId: string
-    },
+    expected: ServiceJobExpected,
     runtimeMetrics: ContainerMetricsSnapshot
   ): Promise<boolean> {
     return await this.provider.updateServiceJobMetrics(
@@ -114,12 +151,7 @@ export class C2DDatabase extends AbstractDatabase {
 
   async updateServiceJobReadiness(
     serviceId: string,
-    expected: {
-      owner: string
-      clusterHash: string
-      status: number
-      containerId: string
-    },
+    expected: ServiceJobExpected,
     readiness: ServiceReadiness | undefined,
     modelDownload?: ServiceModelDownload
   ): Promise<boolean> {
@@ -150,7 +182,7 @@ export class C2DDatabase extends AbstractDatabase {
     return await this.provider.getPendingServiceStarts(clusterHash)
   }
 
-  // ── Service lifecycle locks (cross-process; see sqliteCompute.ts) ───────
+  // ── Service lifecycle locks (cross-process) ─────────────────────────────
 
   async acquireServiceLock(
     serviceId: string,
@@ -180,7 +212,11 @@ export class C2DDatabase extends AbstractDatabase {
     return await this.provider.getFinishedJobs(environments)
   }
 
-  /** @param fromTimestamp lower bound in Unix seconds — see SQLiteCompute.getJobs. */
+  /**
+   * @param fromTimestamp lower bound in Unix **seconds** (the unit dateCreated/dateFinished
+   * are stored in). Callers normalize before getting here — see parseFromTimestampSeconds
+   * in core/utils/timestamps.ts.
+   */
   async getJobs(
     environments?: string[],
     fromTimestamp?: number,

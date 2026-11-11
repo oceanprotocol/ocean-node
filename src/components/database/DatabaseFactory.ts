@@ -6,6 +6,7 @@ import {
   AbstractEscrowDatabase,
   AbstractIndexerDatabase,
   AbstractLogDatabase,
+  AbstractNonceDatabase,
   AbstractOrderDatabase
 } from './BaseDatabase.js'
 import {
@@ -15,96 +16,38 @@ import {
   ElasticsearchEscrowDatabase,
   ElasticsearchIndexerDatabase,
   ElasticsearchLogDatabase,
+  ElasticsearchNonceDatabase,
   ElasticsearchOrderDatabase
 } from './ElasticSearchDatabase.js'
-import { typesenseSchemas } from './TypesenseSchemas.js'
-import {
-  TypesenseAccessListDatabase,
-  TypesenseDdoDatabase,
-  TypesenseDdoStateDatabase,
-  TypesenseEscrowDatabase,
-  TypesenseIndexerDatabase,
-  TypesenseLogDatabase,
-  TypesenseOrderDatabase
-} from './TypesenseDatabase.js'
 import { elasticSchemas } from './ElasticSchemas.js'
 import { IDdoStateQuery } from '../../@types/DDO/IDdoStateQuery.js'
-import { TypesenseDdoStateQuery } from './TypesenseDdoStateQuery.js'
 import { ElasticSearchDdoStateQuery } from './ElasticSearchDdoStateQuery.js'
-import { TypesenseMetadataQuery } from './TypesenseMetadataQuery.js'
 import { IMetadataQuery } from '../../@types/DDO/IMetadataQuery.js'
 import { ElasticSearchMetadataQuery } from './ElasticSearchMetadataQuery.js'
-import { DB_TYPES } from '../../utils/index.js'
 import { C2DDatabase } from './C2DDatabase.js'
-import { SQLLiteNonceDatabase } from './SQLLiteNonceDatabase.js'
-import { SQLLiteConfigDatabase } from './SQLLiteConfigDatabase.js'
+import { ConfigDatabase } from './ConfigDatabase.js'
+import { ElasticsearchConfigDatabase } from './ElasticsearchConfigDatabase.js'
 import { AuthTokenDatabase } from './AuthTokenDatabase.js'
-import { NodeMetricsDatabase } from './sqliteNodeMetrics.js'
+import { NodeMetricsProvider } from './NodeMetricsDatabase.js'
+import { ElasticsearchNodeMetrics } from './ElasticsearchNodeMetrics.js'
+import { BucketRegistry } from './BucketRegistry.js'
+import { ElasticsearchBucketRegistry } from './ElasticsearchBucketRegistry.js'
 
 export class DatabaseFactory {
-  private static databaseMap = {
-    elasticsearch: {
-      ddo: (config: OceanNodeDBConfig) =>
-        new ElasticsearchDdoDatabase(config, elasticSchemas.ddoSchemas),
-      indexer: (config: OceanNodeDBConfig) => new ElasticsearchIndexerDatabase(config),
-      log: (config: OceanNodeDBConfig) => new ElasticsearchLogDatabase(config),
-      order: (config: OceanNodeDBConfig) =>
-        new ElasticsearchOrderDatabase(config, elasticSchemas.orderSchema),
-      ddoState: (config: OceanNodeDBConfig) => new ElasticsearchDdoStateDatabase(config),
-      ddoStateQuery: () => new ElasticSearchDdoStateQuery(),
-      metadataQuery: () => new ElasticSearchMetadataQuery(),
-      accessList: (config: OceanNodeDBConfig) =>
-        new ElasticsearchAccessListDatabase(config),
-      escrow: (config: OceanNodeDBConfig) =>
-        new ElasticsearchEscrowDatabase(config, elasticSchemas.escrowSchema)
-    },
-    typesense: {
-      ddo: (config: OceanNodeDBConfig) =>
-        new TypesenseDdoDatabase(config, typesenseSchemas.ddoSchemas),
-      indexer: (config: OceanNodeDBConfig) =>
-        new TypesenseIndexerDatabase(config, typesenseSchemas.indexerSchemas),
-      log: (config: OceanNodeDBConfig) =>
-        new TypesenseLogDatabase(config, typesenseSchemas.logSchemas),
-      order: (config: OceanNodeDBConfig) =>
-        new TypesenseOrderDatabase(config, typesenseSchemas.orderSchema),
-      ddoState: (config: OceanNodeDBConfig) =>
-        new TypesenseDdoStateDatabase(config, typesenseSchemas.ddoStateSchema),
-      ddoStateQuery: () => new TypesenseDdoStateQuery(),
-      metadataQuery: () => new TypesenseMetadataQuery(),
-      accessList: (config: OceanNodeDBConfig) =>
-        new TypesenseAccessListDatabase(config, typesenseSchemas.accessListSchema),
-      escrow: (config: OceanNodeDBConfig) =>
-        new TypesenseEscrowDatabase(config, typesenseSchemas.escrowSchema)
-    }
-  }
-
-  private static getDatabaseType(config: OceanNodeDBConfig): any {
-    return config.dbType === DB_TYPES.ELASTIC_SEARCH
-      ? DB_TYPES.ELASTIC_SEARCH
-      : DB_TYPES.TYPESENSE
-  }
-
-  private static createDatabase<T>(
-    databaseType: keyof (typeof DatabaseFactory.databaseMap)['elasticsearch'],
-    config: OceanNodeDBConfig
-  ): T {
-    const dbTypeKey: keyof typeof this.databaseMap = this.getDatabaseType(config)
-    const databaseCreator = this.databaseMap[dbTypeKey][databaseType]
-    return databaseCreator(config) as T
-  }
-
   static async createNonceDatabase(
     config: OceanNodeDBConfig
-  ): Promise<SQLLiteNonceDatabase> {
-    return await new SQLLiteNonceDatabase(config, typesenseSchemas.nonceSchemas)
+  ): Promise<AbstractNonceDatabase> {
+    return await new ElasticsearchNonceDatabase(config)
   }
 
-  static createDdoDatabase(config: OceanNodeDBConfig): Promise<AbstractDdoDatabase> {
-    return this.createDatabase('ddo', config)
+  static async createDdoDatabase(
+    config: OceanNodeDBConfig
+  ): Promise<AbstractDdoDatabase> {
+    return await new ElasticsearchDdoDatabase(config, elasticSchemas.ddoSchemas)
   }
 
   static async createC2DDatabase(config: OceanNodeDBConfig): Promise<C2DDatabase> {
-    return await new C2DDatabase(config, typesenseSchemas.c2dSchemas)
+    return await new C2DDatabase(config)
   }
 
   static async createAuthTokenDatabase(
@@ -113,52 +56,63 @@ export class DatabaseFactory {
     return await AuthTokenDatabase.create(config)
   }
 
-  static createIndexerDatabase(
+  static async createIndexerDatabase(
     config: OceanNodeDBConfig
   ): Promise<AbstractIndexerDatabase> {
-    return this.createDatabase('indexer', config)
+    return await new ElasticsearchIndexerDatabase(config)
   }
 
-  static createLogDatabase(config: OceanNodeDBConfig): Promise<AbstractLogDatabase> {
-    return this.createDatabase('log', config)
+  static async createLogDatabase(
+    config: OceanNodeDBConfig
+  ): Promise<AbstractLogDatabase> {
+    return await new ElasticsearchLogDatabase(config)
   }
 
-  static createOrderDatabase(config: OceanNodeDBConfig): Promise<AbstractOrderDatabase> {
-    return this.createDatabase('order', config)
+  static async createOrderDatabase(
+    config: OceanNodeDBConfig
+  ): Promise<AbstractOrderDatabase> {
+    return await new ElasticsearchOrderDatabase(config, elasticSchemas.orderSchema)
   }
 
-  static createDdoStateDatabase(
+  static async createDdoStateDatabase(
     config: OceanNodeDBConfig
   ): Promise<AbstractDdoStateDatabase> {
-    return this.createDatabase('ddoState', config)
-  }
-
-  static createDdoStateQuery(config: OceanNodeDBConfig): Promise<IDdoStateQuery> {
-    return this.createDatabase('ddoStateQuery', config)
-  }
-
-  static createMetadataQuery(config: OceanNodeDBConfig): Promise<IMetadataQuery> {
-    return this.createDatabase('metadataQuery', config)
-  }
-
-  static async createConfigDatabase(): Promise<SQLLiteConfigDatabase> {
-    return await new SQLLiteConfigDatabase()
+    return await new ElasticsearchDdoStateDatabase(config)
   }
 
   // eslint-disable-next-line require-await
-  static async createNodeMetricsDatabase(): Promise<NodeMetricsDatabase> {
-    return new NodeMetricsDatabase()
+  static async createDdoStateQuery(config: OceanNodeDBConfig): Promise<IDdoStateQuery> {
+    return new ElasticSearchDdoStateQuery()
   }
 
-  static createAccessListDatabase(
+  // eslint-disable-next-line require-await
+  static async createMetadataQuery(config: OceanNodeDBConfig): Promise<IMetadataQuery> {
+    return new ElasticSearchMetadataQuery()
+  }
+
+  static async createConfigDatabase(config: OceanNodeDBConfig): Promise<ConfigDatabase> {
+    return await ElasticsearchConfigDatabase.create(config)
+  }
+
+  static async createBucketRegistry(config: OceanNodeDBConfig): Promise<BucketRegistry> {
+    return await ElasticsearchBucketRegistry.create(config)
+  }
+
+  static async createNodeMetricsDatabase(
+    config: OceanNodeDBConfig
+  ): Promise<NodeMetricsProvider> {
+    return await ElasticsearchNodeMetrics.create(config)
+  }
+
+  static async createAccessListDatabase(
     config: OceanNodeDBConfig
   ): Promise<AbstractAccessListDatabase> {
-    return this.createDatabase('accessList', config)
+    return await new ElasticsearchAccessListDatabase(config)
   }
 
-  static createEscrowDatabase(
+  static async createEscrowDatabase(
     config: OceanNodeDBConfig
   ): Promise<AbstractEscrowDatabase> {
-    return this.createDatabase('escrow', config)
+    return await new ElasticsearchEscrowDatabase(config, elasticSchemas.escrowSchema)
   }
 }

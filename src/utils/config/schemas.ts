@@ -194,10 +194,9 @@ export const FeeStrategySchema = z.object({
 })
 
 export const OceanNodeDBConfigSchema = z.object({
-  url: z.string().nullable(),
-  username: z.string().optional(),
-  password: z.string().optional(),
-  dbType: z.string().nullable()
+  url: z.string().min(1),
+  username: z.string().min(1),
+  password: z.string().min(1)
 })
 
 export const PersistentStorageConfigSchema = z
@@ -1430,8 +1429,7 @@ export const OceanNodeConfigSchema = z
     DB_URL: z.string().optional(),
     DB_USERNAME: z.string().optional(),
     DB_PASSWORD: z.string().optional(),
-    DB_TYPE: z.string().optional(),
-    dbConfig: OceanNodeDBConfigSchema.optional(),
+    dbConfig: OceanNodeDBConfigSchema,
     // Accept either an object (config file) or a JSON string (env var `PERSISTENT_STORAGE`),
     // and validate the parsed value against the PersistentStorage schema.
     persistentStorage: z
@@ -1665,6 +1663,7 @@ export const OceanNodeConfigSchema = z
     isBootstrap: booleanFromString.optional().default(false),
     validateUnsignedDDO: booleanFromString.optional().default(true),
     jwtSecret: z.string(),
+    instanceId: z.string().optional(),
     httpCertPath: z.string().optional(),
     httpKeyPath: z.string().optional()
   })
