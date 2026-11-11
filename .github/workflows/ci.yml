@@ -285,7 +285,6 @@ jobs:
           persist-credentials: false
           repository: 'oceanprotocol/ocean.js'
           path: 'ocean.js'
-          ref: 'rc_10.0.0'
       - name: Build ocean-js
         working-directory: ${{ github.workspace }}/ocean.js
         run: |
