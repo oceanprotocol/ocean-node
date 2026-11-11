@@ -284,7 +284,6 @@ jobs:
         with:
           persist-credentials: false
           repository: 'oceanprotocol/ocean.js'
-          ref: 'v9.2.2'
           path: 'ocean.js'
           ref: 'rc_10.0.0'
       - name: Build ocean-js
