@@ -37,6 +37,23 @@ describe('Query index allowlist', () => {
     })
   }
 
+  const crossIndexQueries: Record<string, any> = {
+    'terms lookup': { terms: { id: { index: 'nonce', id: '0x1', path: 'nonce' } } },
+    more_like_this: { more_like_this: { like: [{ _index: 'node_config', _id: 'a' }] } },
+    'nested bool': {
+      bool: { filter: [{ terms: { id: { index: 'c2d_jobs', id: '1', path: 'owner' } } }] }
+    }
+  }
+  for (const [name, query] of Object.entries(crossIndexQueries)) {
+    for (const index of [SCHEMAS[0].index, undefined]) {
+      it(`rejects a ${name} on another index (index: ${index})`, async () => {
+        const response = await run(index ? { index, query } : { query })
+        expect(response.status.httpStatus).to.equal(400)
+        expect(search.called).to.equal(false)
+      })
+    }
+  }
+
   it('searches a DDO schema index', async () => {
     const response = await run({ index: SCHEMAS[0].index, query: { match_all: {} } })
     expect(response.status.httpStatus).to.equal(200)

@@ -165,7 +165,6 @@ if (!config) {
 }
 let node: OceanP2P = null
 let indexer = null
-let provider = null
 const dbconn: Database | null = await initDatabaseWithRetry(
   config.dbConfig,
   config.dbInitMaxAttempts,
@@ -173,12 +172,15 @@ const dbconn: Database | null = await initDatabaseWithRetry(
   config.dbInitMaxRetryDelay
 )
 if (!dbconn) {
-  OCEAN_NODE_LOGGER.error('Database failed to initialize')
+  // all state is in Elasticsearch: exit so the orchestrator restarts the node
+  OCEAN_NODE_LOGGER.error('Database failed to initialize, exiting')
+  await flushLogs()
+  process.exit(1)
 }
 
-// LOG_DB is on but there is no usable log database (failed init): keep the logs on disk instead
-if (USE_DB_TRANSPORT() && !dbconn?.logs) {
-  const reason = dbconn ? 'log DB not initialized' : 'DB init failed'
+// LOG_DB is on but there is no usable log database: keep the logs on disk instead
+if (USE_DB_TRANSPORT() && !dbconn.logs) {
+  const reason = 'log DB not initialized'
   // LOG_FILES=false as well: never leave the node without any log output
   if (!enableFileLoggingFallback(reason)) ensureLogOutput(reason)
 }
@@ -190,22 +192,16 @@ const keyManager = new KeyManager(config)
 const blockchainRegistry = new BlockchainRegistry(keyManager, config)
 
 if (config.hasP2P) {
-  if (dbconn) {
-    node = new OceanP2P(config, keyManager, dbconn)
-  } else {
-    node = new OceanP2P(config, keyManager)
-  }
+  node = new OceanP2P(config, keyManager, dbconn)
   await node.start()
   // Attach the P2P observable-gauge callbacks now that libp2p is up. No-ops cleanly if P2P is
   // disabled (this block only runs when hasP2P) or when telemetry is unconfigured.
   registerP2PGauges(node)
 }
-if (config.hasIndexer && dbconn) {
+if (config.hasIndexer) {
   indexer = new OceanIndexer(dbconn, config, blockchainRegistry)
 }
-if (dbconn) {
-  provider = new OceanProvider(dbconn)
-}
+const provider = new OceanProvider(dbconn)
 
 // Singleton instance across application
 const oceanNode = OceanNode.getInstance(

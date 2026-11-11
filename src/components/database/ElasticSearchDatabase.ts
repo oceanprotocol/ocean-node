@@ -635,6 +635,16 @@ export class ElasticsearchEscrowDatabase extends AbstractEscrowDatabase {
   }
 }
 
+// Terms lookup, more_like_this, percolate and indexed_shape can read a document from
+// another index. All of them name that index with an `index` or `_index` key.
+function namesAnotherIndex(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(namesAnotherIndex)
+  if (value === null || typeof value !== 'object') return false
+  return Object.entries(value).some(
+    ([key, child]) => key === 'index' || key === '_index' || namesAnotherIndex(child)
+  )
+}
+
 export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
   private client: Client
 
@@ -712,8 +722,12 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     const maxPerPage = query.size || 100
     const from = (query.from || 1) * maxPerPage - maxPerPage
 
-    if (query.index) {
-      const { index, ...queryWithoutIndex } = query
+    const { index, ...queryWithoutIndex } = query
+    if (namesAnotherIndex(queryWithoutIndex)) {
+      throw new Error('A query that names another index is not queryable')
+    }
+
+    if (index) {
       if (!this.getSchemas().some((schema) => schema.index === index)) {
         throw new Error(`Index '${index}' is not queryable`)
       }
@@ -742,7 +756,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
           const response = await this.client.search({
             index: schema.index,
             body: {
-              ...query,
+              ...queryWithoutIndex,
               from,
               size: maxPerPage
             }
