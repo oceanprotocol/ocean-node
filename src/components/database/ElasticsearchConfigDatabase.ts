@@ -25,7 +25,7 @@ export class ElasticsearchConfigDatabase implements ConfigDatabase {
     return new ElasticsearchConfigDatabase(config)
   }
 
-  async createOrUpdateConfig(key: string = 'version', value: string) {
+  async createOrUpdateConfig(key: string, value: string) {
     try {
       const client = await this.client()
       await client.index({
