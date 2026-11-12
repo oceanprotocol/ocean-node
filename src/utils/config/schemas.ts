@@ -633,6 +633,9 @@ export const ServiceTemplateSchema = z
         'other'
       ])
       .optional(),
+    // Marks a hand-picked model template: a fixed model + fixed serve args, no user command/model
+    // override (e.g. a vLLM-served curated model). Absent = an ordinary flow.
+    type: z.enum(['curated']).optional(),
     includes: z.array(TemplateIncludedItemSchema).optional(),
     // true: left out of the dashboard catalogue, still reachable by a direct link
     unlisted: z.boolean().optional(),

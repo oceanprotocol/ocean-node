@@ -373,6 +373,16 @@ describe('ServiceTemplateSchema', () => {
     ).to.equal(false)
   })
 
+  it('accepts the curated type marker, no type, and rejects an unknown type', () => {
+    expect(
+      ServiceTemplateSchema.safeParse({ ...baseTemplate, type: 'curated' }).success
+    ).to.equal(true)
+    expect(ServiceTemplateSchema.safeParse(baseTemplate).success).to.equal(true)
+    expect(
+      ServiceTemplateSchema.safeParse({ ...baseTemplate, type: 'nope' }).success
+    ).to.equal(false)
+  })
+
   it('a bundle without its parent service id is rejected', () => {
     const orphan = {
       id: 'orphan-bundle',
