@@ -1,5 +1,16 @@
 import { isAddress, getAddress } from 'ethers'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
+import { resolveServiceImage } from '../../c2d/serviceResourceMatching.js'
+
+// Thrown by the SERVICE_RESTART subsidy gate (handler fast-fail and the engine's authoritative
+// backstop) when a RESPEC would run a non-allowed image/entrypoint on a subsidized service. Handlers
+// map it to HTTP 403 (a forbidden action), not a 500 — it is a rejected request, not a server fault.
+export class SubsidyGateError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'SubsidyGateError'
+  }
+}
 
 // The Escrow v2 contract caps the number of UNIQUE sponsors per lock at `maxSponsorsPerLock()`
 // (== 10) and reverts `createLock`/`reLock` with "Too many sponsors" beyond it. We mirror that
@@ -165,9 +176,15 @@ export function imageReferenceMatches(
     const name = trimmed.slice(0, -2)
     return name.length > 0 && container.image === name
   }
-  const candidate = container.checksum
-    ? `${container.image}@${container.checksum}`
-    : `${container.image}:${container.tag ?? 'latest'}`
+  // Build the single candidate the SAME way the engine does, by reusing resolveServiceImage
+  // (checksum → `image@checksum`, else `image:tag|latest`), so the gate never drifts from what the
+  // engine actually runs. The dockerfile branch of resolveServiceImage is unreachable here (guarded
+  // above) and needs a serviceId we don't have, so dockerfile is passed as undefined.
+  const candidate = resolveServiceImage(
+    container.image,
+    container.tag,
+    container.checksum
+  )
   return candidate === trimmed
 }
 

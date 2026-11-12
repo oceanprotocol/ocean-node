@@ -9,6 +9,7 @@ import {
   reserveHostPort
 } from '../../../components/core/service/utils.js'
 import { PersistentStorageAccessDeniedError } from '../../../components/persistentStorage/PersistentStorageFactory.js'
+import { SubsidyGateError } from '../../../components/core/utils/subsidyProviders.js'
 
 const OWNER = '0x0000000000000000000000000000000000000001'
 const SERVICE_ID = 'svc-race-1'
@@ -180,6 +181,7 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
       threw = e
     }
     expect(threw, 'expected restartService to reject').to.not.equal(null)
+    expect(threw).to.be.instanceOf(SubsidyGateError) // handler maps this to 403, not 500
     expect(threw!.message).to.match(/non-allowed image/)
     // Never persisted Restarting, and the lifecycle lock was released (not leaked on the throw).
     expect(job.status).to.equal(ServiceStatusNumber.Running)

@@ -13,6 +13,7 @@ import { ServiceStopHandler } from '../../../components/core/service/stopService
 import { ServiceExtendHandler } from '../../../components/core/service/extendService.js'
 import { ServiceRestartHandler } from '../../../components/core/service/restartService.js'
 import { ServiceGetStreamableLogsHandler } from '../../../components/core/service/getStreamableLogs.js'
+import { SubsidyGateError } from '../../../components/core/utils/subsidyProviders.js'
 import { PersistentStorageAccessDeniedError } from '../../../components/persistentStorage/PersistentStorageFactory.js'
 
 // Checksummed (EIP-55): commands are canonicalized on ingress, so this is the form handlers
@@ -593,6 +594,20 @@ describe('Service handlers', () => {
       } as any)
       expect(res.status.httpStatus).to.equal(200)
       expect(engine.restartService.calledOnce).to.equal(true)
+    })
+
+    it('maps the engine backstop SubsidyGateError to 403 (not 500)', async () => {
+      // The engine re-runs the subsidy gate on the fresh row under the lock and throws
+      // SubsidyGateError on a disallowed RESPEC (the concurrent-extend race). The handler must
+      // surface that as 403, like the pre-lock fast-fail, not a generic 500.
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      engine.restartService.rejects(new SubsidyGateError('nope'))
+      const res = await new ServiceRestartHandler(node).handle({
+        ...baseTask,
+        image: 'allowed/app',
+        tag: '1.0'
+      } as any)
+      expect(res.status.httpStatus).to.equal(403)
     })
   })
 

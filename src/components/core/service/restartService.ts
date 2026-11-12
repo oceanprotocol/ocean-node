@@ -15,7 +15,11 @@ import { validateAccess } from '../compute/startCompute.js'
 import { isJobMetadataSizeValid, INVALID_JOB_METADATA_MESSAGE } from '../../c2d/index.js'
 import { decryptUserData, findServiceJobAndEngine, toPublicServiceJob } from './utils.js'
 import { PersistentStorageAccessDeniedError } from '../../persistentStorage/PersistentStorageFactory.js'
-import { restartSubsidyDropped, isNonEmpty } from '../utils/subsidyProviders.js'
+import {
+  restartSubsidyDropped,
+  isNonEmpty,
+  SubsidyGateError
+} from '../utils/subsidyProviders.js'
 
 export class ServiceRestartHandler extends CommandHandler {
   validate(command: ServiceRestartCommand): ValidateParams {
@@ -232,8 +236,15 @@ export class ServiceRestartHandler extends CommandHandler {
       }
     } catch (error: any) {
       CORE_LOGGER.error(`ServiceRestart ${task.serviceId} failed: ${error.message}`)
-      // the owner lost access to the service's output bucket (checked before any teardown)
-      const httpStatus = error instanceof PersistentStorageAccessDeniedError ? 403 : 500
+      // 403 for forbidden-action errors: the owner lost access to the service's output bucket, or the
+      // subsidy image gate rejected the RESPEC on the fresh row under the lock (the handler's pre-lock
+      // fast-fail already returns 403 — this covers the concurrent-extend race that only the backstop
+      // catches). Everything else is a genuine server fault → 500.
+      const httpStatus =
+        error instanceof PersistentStorageAccessDeniedError ||
+        error instanceof SubsidyGateError
+          ? 403
+          : 500
       return { stream: null, status: { httpStatus, error: error.message } }
     }
   }

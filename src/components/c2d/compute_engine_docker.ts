@@ -31,7 +31,11 @@ import { BASE_CHAIN_ID, USDC_TOKEN_ADDRESS_BASE } from '../../utils/config.js'
 import { C2DEngine, parseJobTimestamp } from './compute_engine_base.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
-import { restartSubsidyDropped, isNonEmpty } from '../core/utils/subsidyProviders.js'
+import {
+  restartSubsidyDropped,
+  isNonEmpty,
+  SubsidyGateError
+} from '../core/utils/subsidyProviders.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { Storage } from '../storage/index.js'
 import Dockerode from 'dockerode'
@@ -6404,7 +6408,7 @@ export class C2DEngineDocker extends C2DEngine {
           this.getConfig()?.subsidyProviderAllowedImages
         ).length > 0
       )
-        throw new Error(
+        throw new SubsidyGateError(
           'Cannot restart a subsidized service into a non-allowed image or with a custom ' +
             'entrypoint/command — start a new service instead'
         )
