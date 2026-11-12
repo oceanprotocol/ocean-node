@@ -239,11 +239,8 @@ else
     exit 1
 fi
 
-read -p "Do you want to run a database on your node? [ y/n ]: " run_database
-run_database=${run_database:-n}
-if [ "$run_database" == 'y' ]; then
-    configure_database
-fi
+#the node does not start without a database
+configure_database
 
 read -p "Do you want to index a network on your node? [ y/n ]: " run_indexer
 run_indexer=${run_indexer:-n}
