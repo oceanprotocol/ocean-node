@@ -275,12 +275,16 @@ services:
       - ocean_network
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
+      - ./elasticsearch-roles.yml:/usr/share/elasticsearch/config/roles.yml:ro
     environment:
       ES_JAVA_OPTS: '-Xms512m -Xmx512m'
       discovery.type: 'single-node'
+      # the same value as DB_PASSWORD of the node
       ELASTIC_PASSWORD: 'changeme'
-      xpack.security.enabled: 'false'
+      xpack.security.enabled: 'true'
       xpack.security.http.ssl.enabled: 'false'
+      # callers without credentials can only read the DDO indices (elasticsearch-roles.yml)
+      xpack.security.authc.anonymous.roles: 'ocean_ddo_reader'
 
 volumes:
   elasticsearch-data:

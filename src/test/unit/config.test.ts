@@ -188,10 +188,18 @@ describe('Should require the Elasticsearch configuration', () => {
     }
   }
 
-  it('should refuse to start when DB_URL is not set', async () => {
-    const { config: conf, error } = await configWith(undefined, 'elastic', 'changeme')
+  it('should refuse to start when DB_URL is empty', async () => {
+    const { config: conf, error } = await configWith('', 'elastic', 'changeme')
     expect(conf).to.be.equal(undefined)
     expect(error?.message).to.be.equal('Configuration validation failed')
+  })
+
+  it('should keep the config file values for the DB_* variables that are not set', async () => {
+    const { config: conf, error } = await configWith(undefined, undefined, 'secret')
+    expect(error).to.be.equal(undefined)
+    expect(conf.dbConfig.url).to.be.equal('http://localhost:9200')
+    expect(conf.dbConfig.username).to.be.equal('elastic')
+    expect(conf.dbConfig.password).to.be.equal('secret')
   })
 
   it('should refuse to start when DB_PASSWORD is empty', async () => {

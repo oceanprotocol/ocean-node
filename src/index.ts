@@ -172,17 +172,16 @@ const dbconn: Database | null = await initDatabaseWithRetry(
   config.dbInitMaxRetryDelay
 )
 if (!dbconn) {
+  // LOG_DB is on but there is no log database: write the failure to disk, or to the
+  // console when LOG_FILES=false, so it is never lost
+  if (USE_DB_TRANSPORT()) {
+    const reason = 'DB init failed'
+    if (!enableFileLoggingFallback(reason)) ensureLogOutput(reason)
+  }
   // all state is in Elasticsearch: exit so the orchestrator restarts the node
   OCEAN_NODE_LOGGER.error('Database failed to initialize, exiting')
   await flushLogs()
   process.exit(1)
-}
-
-// LOG_DB is on but there is no usable log database: keep the logs on disk instead
-if (USE_DB_TRANSPORT() && !dbconn.logs) {
-  const reason = 'log DB not initialized'
-  // LOG_FILES=false as well: never leave the node without any log output
-  if (!enableFileLoggingFallback(reason)) ensureLogOutput(reason)
 }
 OCEAN_NODE_LOGGER.info(getLoggingSummary())
 

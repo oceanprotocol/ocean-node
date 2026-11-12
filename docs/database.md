@@ -28,6 +28,24 @@ To run Ocean Node with the appropriate database, you need to start Barge with sp
 
 By specifying these flags, you can configure Ocean Node to work with Elasticsearch.
 
+## Public read access to the DDO indices
+
+Some frontends read the DDO indices directly from Elasticsearch (for example
+`POST http://<host>:9200/op_ddo_v4.1.0/_search`), so port 9200 stays published. Elasticsearch
+also holds the node state, so its security is on:
+
+- The node logs in with `DB_USERNAME` and `DB_PASSWORD`. That user has full access. Change
+  the default password `changeme` on a host that publishes the port.
+- A caller that sends no credentials gets the `ocean_ddo_reader` role from
+  [`elasticsearch-roles.yml`](../elasticsearch-roles.yml). It can only read the `op_ddo_*`
+  indices. Writes, the other indices and the cluster APIs return `403`.
+
+The compose files set this with `xpack.security.enabled: 'true'`,
+`xpack.security.authc.anonymous.roles: 'ocean_ddo_reader'` and a mount of the roles file to
+`/usr/share/elasticsearch/config/roles.yml`. If you run your own Elasticsearch, apply the same
+three settings, or do not publish the port: the node's `query` command and
+`POST /api/aquarius/assets/metadata/query` take the same Elasticsearch query body.
+
 ## Auth tokens
 
 Auth tokens live in the `auth_tokens` index. The node stores only the sha256 hash of each

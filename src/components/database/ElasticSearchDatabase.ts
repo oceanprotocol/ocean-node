@@ -75,6 +75,7 @@ export class ElasticsearchNonceDatabase extends AbstractNonceDatabase {
   // Documents are keyed by the checksummed address. Read every casing variant of the SAME
   // address and keep the HIGHEST nonce: the nonce must stay monotonic, dropping back to 0
   // would briefly re-open the replay window that the nonce exists to close.
+  // A failed read throws: the callers must not take it for "no nonce yet" and start from 0.
   async retrieve(address: string) {
     const id = normalizeAddress(address)
     try {
@@ -92,7 +93,7 @@ export class ElasticsearchNonceDatabase extends AbstractNonceDatabase {
       const errorMsg =
         `Error when retrieving nonce entry for address ${address}: ` + error.message
       DATABASE_LOGGER.error(errorMsg)
-      return null
+      throw error
     }
   }
 

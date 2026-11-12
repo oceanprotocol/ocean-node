@@ -544,6 +544,11 @@ export class OceanIndexer {
       return
     }
     const dbVersion = await dbActive.config?.retrieveValue('version')
+    // null means the read failed, which is not the same as "no version stored"
+    if (!dbVersion) {
+      INDEXER_LOGGER.error(`Giving up reindexing. Could not read the node version!`)
+      return
+    }
     INDEXER_LOGGER.debug(
       `Node version check: Current=${currentVersion}, DB=${
         dbVersion?.value ?? 'not set'

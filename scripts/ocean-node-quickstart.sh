@@ -678,6 +678,17 @@ fi
 
 echo $DOCKER_COMPUTE_ENVIRONMENTS
 
+# Elasticsearch port 9200 is public so that frontends can read the DDO indices.
+# Callers without credentials get the read-only role below.
+cat <<EOF > elasticsearch-roles.yml
+# Role for callers that send no credentials to Elasticsearch (the anonymous user).
+# It can only read the DDO indices: no writes, and no access to the node state indices.
+ocean_ddo_reader:
+  indices:
+    - names: ['op_ddo_*']
+      privileges: ['read']
+EOF
+
 cat <<EOF > docker-compose.yml
 services:
   ocean-node:
@@ -783,12 +794,15 @@ $(
       - ocean_network
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
+      - ./elasticsearch-roles.yml:/usr/share/elasticsearch/config/roles.yml:ro
     environment:
       ES_JAVA_OPTS: '-Xms512m -Xmx512m'
       discovery.type: 'single-node'
       ELASTIC_PASSWORD: 'changeme'
-      xpack.security.enabled: 'false'
+      xpack.security.enabled: 'true'
       xpack.security.http.ssl.enabled: 'false'
+      # callers without credentials can only read the DDO indices (elasticsearch-roles.yml)
+      xpack.security.authc.anonymous.roles: 'ocean_ddo_reader'
 
 volumes:
   elasticsearch-data:
@@ -821,7 +835,9 @@ echo -e "\e[1;32mP2P IPv6 WebSocket Port: $P2P_ipV6BindWsPort\e[0m"
 echo ""
 echo -e "\e[1;32m4)\e[0m Node logs (info and above, 30 days) are written to \e[1;32m./logs\e[0m on this host. Set LOG_FILES_LEVEL=debug in docker-compose.yml for more detail."
 echo ""
-echo -e "\e[1;32m5)\e[0m If using SSL/TLS with a custom domain name, make sure to listen on host port 443 for the HTTP API, or use a reverse proxy with TLS offloading"
+echo -e "\e[1;32m5)\e[0m Elasticsearch port 9200 is published. Without credentials it gives read-only access to the DDO indices. Keep \e[1;32melasticsearch-roles.yml\e[0m next to docker-compose.yml. Change the default password \e[1;31mchangeme\e[0m (DB_PASSWORD and ELASTIC_PASSWORD) in docker-compose.yml: it gives full access."
+echo ""
+echo -e "\e[1;32m6)\e[0m If using SSL/TLS with a custom domain name, make sure to listen on host port 443 for the HTTP API, or use a reverse proxy with TLS offloading"
 echo ""
 echo -e "If your node is not reachable by other peers (NAT, no public IP, port forwarding issues),"
 echo -e "refer to the networking guide for help with Dynamic DNS, port forwarding, and circuit relay:"

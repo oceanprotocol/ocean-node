@@ -188,8 +188,8 @@ orders, access lists and escrow events, and the node state indices `nonce`, `nod
 `DB_PASSWORD` (or `dbConfig` in `config.json`); without them the configuration fails
 validation and the node does not start. There is no DEGRADED mode: if Elasticsearch is
 unreachable when the node starts (connection fails after the init retries), the node logs
-`Database failed to initialize` and runs without the indexer, the provider and the node
-stores — so make sure the configured Elasticsearch endpoint is actually up and reachable. A config value of the wrong type instead fails
+`Database failed to initialize, exiting` and exits with code 1 — so make sure the configured
+Elasticsearch endpoint is actually up and reachable. A config value of the wrong type instead fails
 `OceanNodeConfigSchema` (zod) validation and stops startup before any DB is initialized. See
 [Database guide](docs/database.md).
 

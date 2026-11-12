@@ -59,21 +59,18 @@ function preprocessConfigData(data: any): void {
     delete data.INTERFACES
   }
 
-  // Transform DB_* env vars to dbConfig
-  if (
-    data.DB_URL !== undefined ||
-    data.DB_USERNAME !== undefined ||
-    data.DB_PASSWORD !== undefined
-  ) {
-    data.dbConfig = {
-      url: data.DB_URL,
-      username: data.DB_USERNAME,
-      password: data.DB_PASSWORD
-    }
-    delete data.DB_URL
-    delete data.DB_USERNAME
-    delete data.DB_PASSWORD
+  // Transform DB_* env vars to dbConfig. Only the variables that are set override the
+  // config file, so a file can hold the URL and the environment only the password.
+  const dbOverrides = lodash.omitBy(
+    { url: data.DB_URL, username: data.DB_USERNAME, password: data.DB_PASSWORD },
+    lodash.isUndefined
+  )
+  if (!lodash.isEmpty(dbOverrides)) {
+    data.dbConfig = { ...data.dbConfig, ...dbOverrides }
   }
+  delete data.DB_URL
+  delete data.DB_USERNAME
+  delete data.DB_PASSWORD
 
   // Transform FEE_* env vars to feeStrategy
   if (data.FEE_AMOUNT && data.FEE_TOKENS) {
