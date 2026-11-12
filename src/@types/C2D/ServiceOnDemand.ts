@@ -54,6 +54,10 @@ export type ServiceTemplateCategory =
   | 'app'
   | 'other'
 
+// Marks a hand-picked model template (fixed model + fixed serve args, no user command/model override,
+// e.g. a vLLM-served curated model). Absent = an ordinary flow.
+export type ServiceTemplateType = 'curated'
+
 // One thing a bundle pre-downloads. Display metadata only: the template's own
 // `command`/`commandFile` does the fetching, and nothing here is verified node-side.
 export interface TemplateIncludedItem {
@@ -81,6 +85,7 @@ export interface ServiceTemplate {
   service?: string // bundles only: id of the service template this is a variant of
   outcome?: string // bundles only: the one concrete thing this gets done
   category?: ServiceTemplateCategory
+  type?: ServiceTemplateType // 'curated' marks a fixed-model template; absent = ordinary flow
   includes?: TemplateIncludedItem[] // bundles only: manifest of what the command downloads
   unlisted?: boolean // true: left out of the catalogue listing, still reachable by a direct link
   order?: number // catalogue position, lowest first; entries without one follow, in node order
