@@ -37,6 +37,12 @@ const SECONDS_PER_DAY = 24 * 60 * 60
 const SET_FIELDS_SCRIPT = 'ctx._source.putAll(params.fields)'
 // lifecycle writes retry when they collide with a guarded body patch
 const UPDATE_RETRIES = 3
+// Job and service job writes refresh at once (`true`, not 'wait_for'). A search sees the
+// write when it returns in both cases, but 'wait_for' holds the write until the next
+// scheduled refresh, up to 1 s. The engine holds the service lock across these writes, so a
+// client that read the new status by id got "operation in progress" during that time. The
+// indices are small and the writes are few, so the extra refreshes cost little.
+const JOB_WRITE_REFRESH = true
 const NEWEST_CREATED_FIRST: estypes.SortCombinations[] = [
   { dateCreated: { order: 'desc' } }
 ]
@@ -248,7 +254,7 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
       index: JOBS_INDEX,
       id: job.jobId,
       document,
-      refresh: 'wait_for'
+      refresh: JOB_WRITE_REFRESH
     })
     DATABASE_LOGGER.debug(
       `C2D job ${job.clusterHash}-${job.jobId} created (env ${job.environment})`
@@ -308,7 +314,7 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
         // the script replaces the fields fully, so a retry keeps last-write-wins against a
         // concurrent guarded body patch
         retry_on_conflict: UPDATE_RETRIES,
-        refresh: 'wait_for'
+        refresh: JOB_WRITE_REFRESH
       })
       return 1
     } catch (error) {
@@ -335,7 +341,7 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
   async deleteJob(jobId: string): Promise<boolean> {
     try {
       const client = await this.client()
-      await client.delete({ index: JOBS_INDEX, id: jobId, refresh: 'wait_for' })
+      await client.delete({ index: JOBS_INDEX, id: jobId, refresh: JOB_WRITE_REFRESH })
       return true
     } catch (error) {
       if (isStatus(error, 404)) return false
@@ -450,7 +456,7 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
       index: SERVICE_INDEX,
       id: job.serviceId,
       document: serviceJobToDoc(job),
-      refresh: 'wait_for'
+      refresh: JOB_WRITE_REFRESH
     })
   }
 
@@ -482,7 +488,7 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
         // the script replaces the fields fully, so a retry keeps last-write-wins against a
         // concurrent guarded body patch
         retry_on_conflict: UPDATE_RETRIES,
-        refresh: 'wait_for'
+        refresh: JOB_WRITE_REFRESH
       })
       return 1
     } catch (error) {
@@ -556,7 +562,7 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
         },
         if_seq_no: current.seqNo,
         if_primary_term: current.primaryTerm,
-        refresh: 'wait_for'
+        refresh: JOB_WRITE_REFRESH
       })
       return true
     } catch (error) {
