@@ -35,17 +35,9 @@ wallet_file_path=$generated_files_path$wallet_file
 pk_file_path+=$generated_files_path$pk_file
 
 
-#set NAME=VALUE in the env file: fill the empty template line, or add the line
+#add NAME=VALUE to the env file, quoted so that 'source .env' keeps the value as typed
 set_env_value() {
-    if grep -q "$1=" "$env_file_path"; then
-        if [ "$(uname)" == "Darwin" ]; then
-            sed -i '' -e "s;$1=;$1=$2;" "$env_file_path"
-        else
-            sed -i -e "s;$1=;$1=$2;" "$env_file_path"
-        fi
-    else
-        echo "export $1=$2" >> "$env_file_path"
-    fi
+    printf 'export %s=%q\n' "$1" "$2" >> "$env_file_path"
 }
 #configure database
 configure_database() {
@@ -60,10 +52,10 @@ configure_database() {
     fi
     echo "DB_URL final configuration: $REPLACE_STR"
     #the node does not start without the database credentials
-    read -p "Database username? [ elastic ]: " DB_USERNAME
+    IFS= read -r -p "Database username? [ elastic ]: " DB_USERNAME
     DB_USERNAME=${DB_USERNAME:-elastic}
     set_env_value DB_USERNAME "$DB_USERNAME"
-    read -p "Database password? [ changeme ]: " DB_PASSWORD
+    IFS= read -r -p "Database password? [ changeme ]: " DB_PASSWORD
     DB_PASSWORD=${DB_PASSWORD:-changeme}
     set_env_value DB_PASSWORD "$DB_PASSWORD"
     echo "DB_USERNAME final configuration: DB_USERNAME=$DB_USERNAME"

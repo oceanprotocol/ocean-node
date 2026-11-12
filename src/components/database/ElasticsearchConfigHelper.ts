@@ -342,8 +342,13 @@ export async function searchAllPages<T>(
         sort: [...sort, { _shard_doc: 'asc' }],
         size: pageSize,
         search_after: searchAfter,
-        track_total_hits: false
+        track_total_hits: false,
+        allow_partial_search_results: false
       })
+      // a short page must mean "no more hits", never "a shard did not answer"
+      if (page.timed_out || page._shards.failed > 0) {
+        throw new Error(`Incomplete search on index ${index}: a page is partial`)
+      }
       pitId = page.pit_id ?? pitId
       hits.push(...page.hits.hits)
       if (page.hits.hits.length < pageSize) return hits

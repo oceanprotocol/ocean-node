@@ -35,7 +35,8 @@ Some frontends read the DDO indices directly from Elasticsearch (for example
 also holds the node state, so its security is on:
 
 - The node logs in with `DB_USERNAME` and `DB_PASSWORD`. That user has full access. Change
-  the default password `changeme` on a host that publishes the port.
+  the default password `changeme` on a host that publishes the port, before the first start:
+  `ELASTIC_PASSWORD` sets the password only when Elasticsearch creates its data.
 - A caller that sends no credentials gets the `ocean_ddo_reader` role from
   [`elasticsearch-roles.yml`](../elasticsearch-roles.yml). It can only read the `op_ddo_*`
   indices. Writes, the other indices and the cluster APIs return `403`.

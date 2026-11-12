@@ -431,15 +431,15 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
 
   async getOldImages(retentionDays: number = 7): Promise<string[]> {
     const cutoff = Math.floor(Date.now() / 1000) - retentionDays * SECONDS_PER_DAY
-    const client = await this.client()
-    const result = await client.search({
+    // every page: images that Docker cannot remove stay in the index and must not hide
+    // the later ones
+    const hits = await searchAllPages(await this.client(), {
       index: IMAGES_INDEX,
       query: { range: { lastUsedTimestamp: { lt: cutoff } } },
       sort: [{ lastUsedTimestamp: { order: 'asc' } }],
-      _source: false,
-      size: SEARCH_PAGE_SIZE
+      _source: false
     })
-    return result.hits.hits.map((hit) => hit._id)
+    return hits.map((hit) => hit._id)
   }
 
   // ── Service-on-Demand jobs ──────────────────────────────────────────
