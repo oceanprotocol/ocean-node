@@ -60,6 +60,9 @@ let INDEXING_QUEUE: ReindexTask[] = []
 const JOBS_QUEUE: JobStatus[] = []
 
 const MAX_CRAWL_RETRIES = 10
+// read of the stored node version, before the reindex check
+const VERSION_READ_ATTEMPTS = 3
+const VERSION_READ_RETRY_MS = 2000
 let numCrawlAttempts = 0
 
 /**
@@ -543,10 +546,17 @@ export class OceanIndexer {
       INDEXER_LOGGER.error(`Giving up reindexing. DB is not online!`)
       return
     }
-    const dbVersion = await dbActive.config?.retrieveValue('version')
-    // null means the read failed, which is not the same as "no version stored"
+    // null means the read failed, which is not the same as "no version stored": try again
+    // before giving up, or a needed reindex would wait for the next restart
+    let dbVersion = await dbActive.config?.retrieveValue('version')
+    for (let attempt = 1; !dbVersion && attempt < VERSION_READ_ATTEMPTS; attempt++) {
+      await sleep(VERSION_READ_RETRY_MS)
+      dbVersion = await dbActive.config?.retrieveValue('version')
+    }
     if (!dbVersion) {
-      INDEXER_LOGGER.error(`Giving up reindexing. Could not read the node version!`)
+      INDEXER_LOGGER.error(
+        `Giving up reindexing. Could not read the node version after ${VERSION_READ_ATTEMPTS} attempts!`
+      )
       return
     }
     INDEXER_LOGGER.debug(

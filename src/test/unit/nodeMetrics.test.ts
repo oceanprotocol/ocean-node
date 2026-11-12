@@ -2,7 +2,10 @@ import { expect } from 'chai'
 import { Client } from '@elastic/elasticsearch'
 import { floorToHour } from '../../components/database/nodeMetricsAggregate.js'
 import { ElasticsearchNodeMetrics } from '../../components/database/ElasticsearchNodeMetrics.js'
-import { createElasticsearchClientWithRetry } from '../../components/database/ElasticsearchConfigHelper.js'
+import {
+  createElasticsearchClientWithRetry,
+  searchAllPages
+} from '../../components/database/ElasticsearchConfigHelper.js'
 import { getConfiguration } from '../../utils/index.js'
 import type { NodeMetricsSnapshot } from '../../@types/nodeMetrics.js'
 
@@ -238,6 +241,30 @@ describe('ElasticsearchNodeMetrics', () => {
     const [row] = await db.getHourly(INSTANCE, hour, hour, 10)
     expect(row.gpu[0].utilizationPercent).to.equal(20) // mean over 2 samples
     expect(row.gpu[0].temperatureC).to.equal(60) // mean over 1 sample that reported it, not 30
+  })
+
+  it('searchAllPages reads every match across pages, in order', async () => {
+    const start = Date.now() - 5 * 60 * 1000
+    for (let i = 0; i < 5; i++) {
+      await db.insertSample(
+        INSTANCE,
+        baseSnapshot({ collectedAt: start + i * 60 * 1000 })
+      )
+    }
+    // page size 2 -> three pages for five samples
+    const hits = await searchAllPages<{ collectedAt: number }>(
+      client,
+      {
+        index: 'node_metrics_samples',
+        query: { term: { instanceId: INSTANCE } },
+        sort: [{ collectedAt: { order: 'asc' } }],
+        _source: ['collectedAt']
+      },
+      2
+    )
+    expect(hits.map((hit) => hit._source.collectedAt)).to.deep.equal(
+      [0, 1, 2, 3, 4].map((i) => start + i * 60 * 1000)
+    )
   })
 
   it('purgeOldSamples deletes samples older than the cutoff and returns the count', async () => {

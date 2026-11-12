@@ -1,5 +1,5 @@
 import EventEmitter from 'node:events'
-import { Client } from '@elastic/elasticsearch'
+import { Client, estypes } from '@elastic/elasticsearch'
 import { OceanNodeDBConfig } from '../../@types'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
@@ -313,6 +313,45 @@ export async function ensureIndex(
     // another instance created it between the two calls
     if (error?.meta?.body?.error?.type === 'resource_already_exists_exception') return
     throw error
+  }
+}
+
+// Elasticsearch's default result window: one search returns at most this many hits
+export const SEARCH_PAGE_SIZE = 10000
+
+// Reads every match, page by page, on a point in time. For internal scans that must see all
+// documents; a plain search stops at SEARCH_PAGE_SIZE hits.
+export async function searchAllPages<T>(
+  client: Client,
+  request: Pick<estypes.SearchRequest, 'index' | 'query' | '_source'> & {
+    sort?: estypes.SortCombinations[]
+  },
+  pageSize: number = SEARCH_PAGE_SIZE
+): Promise<estypes.SearchHit<T>[]> {
+  const { index, sort = [], ...rest } = request
+  const keepAlive = '1m'
+  let pitId = (await client.openPointInTime({ index, keep_alive: keepAlive })).id
+  const hits: estypes.SearchHit<T>[] = []
+  try {
+    let searchAfter: estypes.SortResults | undefined
+    for (;;) {
+      const page = await client.search<T>({
+        ...rest,
+        pit: { id: pitId, keep_alive: keepAlive },
+        // _shard_doc makes the order total, so search_after never skips or repeats a hit
+        sort: [...sort, { _shard_doc: 'asc' }],
+        size: pageSize,
+        search_after: searchAfter,
+        track_total_hits: false
+      })
+      pitId = page.pit_id ?? pitId
+      hits.push(...page.hits.hits)
+      if (page.hits.hits.length < pageSize) return hits
+      searchAfter = page.hits.hits[page.hits.hits.length - 1].sort
+    }
+  } finally {
+    // the point in time expires by itself; a failed close must not hide the result
+    await client.closePointInTime({ id: pitId }).catch(() => {})
   }
 }
 

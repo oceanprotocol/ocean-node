@@ -21,7 +21,9 @@ import type { ComputeDatabaseProvider, ServiceJobExpected } from './C2DDatabase.
 import {
   createElasticsearchClientWithRetry,
   ensureIndex,
-  getOrNull
+  getOrNull,
+  searchAllPages,
+  SEARCH_PAGE_SIZE
 } from './ElasticsearchConfigHelper.js'
 import { stateSchemas } from './ElasticSchemas.js'
 
@@ -29,15 +31,15 @@ const JOBS_INDEX = stateSchemas.c2dJobs.index
 const SERVICE_INDEX = stateSchemas.serviceJobs.index
 const IMAGES_INDEX = stateSchemas.dockerImages.index
 const LOCKS_INDEX = stateSchemas.serviceLocks.index
-// Elasticsearch's default result window
-const MAX_RESULTS = 10000
 const SECONDS_PER_DAY = 24 * 60 * 60
 // replaces the listed top-level fields, like the SQL UPDATE ... SET did (a partial `doc`
 // update would deep-merge the old body into the new one)
 const SET_FIELDS_SCRIPT = 'ctx._source.putAll(params.fields)'
 // lifecycle writes retry when they collide with a guarded body patch
 const UPDATE_RETRIES = 3
-const NEWEST_CREATED_FIRST: estypes.Sort = [{ dateCreated: { order: 'desc' } }]
+const NEWEST_CREATED_FIRST: estypes.SortCombinations[] = [
+  { dateCreated: { order: 'desc' } }
+]
 
 // the jobId is the document id
 type JobDoc = {
@@ -319,7 +321,8 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
   async getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]> {
     const jobs = await this.searchJobs(
       { bool: { must_not: [{ exists: { field: 'dateFinished' } }] } },
-      [{ dateCreated: { order: 'asc' } }]
+      [{ dateCreated: { order: 'asc' } }],
+      true
     )
     return jobs.filter(
       (job) =>
@@ -345,9 +348,11 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
       { exists: { field: 'dateFinished' } },
       ...environmentFilter(environments)
     ]
-    return await this.searchJobs({ bool: { filter } }, [
-      { dateFinished: { order: 'desc' } }
-    ])
+    return await this.searchJobs(
+      { bool: { filter } },
+      [{ dateFinished: { order: 'desc' } }],
+      true
+    )
   }
 
   /** @param fromTimestamp lower bound in Unix seconds — see C2DDatabase.getJobs. */
@@ -383,21 +388,22 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
   ): Promise<DBComputeJob[]> {
     const filter = environmentFilter(environments)
     if (status && status.length > 0) filter.push({ terms: { status } })
-    return await this.searchJobs({ bool: { filter } }, NEWEST_CREATED_FIRST)
+    return await this.searchJobs({ bool: { filter } }, NEWEST_CREATED_FIRST, true)
   }
 
+  // Returns one page of SEARCH_PAGE_SIZE jobs. `allPages` reads every match: the engine
+  // loops and the cleanup need it, the public job lists keep the one-page limit.
   private async searchJobs(
     query: estypes.QueryDslQueryContainer,
-    sort?: estypes.Sort
+    sort?: estypes.SortCombinations[],
+    allPages: boolean = false
   ): Promise<DBComputeJob[]> {
     const client = await this.client()
-    const result = await client.search<JobDoc>({
-      index: JOBS_INDEX,
-      query,
-      sort,
-      size: MAX_RESULTS
-    })
-    return result.hits.hits.map((hit) => docToJob(hit._id, hit._source))
+    const request = { index: JOBS_INDEX, query, sort }
+    const hits = allPages
+      ? await searchAllPages<JobDoc>(client, request)
+      : (await client.search<JobDoc>({ ...request, size: SEARCH_PAGE_SIZE })).hits.hits
+    return hits.map((hit) => docToJob(hit._id, hit._source))
   }
 
   // ── Docker images ───────────────────────────────────────────────────
@@ -431,7 +437,7 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
       query: { range: { lastUsedTimestamp: { lt: cutoff } } },
       sort: [{ lastUsedTimestamp: { order: 'asc' } }],
       _source: false,
-      size: MAX_RESULTS
+      size: SEARCH_PAGE_SIZE
     })
     return result.hits.hits.map((hit) => hit._id)
   }
@@ -563,10 +569,10 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
   }
 
   async getRunningServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
-    const jobs = await this.searchServiceJobs([
-      { terms: { status: ACTIVE_SERVICE_STATUSES } },
-      ...clusterFilter(clusterHash)
-    ])
+    const jobs = await this.searchServiceJobs(
+      [{ terms: { status: ACTIVE_SERVICE_STATUSES } }, ...clusterFilter(clusterHash)],
+      true
+    )
     // The reservation is tied to PAYMENT: an Error/Stopped job whose payment was never
     // claimed (escrow lock failed or refunded) must not hold resources, or anyone could
     // squat a node's GPU for free. Mid-pipeline statuses keep reserving even without
@@ -579,11 +585,14 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
   }
 
   async getExpiredServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {
-    return await this.searchServiceJobs([
-      { terms: { status: EXPIRABLE_SERVICE_STATUSES } },
-      { range: { expiresAt: { lte: Date.now() } } },
-      ...clusterFilter(clusterHash)
-    ])
+    return await this.searchServiceJobs(
+      [
+        { terms: { status: EXPIRABLE_SERVICE_STATUSES } },
+        { range: { expiresAt: { lte: Date.now() } } },
+        ...clusterFilter(clusterHash)
+      ],
+      true
+    )
   }
 
   // Expired (terminal) services whose paid window ended at or before `expiresBefore` (Unix
@@ -594,33 +603,41 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
     expiresBefore: number,
     clusterHash?: string
   ): Promise<ServiceJob[]> {
-    return await this.searchServiceJobs([
-      { term: { status: ServiceStatusNumber.Expired } },
-      { range: { expiresAt: { lte: expiresBefore } } },
-      { range: { outputArchiveCount: { gt: 0 } } },
-      ...clusterFilter(clusterHash)
-    ])
+    return await this.searchServiceJobs(
+      [
+        { term: { status: ServiceStatusNumber.Expired } },
+        { range: { expiresAt: { lte: expiresBefore } } },
+        { range: { outputArchiveCount: { gt: 0 } } },
+        ...clusterFilter(clusterHash)
+      ],
+      true
+    )
   }
 
   // Service jobs that are mid-start and need the background loop to advance them, including
   // the intermediate states so the loop can resume them after a node restart.
   async getPendingServiceStarts(clusterHash?: string): Promise<ServiceJob[]> {
-    return await this.searchServiceJobs([
-      { terms: { status: [...SERVICE_START_PENDING_STATUSES] } },
-      ...clusterFilter(clusterHash)
-    ])
+    return await this.searchServiceJobs(
+      [
+        { terms: { status: [...SERVICE_START_PENDING_STATUSES] } },
+        ...clusterFilter(clusterHash)
+      ],
+      true
+    )
   }
 
+  // One page of SEARCH_PAGE_SIZE service jobs, or every match with `allPages` (see searchJobs).
   private async searchServiceJobs(
-    filter: estypes.QueryDslQueryContainer[]
+    filter: estypes.QueryDslQueryContainer[],
+    allPages: boolean = false
   ): Promise<ServiceJob[]> {
     const client = await this.client()
-    const result = await client.search<ServiceJobDoc>({
-      index: SERVICE_INDEX,
-      query: { bool: { filter } },
-      size: MAX_RESULTS
-    })
-    return result.hits.hits.map((hit) => hit._source.body)
+    const request = { index: SERVICE_INDEX, query: { bool: { filter } } }
+    const hits = allPages
+      ? await searchAllPages<ServiceJobDoc>(client, request)
+      : (await client.search<ServiceJobDoc>({ ...request, size: SEARCH_PAGE_SIZE })).hits
+          .hits
+    return hits.map((hit) => hit._source.body)
   }
 
   // ── Service lifecycle locks ─────────────────────────────────────────

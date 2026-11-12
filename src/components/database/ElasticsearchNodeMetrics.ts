@@ -4,7 +4,9 @@ import type { NodeMetricsHourly, NodeMetricsSnapshot } from '../../@types/nodeMe
 import { NodeMetricsProvider } from './NodeMetricsDatabase.js'
 import {
   createElasticsearchClientWithRetry,
-  ensureIndex
+  ensureIndex,
+  searchAllPages,
+  SEARCH_PAGE_SIZE
 } from './ElasticsearchConfigHelper.js'
 import { stateSchemas } from './ElasticSchemas.js'
 import {
@@ -20,8 +22,6 @@ import {
 
 const SAMPLES_INDEX = stateSchemas.metricsSamples.index
 const HOURLY_INDEX = stateSchemas.metricsHourly.index
-// Elasticsearch's default result window; the samples are a few hours of minute rows
-const MAX_SAMPLES = 10000
 
 type SampleDoc = SampleRow & { instanceId: string }
 type HourlyDoc = HourlyRow & { instanceId: string }
@@ -49,15 +49,13 @@ export class ElasticsearchNodeMetrics implements NodeMetricsProvider {
 
   async getPendingSampleHours(instanceId: string, beforeHour: number): Promise<number[]> {
     const client = await this.client()
-    const result = await client.search<Pick<SampleDoc, 'collectedAt'>>({
+    // every pending sample: an hour that is not listed here is purged without a roll-up
+    const hits = await searchAllPages<Pick<SampleDoc, 'collectedAt'>>(client, {
       index: SAMPLES_INDEX,
       query: olderThanQuery(instanceId, 'collectedAt', beforeHour),
-      _source: ['collectedAt'],
-      size: MAX_SAMPLES
+      _source: ['collectedAt']
     })
-    const hours = new Set(
-      result.hits.hits.map((hit) => floorToHour(hit._source.collectedAt))
-    )
+    const hours = new Set(hits.map((hit) => floorToHour(hit._source.collectedAt)))
     return [...hours].sort((a, b) => a - b)
   }
 
@@ -150,7 +148,8 @@ export class ElasticsearchNodeMetrics implements NodeMetricsProvider {
     const result = await client.search<SampleDoc>({
       index: SAMPLES_INDEX,
       query: hourRangeQuery(instanceId, hourStart),
-      size: MAX_SAMPLES
+      // one hour holds 60 samples, one per minute
+      size: SEARCH_PAGE_SIZE
     })
     return result.hits.hits.map((hit) => hit._source)
   }
