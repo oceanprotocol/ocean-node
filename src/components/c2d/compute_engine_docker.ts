@@ -2523,6 +2523,12 @@ export class C2DEngineDocker extends C2DEngine {
       }
 
       // No active build abort → orphan (the process running build/pull died).
+      // The job list comes from a search, which can be older than the last write of
+      // pullImage/buildImage. A real-time read tells if the job has already moved on.
+      const [current] = await this.db.getJob(job.jobId)
+      if (current && current.status !== job.status) {
+        return
+      }
       const isBuild = job.status === C2DStatusNumber.BuildImage
       const nowSec = Date.now() / 1000
       job.status = isBuild
@@ -3956,7 +3962,8 @@ export class C2DEngineDocker extends C2DEngine {
       })
       job.status = C2DStatusNumber.ConfiguringVolumes
       job.statusText = C2DStatusText.ConfiguringVolumes
-      this.db.updateJob(job)
+      // awaited: the job must be stored before the abort entry goes away in `finally`
+      await this.db.updateJob(job)
     } catch (err) {
       const logText = `Unable to pull docker image: ${job.containerImage}: ${err.message}`
       CORE_LOGGER.error(`Job ${job.jobId}: ${logText}`)
