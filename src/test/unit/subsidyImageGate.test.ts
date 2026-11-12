@@ -47,6 +47,14 @@ describe('filterSubsidyByAllowedImages / imageReferenceMatches', () => {
       expect(imageReferenceMatches(c, `${IMAGE}:latest`)).to.equal(false)
     })
 
+    it('a whitespace-only dockerfile still never matches (engine builds on any truthy value)', () => {
+      // resolveServiceImage / the build path use a truthy `if (dockerfile)` check, so '   ' triggers
+      // a dockerfile build there — the gate must reject it too (a trimmed check would let it match
+      // image:tag and subsidize a different, user-built image).
+      const c = { image: IMAGE, tag: TAG, dockerfile: '   ' }
+      expect(imageReferenceMatches(c, `${IMAGE}:${TAG}`)).to.equal(false)
+    })
+
     it('defaults to image:latest when neither tag nor checksum is given', () => {
       expect(imageReferenceMatches({ image: IMAGE }, `${IMAGE}:latest`)).to.equal(true)
       expect(imageReferenceMatches({ image: IMAGE }, `${IMAGE}:1.0`)).to.equal(false)

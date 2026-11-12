@@ -152,7 +152,11 @@ export function imageReferenceMatches(
 ): boolean {
   if (!container || !container.image) return false
   // dockerfile wins in resolveServiceImage → a synthetic, user-built reference → never trusted.
-  if (isNonEmpty(container.dockerfile)) return false
+  // Use the SAME truthy test the engine/resolveServiceImage + build path use (`if (dockerfile)`),
+  // NOT a trimmed isNonEmpty: a whitespace-only `dockerfile` still triggers a dockerfile build in
+  // the engine, so it must also fail the match here or it could be subsidized as `image:tag` while
+  // the engine actually runs a different, user-built image.
+  if (container.dockerfile) return false
   const trimmed = (entry ?? '').trim()
   if (trimmed.length === 0) return false
   // Wildcard tag `name:*` → any tag/digest of that exact image name (`:*` at the very end; the name
