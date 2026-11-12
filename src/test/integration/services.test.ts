@@ -252,6 +252,22 @@ describe('**********         Service on Demand', () => {
     }
   }
 
+  // Temporarily install a SUBSIDY_PROVIDER_ALLOWED_IMAGES map on the live node config, run `fn`,
+  // then restore. Same reference-config trick as withSubsidyFilter.
+  async function withAllowedImages(
+    map: Record<string, string[]> | null,
+    fn: () => Promise<void>
+  ): Promise<void> {
+    const cfg = oceanNode.getConfig()
+    const prev = cfg.subsidyProviderAllowedImages
+    cfg.subsidyProviderAllowedImages = map
+    try {
+      await fn()
+    } finally {
+      cfg.subsidyProviderAllowedImages = prev
+    }
+  }
+
   // Writes a file into the service container's /data/outputs, as the service itself would.
   async function writeServiceOutput(
     containerId: string,
@@ -651,6 +667,108 @@ describe('**********         Service on Demand', () => {
         expect(resp.status.error).to.contain('not allowed')
       }
     )
+  })
+
+  it('(d-subsidy-4) SERVICE_START gates out a subsidy whose allowed image does not match, persisting droppedSubsidies', async function () {
+    // SUBSIDY_PROVIDER_ALLOWED_IMAGES restricts WHITELISTED_PROVIDER to an image this service does
+    // not run, so the gate drops it: the persisted start payment carries an empty subsidyProviders
+    // (unsponsored → the funds pre-check runs and passes on the funded escrow) and the removed
+    // address in droppedSubsidies, visible via SERVICE_GET_STATUS.
+    this.timeout(DEFAULT_TEST_TIMEOUT * 4)
+    await withAllowedImages(
+      { [ethers.getAddress(WHITELISTED_PROVIDER)]: ['never/matches:0'] },
+      async () => {
+        const {
+          consumerAddress: addr,
+          nonce,
+          signature
+        } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_START)
+        const task: ServiceStartCommand = {
+          command: PROTOCOL_COMMANDS.SERVICE_START,
+          consumerAddress: addr,
+          nonce,
+          signature,
+          environment: servicesEnv.id,
+          image: 'nginxinc/nginx-unprivileged',
+          tag: 'alpine',
+          exposedPorts: [8080],
+          duration: SERVICE_DURATION,
+          resources: [
+            { id: 'cpu', amount: 1 },
+            { id: 'ram', amount: 1 },
+            { id: 'disk', amount: 1 }
+          ],
+          payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken },
+          subsidyProviders: [WHITELISTED_PROVIDER]
+        }
+        const resp = await new ServiceStartHandler(oceanNode).handle(task)
+        assert(
+          resp.status.httpStatus === 200,
+          `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
+        )
+        const [job] = (await streamToObject(resp.stream as Readable)) as ServiceJob[]
+        startedServices.push(job.serviceId)
+        // persisted synchronously on the Starting record
+        expect(job.payment.subsidyProviders).to.deep.equal([])
+        expect(job.payment.droppedSubsidies).to.deep.equal([
+          ethers.getAddress(WHITELISTED_PROVIDER)
+        ])
+        // and the same via the authenticated status endpoint
+        const viaStatus = await getServiceJob(job.serviceId)
+        assert(viaStatus, 'gated service not found via status')
+        expect(viaStatus.payment.subsidyProviders).to.deep.equal([])
+        expect(viaStatus.payment.droppedSubsidies).to.deep.equal([
+          ethers.getAddress(WHITELISTED_PROVIDER)
+        ])
+      }
+    )
+  })
+
+  it('(d-subsidy-5) SERVICE_RESTART RESPEC into a non-allowed image on a subsidized service returns 403', async function () {
+    // Restart creates no new escrow lock, so a swap to a non-allowed image on already-subsidized
+    // funds is rejected rather than silently dropped. Simulate a subsidized service by stamping a
+    // provider onto the stored start payment, attempt the forbidden RESPEC under a populated map,
+    // then restore the original payment so the lifecycle suite below is unaffected.
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    const [raw] = await dbconn.c2d.getServiceJob(serviceId)
+    assert(raw, 'service job not found in DB')
+    const originalPayment = { ...raw.payment }
+    raw.payment = {
+      ...raw.payment,
+      subsidyProviders: [ethers.getAddress(WHITELISTED_PROVIDER)]
+    }
+    await dbconn.c2d.updateServiceJob(raw)
+    try {
+      await withAllowedImages(
+        {
+          [ethers.getAddress(WHITELISTED_PROVIDER)]: [
+            'nginxinc/nginx-unprivileged:alpine'
+          ]
+        },
+        async () => {
+          const { nonce, signature } = await signFor(
+            consumerAccount,
+            PROTOCOL_COMMANDS.SERVICE_RESTART
+          )
+          const task = {
+            command: PROTOCOL_COMMANDS.SERVICE_RESTART,
+            consumerAddress,
+            nonce,
+            signature,
+            serviceId,
+            image: 'evil/miner',
+            tag: 'latest'
+          }
+          const resp = await new ServiceRestartHandler(oceanNode).handle(task as any)
+          expect(resp.status.httpStatus).to.equal(403)
+          expect(String(resp.status.error)).to.contain('start a new service')
+        }
+      )
+    } finally {
+      const [current] = await dbconn.c2d.getServiceJob(serviceId)
+      current.payment = originalPayment
+      await dbconn.c2d.updateServiceJob(current)
+    }
   })
 
   it('(d2) reports no readiness for an image the node does not recognize', async function () {

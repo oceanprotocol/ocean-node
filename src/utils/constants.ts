@@ -491,6 +491,14 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.SUBSIDY_PROVIDER_FILTER,
     required: false
   },
+  SUBSIDY_PROVIDER_ALLOWED_IMAGES: {
+    // optional map `{ "<subsidyContractAddr>": ["image:tag", "image@sha256:.."] }` restricting a
+    // subsidy contract to specific docker images run with no custom entrypoint/cmd; unset/`{}`
+    // means no gating (see docs/subsidyProviders.md)
+    name: 'SUBSIDY_PROVIDER_ALLOWED_IMAGES',
+    value: process.env.SUBSIDY_PROVIDER_ALLOWED_IMAGES,
+    required: false
+  },
   ASSET_PURGATORY_URL: {
     name: 'ASSET_PURGATORY_URL',
     value: process.env.ASSET_PURGATORY_URL,

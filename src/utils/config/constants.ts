@@ -42,6 +42,7 @@ export const ENV_TO_CONFIG_MAPPING = {
   ALLOWED_ADMINS_LIST: 'allowedAdminsList',
   SUBSIDY_PROVIDERS: 'subsidyProviders',
   SUBSIDY_PROVIDER_FILTER: 'subsidyProviderFilter',
+  SUBSIDY_PROVIDER_ALLOWED_IMAGES: 'subsidyProviderAllowedImages',
   DOCKER_COMPUTE_ENVIRONMENTS: 'dockerComputeEnvironments',
   SERVICE_TEMPLATES_PATH: 'serviceTemplatesPath',
   SERVICE_HF_MIRROR_URL: 'serviceHfMirrorUrl',

@@ -839,6 +839,22 @@ describe('**********         Compute', () => {
     }
   }
 
+  // Temporarily install a SUBSIDY_PROVIDER_ALLOWED_IMAGES map on the live node config, run fn,
+  // then restore. Same reference-config trick as withSubsidyFilter.
+  async function withAllowedImages(
+    map: Record<string, string[]> | null,
+    fn: () => Promise<void>
+  ): Promise<void> {
+    const cfg = oceanNode.getConfig()
+    const prev = cfg.subsidyProviderAllowedImages
+    cfg.subsidyProviderAllowedImages = map
+    try {
+      await fn()
+    } finally {
+      cfg.subsidyProviderAllowedImages = prev
+    }
+  }
+
   async function buildPaidStartTask(
     subsidyProviders?: string[]
   ): Promise<PaidComputeStartCommand> {
@@ -926,6 +942,59 @@ describe('**********         Compute', () => {
         expect(stored.payment.subsidyProviders).to.deep.equal([
           getAddress(SUBSIDY_WHITELISTED)
         ])
+      }
+    )
+  })
+
+  it('COMPUTE_START gates out a subsidy whose allowed-image list does not match the algo, persisting droppedSubsidies', async function () {
+    // SUBSIDY_PROVIDER_ALLOWED_IMAGES restricts this provider to an image the algo never runs, so
+    // the gate drops it: the persisted payment carries an empty subsidyProviders (not sponsored)
+    // and the removed address in droppedSubsidies, visible via the DB / status endpoints.
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+    await withAllowedImages(
+      { [getAddress(SUBSIDY_WHITELISTED)]: ['never/matches:0'] },
+      async () => {
+        const task = await buildPaidStartTask([SUBSIDY_WHITELISTED])
+        const response = await new PaidComputeStartHandler(oceanNode).handle(task)
+        assert(
+          response.status.httpStatus === 200,
+          `expected 200, got ${response.status.httpStatus}: ${response.status?.error ?? ''}`
+        )
+        const startedJobs = await streamToObject(response.stream as Readable)
+        const { jobId } = startedJobs[0]
+        const internalJobId = jobId.substring(jobId.indexOf('-') + 1)
+        const [stored] = await dbconn.c2d.getJob(internalJobId)
+        assert(stored, 'compute job not persisted')
+        expect(stored.payment.subsidyProviders).to.deep.equal([])
+        expect(stored.payment.droppedSubsidies).to.deep.equal([
+          getAddress(SUBSIDY_WHITELISTED)
+        ])
+      }
+    )
+  })
+
+  it('COMPUTE_START leaves an unlisted subsidy address untouched under a populated allowed-images map', async function () {
+    // The gate is per-address: a populated map only restricts the addresses it names. A subsidy
+    // address that is NOT a key passes through unchanged (and droppedSubsidies stays empty).
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+    await withAllowedImages(
+      { [getAddress(SUBSIDY_NON_WHITELISTED)]: ['never/matches:0'] },
+      async () => {
+        const task = await buildPaidStartTask([SUBSIDY_WHITELISTED])
+        const response = await new PaidComputeStartHandler(oceanNode).handle(task)
+        assert(
+          response.status.httpStatus === 200,
+          `expected 200, got ${response.status.httpStatus}: ${response.status?.error ?? ''}`
+        )
+        const startedJobs = await streamToObject(response.stream as Readable)
+        const { jobId } = startedJobs[0]
+        const internalJobId = jobId.substring(jobId.indexOf('-') + 1)
+        const [stored] = await dbconn.c2d.getJob(internalJobId)
+        assert(stored, 'compute job not persisted')
+        expect(stored.payment.subsidyProviders).to.deep.equal([
+          getAddress(SUBSIDY_WHITELISTED)
+        ])
+        expect(stored.payment.droppedSubsidies ?? []).to.deep.equal([])
       }
     )
   })

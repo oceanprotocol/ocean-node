@@ -15,6 +15,7 @@ import { validateAccess } from '../compute/startCompute.js'
 import { isJobMetadataSizeValid, INVALID_JOB_METADATA_MESSAGE } from '../../c2d/index.js'
 import { decryptUserData, findServiceJobAndEngine, toPublicServiceJob } from './utils.js'
 import { PersistentStorageAccessDeniedError } from '../../persistentStorage/PersistentStorageFactory.js'
+import { restartSubsidyDropped, isNonEmpty } from '../utils/subsidyProviders.js'
 
 export class ServiceRestartHandler extends CommandHandler {
   validate(command: ServiceRestartCommand): ValidateParams {
@@ -169,6 +170,41 @@ export class ServiceRestartHandler extends CommandHandler {
         )
       }
     }
+
+    // Image gate (SUBSIDY_PROVIDER_ALLOWED_IMAGES) — reject-only, FAST-FAIL. A RESPEC restart runs a
+    // NEW image/entrypoint/cmd on the service's ALREADY-subsidized funds, and restart creates no new
+    // escrow lock (it reuses the claimed start payment and never touches escrow). So there is no lock
+    // to re-filter: a swap to a non-allowed image or a custom entrypoint/cmd would be a
+    // bait-and-switch on the operator's subsidy. Reject it — the owner must start a fresh service.
+    // REUSE restarts (no task.image) and unsubsidized jobs are unaffected.
+    //
+    // This runs on the pre-lock `job` read as a cheap 403 for the common case. It is NOT the
+    // authoritative check: engine.restartService re-runs the same gate on the FRESH row under the
+    // lifecycle lock (closing the TOCTOU where a concurrent serviceExtend subsidizes the job between
+    // this read and the restart). See restartSubsidyDropped + the backstop in compute_engine_docker.
+    if (
+      task.image !== undefined &&
+      restartSubsidyDropped(
+        job,
+        {
+          image: task.image,
+          tag: task.tag,
+          checksum: task.checksum,
+          dockerfile: task.dockerfile
+        },
+        isNonEmpty(task.dockerEntrypoint) || isNonEmpty(task.dockerCmd),
+        node.getConfig().subsidyProviderAllowedImages
+      ).length > 0
+    )
+      return {
+        stream: null,
+        status: {
+          httpStatus: 403,
+          error:
+            'Cannot restart a subsidized service into a non-allowed image or with a custom ' +
+            'entrypoint/command — start a new service instead'
+        }
+      }
 
     try {
       // Asynchronous, like SERVICE_START: engine.restartService validates, persists the

@@ -51,7 +51,12 @@ import { checkAddressOnAccessList } from '../../../utils/accessList.js'
 import { ensureConsumerAllowedForPersistentStorageLocalfsFileObject } from '../../persistentStorage/PersistentStorageFactory.js'
 import { resolveComputeFileObject } from '../../c2d/compute_engine_docker.js'
 import { cJobsStarted } from '../../../telemetry/metrics.js'
-import { resolveUserSubsidyProviders } from '../utils/subsidyProviders.js'
+import {
+  filterSubsidyByAllowedImages,
+  hasUserSuppliedAlgorithm,
+  isNonEmpty,
+  resolveUserSubsidyProviders
+} from '../utils/subsidyProviders.js'
 import { JobType } from '../../../utils/constants.js'
 import { maintenanceGuard } from '../utils/maintenance.js'
 
@@ -814,10 +819,27 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
       // SUBSIDY_PROVIDERS live — for a prefunded lock those two live reads could straddle an
       // operator config change and settle the claim against a different provider set than the lock
       // was funded from. `??` (not `||`) so an explicit `[]` (no providers) survives.
-      const effectiveSubsidy =
+      let effectiveSubsidy =
         subsidyResolution.resolved ??
         node.getConfig().subsidyProviders?.[String(task.payment.chainId)] ??
         []
+      // Image gate (SUBSIDY_PROVIDER_ALLOWED_IMAGES): a listed subsidy address only applies to a
+      // job running an allowed image with NO custom entrypoint AND NO user-supplied algorithm of any
+      // kind. Overriding the trusted image's baked ENTRYPOINT — OR delivering an algorithm the generic
+      // runner image would execute from /data/transformations/algorithm, whether inline `rawcode`, a
+      // `fileObject`, or a published `documentId`/`serviceId` DID (anyone can publish a miner as an
+      // algorithm DDO) — means it is no longer the trusted workload, so it is dropped. The kept list
+      // flows into the lock + persisted snapshot + (batched) claim unchanged; the dropped list is
+      // recorded for observability. Unset/`{}` config → kept === effectiveSubsidy (no gating).
+      const { kept: effectiveSubsidyKept, dropped: droppedSubsidy } =
+        filterSubsidyByAllowedImages(
+          effectiveSubsidy,
+          algorithm.meta?.container,
+          isNonEmpty(algorithm.meta?.container?.entrypoint) ||
+            hasUserSuppliedAlgorithm(algorithm),
+          node.getConfig().subsidyProviderAllowedImages
+        )
+      effectiveSubsidy = effectiveSubsidyKept
       let agreementId
       CORE_LOGGER.debug(
         `escrow.createLock job=${jobId} cost=${cost} token=${task.payment.token} chainId=${task.payment.chainId} maxJobDuration=${task.maxJobDuration}`
@@ -870,7 +892,10 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
             claimTx: null,
             cancelTx: null,
             cost: 0,
-            subsidyProviders: effectiveSubsidy
+            subsidyProviders: effectiveSubsidy,
+            // Only when the gate actually removed something, so unconfigured nodes don't stamp an
+            // empty array on every job (keeps the payment shape identical to before when gating is off).
+            ...(droppedSubsidy.length ? { droppedSubsidies: droppedSubsidy } : {})
           },
           jobId,
           task.metadata,

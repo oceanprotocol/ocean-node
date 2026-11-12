@@ -337,6 +337,100 @@ describe('Should validate SUBSIDY_PROVIDERS configuration', () => {
   })
 })
 
+describe('Should validate SUBSIDY_PROVIDER_ALLOWED_IMAGES configuration', () => {
+  const DB_ENV_VARS = [ENVIRONMENT_VARIABLES.DB_TYPE, ENVIRONMENT_VARIABLES.DB_URL]
+  const DB_ENV_VALUES = ['typesense', 'http://localhost:8108/?apiKey=xyz']
+
+  const ADDR_LOWER = '0x1c7d4b196cb0c7b01d743fbc6116a902379c7238'
+  const IMAGE_TAG = 'oceanprotocol/algo:1.0'
+  const IMAGE_DIGEST = 'oceanprotocol/algo@sha256:' + 'a'.repeat(64)
+
+  // Build a config with a given SUBSIDY_PROVIDER_ALLOWED_IMAGES value (or without the var when
+  // undefined), returning the parsed config or the thrown error.
+  async function configWith(
+    allowedImages?: string
+  ): Promise<{ config?: OceanNodeConfig; error?: Error }> {
+    const envVars = [...DB_ENV_VARS]
+    const envValues = [...DB_ENV_VALUES]
+    if (allowedImages !== undefined) {
+      envVars.push(ENVIRONMENT_VARIABLES.SUBSIDY_PROVIDER_ALLOWED_IMAGES)
+      envValues.push(allowedImages)
+    }
+    const overrides = buildEnvOverrideConfig(envVars, envValues)
+    try {
+      await setupEnvironment(TEST_ENV_CONFIG_PATH, overrides)
+      return { config: await getConfiguration(true) }
+    } catch (error) {
+      return { error }
+    } finally {
+      await tearDownEnvironment(overrides)
+    }
+  }
+
+  it('defaults to null when unset', async () => {
+    const { config: conf, error } = await configWith()
+    expect(error).to.be.equal(undefined)
+    expect(conf.subsidyProviderAllowedImages).to.be.equal(null)
+  })
+
+  it('parses {} (zero keys) as an empty map, not null (means "no restrictions")', async () => {
+    const { config: conf, error } = await configWith('{}')
+    expect(error).to.be.equal(undefined)
+    expect(conf.subsidyProviderAllowedImages).to.deep.equal({})
+  })
+
+  it('parses a populated map, checksumming the address keys and keeping image refs as-is', async () => {
+    const { config: conf, error } = await configWith(
+      JSON.stringify({ [ADDR_LOWER]: [IMAGE_TAG, IMAGE_DIGEST] })
+    )
+    expect(error).to.be.equal(undefined)
+    const map = conf.subsidyProviderAllowedImages
+    expect(map).to.not.be.equal(null)
+    expect(Object.keys(map)).to.deep.equal([getAddress(ADDR_LOWER)])
+    expect(map[getAddress(ADDR_LOWER)]).to.deep.equal([IMAGE_TAG, IMAGE_DIGEST])
+    // key normalized, not the raw lower-case input
+    expect(map[ADDR_LOWER]).to.be.equal(undefined)
+  })
+
+  it('collapses malformed JSON to null rather than throwing', async () => {
+    const { config: conf, error } = await configWith('{ not json ]')
+    expect(error).to.be.equal(undefined)
+    expect(conf.subsidyProviderAllowedImages).to.be.equal(null)
+  })
+
+  it('collapses an invalid address key to null', async () => {
+    const { config: conf, error } = await configWith(
+      JSON.stringify({ '0xnot-an-address': [IMAGE_TAG] })
+    )
+    expect(error).to.be.equal(undefined)
+    expect(conf.subsidyProviderAllowedImages).to.be.equal(null)
+  })
+
+  it('collapses a malformed value (image list is not an array) to null', async () => {
+    const { config: conf, error } = await configWith(
+      JSON.stringify({ [ADDR_LOWER]: 'oceanprotocol/algo:1.0' })
+    )
+    expect(error).to.be.equal(undefined)
+    expect(conf.subsidyProviderAllowedImages).to.be.equal(null)
+  })
+
+  it('trims image entries and drops empty strings', async () => {
+    const { config: conf, error } = await configWith(
+      JSON.stringify({ [ADDR_LOWER]: ['  ' + IMAGE_TAG + '  ', '', '   '] })
+    )
+    expect(error).to.be.equal(undefined)
+    expect(conf.subsidyProviderAllowedImages[getAddress(ADDR_LOWER)]).to.deep.equal([
+      IMAGE_TAG
+    ])
+  })
+
+  after(() => {
+    delete process.env.CONFIG_PATH
+    delete process.env.PRIVATE_KEY
+    delete process.env[ENVIRONMENT_VARIABLES.SUBSIDY_PROVIDER_ALLOWED_IMAGES.name]
+  })
+})
+
 describe('Should validate SUBSIDY_PROVIDER_FILTER configuration', () => {
   const DB_ENV_VARS = [ENVIRONMENT_VARIABLES.DB_TYPE, ENVIRONMENT_VARIABLES.DB_URL]
   const DB_ENV_VALUES = ['typesense', 'http://localhost:8108/?apiKey=xyz']

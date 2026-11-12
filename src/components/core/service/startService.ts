@@ -19,7 +19,11 @@ import { generateUniqueID, validateOutputBucket } from '../compute/utils.js'
 import { validateAccess } from '../compute/startCompute.js'
 import { isJobMetadataSizeValid, INVALID_JOB_METADATA_MESSAGE } from '../../c2d/index.js'
 import { decryptUserData, toPublicServiceJob } from './utils.js'
-import { resolveUserSubsidyProviders } from '../utils/subsidyProviders.js'
+import {
+  filterSubsidyByAllowedImages,
+  isNonEmpty,
+  resolveUserSubsidyProviders
+} from '../utils/subsidyProviders.js'
 import { maintenanceGuard } from '../utils/maintenance.js'
 
 export class ServiceStartHandler extends CommandHandler {
@@ -230,7 +234,24 @@ export class ServiceStartHandler extends CommandHandler {
         subsidyResolution.resolved ??
         node.getConfig().subsidyProviders?.[String(task.payment.chainId)] ??
         []
-      const isSponsored = effectiveSubsidy.length > 0
+      // Image gate (SUBSIDY_PROVIDER_ALLOWED_IMAGES): a listed subsidy address only applies to a
+      // service running an allowed image with NO custom entrypoint OR cmd (overriding either can
+      // run arbitrary code inside a trusted image → not the trusted workload → no subsidy). The
+      // kept list drives both the sponsored funds pre-check below and the persisted/claim snapshot;
+      // the dropped list is recorded for observability. Unset/`{}` config → no gating.
+      const { kept: effectiveSubsidyKept, dropped: droppedSubsidy } =
+        filterSubsidyByAllowedImages(
+          effectiveSubsidy,
+          {
+            image: task.image,
+            tag: task.tag,
+            checksum: task.checksum,
+            dockerfile: task.dockerfile
+          },
+          isNonEmpty(task.dockerEntrypoint) || isNonEmpty(task.dockerCmd),
+          node.getConfig().subsidyProviderAllowedImages
+        )
+      const isSponsored = effectiveSubsidyKept.length > 0
 
       // 6b. Fail fast when the consumer's escrow visibly can't cover the cost, instead
       // of returning a serviceId doomed to fail asynchronously at the Locking step.
@@ -286,7 +307,9 @@ export class ServiceStartHandler extends CommandHandler {
         claimTx: '',
         cancelTx: '',
         cost,
-        subsidyProviders: effectiveSubsidy
+        subsidyProviders: effectiveSubsidyKept,
+        // Only when the gate removed something, so unconfigured nodes keep the pre-feature shape.
+        ...(droppedSubsidy.length ? { droppedSubsidies: droppedSubsidy } : {})
       }
 
       // 7. Persist the Starting record and return immediately with the serviceId. The
