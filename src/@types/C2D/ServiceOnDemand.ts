@@ -38,7 +38,9 @@ export interface UserConfigurableEnvVar {
 }
 
 // How an entry presents itself. Absent means 'service' — every template published before this field.
-export type ServiceTemplateKind = 'service' | 'bundle'
+// 'bundle' and 'curated' are both built on a parent `service`; 'curated' is a hand-picked model
+// template (fixed model + fixed serve args, no user command/model override, e.g. a vLLM-served model).
+export type ServiceTemplateKind = 'service' | 'bundle' | 'curated'
 
 // Closed set so catalogue buckets stay consistent across nodes.
 // Pinned: prettier 2 collapses this union onto one line, prettier 3 keeps the leading pipes,
@@ -53,10 +55,6 @@ export type ServiceTemplateCategory =
   | 'embeddings'
   | 'app'
   | 'other'
-
-// Marks a hand-picked model template (fixed model + fixed serve args, no user command/model override,
-// e.g. a vLLM-served curated model). Absent = an ordinary flow.
-export type ServiceTemplateType = 'curated'
 
 // One thing a bundle pre-downloads. Display metadata only: the template's own
 // `command`/`commandFile` does the fetching, and nothing here is verified node-side.
@@ -82,10 +80,9 @@ export interface ServiceTemplate {
   description?: string
   // ── Catalogue metadata — advisory, never affects how the container runs ──
   kind?: ServiceTemplateKind // default 'service'
-  service?: string // bundles only: id of the service template this is a variant of
-  outcome?: string // bundles only: the one concrete thing this gets done
+  service?: string // bundle/curated only: id of the service template this is a variant of
+  outcome?: string // bundle/curated only: the one concrete thing this gets done
   category?: ServiceTemplateCategory
-  type?: ServiceTemplateType // 'curated' marks a fixed-model template; absent = ordinary flow
   includes?: TemplateIncludedItem[] // bundles only: manifest of what the command downloads
   unlisted?: boolean // true: left out of the catalogue listing, still reachable by a direct link
   order?: number // catalogue position, lowest first; entries without one follow, in node order
