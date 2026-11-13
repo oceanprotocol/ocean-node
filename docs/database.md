@@ -34,9 +34,11 @@ Some frontends read the DDO indices directly from Elasticsearch (for example
 `POST http://<host>:9200/op_ddo_v4.1.0/_search`), so port 9200 stays published. Elasticsearch
 also holds the node state, so its security is on:
 
-- The node logs in with `DB_USERNAME` and `DB_PASSWORD`. That user has full access. Change
-  the default password `changeme` on a host that publishes the port, before the first start:
-  `ELASTIC_PASSWORD` sets the password only when Elasticsearch creates its data.
+- The node logs in with `DB_USERNAME` and `DB_PASSWORD`. That user has full access.
+  `scripts/ocean-node-quickstart.sh` makes a random password for each new deployment and
+  writes it to `docker-compose.yml`. The development compose file and Barge use `changeme`:
+  change it on a host that publishes the port, before the first start. `ELASTIC_PASSWORD`
+  sets the password only when Elasticsearch creates its data.
 - A caller that sends no credentials gets the `ocean_ddo_reader` role from
   [`elasticsearch-roles.yml`](../elasticsearch-roles.yml). It can only read the `op_ddo_*`
   indices. Writes, the other indices and the cluster APIs return `403`.

@@ -678,6 +678,16 @@ fi
 
 echo $DOCKER_COMPUTE_ENVIRONMENTS
 
+# Elasticsearch reads ELASTIC_PASSWORD only when it creates its data. A second run in this
+# folder must keep the password of the data volume, so it takes the one in docker-compose.yml.
+DB_PASSWORD=''
+if [ -f docker-compose.yml ]; then
+  DB_PASSWORD=$(sed -n "s/^ *DB_PASSWORD: '\(.*\)'.*$/\1/p" docker-compose.yml | head -n 1)
+fi
+if [ -z "$DB_PASSWORD" ]; then
+  DB_PASSWORD=$(head -c 24 /dev/urandom | xxd -p | tr -d '\n')
+fi
+
 # Elasticsearch port 9200 is public so that frontends can read the DDO indices.
 # Callers without credentials get the read-only role below.
 cat <<EOF > elasticsearch-roles.yml
@@ -707,7 +717,7 @@ services:
       RPCS: '{"1":{"rpc":"https://ethereum-rpc.publicnode.com","fallbackRPCs":["https://rpc.ankr.com/eth","https://1rpc.io/eth","https://eth.api.onfinality.io/public"],"chainId":1,"network":"mainnet","chunkSize":100},"10":{"rpc":"https://mainnet.optimism.io","fallbackRPCs":["https://optimism-mainnet.public.blastapi.io","https://rpc.ankr.com/optimism","https://optimism-rpc.publicnode.com"],"chainId":10,"network":"optimism","chunkSize":100},"137":{"rpc":"https://polygon-rpc.com/","fallbackRPCs":["https://polygon-mainnet.public.blastapi.io","https://1rpc.io/matic","https://rpc.ankr.com/polygon"],"chainId":137,"network":"polygon","chunkSize":100},"23294":{"rpc":"https://sapphire.oasis.io","fallbackRPCs":["https://1rpc.io/oasis/sapphire"],"chainId":23294,"network":"sapphire","chunkSize":100},"23295":{"rpc":"https://testnet.sapphire.oasis.io","chainId":23295,"network":"sapphire-testnet","chunkSize":100},"11155111":{"rpc":"https://eth-sepolia.public.blastapi.io","fallbackRPCs":["https://1rpc.io/sepolia","https://eth-sepolia.g.alchemy.com/v2/demo"],"chainId":11155111,"network":"sepolia","chunkSize":100},"11155420":{"rpc":"https://sepolia.optimism.io","fallbackRPCs":["https://endpoints.omniatech.io/v1/op/sepolia/public","https://optimism-sepolia.blockpi.network/v1/rpc/public"],"chainId":11155420,"network":"optimism-sepolia","chunkSize":100}}'
       DB_URL: 'http://elasticsearch:9200'
       DB_USERNAME: 'elastic'
-      DB_PASSWORD: 'changeme'
+      DB_PASSWORD: '$DB_PASSWORD'
       IPFS_GATEWAY: 'https://ipfs.io/'
       ARWEAVE_GATEWAY: 'https://arweave.net/'
 #      LOAD_INITIAL_DDOS: ''
@@ -798,7 +808,7 @@ $(
     environment:
       ES_JAVA_OPTS: '-Xms512m -Xmx512m'
       discovery.type: 'single-node'
-      ELASTIC_PASSWORD: 'changeme'
+      ELASTIC_PASSWORD: '$DB_PASSWORD'
       xpack.security.enabled: 'true'
       xpack.security.http.ssl.enabled: 'false'
       # callers without credentials can only read the DDO indices (elasticsearch-roles.yml)
@@ -835,7 +845,7 @@ echo -e "\e[1;32mP2P IPv6 WebSocket Port: $P2P_ipV6BindWsPort\e[0m"
 echo ""
 echo -e "\e[1;32m4)\e[0m Node logs (info and above, 30 days) are written to \e[1;32m./logs\e[0m on this host. Set LOG_FILES_LEVEL=debug in docker-compose.yml for more detail."
 echo ""
-echo -e "\e[1;32m5)\e[0m Elasticsearch port 9200 is published. Without credentials it gives read-only access to the DDO indices. Keep \e[1;32melasticsearch-roles.yml\e[0m next to docker-compose.yml. Change the default password \e[1;31mchangeme\e[0m (DB_PASSWORD and ELASTIC_PASSWORD) in docker-compose.yml \e[1;31mbefore the first start\e[0m: it gives full access. ELASTIC_PASSWORD sets the password only on the first start."
+echo -e "\e[1;32m5)\e[0m Elasticsearch port 9200 is published. Without credentials it gives read-only access to the DDO indices. Keep \e[1;32melasticsearch-roles.yml\e[0m next to docker-compose.yml. The database password (DB_PASSWORD and ELASTIC_PASSWORD in docker-compose.yml) is random and gives full access: keep the file private. To use your own password, change both values \e[1;31mbefore the first start\e[0m. ELASTIC_PASSWORD sets the password only on the first start."
 echo ""
 echo -e "\e[1;32m6)\e[0m If using SSL/TLS with a custom domain name, make sure to listen on host port 443 for the HTTP API, or use a reverse proxy with TLS offloading"
 echo ""
