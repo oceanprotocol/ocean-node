@@ -683,8 +683,10 @@ export const ServiceTemplateSchema = z
     }),
     name: z.string().optional(),
     description: z.string().optional(),
-    // Catalogue metadata (all optional; absent `kind` means 'service')
-    kind: z.enum(['service', 'bundle']).optional(),
+    // Catalogue metadata (all optional; absent `kind` means 'service'). 'bundle' and 'curated' are
+    // both built on a parent `service`; 'curated' is a hand-picked model template: a fixed model +
+    // fixed serve args, no user command/model override (e.g. a vLLM-served model).
+    kind: z.enum(['service', 'bundle', 'curated']).optional(),
     service: z
       .string()
       .regex(/^[a-z0-9][a-z0-9_-]{0,63}$/, {
@@ -704,9 +706,6 @@ export const ServiceTemplateSchema = z
         'other'
       ])
       .optional(),
-    // Marks a hand-picked model template: a fixed model + fixed serve args, no user command/model
-    // override (e.g. a vLLM-served curated model). Absent = an ordinary flow.
-    type: z.enum(['curated']).optional(),
     includes: z.array(TemplateIncludedItemSchema).optional(),
     // true: left out of the dashboard catalogue, still reachable by a direct link
     unlisted: z.boolean().optional(),
@@ -846,19 +845,21 @@ export const ServiceTemplateSchema = z
       })
     }
 
-    // A bundle without a parent id renders as a plain service in clients (they key the
-    // grouping off `service`), so a half-declared bundle is a template bug, not a variant.
-    if (tmpl.kind === 'bundle' && !tmpl.service) {
+    // A bundle or curated template without a parent id renders as a plain service in clients (they
+    // key the grouping off `service`), so a half-declared one is a template bug, not a variant.
+    const hasParent = tmpl.kind === 'bundle' || tmpl.kind === 'curated'
+    if (hasParent && !tmpl.service) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: '"service" (the parent template id) is required when kind is "bundle"',
+        message: `"service" (the parent template id) is required when kind is "${tmpl.kind}"`,
         path: ['service']
       })
     }
-    if (tmpl.service && tmpl.kind !== 'bundle') {
+    if (tmpl.service && !hasParent) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: '"service" only applies to a bundle — set kind: "bundle" or drop it',
+        message:
+          '"service" only applies to a bundle or curated template — set kind accordingly or drop it',
         path: ['service']
       })
     }
