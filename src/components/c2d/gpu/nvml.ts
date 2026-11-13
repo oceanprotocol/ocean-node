@@ -10,14 +10,36 @@ import {
 // NVIDIA GPU metrics via NVML (libnvidia-ml.so.1), loaded through the koffi prebuilt-free
 // FFI. koffi is an OPTIONAL dependency and the shared library is only present on NVIDIA
 // hosts, so every interaction is defensive: a load/init failure disables the backend
-// (detect() → false) with a single warn log, and a per-device sample failure yields nulls
-// for that device. Nothing here can throw into the C2D state-machine loop.
+// (detect() → false) until the next retry, and a per-device sample failure yields nulls for
+// that device. Nothing here can throw into the C2D state-machine loop.
 //
 // NVML is loaded lazily via a non-literal specifier so tsc does not require the module at
 // build time (koffi may be absent) and a pure-CPU node never touches it.
+//
+// koffi type names are process-global: defining `nvmlUtilization_t` a second time throws
+// "Duplicate type name". Engines (and so collectors) are rebuilt in-process — every admin
+// pushConfig runs addC2DEngines(), and each docker engine owns its own GpuMetricsService — so
+// the bindings are built once per koffi module and shared by every collector instance. The
+// types are cached on their own, as soon as each is defined, so a bind that fails after them
+// (a symbol missing from the library) can be retried without redefining them.
 
 const NVML_SUCCESS = 0
 const NVML_TEMPERATURE_GPU = 0
+
+// A failed probe is retried after this delay, doubling per consecutive failure up to the cap,
+// so a driver that comes up after the node (boot race) is picked up without a restart.
+export const NVML_RETRY_MIN_MS = 30_000
+export const NVML_RETRY_MAX_MS = 10 * 60_000
+
+// Keyed by the koffi module object so a test's fake koffi never shares (or pollutes) the real one.
+const sharedBindings = new WeakMap<object, NvmlBindings>()
+const sharedTypes = new WeakMap<object, NvmlTypes>()
+
+interface NvmlTypes {
+  deviceType?: any
+  utilizationType?: any
+  memoryType?: any
+}
 
 interface NvmlBindings {
   deviceType: any
@@ -41,15 +63,30 @@ export class NvmlGpuCollector implements GpuVendorCollector {
   private bindings: NvmlBindings | null = null
   private detected: boolean | null = null // null = not yet probed
   private initialized = false
+  // Retry state after a failed probe: when the next probe may run, and how many failed in a row.
+  private nextProbeAt = 0
+  private failedProbes = 0
+  // Concurrent callers (jobs and services are sampled in parallel) share one in-flight probe,
+  // so nvmlInit runs once and one failure counts once towards the backoff.
+  private probeInFlight: Promise<boolean> | null = null
+  // Bumped by dispose(), so a probe that was in flight when the collector was disposed can tell
+  // it is stale and leave both NVML and this instance's state alone.
+  private generation = 0
   // false when no declared GPU resource is NVIDIA: probe failures are then expected (debug)
   public nvidiaConfigured = true
 
+  // Overridable clock, so tests can step past the retry backoff without waiting.
+  protected now(): number {
+    return Date.now()
+  }
+
+  // Only the first failure of a streak is worth a warn; the retries that follow repeat it.
   private logProbeFailure(message: string) {
-    if (this.nvidiaConfigured) CORE_LOGGER.warn(message)
+    if (this.nvidiaConfigured && this.failedProbes === 0) CORE_LOGGER.warn(message)
     else CORE_LOGGER.debug(message)
   }
 
-  private async loadKoffi(): Promise<any | null> {
+  protected async loadKoffi(): Promise<any | null> {
     try {
       // Non-literal specifier: tsc treats this as `any` and does not resolve it at build
       // time, so the (optional) koffi dependency is only required at runtime on GPU hosts.
@@ -58,26 +95,48 @@ export class NvmlGpuCollector implements GpuVendorCollector {
       return mod?.default ?? mod
     } catch (e: any) {
       this.logProbeFailure(
-        `GPU metrics (nvidia): koffi FFI not available — NVIDIA GPU metrics disabled (${e?.message}). ` +
+        `GPU metrics (nvidia): koffi FFI not available — NVIDIA GPU metrics disabled, will retry (${e?.message}). ` +
           `Install the 'koffi' optional dependency to enable them.`
       )
       return null
     }
   }
 
+  // Returns the process-wide bindings for this koffi module, building them on first use. A
+  // failure is not cached, so a later probe can bind once the library becomes usable.
+  private getBindings(koffi: any): NvmlBindings | null {
+    const cached = sharedBindings.get(koffi)
+    if (cached) return cached
+    const built = this.buildBindings(koffi)
+    if (built) sharedBindings.set(koffi, built)
+    return built
+  }
+
+  // koffi type names can be defined only once per process, so each type is cached the moment it
+  // exists: whatever fails afterwards, a retry re-uses it instead of hitting "Duplicate type name".
+  private getTypes(koffi: any): Required<NvmlTypes> {
+    let types = sharedTypes.get(koffi)
+    if (!types) {
+      types = {}
+      sharedTypes.set(koffi, types)
+    }
+    types.deviceType ??= koffi.pointer(koffi.opaque())
+    types.utilizationType ??= koffi.struct('nvmlUtilization_t', {
+      gpu: 'uint32',
+      memory: 'uint32'
+    })
+    types.memoryType ??= koffi.struct('nvmlMemory_t', {
+      total: 'uint64',
+      free: 'uint64',
+      used: 'uint64'
+    })
+    return types as Required<NvmlTypes>
+  }
+
   private buildBindings(koffi: any): NvmlBindings | null {
     try {
       const lib = koffi.load('libnvidia-ml.so.1')
-      const deviceType = koffi.pointer(koffi.opaque())
-      const utilizationType = koffi.struct('nvmlUtilization_t', {
-        gpu: 'uint32',
-        memory: 'uint32'
-      })
-      const memoryType = koffi.struct('nvmlMemory_t', {
-        total: 'uint64',
-        free: 'uint64',
-        used: 'uint64'
-      })
+      const { deviceType, utilizationType, memoryType } = this.getTypes(koffi)
       return {
         deviceType,
         utilizationType,
@@ -122,34 +181,77 @@ export class NvmlGpuCollector implements GpuVendorCollector {
       }
     } catch (e: any) {
       this.logProbeFailure(
-        `GPU metrics (nvidia): could not bind libnvidia-ml.so.1 — NVIDIA GPU metrics disabled (${e?.message})`
+        `GPU metrics (nvidia): could not bind libnvidia-ml.so.1 — NVIDIA GPU metrics disabled, will retry (${e?.message})`
       )
       return null
     }
   }
 
-  async detect(): Promise<boolean> {
-    if (this.detected !== null) return this.detected
+  // Success is cached for the collector's lifetime; failure only until the retry backoff
+  // elapses (30s, doubling per consecutive failure, capped at 10 min).
+  detect(): Promise<boolean> {
+    if (this.detected === true) return Promise.resolve(true)
+    if (this.detected === false && this.now() < this.nextProbeAt) {
+      return Promise.resolve(false)
+    }
+    if (!this.probeInFlight) {
+      const probe: Promise<boolean> = this.runProbe().finally(() => {
+        // dispose() may have dropped this probe and a newer one taken its place
+        if (this.probeInFlight === probe) this.probeInFlight = null
+      })
+      this.probeInFlight = probe
+    }
+    return this.probeInFlight
+  }
+
+  private async runProbe(): Promise<boolean> {
+    const { generation } = this
+    const ok = await this.probe(generation)
+    // Disposed while probing: probe() did not touch NVML, and the state now belongs to whatever
+    // came after the dispose.
+    if (generation !== this.generation) return false
+    if (ok) {
+      if (this.failedProbes > 0) {
+        CORE_LOGGER.info(
+          `GPU metrics (nvidia): NVML available after ${this.failedProbes} failed probe(s) — enabled`
+        )
+      }
+      this.failedProbes = 0
+      this.nextProbeAt = 0
+      return (this.detected = true)
+    }
+    const delay = Math.min(NVML_RETRY_MIN_MS * 2 ** this.failedProbes, NVML_RETRY_MAX_MS)
+    this.failedProbes++
+    this.nextProbeAt = this.now() + delay
+    return (this.detected = false)
+  }
+
+  private async probe(generation: number): Promise<boolean> {
     const koffi = await this.loadKoffi()
-    if (!koffi) return (this.detected = false)
-    const bindings = this.buildBindings(koffi)
-    if (!bindings) return (this.detected = false)
+    if (!koffi) return false
+    // Everything below is synchronous, so this is the only point a dispose() can slip in.
+    // Initializing now would leave an nvmlInit that nothing ever shuts down.
+    if (generation !== this.generation) return false
+    const bindings = this.getBindings(koffi)
+    if (!bindings) return false
     try {
+      // nvmlInit/nvmlShutdown are reference-counted by NVML, so each collector instance pairs
+      // its own init with the shutdown in dispose() while sharing the bindings.
       const rc = bindings.init()
       if (rc !== NVML_SUCCESS) {
         this.logProbeFailure(
-          `GPU metrics (nvidia): nvmlInit failed (code ${rc}) — disabled`
+          `GPU metrics (nvidia): nvmlInit failed (code ${rc}) — disabled, will retry`
         )
-        return (this.detected = false)
+        return false
       }
       this.initialized = true
       this.bindings = bindings
-      return (this.detected = true)
+      return true
     } catch (e: any) {
       this.logProbeFailure(
-        `GPU metrics (nvidia): nvmlInit threw — disabled (${e?.message})`
+        `GPU metrics (nvidia): nvmlInit threw — disabled, will retry (${e?.message})`
       )
-      return (this.detected = false)
+      return false
     }
   }
 
@@ -293,10 +395,14 @@ export class NvmlGpuCollector implements GpuVendorCollector {
       // best-effort
     }
     this.initialized = false
-    // Clear the cached probe result and release the (now shut-down) bindings so a later
-    // detect() re-initializes from scratch and sample()/sampleOne() can never use a torn-down
-    // NVML handle.
+    // Clear the cached probe result and drop this instance's reference to the bindings so a
+    // later detect() re-runs nvmlInit and sample()/sampleOne() can never use a torn-down NVML
+    // handle. The shared, process-wide bindings themselves are kept for re-use.
     this.detected = null
     this.bindings = null
+    this.generation++
+    this.probeInFlight = null
+    this.failedProbes = 0
+    this.nextProbeAt = 0
   }
 }
