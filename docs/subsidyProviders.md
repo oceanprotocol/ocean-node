@@ -69,13 +69,16 @@ is how loyalty / incentive programs reward node operators for routing work throu
 
 ## Configuring your node (operator)
 
-Two environment variables (full details in [`env.md`](env.md)):
+Three environment variables (full details in [`env.md`](env.md)):
 
 - **`SUBSIDY_PROVIDERS`** — a per-chain map of provider contract addresses the node uses by default,
   e.g. `{"8453": ["0x…"]}`. The node passes these to the escrow at **lock and claim** time.
 - **`SUBSIDY_PROVIDER_FILTER`** — `true`/`false` (default `false`). When ON, a consumer-supplied
   provider list may only name addresses already in `SUBSIDY_PROVIDERS` for that chain; anything else
   is rejected (HTTP 400).
+- **`SUBSIDY_PROVIDER_ALLOWED_IMAGES`** — optional per-address Docker image allowlist that restricts
+  **which images a given subsidy contract will sponsor** (see the next section). Unset or `{}` → no
+  restriction; the previous two variables behave exactly as before.
 
 > ⚠️ **Open-program warning.** With the filter OFF, a consumer may name **any** funded provider —
 > including one they have no relationship with — and have your node draw against it. An OFF filter
@@ -87,6 +90,102 @@ Two environment variables (full details in [`env.md`](env.md)):
 The node does not deploy or own providers; it references existing provider contracts. Operators who
 want to run their own program deploy a provider (e.g. one of the reference implementations below),
 fund it, configure it, and list its address in `SUBSIDY_PROVIDERS`.
+
+### Restricting a subsidy to trusted images (`SUBSIDY_PROVIDER_ALLOWED_IMAGES`)
+
+A subsidy program is **content-blind** by default: any eligible caller gets the subsidy applied to
+their escrow lock/claim **regardless of what Docker image they actually run**. Abusers exploit this
+by running crypto miners (or any arbitrary workload) as their algorithm/service image and getting
+subsidized ("free") compute. `SUBSIDY_PROVIDER_ALLOWED_IMAGES` lets you restrict a specific subsidy
+contract to specific images:
+
+```jsonc
+{
+  // this subsidy contract will ONLY be applied to jobs running one of these exact images…
+  "0x4344D4Bc29531DB736378e9A3dA85BF1eff0CB22": [
+    "oceanprotocol/trusted-algo:1.0",                 // pinned by tag
+    "oceanprotocol/trusted-svc@sha256:abc...def",     // or pinned by digest
+    "oceanprotocol/example:*"                          // or any version of an image you control
+  ]
+}
+```
+
+- Each entry is a **full Docker reference — the image name is always present** — pinned by tag
+  (`image:tag`) or by digest (`image@sha256:<64 hex>`), or a **wildcard tag** `image:*` that matches
+  any tag or digest of that image. A bare `sha256:...` is **not** valid. The tag/digest forms are
+  exactly the two reference forms the node resolves images to internally.
+- **Two states.** Unset or `{}` (zero keys) → **no gating** (legacy behavior). Populated (≥1 key) →
+  the gate is applied per subsidy address to the effective subsidy list at lock time (compute),
+  lock/claim time (services), and as a rejection on a RESPEC restart.
+- **Per-address, not global.** The gate only restricts the addresses you list. For each subsidy
+  address on a job: if it **is** a key in the map, it is kept **only if** the job's image matches an
+  entry in *that address's* list; if it is **not** a key, it passes through unchanged. So a user's
+  own custom subsidy address that you simply don't list is unaffected.
+- **Custom entrypoint OR cmd disqualifies.** A kept image still loses the subsidy if the job runs
+  with a custom entrypoint/command — for compute, `algorithm.meta.container.entrypoint` must be
+  empty; for services, **both** `dockerEntrypoint` **and** `dockerCmd` must be empty (a non-empty
+  value for **either** disqualifies, since overriding even `CMD` can run arbitrary code inside a
+  trusted image).
+- **Compute: any user-supplied algorithm disqualifies.** A compute algorithm image is usually a
+  generic runner that executes the code mounted at `/data/transformations/algorithm`, so an
+  allowlisted image is not enough on its own. A job that supplies an algorithm from **any** external
+  source is dropped — **raw code** (`algorithm.meta.rawcode`), a **user algorithm file**
+  (`algorithm.fileObject`), **or a published algorithm DID** (`algorithm.documentId` /
+  `algorithm.serviceId`). A published DID is *not* safe: anyone can publish an algorithm DDO that
+  installs and starts a miner and then point a subsidized job at it. Only a **self-contained**
+  allowlisted image — whose baked `ENTRYPOINT` does the trusted work and runs **no** external
+  algorithm (empty entrypoint, and no `rawcode` / `fileObject` / `documentId`) — can be subsidized.
+- **Dockerfile-built images never qualify.** A job that supplies a `dockerfile` (a user-built
+  image) is matched against nothing and is always dropped — only pinned `image:tag` / `image@sha256`
+  references can match an allowlist entry.
+- **Tag vs digest follows what actually runs.** A job is matched against the single reference the
+  node resolves (checksum wins over tag, exactly as the engine runs it). Pin a trusted image by its
+  `image:tag` **or** its `image@sha256:<digest>` — a tag entry will **not** cover a job that also
+  carries a digest.
+- **Wildcard tag `image:*` allows every version of an image.** An entry whose tag is `*` (e.g.
+  `oceanprotocol/example:*`) matches **any tag or digest** of that exact image name
+  (`…:latest`, `…:v1.2`, `…@sha256:…`). Use it when you control the publish process for an image and
+  trust all of its versions — it trades the immutability of a digest pin for flexibility. The `*`
+  applies to the whole image name only; it is not a prefix glob (`oceanprotocol/*` is a literal name).
+  A dockerfile-built image still never matches, and the no-custom-entrypoint/cmd (and compute
+  no-user-code) rules still apply.
+- **An empty image list blocks that address.** `{ "0x..": [] }` lists the address with no allowed
+  images, so it is dropped for every job. Use this to turn a specific subsidy address off entirely
+  while leaving others unrestricted. (To disable the gate, unset the var or set `{}`.)
+- **RESPEC restart is rejected (403).** A `SERVICE_RESTART` that re-specs a subsidized service onto a
+  non-allowed image or with a custom entrypoint/cmd is refused — restart reuses the already-claimed,
+  subsidized funds without a new lock, so there is nothing to re-filter. The owner must start a new
+  service. REUSE restarts (no new image) and unsubsidized services are unaffected.
+- **Observability.** Every job records the applied subsidies (`payment.subsidyProviders`) and the
+  gate-denied ones (`payment.droppedSubsidies`); both are visible in the job-status endpoints
+  (`getNodeJobs`, `SERVICE_GET_STATUS` / `SERVICE_LIST`, `COMPUTE_GET_STATUS`).
+
+> ⚠️ **Operator requirement — trusted images must bake their own `ENTRYPOINT`/`CMD`.** Service
+> templates are an advisory, client-side catalogue the node never consults at `SERVICE_START`, and
+> Ocean algorithm DDOs conventionally carry an entrypoint. Because the "no custom entrypoint/cmd"
+> rule treats **any** request-supplied entrypoint/cmd as custom, for a job to qualify for a gated
+> subsidy your trusted image must define its own `ENTRYPOINT`/`CMD` and the published algorithm DDO
+> or service request must leave those fields **empty**. This is a deliberate trade-off: it is the
+> only way to guarantee the subsidized container runs the code you trust, not caller-supplied
+> commands layered on top of a trusted base image.
+
+> 🔒 **Hardening notes for operators.**
+> - **Key every subsidy address you can apply.** The gate only restricts the addresses you list; an
+>   address that is *not* a key passes through unrestricted. List all of your own `SUBSIDY_PROVIDERS`
+>   addresses, and set **`SUBSIDY_PROVIDER_FILTER=true`** so a caller cannot supply an unlisted
+>   subsidy address that bypasses the gate.
+> - **Prefer digest pins.** An `image:tag` entry trusts whatever currently sits at that tag; a later
+>   push can swap a miner behind it. Pin by `image@sha256:<digest>` for an immutable guarantee.
+> - **Trusted images must not take their behavior from runtime input.** The gate controls the image,
+>   entrypoint/cmd and (for compute) the algorithm (`rawcode`/`fileObject`/`documentId`) — not
+>   container **env** or service **userData**. If
+>   an allowlisted image runs whatever an env var / `userData` names, it can be steered to a different
+>   workload while staying "clean" — e.g. a RESPEC `SERVICE_RESTART` that re-supplies the *same*
+>   allowlisted image (so the gate passes) but new `userData` that redirects what it does. Only
+>   allowlist images whose behavior is fixed by the image itself.
+> - **A malformed `SUBSIDY_PROVIDER_ALLOWED_IMAGES` value disables the gate** (logged at `error`). It
+>   is operator-controlled config, but watch the logs after a change so a typo does not silently leave
+>   every image subsidized.
 
 ---
 

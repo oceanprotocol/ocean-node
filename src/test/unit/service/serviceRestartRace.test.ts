@@ -1,5 +1,6 @@
 import { expect, assert } from 'chai'
 import sinon from 'sinon'
+import { getAddress } from 'ethers'
 import { C2DEngineDocker } from '../../../components/c2d/compute_engine_docker.js'
 import { ServiceStatusNumber, ServiceJob } from '../../../@types/C2D/ServiceOnDemand.js'
 import {
@@ -8,6 +9,7 @@ import {
   reserveHostPort
 } from '../../../components/core/service/utils.js'
 import { PersistentStorageAccessDeniedError } from '../../../components/persistentStorage/PersistentStorageFactory.js'
+import { SubsidyGateError } from '../../../components/core/utils/subsidyProviders.js'
 
 const OWNER = '0x0000000000000000000000000000000000000001'
 const SERVICE_ID = 'svc-race-1'
@@ -145,6 +147,76 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
     await Promise.allSettled([...engine.serviceOpPromises])
     expect(engine.serviceOpsInFlight.has(SERVICE_ID)).to.equal(false)
     expect(job.status).to.equal(ServiceStatusNumber.Running)
+    expect(job.containerId).to.equal('newc')
+  })
+
+  // SUBSIDY_PROVIDER_ALLOWED_IMAGES authoritative backstop: the handler fast-fails on its pre-lock
+  // read, but this check re-runs on the FRESH row UNDER the lifecycle lock — so a concurrent
+  // serviceExtend that subsidizes the job after the handler's read cannot let a RESPEC run a miner on
+  // subsidized funds. These exercise the engine method directly (where the lock + fresh read live).
+  const SUBSIDY = getAddress('0x1111111111111111111111111111111111111111')
+
+  it('restartService REJECTS a RESPEC into a non-allowed image on a subsidized job (under the lock)', async () => {
+    const engine = makeEngine()
+    const job = makeJob({
+      image: 'allowed/app',
+      tag: '1.0',
+      payment: {
+        chainId: 8996,
+        token: '0xtoken',
+        lockTx: '0xl',
+        claimTx: '0xc',
+        cancelTx: '',
+        cost: 5,
+        subsidyProviders: [SUBSIDY]
+      }
+    })
+    engine.db.getServiceJob.resolves([job])
+    engine.config = { subsidyProviderAllowedImages: { [SUBSIDY]: ['allowed/app:1.0'] } }
+
+    let threw: Error | null = null
+    try {
+      await engine.restartService(SERVICE_ID, OWNER, 'miner/xmrig', 'v1')
+    } catch (e: any) {
+      threw = e
+    }
+    expect(threw, 'expected restartService to reject').to.not.equal(null)
+    expect(threw).to.be.instanceOf(SubsidyGateError) // handler maps this to 403, not 500
+    expect(threw!.message).to.match(/non-allowed image/)
+    // Never persisted Restarting, and the lifecycle lock was released (not leaked on the throw).
+    expect(job.status).to.equal(ServiceStatusNumber.Running)
+    expect(engine.serviceOpsInFlight.has(SERVICE_ID)).to.equal(false)
+  })
+
+  it('restartService ALLOWS a RESPEC into the allowed image on a subsidized job', async () => {
+    const engine = makeEngine()
+    const job = makeJob({
+      image: 'allowed/app',
+      tag: '1.0',
+      payment: {
+        chainId: 8996,
+        token: '0xtoken',
+        lockTx: '0xl',
+        claimTx: '0xc',
+        cancelTx: '',
+        cost: 5,
+        subsidyProviders: [SUBSIDY]
+      }
+    })
+    engine.db.getServiceJob.resolves([job])
+    engine.config = { subsidyProviderAllowedImages: { [SUBSIDY]: ['allowed/app:1.0'] } }
+    engine.docker.getContainer.returns(stubContainer()) // old container is torn down
+    engine.docker.createNetwork.resolves({ id: 'newnet' })
+    engine.docker.createContainer.resolves({ ...stubContainer(), id: 'newc' })
+    engine.pullImageRef = sinon.stub().resolves()
+
+    const snapshot = await engine.restartService(SERVICE_ID, OWNER, 'allowed/app', '1.0')
+    expect(snapshot.status).to.equal(ServiceStatusNumber.Restarting)
+    // The background restart must run to completion on the allowed image (not just reach
+    // Restarting), proving the gate let an allowed subsidized restart through end-to-end.
+    await drainServiceOps(engine)
+    expect(job.status).to.equal(ServiceStatusNumber.Running)
+    expect(job.containerImage).to.equal('allowed/app:1.0')
     expect(job.containerId).to.equal('newc')
   })
 

@@ -15,6 +15,11 @@ import { validateAccess } from '../compute/startCompute.js'
 import { isJobMetadataSizeValid, INVALID_JOB_METADATA_MESSAGE } from '../../c2d/index.js'
 import { decryptUserData, findServiceJobAndEngine, toPublicServiceJob } from './utils.js'
 import { PersistentStorageAccessDeniedError } from '../../persistentStorage/PersistentStorageFactory.js'
+import {
+  restartSubsidyDropped,
+  isNonEmpty,
+  SubsidyGateError
+} from '../utils/subsidyProviders.js'
 
 export class ServiceRestartHandler extends CommandHandler {
   validate(command: ServiceRestartCommand): ValidateParams {
@@ -170,6 +175,41 @@ export class ServiceRestartHandler extends CommandHandler {
       }
     }
 
+    // Image gate (SUBSIDY_PROVIDER_ALLOWED_IMAGES) — reject-only, FAST-FAIL. A RESPEC restart runs a
+    // NEW image/entrypoint/cmd on the service's ALREADY-subsidized funds, and restart creates no new
+    // escrow lock (it reuses the claimed start payment and never touches escrow). So there is no lock
+    // to re-filter: a swap to a non-allowed image or a custom entrypoint/cmd would be a
+    // bait-and-switch on the operator's subsidy. Reject it — the owner must start a fresh service.
+    // REUSE restarts (no task.image) and unsubsidized jobs are unaffected.
+    //
+    // This runs on the pre-lock `job` read as a cheap 403 for the common case. It is NOT the
+    // authoritative check: engine.restartService re-runs the same gate on the FRESH row under the
+    // lifecycle lock (closing the TOCTOU where a concurrent serviceExtend subsidizes the job between
+    // this read and the restart). See restartSubsidyDropped + the backstop in compute_engine_docker.
+    if (
+      task.image !== undefined &&
+      restartSubsidyDropped(
+        job,
+        {
+          image: task.image,
+          tag: task.tag,
+          checksum: task.checksum,
+          dockerfile: task.dockerfile
+        },
+        isNonEmpty(task.dockerEntrypoint) || isNonEmpty(task.dockerCmd),
+        node.getConfig().subsidyProviderAllowedImages
+      ).length > 0
+    )
+      return {
+        stream: null,
+        status: {
+          httpStatus: 403,
+          error:
+            'Cannot restart a subsidized service into a non-allowed image or with a custom ' +
+            'entrypoint/command — start a new service instead'
+        }
+      }
+
     try {
       // Asynchronous, like SERVICE_START: engine.restartService validates, persists the
       // job as Restarting and returns immediately — the teardown + image pull/build +
@@ -196,8 +236,15 @@ export class ServiceRestartHandler extends CommandHandler {
       }
     } catch (error: any) {
       CORE_LOGGER.error(`ServiceRestart ${task.serviceId} failed: ${error.message}`)
-      // the owner lost access to the service's output bucket (checked before any teardown)
-      const httpStatus = error instanceof PersistentStorageAccessDeniedError ? 403 : 500
+      // 403 for forbidden-action errors: the owner lost access to the service's output bucket, or the
+      // subsidy image gate rejected the RESPEC on the fresh row under the lock (the handler's pre-lock
+      // fast-fail already returns 403 — this covers the concurrent-extend race that only the backstop
+      // catches). Everything else is a genuine server fault → 500.
+      const httpStatus =
+        error instanceof PersistentStorageAccessDeniedError ||
+        error instanceof SubsidyGateError
+          ? 403
+          : 500
       return { stream: null, status: { httpStatus, error: error.message } }
     }
   }

@@ -146,6 +146,8 @@ export async function status(
   // present and never retains a stale value the config no longer defines.
   nodeStatus.subsidyProviders = config.subsidyProviders ?? {}
   nodeStatus.subsidyProviderFilter = config.subsidyProviderFilter ?? false
+  // Per-subsidy-address docker image allowlist; empty map when unset (no gating).
+  nodeStatus.subsidyProviderAllowedImages = config.subsidyProviderAllowedImages ?? {}
   // Whether the P2P interface is usable, not just enabled. Re-read on every request rather
   // than cached with the block above: the routing table fills after startup, so a value
   // captured once would report a node as permanently not-ready.
