@@ -1,4 +1,5 @@
 import { expect } from 'chai'
+import { CORE_LOGGER } from '../../utils/logging/common.js'
 import {
   NvmlGpuCollector,
   NVML_RETRY_MAX_MS,
@@ -8,10 +9,14 @@ import {
 // A stand-in for the koffi module, faithful where the bug lives: koffi type names are
 // process-global, so defining the same struct name twice throws "Duplicate type name", exactly
 // as real koffi does. `initRcs` scripts nvmlInit_v2's return codes call by call (the last one
-// repeats); `failLoads` makes the first N koffi.load() calls throw (library not loadable yet).
-function fakeKoffi(opts: { initRcs?: number[]; failLoads?: number } = {}) {
+// repeats); `failLoads` makes the first N koffi.load() calls throw (library not loadable yet);
+// `failBinds` makes the first N loaded libraries reject every symbol lookup (symbol missing).
+function fakeKoffi(
+  opts: { initRcs?: number[]; failLoads?: number; failBinds?: number } = {}
+) {
   const initRcs = [...(opts.initRcs ?? [0])]
   let failLoads = opts.failLoads ?? 0
+  let failBinds = opts.failBinds ?? 0
   const typeNames = new Set<string>()
   const calls = { load: 0, init: 0, shutdown: 0 }
   const symbols: Record<string, (...a: any[]) => number> = {
@@ -64,7 +69,14 @@ function fakeKoffi(opts: { initRcs?: number[]; failLoads?: number } = {}) {
         failLoads--
         throw new Error('cannot open shared object file: No such file or directory')
       }
-      return { func: (sym: string) => symbols[sym] }
+      const broken = failBinds > 0
+      if (broken) failBinds--
+      return {
+        func: (sym: string) => {
+          if (broken) throw new Error(`Cannot find function '${sym}' in shared library`)
+          return symbols[sym]
+        }
+      }
     },
     opaque: () => ({ opaque: true }),
     pointer: (t: any) => ({ pointer: t }),
@@ -179,6 +191,78 @@ describe('NvmlGpuCollector', () => {
     collector.clock += NVML_RETRY_MIN_MS * 2
     expect(await collector.detect()).to.equal(true)
     expect(calls.load).to.equal(3)
+  })
+
+  it('retries a bind that failed after the types were defined, without duplicate types', async () => {
+    const { koffi, calls } = fakeKoffi({ failBinds: 1 })
+    const collector = new TestCollector(koffi)
+    expect(await collector.detect()).to.equal(false)
+    collector.clock += NVML_RETRY_MIN_MS
+    // The struct types already exist from the failed attempt; redefining them would throw.
+    expect(await collector.detect()).to.equal(true)
+    expect(calls.load).to.equal(2)
+    expect(await collector.sampleAll()).to.have.length(1)
+  })
+
+  it('a probe in flight when the collector is disposed never initializes NVML', async () => {
+    const { koffi, calls } = fakeKoffi()
+    const collector = new TestCollector(koffi)
+    const stale = collector.detect() // suspended on loadKoffi()
+    collector.dispose()
+    expect(await stale).to.equal(false)
+    expect(calls.init).to.equal(0)
+    expect(calls.shutdown).to.equal(0)
+    // the disposed collector is still usable, and a later dispose pairs init with shutdown
+    expect(await collector.detect()).to.equal(true)
+    expect(calls.init).to.equal(1)
+    collector.dispose()
+    expect(calls.shutdown).to.equal(1)
+  })
+
+  it('a stale probe does not clear a newer in-flight probe', async () => {
+    const { koffi, calls } = fakeKoffi()
+    const collector = new TestCollector(koffi)
+    const stale = collector.detect()
+    collector.dispose()
+    const fresh = collector.detect()
+    expect(await stale).to.equal(false)
+    // still the same in-flight probe: a concurrent caller must not start a second nvmlInit
+    const concurrent = collector.detect()
+    expect(await Promise.all([fresh, concurrent])).to.deep.equal([true, true])
+    expect(calls.init).to.equal(1)
+  })
+
+  it('warns once per failure streak, stays at debug on retries, logs recovery at info', async () => {
+    const logged: string[] = []
+    const levels = ['warn', 'debug', 'info'] as const
+    const logger = CORE_LOGGER as any
+    const originals = levels.map((level) => logger[level])
+    for (const level of levels) {
+      logger[level] = (message: string) => {
+        if (String(message).includes('GPU metrics (nvidia)')) logged.push(level)
+      }
+    }
+    try {
+      const { koffi } = fakeKoffi({ initRcs: [9, 9, 0] })
+      const collector = new TestCollector(koffi)
+      expect(await collector.detect()).to.equal(false)
+      collector.clock += NVML_RETRY_MIN_MS
+      expect(await collector.detect()).to.equal(false)
+      collector.clock += NVML_RETRY_MIN_MS * 2
+      expect(await collector.detect()).to.equal(true)
+      expect(logged).to.deep.equal(['warn', 'debug', 'info'])
+
+      // no NVIDIA resource declared: a failure is expected, so never a warn
+      logged.length = 0
+      const quiet = new TestCollector(fakeKoffi({ initRcs: [9] }).koffi)
+      quiet.nvidiaConfigured = false
+      expect(await quiet.detect()).to.equal(false)
+      expect(logged).to.deep.equal(['debug'])
+    } finally {
+      levels.forEach((level, i) => {
+        logger[level] = originals[i]
+      })
+    }
   })
 
   it('doubles the backoff per consecutive failure, capped at the maximum', async () => {

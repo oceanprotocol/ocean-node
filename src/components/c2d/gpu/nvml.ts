@@ -19,7 +19,9 @@ import {
 // koffi type names are process-global: defining `nvmlUtilization_t` a second time throws
 // "Duplicate type name". Engines (and so collectors) are rebuilt in-process — every admin
 // pushConfig runs addC2DEngines(), and each docker engine owns its own GpuMetricsService — so
-// the bindings are built once per koffi module and shared by every collector instance.
+// the bindings are built once per koffi module and shared by every collector instance. The
+// types are cached on their own, as soon as each is defined, so a bind that fails after them
+// (a symbol missing from the library) can be retried without redefining them.
 
 const NVML_SUCCESS = 0
 const NVML_TEMPERATURE_GPU = 0
@@ -31,6 +33,13 @@ export const NVML_RETRY_MAX_MS = 10 * 60_000
 
 // Keyed by the koffi module object so a test's fake koffi never shares (or pollutes) the real one.
 const sharedBindings = new WeakMap<object, NvmlBindings>()
+const sharedTypes = new WeakMap<object, NvmlTypes>()
+
+interface NvmlTypes {
+  deviceType?: any
+  utilizationType?: any
+  memoryType?: any
+}
 
 interface NvmlBindings {
   deviceType: any
@@ -60,6 +69,9 @@ export class NvmlGpuCollector implements GpuVendorCollector {
   // Concurrent callers (jobs and services are sampled in parallel) share one in-flight probe,
   // so nvmlInit runs once and one failure counts once towards the backoff.
   private probeInFlight: Promise<boolean> | null = null
+  // Bumped by dispose(), so a probe that was in flight when the collector was disposed can tell
+  // it is stale and leave both NVML and this instance's state alone.
+  private generation = 0
   // false when no declared GPU resource is NVIDIA: probe failures are then expected (debug)
   public nvidiaConfigured = true
 
@@ -83,7 +95,7 @@ export class NvmlGpuCollector implements GpuVendorCollector {
       return mod?.default ?? mod
     } catch (e: any) {
       this.logProbeFailure(
-        `GPU metrics (nvidia): koffi FFI not available — NVIDIA GPU metrics disabled (${e?.message}). ` +
+        `GPU metrics (nvidia): koffi FFI not available — NVIDIA GPU metrics disabled, will retry (${e?.message}). ` +
           `Install the 'koffi' optional dependency to enable them.`
       )
       return null
@@ -91,9 +103,7 @@ export class NvmlGpuCollector implements GpuVendorCollector {
   }
 
   // Returns the process-wide bindings for this koffi module, building them on first use. A
-  // failure is not cached, so a later probe can bind once the library becomes loadable; the
-  // library is loaded before any type is defined, so a missing library never leaves a
-  // half-registered type name behind.
+  // failure is not cached, so a later probe can bind once the library becomes usable.
   private getBindings(koffi: any): NvmlBindings | null {
     const cached = sharedBindings.get(koffi)
     if (cached) return cached
@@ -102,19 +112,31 @@ export class NvmlGpuCollector implements GpuVendorCollector {
     return built
   }
 
+  // koffi type names can be defined only once per process, so each type is cached the moment it
+  // exists: whatever fails afterwards, a retry re-uses it instead of hitting "Duplicate type name".
+  private getTypes(koffi: any): Required<NvmlTypes> {
+    let types = sharedTypes.get(koffi)
+    if (!types) {
+      types = {}
+      sharedTypes.set(koffi, types)
+    }
+    types.deviceType ??= koffi.pointer(koffi.opaque())
+    types.utilizationType ??= koffi.struct('nvmlUtilization_t', {
+      gpu: 'uint32',
+      memory: 'uint32'
+    })
+    types.memoryType ??= koffi.struct('nvmlMemory_t', {
+      total: 'uint64',
+      free: 'uint64',
+      used: 'uint64'
+    })
+    return types as Required<NvmlTypes>
+  }
+
   private buildBindings(koffi: any): NvmlBindings | null {
     try {
       const lib = koffi.load('libnvidia-ml.so.1')
-      const deviceType = koffi.pointer(koffi.opaque())
-      const utilizationType = koffi.struct('nvmlUtilization_t', {
-        gpu: 'uint32',
-        memory: 'uint32'
-      })
-      const memoryType = koffi.struct('nvmlMemory_t', {
-        total: 'uint64',
-        free: 'uint64',
-        used: 'uint64'
-      })
+      const { deviceType, utilizationType, memoryType } = this.getTypes(koffi)
       return {
         deviceType,
         utilizationType,
@@ -159,7 +181,7 @@ export class NvmlGpuCollector implements GpuVendorCollector {
       }
     } catch (e: any) {
       this.logProbeFailure(
-        `GPU metrics (nvidia): could not bind libnvidia-ml.so.1 — NVIDIA GPU metrics disabled (${e?.message})`
+        `GPU metrics (nvidia): could not bind libnvidia-ml.so.1 — NVIDIA GPU metrics disabled, will retry (${e?.message})`
       )
       return null
     }
@@ -173,15 +195,21 @@ export class NvmlGpuCollector implements GpuVendorCollector {
       return Promise.resolve(false)
     }
     if (!this.probeInFlight) {
-      this.probeInFlight = this.runProbe().finally(() => {
-        this.probeInFlight = null
+      const probe: Promise<boolean> = this.runProbe().finally(() => {
+        // dispose() may have dropped this probe and a newer one taken its place
+        if (this.probeInFlight === probe) this.probeInFlight = null
       })
+      this.probeInFlight = probe
     }
     return this.probeInFlight
   }
 
   private async runProbe(): Promise<boolean> {
-    const ok = await this.probe()
+    const { generation } = this
+    const ok = await this.probe(generation)
+    // Disposed while probing: probe() did not touch NVML, and the state now belongs to whatever
+    // came after the dispose.
+    if (generation !== this.generation) return false
     if (ok) {
       if (this.failedProbes > 0) {
         CORE_LOGGER.info(
@@ -198,9 +226,12 @@ export class NvmlGpuCollector implements GpuVendorCollector {
     return (this.detected = false)
   }
 
-  private async probe(): Promise<boolean> {
+  private async probe(generation: number): Promise<boolean> {
     const koffi = await this.loadKoffi()
     if (!koffi) return false
+    // Everything below is synchronous, so this is the only point a dispose() can slip in.
+    // Initializing now would leave an nvmlInit that nothing ever shuts down.
+    if (generation !== this.generation) return false
     const bindings = this.getBindings(koffi)
     if (!bindings) return false
     try {
@@ -369,6 +400,8 @@ export class NvmlGpuCollector implements GpuVendorCollector {
     // handle. The shared, process-wide bindings themselves are kept for re-use.
     this.detected = null
     this.bindings = null
+    this.generation++
+    this.probeInFlight = null
     this.failedProbes = 0
     this.nextProbeAt = 0
   }
