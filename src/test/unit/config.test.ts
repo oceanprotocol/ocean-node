@@ -398,8 +398,8 @@ describe('Should validate SUBSIDY_PROVIDERS configuration', () => {
 })
 
 describe('Should validate SUBSIDY_PROVIDER_ALLOWED_IMAGES configuration', () => {
-  const DB_ENV_VARS = [ENVIRONMENT_VARIABLES.DB_TYPE, ENVIRONMENT_VARIABLES.DB_URL]
-  const DB_ENV_VALUES = ['typesense', 'http://localhost:8108/?apiKey=xyz']
+  const DB_ENV_VARS = [ENVIRONMENT_VARIABLES.DB_URL]
+  const DB_ENV_VALUES = ['http://localhost:9200']
 
   const ADDR_LOWER = '0x1c7d4b196cb0c7b01d743fbc6116a902379c7238'
   const IMAGE_TAG = 'oceanprotocol/algo:1.0'
