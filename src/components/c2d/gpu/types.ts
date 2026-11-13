@@ -35,7 +35,7 @@ export interface GpuDeviceMetrics {
 // are interface slots whose detect() returns false until their backends land.
 export interface GpuVendorCollector {
   readonly vendor: GpuVendor
-  detect(): Promise<boolean> // is this backend usable on this host? Run once, cached.
+  detect(): Promise<boolean> // is this backend usable on this host? Success is cached; a failure may be retried.
   resolve(res: ComputeResource): GpuDeviceHandle | null
   sample(handles: GpuDeviceHandle[]): Promise<GpuDeviceMetrics[]>
   // Enumerate and sample EVERY GPU visible to this process, with no job/handle — this is what

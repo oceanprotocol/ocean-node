@@ -108,6 +108,57 @@ describe('nodeMetricsHandler.collectNodeMetricsSnapshot', () => {
     expect(g0.utilizationPercent).to.equal(50)
   })
 
+  it('reports host-wide GPU readings when no running workload has a GPU sample attached', () => {
+    // The field case: NVML works (host snapshot is live) but lastAggregate.gpus is empty.
+    const hostGpu = {
+      resourceId: 'gpu',
+      vendor: 'nvidia',
+      utilizationPercent: 73,
+      memoryUsedBytes: 10,
+      memoryTotalBytes: 100,
+      temperatureC: 61,
+      powerWatts: 70
+    }
+    const engines = [
+      { lastAggregate: aggregate({ gpus: [] }), hostGpuSnapshot: [hostGpu] }
+    ]
+    const snapshot = collectNodeMetricsSnapshot(fakeNode(engines))
+    expect(snapshot.gpu).to.deep.equal([hostGpu])
+  })
+
+  it('reports host-wide GPU readings even when the engine has no aggregate yet', () => {
+    const hostGpu = { resourceId: 'gpu0', vendor: 'nvidia', utilizationPercent: 0 }
+    const snapshot = collectNodeMetricsSnapshot(
+      fakeNode([{ hostGpuSnapshot: [hostGpu] }])
+    )
+    expect(snapshot.hasAggregate).to.equal(false)
+    expect(snapshot.gpu.map((g) => g.resourceId)).to.deep.equal(['gpu0'])
+  })
+
+  it('prefers the host-wide reading over a job-scoped one for the same GPU, keeps job-only GPUs', () => {
+    const host = { resourceId: 'gpu0', vendor: 'nvidia', utilizationPercent: 40 }
+    const jobSameGpu = { resourceId: 'gpu0', vendor: 'nvidia', utilizationPercent: 99 }
+    const jobOnlyGpu = { resourceId: 'gpu1', vendor: 'nvidia', utilizationPercent: 10 }
+    const engines = [
+      {
+        lastAggregate: aggregate({ gpus: [jobSameGpu, jobOnlyGpu] }),
+        hostGpuSnapshot: [host]
+      },
+      // a second engine seeing the same host GPU must not add it twice
+      {
+        lastAggregate: aggregate(),
+        hostGpuSnapshot: [{ ...host, utilizationPercent: 1 }]
+      }
+    ]
+    const snapshot = collectNodeMetricsSnapshot(fakeNode(engines))
+    expect(snapshot.gpu).to.have.length(2)
+    const g0 = snapshot.gpu.find((g) => g.resourceId === 'gpu0')
+    expect(g0.utilizationPercent).to.equal(40)
+    expect(snapshot.gpu.find((g) => g.resourceId === 'gpu1').utilizationPercent).to.equal(
+      10
+    )
+  })
+
   it('dedupes env resources by env+resource across engines', () => {
     const envSnap1 = { envA: { cpu: { total: 4, inUse: 2 } } }
     const envSnap2 = {
