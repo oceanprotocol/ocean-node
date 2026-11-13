@@ -12,11 +12,12 @@ import type {
   PersistentStorageObject
 } from '../../@types/PersistentStorage.js'
 import { OceanNode } from '../../OceanNode.js'
+import type { BucketRegistry } from '../database/BucketRegistry.js'
 
 export class PersistentStorageS3 extends PersistentStorageFactory {
   private options: PersistentStorageS3Options
-  constructor(node: OceanNode) {
-    super(node)
+  constructor(node: OceanNode, buckets: BucketRegistry) {
+    super(node, buckets)
     this.options = node.getConfig().persistentStorage
       .options as PersistentStorageS3Options
   }

@@ -18,7 +18,7 @@ In the usual setup, every Ocean Node that follows the network is free to index e
    You submit the metadata transaction (create/update) so the asset is anchored on the target chain.
 
 4. **Indexing**  
-   Every node that indexes that chain processes the relevant events and stores the DDO in its local index (e.g. Typesense/Elasticsearch), so the asset becomes discoverable through those nodes’ APIs.
+   Every node that indexes that chain processes the relevant events and stores the DDO in its local index (Elasticsearch), so the asset becomes discoverable through those nodes’ APIs.
 
 Nothing in this flow *requires* an allowlist: if your nodes do not set the isolation options below, they behave as part of the open network.
 

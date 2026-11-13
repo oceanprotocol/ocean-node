@@ -81,13 +81,7 @@ describe('Bulk DHT provides share one concurrency ceiling', () => {
       getDatabase: () =>
         Promise.resolve({
           ddo: {
-            search: () =>
-              Promise.resolve([
-                {
-                  found: 12,
-                  hits: ddoBatch(12, 'republish').map((ddo) => ({ document: ddo }))
-                }
-              ])
+            search: () => Promise.resolve([ddoBatch(12, 'republish')])
           }
         }),
       getP2PNode: () => node

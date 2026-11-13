@@ -38,6 +38,9 @@ export class QueryHandler extends CommandHandler {
         status: { httpStatus: 200 }
       }
     } catch (error) {
+      if (error.message?.endsWith('is not queryable')) {
+        return { stream: null, status: { httpStatus: 400, error: error.message } }
+      }
       CORE_LOGGER.error(`Error in QueryHandler: ${error.message}`)
       return {
         stream: null,

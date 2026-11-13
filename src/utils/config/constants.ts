@@ -4,9 +4,8 @@ export const ENV_TO_CONFIG_MAPPING = {
   DB_URL: 'DB_URL',
   DB_USERNAME: 'DB_USERNAME',
   DB_PASSWORD: 'DB_PASSWORD',
-  DB_TYPE: 'DB_TYPE',
   // NOTE: deliberately flat (not under dbConfig.*) — preprocessConfigData() rebuilds
-  // data.dbConfig from scratch when DB_URL is set, which would drop anything nested there.
+  // data.dbConfig from scratch when any DB_* is set, which would drop anything nested there.
   DB_INIT_MAX_ATTEMPTS: 'dbInitMaxAttempts',
   DB_INIT_RETRY_DELAY: 'dbInitRetryDelay',
   DB_INIT_MAX_RETRY_DELAY: 'dbInitMaxRetryDelay',
@@ -28,6 +27,7 @@ export const ENV_TO_CONFIG_MAPPING = {
   ESCROW_CLAIM_TIMEOUT: 'claimDurationTimeout',
   VALIDATE_UNSIGNED_DDO: 'validateUnsignedDDO',
   JWT_SECRET: 'jwtSecret',
+  INSTANCE_ID: 'instanceId',
   MAX_REQ_PER_MINUTE: 'rateLimit',
   MAX_CONNECTIONS_PER_MINUTE: 'maxConnections',
   TRUST_PROXY: 'trustProxy',

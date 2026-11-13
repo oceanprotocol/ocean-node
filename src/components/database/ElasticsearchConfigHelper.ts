@@ -1,9 +1,9 @@
 import EventEmitter from 'node:events'
-import { Client } from '@elastic/elasticsearch'
+import { Client, estypes } from '@elastic/elasticsearch'
 import { OceanNodeDBConfig } from '../../@types'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { DB_TYPES } from '../../utils/constants.js'
+import { ElasticsearchSchema } from './ElasticSchemas.js'
 
 export const DB_EVENTS = {
   CONNECTION_LOST: 'db:connection:lost',
@@ -61,21 +61,10 @@ class ElasticsearchClientSingleton {
     return ElasticsearchClientSingleton.instance
   }
 
-  private isElasticsearchDatabase(config: OceanNodeDBConfig): boolean {
-    return config.dbType === DB_TYPES.ELASTIC_SEARCH
-  }
-
   public async getClient(
     config: OceanNodeDBConfig,
     customConfig: Partial<ElasticsearchRetryConfig> = {}
   ): Promise<Client> {
-    if (!this.isElasticsearchDatabase(config)) {
-      DATABASE_LOGGER.debug(
-        `Skipping Elasticsearch connection - database type is set to '${config.dbType || 'unknown'}', not '${DB_TYPES.ELASTIC_SEARCH}'`
-      )
-      throw new Error(`Database type '${config.dbType}' is not Elasticsearch`)
-    }
-
     if (this.client && this.config) {
       // Skip the extra ping here: 5 DB-class constructors all call getClient()
       // during reconnect reinit, and concurrent pings cause false errors that trigger another LOST/RESTORED cycle.
@@ -96,6 +85,13 @@ class ElasticsearchClientSingleton {
       }
     }
 
+    // The health monitor is the only reconnect path while it runs: its reconnect resets
+    // connectionLostEmitted and emits CONNECTION_RESTORED, which restarts the indexers. A
+    // reconnect from a store call would skip both, so store calls fail fast here instead.
+    if (this.isMonitoring) {
+      throw new Error('Elasticsearch connection not available (reconnecting)')
+    }
+
     const client = await this.createNewConnection(config, customConfig)
     this.startHealthMonitoring(config, customConfig)
     return client
@@ -105,7 +101,7 @@ class ElasticsearchClientSingleton {
     config: OceanNodeDBConfig,
     customConfig: Partial<ElasticsearchRetryConfig> = {}
   ): void {
-    if (this.isMonitoring || !this.client || !this.isElasticsearchDatabase(config)) return
+    if (this.isMonitoring || !this.client) return
 
     const finalConfig = {
       ...DEFAULT_ELASTICSEARCH_CONFIG,
@@ -190,10 +186,6 @@ class ElasticsearchClientSingleton {
     config: OceanNodeDBConfig,
     customConfig: Partial<ElasticsearchRetryConfig> = {}
   ): Promise<Client> {
-    if (!this.isElasticsearchDatabase(config)) {
-      throw new Error(`Database type '${config.dbType}' is not Elasticsearch`)
-    }
-
     this.connectionAttempts++
     this.lastConnectionTime = Date.now()
 
@@ -306,4 +298,85 @@ export function getElasticsearchConnectionStats(): {
 } {
   const singleton = ElasticsearchClientSingleton.getInstance()
   return singleton.getConnectionStats()
+}
+
+// creates the index with its mappings when it does not exist yet; throws on failure
+export async function ensureIndex(
+  config: OceanNodeDBConfig,
+  schema: ElasticsearchSchema
+): Promise<void> {
+  const client = await createElasticsearchClientWithRetry(config)
+  if (await client.indices.exists({ index: schema.index })) return
+  try {
+    await client.indices.create({ index: schema.index, body: schema.body as any })
+  } catch (error) {
+    // another instance created it between the two calls
+    if (error?.meta?.body?.error?.type === 'resource_already_exists_exception') return
+    throw error
+  }
+}
+
+// Elasticsearch's default result window: one search returns at most this many hits
+export const SEARCH_PAGE_SIZE = 10000
+
+// Reads every match, page by page, on a point in time. For internal scans that must see all
+// documents; a plain search stops at SEARCH_PAGE_SIZE hits.
+export async function searchAllPages<T>(
+  client: Client,
+  request: Pick<estypes.SearchRequest, 'index' | 'query' | '_source'> & {
+    sort?: estypes.SortCombinations[]
+  },
+  pageSize: number = SEARCH_PAGE_SIZE
+): Promise<estypes.SearchHit<T>[]> {
+  const { index, sort = [], ...rest } = request
+  const keepAlive = '1m'
+  let pitId = (await client.openPointInTime({ index, keep_alive: keepAlive })).id
+  const hits: estypes.SearchHit<T>[] = []
+  try {
+    let searchAfter: estypes.SortResults | undefined
+    for (;;) {
+      const page = await client.search<T>({
+        ...rest,
+        pit: { id: pitId, keep_alive: keepAlive },
+        // _shard_doc makes the order total, so search_after never skips or repeats a hit
+        sort: [...sort, { _shard_doc: 'asc' }],
+        size: pageSize,
+        search_after: searchAfter,
+        track_total_hits: false,
+        allow_partial_search_results: false
+      })
+      // a short page must mean "no more hits", never "a shard did not answer"
+      if (page.timed_out || page._shards.failed > 0) {
+        throw new Error(`Incomplete search on index ${index}: a page is partial`)
+      }
+      pitId = page.pit_id ?? pitId
+      hits.push(...page.hits.hits)
+      if (page.hits.hits.length < pageSize) return hits
+      searchAfter = page.hits.hits[page.hits.hits.length - 1].sort
+    }
+  } finally {
+    // the point in time expires by itself; a failed close must not hide the result
+    await client.closePointInTime({ id: pitId }).catch(() => {})
+  }
+}
+
+// real-time read by id; a missing document is null, any other error (a missing index too)
+// is thrown
+export async function getOrNull<T>(
+  client: Client,
+  index: string,
+  id: string
+): Promise<{ source: T; seqNo: number; primaryTerm: number } | null> {
+  try {
+    const result = await client.get<T>({ index, id })
+    return {
+      source: result._source,
+      seqNo: result._seq_no,
+      primaryTerm: result._primary_term
+    }
+  } catch (error) {
+    const missingIndex = error?.meta?.body?.error?.type === 'index_not_found_exception'
+    if (error?.meta?.statusCode === 404 && !missingIndex) return null
+    throw error
+  }
 }

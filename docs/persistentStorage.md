@@ -12,7 +12,7 @@ Key primitives:
 
 - **Bucket**: a logical container for files.
 - **File**: binary content stored inside a bucket.
-- **Bucket registry**: a local SQLite table that stores bucket metadata (owner, access lists, createdAt).
+- **Bucket registry**: the Elasticsearch `buckets` index that stores bucket metadata (owner, access lists, createdAt).
 
 ---
 
@@ -25,7 +25,7 @@ Key primitives:
   - Validates auth (token or signature) and applies high-level authorization checks.
 
 - **Persistent storage backends (storage layer)**: `src/components/persistentStorage/*`
-  - `PersistentStorageFactory`: shared functionality (SQLite bucket registry, access list checks).
+  - `PersistentStorageFactory`: shared functionality (Elasticsearch bucket registry, access list checks).
   - `PersistentStorageLocalFS`: local filesystem backend.
   - `PersistentStorageS3`: stub for future S3-compatible backend.
 
@@ -36,11 +36,10 @@ Key primitives:
 
 Persistent Storage uses two stores:
 
-1. **Bucket registry (SQLite)**
+1. **Bucket registry (Elasticsearch)**
 
-- File: `databases/persistentStorage.sqlite`
-- Table: `persistent_storage_buckets`
-- Columns:
+- Index: `buckets` (document id = `bucketId`)
+- Fields:
   - `bucketId` (primary key)
   - `owner` (address, stored as a string)
   - `accessListJson` (JSON-encoded access list array)
@@ -114,7 +113,7 @@ Access checks happen at two levels:
 ### Supported today
 
 - **Create bucket**
-  - Creates a bucket id (UUID), persists it in SQLite with `owner` and `accessListJson`, and creates a local directory (localfs).
+  - Creates a bucket id (UUID), persists it in the `buckets` index with `owner` and `accessListJson`, and creates a local directory (localfs).
 
 - **List buckets (by owner)**
   - Returns buckets from the registry filtered by `owner` (mandatory arg).
@@ -255,6 +254,6 @@ Because results are regular bucket files, they can feed the next compute job wit
 
 ## Limitations and notes
 
-- The bucket registry is local to the node (SQLite file). If you run multiple nodes, each node’s registry is independent unless you externalize/replicate it.
+- The bucket registry lives in the node's Elasticsearch `buckets` index. Nodes that share one Elasticsearch share the registry; nodes with separate Elasticsearch clusters have independent registries.
 - `listBuckets(owner)` requires `owner` and only returns buckets that were created with that owner recorded.
 - Filenames in `localfs` are constrained (no path separators) to avoid path traversal.

@@ -39,11 +39,7 @@ export class FileInfoHandler extends CommandHandler {
 
 ### Database Abstraction Layer
 
-Multiple database backends via `DatabaseFactory` pattern:
-
-- **Elasticsearch**: DDO metadata, indexer state, orders (async)
-- **Typesense**: Search-optimized metadata queries
-- **SQLite**: Nonce tracking, config storage, c2d Database (local)
+Stores are built by `DatabaseFactory`. **Elasticsearch** is the only database and is required (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`): DDO metadata, indexer state, orders, and the node state indices (`nonce`, `node_config`, `auth_tokens`, `buckets`, `node_metrics_samples`, `node_metrics_hourly`, `c2d_jobs`, `service_jobs`, `docker_images`, `service_locks`).
 
 Access via singleton `Database` class: `db.ddo`, `db.indexer`, `db.order`, `db.c2d`, `db.nonce`, etc.
 
@@ -64,7 +60,7 @@ Central coordinator managing all components. Initialize with configuration and o
 ### Building & Testing
 
 - **Build**: `npm run build` → compiles TypeScript to `./dist/`
-- **Tests**: `npm run test` runs unit + integration (requires Docker Compose for Typesense)
+- **Tests**: `npm run test` runs unit + integration (requires Docker Compose for Elasticsearch)
 - **Dev**: Use `npm run build:tsc` in watch mode, or Node's `--experimental-specifier-resolution=node` for ESM imports
 
 ### Configuration
@@ -72,7 +68,7 @@ Central coordinator managing all components. Initialize with configuration and o
 Environment-driven via `.env` or `CONFIG_PATH=/path/to/config.json`:
 
 - **PRIVATE_KEY** (required): Node identity for P2P + crypto operations
-- **DB_URL**: Elasticsearch/Typesense connection
+- **DB_URL**: Elasticsearch connection
 - **RPCS**: JSON mapping network IDs to RPC endpoints
 - **OPERATOR_SERVICE_URL**: C2D cluster URLs (array of strings)
 - See [docs/env.md](docs/env.md) for 40+ environment variables
@@ -108,7 +104,7 @@ validateCommandParameters(command, ['required', 'fields']) // throws ValidatePar
 
 ### DDO/Asset Schema Validation
 
-DDOs validated against SHACL schemas in [schemas/](schemas/) (v1, v3, v5, v7). Indexer enforces validation; check `ValidateDDOHandler` for signature verification.
+DDOs validated against SHACL schemas from `@oceanprotocol/ddo-js` (`validateDDO` in `src/utils/asset.ts`). Indexer enforces validation; check `ValidateDDOHandler` for signature verification.
 
 ### Error Response Format
 

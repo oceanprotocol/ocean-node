@@ -45,6 +45,7 @@ import { DEVELOPMENT_CHAIN_ID } from '../../utils/address.js'
 import { deployAndGetAccessListConfig } from '../utils/contracts.js'
 import { OceanNodeConfig, OceanNodeStatus } from '../../@types/OceanNode.js'
 import { KeyManager } from '../../components/KeyManager/index.js'
+import { createElasticsearchClientWithRetry } from '../../components/database/ElasticsearchConfigHelper.js'
 
 describe('**********         Persistent storage handlers (integration)', function () {
   this.timeout(DEFAULT_TEST_TIMEOUT)
@@ -124,6 +125,16 @@ describe('**********         Persistent storage handlers (integration)', functio
     consumer = (await provider.getSigner(1)) as Signer
   })
 
+  beforeEach(async () => {
+    const client = await createElasticsearchClientWithRetry(config.dbConfig)
+    await client.deleteByQuery({
+      index: 'buckets',
+      query: { match_all: {} },
+      refresh: true,
+      conflicts: 'proceed'
+    })
+  })
+
   after(async () => {
     await oceanNode.tearDownAll()
     await tearDownEnvironment(previousConfiguration)
@@ -157,7 +168,7 @@ describe('**********         Persistent storage handlers (integration)', functio
       })
     } as unknown as OceanNode
 
-    const backend = new PersistentStorageLocalFS(fakeNode)
+    const backend = new PersistentStorageLocalFS(fakeNode, database.buckets)
     try {
       const ownerAddress = await consumer.getAddress()
       const { bucketId } = await backend.createNewBucket([], ownerAddress)

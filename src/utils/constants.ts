@@ -137,7 +137,7 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
 
 // Maintenance (drain) mode. When enabled, the node refuses NEW commitment (compute/service
 // starts, initialize, extend) but keeps serving already-committed work. The flag persists in
-// the SQLite config DB under this key and is cached in memory on the OceanNode singleton.
+// the config DB under this key and is cached in memory on the OceanNode singleton.
 export const MAINTENANCE_MODE_CONFIG_KEY = 'maintenanceMode'
 // Stable machine-readable code clients discriminate on. 503 is already reused in these handlers
 // for "subsystem unavailable" (e.g. "Compute engines not configured"), so the status alone is
@@ -341,11 +341,6 @@ export interface EnvVariable {
   required: boolean
 }
 
-export const DB_TYPES = {
-  ELASTIC_SEARCH: 'elasticsearch',
-  TYPESENSE: 'typesense'
-}
-
 // Every P2P_* env var is derived from ENV_TO_CONFIG_MAPPING (src/utils/config/constants.ts),
 // which is the single source of truth for what the config system actually reads. Generating
 // them instead of hand-listing means the two lists can no longer drift apart.
@@ -390,7 +385,9 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.INDEXER_NETWORKS,
     required: false
   },
-  DB_URL: { name: 'DB_URL', value: process.env.DB_URL, required: false },
+  DB_URL: { name: 'DB_URL', value: process.env.DB_URL, required: true },
+  DB_USERNAME: { name: 'DB_USERNAME', value: process.env.DB_USERNAME, required: true },
+  DB_PASSWORD: { name: 'DB_PASSWORD', value: process.env.DB_PASSWORD, required: true },
   // these 2 bellow will change in the future (not required, just remove functionality)
   IPFS_GATEWAY: {
     name: 'IPFS_GATEWAY',
@@ -466,7 +463,7 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   },
   MAINTENANCE_MODE: {
     // boot the node directly into maintenance (drain) mode. "true" enables it; the value is
-    // written through to the SQLite config DB and is STICKY across restarts — returning to
+    // written through to the config DB and is STICKY across restarts — returning to
     // normal service requires an explicit `setMaintenance { enabled: false }` admin command
     // AND unsetting this env before the next restart.
     name: 'MAINTENANCE_MODE',
@@ -586,7 +583,7 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     required: false
   },
   LOG_DB: {
-    // log to the DB (Typesense / Elasticsearch)? default false. falls back to files when the
+    // log to the DB (Elasticsearch)? default false. falls back to files when the
     // log DB is not available
     name: 'LOG_DB',
     value: process.env.LOG_DB,
@@ -632,11 +629,6 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     // (separate bucket from MAX_REQ_PER_MINUTE). 0 or unset = disabled.
     name: 'FILEINFO_MAX_REQ_PER_MINUTE',
     value: process.env.FILEINFO_MAX_REQ_PER_MINUTE,
-    required: false
-  },
-  DB_TYPE: {
-    name: 'DB_TYPE',
-    value: process.env.DB_TYPE,
     required: false
   },
   DB_INIT_MAX_ATTEMPTS: {
@@ -838,13 +830,18 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'NODE_METRICS_RETENTION_DAYS',
     value: process.env.NODE_METRICS_RETENTION_DAYS,
     required: false
+  },
+  INSTANCE_ID: {
+    name: 'INSTANCE_ID',
+    value: process.env.INSTANCE_ID,
+    required: false
   }
 }
 export const CONNECTION_HISTORY_DELETE_THRESHOLD = 300
 // 1 minute
 export const CONNECTIONS_RATE_INTERVAL = 60 * 1000
-// Typesense's maximum limit to send 250 hits at a time
-export const TYPESENSE_HITS_CAP = 250
+// page size for the client-side escrow range scan
+export const ESCROW_SCAN_PAGE_SIZE = 250
 
 // Upper bound on how many escrow rows the handler will scan from the store when a client-side
 // (BigInt) range filter is active. Keeps deep pagination bounded; beyond this the result is

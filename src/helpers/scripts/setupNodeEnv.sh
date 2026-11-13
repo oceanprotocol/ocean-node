@@ -35,11 +35,15 @@ wallet_file_path=$generated_files_path$wallet_file
 pk_file_path+=$generated_files_path$pk_file
 
 
+#add NAME=VALUE to the env file, quoted so that 'source .env' keeps the value as typed
+set_env_value() {
+    printf 'export %s=%q\n' "$1" "$2" >> "$env_file_path"
+}
 #configure database
 configure_database() {
     echo "------------------------ Configure Database ----------------------------------"
-    read -p "Database URL? [ http://localhost:8108/?apiKey=xyz ]: " DB_URL
-    DB_URL=${DB_URL:-http://localhost:8108/?apiKey=xyz}
+    read -p "Database URL? [ http://localhost:9200 ]: " DB_URL
+    DB_URL=${DB_URL:-http://localhost:9200}
     REPLACE_STR="DB_URL=$DB_URL"
     if [ "$(uname)" == "Darwin" ]; then
         sed -i '' -e 's;DB_URL=;'$REPLACE_STR';' "$env_file_path"
@@ -47,6 +51,14 @@ configure_database() {
         sed -i -e 's;DB_URL=;'$REPLACE_STR';' "$env_file_path"
     fi
     echo "DB_URL final configuration: $REPLACE_STR"
+    #the node does not start without the database credentials
+    IFS= read -r -p "Database username? [ elastic ]: " DB_USERNAME
+    DB_USERNAME=${DB_USERNAME:-elastic}
+    set_env_value DB_USERNAME "$DB_USERNAME"
+    IFS= read -r -p "Database password? [ changeme ]: " DB_PASSWORD
+    DB_PASSWORD=${DB_PASSWORD:-changeme}
+    set_env_value DB_PASSWORD "$DB_PASSWORD"
+    echo "DB_USERNAME final configuration: DB_USERNAME=$DB_USERNAME"
     echo "------------------------------------------------------------------------------"
 }
 #configure a basic RPC setting
@@ -227,11 +239,8 @@ else
     exit 1
 fi
 
-read -p "Do you want to run a database on your node? [ y/n ]: " run_database
-run_database=${run_database:-n}
-if [ "$run_database" == 'y' ]; then
-    configure_database
-fi
+#the node does not start without a database
+configure_database
 
 read -p "Do you want to index a network on your node? [ y/n ]: " run_indexer
 run_indexer=${run_indexer:-n}

@@ -3,7 +3,7 @@
 // and after finishing them respectively.
 
 import type { Context as MochaContext } from 'mocha'
-import { DB_TYPES, ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { CONFIG_LOGGER } from '../../utils/logging/common.js'
 import {
   setupEnvironment,
@@ -12,8 +12,7 @@ import {
   getExistingEnvironment,
   TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
-  DEFAULT_TEST_TIMEOUT,
-  SELECTED_RUN_DATABASE
+  DEFAULT_TEST_TIMEOUT
 } from './utils.js'
 
 // current process.env environment
@@ -34,7 +33,6 @@ function getEnvOverrides(): OverrideEnvConfig[] {
       ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY,
       ENVIRONMENT_VARIABLES.RPCS,
       ENVIRONMENT_VARIABLES.PRIVATE_KEY,
-      ENVIRONMENT_VARIABLES.DB_TYPE,
       ENVIRONMENT_VARIABLES.DB_URL,
       // the test node's indexer calls its own HTTP API (decryptor) on loopback,
       // same as Barge's node.yml
@@ -45,10 +43,7 @@ function getEnvOverrides(): OverrideEnvConfig[] {
       'https://arweave.net/',
       '{ "8996": {"rpc": "http://127.0.0.1:8545", "chainId": 8996, "network": "development", "chunkSize": 100}, "137": {"rpc": "https://polygon.meowrpc.com", "chainId": 137, "network": "polygon", "chunkSize": 100 }}',
       '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-      SELECTED_RUN_DATABASE,
-      SELECTED_RUN_DATABASE === DB_TYPES.ELASTIC_SEARCH
-        ? 'http://localhost:9200'
-        : 'http://localhost:8108/?apiKey=xyz',
+      'http://localhost:9200',
       '["127.0.0.1/32"]'
     ]
   )

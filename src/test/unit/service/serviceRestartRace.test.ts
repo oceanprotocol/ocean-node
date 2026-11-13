@@ -556,7 +556,9 @@ describe('service lifecycle lock (restart/stop vs InternalLoop races)', () => {
 
   it('lease acquisition fails CLOSED when the lock DB errors (no docker/DB mutations)', async () => {
     const engine = makeEngine()
-    engine.db.acquireServiceLock = sinon.stub().rejects(new Error('SQLITE_BUSY'))
+    engine.db.acquireServiceLock = sinon
+      .stub()
+      .rejects(new Error('Elasticsearch unavailable'))
 
     try {
       await engine.restartService(SERVICE_ID, OWNER)

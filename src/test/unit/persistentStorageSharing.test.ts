@@ -3,11 +3,34 @@ import fsp from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { Wallet } from 'ethers'
+import { Client } from '@elastic/elasticsearch'
 
 import type { OceanNode } from '../../OceanNode.js'
 import type { AccessList } from '../../@types/AccessList.js'
 import { PersistentStorageLocalFS } from '../../components/persistentStorage/PersistentStorageLocalFS.js'
 import { PersistentStorageAccessDeniedError } from '../../components/persistentStorage/PersistentStorageFactory.js'
+import { ElasticsearchBucketRegistry } from '../../components/database/ElasticsearchBucketRegistry.js'
+import { createElasticsearchClientWithRetry } from '../../components/database/ElasticsearchConfigHelper.js'
+import { getConfiguration } from '../../utils/index.js'
+
+let registry: ElasticsearchBucketRegistry
+let esClient: Client
+
+async function wipeBuckets(): Promise<void> {
+  await esClient.deleteByQuery({
+    index: 'buckets',
+    query: { match_all: {} },
+    refresh: true,
+    conflicts: 'proceed'
+  })
+}
+
+async function initRegistry(): Promise<void> {
+  if (registry) return
+  const { dbConfig } = await getConfiguration()
+  registry = await ElasticsearchBucketRegistry.create(dbConfig)
+  esClient = await createElasticsearchClientWithRetry(dbConfig)
+}
 
 describe('Persistent storage bucket sharing toggle', () => {
   const owner = Wallet.createRandom().address
@@ -23,6 +46,9 @@ describe('Persistent storage bucket sharing toggle', () => {
   let privateBucketId: string
 
   before(async () => {
+    await initRegistry()
+    // buckets are created once for the whole suite, so wipe before, not beforeEach
+    await wipeBuckets()
     folder = await fsp.mkdtemp(path.join(os.tmpdir(), 'ocean-ps-sharing-'))
     const fakeNode = {
       getConfig: () => ({
@@ -35,7 +61,7 @@ describe('Persistent storage bucket sharing toggle', () => {
         }
       })
     } as unknown as OceanNode
-    backend = new PersistentStorageLocalFS(fakeNode)
+    backend = new PersistentStorageLocalFS(fakeNode, registry)
     // Stand-in for the on-chain access list check: every address is on any non-empty ACL
     // (like the real check, an empty ACL lets nobody in).
     backend.isAllowed = (_consumer, accessLists) => {
@@ -122,5 +148,58 @@ describe('Persistent storage bucket sharing toggle', () => {
     expect(await listedIds(other)).to.deep.equal([])
     expect(await listedIds(owner)).to.have.lengthOf(3)
     expect(aclChecks).to.equal(0)
+  })
+})
+
+describe('Elasticsearch bucket registry', () => {
+  const owner = Wallet.createRandom().address
+
+  before(initRegistry)
+  beforeEach(wipeBuckets)
+
+  it('returns an upserted bucket and null for an unknown one', async () => {
+    await registry.upsertBucket('b1', owner, '[]', 100, 'first')
+    expect(await registry.getBucket('b1')).to.deep.equal({
+      bucketId: 'b1',
+      owner,
+      accessListJson: '[]',
+      createdAt: 100,
+      label: 'first'
+    })
+    expect(await registry.getBucket('missing')).to.equal(null)
+  })
+
+  it('re-upsert updates the access list only and keeps the old label', async () => {
+    await registry.upsertBucket('b1', owner, '[]', 100, 'first')
+    await registry.upsertBucket('b1', owner, '[{"1":["0xabc"]}]', 200, 'second')
+    const row = await registry.getBucket('b1')
+    expect(row.accessListJson).to.equal('[{"1":["0xabc"]}]')
+    expect(row.label).to.equal('first')
+    expect(row.createdAt).to.equal(100)
+  })
+
+  it('lists buckets by exact owner, oldest first', async () => {
+    await registry.upsertBucket('late', owner, '[]', 300, null)
+    await registry.upsertBucket('early', owner, '[]', 100, null)
+    await registry.upsertBucket('other', Wallet.createRandom().address, '[]', 200, null)
+    const rows = await registry.listBucketsByOwner(owner)
+    expect(rows.map((r) => r.bucketId)).to.deep.equal(['early', 'late'])
+    expect(await registry.listBucketsByOwner(owner.toLowerCase())).to.deep.equal([])
+  })
+
+  it('deletes a bucket once', async () => {
+    await registry.upsertBucket('b1', owner, '[]', 100, null)
+    expect(await registry.deleteBucket('b1')).to.equal(true)
+    expect(await registry.deleteBucket('b1')).to.equal(false)
+    expect(await registry.getBucket('b1')).to.equal(null)
+  })
+
+  it('updates the label only for the owner', async () => {
+    await registry.upsertBucket('b1', owner, '[]', 100, 'first')
+    const stranger = Wallet.createRandom().address
+    expect(await registry.updateBucketLabel('b1', stranger, 'hacked')).to.equal(false)
+    expect(await registry.updateBucketLabel('missing', owner, 'x')).to.equal(false)
+    expect(await registry.updateBucketLabel('b1', owner, null)).to.equal(true)
+    expect((await registry.getBucket('b1')).label).to.equal(null)
   })
 })

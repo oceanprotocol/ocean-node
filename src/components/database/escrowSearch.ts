@@ -1,6 +1,6 @@
 import { RangeFilter } from '../../@types/commands.js'
 
-// Fields stored as native numeric types in both backends (Typesense int64 / ES long).
+// Fields stored as native numeric types (ES long).
 // Range filters on these are pushed down to the store's query DSL.
 export const NATIVE_RANGE_FIELDS = ['block', 'chainId']
 
@@ -95,7 +95,7 @@ export function validateEscrowRanges(ranges?: Record<string, RangeFilter>): {
   return { valid: true }
 }
 
-// Native range fields are numeric in the store (Typesense int64 / ES long), so their bounds go
+// Native range fields are numeric in the store (ES long), so their bounds go
 // straight into the numeric DSL. Emit each defined bound as a canonical decimal string so a
 // value given as hex ("0x64"), a number, or with leading zeros ("007") is not sent verbatim.
 // Absent bounds stay absent; a non-parseable bound (shouldn't occur post-validation) is left
@@ -147,35 +147,6 @@ export function passesClientRanges(
     if (lt !== undefined && value >= lt) return false
   }
   return true
-}
-
-// Build a Typesense `filter_by` string from a filters map whose values are either equality
-// scalars or RangeFilter objects. Range objects only make sense on numeric fields.
-export function buildTypesenseFilterBy(filters: Record<string, any>): string {
-  const clauses: string[] = []
-  // An array value means several constraints on the SAME field, all ANDed — e.g. an equality
-  // and a range on `chainId`; each element is emitted as its own clause.
-  const emit = (field: string, value: any) => {
-    if (value === undefined || value === null || value === '') return
-    if (isRangeFilter(value)) {
-      if (hasValue(value.min)) clauses.push(`${field}:>=${value.min}`)
-      if (hasValue(value.max)) clauses.push(`${field}:<=${value.max}`)
-      if (hasValue(value.gt)) clauses.push(`${field}:>${value.gt}`)
-      if (hasValue(value.lt)) clauses.push(`${field}:<${value.lt}`)
-    } else if (typeof value === 'string') {
-      // Backtick string values so spaces/special chars can't break the syntax;
-      // strip backticks from the value so it can't escape the quoted literal.
-      clauses.push(`${field}:=\`${value.replace(/`/g, '')}\``)
-    } else {
-      clauses.push(`${field}:=${value}`)
-    }
-  }
-  for (const [field, value] of Object.entries(filters || {})) {
-    if (value === undefined || value === null || value === '') continue
-    if (Array.isArray(value)) value.forEach((v) => emit(field, v))
-    else emit(field, value)
-  }
-  return clauses.join(' && ')
 }
 
 // Build an Elasticsearch query body from the same filters map: `term` for equality,

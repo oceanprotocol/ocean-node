@@ -3,33 +3,23 @@ import { AbstractOrderDatabase } from '../../components/database/BaseDatabase.js
 import { DatabaseFactory } from '../../components/database/DatabaseFactory.js'
 import { Database } from '../../components/database/index.js'
 import { expect, assert } from 'chai'
-import { DB_TYPES } from '../../utils/constants.js'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { isDefined } from '../../utils/util.js'
-import { SQLLiteNonceDatabase } from '../../components/database/SQLLiteNonceDatabase.js'
-
-const typesenseConfig: OceanNodeDBConfig = {
-  url: 'http://localhost:8108/?apiKey=xyz',
-  dbType: DB_TYPES.TYPESENSE
-}
+import { ElasticsearchNonceDatabase } from '../../components/database/ElasticSearchDatabase.js'
+import { createElasticsearchClientWithRetry } from '../../components/database/ElasticsearchConfigHelper.js'
+import { elasticSchemas } from '../../components/database/ElasticSchemas.js'
 
 const elasticConfig: OceanNodeDBConfig = {
   url: 'http://localhost:9200',
-  dbType: DB_TYPES.ELASTIC_SEARCH,
   username: process.env.DB_USERNAME,
   password: process.env.DB_PASSWORD
-}
-
-const emptyDBConfig: OceanNodeDBConfig = {
-  url: '',
-  dbType: null
 }
 
 describe('**********         Database', () => {
   let database: Database
 
   before(async () => {
-    database = await Database.init(typesenseConfig)
+    database = await Database.init(elasticConfig)
   })
 
   it('instance Database', () => {
@@ -64,7 +54,7 @@ describe('**********         DdoDatabase CRUD', () => {
   }
 
   before(async () => {
-    database = await Database.init(typesenseConfig)
+    database = await Database.init(elasticConfig)
   })
 
   it('creates ddo schema as an array', () => {
@@ -73,11 +63,8 @@ describe('**********         DdoDatabase CRUD', () => {
     assert(Array.isArray(ddoSchemas))
     assert(ddoSchemas.length > 1)
     for (const ddoSchema of ddoSchemas) {
-      if (database.ddo.isTypesenseSchema(ddoSchema)) {
-        assert(ddoSchema.name)
-        assert(ddoSchema.fields)
-        assert(ddoSchema.fields.length > 0)
-      }
+      assert(database.ddo.isElasticsearchSchema(ddoSchema))
+      assert(ddoSchema.index)
     }
   })
 
@@ -87,15 +74,27 @@ describe('**********         DdoDatabase CRUD', () => {
   })
 })
 
-describe('**********         NonceDatabase CRUD - SQL lite (With typesense DB config)', () => {
+describe('**********         NonceDatabase CRUD', () => {
   let database: Database
 
   before(async () => {
-    database = await Database.init(typesenseConfig)
+    database = await Database.init(elasticConfig)
   })
 
-  it('check nonce DB instance of SQL Lite', () => {
-    expect(database.nonce).to.be.instanceOf(SQLLiteNonceDatabase)
+  beforeEach(async () => {
+    const client = await createElasticsearchClientWithRetry(elasticConfig)
+    // nonce writes do not refresh; make them visible to the deleteByQuery search
+    await client.indices.refresh({ index: elasticSchemas.nonceSchemas.index })
+    await client.deleteByQuery({
+      index: elasticSchemas.nonceSchemas.index,
+      query: { match_all: {} },
+      refresh: true,
+      conflicts: 'proceed'
+    })
+  })
+
+  it('nonce DB is the Elasticsearch store', () => {
+    expect(database.nonce).to.be.instanceOf(ElasticsearchNonceDatabase)
   })
 
   it('create nonce', async () => {
@@ -105,57 +104,34 @@ describe('**********         NonceDatabase CRUD - SQL lite (With typesense DB co
   })
 
   it('retrieve nonce', async () => {
+    expect(await database.nonce.retrieve('0x123')).to.deep.equal({
+      id: '0x123',
+      nonce: null
+    })
+    await database.nonce.create('0x123', 0)
     const result = await database.nonce.retrieve('0x123')
     expect(result?.id).to.equal('0x123')
     expect(result?.nonce).to.equal(0)
   })
 
   it('update nonce', async () => {
-    const result = await database.nonce.update('0x123', 1)
-    expect(result?.id).to.equal('0x123')
-    expect(result?.nonce).to.equal(1)
-  })
-
-  it('delete nonce', async () => {
-    const result = await database.nonce.delete('0x123')
-    expect(result?.id).to.equal('0x123')
-    expect(result?.nonce).to.equal(1)
-  })
-})
-
-describe('**********         NonceDatabase CRUD (without Elastic or Typesense config)', () => {
-  let database: Database
-
-  before(async () => {
-    database = await Database.init(emptyDBConfig)
-  })
-
-  it('check nonce DB instance of SQL Lite', () => {
-    expect(database.nonce).to.be.instanceOf(SQLLiteNonceDatabase)
-  })
-
-  it('create nonce', async () => {
-    const result = await database.nonce.create('0x456', 0)
-    expect(result?.id).to.equal('0x456')
-    expect(result?.nonce).to.equal(0)
-  })
-
-  it('retrieve nonce', async () => {
-    const result = await database.nonce.retrieve('0x456')
-    expect(result?.id).to.equal('0x456')
-    expect(result?.nonce).to.equal(0)
-  })
-
-  it('update nonce', async () => {
+    await database.nonce.create('0x456', 0)
     const result = await database.nonce.update('0x456', 1)
     expect(result?.id).to.equal('0x456')
     expect(result?.nonce).to.equal(1)
+    expect((await database.nonce.retrieve('0x456'))?.nonce).to.equal(1)
   })
 
   it('delete nonce', async () => {
+    await database.nonce.create('0x456', 1)
     const result = await database.nonce.delete('0x456')
     expect(result?.id).to.equal('0x456')
     expect(result?.nonce).to.equal(1)
+    expect((await database.nonce.retrieve('0x456'))?.nonce).to.equal(null)
+    expect(await database.nonce.delete('0x456')).to.deep.equal({
+      id: '0x456',
+      nonce: null
+    })
   })
 
   it('keys rows by the checksummed address and reads them back in any casing', async () => {
@@ -177,7 +153,7 @@ describe('**********         IndexerDatabase CRUD', () => {
   let existsPrevious: any = {}
 
   before(async () => {
-    database = await Database.init(typesenseConfig)
+    database = await Database.init(elasticConfig)
   })
 
   it('create indexer', async () => {
@@ -189,14 +165,14 @@ describe('**********         IndexerDatabase CRUD', () => {
       expect(result?.lastIndexedBlock).to.equal(0)
     } else {
       existsPrevious = exists
-      expect(existsPrevious?.id).to.equal('1')
+      expect(existsPrevious?.lastIndexedBlock).to.be.a('number')
     }
   })
 
+  // retrieve returns the stored document, which has no id field
   it('retrieve indexer', async () => {
     const result = await database.indexer.retrieve(1)
-    expect(result?.id).to.equal('1')
-    if (existsPrevious?.id) {
+    if (existsPrevious?.lastIndexedBlock !== undefined) {
       expect(result?.lastIndexedBlock).to.equal(existsPrevious.lastIndexedBlock)
     } else {
       expect(result?.lastIndexedBlock).to.equal(0)
@@ -211,8 +187,8 @@ describe('**********         IndexerDatabase CRUD', () => {
 
   it('delete indexer', async () => {
     const result = await database.indexer.delete(1)
-    expect(result?.id).to.equal('1')
-    expect(result?.lastIndexedBlock).to.equal(1)
+    expect(result).to.deep.equal({ id: '1' })
+    expect(await database.indexer.retrieve(1)).to.equal(null)
   })
 })
 
@@ -220,7 +196,7 @@ describe('**********         OrderDatabase CRUD', () => {
   let database: Database
 
   before(async () => {
-    database = await Database.init(typesenseConfig)
+    database = await Database.init(elasticConfig)
   })
 
   it('create order', async () => {
@@ -234,7 +210,7 @@ describe('**********         OrderDatabase CRUD', () => {
       '0x1',
       'did'
     )
-    expect(result?.id).to.equal('order1.0')
+    expect(result?.orderId).to.equal('order1.0')
     expect(result?.consumer).to.equal('0x1234')
     expect(result?.payer).to.equal('0x4567')
     expect(result?.type).to.equal('startOrder')
@@ -259,7 +235,7 @@ describe('**********         OrderDatabase CRUD', () => {
       '0x1235',
       '0x4567'
     )
-    expect(result?.id).to.equal('order1.0')
+    // update returns the changed fields only
     expect(result?.consumer).to.equal('0x1235')
     expect(result?.payer).to.equal('0x4567')
     expect(result?.type).to.equal('startOrder')
@@ -267,57 +243,12 @@ describe('**********         OrderDatabase CRUD', () => {
   })
 
   it('delete order', async () => {
+    const before = await database.order.retrieve('order1.0')
+    expect(before?.consumer).to.equal('0x1235')
+    expect(before?.timestamp).to.equal(1678593730)
     const result = await database.order.delete('order1.0')
-    expect(result?.id).to.equal('order1.0')
-    expect(result?.consumer).to.equal('0x1235')
-    expect(result?.payer).to.equal('0x4567')
-    expect(result?.type).to.equal('startOrder')
-    expect(result?.timestamp).to.equal(1678593730)
-  })
-})
-
-describe('**********         Typesense OrderDatabase CRUD', () => {
-  let database: AbstractOrderDatabase
-
-  before(async () => {
-    database = await DatabaseFactory.createOrderDatabase(typesenseConfig)
-  })
-
-  it('creates an order in Typesense', async () => {
-    const result = await database.create(
-      'orderTypesense1',
-      'startOrder',
-      1678593728,
-      '0x1234',
-      '0x4567',
-      '0x1111',
-      '0x2',
-      'did:'
-    )
-    expect(result?.id).to.equal('orderTypesense1')
-    expect(result?.consumer).to.equal('0x1234')
-  })
-
-  it('retrieves an order from Typesense', async () => {
-    const result = await database.retrieve('orderTypesense1')
-    expect(result?.id).to.equal('orderTypesense1')
-    expect(result?.consumer).to.equal('0x1234')
-  })
-
-  it('updates an order in Typesense', async () => {
-    const result = await database.update(
-      'orderTypesense1',
-      'startOrder',
-      1678593730,
-      '0x1235',
-      '0x4567'
-    )
-    expect(result?.consumer).to.equal('0x1235')
-  })
-
-  it('deletes an order from Typesense', async () => {
-    const result = await database.delete('orderTypesense1')
-    expect(result?.id).to.equal('orderTypesense1')
+    expect(result).to.deep.equal({ id: 'order1.0' })
+    expect(await database.order.retrieve('order1.0')).to.equal(null)
   })
 })
 
@@ -370,33 +301,6 @@ describe('**********         Elasticsearch OrderDatabase CRUD', () => {
 })
 
 describe('**********         DdoStateQuery', () => {
-  it('should build Typesense query for did', async () => {
-    const query = (await DatabaseFactory.createDdoStateQuery(typesenseConfig)).buildQuery(
-      'did:op:abc123'
-    )
-    expect(query.q).to.equal('did:op:abc123')
-    expect(query.query_by).to.equal('did')
-  })
-
-  it('should build Typesense query for nft', async () => {
-    const query = (await DatabaseFactory.createDdoStateQuery(typesenseConfig)).buildQuery(
-      undefined,
-      'nft:op:abc123'
-    )
-    expect(query.q).to.equal('nft:op:abc123')
-    expect(query.query_by).to.equal('nft')
-  })
-
-  it('should build Typesense query for txId', async () => {
-    const query = (await DatabaseFactory.createDdoStateQuery(typesenseConfig)).buildQuery(
-      undefined,
-      undefined,
-      'txId123'
-    )
-    expect(query.q).to.equal('txId123')
-    expect(query.query_by).to.equal('txId')
-  })
-
   it('should build Elasticsearch query for did', async () => {
     const query = (await DatabaseFactory.createDdoStateQuery(elasticConfig)).buildQuery(
       'did:op:abc123'
@@ -423,58 +327,8 @@ describe('**********         DdoStateQuery', () => {
 })
 
 describe('**********         MetadataQuery', () => {
-  it('should return a Typesense query when DB is Typesense and a Typesense query is passed', async () => {
-    const typesenseQuery = {
-      q: '*',
-      filter_by:
-        'author:=Ocean && metadata.type:=[dataset,algorithm] && purgatory_state:!=true',
-      num_hits: 10,
-      start: 0,
-      sort_by: 'name:asc'
-    }
-
-    const query = (await DatabaseFactory.createMetadataQuery(typesenseConfig)).buildQuery(
-      typesenseQuery
-    )
-    expect(query.q).to.equal('*')
-    expect(query.num_hits).to.equal(10)
-    expect(query.start).to.equal(0)
-    expect(query.filter_by).to.equal(
-      'author:=Ocean && metadata.type:=[dataset,algorithm] && purgatory_state:!=true'
-    )
-    expect(query.sort_by).to.equal('name:asc')
-  })
-
-  it('should convert an Elasticsearch query to a Typesense query when DB is Typesense', async () => {
-    const searchQuery: SearchQuery = {
-      query: {
-        bool: {
-          filter: [
-            { term: { author: 'Ocean' } },
-            { terms: { 'metadata.type': ['dataset', 'algorithm'] } }
-          ],
-          must_not: [{ term: { purgatory_state: true } }]
-        }
-      },
-      size: 10,
-      from: 0,
-      sort: { name: 'asc' }
-    }
-
-    const query = (await DatabaseFactory.createMetadataQuery(typesenseConfig)).buildQuery(
-      searchQuery
-    )
-    expect(query.q).to.equal('*')
-    expect(query.num_hits).to.equal(10)
-    expect(query.start).to.equal(0)
-    expect(query.filter_by).to.contain('author:=Ocean')
-    expect(query.filter_by).to.contain('metadata.type:=[dataset,algorithm]')
-    expect(query.filter_by).to.contain('purgatory_state:!=true')
-    expect(query.sort_by).to.equal('name:asc')
-  })
-
-  it('should convert a Typesense query to an Elasticsearch query when DB is Elasticsearch', async () => {
-    const typesenseQuery = {
+  it('should convert a filter_by query to an Elasticsearch query', async () => {
+    const filterByQuery = {
       q: '*',
       filter_by:
         'author:=Ocean && metadata.type:=[dataset,algorithm] && purgatory_state:!=true',
@@ -484,7 +338,7 @@ describe('**********         MetadataQuery', () => {
     }
 
     const query = (await DatabaseFactory.createMetadataQuery(elasticConfig)).buildQuery(
-      typesenseQuery
+      filterByQuery
     )
     expect(query.size).to.equal(10)
     expect(query.from).to.equal(0)

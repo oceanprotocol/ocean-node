@@ -19,14 +19,15 @@ import {
   PersistentStorageFileInfo
 } from './PersistentStorageFactory.js'
 import { OceanNode } from '../../OceanNode.js'
+import type { BucketRegistry } from '../database/BucketRegistry.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 
 export class PersistentStorageLocalFS extends PersistentStorageFactory {
   /* eslint-disable security/detect-non-literal-fs-filename -- localfs backend operates on filesystem paths */
   private baseFolder: string
 
-  constructor(node: OceanNode) {
-    super(node)
+  constructor(node: OceanNode, buckets: BucketRegistry) {
+    super(node, buckets)
     const options = node.getConfig().persistentStorage
       .options as PersistentStorageLocalFSOptions
 

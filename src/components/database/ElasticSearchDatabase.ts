@@ -6,14 +6,20 @@ import {
   AbstractEscrowDatabase,
   AbstractIndexerDatabase,
   AbstractLogDatabase,
+  AbstractNonceDatabase,
   AbstractOrderDatabase
 } from './BaseDatabase.js'
 import { AccessListUser } from '../../@types/AccessList.js'
 import { EscrowEvent } from '../../@types/Escrow.js'
 import { buildElasticQuery } from './escrowSearch.js'
-import { createElasticsearchClientWithRetry } from './ElasticsearchConfigHelper.js'
+import {
+  createElasticsearchClientWithRetry,
+  ensureIndex,
+  getOrNull
+} from './ElasticsearchConfigHelper.js'
 import { OceanNodeDBConfig } from '../../@types'
-import { ElasticsearchSchema } from './ElasticSchemas.js'
+import { ElasticsearchSchema, elasticSchemas } from './ElasticSchemas.js'
+import { addressCasingVariants, normalizeAddress } from '../../utils/evmAddress.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { safeStringify } from '../../utils/logging/redact.js'
@@ -23,6 +29,102 @@ import { DDOManager } from '@oceanprotocol/ddo-js'
 
 const LOG_INSERT_FAILED_KEY = 'es-log-insert-failed'
 let logInsertFailing = false
+
+// Nonces are read only by real-time `get`, never by search, so writes skip `refresh: 'wait_for'`.
+export class ElasticsearchNonceDatabase extends AbstractNonceDatabase {
+  private index: string
+
+  constructor(config: OceanNodeDBConfig) {
+    super(config)
+    this.index = elasticSchemas.nonceSchemas.index
+
+    return (async (): Promise<ElasticsearchNonceDatabase> => {
+      await ensureIndex(config, elasticSchemas.nonceSchemas)
+      return this
+    })() as unknown as ElasticsearchNonceDatabase
+  }
+
+  // resolved per call: the health monitor replaces the client after a reconnect
+  private client(): Promise<Client> {
+    return createElasticsearchClientWithRetry(this.config)
+  }
+
+  private async write(address: string, nonce: number) {
+    const id = normalizeAddress(address)
+    const client = await this.client()
+    await client.index({
+      index: this.index,
+      id,
+      body: { nonce }
+    })
+    return { id, nonce }
+  }
+
+  async create(address: string, nonce: number) {
+    try {
+      return await this.write(address, nonce)
+    } catch (error) {
+      const errorMsg =
+        `Error when creating new nonce entry ${nonce} for address ${address}: ` +
+        error.message
+      DATABASE_LOGGER.error(errorMsg)
+      return null
+    }
+  }
+
+  // Documents are keyed by the checksummed address. Read every casing variant of the SAME
+  // address and keep the HIGHEST nonce: the nonce must stay monotonic, dropping back to 0
+  // would briefly re-open the replay window that the nonce exists to close.
+  // A failed read throws: the callers must not take it for "no nonce yet" and start from 0.
+  async retrieve(address: string) {
+    const id = normalizeAddress(address)
+    try {
+      const client = await this.client()
+      let highest: number | null = null
+      for (const variant of addressCasingVariants(address)) {
+        const row = await getOrNull<{ nonce: number }>(client, this.index, variant)
+        const nonce = row?.source?.nonce
+        if (typeof nonce === 'number' && (highest === null || nonce > highest)) {
+          highest = nonce
+        }
+      }
+      return { id, nonce: highest }
+    } catch (error) {
+      const errorMsg =
+        `Error when retrieving nonce entry for address ${address}: ` + error.message
+      DATABASE_LOGGER.error(errorMsg)
+      throw error
+    }
+  }
+
+  async update(address: string, nonce: number) {
+    try {
+      return await this.write(address, nonce)
+    } catch (error) {
+      const errorMsg =
+        `Error when updating nonce entry ${nonce} for address ${address}: ` +
+        error.message
+      DATABASE_LOGGER.error(errorMsg)
+      return null
+    }
+  }
+
+  async delete(address: string) {
+    const id = normalizeAddress(address)
+    try {
+      const client = await this.client()
+      const row = await getOrNull<{ nonce: number }>(client, this.index, id)
+      if (!row) return { id, nonce: null }
+      await client.delete({ index: this.index, id })
+      return { id, nonce: row.source.nonce }
+    } catch (error) {
+      const errorMsg =
+        `Error when deleting nonce entry for address ${address}: ` + error.message
+      DATABASE_LOGGER.error(errorMsg)
+      return null
+    }
+  }
+}
 
 export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
   private client: Client
@@ -534,6 +636,16 @@ export class ElasticsearchEscrowDatabase extends AbstractEscrowDatabase {
   }
 }
 
+// Terms lookup, more_like_this, percolate and indexed_shape can read a document from
+// another index. All of them name that index with an `index` or `_index` key.
+function namesAnotherIndex(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(namesAnotherIndex)
+  if (value === null || typeof value !== 'object') return false
+  return Object.entries(value).some(
+    ([key, child]) => key === 'index' || key === '_index' || namesAnotherIndex(child)
+  )
+}
+
 export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
   private client: Client
 
@@ -611,8 +723,15 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     const maxPerPage = query.size || 100
     const from = (query.from || 1) * maxPerPage - maxPerPage
 
-    if (query.index) {
-      const { index, ...queryWithoutIndex } = query
+    const { index, ...queryWithoutIndex } = query
+    if (namesAnotherIndex(queryWithoutIndex)) {
+      throw new Error('A query that names another index is not queryable')
+    }
+
+    if (index) {
+      if (!this.getSchemas().some((schema) => schema.index === index)) {
+        throw new Error(`Index '${index}' is not queryable`)
+      }
       try {
         const response = await this.client.search({
           index,
@@ -638,7 +757,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
           const response = await this.client.search({
             index: schema.index,
             body: {
-              ...query,
+              ...queryWithoutIndex,
               from,
               size: maxPerPage
             }
@@ -716,7 +835,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
   }
 
   // This is called from indexer "createOrUpdateDDO"
-  // we add the "id" field to match the response API with typesense
+  // we add the "id" field to the response API
   // since here we have an "_id"
   async update(ddo: Record<string, any>): Promise<any> {
     const schema = this.getDDOSchema(ddo)
@@ -1293,8 +1412,7 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
 }
 
 /**
- * Make DB agnostic APIs. The response should be similar, no matter what DB engine is used
- * Normalizes the document responses to match same kind of typesense ones
+ * Normalizes the document responses: adds an `id` property from the Elasticsearch `_id`
  * @param dbResult response from DB
  * @param _id id of the element
  * @returns result object with id property

@@ -6,7 +6,7 @@ import type {
   PersistentStorageObject
 } from '../../@types/PersistentStorage.js'
 
-import { SqliteClient } from '../database/sqliteClient.js'
+import type { BucketRegistry, BucketRow } from '../database/BucketRegistry.js'
 import { getAddress } from 'ethers'
 import { OceanNode } from '../../OceanNode.js'
 import { checkAddressOnAccessList } from '../../utils/accessList.js'
@@ -35,14 +35,6 @@ function parseBucketAccessListsJson(accessListJson: string): AccessList[] {
   }
 }
 
-export type BucketRow = {
-  bucketId: string
-  owner: string
-  accessListJson: string
-  createdAt: number
-  label: string | null
-}
-
 export interface PersistentStorageFileInfo {
   bucketId: string
   name: string
@@ -67,48 +59,12 @@ export type PersistentStorageBucketRecord = {
 }
 
 export abstract class PersistentStorageFactory {
-  private db: SqliteClient
   private node: OceanNode
-  private dbReady = false
-  private dbReadyPromise: Promise<void>
+  private buckets: BucketRegistry
 
-  constructor(node: OceanNode) {
+  constructor(node: OceanNode, buckets: BucketRegistry) {
     this.node = node
-    // SqliteClient creates the parent directory on construction.
-    this.db = new SqliteClient('databases/persistentStorage.sqlite')
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS persistent_storage_buckets (
-        bucketId TEXT PRIMARY KEY,
-        owner TEXT NOT NULL,
-        accessListJson TEXT NOT NULL,
-        createdAt INTEGER NOT NULL,
-        label TEXT
-      );
-    `)
-    // Migration: add the label column if it doesn't exist. A fresh table already has it,
-    // so ALTER throws "duplicate column name" — swallow only that; surface any other
-    // failure instead of starting with a broken schema. Schema setup is synchronous now,
-    // so the DB is ready by the time the constructor returns.
-    try {
-      this.db.exec(`ALTER TABLE persistent_storage_buckets ADD COLUMN label TEXT`)
-    } catch (alterErr) {
-      if (!/duplicate column name/i.test(alterErr.message)) {
-        throw alterErr
-      }
-    }
-    this.dbReady = true
-    this.dbReadyPromise = Promise.resolve()
-  }
-
-  public isDbReady(): boolean {
-    return this.dbReady
-  }
-
-  private async ensureDbReady(): Promise<void> {
-    if (this.dbReady) {
-      return
-    }
-    await this.dbReadyPromise
+    this.buckets = buckets
   }
 
   /**
@@ -227,7 +183,7 @@ export abstract class PersistentStorageFactory {
   }
 
   /**
-   * Lists buckets for a given owner from the SQLite registry (metadata only).
+   * Lists buckets for a given owner from the bucket registry (metadata only).
    * `owner` must already be normalized (e.g. checksummed `getAddress`).
    * Backends that need setup (e.g. localfs init) should override and call `super.listBuckets(owner)`.
    */
@@ -272,57 +228,34 @@ export abstract class PersistentStorageFactory {
     return buckets.filter((_, i) => allowed[i])
   }
 
-  /*
-   * NOTE: db* methods are intentionally gated on ensureDbReady() to avoid races
-   * with constructor-time schema creation.
-   */
-
-  async dbUpsertBucket(
+  dbUpsertBucket(
     bucketId: string,
     owner: string,
     accessListJson: string,
     createdAt: number,
     label: string | null
   ): Promise<void> {
-    // ON CONFLICT does not touch label, so a re-create never clobbers a rename.
-    const sql = `
-      INSERT INTO persistent_storage_buckets (bucketId, owner, accessListJson, createdAt, label)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(bucketId) DO UPDATE SET accessListJson=excluded.accessListJson;
-    `
-    await this.ensureDbReady()
-    this.db.run(sql, [bucketId, owner, accessListJson, createdAt, label])
+    return this.buckets.upsertBucket(bucketId, owner, accessListJson, createdAt, label)
   }
 
-  async dbGetBucket(bucketId: string): Promise<BucketRow | null> {
-    const sql = `SELECT bucketId, owner, accessListJson, createdAt, label FROM persistent_storage_buckets WHERE bucketId = ?`
-    await this.ensureDbReady()
-    const row = this.db.get<BucketRow>(sql, [bucketId])
-    return row ?? null
+  dbGetBucket(bucketId: string): Promise<BucketRow | null> {
+    return this.buckets.getBucket(bucketId)
   }
 
-  async dbListBucketsByOwner(owner: string): Promise<BucketRow[]> {
-    const sql = `SELECT bucketId, owner, accessListJson, createdAt, label FROM persistent_storage_buckets WHERE owner = ? ORDER BY createdAt ASC`
-    await this.ensureDbReady()
-    return this.db.all<BucketRow>(sql, [owner])
+  dbListBucketsByOwner(owner: string): Promise<BucketRow[]> {
+    return this.buckets.listBucketsByOwner(owner)
   }
 
-  async dbDeleteBucket(bucketId: string): Promise<boolean> {
-    const sql = `DELETE FROM persistent_storage_buckets WHERE bucketId = ?`
-    await this.ensureDbReady()
-    const { changes } = this.db.run(sql, [bucketId])
-    return changes === 1
+  dbDeleteBucket(bucketId: string): Promise<boolean> {
+    return this.buckets.deleteBucket(bucketId)
   }
 
-  async dbUpdateBucketLabel(
+  dbUpdateBucketLabel(
     bucketId: string,
     owner: string,
     label: string | null
   ): Promise<boolean> {
-    const sql = `UPDATE persistent_storage_buckets SET label = ? WHERE bucketId = ? AND owner = ?`
-    await this.ensureDbReady()
-    const { changes } = this.db.run(sql, [label, bucketId, owner])
-    return changes === 1
+    return this.buckets.updateBucketLabel(bucketId, owner, label)
   }
 
   isAllowed(consumerAddress: string, accessLists: AccessList[]): Promise<boolean> {

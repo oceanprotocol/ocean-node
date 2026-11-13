@@ -227,7 +227,7 @@ describe('Maintenance mode - QA coverage gaps', () => {
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
-    db = await Database.init({ url: 'http://localhost:9999', dbType: 'none' } as any)
+    db = await Database.init(config.dbConfig)
     keyManager = new KeyManager(config)
     blockchainRegistry = new BlockchainRegistry(keyManager, config)
     oceanNode = buildNode()
@@ -425,7 +425,7 @@ describe('Maintenance mode - QA coverage gaps', () => {
 
     it('flag absent from DB -> loads OFF (fail-open)', async () => {
       await oceanNode.setMaintenanceMode(true)
-      sinon.stub(db.sqliteConfig, 'retrieveValue').resolves({ value: null } as any)
+      sinon.stub(db.config, 'retrieveValue').resolves({ value: null } as any)
       await oceanNode.loadMaintenanceMode()
       expect(oceanNode.isInMaintenance()).to.equal(false)
     })
@@ -434,14 +434,14 @@ describe('Maintenance mode - QA coverage gaps', () => {
       await oceanNode.setMaintenanceMode(false)
       // retrieveValue returns null (not { value: null }) on a DB error -- distinct from a
       // confirmed-absent key. A failed read must NOT silently resume accepting work.
-      sinon.stub(db.sqliteConfig, 'retrieveValue').resolves(null as any)
+      sinon.stub(db.config, 'retrieveValue').resolves(null as any)
       await oceanNode.loadMaintenanceMode()
       expect(oceanNode.isInMaintenance()).to.equal(true)
     })
 
-    it('no sqliteConfig: toggle works in-memory only and does not throw', async () => {
-      const real = db.sqliteConfig
-      ;(db as any).sqliteConfig = undefined
+    it('no config DB: toggle works in-memory only and does not throw', async () => {
+      const real = db.config
+      ;(db as any).config = undefined
       try {
         await oceanNode.setMaintenanceMode(true)
         expect(oceanNode.isInMaintenance()).to.equal(true)
@@ -449,7 +449,7 @@ describe('Maintenance mode - QA coverage gaps', () => {
         await oceanNode.loadMaintenanceMode()
         expect(oceanNode.isInMaintenance()).to.equal(true)
       } finally {
-        ;(db as any).sqliteConfig = real
+        ;(db as any).config = real
       }
     })
 
@@ -461,13 +461,13 @@ describe('Maintenance mode - QA coverage gaps', () => {
         oceanNode.setMaintenanceMode(false),
         oceanNode.setMaintenanceMode(true)
       ])
-      const stored = await db.sqliteConfig.retrieveValue(MAINTENANCE_MODE_CONFIG_KEY)
+      const stored = await db.config.retrieveValue(MAINTENANCE_MODE_CONFIG_KEY)
       expect(oceanNode.isInMaintenance()).to.equal(stored.value === 'true')
       expect(oceanNode.isInMaintenance()).to.equal(true) // last call wins
     })
 
     it('a failed write does not poison the lock chain (next toggle still works)', async () => {
-      const stub = sinon.stub(db.sqliteConfig, 'createOrUpdateConfig').resolves(null)
+      const stub = sinon.stub(db.config, 'createOrUpdateConfig').resolves(null)
       let threw = false
       try {
         await oceanNode.setMaintenanceMode(true)
@@ -539,15 +539,15 @@ describe('Maintenance mode - QA coverage gaps', () => {
       expect(oceanNode.isInMaintenance()).to.equal(true)
     })
 
-    it('env true with no sqliteConfig still boots into drain (process-only)', async () => {
-      const real = db.sqliteConfig
-      ;(db as any).sqliteConfig = undefined
+    it('env true with no config DB still boots into drain (process-only)', async () => {
+      const real = db.config
+      ;(db as any).config = undefined
       try {
         setEnv('true')
         await oceanNode.loadMaintenanceMode()
         expect(oceanNode.isInMaintenance()).to.equal(true)
       } finally {
-        ;(db as any).sqliteConfig = real
+        ;(db as any).config = real
       }
     })
 

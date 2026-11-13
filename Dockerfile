@@ -40,15 +40,14 @@ WORKDIR /usr/src/app
 
 COPY --chown=node:node --from=builder /usr/src/app/dist ./dist
 COPY --chown=node:node --from=builder /usr/src/app/node_modules ./node_modules
-COPY --chown=node:node --from=builder /usr/src/app/schemas ./schemas
 # sitecustomize.py the node copies into service containers (src/components/c2d/serviceHfMirror.ts)
 COPY --chown=node:node --from=builder /usr/src/app/hfpatch ./hfpatch
 COPY --chown=node:node --from=builder /usr/src/app/package.json ./
 COPY --chown=node:node --from=builder /usr/src/app/config.json ./
 
-# `databases` holds everything the node must not lose across a restart: the SQLite files
-# (nonce, config, C2D jobs, auth tokens) and `databases/p2p-store`, the LevelDatastore that
-# backs libp2p. kad-dht's reprovider refreshes this node's provider records from that
+# `databases` holds what the node must not lose across a restart on this host:
+# `databases/p2p-store`, the LevelDatastore that backs libp2p (all other node state lives in
+# Elasticsearch). kad-dht's reprovider refreshes this node's provider records from that
 # datastore, so if it starts empty the node stops answering for content it still holds, and the
 # records expire out of the network without anything noticing. The directory is created and
 # handed to the unprivileged `node` user here, and VOLUME declares the mount point so a named

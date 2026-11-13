@@ -1,0 +1,7 @@
+# Role for callers that send no credentials to Elasticsearch (the anonymous user).
+# Frontends that read the DDO indices directly from Elasticsearch need it.
+# It can only read the DDO indices: no writes, and no access to the node state indices.
+ocean_ddo_reader:
+  indices:
+    - names: ['op_ddo_*']
+      privileges: ['read']

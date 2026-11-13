@@ -11,30 +11,29 @@ import {
   TEST_ENV_CONFIG_FILE
 } from '../utils/utils.js'
 import { ENVIRONMENT_VARIABLES, getConfiguration } from '../../utils/index.js'
-import { SQLLiteConfigDatabase } from '../../components/database/SQLLiteConfigDatabase.js'
-import { DB_TYPES } from '../../utils/constants.js'
+import { ElasticsearchConfigDatabase } from '../../components/database/ElasticsearchConfigDatabase.js'
+import { createElasticsearchClientWithRetry } from '../../components/database/ElasticsearchConfigHelper.js'
+import { stateSchemas } from '../../components/database/ElasticSchemas.js'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { homedir } from 'os'
 
-const versionConfig: OceanNodeDBConfig = {
-  url: 'http://localhost:8108/test-version?apiKey=xyz',
-  dbType: DB_TYPES.TYPESENSE
-}
-
-const emptyDBConfig: OceanNodeDBConfig = {
-  url: '',
-  dbType: null
+async function wipeConfigIndex(dbConfig: OceanNodeDBConfig): Promise<void> {
+  const client = await createElasticsearchClientWithRetry(dbConfig)
+  await client.deleteByQuery({
+    index: stateSchemas.nodeConfig.index,
+    query: { match_all: {} },
+    refresh: true,
+    conflicts: 'proceed'
+  })
 }
 
 describe('**********         Config Database', () => {
   let database: Database
   let oceanIndexer: OceanIndexer
-  let initialVersionNull: any
   let previousConfiguration: OverrideEnvConfig[]
   let oceanNode: OceanNode
 
   before(async () => {
-    database = await Database.init(versionConfig)
     // override and save configuration (always before calling getConfig())
     previousConfiguration = await setupEnvironment(
       TEST_ENV_CONFIG_FILE,
@@ -57,12 +56,8 @@ describe('**********         Config Database', () => {
         ]
       )
     )
-
-    it('should have null version initially', async () => {
-      initialVersionNull = await oceanIndexer.getDatabase().sqliteConfig.retrieveValue()
-      assert(initialVersionNull.value === null, 'Initial version should be null')
-    })
     const config = await getConfiguration(true)
+    database = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance(
       config,
       database,
@@ -76,31 +71,40 @@ describe('**********         Config Database', () => {
     oceanIndexer = new OceanIndexer(database, config, oceanNode.blockchainRegistry)
     oceanNode.addIndexer(oceanIndexer)
   })
+
+  beforeEach(async () => {
+    await wipeConfigIndex(database.getConfig())
+  })
+
   after(async () => {
     await oceanNode.tearDownAll()
     await tearDownEnvironment(previousConfiguration)
   })
 
-  it('check version DB instance of SQL Lite', () => {
-    expect(database.sqliteConfig).to.be.instanceOf(SQLLiteConfigDatabase)
+  it('config DB is the Elasticsearch store', () => {
+    expect(database.config).to.be.instanceOf(ElasticsearchConfigDatabase)
   })
 
   // Use a dedicated config key (not 'version'): the live OceanIndexer started by this suite
-  // writes the running node version to the 'version' key in the shared config.sqlite during its
+  // writes the running node version to the 'version' key in the shared config index during its
   // background reindex (see checkAndTriggerReindexing), which would race these CRUD assertions.
   const TEST_CONFIG_KEY = 'test-config-version'
+
+  it('should return { value: null } for an absent key', async () => {
+    const version = await oceanIndexer.getDatabase().config.retrieveValue(TEST_CONFIG_KEY)
+    assert(version !== null, 'An absent key is not a DB error')
+    assert(version.value === null, 'An absent key should have a null value')
+  })
 
   it('should set and retrieve version', async () => {
     // Set a specific test version
     const testVersion = '0.9.9'
     await oceanIndexer
       .getDatabase()
-      .sqliteConfig.createOrUpdateConfig(TEST_CONFIG_KEY, testVersion)
+      .config.createOrUpdateConfig(TEST_CONFIG_KEY, testVersion)
 
     // Verify we can retrieve it
-    const version = await oceanIndexer
-      .getDatabase()
-      .sqliteConfig.retrieveValue(TEST_CONFIG_KEY)
+    const version = await oceanIndexer.getDatabase().config.retrieveValue(TEST_CONFIG_KEY)
     assert(version.value === testVersion, `Version should be ${testVersion}`)
   })
 
@@ -111,46 +115,40 @@ describe('**********         Config Database', () => {
     // Set initial version
     await oceanIndexer
       .getDatabase()
-      .sqliteConfig.createOrUpdateConfig(TEST_CONFIG_KEY, initialVersion)
-    let version = await oceanIndexer
-      .getDatabase()
-      .sqliteConfig.retrieveValue(TEST_CONFIG_KEY)
+      .config.createOrUpdateConfig(TEST_CONFIG_KEY, initialVersion)
+    let version = await oceanIndexer.getDatabase().config.retrieveValue(TEST_CONFIG_KEY)
     assert(version.value === initialVersion, `Version should be ${initialVersion}`)
 
     // Update to new version
     await oceanIndexer
       .getDatabase()
-      .sqliteConfig.createOrUpdateConfig(TEST_CONFIG_KEY, updatedVersion)
-    version = await oceanIndexer.getDatabase().sqliteConfig.retrieveValue(TEST_CONFIG_KEY)
+      .config.createOrUpdateConfig(TEST_CONFIG_KEY, updatedVersion)
+    version = await oceanIndexer.getDatabase().config.retrieveValue(TEST_CONFIG_KEY)
     assert(version.value === updatedVersion, `Version should be ${updatedVersion}`)
   })
 })
 
-describe('VersionDatabase CRUD (without Elastic or Typesense config)', () => {
+describe('VersionDatabase CRUD', () => {
   let database: Database
 
   before(async () => {
-    database = await Database.init(emptyDBConfig)
+    database = await Database.init((await getConfiguration()).dbConfig)
   })
 
-  it('check version DB instance of SQL Lite', () => {
-    expect(database.sqliteConfig).to.be.instanceOf(SQLLiteConfigDatabase)
+  beforeEach(async () => {
+    await wipeConfigIndex(database.getConfig())
   })
 
-  // Dedicated key (not 'version'): isolates these CRUD assertions from the node 'version' key
-  // that a background indexer reindex may write to the shared config.sqlite.
+  it('config DB is the Elasticsearch store', () => {
+    expect(database.config).to.be.instanceOf(ElasticsearchConfigDatabase)
+  })
+
   const TEST_CONFIG_KEY = 'test-crud-version'
 
-  it('create version', async () => {
-    const result = await database.sqliteConfig.createOrUpdateConfig(
-      TEST_CONFIG_KEY,
-      '0.1.0'
-    )
-    expect(result?.value).to.equal('0.1.0')
-  })
-
-  it('retrieve latest version', async () => {
-    const result = await database.sqliteConfig.retrieveValue(TEST_CONFIG_KEY)
+  it('create and retrieve version', async () => {
+    const created = await database.config.createOrUpdateConfig(TEST_CONFIG_KEY, '0.1.0')
+    expect(created).to.deep.equal({ key: TEST_CONFIG_KEY, value: '0.1.0' })
+    const result = await database.config.retrieveValue(TEST_CONFIG_KEY)
     expect(result?.value).to.equal('0.1.0')
   })
 })

@@ -60,7 +60,20 @@ let INDEXING_QUEUE: ReindexTask[] = []
 const JOBS_QUEUE: JobStatus[] = []
 
 const MAX_CRAWL_RETRIES = 10
+// read and write of the stored node version, for the reindex check
+const VERSION_DB_ATTEMPTS = 3
+const VERSION_DB_RETRY_MS = 2000
 let numCrawlAttempts = 0
+
+// The config store returns null when a call fails: try again before giving up.
+async function withVersionDbRetry<T>(call: () => Promise<T>): Promise<T> {
+  let result = await call()
+  for (let attempt = 1; !result && attempt < VERSION_DB_ATTEMPTS; attempt++) {
+    await sleep(VERSION_DB_RETRY_MS)
+    result = await call()
+  }
+  return result
+}
 
 /**
  * OceanIndexer - Multi-chain blockchain event indexer
@@ -543,7 +556,17 @@ export class OceanIndexer {
       INDEXER_LOGGER.error(`Giving up reindexing. DB is not online!`)
       return
     }
-    const dbVersion = await dbActive.sqliteConfig?.retrieveValue()
+    // null means the read failed, which is not the same as "no version stored": try again
+    // before giving up, or a needed reindex would wait for the next restart
+    const dbVersion = await withVersionDbRetry(() =>
+      dbActive.config?.retrieveValue('version')
+    )
+    if (!dbVersion) {
+      INDEXER_LOGGER.error(
+        `Giving up reindexing. Could not read the node version after ${VERSION_DB_ATTEMPTS} attempts!`
+      )
+      return
+    }
     INDEXER_LOGGER.debug(
       `Node version check: Current=${currentVersion}, DB=${
         dbVersion?.value ?? 'not set'
@@ -592,8 +615,16 @@ export class OceanIndexer {
           )
         }
       }
-      await dbActive.sqliteConfig?.createOrUpdateConfig('version', currentVersion)
-      INDEXER_LOGGER.info(`Updated node version in database to ${currentVersion}`)
+      const stored = await withVersionDbRetry(() =>
+        dbActive.config?.createOrUpdateConfig('version', currentVersion)
+      )
+      if (stored) {
+        INDEXER_LOGGER.info(`Updated node version in database to ${currentVersion}`)
+      } else {
+        INDEXER_LOGGER.error(
+          `Could not store node version ${currentVersion}: the reindex runs again at the next start`
+        )
+      }
     } else {
       INDEXER_LOGGER.debug('No reindexing needed based on version check')
     }

@@ -26,7 +26,6 @@ import {
   type DBComputeJob
 } from '../../@types/C2D/C2D.js'
 import {
-  // DB_TYPES,
   ENVIRONMENT_VARIABLES,
   EVENTS,
   PROTOCOL_COMMANDS,

@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# TODO: delete this file after PR #1601 (Elasticsearch-only database) is merged.
+reviews:
+  # Files removed with SQLite and Typesense. They no longer exist, so they need no review.
+  path_filters:
+    - '!schemas/**'
+    - '!scripts/inspect-job-metrics.mjs'
+    - '!typesense-compose.yml'
+    - '!src/@types/Typesense.ts'
+    - '!src/components/database/SQLLite*.ts'
+    - '!src/components/database/sqlite*.ts'
+    - '!src/components/database/Typesense*.ts'
+    - '!src/components/database/typesense*.ts'
+    - '!src/test/data/ddoSchema.ts'
+    - '!src/test/data/nonceSchema.ts'
+    - '!src/test/integration/nonce.test.ts'
+    - '!src/test/integration/typesense.test.ts'
+    - '!src/test/unit/sqliteClient.test.ts'
