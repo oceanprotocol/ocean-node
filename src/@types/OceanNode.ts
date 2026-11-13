@@ -221,6 +221,8 @@ export interface OceanNodeConfig {
   httpCertPath?: string
   httpKeyPath?: string
   enableBenchmark?: boolean
+  // derived, not read from config: whether POLICY_SERVER_URL is set (refreshed by getConfig())
+  isPSConfigured: boolean
   persistentStorage?: PersistentStorageConfig
 }
 
@@ -291,6 +293,11 @@ export interface OceanNodeStatus {
   version: string
   http: boolean
   p2p: boolean
+  // whether a Policy Server is configured (POLICY_SERVER_URL); clients use it to decide
+  // whether to run the credential (SSI) flow before download/compute
+  isPSConfigured: boolean
+  // node owner/legal info from NODE_OWNER_INFO (free-form JSON object); absent when unset/invalid
+  ownerInfo?: Record<string, any>
   /** Present only when the P2P interface is enabled and running. */
   p2pStatus?: OceanNodeP2PStatus
   provider: OceanNodeProvider[]

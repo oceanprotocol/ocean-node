@@ -794,6 +794,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.POLICY_SERVER_URL,
     required: false
   },
+  NODE_OWNER_INFO: {
+    name: 'NODE_OWNER_INFO',
+    value: process.env.NODE_OWNER_INFO,
+    required: false
+  },
   VALIDATE_UNSIGNED_DDO: {
     name: 'VALIDATE_UNSIGNED_DDO',
     value: process.env.VALIDATE_UNSIGNED_DDO,
