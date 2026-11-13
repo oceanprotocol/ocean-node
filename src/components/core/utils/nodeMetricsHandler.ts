@@ -113,10 +113,21 @@ export function collectNodeMetricsSnapshot(node: OceanNode): NodeMetricsSnapshot
     })
   }
 
-  for (const eng of listEngines(node)) {
-    // Host-wide readings are independent of the aggregate: an idle GPU still has a reading.
-    for (const g of eng?.hostGpuSnapshot ?? []) addGpu(g)
+  const engines = listEngines(node)
 
+  // Host-wide readings are independent of the aggregate: an idle GPU still has a reading. Take
+  // them from every engine before any job-scoped fallback, so precedence does not depend on
+  // engine order.
+  for (const eng of engines) {
+    for (const g of eng?.hostGpuSnapshot ?? []) addGpu(g)
+  }
+  // Fallback for devices the host enumeration could not read (e.g. a job-scoped reading taken
+  // before the first host sample).
+  for (const eng of engines) {
+    for (const g of eng?.lastAggregate?.gpus ?? []) addGpu(g)
+  }
+
+  for (const eng of engines) {
     const a = eng?.lastAggregate
     if (a) {
       snapshot.hasAggregate = true
@@ -148,10 +159,6 @@ export function collectNodeMetricsSnapshot(node: OceanNode): NodeMetricsSnapshot
       if (typeof a.queuedFreeJobs === 'number') {
         snapshot.jobs.queuedFree += a.queuedFreeJobs
       }
-
-      // Fallback for devices the host enumeration could not read (e.g. a job-scoped reading
-      // taken before the first host sample).
-      for (const g of a.gpus ?? []) addGpu(g)
     }
 
     const env = eng?.envResourceSnapshot ?? {}

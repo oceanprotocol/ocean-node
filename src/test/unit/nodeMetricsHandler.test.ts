@@ -159,6 +159,18 @@ describe('nodeMetricsHandler.collectNodeMetricsSnapshot', () => {
     )
   })
 
+  it('keeps the host-wide reading when an earlier engine only has a job-scoped one', () => {
+    const jobScoped = { resourceId: 'gpu0', vendor: 'nvidia', utilizationPercent: 99 }
+    const host = { resourceId: 'gpu0', vendor: 'nvidia', utilizationPercent: 40 }
+    const engines = [
+      { lastAggregate: aggregate({ gpus: [jobScoped] }) },
+      { lastAggregate: aggregate(), hostGpuSnapshot: [host] }
+    ]
+    const snapshot = collectNodeMetricsSnapshot(fakeNode(engines))
+    expect(snapshot.gpu).to.have.length(1)
+    expect(snapshot.gpu[0].utilizationPercent).to.equal(40)
+  })
+
   it('dedupes env resources by env+resource across engines', () => {
     const envSnap1 = { envA: { cpu: { total: 4, inUse: 2 } } }
     const envSnap2 = {
