@@ -31,6 +31,11 @@ import { BASE_CHAIN_ID, USDC_TOKEN_ADDRESS_BASE } from '../../utils/config.js'
 import { C2DEngine, parseJobTimestamp } from './compute_engine_base.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
+import {
+  restartSubsidyDropped,
+  isNonEmpty,
+  SubsidyGateError
+} from '../core/utils/subsidyProviders.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { Storage } from '../storage/index.js'
 import Dockerode from 'dockerode'
@@ -6382,6 +6387,30 @@ export class C2DEngineDocker extends C2DEngine {
       if (!job.payment?.claimTx)
         throw new Error(
           'Cannot restart a service whose payment was never claimed (unpaid or refunded) — start a new service'
+        )
+      // Subsidy image gate (SUBSIDY_PROVIDER_ALLOWED_IMAGES) — AUTHORITATIVE backstop. The handler
+      // fast-fails this on its pre-lock read, but a concurrent serviceExtend (which holds this same
+      // lifecycle lock) can subsidize the job AFTER that read and before we re-read here. Re-run the
+      // gate on the FRESH row, under the lock, so a RESPEC into a non-allowed image can never run on
+      // subsidized funds via that race. REUSE restarts (no newImage) and unsubsidized jobs are
+      // unaffected; gate off (no/empty config) drops nothing.
+      if (
+        newImage !== undefined &&
+        restartSubsidyDropped(
+          job,
+          {
+            image: newImage,
+            tag: newTag,
+            checksum: newChecksum,
+            dockerfile: newDockerfile
+          },
+          isNonEmpty(newDockerEntrypoint) || isNonEmpty(newDockerCmd),
+          this.getConfig()?.subsidyProviderAllowedImages
+        ).length > 0
+      )
+        throw new SubsidyGateError(
+          'Cannot restart a subsidized service into a non-allowed image or with a custom ' +
+            'entrypoint/command — start a new service instead'
         )
       // Resolve the output-bucket mount now, while the old container is still up: the
       // background op tears it down before it creates the new one, so a bucket the owner

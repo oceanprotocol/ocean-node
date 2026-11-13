@@ -15,7 +15,11 @@ import { ServiceStatusNumber } from '../../../@types/C2D/ServiceOnDemand.js'
 import { validateAccess } from '../compute/startCompute.js'
 import { validateOutputBucket } from '../compute/utils.js'
 import { findServiceJobAndEngine, toPublicServiceJob } from './utils.js'
-import { resolveUserSubsidyProviders } from '../utils/subsidyProviders.js'
+import {
+  filterSubsidyByAllowedImages,
+  isNonEmpty,
+  resolveUserSubsidyProviders
+} from '../utils/subsidyProviders.js'
 import { maintenanceGuard } from '../utils/maintenance.js'
 
 export class ServiceExtendHandler extends CommandHandler {
@@ -229,6 +233,31 @@ export class ServiceExtendHandler extends CommandHandler {
               buildInvalidRequestMessage(subsidyResolution.reason)
             )
 
+          // Materialize the EFFECTIVE subsidy list (explicit user list, else node config for this
+          // chain) so the image gate can filter it, then pass the kept list EXPLICITLY to
+          // createLock/claimLock below (extend's claim is synchronous, so a request-time snapshot
+          // is safe — it settles moments later). `??` so an explicit `[]` survives. Escrow treats
+          // an explicit `[]` as "no providers", matching the old `resolved ?? null` fallback when
+          // node config is empty. Gate on the service's RUNNING spec (freshJob.image/tag/checksum +
+          // its stored entrypoint/cmd); unset/`{}` config → kept === effective (no gating).
+          const config = this.getOceanNode().getConfig()
+          const effectiveSubsidy =
+            subsidyResolution.resolved ??
+            config.subsidyProviders?.[String(task.payment.chainId)] ??
+            []
+          const { kept: effectiveSubsidyKept, dropped: droppedSubsidy } =
+            filterSubsidyByAllowedImages(
+              effectiveSubsidy,
+              {
+                image: freshJob.image,
+                tag: freshJob.tag,
+                checksum: freshJob.checksum,
+                dockerfile: freshJob.dockerfile
+              },
+              isNonEmpty(freshJob.dockerEntrypoint) || isNonEmpty(freshJob.dockerCmd),
+              config.subsidyProviderAllowedImages
+            )
+
           // An extendPayments entry with a lockTx but neither claimTx nor cancelTx is an
           // UNRESOLVED intent from a previous crash (see below — the intent is persisted
           // before claiming). Resolve it before charging again: try to cancel (refund)
@@ -276,9 +305,9 @@ export class ServiceExtendHandler extends CommandHandler {
               costExtend,
               engine.escrow.getMinLockTime(task.additionalDuration),
               JobType.SERVICE,
-              // Same subsidy-provider list the in-scope claimLock uses below — lock & claim
-              // must agree on the sponsoring providers.
-              subsidyResolution.resolved ?? null
+              // Same (image-gated) subsidy-provider list the in-scope claimLock uses below — lock
+              // & claim must agree on the sponsoring providers.
+              effectiveSubsidyKept
             )
           } catch (e: any) {
             CORE_LOGGER.error(
@@ -324,18 +353,24 @@ export class ServiceExtendHandler extends CommandHandler {
           // claiming: a crash between claim and the final write is then auditable — the
           // consumer's money can never be taken without a durable record of why — and a
           // retry finds the intent (unresolved branch above) instead of charging twice.
-          // NOTE: the intent does NOT carry the resolved subsidy providers. That is safe today
-          // because the claim is synchronous and uses the in-scope `subsidyResolution.resolved`
-          // moments later. If this claim is ever made async/crash-recoverable (like the compute
-          // batch), persist the resolved list here so the recovery path can reclaim with the
-          // consumer's original choice instead of silently falling back to node config.
+          // The intent records BOTH the applied subsidy providers (`effectiveSubsidyKept`) and the
+          // gate-dropped ones. The claim below is synchronous (it uses the in-scope
+          // `effectiveSubsidyKept`), so the applied list is not needed for *this* settlement — but
+          // persisting it is what lets SERVICE_RESTART's image gate see extension sponsors: a
+          // service can start UNSUBSIDIZED and later be extended WITH subsidy, and a restart runs on
+          // that extended (subsidized) window, so the restart gate unions these in. Both are written
+          // only when non-empty, so an unconfigured node keeps the pre-feature intent shape.
           const intent = {
             chainId: task.payment.chainId,
             token: task.payment.token,
             lockTx,
             claimTx: '',
             cancelTx: '',
-            cost: costExtend
+            cost: costExtend,
+            ...(effectiveSubsidyKept.length
+              ? { subsidyProviders: effectiveSubsidyKept }
+              : {}),
+            ...(droppedSubsidy.length ? { droppedSubsidies: droppedSubsidy } : {})
           }
           freshJob.extendPayments = [...(freshJob.extendPayments ?? []), intent]
           try {
@@ -391,7 +426,7 @@ export class ServiceExtendHandler extends CommandHandler {
               costExtend,
               `service-extend:${task.serviceId}`,
               JobType.SERVICE,
-              subsidyResolution.resolved ?? null
+              effectiveSubsidyKept
             )
           } catch (e: any) {
             claimTx = null

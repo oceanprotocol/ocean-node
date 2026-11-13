@@ -352,6 +352,11 @@ export interface ComputeJob {
   metadata?: DBComputeJobMetadata
   terminationDetails?: ComputeJobTerminationDetails
   queueMaxWaitTime: number // max time in seconds a job can wait in the queue before being started
+  // Payment snapshot (chain/token/txs + applied `subsidyProviders` and gate-dropped
+  // `droppedSubsidies`). Already returned at runtime by COMPUTE_GET_STATUS (the DB→public mapper
+  // omitDBComputeFieldsFromComputeJob does not strip it); declared here so it is part of the
+  // contract. Subsidy addresses are on-chain/public.
+  payment?: DBComputeJobPayment
 }
 
 // Public compute-job response shape: the base ComputeJob plus the OPTIONAL, sanitized runtime
@@ -420,6 +425,10 @@ export interface DBComputeJobPayment {
   // whatever the node config holds later. undefined = fall back to node config at claim time;
   // [] = claim with no subsidy providers; non-empty = claim with exactly these.
   subsidyProviders?: string[]
+  // Observability: the subsidy addresses the SUBSIDY_PROVIDER_ALLOWED_IMAGES gate REMOVED for this
+  // job (image not allowed, or a custom entrypoint/cmd). `subsidyProviders` stays the applied/kept
+  // list; this is the complement that was dropped. Absent/empty when the gate is off or kept all.
+  droppedSubsidies?: string[]
 }
 
 // this is the internal structure

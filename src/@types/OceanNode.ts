@@ -189,6 +189,10 @@ export interface OceanNodeConfig {
   // when ON, a user-supplied subsidy-provider list may only contain addresses already present in
   // `subsidyProviders` for the request chain; otherwise the request is rejected. Default false.
   subsidyProviderFilter?: boolean
+  // optional map `{ "<subsidyContractAddr>": ["image:tag", "image@sha256:.."] }` restricting a
+  // subsidy address to specific docker images run with no custom entrypoint/cmd. null/absent or
+  // `{}` → no gating; populated → the gate filters the effective subsidy list per address.
+  subsidyProviderAllowedImages?: Record<string, string[]> | null
   codeHash?: string
   rateLimit?: number // per request ip or peer
   maxConnections?: number // global, regardless of client address(es)
@@ -301,6 +305,8 @@ export interface OceanNodeStatus {
   subsidyProviders?: AccessListContract
   // whether this node restricts user-supplied subsidy providers to the configured whitelist
   subsidyProviderFilter?: boolean
+  // per-subsidy-address docker image allowlist ({} when unset/no gating)
+  subsidyProviderAllowedImages?: Record<string, string[]>
   // detailed information
   c2dClusters?: any[]
   supportedSchemas?: Schema[]

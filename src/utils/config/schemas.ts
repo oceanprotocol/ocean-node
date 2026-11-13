@@ -168,6 +168,77 @@ export const SubsidyProvidersSchema = z.preprocess(
   z.record(z.string(), z.array(z.string())).nullable()
 )
 
+// Map of Subsidy Provider contract address → the docker image references that address is allowed
+// to subsidize: `{ "0x..": ["image:tag", "image@sha256:.."] }`. Modeled on SubsidyProvidersSchema:
+// anything malformed (bad JSON, not an object, an invalid address key, or a non-array/non-string
+// image list) collapses the WHOLE map to `null` rather than throwing, so a typo in this optional
+// knob can never keep the node from booting. IMPORTANT: because this is an anti-abuse gate, `null`
+// means the gate is OFF (no restrictions) — a malformed value is therefore fail-OPEN (every image
+// stays subsidized), so each collapse is logged at `error` for the operator to notice. The address
+// KEY is checksummed (EIP-55) so it matches the checksummed effective subsidy list at gate time,
+// and keys that differ only in case are merged (de-duped) rather than silently overwriting; the
+// image entries are trimmed (empties dropped) but NOT otherwise validated — they are docker
+// references, not addresses. Note `{}` (zero keys) is a valid, boot-safe value meaning "no
+// restrictions" (identical to unset), so it must NOT collapse to null.
+export const SubsidyProviderAllowedImagesSchema = z.preprocess(
+  (val) => {
+    if (val === null || val === undefined) return null
+    if (typeof val === 'string') {
+      try {
+        val = JSON.parse(val)
+      } catch (error) {
+        CONFIG_LOGGER.error(
+          `SUBSIDY_PROVIDER_ALLOWED_IMAGES is not valid JSON — the image gate is DISABLED (no restrictions): ${error.message}`
+        )
+        return null
+      }
+    }
+    if (typeof val !== 'object' || Array.isArray(val)) {
+      CONFIG_LOGGER.error(
+        'SUBSIDY_PROVIDER_ALLOWED_IMAGES must be a JSON object { "0x..": ["image:tag", ..] } — the image gate is DISABLED (no restrictions)'
+      )
+      return null
+    }
+    try {
+      const checksummed: Record<string, string[]> = {}
+      for (const [addr, images] of Object.entries(val as Record<string, unknown>)) {
+        if (!Array.isArray(images)) {
+          CONFIG_LOGGER.error(
+            `SUBSIDY_PROVIDER_ALLOWED_IMAGES: the value for "${addr}" must be an array of image references — the image gate is DISABLED (no restrictions)`
+          )
+          return null
+        }
+        const cleaned: string[] = []
+        for (const image of images) {
+          if (typeof image !== 'string') {
+            CONFIG_LOGGER.error(
+              `SUBSIDY_PROVIDER_ALLOWED_IMAGES: the image list for "${addr}" must contain only strings — the image gate is DISABLED (no restrictions)`
+            )
+            return null
+          }
+          const trimmed = image.trim()
+          if (trimmed.length > 0) cleaned.push(trimmed)
+        }
+        // getAddress throws on an invalid address key → the catch collapses the whole map to null.
+        const key = getAddress(addr)
+        // Two keys that checksum to the same address (e.g. differ only in case) are merged, not
+        // overwritten, so one entry can't silently shadow another.
+        const existing = checksummed[key]
+        checksummed[key] = existing
+          ? Array.from(new Set([...existing, ...cleaned]))
+          : cleaned
+      }
+      return checksummed
+    } catch (error) {
+      CONFIG_LOGGER.error(
+        `Invalid address key in SUBSIDY_PROVIDER_ALLOWED_IMAGES — the image gate is DISABLED (no restrictions): ${error.message}`
+      )
+      return null
+    }
+  },
+  z.record(z.string(), z.array(z.string())).nullable()
+)
+
 export const OceanNodeConfigKeysSchema = z.object({
   privateKey: z.any().optional().nullable(),
   type: z.string().optional().default('raw')
@@ -1580,6 +1651,12 @@ export const OceanNodeConfigSchema = z
     // already in this node's `subsidyProviders` whitelist for the request's chain; anything
     // else is rejected. Default OFF (users may send any valid address).
     subsidyProviderFilter: booleanFromString.optional().default(false),
+    // Per-subsidy-address docker-image allowlist (SUBSIDY_PROVIDER_ALLOWED_IMAGES). null/`{}` =
+    // gate OFF (no restrictions); populated = a listed subsidy address only applies to a job
+    // running one of its allowed images with no custom entrypoint/cmd (and, for compute, no
+    // external algorithm). Parsed by SubsidyProviderAllowedImagesSchema (checksummed keys).
+    subsidyProviderAllowedImages:
+      SubsidyProviderAllowedImagesSchema.optional().default(null),
 
     codeHash: z.string().optional(),
     // Node-wide request throughput ceiling per minute (sum across all clients). Defaulted
