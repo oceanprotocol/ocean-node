@@ -7,7 +7,6 @@ import { CommandHandler } from '../handler/handler.js'
 import { ComputeInitializeCommand } from '../../../@types/commands.js'
 import { ProviderComputeInitializeResults } from '../../../@types/Fees.js'
 import {
-  AssetUtils,
   getFilesObjectFromConfidentialEVM,
   isConfidentialChainDDO,
   isDataTokenTemplate4,
@@ -35,7 +34,7 @@ import {
   resolveComputeFileObject
 } from '../../c2d/compute_engine_docker.js'
 
-import { Credentials, DDOManager } from '@oceanprotocol/ddo-js'
+import { Credentials, DDOManager, Service } from '@oceanprotocol/ddo-js'
 import { checkCredentials } from '../../../utils/credentials.js'
 import { PolicyServer } from '../../policyServer/index.js'
 import {
@@ -416,7 +415,7 @@ export class ComputeInitializeHandler extends CommandHandler {
               }
             }
           }
-          const service = AssetUtils.getServiceById(ddo, elem.serviceId)
+          const service = ddoInstance.getService(elem.serviceId) as Service
           if (!service) {
             const error = `Cannot find service ${elem.serviceId} in DDO ${elem.documentId}`
             return {
@@ -544,7 +543,7 @@ export class ComputeInitializeHandler extends CommandHandler {
                     task.datasets[0].documentId +
                     (await getNonceAsNumber(task.consumerAddress))
                   // call smart contract to decrypt
-                  const serviceIndex = AssetUtils.getServiceIndexById(ddo, service.id)
+                  const serviceIndex = ddoInstance.getServiceIndex(service.id)
                   const filesObject = await getFilesObjectFromConfidentialEVM(
                     serviceIndex,
                     service.datatokenAddress,
@@ -602,7 +601,7 @@ export class ComputeInitializeHandler extends CommandHandler {
               provider,
               nftAddress,
               service.datatokenAddress,
-              AssetUtils.getServiceIndexById(ddo, service.id),
+              ddoInstance.getServiceIndex(service.id),
               service.timeout,
               await blockchain.getSigner(),
               task.consumerAddress

@@ -1,12 +1,11 @@
 import { CommandHandler } from './handler.js'
-import { MetadataStates, PROTOCOL_COMMANDS } from '../../../utils/constants.js'
+import { PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { ProviderFees } from '../utils/feesHandler.js'
 import { FindDdoHandler } from './ddoHandler.js'
 import crypto from 'crypto'
 import { validateOrderTransaction } from '../utils/validateOrders.js'
 import {
-  AssetUtils,
   getFilesObjectFromConfidentialEVM,
   isConfidentialChainDDO,
   isDataTokenTemplate4,
@@ -37,12 +36,14 @@ export function isOrderingAllowedForAsset(asset: Asset): OrdableAssetResponse {
       isOrdable: false,
       reason: `Asset provided is either null, either undefined ${asset}`
     }
-  } else if (
-    !asset.indexedMetadata?.nft ||
-    ![MetadataStates.ACTIVE, MetadataStates.UNLISTED].includes(
-      asset.indexedMetadata.nft.state
-    )
-  ) {
+  }
+  let isOrderable: boolean
+  try {
+    isOrderable = DDOManager.getDDOClass(asset).isOrderable()
+  } catch (error) {
+    return { isOrdable: false, reason: `Unsupported asset: ${error.message}` }
+  }
+  if (!isOrderable) {
     return {
       isOrdable: false,
       reason:
@@ -332,9 +333,13 @@ export class DownloadHandler extends CommandHandler {
       }
     }
 
-    let service = AssetUtils.getServiceById(ddo, task.serviceId)
-    if (!service) service = AssetUtils.getServiceByIndex(ddo, Number(task.serviceId))
+    let service = ddoInstance.getService(task.serviceId) as Service
+    if (!service) {
+      service = ddoInstance.getServiceByIndex(Number(task.serviceId)) as Service
+    }
     if (!service) throw new Error('Cannot find service')
+    // The service may have been found by index, so look its index up by the resolved id
+    const serviceIndex = ddoInstance.getServiceIndex(service.id)
 
     // check credentials on service level
     // if using a policy server and we are here it means that access was granted (they are merged/assessed together)
@@ -432,7 +437,7 @@ export class DownloadHandler extends CommandHandler {
       provider,
       ddo.nftAddress,
       service.datatokenAddress,
-      AssetUtils.getServiceIndexById(ddo, task.serviceId),
+      serviceIndex,
       service.timeout,
       await blockchain.getSigner()
     )
@@ -480,7 +485,6 @@ export class DownloadHandler extends CommandHandler {
             'Downloading from Confidential EVM, try get filesObject from Smart Contract'
           )
 
-          const serviceIndex = AssetUtils.getServiceIndexById(ddo, task.serviceId)
           const consumerMessage = String(ddo.id + task.nonce)
           filesObject = await getFilesObjectFromConfidentialEVM(
             serviceIndex,

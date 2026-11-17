@@ -13,37 +13,6 @@ import { getContractAddress, getNFTFactory } from '../components/Indexer/utils.j
 import { HeadersObject } from '../@types/fileObject.js'
 import { fetchHeadersTimeout } from './http.js'
 
-// Notes:
-// Asset as per asset.py on provider, is a class there, while on ocean.Js we only have a type
-// this is an utility to extract information from the Asset services
-export const AssetUtils = {
-  getServiceIndexById(asset: DDO, id: string): number | null {
-    const ddoInstance = DDOManager.getDDOClass(asset)
-    const { services } = ddoInstance.getDDOFields()
-
-    for (let c = 0; c < services.length; c++) if (services[c].id === id) return c
-    return null
-  },
-  getServiceByIndex(asset: DDO, index: number) {
-    const ddoInstance = DDOManager.getDDOClass(asset)
-    const { services } = ddoInstance.getDDOFields()
-
-    if (index >= 0 && index < services.length) {
-      return services[index] as Service
-    }
-    return null
-  },
-
-  getServiceById(asset: DDO, id: string) {
-    const ddoInstance = DDOManager.getDDOClass(asset)
-    const { services } = ddoInstance.getDDOFields() as any
-
-    const filteredServices = services.filter((service: any) => service.id === id)
-
-    return filteredServices.length ? filteredServices[0] : null
-  }
-}
-
 /**
  * undici wraps connector failures as TypeError('fetch failed', { cause }); walk the chain
  * and return a plain Error with the SSRF guard's message when that is what failed.

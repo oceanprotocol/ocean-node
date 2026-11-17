@@ -2,7 +2,12 @@ import { Signer } from 'ethers'
 import { AccessListContract } from '../@types/OceanNode.js'
 import { CORE_LOGGER } from './logging/common.js'
 import { errorSummary } from './logging/redact.js'
-import { Credential, Credentials, MATCH_RULES } from '@oceanprotocol/ddo-js'
+import {
+  Credential,
+  Credentials,
+  MATCH_RULES,
+  getCredentialAddresses
+} from '@oceanprotocol/ddo-js'
 import { CREDENTIALS_TYPES } from '../@types/DDO/Credentials.js'
 import { checkAddressOnAccessListWithSigner } from './accessList.js'
 import { isDefined } from './util.js'
@@ -102,7 +107,7 @@ async function evaluateCredentialList(
       if (listType === 'allow' && matchRule === 'all') {
         // Unknown type in allow list with match_all='all' -> DENY
         CORE_LOGGER.debug(
-          `Unknown credential type '${credential.type}' in allow list with match_allow='all'. Access denied.`
+          `Unknown credential type '${credential?.type}' in allow list with match_allow='all'. Access denied.`
         )
         return { shouldAllow: false, shouldDeny: false }
       }
@@ -164,30 +169,31 @@ export async function checkSingleCredential(
   consumerAddress: string,
   signer: Signer | null
 ): Promise<boolean | null> {
+  // A malformed rule (null, or no string type) is treated as an unknown type, not a crash
+  if (!credential || typeof credential.type !== 'string') {
+    return null
+  }
   const credentialType = credential.type.toLowerCase()
 
   // ========================================
   // Handle ADDRESS-based credentials
   // ========================================
   if (credentialType === CREDENTIALS_TYPES.ADDRESS.toLowerCase()) {
-    // Type assertion since we know it's address type
-    const addressCredential = credential as any
-
-    if (!isDefined(addressCredential.values) || addressCredential.values.length === 0) {
+    // Entries may be plain strings or { address } objects; ddo.js reads both formats
+    const addresses = getCredentialAddresses(credential as any).map((a) =>
+      a.toLowerCase()
+    )
+    if (addresses.length === 0) {
       return false
     }
 
     // Check for wildcard (*)
-    const hasWildcard = addressCredential.values.some(
-      (value: string) => value.toLowerCase() === '*'
-    )
-    if (hasWildcard) {
+    if (addresses.includes('*')) {
       return true
     }
 
     // Check if address is in the list
-    const normalizedValues = addressCredential.values.map((v: string) => v.toLowerCase())
-    return normalizedValues.includes(consumerAddress.toLowerCase())
+    return addresses.includes(consumerAddress.toLowerCase())
   }
 
   // ========================================

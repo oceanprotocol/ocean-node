@@ -21,6 +21,7 @@ import { redactUrls, safeStringify } from '../logging/redact.js'
 import { OceanNodeConfigSchema } from './schemas.js'
 import { booleanFromString } from './transforms.js'
 import { ENV_TO_CONFIG_MAPPING } from './constants.js'
+import { isPolicyServerConfigured } from '../config.js'
 import { registerP2PBudgetConfig } from '../../components/P2P/timeouts.js'
 import { fileURLToPath } from 'url'
 import lodash from 'lodash'
@@ -277,6 +278,7 @@ export function buildMergedConfig(): OceanNodeConfig {
   config.c2dClusters = buildC2DClusters(
     config.dockerComputeEnvironments as C2DDockerConfig[]
   )
+  config.isPSConfigured = isPolicyServerConfigured()
 
   // Let the P2P budget getters fall back to values set only in config.json (env still wins).
   // Runs on every (re)build, so a forced reload re-registers the fresh p2pConfig.

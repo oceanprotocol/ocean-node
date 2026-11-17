@@ -23,7 +23,6 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { isAddress } from 'ethers'
 import {
-  AssetUtils,
   getFilesObjectFromConfidentialEVM,
   isConfidentialChainDDO,
   isDataTokenTemplate4,
@@ -43,7 +42,7 @@ import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 // import { ProviderFeeValidation } from '../../../@types/Fees.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
-import { Credentials, DDOManager } from '@oceanprotocol/ddo-js'
+import { Credentials, DDOManager, Service } from '@oceanprotocol/ddo-js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
 import { PolicyServer } from '../../policyServer/index.js'
 import { checkCredentials } from '../../../utils/credentials.js'
@@ -445,7 +444,7 @@ export class CommonComputeHandler extends CommandHandler {
           )
         }
       }
-      const service = AssetUtils.getServiceById(ddo, elem.serviceId)
+      const service = ddoInstance.getService(elem.serviceId) as Service
       if (!service) {
         return buildComputeError(
           500,
@@ -510,7 +509,7 @@ export class CommonComputeHandler extends CommandHandler {
               task.datasets[0].documentId +
               (await getNonceAsNumber(task.consumerAddress))
             // call smart contract to decrypt
-            const serviceIndex = AssetUtils.getServiceIndexById(ddo, service.id)
+            const serviceIndex = ddoInstance.getServiceIndex(service.id)
             const filesObject = await getFilesObjectFromConfidentialEVM(
               serviceIndex,
               service.datatokenAddress,
@@ -708,6 +707,7 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
         authorizeAsset: async ({
           elem,
           ddo,
+          ddoInstance,
           ddoChainId,
           nftAddress,
           service,
@@ -732,7 +732,7 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
             provider,
             nftAddress,
             service.datatokenAddress,
-            AssetUtils.getServiceIndexById(ddo, service.id),
+            ddoInstance.getServiceIndex(service.id),
             service.timeout,
             await blockchain.getSigner(),
             task.consumerAddress
@@ -1044,7 +1044,13 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
         // Free compute may reference a paid asset. Omitting transferTxId runs it free
         // without an order (intended, allowed) - skip. If a transferTxId IS supplied it is
         // validated with Option B (env-AND) so a reused/foreign order is rejected here too.
-        authorizeAsset: async ({ elem, ddo, nftAddress, service, blockchain }) => {
+        authorizeAsset: async ({
+          elem,
+          ddoInstance,
+          nftAddress,
+          service,
+          blockchain
+        }) => {
           if (!('transferTxId' in elem) || !elem.transferTxId) {
             return null
           }
@@ -1055,7 +1061,7 @@ export class FreeComputeStartHandler extends CommonComputeHandler {
             provider,
             nftAddress,
             service.datatokenAddress,
-            AssetUtils.getServiceIndexById(ddo, service.id),
+            ddoInstance.getServiceIndex(service.id),
             service.timeout,
             await blockchain.getSigner(),
             task.consumerAddress
