@@ -373,13 +373,23 @@ describe('ServiceTemplateSchema', () => {
     ).to.equal(false)
   })
 
-  it('accepts the curated type marker, no type, and rejects an unknown type', () => {
+  it('accepts kind "curated" with its parent service, and rejects it without one', () => {
+    const curated = { ...baseTemplate, kind: 'curated', service: 'vllm' }
+    expect(ServiceTemplateSchema.safeParse(curated).success).to.equal(true)
+    expect(
+      ServiceTemplateSchema.safeParse({ ...baseTemplate, kind: 'curated' }).success
+    ).to.equal(false)
+  })
+
+  it('rejects "service" on a plain service, an unknown kind, and the removed "type" key', () => {
+    expect(
+      ServiceTemplateSchema.safeParse({ ...baseTemplate, service: 'vllm' }).success
+    ).to.equal(false)
+    expect(
+      ServiceTemplateSchema.safeParse({ ...baseTemplate, kind: 'nope' }).success
+    ).to.equal(false)
     expect(
       ServiceTemplateSchema.safeParse({ ...baseTemplate, type: 'curated' }).success
-    ).to.equal(true)
-    expect(ServiceTemplateSchema.safeParse(baseTemplate).success).to.equal(true)
-    expect(
-      ServiceTemplateSchema.safeParse({ ...baseTemplate, type: 'nope' }).success
     ).to.equal(false)
   })
 
