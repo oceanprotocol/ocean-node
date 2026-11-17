@@ -3,198 +3,86 @@ import { AccessListContract } from '../@types/OceanNode.js'
 import { CORE_LOGGER } from './logging/common.js'
 import { errorSummary } from './logging/redact.js'
 import {
-  Credential,
-  Credentials,
-  MATCH_RULES,
-  getCredentialAddresses
+  CredentialResolver,
+  CredentialRule,
+  CredentialRules,
+  evaluateCredential,
+  evaluateCredentials
 } from '@oceanprotocol/ddo-js'
 import { CREDENTIALS_TYPES } from '../@types/DDO/Credentials.js'
 import { checkAddressOnAccessListWithSigner } from './accessList.js'
 import { isDefined } from './util.js'
 
 /**
- * Main credential checking function with blockchain support for accessList checks
+ * Main credential checking function with blockchain support for accessList checks.
+ * The allow/deny rules are evaluated by ddo.js `evaluateCredentials`; the node only
+ * resolves rule types that need a chain call (see `resolveCredential`).
  *
  * @param consumerAddress The consumer address to check
  * @param credentials The credentials object containing allow/deny rules
- * @param blockchain Blockchain instance to get signer for on-chain checks
+ * @param signer Signer for on-chain accessList checks
  * @returns Promise<boolean> - true if access is granted, false otherwise
  *
  * Logic:
- * 1. If credentials are undefined/empty, allow access
+ * 1. If credentials are undefined/null, allow access
  * 2. Check DENY list first with match_deny strategy (default 'any'):
  *    - If match_deny='any' and ANY rule matches, DENY access
  *    - If match_deny='all' and ALL rules match, DENY access
- *    - Unknown types with match_deny='all' are ignored
+ *    - Unknown types in the deny list are ignored
  * 3. Check ALLOW list with match_allow strategy (default 'all'):
  *    - If match_allow='any' and ANY rule matches, ALLOW access
  *    - If match_allow='all' and ALL rules match, ALLOW access
  *    - Unknown types with match_allow='all' cause DENY
  * 4. If no allow list specified, ALLOW access
+ * 5. Malformed credentials (not an object, or allow/deny set but not an array) DENY
  */
 export async function checkCredentials(
   consumerAddress: string,
-  credentials: Credentials,
+  credentials: CredentialRules,
   signer: Signer
 ): Promise<boolean> {
-  // If credentials are undefined or empty, allow access
-  if (!isDefined(credentials)) {
-    return true
+  const allowed = await evaluateCredentials(
+    consumerAddress,
+    credentials,
+    accessListResolver(signer)
+  )
+  if (!allowed) {
+    CORE_LOGGER.debug(`Access denied by credentials for consumer ${consumerAddress}`)
   }
-
-  const normalizedAddress = consumerAddress.toLowerCase()
-  // Get matching strategies (with defaults)
-  const matchDeny: MATCH_RULES = credentials.match_deny || 'any'
-  const matchAllow: MATCH_RULES = credentials.match_allow || 'all'
-
-  // ========================================
-  // STEP 1: Check DENY list (checked first)
-  // ========================================
-  if (isDefined(credentials.deny) && credentials.deny.length > 0) {
-    const denyResult = await evaluateCredentialList(
-      credentials.deny,
-      normalizedAddress,
-      signer,
-      matchDeny,
-      'deny'
-    )
-
-    // If evaluation says to deny, return false
-    if (denyResult.shouldDeny) {
-      CORE_LOGGER.debug(
-        `Access denied: Consumer address ${consumerAddress} matched deny rule(s)`
-      )
-      return false
-    }
-  }
-
-  // ========================================
-  // STEP 2: Check ALLOW list
-  // ========================================
-  if (isDefined(credentials.allow) && credentials.allow.length > 0) {
-    const allowResult = await evaluateCredentialList(
-      credentials.allow,
-      normalizedAddress,
-      signer,
-      matchAllow,
-      'allow'
-    )
-
-    return allowResult.shouldAllow
-  }
-
-  // No allow list specified, grant access by default
-  return true
-}
-
-/**
- * Evaluates a list of credentials (either allow or deny)
- */
-async function evaluateCredentialList(
-  credentialList: Credential[],
-  consumerAddress: string,
-  signer: Signer,
-  matchRule: MATCH_RULES,
-  listType: 'allow' | 'deny'
-): Promise<{ shouldAllow: boolean; shouldDeny: boolean }> {
-  const matchResults: boolean[] = []
-  for (const credential of credentialList) {
-    const matchResult = await checkSingleCredential(credential, consumerAddress, signer)
-
-    if (matchResult === null) {
-      // Unknown or unsupported credential type
-
-      if (listType === 'allow' && matchRule === 'all') {
-        // Unknown type in allow list with match_all='all' -> DENY
-        CORE_LOGGER.debug(
-          `Unknown credential type '${credential?.type}' in allow list with match_allow='all'. Access denied.`
-        )
-        return { shouldAllow: false, shouldDeny: false }
-      }
-      // For deny list with match_all='all', unknown types are ignored
-      // For 'any' match, unknown types don't contribute to matching
-    } else {
-      matchResults.push(matchResult)
-    }
-  }
-
-  // No valid credential checks were performed
-  if (matchResults.length === 0) {
-    if (listType === 'allow') {
-      // No valid allow rules means deny
-      return { shouldAllow: false, shouldDeny: false }
-    } else {
-      // No valid deny rules means don't deny
-      return { shouldAllow: false, shouldDeny: false }
-    }
-  }
-
-  // Apply matching strategy
-  if (listType === 'deny') {
-    let shouldDeny = false
-    if (matchRule === 'any') {
-      // If ANY rule matches, deny
-      shouldDeny = matchResults.some((r) => r === true)
-    } else {
-      // matchRule === 'all'
-      // If ALL rules match, deny
-      shouldDeny = matchResults.every((r) => r === true)
-    }
-    return { shouldAllow: false, shouldDeny }
-  } else {
-    // listType === 'allow'
-    let shouldAllow = false
-    if (matchRule === 'any') {
-      // If ANY rule matches, allow
-      shouldAllow = matchResults.some((r) => r === true)
-    } else {
-      // matchRule === 'all'
-      // ALL rules must match
-      shouldAllow = matchResults.every((r) => r === true)
-    }
-    return { shouldAllow, shouldDeny: false }
-  }
+  return allowed
 }
 
 /**
  * Checks if a consumer address matches a single credential rule
  *
  * @param credential The credential rule to check
- * @param consumerAddress The consumer address (already normalized)
+ * @param consumerAddress The consumer address
  * @param signer Signer for blockchain checks
  * @returns Promise<boolean | null> - true if matches, false if doesn't match, null if unknown type
  */
-export async function checkSingleCredential(
-  credential: Credential,
+export function checkSingleCredential(
+  credential: CredentialRule,
   consumerAddress: string,
   signer: Signer | null
 ): Promise<boolean | null> {
-  // A malformed rule (null, or no string type) is treated as an unknown type, not a crash
-  if (!credential || typeof credential.type !== 'string') {
-    return null
-  }
+  return evaluateCredential(credential, consumerAddress, accessListResolver(signer))
+}
+
+/**
+ * Resolves the rule types ddo.js cannot check itself. `address` rules never reach
+ * here; ddo.js matches them.
+ */
+function accessListResolver(signer: Signer | null): CredentialResolver {
+  return (credential, consumerAddress) =>
+    resolveCredential(credential, consumerAddress, signer)
+}
+
+async function resolveCredential(
+  credential: CredentialRule,
+  consumerAddress: string,
+  signer: Signer | null
+): Promise<boolean | null> {
   const credentialType = credential.type.toLowerCase()
-
-  // ========================================
-  // Handle ADDRESS-based credentials
-  // ========================================
-  if (credentialType === CREDENTIALS_TYPES.ADDRESS.toLowerCase()) {
-    // Entries may be plain strings or { address } objects; ddo.js reads both formats
-    const addresses = getCredentialAddresses(credential as any).map((a) =>
-      a.toLowerCase()
-    )
-    if (addresses.length === 0) {
-      return false
-    }
-
-    // Check for wildcard (*)
-    if (addresses.includes('*')) {
-      return true
-    }
-
-    // Check if address is in the list
-    return addresses.includes(consumerAddress.toLowerCase())
-  }
 
   // ========================================
   // Handle ACCESSLIST-based credentials
@@ -210,12 +98,11 @@ export async function checkSingleCredential(
 
     try {
       // Check if the consumer address has tokens in the access list contract
-      const hasAccess = await checkAddressOnAccessListWithSigner(
+      return await checkAddressOnAccessListWithSigner(
         accessListCredential.accessList,
         consumerAddress,
         signer
       )
-      return hasAccess
     } catch (error) {
       CORE_LOGGER.error(
         `Error checking accessList credential ${accessListCredential.accessList}: ${errorSummary(error)}`

@@ -274,6 +274,25 @@ describe('credentials', () => {
     expect(await checkCredentials('0x123', deny, signer)).to.equal(true)
   })
 
+  it('should deny malformed credentials instead of allowing them', async () => {
+    // credentials that are not a plain object cannot carry allow/deny lists
+    const asArray = [
+      { type: CREDENTIALS_TYPES.ADDRESS, values: ['0x123'] }
+    ] as unknown as Credentials
+    expect(await checkCredentials('0x123', asArray, signer)).to.equal(false)
+
+    // an allow or deny list that is set but is not an array
+    const nullAllow = { allow: null } as unknown as Credentials
+    expect(await checkCredentials('0x123', nullAllow, signer)).to.equal(false)
+    const objectDeny = {
+      deny: { type: CREDENTIALS_TYPES.ADDRESS, values: ['0x456'] }
+    } as unknown as Credentials
+    expect(await checkCredentials('0x123', objectDeny, signer)).to.equal(false)
+
+    // absent lists are still no restriction
+    expect(await checkCredentials('0x123', {} as Credentials, signer)).to.equal(true)
+  })
+
   after(async () => {
     await tearDownEnvironment(envOverrides)
   })
