@@ -77,9 +77,36 @@ jobs:
 
   test_unit:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - db: sqlite
+          - db: postgresql
+            db_url: 'postgresql://localhost:5432/ocean'
+            db_username: 'ocean'
+            db_password: 'changeme'
+          - db: elasticsearch
+            db_url: 'http://localhost:9200'
+            db_username: 'elastic'
+            db_password: 'changeme'
+    # a service with an empty image does not start: each leg starts its database only
     services:
+      postgresql:
+        image: ${{ matrix.db == 'postgresql' && 'postgres:17' || '' }}
+        env:
+          POSTGRES_USER: ocean
+          POSTGRES_PASSWORD: changeme
+          POSTGRES_DB: ocean
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ocean"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
       elasticsearch:
-        image: elasticsearch:8.5.1
+        image: ${{ matrix.db == 'elasticsearch' && 'elasticsearch:8.5.1' || '' }}
         env:
           discovery.type: single-node
           ELASTIC_PASSWORD: changeme
@@ -118,9 +145,10 @@ jobs:
           IPFS_GATEWAY: http://172.15.0.16:8080/
           ARWEAVE_GATEWAY: https://arweave.net/
           RPCS: '{ "1": {"rpc": "https://rpc.eth.gateway.fm", "chainId": 1, "network": "mainet", "chunkSize": 100}, "137": {"rpc": "https://polygon.meowrpc.com", "chainId": 137, "network": "polygon", "chunkSize": 100 }, "80001": {"rpc": "https://rpc-mumbai.maticvigil.com","chainId": 80001, "network": "polygon-mumbai", "chunkSize": 100 } }'
-          DB_URL: 'http://localhost:9200'
-          DB_USERNAME: 'elastic'
-          DB_PASSWORD: 'changeme'
+          DB_TYPE: ${{ matrix.db }}
+          DB_URL: ${{ matrix.db_url }}
+          DB_USERNAME: ${{ matrix.db_username }}
+          DB_PASSWORD: ${{ matrix.db_password }}
           # sniffing returns the container-internal address, unreachable from the runner
           ELASTICSEARCH_SNIFF_ON_START: 'false'
           ELASTICSEARCH_SNIFF_INTERVAL: 'false'
@@ -129,11 +157,39 @@ jobs:
           FEE_AMOUNT: '{ "amount": 1, "unit": "MB" }'
       - uses: actions/upload-artifact@v7
         with:
-          name: coverage
+          name: coverage-unit-${{ matrix.db }}
           path: coverage/
 
   test_integration:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - db: sqlite
+          - db: postgresql
+            db_url: 'postgresql://localhost:5432/ocean'
+            db_username: 'ocean'
+            db_password: 'changeme'
+          # the Elasticsearch of Barge
+          - db: elasticsearch
+            db_url: 'http://localhost:9200'
+            db_username: 'elastic'
+            db_password: 'changeme'
+    services:
+      postgresql:
+        image: ${{ matrix.db == 'postgresql' && 'postgres:17' || '' }}
+        env:
+          POSTGRES_USER: ocean
+          POSTGRES_PASSWORD: changeme
+          POSTGRES_DB: ocean
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ocean"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - uses: actions/checkout@v7
         with:
@@ -210,7 +266,10 @@ jobs:
           IPFS_GATEWAY: http://172.15.0.16:8080/
           ARWEAVE_GATEWAY: https://arweave.net/
           RPCS: '{ "8996": {"rpc": "http://127.0.0.1:8545", "chainId": 8996, "network": "development", "chunkSize": 100}}'
-          DB_URL: 'http://localhost:9200'
+          DB_TYPE: ${{ matrix.db }}
+          DB_URL: ${{ matrix.db_url }}
+          DB_USERNAME: ${{ matrix.db_username }}
+          DB_PASSWORD: ${{ matrix.db_password }}
           FEE_TOKENS: '{ "1": "0x967da4048cD07aB37855c090aAF366e4ce1b9F48", "137": "0x282d8efCe846A88B159800bd4130ad77443Fa1A1", "80001": "0xd8992Ed72C445c35Cb4A2be468568Ed1079357c8", "56": "0xDCe07662CA8EbC241316a15B611c89711414Dd1a" }'
           FEE_AMOUNT: '{ "amount": 1, "unit": "MB" }'
           ASSET_PURGATORY_URL: 'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json'
@@ -221,7 +280,7 @@ jobs:
         if: ${{ failure() }}
       - uses: actions/upload-artifact@v7
         with:
-          name: coverage
+          name: coverage-integration-${{ matrix.db }}
           path: coverage/
 
   test_system:
@@ -350,15 +409,12 @@ jobs:
           HTTP_API_PORT: 8001
           RPCS: '{ "8996": {"rpc": "http://127.0.0.1:8545", "chainId": 8996, "network": "development", "chunkSize": 100} }'
           INDEXER_NETWORKS: '[8996]'
-          DB_URL: 'http://localhost:9200'
           FEE_TOKENS: '{ "1": "0x967da4048cD07aB37855c090aAF366e4ce1b9F48", "137": "0x282d8efCe846A88B159800bd4130ad77443Fa1A1", "80001": "0xd8992Ed72C445c35Cb4A2be468568Ed1079357c8", "56": "0xDCe07662CA8EbC241316a15B611c89711414Dd1a" }'
           FEE_AMOUNT: '{ "amount": 1, "unit": "MB" }'
           AUTHORIZED_DECRYPTERS: '["0xe2DD09d719Da89e5a3D0F2549c7E24566e947260"]'
           P2P_ENABLE_UPNP: 'false'
           P2P_ENABLE_AUTONAT: 'false'
           ALLOWED_ADMINS: '["0xe2DD09d719Da89e5a3D0F2549c7E24566e947260"]'
-          DB_USERNAME: 'elastic'
-          DB_PASSWORD: 'changeme'
           MAX_REQ_PER_MINUTE: 320
           MAX_CONNECTIONS_PER_MINUTE: 320
           DOCKER_COMPUTE_ENVIRONMENTS: '[{"socketPath":"/var/run/docker.sock","environments":[{"storageExpiry":604800,"maxJobDuration":3600,"minJobDuration":60,"resources":[{"id":"cpu","total":4,"max":4,"min":1,"type":"cpu"},{"id":"ram","total":10,"max":10,"min":1,"type":"ram"},{"id":"disk","total":10,"max":10,"min":0,"type":"disk"}],"fees":{"8996":[{"prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"maxJobs":3,"resources":[{"id":"cpu","max":1},{"id":"ram","max":1},{"id":"disk","max":1}]}}]}]'

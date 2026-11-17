@@ -1,4 +1,5 @@
 import { C2DDatabase } from '../../components/database/C2DDatabase.js'
+import { Database } from '../../components/database/index.js'
 // import { existsEnvironmentVariable, getConfiguration } from '../../utils/config.js'
 import { getConfiguration } from '../../utils/config.js'
 import {
@@ -144,7 +145,7 @@ describe('Compute Jobs Database', () => {
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
-    db = await new C2DDatabase(config.dbConfig)
+    db = (await Database.init(config.dbConfig)).c2d
   })
 
   it('should create a new C2D Job', async () => {

@@ -2,20 +2,48 @@
 
 ## Unit tests
 
-Unit tests need a running Elasticsearch, because every state store lives there. The unit
-suite deletes all documents in the `auth_tokens`, `c2d_jobs`, `service_jobs`,
-`service_locks`, `docker_images`, `buckets`, `node_metrics_samples` and
-`node_metrics_hourly` indices in `beforeEach`, and writes nonces and the maintenance flag to
-the `nonce` and `node_config` indices. Never point the tests at an Elasticsearch that a
-running node uses.
-
-Start Elasticsearch, export a node key, then run the tests:
+The unit tests run on the database that `DB_TYPE` selects. With no `DB_TYPE` and no `DB_URL`
+they run on SQLite and need no database container:
 
 ```bash
-docker-compose -f elasticsearch-compose.yml up -d
 export PRIVATE_KEY=0x<your test key>
 npm run test:unit
 ```
+
+The tests load `src/test/.env.test` for the variables that the shell does not set. If that
+file has `DB_URL`, `DB_USERNAME` and `DB_PASSWORD` lines for Elasticsearch, the tests run on
+Elasticsearch: remove the lines, or set the variables to empty values in the shell
+(`DB_TYPE= DB_URL= DB_USERNAME= DB_PASSWORD= npm run test:unit`).
+
+The SQLite files of the tests are in `databases/` in the repository folder. Do not run the
+tests in the folder of a node that you use.
+
+### On PostgreSQL
+
+```bash
+docker-compose -f postgresql-compose.yml up -d
+export DB_TYPE=postgresql DB_URL=postgresql://localhost:5432/ocean
+export DB_USERNAME=ocean DB_PASSWORD=changeme
+npm run test:unit
+```
+
+The suites of the SQL stores make a schema of their own for each test and remove it.
+
+### On Elasticsearch
+
+```bash
+docker-compose -f elasticsearch-compose.yml up -d
+export DB_TYPE=elasticsearch DB_URL=http://localhost:9200
+export DB_USERNAME=elastic DB_PASSWORD=changeme
+npm run test:unit
+```
+
+Some suites use the Elasticsearch client directly and run only with `DB_TYPE=elasticsearch`
+(`describeOnElasticsearch` in `src/test/utils/utils.ts`). They delete all documents in the
+`auth_tokens`, `c2d_jobs`, `service_jobs`, `service_locks`, `docker_images`, `buckets`,
+`node_metrics_samples` and `node_metrics_hourly` indices in `beforeEach`, and write nonces
+and the maintenance flag to the `nonce` and `node_config` indices. Never point the tests at
+an Elasticsearch that a running node uses.
 
 On macOS, Elasticsearch sniffing returns the container-internal address, which the host
 cannot reach. Turn sniffing off before you run the tests:
@@ -25,6 +53,8 @@ export ELASTICSEARCH_SNIFF_ON_START=false
 export ELASTICSEARCH_SNIFF_INTERVAL=false
 export ELASTICSEARCH_SNIFF_ON_CONNECTION_FAULT=false
 ```
+
+CI runs the unit and the integration tests on the three databases.
 
 ## Integration tests
 

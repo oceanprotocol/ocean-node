@@ -26,15 +26,15 @@ const MAX_REPUBLISH_PAGES = 10_000
 interface DdoPage {
   documents: any[]
   /**
-   * True when at least one schema filled its page, which is the only signal Elasticsearch
+   * True when at least one schema filled its page, which is the only signal the DDO store
    * gives that there may be more: it returns bare document arrays with no count at all.
    */
   hasFullBatch: boolean
 }
 
 /**
- * Elasticsearch returns one plain array of documents per schema that had hits (schemas with no
- * hits are simply absent), each document already flattened out of `hits.hits[]._source`.
+ * The DDO store returns one plain array of documents per schema that had hits (schemas with
+ * no hits are simply absent).
  */
 function extractPage(result: any, pageSize: number): DdoPage {
   const documents: any[] = []
@@ -59,19 +59,14 @@ function extractPage(result: any, pageSize: number): DdoPage {
 /**
  * Ask for one page of every DDO the node holds.
  *
- * On Elasticsearch the query object is spread straight into the request body, so `q` - a URI
- * search parameter, not a body key - makes the whole request fail with `Unknown key for a
- * VALUE_STRING in [q]`. That failure is caught and skipped per schema, which is why the
- * republish used to find nothing without ever reporting an error. The
- * body form of match-everything is `query: { match_all: {} }`; note that `from` there is a
- * 1-based *page number*, not a document offset - that layer converts it.
+ * The match-everything query is `query: { match_all: {} }`; note that `from` there is a
+ * 1-based *page number*, not a document offset - the database layer converts it.
  *
- * Known ceiling, stated so it is not rediscovered as a bug: Elasticsearch refuses a
- * `from` + `size` window larger than `index.max_result_window` (10000 by default) with
- * "Result window is too large", and the database layer catches that per schema like any other
- * failure - so a *single* index holding more than 10000 DDOs re-provides only the first 10000
- * of them, quietly. Lifting that means paging with `search_after` or a point-in-time cursor
- * instead of an offset, which is a change to the database layer, not to this job.
+ * Known ceiling, stated so it is not rediscovered as a bug: a backend can refuse a deep
+ * `from` + `size` window (10000 documents by default on one backend), and the database layer
+ * catches that per schema like any other failure - so a *single* schema holding more DDOs
+ * than that re-provides only the first ones, quietly. Lifting that means paging with a
+ * cursor instead of an offset, which is a change to the database layer, not to this job.
  */
 function searchDdoPage(ddoDb: any, page: number, pageSize: number): Promise<any> {
   return ddoDb.search({ query: { match_all: {} }, size: pageSize, from: page })

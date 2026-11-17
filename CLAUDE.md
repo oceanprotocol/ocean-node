@@ -25,8 +25,9 @@ This is enforced by`.cursor/rules/tests-nvm.mdc`and the in-repo`CLAUDE.md`.
   ran `scripts/fix-libp2p-http-utils.js` to default a missing URL port to 443/80 in
   `@libp2p/http-utils`; upstream shipped that fix in `2.0.3`, so both the hook and the
   script were removed.)
-- **Docker + docker-compose** are needed for the database (Elasticsearch, required)
-  and for C2D (Compute-to-Data) via the local Docker socket.
+- **Docker + docker-compose** are needed for C2D (Compute-to-Data) via the local Docker
+  socket, and for PostgreSQL or Elasticsearch when `DB_TYPE` selects one of them. The default
+  database, SQLite, needs no container.
 - TypeScript config: **TypeScript 6**, ESM (`module: esnext`, `target: ES2022`,
   `moduleResolution: node`), `experimentalDecorators` + `emitDecoratorMetadata` enabled,
   `rootDir: ./src`, `outDir: ./dist`. Most local imports use the `.js` extension
@@ -43,8 +44,7 @@ This is enforced by`.cursor/rules/tests-nvm.mdc`and the in-repo`CLAUDE.md`.
 
 `PRIVATE_KEY` (with the `0x` prefix) is the **only** required environment variable — it
 seeds the node identity (libp2p peerId), the EVM signer, and encryption keys. Everything
-else has defaults, except the Elasticsearch connection (`DB_URL`, `DB_USERNAME`,
-`DB_PASSWORD`), which the shipped `config.json` provides as `dbConfig`. Generate one with:
+else has defaults; the default database is SQLite, which needs no setting. Generate one with:
 
 ```bash
 node dist/helpers/scripts/generatePK.js            # prints a key/address to stdout
@@ -133,8 +133,12 @@ the compiled output. In tests, do **not** mutate `process.env` directly — use 
 
 **Integration tests require a running local chain + services (Barge).** Clone
 `oceanprotocol/barge`, `git checkout feature/nodes`, then `./start_ocean.sh -with-c2d`
-(see `docs/testing.md` and `docs/database.md` for the exact flags). The default
-`config.json` points the DB at Elasticsearch on `http://localhost:9200`.
+(see `docs/testing.md` and `docs/database.md` for the exact flags). The tests run on the
+database that `DB_TYPE` selects (SQLite when neither it nor `DB_URL` is set; note that
+`src/test/.env.test` can set `DB_URL`); suites that use the
+Elasticsearch client directly are wrapped in `describeOnElasticsearch` and run only with
+`DB_TYPE=elasticsearch`. The SQL store suites (`src/test/unit/database/`) also run on
+PostgreSQL with `DB_TYPE=postgresql`.
 
 Other useful scripts: `npm run client` (2-node download flow demo), `npm run check-nonce`
 (nonce tracking; needs DB), `npm run logs` (calls the signed `/logs` API; currently broken, see `docs/Logs.md`), and k6 perf tests
@@ -144,7 +148,9 @@ a running node).
 ### Databases for local dev
 
 ```bash
-docker-compose -f elasticsearch-compose.yml up -d   # Elasticsearch (default in config.json)
+# SQLite is the default and needs nothing. For the other two:
+docker-compose -f postgresql-compose.yml up -d      # DB_TYPE=postgresql
+docker-compose -f elasticsearch-compose.yml up -d   # DB_TYPE=elasticsearch
 ```
 
 ---
@@ -156,11 +162,16 @@ via `src/utils/config/index.ts` and `src/utils/index.ts`). Key facts:
 
 - **Two config sources.** Either environment variables, or a JSON file. `getConfigFilePath()`
   resolves the file from `CONFIG_PATH` env var, else `./config.json` in cwd. The repo ships a
-  ready `config.json` (Elasticsearch DB, chain `8996`/development, single Docker C2D env).
+  ready `config.json` (chain `8996`/development, single Docker C2D env).
 - **`INTERFACES`** env var (JSON array like `["HTTP","P2P"]`) toggles `hasHttp` / `hasP2P`.
-  Omitted = both enabled. `DB_URL`, `DB_USERNAME` and `DB_PASSWORD` (or `dbConfig` in the
-  file) are required: without them config validation fails and the node does not start.
-  There is no DEGRADED / no-DB mode.
+  Omitted = both enabled. `DB_TYPE` selects the database: `sqlite` (default), `postgresql`
+  or `elasticsearch`. The last two require `DB_URL`, `DB_USERNAME` and `DB_PASSWORD` (or
+  `dbConfig` in the file): without them config validation fails and the node does not start.
+  With no `DB_TYPE`, a `DB_URL` selects the server that its scheme is for (the older
+  releases had no `DB_TYPE` for a server node); an empty `DB_*` value counts as not set.
+  A server node does not start while `databases/` holds SQLite state files
+  (`DatabaseFactory.refuseLeftoverSqliteState`): node state does not move between
+  databases. There is no DEGRADED / no-DB mode.
 - The full catalog of env vars is defined as `ENVIRONMENT_VARIABLES` in
   `src/utils/constants.ts` and documented in `docs/env.md` (long file — the authoritative
   reference). `.env.example` lists them grouped as core / p2p / compute.
@@ -289,13 +300,22 @@ Handler source is grouped under `src/components/core/`:
   the `Escrow` component; `serviceResourceMatching.ts` maps requested cpu/ram/disk/gpu against
   environment pools (dual-gate: per-env ceiling + engine-wide pool; GPUs tracked globally).
   See `docs/compute.md`.
-- **database/** — `Database.init()` factory (`index.ts`, `DatabaseFactory.ts`).
-  **Elasticsearch** is the only database and is required. It holds DDOs, indexer state,
-  logs, orders, ddoState, access lists and escrow events — behind the
-  `Abstract*Database` interfaces in `BaseDatabase.ts` — and the node state indices `nonce`,
-  `node_config`, `auth_tokens`, `buckets`, `node_metrics_samples`, `node_metrics_hourly`,
-  `c2d_jobs`, `service_jobs`, `docker_images` and `service_locks` (index mappings in
-  `ElasticSchemas.ts`). Node metrics are kept per `INSTANCE_ID`. See `docs/database.md`.
+- **database/** — `Database.init()` gets the 13 stores (`DatabaseStores`) from
+  `DatabaseFactory.createStores`, the only place that selects the backend from
+  `dbConfig.dbType`. No file outside this folder imports a backend. The stores hold the
+  index data (DDOs, indexer state, logs, orders, ddoState, access lists, escrow events —
+  behind the `Abstract*Database` classes in `BaseDatabase.ts`) and the node state (nonces,
+  config, auth tokens, buckets, node metrics, C2D jobs, service jobs, image records, service
+  locks — behind the provider interfaces). Backends:
+  - **SQLite** (default) and **PostgreSQL**: one set of stores in `database/sql/`, written
+    against the `SqlClient` interface (`SqliteClient` on `node:sqlite`, `PostgresClient` on
+    `pg`). The rules for SQL that runs on both are at the top of `sql/SqlClient.ts`.
+    `SqlDocuments` keeps JSON documents with a field table, and `documentQuery.ts`
+    translates the node query (the Elasticsearch format) to SQL; an unsupported clause
+    throws `UnsupportedQueryError` (HTTP 400). `SqliteStores.ts` keeps the file names of
+    the older releases and upgrades their tables.
+  - **Elasticsearch**: the `Elastic*` files (index mappings in `ElasticSchemas.ts`).
+  Node metrics are kept per `INSTANCE_ID`. See `docs/database.md`.
 - **KeyManager/** — provider-abstraction over the node key (`docs/KeyManager.md`). Currently
   `RawPrivateKeyProvider` (from `PRIVATE_KEY`); derives the libp2p peerId/keys and the EVM
   address, and caches the ethers signer. Designed to add KMS providers (GCP/AWS) later.
@@ -316,7 +336,8 @@ Handler source is grouped under `src/components/core/`:
   `constants.ts`, `crypt.ts` (hashing/signing), `blockchain.ts`, `logging/` (winston: console, per-module
   rotating files in `logs/` by default when `LOG_DB` is off, optional DB transport), `cronjobs/`, `validators.ts`, `credentials.ts`,
   `accessList.ts`, `asset.ts`, `attestation.ts`.
-- Runtime data dirs: `databases/` (only `p2p-store`, the libp2p LevelDB store),
+- Runtime data dirs: `databases/` (`p2p-store`, the libp2p LevelDB store, and the SQLite
+  files of the node with the default database),
   `c2d_storage/` (C2D job working data), `logs/`. Service-on-demand templates are not shipped: the node reads
   them from the folder given by `serviceTemplatesPath` / `SERVICE_TEMPLATES_PATH`, which the
   operator mounts in at run time.

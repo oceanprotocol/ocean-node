@@ -46,8 +46,8 @@ COPY --chown=node:node --from=builder /usr/src/app/package.json ./
 COPY --chown=node:node --from=builder /usr/src/app/config.json ./
 
 # `databases` holds what the node must not lose across a restart on this host:
-# `databases/p2p-store`, the LevelDatastore that backs libp2p (all other node state lives in
-# Elasticsearch). kad-dht's reprovider refreshes this node's provider records from that
+# `databases/p2p-store`, the LevelDatastore that backs libp2p, and the SQLite files of the
+# node when it uses the default database. kad-dht's reprovider refreshes this node's provider records from that
 # datastore, so if it starts empty the node stops answering for content it still holds, and the
 # records expire out of the network without anything noticing. The directory is created and
 # handed to the unprivileged `node` user here, and VOLUME declares the mount point so a named

@@ -15,7 +15,7 @@ export function createPersistentStorage(
   }
   if (!buckets) {
     throw new Error(
-      'Persistent storage is enabled but the database is not available: the bucket registry is stored in Elasticsearch'
+      'Persistent storage is enabled but the database is not available: the bucket registry is stored in the database'
     )
   }
 

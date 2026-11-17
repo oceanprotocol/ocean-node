@@ -8,7 +8,8 @@ import {
   OverrideEnvConfig,
   setupEnvironment,
   tearDownEnvironment,
-  TEST_ENV_CONFIG_FILE
+  TEST_ENV_CONFIG_FILE,
+  describeOnElasticsearch
 } from '../utils/utils.js'
 import { ENVIRONMENT_VARIABLES, getConfiguration } from '../../utils/index.js'
 import { ElasticsearchConfigDatabase } from '../../components/database/ElasticsearchConfigDatabase.js'
@@ -27,7 +28,7 @@ async function wipeConfigIndex(dbConfig: OceanNodeDBConfig): Promise<void> {
   })
 }
 
-describe('**********         Config Database', () => {
+describeOnElasticsearch('**********         Config Database', () => {
   let database: Database
   let oceanIndexer: OceanIndexer
   let previousConfiguration: OverrideEnvConfig[]
@@ -128,7 +129,7 @@ describe('**********         Config Database', () => {
   })
 })
 
-describe('VersionDatabase CRUD', () => {
+describeOnElasticsearch('VersionDatabase CRUD', () => {
   let database: Database
 
   before(async () => {

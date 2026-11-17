@@ -1,3 +1,4 @@
+import { describeOnElasticsearch } from '../utils/utils.js'
 import { expect } from 'chai'
 import fsp from 'fs/promises'
 import os from 'os'
@@ -32,7 +33,7 @@ async function initRegistry(): Promise<void> {
   esClient = await createElasticsearchClientWithRetry(dbConfig)
 }
 
-describe('Persistent storage bucket sharing toggle', () => {
+describeOnElasticsearch('Persistent storage bucket sharing toggle', () => {
   const owner = Wallet.createRandom().address
   const other = Wallet.createRandom().address
   const bucketAcl: AccessList[] = [{ '8996': [Wallet.createRandom().address] }]
@@ -151,7 +152,7 @@ describe('Persistent storage bucket sharing toggle', () => {
   })
 })
 
-describe('Elasticsearch bucket registry', () => {
+describeOnElasticsearch('Elasticsearch bucket registry', () => {
   const owner = Wallet.createRandom().address
 
   before(initRegistry)

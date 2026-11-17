@@ -1,9 +1,11 @@
+import { describeOnElasticsearch } from '../../utils/utils.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
 import { getConfiguration } from '../../../utils/index.js'
 import { expect } from 'chai'
 import { HDNodeWallet, Wallet } from 'ethers'
 import { Auth } from '../../../components/Auth/index.js'
 import { AuthTokenDatabase } from '../../../components/database/AuthTokenDatabase.js'
+import { Database } from '../../../components/database/index.js'
 import { OceanP2P } from '../../../components/P2P/index.js'
 import { Readable } from 'node:stream'
 import { createHashForSignature, safeSign } from '../../utils/signature.js'
@@ -16,7 +18,7 @@ import { create256Hash } from '../../../utils/crypt.js'
 
 const AUTH_TOKENS_INDEX = 'auth_tokens'
 
-describe('Auth Token Tests', () => {
+describeOnElasticsearch('Auth Token Tests', () => {
   let wallet: Wallet
   let authTokenDatabase: AuthTokenDatabase
   let config: OceanNodeConfig
@@ -25,7 +27,7 @@ describe('Auth Token Tests', () => {
 
   before(async () => {
     config = await getConfiguration(true)
-    authTokenDatabase = await AuthTokenDatabase.create(config.dbConfig)
+    authTokenDatabase = (await Database.init(config.dbConfig)).authToken
     wallet = new Wallet(process.env.PRIVATE_KEY)
     auth = new Auth(authTokenDatabase, config)
     client = await createElasticsearchClientWithRetry(config.dbConfig)
@@ -193,7 +195,7 @@ describe('Auth cross-node delegated validation', () => {
   before(async () => {
     const baseConfig = await getConfiguration(true)
     config = { ...baseConfig, supportedNetworks: {} }
-    authTokenDatabase = await AuthTokenDatabase.create(baseConfig.dbConfig)
+    authTokenDatabase = (await Database.init(baseConfig.dbConfig)).authToken
     consumer = Wallet.createRandom()
   })
 

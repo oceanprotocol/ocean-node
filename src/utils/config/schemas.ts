@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { getAddress } from 'ethers'
-import { dhtFilterMethod } from '../../@types/OceanNode.js'
+import { DATABASE_TYPES, dhtFilterMethod } from '../../@types/OceanNode.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
 import {
   DEFAULT_SERVICE_MAX_DURATION_SECONDS,
@@ -265,9 +265,12 @@ export const FeeStrategySchema = z.object({
 })
 
 export const OceanNodeDBConfigSchema = z.object({
-  url: z.string().min(1),
-  username: z.string().min(1),
-  password: z.string().min(1)
+  dbType: z.enum(DATABASE_TYPES, {
+    error: `DB_TYPE must be one of: ${DATABASE_TYPES.join(', ')}`
+  }),
+  url: z.string().optional(),
+  username: z.string().optional(),
+  password: z.string().optional()
 })
 
 export const PersistentStorageConfigSchema = z
@@ -1501,6 +1504,7 @@ export const OceanNodeConfigSchema = z
     p2pConfig: OceanNodeP2PConfigSchema.nullable().optional(),
     hasIndexer: booleanFromString.default(true),
 
+    DB_TYPE: z.string().optional(),
     DB_URL: z.string().optional(),
     DB_USERNAME: z.string().optional(),
     DB_PASSWORD: z.string().optional(),

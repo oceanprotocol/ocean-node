@@ -1,3 +1,4 @@
+import type { Suite } from 'mocha'
 import path from 'path'
 import dotenv from 'dotenv'
 import { fileURLToPath } from 'url'
@@ -7,6 +8,17 @@ import { RPCS } from '../../@types/blockchain.js'
 import { getConfiguration } from '../../utils/config/builder.js'
 
 export const DEFAULT_TEST_TIMEOUT = 20000 // 20 secs MAX
+
+// A suite that uses the Elasticsearch client directly (it reads or cleans an index) runs
+// only when DB_TYPE selects Elasticsearch. The stores of the other databases have their own
+// suites.
+export function describeOnElasticsearch(
+  title: string,
+  suite: (this: Suite) => void
+): void {
+  const run = process.env.DB_TYPE === 'elasticsearch' ? describe : describe.skip
+  run(title, suite)
+}
 // __dirname and __filename are not defined in ES module scope
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)

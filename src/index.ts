@@ -27,7 +27,7 @@ import { fileURLToPath } from 'url'
 import cors from 'cors'
 import { scheduleCronJobs } from './utils/cronjobs/scheduleCronJobs.js'
 import { requestValidator } from './components/httpRoutes/requestValidator.js'
-import { isReachableConnection } from './utils/database.js'
+import { DatabaseFactory } from './components/database/DatabaseFactory.js'
 import type { OceanNodeDBConfig } from './@types/OceanNode.js'
 // Telemetry gauge registration. These modules depend on `@opentelemetry/api` only (no SDK), so
 // importing them here does not pull the OTel SDK into the graph ahead of the `--import` bootstrap
@@ -37,7 +37,7 @@ import { registerComputeGauges } from './telemetry/computeGauges.js'
 
 const app: Express = express()
 
-// Database services (Elasticsearch) frequently take longer to accept
+// A database server frequently takes longer to accept
 // connections than the node itself takes to boot. Database.init() gives
 // up after a single failed attempt, which leaves the node running permanently
 // without Indexer and without C2D.
@@ -51,7 +51,7 @@ async function initDatabaseWithRetry(
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const isLastAttempt = attempt === maxAttempts
     // the last attempt always calls init, so a failed probe never skips it
-    const reachable = isLastAttempt || (await isReachableConnection(dbConfig.url))
+    const reachable = isLastAttempt || (await DatabaseFactory.isReachable(dbConfig))
     if (reachable) {
       const database = await Database.init(dbConfig)
       if (database) {
@@ -165,6 +165,13 @@ if (!config) {
 }
 let node: OceanP2P = null
 let indexer = null
+try {
+  DatabaseFactory.refuseLeftoverSqliteState(config.dbConfig)
+} catch (error) {
+  OCEAN_NODE_LOGGER.error(error.message)
+  await flushLogs()
+  process.exit(1)
+}
 const dbconn: Database | null = await initDatabaseWithRetry(
   config.dbConfig,
   config.dbInitMaxAttempts,
@@ -178,7 +185,7 @@ if (!dbconn) {
     const reason = 'DB init failed'
     if (!enableFileLoggingFallback(reason)) ensureLogOutput(reason)
   }
-  // all state is in Elasticsearch: exit so the orchestrator restarts the node
+  // all state is in the database: exit so the orchestrator restarts the node
   OCEAN_NODE_LOGGER.error('Database failed to initialize, exiting')
   await flushLogs()
   process.exit(1)

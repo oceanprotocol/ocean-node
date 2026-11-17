@@ -1,3 +1,4 @@
+import { describeOnElasticsearch } from '../utils/utils.js'
 import { expect } from 'chai'
 import { Client } from '@elastic/elasticsearch'
 import { floorToHour } from '../../components/database/nodeMetricsAggregate.js'
@@ -52,7 +53,7 @@ describe('nodeMetricsAggregate.floorToHour', () => {
   })
 })
 
-describe('ElasticsearchNodeMetrics', () => {
+describeOnElasticsearch('ElasticsearchNodeMetrics', () => {
   let db: ElasticsearchNodeMetrics
   let client: Client
 

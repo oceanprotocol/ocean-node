@@ -59,11 +59,6 @@
     "enableNetworkStats": false
   },
   "httpPort": 8001,
-  "dbConfig": {
-    "url": "http://localhost:9200",
-    "username": "elastic",
-    "password": "changeme"
-  },
   "supportedNetworks": {
     "8996": {
       "rpc": "http://127.0.0.1:8545",

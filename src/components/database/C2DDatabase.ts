@@ -9,7 +9,6 @@ import {
   ServiceModelDownload,
   ServiceReadiness
 } from '../../@types/C2D/ServiceOnDemand.js'
-import { ElasticsearchCompute } from './ElasticsearchCompute.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { AbstractDatabase } from './BaseDatabase.js'
@@ -74,15 +73,11 @@ export interface ComputeDatabaseProvider {
 }
 
 export class C2DDatabase extends AbstractDatabase {
-  private provider: ComputeDatabaseProvider
-
-  constructor(config: OceanNodeDBConfig) {
+  constructor(
+    config: OceanNodeDBConfig,
+    private provider: ComputeDatabaseProvider
+  ) {
     super(config)
-    return (async (): Promise<C2DDatabase> => {
-      DATABASE_LOGGER.debug('Creating C2DDatabase with Elasticsearch')
-      this.provider = await ElasticsearchCompute.create(config)
-      return this
-    })() as unknown as C2DDatabase
   }
 
   async newJob(job: DBComputeJob): Promise<string> {

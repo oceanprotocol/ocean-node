@@ -7,7 +7,8 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `PRIVATE_KEY` (Required): The private key for the node, required for node operations. Example: `"0x1d751ded5a32226054cd2e71261039b65afb9ee1c746d055dd699b1150a5befc"`
 - `CONFIG_PATH`: Absolute path to JSON config file
 - `RPCS`: JSON object defining RPC endpoints for various networks. Example: `"{ \"11155420\":{ \"rpc\":\"https://sepolia.optimism.io\", \"fallbackRPCs\": [\"https://public.stackup.sh/api/v1/node/optimism-sepolia\"], \"chainId\": 11155420, \"network\": \"optimism-sepolia\", \"chunkSize\": 1000 }}"`
-- `DB_URL` (Required): URL of the Elasticsearch database. The node keeps all its state in Elasticsearch and does not run without it. Example: `"http://localhost:9200"`
+- `DB_TYPE`: The database of the node: `sqlite` (default), `postgresql` or `elasticsearch`. Example: `"sqlite"`
+- `DB_URL`: URL of the database server. Required when `DB_TYPE` is `postgresql` or `elasticsearch`. Example: `"http://localhost:9200"`
 - `IPFS_GATEWAY`: The gateway URL for IPFS, used for downloading files from IPFS. Example: `"https://ipfs.io/"`
 - `ARWEAVE_GATEWAY`: The gateway URL for Arweave, used for downloading files from Arweave. Example: `"https://arweave.net/"`
 - `LOAD_INITIAL_DDOS`: If set, the node will load initial DDOs from JSON files at startup. This is useful for testing or bootstrapping the network with predefined data. Example: `false`
@@ -47,7 +48,8 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 
 ## Database
 
-- `DB_URL` (Required): URL of the Elasticsearch database. The node keeps all its state in Elasticsearch and does not run without it. Example: `"http://localhost:9200"`
+- `DB_TYPE`: The database of the node: `sqlite` (default), `postgresql` or `elasticsearch`. SQLite needs no other `DB_*` variable. When `DB_TYPE` is not set and `DB_URL` is set, the node uses the database server that the URL is for. An empty `DB_*` variable counts as not set. See [database.md](database.md). Example: `"postgresql"`
+- `DB_URL`: URL of the database server. Required when `DB_TYPE` is `postgresql` or `elasticsearch`; not used for `sqlite`. Examples: `"postgresql://localhost:5432/ocean"`, `"http://localhost:9200"`
 - `DB_USERNAME`: Username for database authentication. Required with `DB_URL`. Example: `"elastic"`
 - `DB_PASSWORD`: Password for database authentication. Required with `DB_URL`. Example: `"password123"`
 - `ELASTICSEARCH_REQUEST_TIMEOUT`: Request timeout in milliseconds for Elasticsearch operations. Default is `60000`. Example: `60000`
@@ -82,7 +84,7 @@ Console, disk and database are independent log sinks. See [Logs.md](Logs.md) for
 | `LOG_FILES_RETENTION_DAYS` | `30` | Days of log files to keep. Older files (including `.gz` archives) are deleted when the log rotates. Integer, minimum `1` |
 | `LOG_FILES_MAX_SIZE` | `20m` | Size at which one module's daily file splits into `.1`, `.2`, ... parts. Accepts `<number>k`, `m` or `g` |
 | `LOG_FILES_DIR` | `logs` | Directory for log files, relative to the working directory (`/usr/src/app/logs` in Docker) |
-| `LOG_DB` | `false` | Write logs to the noSQL database (needs `DB_URL`). Turning it on switches off default file logging unless `LOG_FILES=true` |
+| `LOG_DB` | `false` | Write logs to the database of the node. Turning it on switches off default file logging unless `LOG_FILES=true` |
 | `LOG_RETENTION_TIME` | `2592000000` | Retention of logs in the database, in milliseconds (30 days). DB logs only |
 
 Invalid levels, retention values or sizes fall back to their defaults and log a warning at startup. Files are written to `<LOG_FILES_DIR>/<module>-YYYY-MM-DD.log` (UTC days); see [Logs.md](Logs.md#log-files-on-disk).
@@ -208,7 +210,7 @@ setting it through the environment reaches both.
 
 ## Node Metrics History
 
-Powers the `getNodeMetrics` (live snapshot) and `getNodeMetricsHistory` (hourly averages) commands / REST routes. The history layer is stored in Elasticsearch per instance (see `INSTANCE_ID` below). A minute sampler writes the same per-node aggregate the live command returns into a short-lived raw buffer, an hourly roll-up at minute `:05` averages each complete hour into `node_metrics_hourly`, and a daily sweep drops rows older than the retention window. The sampler **warns and skips** (persists no row) when there is no fresh compute aggregate — i.e. `C2D_METRICS_INTERVAL_SECONDS=0` or no engine has sampled yet — so all-zero rows never skew the averages. The live `getNodeMetrics` command still returns a (zeroed) snapshot in that case.
+Powers the `getNodeMetrics` (live snapshot) and `getNodeMetricsHistory` (hourly averages) commands / REST routes. The history layer is stored in the database of the node, per instance (see `INSTANCE_ID` below). A minute sampler writes the same per-node aggregate the live command returns into a short-lived raw buffer, an hourly roll-up at minute `:05` averages each complete hour into `node_metrics_hourly`, and a daily sweep drops rows older than the retention window. The sampler **warns and skips** (persists no row) when there is no fresh compute aggregate — i.e. `C2D_METRICS_INTERVAL_SECONDS=0` or no engine has sampled yet — so all-zero rows never skew the averages. The live `getNodeMetrics` command still returns a (zeroed) snapshot in that case.
 
 - `NODE_METRICS_HISTORY_ENABLED`: Enable/disable the node-metrics history sampler + roll-up + retention cron jobs. Defaults to enabled whenever a database is available. Set to `false` (also accepts `0`/`no`) to turn the history layer off; the live `getNodeMetrics` command is unaffected. Example: `true`
 - `NODE_METRICS_SAMPLE_CRON`: Cron expression for the minute sampler. Defaults to `* * * * *` (every minute). Example: `* * * * *`

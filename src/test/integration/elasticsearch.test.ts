@@ -1,6 +1,8 @@
+import { describeOnElasticsearch } from '../utils/utils.js'
 import { ddo } from '../data/ddo.js'
 import { expect } from 'chai'
 import { Database } from '../../components/database/index.js'
+import type { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import {
   ElasticsearchDdoDatabase,
   ElasticsearchDdoStateDatabase,
@@ -10,14 +12,21 @@ import {
   ElasticsearchOrderDatabase
 } from '../../components/database/ElasticSearchDatabase.js'
 
-const dbConfig = {
+const dbConfig: OceanNodeDBConfig = {
+  dbType: 'elasticsearch',
   url: 'http://localhost:9200',
   username: 'elastic',
   password: 'changeme'
 }
-const elasticsearch: Database = await Database.init(dbConfig)
+let elasticsearch: Database
+// the suites of this file share one connection; it is made when the first suite runs
+const connect = async () => {
+  elasticsearch ??= await Database.init(dbConfig)
+}
 
-describe('**********         Elastic Search', () => {
+describeOnElasticsearch('**********         Elastic Search', () => {
+  before(connect)
+
   it('Get instances of Elastic Search', () => {
     expect(elasticsearch.ddo).to.be.instanceOf(ElasticsearchDdoDatabase)
     expect(elasticsearch.indexer).to.be.instanceOf(ElasticsearchIndexerDatabase)
@@ -28,7 +37,9 @@ describe('**********         Elastic Search', () => {
   })
 })
 
-describe('**********         Elastic Search DDO collections', () => {
+describeOnElasticsearch('**********         Elastic Search DDO collections', () => {
+  before(connect)
+
   it('create document in ddo collection', async () => {
     const result = await elasticsearch.ddo.create(ddo)
     expect(result.result).to.equal('created')

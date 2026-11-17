@@ -1,6 +1,7 @@
 import { expect, assert } from 'chai'
 import sinon from 'sinon'
 import { C2DDatabase } from '../../components/database/C2DDatabase.js'
+import { Database } from '../../components/database/index.js'
 import { getConfiguration } from '../../utils/config.js'
 import {
   buildEnvOverrideConfig,
@@ -69,7 +70,7 @@ describe('**********         Docker Image Cleanup Integration Tests', () => {
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
-    db = await new C2DDatabase(config.dbConfig)
+    db = (await Database.init(config.dbConfig)).c2d
 
     // Initialize Docker connection for testing
     docker = new Dockerode()

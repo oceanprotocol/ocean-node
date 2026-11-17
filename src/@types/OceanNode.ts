@@ -2,15 +2,20 @@ import { Stream } from 'stream'
 import { RPCS } from './blockchain'
 import { C2DClusterInfo, C2DDockerConfig } from './C2D/C2D'
 import { FeeStrategy } from './Fees'
-import { Schema } from '../components/database'
+import type { DdoSchema } from '../components/database/index.js'
 import { KeyProviderType } from './KeyManager'
 import type { PersistentStorageConfig } from './PersistentStorage.js'
 import type { AccessList } from './AccessList'
 
+export const DATABASE_TYPES = ['sqlite', 'postgresql', 'elasticsearch'] as const
+export type DatabaseType = (typeof DATABASE_TYPES)[number]
+
+// url, username and password are set for postgresql and elasticsearch only
 export interface OceanNodeDBConfig {
-  url: string
-  username: string
-  password: string
+  dbType: DatabaseType
+  url?: string
+  username?: string
+  password?: string
 }
 
 // deny list of peer ids and ips (for rate limiting purposes)
@@ -310,7 +315,7 @@ export interface OceanNodeStatus {
   subsidyProviderAllowedImages?: Record<string, string[]>
   // detailed information
   c2dClusters?: any[]
-  supportedSchemas?: Schema[]
+  supportedSchemas?: DdoSchema[]
   persistentStorage?: {
     accessLists?: AccessList[]
     allowBucketSharing?: boolean

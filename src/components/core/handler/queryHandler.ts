@@ -9,6 +9,32 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { safeStringify } from '../../../utils/logging/redact.js'
+import type { Database } from '../../database/index.js'
+import { QueryError, queryPage } from '../../database/BaseDatabase.js'
+
+// the `index` of a query that selects the orders
+const ORDER_INDEX = 'order'
+// the last document that a public query can reach, as on Elasticsearch
+const MAX_RESULT_WINDOW = 10000
+
+// The `index` field of a query selects the store: the orders, or the DDOs of one schema.
+// All other values search all DDOs, so a query cannot read another store. The answer is
+// one array of documents for each group that has hits.
+async function searchStore(
+  database: Database,
+  { index, ...query }: Record<string, any>
+): Promise<any[]> {
+  const { size, offset } = queryPage(query)
+  if (offset + size > MAX_RESULT_WINDOW) {
+    throw new QueryError(`A query reads the first ${MAX_RESULT_WINDOW} documents at most`)
+  }
+  if (index === ORDER_INDEX) {
+    const orders = await database.order.search(query)
+    return orders?.length > 0 ? [orders] : []
+  }
+  const isDdoSchema = database.ddo.getSchemas().some((schema) => schema.index === index)
+  return (await database.ddo.search(isDdoSchema ? { index, ...query } : query)) || []
+}
 
 export class QueryHandler extends CommandHandler {
   validate(command: QueryCommand): ValidateParams {
@@ -29,16 +55,13 @@ export class QueryHandler extends CommandHandler {
           status: { httpStatus: 503, error: 'DDO database is not available' }
         }
       }
-      let result = await database.ddo.search(task.query)
-      if (!result) {
-        result = []
-      }
+      const result = await searchStore(database, task.query)
       return {
         stream: Readable.from(JSON.stringify(result)),
         status: { httpStatus: 200 }
       }
     } catch (error) {
-      if (error.message?.endsWith('is not queryable')) {
+      if (error instanceof QueryError) {
         return { stream: null, status: { httpStatus: 400, error: error.message } }
       }
       CORE_LOGGER.error(`Error in QueryHandler: ${error.message}`)
@@ -83,6 +106,9 @@ export class QueryDdoStateHandler extends QueryHandler {
         status: { httpStatus: 200 }
       }
     } catch (error) {
+      if (error instanceof QueryError) {
+        return { stream: null, status: { httpStatus: 400, error: error.message } }
+      }
       CORE_LOGGER.error(`Error in QueryDdoStateHandler: ${error.message}`)
       return {
         stream: null,

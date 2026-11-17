@@ -52,9 +52,9 @@ See [Architecture](docs/Arhitecture.md) for the layered model and Mermaid diagra
   also work.
 
 A **persistent `databases/` volume is REQUIRED**, not optional. It holds
-`databases/p2p-store`, the libp2p datastore that backs this node's DHT provider records (all
-other node state lives in Elasticsearch). Starting it empty silently drops content the node
-still serves. The Dockerfile declares `VOLUME ["/usr/src/app/databases"]` for this reason —
+`databases/p2p-store`, the libp2p datastore that backs this node's DHT provider records, and,
+with the default database (SQLite), all the data of the node. Starting it empty silently drops
+content the node still serves. The Dockerfile declares `VOLUME ["/usr/src/app/databases"]` for this reason —
 see "Persistent node data" in [Docker deployment](docs/dockerDeployment.md).
 
 ## Quick start (operators)
@@ -90,25 +90,21 @@ PM2 is a process manager that makes it easy to run and monitor Node.js apps.
 ```bash
 npm install -g pm2
 
-# 1. Start the metadata database (Elasticsearch)
-docker-compose -f elasticsearch-compose.yml up -d
-
-# 2. Install deps and build — `npm run start` runs dist/index.js, so a prior build is required
+# 1. Install deps and build — `npm run start` runs dist/index.js, so a prior build is required
 npm install
 npm run build
 
-# 3. Set up env vars. The node does NOT auto-load .env at runtime (dotenv is only used in
+# 2. Set up env vars. The node does NOT auto-load .env at runtime (dotenv is only used in
 #    tests), so the vars must be in the shell environment before `pm2 start`.
 #    Interactive helper, then load the generated .env into this shell:
 npm run setupEnv
 source .env
-# …or set them manually (PRIVATE_KEY and the Elasticsearch DB_URL/DB_USERNAME/DB_PASSWORD
-#    are mandatory, unless config.json holds dbConfig; keep the 0x prefix):
+# …or set them manually (only PRIVATE_KEY is mandatory; keep the 0x prefix):
 # export PRIVATE_KEY="0x<64-hex-characters>"   # or generate one: node dist/helpers/scripts/generatePK.js
 # if you use a JSON config file instead, point CONFIG_PATH at its absolute path:
 # export CONFIG_PATH="/absolute/path/to/config.json"
 
-# 4. Start under PM2
+# 3. Start under PM2
 pm2 start npm --name "ocean-node" -- run start
 ```
 
@@ -123,13 +119,11 @@ own stdout copy in `~/.pm2/logs` with no size cap unless `pm2-logrotate` is inst
 - **Node.js**: use the version pinned in [`.nvmrc`](.nvmrc) (run `nvm use`). The effective
   supported runtime is **Node 24+** (`package.json` `engines`), and the `.nvmrc`/Dockerfile
   pin the exact tested version (currently 26.12.1).
-- **Docker + Docker Compose** (for the metadata database and C2D).
+- **Docker + Docker Compose** (for C2D, and for PostgreSQL or Elasticsearch if you select one
+  of them; the default database, SQLite, needs no container).
 
 ```bash
-# 1. Start the metadata database (Elasticsearch)
-docker-compose -f elasticsearch-compose.yml up -d
-
-# 2. Install and build
+# 1. Install and build
 nvm use
 npm install
 npm run build
@@ -150,12 +144,12 @@ prior `npm run build` is required.
 
 - **`PRIVATE_KEY`** (exactly 66 characters: `0x` + 64 hex) is the **only mandatory**
   variable. It seeds the node identity (libp2p peerId), the EVM signer and the encryption
-  keys; everything else has defaults, except the Elasticsearch connection (`DB_URL`,
-  `DB_USERNAME`, `DB_PASSWORD`), which the shipped `config.json` provides as `dbConfig`.
+  keys; everything else has defaults. The default database is SQLite, which needs no
+  setting.
   Generate a key with `node dist/helpers/scripts/generatePK.js`.
 - **Config sources**: a JSON config file plus environment-variable overrides. The file is
   resolved from `CONFIG_PATH`, else `./config.json` in the working directory, and must exist —
-  the repo ships a ready-to-run [`config.json`](config.json) (Elasticsearch DB, chain
+  the repo ships a ready-to-run [`config.json`](config.json) (chain
   `8996`/development, a single Docker C2D environment). Environment variables are merged on
   top of the file and take precedence.
   - ⚠️ **Blank env vars override the file.** Only *unset* variables fall through to
@@ -168,8 +162,8 @@ prior `npm run build` is required.
   omitted means both.
 - [`docs/env.md`](docs/env.md) is the authoritative reference. Key groups worth knowing:
   - `RPCS` — per-chain RPC endpoint map (JSON).
-  - `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` — metadata DB connection; presence drives
-    whether the indexer runs.
+  - `DB_TYPE` — the database: `sqlite` (default), `postgresql` or `elasticsearch`.
+    `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` — the connection, for the last two.
   - `ALLOWED_ADMINS`, `AUTHORIZED_DECRYPTERS`, `AUTHORIZED_PUBLISHERS`, `ALLOWED_VALIDATORS`
     (and their access-list variants) — admin / decrypter / validator allow-lists.
   - `MAX_REQ_PER_MINUTE`, `RATE_DENY_LIST` — rate limiting.
@@ -180,18 +174,30 @@ prior `npm run build` is required.
 
 ## Databases
 
-**Elasticsearch is required** and is the only database. It ships with a compose file
-([`elasticsearch-compose.yml`](elasticsearch-compose.yml)) and holds DDOs, indexer state, logs,
-orders, access lists and escrow events, and the node state indices `nonce`, `node_config`,
-`auth_tokens`, `buckets`, `node_metrics_samples`, `node_metrics_hourly`, `c2d_jobs`,
-`service_jobs`, `docker_images` and `service_locks`. Set `DB_URL`, `DB_USERNAME` and
-`DB_PASSWORD` (or `dbConfig` in `config.json`); without them the configuration fails
-validation and the node does not start. There is no DEGRADED mode: if Elasticsearch is
-unreachable when the node starts (connection fails after the init retries), the node logs
-`Database failed to initialize, exiting` and exits with code 1 — so make sure the configured
-Elasticsearch endpoint is actually up and reachable. A config value of the wrong type instead fails
-`OceanNodeConfigSchema` (zod) validation and stops startup before any DB is initialized. See
+The node keeps all its data in one database, selected with `DB_TYPE`:
+
+- **`sqlite`** (default): no database container and no setting. The files are in the
+  `databases/` folder. One folder is for one node instance.
+- **`postgresql`** or **`elasticsearch`**: for several node instances on one database. Set
+  `DB_URL`, `DB_USERNAME` and `DB_PASSWORD` (or `dbConfig` in `config.json`); without them the
+  configuration fails validation and the node does not start. The repo has a compose file for
+  each: [`postgresql-compose.yml`](postgresql-compose.yml) and
+  [`elasticsearch-compose.yml`](elasticsearch-compose.yml).
+
+With no `DB_TYPE`, a `DB_URL` selects the database server that the URL is for, as in the
+older releases; with no `DB_URL` either, the node uses SQLite. The node state does not move
+between databases: a node with a database server does not start while `databases/` holds the
+SQLite state files of an older release or of a SQLite node. See "Upgrade" in the
 [Database guide](docs/database.md).
+
+DDO search works on all three. Elasticsearch runs the full query syntax; SQLite and PostgreSQL
+run a documented part of it and answer HTTP 400 for the rest.
+
+There is no DEGRADED mode: if the database cannot be opened when the node starts (after the
+init retries), the node logs `Database failed to initialize, exiting` and exits with code 1.
+A config value of the wrong type instead fails `OceanNodeConfigSchema` (zod) validation and
+stops startup before any DB is initialized. See [Database guide](docs/database.md), also for
+the upgrade from a node with Typesense.
 
 ## Compute (C2D) & services
 

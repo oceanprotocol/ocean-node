@@ -1,5 +1,7 @@
 import { expect } from 'chai'
 import os from 'os'
+import fs from 'fs'
+import path from 'path'
 import { getAddress } from 'ethers'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { getConfiguration, loadConfigFromFile } from '../../utils/config.js'
@@ -10,7 +12,7 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
-import { ENVIRONMENT_VARIABLES, JobType } from '../../utils/constants.js'
+import { ENVIRONMENT_VARIABLES, EnvVariable, JobType } from '../../utils/constants.js'
 import {
   DEFAULT_DB_INIT_MAX_ATTEMPTS,
   DEFAULT_DB_INIT_MAX_RETRY_DELAY,
@@ -24,8 +26,13 @@ describe('Should validate configuration from JSON', () => {
   let envOverrides: OverrideEnvConfig[]
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
-      [ENVIRONMENT_VARIABLES.DB_URL],
-      ['http://127.0.0.1:9200']
+      [
+        ENVIRONMENT_VARIABLES.DB_TYPE,
+        ENVIRONMENT_VARIABLES.DB_URL,
+        ENVIRONMENT_VARIABLES.DB_USERNAME,
+        ENVIRONMENT_VARIABLES.DB_PASSWORD
+      ],
+      ['elasticsearch', 'http://127.0.0.1:9200', 'elastic', 'changeme']
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_PATH, envOverrides)
     config = await getConfiguration(true)
@@ -42,11 +49,9 @@ describe('Should validate configuration from JSON', () => {
 
   it('should have indexer', () => {
     expect(config.hasIndexer).to.be.equal(true)
-    expect(config.dbConfig).to.not.be.equal(null)
-    // it is exported in the env vars, so it should overwrite the config.json
+    // the database comes from the env vars: the config file has no database section
+    expect(config.dbConfig.dbType).to.be.equal('elasticsearch')
     expect(config.dbConfig.url).to.be.equal('http://127.0.0.1:9200')
-    const configFile = loadConfigFromFile(process.env.CONFIG_PATH)
-    expect(config.dbConfig.url).to.not.be.equal(configFile.dbConfig.url)
   })
 
   it('should have HTTP', () => {
@@ -69,24 +74,23 @@ describe('Should validate configuration from JSON', () => {
     expect(config.isBootstrap).to.be.equal(false)
     expect(config.validateUnsignedDDO).to.be.equal(true)
   })
-  after(() => {
+  after(async () => {
+    // the database type must not stay selected for the tests that come after
+    await tearDownEnvironment(envOverrides)
     delete process.env.CONFIG_PATH
     delete process.env.PRIVATE_KEY
   })
 })
 
 describe('Should validate database init retry configuration', () => {
-  const DB_ENV_VARS = [ENVIRONMENT_VARIABLES.DB_URL]
-  const DB_ENV_VALUES = ['http://localhost:9200']
-
   // returns the config built with the given DB_INIT_* values, or the thrown error
   async function configWith(values: {
     attempts?: string
     delay?: string
     maxDelay?: string
   }): Promise<{ config?: OceanNodeConfig; error?: Error }> {
-    const envVars = [...DB_ENV_VARS]
-    const envValues = [...DB_ENV_VALUES]
+    const envVars: EnvVariable[] = []
+    const envValues: string[] = []
     if (values.attempts !== undefined) {
       envVars.push(ENVIRONMENT_VARIABLES.DB_INIT_MAX_ATTEMPTS)
       envValues.push(values.attempts)
@@ -163,20 +167,47 @@ describe('Should validate database init retry configuration', () => {
   })
 })
 
-describe('Should require the Elasticsearch configuration', () => {
-  // returns the config built with the given DB_* values, or the thrown error
+describe('Should select the database from DB_TYPE', () => {
+  const ELASTIC_URL = 'http://localhost:9200'
+  const POSTGRES_URL = 'postgresql://localhost:5432/ocean'
+  const TEST_CONFIG_FILE = '$HOME/config.json'
+  let configPathWithDb: string
+
+  before(() => {
+    // the test config file has no database section; this copy selects Elasticsearch
+    const withDb = {
+      ...loadConfigFromFile(TEST_CONFIG_FILE),
+      dbConfig: {
+        dbType: 'elasticsearch',
+        url: ELASTIC_URL,
+        username: 'elastic',
+        password: 'changeme'
+      }
+    }
+    configPathWithDb = path.join(os.tmpdir(), `ocean-config-db-${process.pid}.json`)
+    fs.writeFileSync(configPathWithDb, JSON.stringify(withDb))
+  })
+
+  // returns the config built with the given variables, or the thrown error
   async function configWith(
-    url: string,
-    username: string,
-    password: string
+    vars: { type?: string; url?: string; username?: string; password?: string },
+    configPath?: string
   ): Promise<{ config?: OceanNodeConfig; error?: Error }> {
     const overrides = buildEnvOverrideConfig(
       [
+        ENVIRONMENT_VARIABLES.DB_TYPE,
         ENVIRONMENT_VARIABLES.DB_URL,
         ENVIRONMENT_VARIABLES.DB_USERNAME,
-        ENVIRONMENT_VARIABLES.DB_PASSWORD
+        ENVIRONMENT_VARIABLES.DB_PASSWORD,
+        ...(configPath ? [ENVIRONMENT_VARIABLES.CONFIG_PATH] : [])
       ],
-      [url, username, password]
+      [
+        vars.type,
+        vars.url,
+        vars.username,
+        vars.password,
+        ...(configPath ? [configPath] : [])
+      ]
     )
     try {
       await setupEnvironment(TEST_ENV_CONFIG_PATH, overrides)
@@ -188,43 +219,154 @@ describe('Should require the Elasticsearch configuration', () => {
     }
   }
 
-  it('should refuse to start when DB_URL is empty', async () => {
-    const { config: conf, error } = await configWith('', 'elastic', 'changeme')
+  it('should use SQLite when no database is configured', async () => {
+    const { config: conf, error } = await configWith({})
+    expect(error).to.be.equal(undefined)
+    expect(conf.dbConfig).to.deep.equal({ dbType: 'sqlite' })
+  })
+
+  it('should use SQLite when DB_TYPE is sqlite, and ignore DB_URL', async () => {
+    const { config: conf, error } = await configWith({ type: 'sqlite', url: ELASTIC_URL })
+    expect(error).to.be.equal(undefined)
+    expect(conf.dbConfig).to.deep.equal({ dbType: 'sqlite' })
+  })
+
+  it('should use SQLite for a node that was configured for Typesense', async () => {
+    const { config: conf, error } = await configWith({
+      type: 'typesense',
+      url: 'http://typesense:8108/?apiKey=xyz'
+    })
+    expect(error).to.be.equal(undefined)
+    expect(conf.dbConfig).to.deep.equal({ dbType: 'sqlite' })
+  })
+
+  it('should use SQLite for a Typesense DB_URL with no DB_TYPE', async () => {
+    const { config: conf, error } = await configWith({
+      url: 'http://typesense:8108/?apiKey=xyz'
+    })
+    expect(error).to.be.equal(undefined)
+    expect(conf.dbConfig).to.deep.equal({ dbType: 'sqlite' })
+  })
+
+  // the older releases had no DB_TYPE for a node on a database server
+  for (const [type, url] of [
+    ['elasticsearch', ELASTIC_URL],
+    ['postgresql', POSTGRES_URL]
+  ]) {
+    it(`should use ${type} for its DB_URL with no DB_TYPE`, async () => {
+      const { config: conf, error } = await configWith({
+        url,
+        username: 'ocean',
+        password: 'secret'
+      })
+      expect(error).to.be.equal(undefined)
+      expect(conf.dbConfig.dbType).to.be.equal(type)
+    })
+  }
+
+  it('should refuse a database section of the config file that is not an object', async () => {
+    const file = path.join(os.tmpdir(), `ocean-config-bad-db-${process.pid}.json`)
+    const config = { ...loadConfigFromFile(TEST_CONFIG_FILE), dbConfig: POSTGRES_URL }
+    fs.writeFileSync(file, JSON.stringify(config))
+    const { config: conf, error } = await configWith({}, file)
+    fs.rmSync(file, { force: true })
     expect(conf).to.be.equal(undefined)
     expect(error?.message).to.be.equal('Configuration validation failed')
+  })
+
+  it('should refuse an unknown DB_TYPE', async () => {
+    const { config: conf, error } = await configWith({ type: 'mongo' })
+    expect(conf).to.be.equal(undefined)
+    expect(error?.message).to.be.equal('Configuration validation failed')
+  })
+
+  for (const [type, url] of [
+    ['elasticsearch', ELASTIC_URL],
+    ['postgresql', POSTGRES_URL]
+  ]) {
+    it(`should build the ${type} configuration when all three values are set`, async () => {
+      const { config: conf, error } = await configWith({
+        type,
+        url,
+        username: 'ocean',
+        password: 'secret'
+      })
+      expect(error).to.be.equal(undefined)
+      expect(conf.dbConfig).to.deep.equal({
+        dbType: type,
+        url,
+        username: 'ocean',
+        password: 'secret'
+      })
+    })
+
+    it(`should refuse to start on ${type} when DB_URL is empty`, async () => {
+      const { config: conf, error } = await configWith({
+        type,
+        url: '',
+        username: 'ocean',
+        password: 'secret'
+      })
+      expect(conf).to.be.equal(undefined)
+      expect(error?.message).to.be.equal('Configuration validation failed')
+    })
+
+    it(`should refuse to start on ${type} when DB_PASSWORD is empty`, async () => {
+      const { config: conf, error } = await configWith({
+        type,
+        url,
+        username: 'ocean',
+        password: ''
+      })
+      expect(conf).to.be.equal(undefined)
+      expect(error?.message).to.be.equal('Configuration validation failed')
+    })
+  }
+
+  it('should keep the config file values for the DB_* variables that are empty', async () => {
+    // `DB_TYPE=${DB_TYPE}` in a compose file gives an empty value
+    const { config: conf, error } = await configWith(
+      { type: '', url: '', username: '', password: '' },
+      configPathWithDb
+    )
+    expect(error).to.be.equal(undefined)
+    expect(conf.dbConfig.dbType).to.be.equal('elasticsearch')
+    expect(conf.dbConfig.url).to.be.equal(ELASTIC_URL)
+  })
+
+  it('should refuse a DB_URL that is for another database', async () => {
+    for (const [type, url] of [
+      ['postgresql', ELASTIC_URL],
+      ['elasticsearch', POSTGRES_URL],
+      ['postgresql', 'localhost:5432']
+    ]) {
+      const { config: conf, error } = await configWith({
+        type,
+        url,
+        username: 'ocean',
+        password: 'secret'
+      })
+      expect(conf).to.be.equal(undefined)
+      expect(error?.message).to.be.equal('Configuration validation failed')
+    }
   })
 
   it('should keep the config file values for the DB_* variables that are not set', async () => {
-    const { config: conf, error } = await configWith(undefined, undefined, 'secret')
-    expect(error).to.be.equal(undefined)
-    expect(conf.dbConfig.url).to.be.equal('http://localhost:9200')
-    expect(conf.dbConfig.username).to.be.equal('elastic')
-    expect(conf.dbConfig.password).to.be.equal('secret')
-  })
-
-  it('should refuse to start when DB_PASSWORD is empty', async () => {
     const { config: conf, error } = await configWith(
-      'http://localhost:9200',
-      'elastic',
-      ''
-    )
-    expect(conf).to.be.equal(undefined)
-    expect(error?.message).to.be.equal('Configuration validation failed')
-  })
-
-  it('should build the database configuration when all three are set', async () => {
-    const { config: conf, error } = await configWith(
-      'http://127.0.0.1:9200',
-      'elastic',
-      'changeme'
+      { password: 'secret' },
+      configPathWithDb
     )
     expect(error).to.be.equal(undefined)
-    expect(conf.dbConfig.url).to.be.equal('http://127.0.0.1:9200')
-    expect(conf.dbConfig.username).to.be.equal('elastic')
-    expect(conf.dbConfig.password).to.be.equal('changeme')
+    expect(conf.dbConfig).to.deep.equal({
+      dbType: 'elasticsearch',
+      url: ELASTIC_URL,
+      username: 'elastic',
+      password: 'secret'
+    })
   })
 
   after(() => {
+    fs.rmSync(configPathWithDb, { force: true })
     delete process.env.CONFIG_PATH
     delete process.env.PRIVATE_KEY
   })
@@ -237,14 +379,13 @@ describe('Should validate P2P config from environment variables', () => {
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
       [
-        ENVIRONMENT_VARIABLES.DB_URL,
         ENVIRONMENT_VARIABLES.P2P_ipV4BindAddress,
         ENVIRONMENT_VARIABLES.P2P_ipV4BindTcpPort,
         ENVIRONMENT_VARIABLES.P2P_ipV6BindAddress,
         ENVIRONMENT_VARIABLES.P2P_MIN_CONNECTIONS,
         ENVIRONMENT_VARIABLES.P2P_MAX_CONNECTIONS
       ],
-      ['http://localhost:9200', '127.0.0.1', '9999', '::2', '5', '500']
+      ['127.0.0.1', '9999', '::2', '5', '500']
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_PATH, envOverrides)
     config = await getConfiguration(true)
@@ -289,9 +430,6 @@ describe('JobType enum', () => {
 })
 
 describe('Should validate SUBSIDY_PROVIDERS configuration', () => {
-  const DB_ENV_VARS = [ENVIRONMENT_VARIABLES.DB_URL]
-  const DB_ENV_VALUES = ['http://localhost:9200']
-
   // Mixed/lower-case inputs — the schema must normalize these to EIP-55 checksummed form.
   const ADDR_A_LOWER = '0x1c7d4b196cb0c7b01d743fbc6116a902379c7238'
   const ADDR_B_LOWER = '0x0000000000000000000000000000000000000abc'
@@ -301,8 +439,8 @@ describe('Should validate SUBSIDY_PROVIDERS configuration', () => {
   async function configWith(
     subsidyProviders?: string
   ): Promise<{ config?: OceanNodeConfig; error?: Error }> {
-    const envVars = [...DB_ENV_VARS]
-    const envValues = [...DB_ENV_VALUES]
+    const envVars: EnvVariable[] = []
+    const envValues: string[] = []
     if (subsidyProviders !== undefined) {
       envVars.push(ENVIRONMENT_VARIABLES.SUBSIDY_PROVIDERS)
       envValues.push(subsidyProviders)
@@ -398,9 +536,6 @@ describe('Should validate SUBSIDY_PROVIDERS configuration', () => {
 })
 
 describe('Should validate SUBSIDY_PROVIDER_ALLOWED_IMAGES configuration', () => {
-  const DB_ENV_VARS = [ENVIRONMENT_VARIABLES.DB_URL]
-  const DB_ENV_VALUES = ['http://localhost:9200']
-
   const ADDR_LOWER = '0x1c7d4b196cb0c7b01d743fbc6116a902379c7238'
   const IMAGE_TAG = 'oceanprotocol/algo:1.0'
   const IMAGE_DIGEST = 'oceanprotocol/algo@sha256:' + 'a'.repeat(64)
@@ -410,8 +545,8 @@ describe('Should validate SUBSIDY_PROVIDER_ALLOWED_IMAGES configuration', () => 
   async function configWith(
     allowedImages?: string
   ): Promise<{ config?: OceanNodeConfig; error?: Error }> {
-    const envVars = [...DB_ENV_VARS]
-    const envValues = [...DB_ENV_VALUES]
+    const envVars: EnvVariable[] = []
+    const envValues: string[] = []
     if (allowedImages !== undefined) {
       envVars.push(ENVIRONMENT_VARIABLES.SUBSIDY_PROVIDER_ALLOWED_IMAGES)
       envValues.push(allowedImages)
@@ -492,14 +627,11 @@ describe('Should validate SUBSIDY_PROVIDER_ALLOWED_IMAGES configuration', () => 
 })
 
 describe('Should validate SUBSIDY_PROVIDER_FILTER configuration', () => {
-  const DB_ENV_VARS = [ENVIRONMENT_VARIABLES.DB_URL]
-  const DB_ENV_VALUES = ['http://localhost:9200']
-
   async function configWith(
     filter?: string
   ): Promise<{ config?: OceanNodeConfig; error?: Error }> {
-    const envVars = [...DB_ENV_VARS]
-    const envValues = [...DB_ENV_VALUES]
+    const envVars: EnvVariable[] = []
+    const envValues: string[] = []
     if (filter !== undefined) {
       envVars.push(ENVIRONMENT_VARIABLES.SUBSIDY_PROVIDER_FILTER)
       envValues.push(filter)
@@ -548,8 +680,8 @@ describe('Should validate SUBSIDY_PROVIDER_FILTER configuration', () => {
 
 describe('Should resolve the instance id', () => {
   async function instanceIdWith(instanceId?: string): Promise<string> {
-    const envVars = [ENVIRONMENT_VARIABLES.DB_URL]
-    const envValues = ['http://localhost:9200']
+    const envVars: EnvVariable[] = []
+    const envValues: string[] = []
     if (instanceId !== undefined) {
       envVars.push(ENVIRONMENT_VARIABLES.INSTANCE_ID)
       envValues.push(instanceId)
@@ -598,11 +730,8 @@ describe('Should validate persistent storage bucket sharing configuration', () =
   })
 
   async function configWith(allowSharing?: string): Promise<OceanNodeConfig> {
-    const envVars = [
-      ENVIRONMENT_VARIABLES.DB_URL,
-      ENVIRONMENT_VARIABLES.PERSISTENT_STORAGE
-    ]
-    const envValues = ['http://localhost:9200', PERSISTENT_STORAGE_JSON]
+    const envVars = [ENVIRONMENT_VARIABLES.PERSISTENT_STORAGE]
+    const envValues = [PERSISTENT_STORAGE_JSON]
     if (allowSharing !== undefined) {
       envVars.push(ENVIRONMENT_VARIABLES.PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING)
       envValues.push(allowSharing)
@@ -644,17 +773,14 @@ describe('Should validate persistent storage bucket sharing configuration', () =
 // on the parsed value, otherwise an invalid compute config — e.g. a GPU missing its
 // mandatory `memoryTotal` (VRAM) — would slip through buildMergedConfig unvalidated.
 describe('Should validate DOCKER_COMPUTE_ENVIRONMENTS from the environment variable', () => {
-  const DB_ENV_VARS = [ENVIRONMENT_VARIABLES.DB_URL]
-  const DB_ENV_VALUES = ['http://localhost:9200']
-
   // Builds the config with DOCKER_COMPUTE_ENVIRONMENTS set to the given JSON string, and
   // returns the built config or the thrown error. Mirrors the retry-config helper above.
   async function configWithDockerEnv(
     dockerEnvJson: string
   ): Promise<{ config?: OceanNodeConfig; error?: Error }> {
     const overrides = buildEnvOverrideConfig(
-      [...DB_ENV_VARS, ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS],
-      [...DB_ENV_VALUES, dockerEnvJson]
+      [ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS],
+      [dockerEnvJson]
     )
     try {
       await setupEnvironment(TEST_ENV_CONFIG_PATH, overrides)

@@ -15,7 +15,7 @@ import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Fa
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
 import { Database } from '../../components/database/index.js'
-import { DatabaseFactory } from '../../components/database/DatabaseFactory.js'
+import { buildDdoStateQuery } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { getEventFromTx, streamToObject } from '../../utils/util.js'
@@ -278,10 +278,8 @@ describe('**********         Indexer stores a new metadata events and orders.', 
 
   it('should find the state of the ddo using query ddo state handler', async function () {
     const queryDdoStateHandler = new QueryDdoStateHandler(oceanNode)
-    const config = await getConfiguration(true)
-    const queryStrategy = await DatabaseFactory.createDdoStateQuery(config.dbConfig)
     const queryDdoState: QueryCommand = {
-      query: queryStrategy.buildQuery(resolvedDDO.id),
+      query: buildDdoStateQuery(resolvedDDO.id),
       command: PROTOCOL_COMMANDS.QUERY
     }
     const response = await queryDdoStateHandler.handle(queryDdoState)

@@ -385,9 +385,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.INDEXER_NETWORKS,
     required: false
   },
-  DB_URL: { name: 'DB_URL', value: process.env.DB_URL, required: true },
-  DB_USERNAME: { name: 'DB_USERNAME', value: process.env.DB_USERNAME, required: true },
-  DB_PASSWORD: { name: 'DB_PASSWORD', value: process.env.DB_PASSWORD, required: true },
+  // sqlite (default), postgresql or elasticsearch; the other three are for the last two
+  DB_TYPE: { name: 'DB_TYPE', value: process.env.DB_TYPE, required: false },
+  DB_URL: { name: 'DB_URL', value: process.env.DB_URL, required: false },
+  DB_USERNAME: { name: 'DB_USERNAME', value: process.env.DB_USERNAME, required: false },
+  DB_PASSWORD: { name: 'DB_PASSWORD', value: process.env.DB_PASSWORD, required: false },
   // these 2 bellow will change in the future (not required, just remove functionality)
   IPFS_GATEWAY: {
     name: 'IPFS_GATEWAY',
@@ -583,7 +585,7 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     required: false
   },
   LOG_DB: {
-    // log to the DB (Elasticsearch)? default false. falls back to files when the
+    // log to the DB? default false. falls back to files when the
     // log DB is not available
     name: 'LOG_DB',
     value: process.env.LOG_DB,

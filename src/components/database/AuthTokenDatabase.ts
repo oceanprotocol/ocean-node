@@ -1,8 +1,6 @@
-import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { AbstractDatabase } from './BaseDatabase.js'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { create256Hash } from '../../utils/crypt.js'
-import { ElasticsearchAuthToken } from './ElasticsearchAuthToken.js'
 
 export interface AuthToken {
   address: string
@@ -10,6 +8,13 @@ export interface AuthToken {
   validUntil: number | null
   isValid: boolean
   chainId?: string | null
+}
+
+// Unix ms from a number or a date text: a client can send the two, and an older release
+// stored what it got. NaN when the value is not a time.
+export function toUnixMs(value: number | string): number {
+  const ms = Number(value)
+  return Math.trunc(Number.isFinite(ms) ? ms : new Date(value).getTime())
 }
 
 // providers get the sha256 of the token (tokenId), never the token itself
@@ -27,17 +32,11 @@ export interface AuthTokenDatabaseProvider {
 }
 
 export class AuthTokenDatabase extends AbstractDatabase {
-  private provider: AuthTokenDatabaseProvider
-
-  private constructor(config: OceanNodeDBConfig, provider?: AuthTokenDatabaseProvider) {
+  constructor(
+    config: OceanNodeDBConfig,
+    private provider: AuthTokenDatabaseProvider
+  ) {
     super(config)
-    this.provider = provider
-  }
-
-  static async create(config: OceanNodeDBConfig): Promise<AuthTokenDatabase> {
-    DATABASE_LOGGER.debug('Creating AuthTokenDatabase with Elasticsearch')
-    const provider = await ElasticsearchAuthToken.create(config)
-    return new AuthTokenDatabase(config, provider)
   }
 
   async createToken(
@@ -47,11 +46,16 @@ export class AuthTokenDatabase extends AbstractDatabase {
     createdAt: number,
     chainId?: string | null
   ): Promise<string> {
+    const until =
+      validUntil === null || validUntil === undefined ? null : toUnixMs(validUntil)
+    if (Number.isNaN(until)) {
+      throw new Error('validUntil must be a time in Unix milliseconds or a date')
+    }
     await this.provider.createToken(
       create256Hash(token),
       address,
       createdAt,
-      validUntil,
+      until,
       chainId
     )
     return token

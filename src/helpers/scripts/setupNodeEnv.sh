@@ -42,8 +42,24 @@ set_env_value() {
 #configure database
 configure_database() {
     echo "------------------------ Configure Database ----------------------------------"
-    read -p "Database URL? [ http://localhost:9200 ]: " DB_URL
-    DB_URL=${DB_URL:-http://localhost:9200}
+    read -p "Database type? sqlite, postgresql or elasticsearch [ sqlite ]: " DB_TYPE
+    DB_TYPE=${DB_TYPE:-sqlite}
+    if [ "$DB_TYPE" == "sqlite" ]; then
+        #the default: the node keeps its files in ./databases and needs no connection values
+        echo "SQLite needs no more settings."
+        echo "------------------------------------------------------------------------------"
+        return
+    fi
+    if [ "$DB_TYPE" == "postgresql" ]; then
+        DEFAULT_DB_URL=postgresql://localhost:5432/ocean
+        DEFAULT_DB_USERNAME=ocean
+    else
+        DEFAULT_DB_URL=http://localhost:9200
+        DEFAULT_DB_USERNAME=elastic
+    fi
+    set_env_value DB_TYPE "$DB_TYPE"
+    read -p "Database URL? [ $DEFAULT_DB_URL ]: " DB_URL
+    DB_URL=${DB_URL:-$DEFAULT_DB_URL}
     REPLACE_STR="DB_URL=$DB_URL"
     if [ "$(uname)" == "Darwin" ]; then
         sed -i '' -e 's;DB_URL=;'$REPLACE_STR';' "$env_file_path"
@@ -51,9 +67,9 @@ configure_database() {
         sed -i -e 's;DB_URL=;'$REPLACE_STR';' "$env_file_path"
     fi
     echo "DB_URL final configuration: $REPLACE_STR"
-    #the node does not start without the database credentials
-    IFS= read -r -p "Database username? [ elastic ]: " DB_USERNAME
-    DB_USERNAME=${DB_USERNAME:-elastic}
+    #the node does not start on a database server without its credentials
+    IFS= read -r -p "Database username? [ $DEFAULT_DB_USERNAME ]: " DB_USERNAME
+    DB_USERNAME=${DB_USERNAME:-$DEFAULT_DB_USERNAME}
     set_env_value DB_USERNAME "$DB_USERNAME"
     IFS= read -r -p "Database password? [ changeme ]: " DB_PASSWORD
     DB_PASSWORD=${DB_PASSWORD:-changeme}

@@ -1,9 +1,37 @@
-import { Schema } from '.'
 import { OceanNodeDBConfig } from '../../@types'
 import { AccessListUser } from '../../@types/AccessList.js'
 import { EscrowEvent } from '../../@types/Escrow.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
-import { ElasticsearchSchema } from './ElasticSchemas.js'
+
+// a DDO version that the DDO store keeps apart; `index` is its name in a query
+export interface DdoSchema {
+  index: string
+}
+
+// The query of the node is the Elasticsearch query: `query`, `sort`, `from`, `size`.
+// A query that the node cannot run: the caller gets the message (HTTP 400).
+export class QueryError extends Error {}
+
+// A backend that cannot run a clause of a query throws this; it never ignores the clause.
+export class UnsupportedQueryError extends QueryError {
+  constructor(clause: string, dbType: string) {
+    super(`Query clause '${clause}' is not supported on the ${dbType} database`)
+  }
+}
+
+const DEFAULT_PAGE_SIZE = 100
+
+// `from` of a node query is a page number that starts at 1, not a document offset
+export function queryPage(query: Record<string, any>): { size: number; offset: number } {
+  for (const key of ['size', 'from']) {
+    const value = query[key]
+    if (value !== undefined && !(Number.isInteger(value) && value >= 0)) {
+      throw new QueryError(`'${key}' of a query must be a whole number, 0 or more`)
+    }
+  }
+  const size = query.size || DEFAULT_PAGE_SIZE
+  return { size, offset: (query.from || 1) * size - size }
+}
 
 export abstract class AbstractDatabase {
   protected config: OceanNodeDBConfig
@@ -102,20 +130,9 @@ export abstract class AbstractDdoStateDatabase extends AbstractDatabase {
   abstract delete(did: string): Promise<any>
 }
 
-export abstract class AbstractOrderDatabase {
-  protected config: OceanNodeDBConfig
-  protected schema: Schema
-
-  constructor(config: OceanNodeDBConfig, schema: Schema) {
-    this.config = config
-    this.schema = schema
-  }
-
-  abstract search(
-    query: Record<string, any>,
-    maxResultsPerPage?: number,
-    pageNumber?: number
-  ): Promise<Record<string, any>[] | null>
+export abstract class AbstractOrderDatabase extends AbstractDatabase {
+  // takes a node query, as the DDO store does; null on a database error
+  abstract search(query: Record<string, any>): Promise<Record<string, any>[] | null>
 
   abstract create(
     orderId: string,
@@ -144,15 +161,7 @@ export abstract class AbstractOrderDatabase {
   abstract delete(orderId: string): Promise<any>
 }
 
-export abstract class AbstractEscrowDatabase {
-  protected config: OceanNodeDBConfig
-  protected schema: Schema
-
-  constructor(config: OceanNodeDBConfig, schema: Schema) {
-    this.config = config
-    this.schema = schema
-  }
-
+export abstract class AbstractEscrowDatabase extends AbstractDatabase {
   abstract create(event: EscrowEvent): Promise<any>
 
   abstract retrieve(id: string): Promise<Record<string, any> | null>
@@ -166,20 +175,8 @@ export abstract class AbstractEscrowDatabase {
   abstract delete(id: string): Promise<any>
 }
 
-export abstract class AbstractDdoDatabase {
-  protected config: OceanNodeDBConfig
-  protected schemas: Schema[]
-
-  constructor(config: OceanNodeDBConfig, schemas: Schema[]) {
-    this.config = config
-    this.schemas = schemas
-  }
-
-  abstract getSchemas(): Schema[]
-
-  public isElasticsearchSchema(schema: Schema): schema is ElasticsearchSchema {
-    return (schema as ElasticsearchSchema).index !== undefined
-  }
+export abstract class AbstractDdoDatabase extends AbstractDatabase {
+  abstract getSchemas(): DdoSchema[]
 
   abstract search(
     query: Record<string, any>,

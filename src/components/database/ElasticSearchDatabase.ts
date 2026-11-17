@@ -7,11 +7,12 @@ import {
   AbstractIndexerDatabase,
   AbstractLogDatabase,
   AbstractNonceDatabase,
-  AbstractOrderDatabase
+  AbstractOrderDatabase,
+  queryPage
 } from './BaseDatabase.js'
 import { AccessListUser } from '../../@types/AccessList.js'
 import { EscrowEvent } from '../../@types/Escrow.js'
-import { buildElasticQuery } from './escrowSearch.js'
+import { buildElasticQuery, escrowPage } from './escrowSearch.js'
 import {
   createElasticsearchClientWithRetry,
   ensureIndex,
@@ -25,7 +26,7 @@ import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { safeStringify } from '../../utils/logging/redact.js'
 
 import { validateDDO } from '../../utils/asset.js'
-import { DDOManager } from '@oceanprotocol/ddo-js'
+import { ddoSchemaName } from './ddoSchemas.js'
 
 const LOG_INSERT_FAILED_KEY = 'es-log-insert-failed'
 let logInsertFailing = false
@@ -391,8 +392,11 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
 export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
   private provider: Client
 
-  constructor(config: OceanNodeDBConfig, schema: ElasticsearchSchema) {
-    super(config, schema)
+  constructor(
+    config: OceanNodeDBConfig,
+    private schema: ElasticsearchSchema
+  ) {
+    super(config)
 
     return (async (): Promise<ElasticsearchOrderDatabase> => {
       this.provider = await createElasticsearchClientWithRetry(config)
@@ -401,34 +405,23 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
   }
 
   getSchema(): ElasticsearchSchema {
-    return this.schema as ElasticsearchSchema
+    return this.schema
   }
 
-  async search(
-    query: Record<string, any>,
-    maxResultsPerPage?: number,
-    pageNumber?: number
-  ) {
+  async search(query: Record<string, any>) {
     try {
-      const { q, ...queryObj } = query
-
-      const searchParams = {
+      const { size, offset } = queryPage(query)
+      const result = await this.provider.search({
         index: this.getSchema().index,
-        body: {
-          query: {
-            match: q ? { _all: q } : queryObj
-          },
-          from: (pageNumber - 1) * maxResultsPerPage || 0,
-          size: maxResultsPerPage || 10
-        }
-      }
-      const result = await this.provider.search(searchParams)
+        body: { ...query, from: offset, size }
+      })
       return result.hits.hits.map((hit: any) => {
         return normalizeDocumentId(hit._source, hit._id)
       })
     } catch (error) {
-      const errorMsg = `Error when searching order entries: ` + error.message
-      DATABASE_LOGGER.error(errorMsg)
+      DATABASE_LOGGER.error(
+        `Error when searching orders (query ${safeStringify(query, { maxLength: 200 })}): ${error.message}`
+      )
       return null
     }
   }
@@ -491,8 +484,8 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
     timestamp: number,
     consumer: string,
     payer: string,
-    datatokenAddress?: string,
-    startOrderId?: string
+    startOrderId?: string,
+    datatokenAddress?: string
   ) {
     try {
       const document = {
@@ -539,8 +532,11 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
 export class ElasticsearchEscrowDatabase extends AbstractEscrowDatabase {
   private provider: Client
 
-  constructor(config: OceanNodeDBConfig, schema: ElasticsearchSchema) {
-    super(config, schema)
+  constructor(
+    config: OceanNodeDBConfig,
+    private schema: ElasticsearchSchema
+  ) {
+    super(config)
 
     return (async (): Promise<ElasticsearchEscrowDatabase> => {
       this.provider = await createElasticsearchClientWithRetry(config)
@@ -550,7 +546,7 @@ export class ElasticsearchEscrowDatabase extends AbstractEscrowDatabase {
   }
 
   getSchema(): ElasticsearchSchema {
-    return this.schema as ElasticsearchSchema
+    return this.schema
   }
 
   private async initializeIndex() {
@@ -599,9 +595,7 @@ export class ElasticsearchEscrowDatabase extends AbstractEscrowDatabase {
 
   async search(filters: Record<string, any>, offset?: number, size?: number) {
     try {
-      // clamp the page size so a single request can't return an unbounded set
-      const limit = Math.min(size && size > 0 ? size : 100, 250)
-      const from = offset && offset > 0 ? offset : 0
+      const { from, limit } = escrowPage(offset, size)
 
       // Values may be equality scalars or RangeFilter objects (range on numeric fields).
       const query = buildElasticQuery(filters)
@@ -636,21 +630,14 @@ export class ElasticsearchEscrowDatabase extends AbstractEscrowDatabase {
   }
 }
 
-// Terms lookup, more_like_this, percolate and indexed_shape can read a document from
-// another index. All of them name that index with an `index` or `_index` key.
-function namesAnotherIndex(value: unknown): boolean {
-  if (Array.isArray(value)) return value.some(namesAnotherIndex)
-  if (value === null || typeof value !== 'object') return false
-  return Object.entries(value).some(
-    ([key, child]) => key === 'index' || key === '_index' || namesAnotherIndex(child)
-  )
-}
-
 export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
   private client: Client
 
-  constructor(config: OceanNodeDBConfig, schemas: ElasticsearchSchema[]) {
-    super(config, schemas)
+  constructor(
+    config: OceanNodeDBConfig,
+    private schemas: ElasticsearchSchema[]
+  ) {
+    super(config)
 
     return (async (): Promise<ElasticsearchDdoDatabase> => {
       this.client = await createElasticsearchClientWithRetry(config)
@@ -676,19 +663,11 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
   }
 
   getSchemas(): ElasticsearchSchema[] {
-    return this.schemas as ElasticsearchSchema[]
+    return this.schemas
   }
 
   getDDOSchema(ddo: Record<string, any>) {
-    let schemaName: string | undefined
-    const ddoInstance = DDOManager.getDDOClass(ddo)
-    const ddoData = ddoInstance.getDDOData()
-
-    if ('indexedMetadata' in ddoData && ddoData?.indexedMetadata?.nft.state !== 0) {
-      schemaName = 'op_ddo_short'
-    } else if (ddo.version) {
-      schemaName = `op_ddo_v${ddo.version}`
-    }
+    const schemaName = ddoSchemaName(ddo)
     const schema = this.getSchemas().find((s) => s.index === schemaName)
     DATABASE_LOGGER.debug(`Returning schema: ${schemaName}`)
     return schema
@@ -718,64 +697,29 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     }
   }
 
-  async search(query: Record<string, any>): Promise<any> {
+  // `index` selects the DDOs of one schema. All other values search all DDOs: the search
+  // never reads an index that is not a DDO index.
+  async search({ index, ...query }: Record<string, any>): Promise<any> {
     const results = []
-    const maxPerPage = query.size || 100
-    const from = (query.from || 1) * maxPerPage - maxPerPage
-
-    const { index, ...queryWithoutIndex } = query
-    if (namesAnotherIndex(queryWithoutIndex)) {
-      throw new Error('A query that names another index is not queryable')
-    }
-
-    if (index) {
-      if (!this.getSchemas().some((schema) => schema.index === index)) {
-        throw new Error(`Index '${index}' is not queryable`)
-      }
+    const { size, offset } = queryPage(query)
+    const named = this.getSchemas().filter((schema) => schema.index === index)
+    for (const schema of named.length > 0 ? named : this.getSchemas()) {
       try {
         const response = await this.client.search({
-          index,
-          body: {
-            ...queryWithoutIndex,
-            from,
-            size: maxPerPage
-          }
+          index: schema.index,
+          body: { ...query, from: offset, size }
         })
         if (response.hits?.hits.length > 0) {
-          const nomalizedResponse = response.hits.hits.map((hit: any) => {
-            return normalizeDocumentId(hit._source, hit._id)
-          })
-          results.push(nomalizedResponse)
+          results.push(
+            response.hits.hits.map((hit: any) =>
+              normalizeDocumentId(hit._source, hit._id)
+            )
+          )
         }
       } catch (error) {
-        const schemaErrorMsg = `Error for schema ${query.index}: ${error.message}`
-        DATABASE_LOGGER.error(schemaErrorMsg)
-      }
-    } else {
-      for (const schema of this.getSchemas()) {
-        try {
-          const response = await this.client.search({
-            index: schema.index,
-            body: {
-              ...queryWithoutIndex,
-              from,
-              size: maxPerPage
-            }
-          })
-          if (response.hits?.hits.length > 0) {
-            const nomalizedResponse = response.hits.hits.map((hit: any) => {
-              return normalizeDocumentId(hit._source, hit._id)
-            })
-            results.push(nomalizedResponse)
-          }
-        } catch (error) {
-          const schemaErrorMsg = `Error for schema ${schema.index}: ${error.message}`
-          DATABASE_LOGGER.error(schemaErrorMsg)
-          continue
-        }
+        DATABASE_LOGGER.error(`Error for schema ${schema.index}: ${error.message}`)
       }
     }
-
     return results
   }
 

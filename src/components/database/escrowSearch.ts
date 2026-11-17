@@ -149,6 +149,20 @@ export function passesClientRanges(
   return true
 }
 
+const DEFAULT_PAGE_SIZE = 100
+const MAX_PAGE_SIZE = 250
+
+// the page of an escrow search; the size has a limit so that one request cannot read all
+export function escrowPage(
+  offset?: number,
+  size?: number
+): { from: number; limit: number } {
+  return {
+    from: offset && offset > 0 ? offset : 0,
+    limit: Math.min(size && size > 0 ? size : DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE)
+  }
+}
+
 // Build an Elasticsearch query body from the same filters map: `term` for equality,
 // `range` for RangeFilter objects.
 export function buildElasticQuery(filters: Record<string, any>): Record<string, any> {

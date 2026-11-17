@@ -1,3 +1,4 @@
+import { describeOnElasticsearch } from '../utils/utils.js'
 import { expect } from 'chai'
 import { Readable } from 'stream'
 import {
@@ -70,7 +71,7 @@ function spyOnGetHourly(store: ElasticsearchNodeMetrics): SpyingNodeMetricsDatab
   return spy
 }
 
-describe('nodeMetrics handlers', () => {
+describeOnElasticsearch('nodeMetrics handlers', () => {
   let node: OceanNode
   let instanceId: string
   let store: ElasticsearchNodeMetrics

@@ -1,6 +1,7 @@
 import { assert, expect } from 'chai'
 import { Client } from '@elastic/elasticsearch'
 import { C2DDatabase } from '../../../components/database/C2DDatabase.js'
+import { Database } from '../../../components/database/index.js'
 import { createElasticsearchClientWithRetry } from '../../../components/database/ElasticsearchConfigHelper.js'
 import { stateSchemas } from '../../../components/database/ElasticSchemas.js'
 import { getConfiguration } from '../../../utils/config.js'
@@ -16,7 +17,8 @@ import {
   OverrideEnvConfig,
   setupEnvironment,
   tearDownEnvironment,
-  TEST_ENV_CONFIG_FILE
+  TEST_ENV_CONFIG_FILE,
+  describeOnElasticsearch
 } from '../../utils/utils.js'
 import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
@@ -79,7 +81,7 @@ function baseJob(overrides: Partial<DBComputeJob>): DBComputeJob {
   } as unknown as DBComputeJob
 }
 
-describe('getJobs filters', () => {
+describeOnElasticsearch('getJobs filters', () => {
   let envOverrides: OverrideEnvConfig[]
   let config: OceanNodeConfig
   let db: C2DDatabase = null
@@ -94,7 +96,7 @@ describe('getJobs filters', () => {
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
-    db = await new C2DDatabase(config.dbConfig)
+    db = (await Database.init(config.dbConfig)).c2d
     client = await createElasticsearchClientWithRetry(config.dbConfig)
   })
 

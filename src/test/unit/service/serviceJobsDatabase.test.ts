@@ -2,6 +2,7 @@ import { assert, expect } from 'chai'
 import { Readable } from 'stream'
 import { Client } from '@elastic/elasticsearch'
 import { C2DDatabase } from '../../../components/database/C2DDatabase.js'
+import { Database } from '../../../components/database/index.js'
 import { createElasticsearchClientWithRetry } from '../../../components/database/ElasticsearchConfigHelper.js'
 import { stateSchemas } from '../../../components/database/ElasticSchemas.js'
 import { getConfiguration } from '../../../utils/config.js'
@@ -10,7 +11,8 @@ import {
   OverrideEnvConfig,
   setupEnvironment,
   tearDownEnvironment,
-  TEST_ENV_CONFIG_FILE
+  TEST_ENV_CONFIG_FILE,
+  describeOnElasticsearch
 } from '../../utils/utils.js'
 import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
@@ -122,7 +124,7 @@ function makeServiceJob(overrides: Partial<ServiceJob> = {}): ServiceJob {
   }
 }
 
-describe('Service Jobs Database', () => {
+describeOnElasticsearch('Service Jobs Database', () => {
   let envOverrides: OverrideEnvConfig[]
   let config: OceanNodeConfig
   let db: C2DDatabase = null
@@ -137,7 +139,7 @@ describe('Service Jobs Database', () => {
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
-    db = await new C2DDatabase(config.dbConfig)
+    db = (await Database.init(config.dbConfig)).c2d
     client = await createElasticsearchClientWithRetry(config.dbConfig)
   })
 

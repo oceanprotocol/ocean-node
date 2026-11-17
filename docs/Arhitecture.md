@@ -176,8 +176,8 @@ flowchart LR
     ON --> P2P["OceanP2P<br/>libp2p node"]
 
     subgraph DBLAYER["Database"]
-        META["Metadata indices<br/>Elasticsearch"]
-        STATE["Node state indices<br/>Elasticsearch<br/>nonce · config · C2D jobs · auth tokens"]
+        META["Index data<br/>SQLite · PostgreSQL · Elasticsearch"]
+        STATE["Node state<br/>the same database<br/>nonce · config · C2D jobs · auth tokens"]
     end
     ON --> DBLAYER
     IDX --> META
@@ -209,11 +209,17 @@ Deliberately thin — the real behavior lives in the core handlers and REST rout
 - connects to the C2D engines for compute services.
 
 ### 3.3 Database
-**Elasticsearch** is the only database and is required (`DB_URL`, `DB_USERNAME`,
-`DB_PASSWORD`). It holds DDOs, indexer state, logs, orders, ddoState, access lists and escrow
-events, and the node state indices `nonce`, `node_config`, `auth_tokens`, `buckets`,
-`node_metrics_samples`, `node_metrics_hourly`, `c2d_jobs`, `service_jobs`, `docker_images`
-and `service_locks`. There is no mode that runs without it.
+The node keeps all its data in one database, selected with `DB_TYPE`: **SQLite** (the
+default, files in `databases/`, one node instance), **PostgreSQL** or **Elasticsearch** (a
+server, for several node instances; `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`). The database
+holds the index data (DDOs, indexer state, logs, orders, ddoState, access lists, escrow
+events) and the node state (nonces, node config, auth tokens, buckets, node metrics, compute
+jobs, service jobs, image records, service locks). There is no mode that runs without it.
+
+The code outside `src/components/database` does not know which database is in use: it gets
+the 13 stores of `DatabaseStores`, and `DatabaseFactory` is the only place that selects the
+backend. SQLite and PostgreSQL share one set of stores (`database/sql/`) through the
+`SqlClient` interface. See [database.md](database.md).
 
 ### 3.4 Supporting components
 - **Auth** — JWT-based auth-token issuance/validation (`JWT_SECRET`) as an alternative to

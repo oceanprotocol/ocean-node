@@ -1,15 +1,10 @@
-import EventEmitter from 'node:events'
 import { Client, estypes } from '@elastic/elasticsearch'
 import { OceanNodeDBConfig } from '../../@types'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { ElasticsearchSchema } from './ElasticSchemas.js'
+import { DB_CONNECTION_EVENTS, DB_EVENTS } from './connectionEvents.js'
 
-export const DB_EVENTS = {
-  CONNECTION_LOST: 'db:connection:lost',
-  CONNECTION_RESTORED: 'db:connection:restored'
-} as const
-export const ES_CONNECTION_EVENTS = new EventEmitter()
 const ES_CONNECT_FAILED_KEY = 'es-connect-failed'
 
 export interface ElasticsearchRetryConfig {
@@ -138,7 +133,7 @@ class ElasticsearchClientSingleton {
           DATABASE_LOGGER.warn(
             `Elasticsearch connection lost to ${this.maskUrl(config.url)} - starting reconnection attempts every ${finalConfig.healthCheckInterval}ms`
           )
-          ES_CONNECTION_EVENTS.emit(DB_EVENTS.CONNECTION_LOST)
+          DB_CONNECTION_EVENTS.emit(DB_EVENTS.CONNECTION_LOST)
         }
 
         // Single reconnection attempt
@@ -153,7 +148,7 @@ class ElasticsearchClientSingleton {
           DATABASE_LOGGER.info(
             `Elasticsearch connection restored to ${this.maskUrl(config.url)}`
           )
-          ES_CONNECTION_EVENTS.emit(DB_EVENTS.CONNECTION_RESTORED)
+          DB_CONNECTION_EVENTS.emit(DB_EVENTS.CONNECTION_RESTORED)
         } catch {
           this.isRetrying = false
         }

@@ -8,8 +8,6 @@ import {
 import {
   ServiceStatusNumber,
   SERVICE_START_PENDING_STATUSES,
-  SERVICE_STOPPED_STATUSES,
-  isStoppedLike,
   type ServiceJob,
   type ServiceModelDownload,
   type ServiceReadiness
@@ -18,6 +16,14 @@ import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { create256Hash } from '../../utils/crypt.js'
 import type { ComputeDatabaseProvider, ServiceJobExpected } from './C2DDatabase.js'
+import {
+  ACTIVE_SERVICE_STATUSES,
+  EXPIRABLE_SERVICE_STATUSES,
+  agreementIdVariants,
+  holdsReservation,
+  jobToBody,
+  matchesExpected
+} from './computeJobs.js'
 import {
   createElasticsearchClientWithRetry,
   ensureIndex,
@@ -79,73 +85,6 @@ type ServiceJobDoc = {
   body: ServiceJob
 }
 
-// Every status before Expired is "active": the consumer paid for the resources for a TIME
-// WINDOW, so the reservation holds from the moment the record is created (Starting) through
-// the whole start pipeline, while Running/Restarting/Stopping, through Error (container died
-// on its own) AND through an explicit Stopped — a stopped service can be restarted anytime on
-// the same resources until expiresAt. Only expiry releases the reservation.
-const ACTIVE_SERVICE_STATUSES = [
-  ServiceStatusNumber.Starting,
-  ServiceStatusNumber.Locking,
-  ServiceStatusNumber.PullImage,
-  ServiceStatusNumber.BuildImage,
-  ServiceStatusNumber.Claiming,
-  ServiceStatusNumber.Running,
-  ServiceStatusNumber.Restarting,
-  ServiceStatusNumber.Stopping,
-  ...SERVICE_STOPPED_STATUSES,
-  ServiceStatusNumber.Error
-]
-
-// Running, Error and Stopped all still hold their paid reservation, so all must be swept once
-// past expiresAt: the sweep is the ONLY place the reservation is released. Stopping is swept
-// too: a process crash mid-stop persists that status and nothing else recovers it.
-const EXPIRABLE_SERVICE_STATUSES = [
-  ServiceStatusNumber.Running,
-  ServiceStatusNumber.Error,
-  ...SERVICE_STOPPED_STATUSES,
-  ServiceStatusNumber.Stopping
-]
-
-// The node-internal job fields that live in the unindexed body.
-export function jobToBody(job: DBComputeJob): any {
-  return {
-    clusterHash: job.clusterHash,
-    configlogURL: job.configlogURL,
-    publishlogURL: job.publishlogURL,
-    algologURL: job.algologURL,
-    outputsURL: job.outputsURL,
-    stopRequested: job.stopRequested,
-    algorithm: job.algorithm,
-    assets: job.assets,
-    isRunning: job.isRunning,
-    isStarted: job.isStarted,
-    containerImage: job.containerImage,
-    resources: job.resources,
-    isFree: job.isFree,
-    algoStartTimestamp: job.algoStartTimestamp,
-    algoStopTimestamp: job.algoStopTimestamp,
-    metadata: job.metadata,
-    additionalViewers: job.additionalViewers,
-    terminationDetails: job.terminationDetails,
-    payment: job.payment,
-    algoDuration: job.algoDuration,
-    queueMaxWaitTime: job.queueMaxWaitTime,
-    output: job.output,
-    outputBucketId: job.outputBucketId,
-    jobIdHash: job.jobIdHash,
-    buildStartTimestamp: job.buildStartTimestamp,
-    buildStopTimestamp: job.buildStopTimestamp,
-    // Runtime metrics snapshot. It MUST round-trip through the body: it is what the owner
-    // reads back on COMPUTE_GET_STATUS, and it is also the previous-sample accumulator every
-    // next sample needs — without it persisted, every sample is a "first sample", so CPU %
-    // can never be computed (no delta) and the memory peak never accumulates. Still
-    // node-internal on the way out: omitDBComputeFieldsFromComputeJob strips it unless the
-    // verified owner asked for it, so it stays out of the escrow claim proof.
-    runtimeMetrics: job.runtimeMetrics
-  }
-}
-
 // dates are stored as numbers so they compare and sort numerically, and read back as the
 // decimal-seconds strings the callers use
 function secondsToNumber(seconds: string | null | undefined): number | null {
@@ -186,13 +125,6 @@ function serviceJobToDoc(job: ServiceJob): ServiceJobDoc {
 
 function isStatus(error: any, statusCode: number): boolean {
   return error?.meta?.statusCode === statusCode
-}
-
-// agreementIds are stored as given; match both the 0x-prefixed and the bare form
-function agreementIdVariants(agreementId: string): string[] {
-  return agreementId.startsWith('0x')
-    ? [agreementId, agreementId.slice(2)]
-    : [agreementId, '0x' + agreementId]
 }
 
 function jobFilter(
@@ -543,14 +475,7 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
       const current = await getOrNull<ServiceJobDoc>(client, SERVICE_INDEX, serviceId)
       if (!current) return false
       const { body } = current.source
-      if (
-        body.owner !== expected.owner ||
-        body.clusterHash !== expected.clusterHash ||
-        body.status !== expected.status ||
-        body.containerId !== expected.containerId
-      ) {
-        return false
-      }
+      if (!matchesExpected(body, expected)) return false
       patch(body)
       await client.index({
         index: SERVICE_INDEX,
@@ -579,15 +504,8 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
       [{ terms: { status: ACTIVE_SERVICE_STATUSES } }, ...clusterFilter(clusterHash)],
       true
     )
-    // The reservation is tied to PAYMENT: an Error/Stopped job whose payment was never
-    // claimed (escrow lock failed or refunded) must not hold resources, or anyone could
-    // squat a node's GPU for free. Mid-pipeline statuses keep reserving even without
-    // claimTx — they are en route to payment. Filtered here: payment lives in the body.
-    return jobs.filter(
-      (j) =>
-        (j.status !== ServiceStatusNumber.Error && !isStoppedLike(j.status)) ||
-        !!j.payment?.claimTx
-    )
+    // filtered here: the payment lives in the body
+    return jobs.filter(holdsReservation)
   }
 
   async getExpiredServiceJobs(clusterHash?: string): Promise<ServiceJob[]> {

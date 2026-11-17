@@ -7,6 +7,7 @@ import {
   getOrNull
 } from '../../../components/database/ElasticsearchConfigHelper.js'
 import { getConfiguration } from '../../../utils/config.js'
+import { describeOnElasticsearch } from '../../utils/utils.js'
 
 describe('Database.init', () => {
   afterEach(() => {
@@ -15,22 +16,26 @@ describe('Database.init', () => {
 
   it('returns null when a store fails to initialize', async () => {
     const config = await getConfiguration()
-    sinon
-      .stub(DatabaseFactory, 'createNonceDatabase')
-      .rejects(new Error('nonce store down'))
+    sinon.stub(DatabaseFactory, 'createStores').rejects(new Error('nonce store down'))
     expect(await Database.init(config.dbConfig)).to.be.equal(null)
   })
 
-  it('returns null when the node metrics store fails to initialize', async () => {
-    const config = await getConfiguration()
-    sinon
-      .stub(DatabaseFactory, 'createNodeMetricsDatabase')
-      .rejects(new Error('metrics store down'))
-    expect(await Database.init(config.dbConfig)).to.be.equal(null)
+  it('returns null for a database type that has no stores', async () => {
+    sinon.stub(DatabaseFactory, 'createStores').throws(new Error('no such database'))
+    expect(await Database.init({ dbType: 'sqlite' })).to.be.equal(null)
+  })
+
+  it('exposes the stores that the factory builds', async () => {
+    const stores: any = { nonce: {}, c2d: {} }
+    sinon.stub(DatabaseFactory, 'createStores').resolves(stores)
+    const database = await Database.init({ dbType: 'sqlite' })
+    expect(database.nonce).to.be.equal(stores.nonce)
+    expect(database.c2d).to.be.equal(stores.c2d)
+    expect(database.getConfig()).to.deep.equal({ dbType: 'sqlite' })
   })
 })
 
-describe('getOrNull', () => {
+describeOnElasticsearch('getOrNull', () => {
   it('rejects when the index does not exist', async () => {
     const config = await getConfiguration()
     const client = await createElasticsearchClientWithRetry(config.dbConfig)

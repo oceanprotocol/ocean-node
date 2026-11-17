@@ -7,7 +7,7 @@ import { FindDdoHandler, ValidateDDOHandler } from '../core/handler/ddoHandler.j
 import { QueryDdoStateHandler, QueryHandler } from '../core/handler/queryHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { QueryCommand } from '../../@types/commands.js'
-import { DatabaseFactory } from '../database/DatabaseFactory.js'
+import { buildDdoStateQuery, buildMetadataQuery } from '../database/index.js'
 import { SearchQuery } from '../../@types/DDO/SearchQuery.js'
 
 export const aquariusRoutes = express.Router()
@@ -70,12 +70,8 @@ aquariusRoutes.post(
         return
       }
 
-      const config = req.oceanNode.getConfig()
-      const queryStrategy = await DatabaseFactory.createMetadataQuery(config.dbConfig)
-      const transformedQuery = queryStrategy.buildQuery(searchQuery)
-
       const result = await new QueryHandler(req.oceanNode).handle({
-        query: transformedQuery,
+        query: buildMetadataQuery(searchQuery),
         command: PROTOCOL_COMMANDS.QUERY,
         caller: req.caller
       })
@@ -94,15 +90,12 @@ aquariusRoutes.post(
 
 aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
   try {
-    const config = req.oceanNode.getConfig()
-    const queryStrategy = await DatabaseFactory.createDdoStateQuery(config.dbConfig)
-
     const did = req.query.did ? String(req.query.did) : undefined
     const nft = req.query.nft ? String(req.query.nft) : undefined
     const txId = req.query.txId ? String(req.query.txId) : undefined
 
     const queryDdoState: QueryCommand = {
-      query: queryStrategy.buildQuery(did, nft, txId),
+      query: buildDdoStateQuery(did, nft, txId),
       command: PROTOCOL_COMMANDS.QUERY,
       caller: req.caller
     }

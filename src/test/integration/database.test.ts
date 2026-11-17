@@ -1,7 +1,11 @@
+import { describeOnElasticsearch } from '../utils/utils.js'
 import { SearchQuery } from '../../@types/DDO/SearchQuery.js'
 import { AbstractOrderDatabase } from '../../components/database/BaseDatabase.js'
-import { DatabaseFactory } from '../../components/database/DatabaseFactory.js'
-import { Database } from '../../components/database/index.js'
+import {
+  Database,
+  buildDdoStateQuery,
+  buildMetadataQuery
+} from '../../components/database/index.js'
 import { expect, assert } from 'chai'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { isDefined } from '../../utils/util.js'
@@ -10,12 +14,13 @@ import { createElasticsearchClientWithRetry } from '../../components/database/El
 import { elasticSchemas } from '../../components/database/ElasticSchemas.js'
 
 const elasticConfig: OceanNodeDBConfig = {
+  dbType: 'elasticsearch',
   url: 'http://localhost:9200',
   username: process.env.DB_USERNAME,
   password: process.env.DB_PASSWORD
 }
 
-describe('**********         Database', () => {
+describeOnElasticsearch('**********         Database', () => {
   let database: Database
 
   before(async () => {
@@ -27,7 +32,7 @@ describe('**********         Database', () => {
   })
 })
 
-describe('**********         DdoDatabase CRUD', () => {
+describeOnElasticsearch('**********         DdoDatabase CRUD', () => {
   let database: Database
   const ddoWithInvalidDid = {
     hashType: 'sha256',
@@ -63,7 +68,6 @@ describe('**********         DdoDatabase CRUD', () => {
     assert(Array.isArray(ddoSchemas))
     assert(ddoSchemas.length > 1)
     for (const ddoSchema of ddoSchemas) {
-      assert(database.ddo.isElasticsearchSchema(ddoSchema))
       assert(ddoSchema.index)
     }
   })
@@ -74,7 +78,7 @@ describe('**********         DdoDatabase CRUD', () => {
   })
 })
 
-describe('**********         NonceDatabase CRUD', () => {
+describeOnElasticsearch('**********         NonceDatabase CRUD', () => {
   let database: Database
 
   before(async () => {
@@ -148,7 +152,7 @@ describe('**********         NonceDatabase CRUD', () => {
   })
 })
 
-describe('**********         IndexerDatabase CRUD', () => {
+describeOnElasticsearch('**********         IndexerDatabase CRUD', () => {
   let database: Database
   let existsPrevious: any = {}
 
@@ -192,7 +196,7 @@ describe('**********         IndexerDatabase CRUD', () => {
   })
 })
 
-describe('**********         OrderDatabase CRUD', () => {
+describeOnElasticsearch('**********         OrderDatabase CRUD', () => {
   let database: Database
 
   before(async () => {
@@ -252,11 +256,11 @@ describe('**********         OrderDatabase CRUD', () => {
   })
 })
 
-describe('**********         Elasticsearch OrderDatabase CRUD', () => {
+describeOnElasticsearch('**********         Elasticsearch OrderDatabase CRUD', () => {
   let database: AbstractOrderDatabase
 
   before(async () => {
-    database = await DatabaseFactory.createOrderDatabase(elasticConfig)
+    database = (await Database.init(elasticConfig)).order
   })
 
   it('creates an order in Elasticsearch', async () => {
@@ -300,34 +304,25 @@ describe('**********         Elasticsearch OrderDatabase CRUD', () => {
   })
 })
 
-describe('**********         DdoStateQuery', () => {
-  it('should build Elasticsearch query for did', async () => {
-    const query = (await DatabaseFactory.createDdoStateQuery(elasticConfig)).buildQuery(
-      'did:op:abc123'
-    )
+describeOnElasticsearch('**********         DdoStateQuery', () => {
+  it('should build Elasticsearch query for did', () => {
+    const query = buildDdoStateQuery('did:op:abc123')
     expect(query.term.did).to.equal('did:op:abc123')
   })
 
-  it('should build Elasticsearch query for nft', async () => {
-    const query = (await DatabaseFactory.createDdoStateQuery(elasticConfig)).buildQuery(
-      undefined,
-      'nft:op:abc123'
-    )
+  it('should build Elasticsearch query for nft', () => {
+    const query = buildDdoStateQuery(undefined, 'nft:op:abc123')
     expect(query.term.nft).to.equal('nft:op:abc123')
   })
 
-  it('should build Elasticsearch query for txId', async () => {
-    const query = (await DatabaseFactory.createDdoStateQuery(elasticConfig)).buildQuery(
-      undefined,
-      undefined,
-      'txId123'
-    )
+  it('should build Elasticsearch query for txId', () => {
+    const query = buildDdoStateQuery(undefined, undefined, 'txId123')
     expect(query.term.txId).to.equal('txId123')
   })
 })
 
-describe('**********         MetadataQuery', () => {
-  it('should convert a filter_by query to an Elasticsearch query', async () => {
+describeOnElasticsearch('**********         MetadataQuery', () => {
+  it('should convert a filter_by query to an Elasticsearch query', () => {
     const filterByQuery = {
       q: '*',
       filter_by:
@@ -337,9 +332,7 @@ describe('**********         MetadataQuery', () => {
       sort_by: 'name:asc'
     }
 
-    const query = (await DatabaseFactory.createMetadataQuery(elasticConfig)).buildQuery(
-      filterByQuery
-    )
+    const query = buildMetadataQuery(filterByQuery)
     expect(query.size).to.equal(10)
     expect(query.from).to.equal(0)
     expect(query.query.bool.filter[0].term.author).to.equal('Ocean')
@@ -351,7 +344,7 @@ describe('**********         MetadataQuery', () => {
     expect(query.sort[0].name.order).to.equal('asc')
   })
 
-  it('should return an Elasticsearch query when DB is Elasticsearch and an Elasticsearch query is passed', async () => {
+  it('should return an Elasticsearch query when DB is Elasticsearch and an Elasticsearch query is passed', () => {
     const searchQuery: SearchQuery = {
       query: {
         bool: {
@@ -367,9 +360,7 @@ describe('**********         MetadataQuery', () => {
       sort: { name: 'asc' }
     }
 
-    const query = (await DatabaseFactory.createMetadataQuery(elasticConfig)).buildQuery(
-      searchQuery
-    )
+    const query = buildMetadataQuery(searchQuery)
 
     expect(query.size).to.equal(10)
     expect(query.from).to.equal(0)

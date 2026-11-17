@@ -8,7 +8,7 @@ Refer to Logs section in the [environmental variables documentation](env.md#logs
 | --- | --- | --- | --- |
 | Console (stdout) | on | `LOG_LEVEL` (`info` in production, `debug` otherwise) | `LOG_CONSOLE` (`false` turns it off) |
 | Files on disk (`logs/`) | on when `LOG_DB` is off | `LOG_FILES_LEVEL` (default `info`), 30 days retention | `LOG_FILES`, `LOG_FILES_*` |
-| Log database | off | `LOG_LEVEL` | `LOG_DB` (needs `DB_URL`), `LOG_RETENTION_TIME` |
+| Log database | off | `LOG_LEVEL` | `LOG_DB`, `LOG_RETENTION_TIME` |
 
 - The console stays on whatever `LOG_FILES` and `LOG_DB` are set to. Use `LOG_CONSOLE=false` to turn it off.
 - If `LOG_DB=true` but the database cannot be initialized, the node writes the failure to files on disk (to the console when `LOG_FILES=false`) and then exits.

@@ -34,11 +34,11 @@ import { BlockchainRegistry } from '../BlockchainRegistry/index.js'
 import { CommandStatus, JobStatus } from '../../@types/commands.js'
 import { buildJobIdentifier, getDeployedContractBlock } from './utils.js'
 import { create256Hash } from '../../utils/crypt.js'
-import { isReachableConnection } from '../../utils/database.js'
+import { DatabaseFactory } from '../database/DatabaseFactory.js'
 import { sleep } from '../../utils/util.js'
 import { isReindexingNeeded } from './version.js'
 import { getPackageVersion } from '../../utils/version.js'
-import { DB_EVENTS, ES_CONNECTION_EVENTS } from '../database/ElasticsearchConfigHelper.js'
+import { DB_CONNECTION_EVENTS, DB_EVENTS } from '../database/connectionEvents.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { clearEventProcessorCache } from './processor.js'
 import { OceanNode } from '../../OceanNode.js'
@@ -125,13 +125,13 @@ export class OceanIndexer {
   }
 
   /**
-   * Listen for Elasticsearch connection events.
+   * Listen for database connection events.
    *
    * CONNECTION_LOST  → cancel any pending restart, stop all indexers once.
    * CONNECTION_RESTORED → debounce restart by 5 s so rapid LOST/RESTORED cycles are a single restart.
    */
   private setupDbConnectionListeners(): void {
-    ES_CONNECTION_EVENTS.on(DB_EVENTS.CONNECTION_LOST, async () => {
+    DB_CONNECTION_EVENTS.on(DB_EVENTS.CONNECTION_LOST, async () => {
       if (this.reconnectTimer) {
         clearTimeout(this.reconnectTimer)
         this.reconnectTimer = null
@@ -148,7 +148,7 @@ export class OceanIndexer {
       await this.stopAllChainIndexers()
     })
 
-    ES_CONNECTION_EVENTS.on(DB_EVENTS.CONNECTION_RESTORED, () => {
+    DB_CONNECTION_EVENTS.on(DB_EVENTS.CONNECTION_RESTORED, () => {
       if (this.isDbConnected) {
         return
       }
@@ -241,7 +241,7 @@ export class OceanIndexer {
       const retryInterval = Math.max(blockchain.getKnownRPCs().length * 3000, interval) // give 2 secs per each one
       const result = await this.startCrawler(blockchain)
       const dbActive = this.getDatabase()
-      if (!dbActive || !(await isReachableConnection(dbActive.getConfig().url))) {
+      if (!dbActive || !(await DatabaseFactory.isReachable(dbActive.getConfig()))) {
         INDEXER_LOGGER.error(`Giving up start crawling. DB is not online!`)
         return false
       }
@@ -552,7 +552,7 @@ export class OceanIndexer {
   public async checkAndTriggerReindexing(): Promise<void> {
     const currentVersion = getPackageVersion()
     const dbActive = this.getDatabase()
-    if (!dbActive || !(await isReachableConnection(dbActive.getConfig().url))) {
+    if (!dbActive || !(await DatabaseFactory.isReachable(dbActive.getConfig()))) {
       INDEXER_LOGGER.error(`Giving up reindexing. DB is not online!`)
       return
     }

@@ -1,4 +1,5 @@
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
+import { SearchQuery } from '../../@types/DDO/SearchQuery.js'
 import {
   configureCustomDBTransport,
   getLoggingConfig,
@@ -18,16 +19,44 @@ import {
   AbstractOrderDatabase
 } from './BaseDatabase.js'
 import { C2DDatabase } from './C2DDatabase.js'
-import { DatabaseFactory } from './DatabaseFactory.js'
-import { ElasticsearchSchema } from './ElasticSchemas.js'
+import { DatabaseFactory, DatabaseStores } from './DatabaseFactory.js'
 import { ConfigDatabase } from './ConfigDatabase.js'
 import { AuthTokenDatabase } from './AuthTokenDatabase.js'
 import { NodeMetricsProvider } from './NodeMetricsDatabase.js'
 import { BucketRegistry } from './BucketRegistry.js'
+import { ElasticSearchMetadataQuery } from './ElasticSearchMetadataQuery.js'
+import { ElasticSearchDdoStateQuery } from './ElasticSearchDdoStateQuery.js'
 
-export type Schema = ElasticsearchSchema
+export type { DdoSchema } from './BaseDatabase.js'
 
-export class Database {
+// The Elasticsearch query format is the query format of the node on all backends:
+// these two build a query in that format from the parameters of the HTTP routes.
+export function buildMetadataQuery(query: SearchQuery): Record<string, any> {
+  return new ElasticSearchMetadataQuery().buildQuery(query)
+}
+
+export function buildDdoStateQuery(
+  did?: string,
+  nft?: string,
+  txId?: string
+): Record<string, any> {
+  return new ElasticSearchDdoStateQuery().buildQuery(did, nft, txId)
+}
+
+function logWhereLogsGo(): void {
+  if (USE_DB_TRANSPORT()) {
+    return
+  }
+  if (isFileLoggingActive()) {
+    DATABASE_LOGGER.info(
+      `LOG_DB disabled; logs are written to disk (${getLoggingConfig().dir})`
+    )
+  } else {
+    DATABASE_LOGGER.warn('LOG_DB and file logging are disabled: logs are not persisted')
+  }
+}
+
+export class Database implements DatabaseStores {
   ddo: AbstractDdoDatabase
   nonce: AbstractNonceDatabase
   indexer: AbstractIndexerDatabase
@@ -42,77 +71,30 @@ export class Database {
   buckets: BucketRegistry
   nodeMetrics: NodeMetricsProvider
 
-  constructor(private dbConfig: OceanNodeDBConfig) {}
-
-  // builds one store; a failure is logged and rethrown so init() gives up
-  private static async build<T>(name: string, create: () => Promise<T>): Promise<T> {
-    try {
-      return await create()
-    } catch (error) {
-      DATABASE_LOGGER.error(
-        `${name} database initialization failed (will retry): ${errorSummary(error)}`
-      )
-      throw error
-    }
+  private constructor(
+    private dbConfig: OceanNodeDBConfig,
+    stores: DatabaseStores
+  ) {
+    Object.assign(this, stores)
   }
 
-  // returns null when any store fails, so the caller retries while the DB comes up
+  // returns null when a store fails, so the caller retries while the database comes up
   static async init(config: OceanNodeDBConfig): Promise<Database | null> {
-    if (!USE_DB_TRANSPORT()) {
-      if (isFileLoggingActive()) {
-        DATABASE_LOGGER.info(
-          `LOG_DB disabled; logs are written to disk (${getLoggingConfig().dir})`
-        )
-      } else {
-        DATABASE_LOGGER.warn(
-          'LOG_DB and file logging are disabled: logs are not persisted'
-        )
-      }
-    }
-    const db = new Database(config)
-    const factory = DatabaseFactory
+    logWhereLogsGo()
     try {
-      db.nonce = await Database.build('Nonce', () => factory.createNonceDatabase(config))
-      db.config = await Database.build('Config', () =>
-        factory.createConfigDatabase(config)
-      )
-      db.c2d = await Database.build('C2D', () => factory.createC2DDatabase(config))
-      db.authToken = await Database.build('Auth', () =>
-        factory.createAuthTokenDatabase(config)
-      )
-      db.buckets = await Database.build('Buckets', () =>
-        factory.createBucketRegistry(config)
-      )
-      db.nodeMetrics = await Database.build('Node metrics', () =>
-        factory.createNodeMetricsDatabase(config)
-      )
-      db.ddo = await Database.build('DDO', () => factory.createDdoDatabase(config))
-      db.indexer = await Database.build('Indexer', () =>
-        factory.createIndexerDatabase(config)
-      )
-      db.logs = await Database.build('Logs', () => factory.createLogDatabase(config))
-      // attach the DB log transport only once the log database exists; a later call (retry)
-      // rebinds it to the new instance
+      const db = new Database(config, await DatabaseFactory.createStores(config))
+      // a later call (retry) binds the log transport to the new log store
       if (USE_DB_TRANSPORT()) {
         configureCustomDBTransport(db, DATABASE_LOGGER)
       }
-      db.order = await Database.build('Order', () => factory.createOrderDatabase(config))
-      db.ddoState = await Database.build('DDO State', () =>
-        factory.createDdoStateDatabase(config)
+      DATABASE_LOGGER.info(`Database ready: ${config.dbType}`)
+      return db
+    } catch (error) {
+      DATABASE_LOGGER.error(
+        `Database initialization failed (will retry): ${errorSummary(error)}`
       )
-      db.accessList = await Database.build('AccessList', () =>
-        factory.createAccessListDatabase(config)
-      )
-      db.escrow = await Database.build('Escrow', () =>
-        factory.createEscrowDatabase(config)
-      )
-    } catch {
       return null
     }
-    DATABASE_LOGGER.info(
-      'Database ready: Elasticsearch (nonce, config, c2d, auth, buckets, metrics, ddo, indexer, logs, order, ddoState, accessList, escrow)'
-    )
-    return db
   }
 
   // useful to know which configuration was passed to DB
