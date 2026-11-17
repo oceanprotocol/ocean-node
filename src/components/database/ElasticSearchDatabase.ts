@@ -400,6 +400,8 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
 
     return (async (): Promise<ElasticsearchOrderDatabase> => {
       this.provider = await createElasticsearchClientWithRetry(config)
+      // without it, the first order would create the index with dynamic mappings
+      await ensureIndex(config, schema)
       return this
     })() as unknown as ElasticsearchOrderDatabase
   }
@@ -641,25 +643,12 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
 
     return (async (): Promise<ElasticsearchDdoDatabase> => {
       this.client = await createElasticsearchClientWithRetry(config)
-      await this.initializeIndexes()
+      // a failure stops the startup, which tries again
+      for (const schema of this.getSchemas()) {
+        await ensureIndex(config, schema)
+      }
       return this
     })() as unknown as ElasticsearchDdoDatabase
-  }
-
-  private async initializeIndexes() {
-    for (const schema of this.getSchemas()) {
-      try {
-        const exists = await this.client.indices.exists({ index: schema.index })
-        if (!exists) {
-          await this.client.indices.create({
-            index: schema.index,
-            body: schema.body as any
-          })
-        }
-      } catch (e) {
-        DATABASE_LOGGER.error(`Failed to create DDO index ${schema.index}: ${e.message}`)
-      }
-    }
   }
 
   getSchemas(): ElasticsearchSchema[] {

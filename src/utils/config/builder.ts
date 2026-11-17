@@ -35,8 +35,10 @@ let previousConfiguration: OceanNodeConfig = null
 const DEFAULT_DB_TYPE: DatabaseType = 'sqlite'
 // With no DB_TYPE, a DB_URL selects its database server, as in the older releases: a node
 // keeps its database after an update. With no DB_URL, the node uses the default database.
+// A DB_URL of no known server gives no type, so the validation fails: the node must not
+// start on empty SQLite state because of a wrong URL.
 function resolveDbType({ dbType, url }: Record<string, unknown>): unknown {
-  return dbType || databaseTypeOfUrl(url) || DEFAULT_DB_TYPE
+  return dbType || (url ? databaseTypeOfUrl(url) : DEFAULT_DB_TYPE)
 }
 
 // SQLite keeps its files in the node folder, so connection values have no effect on it

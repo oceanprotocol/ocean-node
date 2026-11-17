@@ -257,6 +257,12 @@ describe('Should select the database from DB_TYPE', () => {
     expect(error?.message).to.be.equal('Configuration validation failed')
   })
 
+  it('should refuse a DB_URL of no known server when DB_TYPE is not set', async () => {
+    const { config: conf, error } = await configWith({ url: 'localhost:9200' })
+    expect(conf).to.be.equal(undefined)
+    expect(error?.message).to.be.equal('Configuration validation failed')
+  })
+
   it('should refuse an unknown DB_TYPE', async () => {
     const { config: conf, error } = await configWith({ type: 'mongo' })
     expect(conf).to.be.equal(undefined)

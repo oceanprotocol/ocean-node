@@ -17,6 +17,19 @@ const ORDER_INDEX = 'order'
 // the last document that a public query can reach, as on Elasticsearch
 const MAX_RESULT_WINDOW = 10000
 
+// An Elasticsearch lookup reads a document of another index: a `terms` lookup,
+// `more_like_this` with `_index`, `indexed_shape`, `percolate`. The node state is in
+// indices of the same cluster, so a public query cannot name an index and a document.
+function refuseLookups(value: unknown): void {
+  if (value === null || typeof value !== 'object') return
+  const keys = Object.keys(value)
+  const namesIndex = keys.includes('index') || keys.includes('_index')
+  if (namesIndex && (keys.includes('id') || keys.includes('_id'))) {
+    throw new QueryError('A query cannot read a document of another index')
+  }
+  Object.values(value).forEach(refuseLookups)
+}
+
 // The `index` field of a query selects the store: the orders, or the DDOs of one schema.
 // All other values search all DDOs, so a query cannot read another store. The answer is
 // one array of documents for each group that has hits.
@@ -28,6 +41,7 @@ async function searchStore(
   if (offset + size > MAX_RESULT_WINDOW) {
     throw new QueryError(`A query reads the first ${MAX_RESULT_WINDOW} documents at most`)
   }
+  refuseLookups(query)
   if (index === ORDER_INDEX) {
     const orders = await database.order.search(query)
     return orders?.length > 0 ? [orders] : []

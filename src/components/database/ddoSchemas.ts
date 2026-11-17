@@ -12,7 +12,7 @@ export const DDO_SCHEMA_NAMES: string[] = [
 // the group of a DDO; undefined for a DDO with no version
 export function ddoSchemaName(ddo: Record<string, any>): string | undefined {
   const ddoData = DDOManager.getDDOClass(ddo).getDDOData()
-  if ('indexedMetadata' in ddoData && ddoData?.indexedMetadata?.nft.state !== 0) {
+  if ('indexedMetadata' in ddoData && ddoData?.indexedMetadata?.nft?.state !== 0) {
     return DDO_SHORT_SCHEMA
   }
   return ddo.version ? `op_ddo_v${ddo.version}` : undefined

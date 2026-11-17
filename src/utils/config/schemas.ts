@@ -266,7 +266,7 @@ export const FeeStrategySchema = z.object({
 
 export const OceanNodeDBConfigSchema = z.object({
   dbType: z.enum(DATABASE_TYPES, {
-    error: `DB_TYPE must be one of: ${DATABASE_TYPES.join(', ')}`
+    error: `DB_TYPE must be one of: ${DATABASE_TYPES.join(', ')}, or DB_URL the URL of a database server`
   }),
   url: z.string().optional(),
   username: z.string().optional(),

@@ -85,6 +85,26 @@ describe('Query handler', () => {
     })
   }
 
+  it('answers 400 for a lookup into another index: the node state is not readable', async () => {
+    const lookup = { index: 'c2d_jobs', id: 'job1', path: 'owner' }
+    const queries = [
+      { query: { terms: { 'nft.owner': lookup } } },
+      { index: 'order', query: { bool: { filter: [{ terms: { consumer: lookup } }] } } },
+      { query: { more_like_this: { like: [{ _index: 'nonce', _id: '0xabc' }] } } }
+    ]
+    for (const query of queries) {
+      const { status } = await run(query)
+      expect(status.httpStatus).to.equal(400)
+    }
+    expect(ddoSearch.called).to.equal(false)
+    expect(orderSearch.called).to.equal(false)
+  })
+
+  it('accepts a query on a field named index', async () => {
+    const { status } = await run({ query: { term: { index: 'a' } } })
+    expect(status.httpStatus).to.equal(200)
+  })
+
   it('answers 400 for a query clause that the database cannot run', async () => {
     ddoSearch.rejects(new UnsupportedQueryError('wildcard', 'sqlite'))
     const { status } = await run({ query: { wildcard: { id: 'did*' } } })

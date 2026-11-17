@@ -149,7 +149,9 @@ export class ElasticsearchNodeMetrics implements NodeMetricsProvider {
       index: SAMPLES_INDEX,
       query: hourRangeQuery(instanceId, hourStart),
       // one hour holds 60 samples, one per minute
-      size: SEARCH_PAGE_SIZE
+      size: SEARCH_PAGE_SIZE,
+      // the rollup deletes the samples of the hour: it must see all of them
+      allow_partial_search_results: false
     })
     return result.hits.hits.map((hit) => hit._source)
   }

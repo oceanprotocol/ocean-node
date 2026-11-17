@@ -585,6 +585,8 @@ describe('SQL documents: a query that is not valid', () => {
     // a client escapes the text of a user: an operator after a backslash is text
     const escaped = { query_string: { query: 'did\\:op\\:a OR \\-a OR a' } }
     expect(await search(escaped)).to.have.length(1)
+    // the escaped text is one word: 'do' alone would match 'do not read'
+    expect(await search({ query_string: { query: 'do\\:other' } })).to.have.length(0)
   })
 
   it('refuses a sort that it cannot do', async () => {

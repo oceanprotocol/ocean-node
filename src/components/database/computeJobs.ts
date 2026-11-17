@@ -60,6 +60,8 @@ export function jobToBody(job: DBComputeJob): any {
     payment: job.payment,
     algoDuration: job.algoDuration,
     queueMaxWaitTime: job.queueMaxWaitTime,
+    // a queued job pulls its image later, with the registry auth of the user
+    encryptedDockerRegistryAuth: job.encryptedDockerRegistryAuth,
     output: job.output,
     outputBucketId: job.outputBucketId,
     jobIdHash: job.jobIdHash,

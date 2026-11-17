@@ -46,6 +46,8 @@ export class DatabaseFactory {
         return createPostgresStores(config)
       case 'elasticsearch':
         return createElasticsearchStores(config)
+      default:
+        throw new Error(`Unknown database type: ${config.dbType}`)
     }
   }
 

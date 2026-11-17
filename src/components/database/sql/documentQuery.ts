@@ -220,8 +220,11 @@ function queryString(body: unknown, t: Translation): SqlPart {
   if (QUERY_STRING_OPERATORS.test(query.replace(/\\./g, ''))) {
     throw new UnsupportedQueryError('query_string operator', t.dbType)
   }
+  // An escaped character is text: `did\:op\:1` is the word `did:op:1`. Wildcards, quotes
+  // and parentheses separate words, escaped or not, as the Elasticsearch analyzer drops them.
   const tokens = query
-    .replace(/[\\*"()]/g, ' ')
+    .replace(/\\(.)/g, '$1')
+    .replace(/[*"()]/g, ' ')
     .split(/\s+/)
     .filter(Boolean)
   const words = tokens.filter((token) => token !== 'AND' && token !== 'OR')

@@ -5,6 +5,7 @@ import { DB_CONNECTION_EVENTS, DB_EVENTS } from '../connectionEvents.js'
 import { SqlClient, toSqlValue } from './SqlClient.js'
 
 const HEALTH_CHECK_INTERVAL_MS = 15_000
+const HEALTH_CHECK_TIMEOUT_MS = 5_000
 const CONNECT_TIMEOUT_MS = 10_000
 // the name of the lock that a node holds while it changes the schema
 const SCHEMA_LOCK = 'ocean-node:schema'
@@ -135,7 +136,9 @@ export class PostgresClient implements SqlClient {
   // tells the node when the database goes away and comes back, so that the indexer stops
   // and starts again
   private async checkHealth(): Promise<void> {
-    const alive = await this.pool.query('SELECT 1').then(
+    // the timeout ends a check on a lost connection before the next check starts
+    const probe = { text: 'SELECT 1', query_timeout: HEALTH_CHECK_TIMEOUT_MS }
+    const alive = await this.pool.query(probe).then(
       () => true,
       () => false
     )

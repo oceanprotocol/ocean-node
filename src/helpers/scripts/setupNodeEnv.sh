@@ -60,13 +60,9 @@ configure_database() {
     set_env_value DB_TYPE "$DB_TYPE"
     read -p "Database URL? [ $DEFAULT_DB_URL ]: " DB_URL
     DB_URL=${DB_URL:-$DEFAULT_DB_URL}
-    REPLACE_STR="DB_URL=$DB_URL"
-    if [ "$(uname)" == "Darwin" ]; then
-        sed -i '' -e 's;DB_URL=;'$REPLACE_STR';' "$env_file_path"
-    else
-        sed -i -e 's;DB_URL=;'$REPLACE_STR';' "$env_file_path"
-    fi
-    echo "DB_URL final configuration: $REPLACE_STR"
+    #not sed: a '&' or ';' in the URL (query parameters) would change the replacement
+    set_env_value DB_URL "$DB_URL"
+    echo "DB_URL final configuration: DB_URL=$DB_URL"
     #the node does not start on a database server without its credentials
     IFS= read -r -p "Database username? [ $DEFAULT_DB_USERNAME ]: " DB_USERNAME
     DB_USERNAME=${DB_USERNAME:-$DEFAULT_DB_USERNAME}
