@@ -133,34 +133,13 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
 
   constructor(config: OceanNodeDBConfig) {
     super(config)
-    this.index = 'indexer'
+    this.index = elasticSchemas.indexerSchemas.index
 
     return (async (): Promise<ElasticsearchIndexerDatabase> => {
       this.client = await createElasticsearchClientWithRetry(config)
-      await this.initializeIndex()
+      await ensureIndex(config, elasticSchemas.indexerSchemas)
       return this
     })() as unknown as ElasticsearchIndexerDatabase
-  }
-
-  private async initializeIndex() {
-    try {
-      const indexExists = await this.client.indices.exists({ index: this.index })
-      if (!indexExists) {
-        await this.client.indices.create({
-          index: this.index,
-          body: {
-            mappings: {
-              properties: {
-                id: { type: 'keyword' },
-                lastIndexedBlock: { type: 'long' }
-              }
-            }
-          }
-        })
-      }
-    } catch (e) {
-      DATABASE_LOGGER.error(`Failed to create ES index '${this.index}': ${e.message}`)
-    }
   }
 
   async create(network: number, lastIndexedBlock: number) {
@@ -244,39 +223,13 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
 
   constructor(config: OceanNodeDBConfig) {
     super(config)
-    this.index = 'ddo_state'
+    this.index = elasticSchemas.ddoStateSchema.index
 
     return (async (): Promise<ElasticsearchDdoStateDatabase> => {
       this.client = await createElasticsearchClientWithRetry(config)
-      await this.initializeIndex()
+      await ensureIndex(config, elasticSchemas.ddoStateSchema)
       return this
     })() as unknown as ElasticsearchDdoStateDatabase
-  }
-
-  private async initializeIndex() {
-    try {
-      const indexExists = await this.client.indices.exists({ index: this.index })
-      if (!indexExists) {
-        await this.client.indices.create({
-          index: this.index,
-          body: {
-            mappings: {
-              properties: {
-                id: { type: 'keyword' },
-                chainId: { type: 'integer' },
-                did: { type: 'keyword' },
-                nft: { type: 'keyword' },
-                txId: { type: 'keyword' },
-                valid: { type: 'boolean' },
-                error: { type: 'text' }
-              }
-            }
-          }
-        })
-      }
-    } catch (e) {
-      DATABASE_LOGGER.error(`Failed to create ES index '${this.index}': ${e.message}`)
-    }
   }
 
   async create(
@@ -542,28 +495,13 @@ export class ElasticsearchEscrowDatabase extends AbstractEscrowDatabase {
 
     return (async (): Promise<ElasticsearchEscrowDatabase> => {
       this.provider = await createElasticsearchClientWithRetry(config)
-      await this.initializeIndex()
+      await ensureIndex(config, schema)
       return this
     })() as unknown as ElasticsearchEscrowDatabase
   }
 
   getSchema(): ElasticsearchSchema {
     return this.schema
-  }
-
-  private async initializeIndex() {
-    try {
-      const { index } = this.getSchema()
-      const exists = await this.provider.indices.exists({ index })
-      if (!exists) {
-        await this.provider.indices.create({
-          index,
-          body: this.getSchema().body as any
-        })
-      }
-    } catch (e) {
-      DATABASE_LOGGER.error(`Failed to create escrow index: ${e.message}`)
-    }
   }
 
   async create(event: EscrowEvent) {
@@ -881,37 +819,13 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
 
   constructor(config: OceanNodeDBConfig) {
     super(config)
-    this.index = 'log'
+    this.index = elasticSchemas.logSchemas.index
 
     return (async (): Promise<ElasticsearchLogDatabase> => {
       this.client = await createElasticsearchClientWithRetry(config)
-      await this.initializeIndex()
+      await ensureIndex(config, elasticSchemas.logSchemas)
       return this
     })() as unknown as ElasticsearchLogDatabase
-  }
-
-  private async initializeIndex() {
-    try {
-      const indexExists = await this.client.indices.exists({ index: this.index })
-      if (!indexExists) {
-        await this.client.indices.create({
-          index: this.index,
-          body: {
-            mappings: {
-              properties: {
-                timestamp: { type: 'date' },
-                level: { type: 'keyword' },
-                moduleName: { type: 'keyword' },
-                message: { type: 'text' },
-                meta: { type: 'object', enabled: false }
-              }
-            }
-          }
-        })
-      }
-    } catch (e) {
-      DATABASE_LOGGER.error(`Failed to create ES index '${this.index}': ${e.message}`)
-    }
   }
 
   async insertLog(logEntry: Record<string, any>) {
@@ -1112,52 +1026,17 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
 
   constructor(config: OceanNodeDBConfig) {
     super(config)
-    this.index = 'access_list'
+    this.index = elasticSchemas.accessListSchema.index
 
     return (async (): Promise<ElasticsearchAccessListDatabase> => {
       this.client = await createElasticsearchClientWithRetry(config)
-      await this.initializeIndex()
+      await ensureIndex(config, elasticSchemas.accessListSchema)
       return this
     })() as unknown as ElasticsearchAccessListDatabase
   }
 
   private docId(chainId: number, contractAddress: string): string {
     return `${chainId}-${contractAddress.toLowerCase()}`
-  }
-
-  private async initializeIndex() {
-    try {
-      const indexExists = await this.client.indices.exists({ index: this.index })
-      if (!indexExists) {
-        await this.client.indices.create({
-          index: this.index,
-          body: {
-            mappings: {
-              properties: {
-                chainId: { type: 'integer' },
-                contractAddress: { type: 'keyword' },
-                name: { type: 'keyword' },
-                symbol: { type: 'keyword' },
-                transferable: { type: 'boolean' },
-                users: {
-                  type: 'nested',
-                  properties: {
-                    wallet: { type: 'keyword' },
-                    tokenId: { type: 'long' },
-                    block: { type: 'long' },
-                    txId: { type: 'keyword' }
-                  }
-                },
-                deploymentBlock: { type: 'long' },
-                deploymentTxId: { type: 'keyword' }
-              }
-            }
-          }
-        })
-      }
-    } catch (e) {
-      DATABASE_LOGGER.error(`Failed to create ES index '${this.index}': ${e.message}`)
-    }
   }
 
   async create(

@@ -90,7 +90,19 @@ describe('Query handler', () => {
     const queries = [
       { query: { terms: { 'nft.owner': lookup } } },
       { index: 'order', query: { bool: { filter: [{ terms: { consumer: lookup } }] } } },
-      { query: { more_like_this: { like: [{ _index: 'nonce', _id: '0xabc' }] } } }
+      { query: { more_like_this: { like: [{ _index: 'nonce', _id: '0xabc' }] } } },
+      {
+        query: MATCH_ALL,
+        runtime_mappings: {
+          job: {
+            type: 'lookup',
+            target_index: 'c2d_jobs',
+            input_field: 'id',
+            target_field: '_id',
+            fetch_fields: ['owner']
+          }
+        }
+      }
     ]
     for (const query of queries) {
       const { status } = await run(query)

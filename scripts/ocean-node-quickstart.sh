@@ -889,10 +889,13 @@ echo -e "\e[1;32m4)\e[0m Node logs (info and above, 30 days) are written to \e[1
 echo ""
 if [ -n "$PREVIOUS_DB_TYPE" ] && [ "$PREVIOUS_DB_TYPE" != "$DB_TYPE" ]; then
   echo -e "\e[1;31mWarning:\e[0m the database of this folder was \e[1;31m$PREVIOUS_DB_TYPE\e[0m and is now \e[1;31m$DB_TYPE\e[0m. The node state (jobs, services, nonces, auth tokens, buckets) does not move: it stays in the Docker volume of $PREVIOUS_DB_TYPE. A database volume keeps the password of its first start: remove the old volume before you select that database again."
+  if [ "$PREVIOUS_DB_TYPE" == "sqlite" ]; then
+    echo -e "The node does not start while the SQLite state files are in the Docker volume \e[1;31mnode-sqlite\e[0m (its error names them): back them up, then remove only these files. Keep the volume: it also holds the P2P identity store (p2p-store)."
+  fi
   echo ""
 fi
 if [ "$DB_TYPE" == "sqlite" ]; then
-  echo -e "\e[1;32m5)\e[0m The node keeps its data in SQLite files, in the Docker volume \e[1;32mnode-sqlite\e[0m. One volume is for one node instance. For several instances on one database, run this script again and select PostgreSQL or Elasticsearch. The node state does not move to the new database, and the node does not start while the SQLite state files are in \e[1;32mnode-sqlite\e[0m (its error names them): back them up, then remove only these files. Keep the volume: it also holds the P2P identity store (p2p-store)."
+  echo -e "\e[1;32m5)\e[0m The node keeps its data in SQLite files, in the Docker volume \e[1;32mnode-sqlite\e[0m. One volume is for one node instance. For several instances on one database, run this script again and select PostgreSQL or Elasticsearch: the script then tells you what to do with the SQLite state."
 else
   echo -e "\e[1;32m5)\e[0m The $DB_TYPE database has no published port: only the node can reach it. The database password in docker-compose.yml is random and gives full access: keep the file private. To use your own password, change it for the node and for the database \e[1;31mbefore the first start\e[0m: the database reads it only when it creates its data."
 fi

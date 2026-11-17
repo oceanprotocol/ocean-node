@@ -18,13 +18,15 @@ const ORDER_INDEX = 'order'
 const MAX_RESULT_WINDOW = 10000
 
 // An Elasticsearch lookup reads a document of another index: a `terms` lookup,
-// `more_like_this` with `_index`, `indexed_shape`, `percolate`. The node state is in
-// indices of the same cluster, so a public query cannot name an index and a document.
+// `more_like_this` with `_index`, `indexed_shape`, `percolate`, and a runtime field of
+// type `lookup` (`target_index`). The node state is in indices of the same cluster, so a
+// public query cannot name an index and a document, or a target index.
 function refuseLookups(value: unknown): void {
   if (value === null || typeof value !== 'object') return
   const keys = Object.keys(value)
   const namesIndex = keys.includes('index') || keys.includes('_index')
-  if (namesIndex && (keys.includes('id') || keys.includes('_id'))) {
+  const namesDocument = keys.includes('id') || keys.includes('_id')
+  if ((namesIndex && namesDocument) || keys.includes('target_index')) {
     throw new QueryError('A query cannot read a document of another index')
   }
   Object.values(value).forEach(refuseLookups)

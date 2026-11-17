@@ -311,6 +311,17 @@ export async function ensureIndex(
   }
 }
 
+// allow_partial_search_results: false refuses failed shards; a search that timed out still
+// answers with the hits that it found
+export function assertCompleteSearch(
+  result: Pick<estypes.SearchResponse, 'timed_out' | '_shards'>,
+  index: estypes.Indices
+): void {
+  if (result.timed_out || result._shards.failed > 0) {
+    throw new Error(`Incomplete search on index ${index}: the result is partial`)
+  }
+}
+
 // Elasticsearch's default result window: one search returns at most this many hits
 export const SEARCH_PAGE_SIZE = 10000
 
@@ -341,9 +352,7 @@ export async function searchAllPages<T>(
         allow_partial_search_results: false
       })
       // a short page must mean "no more hits", never "a shard did not answer"
-      if (page.timed_out || page._shards.failed > 0) {
-        throw new Error(`Incomplete search on index ${index}: a page is partial`)
-      }
+      assertCompleteSearch(page, index)
       pitId = page.pit_id ?? pitId
       hits.push(...page.hits.hits)
       if (page.hits.hits.length < pageSize) return hits

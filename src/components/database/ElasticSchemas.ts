@@ -70,13 +70,14 @@ export const elasticSchemas: ElasticsearchSchemas = {
     body: {
       mappings: {
         properties: {
+          id: { type: 'keyword' },
           lastIndexedBlock: { type: 'long' }
         }
       }
     }
   },
   logSchemas: {
-    index: 'logs',
+    index: 'log',
     body: {
       mappings: {
         properties: {
@@ -107,11 +108,12 @@ export const elasticSchemas: ElasticsearchSchemas = {
     }
   },
   ddoStateSchema: {
-    index: 'state',
+    index: 'ddo_state',
     body: {
       mappings: {
         properties: {
-          chainId: { type: 'long' },
+          id: { type: 'keyword' },
+          chainId: { type: 'integer' },
           did: { type: 'keyword' },
           nft: { type: 'keyword' },
           txId: { type: 'keyword' },

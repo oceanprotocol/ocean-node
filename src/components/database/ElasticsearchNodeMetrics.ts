@@ -3,6 +3,7 @@ import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import type { NodeMetricsHourly, NodeMetricsSnapshot } from '../../@types/nodeMetrics.js'
 import { NodeMetricsProvider } from './NodeMetricsDatabase.js'
 import {
+  assertCompleteSearch,
   createElasticsearchClientWithRetry,
   ensureIndex,
   searchAllPages,
@@ -153,6 +154,7 @@ export class ElasticsearchNodeMetrics implements NodeMetricsProvider {
       // the rollup deletes the samples of the hour: it must see all of them
       allow_partial_search_results: false
     })
+    assertCompleteSearch(result, SAMPLES_INDEX)
     return result.hits.hits.map((hit) => hit._source)
   }
 }

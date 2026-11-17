@@ -178,11 +178,8 @@ export abstract class AbstractEscrowDatabase extends AbstractDatabase {
 export abstract class AbstractDdoDatabase extends AbstractDatabase {
   abstract getSchemas(): DdoSchema[]
 
-  abstract search(
-    query: Record<string, any>,
-    maxResultsPerPage?: number,
-    pageNumber?: number
-  ): Promise<any>
+  // `from` and `size` of the query select the page
+  abstract search(query: Record<string, any>): Promise<any>
 
   abstract create(ddo: Record<string, any>): Promise<any>
 
