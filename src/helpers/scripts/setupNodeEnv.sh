@@ -44,6 +44,8 @@ configure_database() {
     echo "------------------------ Configure Database ----------------------------------"
     read -p "Database type? sqlite, postgresql or elasticsearch [ sqlite ]: " DB_TYPE
     DB_TYPE=${DB_TYPE:-sqlite}
+    #always set: an empty DB_TYPE keeps the database of config.json
+    set_env_value DB_TYPE "$DB_TYPE"
     if [ "$DB_TYPE" == "sqlite" ]; then
         #the default: the node keeps its files in ./databases and needs no connection values
         echo "SQLite needs no more settings."
@@ -57,7 +59,6 @@ configure_database() {
         DEFAULT_DB_URL=http://localhost:9200
         DEFAULT_DB_USERNAME=elastic
     fi
-    set_env_value DB_TYPE "$DB_TYPE"
     read -p "Database URL? [ $DEFAULT_DB_URL ]: " DB_URL
     DB_URL=${DB_URL:-$DEFAULT_DB_URL}
     #not sed: a '&' or ';' in the URL (query parameters) would change the replacement
