@@ -2,12 +2,7 @@ import { DDOManager } from '@oceanprotocol/ddo-js'
 import { ethers, Signer, FallbackProvider } from 'ethers'
 import { EVENTS } from '../../../utils/constants.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
-import {
-  getDtContract,
-  getDid,
-  findServiceIdByDatatoken,
-  getPricesByDt
-} from '../utils.js'
+import { getDtContract, getDid, getPricesByDt } from '../utils.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
 
@@ -67,7 +62,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
         }
       } else {
         INDEXER_LOGGER.debug(`[OrderReused] - No stats were found on the ddo`)
-        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, event.address)
+        const serviceIdToFind = ddoInstance.getServiceByDatatoken(event.address)?.id
         if (!serviceIdToFind) {
           INDEXER_LOGGER.debug(
             `[OrderReused] - This datatoken does not contain this service. Invalid service id!`

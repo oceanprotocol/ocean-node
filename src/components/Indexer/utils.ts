@@ -245,18 +245,6 @@ export function buildJobIdentifier(command: string, extra: string[]): JobStatus 
   }
 }
 
-export function findServiceIdByDatatoken(
-  ddo: VersionedDDO,
-  datatokenAddress: string
-): string {
-  for (const s of ddo.getDDOFields().services) {
-    if (s.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase()) {
-      return s.id
-    }
-  }
-  return null
-}
-
 export function doesDispenserAlreadyExist(
   dispenserAddress: string,
   prices: ServicePrice[]

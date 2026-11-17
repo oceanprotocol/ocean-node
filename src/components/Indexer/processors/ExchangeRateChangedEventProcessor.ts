@@ -7,7 +7,6 @@ import {
   getDtContract,
   getDid,
   doesFreAlreadyExist,
-  findServiceIdByDatatoken,
   getPricesByDt,
   isValidFreContract
 } from '../utils.js'
@@ -91,7 +90,7 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
         }
       } else {
         INDEXER_LOGGER.debug(`[ExchangeRateChanged] - No stats were found on the ddo`)
-        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
+        const serviceIdToFind = ddoInstance.getServiceByDatatoken(datatokenAddress)?.id
         if (!serviceIdToFind) {
           INDEXER_LOGGER.debug(
             `[ExchangeRateChanged] - This datatoken does not contain this service. Invalid service id!`

@@ -6,7 +6,6 @@ import {
   getDtContract,
   getDid,
   doesDispenserAlreadyExist,
-  findServiceIdByDatatoken,
   getPricesByDt,
   isValidDispenserContract
 } from '../utils.js'
@@ -86,7 +85,7 @@ export class DispenserActivatedEventProcessor extends BaseEventProcessor {
         }
       } else {
         INDEXER_LOGGER.debug(`[DispenserActivated] - No stats were found on the ddo`)
-        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
+        const serviceIdToFind = ddoInstance.getServiceByDatatoken(datatokenAddress)?.id
         if (!serviceIdToFind) {
           INDEXER_LOGGER.debug(
             `[DispenserActivated] - This datatoken does not contain this service. Invalid service id!`
