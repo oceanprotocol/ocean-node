@@ -44,10 +44,24 @@ describe('retrieveDdoByNft', () => {
 
   // Republishing an NFT with the other DDO version indexes it under the other DID and
   // leaves the old record, so both can exist. Events must go to the current one.
-  const published = (id: string, block?: number) => ({
-    id,
-    indexedMetadata: block === undefined ? {} : { event: { block } }
-  })
+  // v4 keeps nftAddress at the top level, v5 under credentialSubject
+  const published = (id: string, block?: number): Record<string, any> => {
+    const indexedMetadata = block === undefined ? {} : { event: { block } }
+    return id === DID_V5
+      ? {
+          id,
+          version: '5.0.0',
+          credentialSubject: { id, nftAddress: NFT_ADDRESS, chainId: CHAIN_ID },
+          indexedMetadata
+        }
+      : {
+          id,
+          version: '4.1.0',
+          nftAddress: NFT_ADDRESS,
+          chainId: CHAIN_ID,
+          indexedMetadata
+        }
+  }
 
   it('returns the later published DDO when both DIDs are indexed', async () => {
     const v4ThenV5 = fakeDdoDatabase({
@@ -104,8 +118,23 @@ describe('retrieveDdoByNft', () => {
       id: DID_V4,
       version: 'deprecated',
       chainId: CHAIN_ID,
-      nftAddress: undefined,
+      nftAddress: NFT_ADDRESS,
       indexedMetadata: { nft: { state: 2 } }
+    })
+  })
+
+  // createOrUpdateDDO recreates the DDO and its state from the short record, so a missing
+  // address would drop the NFT identity of a revoked v5 asset
+  it('keeps the nested v5 NFT address in the short DDO', () => {
+    const v5 = published(DID_V5, 200)
+    expect(v5.nftAddress).to.equal(undefined)
+    const shortDdo = buildShortDdoRecord(v5, CHAIN_ID, 8)
+    expect(shortDdo).to.deep.equal({
+      id: DID_V5,
+      version: 'deprecated',
+      chainId: CHAIN_ID,
+      nftAddress: NFT_ADDRESS,
+      indexedMetadata: { nft: { state: 8 }, event: { block: 200 } }
     })
   })
 

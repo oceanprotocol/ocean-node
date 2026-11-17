@@ -12,7 +12,7 @@ import { create256Hash } from '../../utils/crypt.js'
 import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' with { type: 'json' }
 import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' with { type: 'json' }
 import { ServicePrice } from '../../@types/IndexedMetadata.js'
-import { VersionedDDO, deriveDidCandidates } from '@oceanprotocol/ddo-js'
+import { DDOManager, VersionedDDO, deriveDidCandidates } from '@oceanprotocol/ddo-js'
 import FactoryRouter from '@oceanprotocol/contracts/artifacts/contracts/pools/FactoryRouter.sol/FactoryRouter.json' with { type: 'json' }
 
 /**
@@ -515,11 +515,13 @@ export function buildShortDdoRecord(
 ): Record<string, any> {
   const indexedMetadata: Record<string, any> = { nft: { state } }
   if (ddo.indexedMetadata?.event) indexedMetadata.event = ddo.indexedMetadata.event
+  // v5 keeps nftAddress under credentialSubject; the versioned accessor reads both
+  const { nftAddress } = DDOManager.getDDOClass(ddo).getDDOFields()
   return {
     id: ddo.id,
     version: 'deprecated',
     chainId,
-    nftAddress: ddo.nftAddress,
+    nftAddress,
     indexedMetadata
   }
 }
