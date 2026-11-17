@@ -475,7 +475,9 @@ export async function getPricingStatsForDddo(
 /**
  * Finds the DDO of an NFT. Contract events only give the NFT address and chain id,
  * so the DDO is looked up under both DIDs it may be indexed as: v4 (`did:op:`)
- * first, then v5 (`did:ope:`).
+ * and v5 (`did:ope:`). Republishing an NFT with the other DDO version indexes it
+ * under the other DID and leaves the old record in place, so when both exist the
+ * one published at the later block is returned (v5 on a tie or missing block).
  * @returns The DDO and the DID it was found under. When neither is indexed, `ddo`
  * is null and `did` is the v4 DID.
  */
@@ -485,11 +487,21 @@ export async function retrieveDdoByNft(
   chainId: number
 ): Promise<{ did: string; ddo: Record<string, any> | null }> {
   const candidates = deriveDidCandidates(nftAddress, chainId)
-  for (const did of candidates) {
-    const ddo = await ddoDatabase.retrieve(did)
-    if (ddo) return { did, ddo }
+  const found = (
+    await Promise.all(
+      candidates.map(async (did) => ({ did, ddo: await ddoDatabase.retrieve(did) }))
+    )
+  ).filter((candidate) => candidate.ddo)
+  if (found.length === 0) return { did: candidates[0], ddo: null }
+
+  const publishedAt = (ddo: Record<string, any>): number => {
+    const block = Number(ddo.indexedMetadata?.event?.block)
+    return Number.isFinite(block) ? block : -1
   }
-  return { did: candidates[0], ddo: null }
+  // candidates are ordered v4 then v5, so >= lets the v5 record win a tie
+  return found.reduce((latest, candidate) =>
+    publishedAt(candidate.ddo) >= publishedAt(latest.ddo) ? candidate : latest
+  )
 }
 
 export async function withRetrial<T>(

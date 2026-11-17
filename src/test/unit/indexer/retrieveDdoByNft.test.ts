@@ -23,12 +23,12 @@ function fakeDdoDatabase(stored: Record<string, any>) {
 }
 
 describe('retrieveDdoByNft', () => {
-  it('finds a v4 DDO with a single lookup', async () => {
+  it('finds a v4 DDO', async () => {
     const db = fakeDdoDatabase({ [DID_V4]: { id: DID_V4 } })
     const { did, ddo } = await retrieveDdoByNft(db, NFT_ADDRESS, CHAIN_ID)
     expect(did).to.equal(DID_V4)
     expect(ddo).to.deep.equal({ id: DID_V4 })
-    expect(db.lookups).to.deep.equal([DID_V4])
+    expect(db.lookups).to.deep.equal([DID_V4, DID_V5])
   })
 
   it('finds a v5 DDO indexed under did:ope:', async () => {
@@ -37,6 +37,43 @@ describe('retrieveDdoByNft', () => {
     expect(did).to.equal(DID_V5)
     expect(ddo).to.deep.equal({ id: DID_V5 })
     expect(db.lookups).to.deep.equal([DID_V4, DID_V5])
+  })
+
+  // Republishing an NFT with the other DDO version indexes it under the other DID and
+  // leaves the old record, so both can exist. Events must go to the current one.
+  const published = (id: string, block?: number) => ({
+    id,
+    indexedMetadata: block === undefined ? {} : { event: { block } }
+  })
+
+  it('returns the later published DDO when both DIDs are indexed', async () => {
+    const v4ThenV5 = fakeDdoDatabase({
+      [DID_V4]: published(DID_V4, 100),
+      [DID_V5]: published(DID_V5, 200)
+    })
+    expect((await retrieveDdoByNft(v4ThenV5, NFT_ADDRESS, CHAIN_ID)).did).to.equal(DID_V5)
+    const v5ThenV4 = fakeDdoDatabase({
+      [DID_V4]: published(DID_V4, 300),
+      [DID_V5]: published(DID_V5, 200)
+    })
+    const { did, ddo } = await retrieveDdoByNft(v5ThenV4, NFT_ADDRESS, CHAIN_ID)
+    expect(did).to.equal(DID_V4)
+    expect(ddo.id).to.equal(DID_V4)
+  })
+
+  it('prefers the v5 DDO when both DIDs are indexed without a later block', async () => {
+    const sameBlock = fakeDdoDatabase({
+      [DID_V4]: published(DID_V4, 100),
+      [DID_V5]: published(DID_V5, 100)
+    })
+    expect((await retrieveDdoByNft(sameBlock, NFT_ADDRESS, CHAIN_ID)).did).to.equal(
+      DID_V5
+    )
+    const noBlocks = fakeDdoDatabase({
+      [DID_V4]: published(DID_V4),
+      [DID_V5]: published(DID_V5)
+    })
+    expect((await retrieveDdoByNft(noBlocks, NFT_ADDRESS, CHAIN_ID)).did).to.equal(DID_V5)
   })
 
   it('returns a null DDO and the v4 DID when neither is indexed', async () => {
