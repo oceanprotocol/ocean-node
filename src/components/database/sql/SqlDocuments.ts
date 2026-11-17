@@ -36,7 +36,9 @@ export function flattenDocument(
     value.forEach((item) => flattenDocument(item, path, rows))
   } else if (typeof value === 'object') {
     for (const [key, child] of Object.entries(value)) {
-      flattenDocument(child, path ? `${path}.${key}` : key.replaceAll('\u0000', ''), rows)
+      // PostgreSQL refuses U+0000 in a text, and the path is a text
+      const name = key.replaceAll('\u0000', '')
+      flattenDocument(child, path ? `${path}.${name}` : name, rows)
     }
   } else if (path.length <= PATH_LIMIT) {
     rows.push({ path, str: searchText(value), num: numberOf(value) })

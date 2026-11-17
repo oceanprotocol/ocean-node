@@ -172,8 +172,13 @@ describe('SQL documents', () => {
     })
 
     it('keeps a document whose text has a NUL character', async () => {
-      await documents.put('nul', { name: 'a\u0000b', 'k\u0000ey': 'v' })
+      await documents.put('nul', {
+        name: 'a\u0000b',
+        'k\u0000ey': 'v',
+        metadata: { 'k\u0000ey': 'w' }
+      })
       expect(await sorted({ term: { name: 'ab' } })).to.deep.equal(['nul'])
+      expect(await sorted({ term: { 'metadata.key': 'w' } })).to.deep.equal(['nul'])
       expect((await documents.get('nul')).name).to.equal('a\u0000b')
     })
 

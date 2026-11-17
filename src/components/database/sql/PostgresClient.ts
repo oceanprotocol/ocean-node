@@ -136,6 +136,11 @@ export class PostgresClient implements SqlClient {
   // tells the node when the database goes away and comes back, so that the indexer stops
   // and starts again
   private async checkHealth(): Promise<void> {
+    // TEMP debug for the PostgreSQL CI hang: are the connections of the pool all in use?
+    const { totalCount, idleCount, waitingCount } = this.pool
+    DATABASE_LOGGER.debug(
+      `[pg-hang] pool total=${totalCount} idle=${idleCount} waiting=${waitingCount}`
+    )
     // the timeout ends a check on a lost connection before the next check starts
     const probe = { text: 'SELECT 1', query_timeout: HEALTH_CHECK_TIMEOUT_MS }
     const alive = await this.pool.query(probe).then(

@@ -2291,7 +2291,9 @@ export class C2DEngineDocker extends C2DEngine {
       if (jobs.length > 0) {
         // allSettled, not all: one throwing job used to abort the rest of this tick —
         // service health check, expiry sweep and GPU snapshot below all stopped running.
-        const results = await Promise.allSettled(jobs.map((job) => this.processJob(job)))
+        const results = await Promise.allSettled(
+          jobs.map((job) => traced(job.jobId, 'processJob', this.processJob(job)))
+        )
         results.forEach((result, i) => {
           if (result.status === 'rejected') {
             CORE_LOGGER.error(
@@ -2305,7 +2307,11 @@ export class C2DEngineDocker extends C2DEngine {
 
       // Service-on-Demand health check: catch Running services whose container died on its
       // own (crash, OOM, or Docker daemon down) instead of only noticing at expiresAt.
-      const runningServices = await this.checkRunningServices()
+      const runningServices = await traced(
+        'loop',
+        'checkRunningServices',
+        this.checkRunningServices()
+      )
       for (const svc of runningServices ?? []) this.launchServiceDiskCheck(svc)
 
       // Roll this tick's snapshots into one engine-wide line (+ pressure lines) so an admin
@@ -2645,7 +2651,11 @@ export class C2DEngineDocker extends C2DEngine {
           type: 'local'
         }
       } */
-      const volumeCreated = await this.createDockerVolume(volume, true)
+      const volumeCreated = await traced(
+        job.jobId,
+        'createDockerVolume',
+        this.createDockerVolume(volume, true)
+      )
       if (!volumeCreated) {
         job.status = C2DStatusNumber.VolumeCreationFailed
         job.statusText = C2DStatusText.VolumeCreationFailed
@@ -2768,7 +2778,11 @@ export class C2DEngineDocker extends C2DEngine {
       for (const i in job.assets) {
         const asset = job.assets[i]
         // resolve the effective file object (plaintext, encrypted, or via documentId/serviceId)
-        const resolved = await resolveComputeFileObject(asset)
+        const resolved = await traced(
+          job.jobId,
+          `resolveComputeFileObject ${i}`,
+          resolveComputeFileObject(asset)
+        )
         if (!resolved || !isPersistentStorageType(resolved.type)) {
           // non persistent-storage assets are downloaded later, during uploadData
           continue
@@ -2793,10 +2807,10 @@ export class C2DEngineDocker extends C2DEngine {
           return
         }
         try {
-          const bindMount = await ps.getDockerMountObject(
-            fo.bucketId,
-            fo.fileName,
-            job.owner
+          const bindMount = await traced(
+            job.jobId,
+            'getDockerMountObject',
+            ps.getDockerMountObject(fo.bucketId, fo.fileName, job.owner)
           )
           CORE_LOGGER.debug(
             `Mounting bucket ${fo.bucketId} to folder ${bindMount.Target}`
@@ -2818,9 +2832,10 @@ export class C2DEngineDocker extends C2DEngine {
           if (!ps) {
             throw new Error('Persistent storage is not configured on this node')
           }
-          const outputMount = await ps.getDockerOutputMountObject(
-            job.outputBucketId,
-            job.owner
+          const outputMount = await traced(
+            job.jobId,
+            'getDockerOutputMountObject',
+            ps.getDockerOutputMountObject(job.outputBucketId, job.owner)
           )
           CORE_LOGGER.debug(
             `Mounting output bucket ${job.outputBucketId} to folder ${outputMount.Target}`
@@ -2837,11 +2852,15 @@ export class C2DEngineDocker extends C2DEngine {
         }
       }
 
-      const container = await this.createDockerContainer(containerInfo, true)
+      const container = await traced(
+        job.jobId,
+        'createDockerContainer',
+        this.createDockerContainer(containerInfo, true)
+      )
       if (container) {
         job.status = C2DStatusNumber.Provisioning
         job.statusText = C2DStatusText.Provisioning
-        await this.db.updateJob(job)
+        await traced(job.jobId, 'updateJob Provisioning', this.db.updateJob(job))
       } else {
         job.status = C2DStatusNumber.ContainerCreationFailed
         job.statusText = C2DStatusText.ContainerCreationFailed
@@ -3968,7 +3987,7 @@ export class C2DEngineDocker extends C2DEngine {
       job.status = C2DStatusNumber.ConfiguringVolumes
       job.statusText = C2DStatusText.ConfiguringVolumes
       // awaited: the job must be stored before the abort entry goes away in `finally`
-      await this.db.updateJob(job)
+      await traced(job.jobId, 'updateJob ConfiguringVolumes', this.db.updateJob(job))
     } catch (err) {
       const logText = `Unable to pull docker image: ${job.containerImage}: ${err.message}`
       CORE_LOGGER.error(`Job ${job.jobId}: ${logText}`)
@@ -7575,6 +7594,14 @@ export class C2DEngineDocker extends C2DEngine {
  * and the compute pre-checks (initialize/start) so persistent-storage ACL validation
  * sees the same resolved object.
  */
+// TEMP debug for the PostgreSQL CI hang: logs the start and the end of one awaited step
+async function traced<T>(jobId: string, step: string, work: Promise<T>): Promise<T> {
+  CORE_LOGGER.debug(`[pg-hang] ${jobId} ${step} start`)
+  const result = await work
+  CORE_LOGGER.debug(`[pg-hang] ${jobId} ${step} done`)
+  return result
+}
+
 export async function resolveComputeFileObject(
   item: ComputeAsset | ComputeAlgorithm
 ): Promise<BaseFileObject | null> {
@@ -7590,8 +7617,10 @@ export async function resolveComputeFileObject(
     // no file object: try documentId + serviceId
     const { documentId, serviceId } = item
     if (documentId && serviceId) {
-      const ddo = await new FindDdoHandler(OceanNode.getInstance()).findAndFormatDdo(
-        documentId
+      const ddo = await traced(
+        documentId,
+        'findAndFormatDdo',
+        new FindDdoHandler(OceanNode.getInstance()).findAndFormatDdo(documentId)
       )
       if (!ddo) {
         return null
@@ -7600,7 +7629,11 @@ export async function resolveComputeFileObject(
       if (!service) {
         return null
       }
-      return await decryptFilesObject(service.files)
+      return await traced(
+        documentId,
+        'decryptFilesObject',
+        decryptFilesObject(service.files)
+      )
     }
     return null
   } catch (e) {

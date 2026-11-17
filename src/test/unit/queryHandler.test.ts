@@ -102,6 +102,17 @@ describe('Query handler', () => {
             fetch_fields: ['owner']
           }
         }
+      },
+      // the same terms lookup, hidden in base64
+      {
+        index: 'order',
+        query: {
+          wrapper: {
+            query: Buffer.from(JSON.stringify({ terms: { consumer: lookup } })).toString(
+              'base64'
+            )
+          }
+        }
       }
     ]
     for (const query of queries) {
@@ -112,9 +123,11 @@ describe('Query handler', () => {
     expect(orderSearch.called).to.equal(false)
   })
 
-  it('accepts a query on a field named index', async () => {
-    const { status } = await run({ query: { term: { index: 'a' } } })
-    expect(status.httpStatus).to.equal(200)
+  it('accepts a query on a field named index, target_index or wrapper', async () => {
+    for (const field of ['index', 'target_index', 'wrapper']) {
+      const { status } = await run({ query: { term: { [field]: 'a' } } })
+      expect(status.httpStatus).to.equal(200)
+    }
   })
 
   it('answers 400 for a query clause that the database cannot run', async () => {

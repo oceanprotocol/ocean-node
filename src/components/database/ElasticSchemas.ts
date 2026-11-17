@@ -113,7 +113,8 @@ export const elasticSchemas: ElasticsearchSchemas = {
       mappings: {
         properties: {
           id: { type: 'keyword' },
-          chainId: { type: 'integer' },
+          // some chain ids are above the integer range
+          chainId: { type: 'long' },
           did: { type: 'keyword' },
           nft: { type: 'keyword' },
           txId: { type: 'keyword' },
@@ -128,7 +129,7 @@ export const elasticSchemas: ElasticsearchSchemas = {
     body: {
       mappings: {
         properties: {
-          chainId: { type: 'integer' },
+          chainId: { type: 'long' },
           contractAddress: { type: 'keyword' },
           name: { type: 'keyword' },
           symbol: { type: 'keyword' },

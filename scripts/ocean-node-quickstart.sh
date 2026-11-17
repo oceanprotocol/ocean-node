@@ -895,7 +895,7 @@ if [ -n "$PREVIOUS_DB_TYPE" ] && [ "$PREVIOUS_DB_TYPE" != "$DB_TYPE" ]; then
   echo ""
 fi
 if [ "$DB_TYPE" == "sqlite" ]; then
-  echo -e "\e[1;32m5)\e[0m The node keeps its data in SQLite files, in the Docker volume \e[1;32mnode-sqlite\e[0m. One volume is for one node instance. For several instances on one database, run this script again and select PostgreSQL or Elasticsearch: the script then tells you what to do with the SQLite state."
+  echo -e "\e[1;32m5)\e[0m The node keeps its data in SQLite files, in the Docker volume \e[1;32mnode-sqlite\e[0m. One volume is for one node instance. This script makes one node for each folder. Several node instances can share a PostgreSQL or Elasticsearch database: see docs/database.md."
 else
   echo -e "\e[1;32m5)\e[0m The $DB_TYPE database has no published port: only the node can reach it. The database password in docker-compose.yml is random and gives full access: keep the file private. To use your own password, change it for the node and for the database \e[1;31mbefore the first start\e[0m: the database reads it only when it creates its data."
 fi

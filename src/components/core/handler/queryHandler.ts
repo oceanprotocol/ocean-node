@@ -17,17 +17,29 @@ const ORDER_INDEX = 'order'
 // the last document that a public query can reach, as on Elasticsearch
 const MAX_RESULT_WINDOW = 10000
 
-// An Elasticsearch lookup reads a document of another index: a `terms` lookup,
-// `more_like_this` with `_index`, `indexed_shape`, `percolate`, and a runtime field of
-// type `lookup` (`target_index`). The node state is in indices of the same cluster, so a
-// public query cannot name an index and a document, or a target index.
+const OTHER_INDEX_ERROR = 'A query cannot read another index'
+
+// The node state is in indices of the same Elasticsearch cluster, so a public query
+// cannot use what reads another index: runtime fields (type `lookup`), lookups that name
+// an index and a document, and `wrapper`, which hides a query in base64. The SQL
+// databases support none of them.
+function refuseOtherIndexReads(query: Record<string, any>): void {
+  if ('runtime_mappings' in query) {
+    throw new QueryError(OTHER_INDEX_ERROR)
+  }
+  refuseLookups(query)
+}
+
+// lookups: `terms` lookup, `more_like_this` with `_index`, `indexed_shape`, `percolate`
 function refuseLookups(value: unknown): void {
   if (value === null || typeof value !== 'object') return
   const keys = Object.keys(value)
   const namesIndex = keys.includes('index') || keys.includes('_index')
   const namesDocument = keys.includes('id') || keys.includes('_id')
-  if ((namesIndex && namesDocument) || keys.includes('target_index')) {
-    throw new QueryError('A query cannot read a document of another index')
+  // a field named "wrapper" has a value, the wrapper query an object
+  const isWrapper = typeof (value as any).wrapper === 'object'
+  if ((namesIndex && namesDocument) || isWrapper) {
+    throw new QueryError(OTHER_INDEX_ERROR)
   }
   Object.values(value).forEach(refuseLookups)
 }
@@ -43,7 +55,7 @@ async function searchStore(
   if (offset + size > MAX_RESULT_WINDOW) {
     throw new QueryError(`A query reads the first ${MAX_RESULT_WINDOW} documents at most`)
   }
-  refuseLookups(query)
+  refuseOtherIndexReads(query)
   if (index === ORDER_INDEX) {
     const orders = await database.order.search(query)
     return orders?.length > 0 ? [orders] : []
