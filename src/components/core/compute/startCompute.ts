@@ -42,7 +42,7 @@ import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 // import { ProviderFeeValidation } from '../../../@types/Fees.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
-import { Credentials, DDOManager, Service } from '@oceanprotocol/ddo-js'
+import { Credentials, DDOManager, Service, isComputeService } from '@oceanprotocol/ddo-js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
 import { PolicyServer } from '../../policyServer/index.js'
 import { checkCredentials } from '../../../utils/credentials.js'
@@ -528,7 +528,7 @@ export class CommonComputeHandler extends CommandHandler {
         // errorSummary: a JSON.parse error would quote the decrypted files object
         CORE_LOGGER.error(`Could not decrypt DDO files Object: ${errorSummary(e)}`)
       }
-      if (service.type === 'compute' && !canDecrypt) {
+      if (isComputeService(service) && !canDecrypt) {
         return buildComputeError(
           500,
           `Service ${elem.serviceId} from DDO ${elem.documentId} cannot be used in compute on this provider`

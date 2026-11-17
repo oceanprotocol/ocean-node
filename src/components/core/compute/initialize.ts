@@ -34,7 +34,7 @@ import {
   resolveComputeFileObject
 } from '../../c2d/compute_engine_docker.js'
 
-import { Credentials, DDOManager, Service } from '@oceanprotocol/ddo-js'
+import { Credentials, DDOManager, Service, isComputeService } from '@oceanprotocol/ddo-js'
 import { checkCredentials } from '../../../utils/credentials.js'
 import { PolicyServer } from '../../policyServer/index.js'
 import {
@@ -568,7 +568,7 @@ export class ComputeInitializeHandler extends CommandHandler {
               `Could not decrypt ddo files of ${ddoInstance.getDid()}: ${errorSummary(e)}`
             )
           }
-          if (service.type === 'compute' && !canDecrypt) {
+          if (isComputeService(service) && !canDecrypt) {
             const error = `Service ${elem.serviceId} from DDO ${elem.documentId} cannot be used in compute on this provider`
             return {
               stream: null,
