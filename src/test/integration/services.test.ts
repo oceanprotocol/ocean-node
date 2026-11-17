@@ -1486,6 +1486,33 @@ describe('**********         Service on Demand', () => {
     expect((await getServiceResult({ live: true })).status.httpStatus).to.equal(409)
   })
 
+  it('(m3) SERVICE_GET_STREAMABLE_LOGS still serves the stopped service logs, saved at teardown', async function () {
+    const job = await getServiceJob(serviceId)
+    expect(
+      job.logArchives,
+      'stop must save the container logs'
+    ).to.have.length.greaterThan(0)
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS)
+    const resp = await new ServiceGetStreamableLogsHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      serviceId
+    } as ServiceGetStreamableLogsCommand)
+    assert(
+      resp.status.httpStatus === 200,
+      `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
+    )
+    // nginx logs its startup banner, so the last container's saved log is not empty
+    const logs = await readLogsWithTimeout(resp.stream as Readable)
+    expect(logs.length).to.be.greaterThan(0)
+  })
+
   it('(n) [slow] expiry cron marks a short-lived service Expired', async function () {
     this.timeout(150000)
     const {

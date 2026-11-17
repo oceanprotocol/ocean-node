@@ -209,6 +209,8 @@ export abstract class C2DEngine {
     return []
   }
 
+  // The live log of the service's container while it has one, else the logs saved when its
+  // containers were removed (see ServiceJob.logArchives). Null when there is neither.
   // eslint-disable-next-line require-await
   public async getServiceStreamableLogs(
     serviceId: string,
@@ -231,8 +233,8 @@ export abstract class C2DEngine {
     return null
   }
 
-  // Deletes the output archives of expired services whose environment's storageExpiry has
-  // elapsed since expiresAt. Returns how many services had their archives deleted.
+  // Deletes the output archives and saved logs of expired services whose environment's
+  // storageExpiry has elapsed since expiresAt. Returns how many services had them deleted.
   // eslint-disable-next-line require-await
   public async cleanupExpiredServiceOutputs(): Promise<number> {
     return 0

@@ -40,7 +40,7 @@ and `signature` as query parameters (or an auth-token `Authorization` header).
 | `SERVICE_RESTART` | `/api/services/serviceRestart` | POST | Recreate the container (no extra charge); asynchronous like start — returns once the job is `Restarting`, poll `serviceStatus`. Optionally restart on a **new image spec** (bug-fix flow) — see below |
 | `SERVICE_STOP` | `/api/services/serviceStop` | POST | Tear down the container; the paid resource reservation (cpu/ram/gpu + host ports) is kept until `expiresAt`, so the service can be restarted anytime on the same endpoints. `release: true` ends the paid window now and frees it instead (no refund, no restart) |
 | `SERVICE_GET_TEMPLATES` | `/api/services/serviceTemplates` | GET | List operator-published service templates |
-| `SERVICE_GET_STREAMABLE_LOGS` | `/api/services/serviceStreamableLogs` | GET | Stream the container's live stdout/stderr logs — authenticated, owner-scoped; available while `Running` or `Error`; optional `since` to skip history |
+| `SERVICE_GET_STREAMABLE_LOGS` | `/api/services/serviceStreamableLogs` | GET | Stream the container's stdout/stderr logs — authenticated, owner-scoped; followed live while the service has a container (`Running`, or `Error` before teardown), otherwise the logs saved when its containers were removed, until storage expiry; optional `since` to skip history. See [Service logs](#service-logs) |
 | `SERVICE_GET_RESULT` | `/api/services/serviceResult` | GET | Download the service's `/data/outputs` as a zip — one of its archives (`index`, resumable with `offset`) or the running container's (`live=true`); authenticated, owner-scoped. See [Service outputs](#service-outputs) |
 
 **Start is asynchronous.** `serviceStart` does only the fast, synchronous validation and then
@@ -268,6 +268,31 @@ compute job's outputs:
   the stop time, and `serviceExtend` moves it later. The service record is kept, with
   `outputArchives: []`.
 - There is no size cap on archives beyond the node's free disk.
+
+## Service logs
+
+`serviceStreamableLogs` follows the container's stdout/stderr live while the service has a
+container. Docker deletes a container's logs together with the container, so the node saves them
+first, which keeps them available after the session ends:
+
+- **They are saved whenever a container of the service goes away**: `serviceStop`, the expiry
+  sweep, a `serviceRestart` (the old container), and the crash recovery at node start. This
+  happens for every service, including one with an output bucket, because the bucket only holds
+  `/data/outputs`. Each container gives one file, `logs-<n>.log`, next to the output archives
+  under `<c2d storage>/services/<serviceId>/`. The files are listed on `serviceStatus` as
+  `logArchives` (`index`, `filename`, `filesize`, `createdAt`, `containerId`, and
+  `droppedBytes` when output was cut). Saving is best-effort: if it fails, teardown continues and
+  the node only logs the error. A container that logged nothing produces no file.
+- **Only the last 16 MiB of each container's log are kept.** When a container logged more, its
+  oldest output is dropped, and the saved log starts with an `[ocean-node]` line on stderr that
+  says how much was dropped.
+- **Once the service has no container, `serviceStreamableLogs` serves the saved logs**, oldest
+  container first, in the same multiplexed format as the live stream. The stream ends after the
+  last line instead of following. `since` works the same way. The route returns `404` only when
+  there is neither a container nor a saved log. While a container exists, only its own live log
+  is returned, so after a `serviceRestart` the previous containers' logs are not included.
+- **Saved logs expire with the output archives**: `storageExpiry` seconds after `expiresAt`, by
+  the same cron. The service record is kept, with `logArchives: []`.
 
 ## Configuration
 
@@ -630,16 +655,17 @@ then `docker network rm t`.
 - **`serviceStreamableLogs` is authenticated and owner-scoped, like `serviceStatus`.**
   Container stdout/stderr can leak secrets or sensitive request data, so the same
   proof-of-`consumerAddress` + ownership check gates log access — a non-owner gets `401`.
-  Logs are only served while the service is `Running` or `Error` (a crashed container's
-  logs stay available for diagnosis until `stop`/`restart` tears it down); otherwise the
-  route returns `404`. By default the full history since container start is returned before
+  Logs are followed live while the service has a container (`Running`, or `Error` until
+  `stop`/`restart` tears the crashed container down). After that the logs saved at teardown are
+  served until storage expiry (see [Service logs](#service-logs)), and the route returns `404`
+  only when there are none. By default the full history since container start is returned before
   the stream switches to following live output — for a service that has been running for
   days or weeks that can be a lot of data, so pass `since` (a Unix timestamp, or a relative
   duration like `1h`) to skip straight to recent output.
 
 - **`serviceResult` is authenticated and owner-scoped, like `serviceStreamableLogs`.** A
   service's outputs are its owner's data; a non-owner gets the same `400` as an unknown
-  `serviceId`. The node-wide `serviceList` leaves out `outputArchives`.
+  `serviceId`. The node-wide `serviceList` leaves out `outputArchives` and `logArchives`.
 
 - **`allowImageBuild` runs arbitrary build instructions.** When enabled, a consumer's
   inline `dockerfile` is built by the Docker daemon, so its `RUN` steps execute arbitrary

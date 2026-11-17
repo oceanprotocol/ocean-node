@@ -125,6 +125,7 @@ import {
   tarToZip,
   type ServiceResult
 } from './serviceOutputsZip.js'
+import { collectServiceLogs, savedServiceLogsStream } from './serviceLogs.js'
 import {
   buildServiceHfPlan,
   getServiceHfMirrorSettings,
@@ -4615,6 +4616,84 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
+  // Saves the container's stdout/stderr to <storage>/services/<serviceId>/logs-<n>.log and records
+  // it on job.logArchives, so SERVICE_GET_STREAMABLE_LOGS can serve it once the container is gone:
+  // Docker drops a container's logs with the container. Must run after the container was stopped
+  // (its log is then final, and reading it ends by itself) and before it is removed. Unlike the
+  // outputs it runs for services with an output bucket too. Keeps the newest
+  // SERVICE_LOGS_MAX_BYTES. Best-effort — never throws, a failure is only logged; the caller
+  // persists the job.
+  private async saveServiceLogs(
+    job: ServiceJob,
+    container: Dockerode.Container
+  ): Promise<void> {
+    const saved = job.logArchives ?? []
+    // A teardown retried after a failure must not save the same container twice.
+    if (saved.some((a) => a.containerId === container.id)) return
+    const index = saved.reduce((next, a) => Math.max(next, a.index + 1), 0)
+    const filename = `logs-${index}.log`
+    let partialPath: string | undefined
+    try {
+      let source: NodeJS.ReadableStream
+      try {
+        // Timestamped, so a `since` filter still works on the saved file.
+        source = (await container.logs({
+          stdout: true,
+          stderr: true,
+          follow: true,
+          timestamps: true
+        })) as unknown as NodeJS.ReadableStream
+      } catch (e: any) {
+        if (e?.statusCode === 404) {
+          CORE_LOGGER.debug(`service ${job.serviceId}: no logs to save: ${e.message}`)
+          return
+        }
+        throw e
+      }
+      const { data, droppedBytes, cutShort } = await collectServiceLogs(source)
+      if (cutShort) {
+        CORE_LOGGER.warn(
+          `service ${job.serviceId}: reading the logs of container ${container.id} timed out — saving what was read`
+        )
+      }
+      if (!data.length) {
+        CORE_LOGGER.debug(
+          `service ${job.serviceId}: container ${container.id} logged nothing`
+        )
+        return
+      }
+      const folder = this.getServiceOutputsFolder(job.serviceId)
+      const finalPath = path.join(folder, filename)
+      partialPath = finalPath + '.partial'
+      mkdirSync(folder, { recursive: true })
+      writeFileSync(partialPath, data)
+      renameSync(partialPath, finalPath)
+      job.logArchives = [
+        ...saved,
+        {
+          index,
+          filename,
+          filesize: data.length,
+          createdAt: Date.now(),
+          containerId: container.id,
+          ...(droppedBytes ? { droppedBytes } : {})
+        }
+      ]
+      CORE_LOGGER.info(
+        `service ${job.serviceId}: saved the logs of container ${container.id} to ${filename}, ` +
+          `${data.length} bytes` +
+          (droppedBytes ? `, ${droppedBytes} older bytes dropped` : '')
+      )
+    } catch (e: any) {
+      if (partialPath) rmSync(partialPath, { force: true })
+      CORE_LOGGER.error(
+        `service ${job.serviceId}: failed to save the logs of container ${container.id}: ${
+          e?.message ?? e
+        }`
+      )
+    }
+  }
+
   // Streams a container's /data/outputs into another one — created, not yet started — as a
   // tar straight between the two, so a restart keeps what the service wrote. The source may be
   // stopped and off its (already removed) network: Docker reads a stopped container's
@@ -4804,12 +4883,14 @@ export class C2DEngineDocker extends C2DEngine {
       }
       const { previousContainerId } = job
       if (job.containerId || previousContainerId) {
-        // Only a claimed service ever ran — archive what it wrote before its containers go.
-        // A restart that died before switching to the new container (containerId still
-        // empty) left the results in the previous one it was carrying them over from.
+        // Only a claimed service ever ran — archive what it wrote, and save what it logged,
+        // before its containers go. A restart that died before switching to the new
+        // container (containerId still empty) left the results in the previous one it was
+        // carrying them over from.
         if (job.payment.claimTx) {
           const holder = this.docker.getContainer(job.containerId || previousContainerId)
           await holder.stop({ t: 10 }).catch(() => {})
+          await this.saveServiceLogs(job, holder)
           await this.archiveServiceOutputs(job, holder)
         }
         if (job.containerId)
@@ -6290,6 +6371,7 @@ export class C2DEngineDocker extends C2DEngine {
         await c.stop({ t: 10 }).catch((e) => {
           if (!isBenignDockerError(e)) throw e
         })
+        await this.saveServiceLogs(job, c)
         await this.archiveServiceOutputs(job, c)
         // v: also drop the anonymous volumes the image declared (e.g. comfyui-boot's
         // VOLUME /root, where it keeps its models): no later container can attach them,
@@ -6505,6 +6587,8 @@ export class C2DEngineDocker extends C2DEngine {
         if (!isBenignDockerError(e)) stopped = false
         logDockerCleanupError(e, `restart ${serviceId}: old container stop: ${e.message}`)
       })
+      // Its logs end here, whichever way it goes below: the new container starts a fresh log.
+      await this.saveServiceLogs(job, c)
       if (job.outputBucketId) {
         await c.remove({ force: true, v: true }).catch((e) => {
           logDockerCleanupError(
@@ -6799,27 +6883,49 @@ export class C2DEngineDocker extends C2DEngine {
   ): Promise<NodeJS.ReadableStream | null> {
     const [job] = await this.db.getServiceJob(serviceId, owner)
     if (!job) return null
+    // While the service has a container (Running, or Error before teardown) its live log is the
+    // answer: it covers everything that container logged.
     if (
-      job.status !== ServiceStatusNumber.Running &&
-      job.status !== ServiceStatusNumber.Error
+      job.containerId &&
+      (job.status === ServiceStatusNumber.Running ||
+        job.status === ServiceStatusNumber.Error)
     ) {
-      return null
+      try {
+        const container = this.docker.getContainer(job.containerId)
+        await container.inspect() // throws if the container no longer exists
+        return (await container.logs({
+          stdout: true,
+          stderr: true,
+          follow: true,
+          ...(since !== undefined ? { since } : {})
+        })) as unknown as NodeJS.ReadableStream
+      } catch (e: any) {
+        // Gone: fall back to the saved logs. Anything else is a Docker failure, and serving
+        // older saved logs in place of the live ones would hide it.
+        if (e?.statusCode !== 404) {
+          CORE_LOGGER.error(
+            `getServiceStreamableLogs failed for ${serviceId}: ${e?.message ?? e}`
+          )
+          return null
+        }
+      }
     }
-    try {
-      const container = this.docker.getContainer(job.containerId)
-      await container.inspect() // throws if the container no longer exists
-      return (await container.logs({
-        stdout: true,
-        stderr: true,
-        follow: true,
-        ...(since !== undefined ? { since } : {})
-      })) as unknown as NodeJS.ReadableStream
-    } catch (e: any) {
-      CORE_LOGGER.error(
-        `getServiceStreamableLogs failed for ${serviceId}: ${e?.message ?? e}`
-      )
-      return null
-    }
+    return this.openSavedServiceLogs(job, since)
+  }
+
+  // The logs saved at teardown (job.logArchives), oldest container first, or null when there
+  // are none — never saved, or deleted with the output archives once storageExpiry elapsed.
+  private openSavedServiceLogs(
+    job: ServiceJob,
+    since?: number
+  ): NodeJS.ReadableStream | null {
+    const folder = this.getServiceOutputsFolder(job.serviceId)
+    const files = [...(job.logArchives ?? [])]
+      .sort((a, b) => a.index - b.index)
+      .map((a) => path.join(folder, a.filename))
+      .filter((file) => existsSync(file))
+    if (!files.length) return null
+    return savedServiceLogsStream(files, since)
   }
 
   public override async getServiceResult(
@@ -6913,29 +7019,33 @@ export class C2DEngineDocker extends C2DEngine {
       now - shortest * 1000,
       this.getC2DConfig().hash
     )
+    // The output archives and the saved logs share the service's folder and expire together.
+    const holdsFiles = (job?: ServiceJob) =>
+      !!(job?.outputArchives?.length || job?.logArchives?.length)
     let cleaned = 0
     for (const candidate of candidates) {
-      if (!candidate.outputArchives?.length) continue
+      if (!holdsFiles(candidate)) continue
       const expiry = storageExpiry.get(candidate.environment) ?? defaultStorageExpiry
       if (now < candidate.expiresAt + expiry * 1000) continue
       try {
         await this.runExclusive(candidate.serviceId, async () => {
           const [job] = await this.db.getServiceJob(candidate.serviceId, candidate.owner)
-          if (!job?.outputArchives?.length) return
+          if (!holdsFiles(job)) return
           rmSync(this.getServiceOutputsFolder(job.serviceId), {
             recursive: true,
             force: true
           })
           job.outputArchives = []
+          job.logArchives = []
           await this.db.updateServiceJob(job)
           cleaned++
           CORE_LOGGER.info(
-            `service ${job.serviceId}: output archives deleted (storage expiry elapsed)`
+            `service ${job.serviceId}: output archives and saved logs deleted (storage expiry elapsed)`
           )
         })
       } catch (e: any) {
         CORE_LOGGER.error(
-          `service ${candidate.serviceId}: failed to delete output archives: ${e.message} — retrying next run`
+          `service ${candidate.serviceId}: failed to delete output archives and saved logs: ${e.message} — retrying next run`
         )
       }
     }

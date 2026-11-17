@@ -2965,10 +2965,13 @@ until `expiresAt`. Only `release: true` ends the paid window early.
 
 #### Description
 
-Stream the service container's stdout/stderr logs live. **Authenticated and owner-scoped**
+Stream the service container's stdout/stderr logs. **Authenticated and owner-scoped**
 — only the service's owner (`consumerAddress`, proven by signature/nonce or auth token) can
-read its logs. Available while the service is `Running` (`40`) or `Error` (`99`) — a crashed
-container is kept around until `stop`/`restart`, so its logs remain fetchable for diagnosis.
+read its logs. While the service has a container — `Running` (`40`), or `Error` (`99`): a
+crashed container is kept around until `stop`/`restart` — its log is followed live. Once the
+container is gone, the logs the node saved when each of the service's containers was removed
+are served instead, oldest first, until `storageExpiry` seconds after `expiresAt`. Only the last
+16 MiB of each container's log are kept.
 
 #### Query Parameters
 
@@ -2982,10 +2985,11 @@ container is kept around until `stop`/`restart`, so its logs remain fetchable fo
 
 #### Response (200)
 
-Raw `stdout`/`stderr` byte stream from the container, connection kept open and followed live.
-With `since` set, historical output before that point is skipped — useful for a long-lived
-service where fetching the full history would otherwise dump days/weeks of buffered logs
-before reaching the live tail (e.g. `since=1h` for just the last hour).
+Raw `stdout`/`stderr` byte stream from the container (Docker-multiplexed frames), connection
+kept open and followed live. Saved logs come in the same format, and the stream ends after the
+last line. With `since` set, historical output before that point is skipped — useful for a
+long-lived service where fetching the full history would otherwise dump days/weeks of buffered
+logs before reaching the live tail (e.g. `since=1h` for just the last hour).
 
 #### Response (400)
 
@@ -2993,7 +2997,8 @@ before reaching the live tail (e.g. `since=1h` for just the last hour).
 
 #### Response (404)
 
-Service not found, or not `Running`/`Error`.
+Service not found, or it has no container and no saved logs (never saved, or deleted after
+storage expiry).
 
 #### Response (401)
 
