@@ -20,7 +20,7 @@ const FILES: Record<SqlStoreGroup, string> = {
   authToken: 'authTokenDatabase.sqlite',
   buckets: 'persistentStorage.sqlite',
   nodeMetrics: 'nodeMetrics.sqlite',
-  // new: the older releases kept these stores in Typesense
+  // the index data and the logs
   index: 'index.sqlite'
 }
 

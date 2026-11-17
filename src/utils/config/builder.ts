@@ -33,28 +33,9 @@ import lodash from 'lodash'
 let previousConfiguration: OceanNodeConfig = null
 
 const DEFAULT_DB_TYPE: DatabaseType = 'sqlite'
-// the database of the releases before the pluggable database
-const LEGACY_DB_TYPE = 'typesense'
-
-// the URL of a Typesense server has its API key as a parameter
-function isTypesenseUrl(url: unknown): boolean {
-  return (
-    typeof url === 'string' &&
-    URL.canParse(url) &&
-    new URL(url).searchParams.has('apiKey')
-  )
-}
-
 // With no DB_TYPE, a DB_URL selects its database server, as in the older releases: a node
-// keeps its database after an update. A node that was configured for Typesense, or for no
-// database, starts on the default database.
+// keeps its database after an update. With no DB_URL, the node uses the default database.
 function resolveDbType({ dbType, url }: Record<string, unknown>): unknown {
-  if (dbType === LEGACY_DB_TYPE || (!dbType && isTypesenseUrl(url))) {
-    CONFIG_LOGGER.warn(
-      `The ${LEGACY_DB_TYPE} database is no longer supported: the node uses ${DEFAULT_DB_TYPE} and indexes the chains again`
-    )
-    return DEFAULT_DB_TYPE
-  }
   return dbType || databaseTypeOfUrl(url) || DEFAULT_DB_TYPE
 }
 

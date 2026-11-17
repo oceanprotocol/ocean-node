@@ -136,19 +136,7 @@ database`. The node never ignores a clause or an option.
 On all databases, `size` and `from` must be whole numbers, 0 or more, and the `query` command
 reads the first 10000 documents at most.
 
-## Upgrade from a node with Typesense
-
-Older releases kept the index data in Typesense and the node state in SQLite files.
-
-1. Update the node. With `DB_TYPE=typesense`, or with a Typesense `DB_URL` and no `DB_TYPE`,
-   the node uses SQLite and logs one warning. `DB_URL` is not used.
-2. The node state stays: the node opens the same files in `databases/`. Keep the volume or
-   folder that holds them.
-3. The index data is made again: the indexer reads the chains from the start block. During
-   that time, DDO search gives partial results.
-4. Remove the Typesense service and its volume from your compose file.
-
-## Upgrade from a node with Elasticsearch, and a change of database
+## Upgrade from an older release, and a change of database
 
 The older releases kept the node state in the SQLite files of `databases/` also when the
 index data was in Elasticsearch. The node state does not move from these files to a database
@@ -164,6 +152,12 @@ holds node state files (`c2dDatabase.sqlite`, `nonceDatabase.sqlite`,
   again in SQLite.
 - Start with empty state on the database server: stop the node when it has no running jobs
   or services, then remove these files.
+
+A compose file of an older release can have a `DB_URL` for a database that the node no longer
+supports. The node reads an `http(s)` URL as Elasticsearch and stops with
+`DB_USERNAME and DB_PASSWORD are required when DB_TYPE is elasticsearch`. Remove the `DB_URL`
+line and the service of that database from the compose file: the node then uses SQLite, keeps
+its state in `databases/`, and makes the index data again from the chains.
 
 ## Auth tokens
 

@@ -98,21 +98,10 @@ show_completion_message() {
     echo -e "To apply the changes, run: \e[1;32mdocker-compose up -d\e[0m"
 }
 
-# The node no longer uses Typesense. It keeps its state in the node-sqlite volume and makes
-# the index data again; the Typesense container is of no more use.
-warn_about_typesense() {
-    if grep -q "typesense" docker-compose.yml; then
-        echo -e "\n\e[1;31mTypesense is no longer used.\e[0m The node now keeps all its data in SQLite, in the node-sqlite volume, and indexes the chains again."
-        echo "In docker-compose.yml, remove: the DB_URL line of the node, 'typesense' from depends_on, the typesense service and the typesense-data volume."
-        echo -e "Then run: \e[1;32mdocker-compose up -d --remove-orphans\e[0m"
-    fi
-}
-
 main() {
     check_prerequisites
     configure_c2d
     add_logs_mount
-    warn_about_typesense
 }
 
 main

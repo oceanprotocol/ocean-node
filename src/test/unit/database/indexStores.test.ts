@@ -37,6 +37,17 @@ describe('SQL index stores', () => {
   })
   afterEach(() => db.close())
 
+  it('two nodes that start at the same time can make the tables', async () => {
+    const other = await makeSqlClient()
+    const fresh = () => other.exec('SELECT 1').then(() => other)
+    await Promise.all(
+      Array.from({ length: 6 }, async () =>
+        buildSqlIndexStores(SQL_DB_CONFIG, await fresh())
+      )
+    )
+    await other.close()
+  })
+
   describe('indexer', () => {
     it('keeps the last indexed block of a chain', async () => {
       expect(await stores.indexer.retrieve(8996)).to.equal(null)

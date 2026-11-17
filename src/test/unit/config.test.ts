@@ -231,23 +231,6 @@ describe('Should select the database from DB_TYPE', () => {
     expect(conf.dbConfig).to.deep.equal({ dbType: 'sqlite' })
   })
 
-  it('should use SQLite for a node that was configured for Typesense', async () => {
-    const { config: conf, error } = await configWith({
-      type: 'typesense',
-      url: 'http://typesense:8108/?apiKey=xyz'
-    })
-    expect(error).to.be.equal(undefined)
-    expect(conf.dbConfig).to.deep.equal({ dbType: 'sqlite' })
-  })
-
-  it('should use SQLite for a Typesense DB_URL with no DB_TYPE', async () => {
-    const { config: conf, error } = await configWith({
-      url: 'http://typesense:8108/?apiKey=xyz'
-    })
-    expect(error).to.be.equal(undefined)
-    expect(conf.dbConfig).to.deep.equal({ dbType: 'sqlite' })
-  })
-
   // the older releases had no DB_TYPE for a node on a database server
   for (const [type, url] of [
     ['elasticsearch', ELASTIC_URL],

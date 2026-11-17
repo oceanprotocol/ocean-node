@@ -197,7 +197,7 @@ There is no DEGRADED mode: if the database cannot be opened when the node starts
 init retries), the node logs `Database failed to initialize, exiting` and exits with code 1.
 A config value of the wrong type instead fails `OceanNodeConfigSchema` (zod) validation and
 stops startup before any DB is initialized. See [Database guide](docs/database.md), also for
-the upgrade from a node with Typesense.
+the upgrade from an older release.
 
 ## Compute (C2D) & services
 

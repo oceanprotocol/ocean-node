@@ -5,6 +5,8 @@ import { DB_CONNECTION_EVENTS, DB_EVENTS } from '../connectionEvents.js'
 import { SqlClient, toSqlValue } from './SqlClient.js'
 
 const HEALTH_CHECK_INTERVAL_MS = 15_000
+// the name of the lock that a node holds while it changes the schema
+const SCHEMA_LOCK = 'ocean-node:schema'
 
 // the part of pg.Pool and pg.PoolClient that the client uses
 type Queryable = Pick<pg.Pool, 'query'>
@@ -80,8 +82,14 @@ export class PostgresClient implements SqlClient {
     this.healthTimer.unref()
   }
 
+  // Schema changes run one at a time: PostgreSQL fails one of two CREATE TABLE IF NOT
+  // EXISTS statements for the same table that run at the same time (two nodes that start
+  // together). The lock ends with the transaction.
   exec(sql: string): Promise<void> {
-    return this.pooled.exec(sql)
+    return this.transaction(async (tx) => {
+      await tx.get('SELECT pg_advisory_xact_lock(hashtext(?))', [SCHEMA_LOCK])
+      await tx.exec(sql)
+    })
   }
 
   run(sql: string, params?: unknown[]): Promise<{ changes: number }> {
