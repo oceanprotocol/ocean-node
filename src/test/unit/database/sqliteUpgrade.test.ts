@@ -4,6 +4,7 @@ import os from 'os'
 import path from 'path'
 import { DatabaseSync } from 'node:sqlite'
 import {
+  createSqliteStores,
   openSqliteClients,
   sqliteStateFiles,
   upgradeLegacyTables
@@ -270,6 +271,19 @@ describe('SQLite stores on the databases folder of an older release', () => {
     await openStores()
     const toClean = await stores.c2d.getExpiredServiceJobsBefore(2000)
     expect(toClean.map((job) => job.serviceId)).to.deep.equal(['svc-1'])
+  })
+
+  it('closes the files when the start fails', async () => {
+    const bad = fs.mkdtempSync(path.join(os.tmpdir(), 'ocean-bad-db-'))
+    fs.writeFileSync(path.join(bad, 'nonceDatabase.sqlite'), 'this is not a database')
+    for (let attempt = 0; attempt < 3; attempt++) {
+      let error: Error
+      await createSqliteStores({ dbType: 'sqlite' }, bad).catch((err) => {
+        error = err
+      })
+      expect(error).to.be.instanceOf(Error)
+    }
+    fs.rmSync(bad, { recursive: true, force: true })
   })
 
   it('refuses a database server while the folder holds node state', () => {

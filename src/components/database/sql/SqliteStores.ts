@@ -47,8 +47,14 @@ export async function createSqliteStores(
   dir: string = SQLITE_DIR
 ): Promise<DatabaseStores> {
   const clients = openSqliteClients(dir)
-  await upgradeLegacyTables(clients)
-  return buildSqlStores(config, (group) => clients[group])
+  try {
+    await upgradeLegacyTables(clients)
+    return await buildSqlStores(config, (group) => clients[group])
+  } catch (error) {
+    // the node tries again with new handles
+    await Promise.all(Object.values(clients).map((client) => client.close()))
+    throw error
+  }
 }
 
 // a stored token id is the sha256 of the token

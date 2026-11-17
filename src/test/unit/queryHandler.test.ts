@@ -111,6 +111,11 @@ describe('Query handler', () => {
     expect(orderSearch.called).to.equal(false)
   })
 
+  it('gives the page size 0 to the store: a count-only query reads no document', async () => {
+    const { status } = await run({ query: MATCH_ALL, size: 0 })
+    expect(status.httpStatus).to.equal(200)
+  })
+
   it('answers 500 for another error', async () => {
     ddoSearch.rejects(new Error('database is down'))
     const { status } = await run({ query: MATCH_ALL })

@@ -29,7 +29,7 @@ export function queryPage(query: Record<string, any>): { size: number; offset: n
       throw new QueryError(`'${key}' of a query must be a whole number, 0 or more`)
     }
   }
-  const size = query.size || DEFAULT_PAGE_SIZE
+  const size = query.size ?? DEFAULT_PAGE_SIZE
   return { size, offset: (query.from || 1) * size - size }
 }
 

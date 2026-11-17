@@ -88,7 +88,8 @@ export function translateSort(sort: unknown, target: QueryTarget): SqlPart {
 
 // the value as the field table keeps it
 export function searchText(value: unknown): string {
-  return String(value).toLowerCase().slice(0, TEXT_LIMIT)
+  // PostgreSQL refuses U+0000 in a text, and a DDO would not be stored
+  return String(value).toLowerCase().replaceAll('\u0000', '').slice(0, TEXT_LIMIT)
 }
 
 // the number that a value holds: a number, or a text such as '10' or '2.5'

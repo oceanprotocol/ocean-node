@@ -171,6 +171,29 @@ describe('SQL documents', () => {
       expect(rows).to.deep.equal([])
     })
 
+    it('keeps a document whose text has a NUL character', async () => {
+      await documents.put('nul', { name: 'a\u0000b', 'k\u0000ey': 'v' })
+      expect(await sorted({ term: { name: 'ab' } })).to.deep.equal(['nul'])
+      expect((await documents.get('nul')).name).to.equal('a\u0000b')
+    })
+
+    it('a query with size 0 gives no document', async () => {
+      expect(await documents.query({ query: { match_all: {} }, size: 0 })).to.deep.equal(
+        []
+      )
+    })
+
+    it('deletes many documents with their field rows, more than one statement holds', async () => {
+      for (let i = 0; i < 450; i++) await documents.put(`bulk-${i}`, { kind: 'bulk' })
+      expect(await documents.deleteMatching({ term: { kind: 'bulk' } })).to.equal(450)
+      expect(await documents.count()).to.equal(3)
+      const left = await db.get(
+        'SELECT COUNT(*) AS "n" FROM ddo_fields WHERE "id" LIKE ?',
+        ['bulk-%']
+      )
+      expect(Number(left.n)).to.equal(0)
+    })
+
     it('deletes the documents that match a query', async () => {
       expect(await documents.deleteMatching({ term: { chainId: 8996 } })).to.equal(2)
       expect(await sorted({ match_all: {} })).to.deep.equal([ARCHIVE.id])
@@ -605,7 +628,7 @@ describe('SQL documents: a query that is not valid', () => {
     ]) {
       await invalid(documents.query({ query: { match_all: {} }, ...page }))
     }
-    expect(await documents.query({ size: 0, from: 0 })).to.have.length(1)
+    expect(await documents.query({ size: 1, from: 0 })).to.have.length(1)
   })
 })
 

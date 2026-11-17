@@ -1,5 +1,5 @@
 import { UnsupportedQueryError, queryPage } from '../BaseDatabase.js'
-import type { SqlClient } from './SqlClient.js'
+import { SqlClient, placeholders } from './SqlClient.js'
 import {
   QueryTarget,
   numberOf,
@@ -19,7 +19,7 @@ interface FieldRow {
 // A longer path gets no field row: PostgreSQL limits the size of an index entry, and a
 // path of this length is a free-form key, not a field that a query names.
 const PATH_LIMIT = 128
-// rows for one INSERT statement; the databases limit the number of parameters
+// rows or ids for one statement; the databases limit the number of parameters
 const INSERT_CHUNK = 200
 // the parts of a node query
 const QUERY_KEYS = ['query', 'sort', 'from', 'size', 'aggs', 'aggregations']
@@ -36,7 +36,7 @@ export function flattenDocument(
     value.forEach((item) => flattenDocument(item, path, rows))
   } else if (typeof value === 'object') {
     for (const [key, child] of Object.entries(value)) {
-      flattenDocument(child, path ? `${path}.${key}` : key, rows)
+      flattenDocument(child, path ? `${path}.${key}` : key.replaceAll('\u0000', ''), rows)
     }
   } else if (path.length <= PATH_LIMIT) {
     rows.push({ path, str: searchText(value), num: numberOf(value) })
@@ -144,15 +144,17 @@ export class SqlDocuments {
   // returns the number of deleted documents
   deleteMatching(query: Document): Promise<number> {
     const where = translateQuery(query, this.target)
+    const matching = `SELECT d."id" FROM ${this.table} d WHERE ${where.sql}`
     return this.db.transaction(async (tx) => {
-      const rows = await tx.all<{ id: string }>(
-        `SELECT d."id" FROM ${this.table} d WHERE ${where.sql}`,
-        where.params
-      )
-      for (const { id } of rows) {
-        await this.remove(tx, id)
+      // the field rows find the documents, so they go after the documents
+      const ids = await tx.all<{ id: string }>(matching, where.params)
+      for (let start = 0; start < ids.length; start += INSERT_CHUNK) {
+        const chunk = ids.slice(start, start + INSERT_CHUNK).map((row) => row.id)
+        const list = placeholders(chunk.length)
+        await tx.run(`DELETE FROM ${this.table} WHERE "id" IN (${list})`, chunk)
+        await tx.run(`DELETE FROM ${this.target.fields} WHERE "id" IN (${list})`, chunk)
       }
-      return rows.length
+      return ids.length
     })
   }
 

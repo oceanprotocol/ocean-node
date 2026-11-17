@@ -5,6 +5,7 @@ import { DB_CONNECTION_EVENTS, DB_EVENTS } from '../connectionEvents.js'
 import { SqlClient, toSqlValue } from './SqlClient.js'
 
 const HEALTH_CHECK_INTERVAL_MS = 15_000
+const CONNECT_TIMEOUT_MS = 10_000
 // the name of the lock that a node holds while it changes the schema
 const SCHEMA_LOCK = 'ocean-node:schema'
 
@@ -67,6 +68,8 @@ export class PostgresClient implements SqlClient {
   constructor(config: OceanNodeDBConfig) {
     this.pool = new pg.Pool({
       connectionString: connectionString(config),
+      // a server that does not answer must give an error, so that the startup retries
+      connectionTimeoutMillis: CONNECT_TIMEOUT_MS,
       // a BIGINT comes as text by default; the values of the node fit in a number
       types: {
         getTypeParser: (id: number, format?: any) =>
