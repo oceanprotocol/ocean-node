@@ -16,6 +16,7 @@ import { PolicyServer } from '../../policyServer/index.js'
 import {
   wasNFTDeployedByOurFactory,
   getPricingStatsForDddo,
+  buildShortDdoRecord,
   retrieveDdoByNft
 } from '../utils.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
@@ -94,17 +95,9 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           } to ${metadataState}`
         )
 
-        const shortDdoInstance = DDOManager.getDDOClass({
-          id: ddo.id,
-          version: 'deprecated',
-          chainId,
-          nftAddress: ddo.nftAddress,
-          indexedMetadata: {
-            nft: {
-              state: metadataState
-            }
-          }
-        })
+        const shortDdoInstance = DDOManager.getDDOClass(
+          buildShortDdoRecord(ddo, chainId, metadataState)
+        )
 
         const savedDDO = await this.createOrUpdateDDO(
           shortDdoInstance,

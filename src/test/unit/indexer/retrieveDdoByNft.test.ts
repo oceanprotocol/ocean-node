@@ -1,6 +1,9 @@
 import { expect } from 'chai'
 import { deriveDid } from '@oceanprotocol/ddo-js'
-import { retrieveDdoByNft } from '../../../components/Indexer/utils.js'
+import {
+  buildShortDdoRecord,
+  retrieveDdoByNft
+} from '../../../components/Indexer/utils.js'
 
 // Contract events (orders, prices, dispensers, metadata state) only give the NFT address and
 // chain id. Before, the processors derived the v4 DID (did:op:) only, so events for a v5 asset
@@ -74,6 +77,36 @@ describe('retrieveDdoByNft', () => {
       [DID_V5]: published(DID_V5)
     })
     expect((await retrieveDdoByNft(noBlocks, NFT_ADDRESS, CHAIN_ID)).did).to.equal(DID_V5)
+  })
+
+  it('keeps the current publication selected after it is revoked', async () => {
+    const stored: Record<string, any> = {
+      [DID_V4]: published(DID_V4, 100),
+      [DID_V5]: published(DID_V5, 200)
+    }
+    const db = fakeDdoDatabase(stored)
+    const before = await retrieveDdoByNft(db, NFT_ADDRESS, CHAIN_ID)
+    expect(before.did).to.equal(DID_V5)
+
+    // MetadataState / MetadataEvent processors replace the revoked DDO with a short one
+    stored[before.did] = buildShortDdoRecord(before.ddo, CHAIN_ID, 8)
+    expect(stored[DID_V5].indexedMetadata.event.block).to.equal(200)
+
+    const after = await retrieveDdoByNft(db, NFT_ADDRESS, CHAIN_ID)
+    expect(after.did).to.equal(DID_V5)
+    expect(after.ddo.version).to.equal('deprecated')
+    expect(after.ddo.indexedMetadata.nft.state).to.equal(8)
+  })
+
+  it('builds a short DDO without event when the full DDO has none', () => {
+    const shortDdo = buildShortDdoRecord(published(DID_V4), CHAIN_ID, 2)
+    expect(shortDdo).to.deep.equal({
+      id: DID_V4,
+      version: 'deprecated',
+      chainId: CHAIN_ID,
+      nftAddress: undefined,
+      indexedMetadata: { nft: { state: 2 } }
+    })
   })
 
   it('returns a null DDO and the v4 DID when neither is indexed', async () => {

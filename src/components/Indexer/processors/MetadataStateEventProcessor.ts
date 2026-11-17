@@ -4,7 +4,7 @@ import { EVENTS, MetadataStates } from '../../../utils/constants.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
-import { retrieveDdoByNft } from '../utils.js'
+import { buildShortDdoRecord, retrieveDdoByNft } from '../utils.js'
 
 export class MetadataStateEventProcessor extends BaseEventProcessor {
   async processEvent(
@@ -55,17 +55,9 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
           // We should keep it here, because in further development we'll store
           // the previous structure of the non-visible DDOs (full version)
           // in case their state changes back to active.
-          const shortDdoInstance = DDOManager.getDDOClass({
-            id: ddo.id,
-            version: 'deprecated',
-            chainId,
-            nftAddress: ddo.nftAddress,
-            indexedMetadata: {
-              nft: {
-                state: metadataState
-              }
-            }
-          })
+          const shortDdoInstance = DDOManager.getDDOClass(
+            buildShortDdoRecord(ddo, chainId, metadataState)
+          )
 
           const savedDDO = await this.createOrUpdateDDO(
             shortDdoInstance,

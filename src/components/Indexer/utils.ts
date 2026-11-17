@@ -504,6 +504,26 @@ export async function retrieveDdoByNft(
   )
 }
 
+/**
+ * Builds the short DDO stored when an asset's metadata state leaves Active (revoked,
+ * deprecated, ...)
+ */
+export function buildShortDdoRecord(
+  ddo: Record<string, any>,
+  chainId: number,
+  state: number
+): Record<string, any> {
+  const indexedMetadata: Record<string, any> = { nft: { state } }
+  if (ddo.indexedMetadata?.event) indexedMetadata.event = ddo.indexedMetadata.event
+  return {
+    id: ddo.id,
+    version: 'deprecated',
+    chainId,
+    nftAddress: ddo.nftAddress,
+    indexedMetadata
+  }
+}
+
 export async function withRetrial<T>(
   fn: () => Promise<T>,
   maxRetries: number = 5,

@@ -300,6 +300,16 @@ export class DownloadHandler extends CommandHandler {
       }
     }
 
+    // Resolve the service first: task.serviceId may be an index, and every access
+    // decision (including the policy server's) must name the service that is downloaded.
+    let service = ddoInstance.getService(task.serviceId) as Service
+    if (!service) {
+      service = ddoInstance.getServiceByIndex(Number(task.serviceId)) as Service
+    }
+    if (!service) throw new Error('Cannot find service')
+    // The service may have been found by index, so look its index up by the resolved id
+    const serviceIndex = ddoInstance.getServiceIndex(service.id)
+
     // check credentials (DDO level)
     let accessGrantedDDOLevel: boolean
     if (credentials) {
@@ -309,7 +319,7 @@ export class DownloadHandler extends CommandHandler {
         const response = await policyServer.checkDownload(
           ddoInstance.getDid(),
           ddo,
-          task.serviceId,
+          service.id,
           task.consumerAddress,
           task.policyServer
         )
@@ -332,14 +342,6 @@ export class DownloadHandler extends CommandHandler {
         }
       }
     }
-
-    let service = ddoInstance.getService(task.serviceId) as Service
-    if (!service) {
-      service = ddoInstance.getServiceByIndex(Number(task.serviceId)) as Service
-    }
-    if (!service) throw new Error('Cannot find service')
-    // The service may have been found by index, so look its index up by the resolved id
-    const serviceIndex = ddoInstance.getServiceIndex(service.id)
 
     // check credentials on service level
     // if using a policy server and we are here it means that access was granted (they are merged/assessed together)
