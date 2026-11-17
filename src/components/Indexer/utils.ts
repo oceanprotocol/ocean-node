@@ -11,9 +11,8 @@ import { CommandStatus, JobStatus } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' with { type: 'json' }
 import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' with { type: 'json' }
-import { createHash } from 'crypto'
 import { ServicePrice } from '../../@types/IndexedMetadata.js'
-import { VersionedDDO } from '@oceanprotocol/ddo-js'
+import { VersionedDDO, deriveDidCandidates } from '@oceanprotocol/ddo-js'
 import FactoryRouter from '@oceanprotocol/contracts/artifacts/contracts/pools/FactoryRouter.sol/FactoryRouter.json' with { type: 'json' }
 
 /**
@@ -473,13 +472,24 @@ export async function getPricingStatsForDddo(
   return ddo
 }
 
-export function getDid(nftAddress: string, chainId: number): string {
-  return (
-    'did:op:' +
-    createHash('sha256')
-      .update(getAddress(nftAddress) + chainId.toString(10))
-      .digest('hex')
-  )
+/**
+ * Finds the DDO of an NFT. Contract events only give the NFT address and chain id,
+ * so the DDO is looked up under both DIDs it may be indexed as: v4 (`did:op:`)
+ * first, then v5 (`did:ope:`).
+ * @returns The DDO and the DID it was found under. When neither is indexed, `ddo`
+ * is null and `did` is the v4 DID.
+ */
+export async function retrieveDdoByNft(
+  ddoDatabase: { retrieve(did: string): Promise<Record<string, any> | null> },
+  nftAddress: string,
+  chainId: number
+): Promise<{ did: string; ddo: Record<string, any> | null }> {
+  const candidates = deriveDidCandidates(nftAddress, chainId)
+  for (const did of candidates) {
+    const ddo = await ddoDatabase.retrieve(did)
+    if (ddo) return { did, ddo }
+  }
+  return { did: candidates[0], ddo: null }
 }
 
 export async function withRetrial<T>(

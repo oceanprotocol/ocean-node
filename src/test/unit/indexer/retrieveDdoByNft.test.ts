@@ -1,0 +1,54 @@
+import { expect } from 'chai'
+import { deriveDid } from '@oceanprotocol/ddo-js'
+import { retrieveDdoByNft } from '../../../components/Indexer/utils.js'
+
+// Contract events (orders, prices, dispensers, metadata state) only give the NFT address and
+// chain id. Before, the processors derived the v4 DID (did:op:) only, so events for a v5 asset
+// (indexed under did:ope:) were never applied to it.
+
+const NFT_ADDRESS = '0xBB1081DbF3227bbB233Db68f7117114baBb43656'
+const CHAIN_ID = 137
+const DID_V4 = deriveDid(NFT_ADDRESS, CHAIN_ID, '4')
+const DID_V5 = deriveDid(NFT_ADDRESS, CHAIN_ID, '5')
+
+function fakeDdoDatabase(stored: Record<string, any>) {
+  const lookups: string[] = []
+  return {
+    lookups,
+    retrieve(did: string): Promise<Record<string, any> | null> {
+      lookups.push(did)
+      return Promise.resolve(stored[did] ?? null)
+    }
+  }
+}
+
+describe('retrieveDdoByNft', () => {
+  it('finds a v4 DDO with a single lookup', async () => {
+    const db = fakeDdoDatabase({ [DID_V4]: { id: DID_V4 } })
+    const { did, ddo } = await retrieveDdoByNft(db, NFT_ADDRESS, CHAIN_ID)
+    expect(did).to.equal(DID_V4)
+    expect(ddo).to.deep.equal({ id: DID_V4 })
+    expect(db.lookups).to.deep.equal([DID_V4])
+  })
+
+  it('finds a v5 DDO indexed under did:ope:', async () => {
+    const db = fakeDdoDatabase({ [DID_V5]: { id: DID_V5 } })
+    const { did, ddo } = await retrieveDdoByNft(db, NFT_ADDRESS, CHAIN_ID)
+    expect(did).to.equal(DID_V5)
+    expect(ddo).to.deep.equal({ id: DID_V5 })
+    expect(db.lookups).to.deep.equal([DID_V4, DID_V5])
+  })
+
+  it('returns a null DDO and the v4 DID when neither is indexed', async () => {
+    const db = fakeDdoDatabase({})
+    const { did, ddo } = await retrieveDdoByNft(db, NFT_ADDRESS, CHAIN_ID)
+    expect(did).to.equal(DID_V4)
+    expect(ddo).to.equal(null)
+  })
+
+  it('matches the NFT address in any letter case', async () => {
+    const db = fakeDdoDatabase({ [DID_V5]: { id: DID_V5 } })
+    const { did } = await retrieveDdoByNft(db, NFT_ADDRESS.toLowerCase(), CHAIN_ID)
+    expect(did).to.equal(DID_V5)
+  })
+})

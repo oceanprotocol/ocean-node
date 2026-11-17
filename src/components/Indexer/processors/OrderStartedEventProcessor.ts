@@ -2,7 +2,7 @@ import { DDOManager } from '@oceanprotocol/ddo-js'
 import { ethers, Signer, FallbackProvider } from 'ethers'
 import { EVENTS } from '../../../utils/constants.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
-import { getDtContract, getDid, getPricesByDt } from '../utils.js'
+import { getDtContract, retrieveDdoByNft, getPricesByDt } from '../utils.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
 
@@ -29,10 +29,9 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
     const datatokenContract = getDtContract(signer, event.address)
 
     const nftAddress = await datatokenContract.getERC721Address()
-    const did = getDid(nftAddress, chainId)
     try {
       const { ddo: ddoDatabase, order: orderDatabase } = await this.getDatabase()
-      const ddo = await ddoDatabase.retrieve(did)
+      const { did, ddo } = await retrieveDdoByNft(ddoDatabase, nftAddress, chainId)
       if (!ddo) {
         INDEXER_LOGGER.debug(
           `Detected OrderStarted changed for ${did}, but it does not exists.`

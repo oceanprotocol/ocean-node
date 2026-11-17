@@ -5,7 +5,7 @@ import { EVENTS } from '../../../utils/constants.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import {
   getDtContract,
-  getDid,
+  retrieveDdoByNft,
   doesDispenserAlreadyExist,
   getPricesByDt,
   isValidDispenserContract
@@ -42,10 +42,9 @@ export class DispenserCreatedEventProcessor extends BaseEventProcessor {
     const datatokenContract = getDtContract(signer, datatokenAddress)
 
     const nftAddress = await datatokenContract.getERC721Address()
-    const did = getDid(nftAddress, chainId)
     try {
       const { ddo: ddoDatabase } = await this.getDatabase()
-      const ddo = await ddoDatabase.retrieve(did)
+      const { did, ddo } = await retrieveDdoByNft(ddoDatabase, nftAddress, chainId)
       if (!ddo) {
         INDEXER_LOGGER.debug(
           `Detected DispenserCreated changed for ${did}, but it does not exists.`

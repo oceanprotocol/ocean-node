@@ -4,7 +4,7 @@ import { EVENTS, MetadataStates } from '../../../utils/constants.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
-import { getDid } from '../utils.js'
+import { retrieveDdoByNft } from '../utils.js'
 
 export class MetadataStateEventProcessor extends BaseEventProcessor {
   async processEvent(
@@ -23,11 +23,10 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
     const metadataState = parseInt(decodedEventData.args[1].toString())
     INDEXER_LOGGER.debug(`Processed new metadata state ${metadataState} `)
     INDEXER_LOGGER.debug(`NFT address in processing MetadataState: ${event.address} `)
-    const did = getDid(event.address, chainId)
 
     try {
       const { ddo: ddoDatabase } = await this.getDatabase()
-      const ddo = await ddoDatabase.retrieve(did)
+      const { did, ddo } = await retrieveDdoByNft(ddoDatabase, event.address, chainId)
       if (!ddo) {
         INDEXER_LOGGER.debug(
           `Detected MetadataState changed for ${did}, but it does not exists.`

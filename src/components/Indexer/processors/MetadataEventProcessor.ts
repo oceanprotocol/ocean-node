@@ -1,4 +1,4 @@
-import { DDOManager, DDO, VersionedDDO } from '@oceanprotocol/ddo-js'
+import { DDOManager, DDO, VersionedDDO, deriveDid } from '@oceanprotocol/ddo-js'
 import { ethers, Signer, FallbackProvider, getAddress } from 'ethers'
 import {
   ENVIRONMENT_VARIABLES,
@@ -13,7 +13,11 @@ import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import { errorSummary } from '../../../utils/logging/redact.js'
 import { asyncCallWithTimeout } from '../../../utils/util.js'
 import { PolicyServer } from '../../policyServer/index.js'
-import { wasNFTDeployedByOurFactory, getPricingStatsForDddo, getDid } from '../utils.js'
+import {
+  wasNFTDeployedByOurFactory,
+  getPricingStatsForDddo,
+  retrieveDdoByNft
+} from '../utils.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
 import { Purgatory } from '../purgatory.js'
@@ -55,7 +59,8 @@ export class MetadataEventProcessor extends BaseEventProcessor {
 
       const dataNftAddress = ethers.getAddress(event.address)
 
-      did = getDid(event.address, chainId)
+      // v4 DID until the DDO is decrypted and its own id is checked below
+      did = deriveDid(event.address, chainId, '4')
 
       const templateContract = new ethers.Contract(
         dataNftAddress,
@@ -70,7 +75,10 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           `Delete DDO ${did} because Metadata state is ${metadataState}`
         )
         const { ddo: ddoDatabase } = await this.getDatabase()
-        const ddo = await ddoDatabase.retrieve(did)
+        const found = await retrieveDdoByNft(ddoDatabase, event.address, chainId)
+        // eslint-disable-next-line prefer-destructuring
+        did = found.did
+        const { ddo } = found
         if (!ddo) {
           INDEXER_LOGGER.debug(
             `Detected MetadataState changed for ${did}, but it does not exists.`
@@ -132,6 +140,8 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         )
         return
       }
+      // The id matches the NFT and chain, so it is this asset's DID (v4 or v5)
+      did = updatedDdo.id
       // for unencrypted DDOs
       if ((parseInt(flag) & 2) === 0 && !this.checkDdoHash(updatedDdo, metadataHash)) {
         INDEXER_LOGGER.debug(
