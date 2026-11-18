@@ -1,5 +1,6 @@
 import { baseSnapshot, describeOnElasticsearch } from '../utils/utils.js'
 import { expect } from 'chai'
+import sinon from 'sinon'
 import { Client } from '@elastic/elasticsearch'
 import { floorToHour } from '../../components/database/nodeMetricsAggregate.js'
 import { ElasticsearchNodeMetrics } from '../../components/database/ElasticsearchNodeMetrics.js'
@@ -154,6 +155,36 @@ describeOnElasticsearch('ElasticsearchNodeMetrics', () => {
       [2, 20]
     ])
     expect(await db.getPartialHour(INSTANCE, hour)).to.equal(null)
+    // a new sample after the cleanup is counted, and the row keeps no stale id
+    await db.insertSample(
+      INSTANCE,
+      baseSnapshot({
+        collectedAt: hour + 3000,
+        cpu: { ...baseSnapshot().cpu, usagePercent: 90 }
+      })
+    )
+    expect(await db.rollupHour(INSTANCE, hour)).to.equal(true)
+    const [row] = await db.getHourly(INSTANCE, hour, hour, 10)
+    expect([row.sampleCount, row.cpu.usagePercent]).to.deep.equal([1, 90])
+  })
+
+  it('rollupHour writes no row when another roll-up changed it after the read', async () => {
+    const hour = Date.UTC(2026, 6, 28, 10, 0, 0, 0)
+    await db.insertSample(INSTANCE, baseSnapshot({ collectedAt: hour + 1000 }))
+    // another process creates the row between the read and the write of this roll-up
+    const index = client.index.bind(client)
+    sinon.stub(client, 'index').callsFake(async (request: any) => {
+      if (request.op_type === 'create') {
+        await index({ ...request, op_type: undefined })
+      }
+      return index(request)
+    })
+    try {
+      expect(await db.rollupHour(INSTANCE, hour)).to.equal(false)
+    } finally {
+      sinon.restore()
+    }
+    expect(await db.getPartialHour(INSTANCE, hour)).to.not.equal(null)
   })
 
   it('rollupHour twice for the same hour returns true both times and keeps one row', async () => {

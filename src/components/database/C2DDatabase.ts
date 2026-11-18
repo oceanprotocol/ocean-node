@@ -70,6 +70,7 @@ export interface ComputeDatabaseProvider {
   releaseServiceLock(serviceId: string, holder: string): Promise<void>
   refreshServiceLocks(holder: string): Promise<void>
   isServiceLocked(serviceId: string, staleMs: number): Promise<boolean>
+  deleteStaleServiceLocks(staleMs: number): Promise<number>
 }
 
 export class C2DDatabase extends AbstractDatabase {
@@ -197,6 +198,10 @@ export class C2DDatabase extends AbstractDatabase {
 
   async isServiceLocked(serviceId: string, staleMs: number): Promise<boolean> {
     return await this.provider.isServiceLocked(serviceId, staleMs)
+  }
+
+  async deleteStaleServiceLocks(staleMs: number): Promise<number> {
+    return await this.provider.deleteStaleServiceLocks(staleMs)
   }
 
   async deleteJob(jobId: string): Promise<boolean> {

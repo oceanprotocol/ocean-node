@@ -642,5 +642,16 @@ describe('SQL compute store', () => {
       ])
       expect(await compute.acquireServiceLock('svc-1', 'b', STALE_MS)).to.equal(true)
     })
+
+    it('the sweep deletes the stale locks only', async () => {
+      await compute.acquireServiceLock('svc-1', 'a', STALE_MS)
+      await db.run('UPDATE service_locks SET "acquiredAt" = ?', [
+        Date.now() - 2 * STALE_MS
+      ])
+      await compute.acquireServiceLock('svc-2', 'b', STALE_MS)
+      expect(await compute.deleteStaleServiceLocks(STALE_MS)).to.equal(1)
+      expect(await compute.isServiceLocked('svc-2', STALE_MS)).to.equal(true)
+      expect(await compute.acquireServiceLock('svc-1', 'c', STALE_MS)).to.equal(true)
+    })
   })
 })

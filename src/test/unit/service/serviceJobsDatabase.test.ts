@@ -179,6 +179,16 @@ describeOnElasticsearch('Service Jobs Database', () => {
       await db.releaseServiceLock(serviceId, 'proc-B')
     })
 
+    it('the sweep deletes a stale lock and keeps a fresh one', async () => {
+      const serviceId = `lock-svc-${Date.now()}-sweep`
+      expect(await db.acquireServiceLock(serviceId, 'proc-A', STALE_MS)).to.equal(true)
+      await db.deleteStaleServiceLocks(STALE_MS)
+      expect(await db.isServiceLocked(serviceId, STALE_MS)).to.equal(true)
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      await db.deleteStaleServiceLocks(10)
+      expect(await db.isServiceLocked(serviceId, STALE_MS)).to.equal(false)
+    })
+
     it('steals a stale lock (crashed holder) but not a fresh one', async () => {
       const serviceId = `lock-svc-${Date.now()}-b`
       // staleMs = 0 makes A's row instantly stale — simulates a dead process

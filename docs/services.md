@@ -187,7 +187,8 @@ takes a lease in the `service_locks` store of the node database, so two node pro
 sharing the same database (e.g. an old container still running during a redeploy, or
 instances on other hosts) cannot run conflicting operations on the same service. Leases are heartbeated
 every 30 s while the operation runs; a lease not refreshed for 2 minutes belongs to a
-crashed process and is stolen automatically, so no manual cleanup is ever needed.
+crashed process and is stolen automatically, so no manual cleanup is ever needed. A cron
+job deletes stale leases every 10 minutes, so the store does not collect them.
 
 ## Readiness and startup progress
 
