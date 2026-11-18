@@ -700,6 +700,8 @@ PREVIOUS_DB_TYPE=''
 if [ -f docker-compose.yml ]; then
   DB_PASSWORD=$(sed -n "s/^ *DB_PASSWORD: '\(.*\)'.*$/\1/p" docker-compose.yml | head -n 1)
   PREVIOUS_DB_TYPE=$(sed -n "s/^ *DB_TYPE: '\(.*\)'.*$/\1/p" docker-compose.yml | head -n 1)
+  # No DB_TYPE: SQLite, or a release before DB_TYPE (Typesense). That release also kept the
+  # node state in SQLite files in node-sqlite; Typesense held only the DDO index.
   PREVIOUS_DB_TYPE=${PREVIOUS_DB_TYPE:-sqlite}
 fi
 if [ -z "$DB_PASSWORD" ]; then

@@ -46,8 +46,8 @@ export class AuthTokenDatabase extends AbstractDatabase {
     createdAt: number,
     chainId?: string | null
   ): Promise<string> {
-    const until =
-      validUntil === null || validUntil === undefined ? null : toUnixMs(validUntil)
+    // the default turns an undefined validUntil into null
+    const until = validUntil === null ? null : toUnixMs(validUntil)
     if (Number.isNaN(until)) {
       throw new Error('validUntil must be a time in Unix milliseconds or a date')
     }

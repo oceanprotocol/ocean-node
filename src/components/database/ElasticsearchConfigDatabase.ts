@@ -36,19 +36,17 @@ export class ElasticsearchConfigDatabase implements ConfigDatabase {
       })
       return { key, value }
     } catch (error) {
-      const errorMsg = `Error when creating new version entry ${value}: ` + error.message
-      DATABASE_LOGGER.error(errorMsg)
+      DATABASE_LOGGER.error(`Error when writing config value ${key}: ${error.message}`)
       return null
     }
   }
 
-  async retrieveValue(key: string = 'version') {
+  async retrieveValue(key: string) {
     try {
       const row = await getOrNull<{ value: string }>(await this.client(), INDEX, key)
       return { value: row?.source?.value ?? null }
     } catch (error) {
-      const errorMsg = `Error when retrieving latest version entry: ` + error.message
-      DATABASE_LOGGER.error(errorMsg)
+      DATABASE_LOGGER.error(`Error when reading config value ${key}: ${error.message}`)
       return null
     }
   }

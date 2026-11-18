@@ -42,8 +42,14 @@ set_env_value() {
 #configure database
 configure_database() {
     echo "------------------------ Configure Database ----------------------------------"
-    read -p "Database type? sqlite, postgresql or elasticsearch [ sqlite ]: " DB_TYPE
-    DB_TYPE=${DB_TYPE:-sqlite}
+    while true; do
+        IFS= read -r -p "Database type? sqlite, postgresql or elasticsearch [ sqlite ]: " DB_TYPE
+        DB_TYPE=${DB_TYPE:-sqlite}
+        case "$DB_TYPE" in
+            sqlite|postgresql|elasticsearch) break ;;
+            *) echo "Unknown database type: $DB_TYPE" ;;
+        esac
+    done
     #always set: an empty DB_TYPE keeps the database of config.json
     set_env_value DB_TYPE "$DB_TYPE"
     if [ "$DB_TYPE" == "sqlite" ]; then
@@ -59,7 +65,7 @@ configure_database() {
         DEFAULT_DB_URL=http://localhost:9200
         DEFAULT_DB_USERNAME=elastic
     fi
-    read -p "Database URL? [ $DEFAULT_DB_URL ]: " DB_URL
+    IFS= read -r -p "Database URL? [ $DEFAULT_DB_URL ]: " DB_URL
     DB_URL=${DB_URL:-$DEFAULT_DB_URL}
     #not sed: a '&' or ';' in the URL (query parameters) would change the replacement
     set_env_value DB_URL "$DB_URL"

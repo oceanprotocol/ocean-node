@@ -1,4 +1,5 @@
 import { RangeFilter } from '../../@types/commands.js'
+import { DEFAULT_PAGE_SIZE } from './BaseDatabase.js'
 
 // Fields stored as native numeric types (ES long).
 // Range filters on these are pushed down to the store's query DSL.
@@ -149,7 +150,6 @@ export function passesClientRanges(
   return true
 }
 
-const DEFAULT_PAGE_SIZE = 100
 const MAX_PAGE_SIZE = 250
 
 // the page of an escrow search; the size has a limit so that one request cannot read all

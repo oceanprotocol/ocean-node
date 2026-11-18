@@ -95,6 +95,8 @@ describe('SQL documents', () => {
   const ids = async (query: Record<string, any>, sort?: any) =>
     (await documents.search({ query, sort }, 100, 0)).map((doc) => doc.id)
   const sorted = async (query: Record<string, any>) => (await ids(query)).sort()
+  const count = async () =>
+    Number((await db.get('SELECT COUNT(*) AS "count" FROM ddo')).count)
 
   beforeEach(async () => {
     db = await makeSqlClient()
@@ -116,7 +118,7 @@ describe('SQL documents', () => {
       await documents.put(WEATHER.id, { ...WEATHER, chainId: 1 })
       expect(await sorted({ term: { chainId: 8996 } })).to.deep.equal([CLASSIFIER.id])
       expect(await sorted({ term: { chainId: 1 } })).to.deep.equal([WEATHER.id])
-      expect(await documents.count()).to.equal(3)
+      expect(await count()).to.equal(3)
     })
 
     it('adds the id to a document that has no id field', async () => {
@@ -152,7 +154,7 @@ describe('SQL documents', () => {
     it('a modify that changes nothing leaves no document', async () => {
       expect(await documents.modify('absent', () => null)).to.equal(null)
       expect(await documents.get('absent')).to.equal(null)
-      expect(await documents.count()).to.equal(3)
+      expect(await count()).to.equal(3)
     })
 
     it('gives the documents in the order of the bytes of their ids', async () => {
@@ -191,7 +193,7 @@ describe('SQL documents', () => {
     it('deletes many documents with their field rows, more than one statement holds', async () => {
       for (let i = 0; i < 450; i++) await documents.put(`bulk-${i}`, { kind: 'bulk' })
       expect(await documents.deleteMatching({ term: { kind: 'bulk' } })).to.equal(450)
-      expect(await documents.count()).to.equal(3)
+      expect(await count()).to.equal(3)
       const left = await db.get(
         'SELECT COUNT(*) AS "n" FROM ddo_fields WHERE "id" LIKE ?',
         ['bulk-%']

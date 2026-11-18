@@ -1,6 +1,7 @@
 import type { OceanNodeDBConfig } from '../../../@types/OceanNode.js'
 import { addressCasingVariants, normalizeAddress } from '../../../utils/evmAddress.js'
 import { AbstractNonceDatabase } from '../BaseDatabase.js'
+import { orNull } from './orNull.js'
 import { SqlClient, placeholders } from './SqlClient.js'
 
 // one row per address: id = the checksummed address
@@ -18,13 +19,10 @@ export class SqlNonceDatabase extends AbstractNonceDatabase {
     )
   }
 
-  async create(address: string, nonce: number) {
-    try {
-      return await this.write(address, nonce)
-    } catch (error) {
-      this.logError(`Error when writing nonce ${nonce} for address ${address}`, error)
-      return null
-    }
+  create(address: string, nonce: number) {
+    return orNull(`Error when writing nonce ${nonce} for address ${address}`, () =>
+      this.write(address, nonce)
+    )
   }
 
   // Reads every casing of the address and keeps the HIGHEST nonce: a row from before the
@@ -52,9 +50,9 @@ export class SqlNonceDatabase extends AbstractNonceDatabase {
     return this.create(address, nonce)
   }
 
-  async delete(address: string) {
+  delete(address: string) {
     const id = normalizeAddress(address)
-    try {
+    return orNull(`Error when deleting the nonce of address ${address}`, async () => {
       const row = await this.db.get<{ nonce: number }>(
         'SELECT "nonce" FROM nonce WHERE "id" = ?',
         [id]
@@ -62,10 +60,7 @@ export class SqlNonceDatabase extends AbstractNonceDatabase {
       if (!row) return { id, nonce: null }
       await this.db.run('DELETE FROM nonce WHERE "id" = ?', [id])
       return { id, nonce: row.nonce }
-    } catch (error) {
-      this.logError(`Error when deleting the nonce of address ${address}`, error)
-      return null
-    }
+    })
   }
 
   private async write(address: string, nonce: number) {

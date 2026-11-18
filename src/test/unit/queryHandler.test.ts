@@ -183,11 +183,13 @@ describe('Elasticsearch DDO search', () => {
 
   beforeEach(() => {
     search = sinon.stub().resolves({ hits: { hits: [] } })
-    // no constructor: it connects to Elasticsearch, and the test needs search() only
-    ddoDb = Object.create(ElasticsearchDdoDatabase.prototype)
+    // the constructor only keeps the config; create() would connect to Elasticsearch
+    ddoDb = new (ElasticsearchDdoDatabase as any)({ dbType: 'elasticsearch' })
     ;(ddoDb as any).schemas = SCHEMAS
-    ;(ddoDb as any).client = { search }
+    sinon.stub(ddoDb as any, 'client').resolves({ search })
   })
+
+  afterEach(() => sinon.restore())
 
   const searchedIndices = () => search.getCalls().map((call) => call.args[0].index)
 

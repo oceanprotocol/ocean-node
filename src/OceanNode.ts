@@ -84,7 +84,7 @@ export class OceanNode {
     this.database = db
     this.instanceId = this.config?.instanceId || os.hostname()
 
-    if (this.db && this.db?.authToken) {
+    if (this.db?.authToken) {
       this.auth = new Auth(this.db.authToken, config)
     }
     if (node) {

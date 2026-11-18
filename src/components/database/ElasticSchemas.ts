@@ -1,4 +1,5 @@
 import { ddoElasticMappings } from '@oceanprotocol/ddo-js'
+import { DDO_SHORT_SCHEMA } from './ddoSchemas.js'
 
 export type ElasticsearchSchema = {
   index: string
@@ -26,10 +27,9 @@ export type ElasticsearchSchemas = {
   escrowSchema: ElasticsearchSchema
 }
 
-// "op_ddo_short" is a node-side index for deprecated DDOs (state !== 0).
-// Not part of the DDO spec, so it stays here rather than in @oceanprotocol/ddo-js.
+// not part of the DDO spec, so its mappings stay here rather than in @oceanprotocol/ddo-js
 const ddoShortSchema: ElasticsearchSchema = {
-  index: 'op_ddo_short',
+  index: DDO_SHORT_SCHEMA,
   body: {
     mappings: {
       properties: {

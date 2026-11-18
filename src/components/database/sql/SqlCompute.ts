@@ -11,7 +11,6 @@ import {
   type ServiceModelDownload,
   type ServiceReadiness
 } from '../../../@types/C2D/ServiceOnDemand.js'
-import { create256Hash } from '../../../utils/crypt.js'
 import { DATABASE_LOGGER } from '../../../utils/logging/common.js'
 import type { ComputeDatabaseProvider, ServiceJobExpected } from '../C2DDatabase.js'
 import {
@@ -20,7 +19,9 @@ import {
   agreementIdVariants,
   holdsReservation,
   jobToBody,
-  matchesExpected
+  matchesExpected,
+  oldImageCutoff,
+  withJobIdHash
 } from '../computeJobs.js'
 import { Conditions, SqlClient, insertRow } from './SqlClient.js'
 
@@ -28,7 +29,6 @@ const JOBS = 'c2djobs'
 const SERVICE_JOBS = 'service_jobs'
 const IMAGES = 'docker_images'
 const LOCKS = 'service_locks'
-const SECONDS_PER_DAY = 24 * 60 * 60
 // the input DIDs of a job are one string in the "inputDID" column
 const DID_SEPARATOR = '__,__'
 
@@ -54,16 +54,12 @@ export function parseBody(body: string | Uint8Array): any {
 
 function rowToJob(row: any): DBComputeJob {
   const { body, expireTimestamp, inputDID, ...columns } = row
-  const job: DBComputeJob = {
+  return withJobIdHash({
     ...columns,
     inputDID: typeof inputDID === 'string' ? splitDids(inputDID) : inputDID,
     ...parseBody(body),
     maxJobDuration: expireTimestamp
-  }
-  if (!job.jobIdHash && job.jobId) {
-    job.jobIdHash = create256Hash(job.jobId)
-  }
-  return job
+  })
 }
 
 function splitDids(dids: string): string[] {
@@ -156,7 +152,6 @@ export class SqlCompute implements ComputeDatabaseProvider {
     return jobs
   }
 
-  // only owner, status, statusText, maxJobDuration, body and dateFinished change
   async updateJob(job: DBComputeJob): Promise<number> {
     const { changes } = await this.db.run(
       `UPDATE ${JOBS}
@@ -177,16 +172,11 @@ export class SqlCompute implements ComputeDatabaseProvider {
   }
 
   async getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]> {
-    const jobs = await this.selectJobs(
-      new Conditions().add('"dateFinished" IS NULL'),
-      ` ORDER BY ${asNumber('dateCreated')} ASC`
-    )
-    // the engine is in the body, so the two filters are applied here
-    return jobs.filter(
-      (job) =>
-        (!engine || engine === job.clusterHash) &&
-        (!environment || environment === job.environment)
-    )
+    const where = new Conditions().add('"dateFinished" IS NULL')
+    if (environment) where.add('"environment" = ?', environment)
+    const jobs = await this.selectJobs(where, ` ORDER BY ${asNumber('dateCreated')} ASC`)
+    // the engine (clusterHash) is in the body, so it is filtered here
+    return engine ? jobs.filter((job) => job.clusterHash === engine) : jobs
   }
 
   async deleteJob(jobId: string): Promise<boolean> {
@@ -265,7 +255,7 @@ export class SqlCompute implements ComputeDatabaseProvider {
   }
 
   async getOldImages(retentionDays: number): Promise<string[]> {
-    const cutoff = Math.floor(Date.now() / 1000) - retentionDays * SECONDS_PER_DAY
+    const cutoff = oldImageCutoff(retentionDays)
     const rows = await this.db.all<{ image: string }>(
       `SELECT "image" FROM ${IMAGES}
        WHERE "lastUsedTimestamp" < ? ORDER BY "lastUsedTimestamp" ASC`,

@@ -8,6 +8,7 @@ import {
   AbstractLogDatabase,
   AbstractNonceDatabase,
   AbstractOrderDatabase,
+  MAX_RESULT_WINDOW,
   queryPage
 } from './BaseDatabase.js'
 import { AccessListUser } from '../../@types/AccessList.js'
@@ -16,7 +17,8 @@ import { buildElasticQuery, escrowPage } from './escrowSearch.js'
 import {
   createElasticsearchClientWithRetry,
   ensureIndex,
-  getOrNull
+  getOrNull,
+  isStatus
 } from './ElasticsearchConfigHelper.js'
 import { OceanNodeDBConfig } from '../../@types'
 import { ElasticsearchSchema, elasticSchemas } from './ElasticSchemas.js'
@@ -31,21 +33,22 @@ import { ddoSchemaName } from './ddoSchemas.js'
 const LOG_INSERT_FAILED_KEY = 'es-log-insert-failed'
 let logInsertFailing = false
 
+// Each store gets the client on each call: the health monitor replaces the client after a
+// reconnect, and a client that it closed fails every request.
+
 // Nonces are read only by real-time `get`, never by search, so writes skip `refresh: 'wait_for'`.
 export class ElasticsearchNonceDatabase extends AbstractNonceDatabase {
-  private index: string
+  private readonly index = elasticSchemas.nonceSchemas.index
 
-  constructor(config: OceanNodeDBConfig) {
+  private constructor(config: OceanNodeDBConfig) {
     super(config)
-    this.index = elasticSchemas.nonceSchemas.index
-
-    return (async (): Promise<ElasticsearchNonceDatabase> => {
-      await ensureIndex(config, elasticSchemas.nonceSchemas)
-      return this
-    })() as unknown as ElasticsearchNonceDatabase
   }
 
-  // resolved per call: the health monitor replaces the client after a reconnect
+  static async create(config: OceanNodeDBConfig): Promise<ElasticsearchNonceDatabase> {
+    await ensureIndex(config, elasticSchemas.nonceSchemas)
+    return new ElasticsearchNonceDatabase(config)
+  }
+
   private client(): Promise<Client> {
     return createElasticsearchClientWithRetry(this.config)
   }
@@ -128,23 +131,25 @@ export class ElasticsearchNonceDatabase extends AbstractNonceDatabase {
 }
 
 export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
-  private client: Client
-  private index: string
+  private readonly index = elasticSchemas.indexerSchemas.index
 
-  constructor(config: OceanNodeDBConfig) {
+  private constructor(config: OceanNodeDBConfig) {
     super(config)
-    this.index = elasticSchemas.indexerSchemas.index
+  }
 
-    return (async (): Promise<ElasticsearchIndexerDatabase> => {
-      this.client = await createElasticsearchClientWithRetry(config)
-      await ensureIndex(config, elasticSchemas.indexerSchemas)
-      return this
-    })() as unknown as ElasticsearchIndexerDatabase
+  static async create(config: OceanNodeDBConfig): Promise<ElasticsearchIndexerDatabase> {
+    await ensureIndex(config, elasticSchemas.indexerSchemas)
+    return new ElasticsearchIndexerDatabase(config)
+  }
+
+  private client(): Promise<Client> {
+    return createElasticsearchClientWithRetry(this.config)
   }
 
   async create(network: number, lastIndexedBlock: number) {
     try {
-      await this.client.index({
+      const client = await this.client()
+      await client.index({
         index: this.index,
         id: network.toString(),
         body: { lastIndexedBlock },
@@ -160,7 +165,8 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
 
   async retrieve(network: number) {
     try {
-      const result = await this.client.get({
+      const client = await this.client()
+      const result = await client.get({
         index: this.index,
         id: network.toString(),
         refresh: true
@@ -175,13 +181,14 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
 
   async update(network: number, lastIndexedBlock: number) {
     try {
-      const exists = await this.client.exists({
+      const client = await this.client()
+      const exists = await client.exists({
         index: this.index,
         id: network.toString()
       })
 
       if (exists) {
-        await this.client.update({
+        await client.update({
           index: this.index,
           id: network.toString(),
           body: {
@@ -203,7 +210,8 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
 
   async delete(network: number) {
     try {
-      await this.client.delete({
+      const client = await this.client()
+      await client.delete({
         index: this.index,
         id: network.toString(),
         refresh: 'wait_for'
@@ -218,18 +226,19 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
 }
 
 export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
-  private client: Client
-  private index: string
+  private readonly index = elasticSchemas.ddoStateSchema.index
 
-  constructor(config: OceanNodeDBConfig) {
+  private constructor(config: OceanNodeDBConfig) {
     super(config)
-    this.index = elasticSchemas.ddoStateSchema.index
+  }
 
-    return (async (): Promise<ElasticsearchDdoStateDatabase> => {
-      this.client = await createElasticsearchClientWithRetry(config)
-      await ensureIndex(config, elasticSchemas.ddoStateSchema)
-      return this
-    })() as unknown as ElasticsearchDdoStateDatabase
+  static async create(config: OceanNodeDBConfig): Promise<ElasticsearchDdoStateDatabase> {
+    await ensureIndex(config, elasticSchemas.ddoStateSchema)
+    return new ElasticsearchDdoStateDatabase(config)
+  }
+
+  private client(): Promise<Client> {
+    return createElasticsearchClientWithRetry(this.config)
   }
 
   async create(
@@ -241,7 +250,8 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
     errorMsg: string = ' '
   ) {
     try {
-      await this.client.index({
+      const client = await this.client()
+      await client.index({
         index: this.index,
         id: did,
         body: { chainId, did, nft: nftAddress, txId, valid, error: errorMsg },
@@ -258,7 +268,8 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
 
   async retrieve(did: string) {
     try {
-      const result = await this.client.get({
+      const client = await this.client()
+      const result = await client.get({
         index: this.index,
         id: did
       })
@@ -272,7 +283,8 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
 
   async search(query: Record<string, any>) {
     try {
-      const result = await this.client.search({
+      const client = await this.client()
+      const result = await client.search({
         index: this.index,
         body: {
           query
@@ -298,13 +310,14 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
     errorMsg: string = ' '
   ) {
     try {
-      const exists = await this.client.exists({
+      const client = await this.client()
+      const exists = await client.exists({
         index: this.index,
         id: did
       })
 
       if (exists) {
-        await this.client.update({
+        await client.update({
           index: this.index,
           id: did,
           body: {
@@ -327,7 +340,8 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
 
   async delete(did: string) {
     try {
-      await this.client.delete({
+      const client = await this.client()
+      await client.delete({
         index: this.index,
         id: did,
         // refresh: 'wait_for'
@@ -343,31 +357,28 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
 }
 
 export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
-  private provider: Client
+  private readonly index = elasticSchemas.orderSchema.index
 
-  constructor(
-    config: OceanNodeDBConfig,
-    private schema: ElasticsearchSchema
-  ) {
+  private constructor(config: OceanNodeDBConfig) {
     super(config)
-
-    return (async (): Promise<ElasticsearchOrderDatabase> => {
-      this.provider = await createElasticsearchClientWithRetry(config)
-      // without it, the first order would create the index with dynamic mappings
-      await ensureIndex(config, schema)
-      return this
-    })() as unknown as ElasticsearchOrderDatabase
   }
 
-  getSchema(): ElasticsearchSchema {
-    return this.schema
+  static async create(config: OceanNodeDBConfig): Promise<ElasticsearchOrderDatabase> {
+    // without it, the first order would create the index with dynamic mappings
+    await ensureIndex(config, elasticSchemas.orderSchema)
+    return new ElasticsearchOrderDatabase(config)
+  }
+
+  private client(): Promise<Client> {
+    return createElasticsearchClientWithRetry(this.config)
   }
 
   async search(query: Record<string, any>) {
     try {
+      const client = await this.client()
       const { size, offset } = queryPage(query)
-      const result = await this.provider.search({
-        index: this.getSchema().index,
+      const result = await client.search({
+        index: this.index,
         body: { ...query, from: offset, size }
       })
       return result.hits.hits.map((hit: any) => {
@@ -393,6 +404,7 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
     startOrderId?: string
   ) {
     try {
+      const client = await this.client()
       const document = {
         orderId,
         type,
@@ -404,8 +416,8 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
         did,
         startOrderId
       }
-      await this.provider.index({
-        index: this.getSchema().index,
+      await client.index({
+        index: this.index,
         id: orderId,
         body: document
       })
@@ -421,8 +433,9 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
 
   async retrieve(orderId: string) {
     try {
-      const result = await this.provider.get({
-        index: this.getSchema().index,
+      const client = await this.client()
+      const result = await client.get({
+        index: this.index,
         id: orderId
       })
       return normalizeDocumentId(result._source, result._id)
@@ -443,6 +456,7 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
     datatokenAddress?: string
   ) {
     try {
+      const client = await this.client()
       const document = {
         type,
         timestamp,
@@ -451,8 +465,8 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
         datatokenAddress,
         startOrderId
       }
-      await this.provider.update({
-        index: this.getSchema().index,
+      await client.update({
+        index: this.index,
         id: orderId,
         body: {
           doc: document,
@@ -471,8 +485,9 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
 
   async delete(orderId: string) {
     try {
-      await this.provider.delete({
-        index: this.getSchema().index,
+      const client = await this.client()
+      await client.delete({
+        index: this.index,
         id: orderId
       })
       return { id: orderId }
@@ -485,29 +500,26 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
 }
 
 export class ElasticsearchEscrowDatabase extends AbstractEscrowDatabase {
-  private provider: Client
+  private readonly index = elasticSchemas.escrowSchema.index
 
-  constructor(
-    config: OceanNodeDBConfig,
-    private schema: ElasticsearchSchema
-  ) {
+  private constructor(config: OceanNodeDBConfig) {
     super(config)
-
-    return (async (): Promise<ElasticsearchEscrowDatabase> => {
-      this.provider = await createElasticsearchClientWithRetry(config)
-      await ensureIndex(config, schema)
-      return this
-    })() as unknown as ElasticsearchEscrowDatabase
   }
 
-  getSchema(): ElasticsearchSchema {
-    return this.schema
+  static async create(config: OceanNodeDBConfig): Promise<ElasticsearchEscrowDatabase> {
+    await ensureIndex(config, elasticSchemas.escrowSchema)
+    return new ElasticsearchEscrowDatabase(config)
+  }
+
+  private client(): Promise<Client> {
+    return createElasticsearchClientWithRetry(this.config)
   }
 
   async create(event: EscrowEvent) {
     try {
-      await this.provider.index({
-        index: this.getSchema().index,
+      const client = await this.client()
+      await client.index({
+        index: this.index,
         id: event.id,
         body: event
       })
@@ -521,8 +533,9 @@ export class ElasticsearchEscrowDatabase extends AbstractEscrowDatabase {
 
   async retrieve(id: string) {
     try {
-      const result = await this.provider.get({
-        index: this.getSchema().index,
+      const client = await this.client()
+      const result = await client.get({
+        index: this.index,
         id
       })
       return normalizeDocumentId(result._source, result._id)
@@ -535,16 +548,17 @@ export class ElasticsearchEscrowDatabase extends AbstractEscrowDatabase {
 
   async search(filters: Record<string, any>, offset?: number, size?: number) {
     try {
+      const client = await this.client()
       const { from, limit } = escrowPage(offset, size)
 
       // Values may be equality scalars or RangeFilter objects (range on numeric fields).
       const query = buildElasticQuery(filters)
 
       const searchParams = {
-        index: this.getSchema().index,
+        index: this.index,
         body: { query, from, size: limit }
       }
-      const result = await this.provider.search(searchParams)
+      const result = await client.search(searchParams)
       return result.hits.hits.map((hit: any) => normalizeDocumentId(hit._source, hit._id))
     } catch (error) {
       const errorMsg =
@@ -557,8 +571,9 @@ export class ElasticsearchEscrowDatabase extends AbstractEscrowDatabase {
 
   async delete(id: string) {
     try {
-      await this.provider.delete({
-        index: this.getSchema().index,
+      const client = await this.client()
+      await client.delete({
+        index: this.index,
         id
       })
       return { id }
@@ -571,22 +586,22 @@ export class ElasticsearchEscrowDatabase extends AbstractEscrowDatabase {
 }
 
 export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
-  private client: Client
+  private readonly schemas = elasticSchemas.ddoSchemas
 
-  constructor(
-    config: OceanNodeDBConfig,
-    private schemas: ElasticsearchSchema[]
-  ) {
+  private constructor(config: OceanNodeDBConfig) {
     super(config)
+  }
 
-    return (async (): Promise<ElasticsearchDdoDatabase> => {
-      this.client = await createElasticsearchClientWithRetry(config)
-      // a failure stops the startup, which tries again
-      for (const schema of this.getSchemas()) {
-        await ensureIndex(config, schema)
-      }
-      return this
-    })() as unknown as ElasticsearchDdoDatabase
+  static async create(config: OceanNodeDBConfig): Promise<ElasticsearchDdoDatabase> {
+    // a failure stops the startup, which tries again
+    for (const schema of elasticSchemas.ddoSchemas) {
+      await ensureIndex(config, schema)
+    }
+    return new ElasticsearchDdoDatabase(config)
+  }
+
+  private client(): Promise<Client> {
+    return createElasticsearchClientWithRetry(this.config)
   }
 
   getSchemas(): ElasticsearchSchema[] {
@@ -610,12 +625,13 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       }
 
       try {
-        await this.client.delete({
+        const client = await this.client()
+        await client.delete({
           index: schema.index,
           id
         })
       } catch (error) {
-        if (error.statusCode !== 404) {
+        if (!isStatus(error, 404)) {
           DATABASE_LOGGER.error(
             `Error when deleting stale DDO entry ${id} from schema ${schema.index}: ${error.message}`
           )
@@ -632,7 +648,8 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     const named = this.getSchemas().filter((schema) => schema.index === index)
     for (const schema of named.length > 0 ? named : this.getSchemas()) {
       try {
-        const response = await this.client.search({
+        const client = await this.client()
+        const response = await client.search({
           index: schema.index,
           body: { ...query, from: offset, size }
         })
@@ -656,12 +673,13 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       throw new Error(`Schema for version ${ddo.version} not found`)
     }
     try {
+      const client = await this.client()
       // avoid issue with nft fields, due to schema
       if (ddo?.indexedMetadata?.nft) delete ddo.nft
       const validation = await validateDDO(ddo)
 
       if (validation === true) {
-        const response = await this.client.index({
+        const response = await client.index({
           index: schema.index,
           id: ddo.id,
           body: ddo
@@ -681,7 +699,8 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     let ddo = null
     for (const schema of this.getSchemas()) {
       try {
-        const response = await this.client.get({
+        const client = await this.client()
+        const response = await client.get({
           index: schema.index,
           id
         })
@@ -690,7 +709,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
           break
         }
       } catch (error) {
-        if (error.statusCode !== 404) {
+        if (!isStatus(error, 404)) {
           DATABASE_LOGGER.error(
             `Error when retrieving DDO entry ${id} from schema ${schema.index}: ${error.message}`
           )
@@ -714,11 +733,12 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       throw new Error(`Schema for version ${ddo.version} not found`)
     }
     try {
+      const client = await this.client()
       // avoid issue with nft fields, due to schema
       if (ddo?.indexedMetadata?.nft) delete ddo.nft
       const validation = await validateDDO(ddo)
       if (validation === true) {
-        const response: any = await this.client.index({
+        const response: any = await client.index({
           index: schema.index,
           id: ddo.id,
           body: ddo
@@ -736,7 +756,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         )
       }
     } catch (error) {
-      if (error.statusCode === 404) {
+      if (isStatus(error, 404)) {
         await this.delete(ddo.id)
         const response = await this.create(ddo)
         if (response._id === ddo.id) {
@@ -754,7 +774,8 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     let isDeleted = false
     for (const schema of this.getSchemas()) {
       try {
-        const response = await this.client.delete({
+        const client = await this.client()
+        const response = await client.delete({
           index: schema.index,
           id
         })
@@ -766,7 +787,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
           return response
         }
       } catch (error) {
-        if (error.statusCode !== 404) {
+        if (!isStatus(error, 404)) {
           DATABASE_LOGGER.error(
             `Error when deleting DDO entry ${id} from schema ${schema.index}: ${error.message}`
           )
@@ -785,8 +806,9 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     let numDeleted = 0
     for (const schema of this.getSchemas()) {
       try {
+        const client = await this.client()
         // add batch size logic
-        const response = await this.client.deleteByQuery({
+        const response = await client.deleteByQuery({
           index: schema.index,
           body: {
             query: {
@@ -801,7 +823,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
 
         numDeleted += response.deleted
       } catch (error) {
-        if (error.statusCode !== 404) {
+        if (!isStatus(error, 404)) {
           DATABASE_LOGGER.error(
             `Error when deleting DDOs from schema ${schema.index}: ${error.message}`
           )
@@ -814,24 +836,26 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
 }
 
 export class ElasticsearchLogDatabase extends AbstractLogDatabase {
-  private client: Client
-  private index: string
+  private readonly index = elasticSchemas.logSchemas.index
 
-  constructor(config: OceanNodeDBConfig) {
+  private constructor(config: OceanNodeDBConfig) {
     super(config)
-    this.index = elasticSchemas.logSchemas.index
+  }
 
-    return (async (): Promise<ElasticsearchLogDatabase> => {
-      this.client = await createElasticsearchClientWithRetry(config)
-      await ensureIndex(config, elasticSchemas.logSchemas)
-      return this
-    })() as unknown as ElasticsearchLogDatabase
+  static async create(config: OceanNodeDBConfig): Promise<ElasticsearchLogDatabase> {
+    await ensureIndex(config, elasticSchemas.logSchemas)
+    return new ElasticsearchLogDatabase(config)
+  }
+
+  private client(): Promise<Client> {
+    return createElasticsearchClientWithRetry(this.config)
   }
 
   async insertLog(logEntry: Record<string, any>) {
     try {
+      const client = await this.client()
       const timestamp = new Date().toISOString()
-      const result = await this.client.index({
+      const result = await client.index({
         index: this.index,
         body: { ...logEntry, timestamp },
         // refresh: 'wait_for'
@@ -862,7 +886,8 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
 
   async retrieveLog(id: string): Promise<Record<string, any> | null> {
     try {
-      const result = await this.client.get({
+      const client = await this.client()
+      const result = await client.get({
         index: this.index,
         id
       })
@@ -883,6 +908,7 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
     page?: number
   ): Promise<Record<string, any>[]> {
     try {
+      const client = await this.client()
       const filterConditions: any = {
         bool: {
           must: [{ range: { timestamp: { gte: startTime, lte: endTime } } }]
@@ -908,15 +934,14 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
         const from = currentPage * pageSize
         const size = Math.min(pageSize, maxLogs - allLogs.length)
 
-        // Elasticsearch result window limit
-        if (from + size > 10000) {
+        if (from + size > MAX_RESULT_WINDOW) {
           DATABASE_LOGGER.debug(
-            `Reached Elasticsearch result window limit (10000). Returning ${allLogs.length} logs.`
+            `Reached the result window limit (${MAX_RESULT_WINDOW}). Returning ${allLogs.length} logs.`
           )
           break
         }
 
-        const result = await this.client.search({
+        const result = await client.search({
           index: this.index,
           body: {
             query: filterConditions,
@@ -948,14 +973,15 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
     page: number,
     size: number
   ): Promise<Record<string, any>[]> {
+    const client = await this.client()
     const from = page * size
-    if (from + size > 10000) {
+    if (from + size > MAX_RESULT_WINDOW) {
       DATABASE_LOGGER.debug(
-        `Result window is too large, from + size must be less than or equal to: [10000]. "from": ${from}, "size": ${size}`
+        `Result window is too large, from + size must be less than or equal to: [${MAX_RESULT_WINDOW}]. "from": ${from}, "size": ${size}`
       )
       return []
     }
-    const result = await this.client.search({
+    const result = await client.search({
       index: this.index,
       body: {
         query: filterConditions,
@@ -972,7 +998,8 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
       throw new Error('Log ID is required for deletion.')
     }
     try {
-      await this.client.delete({
+      const client = await this.client()
+      await client.delete({
         index: this.index,
         id: logId,
         // refresh: 'wait_for'
@@ -1009,7 +1036,8 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
 
   async getLogsCount(): Promise<number> {
     try {
-      const res = await this.client.count({
+      const client = await this.client()
+      const res = await client.count({
         index: this.index
       })
       return res && res.count ? res.count : 0
@@ -1021,18 +1049,21 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
 }
 
 export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase {
-  private client: Client
-  private index: string
+  private readonly index = elasticSchemas.accessListSchema.index
 
-  constructor(config: OceanNodeDBConfig) {
+  private constructor(config: OceanNodeDBConfig) {
     super(config)
-    this.index = elasticSchemas.accessListSchema.index
+  }
 
-    return (async (): Promise<ElasticsearchAccessListDatabase> => {
-      this.client = await createElasticsearchClientWithRetry(config)
-      await ensureIndex(config, elasticSchemas.accessListSchema)
-      return this
-    })() as unknown as ElasticsearchAccessListDatabase
+  static async create(
+    config: OceanNodeDBConfig
+  ): Promise<ElasticsearchAccessListDatabase> {
+    await ensureIndex(config, elasticSchemas.accessListSchema)
+    return new ElasticsearchAccessListDatabase(config)
+  }
+
+  private client(): Promise<Client> {
+    return createElasticsearchClientWithRetry(this.config)
   }
 
   private docId(chainId: number, contractAddress: string): string {
@@ -1051,7 +1082,8 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
     const id = this.docId(chainId, contractAddress)
     const lowerContract = contractAddress.toLowerCase()
     try {
-      await this.client.update({
+      const client = await this.client()
+      await client.update({
         index: this.index,
         id,
         body: {
@@ -1090,14 +1122,15 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
   async retrieve(chainId: number, contractAddress: string) {
     const id = this.docId(chainId, contractAddress)
     try {
-      const result = await this.client.get({
+      const client = await this.client()
+      const result = await client.get({
         index: this.index,
         id,
         refresh: true
       })
       return result._source
     } catch (error) {
-      if (error?.meta?.statusCode === 404) {
+      if (isStatus(error, 404)) {
         return null
       }
       const errorMsg = `Error when retrieving access list ${id}: ${error.message}`
@@ -1111,7 +1144,8 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
     const lowerContract = contractAddress.toLowerCase()
     const normalized: AccessListUser = { ...user, wallet: user.wallet.toLowerCase() }
     try {
-      await this.client.update({
+      const client = await this.client()
+      await client.update({
         index: this.index,
         id,
         body: {
@@ -1147,7 +1181,8 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
   async removeUserByTokenId(chainId: number, contractAddress: string, tokenId: number) {
     const id = this.docId(chainId, contractAddress)
     try {
-      await this.client.update({
+      const client = await this.client()
+      await client.update({
         index: this.index,
         id,
         body: {
@@ -1165,7 +1200,7 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
       })
       return { id }
     } catch (error) {
-      if (error?.meta?.statusCode === 404) {
+      if (isStatus(error, 404)) {
         DATABASE_LOGGER.error(
           `AddressRemoved on missing access list ${id} (tokenId=${tokenId}); ignoring.`
         )
@@ -1191,7 +1226,8 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
       filters.push({ term: { chainId } })
     }
     try {
-      const result = await this.client.search({
+      const client = await this.client()
+      const result = await client.search({
         index: this.index,
         size: 250,
         body: {
@@ -1209,7 +1245,8 @@ export class ElasticsearchAccessListDatabase extends AbstractAccessListDatabase 
   async delete(chainId: number, contractAddress: string) {
     const id = this.docId(chainId, contractAddress)
     try {
-      await this.client.delete({
+      const client = await this.client()
+      await client.delete({
         index: this.index,
         id,
         refresh: 'wait_for'
@@ -1235,5 +1272,3 @@ export function normalizeDocumentId(dbResult: any, _id?: any): any {
   }
   return dbResult
 }
-
-// ES client errors carry the HTTP status as statusCode (and meta.statusCode)

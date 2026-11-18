@@ -52,55 +52,42 @@ function safeParse<T>(json: string | null | undefined, fallback: T): T {
   }
 }
 
-// Flattens a snapshot into a stored sample row (structured fields as JSON strings).
-export function snapshotToSampleRow(snapshot: NodeMetricsSnapshot): SampleRow {
+// a snapshot has every field of an hourly bucket
+type MetricsSource = Pick<
+  NodeMetricsHourly,
+  'cpu' | 'memory' | 'disk' | 'network' | 'jobs' | 'meta' | 'gpu' | 'env'
+>
+
+// the fields that a sample row and an hourly row share (structured fields as JSON strings)
+function metricsToRow(m: MetricsSource): Omit<SampleRow, 'collectedAt'> {
   return {
-    collectedAt: snapshot.collectedAt,
-    cpuUsagePercent: snapshot.cpu.usagePercent,
-    coresAllocated: snapshot.cpu.coresAllocated,
-    hostCores: snapshot.cpu.hostCores,
-    throttledCount: snapshot.cpu.throttledCount,
-    memUsedBytes: snapshot.memory.usedBytes,
-    memLimitBytes: snapshot.memory.limitBytes,
-    hostFreeBytes: snapshot.memory.hostFreeBytes,
-    hostTotalBytes: snapshot.memory.hostTotalBytes,
-    diskUsedBytes: snapshot.disk.usedBytes,
-    rxBytes: snapshot.network.rxBytes,
-    txBytes: snapshot.network.txBytes,
-    jobsRunning: snapshot.jobs.running,
-    jobsRunningFree: snapshot.jobs.runningFree,
-    jobsQueued: snapshot.jobs.queued,
-    jobsQueuedFree: snapshot.jobs.queuedFree,
-    sampledContainers: snapshot.meta.sampledContainers,
-    gpu: JSON.stringify(snapshot.gpu ?? []),
-    env: JSON.stringify(snapshot.env ?? [])
+    cpuUsagePercent: m.cpu.usagePercent,
+    coresAllocated: m.cpu.coresAllocated,
+    hostCores: m.cpu.hostCores,
+    throttledCount: m.cpu.throttledCount,
+    memUsedBytes: m.memory.usedBytes,
+    memLimitBytes: m.memory.limitBytes,
+    hostFreeBytes: m.memory.hostFreeBytes,
+    hostTotalBytes: m.memory.hostTotalBytes,
+    diskUsedBytes: m.disk.usedBytes,
+    rxBytes: m.network.rxBytes,
+    txBytes: m.network.txBytes,
+    jobsRunning: m.jobs.running,
+    jobsRunningFree: m.jobs.runningFree,
+    jobsQueued: m.jobs.queued,
+    jobsQueuedFree: m.jobs.queuedFree,
+    sampledContainers: m.meta.sampledContainers,
+    gpu: JSON.stringify(m.gpu ?? []),
+    env: JSON.stringify(m.env ?? [])
   }
 }
 
-// Flattens an hourly bucket into a stored hourly row (structured fields as JSON strings).
+export function snapshotToSampleRow(snapshot: NodeMetricsSnapshot): SampleRow {
+  return { collectedAt: snapshot.collectedAt, ...metricsToRow(snapshot) }
+}
+
 export function hourlyToRow(h: NodeMetricsHourly): HourlyRow {
-  return {
-    hourStart: h.hourStart,
-    sampleCount: h.sampleCount,
-    cpuUsagePercent: h.cpu.usagePercent,
-    coresAllocated: h.cpu.coresAllocated,
-    hostCores: h.cpu.hostCores,
-    throttledCount: h.cpu.throttledCount,
-    memUsedBytes: h.memory.usedBytes,
-    memLimitBytes: h.memory.limitBytes,
-    hostFreeBytes: h.memory.hostFreeBytes,
-    hostTotalBytes: h.memory.hostTotalBytes,
-    diskUsedBytes: h.disk.usedBytes,
-    rxBytes: h.network.rxBytes,
-    txBytes: h.network.txBytes,
-    jobsRunning: h.jobs.running,
-    jobsRunningFree: h.jobs.runningFree,
-    jobsQueued: h.jobs.queued,
-    jobsQueuedFree: h.jobs.queuedFree,
-    sampledContainers: h.meta.sampledContainers,
-    gpu: JSON.stringify(h.gpu),
-    env: JSON.stringify(h.env)
-  }
+  return { hourStart: h.hourStart, sampleCount: h.sampleCount, ...metricsToRow(h) }
 }
 
 // Averages a set of raw sample rows into one NodeMetricsHourly bucket. Pure (no DB writes) so
@@ -173,7 +160,7 @@ export function hourlyRowToApi(r: HourlyRow): NodeMetricsHourly {
 
 // Average each numeric GPU field per resourceId across every sample that reported that device.
 // A missing metric on a given sample simply does not contribute to that field's mean.
-export function averageGpu(perSample: NodeMetricsGpu[][]): NodeMetricsGpu[] {
+function averageGpu(perSample: NodeMetricsGpu[][]): NodeMetricsGpu[] {
   const acc = new Map<
     string,
     {
@@ -218,9 +205,7 @@ export function averageGpu(perSample: NodeMetricsGpu[][]): NodeMetricsGpu[] {
 }
 
 // Average total/inUse per env+resource across every sample that reported that pair.
-export function averageEnv(
-  perSample: NodeMetricsEnvResource[][]
-): NodeMetricsEnvResource[] {
+function averageEnv(perSample: NodeMetricsEnvResource[][]): NodeMetricsEnvResource[] {
   const acc = new Map<
     string,
     { env: string; resource: string; total: number; inUse: number; count: number }

@@ -13,7 +13,7 @@ import { placeholders } from './SqlClient.js'
 // The query comes from a public caller. Its values go to the SQL parameters only, never to
 // the SQL text; a part with a wrong type throws QueryError; its size has limits.
 
-export interface SqlPart {
+interface SqlPart {
   sql: string
   params: unknown[]
 }

@@ -26,7 +26,7 @@ export type SqlStateStores = Pick<
 export type SqlIndexStores = Omit<DatabaseStores, keyof SqlStateStores>
 
 export type SqlStoreGroup = keyof SqlStateStores | 'index'
-export type SqlClients = (group: SqlStoreGroup) => SqlClient
+export type ClientFor = (group: SqlStoreGroup) => SqlClient
 
 // creates the tables of a store and gives the store
 async function ready<T extends { init(): Promise<void> }>(store: T): Promise<T> {
@@ -37,7 +37,7 @@ async function ready<T extends { init(): Promise<void> }>(store: T): Promise<T> 
 // the stores of the node state: jobs, services, nonces, tokens, settings, buckets, metrics
 export async function buildSqlStateStores(
   config: OceanNodeDBConfig,
-  clientFor: SqlClients
+  clientFor: ClientFor
 ): Promise<SqlStateStores> {
   return {
     nonce: await ready(new SqlNonceDatabase(config, clientFor('nonce'))),
@@ -70,7 +70,7 @@ export async function buildSqlIndexStores(
 
 export async function buildSqlStores(
   config: OceanNodeDBConfig,
-  clientFor: SqlClients
+  clientFor: ClientFor
 ): Promise<DatabaseStores> {
   return {
     ...(await buildSqlStateStores(config, clientFor)),

@@ -1,4 +1,4 @@
-import { describeOnElasticsearch } from '../utils/utils.js'
+import { baseSnapshot, describeOnElasticsearch } from '../utils/utils.js'
 import { expect } from 'chai'
 import { Readable } from 'stream'
 import {
@@ -14,7 +14,6 @@ import { Client } from '@elastic/elasticsearch'
 import { floorToHour } from '../../components/database/nodeMetricsAggregate.js'
 import { ElasticsearchNodeMetrics } from '../../components/database/ElasticsearchNodeMetrics.js'
 import { createElasticsearchClientWithRetry } from '../../components/database/ElasticsearchConfigHelper.js'
-import type { NodeMetricsSnapshot } from '../../@types/nodeMetrics.js'
 import { getConfiguration } from '../../utils/config.js'
 import { OceanNode } from '../../OceanNode.js'
 import { KeyManager } from '../../components/KeyManager/index.js'
@@ -27,33 +26,6 @@ async function streamToJson(stream: Readable) {
   const chunks: Buffer[] = []
   for await (const c of stream) chunks.push(Buffer.from(c))
   return JSON.parse(Buffer.concat(chunks).toString('utf-8'))
-}
-
-function baseSnapshot(overrides: Partial<NodeMetricsSnapshot> = {}): NodeMetricsSnapshot {
-  return {
-    collectedAt: Date.now(),
-    hasAggregate: true,
-    cpu: {
-      usagePercent: 10,
-      coresAllocated: 2,
-      hostCores: 8,
-      throttledCount: 0,
-      loadAverage: []
-    },
-    memory: {
-      usedBytes: 100,
-      limitBytes: 1000,
-      hostFreeBytes: 500,
-      hostTotalBytes: 2000
-    },
-    disk: { usedBytes: 300 },
-    network: { rxBytes: 10, txBytes: 20 },
-    jobs: { running: 1, runningFree: 0, queued: 0, queuedFree: 0 },
-    gpu: [],
-    env: [],
-    meta: { sampledContainers: 1, oldestSampleAgeSeconds: 5 },
-    ...overrides
-  }
 }
 
 // Spies on getHourly() so param clamping/capping can be asserted without needing thousands of

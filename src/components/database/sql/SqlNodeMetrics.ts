@@ -20,6 +20,8 @@ const HOURLY = 'node_metrics_hourly'
 // The rows of an instance. A database from a release that had no instances has rows with
 // no instance id: SQLite has one instance for each database, so they are its rows.
 const OF_INSTANCE = '("instanceId" = ? OR "instanceId" IS NULL)'
+// the samples of one hour of an instance: instanceId, hourStart, hourStart + 1 h
+const IN_HOUR = `${OF_INSTANCE} AND "collectedAt" >= ? AND "collectedAt" < ?`
 
 // the number columns that the two tables share; "gpu" and "env" are JSON text
 const METRIC_COLUMNS = [
@@ -86,8 +88,7 @@ export class SqlNodeMetrics implements NodeMetricsProvider {
       // the samples that are deleted are the samples that are counted: a sample that
       // comes during the roll-up stays for the next one
       const samples = await tx.all<SampleRow>(
-        `DELETE FROM ${SAMPLES}
-         WHERE ${OF_INSTANCE} AND "collectedAt" >= ? AND "collectedAt" < ? RETURNING *`,
+        `DELETE FROM ${SAMPLES} WHERE ${IN_HOUR} RETURNING *`,
         [...hour, hourStart + HOUR_MS]
       )
       if (samples.length === 0) return false
@@ -105,8 +106,7 @@ export class SqlNodeMetrics implements NodeMetricsProvider {
     hourStart: number
   ): Promise<NodeMetricsHourly | null> {
     const samples = await this.db.all<SampleRow>(
-      `SELECT * FROM ${SAMPLES}
-       WHERE ${OF_INSTANCE} AND "collectedAt" >= ? AND "collectedAt" < ?`,
+      `SELECT * FROM ${SAMPLES} WHERE ${IN_HOUR}`,
       [instanceId, hourStart, hourStart + HOUR_MS]
     )
     if (samples.length === 0) return null

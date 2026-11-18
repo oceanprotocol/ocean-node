@@ -1,5 +1,5 @@
-import { DATABASE_LOGGER } from '../../../utils/logging/common.js'
 import type { ConfigDatabase } from '../ConfigDatabase.js'
+import { orNull } from './orNull.js'
 import type { SqlClient } from './SqlClient.js'
 
 // node-wide key/value settings; a database error gives null, as the interface says
@@ -12,30 +12,24 @@ export class SqlConfigDatabase implements ConfigDatabase {
     )
   }
 
-  async createOrUpdateConfig(key: string, value: string) {
-    try {
+  createOrUpdateConfig(key: string, value: string) {
+    return orNull(`Error when writing config value ${key}`, async () => {
       await this.db.run(
         `INSERT INTO config ("key", "value") VALUES (?, ?)
          ON CONFLICT ("key") DO UPDATE SET "value" = excluded."value"`,
         [key, String(value)]
       )
       return { key, value }
-    } catch (error) {
-      DATABASE_LOGGER.error(`Error when writing config value ${key}: ${error.message}`)
-      return null
-    }
+    })
   }
 
-  async retrieveValue(key: string) {
-    try {
+  retrieveValue(key: string) {
+    return orNull(`Error when reading config value ${key}`, async () => {
       const row = await this.db.get<{ value: string }>(
         'SELECT "value" FROM config WHERE "key" = ?',
         [key]
       )
       return { value: row?.value ?? null }
-    } catch (error) {
-      DATABASE_LOGGER.error(`Error when reading config value ${key}: ${error.message}`)
-      return null
-    }
+    })
   }
 }

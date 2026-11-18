@@ -385,7 +385,8 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.INDEXER_NETWORKS,
     required: false
   },
-  // sqlite (default), postgresql or elasticsearch; the other three are for the last two
+  // sqlite (default), postgresql or elasticsearch; URL, username and password are for the
+  // last two only
   DB_TYPE: { name: 'DB_TYPE', value: process.env.DB_TYPE, required: false },
   DB_URL: { name: 'DB_URL', value: process.env.DB_URL, required: false },
   DB_USERNAME: { name: 'DB_USERNAME', value: process.env.DB_USERNAME, required: false },

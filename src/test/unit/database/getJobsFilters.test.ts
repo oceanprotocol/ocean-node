@@ -340,11 +340,10 @@ describeOnElasticsearch('getJobs filters', () => {
     const image = 'quay.io/test/image:latest'
     await db.updateImage(image)
     expect(await db.getOldImages(7)).to.deep.equal([])
-    // timestamps are whole seconds: wait for the next second so the image is "old"
-    await new Promise((resolve) => setTimeout(resolve, 1100))
-    expect(await db.getOldImages(0)).to.deep.equal([image])
+    // a negative retention puts the limit in the future
+    expect(await db.getOldImages(-1)).to.deep.equal([image])
     await db.deleteImage(image)
-    expect(await db.getOldImages(0)).to.deep.equal([])
+    expect(await db.getOldImages(-1)).to.deep.equal([])
   })
 })
 

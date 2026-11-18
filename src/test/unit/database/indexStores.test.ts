@@ -39,12 +39,11 @@ describe('SQL index stores', () => {
 
   it('two nodes that start at the same time can make the tables', async () => {
     const other = await makeSqlClient()
-    const fresh = () => other.exec('SELECT 1').then(() => other)
-    await Promise.all(
-      Array.from({ length: 6 }, async () =>
-        buildSqlIndexStores(SQL_DB_CONFIG, await fresh())
-      )
+    const [built] = await Promise.all(
+      Array.from({ length: 6 }, () => buildSqlIndexStores(SQL_DB_CONFIG, other))
     )
+    await built.indexer.update(8996, 20)
+    expect(await built.indexer.retrieve(8996)).to.deep.equal({ lastIndexedBlock: 20 })
     await other.close()
   })
 

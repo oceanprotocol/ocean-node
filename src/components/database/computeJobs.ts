@@ -1,5 +1,6 @@
 // What all compute stores know about jobs and service jobs, whatever the backend.
 import type { DBComputeJob } from '../../@types/C2D/C2D.js'
+import { create256Hash } from '../../utils/crypt.js'
 import type { ServiceJobExpected } from './C2DDatabase.js'
 import {
   ServiceStatusNumber,
@@ -37,6 +38,19 @@ export const EXPIRABLE_SERVICE_STATUSES = [
 ]
 
 // The node-internal job fields that live in the unindexed body.
+const SECONDS_PER_DAY = 24 * 60 * 60
+
+// an image that no job used since this time (Unix seconds) is old
+export function oldImageCutoff(retentionDays: number): number {
+  return Math.floor(Date.now() / 1000) - retentionDays * SECONDS_PER_DAY
+}
+
+// a job from an older release has no jobIdHash
+export function withJobIdHash(job: DBComputeJob): DBComputeJob {
+  if (!job.jobIdHash && job.jobId) job.jobIdHash = create256Hash(job.jobId)
+  return job
+}
+
 export function jobToBody(job: DBComputeJob): any {
   return {
     clusterHash: job.clusterHash,

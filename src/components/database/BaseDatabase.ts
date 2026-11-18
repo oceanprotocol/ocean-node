@@ -19,7 +19,9 @@ export class UnsupportedQueryError extends QueryError {
   }
 }
 
-const DEFAULT_PAGE_SIZE = 100
+export const DEFAULT_PAGE_SIZE = 100
+// the last document that one search can reach, as on Elasticsearch (its default window)
+export const MAX_RESULT_WINDOW = 10000
 
 // `from` of a node query is a page number that starts at 1, not a document offset
 export function queryPage(query: Record<string, any>): { size: number; offset: number } {

@@ -26,7 +26,7 @@ const FILES: Record<SqlStoreGroup, string> = {
 
 export type SqliteClients = Record<SqlStoreGroup, SqlClient>
 
-export function openSqliteClients(dir: string = SQLITE_DIR): SqliteClients {
+export function openSqliteClients(dir: string): SqliteClients {
   const clients = {} as SqliteClients
   for (const [group, file] of Object.entries(FILES)) {
     clients[group as SqlStoreGroup] = new SqliteClient(path.join(dir, file))

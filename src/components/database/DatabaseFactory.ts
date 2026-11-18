@@ -15,7 +15,6 @@ import type { C2DDatabase } from './C2DDatabase.js'
 import type { ConfigDatabase } from './ConfigDatabase.js'
 import { createElasticsearchStores } from './ElasticsearchStores.js'
 import type { NodeMetricsProvider } from './NodeMetricsDatabase.js'
-import { isReachableConnection } from '../../utils/database.js'
 import { createPostgresStores } from './sql/PostgresStores.js'
 import { createSqliteStores, sqliteStateFiles } from './sql/SqliteStores.js'
 
@@ -68,9 +67,13 @@ export class DatabaseFactory {
 
   // a cheap check before createStores; a backend with no such check reports its failed
   // connection from createStores
-  static isReachable(config: OceanNodeDBConfig): Promise<boolean> {
-    return config.dbType === 'elasticsearch'
-      ? isReachableConnection(config.url)
-      : Promise.resolve(true)
+  static async isReachable(config: OceanNodeDBConfig): Promise<boolean> {
+    if (config.dbType !== 'elasticsearch') return true
+    try {
+      await fetch(config.url)
+      return true
+    } catch {
+      return false
+    }
   }
 }

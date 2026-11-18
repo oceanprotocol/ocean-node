@@ -1,13 +1,14 @@
 import { Client } from '@elastic/elasticsearch'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import type { NodeMetricsHourly, NodeMetricsSnapshot } from '../../@types/nodeMetrics.js'
+import { MAX_RESULT_WINDOW } from './BaseDatabase.js'
 import { NodeMetricsProvider } from './NodeMetricsDatabase.js'
 import {
   assertCompleteSearch,
   createElasticsearchClientWithRetry,
+  deleteMatching,
   ensureIndex,
-  searchAllPages,
-  SEARCH_PAGE_SIZE
+  searchAllPages
 } from './ElasticsearchConfigHelper.js'
 import { stateSchemas } from './ElasticSchemas.js'
 import {
@@ -76,12 +77,7 @@ export class ElasticsearchNodeMetrics implements NodeMetricsProvider {
       document,
       refresh: 'wait_for'
     })
-    await client.deleteByQuery({
-      index: SAMPLES_INDEX,
-      query: hourRangeQuery(instanceId, hourStart),
-      refresh: true,
-      conflicts: 'proceed'
-    })
+    await deleteMatching(client, SAMPLES_INDEX, hourRangeQuery(instanceId, hourStart))
     return true
   }
 
@@ -97,25 +93,13 @@ export class ElasticsearchNodeMetrics implements NodeMetricsProvider {
   }
 
   async purgeOldSamples(instanceId: string, olderThan: number): Promise<number> {
-    const client = await this.client()
-    const result = await client.deleteByQuery({
-      index: SAMPLES_INDEX,
-      query: olderThanQuery(instanceId, 'collectedAt', olderThan),
-      refresh: true,
-      conflicts: 'proceed'
-    })
-    return result.deleted ?? 0
+    const query = olderThanQuery(instanceId, 'collectedAt', olderThan)
+    return deleteMatching(await this.client(), SAMPLES_INDEX, query)
   }
 
   async deleteHourlyOlderThan(instanceId: string, cutoff: number): Promise<number> {
-    const client = await this.client()
-    const result = await client.deleteByQuery({
-      index: HOURLY_INDEX,
-      query: olderThanQuery(instanceId, 'hourStart', cutoff),
-      refresh: true,
-      conflicts: 'proceed'
-    })
-    return result.deleted ?? 0
+    const query = olderThanQuery(instanceId, 'hourStart', cutoff)
+    return deleteMatching(await this.client(), HOURLY_INDEX, query)
   }
 
   async getHourly(
@@ -150,7 +134,7 @@ export class ElasticsearchNodeMetrics implements NodeMetricsProvider {
       index: SAMPLES_INDEX,
       query: hourRangeQuery(instanceId, hourStart),
       // one hour holds 60 samples, one per minute
-      size: SEARCH_PAGE_SIZE,
+      size: MAX_RESULT_WINDOW,
       // the rollup deletes the samples of the hour: it must see all of them
       allow_partial_search_results: false
     })

@@ -1,4 +1,4 @@
-import { describeOnElasticsearch } from '../utils/utils.js'
+import { baseSnapshot, describeOnElasticsearch } from '../utils/utils.js'
 import { expect } from 'chai'
 import { Client } from '@elastic/elasticsearch'
 import { floorToHour } from '../../components/database/nodeMetricsAggregate.js'
@@ -8,37 +8,9 @@ import {
   searchAllPages
 } from '../../components/database/ElasticsearchConfigHelper.js'
 import { getConfiguration } from '../../utils/index.js'
-import type { NodeMetricsSnapshot } from '../../@types/nodeMetrics.js'
 
 const INSTANCE = 'test-instance'
 const OTHER_INSTANCE = 'other-instance'
-
-function baseSnapshot(overrides: Partial<NodeMetricsSnapshot> = {}): NodeMetricsSnapshot {
-  return {
-    collectedAt: Date.now(),
-    hasAggregate: true,
-    cpu: {
-      usagePercent: 10,
-      coresAllocated: 2,
-      hostCores: 8,
-      throttledCount: 0,
-      loadAverage: [0.1, 0.2, 0.3]
-    },
-    memory: {
-      usedBytes: 100,
-      limitBytes: 1000,
-      hostFreeBytes: 500,
-      hostTotalBytes: 2000
-    },
-    disk: { usedBytes: 300 },
-    network: { rxBytes: 10, txBytes: 20 },
-    jobs: { running: 1, runningFree: 0, queued: 0, queuedFree: 0 },
-    gpu: [],
-    env: [],
-    meta: { sampledContainers: 1, oldestSampleAgeSeconds: 5 },
-    ...overrides
-  }
-}
 
 describe('nodeMetricsAggregate.floorToHour', () => {
   it('floors to the UTC hour boundary', () => {

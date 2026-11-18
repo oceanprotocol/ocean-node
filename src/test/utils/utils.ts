@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url'
 import { ENVIRONMENT_VARIABLES, EnvVariable } from '../../utils/constants.js'
 import { CONFIG_LOGGER } from '../../utils/logging/common.js'
 import { RPCS } from '../../@types/blockchain.js'
+import type { NodeMetricsSnapshot } from '../../@types/nodeMetrics.js'
 import { getConfiguration } from '../../utils/config/builder.js'
 
 export const DEFAULT_TEST_TIMEOUT = 20000 // 20 secs MAX
@@ -176,3 +177,33 @@ export function isRunningContinousIntegrationEnv(): boolean {
 }
 
 export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// a node metrics snapshot for the tests
+export function baseSnapshot(
+  overrides: Partial<NodeMetricsSnapshot> = {}
+): NodeMetricsSnapshot {
+  return {
+    collectedAt: Date.now(),
+    hasAggregate: true,
+    cpu: {
+      usagePercent: 10,
+      coresAllocated: 2,
+      hostCores: 8,
+      throttledCount: 0,
+      loadAverage: [0.1, 0.2, 0.3]
+    },
+    memory: {
+      usedBytes: 100,
+      limitBytes: 1000,
+      hostFreeBytes: 500,
+      hostTotalBytes: 2000
+    },
+    disk: { usedBytes: 300 },
+    network: { rxBytes: 10, txBytes: 20 },
+    jobs: { running: 1, runningFree: 0, queued: 0, queuedFree: 0 },
+    gpu: [],
+    env: [],
+    meta: { sampledContainers: 1, oldestSampleAgeSeconds: 5 },
+    ...overrides
+  }
+}

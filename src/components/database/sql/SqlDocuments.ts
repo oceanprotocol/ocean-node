@@ -20,7 +20,7 @@ interface FieldRow {
 // path of this length is a free-form key, not a field that a query names.
 const PATH_LIMIT = 128
 // rows or ids for one statement; the databases limit the number of parameters
-const INSERT_CHUNK = 200
+const CHUNK_SIZE = 200
 // the parts of a node query
 const QUERY_KEYS = ['query', 'sort', 'from', 'size', 'aggs', 'aggregations']
 
@@ -113,11 +113,6 @@ export class SqlDocuments {
     return this.db.transaction((tx) => this.remove(tx, id))
   }
 
-  async count(): Promise<number> {
-    const row = await this.db.get(`SELECT COUNT(*) AS "count" FROM ${this.table}`)
-    return Number(row.count)
-  }
-
   // `query` and `sort` are the parts of a node query with these names
   async search(
     { query, sort }: { query?: Document; sort?: unknown },
@@ -148,10 +143,9 @@ export class SqlDocuments {
     const where = translateQuery(query, this.target)
     const matching = `SELECT d."id" FROM ${this.table} d WHERE ${where.sql}`
     return this.db.transaction(async (tx) => {
-      // the field rows find the documents, so they go after the documents
       const ids = await tx.all<{ id: string }>(matching, where.params)
-      for (let start = 0; start < ids.length; start += INSERT_CHUNK) {
-        const chunk = ids.slice(start, start + INSERT_CHUNK).map((row) => row.id)
+      for (let start = 0; start < ids.length; start += CHUNK_SIZE) {
+        const chunk = ids.slice(start, start + CHUNK_SIZE).map((row) => row.id)
         const list = placeholders(chunk.length)
         await tx.run(`DELETE FROM ${this.table} WHERE "id" IN (${list})`, chunk)
         await tx.run(`DELETE FROM ${this.target.fields} WHERE "id" IN (${list})`, chunk)
@@ -182,8 +176,8 @@ export class SqlDocuments {
     await tx.run(`DELETE FROM ${this.target.fields} WHERE "id" = ?`, [id])
     // the id is a field too, so a query on "_id" works for a document with no id field
     const rows = flattenDocument({ id, ...doc, ...extraFields })
-    for (let start = 0; start < rows.length; start += INSERT_CHUNK) {
-      await this.insertFields(tx, id, rows.slice(start, start + INSERT_CHUNK))
+    for (let start = 0; start < rows.length; start += CHUNK_SIZE) {
+      await this.insertFields(tx, id, rows.slice(start, start + CHUNK_SIZE))
     }
   }
 

@@ -4,8 +4,10 @@ import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { AuthToken, AuthTokenDatabaseProvider } from './AuthTokenDatabase.js'
 import {
   createElasticsearchClientWithRetry,
+  deleteMatching,
   ensureIndex,
-  getOrNull
+  getOrNull,
+  isStatus
 } from './ElasticsearchConfigHelper.js'
 import { stateSchemas } from './ElasticSchemas.js'
 
@@ -29,7 +31,7 @@ export class ElasticsearchAuthToken implements AuthTokenDatabaseProvider {
     tokenId: string,
     address: string,
     createdAt: number,
-    validUntil: number | null = null,
+    validUntil: number | null,
     chainId?: string | null
   ): Promise<void> {
     const body: AuthToken = {
@@ -69,24 +71,17 @@ export class ElasticsearchAuthToken implements AuthTokenDatabaseProvider {
       })
     } catch (error) {
       // an unknown token has nothing to invalidate, like the SQL UPDATE it replaces
-      if (error?.meta?.statusCode === 404) return
+      if (isStatus(error, 404)) return
       throw error
     }
   }
 
   async deleteExpiredTokens(now: number): Promise<number> {
-    const client = await this.client()
-    const result = await client.deleteByQuery({
-      index: INDEX,
-      query: {
-        bool: {
-          should: [{ range: { validUntil: { lt: now } } }, { term: { isValid: false } }],
-          minimum_should_match: 1
-        }
-      },
-      refresh: true,
-      conflicts: 'proceed'
+    return deleteMatching(await this.client(), INDEX, {
+      bool: {
+        should: [{ range: { validUntil: { lt: now } } }, { term: { isValid: false } }],
+        minimum_should_match: 1
+      }
     })
-    return result.deleted ?? 0
   }
 }

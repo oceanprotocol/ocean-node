@@ -20,9 +20,10 @@ describe('Database.init', () => {
     expect(await Database.init(config.dbConfig)).to.be.equal(null)
   })
 
-  it('returns null for a database type that has no stores', async () => {
-    sinon.stub(DatabaseFactory, 'createStores').throws(new Error('no such database'))
-    expect(await Database.init({ dbType: 'sqlite' })).to.be.equal(null)
+  it('the factory refuses a database type that has no stores', () => {
+    expect(() => DatabaseFactory.createStores({ dbType: 'bogus' } as any)).to.throw(
+      'Unknown database type: bogus'
+    )
   })
 
   it('exposes the stores that the factory builds', async () => {

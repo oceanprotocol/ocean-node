@@ -1,6 +1,7 @@
 import { expect } from 'chai'
 import type { SqlClient } from '../../../components/database/sql/SqlClient.js'
 import { SQL_DB_CONFIG, makeSqlClient } from '../../utils/sqlClient.js'
+import { baseSnapshot } from '../../utils/utils.js'
 import { SqlNonceDatabase } from '../../../components/database/sql/SqlNonce.js'
 import { SqlConfigDatabase } from '../../../components/database/sql/SqlConfig.js'
 import { SqlAuthToken } from '../../../components/database/sql/SqlAuthToken.js'
@@ -18,7 +19,6 @@ import {
   ServiceStatusNumber,
   type ServiceJob
 } from '../../../@types/C2D/ServiceOnDemand.js'
-import type { NodeMetricsSnapshot } from '../../../@types/nodeMetrics.js'
 
 // The contract of the state stores on a SQL database. Each test gets a new, empty database.
 
@@ -218,29 +218,8 @@ describe('SQL node metrics store', () => {
   let metrics: SqlNodeMetrics
   const HOUR = 500 * HOUR_MS
 
-  const snapshot = (collectedAt: number, usagePercent: number): NodeMetricsSnapshot => ({
-    collectedAt,
-    hasAggregate: true,
-    cpu: {
-      usagePercent,
-      coresAllocated: 2,
-      hostCores: 8,
-      throttledCount: 0,
-      loadAverage: [0.1, 0.2, 0.3]
-    },
-    memory: {
-      usedBytes: 100,
-      limitBytes: 1000,
-      hostFreeBytes: 500,
-      hostTotalBytes: 2000
-    },
-    disk: { usedBytes: 300 },
-    network: { rxBytes: 10, txBytes: 20 },
-    jobs: { running: 1, runningFree: 0, queued: 0, queuedFree: 0 },
-    gpu: [],
-    env: [],
-    meta: { sampledContainers: 1, oldestSampleAgeSeconds: 5 }
-  })
+  const snapshot = (collectedAt: number, usagePercent: number) =>
+    baseSnapshot({ collectedAt, cpu: { ...baseSnapshot().cpu, usagePercent } })
 
   beforeEach(async () => {
     db = await makeSqlClient()

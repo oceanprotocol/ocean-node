@@ -56,22 +56,6 @@ function extractPage(result: any, pageSize: number): DdoPage {
   return { documents, hasFullBatch }
 }
 
-/**
- * Ask for one page of every DDO the node holds.
- *
- * The match-everything query is `query: { match_all: {} }`; note that `from` there is a
- * 1-based *page number*, not a document offset - the database layer converts it.
- *
- * Known ceiling, stated so it is not rediscovered as a bug: a backend can refuse a deep
- * `from` + `size` window (10000 documents by default on one backend), and the database layer
- * catches that per schema like any other failure - so a *single* schema holding more DDOs
- * than that re-provides only the first ones, quietly. Lifting that means paging with a
- * cursor instead of an offset, which is a change to the database layer, not to this job.
- */
-function searchDdoPage(ddoDb: any, page: number, pageSize: number): Promise<any> {
-  return ddoDb.search({ query: { match_all: {} }, size: pageSize, from: page })
-}
-
 export async function p2pAnnounceDDOS(node: OceanNode) {
   try {
     const db = await node.getDatabase()
@@ -89,11 +73,18 @@ export async function p2pAnnounceDDOS(node: OceanNode) {
     let failed = 0
     let cacheFailed = 0
     let page = 1
-    // Walk until the store is exhausted. Fetching a single page and stopping meant everything
-    // past the first page was
-    // never re-provided, so those DIDs stayed unreachable until something else advertised them.
+    // Walk until the store is exhausted: one page only left every later DDO un-provided.
+    // `from` is a page number that starts at 1, not a document offset.
+    // Known ceiling: a backend can refuse a deep `from` + `size` window (10000 documents on
+    // Elasticsearch), and the database layer catches that per schema, so a
+    // schema with more DDOs re-provides only the first ones. Lifting that needs paging with
+    // a cursor in the database layer, not in this job.
     while (page <= MAX_REPUBLISH_PAGES) {
-      const result = await searchDdoPage(ddoDb, page, REPUBLISH_PAGE_SIZE)
+      const result = await ddoDb.search({
+        query: { match_all: {} },
+        size: REPUBLISH_PAGE_SIZE,
+        from: page
+      })
       const { documents, hasFullBatch } = extractPage(result, REPUBLISH_PAGE_SIZE)
       if (documents.length === 0) {
         break

@@ -14,7 +14,6 @@ import {
 } from '../../@types/C2D/ServiceOnDemand.js'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
-import { create256Hash } from '../../utils/crypt.js'
 import type { ComputeDatabaseProvider, ServiceJobExpected } from './C2DDatabase.js'
 import {
   ACTIVE_SERVICE_STATUSES,
@@ -22,14 +21,17 @@ import {
   agreementIdVariants,
   holdsReservation,
   jobToBody,
-  matchesExpected
+  matchesExpected,
+  oldImageCutoff,
+  withJobIdHash
 } from './computeJobs.js'
+import { MAX_RESULT_WINDOW } from './BaseDatabase.js'
 import {
   createElasticsearchClientWithRetry,
   ensureIndex,
   getOrNull,
-  searchAllPages,
-  SEARCH_PAGE_SIZE
+  isStatus,
+  searchAllPages
 } from './ElasticsearchConfigHelper.js'
 import { stateSchemas } from './ElasticSchemas.js'
 
@@ -37,7 +39,6 @@ const JOBS_INDEX = stateSchemas.c2dJobs.index
 const SERVICE_INDEX = stateSchemas.serviceJobs.index
 const IMAGES_INDEX = stateSchemas.dockerImages.index
 const LOCKS_INDEX = stateSchemas.serviceLocks.index
-const SECONDS_PER_DAY = 24 * 60 * 60
 // replaces the listed top-level fields, like the SQL UPDATE ... SET did (a partial `doc`
 // update would deep-merge the old body into the new one)
 const SET_FIELDS_SCRIPT = 'ctx._source.putAll(params.fields)'
@@ -97,18 +98,14 @@ function numberToSeconds(seconds: number | null | undefined): string | null {
 
 function docToJob(jobId: string, doc: JobDoc): DBComputeJob {
   const { body, expireTimestamp, dateCreated, dateFinished, ...columns } = doc
-  const job: DBComputeJob = {
+  return withJobIdHash({
     ...columns,
     jobId,
     dateCreated: numberToSeconds(dateCreated),
     dateFinished: numberToSeconds(dateFinished),
     ...body,
     maxJobDuration: expireTimestamp
-  }
-  if (!job.jobIdHash && job.jobId) {
-    job.jobIdHash = create256Hash(job.jobId)
-  }
-  return job
+  })
 }
 
 function serviceJobToDoc(job: ServiceJob): ServiceJobDoc {
@@ -121,10 +118,6 @@ function serviceJobToDoc(job: ServiceJob): ServiceJobDoc {
     outputArchiveCount: (job.outputArchives ?? []).length,
     body: { ...job, updatedAt: Date.now() }
   }
-}
-
-function isStatus(error: any, statusCode: number): boolean {
-  return error?.meta?.statusCode === statusCode
 }
 
 function jobFilter(
@@ -237,23 +230,7 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
       body: jobToBody(job),
       dateFinished: secondsToNumber(job.dateFinished)
     }
-    try {
-      const client = await this.client()
-      await client.update({
-        index: JOBS_INDEX,
-        id: job.jobId,
-        script: { source: SET_FIELDS_SCRIPT, params: { fields } },
-        // the script replaces the fields fully, so a retry keeps last-write-wins against a
-        // concurrent guarded body patch
-        retry_on_conflict: UPDATE_RETRIES,
-        refresh: JOB_WRITE_REFRESH
-      })
-      return 1
-    } catch (error) {
-      if (isStatus(error, 404)) return 0
-      DATABASE_LOGGER.error(`Error while updating job ${job.jobId}: ${error.message}`)
-      throw error
-    }
+    return await this.setFields(JOBS_INDEX, job.jobId, fields, `job ${job.jobId}`)
   }
 
   async getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]> {
@@ -265,8 +242,7 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
     return jobs.filter(
       (job) =>
         (!engine || engine === job.clusterHash) &&
-        (!environment || environment === job.environment) &&
-        !job.dateFinished
+        (!environment || environment === job.environment)
     )
   }
 
@@ -329,19 +305,51 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
     return await this.searchJobs({ bool: { filter } }, NEWEST_CREATED_FIRST, true)
   }
 
-  // Returns one page of SEARCH_PAGE_SIZE jobs. `allPages` reads every match: the engine
-  // loops and the cleanup need it, the public job lists keep the one-page limit.
   private async searchJobs(
     query: estypes.QueryDslQueryContainer,
     sort?: estypes.SortCombinations[],
     allPages: boolean = false
   ): Promise<DBComputeJob[]> {
-    const client = await this.client()
     const request = { index: JOBS_INDEX, query, sort }
-    const hits = allPages
-      ? await searchAllPages<JobDoc>(client, request)
-      : (await client.search<JobDoc>({ ...request, size: SEARCH_PAGE_SIZE })).hits.hits
+    const hits = await this.searchHits<JobDoc>(request, allPages)
     return hits.map((hit) => docToJob(hit._id, hit._source))
+  }
+
+  // Returns one page of MAX_RESULT_WINDOW hits. `allPages` reads every match: the engine
+  // loops and the cleanup need it, the public job lists keep the one-page limit.
+  private async searchHits<T>(
+    request: Parameters<typeof searchAllPages>[1],
+    allPages: boolean
+  ): Promise<estypes.SearchHit<T>[]> {
+    const client = await this.client()
+    if (allPages) return await searchAllPages<T>(client, request)
+    return (await client.search<T>({ ...request, size: MAX_RESULT_WINDOW })).hits.hits
+  }
+
+  // Replaces the listed top-level fields, like the SQL UPDATE; returns the number of updated
+  // documents. The script replaces the fields fully, so a retry keeps last-write-wins against
+  // a concurrent guarded body patch.
+  private async setFields(
+    index: string,
+    id: string,
+    fields: Record<string, unknown>,
+    what: string
+  ): Promise<number> {
+    try {
+      const client = await this.client()
+      await client.update({
+        index,
+        id,
+        script: { source: SET_FIELDS_SCRIPT, params: { fields } },
+        retry_on_conflict: UPDATE_RETRIES,
+        refresh: JOB_WRITE_REFRESH
+      })
+      return 1
+    } catch (error) {
+      if (isStatus(error, 404)) return 0
+      DATABASE_LOGGER.error(`Error while updating ${what}: ${error.message}`)
+      throw error
+    }
   }
 
   // ── Docker images ───────────────────────────────────────────────────
@@ -367,8 +375,8 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
     }
   }
 
-  async getOldImages(retentionDays: number = 7): Promise<string[]> {
-    const cutoff = Math.floor(Date.now() / 1000) - retentionDays * SECONDS_PER_DAY
+  async getOldImages(retentionDays: number): Promise<string[]> {
+    const cutoff = oldImageCutoff(retentionDays)
     // every page: images that Docker cannot remove stay in the index and must not hide
     // the later ones
     const hits = await searchAllPages(await this.client(), {
@@ -411,25 +419,12 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
   // like the SQL UPDATE: every column but dateCreated; returns the number of updated jobs
   async updateServiceJob(job: ServiceJob): Promise<number> {
     const { dateCreated, ...fields } = serviceJobToDoc(job)
-    try {
-      const client = await this.client()
-      await client.update({
-        index: SERVICE_INDEX,
-        id: job.serviceId,
-        script: { source: SET_FIELDS_SCRIPT, params: { fields } },
-        // the script replaces the fields fully, so a retry keeps last-write-wins against a
-        // concurrent guarded body patch
-        retry_on_conflict: UPDATE_RETRIES,
-        refresh: JOB_WRITE_REFRESH
-      })
-      return 1
-    } catch (error) {
-      if (isStatus(error, 404)) return 0
-      DATABASE_LOGGER.error(
-        `Error while updating service job ${job.serviceId}: ${error.message}`
-      )
-      throw error
-    }
+    return await this.setFields(
+      SERVICE_INDEX,
+      job.serviceId,
+      fields,
+      `service job ${job.serviceId}`
+    )
   }
 
   async updateServiceJobMetrics(
@@ -550,17 +545,12 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
     )
   }
 
-  // One page of SEARCH_PAGE_SIZE service jobs, or every match with `allPages` (see searchJobs).
   private async searchServiceJobs(
     filter: estypes.QueryDslQueryContainer[],
     allPages: boolean = false
   ): Promise<ServiceJob[]> {
-    const client = await this.client()
     const request = { index: SERVICE_INDEX, query: { bool: { filter } } }
-    const hits = allPages
-      ? await searchAllPages<ServiceJobDoc>(client, request)
-      : (await client.search<ServiceJobDoc>({ ...request, size: SEARCH_PAGE_SIZE })).hits
-          .hits
+    const hits = await this.searchHits<ServiceJobDoc>(request, allPages)
     return hits.map((hit) => hit._source.body)
   }
 

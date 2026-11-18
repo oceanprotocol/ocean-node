@@ -246,10 +246,6 @@ export abstract class PersistentStorageFactory {
     return this.buckets.listBucketsByOwner(owner)
   }
 
-  dbDeleteBucket(bucketId: string): Promise<boolean> {
-    return this.buckets.deleteBucket(bucketId)
-  }
-
   dbUpdateBucketLabel(
     bucketId: string,
     owner: string,

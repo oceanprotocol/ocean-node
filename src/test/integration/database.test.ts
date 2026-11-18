@@ -1,6 +1,5 @@
 import { describeOnElasticsearch } from '../utils/utils.js'
 import { SearchQuery } from '../../@types/DDO/SearchQuery.js'
-import { AbstractOrderDatabase } from '../../components/database/BaseDatabase.js'
 import {
   Database,
   buildDdoStateQuery,
@@ -19,18 +18,6 @@ const elasticConfig: OceanNodeDBConfig = {
   username: process.env.DB_USERNAME,
   password: process.env.DB_PASSWORD
 }
-
-describeOnElasticsearch('**********         Database', () => {
-  let database: Database
-
-  before(async () => {
-    database = await Database.init(elasticConfig)
-  })
-
-  it('instance Database', () => {
-    expect(database).to.be.instanceOf(Database)
-  })
-})
 
 describeOnElasticsearch('**********         DdoDatabase CRUD', () => {
   let database: Database
@@ -253,54 +240,6 @@ describeOnElasticsearch('**********         OrderDatabase CRUD', () => {
     const result = await database.order.delete('order1.0')
     expect(result).to.deep.equal({ id: 'order1.0' })
     expect(await database.order.retrieve('order1.0')).to.equal(null)
-  })
-})
-
-describeOnElasticsearch('**********         Elasticsearch OrderDatabase CRUD', () => {
-  let database: AbstractOrderDatabase
-
-  before(async () => {
-    database = (await Database.init(elasticConfig)).order
-  })
-
-  it('creates an order in Elasticsearch', async () => {
-    const result = await database.create(
-      'orderElastic1',
-      'startOrder',
-      1678593728,
-      '0x1234',
-      '0x4567',
-      '0x1111',
-      '0x1',
-      'did:'
-    )
-    expect(result?.orderId).to.equal('orderElastic1')
-    expect(result?.consumer).to.equal('0x1234')
-  })
-
-  it('retrieves an order from Elasticsearch', async () => {
-    const result = await database.retrieve('orderElastic1')
-    expect(result?.orderId).to.equal('orderElastic1')
-    expect(result?.consumer).to.equal('0x1234')
-    expect(result?.payer).to.equal('0x4567')
-    expect(result?.type).to.equal('startOrder')
-  })
-
-  it('updates an order in Elasticsearch', async () => {
-    const result = await database.update(
-      'orderElastic1',
-      'startOrder',
-      1678593730,
-      '0x1235',
-      '0x4567',
-      '0x1111'
-    )
-    expect(result?.consumer).to.equal('0x1235')
-  })
-
-  it('deletes an order from Elasticsearch', async () => {
-    const result = await database.delete('orderElastic1')
-    expect(result?.id).to.equal('orderElastic1')
   })
 })
 

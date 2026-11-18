@@ -10,12 +10,10 @@ import {
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { safeStringify } from '../../../utils/logging/redact.js'
 import type { Database } from '../../database/index.js'
-import { QueryError, queryPage } from '../../database/BaseDatabase.js'
+import { MAX_RESULT_WINDOW, QueryError, queryPage } from '../../database/BaseDatabase.js'
 
 // the `index` of a query that selects the orders
 const ORDER_INDEX = 'order'
-// the last document that a public query can reach, as on Elasticsearch
-const MAX_RESULT_WINDOW = 10000
 
 const OTHER_INDEX_ERROR = 'A query cannot read another index'
 

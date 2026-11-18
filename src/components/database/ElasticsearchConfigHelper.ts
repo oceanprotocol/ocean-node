@@ -2,12 +2,13 @@ import { Client, estypes } from '@elastic/elasticsearch'
 import { OceanNodeDBConfig } from '../../@types'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { MAX_RESULT_WINDOW } from './BaseDatabase.js'
 import { ElasticsearchSchema } from './ElasticSchemas.js'
 import { DB_CONNECTION_EVENTS, DB_EVENTS } from './connectionEvents.js'
 
 const ES_CONNECT_FAILED_KEY = 'es-connect-failed'
 
-export interface ElasticsearchRetryConfig {
+interface ElasticsearchRetryConfig {
   requestTimeout?: number
   pingTimeout?: number
   resurrectStrategy?: 'ping' | 'optimistic' | 'none'
@@ -18,7 +19,7 @@ export interface ElasticsearchRetryConfig {
   healthCheckInterval?: number
 }
 
-export const DEFAULT_ELASTICSEARCH_CONFIG: Required<ElasticsearchRetryConfig> = {
+const DEFAULT_ELASTICSEARCH_CONFIG: Required<ElasticsearchRetryConfig> = {
   requestTimeout: parseInt(process.env.ELASTICSEARCH_REQUEST_TIMEOUT || '30000'),
   pingTimeout: parseInt(process.env.ELASTICSEARCH_PING_TIMEOUT || '3000'),
   resurrectStrategy:
@@ -41,9 +42,7 @@ class ElasticsearchClientSingleton {
   private client: Client | null = null
   private config: OceanNodeDBConfig | null = null
   private connectionAttempts: number = 0
-  private lastConnectionTime: number = 0
   private isRetrying: boolean = false
-  private healthCheckTimer: NodeJS.Timeout | null = null
   private isMonitoring: boolean = false
   private connectionLostEmitted: boolean = false
 
@@ -56,26 +55,23 @@ class ElasticsearchClientSingleton {
     return ElasticsearchClientSingleton.instance
   }
 
-  public async getClient(
-    config: OceanNodeDBConfig,
-    customConfig: Partial<ElasticsearchRetryConfig> = {}
-  ): Promise<Client> {
+  public async getClient(config: OceanNodeDBConfig): Promise<Client> {
     if (this.client && this.config) {
-      // Skip the extra ping here: 5 DB-class constructors all call getClient()
-      // during reconnect reinit, and concurrent pings cause false errors that trigger another LOST/RESTORED cycle.
+      // no ping here: every store call gets the client, and concurrent pings give false
+      // errors that start another LOST/RESTORED cycle
       if (this.isMonitoring) {
         return this.client
       }
 
       const isHealthy = await this.checkConnectionHealth()
       if (isHealthy) {
-        this.startHealthMonitoring(config, customConfig)
+        this.startHealthMonitoring(config)
         return this.client
       } else {
         DATABASE_LOGGER.warn(
           `Elasticsearch connection unhealthy at ${this.maskUrl(this.config.url)} - health monitoring will handle reconnection`
         )
-        this.startHealthMonitoring(config, customConfig)
+        this.startHealthMonitoring(config)
         throw new Error('Elasticsearch connection is not healthy')
       }
     }
@@ -87,28 +83,21 @@ class ElasticsearchClientSingleton {
       throw new Error('Elasticsearch connection not available (reconnecting)')
     }
 
-    const client = await this.createNewConnection(config, customConfig)
-    this.startHealthMonitoring(config, customConfig)
+    const client = await this.createNewConnection(config)
+    this.startHealthMonitoring(config)
     return client
   }
 
-  private startHealthMonitoring(
-    config: OceanNodeDBConfig,
-    customConfig: Partial<ElasticsearchRetryConfig> = {}
-  ): void {
+  private startHealthMonitoring(config: OceanNodeDBConfig): void {
     if (this.isMonitoring || !this.client) return
 
-    const finalConfig = {
-      ...DEFAULT_ELASTICSEARCH_CONFIG,
-      ...customConfig
-    }
-
+    const { healthCheckInterval } = DEFAULT_ELASTICSEARCH_CONFIG
     this.isMonitoring = true
     DATABASE_LOGGER.debug(
-      `Starting Elasticsearch health monitoring (interval: ${finalConfig.healthCheckInterval}ms)`
+      `Starting Elasticsearch health monitoring (interval: ${healthCheckInterval}ms)`
     )
 
-    this.healthCheckTimer = setInterval(async () => {
+    setInterval(async () => {
       if (this.isRetrying) {
         return
       }
@@ -131,7 +120,7 @@ class ElasticsearchClientSingleton {
         if (!this.connectionLostEmitted) {
           this.connectionLostEmitted = true
           DATABASE_LOGGER.warn(
-            `Elasticsearch connection lost to ${this.maskUrl(config.url)} - starting reconnection attempts every ${finalConfig.healthCheckInterval}ms`
+            `Elasticsearch connection lost to ${this.maskUrl(config.url)} - starting reconnection attempts every ${healthCheckInterval}ms`
           )
           DB_CONNECTION_EVENTS.emit(DB_EVENTS.CONNECTION_LOST)
         }
@@ -142,7 +131,7 @@ class ElasticsearchClientSingleton {
           DATABASE_LOGGER.debug(
             `Attempting Elasticsearch reconnection to ${this.maskUrl(config.url)}`
           )
-          await this.createNewConnection(config, customConfig)
+          await this.createNewConnection(config)
           this.isRetrying = false
           this.connectionLostEmitted = false
           DATABASE_LOGGER.info(
@@ -153,16 +142,7 @@ class ElasticsearchClientSingleton {
           this.isRetrying = false
         }
       }
-    }, finalConfig.healthCheckInterval)
-  }
-
-  private stopHealthMonitoring(): void {
-    if (this.healthCheckTimer) {
-      clearInterval(this.healthCheckTimer)
-      this.healthCheckTimer = null
-      this.isMonitoring = false
-      DATABASE_LOGGER.debug(`Stopped Elasticsearch connection monitoring`)
-    }
+    }, healthCheckInterval)
   }
 
   private async checkConnectionHealth(): Promise<boolean> {
@@ -177,18 +157,9 @@ class ElasticsearchClientSingleton {
     }
   }
 
-  private async createNewConnection(
-    config: OceanNodeDBConfig,
-    customConfig: Partial<ElasticsearchRetryConfig> = {}
-  ): Promise<Client> {
+  private async createNewConnection(config: OceanNodeDBConfig): Promise<Client> {
     this.connectionAttempts++
-    this.lastConnectionTime = Date.now()
-
-    const finalConfig = {
-      ...DEFAULT_ELASTICSEARCH_CONFIG,
-      ...customConfig
-    }
-
+    const settings = DEFAULT_ELASTICSEARCH_CONFIG
     try {
       const client = new Client({
         node: config.url,
@@ -196,13 +167,13 @@ class ElasticsearchClientSingleton {
           config.username && config.password
             ? { username: config.username, password: config.password }
             : undefined,
-        requestTimeout: finalConfig.requestTimeout,
-        pingTimeout: finalConfig.pingTimeout,
-        resurrectStrategy: finalConfig.resurrectStrategy,
-        maxRetries: finalConfig.maxRetries,
-        sniffOnStart: finalConfig.sniffOnStart,
-        sniffInterval: finalConfig.sniffInterval,
-        sniffOnConnectionFault: finalConfig.sniffOnConnectionFault
+        requestTimeout: settings.requestTimeout,
+        pingTimeout: settings.pingTimeout,
+        resurrectStrategy: settings.resurrectStrategy,
+        maxRetries: settings.maxRetries,
+        sniffOnStart: settings.sniffOnStart,
+        sniffInterval: settings.sniffInterval,
+        sniffOnConnectionFault: settings.sniffOnConnectionFault
       })
 
       await client.ping()
@@ -235,64 +206,32 @@ class ElasticsearchClientSingleton {
       return url.replace(/\/\/[^@]+@/, '//***:***@')
     }
   }
-
-  private closeConnectionSync(): void {
-    this.stopHealthMonitoring()
-    if (this.client) {
-      try {
-        this.client.close()
-      } catch (error) {
-        // silent close, no logging needed
-      }
-      this.client = null
-      this.config = null
-    }
-    this.connectionLostEmitted = false
-  }
-
-  public getConnectionStats(): {
-    attempts: number
-    lastConnection: number
-    connected: boolean
-    isRetrying: boolean
-    isMonitoring: boolean
-  } {
-    return {
-      attempts: this.connectionAttempts,
-      lastConnection: this.lastConnectionTime,
-      connected: this.client !== null,
-      isRetrying: this.isRetrying,
-      isMonitoring: this.isMonitoring
-    }
-  }
 }
 
-export async function createElasticsearchClientWithRetry(
-  config: OceanNodeDBConfig,
-  customConfig: Partial<ElasticsearchRetryConfig> = {}
+export function createElasticsearchClientWithRetry(
+  config: OceanNodeDBConfig
 ): Promise<Client> {
-  const singleton = ElasticsearchClientSingleton.getInstance()
-  return await singleton.getClient(config, customConfig)
+  return ElasticsearchClientSingleton.getInstance().getClient(config)
 }
 
-export function getElasticsearchConfig(
-  retryConfig: ElasticsearchRetryConfig = {}
-): Required<ElasticsearchRetryConfig> {
-  return {
-    ...DEFAULT_ELASTICSEARCH_CONFIG,
-    ...retryConfig
-  }
+// true when the request failed with this HTTP status
+export function isStatus(error: any, statusCode: number): boolean {
+  return error?.meta?.statusCode === statusCode
 }
 
-export function getElasticsearchConnectionStats(): {
-  attempts: number
-  lastConnection: number
-  connected: boolean
-  isRetrying: boolean
-  isMonitoring: boolean
-} {
-  const singleton = ElasticsearchClientSingleton.getInstance()
-  return singleton.getConnectionStats()
+// deletes the documents that match and returns how many
+export async function deleteMatching(
+  client: Client,
+  index: string,
+  query: estypes.QueryDslQueryContainer
+): Promise<number> {
+  const result = await client.deleteByQuery({
+    index,
+    query,
+    refresh: true,
+    conflicts: 'proceed'
+  })
+  return result.deleted ?? 0
 }
 
 // creates the index with its mappings when it does not exist yet; throws on failure
@@ -322,17 +261,14 @@ export function assertCompleteSearch(
   }
 }
 
-// Elasticsearch's default result window: one search returns at most this many hits
-export const SEARCH_PAGE_SIZE = 10000
-
 // Reads every match, page by page, on a point in time. For internal scans that must see all
-// documents; a plain search stops at SEARCH_PAGE_SIZE hits.
+// documents; a plain search stops at MAX_RESULT_WINDOW hits.
 export async function searchAllPages<T>(
   client: Client,
   request: Pick<estypes.SearchRequest, 'index' | 'query' | '_source'> & {
     sort?: estypes.SortCombinations[]
   },
-  pageSize: number = SEARCH_PAGE_SIZE
+  pageSize: number = MAX_RESULT_WINDOW
 ): Promise<estypes.SearchHit<T>[]> {
   const { index, sort = [], ...rest } = request
   const keepAlive = '1m'
@@ -380,7 +316,7 @@ export async function getOrNull<T>(
     }
   } catch (error) {
     const missingIndex = error?.meta?.body?.error?.type === 'index_not_found_exception'
-    if (error?.meta?.statusCode === 404 && !missingIndex) return null
+    if (isStatus(error, 404) && !missingIndex) return null
     throw error
   }
 }
