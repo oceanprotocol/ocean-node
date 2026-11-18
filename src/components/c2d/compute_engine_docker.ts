@@ -4616,12 +4616,11 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
-  // Saves the container's stdout/stderr to <storage>/services/<serviceId>/logs-<n>.log and records
-  // it on job.logArchives, so SERVICE_GET_STREAMABLE_LOGS can serve it once the container is gone:
-  // Docker drops a container's logs with the container. Must run after the container was stopped
-  // (its log is then final, and reading it ends by itself) and before it is removed. Unlike the
-  // outputs it runs for services with an output bucket too. Keeps the newest
-  // SERVICE_LOGS_MAX_BYTES. Best-effort — never throws, a failure is only logged; the caller
+  // Docker deletes a container's logs together with the container, so they are saved to the
+  // service's folder first, for SERVICE_GET_STREAMABLE_LOGS to serve after a stop or expiry.
+  // Call it after stopping the container, so its log is final and the follow read ends on its
+  // own, and before removing it. Bucket services need it too: the bucket holds only
+  // /data/outputs. Never throws, because losing the logs must not block a teardown; the caller
   // persists the job.
   private async saveServiceLogs(
     job: ServiceJob,
@@ -6587,7 +6586,8 @@ export class C2DEngineDocker extends C2DEngine {
         if (!isBenignDockerError(e)) stopped = false
         logDockerCleanupError(e, `restart ${serviceId}: old container stop: ${e.message}`)
       })
-      // Its logs end here, whichever way it goes below: the new container starts a fresh log.
+      // Saved here rather than in each branch below: every branch ends with this container
+      // removed, and the new one starts with an empty log.
       await this.saveServiceLogs(job, c)
       if (job.outputBucketId) {
         await c.remove({ force: true, v: true }).catch((e) => {
@@ -6883,8 +6883,9 @@ export class C2DEngineDocker extends C2DEngine {
   ): Promise<NodeJS.ReadableStream | null> {
     const [job] = await this.db.getServiceJob(serviceId, owner)
     if (!job) return null
-    // While the service has a container (Running, or Error before teardown) its live log is the
-    // answer: it covers everything that container logged.
+    // The live log wins while a container exists (Running, or Error before teardown): it holds
+    // everything that container logged and keeps following it, while the saved files only cover
+    // containers already removed.
     if (
       job.containerId &&
       (job.status === ServiceStatusNumber.Running ||
@@ -6900,8 +6901,8 @@ export class C2DEngineDocker extends C2DEngine {
           ...(since !== undefined ? { since } : {})
         })) as unknown as NodeJS.ReadableStream
       } catch (e: any) {
-        // Gone: fall back to the saved logs. Anything else is a Docker failure, and serving
-        // older saved logs in place of the live ones would hide it.
+        // Only a 404 (container gone) falls back to the saved logs. Anything else is a Docker
+        // failure, and answering it with older saved logs would hide it.
         if (e?.statusCode !== 404) {
           CORE_LOGGER.error(
             `getServiceStreamableLogs failed for ${serviceId}: ${e?.message ?? e}`
@@ -6913,8 +6914,9 @@ export class C2DEngineDocker extends C2DEngine {
     return this.openSavedServiceLogs(job, since)
   }
 
-  // The logs saved at teardown (job.logArchives), oldest container first, or null when there
-  // are none — never saved, or deleted with the output archives once storageExpiry elapsed.
+  // Sorted by index so the log reads in the order the containers ran. A file missing on disk is
+  // skipped rather than failing the stream: if a cleanup deleted the folder but could not persist
+  // the job, logArchives still lists it.
   private openSavedServiceLogs(
     job: ServiceJob,
     since?: number
@@ -7019,7 +7021,8 @@ export class C2DEngineDocker extends C2DEngine {
       now - shortest * 1000,
       this.getC2DConfig().hash
     )
-    // The output archives and the saved logs share the service's folder and expire together.
+    // Either kind of file keeps a service a candidate: both live in the service's folder, which
+    // is deleted as a whole.
     const holdsFiles = (job?: ServiceJob) =>
       !!(job?.outputArchives?.length || job?.logArchives?.length)
     let cleaned = 0

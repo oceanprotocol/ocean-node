@@ -209,8 +209,9 @@ export abstract class C2DEngine {
     return []
   }
 
-  // The live log of the service's container while it has one, else the logs saved when its
-  // containers were removed (see ServiceJob.logArchives). Null when there is neither.
+  // Owners need a service's logs after it stops too, and Docker deletes them with the container:
+  // so once there is no container, the logs saved at teardown (ServiceJob.logArchives) are served.
+  // Null when there is neither.
   // eslint-disable-next-line require-await
   public async getServiceStreamableLogs(
     serviceId: string,

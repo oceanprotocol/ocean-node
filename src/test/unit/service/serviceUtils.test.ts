@@ -94,7 +94,7 @@ describe('service utils', () => {
       const listed = toListedServiceJob(job)
       expect(listed).to.not.have.property('outputArchives')
       expect(listed).to.not.have.property('logArchives')
-      // the owner's own status keeps them
+      // stripped from the node-wide list only: the owner still needs them on their own status
       expect(toPublicServiceJob(job)).to.have.property('logArchives')
     })
     it('is null-safe', () => {

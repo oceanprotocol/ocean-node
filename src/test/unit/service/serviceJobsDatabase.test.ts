@@ -453,7 +453,8 @@ describe('Service Jobs Database', () => {
       statusText: 'Expired',
       expiresAt: Date.now() - 10_000
     }
-    // a service with an output bucket has no output archives, only its saved logs
+    // like a bucket service, it has no output archives: only the logArchives half of the filter
+    // can match it
     const onlyLogs = makeServiceJob({ ...expired, logArchives: [logs] })
     const cleaned = makeServiceJob({ ...expired, outputArchives: [], logArchives: [] })
     await db.newServiceJob(onlyLogs)

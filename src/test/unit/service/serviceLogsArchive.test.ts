@@ -26,7 +26,7 @@ const T1 = '2026-11-17T10:00:01.000000001Z'
 const T2 = '2026-11-17T10:00:02.000000001Z'
 const T3 = '2026-11-17T11:00:00.000000001Z'
 
-// One entry as `container.logs({ timestamps: true })` sends it.
+// Built by hand in the shape `container.logs({ timestamps: true })` sends, so no Docker is needed.
 function entry(at: string, text: string, stream = STDOUT): Buffer {
   return encodeDockerLogFrame(stream, Buffer.from(`${at} ${text}\n`))
 }
@@ -43,7 +43,7 @@ async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
   return Buffer.concat(chunks)
 }
 
-// The frames of a multiplexed stream, as [stream type, text].
+// [stream type, text] pairs, so a failing assertion shows readable log lines rather than bytes.
 async function framesOf(
   source: Buffer | NodeJS.ReadableStream
 ): Promise<Array<[number, string]>> {
@@ -92,7 +92,8 @@ function dockerError(statusCode: number) {
   return e
 }
 
-// Same pattern as serviceOutputsArchive.test.ts: skip the Docker constructor, keep the prototype.
+// Built from the prototype so the constructor, which connects to Docker, never runs (same pattern
+// as serviceOutputsArchive.test.ts).
 function makeEngine(tempFolder: string): any {
   const engine: any = Object.create(C2DEngineDocker.prototype)
   engine.docker = {
@@ -124,8 +125,8 @@ function makeEngine(tempFolder: string): any {
   return engine
 }
 
-// A container whose log is `log`: a stopped container's follow stream sends it all, then ends.
-// It has no /data/outputs, which these tests are not about.
+// Its log stream ends after `log`, as a stopped container's does, so saving never waits on the
+// idle timer. getArchive answers 404 to keep the outputs archive out of these tests.
 function logsContainer(id: string, log: Buffer = LOG) {
   return {
     id,
@@ -197,7 +198,7 @@ describe('service logs saved at teardown', () => {
         [STDERR, `${T1} warning\n`],
         [STDOUT, `${T2} ready\n`]
       ])
-      // the note goes to stderr, stamped like the first entry it precedes
+      // stamped like the first entry it precedes, so `since` keeps or drops the two together
       const [noteStream, note] = frames[0]
       expect(noteStream).to.equal(STDERR)
       expect(note).to.match(
@@ -230,7 +231,7 @@ describe('service logs saved at teardown', () => {
         [STDOUT, 'ready\n'],
         [STDOUT, 'second container\n']
       ])
-      // Unix seconds, like Docker's filter: an entry at or after it is kept
+      // Unix seconds, the unit clients already send for Docker's own filter
       const since = Date.parse('2026-11-17T10:00:01Z') / 1000
       expect(await framesOf(savedServiceLogsStream([a, b], since))).to.deep.equal([
         [STDERR, 'warning\n'],
@@ -265,7 +266,7 @@ describe('service logs saved at teardown', () => {
       expect(fs.readFileSync(file).equals(LOG)).to.equal(true)
       expect(saved.filesize).to.equal(LOG.length)
       expect(fs.existsSync(file + '.partial')).to.equal(false)
-      // persisted with the Stopped job
+      // persisted, or the file would sit on disk with no record pointing to it
       sinon.assert.calledWithMatch(engine.db.updateServiceJob, {
         status: ServiceStatusNumber.Stopped,
         logArchives: stopped.logArchives
@@ -348,7 +349,7 @@ describe('service logs saved at teardown', () => {
   })
 
   describe('getServiceStreamableLogs', () => {
-    // A job whose containers c1 and c2 are gone, their logs saved.
+    // Two saved containers, so the order they are served in can be checked.
     async function withSavedLogs(overrides: Partial<ServiceJob> = {}) {
       const engine = makeEngine(tempFolder)
       const job = makeJob({
@@ -409,7 +410,7 @@ describe('service logs saved at teardown', () => {
     })
 
     it('returns null on a Docker failure rather than serving older logs in its place', async () => {
-      // running again after a restart, with the saved logs of its earlier containers
+      // saved logs exist, so a null can only mean the Docker error was not papered over
       const { engine } = await withSavedLogs({
         status: ServiceStatusNumber.Running,
         containerId: 'c3'
@@ -444,7 +445,7 @@ describe('service logs saved at teardown', () => {
       engine.getComputeEnvironments = sinon
         .stub()
         .resolves([{ id: 'env-1', storageExpiry: STORAGE_EXPIRY }])
-      // an output bucket: the saved logs are all the node holds for it
+      // an output bucket leaves no output archives, so only the saved logs can trigger cleanup
       const job = makeJob({
         status: ServiceStatusNumber.Expired,
         containerId: '',
