@@ -35,14 +35,17 @@ function getEnvOverrides(): OverrideEnvConfig[] {
       ENVIRONMENT_VARIABLES.PRIVATE_KEY,
       // the test node's indexer calls its own HTTP API (decryptor) on loopback,
       // same as Barge's node.yml
-      ENVIRONMENT_VARIABLES.ALLOWED_PRIVATE_URL_RANGES
+      ENVIRONMENT_VARIABLES.ALLOWED_PRIVATE_URL_RANGES,
+      // the node needs a DB_TYPE; the CI legs set it, a local run gets SQLite
+      ENVIRONMENT_VARIABLES.DB_TYPE
     ],
     [
       'http://172.15.0.16:8080/',
       'https://arweave.net/',
       '{ "8996": {"rpc": "http://127.0.0.1:8545", "chainId": 8996, "network": "development", "chunkSize": 100}, "137": {"rpc": "https://polygon.meowrpc.com", "chainId": 137, "network": "polygon", "chunkSize": 100 }}',
       '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-      '["127.0.0.1/32"]'
+      '["127.0.0.1/32"]',
+      process.env.DB_TYPE || 'sqlite'
     ]
   )
 }

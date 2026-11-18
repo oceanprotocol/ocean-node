@@ -6,10 +6,8 @@ import { DatabaseSync } from 'node:sqlite'
 import {
   createSqliteStores,
   openSqliteClients,
-  sqliteStateFiles,
   upgradeLegacyTables
 } from '../../../components/database/sql/SqliteStores.js'
-import { DatabaseFactory } from '../../../components/database/DatabaseFactory.js'
 import {
   SqlStateStores,
   buildSqlStateStores
@@ -284,23 +282,6 @@ describe('SQLite stores on the databases folder of an older release', () => {
       expect(error).to.be.instanceOf(Error)
     }
     fs.rmSync(bad, { recursive: true, force: true })
-  })
-
-  it('refuses a database server while the folder holds node state', () => {
-    expect(sqliteStateFiles(dir)).to.have.length(6)
-    expect(() =>
-      DatabaseFactory.refuseLeftoverSqliteState({ dbType: 'sqlite' }, dir)
-    ).to.not.throw()
-    expect(() =>
-      DatabaseFactory.refuseLeftoverSqliteState({ dbType: 'postgresql' }, dir)
-    ).to.throw(/does not move to postgresql.*DB_TYPE=sqlite/)
-    // the index data can be made again: it does not stop the node
-    const indexOnly = fs.mkdtempSync(path.join(os.tmpdir(), 'ocean-index-only-'))
-    fs.writeFileSync(path.join(indexOnly, 'index.sqlite'), '')
-    expect(() =>
-      DatabaseFactory.refuseLeftoverSqliteState({ dbType: 'elasticsearch' }, indexOnly)
-    ).to.not.throw()
-    fs.rmSync(indexOnly, { recursive: true, force: true })
   })
 
   it('opens the folder a second time with the same result', async () => {

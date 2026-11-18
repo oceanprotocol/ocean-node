@@ -219,10 +219,16 @@ describe('Should select the database from DB_TYPE', () => {
     }
   }
 
-  it('should use SQLite when no database is configured', async () => {
-    const { config: conf, error } = await configWith({})
-    expect(error).to.be.equal(undefined)
-    expect(conf.dbConfig).to.deep.equal({ dbType: 'sqlite' })
+  it('should refuse to start with no DB_TYPE, also when DB_URL is set', async () => {
+    for (const vars of [
+      {},
+      { url: ELASTIC_URL, username: 'ocean', password: 'secret' },
+      { url: POSTGRES_URL, username: 'ocean', password: 'secret' }
+    ]) {
+      const { config: conf, error } = await configWith(vars)
+      expect(conf).to.be.equal(undefined)
+      expect(error?.message).to.be.equal('Configuration validation failed')
+    }
   })
 
   it('should use SQLite when DB_TYPE is sqlite, and ignore DB_URL', async () => {
@@ -231,34 +237,12 @@ describe('Should select the database from DB_TYPE', () => {
     expect(conf.dbConfig).to.deep.equal({ dbType: 'sqlite' })
   })
 
-  // the older releases had no DB_TYPE for a node on a database server
-  for (const [type, url] of [
-    ['elasticsearch', ELASTIC_URL],
-    ['postgresql', POSTGRES_URL]
-  ]) {
-    it(`should use ${type} for its DB_URL with no DB_TYPE`, async () => {
-      const { config: conf, error } = await configWith({
-        url,
-        username: 'ocean',
-        password: 'secret'
-      })
-      expect(error).to.be.equal(undefined)
-      expect(conf.dbConfig.dbType).to.be.equal(type)
-    })
-  }
-
   it('should refuse a database section of the config file that is not an object', async () => {
     const file = path.join(os.tmpdir(), `ocean-config-bad-db-${process.pid}.json`)
     const config = { ...loadConfigFromFile(TEST_CONFIG_FILE), dbConfig: POSTGRES_URL }
     fs.writeFileSync(file, JSON.stringify(config))
     const { config: conf, error } = await configWith({}, file)
     fs.rmSync(file, { force: true })
-    expect(conf).to.be.equal(undefined)
-    expect(error?.message).to.be.equal('Configuration validation failed')
-  })
-
-  it('should refuse a DB_URL of no known server when DB_TYPE is not set', async () => {
-    const { config: conf, error } = await configWith({ url: 'localhost:9200' })
     expect(conf).to.be.equal(undefined)
     expect(error?.message).to.be.equal('Configuration validation failed')
   })
@@ -323,21 +307,15 @@ describe('Should select the database from DB_TYPE', () => {
     expect(conf.dbConfig.url).to.be.equal(ELASTIC_URL)
   })
 
-  it('should refuse a DB_URL that is for another database', async () => {
-    for (const [type, url] of [
-      ['postgresql', ELASTIC_URL],
-      ['elasticsearch', POSTGRES_URL],
-      ['postgresql', 'localhost:5432']
-    ]) {
-      const { config: conf, error } = await configWith({
-        type,
-        url,
-        username: 'ocean',
-        password: 'secret'
-      })
-      expect(conf).to.be.equal(undefined)
-      expect(error?.message).to.be.equal('Configuration validation failed')
-    }
+  it('should not check the DB_URL scheme: the driver connects to it as given', async () => {
+    const { config: conf, error } = await configWith({
+      type: 'postgresql',
+      url: 'localhost:5432',
+      username: 'ocean',
+      password: 'secret'
+    })
+    expect(error).to.be.equal(undefined)
+    expect(conf.dbConfig.url).to.be.equal('localhost:5432')
   })
 
   it('should keep the config file values for the DB_* variables that are not set', async () => {

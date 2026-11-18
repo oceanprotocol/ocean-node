@@ -1,4 +1,3 @@
-import fs from 'fs'
 import path from 'path'
 import type { OceanNodeDBConfig } from '../../../@types/OceanNode.js'
 import type { DatabaseStores } from '../DatabaseFactory.js'
@@ -32,14 +31,6 @@ export function openSqliteClients(dir: string): SqliteClients {
     clients[group as SqlStoreGroup] = new SqliteClient(path.join(dir, file))
   }
   return clients
-}
-
-// the files that hold node state (not the index data, which the node can make again)
-export function sqliteStateFiles(dir: string = SQLITE_DIR): string[] {
-  return Object.entries(FILES)
-    .filter(([group]) => group !== 'index')
-    .map(([, file]) => path.join(dir, file))
-    .filter((file) => fs.existsSync(file))
 }
 
 export async function createSqliteStores(

@@ -1,17 +1,17 @@
 # Ocean Node Database Configuration
 
-Ocean Node keeps all its data in one database. You select the database with `DB_TYPE`.
-With no `DB_TYPE` and no `DB_URL`, the node uses SQLite. With no `DB_TYPE` and a `DB_URL`,
-the node uses the database server that the URL is for (`http(s)://` is Elasticsearch,
-`postgresql://` is PostgreSQL), as the older releases did.
+Ocean Node keeps all its data in one database. You must select the database with `DB_TYPE`:
+a node with no `DB_TYPE` does not start. The node does not get the type from `DB_URL`, and it
+does not check the URL: the driver of `DB_TYPE` connects to it as given.
 
-| `DB_TYPE`          | When to use it                                                                                    | What the node needs                                |
-| ------------------ | ------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `sqlite` (default) | One node instance. No database container.                                                         | Nothing. The files are in the `databases/` folder. |
-| `postgresql`       | Several node instances on one database.                                                           | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`             |
-| `elasticsearch`    | Several node instances, a large catalogue, or the full Elasticsearch query syntax for DDO search. | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`             |
+| `DB_TYPE`       | When to use it                                                                                    | What the node needs                                |
+| --------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `sqlite`        | One node instance. No database container.                                                         | Nothing. The files are in the `databases/` folder. |
+| `postgresql`    | Several node instances on one database.                                                           | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`             |
+| `elasticsearch` | Several node instances, a large catalogue, or the full Elasticsearch query syntax for DDO search. | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`             |
 
-There is no mode that runs without a database. A node that cannot open its database stops.
+There is no mode that runs without a database. The node tries to open its database a few
+times at start (`DB_INIT_MAX_ATTEMPTS`), then stops.
 
 The database holds two groups of data:
 
@@ -23,9 +23,9 @@ The database holds two groups of data:
 
 ## Database Configuration
 
-### SQLite (default)
+### SQLite
 
-Set nothing. The node makes these files in `databases/` (next to `p2p-store`, the libp2p
+Set `DB_TYPE="sqlite"`. The node makes these files in `databases/` (next to `p2p-store`, the libp2p
 datastore):
 
 | File                       | Content                                                  |
@@ -138,20 +138,20 @@ reads the first 10000 documents at most.
 
 ## Upgrade from an older release, and a change of database
 
+The older releases had no `DB_TYPE`. Add it to the compose file or `.env` of every node, or
+the node does not start.
+
 The older releases kept the node state in the SQLite files of `databases/` also when the
 index data was in Elasticsearch. The node state does not move from these files to a database
-server, and it does not move between databases. A node that starts on empty state is not
-safe: with no nonces, a signed request can be sent again, and paid jobs are not claimed.
-
-So a node with `DB_TYPE` `postgresql` or `elasticsearch` does not start while `databases/`
-holds node state files (`c2dDatabase.sqlite`, `nonceDatabase.sqlite`,
-`authTokenDatabase.sqlite`, `config.sqlite`, `persistentStorage.sqlite`,
-`nodeMetrics.sqlite`). The error message names the files. You have two choices:
+server, and it does not move between databases. You have two choices:
 
 - Keep the state: set `DB_TYPE=sqlite` (and remove `DB_URL`). The node makes the index data
   again in SQLite.
 - Start with empty state on the database server: stop the node when it has no running jobs
-  or services, then remove these files.
+  or services, then set `DB_TYPE` to `postgresql` or `elasticsearch`. The node does not use
+  the SQLite files that stay in `databases/`. With no nonces, a signed request that the node
+  accepted before can be accepted again, and the paid jobs in the SQLite files are not
+  claimed.
 
 A node that used Elasticsearch in an older release keeps its Elasticsearch, but three indices
 changed: `logs` is now `log`, `state` is now `ddo_state`, and `access_list` keeps `chainId`
@@ -160,11 +160,9 @@ the indices `logs`, `state` and `access_list`. The node state of the older relea
 SQLite, so the node settings on Elasticsearch hold no index version: at the first start the
 node indexes all chains again, and makes `ddo_state` and `access_list` again.
 
-A compose file of an older release can have a `DB_URL` for a database that the node no longer
-supports. The node reads an `http(s)` URL as Elasticsearch and stops with
-`DB_USERNAME and DB_PASSWORD are required when DB_TYPE is elasticsearch`. Remove the `DB_URL`
-line and the service of that database from the compose file: the node then uses SQLite, keeps
-its state in `databases/`, and makes the index data again from the chains.
+A compose file of an older release can have a `DB_URL` for Typesense, which the node no longer
+supports. Remove the `DB_URL` line and the Typesense service, and set `DB_TYPE=sqlite`: the
+node keeps its state in `databases/` and makes the index data again from the chains.
 
 ## Auth tokens
 

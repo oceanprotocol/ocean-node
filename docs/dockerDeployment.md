@@ -95,7 +95,7 @@ $ docker run -d \
 ```
 
 This is not just a convenience. `/usr/src/app/databases` holds `databases/p2p-store`, the
-libp2p LevelDB datastore. With the default database (SQLite) it also holds all the data of
+libp2p LevelDB datastore. With `DB_TYPE=sqlite` it also holds all the data of
 the node: the index data and the node state (nonces, node config, C2D and service jobs, auth
 tokens, buckets, metrics). With PostgreSQL or Elasticsearch that data is in the database
 server, so keep the data volume of the server persistent too. See [database.md](database.md).
@@ -180,7 +180,7 @@ the logs back see [Logs.md](Logs.md).
 
 Additional notes:
 
-- the script asks for the database. With the default, SQLite, the docker compose file generated will have the following format. For all available configurations, refer to the [Environment Variables](https://github.com/oceanprotocol/ocean-node/blob/main/docs/env.md) documentation
+- the script asks for the database (`DB_TYPE` is required). With SQLite, the docker compose file generated will have the following format. For all available configurations, refer to the [Environment Variables](https://github.com/oceanprotocol/ocean-node/blob/main/docs/env.md) documentation
 
 ```yaml
 services:
@@ -202,6 +202,7 @@ services:
       - '9002:9002'
       - '9003:9003'
     environment:
+      DB_TYPE: 'sqlite'
       PRIVATE_KEY: '<<redacted>>'
       RPCS: '{"1":{"rpc":"https://ethereum-rpc.publicnode.com","fallbackRPCs":["https://rpc.ankr.com/eth","https://1rpc.io/eth","https://eth.api.onfinality.io/public"],"chainId":1,"network":"mainnet","chunkSize":100},"10":{"rpc":"https://mainnet.optimism.io","fallbackRPCs":["https://optimism-mainnet.public.blastapi.io","https://rpc.ankr.com/optimism","https://optimism-rpc.publicnode.com"],"chainId":10,"network":"optimism","chunkSize":100},"137":{"rpc":"https://polygon-rpc.com/","fallbackRPCs":["https://polygon-mainnet.public.blastapi.io","https://1rpc.io/matic","https://rpc.ankr.com/polygon"],"chainId":137,"network":"polygon","chunkSize":100},"23294":{"rpc":"https://sapphire.oasis.io","fallbackRPCs":["https://1rpc.io/oasis/sapphire"],"chainId":23294,"network":"sapphire","chunkSize":100},"23295":{"rpc":"https://testnet.sapphire.oasis.io","chainId":23295,"network":"sapphire-testnet","chunkSize":100},"11155111":{"rpc":"https://eth-sepolia.public.blastapi.io","fallbackRPCs":["https://1rpc.io/sepolia","https://eth-sepolia.g.alchemy.com/v2/demo"],"chainId":11155111,"network":"sepolia","chunkSize":100},"11155420":{"rpc":"https://sepolia.optimism.io","fallbackRPCs":["https://endpoints.omniatech.io/v1/op/sepolia/public","https://optimism-sepolia.blockpi.network/v1/rpc/public"],"chainId":11155420,"network":"optimism-sepolia","chunkSize":100}}'
       # the node metrics history is kept for this id

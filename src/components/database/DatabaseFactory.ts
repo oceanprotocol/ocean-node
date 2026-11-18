@@ -16,7 +16,7 @@ import type { ConfigDatabase } from './ConfigDatabase.js'
 import { createElasticsearchStores } from './ElasticsearchStores.js'
 import type { NodeMetricsProvider } from './NodeMetricsDatabase.js'
 import { createPostgresStores } from './sql/PostgresStores.js'
-import { createSqliteStores, sqliteStateFiles } from './sql/SqliteStores.js'
+import { createSqliteStores } from './sql/SqliteStores.js'
 
 // all the stores of a node; each backend builds the full set
 export interface DatabaseStores {
@@ -47,21 +47,6 @@ export class DatabaseFactory {
         return createElasticsearchStores(config)
       default:
         throw new Error(`Unknown database type: ${config.dbType}`)
-    }
-  }
-
-  // The node state in the SQLite files of this folder does not move to a database server.
-  // The node must not start on empty state without a decision of the operator: with
-  // empty nonces a signed request can be sent again, and paid jobs are never claimed.
-  static refuseLeftoverSqliteState(config: OceanNodeDBConfig, dir?: string): void {
-    const files = config.dbType === 'sqlite' ? [] : sqliteStateFiles(dir)
-    if (files.length > 0) {
-      throw new Error(
-        `Node state is in SQLite files (${files.join(', ')}), from an older release or ` +
-          `from a node that used SQLite. It does not move to ${config.dbType}. ` +
-          `To keep it, set DB_TYPE=sqlite. To start with empty state on ${config.dbType}, ` +
-          `remove these files.`
-      )
     }
   }
 

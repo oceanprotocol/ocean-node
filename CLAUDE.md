@@ -40,11 +40,12 @@ This is enforced by`.cursor/rules/tests-nvm.mdc`and the in-repo`CLAUDE.md`.
     ~123 errors), and `typescript-eslint` has to support TS 7 — its peer range is
     `>=4.8.4 <6.1.0`, so it pins us below 7 today.
 
-### Only-mandatory config: `PRIVATE_KEY`
+### Mandatory config: `PRIVATE_KEY` and `DB_TYPE`
 
-`PRIVATE_KEY` (with the `0x` prefix) is the **only** required environment variable — it
-seeds the node identity (libp2p peerId), the EVM signer, and encryption keys. Everything
-else has defaults; the default database is SQLite, which needs no setting. Generate one with:
+`PRIVATE_KEY` (with the `0x` prefix) and `DB_TYPE` are the required environment variables.
+`PRIVATE_KEY` seeds the node identity (libp2p peerId), the EVM signer, and encryption keys;
+`DB_TYPE` selects the database (`sqlite` needs no other setting). Everything else has
+defaults. Generate one with:
 
 ```bash
 node dist/helpers/scripts/generatePK.js            # prints a key/address to stdout
@@ -134,7 +135,7 @@ the compiled output. In tests, do **not** mutate `process.env` directly — use 
 **Integration tests require a running local chain + services (Barge).** Clone
 `oceanprotocol/barge`, `git checkout feature/nodes`, then `./start_ocean.sh -with-c2d`
 (see `docs/testing.md` and `docs/database.md` for the exact flags). The tests run on the
-database that `DB_TYPE` selects (SQLite when neither it nor `DB_URL` is set; note that
+database that `DB_TYPE` selects (the test hooks set `sqlite` when it is not set; note that
 `src/test/.env.test` can set `DB_URL`); suites that use the
 Elasticsearch client directly are wrapped in `describeOnElasticsearch` and run only with
 `DB_TYPE=elasticsearch`. The SQL store suites (`src/test/unit/database/`) also run on
@@ -148,7 +149,7 @@ a running node).
 ### Databases for local dev
 
 ```bash
-# SQLite is the default and needs nothing. For the other two:
+# DB_TYPE=sqlite needs nothing. For the other two:
 docker-compose -f postgresql-compose.yml up -d      # DB_TYPE=postgresql
 docker-compose -f elasticsearch-compose.yml up -d   # DB_TYPE=elasticsearch
 ```
@@ -164,13 +165,11 @@ via `src/utils/config/index.ts` and `src/utils/index.ts`). Key facts:
   resolves the file from `CONFIG_PATH` env var, else `./config.json` in cwd. The repo ships a
   ready `config.json` (chain `8996`/development, single Docker C2D env).
 - **`INTERFACES`** env var (JSON array like `["HTTP","P2P"]`) toggles `hasHttp` / `hasP2P`.
-  Omitted = both enabled. `DB_TYPE` selects the database: `sqlite` (default), `postgresql`
-  or `elasticsearch`. The last two require `DB_URL`, `DB_USERNAME` and `DB_PASSWORD` (or
-  `dbConfig` in the file): without them config validation fails and the node does not start.
-  With no `DB_TYPE`, a `DB_URL` selects the server that its scheme is for (the older
-  releases had no `DB_TYPE` for a server node); an empty `DB_*` value counts as not set.
-  A server node does not start while `databases/` holds SQLite state files
-  (`DatabaseFactory.refuseLeftoverSqliteState`): node state does not move between
+  Omitted = both enabled. `DB_TYPE` is required and selects the database: `sqlite`, `postgresql`
+  or `elasticsearch`; with no `DB_TYPE` config validation fails and the node does not start
+  (no default, no guess from `DB_URL`). The last two require `DB_URL`, `DB_USERNAME` and
+  `DB_PASSWORD` (or `dbConfig` in the file); the URL is not checked, the driver connects to
+  it as given. An empty `DB_*` value counts as not set. Node state does not move between
   databases. There is no DEGRADED / no-DB mode.
 - The full catalog of env vars is defined as `ENVIRONMENT_VARIABLES` in
   `src/utils/constants.ts` and documented in `docs/env.md` (long file — the authoritative
@@ -307,7 +306,7 @@ Handler source is grouped under `src/components/core/`:
   behind the `Abstract*Database` classes in `BaseDatabase.ts`) and the node state (nonces,
   config, auth tokens, buckets, node metrics, C2D jobs, service jobs, image records, service
   locks — behind the provider interfaces). Backends:
-  - **SQLite** (default) and **PostgreSQL**: one set of stores in `database/sql/`, written
+  - **SQLite** and **PostgreSQL**: one set of stores in `database/sql/`, written
     against the `SqlClient` interface (`SqliteClient` on `node:sqlite`, `PostgresClient` on
     `pg`). The rules for SQL that runs on both are at the top of `sql/SqlClient.ts`.
     `SqlDocuments` keeps JSON documents with a field table, and `documentQuery.ts`

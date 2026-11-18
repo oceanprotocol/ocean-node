@@ -46,8 +46,8 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 
 ## Database
 
-- `DB_TYPE`: The database of the node: `sqlite` (default), `postgresql` or `elasticsearch`. SQLite needs no other `DB_*` variable. When `DB_TYPE` is not set and `DB_URL` is set, the node uses the database server that the URL is for. An empty `DB_*` variable counts as not set. See [database.md](database.md). Example: `"postgresql"`
-- `DB_URL`: URL of the database server. Required when `DB_TYPE` is `postgresql` or `elasticsearch`; not used for `sqlite`. The scheme is `postgresql://` or `postgres://` for PostgreSQL, and `http://` or `https://` for Elasticsearch; with another scheme the node does not start. Examples: `"postgresql://localhost:5432/ocean"`, `"http://localhost:9200"`
+- `DB_TYPE`: **Required.** The database of the node: `sqlite`, `postgresql` or `elasticsearch`. With no `DB_TYPE` the node does not start; it does not get the type from `DB_URL`. SQLite needs no other `DB_*` variable. An empty `DB_*` variable counts as not set. See [database.md](database.md). Example: `"sqlite"`
+- `DB_URL`: URL of the database server. Required when `DB_TYPE` is `postgresql` or `elasticsearch`; not used for `sqlite`. The node does not check the URL: the driver of `DB_TYPE` connects to it as given. Examples: `"postgresql://localhost:5432/ocean"`, `"http://localhost:9200"`
 - `DB_USERNAME`: Username for database authentication. Required when `DB_TYPE` is `postgresql` or `elasticsearch`. Example: `"elastic"`
 - `DB_PASSWORD`: Password for database authentication. Required when `DB_TYPE` is `postgresql` or `elasticsearch`. Example: `"password123"`
 - `ELASTICSEARCH_REQUEST_TIMEOUT`: Request timeout in milliseconds for Elasticsearch operations. Default is `30000`. Example: `30000`

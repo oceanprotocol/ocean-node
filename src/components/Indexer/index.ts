@@ -107,7 +107,6 @@ export class OceanIndexer {
   private MIN_REQUIRED_VERSION = '4.2.0'
   private isDbConnected: boolean = true
   private reconnectTimer: NodeJS.Timeout | null = null
-  private stopped = false
 
   constructor(
     _db: Database,
@@ -303,8 +302,6 @@ export class OceanIndexer {
       return null
     }
     const canStartIndexer = await this.retryCrawlerWithDelay(blockchain)
-    // stop() can run while the crawler waits for the chain: a stopped indexer must not start
-    if (this.stopped) return null
     if (!canStartIndexer) {
       INDEXER_LOGGER.error(
         `Cannot start indexer for chain ${chainID}. Check DB and RPC connections!`
@@ -634,7 +631,6 @@ export class OceanIndexer {
   }
 
   public async stop(): Promise<void> {
-    this.stopped = true
     await this.stopAllChainIndexers()
     INDEXER_CRAWLING_EVENT_EMITTER.removeAllListeners()
     INDEXER_DDO_EVENT_EMITTER.removeAllListeners()

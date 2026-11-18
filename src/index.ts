@@ -27,7 +27,6 @@ import { fileURLToPath } from 'url'
 import cors from 'cors'
 import { scheduleCronJobs } from './utils/cronjobs/scheduleCronJobs.js'
 import { requestValidator } from './components/httpRoutes/requestValidator.js'
-import { DatabaseFactory } from './components/database/DatabaseFactory.js'
 import type { OceanNodeDBConfig } from './@types/OceanNode.js'
 // Telemetry gauge registration. These modules depend on `@opentelemetry/api` only (no SDK), so
 // importing them here does not pull the OTel SDK into the graph ahead of the `--import` bootstrap
@@ -49,26 +48,19 @@ async function initDatabaseWithRetry(
   maxRetryDelay: number
 ): Promise<Database | null> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const isLastAttempt = attempt === maxAttempts
-    // the last attempt always calls init, so a failed probe never skips it
-    const reachable = isLastAttempt || (await DatabaseFactory.isReachable(dbConfig))
-    if (reachable) {
-      const database = await Database.init(dbConfig)
-      if (database) {
-        if (attempt > 1) {
-          OCEAN_NODE_LOGGER.info(`Database initialized after ${attempt} attempts`)
-        }
-        return database
+    const database = await Database.init(dbConfig)
+    if (database) {
+      if (attempt > 1) {
+        OCEAN_NODE_LOGGER.info(`Database initialized after ${attempt} attempts`)
       }
+      return database
     }
-    if (isLastAttempt) {
+    if (attempt === maxAttempts) {
       break
     }
     const delay = Math.min(retryDelay * 2 ** (attempt - 1), maxRetryDelay)
     OCEAN_NODE_LOGGER.warn(
-      `Database ${
-        reachable ? 'initialization failed' : 'not reachable yet'
-      } (attempt ${attempt}/${maxAttempts}), retrying in ${delay}ms`
+      `Database initialization failed (attempt ${attempt}/${maxAttempts}), retrying in ${delay}ms`
     )
     await new Promise((resolve) => setTimeout(resolve, delay))
   }
@@ -165,13 +157,6 @@ if (!config) {
 }
 let node: OceanP2P = null
 let indexer = null
-try {
-  DatabaseFactory.refuseLeftoverSqliteState(config.dbConfig)
-} catch (error) {
-  OCEAN_NODE_LOGGER.error(error.message)
-  await flushLogs()
-  process.exit(1)
-}
 const dbconn: Database | null = await initDatabaseWithRetry(
   config.dbConfig,
   config.dbInitMaxAttempts,

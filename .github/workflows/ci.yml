@@ -402,6 +402,7 @@ jobs:
         run: |
           npm run start > ocean-node.log 2>&1 &
         env:
+          DB_TYPE: sqlite
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
           IPFS_GATEWAY: http://172.15.0.16:8080/
           ARWEAVE_GATEWAY: https://arweave.net/

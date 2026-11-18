@@ -39,7 +39,7 @@ export class FileInfoHandler extends CommandHandler {
 
 ### Database Abstraction Layer
 
-Stores are built by `DatabaseFactory` from `DB_TYPE`: `sqlite` (default, no setting), `postgresql` or `elasticsearch` (both need `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`). SQLite and PostgreSQL share the stores in `src/components/database/sql/`; Elasticsearch uses the `Elastic*` files. The stores hold DDO metadata, indexer state, orders and the node state (nonces, config, auth tokens, buckets, node metrics, C2D jobs, service jobs, image records, service locks).
+Stores are built by `DatabaseFactory` from `DB_TYPE`: required: `sqlite` (no other setting), `postgresql` or `elasticsearch` (both need `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`). SQLite and PostgreSQL share the stores in `src/components/database/sql/`; Elasticsearch uses the `Elastic*` files. The stores hold DDO metadata, indexer state, orders and the node state (nonces, config, auth tokens, buckets, node metrics, C2D jobs, service jobs, image records, service locks).
 
 Access via singleton `Database` class: `db.ddo`, `db.indexer`, `db.order`, `db.c2d`, `db.nonce`, etc.
 
@@ -68,7 +68,7 @@ Central coordinator managing all components. Initialize with configuration and o
 Environment-driven via `.env` or `CONFIG_PATH=/path/to/config.json`:
 
 - **PRIVATE_KEY** (required): Node identity for P2P + crypto operations
-- **DB_TYPE** / **DB_URL**: database selection and server URL (SQLite when both are unset)
+- **DB_TYPE** / **DB_URL**: database selection (required, no default) and server URL
 - **RPCS**: JSON mapping network IDs to RPC endpoints
 - **OPERATOR_SERVICE_URL**: C2D cluster URLs (array of strings)
 - See [docs/env.md](docs/env.md) for 40+ environment variables

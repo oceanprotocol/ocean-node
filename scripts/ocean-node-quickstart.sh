@@ -708,10 +708,10 @@ if [ -z "$DB_PASSWORD" ]; then
   DB_PASSWORD=$(head -c 24 /dev/urandom | xxd -p | tr -d '\n')
 fi
 
-# The parts of docker-compose.yml that depend on the database. SQLite needs none of them:
+# The parts of docker-compose.yml that depend on the database. SQLite needs only DB_TYPE:
 # the node keeps its files in the node-sqlite volume. A database server gets no "ports"
 # entry, so only the node can reach it.
-DB_ENVIRONMENT=''
+DB_ENVIRONMENT="      DB_TYPE: 'sqlite'"
 DB_DEPENDS_ON=''
 DB_SERVICE=''
 DB_VOLUME=''
@@ -892,7 +892,7 @@ echo ""
 if [ -n "$PREVIOUS_DB_TYPE" ] && [ "$PREVIOUS_DB_TYPE" != "$DB_TYPE" ]; then
   echo -e "\e[1;31mWarning:\e[0m the database of this folder was \e[1;31m$PREVIOUS_DB_TYPE\e[0m and is now \e[1;31m$DB_TYPE\e[0m. The node state (jobs, services, nonces, auth tokens, buckets) does not move: it stays in the Docker volume of $PREVIOUS_DB_TYPE. A database volume keeps the password of its first start: remove the old volume before you select that database again."
   if [ "$PREVIOUS_DB_TYPE" == "sqlite" ]; then
-    echo -e "The node does not start while the SQLite state files are in the Docker volume \e[1;31mnode-sqlite\e[0m (its error names them): back them up, then remove only these files. Keep the volume: it also holds the P2P identity store (p2p-store)."
+    echo -e "The node starts with empty node state on $DB_TYPE: with no nonces, a signed request that the node accepted before can be accepted again, and the paid jobs in the SQLite files are not claimed. The SQLite files stay unused in the Docker volume \e[1;31mnode-sqlite\e[0m. Keep the volume: it also holds the P2P identity store (p2p-store)."
   fi
   echo ""
 fi

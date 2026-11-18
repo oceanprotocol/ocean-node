@@ -1,8 +1,4 @@
-import type {
-  DatabaseType,
-  OceanNodeConfig,
-  OceanNodeDBConfig
-} from '../../@types/OceanNode.js'
+import type { OceanNodeConfig, OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import type { C2DClusterInfo, C2DDockerConfig } from '../../@types/C2D/C2D.js'
 import type { RPCS } from '../../@types/blockchain.js'
 import type { FeeTokens } from '../../@types/Fees.js'
@@ -20,7 +16,7 @@ import {
   OCEAN_ARTIFACTS_ADDRESSES_PER_CHAIN
 } from '../address.js'
 import { create256Hash } from '../crypt.js'
-import { databaseTypeOfUrl, dbConfigurationProblem } from '../database.js'
+import { dbConfigurationProblem } from '../database.js'
 import { CONFIG_LOGGER } from '../logging/common.js'
 import { redactUrls, safeStringify } from '../logging/redact.js'
 import { OceanNodeConfigSchema } from './schemas.js'
@@ -31,15 +27,6 @@ import { fileURLToPath } from 'url'
 import lodash from 'lodash'
 
 let previousConfiguration: OceanNodeConfig = null
-
-const DEFAULT_DB_TYPE: DatabaseType = 'sqlite'
-// With no DB_TYPE, a DB_URL selects its database server, as in the older releases: a node
-// keeps its database after an update. With no DB_URL, the node uses the default database.
-// A DB_URL of no known server gives no type, so the validation fails: the node must not
-// start on empty SQLite state because of a wrong URL.
-function resolveDbType({ dbType, url }: Record<string, unknown>): unknown {
-  return dbType || (url ? databaseTypeOfUrl(url) : DEFAULT_DB_TYPE)
-}
 
 // SQLite keeps its files in the node folder, so connection values have no effect on it
 function withoutUnusedConnection(dbConfig: OceanNodeDBConfig): OceanNodeDBConfig {
@@ -96,8 +83,8 @@ function preprocessConfigData(data: any): void {
   )
   // a `dbConfig` in the file that is not an object fails the validation
   if (data.dbConfig === undefined || lodash.isPlainObject(data.dbConfig)) {
+    // no default and no guess from DB_URL: with no DB_TYPE the validation fails
     data.dbConfig = { ...data.dbConfig, ...dbOverrides }
-    data.dbConfig.dbType = resolveDbType(data.dbConfig)
   }
   delete data.DB_TYPE
   delete data.DB_URL

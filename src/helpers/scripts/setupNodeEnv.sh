@@ -50,7 +50,7 @@ configure_database() {
             *) echo "Unknown database type: $DB_TYPE" ;;
         esac
     done
-    #always set: an empty DB_TYPE means SQLite, or the server of DB_URL
+    #always set: the node does not start without DB_TYPE
     set_env_value DB_TYPE "$DB_TYPE"
     if [ "$DB_TYPE" == "sqlite" ]; then
         #the default: the node keeps its files in ./databases and needs no connection values

@@ -53,7 +53,7 @@ See [Architecture](docs/Arhitecture.md) for the layered model and Mermaid diagra
 
 A **persistent `databases/` volume is REQUIRED**, not optional. It holds
 `databases/p2p-store`, the libp2p datastore that backs this node's DHT provider records, and,
-with the default database (SQLite), all the data of the node. Starting it empty silently drops
+with `DB_TYPE=sqlite`, all the data of the node. Starting it empty silently drops
 content the node still serves. The Dockerfile declares `VOLUME ["/usr/src/app/databases"]` for this reason —
 see "Persistent node data" in [Docker deployment](docs/dockerDeployment.md).
 
@@ -120,7 +120,7 @@ own stdout copy in `~/.pm2/logs` with no size cap unless `pm2-logrotate` is inst
   supported runtime is **Node 24+** (`package.json` `engines`), and the `.nvmrc`/Dockerfile
   pin the exact tested version (currently 26.12.1).
 - **Docker + Docker Compose** (for C2D, and for PostgreSQL or Elasticsearch if you select one
-  of them; the default database, SQLite, needs no container).
+  of them; SQLite needs no container).
 
 ```bash
 # 1. Install and build
@@ -142,10 +142,10 @@ prior `npm run build` is required.
 
 ## Configuration
 
-- **`PRIVATE_KEY`** (exactly 66 characters: `0x` + 64 hex) is the **only mandatory**
-  variable. It seeds the node identity (libp2p peerId), the EVM signer and the encryption
-  keys; everything else has defaults. The default database is SQLite, which needs no
-  setting.
+- **`PRIVATE_KEY`** (exactly 66 characters: `0x` + 64 hex) and **`DB_TYPE`** are the
+  **mandatory** variables. `PRIVATE_KEY` seeds the node identity (libp2p peerId), the EVM
+  signer and the encryption keys; `DB_TYPE` selects the database (`sqlite` needs no other
+  setting). Everything else has defaults.
   Generate a key with `node dist/helpers/scripts/generatePK.js`.
 - **Config sources**: a JSON config file plus environment-variable overrides. The file is
   resolved from `CONFIG_PATH`, else `./config.json` in the working directory, and must exist —
@@ -162,7 +162,7 @@ prior `npm run build` is required.
   omitted means both.
 - [`docs/env.md`](docs/env.md) is the authoritative reference. Key groups worth knowing:
   - `RPCS` — per-chain RPC endpoint map (JSON).
-  - `DB_TYPE` — the database: `sqlite` (default), `postgresql` or `elasticsearch`.
+  - `DB_TYPE` — the database, required: `sqlite`, `postgresql` or `elasticsearch`.
     `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` — the connection, for the last two.
   - `ALLOWED_ADMINS`, `AUTHORIZED_DECRYPTERS`, `AUTHORIZED_PUBLISHERS`, `ALLOWED_VALIDATORS`
     (and their access-list variants) — admin / decrypter / validator allow-lists.
@@ -176,7 +176,7 @@ prior `npm run build` is required.
 
 The node keeps all its data in one database, selected with `DB_TYPE`:
 
-- **`sqlite`** (default): no database container and no setting. The files are in the
+- **`sqlite`**: no database container and no other setting. The files are in the
   `databases/` folder. One folder is for one node instance.
 - **`postgresql`** or **`elasticsearch`**: for several node instances on one database. Set
   `DB_URL`, `DB_USERNAME` and `DB_PASSWORD` (or `dbConfig` in `config.json`); without them the
@@ -184,11 +184,9 @@ The node keeps all its data in one database, selected with `DB_TYPE`:
   each: [`postgresql-compose.yml`](postgresql-compose.yml) and
   [`elasticsearch-compose.yml`](elasticsearch-compose.yml).
 
-With no `DB_TYPE`, a `DB_URL` selects the database server that the URL is for, as in the
-older releases; with no `DB_URL` either, the node uses SQLite. The node state does not move
-between databases: a node with a database server does not start while `databases/` holds the
-SQLite state files of an older release or of a SQLite node. See "Upgrade" in the
-[Database guide](docs/database.md).
+With no `DB_TYPE` the node does not start: it does not get the type from `DB_URL`. The node
+state does not move between databases: a node that changes to a database server starts with
+empty node state. See "Upgrade" in the [Database guide](docs/database.md).
 
 DDO search works on all three. Elasticsearch runs the full query syntax; SQLite and PostgreSQL
 run a documented part of it and answer HTTP 400 for the rest.
