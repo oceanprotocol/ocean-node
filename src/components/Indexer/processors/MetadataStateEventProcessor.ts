@@ -37,19 +37,16 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
       const ddoInstance = DDOManager.getDDOClass(ddo)
       INDEXER_LOGGER.debug(`Found did ${did} on network ${chainId}`)
 
-      if (
-        'nft' in ddoInstance.getAssetFields().indexedMetadata &&
-        ddoInstance.getAssetFields().indexedMetadata.nft.state !== metadataState
-      ) {
+      // Read the stored record, not getAssetFields(): on a short DDO that call nulls
+      // indexedMetadata.event in place, and the record is saved again below
+      const currentState = ddo.indexedMetadata?.nft?.state
+      if (ddo.indexedMetadata?.nft && currentState !== metadataState) {
         if (
-          ddoInstance.getAssetFields().indexedMetadata.nft.state ===
-            MetadataStates.ACTIVE &&
+          currentState === MetadataStates.ACTIVE &&
           [MetadataStates.REVOKED, MetadataStates.DEPRECATED].includes(metadataState)
         ) {
           INDEXER_LOGGER.debug(
-            `DDO became non-visible from ${
-              ddoInstance.getAssetFields().indexedMetadata.nft.state
-            } to ${metadataState}`
+            `DDO became non-visible from ${currentState} to ${metadataState}`
           )
 
           // We should keep it here, because in further development we'll store

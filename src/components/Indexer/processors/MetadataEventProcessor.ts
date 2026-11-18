@@ -87,11 +87,11 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           return
         }
 
-        const ddoInstance = DDOManager.getDDOClass(ddo)
-
+        // Read the stored record, not getAssetFields(): on a short DDO that call nulls
+        // indexedMetadata.event in place, which buildShortDdoRecord then cannot carry over
         INDEXER_LOGGER.debug(
           `DDO ${did} became non-visible from ${
-            ddoInstance.getAssetFields().indexedMetadata.nft.state
+            ddo.indexedMetadata?.nft?.state
           } to ${metadataState}`
         )
 
