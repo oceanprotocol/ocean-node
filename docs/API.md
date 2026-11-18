@@ -969,6 +969,12 @@ byte-identical `address + nonce + "createAuthToken" + issuerPeerId`.
 | scope      | string[] |          | protocol-command names the token may perform; omit for unrestricted |
 | chainId    | string   |          | chain id for smart-account (ERC-1271) signature validation         |
 
+> **Smart-account (ERC-1271) tokens and cross-node use:** to be validated at a **different** node
+> (federation), a smart-account token MUST carry a non-null `chainId` — the consuming node will not
+> fan out an on-chain `isValidSignature` check across every network for a bearer token (DoS cap). An
+> EOA token needs no `chainId`. A smart-account token minted without a `chainId` works only at its
+> issuing node and must be reissued with one for cross-node use.
+
 #### Response
 
 ```json

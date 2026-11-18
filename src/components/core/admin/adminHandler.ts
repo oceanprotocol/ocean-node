@@ -181,11 +181,14 @@ export abstract class AdminCommandHandler
   }
 
   async validate(command: SignedCommand): Promise<ValidateParams> {
-    const commandValidation = validateCommandParameters(command, [
-      'nonce',
-      'address',
-      'signature'
-    ])
+    // A read-only admin command authorized by a bearer token (allowAuthToken) carries no
+    // signature/nonce, so those params must NOT be required on the token path — otherwise the
+    // request is rejected here before it can reach validateTokenOrSignature. The signature path
+    // still requires nonce/address/signature. (The admin gate + §18.2 address binding run later.)
+    const usingToken =
+      this.allowAuthToken && !!command.authorization && !command.signature
+    const requiredParams = usingToken ? [] : ['nonce', 'address', 'signature']
+    const commandValidation = validateCommandParameters(command, requiredParams)
     if (!commandValidation.valid) {
       return buildInvalidRequestMessage(commandValidation.reason)
     }

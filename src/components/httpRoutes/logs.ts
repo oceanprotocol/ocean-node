@@ -14,7 +14,9 @@ function parseQueryInt(value: unknown): number | undefined {
 
 logRoutes.post('/logs', express.json(), async (req, res) => {
   try {
-    const { signature, address, nonce } = req.body
+    // A token-authorized (header-only) request may carry no JSON body; default to {} so
+    // destructuring never throws and the token still reaches the validator.
+    const { signature, address, nonce } = req.body || {}
 
     // NaN (missing or not a number) becomes undefined: the handler defaults to 100 logs
     // (max 1000) and to the first page
@@ -60,7 +62,7 @@ logRoutes.post('/logs', express.json(), async (req, res) => {
 
 logRoutes.post('/log/:id', express.json(), async (req, res) => {
   try {
-    const { signature, nonce, address, logId } = req.body
+    const { signature, nonce, address, logId } = req.body || {}
     if (!logId) {
       res.status(400).send('id is missing')
       return

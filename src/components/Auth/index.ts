@@ -274,8 +274,11 @@ export class Auth {
     // message builder (isV2CreateAuthToken ⇒ false), letting a legacy token's signature be replayed
     // as a malformed "v2" token. Not a privilege escalation (legacy is already unrestricted) but it
     // breaks the claim⇄signed invariant and is loose under the `open` revocation fallback — reject.
-    if (v === AUTH_TOKEN_VERSION && typeof signedValidUntil !== 'number') {
-      CORE_LOGGER.debug('Rejecting foreign token: v2 token missing validUntil')
+    if (
+      v === AUTH_TOKEN_VERSION &&
+      (typeof signedValidUntil !== 'number' || !Number.isFinite(signedValidUntil))
+    ) {
+      CORE_LOGGER.debug('Rejecting foreign token: v2 token missing/invalid validUntil')
       return null
     }
 
@@ -381,26 +384,42 @@ export class Auth {
       }
     }
 
+    // Re-read the clock AFTER the dial (plan review): `sendTo` above can take seconds, so the
+    // grace / expiry decisions and the cached `lastConfirmedAt` must reflect when the verdict
+    // actually settled, not when this function started.
+    const settled = Date.now()
+
     if (unreachable) {
       // Outcome 3 — issuer unreachable: apply the configured fallback (plan §7.2).
       switch (this.revocationFallback) {
         case 'open':
-          // fail-open: trust the signature + claims, no revocation. Bounded by the signed/claim
-          // validUntil (and the DB-side cap). Never written to the positive cache.
-          CORE_LOGGER.debug(
-            'Issuer unreachable; accepting foreign token under fail-OPEN revocation policy'
-          )
-          return this.buildAuthTokenFromClaims(
-            token,
-            address,
-            createdAt,
-            signedValidUntil
-          )
+          // fail-open: trust the consumer signature. A v2 token carries a SIGNED `validUntil` →
+          // honor it (bounded by this node's MAX_TOKEN_LIFETIME). A legacy token has NO signed
+          // expiry and its `createdAt` is UNSIGNED, so we never fabricate an expiry from it —
+          // fall back to a still-valid cached confirmation, else reject.
+          CORE_LOGGER.debug('Issuer unreachable; applying fail-OPEN revocation policy')
+          if (typeof signedValidUntil === 'number') {
+            return this.buildAuthTokenFromClaims(
+              token,
+              address,
+              createdAt,
+              signedValidUntil
+            )
+          }
+          if (cached && settled < cached.validUntil) {
+            return this.buildAuthTokenFromCache(
+              token,
+              address,
+              createdAt,
+              cached.validUntil
+            )
+          }
+          return null
         case 'cache':
           if (
             cached &&
-            now < cached.validUntil &&
-            now - cached.lastConfirmedAt < this.softFailGraceMs
+            settled < cached.validUntil &&
+            settled - cached.lastConfirmedAt < this.softFailGraceMs
           ) {
             return this.buildAuthTokenFromCache(
               token,
@@ -422,39 +441,38 @@ export class Auth {
       return null
     }
     const validUntilMs = Number(verdict.validUntil)
-    if (!Number.isFinite(validUntilMs) || validUntilMs <= now) {
+    if (!Number.isFinite(validUntilMs) || validUntilMs <= settled) {
       this.verdictCache.delete(token)
       return null
     }
 
-    // Outcome 1 — issuer confirms valid: refresh the positive cache.
-    this.pruneVerdictCache(now)
-    this.verdictCache.set(token, { validUntil: validUntilMs, lastConfirmedAt: now })
-    return this.buildAuthTokenFromCache(token, address, createdAt, validUntilMs)
+    // Outcome 1 — issuer confirms valid: cache + return, but NEVER let a foreign verdict outlive
+    // this node's MAX_TOKEN_LIFETIME (plan §7.3). A federated issuer with a larger cap must not
+    // extend a token's life here; the cap flows through the fast-path and `cache`/`open` fallbacks
+    // because they read `cached.validUntil`.
+    const cappedValidUntil = Math.min(validUntilMs, settled + this.maxTokenLifetimeMs)
+    this.pruneVerdictCache(settled)
+    this.verdictCache.set(token, {
+      validUntil: cappedValidUntil,
+      lastConfirmedAt: settled
+    })
+    return this.buildAuthTokenFromCache(token, address, createdAt, cappedValidUntil)
   }
 
-  // `open`-mode only: build the AuthToken from decoded claims WITHOUT touching the positive cache
-  // (an unconfirmed token must never later satisfy `cache` mode). Bounded by validUntil (plan §7.2).
+  // `open`-mode only: build the AuthToken from a token's SIGNED `validUntil` (v2), WITHOUT touching
+  // the positive cache (an unconfirmed token must never later satisfy `cache` mode). Legacy tokens
+  // have NO signed expiry (and an unsigned `createdAt`), so the caller never passes one here — it
+  // requires a still-valid cached verdict instead. Always bounded by this node's MAX_TOKEN_LIFETIME
+  // (plan §7.3).
   private buildAuthTokenFromClaims(
     token: string,
     address: string,
     createdAt?: number,
     signedValidUntil?: number
   ): AuthToken | null {
-    // In `open` mode a legacy token has no signed validUntil; fall back to the max lifetime from
-    // createdAt so we never mint an unbounded token.
     const now = Date.now()
-    const createdNum = Number(createdAt)
-    const fallback = Number.isFinite(createdNum)
-      ? createdNum + this.maxTokenLifetimeMs
-      : now + this.maxTokenLifetimeMs
-    const requested =
-      typeof signedValidUntil === 'number' && signedValidUntil > now
-        ? signedValidUntil
-        : fallback
-    // Always bound by THIS node's MAX_TOKEN_LIFETIME (plan §7.3): a trusted-but-compromised issuer
-    // with a larger cap must not get a longer-lived token honored here during an outage.
-    const validUntilMs = Math.min(requested, now + this.maxTokenLifetimeMs)
+    if (typeof signedValidUntil !== 'number' || signedValidUntil <= now) return null
+    const validUntilMs = Math.min(signedValidUntil, now + this.maxTokenLifetimeMs)
     if (validUntilMs <= now) return null
     return this.buildAuthTokenFromCache(token, address, createdAt, validUntilMs)
   }

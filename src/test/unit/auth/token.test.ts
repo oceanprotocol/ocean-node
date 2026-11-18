@@ -6,7 +6,15 @@ import { Auth } from '../../../components/Auth/index.js'
 import { AuthTokenDatabase } from '../../../components/database/AuthTokenDatabase.js'
 import { OceanP2P } from '../../../components/P2P/index.js'
 import { Readable } from 'node:stream'
-import { createHashForSignature, safeSign } from '../../utils/signature.js'
+import {
+  createHashForSignature,
+  createHashForMessage,
+  safeSign
+} from '../../utils/signature.js'
+import {
+  buildCreateAuthTokenSignatureMessage,
+  AUTH_TOKEN_VERSION
+} from '../../../utils/crypt.js'
 
 describe('Auth Token Tests', () => {
   let wallet: Wallet
@@ -268,5 +276,70 @@ describe('Auth cross-node delegated validation', () => {
     const callsBefore = tracker.calls
     expect(await auth.getLocalToken(token)).to.equal(null)
     expect(tracker.calls).to.equal(callsBefore)
+  })
+
+  async function mintV2Token(
+    auth: Auth,
+    signWith: HDNodeWallet,
+    claimAddress: string,
+    validUntil: number
+  ): Promise<string> {
+    const nonce = '77' + Math.floor(Math.random() * 1e6).toString()
+    const message = buildCreateAuthTokenSignatureMessage({
+      address: claimAddress,
+      nonce,
+      issuerPeerId: ISSUER_PEER_ID,
+      validUntil
+    })
+    const signature = await safeSign(signWith, createHashForMessage(message))
+    return auth.getJWTToken(
+      claimAddress,
+      nonce,
+      Date.now(),
+      signature,
+      ISSUER_PEER_ID,
+      null,
+      {
+        version: AUTH_TOKEN_VERSION,
+        validUntil
+      }
+    )
+  }
+
+  it('caps a foreign verdict validUntil at this node MAX_TOKEN_LIFETIME (plan §7.3)', async () => {
+    const farFuture = Date.now() + 10 * 24 * 60 * 60_000 // 10 days
+    const { p2p } = makeFakeP2P({ verdict: { valid: true, validUntil: farFuture } })
+    const cfg = { ...config, maxTokenLifetime: 3600 } // local cap: 1h
+    const auth = new Auth(authTokenDatabase, cfg, () => p2p)
+    const token = await mintToken(auth, consumer, consumer.address)
+    const result = await auth.validateToken(token)
+    expect(result).to.not.equal(null)
+    // honored only up to now + 1h, NOT the issuer's 10-day verdict
+    expect(result.validUntil.getTime()).to.be.at.most(Date.now() + 3600_000 + 2000)
+    expect(result.validUntil.getTime()).to.be.below(farFuture)
+  })
+
+  it('open fallback REJECTS a legacy token (no signed expiry) with no cache when issuer is unreachable', async () => {
+    const { p2p } = makeFakeP2P({ httpStatus: 404 })
+    const cfg = { ...config, tokenRevocationFallback: 'open' as const }
+    const auth = new Auth(authTokenDatabase, cfg, () => p2p)
+    const token = await mintToken(auth, consumer, consumer.address) // legacy: createdAt is unsigned
+    expect(await auth.validateToken(token)).to.equal(null)
+  })
+
+  it('open fallback honors a v2 token (signed expiry) when issuer is unreachable, capped at local max', async () => {
+    const { p2p } = makeFakeP2P({ httpStatus: 404 })
+    const validUntil = Date.now() + 2 * 60 * 60_000 // 2h (signed)
+    const cfg = {
+      ...config,
+      tokenRevocationFallback: 'open' as const,
+      maxTokenLifetime: 3600 // local cap: 1h
+    }
+    const auth = new Auth(authTokenDatabase, cfg, () => p2p)
+    const token = await mintV2Token(auth, consumer, consumer.address, validUntil)
+    const result = await auth.validateToken(token)
+    expect(result).to.not.equal(null)
+    // capped at 1h even though the signed validUntil is 2h
+    expect(result.validUntil.getTime()).to.be.at.most(Date.now() + 3600_000 + 2000)
   })
 })

@@ -90,7 +90,12 @@ export class StatusHandler extends CommandHandler {
         return reject
       }
       if (signedChallenge) {
-        responseStatus = { ...statusResult, signedChallenge }
+        // OJ-03 correctness: the client verifies `signedChallenge` against the public key embedded
+        // in `id`. The cached `nodeStatus.id` can hold a caller-supplied `node` from an earlier
+        // request, which would not match the identity key that signs the challenge. Pin `id` to
+        // THIS node's own peerId for any challenged response so the two always agree.
+        const selfPeerId = this.getOceanNode().getKeyManager().getPeerIdString()
+        responseStatus = { ...statusResult, id: selfPeerId, signedChallenge }
       }
       return {
         stream: Readable.from(JSON.stringify(responseStatus, null, 4)),
