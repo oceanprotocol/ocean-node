@@ -1,6 +1,5 @@
 import { baseSnapshot, describeOnElasticsearch } from '../utils/utils.js'
 import { expect } from 'chai'
-import sinon from 'sinon'
 import { Client } from '@elastic/elasticsearch'
 import { floorToHour } from '../../components/database/nodeMetricsAggregate.js'
 import { ElasticsearchNodeMetrics } from '../../components/database/ElasticsearchNodeMetrics.js'
@@ -99,31 +98,7 @@ describeOnElasticsearch('ElasticsearchNodeMetrics', () => {
     expect(await db.rollupHour(INSTANCE, hour)).to.equal(false)
   })
 
-  it('rollupHour is upsert: re-rolling an hourStart overwrites rather than duplicates', async () => {
-    const hour = Date.UTC(2026, 6, 28, 10, 0, 0, 0)
-    await db.insertSample(
-      INSTANCE,
-      baseSnapshot({
-        collectedAt: hour + 1000,
-        cpu: { ...baseSnapshot().cpu, usagePercent: 10 }
-      })
-    )
-    await db.rollupHour(INSTANCE, hour)
-    await db.insertSample(
-      INSTANCE,
-      baseSnapshot({
-        collectedAt: hour + 2000,
-        cpu: { ...baseSnapshot().cpu, usagePercent: 90 }
-      })
-    )
-    await db.rollupHour(INSTANCE, hour)
-    const rows = await db.getHourly(INSTANCE, hour, hour, 10)
-    expect(rows).to.have.length(1)
-    expect(rows[0].cpu.usagePercent).to.equal(90)
-    expect(rows[0].sampleCount).to.equal(1)
-  })
-
-  it('rollupHour deletes the counted samples that a failed delete left, and keeps the row', async () => {
+  it('a second roll-up keeps the first row and deletes the leftover samples', async () => {
     const hour = Date.UTC(2026, 6, 28, 10, 0, 0, 0)
     for (const [offset, usagePercent] of [
       [1000, 10],
@@ -142,58 +117,20 @@ describeOnElasticsearch('ElasticsearchNodeMetrics', () => {
       query: { match_all: {} }
     })
     expect(await db.rollupHour(INSTANCE, hour)).to.equal(true)
-    // the delete of the roll-up stopped part way: one counted sample is still there
+    // the delete of the roll-up stopped part way, and a late sample came for the hour
     await client.index({
       index: 'node_metrics_samples',
       id: counted._id,
       document: counted._source,
       refresh: true
     })
+    await db.insertSample(INSTANCE, baseSnapshot({ collectedAt: hour + 3000 }))
     expect(await db.rollupHour(INSTANCE, hour)).to.equal(false)
     const rows = await db.getHourly(INSTANCE, hour, hour, 10)
     expect(rows.map((row) => [row.sampleCount, row.cpu.usagePercent])).to.deep.equal([
       [2, 20]
     ])
     expect(await db.getPartialHour(INSTANCE, hour)).to.equal(null)
-    // a new sample after the cleanup is counted, and the row keeps no stale id
-    await db.insertSample(
-      INSTANCE,
-      baseSnapshot({
-        collectedAt: hour + 3000,
-        cpu: { ...baseSnapshot().cpu, usagePercent: 90 }
-      })
-    )
-    expect(await db.rollupHour(INSTANCE, hour)).to.equal(true)
-    const [row] = await db.getHourly(INSTANCE, hour, hour, 10)
-    expect([row.sampleCount, row.cpu.usagePercent]).to.deep.equal([1, 90])
-  })
-
-  it('rollupHour writes no row when another roll-up changed it after the read', async () => {
-    const hour = Date.UTC(2026, 6, 28, 10, 0, 0, 0)
-    await db.insertSample(INSTANCE, baseSnapshot({ collectedAt: hour + 1000 }))
-    // another process creates the row between the read and the write of this roll-up
-    const index = client.index.bind(client)
-    sinon.stub(client, 'index').callsFake(async (request: any) => {
-      if (request.op_type === 'create') {
-        await index({ ...request, op_type: undefined })
-      }
-      return index(request)
-    })
-    try {
-      expect(await db.rollupHour(INSTANCE, hour)).to.equal(false)
-    } finally {
-      sinon.restore()
-    }
-    expect(await db.getPartialHour(INSTANCE, hour)).to.not.equal(null)
-  })
-
-  it('rollupHour twice for the same hour returns true both times and keeps one row', async () => {
-    const hour = Date.UTC(2026, 6, 28, 10, 0, 0, 0)
-    await db.insertSample(INSTANCE, baseSnapshot({ collectedAt: hour + 1000 }))
-    expect(await db.rollupHour(INSTANCE, hour)).to.equal(true)
-    await db.insertSample(INSTANCE, baseSnapshot({ collectedAt: hour + 2000 }))
-    expect(await db.rollupHour(INSTANCE, hour)).to.equal(true)
-    expect(await db.getHourly(INSTANCE, hour, hour, 10)).to.have.length(1)
   })
 
   it('a second instance sees none of the first instance samples or hourly rows', async () => {

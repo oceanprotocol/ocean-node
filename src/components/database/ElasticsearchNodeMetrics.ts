@@ -8,7 +8,6 @@ import {
   createElasticsearchClientWithRetry,
   deleteMatching,
   ensureIndex,
-  getOrNull,
   isStatus,
   searchAllPages
 } from './ElasticsearchConfigHelper.js'
@@ -28,7 +27,7 @@ const SAMPLES_INDEX = stateSchemas.metricsSamples.index
 const HOURLY_INDEX = stateSchemas.metricsHourly.index
 
 type SampleDoc = SampleRow & { instanceId: string }
-type HourlyDoc = HourlyRow & { instanceId: string; sampleIds: string[] }
+type HourlyDoc = HourlyRow & { instanceId: string }
 
 // samples: auto id; hourly rows: id = `${instanceId}:${hourStart}`
 export class ElasticsearchNodeMetrics implements NodeMetricsProvider {
@@ -63,50 +62,39 @@ export class ElasticsearchNodeMetrics implements NodeMetricsProvider {
     return [...hours].sort((a, b) => a - b)
   }
 
-  // Averages the samples of the hour into one hourly row, which replaces the row of an
-  // earlier roll-up, then deletes the samples that it counted. The delete can stop part way
-  // (Elasticsearch does not roll back), so the row keeps the ids of its samples:
-  // - the next roll-up first deletes those that are left, and a failure there keeps the row;
-  // - the row write is conditional, so of two processes with one INSTANCE_ID only one writes
-  //   and deletes; the other returns false and leaves its samples to the next run.
+  // Averages the samples of the hour into one hourly row, then deletes them. The first
+  // roll-up of an hour wins: the row is created once, so the samples that a partial delete
+  // (Elasticsearch does not roll back) leaves are deleted by the next run, not counted again.
   async rollupHour(instanceId: string, hourStart: number): Promise<boolean> {
     const client = await this.client()
-    const id = `${instanceId}:${hourStart}`
-    const row = await getOrNull<HourlyDoc>(client, HOURLY_INDEX, id)
-    if (row?.source.sampleIds.length > 0) {
-      await deleteMatching(client, SAMPLES_INDEX, {
-        ids: { values: row.source.sampleIds }
-      })
-    }
-    const fresh = await this.getHourSamples(instanceId, hourStart)
-    if (fresh.length === 0) return false
+    const hits = await this.getHourSamples(instanceId, hourStart)
+    if (hits.length === 0) return false
     const document: HourlyDoc = {
       instanceId,
       ...hourlyToRow(
         aggregateRows(
-          fresh.map((hit) => hit._source),
+          hits.map((hit) => hit._source),
           hourStart
         )
-      ),
-      sampleIds: fresh.map((hit) => hit._id)
+      )
     }
-    const unchanged = row
-      ? { if_seq_no: row.seqNo, if_primary_term: row.primaryTerm }
-      : { op_type: 'create' as const }
+    let written = true
     try {
       await client.index({
         index: HOURLY_INDEX,
-        id,
+        id: `${instanceId}:${hourStart}`,
         document,
-        refresh: 'wait_for',
-        ...unchanged
+        op_type: 'create',
+        refresh: 'wait_for'
       })
     } catch (error) {
-      if (isStatus(error, 409)) return false
-      throw error
+      if (!isStatus(error, 409)) throw error
+      written = false
     }
-    await deleteMatching(client, SAMPLES_INDEX, { ids: { values: document.sampleIds } })
-    return true
+    await deleteMatching(client, SAMPLES_INDEX, {
+      ids: { values: hits.map((hit) => hit._id) }
+    })
+    return written
   }
 
   async getPartialHour(
