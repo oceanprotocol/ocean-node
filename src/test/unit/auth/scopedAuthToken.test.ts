@@ -236,6 +236,29 @@ describe('scoped auth token — claims + enforcement', () => {
     expect(bad.error).to.contain('scope')
   })
 
+  it('rejects a v2-claimed token that omits validUntil (strict v2 semantics)', async () => {
+    // Craft a malformed v2 token directly: v=2 but NO validUntil (the issuer never mints this).
+    const createdAt = Date.now()
+    const malformed = jwt.sign(
+      {
+        v: 2,
+        address: wallet.address,
+        nonce: nonce(),
+        createdAt,
+        issuerPeerId: selfPeerId
+      },
+      auth.getJwtSecret()
+    )
+    // Make it pass the DB lookup (local token) so enforcement is what rejects it.
+    await auth.insertToken(wallet.address, malformed, createdAt + 60_000, createdAt, null)
+    const res = await auth.validateAuthenticationOrToken({
+      token: malformed,
+      command: PROTOCOL_COMMANDS.DOWNLOAD
+    })
+    expect(res.valid).to.equal(false)
+    expect(res.error).to.contain('validUntil')
+  })
+
   it('rejects ANY token (even unrestricted) for a token-ineligible command', async () => {
     // unrestricted v2 token (v=2, validUntil, but no scope/audience)
     const token = await mintLocalToken({ validUntil: Date.now() + 60_000 })

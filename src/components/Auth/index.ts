@@ -269,6 +269,16 @@ export class Auth {
       return null
     }
 
+    // Strict v2 semantics: a token that CLAIMS v2 MUST carry a signed numeric `validUntil`. Without
+    // this, a v2 claim with no `validUntil` would make the signature check fall back to the legacy
+    // message builder (isV2CreateAuthToken ⇒ false), letting a legacy token's signature be replayed
+    // as a malformed "v2" token. Not a privilege escalation (legacy is already unrestricted) but it
+    // breaks the claim⇄signed invariant and is loose under the `open` revocation fallback — reject.
+    if (v === AUTH_TOKEN_VERSION && typeof signedValidUntil !== 'number') {
+      CORE_LOGGER.debug('Rejecting foreign token: v2 token missing validUntil')
+      return null
+    }
+
     // ── Lever B federation gate (plan §17.1) — FIRST, before any crypto or dial. Only foreign
     // tokens reach here (self-issued tokens are served from the local DB path). Also the ON-03(3)
     // DoS mitigation: non-federated / junk tokens are rejected on a cheap check.
@@ -532,6 +542,12 @@ export class Auth {
       return { valid: false, error: 'unsupported token version' }
     }
     if (decoded.v === AUTH_TOKEN_VERSION) {
+      // Strict v2 semantics (belt to validateRemoteToken's suspenders): a v2 token MUST carry a
+      // signed numeric validUntil. A self/local v2 token always does (the issuer sets it); this
+      // also rejects any malformed v2 claim that reaches the chokepoint.
+      if (typeof decoded.validUntil !== 'number') {
+        return { valid: false, error: 'invalid v2 token (missing validUntil)' }
+      }
       // audience
       if (Array.isArray(decoded.audience) && decoded.audience.length) {
         const selfPeerId = OceanNode.getInstance().getKeyManager().getPeerIdString()
