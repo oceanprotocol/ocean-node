@@ -200,8 +200,12 @@ export class DecryptDdoHandler extends CommandHandler {
     // the exact resource (chainId + txId + dataNftAddress), so a signature harvested from one
     // node/asset cannot be replayed against another. dataNftAddress was already checksum-
     // normalized by verifyParamsAndRateLimits; the Indexer signer checksums it to match.
+    // HIGH (plan §18.1): DECRYPT_DDO is token-INELIGIBLE. A reusable bearer token would skip the
+    // ON-02 txId/dataNftAddress/peerId binding and become a universal decrypt for that address,
+    // defeating ON-02. Force the signature-only path by passing `null` for the token (the central
+    // chokepoint also rejects a token for this command, but this makes it explicit here).
     const isAuthRequestValid = await this.validateTokenOrSignature(
-      task.authorization,
+      null,
       task.decrypterAddress,
       task.nonce,
       task.signature,

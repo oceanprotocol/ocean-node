@@ -29,6 +29,9 @@ logRoutes.post('/logs', express.json(), async (req, res) => {
       signature,
       nonce,
       address,
+      // read-only admin: a scoped auth token may be presented via the Authorization header
+      // instead of a signature (plan §16.3). The ALLOWED_ADMINS gate still applies.
+      authorization: req.headers?.authorization as string,
       startTime: req.query.startTime as string,
       endTime: req.query.endTime as string,
       maxLogs,
@@ -67,6 +70,8 @@ logRoutes.post('/log/:id', express.json(), async (req, res) => {
       signature,
       nonce,
       address,
+      // read-only admin: scoped auth token accepted via the Authorization header (plan §16.3).
+      authorization: req.headers?.authorization as string,
       logId,
       // trusted transport caller (request IP), never a body-supplied value — keys the limiter
       caller: req.caller

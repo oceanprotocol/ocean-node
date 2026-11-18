@@ -17,6 +17,9 @@ adminConfigRoutes.get('/api/admin/config', express.json(), async (req, res) => {
       nonce,
       signature,
       address,
+      // read-only admin: a scoped auth token may be presented via the Authorization header
+      // instead of a signature (plan §16.3). The ALLOWED_ADMINS gate still applies.
+      authorization: req.headers?.authorization as string,
       caller: req.caller
     })
 

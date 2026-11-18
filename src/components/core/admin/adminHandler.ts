@@ -17,13 +17,18 @@ import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import { CommonValidation } from '../../../utils/validators.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { errorSummary } from '../../../utils/logging/redact.js'
-import { normalizeCommandAddresses } from '../../../utils/evmAddress.js'
+import { normalizeCommandAddresses, sameAddress } from '../../../utils/evmAddress.js'
 import { isAddress } from 'ethers'
 
 export abstract class AdminCommandHandler
   extends BaseHandler
   implements IValidateAdminCommandHandler
 {
+  // Whether this admin command accepts a bearer auth token (plan §16.2/§16.3). Default: NO —
+  // every mutating admin command is signature-only (a fresh single-use nonce-bound signature).
+  // Only the two read-only admin handlers (FetchConfig / GetLogs) override this to true.
+  protected readonly allowAuthToken: boolean = false
+
   async verifyParamsAndRateLimits(task: SignedCommand): Promise<P2PCommandResponse> {
     // Same ingress normalization as CommandHandler: the admin `address` is matched against
     // ALLOWED_ADMINS / access lists, so its casing must not decide whether a call is admin.
@@ -49,7 +54,10 @@ export abstract class AdminCommandHandler
     nonce: string,
     signature: string,
     command: string,
-    chainId?: string
+    chainId?: string,
+    // The bearer token, forwarded only for read-only admin commands (allowAuthToken). For every
+    // mutating admin command this stays null and the request MUST be signature-authenticated.
+    authorization?: string
   ): Promise<CommonValidation> {
     const oceanNode = this.getOceanNode()
     const auth = oceanNode.getAuth()
@@ -59,8 +67,17 @@ export abstract class AdminCommandHandler
         error: 'Auth not configured'
       }
     }
+    // Mutating admin commands never accept a token (plan §16.2): if one is presented, reject
+    // explicitly rather than silently ignoring it.
+    if (!this.allowAuthToken && authorization) {
+      return {
+        valid: false,
+        error: 'this admin command requires a request signature, not an auth token'
+      }
+    }
+    const token = this.allowAuthToken ? authorization : null
     const isAuthRequestValid = await auth.validateAuthenticationOrToken({
-      token: null,
+      token,
       address,
       nonce,
       signature,
@@ -73,13 +90,25 @@ export abstract class AdminCommandHandler
         error: isAuthRequestValid.error
       }
     }
+    // SECURITY (plan §16.3/§18.2): the ALLOWED_ADMINS gate must run against the AUTHENTICATED
+    // address, not the raw `address` param. For the token path these can differ: a valid token
+    // for a non-admin Z could be presented while `address` names admin A. Require BOTH — bind the
+    // authenticated address to the claimed `address` AND evaluate the admin gate against the
+    // authenticated address. (The signature path returns the address it verified, so it matches.)
+    const authenticatedAddress = isAuthRequestValid.address ?? address
+    if (address && !sameAddress(authenticatedAddress, address)) {
+      return {
+        valid: false,
+        error: 'Authenticated address does not match the requested address'
+      }
+    }
     try {
       const allowedAdmins = oceanNode.getAdminAddresses()
 
       const { addresses, accessLists } = allowedAdmins
       let allowed = await checkSingleCredential(
         { type: CREDENTIALS_TYPES.ADDRESS, values: addresses },
-        address,
+        authenticatedAddress,
         null
       )
       if (allowed) {
@@ -116,7 +145,7 @@ export abstract class AdminCommandHandler
             allowed = await checkCredentialOnAccessList(
               { [chainId]: validContracts },
               chainId,
-              address,
+              authenticatedAddress,
               signer
             )
           } catch (error) {
@@ -164,7 +193,9 @@ export abstract class AdminCommandHandler
       command.address,
       command.nonce,
       command.signature,
-      command.command
+      command.command,
+      undefined,
+      command.authorization
     )
     if (!isAuthRequestValid.valid) {
       return buildInvalidRequestMessage(

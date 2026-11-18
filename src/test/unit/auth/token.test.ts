@@ -130,9 +130,43 @@ describe('Auth cross-node delegated validation', () => {
 
   before(async () => {
     const baseConfig = await getConfiguration(true)
-    config = { ...baseConfig, supportedNetworks: {} }
+    // Lever B (plan §17.1): cross-node validation is opt-in. Federate with the test issuer (and
+    // SELF for the self-check test) so these tests exercise the dial/cache path, not the gate.
+    config = {
+      ...baseConfig,
+      supportedNetworks: {},
+      allowCrossNodeTokens: true,
+      trustedTokenIssuers: [ISSUER_PEER_ID, SELF_PEER_ID]
+    }
     authTokenDatabase = await AuthTokenDatabase.create(baseConfig.dbConfig)
     consumer = Wallet.createRandom()
+  })
+
+  it('rejects a foreign token when cross-node federation is OFF (default)', async () => {
+    const { p2p, tracker } = makeFakeP2P({
+      verdict: { valid: true, validUntil: Date.now() + 60_000 }
+    })
+    const closedConfig = {
+      ...config,
+      allowCrossNodeTokens: false,
+      trustedTokenIssuers: [] as string[]
+    }
+    const auth = new Auth(authTokenDatabase, closedConfig, () => p2p)
+    const token = await mintToken(auth, consumer, consumer.address)
+    expect(await auth.validateToken(token)).to.equal(null)
+    // rejected on the cheap federation gate — no dial
+    expect(tracker.calls).to.equal(0)
+  })
+
+  it('rejects a foreign token from a non-federated issuer', async () => {
+    const { p2p, tracker } = makeFakeP2P({
+      verdict: { valid: true, validUntil: Date.now() + 60_000 }
+    })
+    const otherIssuer = { ...config, trustedTokenIssuers: [SELF_PEER_ID] }
+    const auth = new Auth(authTokenDatabase, otherIssuer, () => p2p)
+    const token = await mintToken(auth, consumer, consumer.address) // issued by ISSUER_PEER_ID
+    expect(await auth.validateToken(token)).to.equal(null)
+    expect(tracker.calls).to.equal(0)
   })
 
   it('accepts when the signature matches AND the issuer says valid', async () => {

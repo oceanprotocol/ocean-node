@@ -218,6 +218,21 @@ export interface OceanNodeConfig {
   isBootstrap?: boolean
   validateUnsignedDDO?: boolean
   jwtSecret?: string
+  // Scoped auth tokens (plan §8). Seconds unless noted.
+  // Hard cap on token lifetime (default 86400 = 24h); the node rejects an over-cap validUntil
+  // and defaults legacy (omitted-validUntil) tokens to createdAt + this.
+  maxTokenLifetime?: number
+  // Unreachable-issuer policy for the foreign-token revocation dial (plan §7/§8.1).
+  tokenRevocationFallback?: 'closed' | 'cache' | 'open'
+  // Soft-fail grace window (seconds); only consulted in `cache` mode. 0 = fail-closed.
+  tokenSoftFailGrace?: number
+  // How long a positive revocation verdict suppresses re-dialing (seconds). 0 = always re-dial.
+  tokenRevalidateInterval?: number
+  // Operator federation — lever B (plan §17.1).
+  allowCrossNodeTokens?: boolean
+  trustedTokenIssuers?: string[]
+  // OJ-03 (plan §14.4): per-caller rate limit (req/min) for the status challenge-signing path.
+  statusChallengeRateLimit?: number
   httpCertPath?: string
   httpKeyPath?: string
   enableBenchmark?: boolean
@@ -283,6 +298,24 @@ export interface OceanNodeP2PStatus {
   dhtMode?: string
 }
 
+// OJ-03 + scoped-token policy exposed in `status` (plan §17.2). This is static config, safe to
+// include in the cached status object. `signedChallenge` (below) is per-request and never cached.
+export interface AuthTokenPolicyStatus {
+  // from MAX_TOKEN_LIFETIME — clients cap validUntil to this (seconds)
+  maxTokenLifetime: number
+  // 'disabled' when foreign tokens are rejected; 'allowlist' when honored only from trustedIssuers.
+  // ('open' is intentionally unreachable: enabling with an empty allowlist fails at startup.)
+  crossNode: 'disabled' | 'allowlist'
+  // present only when crossNode === 'allowlist'
+  trustedIssuers?: string[]
+  // behaviour when a token's issuer is unreachable (plan §8.1)
+  revocationFallback: 'closed' | 'cache' | 'open'
+  // seconds; present only when revocationFallback === 'cache'
+  softFailGrace?: number
+  // OJ-03: node supports the status clientChallenge / signedChallenge proof-of-possession
+  challengeSupported: true
+}
+
 export interface OceanNodeStatus {
   id: string
   publicKey: string
@@ -291,6 +324,12 @@ export interface OceanNodeStatus {
   version: string
   http: boolean
   p2p: boolean
+  // OJ-03 (plan §14): present only when the request included a `clientChallenge`; the node's
+  // libp2p-identity-key signature over utf8(STATUS_CHALLENGE_DOMAIN + clientChallenge). Computed
+  // per request and NEVER stored in the cached status object.
+  signedChallenge?: string
+  // Node auth-token policy (plan §17.2). Static config, part of the cached status object.
+  authTokenPolicy?: AuthTokenPolicyStatus
   /** Present only when the P2P interface is enabled and running. */
   p2pStatus?: OceanNodeP2PStatus
   provider: OceanNodeProvider[]
