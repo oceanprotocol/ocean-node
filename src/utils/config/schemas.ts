@@ -1504,10 +1504,10 @@ export const OceanNodeConfigSchema = z
     p2pConfig: OceanNodeP2PConfigSchema.nullable().optional(),
     hasIndexer: booleanFromString.default(true),
 
-    DB_TYPE: z.string().optional(),
     DB_URL: z.string().optional(),
     DB_USERNAME: z.string().optional(),
     DB_PASSWORD: z.string().optional(),
+    DB_TYPE: z.string().optional(),
     dbConfig: OceanNodeDBConfigSchema,
     // Accept either an object (config file) or a JSON string (env var `PERSISTENT_STORAGE`),
     // and validate the parsed value against the PersistentStorage schema.

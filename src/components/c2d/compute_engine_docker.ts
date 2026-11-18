@@ -3967,8 +3967,7 @@ export class C2DEngineDocker extends C2DEngine {
       })
       job.status = C2DStatusNumber.ConfiguringVolumes
       job.statusText = C2DStatusText.ConfiguringVolumes
-      // awaited: the job must be stored before the abort entry goes away in `finally`
-      await this.db.updateJob(job)
+      this.db.updateJob(job)
     } catch (err) {
       const logText = `Unable to pull docker image: ${job.containerImage}: ${err.message}`
       CORE_LOGGER.error(`Job ${job.jobId}: ${logText}`)

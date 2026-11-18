@@ -1,3 +1,4 @@
+import os from 'os'
 import { OceanP2P } from './components/P2P/index.js'
 import { OceanProvider } from './components/Provider/index.js'
 import { OceanIndexer } from './components/Indexer/index.js'
@@ -21,7 +22,6 @@ import { BlockchainRegistry } from './components/BlockchainRegistry/index.js'
 import { Blockchain } from './utils/blockchain.js'
 import { createPersistentStorage } from './components/persistentStorage/createPersistentStorage.js'
 import { PersistentStorageFactory } from './components/persistentStorage/PersistentStorageFactory.js'
-import os from 'os'
 import { isAddress, FallbackProvider, ethers } from 'ethers'
 import { create256Hash } from './utils/crypt.js'
 import {

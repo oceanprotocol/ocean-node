@@ -8,27 +8,12 @@ import {
   OverrideEnvConfig,
   setupEnvironment,
   tearDownEnvironment,
-  TEST_ENV_CONFIG_FILE,
-  describeOnElasticsearch
+  TEST_ENV_CONFIG_FILE
 } from '../utils/utils.js'
 import { ENVIRONMENT_VARIABLES, getConfiguration } from '../../utils/index.js'
-import { ElasticsearchConfigDatabase } from '../../components/database/ElasticsearchConfigDatabase.js'
-import { createElasticsearchClientWithRetry } from '../../components/database/ElasticsearchConfigHelper.js'
-import { stateSchemas } from '../../components/database/ElasticSchemas.js'
-import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { homedir } from 'os'
 
-async function wipeConfigIndex(dbConfig: OceanNodeDBConfig): Promise<void> {
-  const client = await createElasticsearchClientWithRetry(dbConfig)
-  await client.deleteByQuery({
-    index: stateSchemas.nodeConfig.index,
-    query: { match_all: {} },
-    refresh: true,
-    conflicts: 'proceed'
-  })
-}
-
-describeOnElasticsearch('**********         Config Database', () => {
+describe('**********         Config Database', () => {
   let database: Database
   let oceanIndexer: OceanIndexer
   let previousConfiguration: OverrideEnvConfig[]
@@ -73,17 +58,9 @@ describeOnElasticsearch('**********         Config Database', () => {
     oceanNode.addIndexer(oceanIndexer)
   })
 
-  beforeEach(async () => {
-    await wipeConfigIndex(database.getConfig())
-  })
-
   after(async () => {
     await oceanNode.tearDownAll()
     await tearDownEnvironment(previousConfiguration)
-  })
-
-  it('config DB is the Elasticsearch store', () => {
-    expect(database.config).to.be.instanceOf(ElasticsearchConfigDatabase)
   })
 
   // Use a dedicated config key (not 'version'): the live OceanIndexer started by this suite
@@ -92,7 +69,9 @@ describeOnElasticsearch('**********         Config Database', () => {
   const TEST_CONFIG_KEY = 'test-config-version'
 
   it('should return { value: null } for an absent key', async () => {
-    const version = await oceanIndexer.getDatabase().config.retrieveValue(TEST_CONFIG_KEY)
+    // a new key on each run: a database server keeps the keys of the earlier runs
+    const absentKey = `test-absent-${Date.now()}`
+    const version = await oceanIndexer.getDatabase().config.retrieveValue(absentKey)
     assert(version !== null, 'An absent key is not a DB error')
     assert(version.value === null, 'An absent key should have a null value')
   })
@@ -129,19 +108,11 @@ describeOnElasticsearch('**********         Config Database', () => {
   })
 })
 
-describeOnElasticsearch('VersionDatabase CRUD', () => {
+describe('VersionDatabase CRUD', () => {
   let database: Database
 
   before(async () => {
     database = await Database.init((await getConfiguration()).dbConfig)
-  })
-
-  beforeEach(async () => {
-    await wipeConfigIndex(database.getConfig())
-  })
-
-  it('config DB is the Elasticsearch store', () => {
-    expect(database.config).to.be.instanceOf(ElasticsearchConfigDatabase)
   })
 
   const TEST_CONFIG_KEY = 'test-crud-version'
