@@ -122,6 +122,40 @@ describeOnElasticsearch('ElasticsearchNodeMetrics', () => {
     expect(rows[0].sampleCount).to.equal(1)
   })
 
+  it('rollupHour deletes the counted samples that a failed delete left, and keeps the row', async () => {
+    const hour = Date.UTC(2026, 6, 28, 10, 0, 0, 0)
+    for (const [offset, usagePercent] of [
+      [1000, 10],
+      [2000, 30]
+    ]) {
+      await db.insertSample(
+        INSTANCE,
+        baseSnapshot({
+          collectedAt: hour + offset,
+          cpu: { ...baseSnapshot().cpu, usagePercent }
+        })
+      )
+    }
+    const [counted] = await searchAllPages<any>(client, {
+      index: 'node_metrics_samples',
+      query: { match_all: {} }
+    })
+    expect(await db.rollupHour(INSTANCE, hour)).to.equal(true)
+    // the delete of the roll-up stopped part way: one counted sample is still there
+    await client.index({
+      index: 'node_metrics_samples',
+      id: counted._id,
+      document: counted._source,
+      refresh: true
+    })
+    expect(await db.rollupHour(INSTANCE, hour)).to.equal(false)
+    const rows = await db.getHourly(INSTANCE, hour, hour, 10)
+    expect(rows.map((row) => [row.sampleCount, row.cpu.usagePercent])).to.deep.equal([
+      [2, 20]
+    ])
+    expect(await db.getPartialHour(INSTANCE, hour)).to.equal(null)
+  })
+
   it('rollupHour twice for the same hour returns true both times and keeps one row', async () => {
     const hour = Date.UTC(2026, 6, 28, 10, 0, 0, 0)
     await db.insertSample(INSTANCE, baseSnapshot({ collectedAt: hour + 1000 }))

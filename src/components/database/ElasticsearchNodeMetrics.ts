@@ -1,4 +1,4 @@
-import { Client } from '@elastic/elasticsearch'
+import { Client, estypes } from '@elastic/elasticsearch'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import type { NodeMetricsHourly, NodeMetricsSnapshot } from '../../@types/nodeMetrics.js'
 import { MAX_RESULT_WINDOW } from './BaseDatabase.js'
@@ -8,6 +8,7 @@ import {
   createElasticsearchClientWithRetry,
   deleteMatching,
   ensureIndex,
+  getOrNull,
   searchAllPages
 } from './ElasticsearchConfigHelper.js'
 import { stateSchemas } from './ElasticSchemas.js'
@@ -26,7 +27,7 @@ const SAMPLES_INDEX = stateSchemas.metricsSamples.index
 const HOURLY_INDEX = stateSchemas.metricsHourly.index
 
 type SampleDoc = SampleRow & { instanceId: string }
-type HourlyDoc = HourlyRow & { instanceId: string }
+type HourlyDoc = HourlyRow & { instanceId: string; sampleIds: string[] }
 
 // samples: auto id; hourly rows: id = `${instanceId}:${hourStart}`
 export class ElasticsearchNodeMetrics implements NodeMetricsProvider {
@@ -61,33 +62,46 @@ export class ElasticsearchNodeMetrics implements NodeMetricsProvider {
     return [...hours].sort((a, b) => a - b)
   }
 
-  // Average every raw sample in [hourStart, hourStart+1h) into one hourly row, upsert it, then
-  // delete the consumed raw samples. No samples → no row written.
+  // Averages the samples of the hour into one hourly row, which replaces the row of an
+  // earlier roll-up, then deletes the samples that it counted. The delete can stop part way
+  // (Elasticsearch does not roll back), so the row keeps the ids of its samples: the next
+  // roll-up deletes those that are left and does not count them again.
   async rollupHour(instanceId: string, hourStart: number): Promise<boolean> {
-    const samples = await this.getHourSamples(instanceId, hourStart)
-    if (samples.length === 0) return false
-    const document: HourlyDoc = {
-      instanceId,
-      ...hourlyToRow(aggregateRows(samples, hourStart))
-    }
     const client = await this.client()
-    await client.index({
-      index: HOURLY_INDEX,
-      id: `${instanceId}:${hourStart}`,
-      document,
-      refresh: 'wait_for'
-    })
-    await deleteMatching(client, SAMPLES_INDEX, hourRangeQuery(instanceId, hourStart))
-    return true
+    const id = `${instanceId}:${hourStart}`
+    const hits = await this.getHourSamples(instanceId, hourStart)
+    const row = await getOrNull<HourlyDoc>(client, HOURLY_INDEX, id)
+    const counted = new Set(row?.source.sampleIds ?? [])
+    const fresh = hits.filter((hit) => !counted.has(hit._id))
+    if (fresh.length > 0) {
+      const aggregate = aggregateRows(
+        fresh.map((hit) => hit._source),
+        hourStart
+      )
+      const document: HourlyDoc = {
+        instanceId,
+        ...hourlyToRow(aggregate),
+        sampleIds: fresh.map((hit) => hit._id)
+      }
+      await client.index({ index: HOURLY_INDEX, id, document, refresh: 'wait_for' })
+    }
+    if (hits.length > 0) {
+      const ids = hits.map((hit) => hit._id)
+      await deleteMatching(client, SAMPLES_INDEX, { ids: { values: ids } })
+    }
+    return fresh.length > 0
   }
 
   async getPartialHour(
     instanceId: string,
     hourStart: number
   ): Promise<NodeMetricsHourly | null> {
-    const samples = await this.getHourSamples(instanceId, hourStart)
-    if (samples.length === 0) return null
-    const agg = aggregateRows(samples, hourStart)
+    const hits = await this.getHourSamples(instanceId, hourStart)
+    if (hits.length === 0) return null
+    const agg = aggregateRows(
+      hits.map((hit) => hit._source),
+      hourStart
+    )
     agg.partial = true
     return agg
   }
@@ -128,7 +142,7 @@ export class ElasticsearchNodeMetrics implements NodeMetricsProvider {
   private async getHourSamples(
     instanceId: string,
     hourStart: number
-  ): Promise<SampleRow[]> {
+  ): Promise<estypes.SearchHit<SampleDoc>[]> {
     const client = await this.client()
     const result = await client.search<SampleDoc>({
       index: SAMPLES_INDEX,
@@ -139,7 +153,7 @@ export class ElasticsearchNodeMetrics implements NodeMetricsProvider {
       allow_partial_search_results: false
     })
     assertCompleteSearch(result, SAMPLES_INDEX)
-    return result.hits.hits.map((hit) => hit._source)
+    return result.hits.hits
   }
 }
 

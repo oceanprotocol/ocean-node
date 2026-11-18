@@ -293,7 +293,9 @@ export const stateSchemas: {
           sampleCount: { type: 'integer' },
           ...metricsNumericFields,
           gpu: { type: 'text', index: false },
-          env: { type: 'text', index: false }
+          env: { type: 'text', index: false },
+          // the samples that the row counts (see ElasticsearchNodeMetrics.rollupHour)
+          sampleIds: { type: 'keyword', index: false }
         }
       }
     }

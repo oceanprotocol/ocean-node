@@ -219,7 +219,8 @@ export function isStatus(error: any, statusCode: number): boolean {
   return error?.meta?.statusCode === statusCode
 }
 
-// deletes the documents that match and returns how many
+// Deletes the documents that match and returns how many. A delete by query does not roll
+// back: it can delete some documents and report failures for the others, so it throws then.
 export async function deleteMatching(
   client: Client,
   index: string,
@@ -231,6 +232,12 @@ export async function deleteMatching(
     refresh: true,
     conflicts: 'proceed'
   })
+  if (result.failures?.length > 0) {
+    throw new Error(
+      `Delete on index ${index} failed for ${result.failures.length} documents after ` +
+        `deleting ${result.deleted ?? 0}: ${result.failures[0].cause?.reason}`
+    )
+  }
   return result.deleted ?? 0
 }
 
