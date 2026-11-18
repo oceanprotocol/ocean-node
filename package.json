@@ -69,7 +69,7 @@
     "@libp2p/mdns": "^12.0.31",
     "@libp2p/peer-id": "^6.0.18",
     "@libp2p/ping": "^3.1.13",
-    "@libp2p/tcp": "^11.0.28",
+    "@libp2p/tcp": "^11.0.32",
     "@libp2p/tls": "^3.1.10",
     "@libp2p/upnp-nat": "^4.0.28",
     "@libp2p/utils": "^7.4.2",
