@@ -191,5 +191,5 @@ export abstract class AbstractDdoDatabase extends AbstractDatabase {
 
   abstract delete(id: string): Promise<any>
 
-  abstract deleteAllAssetsFromChain(chainId: number, batchSize?: number): Promise<number>
+  abstract deleteAllAssetsFromChain(chainId: number): Promise<number>
 }

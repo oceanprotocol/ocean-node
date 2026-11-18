@@ -153,6 +153,13 @@ holds node state files (`c2dDatabase.sqlite`, `nonceDatabase.sqlite`,
 - Start with empty state on the database server: stop the node when it has no running jobs
   or services, then remove these files.
 
+A node that used Elasticsearch in an older release keeps its Elasticsearch, but three indices
+changed: `logs` is now `log`, `state` is now `ddo_state`, and `access_list` keeps `chainId`
+as a `long`. The node does not change an index that exists. Before the first start, delete
+the indices `logs`, `state` and `access_list`. The node state of the older release is in
+SQLite, so the node settings on Elasticsearch hold no index version: at the first start the
+node indexes all chains again, and makes `ddo_state` and `access_list` again.
+
 A compose file of an older release can have a `DB_URL` for a database that the node no longer
 supports. The node reads an `http(s)` URL as Elasticsearch and stops with
 `DB_USERNAME and DB_PASSWORD are required when DB_TYPE is elasticsearch`. Remove the `DB_URL`

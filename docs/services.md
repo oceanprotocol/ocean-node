@@ -183,8 +183,8 @@ restart that had just created it, failing the restart with
 flight, the expiry sweep simply retries on a later tick.
 
 Exclusivity holds **across node processes** too, not just within one: each operation also
-takes a lease document in the Elasticsearch `service_locks` index, so two node processes
-sharing the same Elasticsearch (e.g. an old container still running during a redeploy, or
+takes a lease in the `service_locks` store of the node database, so two node processes
+sharing the same database (e.g. an old container still running during a redeploy, or
 instances on other hosts) cannot run conflicting operations on the same service. Leases are heartbeated
 every 30 s while the operation runs; a lease not refreshed for 2 minutes belongs to a
 crashed process and is stolen automatically, so no manual cleanup is ever needed.

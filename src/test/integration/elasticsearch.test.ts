@@ -42,8 +42,7 @@ describeOnElasticsearch('**********         Elastic Search DDO collections', () 
 
   it('create document in ddo collection', async () => {
     const result = await elasticsearch.ddo.create(ddo)
-    expect(result.result).to.equal('created')
-    expect(result._id).to.equal(ddo.id)
+    expect(result.id).to.equal(ddo.id)
     // expect(result.metadata).to.not.be.an('undefined')
     // expect(result.metadata.name).to.be.equal(ddo.metadata.name)
   })
@@ -60,13 +59,11 @@ describeOnElasticsearch('**********         Elastic Search DDO collections', () 
     const updatedData = ddo
     updatedData.metadata.name = newMetadataName
     const result = await elasticsearch.ddo.update(updatedData)
-    expect(result.result).to.equal('updated')
-    expect(result._id).to.equal(updatedData.id)
+    expect(result.id).to.equal(updatedData.id)
+    expect(result.metadata.name).to.equal(newMetadataName)
   })
 
   it('delete document in ddo collection', async () => {
-    const result = await elasticsearch.ddo.delete(ddo.id)
-    expect(result.result).to.equal('deleted')
-    expect(result._id).to.equal(ddo.id)
+    expect(await elasticsearch.ddo.delete(ddo.id)).to.deep.equal({ id: ddo.id })
   })
 })

@@ -39,7 +39,7 @@ export class FileInfoHandler extends CommandHandler {
 
 ### Database Abstraction Layer
 
-Stores are built by `DatabaseFactory`. **Elasticsearch** is the only database and is required (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`): DDO metadata, indexer state, orders, and the node state indices (`nonce`, `node_config`, `auth_tokens`, `buckets`, `node_metrics_samples`, `node_metrics_hourly`, `c2d_jobs`, `service_jobs`, `docker_images`, `service_locks`).
+Stores are built by `DatabaseFactory` from `DB_TYPE`: `sqlite` (default, no setting), `postgresql` or `elasticsearch` (both need `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`). SQLite and PostgreSQL share the stores in `src/components/database/sql/`; Elasticsearch uses the `Elastic*` files. The stores hold DDO metadata, indexer state, orders and the node state (nonces, config, auth tokens, buckets, node metrics, C2D jobs, service jobs, image records, service locks).
 
 Access via singleton `Database` class: `db.ddo`, `db.indexer`, `db.order`, `db.c2d`, `db.nonce`, etc.
 
@@ -60,7 +60,7 @@ Central coordinator managing all components. Initialize with configuration and o
 ### Building & Testing
 
 - **Build**: `npm run build` → compiles TypeScript to `./dist/`
-- **Tests**: `npm run test` runs unit + integration (requires Docker Compose for Elasticsearch)
+- **Tests**: `npm run test` runs unit + integration (integration tests need Barge; PostgreSQL or Elasticsearch only when `DB_TYPE` selects one)
 - **Dev**: Use `npm run build:tsc` in watch mode, or Node's `--experimental-specifier-resolution=node` for ESM imports
 
 ### Configuration
@@ -68,7 +68,7 @@ Central coordinator managing all components. Initialize with configuration and o
 Environment-driven via `.env` or `CONFIG_PATH=/path/to/config.json`:
 
 - **PRIVATE_KEY** (required): Node identity for P2P + crypto operations
-- **DB_URL**: Elasticsearch connection
+- **DB_TYPE** / **DB_URL**: database selection and server URL (SQLite when both are unset)
 - **RPCS**: JSON mapping network IDs to RPC endpoints
 - **OPERATOR_SERVICE_URL**: C2D cluster URLs (array of strings)
 - See [docs/env.md](docs/env.md) for 40+ environment variables

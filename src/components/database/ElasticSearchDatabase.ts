@@ -16,6 +16,7 @@ import { EscrowEvent } from '../../@types/Escrow.js'
 import { buildElasticQuery, escrowPage } from './escrowSearch.js'
 import {
   createElasticsearchClientWithRetry,
+  deleteMatching,
   ensureIndex,
   getOrNull,
   isStatus
@@ -679,12 +680,8 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       const validation = await validateDDO(ddo)
 
       if (validation === true) {
-        const response = await client.index({
-          index: schema.index,
-          id: ddo.id,
-          body: ddo
-        })
-        return response
+        await client.index({ index: schema.index, id: ddo.id, body: ddo })
+        return ddo
       } else {
         throw new Error(`Validation of DDO with schema version ${ddo.version} failed`)
       }
@@ -724,9 +721,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     return ddo
   }
 
-  // This is called from indexer "createOrUpdateDDO"
-  // we add the "id" field to the response API
-  // since here we have an "_id"
+  // returns the DDO, as the SQL store does: the indexer reads its fields
   async update(ddo: Record<string, any>): Promise<any> {
     const schema = this.getDDOSchema(ddo)
     if (!schema) {
@@ -738,18 +733,9 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       if (ddo?.indexedMetadata?.nft) delete ddo.nft
       const validation = await validateDDO(ddo)
       if (validation === true) {
-        const response: any = await client.index({
-          index: schema.index,
-          id: ddo.id,
-          body: ddo
-        })
+        await client.index({ index: schema.index, id: ddo.id, body: ddo })
         await this.deleteDDOFromOtherSchemas(ddo.id, schema)
-        // make sure we do not have different responses 4 between DBs
-        // do the same thing on other methods
-        if (response._id === ddo.id) {
-          return normalizeDocumentId(response, response._id)
-        }
-        return response
+        return ddo
       } else {
         throw new Error(
           `Validation of DDO with schema version ${ddo.version} failed with errors`
@@ -758,11 +744,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     } catch (error) {
       if (isStatus(error, 404)) {
         await this.delete(ddo.id)
-        const response = await this.create(ddo)
-        if (response._id === ddo.id) {
-          return normalizeDocumentId(response, response._id)
-        }
-        return response
+        return this.create(ddo)
       }
       const errorMsg = `Error when updating DDO entry ${ddo.id}: ${error.message}`
       DATABASE_LOGGER.error(errorMsg)
@@ -781,10 +763,8 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         })
         isDeleted = response.result === 'deleted'
         if (isDeleted) {
-          DATABASE_LOGGER.debug(
-            `Response for deleting the ddo: ${response.result}, isDeleted: ${isDeleted}`
-          )
-          return response
+          DATABASE_LOGGER.debug(`Deleted DDO ${id} from schema ${schema.index}`)
+          return { id }
         }
       } catch (error) {
         if (!isStatus(error, 404)) {
@@ -802,35 +782,17 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     }
   }
 
-  async deleteAllAssetsFromChain(chainId: number, batchSize?: number): Promise<number> {
+  // throws, as the SQL store does: a reindex must not continue over DDOs that are still there
+  async deleteAllAssetsFromChain(chainId: number): Promise<number> {
+    const client = await this.client()
     let numDeleted = 0
     for (const schema of this.getSchemas()) {
       try {
-        const client = await this.client()
-        // add batch size logic
-        const response = await client.deleteByQuery({
-          index: schema.index,
-          body: {
-            query: {
-              match: { chainId }
-            }
-          }
-        })
-
-        DATABASE_LOGGER.debug(
-          `Number of deleted ddos on schema ${schema.index}: ${response.deleted}`
-        )
-
-        numDeleted += response.deleted
+        numDeleted += await deleteMatching(client, schema.index, { term: { chainId } })
       } catch (error) {
-        if (!isStatus(error, 404)) {
-          DATABASE_LOGGER.error(
-            `Error when deleting DDOs from schema ${schema.index}: ${error.message}`
-          )
-        }
+        if (!isStatus(error, 404)) throw error
       }
     }
-
     return numDeleted
   }
 }

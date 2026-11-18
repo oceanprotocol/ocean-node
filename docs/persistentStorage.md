@@ -12,7 +12,7 @@ Key primitives:
 
 - **Bucket**: a logical container for files.
 - **File**: binary content stored inside a bucket.
-- **Bucket registry**: the Elasticsearch `buckets` index that stores bucket metadata (owner, access lists, createdAt).
+- **Bucket registry**: the `buckets` store of the node database (a table on SQLite and PostgreSQL, an index on Elasticsearch) that keeps bucket metadata (owner, access lists, createdAt).
 
 ---
 
@@ -25,7 +25,7 @@ Key primitives:
   - Validates auth (token or signature) and applies high-level authorization checks.
 
 - **Persistent storage backends (storage layer)**: `src/components/persistentStorage/*`
-  - `PersistentStorageFactory`: shared functionality (Elasticsearch bucket registry, access list checks).
+  - `PersistentStorageFactory`: shared functionality (bucket registry, access list checks).
   - `PersistentStorageLocalFS`: local filesystem backend.
   - `PersistentStorageS3`: stub for future S3-compatible backend.
 
@@ -36,9 +36,9 @@ Key primitives:
 
 Persistent Storage uses two stores:
 
-1. **Bucket registry (Elasticsearch)**
+1. **Bucket registry (node database)**
 
-- Index: `buckets` (document id = `bucketId`)
+- Table or index: `buckets` (id = `bucketId`)
 - Fields:
   - `bucketId` (primary key)
   - `owner` (address, stored as a string)
@@ -254,6 +254,6 @@ Because results are regular bucket files, they can feed the next compute job wit
 
 ## Limitations and notes
 
-- The bucket registry lives in the node's Elasticsearch `buckets` index. Nodes that share one Elasticsearch share the registry; nodes with separate Elasticsearch clusters have independent registries.
+- The bucket registry lives in the node database. Nodes that share one PostgreSQL or Elasticsearch share the registry; nodes with separate databases have independent registries.
 - `listBuckets(owner)` requires `owner` and only returns buckets that were created with that owner recorded.
 - Filenames in `localfs` are constrained (no path separators) to avoid path traversal.
