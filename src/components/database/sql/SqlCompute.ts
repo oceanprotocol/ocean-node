@@ -441,14 +441,6 @@ export class SqlCompute implements ComputeDatabaseProvider {
     )
     return !!row && row.acquiredAt > Date.now() - staleMs
   }
-
-  async deleteStaleServiceLocks(staleMs: number): Promise<number> {
-    const { changes } = await this.db.run(
-      `DELETE FROM ${LOCKS} WHERE "acquiredAt" <= ?`,
-      [Date.now() - staleMs]
-    )
-    return changes
-  }
 }
 
 function inCluster(clusterHash?: string): Conditions {

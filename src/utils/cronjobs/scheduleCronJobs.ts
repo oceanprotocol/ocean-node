@@ -10,7 +10,6 @@ import { p2pAnnounceDDOS } from './p2pAnnounceDDOS.js'
 import { p2pAnnounceC2D } from './p2pAnnounceC2D.js'
 import { scheduleNodeMetricsJobs } from './nodeMetricsJobs.js'
 import { sleep } from '../util.js'
-import { SERVICE_LOCK_STALE_MS } from '../../components/c2d/compute_engine_docker.js'
 
 // re-announce the C2D capability to the network every 4 hours
 // (we can put smaller interval for testing purposes)
@@ -19,8 +18,6 @@ const CLEAN_EXPIRED_JOBS_THROTTLE_KEY = 'cron:cleanExpiredC2DJobs'
 const CLEAN_EXPIRED_AUTH_TOKENS_THROTTLE_KEY = 'cron:cleanExpiredAuthTokens'
 // daily, at a quiet off-the-hour minute
 const CLEAN_EXPIRED_AUTH_TOKENS_SCHEDULE = '17 2 * * *'
-const SWEEP_STALE_SERVICE_LOCKS_THROTTLE_KEY = 'cron:sweepStaleServiceLocks'
-const SWEEP_STALE_SERVICE_LOCKS_SCHEDULE = '*/10 * * * *'
 
 export async function scheduleCronJobs(node: OceanNode) {
   await sleep(2000) // wait for 2 seconds to ensure the node is fully initialized
@@ -38,11 +35,6 @@ export async function scheduleCronJobs(node: OceanNode) {
     scheduleAuthTokenCleanup(await node.getDatabase())
   } catch (e) {
     OCEAN_NODE_LOGGER.error(`Error when deleting expired auth tokens: ${e.message}`)
-  }
-  try {
-    scheduleStaleServiceLockSweep(await node.getDatabase())
-  } catch (e) {
-    OCEAN_NODE_LOGGER.error(`Error when sweeping stale service locks: ${e.message}`)
   }
   try {
     scheduleNodeMetricsJobs(node, await node.getDatabase())
@@ -149,30 +141,6 @@ function scheduleAuthTokenCleanup(dbconn: Database | null) {
   } else {
     OCEAN_NODE_LOGGER.warn(
       'Auth token CronJob: Database connection not established or auth token instance not available (skipped).'
-    )
-  }
-}
-
-// A crashed holder leaves its service lock behind. A new holder takes a stale lock over
-// anyway; the sweep only keeps the store from collecting them (no TTL on Elasticsearch).
-function scheduleStaleServiceLockSweep(dbconn: Database | null) {
-  if (dbconn && dbconn.c2d) {
-    scheduleCron(SWEEP_STALE_SERVICE_LOCKS_SCHEDULE, async () => {
-      try {
-        const deleted = await dbconn.c2d.deleteStaleServiceLocks(SERVICE_LOCK_STALE_MS)
-        OCEAN_NODE_LOGGER.resetThrottle(SWEEP_STALE_SERVICE_LOCKS_THROTTLE_KEY)
-        if (deleted > 0) OCEAN_NODE_LOGGER.debug(`${deleted} stale service locks deleted`)
-      } catch (err) {
-        OCEAN_NODE_LOGGER.throttled(
-          SWEEP_STALE_SERVICE_LOCKS_THROTTLE_KEY,
-          LOG_LEVELS_STR.LEVEL_ERROR,
-          `Error deleting stale service locks: ${err.message}`
-        )
-      }
-    })
-  } else {
-    OCEAN_NODE_LOGGER.warn(
-      'Service lock CronJob: Database connection not established or C2D instance not available (skipped).'
     )
   }
 }

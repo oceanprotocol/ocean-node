@@ -28,7 +28,6 @@ import {
 import { MAX_RESULT_WINDOW } from './BaseDatabase.js'
 import {
   createElasticsearchClientWithRetry,
-  deleteMatching,
   ensureIndex,
   getOrNull,
   isStatus,
@@ -638,14 +637,6 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
   async isServiceLocked(serviceId: string, staleMs: number): Promise<boolean> {
     const current = await getOrNull<LockDoc>(await this.client(), LOCKS_INDEX, serviceId)
     return !!current && current.source.acquiredAt > Date.now() - staleMs
-  }
-
-  // Elasticsearch has no TTL: a cron job deletes the locks of crashed holders. A lock that
-  // is taken over or refreshed during the delete changes version and is kept.
-  async deleteStaleServiceLocks(staleMs: number): Promise<number> {
-    return deleteMatching(await this.client(), LOCKS_INDEX, {
-      range: { acquiredAt: { lte: Date.now() - staleMs } }
-    })
   }
 }
 

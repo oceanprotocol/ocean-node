@@ -185,7 +185,7 @@ const trivyImage = 'aquasec/trivy:0.69.3' // Use pinned versions for safety
 // be a comfortable multiple of the heartbeat so one missed beat (GC pause, busy DB)
 // doesn't get a live operation's resources torn down under it.
 const SERVICE_LOCK_HEARTBEAT_MS = 30_000
-export const SERVICE_LOCK_STALE_MS = 120_000
+const SERVICE_LOCK_STALE_MS = 120_000
 // `du` on a manifest folder runs in a user-controlled container, so it must not hold the probe.
 const MANIFEST_DU_TIMEOUT_MS = 15_000
 const MANIFEST_DIR_MEASURE_MS = 15_000
