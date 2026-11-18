@@ -292,15 +292,17 @@ async function verifySignatureForConsumer(
           dataNftAddress: extraSignedFields?.dataNftAddress ?? ''
         })
       : isV2CreateAuthToken
-      ? buildCreateAuthTokenSignatureMessage({
-          address: String(consumer),
-          nonce,
-          issuerPeerId: String(issuerPeerId),
-          audience: extraSignedFields?.audience,
-          scope: extraSignedFields?.scope,
-          validUntil: extraSignedFields?.validUntil
-        })
-      : String(String(consumer) + String(nonce) + String(command) + String(issuerPeerId))
+        ? buildCreateAuthTokenSignatureMessage({
+            address: String(consumer),
+            nonce,
+            issuerPeerId: String(issuerPeerId),
+            audience: extraSignedFields?.audience,
+            scope: extraSignedFields?.scope,
+            validUntil: extraSignedFields?.validUntil
+          })
+        : String(
+            String(consumer) + String(nonce) + String(command) + String(issuerPeerId)
+          )
   const consumerMessage = ethers.solidityPackedKeccak256(
     ['bytes'],
     [ethers.hexlify(ethers.toUtf8Bytes(message))]
@@ -337,8 +339,8 @@ async function verifySignatureForConsumer(
   const targetChainIds = chainId
     ? [chainId]
     : tokenPath
-    ? []
-    : Object.keys(config?.supportedNetworks || {})
+      ? []
+      : Object.keys(config?.supportedNetworks || {})
   for (const targetChainId of targetChainIds) {
     const network = config?.supportedNetworks?.[targetChainId]
     if (!network) continue

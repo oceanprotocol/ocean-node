@@ -9,10 +9,7 @@ import { OceanNode } from '../../OceanNode.js'
 import { OceanP2P } from '../P2P/index.js'
 import { CommonValidation } from '../../utils/validators.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
-import {
-  PROTOCOL_COMMANDS,
-  TOKEN_INELIGIBLE_COMMANDS
-} from '../../utils/constants.js'
+import { PROTOCOL_COMMANDS, TOKEN_INELIGIBLE_COMMANDS } from '../../utils/constants.js'
 import { AUTH_TOKEN_VERSION } from '../../utils/crypt.js'
 import { peerIdFromString } from '@libp2p/peer-id'
 import { Readable } from 'node:stream'
@@ -276,7 +273,9 @@ export class Auth {
     // tokens reach here (self-issued tokens are served from the local DB path). Also the ON-03(3)
     // DoS mitigation: non-federated / junk tokens are rejected on a cheap check.
     if (!this.allowCrossNodeTokens) {
-      CORE_LOGGER.debug('Rejecting foreign token: cross-node tokens disabled on this node')
+      CORE_LOGGER.debug(
+        'Rejecting foreign token: cross-node tokens disabled on this node'
+      )
       return null
     }
     if (!this.trustedTokenIssuers.has(issuerPeerId)) {
@@ -381,14 +380,24 @@ export class Auth {
           CORE_LOGGER.debug(
             'Issuer unreachable; accepting foreign token under fail-OPEN revocation policy'
           )
-          return this.buildAuthTokenFromClaims(token, address, createdAt, signedValidUntil)
+          return this.buildAuthTokenFromClaims(
+            token,
+            address,
+            createdAt,
+            signedValidUntil
+          )
         case 'cache':
           if (
             cached &&
             now < cached.validUntil &&
             now - cached.lastConfirmedAt < this.softFailGraceMs
           ) {
-            return this.buildAuthTokenFromCache(token, address, createdAt, cached.validUntil)
+            return this.buildAuthTokenFromCache(
+              token,
+              address,
+              createdAt,
+              cached.validUntil
+            )
           }
           return null
         case 'closed':

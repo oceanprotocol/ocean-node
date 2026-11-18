@@ -161,7 +161,11 @@ export class CreateAuthTokenHandler extends CommandHandler {
       const createdAt = Date.now()
 
       // Validate audience / scope / validUntil and resolve the stored expiry (plan §5.2–5.3).
-      const scoped = validateScopedTokenRequest(task, createdAt, auth.getMaxTokenLifetimeMs())
+      const scoped = validateScopedTokenRequest(
+        task,
+        createdAt,
+        auth.getMaxTokenLifetimeMs()
+      )
       if ('error' in scoped) {
         return {
           stream: null,
