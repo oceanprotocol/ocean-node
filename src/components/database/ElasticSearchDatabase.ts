@@ -110,9 +110,24 @@ export class ElasticsearchNonceDatabase extends AbstractNonceDatabase {
     }
   }
 
+  // A concurrent update of the same document fails with a version conflict, which also
+  // returns null.
   async update(address: string, nonce: number) {
     try {
-      return await this.write(address, nonce)
+      const id = normalizeAddress(address)
+      const client = await this.client()
+      const { result } = await client.update({
+        index: this.index,
+        id,
+        script: {
+          source:
+            'if (ctx._source.nonce != null && ctx._source.nonce >= params.nonce) ' +
+            "{ ctx.op = 'noop' } else { ctx._source.nonce = params.nonce }",
+          params: { nonce }
+        },
+        upsert: { nonce }
+      })
+      return result === 'noop' ? null : { id, nonce }
     } catch (error) {
       const errorMsg =
         `Error when updating nonce entry ${nonce} for address ${address}: ` +
@@ -1010,10 +1025,7 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
   }
 
   async deleteOldLogs(): Promise<number> {
-    const defaultLogRetention = '2592000000' // 30 days in milliseconds
-    const currentTime = new Date().getTime()
-    const xTime = parseInt(process.env.LOG_RETENTION_TIME || defaultLogRetention)
-    const deleteBeforeTime = new Date(currentTime - xTime)
+    const deleteBeforeTime = new Date(Date.now() - this.retentionMs())
 
     try {
       const oldLogs = await this.retrieveMultipleLogs(new Date(0), deleteBeforeTime, 200)

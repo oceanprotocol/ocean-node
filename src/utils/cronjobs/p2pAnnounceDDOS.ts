@@ -4,7 +4,8 @@
 import { OceanNode } from '../../OceanNode.js'
 import { P2P_LOGGER } from '../logging/common.js'
 import { provideLimit } from '../../components/P2P/provideLimiter.js'
-import { MAX_RESULT_WINDOW } from '../../components/database/BaseDatabase.js'
+import type { Condition, SortSpec } from '../../components/database/BaseDatabase.js'
+import { DDO_FIELDS } from '../../components/database/assetQuery.js'
 import {
   classifyP2PError,
   logProvideFailure,
@@ -16,6 +17,7 @@ import {
  * drains through the shared limiter before the next page is fetched.
  */
 const REPUBLISH_PAGE_SIZE = 100
+const BY_ID: SortSpec[] = [{ paths: DDO_FIELDS.id, order: 'asc' }]
 
 export async function p2pAnnounceDDOS(node: OceanNode) {
   try {
@@ -33,25 +35,25 @@ export async function p2pAnnounceDDOS(node: OceanNode) {
     let seen = 0
     let failed = 0
     let cacheFailed = 0
-    let page = 1
-    // Walk all DDOs, every state, in a stable order (the id), until the store is exhausted.
-    // Known ceiling: a search reaches the first MAX_RESULT_WINDOW documents (the default
-    // window of Elasticsearch), so a node with more DDOs re-provides only the first ones.
-    // Lifting that needs paging with a cursor in the database layer, not in this job.
-    const lastPage = MAX_RESULT_WINDOW / REPUBLISH_PAGE_SIZE
-    while (page <= lastPage) {
-      const { results } = await ddoDb.find([], [], {
-        offset: (page - 1) * REPUBLISH_PAGE_SIZE,
+    // Walk all DDOs, every state, in the order of the id. Each page starts after the last
+    // id of the page before, not at an offset: Elasticsearch refuses an offset past its
+    // result window (10,000 documents).
+    let lastId: string | undefined
+    for (;;) {
+      const afterLast: Condition[] = lastId
+        ? [{ paths: DDO_FIELDS.id, range: { gt: lastId } }]
+        : []
+      const { results } = await ddoDb.find(afterLast, BY_ID, {
+        offset: 0,
         limit: REPUBLISH_PAGE_SIZE
       })
       const documents = results.filter((document: any) => document && document.id)
-      if (results.length === 0) {
+      if (documents.length === 0) {
         break
       }
       seen += documents.length
-      P2P_LOGGER.debug(
-        `Will republish cid for ${documents.length} documents (page ${page})`
-      )
+      lastId = documents[documents.length - 1].id
+      P2P_LOGGER.debug(`Will republish cid for ${documents.length} documents`)
       // bounded concurrency and a real await. `hits.forEach(hit => advertiseString(...))`
       // returned before a single provide had completed, so nothing capped the fan-out and the
       // caller could not know when (or whether) the republish finished.
@@ -96,13 +98,6 @@ export async function p2pAnnounceDDOS(node: OceanNode) {
       if (results.length < REPUBLISH_PAGE_SIZE) {
         break
       }
-      page++
-    }
-
-    if (page > lastPage) {
-      P2P_LOGGER.warn(
-        `Stopped republishing after the first ${MAX_RESULT_WINDOW} DDOs; the store has more`
-      )
     }
 
     if (seen === 0) {

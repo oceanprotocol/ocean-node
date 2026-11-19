@@ -6,7 +6,6 @@ import { AbstractLogDatabase } from '../BaseDatabase.js'
 import { Conditions, SqlClient, insertRow } from './SqlClient.js'
 
 const LOG_INSERT_FAILED_KEY = 'sql-log-insert-failed'
-const DEFAULT_LOG_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 // the largest page of logs
 const PAGE_SIZE = 250
 
@@ -112,8 +111,7 @@ export class SqlLogDatabase extends AbstractLogDatabase {
 
   // deletes the logs that are older than LOG_RETENTION_TIME (milliseconds)
   async deleteOldLogs(): Promise<number> {
-    const retention = parseInt(process.env.LOG_RETENTION_TIME) || DEFAULT_LOG_RETENTION_MS
-    const limit = new Date(Date.now() - retention).toISOString()
+    const limit = new Date(Date.now() - this.retentionMs()).toISOString()
     try {
       const { changes } = await this.db.run('DELETE FROM logs WHERE "timestamp" <= ?', [
         limit

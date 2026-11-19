@@ -42,7 +42,7 @@ class ElasticsearchClientSingleton {
   private client: Client | null = null
   private config: OceanNodeDBConfig | null = null
   private connectionAttempts: number = 0
-  private isRetrying: boolean = false
+  private isChecking: boolean = false
   private isMonitoring: boolean = false
   private connectionLostEmitted: boolean = false
 
@@ -97,52 +97,56 @@ class ElasticsearchClientSingleton {
       `Starting Elasticsearch health monitoring (interval: ${healthCheckInterval}ms)`
     )
 
+    // One check at a time, ping included: a ping can take longer than the interval, and a
+    // check that started on the old client must not close the client of a reconnect.
     setInterval(async () => {
-      if (this.isRetrying) {
-        return
-      }
-
-      const isHealthy = await this.checkConnectionHealth()
-      if (!isHealthy) {
-        if (this.client) {
-          try {
-            this.client.close()
-          } catch (err) {
-            DATABASE_LOGGER.error(
-              `Error closing Elasticsearch client during health check: ${err instanceof Error ? err.message : String(err)}`
-            )
-          }
-          this.client = null
-          this.config = null
-        }
-
-        // Emit CONNECTION_LOST
-        if (!this.connectionLostEmitted) {
-          this.connectionLostEmitted = true
-          DATABASE_LOGGER.warn(
-            `Elasticsearch connection lost to ${this.maskUrl(config.url)} - starting reconnection attempts every ${healthCheckInterval}ms`
-          )
-          DB_CONNECTION_EVENTS.emit(DB_EVENTS.CONNECTION_LOST)
-        }
-
-        // Single reconnection attempt
-        this.isRetrying = true
-        try {
-          DATABASE_LOGGER.debug(
-            `Attempting Elasticsearch reconnection to ${this.maskUrl(config.url)}`
-          )
-          await this.createNewConnection(config)
-          this.isRetrying = false
-          this.connectionLostEmitted = false
-          DATABASE_LOGGER.info(
-            `Elasticsearch connection restored to ${this.maskUrl(config.url)}`
-          )
-          DB_CONNECTION_EVENTS.emit(DB_EVENTS.CONNECTION_RESTORED)
-        } catch {
-          this.isRetrying = false
-        }
+      if (this.isChecking) return
+      this.isChecking = true
+      try {
+        await this.checkAndReconnect(config)
+      } finally {
+        this.isChecking = false
       }
     }, healthCheckInterval)
+  }
+
+  private async checkAndReconnect(config: OceanNodeDBConfig): Promise<void> {
+    if (await this.checkConnectionHealth()) return
+
+    if (this.client) {
+      try {
+        this.client.close()
+      } catch (err) {
+        DATABASE_LOGGER.error(
+          `Error closing Elasticsearch client during health check: ${err instanceof Error ? err.message : String(err)}`
+        )
+      }
+      this.client = null
+      this.config = null
+    }
+
+    if (!this.connectionLostEmitted) {
+      this.connectionLostEmitted = true
+      DATABASE_LOGGER.warn(
+        `Elasticsearch connection lost to ${this.maskUrl(config.url)} - starting reconnection attempts every ${DEFAULT_ELASTICSEARCH_CONFIG.healthCheckInterval}ms`
+      )
+      DB_CONNECTION_EVENTS.emit(DB_EVENTS.CONNECTION_LOST)
+    }
+
+    // a single reconnection attempt; the next interval tries again
+    try {
+      DATABASE_LOGGER.debug(
+        `Attempting Elasticsearch reconnection to ${this.maskUrl(config.url)}`
+      )
+      await this.createNewConnection(config)
+    } catch {
+      return
+    }
+    this.connectionLostEmitted = false
+    DATABASE_LOGGER.info(
+      `Elasticsearch connection restored to ${this.maskUrl(config.url)}`
+    )
+    DB_CONNECTION_EVENTS.emit(DB_EVENTS.CONNECTION_RESTORED)
   }
 
   private async checkConnectionHealth(): Promise<boolean> {
@@ -220,18 +224,19 @@ export function isStatus(error: any, statusCode: number): boolean {
 }
 
 // Deletes the documents that match and returns how many. A delete by query does not roll
-// back: it can delete some documents and report failures for the others, so it throws then.
+// back: it can delete some documents and fail, time out or meet a changed document for the
+// others, so it throws then (a version conflict throws from the client).
 export async function deleteMatching(
   client: Client,
   index: string,
   query: estypes.QueryDslQueryContainer
 ): Promise<number> {
-  const result = await client.deleteByQuery({
-    index,
-    query,
-    refresh: true,
-    conflicts: 'proceed'
-  })
+  const result = await client.deleteByQuery({ index, query, refresh: true })
+  if (result.timed_out) {
+    throw new Error(
+      `Delete on index ${index} timed out after deleting ${result.deleted ?? 0} documents`
+    )
+  }
   if (result.failures?.length > 0) {
     throw new Error(
       `Delete on index ${index} failed for ${result.failures.length} documents after ` +

@@ -17,8 +17,10 @@ interface SqlPart {
 // A longer path gets no field row: PostgreSQL limits the size of an index entry, and a
 // path of this length is a free-form key, not a field that a search names.
 const PATH_LIMIT = 128
-// the longest text that a field row keeps; PostgreSQL limits the size of an index entry
-const TEXT_LIMIT = 512
+// A field row keeps the full text, but the index has only its first KEY_LIMIT characters:
+// PostgreSQL limits the size of an index entry. A comparison uses the full text.
+const KEY_LIMIT = 512
+const KEY = `substr("str", 1, ${KEY_LIMIT})`
 // rows or ids for one statement; the databases limit the number of parameters
 const CHUNK_SIZE = 200
 const MATCH_ALL: SqlPart = { sql: '1 = 1', params: [] }
@@ -29,7 +31,12 @@ const RANGE_OPERATORS = { gt: '>', gte: '>=', lt: '<', lte: '<=' }
 // the value as the field table keeps it: lower case, so a comparison ignores the case
 export function searchText(value: unknown): string {
   // PostgreSQL refuses U+0000 in a text, and a DDO would not be stored
-  return String(value).toLowerCase().replaceAll('\u0000', '').slice(0, TEXT_LIMIT)
+  return String(value).toLowerCase().replaceAll('\u0000', '')
+}
+
+// the indexed part of a text; SQL substr counts code points, as the spread does
+function keyOf(text: string): string {
+  return [...text].slice(0, KEY_LIMIT).join('')
 }
 
 // the number that a value holds: a number, or a text such as '10' or '2.5'
@@ -88,7 +95,7 @@ export class SqlDocuments {
         "str" ${this.db.byteOrderText}, "num" DOUBLE PRECISION
       );
       CREATE INDEX IF NOT EXISTS ${fields}_id ON ${fields} ("id");
-      CREATE INDEX IF NOT EXISTS ${fields}_str ON ${fields} ("path", "str");
+      CREATE INDEX IF NOT EXISTS ${fields}_key ON ${fields} ("path", ${KEY});
       CREATE INDEX IF NOT EXISTS ${fields}_num ON ${fields} ("path", "num");`)
   }
 
@@ -210,9 +217,11 @@ export class SqlDocuments {
     if ('anyOf' in c || 'noneOf' in c) {
       const values = 'anyOf' in c ? c.anyOf : c.noneOf
       if (values.length === 0) return 'anyOf' in c ? MATCH_NONE : MATCH_ALL
+      const texts = values.map(searchText)
+      // the key finds the rows in the index, the full text decides
       const equal = this.hasField(inPaths, {
-        sql: `"str" IN (${placeholders(values.length)})`,
-        params: values.map(searchText)
+        sql: `${KEY} IN (${placeholders(texts.length)}) AND "str" IN (${placeholders(texts.length)})`,
+        params: [...texts.map(keyOf), ...texts]
       })
       return 'anyOf' in c ? equal : wrap('NOT (', equal, ')')
     }

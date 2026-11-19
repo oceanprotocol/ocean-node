@@ -58,6 +58,9 @@ describe('SQL nonce store', () => {
   it('updates and deletes a nonce', async () => {
     await nonces.create(OWNER, 5)
     await nonces.update(OWNER, 6)
+    // a second request with the same nonce, or an older one, does not pass
+    expect(await nonces.update(OWNER, 6)).to.equal(null)
+    expect(await nonces.update(OWNER, 4)).to.equal(null)
     expect(await nonces.delete(OWNER)).to.deep.equal({ id: OWNER, nonce: 6 })
     expect(await nonces.delete(OWNER)).to.deep.equal({ id: OWNER, nonce: null })
   })

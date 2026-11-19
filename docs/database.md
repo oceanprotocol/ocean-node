@@ -64,7 +64,7 @@ DB_USERNAME="elastic"
 DB_PASSWORD="changeme"
 ```
 
-The node makes its indices: the DDO indices (`op_ddo_*`), `indexer`, `log`, `order`,
+The node makes its indices: the DDO indices (`op_ddo_*`), `indexer`, `logs`, `order`,
 `ddo_state`, `access_list`, `escrow`, and the node state indices `nonce`, `node_config`,
 `auth_tokens`, `buckets`, `node_metrics_samples`, `node_metrics_hourly`, `c2d_jobs`,
 `service_jobs`, `docker_images` and `service_locks`. For local development,
@@ -179,11 +179,12 @@ server, and it does not move between databases. You have two choices:
   accepted before can be accepted again, and the paid jobs in the SQLite files are not
   claimed.
 
-A node that used Elasticsearch in an older release keeps its Elasticsearch, but four indices
-changed: `logs` is now `log`, `state` is now `ddo_state`, `access_list` keeps `chainId` as a
-`long`, and `op_ddo_v5.0.0` indexes the trusted algorithms of a compute service (the DDO
-search filters on them). The node does not change an index that exists. Before the first
-start, delete the indices `logs`, `state`, `access_list` and `op_ddo_v5.0.0`. The node state
+A node that used Elasticsearch in an older release keeps its Elasticsearch, but three indices
+changed: `state` is now `ddo_state`, `access_list` keeps `chainId` as a `long`, and
+`op_ddo_v5.0.0` indexes the trusted algorithms of a compute service (the DDO search filters
+on them). The node does not change an index that exists. Before the first start, delete the
+indices `state`, `access_list` and `op_ddo_v5.0.0`. The `logs` index stays as it is, with
+its logs. The node state
 of the older release is in SQLite, so the node settings on Elasticsearch hold no index
 version: at the first start the node indexes all chains again, and makes these indices
 again.

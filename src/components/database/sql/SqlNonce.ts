@@ -47,7 +47,9 @@ export class SqlNonceDatabase extends AbstractNonceDatabase {
   }
 
   update(address: string, nonce: number) {
-    return this.create(address, nonce)
+    return orNull(`Error when updating nonce ${nonce} for address ${address}`, () =>
+      this.write(address, nonce, 'WHERE nonce."nonce" < excluded."nonce"')
+    )
   }
 
   delete(address: string) {
@@ -63,13 +65,14 @@ export class SqlNonceDatabase extends AbstractNonceDatabase {
     })
   }
 
-  private async write(address: string, nonce: number) {
+  // null when the condition kept the stored row
+  private async write(address: string, nonce: number, condition = '') {
     const id = normalizeAddress(address)
-    await this.db.run(
+    const { changes } = await this.db.run(
       `INSERT INTO nonce ("id", "nonce") VALUES (?, ?)
-       ON CONFLICT ("id") DO UPDATE SET "nonce" = excluded."nonce"`,
+       ON CONFLICT ("id") DO UPDATE SET "nonce" = excluded."nonce" ${condition}`,
       [id, nonce]
     )
-    return { id, nonce }
+    return changes > 0 ? { id, nonce } : null
   }
 }

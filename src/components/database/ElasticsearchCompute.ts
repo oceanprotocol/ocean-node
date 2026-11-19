@@ -598,21 +598,26 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
   }
 
   // Releases only a lock this holder still holds: a stale lock taken over by another
-  // instance must not be deleted out from under its new holder.
+  // instance must not be deleted out from under its new holder. A conflict can also come
+  // from our own heartbeat, which re-stamps the lock: read it again and retry while the
+  // holder is still ours.
   async releaseServiceLock(serviceId: string, holder: string): Promise<void> {
     const client = await this.client()
-    const current = await getOrNull<LockDoc>(client, LOCKS_INDEX, serviceId)
-    if (!current || current.source.holder !== holder) return
-    try {
-      await client.delete({
-        index: LOCKS_INDEX,
-        id: serviceId,
-        if_seq_no: current.seqNo,
-        if_primary_term: current.primaryTerm
-      })
-    } catch (error) {
-      // someone else took the lock in between, or it is already gone
-      if (!isStatus(error, 409) && !isStatus(error, 404)) throw error
+    for (;;) {
+      const current = await getOrNull<LockDoc>(client, LOCKS_INDEX, serviceId)
+      if (!current || current.source.holder !== holder) return
+      try {
+        await client.delete({
+          index: LOCKS_INDEX,
+          id: serviceId,
+          if_seq_no: current.seqNo,
+          if_primary_term: current.primaryTerm
+        })
+        return
+      } catch (error) {
+        if (isStatus(error, 404)) return
+        if (!isStatus(error, 409)) throw error
+      }
     }
   }
 

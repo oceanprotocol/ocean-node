@@ -105,7 +105,7 @@ export const elasticSchemas: ElasticsearchSchemas = {
     }
   },
   logSchemas: {
-    index: 'log',
+    index: 'logs',
     body: {
       mappings: {
         properties: {

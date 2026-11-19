@@ -24,15 +24,19 @@ interface RecordedFind {
 }
 
 /**
- * Stands in for the DDO store: `find` with no condition gives all DDOs, in one list for all
- * versions, one page at a time.
+ * Stands in for the DDO store: `find` gives the DDOs of all versions in the order of the id,
+ * after the id of the range condition when there is one, one page at a time.
  */
 function storeFake(docs: any[]): { db: any; finds: RecordedFind[] } {
   const finds: RecordedFind[] = []
+  const byId = [...docs].sort((a, b) => (a.id < b.id ? -1 : 1))
   const db = {
     find: (conditions: any[], sort: any[], page: { offset: number; limit: number }) => {
       finds.push({ conditions, page })
-      const results = docs.slice(page.offset, page.offset + page.limit)
+      const after = conditions[0]?.range?.gt
+      const results = byId
+        .filter((doc) => after === undefined || doc.id > after)
+        .slice(page.offset, page.offset + page.limit)
       return Promise.resolve({
         results: results.map((doc) => ({ ...doc })),
         totalResults: docs.length
@@ -61,7 +65,7 @@ function nodeWith(ddoDb: any): { node: OceanNode; advertised: string[]; cached: 
 }
 
 describe('The startup re-advertise republishes everything the node holds', () => {
-  it('walks all DDOs, with no condition, one page at a time', async () => {
+  it('walks all DDOs, after the last id of each page, with no offset', async () => {
     const docs = [...docsNamed('current', 150), ...docsNamed('older', 80)]
     const { db, finds } = storeFake(docs)
     const { node, advertised, cached } = nodeWith(db)
@@ -69,13 +73,13 @@ describe('The startup re-advertise republishes everything the node holds', () =>
 
     expect(new Set(advertised).size).to.equal(230)
     expect(cached.length).to.equal(230)
-    // every state and version: no condition at all
-    expect(finds.every(({ conditions }) => conditions.length === 0)).to.equal(true)
-    expect(finds.map(({ page }) => page)).to.deep.equal([
-      { offset: 0, limit: PAGE_SIZE },
-      { offset: PAGE_SIZE, limit: PAGE_SIZE },
-      { offset: 2 * PAGE_SIZE, limit: PAGE_SIZE }
+    // every state and version: no condition other than the id of the page before
+    expect(finds[0].conditions).to.deep.equal([])
+    expect(finds.slice(1).map(({ conditions }) => conditions[0].range.gt)).to.deep.equal([
+      advertised[PAGE_SIZE - 1],
+      advertised[2 * PAGE_SIZE - 1]
     ])
+    expect(finds.every(({ page }) => page.offset === 0)).to.equal(true)
   })
 
   it('stops when the last page is exactly full rather than looping', async () => {

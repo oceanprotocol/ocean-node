@@ -73,6 +73,8 @@ export abstract class AbstractDatabase {
 export abstract class AbstractNonceDatabase extends AbstractDatabase {
   abstract create(address: string, nonce: number): Promise<any>
   abstract retrieve(address: string): Promise<any>
+  // Writes only a nonce above the stored one, and returns null when it did not: two
+  // requests that check the same signed nonce at the same time cannot both pass.
   abstract update(address: string, nonce: number): Promise<any>
   abstract delete(address: string): Promise<any>
 
@@ -117,6 +119,8 @@ export abstract class AbstractAccessListDatabase extends AbstractDatabase {
   abstract delete(chainId: number, contractAddress: string): Promise<any>
 }
 
+const DEFAULT_LOG_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
+
 export abstract class AbstractLogDatabase extends AbstractDatabase {
   abstract insertLog(logEntry: Record<string, any>): Promise<any>
   abstract retrieveLog(id: string): Promise<Record<string, any> | null>
@@ -132,6 +136,19 @@ export abstract class AbstractLogDatabase extends AbstractDatabase {
   abstract delete(logId: string): Promise<void>
   abstract deleteOldLogs(): Promise<number>
   abstract getLogsCount(): Promise<number>
+
+  // the time that a log stays (LOG_RETENTION_TIME, milliseconds). A value of 0 or less
+  // would delete the new logs too: it gets the default.
+  protected retentionMs(): number {
+    const raw = process.env.LOG_RETENTION_TIME
+    const retention = Number(raw)
+    if (raw === undefined || raw === '') return DEFAULT_LOG_RETENTION_MS
+    if (Number.isFinite(retention) && retention > 0) return retention
+    DATABASE_LOGGER.warn(
+      `Invalid LOG_RETENTION_TIME "${raw}", using ${DEFAULT_LOG_RETENTION_MS} ms`
+    )
+    return DEFAULT_LOG_RETENTION_MS
+  }
 }
 
 export abstract class AbstractDdoStateDatabase extends AbstractDatabase {

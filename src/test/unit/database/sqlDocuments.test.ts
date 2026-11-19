@@ -80,10 +80,10 @@ describe('flattenDocument', () => {
     ])
   })
 
-  it('gives no row for null, and keeps the first 512 characters of a string', () => {
+  it('gives no row for null, and keeps the full text of a long string', () => {
     const rows = flattenDocument({ none: null, long: 'A'.repeat(600) })
     expect(rows).to.have.length(1)
-    expect(rows[0].str).to.equal('a'.repeat(512))
+    expect(rows[0].str).to.equal('a'.repeat(600))
   })
 })
 
@@ -294,6 +294,20 @@ describe('SQL documents', () => {
       ])
       // a LIKE wildcard in a word is a plain character
       expect(await sorted([{ paths: text, words: ['%'] }])).to.deep.equal([])
+    })
+
+    it('a value longer than the index key: words after the key, and full equality', async () => {
+      const long = 'a'.repeat(600)
+      await documents.put('long', { metadata: { description: `${long} ocean` } })
+      const description = ['metadata.description']
+      expect(await ids([{ paths: description, words: ['ocean'] }])).to.deep.equal([
+        'long'
+      ])
+      expect(await ids([{ paths: description, anyOf: [`${long} ocean`] }])).to.deep.equal(
+        ['long']
+      )
+      // the same first 512 characters are not the same value
+      expect(await ids([{ paths: description, anyOf: [long] }])).to.deep.equal([])
     })
 
     it('either: one of the conditions holds; no condition matches nothing', async () => {
