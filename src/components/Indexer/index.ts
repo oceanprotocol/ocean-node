@@ -93,10 +93,19 @@ export class OceanIndexer {
   private MIN_REQUIRED_VERSION = '4.2.0'
   private isDbConnected: boolean = true
   private reconnectTimer: NodeJS.Timeout | null = null
-  // Per-instance crawl-retry counter. It used to be a module-level global shared by every
-  // OceanIndexer, so one instance's retries could push another over MAX_CRAWL_RETRIES (and a
-  // reconnect in one instance reset the counter for all). Each indexer now owns its own.
-  private numCrawlAttempts = 0
+  // This instance's crawling-event handlers, retained so stop() detaches exactly them instead of
+  // calling removeAllListeners() on the shared INDEXER_CRAWLING_EVENT_EMITTER (which would also
+  // drop other OceanIndexers' handlers). setupEventListeners() also detaches the previous set
+  // before re-registering, so repeated startAllChainIndexers() calls (e.g. on DB reconnect) don't
+  // stack duplicate handlers on the shared emitter.
+  private crawlingEventHandlers: Array<{
+    event: string
+    handler: (payload: any) => void
+  }> = []
+  // Pending addJob() status-promotion timers, cleared in stop() so a torn-down indexer's 2 s timer
+  // doesn't fire after shutdown and mutate the shared JOBS_QUEUE (which leaks across the
+  // shared-process test suite).
+  private jobTimers: Set<NodeJS.Timeout> = new Set()
   // Bound ES-connection handlers, retained so stop() can detach them. They were registered as
   // anonymous listeners on the module-level ES_CONNECTION_EVENTS emitter and never removed, so
   // every OceanIndexer created in the shared-process test suite leaked a pair that kept reacting
@@ -123,6 +132,14 @@ export class OceanIndexer {
   // background crawl loop) and registration in `this.indexers` is waited for and stopped, instead
   // of slipping through that gap and crawling on after the stop returns.
   private pendingStarts: Set<Promise<ChainIndexer | null>> = new Set()
+  // One AbortController per in-flight start, tagged with the start's generation. stopAllChainIndexers()
+  // aborts the controllers of canceled generations so a start blocked on the DB-reachability probe
+  // (an otherwise-unbounded fetch) unblocks promptly — without which the shutdown join could hang on
+  // it. When no stop occurs a probe is never aborted, so its result is unchanged.
+  private startProbeControllers: Set<{
+    generation: number
+    controller: AbortController
+  }> = new Set()
 
   constructor(
     _db: Database,
@@ -136,6 +153,9 @@ export class OceanIndexer {
     this.supportedChains = Object.keys(this.networks)
     clearEventProcessorCache()
     INDEXING_QUEUE = []
+    // JOBS_QUEUE is a module-level global that was never reset, so jobs from a previous OceanIndexer
+    // leaked into this one (the shared-process test suite). Reset it like INDEXING_QUEUE above.
+    JOBS_QUEUE.length = 0
     this.setupDbConnectionListeners()
     this.startAllChainIndexers()
   }
@@ -180,7 +200,6 @@ export class OceanIndexer {
         }
 
         this.isDbConnected = true
-        this.numCrawlAttempts = 0
         INDEXER_LOGGER.info(
           'Database connection stable - reinitialising DB and restarting all chain indexers'
         )
@@ -251,6 +270,15 @@ export class OceanIndexer {
     // higher generation and is unaffected.
     this.canceledGeneration = this.startGeneration
 
+    // Abort the DB-reachability probe of every canceled in-flight start, so one blocked on an
+    // unresponsive probe fails fast (isReachableConnection → false → the start gives up) instead of
+    // hanging the join below. Non-canceled starts (higher generation) keep their probe untouched.
+    for (const probe of this.startProbeControllers) {
+      if (probe.generation <= this.canceledGeneration) {
+        probe.controller.abort()
+      }
+    }
+
     // Snapshot the indexers registered right now. We tear down exactly these instances — NOT
     // whatever the map holds after the join below. A start issued after this point has a higher,
     // non-canceled generation and may register during the join; tearing it down here would break
@@ -275,7 +303,7 @@ export class OceanIndexer {
 
     // Then wait for in-flight starts to settle. A canceled start aborts before registering, or
     // stops the indexer it just started (see doStartChainIndexer); a later, non-canceled start
-    // registers and is intentionally left running. isReachableConnection() is time-bounded, so
+    // registers and is intentionally left running. We aborted canceled starts' DB probes above, so
     // this join cannot block shutdown indefinitely on a start stuck in its connection probe.
     if (this.pendingStarts.size > 0) {
       await Promise.allSettled([...this.pendingStarts])
@@ -330,7 +358,13 @@ export class OceanIndexer {
   async retryCrawlerWithDelay(
     blockchain: Blockchain,
     interval: number = 5000, // in milliseconds
-    generation?: number
+    generation?: number,
+    // Aborted by stopAllChainIndexers() when this start's generation is canceled, so the
+    // DB-reachability probe below cannot hang the start (and the shutdown join) indefinitely.
+    probeSignal?: AbortSignal,
+    // Retry count carried through the recursion (was a shared instance/global field, so one chain's
+    // retries could push another past MAX_CRAWL_RETRIES). Local to this start's retry chain now.
+    attempt: number = 0
   ): Promise<boolean> {
     // The start generation this retry belongs to. If that start is stopped while we sleep, abort
     // instead of eventually crawling (see `startGeneration`/`canceledGeneration`).
@@ -339,7 +373,10 @@ export class OceanIndexer {
       const retryInterval = Math.max(blockchain.getKnownRPCs().length * 3000, interval) // give 2 secs per each one
       const result = await this.startCrawler(blockchain)
       const dbActive = this.getDatabase()
-      if (!dbActive || !(await isReachableConnection(dbActive.getConfig().url))) {
+      if (
+        !dbActive ||
+        !(await isReachableConnection(dbActive.getConfig().url, probeSignal))
+      ) {
         INDEXER_LOGGER.error(`Giving up start crawling. DB is not online!`)
         return false
       }
@@ -355,8 +392,8 @@ export class OceanIndexer {
             retryInterval / 1000
           } secs....`
         )
-        this.numCrawlAttempts++
-        if (this.numCrawlAttempts <= MAX_CRAWL_RETRIES) {
+        const nextAttempt = attempt + 1
+        if (nextAttempt <= MAX_CRAWL_RETRIES) {
           // delay the next call, but abort the retry chain promptly if this start was stopped
           // while we waited, so a stopped indexer doesn't keep retrying (and eventually start
           // crawling) after it was torn down.
@@ -366,8 +403,14 @@ export class OceanIndexer {
             )
             return false
           }
-          // recursively call the same func, preserving this start's generation
-          return this.retryCrawlerWithDelay(blockchain, retryInterval, gen)
+          // recursively call the same func, preserving this start's generation and probe signal
+          return this.retryCrawlerWithDelay(
+            blockchain,
+            retryInterval,
+            gen,
+            probeSignal,
+            nextAttempt
+          )
         } else {
           INDEXER_LOGGER.error(
             `Giving up start crawling after ${MAX_CRAWL_RETRIES} retries.`
@@ -390,21 +433,43 @@ export class OceanIndexer {
     batchGeneration?: number
   ): Promise<ChainIndexer | null> {
     const generation = batchGeneration ?? ++this.startGeneration
-    // Register this start as in-flight so a concurrent stopAllChainIndexers() waits for it to
-    // settle (and stops any indexer it creates) rather than racing past it.
-    const startPromise = this.doStartChainIndexer(chainID, generation)
+    // Register this start as in-flight (plus a probe AbortController tagged with its generation) so
+    // a concurrent stopAllChainIndexers() can both wait for it to settle and abort its DB probe,
+    // rather than racing past it or hanging on it.
+    const probe = { generation, controller: new AbortController() }
+    this.startProbeControllers.add(probe)
+    const startPromise = this.doStartChainIndexer(
+      chainID,
+      generation,
+      probe.controller.signal
+    )
     this.pendingStarts.add(startPromise)
     try {
       return await startPromise
     } finally {
       this.pendingStarts.delete(startPromise)
+      this.startProbeControllers.delete(probe)
     }
   }
 
   private async doStartChainIndexer(
     chainID: number,
-    generation: number
+    generation: number,
+    probeSignal: AbortSignal
   ): Promise<ChainIndexer | null> {
+    // A standalone start (admin START_THREAD, resetCrawling) does not go through
+    // startAllChainIndexers()'s teardown wait, so wait here too: a previous OceanNode instance's
+    // teardown (its indexer stop + provider destroy) must finish before this indexer starts
+    // crawling, or two indexers run concurrently against the same DB/chain. awaitPendingTeardown()
+    // is a no-op when nothing is pending, so the batch path (which already awaited it) is unaffected.
+    await OceanNode.awaitPendingTeardown()
+    if (this.isStartCanceled(generation)) {
+      INDEXER_LOGGER.debug(
+        `Stop requested during startup (awaiting teardown); not starting indexer for chain ${chainID}`
+      )
+      return null
+    }
+
     // If an indexer is already running, stop it first
     const existingIndexer = this.indexers.get(chainID)
     if (existingIndexer && existingIndexer.isIndexing()) {
@@ -428,7 +493,12 @@ export class OceanIndexer {
       INDEXER_LOGGER.error(`Unable to get Blockchain instance for chain: ${chainID}`)
       return null
     }
-    const canStartIndexer = await this.retryCrawlerWithDelay(blockchain, 5000, generation)
+    const canStartIndexer = await this.retryCrawlerWithDelay(
+      blockchain,
+      5000,
+      generation,
+      probeSignal
+    )
     if (!canStartIndexer) {
       INDEXER_LOGGER.error(
         `Cannot start indexer for chain ${chainID}. Check DB and RPC connections!`
@@ -530,7 +600,27 @@ export class OceanIndexer {
     return count === this.supportedChains.length
   }
 
+  // Register a crawling-event handler and track it so stop() can detach exactly this instance's set.
+  private onCrawling(event: string, handler: (payload: any) => void): void {
+    this.crawlingEventHandlers.push({ event, handler })
+    INDEXER_CRAWLING_EVENT_EMITTER.on(event, handler)
+  }
+
+  // Detach every crawling-event handler this instance registered (NOT removeAllListeners(), which
+  // would also drop handlers belonging to other OceanIndexers sharing the module-level emitter).
+  private teardownEventListeners(): void {
+    for (const { event, handler } of this.crawlingEventHandlers) {
+      INDEXER_CRAWLING_EVENT_EMITTER.removeListener(event, handler)
+    }
+    this.crawlingEventHandlers = []
+  }
+
   private setupEventListeners() {
+    // Detach any previously registered handlers first: setupEventListeners() runs on every
+    // startAllChainIndexers() (including DB-reconnect restarts), so without this each restart would
+    // stack another full set of handlers on the shared emitter (duplicate DDO emissions, leaks).
+    this.teardownEventListeners()
+
     // Listen to metadata events from any chain indexer
     const metadataEvents = [
       EVENTS.METADATA_CREATED,
@@ -546,7 +636,7 @@ export class OceanIndexer {
     ]
 
     metadataEvents.forEach((eventType) => {
-      INDEXER_CRAWLING_EVENT_EMITTER.on(eventType, async (event: any) => {
+      this.onCrawling(eventType, async (event: any) => {
         try {
           if (!event.data) {
             INDEXER_LOGGER.debug(
@@ -568,49 +658,40 @@ export class OceanIndexer {
     })
 
     // Listen to reindex queue pop events
-    INDEXER_CRAWLING_EVENT_EMITTER.on(
-      INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP,
-      (event: any) => {
-        try {
-          INDEXING_QUEUE = INDEXING_QUEUE.filter(
-            (task) => task.txId !== event.txId && task.chainId !== event.chainId
-          )
-          this.updateJobStatus(
-            PROTOCOL_COMMANDS.REINDEX_TX,
-            create256Hash([event.chainId, event.txId].join('')),
-            CommandStatus.SUCCESS
-          )
-        } catch (err) {
-          INDEXER_LOGGER.error(`Reindex queue pop handler failed: ${err?.message ?? err}`)
-        }
+    this.onCrawling(INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP, (event: any) => {
+      try {
+        INDEXING_QUEUE = INDEXING_QUEUE.filter(
+          (task) => task.txId !== event.txId && task.chainId !== event.chainId
+        )
+        this.updateJobStatus(
+          PROTOCOL_COMMANDS.REINDEX_TX,
+          create256Hash([event.chainId, event.txId].join('')),
+          CommandStatus.SUCCESS
+        )
+      } catch (err) {
+        INDEXER_LOGGER.error(`Reindex queue pop handler failed: ${err?.message ?? err}`)
       }
-    )
+    })
 
     // Listen to reindex chain events
-    INDEXER_CRAWLING_EVENT_EMITTER.on(
-      INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
-      (event: any) => {
-        try {
-          this.updateJobStatus(
-            PROTOCOL_COMMANDS.REINDEX_CHAIN,
-            create256Hash([event.chainId].join('')),
-            event.result ? CommandStatus.SUCCESS : CommandStatus.FAILURE
-          )
-        } catch (err) {
-          INDEXER_LOGGER.error(`Reindex chain handler failed: ${err?.message ?? err}`)
-        }
+    this.onCrawling(INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN, (event: any) => {
+      try {
+        this.updateJobStatus(
+          PROTOCOL_COMMANDS.REINDEX_CHAIN,
+          create256Hash([event.chainId].join('')),
+          event.result ? CommandStatus.SUCCESS : CommandStatus.FAILURE
+        )
+      } catch (err) {
+        INDEXER_LOGGER.error(`Reindex chain handler failed: ${err?.message ?? err}`)
       }
-    )
+    })
 
     // Listen to crawling started events
-    INDEXER_CRAWLING_EVENT_EMITTER.on(
-      INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED,
-      (event: any) => {
-        INDEXER_LOGGER.info(
-          `Chain ${event.chainId}: crawling from block ${event.startBlock}`
-        )
-      }
-    )
+    this.onCrawling(INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED, (event: any) => {
+      INDEXER_LOGGER.info(
+        `Chain ${event.chainId}: crawling from block ${event.startBlock}`
+      )
+    })
   }
 
   public addReindexTask(reindexTask: ReindexTask): JobStatus | null {
@@ -666,16 +747,18 @@ export class OceanIndexer {
 
   public getJobsPool(jobId?: string): JobStatus[] {
     if (jobId) {
-      const pos = -1
       const result = this.filterJobs(jobId)
-      // if it finished, then we can remove it from the list of jobs
+      // if it finished, then we can remove it from the list of jobs. Use the job's actual index
+      // (result.position) returned by filterJobs — a hardcoded -1 spliced the LAST job instead,
+      // removing the wrong entry whenever the finished job was not at the end of the queue.
       if (
+        result.position >= 0 &&
         result.jobsResult.length === 1 &&
         [CommandStatus.FAILURE, CommandStatus.SUCCESS].includes(
           result.jobsResult[0].status
         )
       ) {
-        JOBS_QUEUE.splice(pos, 1)
+        JOBS_QUEUE.splice(result.position, 1)
       }
       return result.jobsResult
     }
@@ -685,7 +768,10 @@ export class OceanIndexer {
   // when we add a new job, we change the status from DELIVERED to PENDING if still running after a couple secs
   public addJob(jobInfo: JobStatus) {
     JOBS_QUEUE.push(jobInfo)
-    setTimeout(() => {
+    // Track the timer so stop() can clear it; otherwise a torn-down OceanIndexer leaves a pending
+    // 2 s timer that fires after shutdown and mutates the shared JOBS_QUEUE.
+    const timer = setTimeout(() => {
+      this.jobTimers.delete(timer)
       const result = this.filterJobs(jobInfo.jobId)
       if (
         result.jobsResult.length === 1 &&
@@ -694,6 +780,15 @@ export class OceanIndexer {
         this.updateJobStatus(jobInfo.command, jobInfo.hash, CommandStatus.PENDING)
       }
     }, 2000)
+    this.jobTimers.add(timer)
+  }
+
+  // Cancel any pending addJob() status-promotion timers (called from stop()).
+  private clearJobTimers(): void {
+    for (const timer of this.jobTimers) {
+      clearTimeout(timer)
+    }
+    this.jobTimers.clear()
   }
 
   // filter jobs by job id, return the position of the job on the queue as well
@@ -795,7 +890,12 @@ export class OceanIndexer {
     // canceled, so none can resurrect an indexer after shutdown.
     this.teardownDbConnectionListeners()
     await this.stopAllChainIndexers()
-    INDEXER_CRAWLING_EVENT_EMITTER.removeAllListeners()
-    INDEXER_DDO_EVENT_EMITTER.removeAllListeners()
+    // Detach only THIS instance's crawling-event handlers and cancel its pending job timers. Do
+    // NOT removeAllListeners() on the shared emitters: INDEXER_CRAWLING_EVENT_EMITTER is shared by
+    // any future OceanIndexer, and INDEXER_DDO_EVENT_EMITTER has external subscribers (the P2P
+    // node's METADATA_CREATED handler, test utils) that a blanket removeAllListeners() would
+    // silently unsubscribe.
+    this.teardownEventListeners()
+    this.clearJobTimers()
   }
 }
