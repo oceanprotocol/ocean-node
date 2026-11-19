@@ -236,7 +236,6 @@ export class ChainIndexer {
     let successfulRetrievalCount = 0
     let lockProcessing = false
     let startedCrawling = false
-    let currentBlock: number
 
     while (!this.stopSignal) {
       if (!lockProcessing) {
@@ -316,35 +315,29 @@ export class ChainIndexer {
             }
 
             try {
-              const processedBlocks = await this.raceStop(
-                processBlocks(
-                  chunkEvents,
-                  signer,
-                  provider,
-                  this.blockchain.getSupportedChain(),
-                  startBlock,
-                  blocksToProcess,
-                  this.config
-                ),
-                'processBlocks'
+              // NOT raced against stop: processBlocks and updateLastIndexedBlockNumber WRITE to the
+              // DB (stored DDOs/orders + the indexer cursor). They must run to completion before the
+              // loop can exit, otherwise an orphaned write from a stopped run could race a
+              // replacement indexer for the same chain. stop() waits for them (as it did before the
+              // raceStop() wrapper existed); only the hang-prone RPC/DB reads above stay raced.
+              const processedBlocks = await processBlocks(
+                chunkEvents,
+                signer,
+                provider,
+                this.blockchain.getSupportedChain(),
+                startBlock,
+                blocksToProcess,
+                this.config
               )
 
               INDEXER_LOGGER.debug(
                 `Processed ${Object.keys(processedBlocks.foundEvents).length} event types from ${chunkEvents.length} logs`
               )
 
-              currentBlock = await this.raceStop(
-                this.updateLastIndexedBlockNumber(
-                  processedBlocks.lastBlock,
-                  lastIndexedBlock
-                ),
-                'updateLastIndexedBlockNumber'
+              await this.updateLastIndexedBlockNumber(
+                processedBlocks.lastBlock,
+                lastIndexedBlock
               )
-
-              // Can't update currentBlock to processedBlocks.lastBlock if DB action failed
-              if (currentBlock < 0 && lastIndexedBlock !== null) {
-                currentBlock = lastIndexedBlock
-              }
 
               this.emitNewlyIndexedAssets(processedBlocks.foundEvents)
 
@@ -360,8 +353,6 @@ export class ChainIndexer {
                 )
               }
             } catch (error) {
-              // A stop requested mid-processing must unwind the loop, not be retried as a failure.
-              if (error instanceof IndexerStoppedError) throw error
               iterationFailed = true
               this.logLoopFailure(
                 `Chain ${this.blockchain.getSupportedChain()}: processing blocks from ${startBlock + 1} failed (${errorSummary(error)}), retrying`
@@ -375,11 +366,9 @@ export class ChainIndexer {
             await sleep(interval)
           }
 
-          // Process reindex queue
-          await this.raceStop(
-            this.processReindexQueue(provider, signer),
-            'processReindexQueue'
-          )
+          // Process reindex queue. NOT raced: it writes to the DB and emits queue-pop events, so it
+          // must finish before the loop exits rather than being orphaned past a stop.
+          await this.processReindexQueue(provider, signer)
 
           // Handle chain reindex command. (The old `&& !lockProcessing` guard was always false
           // here — lockProcessing is set true at the top of this block — so a triggered full-chain
@@ -389,10 +378,10 @@ export class ChainIndexer {
               getNetworkHeight(provider),
               'getNetworkHeight'
             )
-            const result = await this.raceStop(
-              this.reindexChain(currentBlock, networkHeight),
-              'reindexChain'
-            )
+            // reindexChain WRITES to the DB (resets the cursor, purges assets). NOT raced, so it
+            // can't be orphaned mid-mutation past a stop. It reads the current cursor itself for
+            // rollback, so no block argument is passed.
+            const result = await this.reindexChain(networkHeight)
 
             this.eventEmitter.emit(INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN, {
               result,
@@ -512,33 +501,49 @@ export class ChainIndexer {
   /**
    * Perform a full chain reindex
    */
-  private async reindexChain(
-    currentBlock: number,
-    networkHeight: number
-  ): Promise<boolean> {
-    if (this.reindexBlock > networkHeight) {
+  private async reindexChain(networkHeight: number): Promise<boolean> {
+    const targetBlock = this.reindexBlock
+    if (targetBlock > networkHeight) {
       INDEXER_LOGGER.warn(
-        `Invalid reindex block! ${this.reindexBlock} is bigger than network height: ${networkHeight}. Continue indexing normally...`
+        `Invalid reindex block! ${targetBlock} is bigger than network height: ${networkHeight}. Continue indexing normally...`
       )
       this.reindexBlock = null
       return false
     }
 
-    const block = await this.updateLastIndexedBlockNumber(this.reindexBlock)
-    if (block !== -1) {
-      this.reindexBlock = null
-      const res = await this.deleteAllAssetsFromChain()
-      if (res === -1) {
-        await this.updateLastIndexedBlockNumber(currentBlock)
-      }
-      return true
-    } else {
+    // Capture the cursor as it stands NOW, before updateLastIndexedBlockNumber overwrites it below,
+    // so a failed asset purge can be rolled back to the real pre-reindex value instead of a stale
+    // caller-supplied one. getLastIndexedBlock() returns null when there is no stored cursor OR the
+    // read failed (it logs and swallows the error); either way we fall back to targetBlock on
+    // rollback so we never write undefined.
+    const previousCursor = await this.getLastIndexedBlock()
+
+    const block = await this.updateLastIndexedBlockNumber(targetBlock)
+    if (block === -1) {
       INDEXER_LOGGER.error(
-        `Chain ${this.blockchain.getSupportedChain()}: reindex from block ${this.reindexBlock} dropped, the last indexed block could not be reset. Continue indexing normally...`
+        `Chain ${this.blockchain.getSupportedChain()}: reindex from block ${targetBlock} dropped, the last indexed block could not be reset. Continue indexing normally...`
       )
       this.reindexBlock = null
       return false
     }
+
+    this.reindexBlock = null
+    const res = await this.deleteAllAssetsFromChain()
+    if (res === -1) {
+      // Purge failed: restore the pre-reindex cursor so we don't leave it reset to the deployment
+      // block while the old assets are still present. Never restore to undefined.
+      const restoreTo = isDefined(previousCursor) ? previousCursor : targetBlock
+      const restored = await this.updateLastIndexedBlockNumber(restoreTo)
+      if (restored === -1) {
+        INDEXER_LOGGER.error(
+          `Chain ${this.blockchain.getSupportedChain()}: failed to restore last indexed block to ${restoreTo} after a failed reindex asset purge`
+        )
+      }
+      return false
+    }
+
+    // Success — including when zero assets were deleted (res === 0).
+    return true
   }
 
   /**

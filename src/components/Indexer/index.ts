@@ -270,6 +270,11 @@ export class OceanIndexer {
     // higher generation and is unaffected.
     this.canceledGeneration = this.startGeneration
 
+    // Snapshot the in-flight starts at entry, BEFORE any await below. Every start pending right now
+    // has a generation <= canceledGeneration (just set), so all are canceled; we join exactly these
+    // and never a later, non-canceled start that registers while we await the crawler stops.
+    const startsToJoin = [...this.pendingStarts]
+
     // Abort the DB-reachability probe of every canceled in-flight start, so one blocked on an
     // unresponsive probe fails fast (isReachableConnection → false → the start gives up) instead of
     // hanging the join below. Non-canceled starts (higher generation) keep their probe untouched.
@@ -301,12 +306,13 @@ export class OceanIndexer {
     }
     await Promise.allSettled(stopPromises)
 
-    // Then wait for in-flight starts to settle. A canceled start aborts before registering, or
-    // stops the indexer it just started (see doStartChainIndexer); a later, non-canceled start
-    // registers and is intentionally left running. We aborted canceled starts' DB probes above, so
-    // this join cannot block shutdown indefinitely on a start stuck in its connection probe.
-    if (this.pendingStarts.size > 0) {
-      await Promise.allSettled([...this.pendingStarts])
+    // Then wait for the starts that were in flight at entry to settle. Each aborts before
+    // registering, or stops the indexer it just started (see doStartChainIndexer). A later,
+    // non-canceled start issued during the stops above is deliberately NOT in this snapshot, so it
+    // registers and keeps running. We aborted canceled starts' DB probes above, so this join cannot
+    // block shutdown indefinitely on a start stuck in its connection probe.
+    if (startsToJoin.length > 0) {
+      await Promise.allSettled(startsToJoin)
     }
 
     // Preserve the historical always-true result (the previous loop pushed one promise per chain
