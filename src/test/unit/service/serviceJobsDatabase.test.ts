@@ -262,6 +262,26 @@ describeOnElasticsearch('Service Jobs Database', () => {
       ])
       expect(results.filter(Boolean)).to.have.length(1)
     })
+
+    it('a heartbeat between the read and the delete of a release does not keep the lock', async () => {
+      const serviceId = `lock-svc-${Date.now()}-g`
+      expect(await db.acquireServiceLock(serviceId, 'proc-A', STALE_MS)).to.equal(true)
+      // the first delete runs after a heartbeat changed the lock: it gets a 409
+      const realDelete = client.delete
+      let deletes = 0
+      ;(client as any).delete = async (params: any) => {
+        deletes++
+        if (deletes === 1) await db.refreshServiceLocks('proc-A')
+        return realDelete.call(client, params)
+      }
+      try {
+        await db.releaseServiceLock(serviceId, 'proc-A')
+      } finally {
+        ;(client as any).delete = realDelete
+      }
+      expect(deletes).to.equal(2)
+      expect(await db.isServiceLocked(serviceId, STALE_MS)).to.equal(false)
+    })
   })
 
   it('inserts and reads back a service job by serviceId', async () => {

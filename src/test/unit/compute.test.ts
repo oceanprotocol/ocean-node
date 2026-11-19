@@ -2981,6 +2981,23 @@ describe('service start/restart Docker cleanup on failure', function () {
       )
     ).to.equal(true)
   })
+
+  it('does not take the lifecycle lock again while its DB release is in flight', async function () {
+    let finishRelease: () => void
+    engine.db.releaseServiceLock = sinon.stub().returns(
+      new Promise<void>((resolve) => {
+        finishRelease = resolve
+      })
+    )
+    expect(await engine.tryAcquireServiceLifecycleLock('svc-1')).to.equal(true)
+    const release = engine.releaseServiceLifecycleLock('svc-1')
+    // the release (which matches the holder) could delete a lock taken now
+    expect(await engine.tryAcquireServiceLifecycleLock('svc-1')).to.equal(false)
+    finishRelease()
+    await release
+    expect(await engine.tryAcquireServiceLifecycleLock('svc-1')).to.equal(true)
+    expect(engine.db.acquireServiceLock.callCount).to.equal(2)
+  })
 })
 
 // The admin-facing view of the metrics: one roll-up line per sampling interval, plus a
