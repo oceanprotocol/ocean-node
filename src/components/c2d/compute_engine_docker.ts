@@ -6130,9 +6130,10 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   // Releases both lock layers. Never throws: a failed DB delete only leaves a row that
-  // expires via SERVICE_LOCK_STALE_MS.
+  // expires via SERVICE_LOCK_STALE_MS. The in-memory layer goes last: while the DB release
+  // runs, this engine must not take the same lock again, or the release (which matches
+  // the holder, not one acquisition) could delete the new lock.
   private async releaseServiceLifecycleLock(serviceId: string): Promise<void> {
-    this.serviceOpsInFlight.delete(serviceId)
     try {
       await this.db.releaseServiceLock(serviceId, this.serviceLockHolderId)
       CORE_LOGGER.debug(
@@ -6140,6 +6141,8 @@ export class C2DEngineDocker extends C2DEngine {
       )
     } catch (e: any) {
       CORE_LOGGER.error(`service lock DB release failed for ${serviceId}: ${e.message}`)
+    } finally {
+      this.serviceOpsInFlight.delete(serviceId)
     }
   }
 

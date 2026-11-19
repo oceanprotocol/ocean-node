@@ -16,8 +16,9 @@ times at start (`DB_INIT_MAX_ATTEMPTS`), then stops.
 The database holds two groups of data:
 
 - **Index data**, which the indexer reads from the chains: DDOs, DDO states, orders, access
-  lists, escrow events, and the last indexed block of each chain. The logs are here too when
-  `LOG_DB` is on. The node can make this data again from the chains.
+  lists, escrow events, and the last indexed block of each chain. The node can make this
+  data again from the chains. The logs are in the database too when `LOG_DB` is on; the
+  node cannot make them again.
 - **Node state**: compute jobs, service jobs, Docker image records, service locks, nonces,
   auth tokens, node settings, persistent-storage buckets and node metrics.
 
@@ -159,8 +160,6 @@ differ in these points:
 - `price` is stored as text: SQLite and PostgreSQL sort it as a number, Elasticsearch as text.
 - The tags of a `tags` answer are in lower case on SQLite and PostgreSQL. Their comparisons
   ignore the letter case; on Elasticsearch a tag, a type and an id must match exactly.
-- A value longer than 512 characters is searchable by its first 512 characters on SQLite and
-  PostgreSQL.
 
 ## Upgrade from an older release, and a change of database
 
