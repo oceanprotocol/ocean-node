@@ -1,10 +1,7 @@
 import { describeOnElasticsearch } from '../utils/utils.js'
-import { SearchQuery } from '../../@types/DDO/SearchQuery.js'
-import {
-  Database,
-  buildDdoStateQuery,
-  buildMetadataQuery
-} from '../../components/database/index.js'
+import { Database } from '../../components/database/index.js'
+import type { Client } from '@elastic/elasticsearch'
+import { Wallet } from 'ethers'
 import { expect, assert } from 'chai'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { isDefined } from '../../utils/util.js'
@@ -243,72 +240,61 @@ describeOnElasticsearch('**********         OrderDatabase CRUD', () => {
   })
 })
 
-describeOnElasticsearch('**********         DdoStateQuery', () => {
-  it('should build Elasticsearch query for did', () => {
-    const query = buildDdoStateQuery('did:op:abc123')
-    expect(query.term.did).to.equal('did:op:abc123')
+describeOnElasticsearch('**********         DDO state and order search', () => {
+  let database: Database
+  let client: Client
+  const consumer = Wallet.createRandom().address
+  const payer = Wallet.createRandom().address
+
+  before(async () => {
+    database = await Database.init(elasticConfig)
+    client = await createElasticsearchClientWithRetry(elasticConfig)
   })
 
-  it('should build Elasticsearch query for nft', () => {
-    const query = buildDdoStateQuery(undefined, 'nft:op:abc123')
-    expect(query.term.nft).to.equal('nft:op:abc123')
-  })
-
-  it('should build Elasticsearch query for txId', () => {
-    const query = buildDdoStateQuery(undefined, undefined, 'txId123')
-    expect(query.term.txId).to.equal('txId123')
-  })
-})
-
-describeOnElasticsearch('**********         MetadataQuery', () => {
-  it('should convert a filter_by query to an Elasticsearch query', () => {
-    const filterByQuery = {
-      q: '*',
-      filter_by:
-        'author:=Ocean && metadata.type:=[dataset,algorithm] && purgatory_state:!=true',
-      num_hits: 10,
-      start: 0,
-      sort_by: 'name:asc'
+  it('finds a DDO state by did, nft or txId', async () => {
+    await database.ddoState.create(8996, 'did:op:state-query', '0xNftQuery', '0xTxQuery')
+    await client.indices.refresh({ index: 'ddo_state' })
+    for (const key of [
+      { did: 'did:op:state-query' },
+      { nft: '0xNftQuery' },
+      { txId: '0xTxQuery' }
+    ]) {
+      const found = await database.ddoState.find(key)
+      expect(found.map((state: any) => state.id)).to.deep.equal(['did:op:state-query'])
     }
-
-    const query = buildMetadataQuery(filterByQuery)
-    expect(query.size).to.equal(10)
-    expect(query.from).to.equal(0)
-    expect(query.query.bool.filter[0].term.author).to.equal('Ocean')
-    expect(query.query.bool.filter[1].terms['metadata.type']).to.eql([
-      'dataset',
-      'algorithm'
-    ])
-    expect(query.query.bool.must_not[0].term.purgatory_state).to.equal('true')
-    expect(query.sort[0].name.order).to.equal('asc')
+    await database.ddoState.delete('did:op:state-query')
   })
 
-  it('should return an Elasticsearch query when DB is Elasticsearch and an Elasticsearch query is passed', () => {
-    const searchQuery: SearchQuery = {
-      query: {
-        bool: {
-          filter: [
-            { term: { author: 'Ocean' } },
-            { terms: { 'metadata.type': ['dataset', 'algorithm'] } }
-          ],
-          must_not: [{ term: { purgatory_state: true } }]
-        }
-      },
-      size: 10,
-      from: 0,
-      sort: { name: 'asc' }
-    }
-
-    const query = buildMetadataQuery(searchQuery)
-
-    expect(query.size).to.equal(10)
-    expect(query.from).to.equal(0)
-    expect(query.query.bool.filter[0].term.author).to.equal('Ocean')
-    expect(query.query.bool.filter[1].terms['metadata.type']).to.eql([
-      'dataset',
-      'algorithm'
+  it('finds the orders of a consumer or a payer in any letter case, newest first', async () => {
+    const create = (orderId: string, timestamp: number) =>
+      database.order.create(
+        orderId,
+        'startOrder',
+        timestamp,
+        consumer,
+        payer,
+        '0xDatatoken',
+        '0xNft',
+        'did:op:order-query'
+      )
+    await create('0xorder-query-1', 100)
+    await create('0xorder-query-2', 200)
+    await client.indices.refresh({ index: 'order' })
+    const all = { offset: 0, limit: 10 }
+    const byConsumer = await database.order.find(
+      { consumer: consumer.toLowerCase() },
+      all
+    )
+    expect(byConsumer.results.map((order: any) => order.orderId)).to.deep.equal([
+      '0xorder-query-2',
+      '0xorder-query-1'
     ])
-    expect(query.query.bool.must_not[0].term.purgatory_state).to.equal(true)
-    expect(query.sort.name).to.equal('asc')
+    expect(byConsumer.totalResults).to.equal(2)
+    const byPayer = await database.order.find({ payer }, { offset: 1, limit: 1 })
+    expect(byPayer.results.map((order: any) => order.orderId)).to.deep.equal([
+      '0xorder-query-1'
+    ])
+    await database.order.delete('0xorder-query-1')
+    await database.order.delete('0xorder-query-2')
   })
 })

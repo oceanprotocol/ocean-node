@@ -1,5 +1,4 @@
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
-import { SearchQuery } from '../../@types/DDO/SearchQuery.js'
 import {
   configureCustomDBTransport,
   getLoggingConfig,
@@ -24,24 +23,8 @@ import { ConfigDatabase } from './ConfigDatabase.js'
 import { AuthTokenDatabase } from './AuthTokenDatabase.js'
 import { NodeMetricsProvider } from './NodeMetricsDatabase.js'
 import { BucketRegistry } from './BucketRegistry.js'
-import { ElasticSearchMetadataQuery } from './ElasticSearchMetadataQuery.js'
-import { ElasticSearchDdoStateQuery } from './ElasticSearchDdoStateQuery.js'
 
 export type { DdoSchema } from './BaseDatabase.js'
-
-// The Elasticsearch query format is the query format of the node on all backends:
-// these two build a query in that format from the parameters of the HTTP routes.
-export function buildMetadataQuery(query: SearchQuery): Record<string, any> {
-  return new ElasticSearchMetadataQuery().buildQuery(query)
-}
-
-export function buildDdoStateQuery(
-  did?: string,
-  nft?: string,
-  txId?: string
-): Record<string, any> {
-  return new ElasticSearchDdoStateQuery().buildQuery(did, nft, txId)
-}
 
 function logWhereLogsGo(): void {
   if (USE_DB_TRANSPORT()) {

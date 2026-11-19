@@ -1,6 +1,6 @@
 import lodash from 'lodash'
 import type { OceanNodeDBConfig } from '../../../@types/OceanNode.js'
-import { AbstractOrderDatabase } from '../BaseDatabase.js'
+import { AbstractOrderDatabase, Found, OrderOwner, Page } from '../BaseDatabase.js'
 import type { SqlClient } from './SqlClient.js'
 import { SqlDocuments } from './SqlDocuments.js'
 import { orNull } from './orNull.js'
@@ -12,15 +12,20 @@ export class SqlOrderDatabase extends AbstractOrderDatabase {
   constructor(config: OceanNodeDBConfig, db: SqlClient) {
     super(config)
     // "order" is a reserved word in SQL
-    this.orders = new SqlDocuments(db, 'orders', config.dbType)
+    this.orders = new SqlDocuments(db, 'orders')
   }
 
   init(): Promise<void> {
     return this.orders.init()
   }
 
-  search(query: Record<string, any>) {
-    return orNull('Error when searching orders', () => this.orders.query(query))
+  find(owner: OrderOwner, page: Page): Promise<Found> {
+    const [field, value] = Object.entries(owner)[0]
+    return this.orders.find(
+      [{ paths: [field], anyOf: [value] }],
+      [{ paths: ['timestamp'], order: 'desc' }],
+      page
+    )
   }
 
   create(

@@ -1,10 +1,10 @@
 import type { OceanNodeDBConfig } from '../../../@types/OceanNode.js'
-import { AbstractDdoStateDatabase } from '../BaseDatabase.js'
+import { AbstractDdoStateDatabase, DdoStateKey } from '../BaseDatabase.js'
 import type { SqlClient } from './SqlClient.js'
 import { SqlDocuments } from './SqlDocuments.js'
 import { orNull } from './orNull.js'
 
-// a search with no size gives this number of states, as on Elasticsearch
+// the largest number of states that a search gives, as on Elasticsearch
 const SEARCH_HITS = 10
 
 // the result of the indexing of each DDO: id = the DID
@@ -13,7 +13,7 @@ export class SqlDdoStateDatabase extends AbstractDdoStateDatabase {
 
   constructor(config: OceanNodeDBConfig, db: SqlClient) {
     super(config)
-    this.states = new SqlDocuments(db, 'ddo_state', config.dbType)
+    this.states = new SqlDocuments(db, 'ddo_state')
   }
 
   init(): Promise<void> {
@@ -41,11 +41,13 @@ export class SqlDdoStateDatabase extends AbstractDdoStateDatabase {
     )
   }
 
-  // `query` is one clause of a node query, for example { term: { did } }
-  search(query: Record<string, any>) {
-    return orNull('Error when searching the ddo states', () =>
-      this.states.search({ query }, SEARCH_HITS, 0)
-    )
+  find(key: DdoStateKey) {
+    const [field, value] = Object.entries(key)[0]
+    return orNull('Error when searching the ddo states', async () => {
+      const page = { offset: 0, limit: SEARCH_HITS }
+      return (await this.states.find([{ paths: [field], anyOf: [value] }], [], page))
+        .results
+    })
   }
 
   update(

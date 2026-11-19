@@ -1,5 +1,5 @@
 import { RangeFilter } from '../../@types/commands.js'
-import { DEFAULT_PAGE_SIZE } from './BaseDatabase.js'
+import { Condition, DEFAULT_PAGE_SIZE } from './BaseDatabase.js'
 
 // Fields stored as native numeric types (ES long).
 // Range filters on these are pushed down to the store's query DSL.
@@ -161,6 +161,30 @@ export function escrowPage(
     from: offset && offset > 0 ? offset : 0,
     limit: Math.min(size && size > 0 ? size : DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE)
   }
+}
+
+// The same filters map as conditions (for the SQL stores): equality, or a range for a
+// RangeFilter object. An array value is several conditions on the same field.
+export function escrowConditions(filters: Record<string, any>): Condition[] {
+  const conditions: Condition[] = []
+  const add = (field: string, value: any) => {
+    if (value === undefined || value === null || value === '') return
+    if (!isRangeFilter(value)) {
+      conditions.push({ paths: [field], anyOf: [value] })
+      return
+    }
+    const range: Record<string, any> = {}
+    if (hasValue(value.min)) range.gte = value.min
+    if (hasValue(value.max)) range.lte = value.max
+    if (hasValue(value.gt)) range.gt = value.gt
+    if (hasValue(value.lt)) range.lt = value.lt
+    if (Object.keys(range).length) conditions.push({ paths: [field], range })
+  }
+  for (const [field, value] of Object.entries(filters || {})) {
+    if (Array.isArray(value)) value.forEach((v) => add(field, v))
+    else add(field, value)
+  }
+  return conditions
 }
 
 // Build an Elasticsearch query body from the same filters map: `term` for equality,

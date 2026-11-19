@@ -72,53 +72,47 @@ Give one of the three.
 
 #### Description
 
-Searches the DDOs. The query is the Elasticsearch query body, on all databases. Elasticsearch
-runs the full syntax; SQLite and PostgreSQL run a part of it and answer HTTP 400 for the rest
-(see [database.md](database.md#ddo-queries)).
+Searches the DDOs, the orders of an account, or the tags of the DDOs. The query is the same on
+all databases: a type, typed filters, a sort key and a page (see
+[database.md](database.md#ddo-search) for each filter). An Elasticsearch query body gives
+HTTP 400.
 
 #### Parameters
 
-| name  | type            | required | description                                             |
-| ----- | --------------- | -------- | ------------------------------------------------------- |
-| query | object          | v        | the query clause; this route needs a `bool` clause here |
-| sort  | object or array |          | the fields to sort on, each `asc` or `desc`             |
-| from  | number          |          | page number, from 1                                     |
-| size  | number          |          | documents for each page                                 |
-| index | string          |          | `order`, or the name of a DDO schema                    |
+| name   | type   | required | description                                                                                                           |
+| ------ | ------ | -------- | --------------------------------------------------------------------------------------------------------------------- |
+| type   | string |          | `assets` (the default), `orders` or `tags`                                                                            |
+| filter | object |          | the asset filters; with `orders`: `{ "consumer": … }` or `{ "payer": … }`                                             |
+| sort   | object |          | `assets` only: `{ "by": "created" \| "orders" \| "price" \| "tokenSymbol" \| "relevance", "order": "asc" \| "desc" }` |
+| page   | number |          | page number, from 1                                                                                                   |
+| size   | number |          | documents for each page, 100 when absent; with `tags`: the number of tags                                             |
 
 #### Request
 
 ```json
 {
-  "query": {
-    "bool": {
-      "filter": [
-        { "term": { "nftAddress": "0xBB1081DbF3227bbB233Db68f7117114baBb43656" } },
-        { "terms": { "chainId": [1, 137] } }
-      ]
-    }
+  "filter": {
+    "chainIds": [1, 137],
+    "types": ["dataset"],
+    "serviceTypes": ["access"],
+    "text": "weather"
   },
-  "sort": { "indexedMetadata.event.block": "desc" },
-  "from": 1,
+  "sort": { "by": "created", "order": "desc" },
+  "page": 1,
   "size": 10
 }
 ```
 
-`from` is a page number that starts at 1, not a document offset. `size` is 100 when absent.
-`size` and `from` must be whole numbers, 0 or more, and a query reads the first 10000
-documents at most.
-
-`index` selects what the query reads: `order` for the orders, the name of a DDO schema (for
-example `op_ddo_v4.1.0`) for the DDOs of that schema. With all other values, or with no
-`index`, the query reads all DDOs.
+`page` × `size` is 10000 at most.
 
 #### Response
 
-One array of documents for each DDO schema that has hits. No hit gives `[]`.
+One list for the DDOs of all versions, sorted and paged over all of them, and the number of
+all matches.
 
 ```json
-[
-  [
+{
+  "results": [
     {
       "id": "did:op:fa0e8fa9550e8eb13392d6eeb9ba9f8111801b332c8d2345b350b3bc66b379d5",
       "chainId": 137,
@@ -126,12 +120,13 @@ One array of documents for each DDO schema that has hits. No hit gives `[]`.
       "version": "4.1.0",
       "metadata": { "name": "dataset-name", "type": "dataset" }
     }
-  ]
-]
+  ],
+  "totalResults": 1
+}
 ```
 
-A query that the node cannot run gives HTTP 400 with the reason as text, for example
-`Query clause 'wildcard' is not supported on the sqlite database`.
+With `type: "tags"`, `results` holds `{ "tag", "count" }` objects. A query that is not valid
+gives HTTP 400 with the reason as text, for example `Invalid query: filter.types: …`.
 
 ---
 
@@ -1035,22 +1030,17 @@ empty array is always allowed). Free compute has no escrow lock/claim, so the fi
 
 #### Description
 
-Searches the DDOs. The query is the Elasticsearch query body, on all databases. Elasticsearch
-runs the full syntax; SQLite and PostgreSQL run a part of it and answer HTTP 400 for the rest
-(see [database.md](database.md#ddo-queries)).
+Searches the DDOs, the orders of an account, or the tags of the DDOs, with the same query as
+`POST /api/aquarius/assets/metadata/query` (see [database.md](database.md#ddo-search)). An
+Elasticsearch query body gives HTTP 400.
 
 #### Parameters
 
-| name        | type            | required | description                                 |
-| ----------- | --------------- | -------- | ------------------------------------------- |
-| command     | string          | v        | command name                                |
-| node        | string          |          | if not present it means current node        |
-| query       | object          | v        | the query                                   |
-| query.query | object          |          | the query clause; absent means all          |
-| query.sort  | object or array |          | the fields to sort on, each `asc` or `desc` |
-| query.from  | number          |          | page number, from 1                         |
-| query.size  | number          |          | documents for each page                     |
-| query.index | string          |          | `order`, or the name of a DDO schema        |
+| name    | type   | required | description                                         |
+| ------- | ------ | -------- | --------------------------------------------------- |
+| command | string | v        | command name                                        |
+| node    | string |          | if not present it means current node                |
+| query   | object | v        | the query: `type`, `filter`, `sort`, `page`, `size` |
 
 #### Request
 
@@ -1059,40 +1049,16 @@ runs the full syntax; SQLite and PostgreSQL run a part of it and answer HTTP 400
   "command": "query",
   "node": "PeerId",
   "query": {
-    "query": { "bool": { "filter": [{ "term": { "chainId": 137 } }] } },
+    "type": "orders",
+    "filter": { "consumer": "0x1234567890123456789012345678901234567890" },
     "size": 10
   }
 }
 ```
 
-`from` is a page number that starts at 1, not a document offset. `size` is 100 when absent.
-`size` and `from` must be whole numbers, 0 or more, and a query reads the first 10000
-documents at most.
-
-`index` selects what the query reads: `order` for the orders, the name of a DDO schema (for
-example `op_ddo_v4.1.0`) for the DDOs of that schema. With all other values, or with no
-`index`, the query reads all DDOs.
-
 #### Response
 
-One array of documents for each DDO schema that has hits. No hit gives `[]`.
-
-```json
-[
-  [
-    {
-      "id": "did:op:fa0e8fa9550e8eb13392d6eeb9ba9f8111801b332c8d2345b350b3bc66b379d5",
-      "chainId": 137,
-      "nftAddress": "0xBB1081DbF3227bbB233Db68f7117114baBb43656",
-      "version": "4.1.0",
-      "metadata": { "name": "dataset-name", "type": "dataset" }
-    }
-  ]
-]
-```
-
-A query that the node cannot run gives HTTP 400 with the reason as text, for example
-`Query clause 'wildcard' is not supported on the sqlite database`.
+`{ "results": [...], "totalResults": n }`, as the HTTP route answers.
 
 ---
 

@@ -4,6 +4,7 @@
 import { OceanNode } from '../../OceanNode.js'
 import { P2P_LOGGER } from '../logging/common.js'
 import { provideLimit } from '../../components/P2P/provideLimiter.js'
+import { MAX_RESULT_WINDOW } from '../../components/database/BaseDatabase.js'
 import {
   classifyP2PError,
   logProvideFailure,
@@ -11,50 +12,10 @@ import {
 } from '../../components/P2P/errors.js'
 
 /**
- * How many documents to ask each schema for per round trip. Small enough that a page's worth
- * of provides drains through the shared limiter before the next page is fetched.
+ * How many documents to ask for per round trip. Small enough that a page's worth of provides
+ * drains through the shared limiter before the next page is fetched.
  */
 const REPUBLISH_PAGE_SIZE = 100
-
-/**
- * A stop so a backend that keeps answering with full pages - a paging bug, a store that grows
- * while we walk it - cannot turn startup into an unbounded loop. At the page size above this
- * is a million documents, far past any real node.
- */
-const MAX_REPUBLISH_PAGES = 10_000
-
-interface DdoPage {
-  documents: any[]
-  /**
-   * True when at least one schema filled its page, which is the only signal the DDO store
-   * gives that there may be more: it returns bare document arrays with no count at all.
-   */
-  hasFullBatch: boolean
-}
-
-/**
- * The DDO store returns one plain array of documents per schema that had hits (schemas with
- * no hits are simply absent).
- */
-function extractPage(result: any, pageSize: number): DdoPage {
-  const documents: any[] = []
-  let hasFullBatch = false
-  if (!Array.isArray(result)) {
-    return { documents, hasFullBatch }
-  }
-  for (const perSchema of result) {
-    // The raw page size decides whether the page was full - measured before filtering, because a
-    // page that came back full but held documents without an id still means the store may have
-    // more pages. Testing the filtered count instead would drop `hasFullBatch` to false on such
-    // a page and stop the walk early, leaving later pages never re-provided.
-    if (!Array.isArray(perSchema)) continue
-    documents.push(...perSchema.filter((document: any) => document && document.id))
-    if (perSchema.length >= pageSize) {
-      hasFullBatch = true
-    }
-  }
-  return { documents, hasFullBatch }
-}
 
 export async function p2pAnnounceDDOS(node: OceanNode) {
   try {
@@ -73,20 +34,18 @@ export async function p2pAnnounceDDOS(node: OceanNode) {
     let failed = 0
     let cacheFailed = 0
     let page = 1
-    // Walk until the store is exhausted: one page only left every later DDO un-provided.
-    // `from` is a page number that starts at 1, not a document offset.
-    // Known ceiling: a backend can refuse a deep `from` + `size` window (10000 documents on
-    // Elasticsearch), and the database layer catches that per schema, so a
-    // schema with more DDOs re-provides only the first ones. Lifting that needs paging with
-    // a cursor in the database layer, not in this job.
-    while (page <= MAX_REPUBLISH_PAGES) {
-      const result = await ddoDb.search({
-        query: { match_all: {} },
-        size: REPUBLISH_PAGE_SIZE,
-        from: page
+    // Walk all DDOs, every state, in a stable order (the id), until the store is exhausted.
+    // Known ceiling: a search reaches the first MAX_RESULT_WINDOW documents (the default
+    // window of Elasticsearch), so a node with more DDOs re-provides only the first ones.
+    // Lifting that needs paging with a cursor in the database layer, not in this job.
+    const lastPage = MAX_RESULT_WINDOW / REPUBLISH_PAGE_SIZE
+    while (page <= lastPage) {
+      const { results } = await ddoDb.find([], [], {
+        offset: (page - 1) * REPUBLISH_PAGE_SIZE,
+        limit: REPUBLISH_PAGE_SIZE
       })
-      const { documents, hasFullBatch } = extractPage(result, REPUBLISH_PAGE_SIZE)
-      if (documents.length === 0) {
+      const documents = results.filter((document: any) => document && document.id)
+      if (results.length === 0) {
         break
       }
       seen += documents.length
@@ -134,15 +93,15 @@ export async function p2pAnnounceDDOS(node: OceanNode) {
           })
         )
       )
-      if (!hasFullBatch) {
+      if (results.length < REPUBLISH_PAGE_SIZE) {
         break
       }
       page++
     }
 
-    if (page > MAX_REPUBLISH_PAGES) {
+    if (page > lastPage) {
       P2P_LOGGER.warn(
-        `Stopped republishing after ${MAX_REPUBLISH_PAGES} pages; the store still reports more documents`
+        `Stopped republishing after the first ${MAX_RESULT_WINDOW} DDOs; the store has more`
       )
     }
 

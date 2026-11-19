@@ -309,10 +309,13 @@ Handler source is grouped under `src/components/core/`:
   - **SQLite** and **PostgreSQL**: one set of stores in `database/sql/`, written
     against the `SqlClient` interface (`SqliteClient` on `node:sqlite`, `PostgresClient` on
     `pg`). The rules for SQL that runs on both are at the top of `sql/SqlClient.ts`.
-    `SqlDocuments` keeps JSON documents with a field table, and `documentQuery.ts`
-    translates the node query (the Elasticsearch format) to SQL; an unsupported clause
-    throws `UnsupportedQueryError` (HTTP 400). `SqliteStores.ts` keeps the file names of
-    the older releases and upgrades their tables.
+    `SqlDocuments` keeps JSON documents with a field table and runs typed conditions
+    (`Condition` in `BaseDatabase.ts`) as fixed SQL. `SqliteStores.ts` keeps the file
+    names of the older releases and upgrades their tables.
+  - The DDO search (`query` command, `/api/aquarius/assets/metadata/query`) is typed:
+    `assetQuery.ts` checks the request (zod) and turns the filters into conditions; SQL
+    and Elasticsearch (`esConditions.ts`) each run them with fixed queries. There is no
+    Elasticsearch query syntax on any database.
   - **Elasticsearch**: the `Elastic*` files (index mappings in `ElasticSchemas.ts`).
   Node metrics are kept per `INSTANCE_ID`. See `docs/database.md`.
 - **KeyManager/** — provider-abstraction over the node key (`docs/KeyManager.md`). Currently

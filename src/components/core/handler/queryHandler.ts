@@ -10,56 +10,31 @@ import {
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { safeStringify } from '../../../utils/logging/redact.js'
 import type { Database } from '../../database/index.js'
-import { MAX_RESULT_WINDOW, QueryError, queryPage } from '../../database/BaseDatabase.js'
+import { DdoStateKey, Found, QueryError } from '../../database/BaseDatabase.js'
+import {
+  QueryRequest,
+  assetConditions,
+  pageOf,
+  parseQueryRequest,
+  sortOf
+} from '../../database/assetQuery.js'
 
-// the `index` of a query that selects the orders
-const ORDER_INDEX = 'order'
-
-const OTHER_INDEX_ERROR = 'A query cannot read another index'
-
-// The node state is in indices of the same Elasticsearch cluster, so a public query
-// cannot use what reads another index: runtime fields (type `lookup`), lookups that name
-// an index and a document, and `wrapper`, which hides a query in base64. The SQL
-// databases support none of them.
-function refuseOtherIndexReads(query: Record<string, any>): void {
-  if ('runtime_mappings' in query) {
-    throw new QueryError(OTHER_INDEX_ERROR)
+// The answer is { results, totalResults } for each type of query.
+async function runQuery(database: Database, request: QueryRequest): Promise<Found<any>> {
+  switch (request.type) {
+    case 'orders':
+      return await database.order.find(request.filter, pageOf(request))
+    case 'tags': {
+      const tags = await database.ddo.tags(assetConditions(request.filter), request.size)
+      return { results: tags, totalResults: tags.length }
+    }
+    default:
+      return await database.ddo.find(
+        assetConditions(request.filter),
+        sortOf(request.sort),
+        pageOf(request)
+      )
   }
-  refuseLookups(query)
-}
-
-// lookups: `terms` lookup, `more_like_this` with `_index`, `indexed_shape`, `percolate`
-function refuseLookups(value: unknown): void {
-  if (value === null || typeof value !== 'object') return
-  const keys = Object.keys(value)
-  const namesIndex = keys.includes('index') || keys.includes('_index')
-  const namesDocument = keys.includes('id') || keys.includes('_id')
-  // a field named "wrapper" has a value, the wrapper query an object
-  const isWrapper = typeof (value as any).wrapper === 'object'
-  if ((namesIndex && namesDocument) || isWrapper) {
-    throw new QueryError(OTHER_INDEX_ERROR)
-  }
-  Object.values(value).forEach(refuseLookups)
-}
-
-// The `index` field of a query selects the store: the orders, or the DDOs of one schema.
-// All other values search all DDOs, so a query cannot read another store. The answer is
-// one array of documents for each group that has hits.
-async function searchStore(
-  database: Database,
-  { index, ...query }: Record<string, any>
-): Promise<any[]> {
-  const { size, offset } = queryPage(query)
-  if (offset + size > MAX_RESULT_WINDOW) {
-    throw new QueryError(`A query reads the first ${MAX_RESULT_WINDOW} documents at most`)
-  }
-  refuseOtherIndexReads(query)
-  if (index === ORDER_INDEX) {
-    const orders = await database.order.search(query)
-    return orders?.length > 0 ? [orders] : []
-  }
-  const isDdoSchema = database.ddo.getSchemas().some((schema) => schema.index === index)
-  return (await database.ddo.search(isDdoSchema ? { index, ...query } : query)) || []
 }
 
 export class QueryHandler extends CommandHandler {
@@ -73,6 +48,7 @@ export class QueryHandler extends CommandHandler {
       return validationResponse
     }
     try {
+      const request = parseQueryRequest(task.query)
       const database = await this.getOceanNode().getDatabase()
       if (!database || !database.ddo) {
         CORE_LOGGER.debug('DDO database is not available')
@@ -81,7 +57,7 @@ export class QueryHandler extends CommandHandler {
           status: { httpStatus: 503, error: 'DDO database is not available' }
         }
       }
-      const result = await searchStore(database, task.query)
+      const result = await runQuery(database, request)
       return {
         stream: Readable.from(JSON.stringify(result)),
         status: { httpStatus: 200 }
@@ -99,6 +75,7 @@ export class QueryHandler extends CommandHandler {
   }
 }
 
+// `query` is the key of the state: { did }, { nft } or { txId }
 export class QueryDdoStateHandler extends QueryHandler {
   async handle(task: QueryCommand): Promise<P2PCommandResponse> {
     const validation = this.validate(task)
@@ -115,7 +92,7 @@ export class QueryDdoStateHandler extends QueryHandler {
         }
       }
 
-      const result = await database.ddoState.search(task.query)
+      const result = await database.ddoState.find(task.query as DdoStateKey)
 
       CORE_LOGGER.debug(`DDO State search result: ${safeStringify(result)}`)
 
@@ -132,9 +109,6 @@ export class QueryDdoStateHandler extends QueryHandler {
         status: { httpStatus: 200 }
       }
     } catch (error) {
-      if (error instanceof QueryError) {
-        return { stream: null, status: { httpStatus: 400, error: error.message } }
-      }
       CORE_LOGGER.error(`Error in QueryDdoStateHandler: ${error.message}`)
       return {
         stream: null,

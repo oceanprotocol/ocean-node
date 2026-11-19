@@ -8,9 +8,17 @@ import {
   AbstractLogDatabase,
   AbstractNonceDatabase,
   AbstractOrderDatabase,
+  Condition,
+  DdoStateKey,
+  Found,
   MAX_RESULT_WINDOW,
-  queryPage
+  OrderOwner,
+  Page,
+  SortSpec,
+  TagCount
 } from './BaseDatabase.js'
+import { DDO_FIELDS } from './assetQuery.js'
+import { esQuery, esSort, totalOf } from './esConditions.js'
 import { AccessListUser } from '../../@types/AccessList.js'
 import { EscrowEvent } from '../../@types/Escrow.js'
 import { buildElasticQuery, escrowPage } from './escrowSearch.js'
@@ -282,21 +290,19 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
     }
   }
 
-  async search(query: Record<string, any>) {
+  // ten states at most, as the SQL store gives
+  async find(key: DdoStateKey) {
     try {
       const client = await this.client()
       const result = await client.search({
         index: this.index,
-        body: {
-          query
-        }
+        query: { term: key as Record<string, string> },
+        size: 10
       })
-      return result.hits.hits.map((hit: any) => {
-        return normalizeDocumentId(hit._source, hit._id)
-      })
+      return result.hits.hits.map((hit: any) => normalizeDocumentId(hit._source, hit._id))
     } catch (error) {
       DATABASE_LOGGER.error(
-        `Error when searching ddo state (query ${safeStringify(query, { maxLength: 200 })}): ${error.message}`
+        `Error when searching ddo state (${safeStringify(key)}): ${error.message}`
       )
       return null
     }
@@ -374,22 +380,23 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
     return createElasticsearchClientWithRetry(this.config)
   }
 
-  async search(query: Record<string, any>) {
-    try {
-      const client = await this.client()
-      const { size, offset } = queryPage(query)
-      const result = await client.search({
-        index: this.index,
-        body: { ...query, from: offset, size }
-      })
-      return result.hits.hits.map((hit: any) => {
-        return normalizeDocumentId(hit._source, hit._id)
-      })
-    } catch (error) {
-      DATABASE_LOGGER.error(
-        `Error when searching orders (query ${safeStringify(query, { maxLength: 200 })}): ${error.message}`
-      )
-      return null
+  // the newest orders first
+  async find(owner: OrderOwner, page: Page): Promise<Found> {
+    const [field, value] = Object.entries(owner)[0]
+    const client = await this.client()
+    const result = await client.search({
+      index: this.index,
+      query: esQuery([{ paths: [field], anyOf: [value] }]),
+      sort: [{ timestamp: { order: 'desc' } }],
+      track_total_hits: true,
+      from: page.offset,
+      size: page.limit
+    })
+    return {
+      results: result.hits.hits.map((hit: any) =>
+        normalizeDocumentId(hit._source, hit._id)
+      ),
+      totalResults: totalOf(result.hits.total)
     }
   }
 
@@ -641,31 +648,55 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     }
   }
 
-  // `index` selects the DDOs of one schema. All other values search all DDOs: the search
-  // never reads an index that is not a DDO index.
-  async search({ index, ...query }: Record<string, any>): Promise<any> {
-    const results = []
-    const { size, offset } = queryPage(query)
-    const named = this.getSchemas().filter((schema) => schema.index === index)
-    for (const schema of named.length > 0 ? named : this.getSchemas()) {
-      try {
-        const client = await this.client()
-        const response = await client.search({
-          index: schema.index,
-          body: { ...query, from: offset, size }
-        })
-        if (response.hits?.hits.length > 0) {
-          results.push(
-            response.hits.hits.map((hit: any) =>
-              normalizeDocumentId(hit._source, hit._id)
-            )
-          )
-        }
-      } catch (error) {
-        DATABASE_LOGGER.error(`Error for schema ${schema.index}: ${error.message}`)
+  // the DDO indices of all versions
+  private indices(): string[] {
+    return this.getSchemas().map((schema) => schema.index)
+  }
+
+  // One search over all DDO indices, so the sort, the page and the total cover all
+  // versions. It reads DDO indices only.
+  async find(conditions: Condition[], sort: SortSpec[], page: Page): Promise<Found> {
+    const client = await this.client()
+    const result = await client.search({
+      index: this.indices(),
+      ignore_unavailable: true,
+      query: esQuery(conditions),
+      sort: esSort(sort, 'id'),
+      track_total_hits: true,
+      from: page.offset,
+      size: page.limit
+    })
+    return {
+      results: result.hits.hits.map((hit: any) =>
+        normalizeDocumentId(hit._source, hit._id)
+      ),
+      totalResults: totalOf(result.hits.total)
+    }
+  }
+
+  // one terms aggregation for each place of the tags (v4 and v5), added together
+  async tags(conditions: Condition[], limit: number): Promise<TagCount[]> {
+    const client = await this.client()
+    const aggs = Object.fromEntries(
+      DDO_FIELDS.tags.map((field, i) => [`tags${i}`, { terms: { field, size: limit } }])
+    )
+    const result = await client.search({
+      index: this.indices(),
+      ignore_unavailable: true,
+      query: esQuery(conditions),
+      size: 0,
+      aggs
+    })
+    const counts = new Map<string, number>()
+    for (const agg of Object.values(result.aggregations ?? {}) as any[]) {
+      for (const bucket of agg.buckets ?? []) {
+        counts.set(bucket.key, (counts.get(bucket.key) ?? 0) + bucket.doc_count)
       }
     }
-    return results
+    return [...counts]
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count || (a.tag < b.tag ? -1 : 1))
+      .slice(0, limit)
   }
 
   async create(ddo: Record<string, any>): Promise<any> {
@@ -788,7 +819,11 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     let numDeleted = 0
     for (const schema of this.getSchemas()) {
       try {
-        numDeleted += await deleteMatching(client, schema.index, { term: { chainId } })
+        numDeleted += await deleteMatching(
+          client,
+          schema.index,
+          esQuery([{ paths: DDO_FIELDS.chainId, anyOf: [chainId] }])
+        )
       } catch (error) {
         if (!isStatus(error, 404)) throw error
       }

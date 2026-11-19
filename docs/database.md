@@ -4,11 +4,11 @@ Ocean Node keeps all its data in one database. You must select the database with
 a node with no `DB_TYPE` does not start. The node does not get the type from `DB_URL`, and it
 does not check the URL: the driver of `DB_TYPE` connects to it as given.
 
-| `DB_TYPE`       | When to use it                                                                                    | What the node needs                                |
-| --------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `sqlite`        | One node instance. No database container.                                                         | Nothing. The files are in the `databases/` folder. |
-| `postgresql`    | Several node instances on one database.                                                           | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`             |
-| `elasticsearch` | Several node instances, a large catalogue, or the full Elasticsearch query syntax for DDO search. | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`             |
+| `DB_TYPE`       | When to use it                                | What the node needs                                |
+| --------------- | --------------------------------------------- | -------------------------------------------------- |
+| `sqlite`        | One node instance. No database container.     | Nothing. The files are in the `databases/` folder. |
+| `postgresql`    | Several node instances on one database.       | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`             |
+| `elasticsearch` | Several node instances, or a large catalogue. | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`             |
 
 There is no mode that runs without a database. The node tries to open its database a few
 times at start (`DB_INIT_MAX_ATTEMPTS`), then stops.
@@ -91,50 +91,74 @@ script: the script makes a new password, and the old volume keeps the old one.
 Frontends read DDOs through the node: the `query` command and
 `POST /api/aquarius/assets/metadata/query`.
 
-## DDO queries
+## DDO search
 
-The query of the node is the Elasticsearch query body (`query`, `sort`, `from`, `size`) on all
-databases. `from` is a page number that starts at 1, and `size` is 100 when absent. The answer
-is one array of documents for each DDO schema that has hits.
+The query of the node is the same on all databases: a JSON object with a type, typed
+filters, a sort key and a page. It has the searches that the markets use, and nothing more.
+Each database runs it with its own fixed queries: there is no Elasticsearch query syntax, and
+an Elasticsearch body (with `query`, `from` or `index`) gives HTTP 400.
 
-The `index` field selects what the query reads:
+```json
+{
+  "type": "assets",
+  "filter": { "chainIds": [8996], "types": ["dataset"], "text": "weather" },
+  "sort": { "by": "created", "order": "desc" },
+  "page": 1,
+  "size": 21
+}
+```
 
-- `order`: the orders.
-- the name of a DDO schema (for example `op_ddo_v4.1.0`): the DDOs of that schema.
-- all other values, or no `index`: all DDOs.
+The answer is `{ "results": [...], "totalResults": 42 }`: one list for the DDOs of all
+versions (v4 and v5), sorted and paged over all of them.
 
-A query cannot read the other data of the node.
+| Field    | Value                                                                                                                                     |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `type`   | `assets` (the default), `orders` or `tags`                                                                                                |
+| `filter` | The filters below. With `orders`: `{ "consumer": "0x…" }` or `{ "payer": "0x…" }`                                                         |
+| `sort`   | `assets` only. `by`: `created` (the event block), `orders`, `price`, `tokenSymbol` or `relevance`; `order`: `asc` or `desc` (the default) |
+| `page`   | Starts at 1. `page` × `size` is 10000 at most                                                                                             |
+| `size`   | 0 to 10000, 100 when absent. With `tags`: the largest number of tags                                                                      |
 
-Elasticsearch runs the full query syntax. SQLite and PostgreSQL run this part of it:
+The asset filters. A filter that is not set adds no condition; all filters that are set must
+hold. Each filter covers the field of a DDO v4 and of a DDO v5 (`credentialSubject.…`).
 
-| Part                    | Support                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bool`                  | `must`, `filter`, `should`, `must_not`, nested. `minimum_should_match` can be `0` or `1`.                                                                                                                                                                                                                                                                                                                                                     |
-| `term`, `terms`         | Equal to the value, or to one of the values.                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `match`, `match_phrase` | The value contains the text.                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `range`                 | `gt`, `gte`, `lt`, `lte`. A number, or a text that holds a number (a price `"10"`), is compared as a number; other text (an ISO date) as text. A date is not rounded: `lte: "2022-06-10"` does not include the times of that day, and a time-zone offset is not converted.                                                                                                                                                                    |
-| `exists`, `match_all`   | Yes.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `query_string`          | Simplified: the words of the text, with `AND` or `OR` between them (`default_operator`), in the fields of `fields`. A word matches when a value contains it. Wildcards, quotes, parentheses, boosts, `minimum_should_match` and `phrase_slop` are not evaluated. The other operators (`NOT`, `+word`, `-word`, `field:word`, `word~`, `?`) give HTTP 400 when they are not escaped with a backslash, and so does a `*` in a name of `fields`. |
-| `sort`                  | One to eight fields, `asc` or `desc`. A text that holds a number sorts as a number. `_score` gives no order: there is no relevance. Other sort options (`missing`, `mode`) give HTTP 400.                                                                                                                                                                                                                                                     |
-| `aggs`                  | Accepted and not evaluated. The answer of the node holds documents only, on all databases.                                                                                                                                                                                                                                                                                                                                                    |
+| Filter                                 | Matches                                                                          |
+| -------------------------------------- | -------------------------------------------------------------------------------- |
+| `chainIds`                             | `chainId` is one of the values                                                   |
+| `ids`, `excludeIds`                    | the DID is (is not) one of the values                                            |
+| `excludeNftAddresses`                  | `nftAddress` is not one of the values                                            |
+| `owners`                               | `indexedMetadata.nft.owner` is one of the values                                 |
+| `anyOf: { ids, owners }`               | the DID is one of `ids`, or the owner is one of `owners`                         |
+| `types`                                | `metadata.type`: `dataset`, `algorithm`                                          |
+| `serviceTypes`                         | a service has the type: `access`, `compute`                                      |
+| `datatokenAddresses`                   | a service has one of the datatokens                                              |
+| `tags`                                 | `metadata.tags` has one of the values                                            |
+| `text`                                 | each word is in the name, description, author, tags, or datatoken name or symbol |
+| `nftStates`                            | `indexedMetadata.nft.state` is one of the values. Not set: all states but 5      |
+| `includePurgatory`                     | `true` also gives the assets in purgatory. Not set: they are hidden              |
+| `priceTypes`, `excludePriceTypes`      | `indexedMetadata.stats.prices.type` is (is not) one of the values                |
+| `createdAfter`                         | `metadata.created` is at or after the ISO date                                   |
+| `serviceEndpoints`                     | a service has one of the endpoints                                               |
+| `dataspace`                            | `credentialSubject.dataspace` is the value                                       |
+| `trustedAlgorithm: { did, serviceId }` | a compute service trusts the algorithm (`"*"`: all algorithms)                   |
+| `trustedAlgorithmPublisher`            | a compute service trusts the publisher (`"*"`: all publishers)                   |
+| `indexedOnly`                          | the DDO has `indexedMetadata`                                                    |
 
-On these two databases:
+`type: "tags"` answers the distinct tags of the assets that match the filter, the most used
+first: `{ "results": [{ "tag": "weather", "count": 2 }], "totalResults": 1 }`.
 
-- Text comparison ignores the letter case. Text is compared and sorted by its bytes, so the
-  order is the same on SQLite and PostgreSQL.
-- `match` looks for the text as one piece: `weather ocean` does not find `ocean weather`.
-- A `.keyword` suffix on a field name has no effect, and `_id` is the `id` field.
-- A field in an array (`services.type`) matches when one element matches.
-- A value longer than 512 characters is searchable by its first 512 characters.
-- All other clauses and options (`wildcard`, `nested`, `script`, a terms lookup, `operator`
-  in `match`, ...) give HTTP 400 with `Query clause '<name>' is not supported on the <DB_TYPE>
-database`. The node never ignores a clause or an option.
-- A query has limits: 1024 conditions (each value of `terms` and each word of `query_string`
-  is one), 20 levels of `bool`, and one field for each leaf clause. A query over a limit, or
-  with a part of a wrong type, gives HTTP 400.
+An address (owner, datatoken, NFT, consumer, payer) matches in any letter case. The databases
+differ in these points:
 
-On all databases, `size` and `from` must be whole numbers, 0 or more, and the `query` command
-reads the first 10000 documents at most.
+- `text`: on SQLite and PostgreSQL a word matches when a value contains it; on Elasticsearch
+  it matches a word of a value, or the start of one.
+- `relevance` sorts by the text score on Elasticsearch; SQLite and PostgreSQL have no score
+  and give the newest first.
+- `price` is stored as text: SQLite and PostgreSQL sort it as a number, Elasticsearch as text.
+- The tags of a `tags` answer are in lower case on SQLite and PostgreSQL. Their comparisons
+  ignore the letter case; on Elasticsearch a tag, a type and an id must match exactly.
+- A value longer than 512 characters is searchable by its first 512 characters on SQLite and
+  PostgreSQL.
 
 ## Upgrade from an older release, and a change of database
 
@@ -153,12 +177,18 @@ server, and it does not move between databases. You have two choices:
   accepted before can be accepted again, and the paid jobs in the SQLite files are not
   claimed.
 
-A node that used Elasticsearch in an older release keeps its Elasticsearch, but three indices
-changed: `logs` is now `log`, `state` is now `ddo_state`, and `access_list` keeps `chainId`
-as a `long`. The node does not change an index that exists. Before the first start, delete
-the indices `logs`, `state` and `access_list`. The node state of the older release is in
-SQLite, so the node settings on Elasticsearch hold no index version: at the first start the
-node indexes all chains again, and makes `ddo_state` and `access_list` again.
+A node that used Elasticsearch in an older release keeps its Elasticsearch, but four indices
+changed: `logs` is now `log`, `state` is now `ddo_state`, `access_list` keeps `chainId` as a
+`long`, and `op_ddo_v5.0.0` indexes the trusted algorithms of a compute service (the DDO
+search filters on them). The node does not change an index that exists. Before the first
+start, delete the indices `logs`, `state`, `access_list` and `op_ddo_v5.0.0`. The node state
+of the older release is in SQLite, so the node settings on Elasticsearch hold no index
+version: at the first start the node indexes all chains again, and makes these indices
+again.
+
+The DDO search of the older releases took an Elasticsearch query body. It now takes the
+query of the "DDO search" section on all databases, and answers `{ results, totalResults }`:
+a client that sends an Elasticsearch body gets HTTP 400.
 
 A compose file of an older release can have a `DB_URL` for Typesense, which the node no longer
 supports. Remove the `DB_URL` line and the Typesense service, and set `DB_TYPE=sqlite`: the

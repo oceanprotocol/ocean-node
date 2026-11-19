@@ -8,32 +8,60 @@ export interface DdoSchema {
   index: string
 }
 
-// The query of the node is the Elasticsearch query: `query`, `sort`, `from`, `size`.
 // A query that the node cannot run: the caller gets the message (HTTP 400).
 export class QueryError extends Error {}
-
-// A backend that cannot run a clause of a query throws this; it never ignores the clause.
-export class UnsupportedQueryError extends QueryError {
-  constructor(clause: string, dbType: string) {
-    super(`Query clause '${clause}' is not supported on the ${dbType} database`)
-  }
-}
 
 export const DEFAULT_PAGE_SIZE = 100
 // the last document that one search can reach, as on Elasticsearch (its default window)
 export const MAX_RESULT_WINDOW = 10000
 
-// `from` of a node query is a page number that starts at 1, not a document offset
-export function queryPage(query: Record<string, any>): { size: number; offset: number } {
-  for (const key of ['size', 'from']) {
-    const value = query[key]
-    if (value !== undefined && !(Number.isInteger(value) && value >= 0)) {
-      throw new QueryError(`'${key}' of a query must be a whole number, 0 or more`)
-    }
-  }
-  const size = query.size ?? DEFAULT_PAGE_SIZE
-  return { size, offset: (query.from || 1) * size - size }
+export type Scalar = string | number | boolean
+
+// A condition on a stored document. `paths` are the places of one field, one for each
+// document version (a DDO v4 path and its v5 `credentialSubject.` path); the condition
+// holds when one of them holds. Each backend writes its own fixed query for each kind.
+export type Condition =
+  // a value of the field is one of these
+  | { paths: string[]; anyOf: Scalar[] }
+  // no value of the field is one of these (a document without the field passes)
+  | { paths: string[]; noneOf: Scalar[] }
+  // a value of the field is in the range
+  | { paths: string[]; range: { gt?: Scalar; gte?: Scalar; lt?: Scalar; lte?: Scalar } }
+  // the field, or an object with fields below it, is in the document
+  | { paths: string[]; exists: true }
+  // each word is in a value of one of the fields
+  | { paths: string[]; words: string[] }
+  // one of these conditions holds
+  | { either: Condition[] }
+
+export interface SortSpec {
+  paths: string[]
+  order: 'asc' | 'desc'
+  // a backend with a text score sorts by it; the others sort by `paths`
+  relevance?: boolean
 }
+
+// `offset` counts documents
+export interface Page {
+  offset: number
+  limit: number
+}
+
+export interface Found<T = Record<string, any>> {
+  results: T[]
+  totalResults: number
+}
+
+export interface TagCount {
+  tag: string
+  count: number
+}
+
+// one of the three keys of a DDO state
+export type DdoStateKey = { did: string } | { nft: string } | { txId: string }
+
+// the orders of one account
+export type OrderOwner = { consumer: string } | { payer: string }
 
 export abstract class AbstractDatabase {
   protected config: OceanNodeDBConfig
@@ -118,7 +146,8 @@ export abstract class AbstractDdoStateDatabase extends AbstractDatabase {
 
   abstract retrieve(did: string): Promise<Record<string, any> | null>
 
-  abstract search(query: Record<string, any>): Promise<any>
+  // ten states at most; null on a database error
+  abstract find(key: DdoStateKey): Promise<Record<string, any>[] | null>
 
   abstract update(
     chainId: number,
@@ -133,8 +162,8 @@ export abstract class AbstractDdoStateDatabase extends AbstractDatabase {
 }
 
 export abstract class AbstractOrderDatabase extends AbstractDatabase {
-  // takes a node query, as the DDO store does; null on a database error
-  abstract search(query: Record<string, any>): Promise<Record<string, any>[] | null>
+  // the newest orders first
+  abstract find(owner: OrderOwner, page: Page): Promise<Found>
 
   abstract create(
     orderId: string,
@@ -180,8 +209,11 @@ export abstract class AbstractEscrowDatabase extends AbstractDatabase {
 export abstract class AbstractDdoDatabase extends AbstractDatabase {
   abstract getSchemas(): DdoSchema[]
 
-  // `from` and `size` of the query select the page
-  abstract search(query: Record<string, any>): Promise<any>
+  // the DDOs of all versions, sorted by `sort` and then by id
+  abstract find(conditions: Condition[], sort: SortSpec[], page: Page): Promise<Found>
+
+  // the distinct tags of the DDOs that match, the most used first
+  abstract tags(conditions: Condition[], limit: number): Promise<TagCount[]>
 
   abstract create(ddo: Record<string, any>): Promise<any>
 

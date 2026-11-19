@@ -188,8 +188,9 @@ With no `DB_TYPE` the node does not start: it does not get the type from `DB_URL
 state does not move between databases: a node that changes to a database server starts with
 empty node state. See "Upgrade" in the [Database guide](docs/database.md).
 
-DDO search works on all three. Elasticsearch runs the full query syntax; SQLite and PostgreSQL
-run a documented part of it and answer HTTP 400 for the rest.
+DDO search is the same on all three: a typed query (filters, sort key, page) that each
+database runs with its own fixed queries. See "DDO search" in the
+[Database guide](docs/database.md#ddo-search).
 
 There is no DEGRADED mode: if the database cannot be opened when the node starts (after the
 init retries), the node logs `Database failed to initialize, exiting` and exits with code 1.

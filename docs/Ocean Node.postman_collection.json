@@ -147,7 +147,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"query\": {\n    \"match_all\": {}\n  },\n  \"from\": 0,\n  \"size\": 10\n}"
+							"raw": "{\n  \"filter\": { \"chainIds\": [8996] },\n  \"page\": 1,\n  \"size\": 10\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/aquarius/assets/metadata/query",
@@ -2326,7 +2326,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"command\": \"query\",\n  \"query\": { \"query\": { \"match_all\": {} }, \"from\": 0, \"size\": 10 }\n}"
+							"raw": "{\n  \"command\": \"query\",\n  \"query\": { \"filter\": { \"chainIds\": [8996] }, \"page\": 1, \"size\": 10 }\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/directCommand",

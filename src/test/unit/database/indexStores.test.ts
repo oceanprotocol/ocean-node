@@ -2,7 +2,6 @@ import { expect } from 'chai'
 import { createHash } from 'node:crypto'
 import { getAddress } from 'ethers'
 import type { EscrowEvent } from '../../../@types/Escrow.js'
-import { UnsupportedQueryError } from '../../../components/database/BaseDatabase.js'
 import type { SqlClient } from '../../../components/database/sql/SqlClient.js'
 import { SQL_DB_CONFIG, makeSqlClient } from '../../utils/sqlClient.js'
 import {
@@ -10,6 +9,7 @@ import {
   buildSqlIndexStores
 } from '../../../components/database/sql/SqlStores.js'
 import { DDOExample, ddov5 as ddov5Example } from '../../data/ddo.js'
+import type { Condition, SortSpec } from '../../../components/database/BaseDatabase.js'
 
 // The contract of the index stores on a SQL database. Each test gets a new, empty database.
 const CONTRACT = '0xAbC0000000000000000000000000000000000001'
@@ -85,15 +85,11 @@ describe('SQL index stores', () => {
         error: ' '
       })
       expect((await stores.ddoState.retrieve('did:op:1')).did).to.equal('did:op:1')
-      for (const query of [
-        { term: { did: 'did:op:1' } },
-        { term: { nft: '0xNft' } },
-        { term: { txId: '0xTx' } }
-      ]) {
-        const found = await stores.ddoState.search(query)
+      for (const key of [{ did: 'did:op:1' }, { nft: '0xNft' }, { txId: '0xTx' }]) {
+        const found = await stores.ddoState.find(key)
         expect(found.map((state: any) => state.id)).to.deep.equal(['did:op:1'])
       }
-      expect(await stores.ddoState.search({ term: { did: 'none' } })).to.deep.equal([])
+      expect(await stores.ddoState.find({ did: 'none' })).to.deep.equal([])
     })
 
     it('an update replaces the state, and creates it when absent', async () => {
@@ -103,14 +99,6 @@ describe('SQL index stores', () => {
       expect(state.error).to.equal('bad ddo')
       expect(await stores.ddoState.delete('did:op:1')).to.deep.equal({ id: 'did:op:1' })
       expect(await stores.ddoState.retrieve('did:op:1')).to.equal(null)
-    })
-
-    it('throws for a query clause that SQL cannot run', async () => {
-      let error: Error
-      await stores.ddoState.search({ wildcard: { did: 'did*' } }).catch((err: Error) => {
-        error = err
-      })
-      expect(error).to.be.instanceOf(UnsupportedQueryError)
     })
   })
 
@@ -154,16 +142,20 @@ describe('SQL index stores', () => {
       expect(order.did).to.equal('did:op:1')
     })
 
-    it('runs a node query, as the market sends it for the orders of a user', async () => {
+    it('finds the orders of a consumer or a payer, the newest first', async () => {
       await create('0xorder1', '0xConsumer', 100)
       await create('0xorder2', '0xOther', 200)
       await create('0xorder3', '0xConsumer', 300)
-      const orders = await stores.order.search({
-        query: { bool: { filter: [{ term: { 'consumer.keyword': '0xConsumer' } }] } },
-        sort: { timestamp: 'desc' },
-        size: 1000
-      })
-      expect(orders.map((order) => order.orderId)).to.deep.equal(['0xorder3', '0xorder1'])
+      const all = { offset: 0, limit: 10 }
+      const found = await stores.order.find({ consumer: '0xconsumer' }, all)
+      expect(found.results.map((order) => order.orderId)).to.deep.equal([
+        '0xorder3',
+        '0xorder1'
+      ])
+      expect(found.totalResults).to.equal(2)
+      const page = await stores.order.find({ payer: '0xPayer' }, { offset: 1, limit: 1 })
+      expect(page.results.map((order) => order.orderId)).to.deep.equal(['0xorder2'])
+      expect(page.totalResults).to.equal(3)
     })
 
     it('deletes an order; null when there is none', async () => {
@@ -376,8 +368,10 @@ describe('SQL index stores', () => {
 
   describe('ddo', () => {
     const copy = (ddo: Record<string, any>) => structuredClone(ddo)
-    const firstPage = async (query: Record<string, any>) =>
-      ((await stores.ddo.search(query))[0] ?? []).map((ddo: any) => ddo.id)
+    const all = { offset: 0, limit: 10 }
+    const byId: SortSpec[] = [{ paths: ['id'], order: 'asc' }]
+    const found = async (conditions: Condition[] = []) =>
+      (await stores.ddo.find(conditions, byId, all)).results.map((ddo: any) => ddo.id)
 
     beforeEach(async () => {
       await stores.ddo.create(copy(DDOExample))
@@ -400,63 +394,40 @@ describe('SQL index stores', () => {
       )
     })
 
-    it('gives the search result as one array of DDOs, or no array', async () => {
-      const result = await stores.ddo.search({ query: { match_all: {} } })
-      expect(result).to.have.length(1)
-      expect(result[0]).to.have.length(2)
-      expect(await stores.ddo.search({ query: { term: { chainId: 1 } } })).to.deep.equal(
-        []
-      )
+    it('finds the DDOs of all versions, with a page and the total', async () => {
+      expect(await found()).to.deep.equal([DDOExample.id, ddov5.id].sort())
+      expect(await found([{ paths: ['chainId'], anyOf: [1] }])).to.deep.equal([])
+      const page = await stores.ddo.find([], byId, { offset: 1, limit: 1 })
+      expect(page.results).to.have.length(1)
+      expect(page.totalResults).to.equal(2)
     })
 
-    it('`index` selects the DDOs of one schema', async () => {
-      const all = { query: { match_all: {} } }
-      expect(await firstPage({ ...all, index: 'op_ddo_v4.1.0' })).to.deep.equal([
-        DDOExample.id
+    it('gives the distinct tags of the DDOs that match', async () => {
+      expect(await stores.ddo.tags([], 10)).to.deep.equal([
+        { tag: 'defi', count: 1 },
+        { tag: 'index', count: 1 },
+        { tag: 'tvl', count: 1 },
+        { tag: 'white-papers', count: 1 }
       ])
-      expect(await firstPage({ ...all, index: 'op_ddo_v4.5.0' })).to.deep.equal([
-        ddov5.id
-      ])
-      expect(await firstPage({ ...all, index: 'op_ddo_short' })).to.deep.equal([])
+      expect(
+        await stores.ddo.tags([{ paths: ['chainId'], anyOf: [V5_CHAIN] }], 10)
+      ).to.deep.equal([{ tag: 'white-papers', count: 1 }])
     })
 
-    it('`from` is a page number that starts at 1', async () => {
-      const page = (from?: number) =>
-        firstPage({ query: { match_all: {} }, sort: { id: 'asc' }, size: 1, from })
-      const sortedIds = [DDOExample.id, ddov5.id].sort()
-      expect(await page()).to.deep.equal([sortedIds[0]])
-      expect(await page(1)).to.deep.equal([sortedIds[0]])
-      expect(await page(2)).to.deep.equal([sortedIds[1]])
-    })
-
-    it('accepts aggs, and refuses a part of the query that it does not know', async () => {
-      const aggs = { tags: { terms: { field: 'metadata.tags.keyword' } } }
-      expect(await firstPage({ query: { match_all: {} }, aggs })).to.have.length(2)
-      let error: Error
-      await stores.ddo.search({ q: '*' }).catch((err: Error) => {
-        error = err
-      })
-      expect(error).to.be.instanceOf(UnsupportedQueryError)
-      expect(error.message).to.contain("'q'")
-    })
-
-    it('an update replaces the DDO, and a state change moves it to the short schema', async () => {
+    it('an update replaces the DDO', async () => {
       const deprecated = copy(DDOExample)
       deprecated.indexedMetadata = { ...deprecated.indexedMetadata }
       deprecated.indexedMetadata.nft = { ...deprecated.indexedMetadata?.nft, state: 5 }
       await stores.ddo.update(deprecated)
-      const all = { query: { match_all: {} } }
-      expect(await firstPage({ ...all, index: 'op_ddo_short' })).to.deep.equal([
-        DDOExample.id
-      ])
-      expect(await firstPage({ ...all, index: 'op_ddo_v4.1.0' })).to.deep.equal([])
+      const state = [{ paths: ['indexedMetadata.nft.state'], anyOf: [5] }]
+      expect(await found(state)).to.deep.equal([DDOExample.id])
     })
 
-    it('deletes one DDO, and all the DDOs of a chain', async () => {
+    it('deletes one DDO, and all the DDOs of a chain (v4 and v5 chain fields)', async () => {
       expect(await stores.ddo.delete(ddov5.id)).to.deep.equal({ id: ddov5.id })
       expect(await stores.ddo.delete(ddov5.id)).to.equal(undefined)
       expect(await stores.ddo.deleteAllAssetsFromChain(DDOExample.chainId)).to.equal(1)
-      expect(await stores.ddo.search({ query: { match_all: {} } })).to.deep.equal([])
+      expect(await found()).to.deep.equal([])
     })
   })
 })

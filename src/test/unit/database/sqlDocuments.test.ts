@@ -1,16 +1,13 @@
 import { expect } from 'chai'
 import type { SqlClient } from '../../../components/database/sql/SqlClient.js'
-import { SQL_DB_TYPE, makeSqlClient } from '../../utils/sqlClient.js'
+import { makeSqlClient } from '../../utils/sqlClient.js'
 import {
   SqlDocuments,
   flattenDocument
 } from '../../../components/database/sql/SqlDocuments.js'
-import {
-  QueryError,
-  UnsupportedQueryError
-} from '../../../components/database/BaseDatabase.js'
+import type { Condition, SortSpec } from '../../../components/database/BaseDatabase.js'
 
-// The query of the node (the Elasticsearch format) on a SQL document table.
+// Conditions, sort and paging on a SQL document table.
 
 const WEATHER = {
   id: 'did:op:weather',
@@ -41,7 +38,7 @@ const CLASSIFIER = {
   metadata: {
     name: 'Image Classifier',
     type: 'algorithm',
-    tags: ['ml'],
+    tags: ['ml', 'weather'],
     created: '2026-02-10T00:00:00Z'
   },
   services: [{ type: 'access', datatokenAddress: '0xD3' }],
@@ -70,6 +67,8 @@ const ARCHIVE = {
   }
 }
 
+const ALL = { offset: 0, limit: 100 }
+
 describe('flattenDocument', () => {
   it('gives one row per leaf value, with no array index in the path', () => {
     const rows = flattenDocument({ a: { b: 'X' }, list: [{ n: 1 }, { n: 2.5 }], t: true })
@@ -92,19 +91,19 @@ describe('SQL documents', () => {
   let db: SqlClient
   let documents: SqlDocuments
 
-  const ids = async (query: Record<string, any>, sort?: any) =>
-    (await documents.search({ query, sort }, 100, 0)).map((doc) => doc.id)
-  const sorted = async (query: Record<string, any>) => (await ids(query)).sort()
+  const ids = async (conditions: Condition[], sort: SortSpec[] = []) =>
+    (await documents.find(conditions, sort, ALL)).results.map((doc) => doc.id)
+  const sorted = async (conditions: Condition[]) => (await ids(conditions)).sort()
   const count = async () =>
     Number((await db.get('SELECT COUNT(*) AS "count" FROM ddo')).count)
 
   beforeEach(async () => {
     db = await makeSqlClient()
-    documents = new SqlDocuments(db, 'ddo', SQL_DB_TYPE)
+    documents = new SqlDocuments(db, 'ddo')
     await documents.init()
-    await documents.put(WEATHER.id, WEATHER, { _schema: 'op_ddo_v4.1.0' })
-    await documents.put(CLASSIFIER.id, CLASSIFIER, { _schema: 'op_ddo_v4.1.0' })
-    await documents.put(ARCHIVE.id, ARCHIVE, { _schema: 'op_ddo_short' })
+    await documents.put(WEATHER.id, WEATHER)
+    await documents.put(CLASSIFIER.id, CLASSIFIER)
+    await documents.put(ARCHIVE.id, ARCHIVE)
   })
   afterEach(() => db.close())
 
@@ -116,8 +115,12 @@ describe('SQL documents', () => {
 
     it('a second put replaces the document and its old field rows', async () => {
       await documents.put(WEATHER.id, { ...WEATHER, chainId: 1 })
-      expect(await sorted({ term: { chainId: 8996 } })).to.deep.equal([CLASSIFIER.id])
-      expect(await sorted({ term: { chainId: 1 } })).to.deep.equal([WEATHER.id])
+      expect(await sorted([{ paths: ['chainId'], anyOf: [8996] }])).to.deep.equal([
+        CLASSIFIER.id
+      ])
+      expect(await sorted([{ paths: ['chainId'], anyOf: [1] }])).to.deep.equal([
+        WEATHER.id
+      ])
       expect(await count()).to.equal(3)
     })
 
@@ -127,7 +130,9 @@ describe('SQL documents', () => {
         consumer: '0xC',
         id: 'order-1'
       })
-      expect(await ids({ term: { _id: 'order-1' } })).to.deep.equal(['order-1'])
+      expect(await ids([{ paths: ['id'], anyOf: ['order-1'] }])).to.deep.equal([
+        'order-1'
+      ])
     })
 
     it('modify changes a document in one step, and creates it when absent', async () => {
@@ -161,14 +166,18 @@ describe('SQL documents', () => {
       for (const id of ['e1', 'e10', 'e-dup', 'E2']) {
         await documents.put(id, { kind: 'event' })
       }
-      const found = await documents.search({ query: { term: { kind: 'event' } } }, 10, 0)
-      expect(found.map((doc) => doc.id)).to.deep.equal(['E2', 'e-dup', 'e1', 'e10'])
+      expect(await ids([{ paths: ['kind'], anyOf: ['event'] }])).to.deep.equal([
+        'E2',
+        'e-dup',
+        'e1',
+        'e10'
+      ])
     })
 
     it('deletes a document with its field rows', async () => {
       expect(await documents.delete(WEATHER.id)).to.equal(true)
       expect(await documents.delete(WEATHER.id)).to.equal(false)
-      expect(await sorted({ match_all: {} })).to.deep.equal([ARCHIVE.id, CLASSIFIER.id])
+      expect(await sorted([])).to.deep.equal([ARCHIVE.id, CLASSIFIER.id])
       const rows = await db.all('SELECT * FROM ddo_fields WHERE "id" = ?', [WEATHER.id])
       expect(rows).to.deep.equal([])
     })
@@ -179,20 +188,18 @@ describe('SQL documents', () => {
         'k\u0000ey': 'v',
         metadata: { 'k\u0000ey': 'w' }
       })
-      expect(await sorted({ term: { name: 'ab' } })).to.deep.equal(['nul'])
-      expect(await sorted({ term: { 'metadata.key': 'w' } })).to.deep.equal(['nul'])
+      expect(await sorted([{ paths: ['name'], anyOf: ['ab'] }])).to.deep.equal(['nul'])
+      expect(await sorted([{ paths: ['metadata.key'], anyOf: ['w'] }])).to.deep.equal([
+        'nul'
+      ])
       expect((await documents.get('nul')).name).to.equal('a\u0000b')
-    })
-
-    it('a query with size 0 gives no document', async () => {
-      expect(await documents.query({ query: { match_all: {} }, size: 0 })).to.deep.equal(
-        []
-      )
     })
 
     it('deletes many documents with their field rows, more than one statement holds', async () => {
       for (let i = 0; i < 450; i++) await documents.put(`bulk-${i}`, { kind: 'bulk' })
-      expect(await documents.deleteMatching({ term: { kind: 'bulk' } })).to.equal(450)
+      expect(
+        await documents.deleteMatching([{ paths: ['kind'], anyOf: ['bulk'] }])
+      ).to.equal(450)
       expect(await count()).to.equal(3)
       const left = await db.get(
         'SELECT COUNT(*) AS "n" FROM ddo_fields WHERE "id" LIKE ?',
@@ -201,443 +208,157 @@ describe('SQL documents', () => {
       expect(Number(left.n)).to.equal(0)
     })
 
-    it('deletes the documents that match a query', async () => {
-      expect(await documents.deleteMatching({ term: { chainId: 8996 } })).to.equal(2)
-      expect(await sorted({ match_all: {} })).to.deep.equal([ARCHIVE.id])
+    it('deletes the documents that meet the conditions', async () => {
+      expect(
+        await documents.deleteMatching([{ paths: ['chainId'], anyOf: [8996] }])
+      ).to.equal(2)
+      expect(await sorted([])).to.deep.equal([ARCHIVE.id])
     })
   })
 
-  describe('leaf clauses', () => {
-    it('term on a scalar field, on a number and on a boolean', async () => {
-      expect(await sorted({ term: { 'metadata.type': 'algorithm' } })).to.deep.equal([
-        CLASSIFIER.id
-      ])
-      expect(await sorted({ term: { chainId: 137 } })).to.deep.equal([ARCHIVE.id])
+  describe('conditions', () => {
+    it('anyOf: a scalar, a number and a boolean, in any letter case', async () => {
       expect(
-        await sorted({ term: { 'indexedMetadata.purgatory.state': false } })
-      ).to.deep.equal([CLASSIFIER.id, WEATHER.id])
-    })
-
-    it('term on an array field matches when one element matches', async () => {
-      // "compute" is the second service of the document
-      expect(await sorted({ term: { 'services.type': 'compute' } })).to.deep.equal([
-        WEATHER.id
-      ])
-      expect(await sorted({ term: { 'metadata.tags': 'ml' } })).to.deep.equal([
-        CLASSIFIER.id
-      ])
-    })
-
-    it('term ignores the letter case, a .keyword suffix and accepts { value }', async () => {
-      const expected = [ARCHIVE.id, WEATHER.id]
-      expect(
-        await sorted({ term: { 'indexedMetadata.nft.owner': '0xownera' } })
-      ).to.deep.equal(expected)
-      expect(
-        await sorted({ term: { 'indexedMetadata.nft.owner.keyword': '0xOwnerA' } })
-      ).to.deep.equal(expected)
-      expect(
-        await sorted({ term: { 'indexedMetadata.nft.owner': { value: '0xOwnerA' } } })
-      ).to.deep.equal(expected)
-    })
-
-    it('terms matches one of the values; _id is the id', async () => {
-      expect(await sorted({ terms: { chainId: [137, 1] } })).to.deep.equal([ARCHIVE.id])
-      expect(await sorted({ terms: { _id: [WEATHER.id, 'none'] } })).to.deep.equal([
-        WEATHER.id
-      ])
-      expect(await sorted({ terms: { chainId: [] } })).to.deep.equal([])
-    })
-
-    it('match and match_phrase find a text inside a value, in any letter case', async () => {
-      expect(await sorted({ match: { 'metadata.name': 'WEATHER' } })).to.deep.equal([
-        ARCHIVE.id,
-        WEATHER.id
-      ])
-      expect(
-        await sorted({ match_phrase: { 'metadata.name': { query: 'weather data' } } })
-      ).to.deep.equal([WEATHER.id])
-      // % and _ in the text are not wildcards
-      expect(await sorted({ match: { 'metadata.name': '%' } })).to.deep.equal([])
-    })
-
-    it('range compares numbers as numbers and ISO dates as text', async () => {
-      const orders = 'indexedMetadata.stats.orders'
-      expect(await sorted({ range: { [orders]: { gt: 0 } } })).to.deep.equal([
-        CLASSIFIER.id,
-        WEATHER.id
-      ])
-      // as text, '5' is above '12'
-      expect(await sorted({ range: { [orders]: { gte: 6, lte: '12' } } })).to.deep.equal([
-        CLASSIFIER.id
-      ])
-      expect(
-        await sorted({
-          range: { 'metadata.created': { gte: '2026-02-01', lt: '2026-03-01' } }
-        })
-      ).to.deep.equal([CLASSIFIER.id])
-    })
-
-    it('exists finds a leaf field and an object field', async () => {
-      expect(await sorted({ exists: { field: 'metadata.tags' } })).to.deep.equal([
-        CLASSIFIER.id,
-        WEATHER.id
-      ])
-      expect(await sorted({ exists: { field: 'metadata' } })).to.have.length(3)
-      expect(await sorted({ exists: { field: 'none' } })).to.deep.equal([])
-    })
-
-    it('query_string finds words in the listed fields', async () => {
-      const fields = ['metadata.name^10', 'metadata.description', 'metadata.tags']
-      expect(
-        await sorted({ query_string: { query: 'classifier OR temperature', fields } })
-      ).to.deep.equal([CLASSIFIER.id, WEATHER.id])
-      expect(
-        await sorted({
-          query_string: { query: '*weather* archive', fields, default_operator: 'AND' }
-        })
-      ).to.deep.equal([ARCHIVE.id])
-      // escaped characters, as the market sends them
-      expect(
-        await sorted({ query_string: { query: '\\(weath*', fields } })
+        await sorted([{ paths: ['metadata.type'], anyOf: ['DATASET'] }])
       ).to.deep.equal([ARCHIVE.id, WEATHER.id])
-    })
-
-    it('query_string with no word matches all; with no fields it searches all fields', async () => {
-      expect(await sorted({ query_string: { query: '**' } })).to.have.length(3)
-      expect(await sorted({ query_string: { query: '0xd2' } })).to.deep.equal([
-        WEATHER.id
+      expect(await sorted([{ paths: ['chainId'], anyOf: [137] }])).to.deep.equal([
+        ARCHIVE.id
       ])
-    })
-  })
-
-  describe('bool', () => {
-    it('must and filter are both required; must_not excludes', async () => {
       expect(
-        await sorted({
-          bool: {
-            must: [{ term: { 'metadata.type': 'dataset' } }],
-            filter: [{ terms: { chainId: [8996, 137] } }],
-            must_not: [{ term: { 'indexedMetadata.nft.state': 5 } }]
-          }
-        })
+        await sorted([{ paths: ['indexedMetadata.purgatory.state'], anyOf: [true] }])
+      ).to.deep.equal([ARCHIVE.id])
+    })
+
+    it('anyOf: a field in an array matches when one element matches', async () => {
+      expect(
+        await sorted([{ paths: ['services.type'], anyOf: ['compute'] }])
+      ).to.deep.equal([WEATHER.id])
+      expect(
+        await sorted([{ paths: ['metadata.tags'], anyOf: ['climate'] }])
       ).to.deep.equal([WEATHER.id])
     })
 
-    it('accepts one clause in place of an array, and skips null and false entries', async () => {
+    it('anyOf: one of the values, on one of the paths; no value matches nothing', async () => {
       expect(
-        await sorted({
-          bool: {
-            filter: [null, { term: { chainId: 8996 } }, false],
-            must_not: { term: { 'nftAddress.keyword': '0xAAA' } }
-          }
-        })
+        await sorted([{ paths: ['id'], anyOf: [WEATHER.id, ARCHIVE.id, 'did:op:none'] }])
+      ).to.deep.equal([ARCHIVE.id, WEATHER.id])
+      expect(
+        await sorted([{ paths: ['nftAddress', 'other.nftAddress'], anyOf: ['0xbbb'] }])
       ).to.deep.equal([CLASSIFIER.id])
+      expect(await ids([{ paths: ['id'], anyOf: [] }])).to.deep.equal([])
     })
 
-    it('should alone needs one match; with a filter it is optional', async () => {
-      const should = [
-        { term: { 'metadata.type': 'algorithm' } },
-        { term: { chainId: 137 } }
-      ]
-      expect(await sorted({ bool: { should } })).to.deep.equal([
+    it('noneOf: a document without the field passes; no value excludes nothing', async () => {
+      expect(
+        await sorted([{ paths: ['indexedMetadata.nft.state'], noneOf: [5] }])
+      ).to.deep.equal([CLASSIFIER.id, WEATHER.id])
+      expect(
+        await sorted([{ paths: ['metadata.description'], noneOf: ['x'] }])
+      ).to.deep.equal([ARCHIVE.id, CLASSIFIER.id, WEATHER.id])
+      expect(await sorted([{ paths: ['id'], noneOf: [] }])).to.have.length(3)
+    })
+
+    it('range: numbers as numbers, ISO dates as text', async () => {
+      expect(
+        await sorted([{ paths: ['indexedMetadata.stats.orders'], range: { gt: 4 } }])
+      ).to.deep.equal([CLASSIFIER.id, WEATHER.id])
+      expect(
+        await sorted([
+          { paths: ['metadata.created'], range: { gte: '2026-02-01T00:00:00.000Z' } }
+        ])
+      ).to.deep.equal([ARCHIVE.id, CLASSIFIER.id])
+    })
+
+    it('exists: a leaf field and an object field', async () => {
+      expect(
+        await sorted([{ paths: ['metadata.description'], exists: true }])
+      ).to.deep.equal([WEATHER.id])
+      expect(await sorted([{ paths: ['indexedMetadata'], exists: true }])).to.have.length(
+        3
+      )
+      expect(await sorted([{ paths: ['nothing'], exists: true }])).to.deep.equal([])
+    })
+
+    it('words: each word inside a value of one of the fields, in any letter case', async () => {
+      const text = ['metadata.name', 'metadata.description', 'metadata.tags']
+      expect(await sorted([{ paths: text, words: ['WEATHER'] }])).to.deep.equal([
         ARCHIVE.id,
-        CLASSIFIER.id
-      ])
-      const filter = [{ term: { chainId: 8996 } }]
-      expect(await sorted({ bool: { filter, should } })).to.deep.equal([
         CLASSIFIER.id,
         WEATHER.id
       ])
-      expect(
-        await sorted({ bool: { filter, should, minimum_should_match: 1 } })
-      ).to.deep.equal([CLASSIFIER.id])
+      expect(await sorted([{ paths: text, words: ['weather', 'sea'] }])).to.deep.equal([
+        WEATHER.id
+      ])
+      expect(await sorted([{ paths: text, words: ['clas'] }])).to.deep.equal([
+        CLASSIFIER.id
+      ])
+      // a LIKE wildcard in a word is a plain character
+      expect(await sorted([{ paths: text, words: ['%'] }])).to.deep.equal([])
     })
 
-    it('nested bool, as the market builds its queries', async () => {
-      expect(
-        await sorted({
-          bool: {
-            filter: [
-              { terms: { chainId: [8996, 137] } },
-              { term: { 'indexedMetadata.purgatory.state': false } },
-              {
-                bool: {
-                  must_not: [
-                    { term: { chainId: 11155420 } },
-                    false,
-                    { term: { 'indexedMetadata.stats.prices.type': 'pool' } }
-                  ]
-                }
-              }
-            ]
-          }
-        })
-      ).to.deep.equal([CLASSIFIER.id, WEATHER.id])
+    it('either: one of the conditions holds; no condition matches nothing', async () => {
+      const either: Condition[] = [
+        { paths: ['id'], anyOf: [ARCHIVE.id] },
+        { paths: ['indexedMetadata.nft.owner'], anyOf: ['0xownerb'] }
+      ]
+      expect(await sorted([{ either }])).to.deep.equal([ARCHIVE.id, CLASSIFIER.id])
+      expect(await ids([{ either: [] }])).to.deep.equal([])
     })
 
-    it('an empty query and match_all give all documents', async () => {
-      expect(await sorted(undefined)).to.have.length(3)
-      expect(await sorted({ bool: {} })).to.have.length(3)
+    it('all conditions must hold', async () => {
+      expect(
+        await sorted([
+          { paths: ['metadata.type'], anyOf: ['dataset'] },
+          { paths: ['indexedMetadata.nft.state'], noneOf: [5] }
+        ])
+      ).to.deep.equal([WEATHER.id])
     })
   })
 
-  describe('sort and paging', () => {
-    const orders = 'indexedMetadata.stats.orders'
+  describe('sort, paging and counts', () => {
+    const orders: SortSpec = { paths: ['indexedMetadata.stats.orders'], order: 'desc' }
 
     it('sorts a number field as a number, in the two directions', async () => {
-      // as text the order is 0, 12, 5
-      expect(await ids({ match_all: {} }, { [orders]: 'asc' })).to.deep.equal([
+      expect(await ids([], [orders])).to.deep.equal([
+        CLASSIFIER.id,
+        WEATHER.id,
+        ARCHIVE.id
+      ])
+      expect(await ids([], [{ ...orders, order: 'asc' }])).to.deep.equal([
         ARCHIVE.id,
         WEATHER.id,
         CLASSIFIER.id
       ])
-      expect(
-        await ids({ match_all: {} }, [{ [orders]: { order: 'desc' } }])
-      ).to.deep.equal([CLASSIFIER.id, WEATHER.id, ARCHIVE.id])
     })
 
-    it('sorts a text field, and puts the documents without the field last', async () => {
-      expect(await ids({ match_all: {} }, 'metadata.name')).to.deep.equal([
-        CLASSIFIER.id,
-        WEATHER.id,
-        ARCHIVE.id
+    it('puts the documents without the field last', async () => {
+      const description: SortSpec = { paths: ['metadata.description'], order: 'asc' }
+      const found = await ids([], [description])
+      expect(found[0]).to.equal(WEATHER.id)
+    })
+
+    it('gives one page and the number of all matches', async () => {
+      const page = await documents.find([], [orders], { offset: 1, limit: 1 })
+      expect(page.results.map((doc) => doc.id)).to.deep.equal([WEATHER.id])
+      expect(page.totalResults).to.equal(3)
+      const countOnly = await documents.find([], [], { offset: 0, limit: 0 })
+      expect(countOnly).to.deep.equal({ results: [], totalResults: 3 })
+    })
+
+    it('counts the distinct values of a field in the documents that match', async () => {
+      const tags = await documents.valueCounts(['metadata.tags'], [], 10)
+      expect(tags).to.deep.equal([
+        { value: 'weather', count: 2 },
+        { value: 'climate', count: 1 },
+        { value: 'ml', count: 1 }
       ])
-      expect(await ids({ match_all: {} }, { 'metadata.tags': 'desc' })).to.deep.equal([
-        WEATHER.id,
-        CLASSIFIER.id,
-        ARCHIVE.id
-      ])
-    })
-
-    it('accepts _score and gives the documents in a stable order', async () => {
-      expect(await ids({ match_all: {} }, { _score: 'desc' })).to.deep.equal([
-        ARCHIVE.id,
-        CLASSIFIER.id,
-        WEATHER.id
-      ])
-    })
-
-    it('gives one page of the result', async () => {
-      const sort = { [orders]: 'asc' }
-      const page = async (limit: number, offset: number) =>
-        (await documents.search({ query: { match_all: {} }, sort }, limit, offset)).map(
-          (doc) => doc.id
-        )
-      expect(await page(2, 0)).to.deep.equal([ARCHIVE.id, WEATHER.id])
-      expect(await page(2, 2)).to.deep.equal([CLASSIFIER.id])
-    })
-  })
-
-  describe('extra fields', () => {
-    it('a query can use a field that is not in the document', async () => {
-      expect(await sorted({ term: { _schema: 'op_ddo_short' } })).to.deep.equal([
-        ARCHIVE.id
-      ])
-      expect(await documents.get(ARCHIVE.id)).to.not.have.property('_schema')
-    })
-  })
-
-  describe('unsupported clauses', () => {
-    const rejects = async (query: Record<string, any>, clause: string) => {
-      let error: Error
-      await documents.search({ query }, 10, 0).catch((err) => {
-        error = err
-      })
-      expect(error).to.be.instanceOf(UnsupportedQueryError)
-      expect(error.message).to.equal(
-        `Query clause '${clause}' is not supported on the ${SQL_DB_TYPE} database`
+      const ofDatasets = await documents.valueCounts(
+        ['metadata.tags'],
+        [{ paths: ['metadata.type'], anyOf: ['dataset'] }],
+        1
       )
-    }
-
-    it('names the clause that it cannot run', async () => {
-      await rejects({ wildcard: { 'metadata.name': 'oc*' } }, 'wildcard')
-      await rejects({ bool: { filter: [{ nested: { path: 'services' } }] } }, 'nested')
-      await rejects(
-        {
-          bool: {
-            should: [{ term: { chainId: 1 } }, { term: { chainId: 137 } }],
-            minimum_should_match: 2
-          }
-        },
-        'minimum_should_match'
-      )
-      await rejects({ bool: { must_never: [] } }, 'bool.must_never')
-      await rejects({ range: { chainId: { gte: 1, format: 'epoch' } } }, 'range.format')
+      expect(ofDatasets).to.deep.equal([{ value: 'climate', count: 1 }])
     })
-
-    it('refuses a terms lookup, which reads another index on Elasticsearch', async () => {
-      await rejects(
-        { terms: { id: { index: 'nonce', id: '0x1', path: 'nonce' } } },
-        'terms lookup'
-      )
-    })
-  })
-})
-
-// The query comes from a public caller: the translator must refuse what it does not know,
-// and no part of the query must reach the SQL text.
-describe('SQL documents: a query that is not valid', () => {
-  let db: SqlClient
-  let documents: SqlDocuments
-
-  const search = (query: unknown, sort?: unknown) =>
-    documents.search({ query: query as any, sort }, 100, 0)
-  const errorOf = async (work: Promise<unknown>): Promise<Error> => {
-    let error: Error
-    await work.catch((err) => {
-      error = err
-    })
-    return error
-  }
-  // HTTP 400 with the name of the clause or the option
-  const unsupported = async (work: Promise<unknown>, clause: string) => {
-    const error = await errorOf(work)
-    expect(error).to.be.instanceOf(UnsupportedQueryError)
-    expect(error.message).to.contain(`'${clause}'`)
-  }
-  // HTTP 400; not an error of the database
-  const invalid = async (work: Promise<unknown>) => {
-    const error = await errorOf(work)
-    expect(error).to.be.instanceOf(QueryError)
-    expect(error).to.not.be.instanceOf(UnsupportedQueryError)
-  }
-
-  beforeEach(async () => {
-    db = await makeSqlClient()
-    documents = new SqlDocuments(db, 'ddo', SQL_DB_TYPE)
-    await documents.init()
-    await documents.put('a', { name: 'a', secret: 'do not read' })
-  })
-  afterEach(() => db.close())
-
-  it('refuses a clause with the name of an Object.prototype member', async () => {
-    // Object(body) gives the body back: the caller would write the SQL
-    const injected = { sql: '1 = 1 --', params: [] as unknown[] }
-    await unsupported(search({ constructor: injected }), 'constructor')
-    await unsupported(search({ toString: {} }), 'toString')
-    await unsupported(search(JSON.parse('{"__proto__": {"sql": "1 = 1"}}')), '__proto__')
-    await unsupported(
-      search({ range: { name: { constructor: 1 } } }),
-      'range.constructor'
-    )
-  })
-
-  it('refuses a clause that has a wrong type', async () => {
-    for (const query of [
-      'match_all',
-      { bool: null },
-      { bool: { filter: [5] } },
-      { term: {} },
-      { term: 'name' },
-      { term: { name: { value: { nested: 1 } } } },
-      { term: { name: [1, 2] } },
-      { terms: { name: [{ a: 1 }] } },
-      { match: { name: {} } },
-      { range: { name: null } },
-      { range: { name: { gte: [1] } } },
-      { exists: { field: 5 } },
-      { query_string: 'name' },
-      { query_string: { query: 'a', fields: 'name' } },
-      { query_string: { query: 'a', fields: [5] } }
-    ]) {
-      await invalid(search(query))
-    }
-  })
-
-  it('refuses a clause with two names, and a leaf clause with two fields', async () => {
-    await invalid(search({ term: { name: 'a' }, match_all: {} }))
-    // Elasticsearch refuses this too; the second field must not be ignored
-    await invalid(search({ term: { name: 'a', secret: 'x' } }))
-    await invalid(search({ range: { name: { gte: 'a' }, secret: { gte: 'a' } } }))
-  })
-
-  it('refuses an option that it does not evaluate', async () => {
-    await unsupported(
-      search({ match: { name: { query: 'a', operator: 'and' } } }),
-      'match.operator'
-    )
-    await unsupported(
-      search({ term: { name: { value: 'a', case_insensitive: true } } }),
-      'term.case_insensitive'
-    )
-    await unsupported(search({ exists: { field: 'name', other: 1 } }), 'exists.other')
-    await unsupported(
-      search({ query_string: { query: 'a', fuzziness: 2 } }),
-      'query_string.fuzziness'
-    )
-    await unsupported(
-      search({ query_string: { query: 'a', fields: ['metadata.*'] } }),
-      'query_string field pattern'
-    )
-    // boost changes the score only
-    expect(await search({ term: { name: { value: 'a', boost: 2 } } })).to.have.length(1)
-    expect(await search({ terms: { name: ['a'], boost: 2 } })).to.have.length(1)
-  })
-
-  it('refuses the query_string operators that it does not evaluate', async () => {
-    for (const query of [
-      'a NOT b',
-      '+a -b',
-      '!a',
-      'name:a',
-      'a~',
-      'a?c',
-      'a^2',
-      'a && b',
-      'a || b'
-    ]) {
-      await unsupported(search({ query_string: { query } }), 'query_string operator')
-    }
-    // a client escapes the text of a user: an operator after a backslash is text
-    const escaped = { query_string: { query: 'did\\:op\\:a OR \\-a OR a' } }
-    expect(await search(escaped)).to.have.length(1)
-    // the escaped text is one word: 'do' alone would match 'do not read'
-    expect(await search({ query_string: { query: 'do\\:other' } })).to.have.length(0)
-  })
-
-  it('refuses a sort that it cannot do', async () => {
-    await unsupported(
-      search({}, { name: { order: 'asc', missing: '_first' } }),
-      'sort.missing'
-    )
-    await unsupported(
-      search({}, { _script: { type: 'number', script: 'x', order: 'asc' } }),
-      'sort.type'
-    )
-    await invalid(search({}, { name: 'up' }))
-    await invalid(search({}, 5))
-    await invalid(
-      search(
-        {},
-        Array.from({ length: 9 }, (_, i) => `field${i}`)
-      )
-    )
-  })
-
-  it('limits the size of a query', async () => {
-    const manyValues = Array.from({ length: 2000 }, (_, i) => `v${i}`)
-    await invalid(search({ terms: { name: manyValues } }))
-    await invalid(search({ query_string: { query: manyValues.join(' ') } }))
-    let deep: Record<string, any> = { match_all: {} }
-    for (let level = 0; level < 30; level++) {
-      deep = { bool: { filter: [deep] } }
-    }
-    await invalid(search(deep))
-    // a list of 1000 ids is a normal query
-    expect(await search({ terms: { name: manyValues.slice(0, 1000) } })).to.deep.equal([])
-  })
-
-  it('refuses a page that is not a whole number, 0 or more', async () => {
-    for (const page of [
-      { size: -1 },
-      { size: 'abc' },
-      { size: { a: 1 } },
-      { from: 1.5 }
-    ]) {
-      await invalid(documents.query({ query: { match_all: {} }, ...page }))
-    }
-    expect(await documents.query({ size: 1, from: 0 })).to.have.length(1)
   })
 })
 
@@ -647,12 +368,12 @@ describe('SQL documents: values and order', () => {
   let documents: SqlDocuments
   const LONG = 'x'.repeat(600)
 
-  const ids = async (query: Record<string, any>, sort?: unknown) =>
-    (await documents.search({ query, sort }, 100, 0)).map((doc) => doc.id)
+  const ids = async (conditions: Condition[], sort: SortSpec[] = []) =>
+    (await documents.find(conditions, sort, ALL)).results.map((doc) => doc.id)
 
   beforeEach(async () => {
     db = await makeSqlClient()
-    documents = new SqlDocuments(db, 'ddo', SQL_DB_TYPE)
+    documents = new SqlDocuments(db, 'ddo')
     await documents.init()
     await documents.put('cheap', {
       name: '_x',
@@ -670,9 +391,11 @@ describe('SQL documents: values and order', () => {
 
   it('compares and sorts a number that is stored as text as a number', async () => {
     // as text, '10' is below '2.5'
-    expect(await ids({ range: { price: { gte: 5 } } })).to.deep.equal(['dear'])
-    expect(await ids({ range: { price: { gt: '0', lt: '5' } } })).to.deep.equal(['cheap'])
-    expect(await ids({ match_all: {} }, { price: 'desc' })).to.deep.equal([
+    expect(await ids([{ paths: ['price'], range: { gte: 5 } }])).to.deep.equal(['dear'])
+    expect(await ids([{ paths: ['price'], range: { gt: '0', lt: '5' } }])).to.deep.equal([
+      'cheap'
+    ])
+    expect(await ids([], [{ paths: ['price'], order: 'desc' }])).to.deep.equal([
       'dear',
       'cheap',
       'free'
@@ -680,30 +403,24 @@ describe('SQL documents: values and order', () => {
   })
 
   it('compares a date with a bound that holds only a year', async () => {
-    expect(await ids({ range: { created: { gte: '2023' } } })).to.deep.equal(['dear'])
-    expect(await ids({ range: { created: { gte: '2022', lt: '2023' } } })).to.deep.equal([
-      'cheap'
+    expect(await ids([{ paths: ['created'], range: { gte: '2023' } }])).to.deep.equal([
+      'dear'
     ])
   })
 
   it('finds a value that is longer than the text that the field table keeps', async () => {
-    expect(await ids({ term: { license: LONG } })).to.deep.equal(['free'])
-    expect(await ids({ match: { license: LONG } })).to.deep.equal(['free'])
+    expect(await ids([{ paths: ['license'], anyOf: [LONG] }])).to.deep.equal(['free'])
+    expect(await ids([{ paths: ['license'], words: [LONG] }])).to.deep.equal(['free'])
   })
 
   it('sorts and compares text by its bytes, the same on all databases', async () => {
     // lower case: '_' (0x5f), 'a' (0x61), 'ä' (0xc3 0xa4)
-    expect(await ids({ match_all: {} }, { name: 'asc' })).to.deep.equal([
+    expect(await ids([], [{ paths: ['name'], order: 'asc' }])).to.deep.equal([
       'cheap',
       'free',
       'dear'
     ])
-    expect(await ids({ range: { name: { gte: 'a', lt: 'c' } } })).to.deep.equal(['free'])
-  })
-
-  it('should alone needs one match when minimum_should_match is 0', async () => {
-    const should = [{ term: { name: 'a' } }]
-    expect(await ids({ bool: { should, minimum_should_match: 0 } })).to.deep.equal([
+    expect(await ids([{ paths: ['name'], range: { gte: 'a', lt: 'c' } }])).to.deep.equal([
       'free'
     ])
   })
@@ -711,7 +428,7 @@ describe('SQL documents: values and order', () => {
   it('gives no field row to a path that is longer than a field name', async () => {
     const key = 'k'.repeat(200)
     await documents.put('long-path', { [key]: 'value', name: 'b' })
-    expect(await ids({ term: { name: 'b' } })).to.deep.equal(['long-path'])
-    expect(await ids({ exists: { field: key } })).to.deep.equal([])
+    expect(await ids([{ paths: ['name'], anyOf: ['b'] }])).to.deep.equal(['long-path'])
+    expect(await ids([{ paths: [key], exists: true }])).to.deep.equal([])
   })
 })

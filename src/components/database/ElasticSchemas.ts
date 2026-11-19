@@ -53,8 +53,36 @@ const ddoShortSchema: ElasticsearchSchema = {
   }
 }
 
+// The v5 mapping of @oceanprotocol/ddo-js does not index `services.compute` (enabled:
+// false). The DDO search filters on its trusted algorithms, so the node maps these two
+// fields; the other compute fields stay unindexed (dynamic: false). Elasticsearch cannot
+// change `enabled` on an index that exists: docs/database.md has the upgrade step.
+const V5_DDO_SCHEMA = 'op_ddo_v5.0.0'
+const searchableCompute = {
+  type: 'object',
+  dynamic: false,
+  properties: {
+    publisherTrustedAlgorithms: {
+      type: 'object',
+      properties: { did: { type: 'keyword' }, serviceId: { type: 'keyword' } }
+    },
+    publisherTrustedAlgorithmPublishers: { type: 'keyword' }
+  }
+}
+
+function withSearchableCompute(schema: ElasticsearchSchema): ElasticsearchSchema {
+  if (schema.index !== V5_DDO_SCHEMA) return schema
+  const copy: any = structuredClone(schema)
+  copy.body.mappings.properties.credentialSubject.properties.services.properties.compute =
+    searchableCompute
+  return copy
+}
+
 export const elasticSchemas: ElasticsearchSchemas = {
-  ddoSchemas: [...(ddoElasticMappings as ElasticsearchSchema[]), ddoShortSchema],
+  ddoSchemas: [
+    ...(ddoElasticMappings as ElasticsearchSchema[]).map(withSearchableCompute),
+    ddoShortSchema
+  ],
   nonceSchemas: {
     index: 'nonce',
     body: {

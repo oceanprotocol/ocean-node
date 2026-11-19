@@ -1,7 +1,7 @@
 import type { EscrowEvent } from '../../../@types/Escrow.js'
 import type { OceanNodeDBConfig } from '../../../@types/OceanNode.js'
 import { AbstractEscrowDatabase } from '../BaseDatabase.js'
-import { buildElasticQuery, escrowPage } from '../escrowSearch.js'
+import { escrowConditions, escrowPage } from '../escrowSearch.js'
 import type { SqlClient } from './SqlClient.js'
 import { SqlDocuments } from './SqlDocuments.js'
 import { orNull } from './orNull.js'
@@ -12,7 +12,7 @@ export class SqlEscrowDatabase extends AbstractEscrowDatabase {
 
   constructor(config: OceanNodeDBConfig, db: SqlClient) {
     super(config)
-    this.events = new SqlDocuments(db, 'escrow', config.dbType)
+    this.events = new SqlDocuments(db, 'escrow')
   }
 
   init(): Promise<void> {
@@ -33,9 +33,13 @@ export class SqlEscrowDatabase extends AbstractEscrowDatabase {
   // a filter value is an equality value or a range on a number field
   search(filters: Record<string, any>, offset?: number, size?: number) {
     const page = escrowPage(offset, size)
-    return orNull('Error when searching escrow events', () =>
-      this.events.search({ query: buildElasticQuery(filters) }, page.limit, page.from)
-    )
+    return orNull('Error when searching escrow events', async () => {
+      const { results } = await this.events.find(escrowConditions(filters), [], {
+        offset: page.from,
+        limit: page.limit
+      })
+      return results
+    })
   }
 
   delete(id: string) {

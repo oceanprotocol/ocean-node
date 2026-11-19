@@ -1,7 +1,7 @@
 import type { AccessListUser } from '../../../@types/AccessList.js'
 import type { OceanNodeDBConfig } from '../../../@types/OceanNode.js'
 import { DATABASE_LOGGER } from '../../../utils/logging/common.js'
-import { AbstractAccessListDatabase } from '../BaseDatabase.js'
+import { AbstractAccessListDatabase, Condition } from '../BaseDatabase.js'
 import type { SqlClient } from './SqlClient.js'
 import { SqlDocuments } from './SqlDocuments.js'
 import { orNull } from './orNull.js'
@@ -15,7 +15,7 @@ export class SqlAccessListDatabase extends AbstractAccessListDatabase {
 
   constructor(config: OceanNodeDBConfig, db: SqlClient) {
     super(config)
-    this.lists = new SqlDocuments(db, 'access_list', config.dbType)
+    this.lists = new SqlDocuments(db, 'access_list')
   }
 
   init(): Promise<void> {
@@ -93,10 +93,14 @@ export class SqlAccessListDatabase extends AbstractAccessListDatabase {
   }
 
   async searchByWallet(wallet: string, chainId?: number): Promise<any[]> {
-    const must: Record<string, any>[] = [{ term: { 'users.wallet': wallet } }]
-    if (chainId !== undefined) must.push({ term: { chainId } })
-    const lists = await orNull(`Error when searching access lists of ${wallet}`, () =>
-      this.lists.search({ query: { bool: { must } } }, SEARCH_HITS, 0)
+    const conditions: Condition[] = [{ paths: ['users.wallet'], anyOf: [wallet] }]
+    if (chainId !== undefined) conditions.push({ paths: ['chainId'], anyOf: [chainId] })
+    const page = { offset: 0, limit: SEARCH_HITS }
+    const lists = await orNull(
+      `Error when searching access lists of ${wallet}`,
+      async () => {
+        return (await this.lists.find(conditions, [], page)).results
+      }
     )
     return lists ?? []
   }

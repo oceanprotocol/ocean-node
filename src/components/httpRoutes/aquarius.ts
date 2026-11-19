@@ -7,8 +7,7 @@ import { FindDdoHandler, ValidateDDOHandler } from '../core/handler/ddoHandler.j
 import { QueryDdoStateHandler, QueryHandler } from '../core/handler/queryHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { QueryCommand } from '../../@types/commands.js'
-import { buildDdoStateQuery, buildMetadataQuery } from '../database/index.js'
-import { SearchQuery } from '../../@types/DDO/SearchQuery.js'
+import type { DdoStateKey } from '../database/BaseDatabase.js'
 
 export const aquariusRoutes = express.Router()
 
@@ -64,14 +63,14 @@ aquariusRoutes.post(
   `${AQUARIUS_API_BASE_PATH}/assets/metadata/query`,
   async (req, res) => {
     try {
-      const searchQuery: SearchQuery = req.body
-      if (!searchQuery) {
+      if (!req.body) {
         res.status(400).send('Missing required body')
         return
       }
 
+      // the query of the node: { type, filter, sort, page, size }
       const result = await new QueryHandler(req.oceanNode).handle({
-        query: buildMetadataQuery(searchQuery),
+        query: req.body,
         command: PROTOCOL_COMMANDS.QUERY,
         caller: req.caller
       })
@@ -93,14 +92,16 @@ aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
     const did = req.query.did ? String(req.query.did) : undefined
     const nft = req.query.nft ? String(req.query.nft) : undefined
     const txId = req.query.txId ? String(req.query.txId) : undefined
+    // with several keys, txId counts first, then nft
+    const key: DdoStateKey | undefined = txId
+      ? { txId }
+      : nft
+        ? { nft }
+        : did
+          ? { did }
+          : undefined
 
-    const queryDdoState: QueryCommand = {
-      query: buildDdoStateQuery(did, nft, txId),
-      command: PROTOCOL_COMMANDS.QUERY,
-      caller: req.caller
-    }
-
-    if (!Object.keys(queryDdoState.query).length) {
+    if (!key) {
       res
         .status(400)
         .send(
@@ -109,32 +110,18 @@ aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
       return
     }
 
+    const queryDdoState: QueryCommand = {
+      query: key,
+      command: PROTOCOL_COMMANDS.QUERY,
+      caller: req.caller
+    }
     const result = await new QueryDdoStateHandler(req.oceanNode).handle(queryDdoState)
 
     if (result.stream) {
-      const queryResult = JSON.parse(await streamToString(result.stream as Readable))
-
-      if (
-        queryResult &&
-        typeof queryResult === 'object' &&
-        queryResult.found !== undefined
-      ) {
-        if (queryResult.found > 0 && queryResult.hits && queryResult.hits.length > 0) {
-          res.json(queryResult.hits[0].document || queryResult.hits[0])
-        } else {
-          res.status(404).send('Not found')
-        }
-      } else if (Array.isArray(queryResult)) {
-        if (queryResult.length > 0) {
-          res.json(queryResult[0])
-        } else {
-          res.status(404).send('Not found')
-        }
+      const states = JSON.parse(await streamToString(result.stream as Readable))
+      if (states.length > 0) {
+        res.json(states[0])
       } else {
-        HTTP_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_DEBUG,
-          `Query result structure (not found): ${JSON.stringify(queryResult)}`
-        )
         res.status(404).send('Not found')
       }
     } else {
