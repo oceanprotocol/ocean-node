@@ -118,6 +118,11 @@ export class OceanIndexer {
   // and a fresh start (allocating a higher generation) is never revived or blocked by it.
   private startGeneration = 0
   private canceledGeneration = 0
+  // In-flight startChainIndexer() calls. stopAllChainIndexers() awaits these before tearing down
+  // registered indexers, so a start that is between ChainIndexer.start() (which launches the
+  // background crawl loop) and registration in `this.indexers` is waited for and stopped, instead
+  // of slipping through that gap and crawling on after the stop returns.
+  private pendingStarts: Set<Promise<ChainIndexer | null>> = new Set()
 
   constructor(
     _db: Database,
@@ -245,6 +250,15 @@ export class OceanIndexer {
     // starts abort instead of beginning to crawl after we return. A later start allocates a
     // higher generation and is unaffected.
     this.canceledGeneration = this.startGeneration
+
+    // Wait for in-flight starts to settle before tearing down registered indexers. Each now sees
+    // its generation canceled and either aborts before crawling or stops the indexer it just
+    // started (see startChainIndexer), so none survives in the gap between ChainIndexer.start()
+    // and registration. Snapshot the set because entries remove themselves as they settle.
+    if (this.pendingStarts.size > 0) {
+      await Promise.allSettled([...this.pendingStarts])
+    }
+
     const stopPromises: Promise<void>[] = []
     for (const chainID of this.supportedChains) {
       const promise = this.stopChainIndexer(Number(chainID))
@@ -271,6 +285,22 @@ export class OceanIndexer {
   // A start (batch or standalone) is canceled when its generation has been superseded by a stop.
   private isStartCanceled(generation: number): boolean {
     return this.canceledGeneration >= generation
+  }
+
+  // Sleep up to `ms`, but wake early (returning true) as soon as the given start generation is
+  // canceled. Keeps a stop during a connection retry from blocking shutdown for the full retry
+  // interval (stopAllChainIndexers() awaits in-flight starts).
+  private async sleepUnlessCanceled(ms: number, generation: number): Promise<boolean> {
+    const sliceMs = 200
+    let waited = 0
+    while (waited < ms) {
+      if (this.isStartCanceled(generation)) {
+        return true
+      }
+      await sleep(Math.min(sliceMs, ms - waited))
+      waited += sliceMs
+    }
+    return this.isStartCanceled(generation)
   }
 
   // it does not start crawling until the network connectin is ready
@@ -311,11 +341,10 @@ export class OceanIndexer {
         )
         this.numCrawlAttempts++
         if (this.numCrawlAttempts <= MAX_CRAWL_RETRIES) {
-          // delay the next call
-          await sleep(retryInterval)
-          // Abort the retry chain if this start was stopped while we slept, so a stopped indexer
-          // doesn't keep retrying (and eventually start crawling) after it was torn down.
-          if (this.isStartCanceled(gen)) {
+          // delay the next call, but abort the retry chain promptly if this start was stopped
+          // while we waited, so a stopped indexer doesn't keep retrying (and eventually start
+          // crawling) after it was torn down.
+          if (await this.sleepUnlessCanceled(retryInterval, gen)) {
             INDEXER_LOGGER.debug(
               'Stop requested during connection retry; aborting crawler start'
             )
@@ -345,6 +374,21 @@ export class OceanIndexer {
     batchGeneration?: number
   ): Promise<ChainIndexer | null> {
     const generation = batchGeneration ?? ++this.startGeneration
+    // Register this start as in-flight so a concurrent stopAllChainIndexers() waits for it to
+    // settle (and stops any indexer it creates) rather than racing past it.
+    const startPromise = this.doStartChainIndexer(chainID, generation)
+    this.pendingStarts.add(startPromise)
+    try {
+      return await startPromise
+    } finally {
+      this.pendingStarts.delete(startPromise)
+    }
+  }
+
+  private async doStartChainIndexer(
+    chainID: number,
+    generation: number
+  ): Promise<ChainIndexer | null> {
     // If an indexer is already running, stop it first
     const existingIndexer = this.indexers.get(chainID)
     if (existingIndexer && existingIndexer.isIndexing()) {
@@ -402,6 +446,18 @@ export class OceanIndexer {
     // Start indexing (runs in background, doesn't block)
     await indexer.start()
 
+    // ChainIndexer.start() launches the background crawl loop but does NOT register the indexer in
+    // `this.indexers`, so until the set() below a concurrent stopAllChainIndexers() cannot reach
+    // it. If a stop landed during start(), stop this freshly started indexer here instead of
+    // leaving it crawling past the stop (see `startGeneration`/`canceledGeneration`).
+    if (this.isStartCanceled(generation)) {
+      INDEXER_LOGGER.debug(
+        `Stop requested while starting; stopping freshly started indexer for chain ${chainID}`
+      )
+      await indexer.stop()
+      return null
+    }
+
     this.indexers.set(chainID, indexer)
     return indexer
   }
@@ -438,6 +494,14 @@ export class OceanIndexer {
     // Start all indexers - they will run concurrently via async/await
     let count = 0
     for (const network of this.supportedChains) {
+      // Stop the batch promptly if a stop landed mid-loop, instead of running a network/DB probe
+      // per remaining chain only for each start to self-abort on the canceled generation.
+      if (this.isStartCanceled(generation)) {
+        INDEXER_LOGGER.debug(
+          'Stop requested during startup (starting chains); aborting remaining chain indexers'
+        )
+        break
+      }
       const chainId = parseInt(network)
       // Share this batch's generation across all chains, so a single stop cancels the whole
       // batch — including chains still coming up.
