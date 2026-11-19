@@ -122,7 +122,12 @@ describe('**********         Service on Demand', () => {
   async function signFor(signer: Signer, command: string) {
     const addr = await signer.getAddress()
     const nonce = Date.now().toString()
-    const hash = createHashForSignature(addr, nonce, command)
+    const hash = createHashForSignature(
+      addr,
+      nonce,
+      command,
+      oceanNode.getKeyManager().getPeerIdString()
+    )
     const signature = await safeSign(signer, hash)
     return { consumerAddress: addr, nonce, signature }
   }

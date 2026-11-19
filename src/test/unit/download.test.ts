@@ -104,7 +104,9 @@ describe('Should validate files structure for download', () => {
     const messageHashBytes = createHashForSignature(
       await consumerAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.ENCRYPT
+      PROTOCOL_COMMANDS.ENCRYPT,
+      // every signed command binds the verifier node's peerId (anti-replay)
+      oceanNode.getKeyManager().getPeerIdString()
     )
     const signature = await safeSign(consumerAccount, messageHashBytes)
     const result = await new EncryptHandler(oceanNode).handle({
@@ -173,7 +175,9 @@ describe('Should validate files structure for download', () => {
     const messageHashBytes = createHashForSignature(
       await consumerAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.ENCRYPT
+      PROTOCOL_COMMANDS.ENCRYPT,
+      // every signed command binds the verifier node's peerId (anti-replay)
+      oceanNode.getKeyManager().getPeerIdString()
     )
     const signature = await safeSign(consumerAccount, messageHashBytes)
     const result = await new EncryptHandler(oceanNode).handle({

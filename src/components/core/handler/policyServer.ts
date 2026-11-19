@@ -134,7 +134,11 @@ export class PolicyServerInitializeHandler extends CommandHandler {
           ...task.policyServer,
           authorization: task.authorization,
           nonce: task.nonce,
-          signature: task.signature
+          signature: task.signature,
+          // The request signature is bound to this node's peerId (anti-replay), so a policy
+          // server that re-verifies the forwarded signature needs the same peerId to rebuild
+          // the signed message. ocean-node has already verified it locally regardless.
+          issuerPeerId: this.getOceanNode().getKeyManager().getPeerIdString()
         }
       )
       if (!policyStatus.success) {
