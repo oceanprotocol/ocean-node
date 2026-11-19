@@ -110,7 +110,7 @@
     "tar-stream": "^3.2.0",
     "uint8arrays": "^6.1.1",
     "unique-names-generator": "^4.7.1",
-    "url-join": "^5.0.0",
+    "url-join": "^6.0.0",
     "winston": "^3.19.0",
     "winston-daily-rotate-file": "^5.0.0",
     "winston-transport": "^4.6.0",
