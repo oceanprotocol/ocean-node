@@ -186,7 +186,14 @@ export class OceanNode {
   public addIndexer(_indexer: OceanIndexer) {
     const previous = this.indexer
     this.indexer = _indexer
-    if (previous) {
+    // Only stop a genuinely DIFFERENT previous indexer. The constructor's `private indexer`
+    // parameter property has already assigned this.indexer to the passed instance before the
+    // constructor body calls addIndexer(indexer), so here `previous === _indexer`. Without this
+    // guard, construction immediately stops the just-created indexer — and because stop() now
+    // cancels in-flight starts by generation, that permanently aborts its startup crawl (the node
+    // then never indexes anything). A real replacement (tests, a new OceanNode instance) passes a
+    // different instance and still stops the old one.
+    if (previous && previous !== _indexer) {
       previous.stop().catch((err: unknown) => {
         OCEAN_NODE_LOGGER.error(
           `Failed to stop replaced indexer: ${err instanceof Error ? err.message : String(err)}`
