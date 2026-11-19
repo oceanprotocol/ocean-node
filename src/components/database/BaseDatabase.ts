@@ -138,12 +138,14 @@ export abstract class AbstractLogDatabase extends AbstractDatabase {
   abstract getLogsCount(): Promise<number>
 
   // the time that a log stays (LOG_RETENTION_TIME, milliseconds). A value of 0 or less
-  // would delete the new logs too: it gets the default.
+  // would delete the new logs too, and a value so large that the cutoff is not a valid
+  // date would make the cleanup fail: both get the default.
   protected retentionMs(): number {
     const raw = process.env.LOG_RETENTION_TIME
     const retention = Number(raw)
     if (raw === undefined || raw === '') return DEFAULT_LOG_RETENTION_MS
-    if (Number.isFinite(retention) && retention > 0) return retention
+    const cutoff = new Date(Date.now() - retention).getTime()
+    if (retention > 0 && Number.isFinite(cutoff)) return retention
     DATABASE_LOGGER.warn(
       `Invalid LOG_RETENTION_TIME "${raw}", using ${DEFAULT_LOG_RETENTION_MS} ms`
     )
