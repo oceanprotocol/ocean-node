@@ -60,7 +60,6 @@ let INDEXING_QUEUE: ReindexTask[] = []
 const JOBS_QUEUE: JobStatus[] = []
 
 const MAX_CRAWL_RETRIES = 10
-let numCrawlAttempts = 0
 
 /**
  * OceanIndexer - Multi-chain blockchain event indexer
@@ -94,6 +93,25 @@ export class OceanIndexer {
   private MIN_REQUIRED_VERSION = '4.2.0'
   private isDbConnected: boolean = true
   private reconnectTimer: NodeJS.Timeout | null = null
+  // Per-instance crawl-retry counter. It used to be a module-level global shared by every
+  // OceanIndexer, so one instance's retries could push another over MAX_CRAWL_RETRIES (and a
+  // reconnect in one instance reset the counter for all). Each indexer now owns its own.
+  private numCrawlAttempts = 0
+  // Bound ES-connection handlers, retained so stop() can detach them. They were registered as
+  // anonymous listeners on the module-level ES_CONNECTION_EVENTS emitter and never removed, so
+  // every OceanIndexer created in the shared-process test suite leaked a pair that kept reacting
+  // (and could restart a torn-down indexer with its stale config) long after the instance was gone.
+  private onDbConnectionLost: () => Promise<void>
+  private onDbConnectionRestored: () => void
+  // Set true by stop()/stopAllChainIndexers(), false by startAllChainIndexers(). It closes a
+  // start/stop race: startChainIndexer can sleep for seconds inside retryCrawlerWithDelay while
+  // the blockchain connection comes up, and during that window the ChainIndexer does not yet
+  // exist in `this.indexers`, so a concurrent stop finds nothing to cancel. Without this guard
+  // the indexer would resurrect itself after the sleep and keep crawling past the stop — which,
+  // in the shared-process integration suite, left a stale indexer (whose config lacked the
+  // suite's AUTHORIZED_PUBLISHERS gate) crawling chain 8996 and indexing assets a later suite
+  // expects to be rejected (the flaky credentials "should NOT allow to index" failures).
+  private stopRequested: boolean = false
 
   constructor(
     _db: Database,
@@ -118,7 +136,7 @@ export class OceanIndexer {
    * CONNECTION_RESTORED → debounce restart by 5 s so rapid LOST/RESTORED cycles are a single restart.
    */
   private setupDbConnectionListeners(): void {
-    ES_CONNECTION_EVENTS.on(DB_EVENTS.CONNECTION_LOST, async () => {
+    this.onDbConnectionLost = async () => {
       if (this.reconnectTimer) {
         clearTimeout(this.reconnectTimer)
         this.reconnectTimer = null
@@ -133,9 +151,9 @@ export class OceanIndexer {
         'Database connection lost - stopping all chain indexers until DB is back'
       )
       await this.stopAllChainIndexers()
-    })
+    }
 
-    ES_CONNECTION_EVENTS.on(DB_EVENTS.CONNECTION_RESTORED, () => {
+    this.onDbConnectionRestored = () => {
       if (this.isDbConnected) {
         return
       }
@@ -151,14 +169,41 @@ export class OceanIndexer {
         }
 
         this.isDbConnected = true
-        numCrawlAttempts = 0
+        this.numCrawlAttempts = 0
         INDEXER_LOGGER.info(
           'Database connection stable - reinitialising DB and restarting all chain indexers'
         )
 
         await this.startAllChainIndexers()
       }, 5000)
-    })
+    }
+
+    ES_CONNECTION_EVENTS.on(DB_EVENTS.CONNECTION_LOST, this.onDbConnectionLost)
+    ES_CONNECTION_EVENTS.on(DB_EVENTS.CONNECTION_RESTORED, this.onDbConnectionRestored)
+  }
+
+  /**
+   * Detach this instance's ES-connection listeners and cancel any pending reconnect timer.
+   * Called from stop() so a torn-down indexer stops reacting to DB connection events (otherwise
+   * every OceanIndexer ever created would keep listening on the shared emitter).
+   */
+  private teardownDbConnectionListeners(): void {
+    if (this.onDbConnectionLost) {
+      ES_CONNECTION_EVENTS.removeListener(
+        DB_EVENTS.CONNECTION_LOST,
+        this.onDbConnectionLost
+      )
+    }
+    if (this.onDbConnectionRestored) {
+      ES_CONNECTION_EVENTS.removeListener(
+        DB_EVENTS.CONNECTION_RESTORED,
+        this.onDbConnectionRestored
+      )
+    }
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
   }
 
   public getSupportedNetworks(): RPCS {
@@ -189,6 +234,10 @@ export class OceanIndexer {
 
   // stops all indexers
   public async stopAllChainIndexers(): Promise<boolean> {
+    // Signal any in-flight startChainIndexer (e.g. one still sleeping in retryCrawlerWithDelay
+    // before its ChainIndexer is registered) to abort instead of starting to crawl after we
+    // return.
+    this.stopRequested = true
     const stopPromises: Promise<void>[] = []
     for (const chainID of this.supportedChains) {
       const promise = this.stopChainIndexer(Number(chainID))
@@ -244,10 +293,18 @@ export class OceanIndexer {
             retryInterval / 1000
           } secs....`
         )
-        numCrawlAttempts++
-        if (numCrawlAttempts <= MAX_CRAWL_RETRIES) {
+        this.numCrawlAttempts++
+        if (this.numCrawlAttempts <= MAX_CRAWL_RETRIES) {
           // delay the next call
           await sleep(retryInterval)
+          // Abort the retry chain if a stop was requested while we slept, so a stopped indexer
+          // doesn't keep retrying (and eventually start crawling) after it was torn down.
+          if (this.stopRequested) {
+            INDEXER_LOGGER.debug(
+              'Stop requested during connection retry; aborting crawler start'
+            )
+            return false
+          }
           // recursively call the same func
           return this.retryCrawlerWithDelay(blockchain, retryInterval)
         } else {
@@ -264,7 +321,17 @@ export class OceanIndexer {
   }
 
   // starts indexing for a specific chain
-  public async startChainIndexer(chainID: number): Promise<ChainIndexer | null> {
+  public async startChainIndexer(
+    chainID: number,
+    // When this is an explicit, standalone start (admin START_THREAD, resetCrawling) rather than
+    // part of a startAllChainIndexers() batch, clear any lingering stop request first: the caller
+    // is explicitly asking to (re)start this chain. The batch path passes false and manages the
+    // flag itself, so a teardown that lands mid-batch is still honoured (see `stopRequested`).
+    resetStopRequested: boolean = true
+  ): Promise<ChainIndexer | null> {
+    if (resetStopRequested) {
+      this.stopRequested = false
+    }
     // If an indexer is already running, stop it first
     const existingIndexer = this.indexers.get(chainID)
     if (existingIndexer && existingIndexer.isIndexing()) {
@@ -296,6 +363,16 @@ export class OceanIndexer {
       return null
     }
 
+    // A stop may have been requested while retryCrawlerWithDelay was waiting for the connection.
+    // Do NOT start crawling in that case — otherwise this indexer outlives the stop and keeps
+    // polling the chain with a now-stale config (see `stopRequested`).
+    if (this.stopRequested) {
+      INDEXER_LOGGER.debug(
+        `Stop requested while connecting; not starting indexer for chain ${chainID}`
+      )
+      return null
+    }
+
     // Create new ChainIndexer instance
     const indexer = new ChainIndexer(
       blockchain,
@@ -323,6 +400,9 @@ export class OceanIndexer {
     // so two indexers never run concurrently against the same DB/chain.
     await OceanNode.awaitPendingTeardown()
 
+    // Clear any stop requested by a previous lifecycle so this start is honoured.
+    this.stopRequested = false
+
     await this.checkAndTriggerReindexing()
 
     // Setup event listeners for all chains (they all use the same event emitter)
@@ -332,7 +412,9 @@ export class OceanIndexer {
     let count = 0
     for (const network of this.supportedChains) {
       const chainId = parseInt(network)
-      const indexer = await this.startChainIndexer(chainId)
+      // Don't let the per-chain start clear stopRequested: the batch owns the flag (cleared
+      // once above) so a stop arriving mid-batch still aborts the chains still coming up.
+      const indexer = await this.startChainIndexer(chainId, false)
       if (indexer) {
         count++
       }
@@ -601,6 +683,7 @@ export class OceanIndexer {
 
   public async stop(): Promise<void> {
     await this.stopAllChainIndexers()
+    this.teardownDbConnectionListeners()
     INDEXER_CRAWLING_EVENT_EMITTER.removeAllListeners()
     INDEXER_DDO_EVENT_EMITTER.removeAllListeners()
   }
