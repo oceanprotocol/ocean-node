@@ -337,13 +337,16 @@ jobs:
         with:
           persist-credentials: false
           repository: 'oceanprotocol/ocean-cli'
-          ref: 'feature/subsidy_provider'
+          # the CLI and ocean.js without Aquarius (/api/query, /api/ddo); back to the default
+          # branches when both are merged
+          ref: 'feat/node-neutral-query'
           path: 'ocean-cli'
       - name: Checkout Ocean-js
         uses: actions/checkout@v7
         with:
           persist-credentials: false
           repository: 'oceanprotocol/ocean.js'
+          ref: 'feat/node-neutral-query'
           path: 'ocean.js'
       - name: Build ocean-js
         working-directory: ${{ github.workspace }}/ocean.js
