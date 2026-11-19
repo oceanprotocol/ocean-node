@@ -89,7 +89,7 @@ remove the data volume of a database before you select that database again in th
 script: the script makes a new password, and the old volume keeps the old one.
 
 Frontends read DDOs through the node: the `query` command and
-`POST /api/aquarius/assets/metadata/query`.
+`POST /api/query`.
 
 ## DDO search
 

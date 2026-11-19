@@ -312,7 +312,7 @@ Handler source is grouped under `src/components/core/`:
     `SqlDocuments` keeps JSON documents with a field table and runs typed conditions
     (`Condition` in `BaseDatabase.ts`) as fixed SQL. `SqliteStores.ts` keeps the file
     names of the older releases and upgrades their tables.
-  - The DDO search (`query` command, `/api/aquarius/assets/metadata/query`) is typed:
+  - The DDO search (`query` command, `POST /api/query`) is typed:
     `assetQuery.ts` checks the request (zod) and turns the filters into conditions; SQL
     and Elasticsearch (`esConditions.ts`) each run them with fixed queries. There is no
     Elasticsearch query syntax on any database.

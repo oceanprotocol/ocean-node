@@ -32,7 +32,7 @@ directory (indexed at the bottom) for the detailed references.
 
 Ocean Node has **two front doors and one dispatcher**:
 
-- **HTTP** — `POST /directCommand` (plus ergonomic REST routes under `provider`, `aquarius`,
+- **HTTP** — `POST /directCommand` (plus ergonomic REST routes under `provider`, `ddo`, `query`,
   `compute`, `auth`, `escrow`, …) normalizes each request into a `Command`.
 - **P2P** — a libp2p protocol handler reads length-prefixed command frames off the stream.
 
@@ -152,7 +152,7 @@ prior `npm run build` is required.
   the repo ships a ready-to-run [`config.json`](config.json) (chain
   `8996`/development, a single Docker C2D environment). Environment variables are merged on
   top of the file and take precedence.
-  - ⚠️ **Blank env vars override the file.** Only *unset* variables fall through to
+  - ⚠️ **Blank env vars override the file.** Only _unset_ variables fall through to
     `config.json`; an **empty** value (e.g. `export HTTP_API_PORT=`) is treated as set and
     overrides the file's value. `npm run setupEnv` creates `.env` by copying
     [`.env.example`](.env.example), which has many blank `export VAR=` lines, so after

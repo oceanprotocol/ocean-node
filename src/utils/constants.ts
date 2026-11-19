@@ -853,3 +853,7 @@ export const MAX_ESCROW_CLIENT_SCAN = 2000
 export const DDO_IDENTIFIER_PREFIX = 'did:op:'
 // global ocean node API services path
 export const SERVICES_API_BASE_PATH = '/api/services'
+// DDO routes: resolve, state, validate
+export const DDO_API_BASE_PATH = '/api/ddo'
+// the DDO, order and tag search: the path of the `query` command
+export const QUERY_API_PATH = '/api/query'

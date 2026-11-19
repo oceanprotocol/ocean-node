@@ -91,7 +91,7 @@
 			]
 		},
 		{
-			"name": "Aquarius (DDO)",
+			"name": "DDO and query",
 			"item": [
 				{
 					"name": "Get DDO by DID",
@@ -99,40 +99,17 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/aquarius/assets/ddo/{{did}}",
+							"raw": "{{baseUrl}}/api/ddo/{{did}}",
 							"host": [
 								"{{baseUrl}}"
 							],
 							"path": [
 								"api",
-								"aquarius",
-								"assets",
 								"ddo",
 								"{{did}}"
 							]
 						},
 						"description": "Retrieve the full DDO for a DID. Append an optional `/true` path segment to force a fresh lookup."
-					}
-				},
-				{
-					"name": "Get DDO Metadata by DID",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/aquarius/assets/metadata/{{did}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"aquarius",
-								"assets",
-								"metadata",
-								"{{did}}"
-							]
-						},
-						"description": "Retrieve DDO metadata for a DID. Optional trailing `/true` forces a fresh lookup."
 					}
 				},
 				{
@@ -150,15 +127,12 @@
 							"raw": "{\n  \"filter\": { \"chainIds\": [8996] },\n  \"page\": 1,\n  \"size\": 10\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/aquarius/assets/metadata/query",
+							"raw": "{{baseUrl}}/api/query",
 							"host": [
 								"{{baseUrl}}"
 							],
 							"path": [
 								"api",
-								"aquarius",
-								"assets",
-								"metadata",
 								"query"
 							]
 						},
@@ -171,15 +145,14 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/aquarius/state/ddo?did={{did}}",
+							"raw": "{{baseUrl}}/api/ddo/state?did={{did}}",
 							"host": [
 								"{{baseUrl}}"
 							],
 							"path": [
 								"api",
-								"aquarius",
-								"state",
-								"ddo"
+								"ddo",
+								"state"
 							],
 							"query": [
 								{
@@ -221,14 +194,12 @@
 							"raw": "{\n  \"ddo\": {},\n  \"publisherAddress\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\"\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/aquarius/assets/ddo/validate",
+							"raw": "{{baseUrl}}/api/ddo/validate",
 							"host": [
 								"{{baseUrl}}"
 							],
 							"path": [
 								"api",
-								"aquarius",
-								"assets",
 								"ddo",
 								"validate"
 							]

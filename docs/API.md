@@ -34,7 +34,7 @@ signed, so clients that build the message from a lowercase address keep working.
 
 ## State DDO
 
-### `HTTP` GET /api/aquarius/state/ddo
+### `HTTP` GET /api/ddo/state
 
 #### Description
 
@@ -68,7 +68,7 @@ Give one of the three.
 
 ## Query DDO
 
-### `HTTP` POST /api/aquarius/assets/metadata/query
+### `HTTP` POST /api/query
 
 #### Description
 
@@ -130,33 +130,9 @@ gives HTTP 400 with the reason as text, for example `Invalid query: filter.types
 
 ---
 
-## Get DDO Metadata
-
-### `HTTP` GET /api/aquarius/assets/ddo/:did
-
-#### Description
-
-returns metadata of document by id
-
-#### Response
-
-```
-{
-    "created": "2020-11-15T12:27:48Z",
-    "updated": "2021-05-17T21:58:02Z",
-    "description": "Sample description",
-    "name": "Sample asset",
-    "type": "dataset",
-    "author": "OPF",
-    "license": "https://market.oceanprotocol.com/terms"
-}
-```
-
----
-
 ## Get DDO
 
-### `HTTP` GET /api/aquarius/assets/ddo/:did
+### `HTTP` GET /api/ddo/:did
 
 #### Description
 
@@ -1031,7 +1007,7 @@ empty array is always allowed). Free compute has no escrow lock/claim, so the fi
 #### Description
 
 Searches the DDOs, the orders of an account, or the tags of the DDOs, with the same query as
-`POST /api/aquarius/assets/metadata/query` (see [database.md](database.md#ddo-search)). An
+`POST /api/query` (see [database.md](database.md#ddo-search)). An
 Elasticsearch query body gives HTTP 400.
 
 #### Parameters
