@@ -232,14 +232,19 @@ export class SqlDocuments {
         params: [...c.paths, ...c.paths.map((path) => `${escapeLike(path)}.%`)]
       })
     }
-    return join(
-      c.words.map((word) =>
-        this.hasField(inPaths, {
-          sql: `"str" LIKE ? ESCAPE '\\'`,
-          params: [`%${escapeLike(searchText(word))}%`]
-        })
+    // in brackets, so the words stay together inside an `either`
+    return wrap(
+      '(',
+      join(
+        c.words.map((word) =>
+          this.hasField(inPaths, {
+            sql: `"str" LIKE ? ESCAPE '\\'`,
+            params: [`%${escapeLike(searchText(word))}%`]
+          })
+        ),
+        ' AND '
       ),
-      ' AND '
+      ')'
     )
   }
 
@@ -287,7 +292,7 @@ export class SqlDocuments {
       [id, JSON.stringify(doc)]
     )
     await tx.run(`DELETE FROM ${this.fields} WHERE "id" = ?`, [id])
-    // the id is a field too, so a query on "_id" works for a document with no id field
+    // the id is a field too, so a condition on `id` matches a document with no id field
     const rows = flattenDocument({ id, ...doc, ...extraFields })
     for (let start = 0; start < rows.length; start += CHUNK_SIZE) {
       await this.insertFields(tx, id, rows.slice(start, start + CHUNK_SIZE))

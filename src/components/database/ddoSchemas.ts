@@ -1,7 +1,7 @@
 import { DDOManager, ddoElasticMappings } from '@oceanprotocol/ddo-js'
 
-// The DDO store keeps the DDOs of each version apart. A query selects one group with the
-// `index` field; these are the names.
+// The groups of DDOs, one for each DDO version: an index on Elasticsearch. The node status
+// lists them as its supported schemas.
 // "op_ddo_short" is a node-side group for deprecated DDOs (nft state !== 0).
 export const DDO_SHORT_SCHEMA = 'op_ddo_short'
 export const DDO_SCHEMA_NAMES: string[] = [

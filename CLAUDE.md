@@ -12,22 +12,22 @@ of which dispatch to the same set of command handlers.
 
 ## 1. Environment & tooling prerequisites
 
-- **Node.js 26 is required** (`.nvmrc` pins 26.12.1`— the current Node 26 LTS  —
-matching the Dockerfile and CI;`package.json` `engines`requires`>=24`, so Node 22 is
-no longer a supported runtime). The Dockerfile additionally pins each base
-image by digest, so bumping the version means updating the `sha256:`alongside the tag —
-resolve it with`docker buildx imagetools inspect node:<version>-trixie`, not from the tag
-alone. Always run `nvm use`(or`source ~/.nvm/nvm.sh && nvm use`) before
-any `npm`, build, or test command. The wrong Node version fails with errors like
-`Unexpected token 'with'` or missing `GLIBC_2.38`.
-This is enforced by`.cursor/rules/tests-nvm.mdc`and the in-repo`CLAUDE.md`.
+- **Node.js 26 is required** (`.nvmrc` pins `26.12.1`, the current Node 26 LTS, matching
+  the Dockerfile and CI; `package.json` `engines` requires `>=24`, so Node 22 is no longer a
+  supported runtime). The Dockerfile also pins each base image by digest, so a version bump
+  updates the `sha256:` with the tag: resolve it with
+  `docker buildx imagetools inspect node:<version>-trixie`, not from the tag alone. Always
+  run `nvm use` (or `source ~/.nvm/nvm.sh && nvm use`) before any `npm`, build or test
+  command. The wrong Node version fails with errors like `Unexpected token 'with'` or a
+  missing `GLIBC_2.38`. This is enforced by `.cursor/rules/tests-nvm.mdc` and the in-repo
+  `CLAUDE.md`.
 - **There is no `postinstall` step.** `npm install` is plain. (Historically a `postinstall`
   ran `scripts/fix-libp2p-http-utils.js` to default a missing URL port to 443/80 in
   `@libp2p/http-utils`; upstream shipped that fix in `2.0.3`, so both the hook and the
   script were removed.)
 - **Docker + docker-compose** are needed for C2D (Compute-to-Data) via the local Docker
-  socket, and for PostgreSQL or Elasticsearch when `DB_TYPE` selects one of them. The default
-  database, SQLite, needs no container.
+  socket, and for PostgreSQL or Elasticsearch when `DB_TYPE` selects one of them. SQLite
+  needs no container.
 - TypeScript config: **TypeScript 6**, ESM (`module: esnext`, `target: ES2022`,
   `moduleResolution: node`), `experimentalDecorators` + `emitDecoratorMetadata` enabled,
   `rootDir: ./src`, `outDir: ./dist`. Most local imports use the `.js` extension
@@ -230,7 +230,7 @@ Multiple front doors, one shared `handler.handle(task)` primitive:
 - **P2P inbound** (`src/components/P2P/handleProtocolCommands.ts`): a libp2p protocol handler
   reads a length-prefixed command frame off the stream, applies connection/request rate
   limits, and dispatches through the same `CoreHandlersRegistry`.
-- **RESTful routes** (`src/components/httpRoutes/*`, e.g. `provider.ts`, `aquarius.ts`,
+- **RESTful routes** (`src/components/httpRoutes/*`, e.g. `provider.ts`, `ddo.ts`,
   `compute.ts`, `auth.ts`, `escrow.ts`, `accessList.ts`, `persistentStorage.ts`) are
   ergonomic wrappers that build the equivalent `Command` and invoke the corresponding
   handler. Route mounting lives in `src/components/httpRoutes/index.ts`
@@ -312,12 +312,12 @@ Handler source is grouped under `src/components/core/`:
     `SqlDocuments` keeps JSON documents with a field table and runs typed conditions
     (`Condition` in `BaseDatabase.ts`) as fixed SQL. `SqliteStores.ts` keeps the file
     names of the older releases and upgrades their tables.
+  - **Elasticsearch**: the `Elastic*` files (index mappings in `ElasticSchemas.ts`).
   - The DDO search (`query` command, `POST /api/query`) is typed:
     `assetQuery.ts` checks the request (zod) and turns the filters into conditions; SQL
     and Elasticsearch (`esConditions.ts`) each run them with fixed queries. There is no
     Elasticsearch query syntax on any database.
-  - **Elasticsearch**: the `Elastic*` files (index mappings in `ElasticSchemas.ts`).
-  Node metrics are kept per `INSTANCE_ID`. See `docs/database.md`.
+  - Node metrics are kept per `INSTANCE_ID`. See `docs/database.md`.
 - **KeyManager/** — provider-abstraction over the node key (`docs/KeyManager.md`). Currently
   `RawPrivateKeyProvider` (from `PRIVATE_KEY`); derives the libp2p peerId/keys and the EVM
   address, and caches the ethers signer. Designed to add KMS providers (GCP/AWS) later.

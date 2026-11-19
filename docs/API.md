@@ -669,34 +669,39 @@ returns list of all P2P peers
 
 ## Validate DDO
 
-### `HTTP` POST /directCommand
+### `HTTP` POST /api/ddo/validate
 
 ### `P2P` command: validateDDO
 
 #### Description
 
-returns an empty object if it is valid otherwise an array with error
+Checks a DDO against its schema (and the policy server, when one is configured). A valid DDO
+gets the signed hash of the node, which the publisher writes on chain with the metadata. With
+`VALIDATE_UNSIGNED_DDO=false`, only a request with a signature or an auth token gets the
+signed hash; an unsigned request gets `200` with an empty body.
 
 #### Parameters
 
-| name       | type     | required | description                                       |
-| ---------- | -------- | -------- | ------------------------------------------------- |
-| command    | string   | v        | command name                                      |
-| node       | string   |          | if not present it means current node              |
-| multiAddrs | string[] |          | if passed, use this instead of peerStore & DHT    |
-| id         | string   | v        | document id or did                                |
-| chainId    | number   | v        | chain id of network on which document is provided |
-| nftAddress | string   | v        | address of nft token                              |
+| name             | type   | required | description                                             |
+| ---------------- | ------ | -------- | ------------------------------------------------------- |
+| ddo              | object | v        | the DDO                                                 |
+| publisherAddress | string |          | the address that signs                                  |
+| nonce            | string |          | the next nonce of the publisher                         |
+| signature        | string |          | signature of `publisherAddress + nonce + "validateDDO"` |
+| Authorization    | header |          | an auth token, in place of the signature (HTTP)         |
 
-#### Request
+#### Response
+
+`200` with the signed hash. `400` with the validation error. `403` when the policy server
+denies the publisher.
 
 ```json
 {
-  "command": "validateDDO",
-  "node": "PeerId",
-  "id": "did:op:123",
-  "chainId": 123,
-  "nftAddress": "0x123"
+  "hash": "0x…",
+  "publicKey": "0x…",
+  "r": ["0x…"],
+  "s": ["0x…"],
+  "v": 27
 }
 ```
 

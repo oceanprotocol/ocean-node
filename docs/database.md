@@ -88,8 +88,8 @@ change it for the node and for the database before the first start. For the same
 remove the data volume of a database before you select that database again in the quickstart
 script: the script makes a new password, and the old volume keeps the old one.
 
-Frontends read DDOs through the node: the `query` command and
-`POST /api/query`.
+Frontends read DDOs through the node: `POST /api/query` (or the `query` command) to search,
+and `GET /api/ddo/:did` (or the `getDDO` command) for one DDO.
 
 ## DDO search
 
@@ -117,7 +117,7 @@ versions (v4 and v5), sorted and paged over all of them.
 | `filter` | The filters below. With `orders`: `{ "consumer": "0x…" }` or `{ "payer": "0x…" }`                                                         |
 | `sort`   | `assets` only. `by`: `created` (the event block), `orders`, `price`, `tokenSymbol` or `relevance`; `order`: `asc` or `desc` (the default) |
 | `page`   | Starts at 1. `page` × `size` is 10000 at most                                                                                             |
-| `size`   | 0 to 10000, 1000 when absent. With `tags`: the largest number of tags                                                                     |
+| `size`   | 0 to 10000, 1000 when absent. With `tags`: the largest number of tags, 1 to 10000                                                         |
 
 The asset filters. A filter that is not set adds no condition; all filters that are set must
 hold. Each filter covers the field of a DDO v4 and of a DDO v5 (`credentialSubject.…`).

@@ -4,6 +4,7 @@ import {
   MAX_RESULT_WINDOW,
   Page,
   QueryError,
+  Scalar,
   SortSpec
 } from './BaseDatabase.js'
 
@@ -85,7 +86,7 @@ const assetFilter = z
     excludeIds: strings.optional(),
     excludeNftAddresses: strings.optional(),
     owners: strings.optional(),
-    // one value of each group must match
+    // each group holds when one of its lists matches; all groups must hold
     anyOf: z
       .array(
         z
@@ -136,7 +137,7 @@ const assetsRequest = z
     filter: assetFilter.default({}),
     sort: z
       .object({
-        by: z.enum([...(Object.keys(SORT_FIELDS) as [string]), RELEVANCE]),
+        by: z.enum([RELEVANCE, ...Object.keys(SORT_FIELDS)] as [string, ...string[]]),
         order: z.enum(['asc', 'desc']).default('desc')
       })
       .strict()
@@ -177,14 +178,13 @@ export type AssetsRequest = z.infer<typeof assetsRequest>
 // the request of a caller, checked; throws QueryError (HTTP 400)
 export function parseQueryRequest(body: unknown): QueryRequest {
   if (!isObject(body)) throw new QueryError('The query must be a JSON object')
-  const given = body
-  if ('query' in given || 'from' in given || 'index' in given) {
+  if ('query' in body || 'from' in body || 'index' in body) {
     throw new QueryError(
       'The query of the node is { type, filter, sort, page, size }: an Elasticsearch ' +
         'query body is not accepted. See the DDO search section of docs/database.md'
     )
   }
-  const parsed = queryRequest.safeParse({ type: 'assets', ...given })
+  const parsed = queryRequest.safeParse({ type: 'assets', ...body })
   if (!parsed.success) {
     const issues = parsed.error.issues
       .map((issue) => `${issue.path.join('.') || 'query'}: ${issue.message}`)
@@ -214,10 +214,12 @@ export function sortOf(sort: AssetsRequest['sort']): SortSpec[] {
 export function assetConditions(filter: AssetFilter): Condition[] {
   const f = DDO_FIELDS
   const conditions: Condition[] = []
-  const anyOf = (paths: string[], values: unknown[] | undefined) =>
-    values && conditions.push({ paths, anyOf: values as any[] })
-  const noneOf = (paths: string[], values: unknown[] | undefined) =>
-    values && conditions.push({ paths, noneOf: values as any[] })
+  const anyOf = (paths: string[], values: Scalar[] | undefined) => {
+    if (values) conditions.push({ paths, anyOf: values })
+  }
+  const noneOf = (paths: string[], values: Scalar[] | undefined) => {
+    if (values) conditions.push({ paths, noneOf: values })
+  }
 
   anyOf(f.chainId, filter.chainIds)
   anyOf(f.version, filter.versions)

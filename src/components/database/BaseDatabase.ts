@@ -3,7 +3,7 @@ import { AccessListUser } from '../../@types/AccessList.js'
 import { EscrowEvent } from '../../@types/Escrow.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 
-// a DDO version that the DDO store keeps apart; `index` is its name in a query
+// a group of DDOs of one version (see ddoSchemas.ts); `index` is its name
 export interface DdoSchema {
   index: string
 }
@@ -37,7 +37,7 @@ export type Condition =
 export interface SortSpec {
   paths: string[]
   order: 'asc' | 'desc'
-  // a backend with a text score sorts by it; the others sort by `paths`
+  // a backend with a text score sorts by it first, then by `paths`; the others by `paths`
   relevance?: boolean
 }
 

@@ -31,8 +31,8 @@ libp2p P2P interface, both of which dispatch to the same set of command handlers
   `@libp2p/http-utils`; upstream shipped that fix in `2.0.3`, so both the hook and the
   script were removed.)
 - **Docker + docker-compose** are needed for C2D (Compute-to-Data) via the local Docker
-  socket, and for PostgreSQL or Elasticsearch when `DB_TYPE` selects one of them. The default
-  database, SQLite, needs no container.
+  socket, and for PostgreSQL or Elasticsearch when `DB_TYPE` selects one of them. SQLite
+  needs no container.
 - TypeScript config: **TypeScript 6**, ESM (`module: esnext`, `target: ES2022`,
   `moduleResolution: node`), `experimentalDecorators` + `emitDecoratorMetadata` enabled,
   `rootDir: ./src`, `outDir: ./dist`. Most local imports use the `.js` extension
@@ -45,7 +45,7 @@ libp2p P2P interface, both of which dispatch to the same set of command handlers
     ~123 errors), and `typescript-eslint` has to support TS 7 — its peer range is
     `>=4.8.4 <6.1.0`, so it pins us below 7 today.
 
-### Mandatory config: `PRIVATE_KEY` + a config file
+### Mandatory config: `PRIVATE_KEY`, `DB_TYPE` and a config file
 
 `PRIVATE_KEY` (with the `0x` prefix, 66 chars) and `DB_TYPE` are the required environment
 variables — `PRIVATE_KEY` seeds the node identity (libp2p peerId), the EVM signer, and

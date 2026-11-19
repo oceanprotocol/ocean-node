@@ -179,8 +179,8 @@ const D = v5(
     dataspace: 'ds-1',
     metadata: {
       type: 'dataset',
-      name: 'Revoked weather set',
-      description: { value: 'Revoked' },
+      name: 'Unlisted weather set',
+      description: { value: 'Unlisted' },
       author: 'OPF',
       tags: ['weather'],
       created: '2026-04-10T00:00:00Z'
