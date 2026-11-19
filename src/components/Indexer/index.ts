@@ -103,15 +103,21 @@ export class OceanIndexer {
   // (and could restart a torn-down indexer with its stale config) long after the instance was gone.
   private onDbConnectionLost: () => Promise<void>
   private onDbConnectionRestored: () => void
-  // Set true by stop()/stopAllChainIndexers(), false by startAllChainIndexers(). It closes a
+  // Generation-based cancellation for in-flight starts. Each start operation — a
+  // startAllChainIndexers() batch, or a standalone startChainIndexer() — takes the next value of
+  // startGeneration; stopAllChainIndexers() records the latest generation in canceledGeneration.
+  // A start whose generation is <= canceledGeneration aborts instead of crawling. This closes a
   // start/stop race: startChainIndexer can sleep for seconds inside retryCrawlerWithDelay while
   // the blockchain connection comes up, and during that window the ChainIndexer does not yet
-  // exist in `this.indexers`, so a concurrent stop finds nothing to cancel. Without this guard
-  // the indexer would resurrect itself after the sleep and keep crawling past the stop — which,
-  // in the shared-process integration suite, left a stale indexer (whose config lacked the
+  // exist in `this.indexers`, so a concurrent stop finds nothing to cancel. A single boolean flag
+  // was not enough: a later standalone start would reset it and revive an already-stopped start.
+  // In the shared-process integration suite this left a stale indexer (whose config lacked the
   // suite's AUTHORIZED_PUBLISHERS gate) crawling chain 8996 and indexing assets a later suite
-  // expects to be rejected (the flaky credentials "should NOT allow to index" failures).
-  private stopRequested: boolean = false
+  // expects to be rejected (the flaky credentials "should NOT allow to index" failures). Tying
+  // cancellation to a per-start generation means a stop only cancels the starts already issued,
+  // and a fresh start (allocating a higher generation) is never revived or blocked by it.
+  private startGeneration = 0
+  private canceledGeneration = 0
 
   constructor(
     _db: Database,
@@ -234,10 +240,11 @@ export class OceanIndexer {
 
   // stops all indexers
   public async stopAllChainIndexers(): Promise<boolean> {
-    // Signal any in-flight startChainIndexer (e.g. one still sleeping in retryCrawlerWithDelay
-    // before its ChainIndexer is registered) to abort instead of starting to crawl after we
-    // return.
-    this.stopRequested = true
+    // Cancel any in-flight start (e.g. one still sleeping in retryCrawlerWithDelay before its
+    // ChainIndexer is registered): mark every generation issued so far as canceled, so those
+    // starts abort instead of beginning to crawl after we return. A later start allocates a
+    // higher generation and is unaffected.
+    this.canceledGeneration = this.startGeneration
     const stopPromises: Promise<void>[] = []
     for (const chainID of this.supportedChains) {
       const promise = this.stopChainIndexer(Number(chainID))
@@ -261,6 +268,11 @@ export class OceanIndexer {
     }
   }
 
+  // A start (batch or standalone) is canceled when its generation has been superseded by a stop.
+  private isStartCanceled(generation: number): boolean {
+    return this.canceledGeneration >= generation
+  }
+
   // it does not start crawling until the network connectin is ready
   async startCrawler(blockchain: Blockchain): Promise<boolean> {
     if ((await blockchain.isNetworkReady()).ready) {
@@ -271,8 +283,12 @@ export class OceanIndexer {
 
   async retryCrawlerWithDelay(
     blockchain: Blockchain,
-    interval: number = 5000 // in milliseconds, default 2 secs
+    interval: number = 5000, // in milliseconds
+    generation?: number
   ): Promise<boolean> {
+    // The start generation this retry belongs to. If that start is stopped while we sleep, abort
+    // instead of eventually crawling (see `startGeneration`/`canceledGeneration`).
+    const gen = generation ?? this.startGeneration
     try {
       const retryInterval = Math.max(blockchain.getKnownRPCs().length * 3000, interval) // give 2 secs per each one
       const result = await this.startCrawler(blockchain)
@@ -297,16 +313,16 @@ export class OceanIndexer {
         if (this.numCrawlAttempts <= MAX_CRAWL_RETRIES) {
           // delay the next call
           await sleep(retryInterval)
-          // Abort the retry chain if a stop was requested while we slept, so a stopped indexer
+          // Abort the retry chain if this start was stopped while we slept, so a stopped indexer
           // doesn't keep retrying (and eventually start crawling) after it was torn down.
-          if (this.stopRequested) {
+          if (this.isStartCanceled(gen)) {
             INDEXER_LOGGER.debug(
               'Stop requested during connection retry; aborting crawler start'
             )
             return false
           }
-          // recursively call the same func
-          return this.retryCrawlerWithDelay(blockchain, retryInterval)
+          // recursively call the same func, preserving this start's generation
+          return this.retryCrawlerWithDelay(blockchain, retryInterval, gen)
         } else {
           INDEXER_LOGGER.error(
             `Giving up start crawling after ${MAX_CRAWL_RETRIES} retries.`
@@ -323,15 +339,12 @@ export class OceanIndexer {
   // starts indexing for a specific chain
   public async startChainIndexer(
     chainID: number,
-    // When this is an explicit, standalone start (admin START_THREAD, resetCrawling) rather than
-    // part of a startAllChainIndexers() batch, clear any lingering stop request first: the caller
-    // is explicitly asking to (re)start this chain. The batch path passes false and manages the
-    // flag itself, so a teardown that lands mid-batch is still honoured (see `stopRequested`).
-    resetStopRequested: boolean = true
+    // A startAllChainIndexers() batch passes its shared generation so a single stop cancels the
+    // whole batch. A standalone start (admin START_THREAD, resetCrawling) omits it and takes a
+    // fresh generation, so a prior stop never blocks a later explicit (re)start of this chain.
+    batchGeneration?: number
   ): Promise<ChainIndexer | null> {
-    if (resetStopRequested) {
-      this.stopRequested = false
-    }
+    const generation = batchGeneration ?? ++this.startGeneration
     // If an indexer is already running, stop it first
     const existingIndexer = this.indexers.get(chainID)
     if (existingIndexer && existingIndexer.isIndexing()) {
@@ -355,7 +368,7 @@ export class OceanIndexer {
       INDEXER_LOGGER.error(`Unable to get Blockchain instance for chain: ${chainID}`)
       return null
     }
-    const canStartIndexer = await this.retryCrawlerWithDelay(blockchain)
+    const canStartIndexer = await this.retryCrawlerWithDelay(blockchain, 5000, generation)
     if (!canStartIndexer) {
       INDEXER_LOGGER.error(
         `Cannot start indexer for chain ${chainID}. Check DB and RPC connections!`
@@ -365,8 +378,8 @@ export class OceanIndexer {
 
     // A stop may have been requested while retryCrawlerWithDelay was waiting for the connection.
     // Do NOT start crawling in that case — otherwise this indexer outlives the stop and keeps
-    // polling the chain with a now-stale config (see `stopRequested`).
-    if (this.stopRequested) {
+    // polling the chain with a now-stale config (see `startGeneration`/`canceledGeneration`).
+    if (this.isStartCanceled(generation)) {
       INDEXER_LOGGER.debug(
         `Stop requested while connecting; not starting indexer for chain ${chainID}`
       )
@@ -395,15 +408,29 @@ export class OceanIndexer {
 
   // Start all chain indexers
   public async startAllChainIndexers(): Promise<boolean> {
+    // Allocate this batch's generation BEFORE any await, so a stop that lands while we are still
+    // awaiting teardown/reindex is recorded against this generation and aborts the batch
+    // (see `startGeneration`/`canceledGeneration`).
+    const generation = ++this.startGeneration
+
     // Close the overlap at its source: wait for a previous OceanNode instance's teardown
     // (its indexer stop + provider destroy) to finish before this indexer starts crawling,
     // so two indexers never run concurrently against the same DB/chain.
     await OceanNode.awaitPendingTeardown()
-
-    // Clear any stop requested by a previous lifecycle so this start is honoured.
-    this.stopRequested = false
+    if (this.isStartCanceled(generation)) {
+      INDEXER_LOGGER.debug(
+        'Stop requested during startup (awaiting teardown); aborting start of all chain indexers'
+      )
+      return false
+    }
 
     await this.checkAndTriggerReindexing()
+    if (this.isStartCanceled(generation)) {
+      INDEXER_LOGGER.debug(
+        'Stop requested during startup (reindex check); aborting start of all chain indexers'
+      )
+      return false
+    }
 
     // Setup event listeners for all chains (they all use the same event emitter)
     this.setupEventListeners()
@@ -412,9 +439,9 @@ export class OceanIndexer {
     let count = 0
     for (const network of this.supportedChains) {
       const chainId = parseInt(network)
-      // Don't let the per-chain start clear stopRequested: the batch owns the flag (cleared
-      // once above) so a stop arriving mid-batch still aborts the chains still coming up.
-      const indexer = await this.startChainIndexer(chainId, false)
+      // Share this batch's generation across all chains, so a single stop cancels the whole
+      // batch — including chains still coming up.
+      const indexer = await this.startChainIndexer(chainId, generation)
       if (indexer) {
         count++
       }
@@ -682,8 +709,12 @@ export class OceanIndexer {
   }
 
   public async stop(): Promise<void> {
-    await this.stopAllChainIndexers()
+    // Detach DB listeners and cancel any pending reconnect BEFORE stopping, so a
+    // CONNECTION_RESTORED arriving mid-stop cannot schedule a restart. stopAllChainIndexers()
+    // then marks in-flight starts (including an already-fired reconnect that is mid-startup) as
+    // canceled, so none can resurrect an indexer after shutdown.
     this.teardownDbConnectionListeners()
+    await this.stopAllChainIndexers()
     INDEXER_CRAWLING_EVENT_EMITTER.removeAllListeners()
     INDEXER_DDO_EVENT_EMITTER.removeAllListeners()
   }
