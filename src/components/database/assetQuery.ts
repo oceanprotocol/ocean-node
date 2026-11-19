@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import {
   Condition,
-  DEFAULT_PAGE_SIZE,
   MAX_RESULT_WINDOW,
   Page,
   QueryError,
@@ -18,6 +17,7 @@ const inBoth = (path: string) => [path, `credentialSubject.${path}`]
 // the places of each searchable DDO field
 export const DDO_FIELDS = {
   id: ['id'],
+  version: ['version'],
   chainId: inBoth('chainId'),
   nftAddress: inBoth('nftAddress'),
   owner: ['indexedMetadata.nft.owner'],
@@ -47,11 +47,14 @@ export const DDO_FIELDS = {
     ...inBoth('metadata.author'),
     ...inBoth('metadata.tags'),
     'indexedMetadata.stats.name',
-    'indexedMetadata.stats.symbol'
+    'indexedMetadata.stats.symbol',
+    'indexedMetadata.nft.owner',
+    'indexedMetadata.stats.datatokenAddress'
   ]
 }
 
-// the sort keys; `relevance` is the text score on Elasticsearch, `created` on SQL
+// the sort keys; `relevance` is the text score then `created` on Elasticsearch, `created`
+// on SQL
 export const SORT_FIELDS = {
   created: ['indexedMetadata.event.block'],
   orders: ['indexedMetadata.stats.orders'],
@@ -60,21 +63,39 @@ export const SORT_FIELDS = {
 }
 export const RELEVANCE = 'relevance'
 
-// the nft state that the markets hide unless the query names the states
-const REVOKED_STATE = 5
+// the nft state that the markets hide unless the query includes it
+const UNLISTED_STATE = 5
+// the page size when the request has none
+const QUERY_PAGE_SIZE = 1000
 
 const strings = z.array(z.string())
+
+// the fields of an `anyOf` group
+const ANY_OF_FIELDS = {
+  ids: DDO_FIELDS.id,
+  owners: DDO_FIELDS.owner,
+  datatokenAddresses: DDO_FIELDS.datatokenAddress
+}
 
 const assetFilter = z
   .object({
     chainIds: z.array(z.number().int()).optional(),
+    versions: strings.optional(),
     ids: strings.optional(),
     excludeIds: strings.optional(),
     excludeNftAddresses: strings.optional(),
     owners: strings.optional(),
+    // one value of each group must match
     anyOf: z
-      .object({ ids: strings.optional(), owners: strings.optional() })
-      .strict()
+      .array(
+        z
+          .object({
+            ids: strings.optional(),
+            owners: strings.optional(),
+            datatokenAddresses: strings.optional()
+          })
+          .strict()
+      )
       .optional(),
     types: z.array(z.enum(['dataset', 'algorithm'])).optional(),
     serviceTypes: z.array(z.enum(['access', 'compute'])).optional(),
@@ -82,6 +103,7 @@ const assetFilter = z
     tags: strings.optional(),
     text: z.string().max(512).optional(),
     nftStates: z.array(z.number().int()).optional(),
+    includeUnlisted: z.boolean().optional(),
     includePurgatory: z.boolean().optional(),
     priceTypes: strings.optional(),
     excludePriceTypes: strings.optional(),
@@ -105,7 +127,7 @@ export type AssetFilter = z.infer<typeof assetFilter>
 const paging = {
   // starts at 1
   page: z.number().int().min(1).default(1),
-  size: z.number().int().min(0).max(MAX_RESULT_WINDOW).default(DEFAULT_PAGE_SIZE)
+  size: z.number().int().min(0).max(MAX_RESULT_WINDOW).default(QUERY_PAGE_SIZE)
 }
 
 const assetsRequest = z
@@ -139,7 +161,7 @@ const tagsRequest = z
     type: z.literal('tags'),
     filter: assetFilter.default({}),
     // the largest number of tags in the answer
-    size: z.number().int().min(1).max(MAX_RESULT_WINDOW).default(DEFAULT_PAGE_SIZE)
+    size: z.number().int().min(1).max(MAX_RESULT_WINDOW).default(QUERY_PAGE_SIZE)
   })
   .strict()
 
@@ -198,6 +220,7 @@ export function assetConditions(filter: AssetFilter): Condition[] {
     values && conditions.push({ paths, noneOf: values as any[] })
 
   anyOf(f.chainId, filter.chainIds)
+  anyOf(f.version, filter.versions)
   anyOf(f.id, filter.ids)
   noneOf(f.id, filter.excludeIds)
   noneOf(f.nftAddress, filter.excludeNftAddresses)
@@ -209,14 +232,15 @@ export function assetConditions(filter: AssetFilter): Condition[] {
   anyOf(f.priceType, filter.priceTypes)
   noneOf(f.priceType, filter.excludePriceTypes)
   anyOf(f.serviceEndpoint, filter.serviceEndpoints)
-  if (filter.anyOf) {
-    const either: Condition[] = []
-    if (filter.anyOf.ids) either.push({ paths: f.id, anyOf: filter.anyOf.ids })
-    if (filter.anyOf.owners) either.push({ paths: f.owner, anyOf: filter.anyOf.owners })
+  for (const group of filter.anyOf ?? []) {
+    const either = Object.entries(group).map(([field, values]) => ({
+      paths: ANY_OF_FIELDS[field as keyof typeof ANY_OF_FIELDS],
+      anyOf: values
+    }))
     if (either.length > 0) conditions.push({ either })
   }
-  if (filter.nftStates) anyOf(f.nftState, filter.nftStates)
-  else noneOf(f.nftState, [REVOKED_STATE])
+  anyOf(f.nftState, filter.nftStates)
+  if (!filter.includeUnlisted) noneOf(f.nftState, [UNLISTED_STATE])
   if (!filter.includePurgatory) noneOf(f.purgatory, [true])
   if (filter.createdAfter) {
     conditions.push({ paths: f.created, range: { gte: filter.createdAfter } })
@@ -230,8 +254,12 @@ export function assetConditions(filter: AssetFilter): Condition[] {
     anyOf(f.trustedAlgorithmPublisher, [filter.trustedAlgorithmPublisher])
   }
   if (filter.indexedOnly) conditions.push({ paths: f.indexedMetadata, exists: true })
-  const words = (filter.text ?? '').split(/\s+/).filter(Boolean)
-  if (words.length > 0) conditions.push({ paths: f.text, words })
+  const text = filter.text?.trim()
+  if (text) {
+    // each word in the text fields, or the whole text is a DID
+    const words: Condition = { paths: f.text, words: text.split(/\s+/) }
+    conditions.push({ either: [words, { paths: f.id, anyOf: [text] }] })
+  }
   return conditions
 }
 

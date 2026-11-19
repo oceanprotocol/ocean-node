@@ -117,32 +117,34 @@ versions (v4 and v5), sorted and paged over all of them.
 | `filter` | The filters below. With `orders`: `{ "consumer": "0x…" }` or `{ "payer": "0x…" }`                                                         |
 | `sort`   | `assets` only. `by`: `created` (the event block), `orders`, `price`, `tokenSymbol` or `relevance`; `order`: `asc` or `desc` (the default) |
 | `page`   | Starts at 1. `page` × `size` is 10000 at most                                                                                             |
-| `size`   | 0 to 10000, 100 when absent. With `tags`: the largest number of tags                                                                      |
+| `size`   | 0 to 10000, 1000 when absent. With `tags`: the largest number of tags                                                                     |
 
 The asset filters. A filter that is not set adds no condition; all filters that are set must
 hold. Each filter covers the field of a DDO v4 and of a DDO v5 (`credentialSubject.…`).
 
-| Filter                                 | Matches                                                                          |
-| -------------------------------------- | -------------------------------------------------------------------------------- |
-| `chainIds`                             | `chainId` is one of the values                                                   |
-| `ids`, `excludeIds`                    | the DID is (is not) one of the values                                            |
-| `excludeNftAddresses`                  | `nftAddress` is not one of the values                                            |
-| `owners`                               | `indexedMetadata.nft.owner` is one of the values                                 |
-| `anyOf: { ids, owners }`               | the DID is one of `ids`, or the owner is one of `owners`                         |
-| `types`                                | `metadata.type`: `dataset`, `algorithm`                                          |
-| `serviceTypes`                         | a service has the type: `access`, `compute`                                      |
-| `datatokenAddresses`                   | a service has one of the datatokens                                              |
-| `tags`                                 | `metadata.tags` has one of the values                                            |
-| `text`                                 | each word is in the name, description, author, tags, or datatoken name or symbol |
-| `nftStates`                            | `indexedMetadata.nft.state` is one of the values. Not set: all states but 5      |
-| `includePurgatory`                     | `true` also gives the assets in purgatory. Not set: they are hidden              |
-| `priceTypes`, `excludePriceTypes`      | `indexedMetadata.stats.prices.type` is (is not) one of the values                |
-| `createdAfter`                         | `metadata.created` is at or after the ISO date                                   |
-| `serviceEndpoints`                     | a service has one of the endpoints                                               |
-| `dataspace`                            | `credentialSubject.dataspace` is the value                                       |
-| `trustedAlgorithm: { did, serviceId }` | a compute service trusts the algorithm (`"*"`: all algorithms)                   |
-| `trustedAlgorithmPublisher`            | a compute service trusts the publisher (`"*"`: all publishers)                   |
-| `indexedOnly`                          | the DDO has `indexedMetadata`                                                    |
+| Filter                                         | Matches                                                                                                                        |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `chainIds`                                     | `chainId` is one of the values                                                                                                 |
+| `versions`                                     | the DDO `version` is one of the values, for example `"5.0.0"`                                                                  |
+| `ids`, `excludeIds`                            | the DID is (is not) one of the values                                                                                          |
+| `excludeNftAddresses`                          | `nftAddress` is not one of the values                                                                                          |
+| `owners`                                       | `indexedMetadata.nft.owner` is one of the values                                                                               |
+| `anyOf: [{ ids, owners, datatokenAddresses }]` | in each group, one of the lists matches (DID, owner, a service datatoken). All groups must hold                                |
+| `types`                                        | `metadata.type`: `dataset`, `algorithm`                                                                                        |
+| `serviceTypes`                                 | a service has the type: `access`, `compute`                                                                                    |
+| `datatokenAddresses`                           | a service has one of the datatokens                                                                                            |
+| `tags`                                         | `metadata.tags` has one of the values                                                                                          |
+| `text`                                         | each word is in the name, description, author, tags, owner, or datatoken name, symbol or address; or the whole text is the DID |
+| `nftStates`                                    | `indexedMetadata.nft.state` is one of the values                                                                               |
+| `includeUnlisted`                              | `true` also gives the unlisted assets (state 5). Not set: they are hidden, also when `nftStates` has 5                         |
+| `includePurgatory`                             | `true` also gives the assets in purgatory. Not set: they are hidden                                                            |
+| `priceTypes`, `excludePriceTypes`              | `indexedMetadata.stats.prices.type` is (is not) one of the values                                                              |
+| `createdAfter`                                 | `metadata.created` is at or after the ISO date                                                                                 |
+| `serviceEndpoints`                             | a service has one of the endpoints                                                                                             |
+| `dataspace`                                    | `credentialSubject.dataspace` is the value                                                                                     |
+| `trustedAlgorithm: { did, serviceId }`         | a compute service trusts the algorithm (`"*"`: all algorithms)                                                                 |
+| `trustedAlgorithmPublisher`                    | a compute service trusts the publisher (`"*"`: all publishers)                                                                 |
+| `indexedOnly`                                  | the DDO has `indexedMetadata`                                                                                                  |
 
 `type: "tags"` answers the distinct tags of the assets that match the filter, the most used
 first: `{ "results": [{ "tag": "weather", "count": 2 }], "totalResults": 1 }`.
@@ -152,8 +154,8 @@ differ in these points:
 
 - `text`: on SQLite and PostgreSQL a word matches when a value contains it; on Elasticsearch
   it matches a word of a value, or the start of one.
-- `relevance` sorts by the text score on Elasticsearch; SQLite and PostgreSQL have no score
-  and give the newest first.
+- `relevance` sorts by the text score on Elasticsearch, then the newest first; SQLite and
+  PostgreSQL have no score and give the newest first.
 - `price` is stored as text: SQLite and PostgreSQL sort it as a number, Elasticsearch as text.
 - The tags of a `tags` answer are in lower case on SQLite and PostgreSQL. Their comparisons
   ignore the letter case; on Elasticsearch a tag, a type and an id must match exactly.

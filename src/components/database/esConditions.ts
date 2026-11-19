@@ -115,16 +115,17 @@ export function esSort(
   sort: SortSpec[],
   tieBreaker?: string
 ): estypes.SortCombinations[] {
-  const keys: estypes.SortCombinations[] = sort.map(({ paths, order, relevance }) => {
-    if (relevance) return { _score: { order: 'desc' } }
+  const keys = sort.flatMap(({ paths, order, relevance }): estypes.SortCombinations[] => {
     const path = paths[0]
-    return {
+    const byPath = {
       [exact(path)]: {
         order,
-        missing: '_last',
+        missing: '_last' as const,
         unmapped_type: DYNAMIC_TEXT.has(path) ? 'keyword' : 'long'
       }
     }
+    // the text score first; equal scores (no text: all) in the order of the path
+    return relevance ? [{ _score: { order: 'desc' } }, byPath] : [byPath]
   })
   return tieBreaker ? [...keys, { [tieBreaker]: { order: 'asc' } }] : keys
 }

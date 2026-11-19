@@ -85,7 +85,7 @@ HTTP 400.
 | filter | object |          | the asset filters; with `orders`: `{ "consumer": … }` or `{ "payer": … }`                                             |
 | sort   | object |          | `assets` only: `{ "by": "created" \| "orders" \| "price" \| "tokenSymbol" \| "relevance", "order": "asc" \| "desc" }` |
 | page   | number |          | page number, from 1                                                                                                   |
-| size   | number |          | documents for each page, 100 when absent; with `tags`: the number of tags                                             |
+| size   | number |          | documents for each page, 1000 when absent; with `tags`: the number of tags                                            |
 
 #### Request
 

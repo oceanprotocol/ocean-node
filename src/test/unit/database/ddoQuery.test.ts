@@ -43,6 +43,7 @@ interface Stats {
   price?: string
   symbol?: string
   tokenName?: string
+  datatoken?: string
 }
 
 const indexed = (s: Stats) => ({
@@ -51,6 +52,7 @@ const indexed = (s: Stats) => ({
   event: { block: s.block },
   stats: [
     {
+      datatokenAddress: s.datatoken,
       orders: s.orders,
       name: s.tokenName,
       symbol: s.symbol,
@@ -104,7 +106,8 @@ const A = v5(
     priceType: 'fixedrate',
     price: '8',
     symbol: 'WTH',
-    tokenName: 'Weather Token'
+    tokenName: 'Weather Token',
+    datatoken: address('d1')
   }
 )
 const B = v5(
@@ -275,6 +278,31 @@ const CASES: Case[] = [
     anyOrder: true
   },
   {
+    name: 'relevance with no text: newest first',
+    body: { filter: onChain(), sort: { by: 'relevance' } },
+    ids: [B.id, A.id, E.id, F.id]
+  },
+  {
+    name: 'search box: a pasted DID',
+    body: { filter: onChain({ text: ` ${B.id} ` }) },
+    ids: [B.id]
+  },
+  {
+    name: 'search box: a pasted owner address, in lower case',
+    body: { filter: onChain({ text: OWNER_B.toLowerCase() }) },
+    ids: [B.id]
+  },
+  {
+    name: 'search box: a pasted datatoken address',
+    body: { filter: onChain({ text: address('d1') }) },
+    ids: [A.id]
+  },
+  {
+    name: 'DDO v5 only',
+    body: { filter: onChain({ versions: ['5.0.0'] }) },
+    ids: [B.id, A.id, F.id]
+  },
+  {
     name: 'search filters: type, service, tags, price, time, node and dataspace',
     body: {
       filter: onChain({
@@ -290,18 +318,29 @@ const CASES: Case[] = [
     ids: [A.id]
   },
   {
-    name: 'the default hides revoked (state 5) and purgatory assets',
+    name: 'the default hides unlisted (state 5) and purgatory assets',
     body: { filter: onChain() },
     ids: [B.id, A.id, E.id, F.id]
   },
   {
     name: 'hide pool prices, with an explicit list of states',
-    body: { filter: onChain({ excludePriceTypes: ['pool'], nftStates: [0, 5] }) },
+    body: {
+      filter: onChain({
+        excludePriceTypes: ['pool'],
+        nftStates: [0, 5],
+        includeUnlisted: true
+      })
+    },
     ids: [B.id, A.id, E.id]
   },
   {
-    name: 'asset state filter',
+    name: 'asset state filter: unlisted stays hidden unless included',
     body: { filter: onChain({ nftStates: [5] }) },
+    ids: []
+  },
+  {
+    name: 'asset state filter with unlisted included',
+    body: { filter: onChain({ nftStates: [5], includeUnlisted: true }) },
     ids: [D.id]
   },
   {
@@ -340,11 +379,23 @@ const CASES: Case[] = [
     body: {
       filter: onChain({
         types: ['algorithm'],
-        anyOf: { ids: ['did:op:none'], owners: [OWNER_B] }
+        anyOf: [{ ids: ['did:op:none'], owners: [OWNER_B] }]
       }),
       size: 3000
     },
     ids: [B.id]
+  },
+  {
+    name: 'whitelist and allowlist: one value of each group',
+    body: {
+      filter: onChain({
+        anyOf: [
+          { owners: [OWNER_B], datatokenAddresses: [address('d1').toLowerCase()] },
+          { ids: [A.id, 'did:op:none'] }
+        ]
+      })
+    },
+    ids: [A.id]
   },
   {
     name: 'datasets that trust an algorithm (DID and service)',
@@ -525,12 +576,12 @@ describe('Query of the node: the request', () => {
     throw new Error('no error')
   }
 
-  it('fills the defaults: assets, page 1, size 100, newest first', () => {
+  it('fills the defaults: assets, page 1, size 1000, newest first', () => {
     expect(parseQueryRequest({})).to.deep.equal({
       type: 'assets',
       filter: {},
       page: 1,
-      size: 100
+      size: 1000
     })
     expect(sortOf(undefined)).to.deep.equal([
       { paths: ['indexedMetadata.event.block'], order: 'desc' }
@@ -563,15 +614,15 @@ describe('Query of the node: the request', () => {
         type: 'orders',
         filter: { payer: '0x1' },
         page: 1,
-        size: 100
+        size: 1000
       }
     )
   })
 
   it('maps each filter to its condition; unset filters add none', () => {
-    expect(assetConditions({ includePurgatory: true, nftStates: [0] })).to.deep.equal([
-      { paths: ['indexedMetadata.nft.state'], anyOf: [0] }
-    ])
+    expect(
+      assetConditions({ includePurgatory: true, includeUnlisted: true, nftStates: [0] })
+    ).to.deep.equal([{ paths: ['indexedMetadata.nft.state'], anyOf: [0] }])
     expect(assetConditions({})).to.deep.equal([
       { paths: ['indexedMetadata.nft.state'], noneOf: [5] },
       { paths: ['indexedMetadata.purgatory.state'], noneOf: [true] }
