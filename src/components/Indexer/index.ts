@@ -251,23 +251,39 @@ export class OceanIndexer {
     // higher generation and is unaffected.
     this.canceledGeneration = this.startGeneration
 
-    // Wait for in-flight starts to settle before tearing down registered indexers. Each now sees
-    // its generation canceled and either aborts before crawling or stops the indexer it just
-    // started (see startChainIndexer), so none survives in the gap between ChainIndexer.start()
-    // and registration. Snapshot the set because entries remove themselves as they settle.
+    // Snapshot the indexers registered right now. We tear down exactly these instances — NOT
+    // whatever the map holds after the join below. A start issued after this point has a higher,
+    // non-canceled generation and may register during the join; tearing it down here would break
+    // the contract that a later start is unaffected by this stop.
+    const toStop: Array<[number, ChainIndexer]> = [...this.indexers.entries()]
+
+    // Stop the already-registered crawlers FIRST — before joining in-flight starts below — so a
+    // slow or hung start (e.g. one awaiting the DB-reachability probe) cannot keep live crawlers
+    // indexing during shutdown. Confirm the map still holds this exact instance and evict it
+    // atomically (no await between the check and the delete) before stopping it, so a newer
+    // indexer at the same chain is left running.
+    const stopPromises: Promise<void>[] = []
+    for (const [chainID, indexer] of toStop) {
+      if (this.indexers.get(chainID) !== indexer) {
+        continue
+      }
+      this.indexers.delete(chainID)
+      INDEXER_LOGGER.debug(`Stopping indexer for chain ${chainID}`)
+      stopPromises.push(indexer.stop())
+    }
+    await Promise.allSettled(stopPromises)
+
+    // Then wait for in-flight starts to settle. A canceled start aborts before registering, or
+    // stops the indexer it just started (see doStartChainIndexer); a later, non-canceled start
+    // registers and is intentionally left running. isReachableConnection() is time-bounded, so
+    // this join cannot block shutdown indefinitely on a start stuck in its connection probe.
     if (this.pendingStarts.size > 0) {
       await Promise.allSettled([...this.pendingStarts])
     }
 
-    const stopPromises: Promise<void>[] = []
-    for (const chainID of this.supportedChains) {
-      const promise = this.stopChainIndexer(Number(chainID))
-      if (promise) {
-        stopPromises.push(promise)
-      }
-    }
-    await Promise.allSettled(stopPromises)
-    return stopPromises.length === this.supportedChains.length
+    // Preserve the historical always-true result (the previous loop pushed one promise per chain
+    // unconditionally); no caller inspects it.
+    return true
   }
 
   // stops indexing for a specific chain
