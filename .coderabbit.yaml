@@ -1,8 +1,15 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
-# TODO: delete this file after PR #1601 (Elasticsearch-only database) is merged.
+# TODO: delete this file after PR #1601 (pluggable database) is merged.
 reviews:
-  # Files removed with SQLite and Typesense. They no longer exist, so they need no review.
+  # Files removed with SQLite, Typesense, the Elasticsearch query translator and the Aquarius
+  # routes. They no longer exist, so they need no review.
   path_filters:
+    - '!src/@types/DDO/IDdoStateQuery.ts'
+    - '!src/@types/DDO/IMetadataQuery.ts'
+    - '!src/@types/DDO/SearchQuery.ts'
+    - '!src/components/database/ElasticSearchDdoStateQuery.ts'
+    - '!src/components/database/ElasticSearchMetadataQuery.ts'
+    - '!src/components/httpRoutes/aquarius.ts'
     - '!schemas/**'
     - '!scripts/inspect-job-metrics.mjs'
     - '!typesense-compose.yml'
@@ -55,3 +62,4 @@ reviews:
     - '!src/test/unit/service/serviceRestartRace.test.ts'
     - '!src/test/utils/hooks.ts'
     - '!src/test/utils/utils.ts'
+    - '!src/test/performance/util.js'
