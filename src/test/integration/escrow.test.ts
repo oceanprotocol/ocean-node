@@ -233,13 +233,36 @@ describe('Indexer stores Escrow contract events', () => {
     if (!escrowAddress || !paymentToken) this.skip()
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
 
-    // reLock adjusts the amount/expiry of the lock created in the previous test
-    // for the same jobId, preserving the original creation timestamp. The new
-    // expiry is a duration-from-now capped by (creationTimestamp + maxLockSeconds),
-    // so use a value well below `expiry` (== maxLockSeconds) to leave headroom for
-    // the wall-clock time spent waiting on the Lock event to be indexed above.
+    // reLock adjusts the amount/expiry of the lock created in the previous test for the same
+    // jobId. The new expiry is a duration-from-now capped by (lock.startTime + maxLockSeconds).
+    // Deriving that duration from the real on-chain lock + authorization — instead of a blind
+    // `expiry/2` relative to the createLock parameter — keeps the call deterministic: the old
+    // approach intermittently overshot the ceiling and reverted at estimateGas when the local
+    // chain's block.timestamp drifted ahead of wall clock between createLock and reLock.
     const newLockAmount = parseUnits('20', 18)
-    const reLockExpiry = Math.floor(expiry / 2)
+
+    const locks = await escrowContract.getLocks(paymentToken, payerAddress, payeeAddress)
+    const lock = Array.from(locks).find(
+      (l: any) => l.jobId.toString() === jobId.toString()
+    ) as any
+    assert(lock, 'createLock should have left an on-chain lock for this jobId')
+
+    const auths = await escrowContract.getAuthorizations(
+      paymentToken,
+      payerAddress,
+      payeeAddress
+    )
+    const maxLockSeconds = Number((auths[0] as any).maxLockSeconds)
+    const startTime = Number(lock.startTime)
+    const nowTs = Number((await provider.getBlock('latest'))?.timestamp)
+    // Width of the still-valid window: the new expiry must land in (now, startTime + maxLockSeconds].
+    const remainingWindow = startTime + maxLockSeconds - nowTs
+    // If the whole window has already elapsed on-chain there is nothing valid to reLock into —
+    // skip rather than flake (shouldn't happen with maxLockSeconds=7200 and seconds between txs).
+    if (!Number.isFinite(remainingWindow) || remainingWindow <= 2) this.skip()
+    // Sit in the middle of the window: a valid duration-from-now, comfortably below the ceiling.
+    const reLockExpiry = Math.max(1, Math.floor(remainingWindow / 2))
+
     const tx = await escrowContract
       .connect(publisherAccount)
       // Escrow v2: + jobType (0 = NONE) + subsidyProviders ([] = plain payer-funded lock)
