@@ -40,7 +40,7 @@ and `signature` as query parameters (or an auth-token `Authorization` header).
 | `SERVICE_RESTART` | `/api/services/serviceRestart` | POST | Recreate the container (no extra charge); asynchronous like start — returns once the job is `Restarting`, poll `serviceStatus`. Optionally restart on a **new image spec** (bug-fix flow) — see below |
 | `SERVICE_STOP` | `/api/services/serviceStop` | POST | Tear down the container; the paid resource reservation (cpu/ram/gpu + host ports) is kept until `expiresAt`, so the service can be restarted anytime on the same endpoints. `release: true` ends the paid window now and frees it instead (no refund, no restart) |
 | `SERVICE_GET_TEMPLATES` | `/api/services/serviceTemplates` | GET | List operator-published service templates |
-| `SERVICE_GET_STREAMABLE_LOGS` | `/api/services/serviceStreamableLogs` | GET | Stream the container's stdout/stderr logs — authenticated, owner-scoped; followed live while the service has a container (`Running`, or `Error` before teardown), otherwise the logs saved when its containers were removed, until storage expiry; optional `since` to skip history. See [Service logs](#service-logs) |
+| `SERVICE_GET_STREAMABLE_LOGS` | `/api/services/serviceStreamableLogs` | GET | Stream the container's stdout/stderr logs — authenticated, owner-scoped; followed live while the service has a container (`Running`, `Error` before teardown, or `Stopping`), otherwise the logs saved when its containers were removed, until storage expiry; optional `since` to skip history. See [Service logs](#service-logs) |
 | `SERVICE_GET_RESULT` | `/api/services/serviceResult` | GET | Download the service's `/data/outputs` as a zip — one of its archives (`index`, resumable with `offset`) or the running container's (`live=true`); authenticated, owner-scoped. See [Service outputs](#service-outputs) |
 
 **Start is asynchronous.** `serviceStart` does only the fast, synchronous validation and then
@@ -280,12 +280,15 @@ first, which keeps them available after the session ends:
   happens for every service, including one with an output bucket, because the bucket only holds
   `/data/outputs`. Each container gives one file, `logs-<n>.log`, next to the output archives
   under `<c2d storage>/services/<serviceId>/`. The files are listed on `serviceStatus` as
-  `logArchives` (`index`, `filename`, `filesize`, `createdAt`, `containerId`, and
-  `droppedBytes` when output was cut). Saving is best-effort: if it fails, teardown continues and
-  the node only logs the error. A container that logged nothing produces no file.
+  `logArchives` (`index`, `filename`, `filesize`, `createdAt`, `containerId`, `droppedBytes`
+  when output was cut, and `cutShort` when reading the log timed out, so its newest output may
+  be missing). Saving is best-effort: if it fails, teardown continues and the node only logs the
+  error. A container that logged nothing produces no file.
 - **Only the last 16 MiB of each container's log are kept.** When a container logged more, its
   oldest output is dropped, and the saved log starts with an `[ocean-node]` line on stderr that
-  says how much was dropped.
+  says how much was dropped. The node asks Docker for the last 430,000-odd entries only, which
+  always add up to more than 16 MiB, so for a longer log the line gives a lower bound ("at
+  least …").
 - **Once the service has no container, `serviceStreamableLogs` serves the saved logs**, oldest
   container first, in the same multiplexed format as the live stream. The stream ends after the
   last line instead of following. `since` works the same way. The route returns `404` only when

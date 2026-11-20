@@ -352,6 +352,32 @@ describe('**********         Service on Demand', () => {
     })
   }
 
+  // Saved logs, unlike a live log, end on their own once the last file is sent. So anything short
+  // of a clean end fails: an error, or no end within `timeoutMs`, rather than passing on whatever
+  // arrived first.
+  // eslint-disable-next-line require-await
+  async function readEndedLogs(stream: Readable, timeoutMs = 5000): Promise<string> {
+    return new Promise((resolve, reject) => {
+      let data = ''
+      const timer = setTimeout(() => {
+        stream.removeAllListeners()
+        stream.destroy()
+        reject(new Error(`log stream did not end within ${timeoutMs}ms`))
+      }, timeoutMs)
+      stream.on('data', (chunk) => {
+        data += chunk.toString()
+      })
+      stream.on('end', () => {
+        clearTimeout(timer)
+        resolve(data)
+      })
+      stream.on('error', (e) => {
+        clearTimeout(timer)
+        reject(e)
+      })
+    })
+  }
+
   // ── setup / teardown ─────────────────────────────────────────────────
 
   before(async function () {
@@ -1508,9 +1534,12 @@ describe('**********         Service on Demand', () => {
       resp.status.httpStatus === 200,
       `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
     )
-    // nginx logs its startup banner, so the last container's saved log is not empty
-    const logs = await readLogsWithTimeout(resp.stream as Readable)
-    expect(logs.length).to.be.greaterThan(0)
+    // The image's entrypoint prints this on every boot, so it is in each saved container's log,
+    // the stopped one included.
+    const logs = await readEndedLogs(resp.stream as Readable)
+    expect(logs).to.include(
+      '/docker-entrypoint.sh: Configuration complete; ready for start up'
+    )
   })
 
   it('(n) [slow] expiry cron marks a short-lived service Expired', async function () {

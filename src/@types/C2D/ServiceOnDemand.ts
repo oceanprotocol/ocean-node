@@ -210,8 +210,11 @@ export interface ServiceLogArchive {
   filesize: number // bytes
   createdAt: number // Unix ms timestamp
   containerId: string // container it was taken from — a retried teardown must not save it twice
-  // Recorded so the owner can tell a trimmed log from a complete one.
+  // Recorded so the owner can tell a trimmed log from a complete one. A lower bound for a log
+  // longer than SERVICE_LOGS_TAIL_ENTRIES entries, since Docker sends no more than that.
   droppedBytes?: number
+  // The read timed out before the log ended, so the newest output may be missing.
+  cutShort?: boolean
 }
 
 export interface ServiceEndpoint {

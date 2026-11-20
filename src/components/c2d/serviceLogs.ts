@@ -18,6 +18,15 @@ export const SERVICE_LOGS_MAX_MS = 60_000
 const FRAME_HEADER_BYTES = 8
 const STDERR = 2
 
+// Docker can be asked for the last N entries of a log, not the last N bytes. Every saved entry is
+// at least 39 bytes (the frame header, then a 30-character timestamp and a space), so this many
+// always add up to more than SERVICE_LOGS_MAX_BYTES, and the byte limit still decides what is
+// kept. Without a tail Docker sends the whole history, weeks of it for a long service, and a read
+// that runs out of time before the end loses the newest output, the part worth keeping.
+const MIN_SAVED_ENTRY_BYTES = FRAME_HEADER_BYTES + 31
+export const SERVICE_LOGS_TAIL_ENTRIES =
+  Math.floor(SERVICE_LOGS_MAX_BYTES / MIN_SAVED_ENTRY_BYTES) + 1
+
 export interface DockerLogFrame {
   stream: number // 0 stdin, 1 stdout, 2 stderr (3 is Docker's own error stream)
   payload: Buffer
@@ -93,18 +102,22 @@ export interface CollectedServiceLogs {
  * Trims to the newest `maxBytes` while reading rather than at the end, so a weeks-long log never
  * sits in memory in full. Drops whole frames, never part of one, so what's left is still valid
  * framing. When it gives up (`idleMs`/`maxMs`) it keeps what it read: at teardown there is no
- * second chance, and part of a log beats none.
+ * second chance, and part of a log beats none. `tail` is the one the source was requested with:
+ * a read that reaches it may have had older entries left out by Docker, so the note can then
+ * only give a lower bound for what was dropped.
  */
 export async function collectServiceLogs(
   source: NodeJS.ReadableStream,
   {
     maxBytes = SERVICE_LOGS_MAX_BYTES,
     idleMs = SERVICE_LOGS_IDLE_MS,
-    maxMs = SERVICE_LOGS_MAX_MS
-  }: { maxBytes?: number; idleMs?: number; maxMs?: number } = {}
+    maxMs = SERVICE_LOGS_MAX_MS,
+    tail
+  }: { maxBytes?: number; idleMs?: number; maxMs?: number; tail?: number } = {}
 ): Promise<CollectedServiceLogs> {
   const frames: Array<DockerLogFrame | undefined> = []
   let head = 0
+  let entries = 0
   let keptBytes = 0
   let droppedBytes = 0
   let cutShort = false
@@ -119,6 +132,7 @@ export async function collectServiceLogs(
       source as AsyncIterable<Buffer>
     )) {
       idleTimer.refresh()
+      entries++
       // A copy, so the kept frames don't pin the (larger) chunks they were read from.
       frames.push({ stream, payload: Buffer.from(payload) })
       keptBytes += FRAME_HEADER_BYTES + payload.length
@@ -150,8 +164,9 @@ export async function collectServiceLogs(
     // Stamped like the first kept entry, so a `since` filter keeps or drops it with that entry.
     const { ms } = splitLogTimestamp(kept[0].payload)
     const stamp = ms === undefined ? '' : `${new Date(ms).toISOString()} `
+    const atLeast = tail !== undefined && entries >= tail ? 'at least ' : ''
     const note =
-      `${stamp}[ocean-node] ${droppedBytes} bytes of older output were dropped: ` +
+      `${stamp}[ocean-node] ${atLeast}${droppedBytes} bytes of older output were dropped: ` +
       `the node keeps the last ${maxBytes} bytes of a container's log.\n`
     parts.unshift(encodeDockerLogFrame(STDERR, Buffer.from(note)))
   }
@@ -168,19 +183,27 @@ export function savedServiceLogsStream(files: string[], since?: number): Readabl
     let batch: Buffer[] = []
     let batchBytes = 0
     for (const file of files) {
-      for await (const { stream, payload } of readDockerLogFrames(
-        createReadStream(file)
-      )) {
-        const { ms, body } = splitLogTimestamp(payload)
-        if (sinceMs !== undefined && ms !== undefined && ms < sinceMs) continue
-        const frame = encodeDockerLogFrame(stream, body)
-        batch.push(frame)
-        batchBytes += frame.length
-        if (batchBytes >= 64 * 1024) {
-          yield Buffer.concat(batch)
-          batch = []
-          batchBytes = 0
+      try {
+        for await (const { stream, payload } of readDockerLogFrames(
+          createReadStream(file)
+        )) {
+          const { ms, body } = splitLogTimestamp(payload)
+          if (sinceMs !== undefined && ms !== undefined && ms < sinceMs) continue
+          const frame = encodeDockerLogFrame(stream, body)
+          batch.push(frame)
+          batchBytes += frame.length
+          if (batchBytes >= 64 * 1024) {
+            yield Buffer.concat(batch)
+            batch = []
+            batchBytes = 0
+          }
         }
+      } catch (e: any) {
+        // A file is opened only when its turn comes, after the response has started. If the
+        // storage-expiry cleanup deleted it in between, it is skipped like a file that was already
+        // missing, rather than breaking a stream the client was told succeeded. Only the open can
+        // fail this way: a file deleted while open is still read to the end.
+        if (e?.code !== 'ENOENT') throw e
       }
     }
     if (batch.length) yield Buffer.concat(batch)

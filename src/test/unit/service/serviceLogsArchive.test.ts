@@ -11,6 +11,8 @@ import {
   encodeDockerLogFrame,
   readDockerLogFrames,
   savedServiceLogsStream,
+  SERVICE_LOGS_MAX_BYTES,
+  SERVICE_LOGS_TAIL_ENTRIES,
   splitLogTimestamp
 } from '../../../components/c2d/serviceLogs.js'
 import { ServiceStatusNumber, ServiceJob } from '../../../@types/C2D/ServiceOnDemand.js'
@@ -138,6 +140,41 @@ function logsContainer(id: string, log: Buffer = LOG) {
   }
 }
 
+// The containers whose saved logs had been persisted by the time `removal` was first called. The
+// job is one mutable object, so what each update wrote is copied as it happens.
+function recordsBefore(engine: any, removal: sinon.SinonStub): () => string[] {
+  let recorded: string[] = []
+  engine.db.updateServiceJob.callsFake((job: ServiceJob) => {
+    if (!removal.called) recorded = (job.logArchives ?? []).map((a) => a.containerId)
+    return Promise.resolve(1)
+  })
+  return () => recorded
+}
+
+// A container a restart creates: no log yet, and nothing in /data/outputs.
+function createdContainer(id = 'new') {
+  return {
+    id,
+    infoArchive: sinon.stub().resolves({}),
+    putArchive: sinon.stub().resolves(undefined),
+    start: sinon.stub().resolves(undefined),
+    stop: sinon.stub().resolves(undefined),
+    remove: sinon.stub().resolves(undefined)
+  }
+}
+
+// An engine whose restart replaces `old` with `created`, with nothing to pull.
+function restartEngine(tempFolder: string, old: any, created: any): any {
+  const engine = makeEngine(tempFolder)
+  engine.docker.getContainer.callsFake((id: string) =>
+    id === created.id ? created : old
+  )
+  engine.docker.createNetwork = sinon.stub().resolves({ id: 'newnet' })
+  engine.docker.createContainer = sinon.stub().resolves(created)
+  engine.pullImageRef = sinon.stub().resolves(undefined)
+  return engine
+}
+
 describe('service logs saved at teardown', () => {
   let tempFolder: string
   const folder = () => path.join(tempFolder, CLUSTER_HASH, 'services', SERVICE_ID)
@@ -207,6 +244,22 @@ describe('service logs saved at teardown', () => {
       expect(note).to.contain(`${first.length} bytes`)
     })
 
+    it('says "at least" once the read reaches the tail Docker was asked for, as older entries may be missing', async () => {
+      const first = entry(T0, 'booting')
+      const trim = { maxBytes: LOG.length - first.length }
+      // three entries read: below a tail of 4 the count is exact, at a tail of 3 it is a bound
+      const exact = await collectServiceLogs(Readable.from([LOG]), { ...trim, tail: 4 })
+      const bound = await collectServiceLogs(Readable.from([LOG]), { ...trim, tail: 3 })
+      const [[, exactNote]] = await framesOf(exact.data)
+      const [[, boundNote]] = await framesOf(bound.data)
+      expect(exactNote).to.contain(`[ocean-node] ${first.length} bytes`)
+      expect(boundNote).to.contain(`[ocean-node] at least ${first.length} bytes`)
+      // the tail is sized so that the byte limit, not the tail, decides what is kept
+      expect(SERVICE_LOGS_TAIL_ENTRIES * (8 + T0.length + 1)).to.be.greaterThan(
+        SERVICE_LOGS_MAX_BYTES
+      )
+    })
+
     it('gives up on a log that never ends, keeping what it read', async () => {
       const live = new PassThrough()
       live.write(entry(T0, 'still running'))
@@ -239,6 +292,16 @@ describe('service logs saved at teardown', () => {
         [STDOUT, 'second container\n']
       ])
     })
+
+    it('skips a saved file deleted after the caller checked for it, instead of failing the stream', async () => {
+      fs.mkdirSync(folder(), { recursive: true })
+      const deleted = path.join(folder(), 'logs-0.log')
+      const kept = path.join(folder(), 'logs-1.log')
+      fs.writeFileSync(kept, entry(T3, 'second container'))
+      expect(await framesOf(savedServiceLogsStream([deleted, kept]))).to.deep.equal([
+        [STDOUT, 'second container\n']
+      ])
+    })
   })
 
   describe('saving', () => {
@@ -247,6 +310,7 @@ describe('service logs saved at teardown', () => {
       engine.db.getServiceJob.resolves([makeJob()])
       const c = logsContainer('c1')
       engine.docker.getContainer.returns(c)
+      const recordedBeforeRemoval = recordsBefore(engine, c.remove)
 
       const stopped = await engine.stopService(SERVICE_ID, OWNER)
 
@@ -256,8 +320,11 @@ describe('service logs saved at teardown', () => {
         stdout: true,
         stderr: true,
         follow: true,
-        timestamps: true
+        timestamps: true,
+        tail: SERVICE_LOGS_TAIL_ENTRIES
       })
+      // the file must be on record before the container, the only other copy, is removed
+      expect(recordedBeforeRemoval()).to.deep.equal(['c1'])
       expect(stopped.logArchives).to.have.lengthOf(1)
       const [saved] = stopped.logArchives
       expect(saved).to.include({ index: 0, filename: 'logs-0.log', containerId: 'c1' })
@@ -320,23 +387,27 @@ describe('service logs saved at teardown', () => {
       expect(fs.existsSync(folder())).to.equal(false)
     })
 
+    it('a partial file that cannot be removed does not stop the teardown either', async () => {
+      const engine = makeEngine(tempFolder)
+      engine.db.getServiceJob.resolves([makeJob()])
+      const c = logsContainer('c1')
+      engine.docker.getContainer.returns(c)
+      // A directory where the partial file goes: writing it fails, and so does rmSync on it.
+      fs.mkdirSync(path.join(folder(), 'logs-0.log.partial', 'in-the-way'), {
+        recursive: true
+      })
+
+      const stopped = await engine.stopService(SERVICE_ID, OWNER)
+
+      expect(stopped.status).to.equal(ServiceStatusNumber.Stopped)
+      expect(stopped.logArchives).to.equal(undefined)
+      sinon.assert.calledOnce(c.remove)
+    })
+
     it('restart saves the old container logs before removing it', async () => {
       const old = logsContainer('old')
-      const created = {
-        id: 'new',
-        infoArchive: sinon.stub().resolves({}),
-        putArchive: sinon.stub().resolves(undefined),
-        start: sinon.stub().resolves(undefined),
-        stop: sinon.stub().resolves(undefined),
-        remove: sinon.stub().resolves(undefined)
-      }
-      const engine = makeEngine(tempFolder)
-      engine.docker.getContainer.callsFake((id: string) =>
-        id === created.id ? created : old
-      )
-      engine.docker.createNetwork = sinon.stub().resolves({ id: 'newnet' })
-      engine.docker.createContainer = sinon.stub().resolves(created)
-      engine.pullImageRef = sinon.stub().resolves(undefined)
+      const created = createdContainer()
+      const engine = restartEngine(tempFolder, old, created)
       const job = makeJob({ containerId: 'old' })
 
       await engine.doRestartService(job)
@@ -345,6 +416,41 @@ describe('service logs saved at teardown', () => {
       expect(job.containerId).to.equal('new')
       expect(job.logArchives.map((a) => a.containerId)).to.deep.equal(['old'])
       sinon.assert.callOrder(old.stop, old.logs, old.remove, created.start)
+    })
+
+    it('a bucket restart records the old log before removing that container, and the new container before starting it', async () => {
+      const old = logsContainer('old')
+      const created = createdContainer()
+      const engine = restartEngine(tempFolder, old, created)
+      // What each update wrote, copied as it happens: the job is one mutable object.
+      const writes: Array<{
+        savedLogs: string[]
+        containerId: string
+        oldRemoved: boolean
+        newStarted: boolean
+      }> = []
+      engine.db.updateServiceJob.callsFake((j: ServiceJob) => {
+        writes.push({
+          savedLogs: (j.logArchives ?? []).map((a) => a.containerId),
+          containerId: j.containerId,
+          oldRemoved: old.remove.called,
+          newStarted: created.start.called
+        })
+        return Promise.resolve(1)
+      })
+      // With a bucket there is no carry-over, so the old container is removed straight away. The
+      // bucket mount itself needs a running node, and is not what this checks.
+      const job = makeJob({ containerId: 'old', outputBucketId: 'bucket-1' })
+      engine.serviceOutputMounts = sinon.stub().resolves([])
+
+      await engine.doRestartService(job)
+
+      expect(job.status).to.equal(ServiceStatusNumber.Running)
+      expect(writes.some((w) => !w.oldRemoved && w.savedLogs.includes('old'))).to.equal(
+        true
+      )
+      // orphan recovery needs the id to save the new container's log if the node dies now
+      expect(writes.some((w) => !w.newStarted && w.containerId === 'new')).to.equal(true)
     })
   })
 
@@ -409,8 +515,40 @@ describe('service logs saved at teardown', () => {
       expect(frames).to.have.lengthOf(4)
     })
 
-    it('returns null on a Docker failure rather than serving older logs in its place', async () => {
-      // saved logs exist, so a null can only mean the Docker error was not papered over
+    it('streams the live log while a stop is still tearing the container down', async () => {
+      const engine = makeEngine(tempFolder)
+      engine.db.getServiceJob.resolves([
+        makeJob({ status: ServiceStatusNumber.Stopping, containerId: 'c1' })
+      ])
+      const c = logsContainer('c1')
+      engine.docker.getContainer.returns(c)
+
+      const stream = await engine.getServiceStreamableLogs(SERVICE_ID, OWNER)
+
+      sinon.assert.calledOnce(c.logs)
+      expect((await streamToBuffer(stream)).equals(LOG)).to.equal(true)
+    })
+
+    it('reads the job again when the container went mid-request, for the log the teardown just saved', async () => {
+      const { engine, job } = await withSavedLogs()
+      // read while the container still existed, before the teardown recorded its log
+      const stale = makeJob({ status: ServiceStatusNumber.Stopping, containerId: 'c2' })
+      engine.db.getServiceJob.onFirstCall().resolves([stale])
+      engine.db.getServiceJob.onSecondCall().resolves([job])
+      engine.docker.getContainer.returns({
+        inspect: sinon.stub().rejects(dockerError(404))
+      })
+
+      const frames = await framesOf(
+        await engine.getServiceStreamableLogs(SERVICE_ID, OWNER)
+      )
+
+      expect(frames).to.have.lengthOf(4)
+      sinon.assert.calledTwice(engine.db.getServiceJob)
+    })
+
+    it('rejects on a Docker failure rather than serving older logs, or none, in its place', async () => {
+      // saved logs exist, so only the Docker error can be behind the rejection
       const { engine } = await withSavedLogs({
         status: ServiceStatusNumber.Running,
         containerId: 'c3'
@@ -418,7 +556,14 @@ describe('service logs saved at teardown', () => {
       engine.docker.getContainer.returns({
         inspect: sinon.stub().rejects(dockerError(500))
       })
-      expect(await engine.getServiceStreamableLogs(SERVICE_ID, OWNER)).to.equal(null)
+      let error: Error | undefined
+      try {
+        await engine.getServiceStreamableLogs(SERVICE_ID, OWNER)
+      } catch (e) {
+        error = e
+      }
+      // generic: Docker's own message stays in the node's log
+      expect(error?.message).to.equal(`Could not read the logs of service ${SERVICE_ID}`)
     })
 
     it('returns null when nothing was saved, or the files were deleted', async () => {

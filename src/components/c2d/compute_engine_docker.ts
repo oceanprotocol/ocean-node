@@ -124,7 +124,11 @@ import {
   tarToZip,
   type ServiceResult
 } from './serviceOutputsZip.js'
-import { collectServiceLogs, savedServiceLogsStream } from './serviceLogs.js'
+import {
+  collectServiceLogs,
+  savedServiceLogsStream,
+  SERVICE_LOGS_TAIL_ENTRIES
+} from './serviceLogs.js'
 import {
   buildServiceHfPlan,
   getServiceHfMirrorSettings,
@@ -4619,8 +4623,9 @@ export class C2DEngineDocker extends C2DEngine {
   // service's folder first, for SERVICE_GET_STREAMABLE_LOGS to serve after a stop or expiry.
   // Call it after stopping the container, so its log is final and the follow read ends on its
   // own, and before removing it. Bucket services need it too: the bucket holds only
-  // /data/outputs. Never throws, because losing the logs must not block a teardown; the caller
-  // persists the job.
+  // /data/outputs. Never throws, because losing the logs must not block a teardown. The caller
+  // persists the job before removing the container: from then on the file is the only copy, and
+  // a crash before the record is written would leave it on disk with nothing pointing to it.
   private async saveServiceLogs(
     job: ServiceJob,
     container: Dockerode.Container
@@ -4639,7 +4644,8 @@ export class C2DEngineDocker extends C2DEngine {
           stdout: true,
           stderr: true,
           follow: true,
-          timestamps: true
+          timestamps: true,
+          tail: SERVICE_LOGS_TAIL_ENTRIES
         })) as unknown as NodeJS.ReadableStream
       } catch (e: any) {
         if (e?.statusCode === 404) {
@@ -4648,7 +4654,9 @@ export class C2DEngineDocker extends C2DEngine {
         }
         throw e
       }
-      const { data, droppedBytes, cutShort } = await collectServiceLogs(source)
+      const { data, droppedBytes, cutShort } = await collectServiceLogs(source, {
+        tail: SERVICE_LOGS_TAIL_ENTRIES
+      })
       if (cutShort) {
         CORE_LOGGER.warn(
           `service ${job.serviceId}: reading the logs of container ${container.id} timed out — saving what was read`
@@ -4674,7 +4682,8 @@ export class C2DEngineDocker extends C2DEngine {
           filesize: data.length,
           createdAt: Date.now(),
           containerId: container.id,
-          ...(droppedBytes ? { droppedBytes } : {})
+          ...(droppedBytes ? { droppedBytes } : {}),
+          ...(cutShort ? { cutShort } : {})
         }
       ]
       CORE_LOGGER.info(
@@ -4683,7 +4692,19 @@ export class C2DEngineDocker extends C2DEngine {
           (droppedBytes ? `, ${droppedBytes} older bytes dropped` : '')
       )
     } catch (e: any) {
-      if (partialPath) rmSync(partialPath, { force: true })
+      // Guarded on its own: rmSync throws on more than a missing file (a permission error, or a
+      // directory in the way), and escaping from here would stop the teardown this must not block.
+      if (partialPath) {
+        try {
+          rmSync(partialPath, { force: true })
+        } catch (cleanupError: any) {
+          CORE_LOGGER.error(
+            `service ${job.serviceId}: could not remove ${partialPath}: ${
+              cleanupError?.message ?? cleanupError
+            }`
+          )
+        }
+      }
       CORE_LOGGER.error(
         `service ${job.serviceId}: failed to save the logs of container ${container.id}: ${
           e?.message ?? e
@@ -4890,6 +4911,8 @@ export class C2DEngineDocker extends C2DEngine {
           await holder.stop({ t: 10 }).catch(() => {})
           await this.saveServiceLogs(job, holder)
           await this.archiveServiceOutputs(job, holder)
+          // Recorded before the containers go: a crash after that would otherwise lose the files.
+          await this.db.updateServiceJob(job)
         }
         if (job.containerId)
           await this.cleanupServiceDocker(
@@ -6371,6 +6394,8 @@ export class C2DEngineDocker extends C2DEngine {
         })
         await this.saveServiceLogs(job, c)
         await this.archiveServiceOutputs(job, c)
+        // Recorded before the container goes, which takes the only other copy with it.
+        await this.db.updateServiceJob(job)
         // v: also drop the anonymous volumes the image declared (e.g. comfyui-boot's
         // VOLUME /root, where it keeps its models): no later container can attach them,
         // so without it every stop/restart leaves that data on node disk forever.
@@ -6586,8 +6611,9 @@ export class C2DEngineDocker extends C2DEngine {
         logDockerCleanupError(e, `restart ${serviceId}: old container stop: ${e.message}`)
       })
       // Saved here rather than in each branch below: every branch ends with this container
-      // removed, and the new one starts with an empty log.
+      // removed, and the new one starts with an empty log. Recorded before any branch removes it.
       await this.saveServiceLogs(job, c)
+      await this.db.updateServiceJob(job)
       if (job.outputBucketId) {
         await c.remove({ force: true, v: true }).catch((e) => {
           logDockerCleanupError(
@@ -6808,6 +6834,12 @@ export class C2DEngineDocker extends C2DEngine {
         })
         previous = null
         delete job.previousContainerId
+      } else {
+        // Recorded before it starts, as the branch above does: once running it logs, and a crash
+        // before step 9 would leave orphan recovery without the id it needs to save that log
+        // before removing the container.
+        job.containerId = container.id
+        await this.db.updateServiceJob(job)
       }
 
       await container.start()
@@ -6855,7 +6887,7 @@ export class C2DEngineDocker extends C2DEngine {
         delete job.previousContainerId
       }
       await this.cleanupServiceDocker(container, network, serviceId)
-      // Set once the carry-over switched to the new container, which is gone now too.
+      // Set once the new container was recorded (before it started), and it is gone now too.
       job.containerId = ''
       // Ports deliberately stay reserved: the consumer paid until expiresAt and may
       // restart again — the expiry sweep releases them when the window elapses.
@@ -6880,15 +6912,16 @@ export class C2DEngineDocker extends C2DEngine {
     owner: string,
     since?: number
   ): Promise<NodeJS.ReadableStream | null> {
-    const [job] = await this.db.getServiceJob(serviceId, owner)
+    let [job] = await this.db.getServiceJob(serviceId, owner)
     if (!job) return null
-    // The live log wins while a container exists (Running, or Error before teardown): it holds
-    // everything that container logged and keeps following it, while the saved files only cover
-    // containers already removed.
+    // The live log wins while a container exists (Running, Error before teardown, or Stopping
+    // until the teardown removes it): it holds everything that container logged and keeps
+    // following it, while the saved files only cover containers already removed.
     if (
       job.containerId &&
       (job.status === ServiceStatusNumber.Running ||
-        job.status === ServiceStatusNumber.Error)
+        job.status === ServiceStatusNumber.Error ||
+        job.status === ServiceStatusNumber.Stopping)
     ) {
       try {
         const container = this.docker.getContainer(job.containerId)
@@ -6901,13 +6934,18 @@ export class C2DEngineDocker extends C2DEngine {
         })) as unknown as NodeJS.ReadableStream
       } catch (e: any) {
         // Only a 404 (container gone) falls back to the saved logs. Anything else is a Docker
-        // failure, and answering it with older saved logs would hide it.
+        // failure: answering it with older saved logs, or with "no logs", would hide it. The
+        // details stay in the node's log rather than going to the client.
         if (e?.statusCode !== 404) {
           CORE_LOGGER.error(
             `getServiceStreamableLogs failed for ${serviceId}: ${e?.message ?? e}`
           )
-          return null
+          throw new Error(`Could not read the logs of service ${serviceId}`)
         }
+        // A teardown can save the container's log and remove it after the job was read above,
+        // so the job is read again for the file it recorded.
+        const [fresh] = await this.db.getServiceJob(serviceId, owner)
+        if (fresh) job = fresh
       }
     }
     return this.openSavedServiceLogs(job, since)
@@ -6915,7 +6953,8 @@ export class C2DEngineDocker extends C2DEngine {
 
   // Sorted by index so the log reads in the order the containers ran. A file missing on disk is
   // skipped rather than failing the stream: if a cleanup deleted the folder but could not persist
-  // the job, logArchives still lists it.
+  // the job, logArchives still lists it. savedServiceLogsStream skips one deleted after this check
+  // the same way.
   private openSavedServiceLogs(
     job: ServiceJob,
     since?: number

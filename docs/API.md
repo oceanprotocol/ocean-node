@@ -2974,8 +2974,9 @@ until `expiresAt`. Only `release: true` ends the paid window early.
 
 Stream the service container's stdout/stderr logs. **Authenticated and owner-scoped**
 — only the service's owner (`consumerAddress`, proven by signature/nonce or auth token) can
-read its logs. While the service has a container — `Running` (`40`), or `Error` (`99`): a
-crashed container is kept around until `stop`/`restart` — its log is followed live. Once the
+read its logs. While the service has a container — `Running` (`40`), `Error` (`99`): a
+crashed container is kept around until `stop`/`restart`, or `Stopping` until the teardown
+removes it — its log is followed live. Once the
 container is gone, the logs the node saved when each of the service's containers was removed
 are served instead, oldest first, until `storageExpiry` seconds after `expiresAt`. Only the last
 16 MiB of each container's log are kept.
@@ -3000,16 +3001,23 @@ logs before reaching the live tail (e.g. `since=1h` for just the last hour).
 
 #### Response (400)
 
-`since` is present but not a valid Unix timestamp or duration (`<number><s|m|h|d>`).
+`since` is present but not a valid Unix timestamp or duration (`<number><s|m|h|d>`), or no
+service with this `serviceId` belongs to `consumerAddress` (`Service job not found`).
 
 #### Response (404)
 
-Service not found, or it has no container and no saved logs (never saved, or deleted after
+The service exists but has no container and no saved logs (never saved, or deleted after
 storage expiry).
 
 #### Response (401)
 
-Missing/invalid auth, or `consumerAddress` is not the service owner.
+Missing/invalid auth. A service owned by another address gets `400`, as above: the lookup is
+owner-scoped, so it is not found.
+
+#### Response (500)
+
+The node could not read the container's live log from Docker. Saved logs are not served in its
+place, so a Docker failure is never mistaken for an empty log.
 
 ---
 
