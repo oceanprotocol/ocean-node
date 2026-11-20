@@ -11,9 +11,8 @@ import { CommandStatus, JobStatus } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' with { type: 'json' }
 import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' with { type: 'json' }
-import { createHash } from 'crypto'
 import { ServicePrice } from '../../@types/IndexedMetadata.js'
-import { VersionedDDO } from '@oceanprotocol/ddo-js'
+import { DDOManager, VersionedDDO, deriveDidCandidates } from '@oceanprotocol/ddo-js'
 import FactoryRouter from '@oceanprotocol/contracts/artifacts/contracts/pools/FactoryRouter.sol/FactoryRouter.json' with { type: 'json' }
 
 /**
@@ -245,18 +244,6 @@ export function buildJobIdentifier(command: string, extra: string[]): JobStatus 
   }
 }
 
-export function findServiceIdByDatatoken(
-  ddo: VersionedDDO,
-  datatokenAddress: string
-): string {
-  for (const s of ddo.getDDOFields().services) {
-    if (s.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase()) {
-      return s.id
-    }
-  }
-  return null
-}
-
 export function doesDispenserAlreadyExist(
   dispenserAddress: string,
   prices: ServicePrice[]
@@ -485,13 +472,58 @@ export async function getPricingStatsForDddo(
   return ddo
 }
 
-export function getDid(nftAddress: string, chainId: number): string {
-  return (
-    'did:op:' +
-    createHash('sha256')
-      .update(getAddress(nftAddress) + chainId.toString(10))
-      .digest('hex')
+/**
+ * Finds the DDO of an NFT. Contract events only give the NFT address and chain id,
+ * so the DDO is looked up under both DIDs it may be indexed as: v4 (`did:op:`)
+ * and v5 (`did:ope:`). Republishing an NFT with the other DDO version indexes it
+ * under the other DID and leaves the old record in place, so when both exist the
+ * one published at the later block is returned (v5 on a tie or missing block).
+ * @returns The DDO and the DID it was found under. When neither is indexed, `ddo`
+ * is null and `did` is the v4 DID.
+ */
+export async function retrieveDdoByNft(
+  ddoDatabase: { retrieve(did: string): Promise<Record<string, any> | null> },
+  nftAddress: string,
+  chainId: number
+): Promise<{ did: string; ddo: Record<string, any> | null }> {
+  const candidates = deriveDidCandidates(nftAddress, chainId)
+  const found = (
+    await Promise.all(
+      candidates.map(async (did) => ({ did, ddo: await ddoDatabase.retrieve(did) }))
+    )
+  ).filter((candidate) => candidate.ddo)
+  if (found.length === 0) return { did: candidates[0], ddo: null }
+
+  const publishedAt = (ddo: Record<string, any>): number => {
+    const block = Number(ddo.indexedMetadata?.event?.block)
+    return Number.isFinite(block) ? block : -1
+  }
+  // candidates are ordered v4 then v5, so >= lets the v5 record win a tie
+  return found.reduce((latest, candidate) =>
+    publishedAt(candidate.ddo) >= publishedAt(latest.ddo) ? candidate : latest
   )
+}
+
+/**
+ * Builds the short DDO stored when an asset's metadata state leaves Active (revoked,
+ * deprecated, ...)
+ */
+export function buildShortDdoRecord(
+  ddo: Record<string, any>,
+  chainId: number,
+  state: number
+): Record<string, any> {
+  const indexedMetadata: Record<string, any> = { nft: { state } }
+  if (ddo.indexedMetadata?.event) indexedMetadata.event = ddo.indexedMetadata.event
+  // v5 keeps nftAddress under credentialSubject; the versioned accessor reads both
+  const { nftAddress } = DDOManager.getDDOClass(ddo).getDDOFields()
+  return {
+    id: ddo.id,
+    version: 'deprecated',
+    chainId,
+    nftAddress,
+    indexedMetadata
+  }
 }
 
 export async function withRetrial<T>(

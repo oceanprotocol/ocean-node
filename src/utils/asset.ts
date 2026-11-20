@@ -1,48 +1,16 @@
 import { Service, DDOManager, DDO } from '@oceanprotocol/ddo-js'
 import type { Dispatcher } from 'undici'
 import { PRIVATE_URL_ERROR } from './safeUrl.js'
-import { DDO_IDENTIFIER_PREFIX } from './constants.js'
 import { CORE_LOGGER } from './logging/common.js'
 import { errorSummary, safeStringify } from './logging/redact.js'
 import { createHash } from 'crypto'
-import { ethers, getAddress, Signer } from 'ethers'
+import { ethers, Signer } from 'ethers'
 import { KNOWN_CONFIDENTIAL_EVMS } from './address.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/interfaces/IERC20Template.sol/IERC20Template.json' with { type: 'json' }
 import ERC20Template4 from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template4.sol/ERC20Template4.json' with { type: 'json' }
 import { getContractAddress, getNFTFactory } from '../components/Indexer/utils.js'
 import { HeadersObject } from '../@types/fileObject.js'
 import { fetchHeadersTimeout } from './http.js'
-
-// Notes:
-// Asset as per asset.py on provider, is a class there, while on ocean.Js we only have a type
-// this is an utility to extract information from the Asset services
-export const AssetUtils = {
-  getServiceIndexById(asset: DDO, id: string): number | null {
-    const ddoInstance = DDOManager.getDDOClass(asset)
-    const { services } = ddoInstance.getDDOFields()
-
-    for (let c = 0; c < services.length; c++) if (services[c].id === id) return c
-    return null
-  },
-  getServiceByIndex(asset: DDO, index: number) {
-    const ddoInstance = DDOManager.getDDOClass(asset)
-    const { services } = ddoInstance.getDDOFields()
-
-    if (index >= 0 && index < services.length) {
-      return services[index] as Service
-    }
-    return null
-  },
-
-  getServiceById(asset: DDO, id: string) {
-    const ddoInstance = DDOManager.getDDOClass(asset)
-    const { services } = ddoInstance.getDDOFields() as any
-
-    const filteredServices = services.filter((service: any) => service.id === id)
-
-    return filteredServices.length ? filteredServices[0] : null
-  }
-}
 
 /**
  * undici wraps connector failures as TypeError('fetch failed', { cause }); walk the chain
@@ -117,26 +85,6 @@ export async function fetchFileMetadata(
   }
 }
 
-/**
- * Validates if a given DDO identifier matches the NFT address and the chain ID provided
- * @param ddoID the ID of the DDO
- * @param nftAddress the nft address
- * @param chainId the chain id
- * @returns validation result
- */
-export function validateDDOHash(
-  ddoID: string,
-  nftAddress: string,
-  chainId: number
-): boolean {
-  if (!ddoID || !nftAddress || !chainId) {
-    CORE_LOGGER.debug('Invalid or missing data for proper DDO id validation')
-    return false
-  }
-  const hashAddressAndChain: string = generateDDOHash(nftAddress, chainId)
-  return ddoID === hashAddressAndChain
-}
-
 export function deleteIndexedMetadataIfExists(ddo: DDO): DDO {
   const ddoCopy: DDO = structuredClone(ddo)
   if ('indexedMetadata' in ddoCopy) {
@@ -144,24 +92,6 @@ export function deleteIndexedMetadataIfExists(ddo: DDO): DDO {
     return ddoCopy
   }
   return ddo
-}
-
-/**
- * Generates DDO Id given the chain and nft address provided
- * @param nftAddress the nft address
- * @param chainId the chain id
- * @returns did
- */
-export function generateDDOHash(nftAddress: string, chainId: number): string | null {
-  if (!nftAddress || !chainId) {
-    CORE_LOGGER.debug('Invalid or missing data for proper DDO id hash generation')
-    return null
-  }
-  const hashAddressAndChain: string = createHash('sha256')
-    .update(getAddress(nftAddress) + chainId.toString(10))
-    .digest('hex')
-
-  return DDO_IDENTIFIER_PREFIX + hashAddressAndChain
 }
 
 /**

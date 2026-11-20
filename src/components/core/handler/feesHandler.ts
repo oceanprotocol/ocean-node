@@ -16,7 +16,7 @@ import { ProviderInitialize } from '../../../@types/Fees.js'
 import { getNonce } from '../utils/nonceHandler.js'
 import { streamToString } from '../../../utils/util.js'
 import { isOrderingAllowedForAsset } from './downloadHandler.js'
-import { DDOManager } from '@oceanprotocol/ddo-js'
+import { DDOManager, isComputeService } from '@oceanprotocol/ddo-js'
 
 export class FeesHandler extends CommandHandler {
   validate(command: GetFeesCommand): ValidateParams {
@@ -60,13 +60,19 @@ export class FeesHandler extends CommandHandler {
     }
 
     const ddoInstance = DDOManager.getDDOClass(ddo)
-    const { services } = ddoInstance.getDDOFields() as any
-    const service = services.find((what: any) => what.id === task.serviceId)
+    const service = ddoInstance.getService(task.serviceId) as any
 
     if (!service) {
-      errorMsg = 'Invalid serviceId'
+      PROVIDER_LOGGER.debug(`getFees ${task.ddoId}/${task.serviceId}: Invalid serviceId`)
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500,
+          error: 'Invalid serviceId'
+        }
+      }
     }
-    if (service.type === 'compute') {
+    if (isComputeService(service)) {
       errorMsg = 'Use the initializeCompute endpoint to initialize compute jobs'
     }
     const now = new Date().getTime() / 1000

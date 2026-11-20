@@ -951,6 +951,11 @@ returns status of node
     "version": "123",
     "http": true,
     "p2p": true,
+    "isPSConfigured": false,
+    "ownerInfo": {
+      "imprint": { "legalName": "Acme Ltd", "email": "legal@acme.com" },
+      "termsAndConditions": { "url": "https://acme.com/terms" }
+    },
     "provider": [],
     "indexer": [],
     "supportedStorage": {

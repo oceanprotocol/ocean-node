@@ -61,7 +61,6 @@ import { checkUrlHost, getSafeDispatcher } from '../../utils/safeUrl.js'
 import { fetchHeadersTimeout } from '../../utils/http.js'
 import { errorSummary, safeStringify } from '../../utils/logging/redact.js'
 import { ENVIRONMENT_VARIABLES, JobType } from '../../utils/constants.js'
-import { AssetUtils } from '../../utils/asset.js'
 import { FindDdoHandler } from '../core/handler/ddoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { KeyManager } from '../KeyManager/index.js'
@@ -71,7 +70,7 @@ import {
   validateJobMetadataSize
 } from './index.js'
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
-import { Service } from '@oceanprotocol/ddo-js'
+import { DDOManager, Service } from '@oceanprotocol/ddo-js'
 import { getOceanTokenAddressForChain } from '../../utils/address.js'
 import { includesAddress, sameAddress } from '../../utils/evmAddress.js'
 import { dockerRegistryAuth, OceanNodeConfig } from '../../@types/OceanNode.js'
@@ -7124,7 +7123,7 @@ export class C2DEngineDocker extends C2DEngine {
               OceanNode.getInstance()
             ).findAndFormatDdo(documentId)
             // 2. Get the service
-            const service: Service = AssetUtils.getServiceById(ddo, serviceId)
+            const service = DDOManager.getDDOClass(ddo).getService(serviceId) as Service
             // 3. Decrypt the url
             let decryptedFileObject = await decryptFilesObject(service.files)
             // persistent storage assets are bind-mounted during ConfiguringVolumes
@@ -7590,7 +7589,7 @@ export async function resolveComputeFileObject(
       if (!ddo) {
         return null
       }
-      const service: Service = AssetUtils.getServiceById(ddo, serviceId)
+      const service = DDOManager.getDDOClass(ddo).getService(serviceId) as Service
       if (!service) {
         return null
       }

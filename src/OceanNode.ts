@@ -23,6 +23,7 @@ import { createPersistentStorage } from './components/persistentStorage/createPe
 import { PersistentStorageFactory } from './components/persistentStorage/PersistentStorageFactory.js'
 import { isAddress, FallbackProvider, ethers } from 'ethers'
 import { create256Hash } from './utils/crypt.js'
+import { isPolicyServerConfigured } from './utils/config.js'
 import {
   MAINTENANCE_MODE_CONFIG_KEY,
   SUPPORTED_PROTOCOL_COMMANDS
@@ -298,6 +299,7 @@ export class OceanNode {
   }
 
   public getConfig(): OceanNodeConfig {
+    this.config.isPSConfigured = isPolicyServerConfigured()
     return this.config
   }
 
