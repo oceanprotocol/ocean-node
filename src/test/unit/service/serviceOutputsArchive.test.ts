@@ -167,7 +167,10 @@ function outputsContainer(id: string, entries: TarEntry[] = OUTPUTS_TAR) {
     id,
     stop: sinon.stub().resolves(undefined),
     remove: sinon.stub().resolves(undefined),
-    getArchive: sinon.stub().callsFake(async () => Readable.from(await makeTar(entries)))
+    getArchive: sinon.stub().callsFake(async () => Readable.from(await makeTar(entries))),
+    // teardown reads the logs too (serviceLogsArchive.test.ts); an empty log keeps these tests
+    // about the outputs alone
+    logs: sinon.stub().callsFake(() => Promise.resolve(Readable.from([])))
   }
 }
 

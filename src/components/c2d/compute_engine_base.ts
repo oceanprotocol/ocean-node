@@ -209,6 +209,10 @@ export abstract class C2DEngine {
     return []
   }
 
+  // Owners need a service's logs after it stops too, and Docker deletes them with the container:
+  // so once there is no container, the logs saved at teardown (ServiceJob.logArchives) are served.
+  // Null when there is neither. Throws when the container can't be read, which is not the same as
+  // having no logs.
   // eslint-disable-next-line require-await
   public async getServiceStreamableLogs(
     serviceId: string,
@@ -231,8 +235,8 @@ export abstract class C2DEngine {
     return null
   }
 
-  // Deletes the output archives of expired services whose environment's storageExpiry has
-  // elapsed since expiresAt. Returns how many services had their archives deleted.
+  // Deletes the output archives and saved logs of expired services whose environment's
+  // storageExpiry has elapsed since expiresAt. Returns how many services had them deleted.
   // eslint-disable-next-line require-await
   public async cleanupExpiredServiceOutputs(): Promise<number> {
     return 0

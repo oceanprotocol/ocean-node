@@ -201,6 +201,22 @@ export interface ServiceOutputArchive {
   containerId: string // container it was taken from — a retried teardown must not archive it twice
 }
 
+// Docker deletes a container's logs together with the container, so each service container's
+// stdout/stderr is saved before it is removed. That keeps the logs readable through
+// SERVICE_GET_STREAMABLE_LOGS after a stop or expiry, until expiresAt + storageExpiry.
+export interface ServiceLogArchive {
+  index: number
+  filename: string // e.g. logs-0.log, under <storage>/services/<serviceId>/
+  filesize: number // bytes
+  createdAt: number // Unix ms timestamp
+  containerId: string // container it was taken from — a retried teardown must not save it twice
+  // Recorded so the owner can tell a trimmed log from a complete one. A lower bound for a log
+  // longer than SERVICE_LOGS_TAIL_ENTRIES entries, since Docker sends no more than that.
+  droppedBytes?: number
+  // The read timed out before the log ended, so the newest output may be missing.
+  cutShort?: boolean
+}
+
 export interface ServiceEndpoint {
   containerPort: number
   hostPort: number
@@ -304,6 +320,8 @@ export interface ServiceJob {
   outputBucketId?: string // persistent-storage bucket bind-mounted at /data/outputs
   // Archives of /data/outputs, only for services without an outputBucketId.
   outputArchives?: ServiceOutputArchive[]
+  // Kept for services with an outputBucketId too: the bucket holds only /data/outputs.
+  logArchives?: ServiceLogArchive[]
   // Internal, only while a restart is in flight: the stopped old container, kept until its
   // /data/outputs has been carried over into the new one (orphan recovery archives and
   // removes it if the node dies before that). Never returned to clients.
