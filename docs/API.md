@@ -323,8 +323,9 @@ returns decrypted document
 > decrypterAddress + nonce + "decryptDDO" + issuerPeerId + chainId + transactionId + dataNftAddress
 > ```
 >
-> - `issuerPeerId` is the **target (decrypting) node's own peerId** — i.e. the `nodeId` returned
->   by that node's root `GET /` endpoint. A signature minted for node A is rejected by node B.
+> - `issuerPeerId` is the **target (decrypting) node's own peerId** — i.e. the `id` returned
+>   by that node's root `GET /` endpoint (the status object). A signature minted for node A is
+>   rejected by node B.
 > - `chainId`, `transactionId`, `dataNftAddress` bind the signature to a single decrypt.
 > - `nonce` is a client-local monotonic value (the Indexer uses `Date.now()`); the node no longer
 >   fetches a nonce from the (untrusted) `decryptorURL`.
@@ -985,21 +986,37 @@ byte-identical `address + nonce + "createAuthToken" + issuerPeerId`.
 
 ## Status
 
+### `HTTP` GET /
+
 ### `HTTP` POST /directCommand
 
 ### `P2P` command: status
 
 #### Description
 
-returns status of node
+returns status of node.
+
+The node's root `GET /` endpoint is the HTTP alias of this command: it dispatches the same `status`
+command and returns the same object (previously it returned only a small subset — `nodeId`,
+`providerAddress`, `nodePublicKey`, `software`, `version` — which has been replaced by the full status
+body). It defaults to the **basic** status; pass `?detailed=true` for the extended status
+(`c2dClusters` + `supportedSchemas`), mirroring the P2P `status` vs `detailedStatus` split. The
+OJ-03 challenge is supported via `?clientChallenge=...`.
+
+```
+GET /
+GET /?detailed=true
+GET /?clientChallenge=a-fresh-random-hex-string
+```
 
 #### Parameters
 
-| name            | type   | required | description                                                                       |
-| --------------- | ------ | -------- | --------------------------------------------------------------------------------- |
-| command         | string | v        | command name                                                                      |
-| node            | string |          | if not present it means current node                                              |
-| clientChallenge | string |          | OJ-03: when present, the node returns `signedChallenge` proving its peerId (below) |
+| name            | type    | required | description                                                                        |
+| --------------- | ------- | -------- | ---------------------------------------------------------------------------------- |
+| command         | string  | v        | command name (POST /directCommand / P2P only)                                       |
+| node            | string  |          | if not present it means current node                                                |
+| detailed        | boolean |          | when true, includes `c2dClusters` + `supportedSchemas` (query param on `GET /`)     |
+| clientChallenge | string  |          | OJ-03: when present, the node returns `signedChallenge` proving its peerId (below)  |
 
 #### Request
 

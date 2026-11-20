@@ -100,7 +100,7 @@
 								""
 							]
 						},
-						"description": "Returns node identity (nodeId, chainIds, providerAddress, nodePublicKey, software, version)."
+						"description": "Returns the full node status (the same object as the `status` command: id, publicKey, address, version, provider, indexer, platform, authTokenPolicy, p2pStatus, ...). Add `?detailed=true` for the extended status (c2dClusters + supportedSchemas), or `?clientChallenge=<hex>` for the OJ-03 signedChallenge proof."
 					}
 				}
 			]
