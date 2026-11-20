@@ -23,10 +23,16 @@ export function hasValidDBConfiguration(configuration: OceanNodeDBConfig): boole
   return true
 }
 
-// we can use this to check if DB connection is available
-export async function isReachableConnection(url: string): Promise<boolean> {
+// we can use this to check if DB connection is available. An optional AbortSignal lets the caller
+// cancel a probe that would otherwise hang on a URL that accepts the connection but never responds
+// (the indexer aborts it when the owning start is stopped). With no signal the behaviour is
+// unchanged: the probe resolves true/false purely on the fetch outcome, however long that takes.
+export async function isReachableConnection(
+  url: string,
+  signal?: AbortSignal
+): Promise<boolean> {
   try {
-    await fetch(url)
+    await fetch(url, signal ? { signal } : undefined)
     return true
   } catch (error) {
     return false

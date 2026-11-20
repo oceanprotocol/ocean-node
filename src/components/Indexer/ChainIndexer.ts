@@ -22,6 +22,17 @@ import { Database } from '../database/index.js'
 // consecutive loop failures after which a recovery is logged at info and the throttle reset
 const FAILURE_ESCALATION_THRESHOLD = 5
 
+// Thrown by raceStop() when a stop is requested while an await is still pending, so the indexing
+// loop can unwind promptly instead of blocking the stop() handshake on an unbounded RPC/DB call
+// (which would otherwise deadlock: stop() busy-waits on isRunning, which the loop only clears when
+// it exits).
+class IndexerStoppedError extends Error {
+  constructor(label: string) {
+    super(`ChainIndexer stopped during ${label}`)
+    this.name = 'IndexerStoppedError'
+  }
+}
+
 export interface ReindexTask {
   txId: string
   chainId: number
@@ -43,6 +54,9 @@ export class ChainIndexer {
   private blockchain: Blockchain
   private db: Database
   private consecutiveFailures: number = 0
+  // Aborted by stop() so any await wrapped in raceStop() rejects promptly instead of blocking the
+  // shutdown handshake on an unbounded RPC/DB call. Re-created in start() for each run.
+  private abortController: AbortController = new AbortController()
 
   constructor(
     blockchain: Blockchain,
@@ -71,6 +85,8 @@ export class ChainIndexer {
     }
 
     this.stopSignal = false
+    // Fresh controller for this run (a previous run's controller may already be aborted).
+    this.abortController = new AbortController()
     this.isRunning = true
 
     // Start crawling but DON'T await - let it run in background
@@ -87,6 +103,9 @@ export class ChainIndexer {
    */
   async stop(): Promise<void> {
     this.stopSignal = true
+    // Unblock any await the loop is currently parked on (raceStop), so the busy-wait below ends
+    // promptly instead of hanging until an unbounded RPC/DB call returns.
+    this.abortController.abort()
     INDEXER_LOGGER.debug(
       `Stopping indexer for chain ${this.blockchain.getSupportedChain()}, waiting for graceful shutdown...`
     )
@@ -97,6 +116,33 @@ export class ChainIndexer {
     }
 
     INDEXER_LOGGER.info(`Chain ${this.blockchain.getSupportedChain()}: indexer stopped`)
+  }
+
+  /**
+   * Race an await against this indexer's stop. If stop() aborts while `operation` is still pending,
+   * reject with IndexerStoppedError so indexLoop() unwinds immediately instead of blocking stop()
+   * on an unbounded RPC/DB call. The underlying operation keeps running but its result is ignored;
+   * its eventual settlement is consumed here so a late rejection is not left unhandled.
+   */
+  private raceStop<T>(operation: Promise<T>, label: string): Promise<T> {
+    const { signal } = this.abortController
+    if (signal.aborted) {
+      return Promise.reject(new IndexerStoppedError(label))
+    }
+    return new Promise<T>((resolve, reject) => {
+      const onAbort = () => reject(new IndexerStoppedError(label))
+      signal.addEventListener('abort', onAbort, { once: true })
+      operation.then(
+        (value) => {
+          signal.removeEventListener('abort', onAbort)
+          resolve(value)
+        },
+        (err) => {
+          signal.removeEventListener('abort', onAbort)
+          reject(err)
+        }
+      )
+    })
   }
 
   /**
@@ -170,14 +216,26 @@ export class ChainIndexer {
       `Chain ${this.blockchain.getSupportedChain()}: start block ${crawlingStartBlock} (deploy ${contractDeploymentBlock}, configured startBlock ${this.rpcDetails.startBlock})`
     )
 
-    let provider = await this.blockchain.getProvider()
-    let signer = await this.blockchain.getSigner()
+    let provider: FallbackProvider
+    let signer: Signer
+    try {
+      provider = await this.raceStop(this.blockchain.getProvider(), 'getProvider')
+      signer = await this.raceStop(this.blockchain.getSigner(), 'getSigner')
+    } catch (error) {
+      if (error instanceof IndexerStoppedError || this.stopSignal) {
+        INDEXER_LOGGER.debug(
+          `Chain ${this.blockchain.getSupportedChain()}: stop requested before indexing loop started`
+        )
+        this.isRunning = false
+        return
+      }
+      throw error
+    }
     const interval = getCrawlingInterval()
     let chunkSize = this.rpcDetails.chunkSize || 1
     let successfulRetrievalCount = 0
     let lockProcessing = false
     let startedCrawling = false
-    let currentBlock: number
 
     while (!this.stopSignal) {
       if (!lockProcessing) {
@@ -188,11 +246,17 @@ export class ChainIndexer {
           // Self-heal: if the provider was destroyed (overlapping teardown), getProvider()
           // recreates it and getSigner() rebuilds against it. When healthy, both return the
           // cached instances at negligible cost.
-          provider = await this.blockchain.getProvider()
-          signer = await this.blockchain.getSigner()
+          provider = await this.raceStop(this.blockchain.getProvider(), 'getProvider')
+          signer = await this.raceStop(this.blockchain.getSigner(), 'getSigner')
 
-          const lastIndexedBlock = await this.getLastIndexedBlock()
-          const networkHeight = await getNetworkHeight(provider)
+          const lastIndexedBlock = await this.raceStop(
+            this.getLastIndexedBlock(),
+            'getLastIndexedBlock'
+          )
+          const networkHeight = await this.raceStop(
+            getNetworkHeight(provider),
+            'getNetworkHeight'
+          )
           const startBlock =
             lastIndexedBlock && lastIndexedBlock > crawlingStartBlock
               ? lastIndexedBlock
@@ -222,15 +286,20 @@ export class ChainIndexer {
 
             let chunkEvents: Log[] = []
             try {
-              chunkEvents = await retrieveChunkEvents(
-                signer,
-                provider,
-                this.blockchain.getSupportedChain(),
-                startBlock,
-                blocksToProcess
+              chunkEvents = await this.raceStop(
+                retrieveChunkEvents(
+                  signer,
+                  provider,
+                  this.blockchain.getSupportedChain(),
+                  startBlock,
+                  blocksToProcess
+                ),
+                'retrieveChunkEvents'
               )
               successfulRetrievalCount++
             } catch (error) {
+              // Let a stop unwind the loop instead of being treated as a getLogs failure.
+              if (error instanceof IndexerStoppedError) throw error
               // Rethrow so the outer catch retries this range instead of advancing past it.
               if (isProviderError(error)) throw error
               chunkSize = Math.floor(chunkSize / 2) < 1 ? 1 : Math.floor(chunkSize / 2)
@@ -246,6 +315,11 @@ export class ChainIndexer {
             }
 
             try {
+              // NOT raced against stop: processBlocks and updateLastIndexedBlockNumber WRITE to the
+              // DB (stored DDOs/orders + the indexer cursor). They must run to completion before the
+              // loop can exit, otherwise an orphaned write from a stopped run could race a
+              // replacement indexer for the same chain. stop() waits for them (as it did before the
+              // raceStop() wrapper existed); only the hang-prone RPC/DB reads above stay raced.
               const processedBlocks = await processBlocks(
                 chunkEvents,
                 signer,
@@ -260,15 +334,10 @@ export class ChainIndexer {
                 `Processed ${Object.keys(processedBlocks.foundEvents).length} event types from ${chunkEvents.length} logs`
               )
 
-              currentBlock = await this.updateLastIndexedBlockNumber(
+              await this.updateLastIndexedBlockNumber(
                 processedBlocks.lastBlock,
                 lastIndexedBlock
               )
-
-              // Can't update currentBlock to processedBlocks.lastBlock if DB action failed
-              if (currentBlock < 0 && lastIndexedBlock !== null) {
-                currentBlock = lastIndexedBlock
-              }
 
               this.emitNewlyIndexedAssets(processedBlocks.foundEvents)
 
@@ -297,13 +366,22 @@ export class ChainIndexer {
             await sleep(interval)
           }
 
-          // Process reindex queue
+          // Process reindex queue. NOT raced: it writes to the DB and emits queue-pop events, so it
+          // must finish before the loop exits rather than being orphaned past a stop.
           await this.processReindexQueue(provider, signer)
 
-          // Handle chain reindex command
-          if (this.reindexBlock !== null && !lockProcessing) {
-            const networkHeight = await getNetworkHeight(provider)
-            const result = await this.reindexChain(currentBlock, networkHeight)
+          // Handle chain reindex command. (The old `&& !lockProcessing` guard was always false
+          // here — lockProcessing is set true at the top of this block — so a triggered full-chain
+          // reindex never ran. reindexChain() clears reindexBlock on every path, so this cannot loop.)
+          if (this.reindexBlock !== null) {
+            const networkHeight = await this.raceStop(
+              getNetworkHeight(provider),
+              'getNetworkHeight'
+            )
+            // reindexChain WRITES to the DB (resets the cursor, purges assets). NOT raced, so it
+            // can't be orphaned mid-mutation past a stop. It reads the current cursor itself for
+            // rollback, so no block argument is passed.
+            const result = await this.reindexChain(networkHeight)
 
             this.eventEmitter.emit(INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN, {
               result,
@@ -312,6 +390,12 @@ export class ChainIndexer {
           }
           if (!iterationFailed) this.logLoopRecovered()
         } catch (error) {
+          // Stop requested mid-iteration (raceStop) or stopSignal set: exit the loop promptly
+          // instead of logging a failure and sleeping/retrying. The finally still clears the lock,
+          // then the while-condition sees stopSignal and the loop ends (isRunning cleared below).
+          if (error instanceof IndexerStoppedError || this.stopSignal) {
+            break
+          }
           this.logLoopFailure(
             `Error in indexing loop for chain ${this.blockchain.getSupportedChain()}: ${errorSummary(error)}`
           )
@@ -417,33 +501,49 @@ export class ChainIndexer {
   /**
    * Perform a full chain reindex
    */
-  private async reindexChain(
-    currentBlock: number,
-    networkHeight: number
-  ): Promise<boolean> {
-    if (this.reindexBlock > networkHeight) {
+  private async reindexChain(networkHeight: number): Promise<boolean> {
+    const targetBlock = this.reindexBlock
+    if (targetBlock > networkHeight) {
       INDEXER_LOGGER.warn(
-        `Invalid reindex block! ${this.reindexBlock} is bigger than network height: ${networkHeight}. Continue indexing normally...`
+        `Invalid reindex block! ${targetBlock} is bigger than network height: ${networkHeight}. Continue indexing normally...`
       )
       this.reindexBlock = null
       return false
     }
 
-    const block = await this.updateLastIndexedBlockNumber(this.reindexBlock)
-    if (block !== -1) {
-      this.reindexBlock = null
-      const res = await this.deleteAllAssetsFromChain()
-      if (res === -1) {
-        await this.updateLastIndexedBlockNumber(currentBlock)
-      }
-      return true
-    } else {
+    // Capture the cursor as it stands NOW, before updateLastIndexedBlockNumber overwrites it below,
+    // so a failed asset purge can be rolled back to the real pre-reindex value instead of a stale
+    // caller-supplied one. getLastIndexedBlock() returns null when there is no stored cursor OR the
+    // read failed (it logs and swallows the error); either way we fall back to targetBlock on
+    // rollback so we never write undefined.
+    const previousCursor = await this.getLastIndexedBlock()
+
+    const block = await this.updateLastIndexedBlockNumber(targetBlock)
+    if (block === -1) {
       INDEXER_LOGGER.error(
-        `Chain ${this.blockchain.getSupportedChain()}: reindex from block ${this.reindexBlock} dropped, the last indexed block could not be reset. Continue indexing normally...`
+        `Chain ${this.blockchain.getSupportedChain()}: reindex from block ${targetBlock} dropped, the last indexed block could not be reset. Continue indexing normally...`
       )
       this.reindexBlock = null
       return false
     }
+
+    this.reindexBlock = null
+    const res = await this.deleteAllAssetsFromChain()
+    if (res === -1) {
+      // Purge failed: restore the pre-reindex cursor so we don't leave it reset to the deployment
+      // block while the old assets are still present. Never restore to undefined.
+      const restoreTo = isDefined(previousCursor) ? previousCursor : targetBlock
+      const restored = await this.updateLastIndexedBlockNumber(restoreTo)
+      if (restored === -1) {
+        INDEXER_LOGGER.error(
+          `Chain ${this.blockchain.getSupportedChain()}: failed to restore last indexed block to ${restoreTo} after a failed reindex asset purge`
+        )
+      }
+      return false
+    }
+
+    // Success — including when zero assets were deleted (res === 0).
+    return true
   }
 
   /**
