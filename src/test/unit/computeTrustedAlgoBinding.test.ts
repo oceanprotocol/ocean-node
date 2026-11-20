@@ -398,6 +398,78 @@ describe('validateAlgoForDataset (trusted-algo allow/deny still holds)', () => {
     )
     expect(result).to.equal(false)
   })
+
+  it('rejects when the dataset service id does not exist', async () => {
+    const ddoInstance = DDOManager.getDDOClass(datasetDDO([{ did: '*' }]))
+    const result = await validateAlgoForDataset(
+      ALGO_DID,
+      checksums,
+      ddoInstance,
+      'no-such-service',
+      {} as any
+    )
+    expect(result).to.equal(false)
+  })
+
+  describe('trusted publishers (algorithm NFT address resolved by the node)', () => {
+    afterEach(() => {
+      sinon.restore()
+    })
+
+    function publisherDDO(publishers: string[]) {
+      const ddo = datasetDDO([])
+      ddo.services[0].compute.publisherTrustedAlgorithmPublishers = publishers
+      return DDOManager.getDDOClass(ddo)
+    }
+
+    it('allows an algorithm whose NFT address is a trusted publisher', async () => {
+      sinon.stub(FindDdoHandler.prototype, 'findAndFormatDdo').resolves(algoDDO())
+      const result = await validateAlgoForDataset(
+        ALGO_DID,
+        checksums,
+        publisherDDO(['0x0000000000000000000000000000000000000001']),
+        DATASET_SERVICE_ID,
+        {} as any
+      )
+      expect(result).to.equal(true)
+    })
+
+    it('rejects an algorithm from another publisher', async () => {
+      sinon.stub(FindDdoHandler.prototype, 'findAndFormatDdo').resolves(algoDDO())
+      const result = await validateAlgoForDataset(
+        ALGO_DID,
+        checksums,
+        publisherDDO(['0x00000000000000000000000000000000000000ff']),
+        DATASET_SERVICE_ID,
+        {} as any
+      )
+      expect(result).to.equal(false)
+    })
+
+    it('rejects when the algorithm DDO cannot be resolved or the lookup throws', async () => {
+      const stub = sinon.stub(FindDdoHandler.prototype, 'findAndFormatDdo').resolves(null)
+      const ddoInstance = publisherDDO(['0x0000000000000000000000000000000000000001'])
+      expect(
+        await validateAlgoForDataset(
+          ALGO_DID,
+          checksums,
+          ddoInstance,
+          DATASET_SERVICE_ID,
+          {} as any
+        )
+      ).to.equal(false)
+      stub.rejects(new Error('db down'))
+      expect(
+        await validateAlgoForDataset(
+          ALGO_DID,
+          checksums,
+          ddoInstance,
+          DATASET_SERVICE_ID,
+          {} as any
+        )
+      ).to.equal(false)
+    })
+  })
 })
 
 // Handler-level regression tests. The helper tests above call the binding directly, so
