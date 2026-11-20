@@ -52,6 +52,10 @@ function jsonResponse(body: unknown): P2PCommandResponse {
 }
 
 export class GetLogsHandler extends AdminCommandHandler {
+  // Read-only admin command: token-authorizable and scopable (plan §16.2). ALLOWED_ADMINS still
+  // gates at consumption.
+  protected readonly allowAuthToken: boolean = true
+
   async validate(command: AdminGetLogsCommand): Promise<ValidateParams> {
     return await super.validate(command)
   }

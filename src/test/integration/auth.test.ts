@@ -22,7 +22,12 @@ import { streamToObject } from '../../utils/util.js'
 import { Readable } from 'stream'
 import { expect } from 'chai'
 import { ValidateDDOHandler } from '../../components/core/handler/ddoHandler.js'
-import { createHashForSignature, safeSign } from '../utils/signature.js'
+import {
+  createHashForSignature,
+  createHashForMessage,
+  safeSign
+} from '../utils/signature.js'
+import { buildCreateAuthTokenSignatureMessage } from '../../utils/crypt.js'
 
 describe('**********         Auth Token Integration Tests', () => {
   let config: OceanNodeConfig
@@ -148,15 +153,19 @@ describe('**********         Auth Token Integration Tests', () => {
 
       const consumerAddress = await consumerAccount.getAddress()
       const nonce = getRandomNonce()
-      const messageHash = createHashForSignature(
-        consumerAddress,
-        nonce,
-        PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
-        oceanNode.getKeyManager().getPeerIdString()
+      // Passing validUntil makes this a v2 (scoped) token, so the signature must be over the v2
+      // message (plan §3.2 / §5.3), not the legacy concat.
+      const validUntil = Date.now() + 1000
+      const messageHash = createHashForMessage(
+        buildCreateAuthTokenSignatureMessage({
+          address: consumerAddress,
+          nonce,
+          issuerPeerId: oceanNode.getKeyManager().getPeerIdString(),
+          validUntil
+        })
       )
       const signature = await safeSign(consumerAccount, messageHash)
 
-      const validUntil = Date.now() + 1000
       const handlerResponse = await new CreateAuthTokenHandler(oceanNode).handle({
         command: PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
         address: consumerAddress,

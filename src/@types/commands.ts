@@ -109,6 +109,10 @@ export interface ValidateDDOCommand extends Command {
 
 export interface StatusCommand extends Command {
   detailed?: boolean
+  // OJ-03 (plan §14.1): optional client-chosen random challenge. When present, the node answers
+  // with `signedChallenge` (its libp2p-identity-key signature over the domain-separated digest),
+  // proving it controls the key the peerId commits to. Backward compatible: omitted ⇒ no change.
+  clientChallenge?: string
 }
 export interface DetailedStatusCommand extends StatusCommand {}
 export interface EchoCommand extends Command {}
