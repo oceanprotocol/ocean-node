@@ -12,6 +12,7 @@ import { typesenseSchemas } from '../../database/TypesenseSchemas.js'
 import { SupportedNetwork } from '../../../@types/blockchain.js'
 import { humanizeHex } from '../../../utils/humanHash.js'
 import { getPackageVersion } from '../../../utils/version.js'
+import { getNodeOwnerInfo } from '../../../utils/config.js'
 
 function getSupportedStorageTypes(config: OceanNodeConfig): StorageTypes {
   return {
@@ -121,6 +122,7 @@ export async function status(
       version: getPackageVersion(),
       http: config.hasHttp,
       p2p: config.hasP2P,
+      isPSConfigured: config.isPSConfigured,
       provider: [],
       indexer: [],
       escrowAddress: {},
@@ -148,6 +150,15 @@ export async function status(
   nodeStatus.subsidyProviderFilter = config.subsidyProviderFilter ?? false
   // Per-subsidy-address docker image allowlist; empty map when unset (no gating).
   nodeStatus.subsidyProviderAllowedImages = config.subsidyProviderAllowedImages ?? {}
+  // getConfig() refreshes it from POLICY_SERVER_URL, so the cached status never goes stale.
+  nodeStatus.isPSConfigured = config.isPSConfigured
+  // Re-read on every request so the cached status follows NODE_OWNER_INFO changes.
+  const ownerInfo = getNodeOwnerInfo()
+  if (ownerInfo) {
+    nodeStatus.ownerInfo = ownerInfo
+  } else {
+    delete nodeStatus.ownerInfo
+  }
   // Whether the P2P interface is usable, not just enabled. Re-read on every request rather
   // than cached with the block above: the routing table fills after startup, so a value
   // captured once would report a node as permanently not-ready.

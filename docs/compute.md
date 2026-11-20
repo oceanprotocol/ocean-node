@@ -417,13 +417,16 @@ never affected and container-level metrics (cpu, memory, disk, network, block I/
 being collected — the snapshot just has no `gpu[]` entry.
 
 All messages come from the `CORE` module. The NVML load/init failures below are logged at
-**error** (**warn** when `nvmlInit` returns an error code), so they are visible at the default
-log level, and only once per process (the probe result is cached). The `[metrics] gpu:`
-`collection failed` / `host sample failed` lines are **error**; the other `[metrics] gpu:` lines
-are **debug**, so they need `LOG_LEVEL=debug` on the console or `LOG_FILES_LEVEL=debug` on disk;
-their frequency is noted per message.
+**warn** when a declared GPU resource is NVIDIA (**debug** otherwise), so they are visible at the
+default log level. A failed probe is **retried**: after 30 s, doubling per consecutive failure up
+to 10 min, so a driver that becomes ready after the node starts is picked up without a restart.
+Only the first failure of a streak is a warn; the retries that follow are debug, and recovery is
+logged at info as `NVML available after N failed probe(s) — enabled`. The `[metrics] gpu:`
+`collection failed` / `host sample failed` lines are throttled **warn**; the other `[metrics] gpu:`
+lines are **debug**, so they need `LOG_LEVEL=debug` on the console or `LOG_FILES_LEVEL=debug` on
+disk; their frequency is noted per message.
 
-#### `could not bind libnvidia-ml.so.1 — NVIDIA GPU metrics disabled (Failed to load shared library: cannot open shared object file: No such file or directory)`
+#### `could not bind libnvidia-ml.so.1 — NVIDIA GPU metrics disabled, will retry (Failed to load shared library: cannot open shared object file: No such file or directory)`
 
 The node found the `koffi` FFI but the **dynamic loader could not find the NVIDIA driver's NVML
 library** anywhere in its search path. The message text after the dash comes straight from
@@ -471,8 +474,9 @@ docker exec <node-container> sh -lc 'ldconfig -p | grep nvidia-ml; nvidia-smi ||
 
 | Message | Meaning |
 |---|---|
-| `koffi FFI not available — NVIDIA GPU metrics disabled` | The optional `koffi` dependency is not installed. `npm install` in the node directory installs it; a `--omit=optional` install skips it |
-| `nvmlInit failed (code N)` / `nvmlInit threw` | The library loaded but NVML would not initialize — usually a driver/library version mismatch (reinstall the driver so userspace matches the kernel module), or missing permission on `/dev/nvidia*` |
+| `koffi FFI not available — NVIDIA GPU metrics disabled, will retry` | The optional `koffi` dependency is not installed. `npm install` in the node directory installs it; a `--omit=optional` install skips it |
+| `nvmlInit failed (code N)` / `nvmlInit threw` | The library loaded but NVML would not initialize — usually a driver/library version mismatch (reinstall the driver so userspace matches the kernel module), or missing permission on `/dev/nvidia*`. Retried with backoff (see above) |
+| `could not bind libnvidia-ml.so.1 — … (Duplicate type name 'nvmlUtilization_t')` | Older ocean-node versions only: a second GPU collector in the same process (engines rebuilt by an admin `pushConfig`, a second docker engine, or two GPU samples racing on the first probe) could not redefine the NVML types, which left GPU metrics off until the node restarted. Upgrade; until then, restarting the node restores GPU metrics |
 | `[metrics] gpu: cannot determine the vendor of resource "<id>"` | That GPU resource has neither `"platform"` (`nvidia` \| `amd` \| `intel`) nor `init.deviceRequests.Driver`, so no backend could be chosen. Set `platform` on the resource. Logged once per resource id |
 | `[metrics] gpu: <vendor> backend not implemented yet` | AMD and Intel GPU metrics are not collected yet. The GPUs still work for compute; only their metrics are missing. Logged once per vendor |
 | `[metrics] gpu: N GPU resource(s) held but no device metrics resolved` | The workload holds GPUs but nothing came back — the follow-on symptom of any of the above. Logged per sample, so it is the line to grep when GPU numbers are missing |

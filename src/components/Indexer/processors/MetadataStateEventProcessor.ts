@@ -4,7 +4,7 @@ import { EVENTS, MetadataStates } from '../../../utils/constants.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' with { type: 'json' }
-import { getDid } from '../utils.js'
+import { buildShortDdoRecord, retrieveDdoByNft } from '../utils.js'
 
 export class MetadataStateEventProcessor extends BaseEventProcessor {
   async processEvent(
@@ -23,11 +23,10 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
     const metadataState = parseInt(decodedEventData.args[1].toString())
     INDEXER_LOGGER.debug(`Processed new metadata state ${metadataState} `)
     INDEXER_LOGGER.debug(`NFT address in processing MetadataState: ${event.address} `)
-    const did = getDid(event.address, chainId)
 
     try {
       const { ddo: ddoDatabase } = await this.getDatabase()
-      const ddo = await ddoDatabase.retrieve(did)
+      const { did, ddo } = await retrieveDdoByNft(ddoDatabase, event.address, chainId)
       if (!ddo) {
         INDEXER_LOGGER.debug(
           `Detected MetadataState changed for ${did}, but it does not exists.`
@@ -38,35 +37,24 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
       const ddoInstance = DDOManager.getDDOClass(ddo)
       INDEXER_LOGGER.debug(`Found did ${did} on network ${chainId}`)
 
-      if (
-        'nft' in ddoInstance.getAssetFields().indexedMetadata &&
-        ddoInstance.getAssetFields().indexedMetadata.nft.state !== metadataState
-      ) {
+      // Read the stored record, not getAssetFields(): on a short DDO that call nulls
+      // indexedMetadata.event in place, and the record is saved again below
+      const currentState = ddo.indexedMetadata?.nft?.state
+      if (ddo.indexedMetadata?.nft && currentState !== metadataState) {
         if (
-          ddoInstance.getAssetFields().indexedMetadata.nft.state ===
-            MetadataStates.ACTIVE &&
+          currentState === MetadataStates.ACTIVE &&
           [MetadataStates.REVOKED, MetadataStates.DEPRECATED].includes(metadataState)
         ) {
           INDEXER_LOGGER.debug(
-            `DDO became non-visible from ${
-              ddoInstance.getAssetFields().indexedMetadata.nft.state
-            } to ${metadataState}`
+            `DDO became non-visible from ${currentState} to ${metadataState}`
           )
 
           // We should keep it here, because in further development we'll store
           // the previous structure of the non-visible DDOs (full version)
           // in case their state changes back to active.
-          const shortDdoInstance = DDOManager.getDDOClass({
-            id: ddo.id,
-            version: 'deprecated',
-            chainId,
-            nftAddress: ddo.nftAddress,
-            indexedMetadata: {
-              nft: {
-                state: metadataState
-              }
-            }
-          })
+          const shortDdoInstance = DDOManager.getDDOClass(
+            buildShortDdoRecord(ddo, chainId, metadataState)
+          )
 
           const savedDDO = await this.createOrUpdateDDO(
             shortDdoInstance,
