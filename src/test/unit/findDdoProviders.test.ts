@@ -1,13 +1,13 @@
 import { expect } from 'chai'
 import { ethers } from 'ethers'
 import { Readable } from 'stream'
+import { deriveDid } from '@oceanprotocol/ddo-js'
 import {
   FindDdoHandler,
   resetDdoNotFoundCache
 } from '../../components/core/handler/ddoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { generateDDOHash } from '../../utils/asset.js'
 import { P2P_TIMEOUTS } from '../../components/P2P/timeouts.js'
 import {
   buildEnvOverrideConfig,
@@ -35,7 +35,7 @@ import {
 
 const CHAIN_ID = 137
 const NFT_ADDRESS = '0x1111111111111111111111111111111111111111'
-const DDO_ID = generateDDOHash(NFT_ADDRESS, CHAIN_ID)
+const DDO_ID = deriveDid(NFT_ADDRESS, CHAIN_ID, '4')
 const TX_ID = '0x' + 'ab'.repeat(32)
 const METADATA_CREATED_TOPIC =
   '0x5463569dcc320958360074a9ab27e809e8a6942c394fb151d139b5f7b4ecb1bd'
@@ -48,6 +48,18 @@ const legitimateDdo = (): any => ({
   version: '4.1.0',
   metadata: { updated: '2026-01-01T00:00:00Z', created: '2026-01-01T00:00:00Z' },
   indexedMetadata: { event: { block: 100, txid: TX_ID, tx: TX_ID } }
+})
+
+/** The same asset as a v5 DDO: did:ope id, nftAddress/chainId/metadata under credentialSubject. */
+const legitimateDdoV5 = (): any => ({
+  id: deriveDid(NFT_ADDRESS, CHAIN_ID, '5'),
+  version: '5.0.0',
+  credentialSubject: {
+    nftAddress: NFT_ADDRESS,
+    chainId: CHAIN_ID,
+    metadata: { updated: '2026-01-02T00:00:00Z', created: '2026-01-01T00:00:00Z' }
+  },
+  indexedMetadata: { event: { block: 100, tx: TX_ID } }
 })
 
 /** Same shape, but the id does not hash to (nftAddress, chainId) - the first gate rejects it. */
@@ -163,10 +175,10 @@ function buildNode(
   } as unknown as OceanNode
 }
 
-const findDdo = async (node: OceanNode): Promise<any[]> => {
+const findDdo = async (node: OceanNode, id: string = DDO_ID): Promise<any[]> => {
   const response = await new FindDdoHandler(node).handle({
     command: PROTOCOL_COMMANDS.FIND_DDO,
-    id: DDO_ID
+    id
   } as any)
   expect(response.status.httpStatus).to.equal(200)
   let text = ''
@@ -294,6 +306,16 @@ describe('FindDDO stops at the first legitimate answer', () => {
 
     expect(results.length).to.equal(1)
     expect(results[0].provider).to.equal('honest')
+  })
+
+  it('accepts a legitimate v5 DDO (did:ope, fields under credentialSubject)', async () => {
+    const ddo = legitimateDdoV5()
+    const results = await findDdo(buildNode({ v5: { body: ddo } }), ddo.id)
+
+    expect(results.length, 'the v5 answer must pass verification').to.equal(1)
+    expect(results[0].id).to.equal(ddo.id)
+    expect(results[0].lastUpdateTx).to.equal(TX_ID)
+    expect(results[0].lastUpdateTime).to.equal('2026-01-02T00:00:00Z')
   })
 })
 

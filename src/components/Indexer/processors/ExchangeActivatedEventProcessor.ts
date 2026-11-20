@@ -4,9 +4,8 @@ import { EVENTS } from '../../../utils/constants.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import {
   getDtContract,
-  getDid,
+  retrieveDdoByNft,
   doesFreAlreadyExist,
-  findServiceIdByDatatoken,
   getPricesByDt,
   isValidFreContract
 } from '../utils.js'
@@ -50,10 +49,9 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
       }
       const datatokenContract = getDtContract(signer, datatokenAddress)
       const nftAddress = await datatokenContract.getERC721Address()
-      const did = getDid(nftAddress, chainId)
 
       const { ddo: ddoDatabase } = await this.getDatabase()
-      const ddo = await ddoDatabase.retrieve(did)
+      const { did, ddo } = await retrieveDdoByNft(ddoDatabase, nftAddress, chainId)
       if (!ddo) {
         INDEXER_LOGGER.debug(
           `Detected ExchangeActivated changed for ${did}, but it does not exists.`
@@ -89,7 +87,7 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
         }
       } else {
         INDEXER_LOGGER.debug(`[ExchangeActivated] - No stats were found on the ddo`)
-        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
+        const serviceIdToFind = ddoInstance.getServiceByDatatoken(datatokenAddress)?.id
         if (!serviceIdToFind) {
           INDEXER_LOGGER.debug(
             `[ExchangeActivated] - This datatoken does not contain this service. Invalid service id!`

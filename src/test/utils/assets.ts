@@ -20,7 +20,7 @@ import {
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
 import { getEventFromTx, streamToObject } from '../../utils/util.js'
 
-import { AssetUtils } from '../../utils/asset.js'
+import { DDOManager, Service } from '@oceanprotocol/ddo-js'
 
 import { DDO_IDENTIFIER_PREFIX, PROTOCOL_COMMANDS } from '../../utils/index.js'
 import { FeesHandler } from '../../components/core/handler/feesHandler.js'
@@ -141,7 +141,9 @@ export async function orderAsset(
   const consumeMarketFeeAddress = ZeroAddress
   const consumeMarketFeeAmount = 0
   const consumeMarketFeeToken = ZeroAddress
-  const service = AssetUtils.getServiceByIndex(genericAsset, serviceIndex)
+  const service = DDOManager.getDDOClass(genericAsset).getServiceByIndex(
+    serviceIndex
+  ) as Service
 
   let orderTxReceipt = null
   const dataTokenContract = new Contract(
@@ -228,7 +230,9 @@ export async function reOrderAsset(
   const consumeMarketFeeAddress = ZeroAddress
   const consumeMarketFeeAmount = 0
   const consumeMarketFeeToken = ZeroAddress
-  const service = AssetUtils.getServiceByIndex(genericAsset, serviceIndex)
+  const service = DDOManager.getDDOClass(genericAsset).getServiceByIndex(
+    serviceIndex
+  ) as Service
   const dataTokenContract = new Contract(
     service.datatokenAddress,
     ERC20Template.abi,

@@ -43,8 +43,15 @@ import {
   getNetworkHeight,
   wasNFTDeployedByOurFactory
 } from '../../Indexer/utils.js'
-import { deleteIndexedMetadataIfExists, validateDDOHash } from '../../../utils/asset.js'
-import { Asset, DDO, DDOManager } from '@oceanprotocol/ddo-js'
+import { deleteIndexedMetadataIfExists } from '../../../utils/asset.js'
+import {
+  Asset,
+  DDO,
+  DDOManager,
+  getDdoChainId,
+  getDdoNftAddress,
+  matchesDid
+} from '@oceanprotocol/ddo-js'
 import { checkCredentialOnAccessList } from '../../../utils/credentials.js'
 
 const MAX_NUM_PROVIDERS = 5
@@ -642,10 +649,13 @@ export class FindDdoHandler extends CommandHandler {
           const isResponseLegit = await checkIfDDOResponseIsLegit(ddo, node)
 
           if (isResponseLegit) {
+            // v5 keeps metadata under credentialSubject; the event tx may be tx or txid
+            const { metadata } = DDOManager.getDDOClass(ddo).getDDOFields()
             const ddoInfo: FindDDOResponse = {
               id: ddo.id,
-              lastUpdateTx: ddo.indexedMetadata.event.txid,
-              lastUpdateTime: ddo.metadata.updated,
+              lastUpdateTx:
+                ddo.indexedMetadata.event.txid || ddo.indexedMetadata.event.tx,
+              lastUpdateTime: metadata?.updated,
               provider: peer
             }
             resultList.push(ddoInfo)
@@ -1144,9 +1154,11 @@ async function checkIfDDOResponseIsLegit(
   const clonedDdo = structuredClone(ddo)
   const { indexedMetadata } = clonedDdo
   const updatedDdo = deleteIndexedMetadataIfExists(ddo)
-  const { nftAddress, chainId } = updatedDdo
-  let isValid = validateDDOHash(updatedDdo.id, nftAddress, chainId)
-  // 1) check hash sha256(nftAddress + chainId)
+  // v4 keeps nftAddress/chainId at the top level, v5 under credentialSubject
+  const nftAddress = getDdoNftAddress(updatedDdo)
+  const chainId = Number(getDdoChainId(updatedDdo))
+  // 1) check the DID is sha256(nftAddress + chainId), with the v4 or v5 prefix
+  let isValid = matchesDid(updatedDdo.id, nftAddress, chainId)
   if (!isValid) {
     CORE_LOGGER.debug(`Asset ${updatedDdo.id} does not have a valid hash`)
     return false

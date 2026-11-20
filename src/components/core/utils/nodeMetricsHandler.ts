@@ -8,6 +8,11 @@
  * `lastAggregate` + `envResourceSnapshot`, dedupe GPUs by `resourceId`) and blends in the host
  * `os` reads used by `statusHandler.ts`.
  *
+ * GPUs come, like the gauges, from each engine's host-wide `hostGpuSnapshot` first (every GPU
+ * visible to the node, idle included), then from the job/service-scoped `lastAggregate.gpus` for
+ * any device the host enumeration could not read. Reading only `lastAggregate.gpus` left `gpu[]`
+ * empty whenever no running workload had a GPU sample attached, even with live host readings.
+ *
  * Never throws: a missing/undefined aggregate yields a well-formed zero/empty snapshot with
  * `hasAggregate: false`, mirroring the defensive posture of the gauge callbacks.
  */
@@ -15,6 +20,7 @@ import os from 'os'
 import type { OceanNode } from '../../../OceanNode.js'
 import type {
   ComputeEngineAggregate,
+  ComputeGpuAggregate,
   EnvResourceSnapshot
 } from '../../../telemetry/computeTypes.js'
 import type {
@@ -29,6 +35,7 @@ import { isMetricsCollectionEnabled } from '../../c2d/containerMetrics.js'
 type AggregatingEngine = {
   lastAggregate?: ComputeEngineAggregate
   envResourceSnapshot?: EnvResourceSnapshot
+  hostGpuSnapshot?: ComputeGpuAggregate[]
 }
 
 function listEngines(node: OceanNode): AggregatingEngine[] {
@@ -90,8 +97,37 @@ export function collectNodeMetricsSnapshot(node: OceanNode): NodeMetricsSnapshot
   // computeGauges.ts does, so a GPU shared by several engines is not counted twice.
   const gpuByResourceId = new Map<string, NodeMetricsGpu>()
   const envByKey = new Map<string, NodeMetricsEnvResource>()
+  // First reading seen for a resourceId wins: host-wide readings are added before job-scoped ones.
+  const addGpu = (g: ComputeGpuAggregate): void => {
+    if (!g) return
+    const id = String(g.resourceId)
+    if (gpuByResourceId.has(id)) return
+    gpuByResourceId.set(id, {
+      resourceId: id,
+      vendor: g.vendor,
+      utilizationPercent: g.utilizationPercent,
+      memoryUsedBytes: g.memoryUsedBytes,
+      memoryTotalBytes: g.memoryTotalBytes,
+      temperatureC: g.temperatureC,
+      powerWatts: g.powerWatts
+    })
+  }
 
-  for (const eng of listEngines(node)) {
+  const engines = listEngines(node)
+
+  // Host-wide readings are independent of the aggregate: an idle GPU still has a reading. Take
+  // them from every engine before any job-scoped fallback, so precedence does not depend on
+  // engine order.
+  for (const eng of engines) {
+    for (const g of eng?.hostGpuSnapshot ?? []) addGpu(g)
+  }
+  // Fallback for devices the host enumeration could not read (e.g. a job-scoped reading taken
+  // before the first host sample).
+  for (const eng of engines) {
+    for (const g of eng?.lastAggregate?.gpus ?? []) addGpu(g)
+  }
+
+  for (const eng of engines) {
     const a = eng?.lastAggregate
     if (a) {
       snapshot.hasAggregate = true
@@ -122,21 +158,6 @@ export function collectNodeMetricsSnapshot(node: OceanNode): NodeMetricsSnapshot
       if (typeof a.queuedJobs === 'number') snapshot.jobs.queued += a.queuedJobs
       if (typeof a.queuedFreeJobs === 'number') {
         snapshot.jobs.queuedFree += a.queuedFreeJobs
-      }
-
-      for (const g of a.gpus ?? []) {
-        const id = String(g.resourceId)
-        if (!gpuByResourceId.has(id)) {
-          gpuByResourceId.set(id, {
-            resourceId: id,
-            vendor: g.vendor,
-            utilizationPercent: g.utilizationPercent,
-            memoryUsedBytes: g.memoryUsedBytes,
-            memoryTotalBytes: g.memoryTotalBytes,
-            temperatureC: g.temperatureC,
-            powerWatts: g.powerWatts
-          })
-        }
       }
     }
 

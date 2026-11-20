@@ -231,6 +231,50 @@ describe('Maintenance mode', () => {
     }
   })
 
+  it('status reports isPSConfigured from POLICY_SERVER_URL on every request', async () => {
+    const saved = process.env.POLICY_SERVER_URL
+    const getStatus = async () =>
+      streamBody(
+        await new DetailedStatusHandler(oceanNode).handle({
+          command: PROTOCOL_COMMANDS.DETAILED_STATUS
+        } as any)
+      )
+    try {
+      delete process.env.POLICY_SERVER_URL
+      expect((await getStatus()).isPSConfigured).to.equal(false)
+      process.env.POLICY_SERVER_URL = 'http://localhost:8000'
+      expect((await getStatus()).isPSConfigured).to.equal(true)
+    } finally {
+      if (saved === undefined) delete process.env.POLICY_SERVER_URL
+      else process.env.POLICY_SERVER_URL = saved
+    }
+  })
+
+  it('status reports ownerInfo from NODE_OWNER_INFO on every request', async () => {
+    const saved = process.env.NODE_OWNER_INFO
+    const getStatus = async () =>
+      streamBody(
+        await new DetailedStatusHandler(oceanNode).handle({
+          command: PROTOCOL_COMMANDS.DETAILED_STATUS
+        } as any)
+      )
+    const ownerInfo = { imprint: { legalName: 'Acme Ltd' } }
+    try {
+      process.env.NODE_OWNER_INFO = JSON.stringify(ownerInfo)
+      expect((await getStatus()).ownerInfo).to.deep.equal(ownerInfo)
+      // invalid JSON or a non-object drops the field instead of keeping the stale value
+      process.env.NODE_OWNER_INFO = 'not-json'
+      expect((await getStatus()).ownerInfo).to.equal(undefined)
+      process.env.NODE_OWNER_INFO = '["a"]'
+      expect((await getStatus()).ownerInfo).to.equal(undefined)
+      delete process.env.NODE_OWNER_INFO
+      expect((await getStatus()).ownerInfo).to.equal(undefined)
+    } finally {
+      if (saved === undefined) delete process.env.NODE_OWNER_INFO
+      else process.env.NODE_OWNER_INFO = saved
+    }
+  })
+
   it('loadMaintenanceMode ignores an invalid MAINTENANCE_MODE env value', async () => {
     await oceanNode.setMaintenanceMode(true)
     process.env.MAINTENANCE_MODE = 'definitely-not-a-bool'
