@@ -9,10 +9,7 @@ on:
   pull_request:
     branches:
       - 'main'
-      - 'next-4'
-      - 'deps/node_v24'
-      - 'feature/user_input_subsidy'
-      - 'feature/subsidy_provider'
+      - 'rc_*'
 
 env:
   DOCKERHUB_IMAGE: ${{ 'oceanprotocol/ocean-node' }}
