@@ -1,40 +1,48 @@
+import { describeOnElasticsearch } from '../utils/utils.js'
 import { ddo } from '../data/ddo.js'
 import { expect } from 'chai'
 import { Database } from '../../components/database/index.js'
+import type { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import {
   ElasticsearchDdoDatabase,
   ElasticsearchDdoStateDatabase,
   ElasticsearchIndexerDatabase,
   ElasticsearchLogDatabase,
+  ElasticsearchNonceDatabase,
   ElasticsearchOrderDatabase
 } from '../../components/database/ElasticSearchDatabase.js'
-import { DB_TYPES } from '../../utils/index.js'
-import { SQLLiteNonceDatabase } from '../../components/database/SQLLiteNonceDatabase.js'
 
-const dbConfig = {
+const dbConfig: OceanNodeDBConfig = {
+  dbType: 'elasticsearch',
   url: 'http://localhost:9200',
-  dbType: DB_TYPES.ELASTIC_SEARCH,
   username: 'elastic',
   password: 'changeme'
 }
-const elasticsearch: Database = await Database.init(dbConfig)
+let elasticsearch: Database
+// the suites of this file share one connection; it is made when the first suite runs
+const connect = async () => {
+  elasticsearch ??= await Database.init(dbConfig)
+}
 
-describe('**********         Elastic Search', () => {
+describeOnElasticsearch('**********         Elastic Search', () => {
+  before(connect)
+
   it('Get instances of Elastic Search', () => {
     expect(elasticsearch.ddo).to.be.instanceOf(ElasticsearchDdoDatabase)
     expect(elasticsearch.indexer).to.be.instanceOf(ElasticsearchIndexerDatabase)
     expect(elasticsearch.ddoState).to.be.instanceOf(ElasticsearchDdoStateDatabase)
     expect(elasticsearch.order).to.be.instanceOf(ElasticsearchOrderDatabase)
-    expect(elasticsearch.nonce).to.be.instanceOf(SQLLiteNonceDatabase)
+    expect(elasticsearch.nonce).to.be.instanceOf(ElasticsearchNonceDatabase)
     expect(elasticsearch.logs).to.be.instanceOf(ElasticsearchLogDatabase)
   })
 })
 
-describe('**********         Elastic Search DDO collections', () => {
+describeOnElasticsearch('**********         Elastic Search DDO collections', () => {
+  before(connect)
+
   it('create document in ddo collection', async () => {
     const result = await elasticsearch.ddo.create(ddo)
-    expect(result.result).to.equal('created')
-    expect(result._id).to.equal(ddo.id)
+    expect(result.id).to.equal(ddo.id)
     // expect(result.metadata).to.not.be.an('undefined')
     // expect(result.metadata.name).to.be.equal(ddo.metadata.name)
   })
@@ -51,13 +59,11 @@ describe('**********         Elastic Search DDO collections', () => {
     const updatedData = ddo
     updatedData.metadata.name = newMetadataName
     const result = await elasticsearch.ddo.update(updatedData)
-    expect(result.result).to.equal('updated')
-    expect(result._id).to.equal(updatedData.id)
+    expect(result.id).to.equal(updatedData.id)
+    expect(result.metadata.name).to.equal(newMetadataName)
   })
 
   it('delete document in ddo collection', async () => {
-    const result = await elasticsearch.ddo.delete(ddo.id)
-    expect(result.result).to.equal('deleted')
-    expect(result._id).to.equal(ddo.id)
+    expect(await elasticsearch.ddo.delete(ddo.id)).to.deep.equal({ id: ddo.id })
   })
 })

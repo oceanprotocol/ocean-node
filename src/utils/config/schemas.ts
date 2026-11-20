@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { getAddress } from 'ethers'
-import { dhtFilterMethod } from '../../@types/OceanNode.js'
+import { DATABASE_TYPES, dhtFilterMethod } from '../../@types/OceanNode.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
 import {
   DEFAULT_SERVICE_MAX_DURATION_SECONDS,
@@ -265,10 +265,12 @@ export const FeeStrategySchema = z.object({
 })
 
 export const OceanNodeDBConfigSchema = z.object({
-  url: z.string().nullable(),
+  dbType: z.enum(DATABASE_TYPES, {
+    error: `DB_TYPE is required and must be one of: ${DATABASE_TYPES.join(', ')}`
+  }),
+  url: z.string().optional(),
   username: z.string().optional(),
-  password: z.string().optional(),
-  dbType: z.string().nullable()
+  password: z.string().optional()
 })
 
 export const PersistentStorageConfigSchema = z
@@ -1506,7 +1508,7 @@ export const OceanNodeConfigSchema = z
     DB_USERNAME: z.string().optional(),
     DB_PASSWORD: z.string().optional(),
     DB_TYPE: z.string().optional(),
-    dbConfig: OceanNodeDBConfigSchema.optional(),
+    dbConfig: OceanNodeDBConfigSchema,
     // Accept either an object (config file) or a JSON string (env var `PERSISTENT_STORAGE`),
     // and validate the parsed value against the PersistentStorage schema.
     persistentStorage: z
@@ -1746,6 +1748,7 @@ export const OceanNodeConfigSchema = z
     isBootstrap: booleanFromString.optional().default(false),
     validateUnsignedDDO: booleanFromString.optional().default(true),
     jwtSecret: z.string(),
+    instanceId: z.string().optional(),
     httpCertPath: z.string().optional(),
     httpKeyPath: z.string().optional()
   })

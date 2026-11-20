@@ -32,7 +32,7 @@ directory (indexed at the bottom) for the detailed references.
 
 Ocean Node has **two front doors and one dispatcher**:
 
-- **HTTP** — `POST /directCommand` (plus ergonomic REST routes under `provider`, `aquarius`,
+- **HTTP** — `POST /directCommand` (plus ergonomic REST routes under `provider`, `ddo`, `query`,
   `compute`, `auth`, `escrow`, …) normalizes each request into a `Command`.
 - **P2P** — a libp2p protocol handler reads length-prefixed command frames off the stream.
 
@@ -51,10 +51,10 @@ See [Architecture](docs/Arhitecture.md) for the layered model and Mermaid diagra
 - **OS**: latest LTS Ubuntu or latest macOS recommended; other OSes (including Windows) should
   also work.
 
-A **persistent `databases/` volume is REQUIRED**, not optional. It holds the SQLite files
-(nonce, config, C2D jobs, auth tokens) and `databases/p2p-store`, the libp2p datastore that
-backs this node's DHT provider records. Starting it empty silently drops content the node
-still serves. The Dockerfile declares `VOLUME ["/usr/src/app/databases"]` for this reason —
+A **persistent `databases/` volume is REQUIRED**, not optional. It holds
+`databases/p2p-store`, the libp2p datastore that backs this node's DHT provider records, and,
+with `DB_TYPE=sqlite`, all the data of the node. Starting it empty silently drops
+content the node still serves. The Dockerfile declares `VOLUME ["/usr/src/app/databases"]` for this reason —
 see "Persistent node data" in [Docker deployment](docs/dockerDeployment.md).
 
 ## Quick start (operators)
@@ -90,24 +90,21 @@ PM2 is a process manager that makes it easy to run and monitor Node.js apps.
 ```bash
 npm install -g pm2
 
-# 1. Start a metadata database (Typesense is the default in config.json)
-docker-compose -f typesense-compose.yml up -d
-
-# 2. Install deps and build — `npm run start` runs dist/index.js, so a prior build is required
+# 1. Install deps and build — `npm run start` runs dist/index.js, so a prior build is required
 npm install
 npm run build
 
-# 3. Set up env vars. The node does NOT auto-load .env at runtime (dotenv is only used in
+# 2. Set up env vars. The node does NOT auto-load .env at runtime (dotenv is only used in
 #    tests), so the vars must be in the shell environment before `pm2 start`.
 #    Interactive helper, then load the generated .env into this shell:
 npm run setupEnv
 source .env
-# …or set them manually (PRIVATE_KEY is the only mandatory one; keep the 0x prefix):
+# …or set them manually (only PRIVATE_KEY is mandatory; keep the 0x prefix):
 # export PRIVATE_KEY="0x<64-hex-characters>"   # or generate one: node dist/helpers/scripts/generatePK.js
 # if you use a JSON config file instead, point CONFIG_PATH at its absolute path:
 # export CONFIG_PATH="/absolute/path/to/config.json"
 
-# 4. Start under PM2
+# 3. Start under PM2
 pm2 start npm --name "ocean-node" -- run start
 ```
 
@@ -121,18 +118,12 @@ own stdout copy in `~/.pm2/logs` with no size cap unless `pm2-logrotate` is inst
 
 - **Node.js**: use the version pinned in [`.nvmrc`](.nvmrc) (run `nvm use`). The effective
   supported runtime is **Node 24+** (`package.json` `engines`), and the `.nvmrc`/Dockerfile
-  pin the exact tested version (currently 26.12.1). Note that on anything below **22.13** the
-  node fails to even start, because the SQLite layer uses the built-in `node:sqlite` module
-  (`ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite`) — but 22.x is not a supported runtime, use 24+.
-- **Docker + Docker Compose** (for the metadata database and C2D).
+  pin the exact tested version (currently 26.12.1).
+- **Docker + Docker Compose** (for C2D, and for PostgreSQL or Elasticsearch if you select one
+  of them; SQLite needs no container).
 
 ```bash
-# 1. Start a metadata database (Typesense is the default in config.json)
-docker-compose -f typesense-compose.yml up -d
-#    …or Elasticsearch:
-# docker-compose -f elasticsearch-compose.yml up -d
-
-# 2. Install and build
+# 1. Install and build
 nvm use
 npm install
 npm run build
@@ -151,16 +142,17 @@ prior `npm run build` is required.
 
 ## Configuration
 
-- **`PRIVATE_KEY`** (exactly 66 characters: `0x` + 64 hex) is the **only mandatory**
-  variable. It seeds the node identity (libp2p peerId), the EVM signer and the encryption
-  keys; everything else has defaults. Generate one with
-  `node dist/helpers/scripts/generatePK.js`.
+- **`PRIVATE_KEY`** (exactly 66 characters: `0x` + 64 hex) and **`DB_TYPE`** are the
+  **mandatory** variables. `PRIVATE_KEY` seeds the node identity (libp2p peerId), the EVM
+  signer and the encryption keys; `DB_TYPE` selects the database (`sqlite` needs no other
+  setting). Everything else has defaults.
+  Generate a key with `node dist/helpers/scripts/generatePK.js`.
 - **Config sources**: a JSON config file plus environment-variable overrides. The file is
   resolved from `CONFIG_PATH`, else `./config.json` in the working directory, and must exist —
-  the repo ships a ready-to-run [`config.json`](config.json) (Typesense DB, chain
+  the repo ships a ready-to-run [`config.json`](config.json) (chain
   `8996`/development, a single Docker C2D environment). Environment variables are merged on
   top of the file and take precedence.
-  - ⚠️ **Blank env vars override the file.** Only *unset* variables fall through to
+  - ⚠️ **Blank env vars override the file.** Only _unset_ variables fall through to
     `config.json`; an **empty** value (e.g. `export HTTP_API_PORT=`) is treated as set and
     overrides the file's value. `npm run setupEnv` creates `.env` by copying
     [`.env.example`](.env.example), which has many blank `export VAR=` lines, so after
@@ -170,8 +162,8 @@ prior `npm run build` is required.
   omitted means both.
 - [`docs/env.md`](docs/env.md) is the authoritative reference. Key groups worth knowing:
   - `RPCS` — per-chain RPC endpoint map (JSON).
-  - `DB_URL` / `DB_TYPE` — metadata DB connection and backend; presence drives whether the
-    indexer runs.
+  - `DB_TYPE` — the database, required: `sqlite`, `postgresql` or `elasticsearch`.
+    `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` — the connection, for the last two.
   - `ALLOWED_ADMINS`, `AUTHORIZED_DECRYPTERS`, `AUTHORIZED_PUBLISHERS`, `ALLOWED_VALIDATORS`
     (and their access-list variants) — admin / decrypter / validator allow-lists.
   - `MAX_REQ_PER_MINUTE`, `RATE_DENY_LIST` — rate limiting.
@@ -182,29 +174,29 @@ prior `npm run build` is required.
 
 ## Databases
 
-The metadata backend is pluggable: **Typesense** or **Elasticsearch**, chosen via `DB_TYPE`.
-Both ship with a compose file ([`typesense-compose.yml`](typesense-compose.yml),
-[`elasticsearch-compose.yml`](elasticsearch-compose.yml)) and hold DDOs, indexer state, logs,
-orders, access lists and escrow events.
+The node keeps all its data in one database, selected with `DB_TYPE`:
 
-> **Default differs by config source.** The shipped [`config.json`](config.json) defaults to
-> **Typesense**, but when you supply the DB through **environment variables** (`DB_URL`, e.g.
-> via `npm run setupEnv`) the builder sets `dbConfig.dbType` to `DB_TYPE || 'elasticsearch'`.
-> So if you enable the DB via env vars and want Typesense, you must set `DB_TYPE=typesense`
-> explicitly — otherwise the node tries to talk to your Typesense endpoint as Elasticsearch.
+- **`sqlite`**: no database container and no other setting. The files are in the
+  `databases/` folder. One folder is for one node instance.
+- **`postgresql`** or **`elasticsearch`**: for several node instances on one database. Set
+  `DB_URL`, `DB_USERNAME` and `DB_PASSWORD` (or `dbConfig` in `config.json`); without them the
+  configuration fails validation and the node does not start. The repo has a compose file for
+  each: [`postgresql-compose.yml`](postgresql-compose.yml) and
+  [`elasticsearch-compose.yml`](elasticsearch-compose.yml).
 
-**SQLite is always on**, independent of the metadata DB: it backs the nonce, config, C2D-job
-and auth-token stores via Node's built-in `node:sqlite` module (no native addon). A valid
-`dbConfig` in `config.json` is **retained** when `DB_URL` is unset or empty (env `DB_TYPE`
-alone does not build or override it), so the file's DB config still drives the indexer; it is
-disabled outright only when **neither** the file nor the environment provides a valid DB
-config (the SQLite stores keep working regardless). A valid `dbConfig` is **necessary but not
-sufficient**, though: if the metadata DB is unreachable when the node starts (connection
-fails after the init retries), the node logs *DEGRADED mode*, disables the indexer, and keeps
-only the SQLite-backed C2D / nonce / auth stores — so also make sure the configured
-Typesense/Elasticsearch endpoint is actually up and reachable. A config value of the wrong type instead fails
-`OceanNodeConfigSchema` (zod) validation and stops startup before any DB is initialized. See
-[Database guide](docs/database.md).
+With no `DB_TYPE` the node does not start: it does not get the type from `DB_URL`. The node
+state does not move between databases: a node that changes to a database server starts with
+empty node state. See "Upgrade" in the [Database guide](docs/database.md).
+
+DDO search is the same on all three: a typed query (filters, sort key, page) that each
+database runs with its own fixed queries. See "DDO search" in the
+[Database guide](docs/database.md#ddo-search).
+
+There is no DEGRADED mode: if the database cannot be opened when the node starts (after the
+init retries), the node logs `Database failed to initialize, exiting` and exits with code 1.
+A config value of the wrong type instead fails `OceanNodeConfigSchema` (zod) validation and
+stops startup before any DB is initialized. See [Database guide](docs/database.md), also for
+the upgrade from an older release.
 
 ## Compute (C2D) & services
 

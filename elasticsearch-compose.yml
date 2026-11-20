@@ -2,16 +2,17 @@ services:
   elasticsearch:
     image: elasticsearch:8.5.1
     ports:
-      - 9200:9200
-      - 9300:9300
+      # loopback only: the database holds the node state
+      - 127.0.0.1:9200:9200
     volumes:
       - esdata:/usr/share/elasticsearch/data
     environment:
       ES_JAVA_OPTS: '-Xms512m -Xmx512m'
       MAX_MAP_COUNT: '64000'
       discovery.type: 'single-node'
+      # for local development only
       ELASTIC_PASSWORD: 'changeme'
-      xpack.security.enabled: 'false'
+      xpack.security.enabled: 'true'
       xpack.security.http.ssl.enabled: 'false'
 volumes:
   esdata:

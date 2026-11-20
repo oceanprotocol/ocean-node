@@ -2528,6 +2528,12 @@ export class C2DEngineDocker extends C2DEngine {
       }
 
       // No active build abort → orphan (the process running build/pull died).
+      // The job list comes from a search, which can be older than the last write of
+      // pullImage/buildImage. A real-time read tells if the job has already moved on.
+      const [current] = await this.db.getJob(job.jobId)
+      if (current && current.status !== job.status) {
+        return
+      }
       const isBuild = job.status === C2DStatusNumber.BuildImage
       const nowSec = Date.now() / 1000
       job.status = isBuild
@@ -6074,10 +6080,9 @@ export class C2DEngineDocker extends C2DEngine {
         SERVICE_LOCK_STALE_MS
       )
     } catch (e: any) {
-      // Fail CLOSED: proceeding without the SQLite lease would disable cross-process
-      // exclusion exactly when it matters most — SQLITE_BUSY-style errors are most
-      // likely precisely when two processes contend. Deferring costs little: every
-      // lifecycle operation writes to the same SQLite file moments later anyway, so it
+      // Fail CLOSED: proceeding without the DB lease would disable cross-process
+      // exclusion exactly when it matters most. Deferring costs little: every
+      // lifecycle operation writes to the same database moments later anyway, so it
       // could not complete with a broken DB regardless. Callers reject with "retry
       // shortly" (handlers) or retry on the next tick (the loop).
       CORE_LOGGER.error(
@@ -6125,9 +6130,10 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   // Releases both lock layers. Never throws: a failed DB delete only leaves a row that
-  // expires via SERVICE_LOCK_STALE_MS.
+  // expires via SERVICE_LOCK_STALE_MS. The in-memory layer goes last: while the DB release
+  // runs, this engine must not take the same lock again, or the release (which matches
+  // the holder, not one acquisition) could delete the new lock.
   private async releaseServiceLifecycleLock(serviceId: string): Promise<void> {
-    this.serviceOpsInFlight.delete(serviceId)
     try {
       await this.db.releaseServiceLock(serviceId, this.serviceLockHolderId)
       CORE_LOGGER.debug(
@@ -6135,6 +6141,8 @@ export class C2DEngineDocker extends C2DEngine {
       )
     } catch (e: any) {
       CORE_LOGGER.error(`service lock DB release failed for ${serviceId}: ${e.message}`)
+    } finally {
+      this.serviceOpsInFlight.delete(serviceId)
     }
   }
 

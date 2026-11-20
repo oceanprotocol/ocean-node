@@ -1,5 +1,0 @@
-{
-  "name": "op_ddo_v4.7.0",
-  "enable_nested_fields": true,
-  "fields": [{ "name": ".*", "type": "auto", "optional": true }]
-}

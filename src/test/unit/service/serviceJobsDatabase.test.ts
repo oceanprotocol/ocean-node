@@ -1,14 +1,18 @@
 import { assert, expect } from 'chai'
 import { Readable } from 'stream'
+import { Client } from '@elastic/elasticsearch'
 import { C2DDatabase } from '../../../components/database/C2DDatabase.js'
-import { typesenseSchemas } from '../../../components/database/TypesenseSchemas.js'
+import { Database } from '../../../components/database/index.js'
+import { createElasticsearchClientWithRetry } from '../../../components/database/ElasticsearchConfigHelper.js'
+import { stateSchemas } from '../../../components/database/ElasticSchemas.js'
 import { getConfiguration } from '../../../utils/config.js'
 import {
   buildEnvOverrideConfig,
   OverrideEnvConfig,
   setupEnvironment,
   tearDownEnvironment,
-  TEST_ENV_CONFIG_FILE
+  TEST_ENV_CONFIG_FILE,
+  describeOnElasticsearch
 } from '../../utils/utils.js'
 import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
@@ -120,10 +124,11 @@ function makeServiceJob(overrides: Partial<ServiceJob> = {}): ServiceJob {
   }
 }
 
-describe('Service Jobs Database', () => {
+describeOnElasticsearch('Service Jobs Database', () => {
   let envOverrides: OverrideEnvConfig[]
   let config: OceanNodeConfig
   let db: C2DDatabase = null
+  let client: Client
 
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
@@ -134,7 +139,26 @@ describe('Service Jobs Database', () => {
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
-    db = await new C2DDatabase(config.dbConfig, typesenseSchemas.c2dSchemas)
+    db = (await Database.init(config.dbConfig)).c2d
+    client = await createElasticsearchClientWithRetry(config.dbConfig)
+  })
+
+  // a lock release deletes without refresh, so refresh first: the wipe then sees no
+  // deleted locks
+  beforeEach(async () => {
+    const index = [
+      stateSchemas.c2dJobs.index,
+      stateSchemas.serviceJobs.index,
+      stateSchemas.dockerImages.index,
+      stateSchemas.serviceLocks.index
+    ]
+    await client.indices.refresh({ index })
+    await client.deleteByQuery({
+      index,
+      query: { match_all: {} },
+      refresh: true,
+      conflicts: 'proceed'
+    })
   })
 
   after(async () => {
@@ -201,6 +225,63 @@ describe('Service Jobs Database', () => {
       ).to.be.lessThan(B_STALE_MS)
       await db.releaseServiceLock(serviceId, 'proc-A')
     })
+
+    it('B takes over after staleMs, A cannot release it, a refresh keeps it fresh', async () => {
+      const serviceId = `lock-svc-${Date.now()}-e`
+      // a lock write waits for the index refresh (up to 1 s), so the short window must
+      // be long enough that the refreshed stamp is still fresh when it is read back
+      const SHORT_STALE_MS = 1000
+      const age = () =>
+        new Promise((resolve) => setTimeout(resolve, SHORT_STALE_MS + 100))
+      expect(await db.acquireServiceLock(serviceId, 'proc-A', STALE_MS)).to.equal(true)
+      expect(await db.acquireServiceLock(serviceId, 'proc-B', STALE_MS)).to.equal(false)
+      await age()
+      expect(await db.acquireServiceLock(serviceId, 'proc-B', SHORT_STALE_MS)).to.equal(
+        true
+      )
+      await db.releaseServiceLock(serviceId, 'proc-A')
+      expect(await db.isServiceLocked(serviceId, STALE_MS)).to.equal(true)
+      await age()
+      expect(await db.isServiceLocked(serviceId, SHORT_STALE_MS)).to.equal(false)
+      await db.refreshServiceLocks('proc-B')
+      expect(await db.isServiceLocked(serviceId, SHORT_STALE_MS)).to.equal(true)
+      await db.releaseServiceLock(serviceId, 'proc-B')
+      expect(await db.isServiceLocked(serviceId, STALE_MS)).to.equal(false)
+    })
+
+    it('two holders racing for one stale lock: exactly one wins', async () => {
+      const serviceId = `lock-svc-${Date.now()}-f`
+      const SHORT_STALE_MS = 300
+      expect(await db.acquireServiceLock(serviceId, 'proc-A', SHORT_STALE_MS)).to.equal(
+        true
+      )
+      await new Promise((resolve) => setTimeout(resolve, SHORT_STALE_MS + 100))
+      const results = await Promise.all([
+        db.acquireServiceLock(serviceId, 'proc-B', SHORT_STALE_MS),
+        db.acquireServiceLock(serviceId, 'proc-C', SHORT_STALE_MS)
+      ])
+      expect(results.filter(Boolean)).to.have.length(1)
+    })
+
+    it('a heartbeat between the read and the delete of a release does not keep the lock', async () => {
+      const serviceId = `lock-svc-${Date.now()}-g`
+      expect(await db.acquireServiceLock(serviceId, 'proc-A', STALE_MS)).to.equal(true)
+      // the first delete runs after a heartbeat changed the lock: it gets a 409
+      const realDelete = client.delete
+      let deletes = 0
+      ;(client as any).delete = async (params: any) => {
+        deletes++
+        if (deletes === 1) await db.refreshServiceLocks('proc-A')
+        return realDelete.call(client, params)
+      }
+      try {
+        await db.releaseServiceLock(serviceId, 'proc-A')
+      } finally {
+        ;(client as any).delete = realDelete
+      }
+      expect(deletes).to.equal(2)
+      expect(await db.isServiceLocked(serviceId, STALE_MS)).to.equal(false)
+    })
   })
 
   it('inserts and reads back a service job by serviceId', async () => {
@@ -222,6 +303,19 @@ describe('Service Jobs Database', () => {
     const aliceJobs = await db.getServiceJob(undefined, '0xalice')
     expect(aliceJobs.every((j) => j.owner === '0xalice')).to.equal(true)
     expect(aliceJobs.find((j) => j.serviceId === mine.serviceId)).to.not.equal(undefined)
+  })
+
+  it('finds a checksummed owner by its lower-cased address', async () => {
+    const owner = '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'
+    const job = makeServiceJob({ owner })
+    await db.newServiceJob(job)
+    const found = await db.getServiceJob(undefined, owner.toLowerCase())
+    expect(found.map((j) => j.serviceId)).to.deep.equal([job.serviceId])
+    expect(found[0].owner).to.equal(owner)
+    const byId = await db.getServiceJob(job.serviceId, owner.toLowerCase())
+    expect(byId.map((j) => j.serviceId)).to.deep.equal([job.serviceId])
+    expect(await db.getServiceJob(job.serviceId, '0xsomeoneelse')).to.deep.equal([])
+    expect(await db.getServiceJob('missing-service')).to.deep.equal([])
   })
 
   it('updates a service job (status + expiresAt + body)', async () => {
@@ -289,16 +383,21 @@ describe('Service Jobs Database', () => {
       status: ServiceStatusNumber.Running,
       clusterHash: 'other-cluster'
     })
-    await db.newServiceJob(running)
-    await db.newServiceJob(starting)
-    await db.newServiceJob(locking)
-    await db.newServiceJob(claiming)
-    await db.newServiceJob(restarting)
-    await db.newServiceJob(error)
-    await db.newServiceJob(stopped)
-    await db.newServiceJob(unpaidError)
-    await db.newServiceJob(refundedStopped)
-    await db.newServiceJob(otherCluster)
+    // one refresh for all writes: each insert waits for it
+    await Promise.all(
+      [
+        running,
+        starting,
+        locking,
+        claiming,
+        restarting,
+        error,
+        stopped,
+        unpaidError,
+        refundedStopped,
+        otherCluster
+      ].map((job) => db.newServiceJob(job))
+    )
 
     const active = await db.getRunningServiceJobs(CLUSTER_HASH)
     const ids = active.map((j) => j.serviceId)
@@ -333,13 +432,12 @@ describe('Service Jobs Database', () => {
       status: ServiceStatusNumber.Starting,
       clusterHash: 'other-cluster'
     })
-    await db.newServiceJob(starting)
-    await db.newServiceJob(locking)
-    await db.newServiceJob(claiming)
-    await db.newServiceJob(restarting)
-    await db.newServiceJob(running)
-    await db.newServiceJob(stopped)
-    await db.newServiceJob(otherCluster)
+    // one refresh for all writes: each insert waits for it
+    await Promise.all(
+      [starting, locking, claiming, restarting, running, stopped, otherCluster].map(
+        (job) => db.newServiceJob(job)
+      )
+    )
 
     const pending = await db.getPendingServiceStarts(CLUSTER_HASH)
     const ids = pending.map((j) => j.serviceId)
@@ -374,11 +472,12 @@ describe('Service Jobs Database', () => {
       status: ServiceStatusNumber.Stopped,
       expiresAt: Date.now() + 3600_000
     })
-    await db.newServiceJob(expired)
-    await db.newServiceJob(expiredError)
-    await db.newServiceJob(future)
-    await db.newServiceJob(expiredStopped)
-    await db.newServiceJob(futureStopped)
+    // one refresh for all writes: each insert waits for it
+    await Promise.all(
+      [expired, expiredError, future, expiredStopped, futureStopped].map((job) =>
+        db.newServiceJob(job)
+      )
+    )
 
     const expiredJobs = await db.getExpiredServiceJobs(CLUSTER_HASH)
     const ids = expiredJobs.map((j) => j.serviceId)
@@ -424,9 +523,11 @@ describe('Service Jobs Database', () => {
       expiresAt: Date.now() - 10_000,
       outputArchives: [archive]
     })
-    for (const job of [withArchives, cleaned, neverArchived, tooRecent, notExpired]) {
-      await db.newServiceJob(job)
-    }
+    await Promise.all(
+      [withArchives, cleaned, neverArchived, tooRecent, notExpired].map((job) =>
+        db.newServiceJob(job)
+      )
+    )
 
     const jobs = await db.getExpiredServiceJobsBefore(Date.now() - 5_000, CLUSTER_HASH)
     const ids = jobs.map((j) => j.serviceId)
@@ -488,7 +589,7 @@ describe('Service Jobs Database', () => {
   describe('shared resource accounting (compute + service)', () => {
     let engine: SharedAccountingEngine
 
-    before(async () => {
+    before(() => {
       engine = new SharedAccountingEngine(db)
       engine.setLimits(
         new Map([
@@ -496,13 +597,6 @@ describe('Service Jobs Database', () => {
           ['gpu0', 2]
         ])
       )
-      // Clean slate: retire any leftover jobs from earlier tests by marking them Expired —
-      // the only status that releases the reservation (Stopped still counts as active).
-      const leftovers = await db.getRunningServiceJobs(CLUSTER_HASH)
-      for (const j of leftovers) {
-        j.status = ServiceStatusNumber.Expired
-        await db.updateServiceJob(j)
-      }
     })
 
     it('a running service occupies fungible resources in its own env', async () => {
@@ -521,7 +615,14 @@ describe('Service Jobs Database', () => {
     })
 
     it('fungible usage is NOT counted against a different env', async () => {
-      // The cpu service above is bound to 'env-shared'; a different env sees 0 cpu used.
+      await db.newServiceJob(
+        makeServiceJob({
+          environment: 'env-shared',
+          status: ServiceStatusNumber.Running,
+          resources: [{ id: 'cpu', amount: 3 }]
+        })
+      )
+      // The cpu service is bound to 'env-shared'; a different env sees 0 cpu used.
       const otherEnv = makeEnv('env-other', [
         { id: 'cpu', kind: 'fungible', total: 10, min: 1, max: 10 } as ComputeResource
       ])
@@ -553,7 +654,14 @@ describe('Service Jobs Database', () => {
     })
 
     it('checkIfResourcesAreAvailable blocks a compute request when a service holds the GPU', async () => {
-      // gpu0 total:1 in the env, already 1 in use by the service above (global discrete).
+      await db.newServiceJob(
+        makeServiceJob({
+          environment: 'env-gpu',
+          status: ServiceStatusNumber.Running,
+          resources: [{ id: 'gpu0', amount: 1 }]
+        })
+      )
+      // gpu0 total:1 in the env, already 1 in use by the service (global discrete).
       const env = makeEnv('env-elsewhere', [
         {
           id: 'gpu0',
@@ -622,6 +730,7 @@ describe('Service Jobs Database', () => {
     it('is a no-op when status changed (guards against clobbering a lifecycle transition)', async () => {
       const job = makeServiceJob({ status: ServiceStatusNumber.Running })
       await db.newServiceJob(job)
+      const [inserted] = await db.getServiceJob(job.serviceId)
 
       const wrote = await db.updateServiceJobMetrics(
         job.serviceId,
@@ -637,6 +746,8 @@ describe('Service Jobs Database', () => {
 
       const [fresh] = await db.getServiceJob(job.serviceId, job.owner)
       expect(fresh.runtimeMetrics).to.equal(undefined)
+      expect(fresh.status).to.equal(ServiceStatusNumber.Running)
+      expect(fresh.updatedAt).to.equal(inserted.updatedAt)
     })
 
     it('is a no-op when the container was replaced (restart)', async () => {

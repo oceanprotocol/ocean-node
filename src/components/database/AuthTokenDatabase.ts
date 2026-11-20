@@ -1,31 +1,42 @@
-import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { AbstractDatabase } from './BaseDatabase.js'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
-import { SQLiteAuthToken } from './sqliteAuthToken.js'
+import { create256Hash } from '../../utils/crypt.js'
 
 export interface AuthToken {
-  token: string
   address: string
-  created: Date
-  validUntil: Date | null
+  createdAt: number
+  validUntil: number | null
   isValid: boolean
   chainId?: string | null
 }
 
+// Unix ms from a number or a date text: a client can send the two, and an older release
+// stored what it got. NaN when the value is not a time.
+export function toUnixMs(value: number | string): number {
+  const ms = Number(value)
+  return Math.trunc(Number.isFinite(ms) ? ms : new Date(value).getTime())
+}
+
+// providers get the sha256 of the token (tokenId), never the token itself
+export interface AuthTokenDatabaseProvider {
+  createToken(
+    tokenId: string,
+    address: string,
+    createdAt: number,
+    validUntil: number | null,
+    chainId?: string | null
+  ): Promise<void>
+  validateTokenEntry(tokenId: string): Promise<AuthToken | null>
+  invalidateTokenEntry(tokenId: string): Promise<void>
+  deleteExpiredTokens(now: number): Promise<number>
+}
+
 export class AuthTokenDatabase extends AbstractDatabase {
-  private provider: SQLiteAuthToken
-
-  private constructor(config: OceanNodeDBConfig, provider?: SQLiteAuthToken) {
+  constructor(
+    config: OceanNodeDBConfig,
+    private provider: AuthTokenDatabaseProvider
+  ) {
     super(config)
-    this.provider = provider
-  }
-
-  static async create(config: OceanNodeDBConfig): Promise<AuthTokenDatabase> {
-    DATABASE_LOGGER.debug('Creating AuthTokenDatabase with SQLite')
-    // SqliteClient creates the parent directory on construction.
-    const provider = new SQLiteAuthToken('databases/authTokenDatabase.sqlite')
-    await provider.createTable()
-    return new AuthTokenDatabase(config, provider)
   }
 
   async createToken(
@@ -35,20 +46,31 @@ export class AuthTokenDatabase extends AbstractDatabase {
     createdAt: number,
     chainId?: string | null
   ): Promise<string> {
-    await this.provider.createToken(token, address, createdAt, validUntil, chainId)
+    // the default turns an undefined validUntil into null
+    const until = validUntil === null ? null : toUnixMs(validUntil)
+    if (Number.isNaN(until)) {
+      throw new Error('validUntil must be a time in Unix milliseconds or a date')
+    }
+    await this.provider.createToken(
+      create256Hash(token),
+      address,
+      createdAt,
+      until,
+      chainId
+    )
     return token
   }
 
   async validateToken(token: string): Promise<AuthToken | null> {
-    const tokenEntry = await this.provider.validateTokenEntry(token)
-    if (!tokenEntry) {
-      return null
-    }
-
-    return tokenEntry
+    return await this.provider.validateTokenEntry(create256Hash(token))
   }
 
   async invalidateToken(token: string): Promise<void> {
-    await this.provider.invalidateTokenEntry(token)
+    await this.provider.invalidateTokenEntry(create256Hash(token))
+  }
+
+  // removes expired and invalidated tokens; returns how many were deleted
+  async deleteExpiredTokens(now: number): Promise<number> {
+    return await this.provider.deleteExpiredTokens(now)
   }
 }

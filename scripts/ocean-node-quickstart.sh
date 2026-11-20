@@ -233,6 +233,21 @@ if [ "$enable_tls" == "y" ]; then
   fi
 fi
 
+echo "Database of the node:"
+echo "  1) SQLite - no database container; one node instance (default)"
+echo "  2) PostgreSQL - for several node instances on one database"
+echo "  3) Elasticsearch - for several node instances and the full DDO query syntax"
+read -p "Select the database [ 1/2/3 ]: " db_choice
+case "$db_choice" in
+  1|'') DB_TYPE='sqlite' ;;
+  2) DB_TYPE='postgresql' ;;
+  3) DB_TYPE='elasticsearch' ;;
+  *)
+    echo "Invalid database, it must be 1, 2 or 3. Exiting!"
+    exit 1
+    ;;
+esac
+
 # Set default compute environments if not already defined
 if [ -z "$DOCKER_COMPUTE_ENVIRONMENTS" ]; then
   echo "Setting default DOCKER_COMPUTE_ENVIRONMENTS configuration"
@@ -678,6 +693,74 @@ fi
 
 echo $DOCKER_COMPUTE_ENVIRONMENTS
 
+# A database server reads its password only when it creates its data. A second run in this
+# folder must keep the password of the data volume, so it takes the one in docker-compose.yml.
+DB_PASSWORD=''
+PREVIOUS_DB_TYPE=''
+if [ -f docker-compose.yml ]; then
+  DB_PASSWORD=$(sed -n "s/^ *DB_PASSWORD: '\(.*\)'.*$/\1/p" docker-compose.yml | head -n 1)
+  PREVIOUS_DB_TYPE=$(sed -n "s/^ *DB_TYPE: '\(.*\)'.*$/\1/p" docker-compose.yml | head -n 1)
+  # No DB_TYPE: SQLite, or a release before DB_TYPE (Typesense). That release also kept the
+  # node state in SQLite files in node-sqlite; Typesense held only the DDO index.
+  PREVIOUS_DB_TYPE=${PREVIOUS_DB_TYPE:-sqlite}
+fi
+if [ -z "$DB_PASSWORD" ]; then
+  DB_PASSWORD=$(head -c 24 /dev/urandom | xxd -p | tr -d '\n')
+fi
+
+# The parts of docker-compose.yml that depend on the database. SQLite needs only DB_TYPE:
+# the node keeps its files in the node-sqlite volume. A database server gets no "ports"
+# entry, so only the node can reach it.
+DB_ENVIRONMENT="      DB_TYPE: 'sqlite'"
+DB_DEPENDS_ON=''
+DB_SERVICE=''
+DB_VOLUME=''
+if [ "$DB_TYPE" == "postgresql" ]; then
+  DB_ENVIRONMENT="      DB_TYPE: 'postgresql'
+      DB_URL: 'postgresql://postgresql:5432/ocean'
+      DB_USERNAME: 'ocean'
+      DB_PASSWORD: '$DB_PASSWORD'"
+  DB_DEPENDS_ON="    depends_on:
+      - postgresql"
+  DB_SERVICE="  postgresql:
+    image: postgres:17
+    container_name: postgresql
+    restart: on-failure
+    networks:
+      - ocean_network
+    volumes:
+      - postgresql-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: 'ocean'
+      POSTGRES_USER: 'ocean'
+      POSTGRES_PASSWORD: '$DB_PASSWORD'"
+  DB_VOLUME="  postgresql-data:
+    driver: local"
+elif [ "$DB_TYPE" == "elasticsearch" ]; then
+  DB_ENVIRONMENT="      DB_TYPE: 'elasticsearch'
+      DB_URL: 'http://elasticsearch:9200'
+      DB_USERNAME: 'elastic'
+      DB_PASSWORD: '$DB_PASSWORD'"
+  DB_DEPENDS_ON="    depends_on:
+      - elasticsearch"
+  DB_SERVICE="  elasticsearch:
+    image: elasticsearch:8.5.1
+    container_name: elasticsearch
+    restart: on-failure
+    networks:
+      - ocean_network
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    environment:
+      ES_JAVA_OPTS: '-Xms512m -Xmx512m'
+      discovery.type: 'single-node'
+      ELASTIC_PASSWORD: '$DB_PASSWORD'
+      xpack.security.enabled: 'true'
+      xpack.security.http.ssl.enabled: 'false'"
+  DB_VOLUME="  elasticsearch-data:
+    driver: local"
+fi
+
 cat <<EOF > docker-compose.yml
 services:
   ocean-node:
@@ -694,7 +777,10 @@ services:
     environment:
       PRIVATE_KEY: '$PRIVATE_KEY'
       RPCS: '{"1":{"rpc":"https://ethereum-rpc.publicnode.com","fallbackRPCs":["https://rpc.ankr.com/eth","https://1rpc.io/eth","https://eth.api.onfinality.io/public"],"chainId":1,"network":"mainnet","chunkSize":100},"10":{"rpc":"https://mainnet.optimism.io","fallbackRPCs":["https://optimism-mainnet.public.blastapi.io","https://rpc.ankr.com/optimism","https://optimism-rpc.publicnode.com"],"chainId":10,"network":"optimism","chunkSize":100},"137":{"rpc":"https://polygon-rpc.com/","fallbackRPCs":["https://polygon-mainnet.public.blastapi.io","https://1rpc.io/matic","https://rpc.ankr.com/polygon"],"chainId":137,"network":"polygon","chunkSize":100},"23294":{"rpc":"https://sapphire.oasis.io","fallbackRPCs":["https://1rpc.io/oasis/sapphire"],"chainId":23294,"network":"sapphire","chunkSize":100},"23295":{"rpc":"https://testnet.sapphire.oasis.io","chainId":23295,"network":"sapphire-testnet","chunkSize":100},"11155111":{"rpc":"https://eth-sepolia.public.blastapi.io","fallbackRPCs":["https://1rpc.io/sepolia","https://eth-sepolia.g.alchemy.com/v2/demo"],"chainId":11155111,"network":"sepolia","chunkSize":100},"11155420":{"rpc":"https://sepolia.optimism.io","fallbackRPCs":["https://endpoints.omniatech.io/v1/op/sepolia/public","https://optimism-sepolia.blockpi.network/v1/rpc/public"],"chainId":11155420,"network":"optimism-sepolia","chunkSize":100}}'
-      DB_URL: 'http://typesense:8108/?apiKey=xyz'
+$DB_ENVIRONMENT
+      # the node metrics history is kept for this id; a container gets a new hostname
+      # each time it is made again
+      INSTANCE_ID: 'ocean-node'
       IPFS_GATEWAY: 'https://ipfs.io/'
       ARWEAVE_GATEWAY: 'https://arweave.net/'
 #      LOAD_INITIAL_DDOS: ''
@@ -769,23 +855,12 @@ $(
       options:
         max-size: "50m"
         max-file: "5"
-    depends_on:
-      - typesense
+$DB_DEPENDS_ON
 
-  typesense:
-    image: typesense/typesense:26.0
-    container_name: typesense
-    ports:
-      - "8108:8108"
-    networks:
-      - ocean_network
-    volumes:
-      - typesense-data:/data
-    command: '--data-dir /data --api-key=xyz'
+$DB_SERVICE
 
 volumes:
-  typesense-data:
-    driver: local
+$DB_VOLUME
   node-sqlite:
     driver: local
 
@@ -814,7 +889,20 @@ echo -e "\e[1;32mP2P IPv6 WebSocket Port: $P2P_ipV6BindWsPort\e[0m"
 echo ""
 echo -e "\e[1;32m4)\e[0m Node logs (info and above, 30 days) are written to \e[1;32m./logs\e[0m on this host. Set LOG_FILES_LEVEL=debug in docker-compose.yml for more detail."
 echo ""
-echo -e "\e[1;32m5)\e[0m If using SSL/TLS with a custom domain name, make sure to listen on host port 443 for the HTTP API, or use a reverse proxy with TLS offloading"
+if [ -n "$PREVIOUS_DB_TYPE" ] && [ "$PREVIOUS_DB_TYPE" != "$DB_TYPE" ]; then
+  echo -e "\e[1;31mWarning:\e[0m the database of this folder was \e[1;31m$PREVIOUS_DB_TYPE\e[0m and is now \e[1;31m$DB_TYPE\e[0m. The node state (jobs, services, nonces, auth tokens, buckets) does not move: it stays in the Docker volume of $PREVIOUS_DB_TYPE. A database volume keeps the password of its first start: remove the old volume before you select that database again."
+  if [ "$PREVIOUS_DB_TYPE" == "sqlite" ]; then
+    echo -e "The node starts with empty node state on $DB_TYPE: with no nonces, a signed request that the node accepted before can be accepted again, and the paid jobs in the SQLite files are not claimed. The SQLite files stay unused in the Docker volume \e[1;31mnode-sqlite\e[0m. Keep the volume: it also holds the P2P identity store (p2p-store)."
+  fi
+  echo ""
+fi
+if [ "$DB_TYPE" == "sqlite" ]; then
+  echo -e "\e[1;32m5)\e[0m The node keeps its data in SQLite files, in the Docker volume \e[1;32mnode-sqlite\e[0m. One volume is for one node instance. This script makes one node for each folder. Several node instances can share a PostgreSQL or Elasticsearch database: see docs/database.md."
+else
+  echo -e "\e[1;32m5)\e[0m The $DB_TYPE database has no published port: only the node can reach it. The database password in docker-compose.yml is random and gives full access: keep the file private. To use your own password, change it for the node and for the database \e[1;31mbefore the first start\e[0m: the database reads it only when it creates its data."
+fi
+echo ""
+echo -e "\e[1;32m6)\e[0m If using SSL/TLS with a custom domain name, make sure to listen on host port 443 for the HTTP API, or use a reverse proxy with TLS offloading"
 echo ""
 echo -e "If your node is not reachable by other peers (NAT, no public IP, port forwarding issues),"
 echo -e "refer to the networking guide for help with Dynamic DNS, port forwarding, and circuit relay:"

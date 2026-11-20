@@ -72,9 +72,7 @@ describe('Maintenance mode', () => {
     // Make sure no stale env leaks the flag into loadMaintenanceMode
     delete process.env.MAINTENANCE_MODE
     const config = await getConfiguration(true)
-    // SQLite-core-only DB: an invalid dbType skips the metadata DB (no Typesense/ES needed)
-    // while nonce/config/c2d/auth SQLite databases are always created.
-    db = await Database.init({ url: 'http://localhost:9999', dbType: 'none' } as any)
+    db = await Database.init(config.dbConfig)
     const keyManager = new KeyManager(config)
     const blockchainRegistry = new BlockchainRegistry(keyManager, config)
     oceanNode = OceanNode.getInstance(
@@ -104,7 +102,7 @@ describe('Maintenance mode', () => {
 
     await oceanNode.setMaintenanceMode(true)
     expect(oceanNode.isInMaintenance()).to.equal(true)
-    const stored = await db.sqliteConfig.retrieveValue(MAINTENANCE_MODE_CONFIG_KEY)
+    const stored = await db.config.retrieveValue(MAINTENANCE_MODE_CONFIG_KEY)
     expect(stored.value).to.equal('true')
 
     // Simulate a restart: wipe the in-memory cache then reload from the persisted DB value.
@@ -114,7 +112,7 @@ describe('Maintenance mode', () => {
 
     await oceanNode.setMaintenanceMode(false)
     expect(oceanNode.isInMaintenance()).to.equal(false)
-    const stored2 = await db.sqliteConfig.retrieveValue(MAINTENANCE_MODE_CONFIG_KEY)
+    const stored2 = await db.config.retrieveValue(MAINTENANCE_MODE_CONFIG_KEY)
     expect(stored2.value).to.equal('false')
   })
 
@@ -172,14 +170,14 @@ describe('Maintenance mode', () => {
     expect(resp.status.httpStatus).to.equal(200)
     expect(await streamBody(resp)).to.deep.equal({ maintenance: true })
     expect(oceanNode.isInMaintenance()).to.equal(true)
-    const stored = await db.sqliteConfig.retrieveValue(MAINTENANCE_MODE_CONFIG_KEY)
+    const stored = await db.config.retrieveValue(MAINTENANCE_MODE_CONFIG_KEY)
     expect(stored.value).to.equal('true')
     await oceanNode.setMaintenanceMode(false)
   })
 
   it('does NOT update the cache (and the handler returns 500) when the DB write fails', async () => {
     await oceanNode.setMaintenanceMode(false)
-    const stub = sinon.stub(db.sqliteConfig, 'createOrUpdateConfig').resolves(null)
+    const stub = sinon.stub(db.config, 'createOrUpdateConfig').resolves(null)
     try {
       let threw = false
       try {

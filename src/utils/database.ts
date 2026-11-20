@@ -1,34 +1,18 @@
 import { OceanNodeDBConfig } from '../@types/OceanNode.js'
-import { DB_TYPES } from './constants.js'
-import { URLUtils } from './url.js'
 
-export function hasValidDBConfiguration(configuration: OceanNodeDBConfig): boolean {
-  if (!configuration || !configuration.dbType) {
-    return false
+// What is wrong with the connection values, or undefined. SQLite needs none; a database
+// server needs all three. The URL is not checked: the driver of DB_TYPE connects to it.
+export function dbConfigurationProblem({
+  dbType,
+  url,
+  username,
+  password
+}: OceanNodeDBConfig): string | undefined {
+  if (dbType === 'sqlite') {
+    return undefined
   }
-  const hasValidUrl = configuration.url && URLUtils.isValidUrl(configuration.url)
-  const hasValidDbType = [DB_TYPES.ELASTIC_SEARCH, DB_TYPES.TYPESENSE].includes(
-    configuration.dbType
-  )
-
-  if (!hasValidUrl || !hasValidDbType) {
-    return false
+  if (!url || !username || !password) {
+    return `DB_URL, DB_USERNAME and DB_PASSWORD are required when DB_TYPE is ${dbType}`
   }
-
-  // For Elasticsearch, username and password are required
-  if (configuration.dbType === DB_TYPES.ELASTIC_SEARCH) {
-    return !!(configuration.username && configuration.password)
-  }
-
-  return true
-}
-
-// we can use this to check if DB connection is available
-export async function isReachableConnection(url: string): Promise<boolean> {
-  try {
-    await fetch(url)
-    return true
-  } catch (error) {
-    return false
-  }
+  return undefined
 }

@@ -9,6 +9,33 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { safeStringify } from '../../../utils/logging/redact.js'
+import type { Database } from '../../database/index.js'
+import { DdoStateKey, Found, QueryError } from '../../database/BaseDatabase.js'
+import {
+  QueryRequest,
+  assetConditions,
+  pageOf,
+  parseQueryRequest,
+  sortOf
+} from '../../database/assetQuery.js'
+
+// The answer is { results, totalResults } for each type of query.
+async function runQuery(database: Database, request: QueryRequest): Promise<Found<any>> {
+  switch (request.type) {
+    case 'orders':
+      return await database.order.find(request.filter, pageOf(request))
+    case 'tags': {
+      const tags = await database.ddo.tags(assetConditions(request.filter), request.size)
+      return { results: tags, totalResults: tags.length }
+    }
+    default:
+      return await database.ddo.find(
+        assetConditions(request.filter),
+        sortOf(request.sort),
+        pageOf(request)
+      )
+  }
+}
 
 export class QueryHandler extends CommandHandler {
   validate(command: QueryCommand): ValidateParams {
@@ -21,6 +48,7 @@ export class QueryHandler extends CommandHandler {
       return validationResponse
     }
     try {
+      const request = parseQueryRequest(task.query)
       const database = await this.getOceanNode().getDatabase()
       if (!database || !database.ddo) {
         CORE_LOGGER.debug('DDO database is not available')
@@ -29,15 +57,15 @@ export class QueryHandler extends CommandHandler {
           status: { httpStatus: 503, error: 'DDO database is not available' }
         }
       }
-      let result = await database.ddo.search(task.query)
-      if (!result) {
-        result = []
-      }
+      const result = await runQuery(database, request)
       return {
         stream: Readable.from(JSON.stringify(result)),
         status: { httpStatus: 200 }
       }
     } catch (error) {
+      if (error instanceof QueryError) {
+        return { stream: null, status: { httpStatus: 400, error: error.message } }
+      }
       CORE_LOGGER.error(`Error in QueryHandler: ${error.message}`)
       return {
         stream: null,
@@ -47,6 +75,7 @@ export class QueryHandler extends CommandHandler {
   }
 }
 
+// `query` is the key of the state: { did }, { nft } or { txId }
 export class QueryDdoStateHandler extends QueryHandler {
   async handle(task: QueryCommand): Promise<P2PCommandResponse> {
     const validation = this.validate(task)
@@ -63,7 +92,7 @@ export class QueryDdoStateHandler extends QueryHandler {
         }
       }
 
-      const result = await database.ddoState.search(task.query)
+      const result = await database.ddoState.find(task.query as DdoStateKey)
 
       CORE_LOGGER.debug(`DDO State search result: ${safeStringify(result)}`)
 

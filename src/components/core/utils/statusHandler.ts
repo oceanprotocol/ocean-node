@@ -8,7 +8,6 @@ import {
 } from '../../../@types/OceanNode.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
-import { typesenseSchemas } from '../../database/TypesenseSchemas.js'
 import { SupportedNetwork } from '../../../@types/blockchain.js'
 import { humanizeHex } from '../../../utils/humanHash.js'
 import { getPackageVersion } from '../../../utils/version.js'
@@ -193,7 +192,7 @@ export async function status(
         `Error getting c2d clusters: ${error.message}`
       )
     }
-    nodeStatus.supportedSchemas = typesenseSchemas.ddoSchemas
+    nodeStatus.supportedSchemas = (await oceanNode.getDatabase())?.ddo?.getSchemas()
 
     // Drain-visibility counts: how much already-committed work is still running, so an admin
     // can tell when the node is drained and safe to reboot. Wrapped in try/catch + throttled

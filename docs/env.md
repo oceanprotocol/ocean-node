@@ -7,7 +7,6 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `PRIVATE_KEY` (Required): The private key for the node, required for node operations. Example: `"0x1d751ded5a32226054cd2e71261039b65afb9ee1c746d055dd699b1150a5befc"`
 - `CONFIG_PATH`: Absolute path to JSON config file
 - `RPCS`: JSON object defining RPC endpoints for various networks. Example: `"{ \"11155420\":{ \"rpc\":\"https://sepolia.optimism.io\", \"fallbackRPCs\": [\"https://public.stackup.sh/api/v1/node/optimism-sepolia\"], \"chainId\": 11155420, \"network\": \"optimism-sepolia\", \"chunkSize\": 1000 }}"`
-- `DB_URL`: URL for connecting to the database. Required for running a database with the node. Example: `"http://localhost:8108/?apiKey=xyz"`
 - `IPFS_GATEWAY`: The gateway URL for IPFS, used for downloading files from IPFS. Example: `"https://ipfs.io/"`
 - `ARWEAVE_GATEWAY`: The gateway URL for Arweave, used for downloading files from Arweave. Example: `"https://arweave.net/"`
 - `LOAD_INITIAL_DDOS`: If set, the node will load initial DDOs from JSON files at startup. This is useful for testing or bootstrapping the network with predefined data. Example: `false`
@@ -25,7 +24,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `INDEXER_NETWORKS`: Specifies the networks the Indexer will crawl. If not set, the Indexer will index all networks defined in the RPCS environment variable. If set to an empty string, indexing will be disabled. Example: `[1, 137]`
 - `ALLOWED_ADMINS`: Sets the public address of accounts which have access to admin endpoints e.g. shutting down the node. Example: `"[\"0x967da4048cD07aB37855c090aAF366e4ce1b9F48\",\"0x388C818CA8B9251b393131C08a736A67ccB19297\"]"`
 - `ALLOWED_ADMINS_LIST`: Array of access list addresses (per chain) for accounts that have access to admin endpoints. Example: `"{ \"8996\": [\"0x123\",\"0x456\"]"`
-- `MAINTENANCE_MODE`: Boots the node directly into maintenance (drain) mode. The value is read at startup and ONLY the exact strings `true` and `false` are honored (case-insensitive); any other non-empty value (e.g. `1`, `yes`, a typo) is IGNORED with a warning and the node falls back to the persisted flag. The env value WINS at boot and is written through to the SQLite config DB, so **`MAINTENANCE_MODE=false` overrides a persisted `true`** — a leftover `false` will clear a drain you enabled at runtime. When set to `true` the node starts already rejecting new compute/service requests while still serving already-committed work (see the `setMaintenance` admin command and `status.maintenance` in [API.md](API.md)). **Sharp edge:** the flag is persisted and STICKY across restarts, so returning to normal service requires BOTH an explicit `setMaintenance { enabled: false }` admin command AND unsetting `MAINTENANCE_MODE` before the next restart (otherwise the node boots back into maintenance). There is no TTL and no auto-exit. Default is off (if unset, the persisted flag is used). Example: `true`
+- `MAINTENANCE_MODE`: Boots the node directly into maintenance (drain) mode. The value is read at startup and ONLY the exact strings `true` and `false` are honored (case-insensitive); any other non-empty value (e.g. `1`, `yes`, a typo) is IGNORED with a warning and the node falls back to the persisted flag. The env value WINS at boot and is written through to the node settings in the database, so **`MAINTENANCE_MODE=false` overrides a persisted `true`** — a leftover `false` will clear a drain you enabled at runtime. When set to `true` the node starts already rejecting new compute/service requests while still serving already-committed work (see the `setMaintenance` admin command and `status.maintenance` in [API.md](API.md)). **Sharp edge:** the flag is persisted and STICKY across restarts, so returning to normal service requires BOTH an explicit `setMaintenance { enabled: false }` admin command AND unsetting `MAINTENANCE_MODE` before the next restart (otherwise the node boots back into maintenance). There is no TTL and no auto-exit. Default is off (if unset, the persisted flag is used). Example: `true`
 - `RATE_DENY_LIST`: Blocked list of IPs and peer IDs. Example: `"{ \"peers\": [\"16Uiu2HAkuYfgjXoGcSSLSpRPD6XtUgV71t5RqmTmcqdbmrWY9MJo\"], \"ips\": [\"127.0.0.1\"] }"`
 - `MAX_REQ_PER_MINUTE`: Per-caller request ceiling, enforced over a fixed 60-second window and keyed by the caller the transport provides — client IP for HTTP, peer id for P2P (never a value taken from the request body). Applies to both front doors and at both the middleware and handler level. Default: `30`. Example: `30`
 - `MAX_CONNECTIONS_PER_MINUTE`: Node-wide ceiling on the total number of accepted requests processed per minute, counted through a single shared global counter. It spans **both** HTTP API requests **and** accepted P2P protocol commands, not HTTP alone. Default: `120`. Size it for your combined HTTP + P2P traffic and keep it comfortably above `MAX_REQ_PER_MINUTE` × expected concurrent clients; setting it equal to `MAX_REQ_PER_MINUTE`, or forgetting P2P load, lets normal traffic trip the global cap and briefly affect everyone.
@@ -47,17 +46,18 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 
 ## Database
 
-- `DB_URL`: URL for connecting to the database. Required for running a database with the node. Example: `"http://localhost:8108/?apiKey=xyz"`
-- `DB_USERNAME`: Username for database authentication. Optional if not using authentication. Example: `"elastic"`
-- `DB_PASSWORD`: Password for database authentication. Optional if not using authentication. Example: `"password123"`
-- `ELASTICSEARCH_REQUEST_TIMEOUT`: Request timeout in milliseconds for Elasticsearch operations. Default is `60000`. Example: `60000`
-- `ELASTICSEARCH_PING_TIMEOUT`: Ping timeout in milliseconds for Elasticsearch health checks. Default is `5000`. Example: `5000`
+- `DB_TYPE`: **Required.** The database of the node: `sqlite`, `postgresql` or `elasticsearch`. With no `DB_TYPE` the node does not start; it does not get the type from `DB_URL`. SQLite needs no other `DB_*` variable. An empty `DB_*` variable counts as not set. See [database.md](database.md). Example: `"sqlite"`
+- `DB_URL`: URL of the database server. Required when `DB_TYPE` is `postgresql` or `elasticsearch`; not used for `sqlite`. The node does not check the URL: the driver of `DB_TYPE` connects to it as given. Examples: `"postgresql://localhost:5432/ocean"`, `"http://localhost:9200"`
+- `DB_USERNAME`: Username for database authentication. Required when `DB_TYPE` is `postgresql` or `elasticsearch`. Example: `"elastic"`
+- `DB_PASSWORD`: Password for database authentication. Required when `DB_TYPE` is `postgresql` or `elasticsearch`. Example: `"password123"`
+- `ELASTICSEARCH_REQUEST_TIMEOUT`: Request timeout in milliseconds for Elasticsearch operations. Default is `30000`. Example: `30000`
+- `ELASTICSEARCH_PING_TIMEOUT`: Ping timeout in milliseconds for Elasticsearch health checks. Default is `3000`. Example: `3000`
 - `ELASTICSEARCH_RESURRECT_STRATEGY`: Strategy for bringing failed Elasticsearch nodes back online. Options are 'ping', 'optimistic', or 'none'. Default is `ping`. Example: `"ping"`
-- `ELASTICSEARCH_MAX_RETRIES`: Maximum number of retry attempts for failed Elasticsearch operations. Default is `5`. Example: `5`
+- `ELASTICSEARCH_MAX_RETRIES`: Maximum number of retry attempts for failed Elasticsearch operations. Default is `3`. Example: `3`
 - `ELASTICSEARCH_SNIFF_ON_START`: Enable cluster node discovery on Elasticsearch client startup. Default is `true`. Example: `true`
 - `ELASTICSEARCH_SNIFF_INTERVAL`: Interval in milliseconds for periodic cluster health monitoring and node discovery. Set to 'false' to disable. Default is `30000`. Example: `30000`
 - `ELASTICSEARCH_SNIFF_ON_CONNECTION_FAULT`: Enable automatic cluster node discovery when connection faults occur. Default is `true`. Example: `true`
-- `ELASTICSEARCH_HEALTH_CHECK_INTERVAL`: Interval in milliseconds for proactive connection health monitoring. Default is `60000`. Example: `60000`
+- `ELASTICSEARCH_HEALTH_CHECK_INTERVAL`: Interval in milliseconds for proactive connection health monitoring. Default is `15000`. Example: `15000`
 - `DB_INIT_MAX_ATTEMPTS`: Maximum number of database initialization attempts at node startup. Raise it when the database container/pod starts slower than the node. Set to `1` to disable retrying. All three `DB_INIT_*` variables are validated as integers `>= 1`; a non-numeric or out-of-range value fails configuration validation and the node refuses to start. Default is `10`. Example: `10`
 - `DB_INIT_RETRY_DELAY`: Initial delay in milliseconds before retrying a failed database initialization. Doubles after each attempt. Default is `2000`. Example: `2000`
 - `DB_INIT_MAX_RETRY_DELAY`: Upper bound in milliseconds for the database initialization retry backoff. Default is `30000`. Example: `30000`
@@ -82,7 +82,7 @@ Console, disk and database are independent log sinks. See [Logs.md](Logs.md) for
 | `LOG_FILES_RETENTION_DAYS` | `30` | Days of log files to keep. Older files (including `.gz` archives) are deleted when the log rotates. Integer, minimum `1` |
 | `LOG_FILES_MAX_SIZE` | `20m` | Size at which one module's daily file splits into `.1`, `.2`, ... parts. Accepts `<number>k`, `m` or `g` |
 | `LOG_FILES_DIR` | `logs` | Directory for log files, relative to the working directory (`/usr/src/app/logs` in Docker) |
-| `LOG_DB` | `false` | Write logs to the noSQL database (needs `DB_URL`). Turning it on switches off default file logging unless `LOG_FILES=true` |
+| `LOG_DB` | `false` | Write logs to the database of the node. Turning it on switches off default file logging unless `LOG_FILES=true` |
 | `LOG_RETENTION_TIME` | `2592000000` | Retention of logs in the database, in milliseconds (30 days). DB logs only |
 
 Invalid levels, retention values or sizes fall back to their defaults and log a warning at startup. Files are written to `<LOG_FILES_DIR>/<module>-YYYY-MM-DD.log` (UTC days); see [Logs.md](Logs.md#log-files-on-disk).
@@ -208,11 +208,12 @@ setting it through the environment reaches both.
 
 ## Node Metrics History
 
-Powers the `getNodeMetrics` (live snapshot) and `getNodeMetricsHistory` (hourly averages) commands / REST routes. The history layer is SQLite-backed (`databases/nodeMetrics.sqlite`) so it works even with no metadata DB configured. A minute sampler writes the same per-node aggregate the live command returns into a short-lived raw buffer, an hourly roll-up at minute `:05` averages each complete hour into `node_metrics_hourly`, and a daily sweep drops rows older than the retention window. The sampler **warns and skips** (persists no row) when there is no fresh compute aggregate — i.e. `C2D_METRICS_INTERVAL_SECONDS=0` or no engine has sampled yet — so all-zero rows never skew the averages. The live `getNodeMetrics` command still returns a (zeroed) snapshot in that case.
+Powers the `getNodeMetrics` (live snapshot) and `getNodeMetricsHistory` (hourly averages) commands / REST routes. The history layer is stored in the database of the node, per instance (see `INSTANCE_ID` below). A minute sampler writes the same per-node aggregate the live command returns into a short-lived raw buffer, an hourly roll-up at minute `:05` averages each complete hour into `node_metrics_hourly`, and a daily sweep drops rows older than the retention window. The sampler **warns and skips** (persists no row) when there is no fresh compute aggregate — i.e. `C2D_METRICS_INTERVAL_SECONDS=0` or no engine has sampled yet — so all-zero rows never skew the averages. The live `getNodeMetrics` command still returns a (zeroed) snapshot in that case.
 
 - `NODE_METRICS_HISTORY_ENABLED`: Enable/disable the node-metrics history sampler + roll-up + retention cron jobs. Defaults to enabled whenever a database is available. Set to `false` (also accepts `0`/`no`) to turn the history layer off; the live `getNodeMetrics` command is unaffected. Example: `true`
 - `NODE_METRICS_SAMPLE_CRON`: Cron expression for the minute sampler. Defaults to `* * * * *` (every minute). Example: `* * * * *`
 - `NODE_METRICS_RETENTION_DAYS`: How many days of hourly rows to keep before the daily retention sweep deletes them. Also clamps the range `getNodeMetricsHistory` will return. Defaults to `180` (~6 months). Example: `180`
+- `INSTANCE_ID`: Identifies this node instance in the metrics history. Instances that share one `PRIVATE_KEY` share one peer id, so each instance keeps its own metrics under this id. Defaults to the hostname (`os.hostname()`). In containers the hostname changes on every redeploy, which splits the history into fragments, so container deployments must set `INSTANCE_ID` to a fixed value. Example: `node-1`
 
 ## Compute
 
