@@ -24,12 +24,19 @@ rootEndpointRoutes.get('/', async (req: Request, res: Response): Promise<void> =
     caller: req.caller
   }
   const result = await new StatusHandler(req.oceanNode).handle(command)
+  // Preserve the handler's HTTP status for BOTH streamed and non-streamed responses: a
+  // rate-limit / error response (e.g. buildRateLimitReachedResponse) carries a stream AND a
+  // non-200 httpStatus, so the status must be set before piping, not only on the error branch.
+  res.status(result.status.httpStatus)
   if (result.stream) {
-    // The handler already emits a formatted JSON string stream; pipe it straight through
-    // instead of buffering and re-serializing via res.json().
-    res.type('application/json')
+    // The success path emits a formatted JSON string stream; pipe it straight through instead
+    // of buffering and re-serializing via res.json(). Non-200 stream bodies (e.g. the rate-limit
+    // text) are left as the default content type.
+    if (result.status.httpStatus === 200) {
+      res.type('application/json')
+    }
     ;(result.stream as Readable).pipe(res)
   } else {
-    res.status(result.status.httpStatus).send(result.status.error)
+    res.send(result.status.error)
   }
 })

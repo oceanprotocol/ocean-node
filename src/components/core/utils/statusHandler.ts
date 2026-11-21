@@ -136,10 +136,13 @@ export async function status(
     const publicKeyHex = Buffer.from(publicKey).toString('hex')
 
     nodeStatus = {
-      id:
-        nodeId && nodeId !== undefined
-          ? nodeId
-          : oceanNode.getKeyManager().getPeerId().toString(), // get current node ID
+      // Always identify THIS serving node. `nodeStatus` is a shared module-level cache built
+      // once, and the caller-supplied `nodeId` (command `node`) would otherwise poison the
+      // cached `id` for every later request — including the root `GET /` identity endpoint that
+      // decryptDDO's `issuerPeerId` relies on. The handler still pins `id` to self on the
+      // challenged response; keeping the cache self-identified makes the unchallenged response
+      // agree. The `nodeId` param is retained for signature compatibility.
+      id: oceanNode.getKeyManager().getPeerId().toString(),
       publicKey: publicKeyHex,
       friendlyName: humanizeHex(publicKeyHex),
       address: oceanNode.getKeyManager().getEthAddress(),
@@ -211,14 +214,19 @@ export async function status(
     enabled: oceanNode.isInMaintenance()
   }
 
-  // depends on request
+  // depends on request. Built into LOCALS (not written to the shared, cached `nodeStatus`) and
+  // merged into a per-request shallow copy at the return below — same reasoning as the
+  // maintenance block: a concurrent basic request would otherwise `delete` these keys while a
+  // detailed request is populating them (and vice versa), racing on the shared object.
+  let c2dClusters: OceanNodeStatus['c2dClusters']
+  let supportedSchemas: OceanNodeStatus['supportedSchemas']
   if (detailed) {
-    nodeStatus.c2dClusters = []
+    c2dClusters = []
     try {
       const engines = await oceanNode.getC2DEngines().getAllEngines()
       for (const engine of engines) {
         const type = await engine.getC2DType()
-        nodeStatus.c2dClusters.push({
+        c2dClusters.push({
           type,
           hash: await engine.getC2DConfig().hash,
           environments: await engine.getComputeEnvironments()
@@ -232,7 +240,7 @@ export async function status(
         `Error getting c2d clusters: ${error.message}`
       )
     }
-    nodeStatus.supportedSchemas = typesenseSchemas.ddoSchemas
+    supportedSchemas = typesenseSchemas.ddoSchemas
 
     // Drain-visibility counts: how much already-committed work is still running, so an admin
     // can tell when the node is drained and safe to reboot. Wrapped in try/catch + throttled
@@ -296,9 +304,6 @@ export async function status(
         `Error computing maintenance drain counts: ${error.message}`
       )
     }
-  } else {
-    delete nodeStatus.c2dClusters
-    delete nodeStatus.supportedSchemas
   }
 
   // Assign the fully-built maintenance object once, after all awaits above, so a concurrent
@@ -311,6 +316,13 @@ export async function status(
       nodeStatus.persistentStorage.accessLists = config.persistentStorage.accessLists
     nodeStatus.persistentStorage.allowBucketSharing =
       config.persistentStorage.allowBucketSharing === true
+  }
+
+  // Detailed cluster data lives only on the per-request response, never on the shared cache.
+  // A basic request returns the shared object (which never carries these keys, so
+  // `c2dClusters` / `supportedSchemas` are absent as before).
+  if (detailed) {
+    return { ...nodeStatus, c2dClusters, supportedSchemas }
   }
   return nodeStatus
 }
