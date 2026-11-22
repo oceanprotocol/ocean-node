@@ -256,7 +256,9 @@ describe('Maintenance mode', () => {
         command: PROTOCOL_COMMANDS.DETAILED_STATUS
       } as any)
     )
-    expect(status.claimDurationTimeout).to.equal(oceanNode.getConfig().claimDurationTimeout)
+    expect(status.claimDurationTimeout).to.equal(
+      oceanNode.getConfig().claimDurationTimeout
+    )
     expect(status.claimDurationTimeout).to.be.a('number')
   })
 
