@@ -1092,6 +1092,7 @@ requires/accepts before minting or presenting an auth token:
       "8996": ["0x123", "0x456"]
     },
     "subsidyProviderFilter": false,
+    "claimDurationTimeout": 3600,
     "uptime": 123,
     "platform": {
       "cpus": "123",
@@ -1117,6 +1118,11 @@ the normal and detailed status. `subsidyProviderFilter` reflects the node's
 `SUBSIDY_PROVIDER_FILTER` setting: when `true`, a user-supplied `subsidyProviders` list on a
 compute/service request is restricted to addresses already in this map for the request's chain
 (see the per-request `subsidyProviders` field below).
+
+`claimDurationTimeout` reflects the node's `ESCROW_CLAIM_TIMEOUT` setting (seconds, default `3600`):
+the extra time the node reserves to claim an escrow payment. It is added to a job's `maxJobDuration`
+when locking escrow funds, so clients can see how long funds stay locked beyond the job's runtime.
+Present in both the normal and detailed status.
 
 ### Per-request `subsidyProviders`
 

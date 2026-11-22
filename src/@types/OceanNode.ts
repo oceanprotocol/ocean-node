@@ -342,6 +342,10 @@ export interface OceanNodeStatus {
   provider: OceanNodeProvider[]
   indexer: OceanNodeIndexer[]
   escrowAddress: AddressPerChain
+  // Seconds reserved to claim an escrow payment (ESCROW_CLAIM_TIMEOUT / config.claimDurationTimeout,
+  // default 3600). Added to maxJobDuration when locking escrow, so clients can see how long funds
+  // stay locked beyond a job's runtime.
+  claimDurationTimeout?: number
   supportedStorage: StorageTypes
   platform: any
   uptime?: number // seconds since start

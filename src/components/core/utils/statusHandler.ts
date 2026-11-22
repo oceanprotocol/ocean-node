@@ -170,6 +170,9 @@ export async function status(
       )
     }
   }
+  // Seconds reserved to claim an escrow payment (added to maxJobDuration when locking funds).
+  // Set every request so a config reload never leaves a stale value.
+  nodeStatus.claimDurationTimeout = config.claimDurationTimeout
   // Per-chain Subsidy Provider contract addresses configured on this node (empty map when none
   // are set). Set on every request, independent of supportedNetworks, so the field is always
   // present and never retains a stale value the config no longer defines.
