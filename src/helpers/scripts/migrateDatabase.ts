@@ -101,11 +101,23 @@ function sourceVersion(dir: string): string | null {
   }
 }
 
+// how far a pass is: in a terminal one line that changes, else only the end
+function progress(label: string, done: number, total: number) {
+  const line = `${label} ${done}/${total}`
+  if (process.stdout.isTTY) process.stdout.write(`\r${line}${done === total ? '\n' : ''}`)
+  else if (done === total) console.log(line)
+}
+
 // an Elasticsearch read or write waits for the next index refresh (1 s): the rows of a batch
 // wait once
-async function inBatches<T>(rows: T[], work: (row: T, i: number) => Promise<unknown>) {
+async function inBatches<T>(
+  label: string,
+  rows: T[],
+  work: (row: T, i: number) => Promise<unknown>
+) {
   for (let i = 0; i < rows.length; i += BATCH) {
     await Promise.all(rows.slice(i, i + BATCH).map((row, j) => work(row, i + j)))
+    progress(label, Math.min(i + BATCH, rows.length), rows.length)
   }
 }
 
@@ -241,7 +253,11 @@ async function findExisting(tables: Record<string, Table>) {
   for (const [name, table] of Object.entries(tables)) {
     const flags = table.rows.map(() => false)
     if (!table.merges && table.exists) {
-      await inBatches(table.rows, async (row, i) => (flags[i] = await table.exists(row)))
+      await inBatches(
+        `Looking for ${name} in the target`,
+        table.rows,
+        async (row, i) => (flags[i] = await table.exists(row))
+      )
     }
     found.set(name, flags)
   }
@@ -285,7 +301,7 @@ async function copyTable(
       entry.failed++
     }
   }
-  await inBatches(table.rows, copy)
+  await inBatches(`Copying ${name}`, table.rows, copy)
   return entry
 }
 
