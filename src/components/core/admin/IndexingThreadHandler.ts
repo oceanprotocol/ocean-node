@@ -38,26 +38,40 @@ export class IndexingThreadHandler extends AdminCommandHandler {
     }
     CORE_LOGGER.info(`Admin ${task.action} for chain ${task.chainId ?? 'all'}`)
     if (task.action === IndexingCommand.START_THREAD) {
-      const output = task.chainId
-        ? indexer.startChainIndexer(task.chainId)
-        : indexer.startAllChainIndexers()
+      // Await the start: these are async operations (they can sleep for seconds while the chain
+      // connection comes up). Without the await `output` was always a truthy Promise, so the
+      // handler reported HTTP 200 before the indexer had actually started (or failed). A per-chain
+      // start resolves to the ChainIndexer or null; a start-all resolves to a boolean.
+      const success = task.chainId
+        ? (await indexer.startChainIndexer(task.chainId)) !== null
+        : (await indexer.startAllChainIndexers()) === true
       return {
         status: {
-          httpStatus: output ? 200 : 400,
-          error: output ? null : 'Unable to start indexing thread(s)!'
+          httpStatus: success ? 200 : 400,
+          error: success ? null : 'Unable to start indexing thread(s)!'
         },
-        stream: output ? new ReadableString('OK') : null
+        stream: success ? new ReadableString('OK') : null
       }
     } else if (task.action === IndexingCommand.STOP_THREAD) {
-      const output = task.chainId
-        ? indexer.stopChainIndexer(task.chainId)
-        : indexer.stopAllChainIndexers()
+      // Await the stop for the same reason. stopChainIndexer resolves to void (success unless it
+      // throws); stopAllChainIndexers resolves to a boolean.
+      let success = true
+      try {
+        if (task.chainId) {
+          await indexer.stopChainIndexer(task.chainId)
+        } else {
+          success = (await indexer.stopAllChainIndexers()) === true
+        }
+      } catch (error) {
+        CORE_LOGGER.error(`Unable to stop indexing thread(s): ${error?.message ?? error}`)
+        success = false
+      }
       return {
         status: {
-          httpStatus: output ? 200 : 400,
-          error: output ? null : 'Unable to stop indexing thread(s)!'
+          httpStatus: success ? 200 : 400,
+          error: success ? null : 'Unable to stop indexing thread(s)!'
         },
-        stream: output ? new ReadableString('OK') : null
+        stream: success ? new ReadableString('OK') : null
       }
     }
   }

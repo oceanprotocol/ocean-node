@@ -943,6 +943,11 @@ returns status of node
     "version": "123",
     "http": true,
     "p2p": true,
+    "isPSConfigured": false,
+    "ownerInfo": {
+      "imprint": { "legalName": "Acme Ltd", "email": "legal@acme.com" },
+      "termsAndConditions": { "url": "https://acme.com/terms" }
+    },
     "provider": [],
     "indexer": [],
     "supportedStorage": {
@@ -1729,6 +1734,8 @@ Every row has `id, eventType, chainId, contract, block, txHash` plus event-speci
 #### Description
 
 Returns a live per-node resource snapshot, rolled up across every C2D engine (the same aggregate the telemetry layer exports) blended with host `os` readings. Read-only, no parameters. `hasAggregate` is a freshness flag: when `false`, no engine had a fresh compute aggregate (metrics collection is disabled via `C2D_METRICS_INTERVAL_SECONDS=0`, or nothing has been sampled yet) and every scalar is a structural zero rather than a genuine reading. The snapshot is returned either way.
+
+`gpu[]` has one entry per GPU visible to the node, idle ones included, taken from the host-wide GPU sample (the same source as the `ocean.compute.gpu.*` gauges) and falling back to the readings attached to running jobs/services. `resourceId` is the configured resource id (e.g. `gpu0`) when the device's NVML UUID matches a configured `DeviceIDs` entry, else a vendor+index id such as `nvidia0`. Booking state is in `env[]` (`inUse` per resource), not in `gpu[]`. The array is empty when GPU metrics are off (`GPU_METRICS=off`), the node declares no GPU resource, or the node process cannot load NVML (see [compute.md → Troubleshooting GPU metrics](compute.md#troubleshooting-gpu-metrics)).
 
 #### Parameters
 

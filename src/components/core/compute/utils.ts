@@ -17,7 +17,7 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { errorSummary } from '../../../utils/logging/redact.js'
 import { createHash } from 'crypto'
 import { FindDdoHandler } from '../../core/handler/ddoHandler.js'
-import { DDOManager, VersionedDDO } from '@oceanprotocol/ddo-js'
+import { DDOManager, VersionedDDO, evaluateAlgorithmTrust } from '@oceanprotocol/ddo-js'
 
 import { P2PCommandResponse } from '../../../@types/index.js'
 
@@ -233,6 +233,12 @@ export async function bindAlgorithmContainerToDDO(
   return 'bound'
 }
 
+/**
+ * Decides whether an algorithm may run on a dataset service. The trust rules
+ * (access service, trusted algorithms, trusted publishers, raw algorithms) are
+ * evaluated by ddo.js `evaluateAlgorithmTrust`; the node only resolves the
+ * algorithm's NFT address for `publisherTrustedAlgorithmPublishers`.
+ */
 export async function validateAlgoForDataset(
   algoDID: string,
   algoChecksums: {
@@ -243,75 +249,31 @@ export async function validateAlgoForDataset(
   ddoInstance: VersionedDDO,
   datasetServiceId: string,
   oceanNode: OceanNode
-) {
+): Promise<boolean> {
+  const logPrefix = `validateAlgoForDataset (dataset ${ddoInstance?.getDid?.()}, algo ${algoDID})`
   try {
-    const { services } = ddoInstance.getDDOFields() as any
-    const datasetService = services.find(
-      (service: any) => service.id === datasetServiceId
-    )
+    const datasetService = ddoInstance.getService(datasetServiceId)
     if (!datasetService) {
-      throw new Error('Dataset service not found')
+      CORE_LOGGER.error(`${logPrefix}: Dataset service not found`)
+      return false
     }
-    if (datasetService.type === 'access') {
-      return true
-    }
-    const { compute } = datasetService
-    if (datasetService.type !== 'compute' || !compute) {
-      throw new Error('Service not compute')
-    }
-    const publishers = compute.publisherTrustedAlgorithmPublishers || []
-    const algorithms = compute.publisherTrustedAlgorithms || []
-
-    // If no restrictions are set, deny by default
-    const hasTrustedPublishers = publishers.length > 0
-    const hasTrustedAlgorithms = algorithms.length > 0
-    if (!hasTrustedPublishers && !hasTrustedAlgorithms) return false
-
-    if (algoDID) {
-      // Check if algorithm is explicitly trusted
-      const isAlgoTrusted =
-        hasTrustedAlgorithms &&
-        algorithms.some((algo: any) => {
-          const didMatch = algo.did === '*' || algo.did === algoDID
-          const filesMatch =
-            algo.filesChecksum === '*' || algo.filesChecksum === algoChecksums.files
-          const containerMatch =
-            algo.containerSectionChecksum === '*' ||
-            algo.containerSectionChecksum === algoChecksums.container
-          if ('serviceId' in algo) {
-            const serviceIdMatch =
-              algo.serviceId === '*' || algo.serviceId === algoChecksums.serviceId
-            return didMatch && filesMatch && containerMatch && serviceIdMatch
-          }
-
-          return didMatch && filesMatch && containerMatch
-        })
-
-      // Check if algorithm publisher is trusted
-      let isPublisherTrusted = false
-      if (hasTrustedPublishers) {
-        if (!publishers.includes('*')) {
-          const algoDDO = await new FindDdoHandler(oceanNode).findAndFormatDdo(algoDID)
-          if (!algoDDO) return false
-          const algoInstance = DDOManager.getDDOClass(algoDDO)
-          const { nftAddress } = algoInstance.getDDOFields()
-
-          isPublisherTrusted = publishers
-            .map((addr: string) => addr?.toLowerCase())
-            .includes(nftAddress?.toLowerCase())
-        } else {
-          isPublisherTrusted = true
+    return await evaluateAlgorithmTrust(
+      datasetService,
+      algoDID,
+      algoChecksums,
+      async (did) => {
+        try {
+          const algoDDO = await new FindDdoHandler(oceanNode).findAndFormatDdo(did)
+          if (!algoDDO) return null
+          return DDOManager.getDDOClass(algoDDO).getDDOFields().nftAddress
+        } catch (error) {
+          CORE_LOGGER.error(`${logPrefix}: ${error.message}`)
+          return null
         }
       }
-
-      return isAlgoTrusted || isPublisherTrusted
-    }
-
-    return compute.allowRawAlgorithm
-  } catch (error) {
-    CORE_LOGGER.error(
-      `validateAlgoForDataset (dataset ${ddoInstance?.getDid?.()}, algo ${algoDID}): ${error.message}`
     )
+  } catch (error) {
+    CORE_LOGGER.error(`${logPrefix}: ${error.message}`)
     return false
   }
 }

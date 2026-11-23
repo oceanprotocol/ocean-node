@@ -19,9 +19,9 @@ import {
   handleDownloadUrlCommand,
   validateFilesStructure
 } from '../../components/core/handler/downloadHandler.js'
-import { AssetUtils, isConfidentialChainDDO } from '../../utils/asset.js'
+import { isConfidentialChainDDO } from '../../utils/asset.js'
 import { DEVELOPMENT_CHAIN_ID, KNOWN_CONFIDENTIAL_EVMS } from '../../utils/address.js'
-import { DDO } from '@oceanprotocol/ddo-js'
+import { DDO, DDOManager, Service } from '@oceanprotocol/ddo-js'
 import { Wallet } from 'ethers'
 import { createHashForSignature, safeSign } from '../utils/signature.js'
 import { KeyManager } from '../../components/KeyManager/index.js'
@@ -145,7 +145,7 @@ describe('Should validate files structure for download', () => {
     const decriptedFileObject: any = decryptedFileArray.files
     expect(decriptedFileObject[0]).to.be.deep.equal(assetURL.files[0])
     // validate the structure of the files object
-    const service = AssetUtils.getServiceByIndex(ddoObj, 0)
+    const service = DDOManager.getDDOClass(ddoObj).getServiceByIndex(0) as Service
     expect(validateFilesStructure(ddoObj, service, decryptedFileArray)).to.be.equal(true)
   })
 
@@ -158,7 +158,9 @@ describe('Should validate files structure for download', () => {
     otherDDOSameFiles.nftAddress = otherNFTAddress
     otherDDOSameFiles.services[0].datatokenAddress = otherDatatokenAddress
 
-    const service = AssetUtils.getServiceByIndex(otherDDOSameFiles, 0)
+    const service = DDOManager.getDDOClass(otherDDOSameFiles).getServiceByIndex(
+      0
+    ) as Service
     // its the same service files structure (same encrypted data),
     // but its not the same ddo so there is no matching
     expect(
