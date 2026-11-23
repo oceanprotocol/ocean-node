@@ -33,6 +33,7 @@ import {
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
   setupEnvironment,
+  sleep,
   tearDownEnvironment
 } from '../utils/utils.js'
 import {
@@ -669,11 +670,13 @@ describe('**********         Indexer stores a new metadata events and orders.', 
     }
   })
 
-  it('should get empty reindex queue', () => {
-    setTimeout(() => {
-      // needs to wait for indexer task to run at least once
-      const queue = indexer.getIndexingQueue()
-      expect(queue.length).to.be.equal(0)
-    }, DEFAULT_TEST_TIMEOUT / 2)
+  it('should get empty reindex queue', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    // the indexer empties the queue on one of its next runs
+    const end = Date.now() + DEFAULT_TEST_TIMEOUT * 1.5
+    while (indexer.getIndexingQueue().length > 0 && Date.now() < end) {
+      await sleep(1000)
+    }
+    expect(indexer.getIndexingQueue().length).to.be.equal(0)
   })
 })
