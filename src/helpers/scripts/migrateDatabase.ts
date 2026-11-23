@@ -360,9 +360,22 @@ function backup(): string {
   return folder
 }
 
+// after a good copy the state files leave the folder: the backup keeps them, and the script
+// does not copy them again
+function removeBackedUp(folder: string) {
+  for (const file of fs.readdirSync(folder)) {
+    fs.rmSync(path.join(SQLITE_DIR, file), { force: true })
+  }
+}
+
 // the checks that stop the script before it connects; null when all pass
 function sourceProblem(counts: Record<string, number> | null, version: string | null) {
-  if (!counts) return `No node state in ${SQLITE_DIR}/: check the volume of the node.`
+  if (!counts) {
+    return (
+      `No node state in ${SQLITE_DIR}/: check the volume of the node. If it has a ` +
+      `backup-<time> folder, the state was copied already.`
+    )
+  }
   // the prerelease part is ignored: 5.1.0-next.1 is a 5.1.0
   if (version && compareVersions(version.split('-')[0], LAST_SQLITE_RELEASE) > 0) {
     return (
@@ -430,8 +443,13 @@ async function main(argv: string[]): Promise<number> {
     const folder = backup()
     const report = await migrateState(SQLITE_DIR, target, instanceId, ask)
     console.table(report)
-    console.log(`The old files are in ${folder} of the volume of the node.`)
-    return Object.values(report).some((table) => table.failed > 0) ? 1 : 0
+    if (Object.values(report).some((table) => table.failed > 0)) {
+      console.log(`A copy of the old files is in ${folder} of the volume of the node.`)
+      return 1
+    }
+    removeBackedUp(folder)
+    console.log(`The old files moved to ${folder} of the volume of the node.`)
+    return 0
   } catch (error) {
     console.error(error.message)
     return 1
