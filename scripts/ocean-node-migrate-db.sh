@@ -1,14 +1,16 @@
 #!/bin/bash
 # Moves a node of version 5.1.0 or older to this release: copies its node state (the SQLite
 # files) to PostgreSQL or Elasticsearch, then starts the node. Run it in the folder of
-# docker-compose.yml. A file with Typesense gets PostgreSQL or Elasticsearch in its place; a
-# file with Elasticsearch keeps it. The file before a change stays in docker-compose.yml.old.
+# docker-compose.yml (or .yaml). A file with Typesense gets PostgreSQL or Elasticsearch in its
+# place; a file with Elasticsearch keeps it. The file before a change stays in <file>.old.
 # The answers come from the terminal, so `curl -fsSL <url> | bash` works too.
 
 if docker compose version >/dev/null 2>&1; then DC="docker compose"; else DC="docker-compose"; fi
 MIGRATE="node dist/helpers/scripts/migrateDatabase.js"
+# the file that docker compose reads: .yml first, as docker compose does
 FILE=docker-compose.yml
-OLD=docker-compose.yml.old
+[ -f "$FILE" ] || FILE=docker-compose.yaml
+OLD=$FILE.old
 NEW_DB=''
 CHANGED=''
 
@@ -139,7 +141,7 @@ restore() {
 # all of the work: with `curl | bash`, nothing runs before the whole script is read
 main() {
   if [ ! -f "$FILE" ]; then
-    echo "Error: $FILE not found in the current directory"
+    echo "Error: docker-compose.yml or docker-compose.yaml not found in the current directory"
     exit 1
   fi
   if ! { : </dev/tty; } 2>/dev/null; then
