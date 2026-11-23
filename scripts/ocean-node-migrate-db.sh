@@ -76,10 +76,11 @@ replace_typesense() {
     /^ *DB_URL:.*typesense/ { match($0, /^ */); block(ENVIRON["DB_LINES"], substr($0, 1, RLENGTH)); next }
     /^ *DB_TYPE:.*typesense/ { next }
     /^ *- typesense *$/ { sub(/typesense/, db); print; next }
-    /^  typesense(-data)?: *$/ { skip = 1; next }
-    skip && /^[^ ]|^  [^ ]/ { skip = 0 }
+    # the next key ends the Typesense service; the new service takes its place
+    skip && /^[^ ]|^  [^ ]/ { skip = 0; print "" }
     skip { next }
-    /^volumes: *$/ { block(ENVIRON["SERVICE"], ""); print ""; print; print "  " db "-data:"; print "    driver: local"; next }
+    /^  typesense: *$/ { block(ENVIRON["SERVICE"], ""); skip = 1; next }
+    /^  typesense-data: *$/ { sub(/typesense/, db); print; next }
     { print }' "$OLD" > "$FILE"
 }
 
@@ -89,7 +90,7 @@ update_compose() {
   type=$(value DB_TYPE)
   url=$(value DB_URL)
   if [[ "$url" == *typesense* ]]; then
-    if ! grep -q '^  typesense: *$' "$FILE" || ! grep -q '^volumes: *$' "$FILE"; then
+    if ! grep -q '^  typesense: *$' "$FILE" || ! grep -q '^  typesense-data: *$' "$FILE"; then
       echo "Error: $FILE has Typesense, but not as the quickstart of 5.1.0 writes it."
       echo "Run the quickstart, select 2 or 3, and then run this script again."
       return 1
