@@ -187,11 +187,12 @@ The node keeps all its data in one database, selected with `DB_TYPE`:
 With no `DB_TYPE` the node does not start: it does not get the type from `DB_URL`. See
 "Upgrade" in the [Database guide](docs/database.md).
 
-### Move a node of version 5.1.0 or older to this release
+### Move the node state to PostgreSQL or Elasticsearch
 
 Version 5.1.0 and older keep the node state (nonces, compute jobs, auth tokens, buckets,
 metrics history) in the SQLite files of `databases/`, and the DDO index in Typesense or
-Elasticsearch. To move such a node, run this in the folder of its `docker-compose.yml`:
+Elasticsearch. A node of this release with `DB_TYPE=sqlite` keeps all of it in these files.
+To move the state of such a node, run this in the folder of its `docker-compose.yml`:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/oceanprotocol/ocean-node/main/scripts/ocean-node-migrate-db.sh | bash
@@ -201,8 +202,9 @@ curl -fsSL https://raw.githubusercontent.com/oceanprotocol/ocean-node/feat/db-mi
 
 The script:
 
-1. Asks for the database: PostgreSQL or Elasticsearch. The new database takes the place of
-   the old one (Typesense, or Elasticsearch when you select PostgreSQL) in
+1. Asks for the database: `p` (PostgreSQL) or `e` (Elasticsearch), and `s` to keep SQLite
+   on a SQLite node. The new database takes the place of the old one (Typesense, or
+   Elasticsearch when you select PostgreSQL; on a SQLite node it is added) in
    `docker-compose.yml` (or `.yaml`), and in the `dbConfig` of `config.json` when the compose
    file mounts it. The old files stay in `<file>.old`; the volume of the old database stays.
    When the volume of the new database exists already, it asks to remove it. When you keep
@@ -214,10 +216,11 @@ The script:
    volume (`node-sqlite`), and copies the state. If a row is in the target already, it asks
    you to skip, overwrite or cancel.
 4. Starts the node. When the copy fails, it puts back the old files and starts the node as
-   before the script. After a good copy the state files move to the backup folder.
+   before the script. After a good copy the SQLite files move to the backup folder.
 
-The indexed data is not copied: the node indexes the chains again. The script does not move
-the state of this release from one database to another.
+The indexed data is not copied: the node indexes the chains again. The script copies only
+from the SQLite files: a node on PostgreSQL or Elasticsearch does not move to another
+database. It refuses files of a newer node than its image.
 
 DDO search is the same on all three: a typed query (filters, sort key, page) that each
 database runs with its own fixed queries. See "DDO search" in the

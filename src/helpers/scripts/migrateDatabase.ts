@@ -10,6 +10,7 @@ import { getConfiguration } from '../../utils/config/builder.js'
 import { normalizeAddress } from '../../utils/evmAddress.js'
 import { sleep } from '../../utils/util.js'
 import { compareVersions } from '../../components/Indexer/version.js'
+import { getPackageVersion } from '../../utils/version.js'
 import { KeyManager } from '../../components/KeyManager/index.js'
 import {
   DatabaseFactory,
@@ -51,14 +52,14 @@ const TABLES: Record<string, SqlStoreGroup> = {
   node_metrics_hourly: 'nodeMetrics'
 }
 const STATE_FILES = [...new Set(Object.values(TABLES).map((group) => FILES[group]))]
+// the state files and the index file of a node with DB_TYPE=sqlite: the index is not copied,
+// the node indexes the chains again
+const SQLITE_FILES = [...STATE_FILES, FILES.index]
 // the index version stays behind, so the node indexes the chains again
 const WHERE: Record<string, string> = { config: `WHERE "key" != 'version'` }
 // rows of one table read or written at the same time
 const BATCH = 50
 const MAX_NONCE = Number.MAX_SAFE_INTEGER
-// the last release that kept all the node state in SQLite files; a newer release with
-// DB_TYPE=sqlite writes its own version there, and its state is not moved
-const LAST_SQLITE_RELEASE = '5.1.0'
 const CONNECT_TRIES = 24
 const CONNECT_WAIT_MS = 5000
 
@@ -352,18 +353,23 @@ function backup(): string {
   const stamp = new Date().toISOString().replace(/:/g, '-')
   const folder = path.join(SQLITE_DIR, `backup-${stamp}`)
   fs.mkdirSync(folder)
-  for (const file of fs.readdirSync(SQLITE_DIR)) {
-    if (STATE_FILES.some((name) => file.startsWith(name))) {
-      fs.copyFileSync(path.join(SQLITE_DIR, file), path.join(folder, file))
-    }
+  for (const file of sqliteFiles()) {
+    fs.copyFileSync(path.join(SQLITE_DIR, file), path.join(folder, file))
   }
   return folder
 }
 
-// after a good copy the state files leave the folder: the backup keeps them, and the script
-// does not copy them again
-function removeBackedUp(folder: string) {
-  for (const file of fs.readdirSync(folder)) {
+// the SQLite files of the node in its folder, with their -wal and -shm files
+function sqliteFiles() {
+  return fs
+    .readdirSync(SQLITE_DIR)
+    .filter((file) => SQLITE_FILES.some((name) => file.startsWith(name)))
+}
+
+// after a good copy the SQLite files leave the folder: the backup keeps them, and the script
+// does not copy them again. The index file that the copy opens goes too.
+function removeSqliteFiles() {
+  for (const file of sqliteFiles()) {
     fs.rmSync(path.join(SQLITE_DIR, file), { force: true })
   }
 }
@@ -376,11 +382,13 @@ function sourceProblem(counts: Record<string, number> | null, version: string | 
       `backup-<time> folder, the state was copied already.`
     )
   }
-  // the prerelease part is ignored: 5.1.0-next.1 is a 5.1.0
-  if (version && compareVersions(version.split('-')[0], LAST_SQLITE_RELEASE) > 0) {
+  // files of a newer node have tables that this node does not know; the prerelease part is
+  // ignored: 5.1.0-next.1 is a 5.1.0
+  const node = getPackageVersion()
+  if (version && compareVersions(version.split('-')[0], node.split('-')[0]) > 0) {
     return (
-      `The files in ${SQLITE_DIR}/ are from version ${version}. The script copies only the ` +
-      `state of version ${LAST_SQLITE_RELEASE} or older.`
+      `The files in ${SQLITE_DIR}/ are from version ${version}, newer than this node ` +
+      `(${node}). Use the image of version ${version} or newer.`
     )
   }
   return null
@@ -447,7 +455,7 @@ async function main(argv: string[]): Promise<number> {
       console.log(`A copy of the old files is in ${folder} of the volume of the node.`)
       return 1
     }
-    removeBackedUp(folder)
+    removeSqliteFiles()
     console.log(`The old files moved to ${folder} of the volume of the node.`)
     return 0
   } catch (error) {

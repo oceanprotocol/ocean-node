@@ -1,9 +1,9 @@
 #!/bin/bash
-# Moves a node of version 5.1.0 or older to this release: copies its node state (the SQLite
-# files) to PostgreSQL or Elasticsearch, then starts the node. Run it in the folder of
-# docker-compose.yml (or .yaml). It asks for the database: PostgreSQL or Elasticsearch take the
-# place of the old one (Typesense or Elasticsearch) in the compose file, and in the dbConfig of
-# config.json. The files before a change stay in <file>.old.
+# Copies the node state of SQLite files (a node of version 5.1.0 or older, or of this release
+# with DB_TYPE=sqlite) to PostgreSQL or Elasticsearch, then starts the node. Run it in the
+# folder of docker-compose.yml (or .yaml). It asks for the database: PostgreSQL or Elasticsearch
+# take the place of the old one (Typesense or Elasticsearch; added on a SQLite node) in the
+# compose file, and in the dbConfig of config.json. The files before a change stay in <file>.old.
 # The answers come from the terminal, so `curl -fsSL <url> | bash` works too.
 
 if docker compose version >/dev/null 2>&1; then DC="docker compose"; else DC="docker-compose"; fi
@@ -36,7 +36,8 @@ keep_old() {
 }
 
 # the database, as ocean-node-quickstart.sh writes it: keep the two in step. It has no
-# published port: only the node can reach it. Its networks are those of the old database.
+# published port: only the node can reach it. Its networks are those of the old database, or
+# of the node when there is no old one.
 database_parts() {
   local image data env
   NEW_PASSWORD=$(head -c 24 /dev/urandom | xxd -p | tr -d '\n')
@@ -69,8 +70,9 @@ DB_PASSWORD: '$NEW_PASSWORD'"
 $(echo "$env" | sed 's/^/      /')"
 }
 
-# the old database service out, the new one in: the DB_* values of the node (after
-# PRIVATE_KEY), depends_on, the service with the networks of the old one, and its volume
+# the old database service out (none for a SQLite node), the new one in: the DB_* values of the
+# node (after PRIVATE_KEY), depends_on, the service with the networks of the old one (of the
+# node, when there is no old one), and its volume
 replace_db() {
   keep_old || return 1
   export DB_LINES SERVICE
@@ -80,22 +82,32 @@ replace_db() {
       for (i = 1; i <= n; i++) print indent line[i]
     }
     function new_service() { block(ENVIRON["SERVICE"], ""); printf "%s", nets; print ""; skip = 0 }
+    # first read: the networks of the node
+    NR == FNR {
+      if (/^  ocean-node: *$/) in_node = 1
+      else if (/^[^ ]|^  [^ ]/) in_node = 0
+      if (in_node && /^    networks:/) { node_nets = $0 "\n"; in_nets = 1 }
+      else if (in_node && in_nets && /^      /) node_nets = node_nets $0 "\n"
+      else in_nets = 0
+      next
+    }
+    old == "" && /^services: *$/ { print; nets = node_nets; new_service(); next }
     # the next key ends the old service
     skip && /^[^ ]|^  [^ ]/ { new_service() }
     skip && /^    networks:/ { in_nets = 1; nets = $0 "\n"; next }
     skip && in_nets && /^      / { nets = nets $0 "\n"; next }
     skip { in_nets = 0; next }
-    $0 ~ "^  " old ": *$" { skip = 1; next }
+    old != "" && $0 ~ "^  " old ": *$" { skip = 1; next }
     /^ *DB_(TYPE|URL|USERNAME|PASSWORD):/ { next }
     /^ *PRIVATE_KEY:/ { print; match($0, /^ */); block(ENVIRON["DB_LINES"], substr($0, 1, RLENGTH)); next }
     # depends_on, as a list or as a map
-    $0 ~ "^ *- " old " *$" || $0 ~ "^   +" old ": *$" { sub(old, db); print; next }
+    old != "" && ($0 ~ "^ *- " old " *$" || $0 ~ "^   +" old ": *$") { sub(old, db); print; next }
     /^volumes: *$/ { print; print "  " db "-data:"; volumes = 1; next }
     { print }
     END {
       if (skip) new_service()
       if (!volumes) { print "volumes:"; print "  " db "-data:" }
-    }' "$OLD" > "$FILE"
+    }' "$OLD" "$OLD" > "$FILE"
 }
 
 # the dbConfig of config.json, when the compose file mounts it: the same values as the compose
@@ -190,23 +202,27 @@ keep_elasticsearch() {
 
 # docker-compose.yml for this release; 1 when the file cannot be changed
 update_compose() {
-  local choice
-  [ "$(value DB_TYPE)" == "sqlite" ] && return 0
-  if [[ "$(value DB_URL)" == *typesense* ]]; then
+  local choice keep
+  if [ "$(value DB_TYPE)" == "sqlite" ]; then
+    OLD_DB='' keep="s) SQLite (keep it) "
+    read -r -p "The node uses SQLite. Database for the node: p) PostgreSQL e) Elasticsearch $keep[p/e/s]: " choice </dev/tty
+  elif [[ "$(value DB_URL)" == *typesense* ]]; then
     OLD_DB=typesense
-    read -r -p "Database for the node: 2) PostgreSQL 3) Elasticsearch [2/3]: " choice </dev/tty
+    read -r -p "The node uses Typesense. Database for the node: p) PostgreSQL e) Elasticsearch [p/e]: " choice </dev/tty
   else
     OLD_DB=elasticsearch
-    read -r -p "The node uses Elasticsearch. Database for the node: 2) PostgreSQL 3) Elasticsearch (keep it) [2/3]: " choice </dev/tty
+    read -r -p "The node uses Elasticsearch. Database for the node: p) PostgreSQL e) Elasticsearch (keep it) [p/e]: " choice </dev/tty
   fi
   case "$choice" in
-    2) NEW_DB=postgresql ;;
-    3) [ "$OLD_DB" == "elasticsearch" ] && { keep_elasticsearch; return; }
+    p) NEW_DB=postgresql ;;
+    e) [ "$OLD_DB" == "elasticsearch" ] && { keep_elasticsearch; return; }
        NEW_DB=elasticsearch ;;
+    s) [ -n "$keep" ] && return 0
+       echo "Cancelled"; return 1 ;;
     *) echo "Cancelled"; return 1 ;;
   esac
-  if ! grep -q "^  $OLD_DB: *\$" "$FILE" || ! grep -q '^ *PRIVATE_KEY:' "$FILE"; then
-    echo "Error: $FILE needs the service $OLD_DB and a 'PRIVATE_KEY: <key>' line in the node environment."
+  if { [ -n "$OLD_DB" ] && ! grep -q "^  $OLD_DB: *\$" "$FILE"; } || ! grep -q '^ *PRIVATE_KEY:' "$FILE"; then
+    echo "Error: $FILE needs ${OLD_DB:+the service $OLD_DB and }a 'PRIVATE_KEY: <key>' line in the node environment."
     return 1
   fi
   new_volume && database_parts && replace_db && update_config_json "$NEW_DB"
