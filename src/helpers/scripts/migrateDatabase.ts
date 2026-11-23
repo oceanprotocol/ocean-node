@@ -1,6 +1,8 @@
-// Copies the node state of version 5.1.0 or older (the SQLite files of databases/) to the
-// database of DB_TYPE. Run by scripts/ocean-node-migrate-db.sh.
+// Copies the node state in the SQLite files of databases/ (version 5.1.0 or older, or this
+// release with DB_TYPE=sqlite) to the database of DB_TYPE; for DB_TYPE=sqlite it only makes a
+// backup. Run by scripts/ocean-node-migrate-db.sh.
 import fs from 'fs'
+import os from 'os'
 import path from 'path'
 import { DatabaseSync } from 'node:sqlite'
 import readline from 'readline/promises'
@@ -30,15 +32,15 @@ import {
   buildSqlStateStores
 } from '../../components/database/sql/SqlStores.js'
 
-type Report = Record<string, { copied: number; skipped: number; failed: number }>
+type Report = Record<string, { copied: number; failed: number }>
 type Ask = (question: string) => Promise<string>
+// the node is stopped during the copy, so its files are the newest state: each write creates
+// the row or updates it; a nonce keeps the higher value
 interface Table {
   rows: any[]
-  // no check: the write is an upsert, and a row is never a conflict
-  exists?: (row: any) => Promise<boolean>
-  write: (row: any, exists: boolean) => Promise<unknown>
-  // the write merges, so the row is written also on "skip"; exists only verifies it
-  merges?: boolean
+  write: (row: any) => Promise<unknown>
+  // true when the row is in the target after the write; none: the write result is enough
+  check?: (row: any) => Promise<boolean>
 }
 
 const TABLES: Record<string, SqlStoreGroup> = {
@@ -172,35 +174,32 @@ async function stateTables(
   return {
     nonce: {
       rows: nonces,
-      // the target nonce must be at least the old one: a lower one opens the replay window
-      exists: async (r) => (await target.nonce.retrieve(r.id)).nonce >= r.nonce,
       // update keeps the higher nonce; it returns null also when the target is higher
-      write: async (r) => {
-        await target.nonce.update(r.id, r.nonce)
-      },
-      merges: true
+      write: (r) => target.nonce.update(r.id, r.nonce).then(() => true),
+      // the target nonce must be at least the old one: a lower one opens the replay window
+      check: async (r) => (await target.nonce.retrieve(r.id)).nonce >= r.nonce
     },
     config: {
       rows: await select('config'),
-      exists: async (r) => (await target.config.retrieveValue(r.key))?.value != null,
-      write: (r) => target.config.createOrUpdateConfig(r.key, r.value)
+      write: (r) => target.config.createOrUpdateConfig(r.key, r.value),
+      check: async (r) => (await target.config.retrieveValue(r.key))?.value != null
     },
     c2djobs: {
       rows: await source.c2d.getJob(),
-      exists: async (j) => (await target.c2d.getJob(j.jobId)).length > 0,
       // newJob writes no dateFinished; updateJob writes it and the status
-      write: async (j, exists) => {
-        if (!exists) await target.c2d.newJob(j)
+      write: async (j) => {
+        if ((await target.c2d.getJob(j.jobId)).length === 0) await target.c2d.newJob(j)
         return (await target.c2d.updateJob(j)) || null
-      }
+      },
+      check: async (j) => (await target.c2d.getJob(j.jobId)).length > 0
     },
     service_jobs: {
       rows: await source.c2d.getServiceJob(),
-      exists: async (s) => (await target.c2d.getServiceJob(s.serviceId)).length > 0,
-      write: async (s, exists) =>
-        exists
+      write: async (s) =>
+        (await target.c2d.getServiceJob(s.serviceId)).length > 0
           ? (await target.c2d.updateServiceJob(s)) || null
-          : target.c2d.newServiceJob(s)
+          : target.c2d.newServiceJob(s),
+      check: async (s) => (await target.c2d.getServiceJob(s.serviceId)).length > 0
     },
     docker_images: {
       rows: await select('docker_images'),
@@ -208,25 +207,23 @@ async function stateTables(
     },
     authTokens: {
       rows: tokens,
-      // the same id is the same token: there is nothing to overwrite
-      exists: async (t) =>
-        (await target.authToken.provider.validateTokenEntry(t.token)) !== null,
-      write: (t, exists) =>
-        exists
-          ? undefined
-          : target.authToken.provider.createToken(
-              t.token,
-              t.address,
-              Number(t.createdAt),
-              t.validUntil,
-              t.chainId
-            )
+      // the same id is the same token: one in the target stays as it is
+      write: async (t) =>
+        (await target.authToken.provider.validateTokenEntry(t.token)) ??
+        target.authToken.provider.createToken(
+          t.token,
+          t.address,
+          Number(t.createdAt),
+          t.validUntil,
+          t.chainId
+        ),
+      check: async (t) =>
+        (await target.authToken.provider.validateTokenEntry(t.token)) !== null
     },
     persistent_storage_buckets: {
       rows: await select('persistent_storage_buckets'),
-      exists: async (b) => (await target.buckets.getBucket(b.bucketId)) !== null,
-      // a new row gets the label; an existing row keeps its label on the upsert
-      write: async (b, exists) => {
+      // the upsert keeps the label of a row that exists: the label is set after it
+      write: async (b) => {
         const { bucketId, owner, accessListJson, createdAt, label } = b
         await target.buckets.upsertBucket(
           bucketId,
@@ -235,93 +232,51 @@ async function stateTables(
           Number(createdAt),
           label
         )
-        if (exists) await target.buckets.updateBucketLabel(bucketId, owner, label)
-      }
+        await target.buckets.updateBucketLabel(bucketId, owner, label)
+      },
+      check: async (b) => (await target.buckets.getBucket(b.bucketId)) !== null
     },
     node_metrics_hourly: {
       rows: hours,
-      exists: async (h) =>
+      write: ({ instanceId: _, ...h }) => target.nodeMetrics.insertHourly(instanceId, h),
+      check: async (h) =>
         (await target.nodeMetrics.getHourly(instanceId, h.hourStart, h.hourStart, 1))
-          .length > 0,
-      write: ({ instanceId: _, ...h }) => target.nodeMetrics.insertHourly(instanceId, h)
+          .length > 0
     }
   }
 }
 
-// pass 1: the rows that the target has already
-async function findExisting(tables: Record<string, Table>) {
-  const found = new Map<string, boolean[]>()
-  for (const [name, table] of Object.entries(tables)) {
-    const flags = table.rows.map(() => false)
-    if (!table.merges && table.exists) {
-      await inBatches(
-        `Looking for ${name} in the target`,
-        table.rows,
-        async (row, i) => (flags[i] = await table.exists(row))
-      )
-    }
-    found.set(name, flags)
-  }
-  return found
-}
-
-// true to overwrite the rows that exist; throws on cancel
-async function askOverwrite(found: Map<string, boolean[]>, ask: Ask): Promise<boolean> {
-  const conflicts = [...found]
-    .map(([name, flags]) => [name, flags.filter(Boolean).length] as const)
-    .filter(([, n]) => n > 0)
-  if (conflicts.length === 0) return false
-  const reply = await ask(
-    `The target has some of these rows already: ${conflicts.map((c) => c.join(' ')).join(', ')}.\n` +
-      'Skip them, overwrite them, or cancel? [s/o/c] '
-  )
-  if (reply !== 's' && reply !== 'o') throw new Error('Cancelled')
-  return reply === 'o'
-}
-
-// pass 2: write each row, then check that it exists
-async function copyTable(
-  name: string,
-  table: Table,
-  flags: boolean[],
-  overwrite: boolean
-) {
-  const entry = { copied: 0, skipped: 0, failed: 0 }
-  const copy = async (row: any, i: number) => {
-    if (flags[i] && !overwrite) {
-      entry.skipped++
-      return
-    }
+// writes each row, then checks that it is in the target
+async function copyTable(name: string, table: Table) {
+  const entry = { copied: 0, failed: 0 }
+  await inBatches(`Copying ${name}`, table.rows, async (row) => {
     try {
-      const result = await table.write(row, flags[i])
-      const ok = result !== null && (!table.exists || (await table.exists(row)))
+      const result = await table.write(row)
+      const ok = result !== null && (!table.check || (await table.check(row)))
       if (ok) entry.copied++
       else entry.failed++
     } catch (error) {
       console.error(`${name}: ${error.message}`)
       entry.failed++
     }
-  }
-  await inBatches(`Copying ${name}`, table.rows, copy)
+  })
   return entry
 }
 
+// dir: a copy of the files; upgradeLegacyTables changes them (new columns, hashed tokens)
 export async function migrateState(
   dir: string,
   target: SqlStateStores,
-  instanceId: string,
-  ask: Ask
+  instanceId: string
 ): Promise<Report> {
   const clients = openSqliteClients(dir)
   try {
     await upgradeLegacyTables(clients)
     const source = await buildSqlStateStores({ dbType: 'sqlite' }, (g) => clients[g])
     const tables = await stateTables(clients, source, target, instanceId)
-    const found = await findExisting(tables)
-    const overwrite = await askOverwrite(found, ask)
     const report: Report = {}
     for (const [name, table] of Object.entries(tables)) {
-      report[name] = await copyTable(name, table, found.get(name), overwrite)
+      report[name] = await copyTable(name, table)
     }
     return report
   } finally {
@@ -348,16 +303,19 @@ async function connect(config: OceanNodeDBConfig): Promise<DatabaseStores> {
   }
 }
 
-// copies the state files, also the -wal and -shm files of SQLite
-function backup(): string {
-  const stamp = new Date().toISOString().replace(/:/g, '-')
-  const folder = path.join(SQLITE_DIR, `backup-${stamp}`)
-  fs.mkdirSync(folder)
+// copies the SQLite files of the node, also their -wal and -shm files, to a new folder
+function copySqliteFiles(folder: string): string {
+  fs.mkdirSync(folder, { recursive: true })
   for (const file of sqliteFiles()) {
     fs.copyFileSync(path.join(SQLITE_DIR, file), path.join(folder, file))
   }
   return folder
 }
+
+const backup = () =>
+  copySqliteFiles(
+    path.join(SQLITE_DIR, `backup-${new Date().toISOString().replace(/:/g, '-')}`)
+  )
 
 // the SQLite files of the node in its folder, with their -wal and -shm files
 function sqliteFiles() {
@@ -367,7 +325,7 @@ function sqliteFiles() {
 }
 
 // after a good copy the SQLite files leave the folder: the backup keeps them, and the script
-// does not copy them again. The index file that the copy opens goes too.
+// does not copy them again
 function removeSqliteFiles() {
   for (const file of sqliteFiles()) {
     fs.rmSync(path.join(SQLITE_DIR, file), { force: true })
@@ -406,7 +364,11 @@ async function check(
     `From  ${SQLITE_DIR}/ (version ${version ?? 'not set'})  ${rows.join(', ')}`
   )
   // the host only: the URL can hold the password
-  console.log(`To    ${dbConfig.dbType}  ${URL.parse(dbConfig.url ?? '')?.host ?? ''}`)
+  const to =
+    dbConfig.dbType === 'sqlite'
+      ? 'the node uses these files as they are, after a backup'
+      : (URL.parse(dbConfig.url ?? '')?.host ?? '')
+  console.log(`To    ${dbConfig.dbType}  ${to}`)
   const reply = await ask(
     'The node stops during the copy. No compute jobs or services must run. Continue? [y/N] '
   )
@@ -432,10 +394,6 @@ async function main(argv: string[]): Promise<number> {
   try {
     const config = await getConfiguration()
     const { dbConfig } = config
-    if (dbConfig.dbType === 'sqlite') {
-      console.log(`The node uses the files in ${SQLITE_DIR}/ directly: nothing to copy.`)
-      return 2
-    }
     const counts = countSourceRows(SQLITE_DIR)
     const version = sourceVersion(SQLITE_DIR)
     const problem = sourceProblem(counts, version)
@@ -443,13 +401,21 @@ async function main(argv: string[]): Promise<number> {
       console.error(problem)
       return 1
     }
-    const target = await connect(dbConfig)
+    // SQLite: the node of this release reads the same files
+    const target = dbConfig.dbType === 'sqlite' ? null : await connect(dbConfig)
     if (argv.includes('--check')) return await check(counts, version, dbConfig, ask)
+    if (!target) {
+      console.log(`A copy of the files is in ${backup()} of the volume of the node.`)
+      return 0
+    }
 
     // the instance id of the node: OceanNode.getInstanceId() takes the same default
     const instanceId = config.instanceId || new KeyManager(config).getPeerIdString()
     const folder = backup()
-    const report = await migrateState(SQLITE_DIR, target, instanceId, ask)
+    // the copy reads its own copy of the files: databases/ stays as it is until the end
+    const work = copySqliteFiles(fs.mkdtempSync(path.join(os.tmpdir(), 'migrate-')))
+    const report = await migrateState(work, target, instanceId)
+    fs.rmSync(work, { recursive: true, force: true })
     console.table(report)
     if (Object.values(report).some((table) => table.failed > 0)) {
       console.log(`A copy of the old files is in ${folder} of the volume of the node.`)

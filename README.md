@@ -202,19 +202,20 @@ curl -fsSL https://raw.githubusercontent.com/oceanprotocol/ocean-node/feat/db-mi
 
 The script:
 
-1. Asks for the database: `p` (PostgreSQL) or `e` (Elasticsearch), and `s` to keep SQLite
-   on a SQLite node. The new database takes the place of the old one (Typesense, or
-   Elasticsearch when you select PostgreSQL; on a SQLite node it is added) in
-   `docker-compose.yml` (or `.yaml`), and in the `dbConfig` of `config.json` when the compose
-   file mounts it. The old files stay in `<file>.old`; the volume of the old database stays.
+1. Asks for the database: `p` (PostgreSQL), `e` (Elasticsearch) or `s` (SQLite). The new
+   database takes the place of the old one (Typesense, or Elasticsearch when you select
+   another one; on a SQLite node it is added) in `docker-compose.yml` (or `.yaml`), and in the
+   `dbConfig` of `config.json` when the compose file mounts it. With `s` the old database
+   goes: the state is in SQLite already, so the node uses the same files and upgrades their
+   tables when it starts. The old files stay in `<file>.old`; the volume of the old database stays.
    When the volume of the new database exists already, it asks to remove it. When you keep
    Elasticsearch, the script protects it: an Elasticsearch without security gets security and
    a new password for the user `elastic`, and restarts when the node stops. The node gets the
    same user and password.
 2. Shows what it will copy and asks you to confirm. The node still runs.
 3. Stops the node, keeps a copy of the state files in the folder `backup-<time>` of the node
-   volume (`node-sqlite`), and copies the state. If a row is in the target already, it asks
-   you to skip, overwrite or cancel.
+   volume (`node-sqlite`), and copies the state. A row that is in the target already is
+   written again; a nonce keeps the higher value.
 4. Starts the node. When the copy fails, it puts back the old files and starts the node as
    before the script. After a good copy the SQLite files move to the backup folder.
 

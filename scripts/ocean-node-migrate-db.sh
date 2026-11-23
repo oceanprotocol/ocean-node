@@ -14,6 +14,7 @@ FILE=docker-compose.yml
 OLD=$FILE.old
 NEW_DB=''
 OLD_DB=''
+DB_DATA=''
 CHANGED=''
 CONFIG_CHANGED=''
 PROTECT_ES=''
@@ -70,18 +71,23 @@ DB_PASSWORD: '$NEW_PASSWORD'"
 $(echo "$env" | sed 's/^/      /')"
 }
 
-# the old database service out (none for a SQLite node), the new one in: the DB_* values of the
-# node (after PRIVATE_KEY), depends_on, the service with the networks of the old one (of the
-# node, when there is no old one), and its volume
+# the old database service out (none on a SQLite node), the new one in (none for SQLite):
+# depends_on, the service with the networks of the old one (of the node, when there is no old
+# one), and its volume
 replace_db() {
   keep_old || return 1
-  export DB_LINES SERVICE
+  export SERVICE
   awk -v old="$OLD_DB" -v db="$NEW_DB" '
     function block(text, indent,   n, i, line) {
+      if (text == "") return
       n = split(text, line, "\n")
       for (i = 1; i <= n; i++) print indent line[i]
     }
-    function new_service() { block(ENVIRON["SERVICE"], ""); printf "%s", nets; print ""; skip = 0 }
+    function new_service() {
+      if (ENVIRON["SERVICE"] != "") { block(ENVIRON["SERVICE"], ""); printf "%s", nets; print "" }
+      skip = 0
+    }
+    BEGIN { add = db != "sqlite" }
     # first read: the networks of the node
     NR == FNR {
       if (/^  ocean-node: *$/) in_node = 1
@@ -98,16 +104,38 @@ replace_db() {
     skip && in_nets && /^      / { nets = nets $0 "\n"; next }
     skip { in_nets = 0; next }
     old != "" && $0 ~ "^  " old ": *$" { skip = 1; next }
-    /^ *DB_(TYPE|URL|USERNAME|PASSWORD):/ { next }
-    /^ *PRIVATE_KEY:/ { print; match($0, /^ */); block(ENVIRON["DB_LINES"], substr($0, 1, RLENGTH)); next }
-    # depends_on, as a list or as a map
-    old != "" && ($0 ~ "^ *- " old " *$" || $0 ~ "^   +" old ": *$") { sub(old, db); print; next }
-    /^volumes: *$/ { print; print "  " db "-data:"; volumes = 1; next }
+    # depends_on, as a list or as a map: the old database becomes the new one, or goes; the
+    # key is written only when an entry stays
+    /^    depends_on: *$/ { dep = $0; in_dep = 1; next }
+    in_dep && /^      / {
+      if (old != "" && ($0 ~ "^      - *" old " *$" || $0 ~ "^      " old ": *$")) {
+        if (!add) { drop_sub = $0 !~ /^ *-/; next }
+        sub(old, db)
+      } else if (drop_sub && /^        /) next
+      else drop_sub = 0
+      if (dep != "") { print dep; dep = "" }
+      print; next
+    }
+    in_dep { in_dep = 0; drop_sub = 0; dep = "" }
+    add && /^volumes: *$/ { print; print "  " db "-data:"; volumes = 1; next }
     { print }
     END {
       if (skip) new_service()
-      if (!volumes) { print "volumes:"; print "  " db "-data:" }
-    }' "$OLD" "$OLD" > "$FILE"
+      if (add && !volumes) { print "volumes:"; print "  " db "-data:" }
+    }' "$OLD" "$OLD" > "$FILE" && set_node_db
+}
+
+# the DB_* values of the node: the old ones out, DB_LINES after PRIVATE_KEY
+set_node_db() {
+  DB_LINES=$DB_LINES awk '
+    /^ *DB_(TYPE|URL|USERNAME|PASSWORD):/ { next }
+    /^ *PRIVATE_KEY:/ {
+      print; match($0, /^ */)
+      n = split(ENVIRON["DB_LINES"], line, "\n")
+      for (i = 1; i <= n; i++) print substr($0, 1, RLENGTH) line[i]
+      next
+    }
+    { print }' "$FILE" > "$FILE.new" && mv "$FILE.new" "$FILE"
 }
 
 # the dbConfig of config.json, when the compose file mounts it: the same values as the compose
@@ -124,11 +152,14 @@ import json, os, re
 text = open("config.json").read()
 found = re.search(r"\n([ \t]+)\"", text)
 data = json.loads(text)
-db = {"dbType": os.environ["DB"], "username": os.environ["NEW_USER"],
-      "password": os.environ["NEW_PASSWORD"]}
-if os.environ["NEW_URL"]:
-    db["url"] = os.environ["NEW_URL"]
-data["dbConfig"] = {**data["dbConfig"], **db}
+if os.environ["DB"] == "sqlite":
+    data["dbConfig"] = {"dbType": "sqlite"}
+else:
+    db = {"dbType": os.environ["DB"], "username": os.environ["NEW_USER"],
+          "password": os.environ["NEW_PASSWORD"]}
+    if os.environ["NEW_URL"]:
+        db["url"] = os.environ["NEW_URL"]
+    data["dbConfig"] = {**data["dbConfig"], **db}
 # write in place: a container that mounts the file sees the change
 with open("config.json", "w") as file:
     file.write(json.dumps(data, indent=found.group(1) if found else 2, ensure_ascii=False) + "\n")
@@ -155,8 +186,8 @@ new_volume() {
 }
 
 # Elasticsearch stays, protected: an open one gets security and a new password for the user
-# elastic, a protected one keeps its password. The node gets the same user and password, after
-# PRIVATE_KEY and in config.json. Elasticsearch restarts with security when the node stops.
+# elastic, a protected one keeps its password. The node gets the same user and password, in
+# its DB_* values and in config.json. Elasticsearch restarts with security when the node stops.
 keep_elasticsearch() {
   if ! grep -q '^  elasticsearch: *$' "$FILE" || ! grep -q '^ *PRIVATE_KEY:' "$FILE"; then
     echo "Error: $FILE needs the service elasticsearch and a 'PRIVATE_KEY: <key>' line in the node environment."
@@ -168,6 +199,12 @@ keep_elasticsearch() {
     NEW_PASSWORD=$(head -c 24 /dev/urandom | xxd -p | tr -d '\n')
     PROTECT_ES=1
   fi
+  local url
+  url=$(value DB_URL)
+  DB_LINES="DB_TYPE: 'elasticsearch'
+${url:+DB_URL: '$url'
+}DB_USERNAME: 'elastic'
+DB_PASSWORD: '$NEW_PASSWORD'"
   keep_old || return 1
   NEW_PASSWORD=$NEW_PASSWORD awk -v protect="$PROTECT_ES" '
     BEGIN {
@@ -187,43 +224,41 @@ keep_elasticsearch() {
     in_es && pending { match($0, /^ */); security_lines(substr($0, 1, RLENGTH), $0 ~ /^ *- /); pending = 0 }
     in_es && /^    environment: *$/ { print; pending = 1; next }
     in_es && $0 ~ security { next }
-    /^ *DB_(TYPE|USERNAME|PASSWORD):/ { next }
-    /^ *PRIVATE_KEY:/ {
-      print; match($0, /^ */); indent = substr($0, 1, RLENGTH)
-      print indent "DB_TYPE: " q "elasticsearch" q
-      print indent "DB_USERNAME: " q "elastic" q
-      print indent "DB_PASSWORD: " q ENVIRON["NEW_PASSWORD"] q
-      next
-    }
     { print }
     END { if (in_es && !added) { print "    environment:"; security_lines("      ", 0) } }' "$OLD" > "$FILE" &&
-    update_config_json elasticsearch
+    set_node_db && update_config_json elasticsearch
 }
 
 # docker-compose.yml for this release; 1 when the file cannot be changed
 update_compose() {
-  local choice keep
+  local choice
   if [ "$(value DB_TYPE)" == "sqlite" ]; then
-    OLD_DB='' keep="s) SQLite (keep it) "
-    read -r -p "The node uses SQLite. Database for the node: p) PostgreSQL e) Elasticsearch $keep[p/e/s]: " choice </dev/tty
+    OLD_DB=''
+    read -r -p "The node uses SQLite. Database for the node: p) PostgreSQL e) Elasticsearch s) SQLite (keep it) [p/e/s]: " choice </dev/tty
   elif [[ "$(value DB_URL)" == *typesense* ]]; then
     OLD_DB=typesense
-    read -r -p "The node uses Typesense. Database for the node: p) PostgreSQL e) Elasticsearch [p/e]: " choice </dev/tty
+    read -r -p "The node uses Typesense. Database for the node: p) PostgreSQL e) Elasticsearch s) SQLite [p/e/s]: " choice </dev/tty
   else
     OLD_DB=elasticsearch
-    read -r -p "The node uses Elasticsearch. Database for the node: p) PostgreSQL e) Elasticsearch (keep it) [p/e]: " choice </dev/tty
+    read -r -p "The node uses Elasticsearch. Database for the node: p) PostgreSQL e) Elasticsearch (keep it) s) SQLite [p/e/s]: " choice </dev/tty
   fi
   case "$choice" in
     p) NEW_DB=postgresql ;;
     e) [ "$OLD_DB" == "elasticsearch" ] && { keep_elasticsearch; return; }
        NEW_DB=elasticsearch ;;
-    s) [ -n "$keep" ] && return 0
-       echo "Cancelled"; return 1 ;;
+    s) if [ -z "$OLD_DB" ]; then echo "    No change: the node keeps SQLite."; exit 0; fi
+       NEW_DB=sqlite ;;
     *) echo "Cancelled"; return 1 ;;
   esac
   if { [ -n "$OLD_DB" ] && ! grep -q "^  $OLD_DB: *\$" "$FILE"; } || ! grep -q '^ *PRIVATE_KEY:' "$FILE"; then
     echo "Error: $FILE needs ${OLD_DB:+the service $OLD_DB and }a 'PRIVATE_KEY: <key>' line in the node environment."
     return 1
+  fi
+  if [ "$NEW_DB" == "sqlite" ]; then
+    # the node reads the SQLite files of databases/ itself: no service, no connection
+    DB_LINES="DB_TYPE: 'sqlite'" SERVICE=''
+    replace_db && update_config_json sqlite
+    return
   fi
   new_volume && database_parts && replace_db && update_config_json "$NEW_DB"
 }
@@ -244,7 +279,7 @@ cmd() {
 restore() {
   [ -n "$CHANGED" ] || return
   echo "==> Putting back $FILE and removing what the script added"
-  if [ -n "$NEW_DB" ]; then
+  if [ -n "$DB_DATA" ]; then
     echo "    \$ $DC rm -s -f $NEW_DB"
     $DC rm -s -f "$NEW_DB" >/dev/null 2>&1
     echo "    \$ docker volume rm $DB_DATA"
@@ -268,8 +303,7 @@ revert() {
   cmd $DC up -d
   echo "    The node runs as before the script, on the same state files."
   if [ -z "$NEW_DB" ]; then
-    echo "    Rows that were copied stay in the database: when you run this script again, it"
-    echo "    asks you to skip or overwrite them."
+    echo "    Rows that were copied stay in the database: the next run writes them again."
   fi
 }
 
@@ -304,9 +338,9 @@ main() {
     exit 1
   fi
 
-  # read-only checks; the node still runs. Exit 2: nothing to copy.
+  # read-only checks; the node still runs
   step 3 "Checking the old state and the new database, read-only (the node still runs)"
-  if [ -n "$NEW_DB" ]; then
+  if [ -n "$DB_DATA" ]; then
     cmd $DC up -d "$NEW_DB" || { restore; exit 1; }
   fi
   cmd $DC run --rm ocean-node $MIGRATE --check </dev/tty
@@ -336,7 +370,7 @@ main() {
   step 6 "Starting the node"
   cmd $DC up -d ${NEW_DB:+--remove-orphans}
   echo "    Done: see the node log with: $DC logs -f ocean-node"
-  if [ -n "$NEW_DB" ]; then
+  if [ -n "$NEW_DB" ] && [ -n "$OLD_DB" ]; then
     echo "    The volume of $OLD_DB stays. When you do not need it: docker volume ls, docker volume rm <name>"
   fi
 }
