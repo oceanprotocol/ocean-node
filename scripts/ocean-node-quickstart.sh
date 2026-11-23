@@ -710,7 +710,8 @@ fi
 
 # The parts of docker-compose.yml that depend on the database. SQLite needs only DB_TYPE:
 # the node keeps its files in the node-sqlite volume. A database server gets no "ports"
-# entry, so only the node can reach it.
+# entry, so only the node can reach it. ocean-node-migrate-db.sh writes the same parts: keep
+# the two in step.
 DB_ENVIRONMENT="      DB_TYPE: 'sqlite'"
 DB_DEPENDS_ON=''
 DB_SERVICE=''

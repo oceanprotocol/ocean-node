@@ -203,7 +203,7 @@ The script:
 1. Updates `docker-compose.yml` and keeps the old file in `docker-compose.yml.old`. With
    Typesense, it asks for PostgreSQL or Elasticsearch and puts it in the place of Typesense.
    With Elasticsearch, the node keeps it: this release needs `DB_USERNAME` and `DB_PASSWORD`
-   for it.
+   for it. For an Elasticsearch without security, any values work.
 2. Shows what it will copy and asks you to confirm. The node still runs.
 3. Stops the node, keeps a copy of the state files in the folder `backup-<time>` of the node
    volume (`node-sqlite`), and copies the state. If a row is in the target already, it asks

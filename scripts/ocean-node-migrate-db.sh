@@ -28,73 +28,50 @@ value() {
   sed -n "s/^ *$1: *['\"]\{0,1\}\([^'\"]*\)['\"]\{0,1\} *$/\1/p" "$FILE" | head -n 1
 }
 
-# keeps the file before the change
 keep_old() {
   cp "$FILE" "$OLD" && CHANGED=1
 }
 
-# adds $DB_LINES after the first line that matches $1, at its indent
-add_lines() {
-  keep_old || return 1
-  export DB_LINES
-  awk -v anchor="$1" '
-    !done && $0 ~ anchor {
-      print; match($0, /^ */); n = split(ENVIRON["DB_LINES"], line, "\n")
-      for (i = 1; i <= n; i++) print substr($0, 1, RLENGTH) line[i]
-      done = 1; next
-    }
-    { print }' "$OLD" > "$FILE"
-}
-
-# the database, as the quickstart writes it; the database has no published port
+# the database, as ocean-node-quickstart.sh writes it: keep the two in step. It has no
+# published port: only the node can reach it.
 database_parts() {
-  local password
+  local password image user url data env
   password=$(head -c 24 /dev/urandom | xxd -p | tr -d '\n')
   if [ "$NEW_DB" == "postgresql" ]; then
-    DB_LINES="DB_TYPE: 'postgresql'
-DB_URL: 'postgresql://postgresql:5432/ocean'
-DB_USERNAME: 'ocean'
-DB_PASSWORD: '$password'"
-    SERVICE="  postgresql:
-    image: postgres:17
-    container_name: postgresql
-    restart: on-failure
-    networks:
-      - ocean_network
-    volumes:
-      - postgresql-data:/var/lib/postgresql/data
-    environment:
-      POSTGRES_DB: 'ocean'
-      POSTGRES_USER: 'ocean'
-      POSTGRES_PASSWORD: '$password'"
+    image=postgres:17 user=ocean url=postgresql://postgresql:5432/ocean
+    data=/var/lib/postgresql/data
+    env="POSTGRES_DB: 'ocean'
+POSTGRES_USER: 'ocean'
+POSTGRES_PASSWORD: '$password'"
   else
-    DB_LINES="DB_TYPE: 'elasticsearch'
-DB_URL: 'http://elasticsearch:9200'
-DB_USERNAME: 'elastic'
+    image=elasticsearch:8.5.1 user=elastic url=http://elasticsearch:9200
+    data=/usr/share/elasticsearch/data
+    env="ES_JAVA_OPTS: '-Xms512m -Xmx512m'
+discovery.type: 'single-node'
+ELASTIC_PASSWORD: '$password'
+xpack.security.enabled: 'true'
+xpack.security.http.ssl.enabled: 'false'"
+  fi
+  DB_LINES="DB_TYPE: '$NEW_DB'
+DB_URL: '$url'
+DB_USERNAME: '$user'
 DB_PASSWORD: '$password'"
-    SERVICE="  elasticsearch:
-    image: elasticsearch:8.5.1
-    container_name: elasticsearch
+  SERVICE="  $NEW_DB:
+    image: $image
+    container_name: $NEW_DB
     restart: on-failure
     networks:
       - ocean_network
     volumes:
-      - elasticsearch-data:/usr/share/elasticsearch/data
+      - $NEW_DB-data:$data
     environment:
-      ES_JAVA_OPTS: '-Xms512m -Xmx512m'
-      discovery.type: 'single-node'
-      ELASTIC_PASSWORD: '$password'
-      xpack.security.enabled: 'true'
-      xpack.security.http.ssl.enabled: 'false'"
-  fi
-  VOLUME="  $NEW_DB-data:
-    driver: local"
+$(echo "$env" | sed 's/^/      /')"
 }
 
 # Typesense out, the new database in: the DB_URL line, depends_on, the service and its volume
 replace_typesense() {
   keep_old || return 1
-  export DB_LINES SERVICE VOLUME
+  export DB_LINES SERVICE
   awk -v db="$NEW_DB" '
     function block(text, indent,   n, i, line) {
       n = split(text, line, "\n")
@@ -106,7 +83,7 @@ replace_typesense() {
     /^  typesense(-data)?: *$/ { skip = 1; next }
     skip && /^[^ ]|^  [^ ]/ { skip = 0 }
     skip { next }
-    /^volumes: *$/ { block(ENVIRON["SERVICE"], ""); print ""; print; block(ENVIRON["VOLUME"], ""); next }
+    /^volumes: *$/ { block(ENVIRON["SERVICE"], ""); print ""; print; print "  " db "-data:"; print "    driver: local"; next }
     { print }' "$OLD" > "$FILE"
 }
 
@@ -132,29 +109,22 @@ update_compose() {
     if docker volume inspect "$DB_DATA" >/dev/null 2>&1; then
       echo "Error: the volume $DB_DATA exists. It keeps a password that this script does not know."
       echo "If it holds no data that you need, remove it (docker volume rm $DB_DATA) and run this script again."
-      NEW_DB=''
       return 1
     fi
     database_parts
     replace_typesense
     return
   fi
-  if [ "$type" == "sqlite" ]; then
-    return 0
-  fi
-  if [ -z "$url" ]; then
+  if [ -z "$url" ] && [ "$type" != "sqlite" ]; then
     echo "Error: $FILE has no DB_URL. Run the quickstart, select 2 or 3, and then run this script again."
     return 1
   fi
-  # an Elasticsearch of version 5.1.0 (with no DB_TYPE, 5.1.0 used Elasticsearch) stays
-  if [ "$type" != "postgresql" ] && { [ -z "$(value DB_USERNAME)" ] || [ -z "$(value DB_PASSWORD)" ]; }; then
-    echo "Error: this release needs DB_USERNAME and DB_PASSWORD for Elasticsearch."
-    echo "Add them to the ocean-node service in $FILE, then run this script again."
-    return 1
-  fi
+  # without DB_TYPE, version 5.1.0 used Elasticsearch: the node keeps it
   if [ -z "$type" ]; then
-    DB_LINES="DB_TYPE: 'elasticsearch'"
-    add_lines '^ *DB_URL:'
+    keep_old && awk '!done && /^ *DB_URL:/ {
+      print; match($0, /^ */); print substr($0, 1, RLENGTH) "DB_TYPE: '\''elasticsearch'\''"
+      done = 1; next
+    } { print }' "$OLD" > "$FILE"
   fi
 }
 
@@ -190,9 +160,5 @@ trap 'echo "The node is stopped. Run this script again, or start the node withou
 $DC run --rm ocean-node $MIGRATE || exit 1
 
 trap - EXIT
-if [ -n "$NEW_DB" ]; then
-  # the Typesense container of the old file
-  $DC up -d --remove-orphans
-else
-  $DC up -d
-fi
+# --remove-orphans: the Typesense container of the old file
+$DC up -d ${NEW_DB:+--remove-orphans}

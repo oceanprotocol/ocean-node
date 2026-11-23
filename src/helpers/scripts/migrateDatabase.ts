@@ -40,7 +40,6 @@ interface Table {
   merges?: boolean
 }
 
-// the copied tables and their store groups
 const TABLES: Record<string, SqlStoreGroup> = {
   nonce: 'nonce',
   config: 'config',
@@ -54,8 +53,8 @@ const TABLES: Record<string, SqlStoreGroup> = {
 const STATE_FILES = [...new Set(Object.values(TABLES).map((group) => FILES[group]))]
 // the index version stays behind, so the node indexes the chains again
 const WHERE: Record<string, string> = { config: `WHERE "key" != 'version'` }
-// rows of one table written at the same time
-const WRITE_BATCH = 50
+// rows of one table read or written at the same time
+const BATCH = 50
 // the last release that kept all the node state in SQLite files; a newer release with
 // DB_TYPE=sqlite writes its own version there, and its state is not moved
 const LAST_SQLITE_RELEASE = '5.1.0'
@@ -101,9 +100,13 @@ function sourceVersion(dir: string): string | null {
   }
 }
 
-// the prerelease part is ignored: 5.1.0-next.1 is a 5.1.0
-const isSupportedVersion = (version: string | null) =>
-  !version || compareVersions(version.split('-')[0], LAST_SQLITE_RELEASE) <= 0
+// an Elasticsearch read or write waits for the next index refresh (1 s): the rows of a batch
+// wait once
+async function inBatches<T>(rows: T[], work: (row: T, i: number) => Promise<unknown>) {
+  for (let i = 0; i < rows.length; i += BATCH) {
+    await Promise.all(rows.slice(i, i + BATCH).map((row, j) => work(row, i + j)))
+  }
+}
 
 // one row per key, the one with the highest value
 function keepHighest<T>(rows: T[], key: (row: T) => unknown, value: (row: T) => number) {
@@ -225,13 +228,13 @@ async function stateTables(
   }
 }
 
-// pass 1: the rows that the target has already; one read at a time
+// pass 1: the rows that the target has already
 async function findExisting(tables: Record<string, Table>) {
   const found = new Map<string, boolean[]>()
   for (const [name, table] of Object.entries(tables)) {
-    const flags: boolean[] = []
-    for (const row of table.rows) {
-      flags.push(!table.merges && table.exists ? await table.exists(row) : false)
+    const flags = table.rows.map(() => false)
+    if (!table.merges && table.exists) {
+      await inBatches(table.rows, async (row, i) => (flags[i] = await table.exists(row)))
     }
     found.set(name, flags)
   }
@@ -252,8 +255,7 @@ async function askOverwrite(found: Map<string, boolean[]>, ask: Ask): Promise<bo
   return reply === 'o'
 }
 
-// pass 2: write each row, then check that it exists. An Elasticsearch write waits for the
-// next index refresh (1 s): the rows of a batch wait once
+// pass 2: write each row, then check that it exists
 async function copyTable(
   name: string,
   table: Table,
@@ -276,10 +278,7 @@ async function copyTable(
       entry.failed++
     }
   }
-  for (let i = 0; i < table.rows.length; i += WRITE_BATCH) {
-    const batch = table.rows.slice(i, i + WRITE_BATCH)
-    await Promise.all(batch.map((row, j) => copy(row, i + j)))
-  }
+  await inBatches(table.rows, copy)
   return entry
 }
 
@@ -341,7 +340,8 @@ function backup(): string {
 // the checks that stop the script before it connects; null when all pass
 function sourceProblem(counts: Record<string, number> | null, version: string | null) {
   if (!counts) return `No node state in ${SQLITE_DIR}/: check the volume of the node.`
-  if (!isSupportedVersion(version)) {
+  // the prerelease part is ignored: 5.1.0-next.1 is a 5.1.0
+  if (version && compareVersions(version.split('-')[0], LAST_SQLITE_RELEASE) > 0) {
     return (
       `The files in ${SQLITE_DIR}/ are from version ${version}. The script copies only the ` +
       `state of version ${LAST_SQLITE_RELEASE} or older.`
