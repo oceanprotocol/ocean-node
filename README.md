@@ -201,16 +201,20 @@ curl -fsSL https://raw.githubusercontent.com/oceanprotocol/ocean-node/feat/db-mi
 
 The script:
 
-1. Updates `docker-compose.yml` and keeps the old file in `docker-compose.yml.old`. With
-   Typesense, it asks for PostgreSQL or Elasticsearch and puts it in the place of Typesense.
-   With Elasticsearch, the node keeps it: this release needs `DB_USERNAME` and `DB_PASSWORD`
-   for it. For an Elasticsearch without security, any values work.
+1. Asks for the database: PostgreSQL or Elasticsearch. The new database takes the place of
+   the old one (Typesense, or Elasticsearch when you select PostgreSQL) in
+   `docker-compose.yml` (or `.yaml`), and in the `dbConfig` of `config.json` when the compose
+   file mounts it. The old files stay in `<file>.old`; the volume of the old database stays.
+   When the volume of the new database exists already, it asks to remove it. When you keep
+   Elasticsearch, the script protects it: an Elasticsearch without security gets security and
+   a new password for the user `elastic`, and restarts when the node stops. The node gets the
+   same user and password.
 2. Shows what it will copy and asks you to confirm. The node still runs.
 3. Stops the node, keeps a copy of the state files in the folder `backup-<time>` of the node
    volume (`node-sqlite`), and copies the state. If a row is in the target already, it asks
    you to skip, overwrite or cancel.
-4. Starts the node. When the copy fails, the node stays stopped and the script tells you how
-   to go back to the old node.
+4. Starts the node. When the copy fails, it puts back the old files and starts the node as
+   before the script. After a good copy the state files move to the backup folder.
 
 The indexed data is not copied: the node indexes the chains again. The script does not move
 the state of this release from one database to another.

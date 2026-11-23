@@ -1,8 +1,9 @@
 #!/bin/bash
 # Moves a node of version 5.1.0 or older to this release: copies its node state (the SQLite
 # files) to PostgreSQL or Elasticsearch, then starts the node. Run it in the folder of
-# docker-compose.yml (or .yaml). A file with Typesense gets PostgreSQL or Elasticsearch in its
-# place; a file with Elasticsearch keeps it. The file before a change stays in <file>.old.
+# docker-compose.yml (or .yaml). It asks for the database: PostgreSQL or Elasticsearch take the
+# place of the old one (Typesense or Elasticsearch) in the compose file, and in the dbConfig of
+# config.json. The files before a change stay in <file>.old.
 # The answers come from the terminal, so `curl -fsSL <url> | bash` works too.
 
 if docker compose version >/dev/null 2>&1; then DC="docker compose"; else DC="docker-compose"; fi
@@ -12,7 +13,10 @@ FILE=docker-compose.yml
 [ -f "$FILE" ] || FILE=docker-compose.yaml
 OLD=$FILE.old
 NEW_DB=''
+OLD_DB=''
 CHANGED=''
+CONFIG_CHANGED=''
+PROTECT_ES=''
 
 # the compose project: its name is the start of the volume names
 project() {
@@ -21,9 +25,10 @@ project() {
   echo "${name:-$(basename "$PWD" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-')}"
 }
 
-# the value of a key in docker-compose.yml, with or without quotes
+# the value of a key in docker-compose.yml, with or without quotes: `KEY: value` or `- KEY=value`
 value() {
-  sed -n "s/^ *$1: *['\"]\{0,1\}\([^'\"]*\)['\"]\{0,1\} *$/\1/p" "$FILE" | head -n 1
+  sed -n -e "s/^ *$1: *['\"]\{0,1\}\([^'\"]*\)['\"]\{0,1\} *$/\1/p" \
+    -e "s/^ *- *['\"]\{0,1\}$1=\([^'\"]*\)['\"]\{0,1\} *$/\1/p" "$FILE" | head -n 1
 }
 
 keep_old() {
@@ -31,102 +36,180 @@ keep_old() {
 }
 
 # the database, as ocean-node-quickstart.sh writes it: keep the two in step. It has no
-# published port: only the node can reach it.
+# published port: only the node can reach it. Its networks are those of the old database.
 database_parts() {
-  local password image user url data env
-  password=$(head -c 24 /dev/urandom | xxd -p | tr -d '\n')
+  local image data env
+  NEW_PASSWORD=$(head -c 24 /dev/urandom | xxd -p | tr -d '\n')
   if [ "$NEW_DB" == "postgresql" ]; then
-    image=postgres:17 user=ocean url=postgresql://postgresql:5432/ocean
+    image=postgres:17 NEW_USER=ocean NEW_URL=postgresql://postgresql:5432/ocean
     data=/var/lib/postgresql/data
     env="POSTGRES_DB: 'ocean'
 POSTGRES_USER: 'ocean'
-POSTGRES_PASSWORD: '$password'"
+POSTGRES_PASSWORD: '$NEW_PASSWORD'"
   else
-    image=elasticsearch:8.5.1 user=elastic url=http://elasticsearch:9200
+    image=elasticsearch:8.5.1 NEW_USER=elastic NEW_URL=http://elasticsearch:9200
     data=/usr/share/elasticsearch/data
     env="ES_JAVA_OPTS: '-Xms512m -Xmx512m'
 discovery.type: 'single-node'
-ELASTIC_PASSWORD: '$password'
+ELASTIC_PASSWORD: '$NEW_PASSWORD'
 xpack.security.enabled: 'true'
 xpack.security.http.ssl.enabled: 'false'"
   fi
   DB_LINES="DB_TYPE: '$NEW_DB'
-DB_URL: '$url'
-DB_USERNAME: '$user'
-DB_PASSWORD: '$password'"
+DB_URL: '$NEW_URL'
+DB_USERNAME: '$NEW_USER'
+DB_PASSWORD: '$NEW_PASSWORD'"
   SERVICE="  $NEW_DB:
     image: $image
     container_name: $NEW_DB
     restart: on-failure
-    networks:
-      - ocean_network
     volumes:
       - $NEW_DB-data:$data
     environment:
 $(echo "$env" | sed 's/^/      /')"
 }
 
-# Typesense out, the new database in: the DB_URL line, depends_on, the service and its volume
-replace_typesense() {
+# the old database service out, the new one in: the DB_* values of the node (after
+# PRIVATE_KEY), depends_on, the service with the networks of the old one, and its volume
+replace_db() {
   keep_old || return 1
   export DB_LINES SERVICE
-  awk -v db="$NEW_DB" '
+  awk -v old="$OLD_DB" -v db="$NEW_DB" '
     function block(text, indent,   n, i, line) {
       n = split(text, line, "\n")
       for (i = 1; i <= n; i++) print indent line[i]
     }
-    /^ *DB_URL:.*typesense/ { match($0, /^ */); block(ENVIRON["DB_LINES"], substr($0, 1, RLENGTH)); next }
-    /^ *DB_TYPE:.*typesense/ { next }
-    /^ *- typesense *$/ { sub(/typesense/, db); print; next }
-    # the next key ends the Typesense service; the new service takes its place
-    skip && /^[^ ]|^  [^ ]/ { skip = 0; print "" }
-    skip { next }
-    /^  typesense: *$/ { block(ENVIRON["SERVICE"], ""); skip = 1; next }
-    /^  typesense-data: *$/ { sub(/typesense/, db); print; next }
-    { print }' "$OLD" > "$FILE"
+    function new_service() { block(ENVIRON["SERVICE"], ""); printf "%s", nets; print ""; skip = 0 }
+    # the next key ends the old service
+    skip && /^[^ ]|^  [^ ]/ { new_service() }
+    skip && /^    networks:/ { in_nets = 1; nets = $0 "\n"; next }
+    skip && in_nets && /^      / { nets = nets $0 "\n"; next }
+    skip { in_nets = 0; next }
+    $0 ~ "^  " old ": *$" { skip = 1; next }
+    /^ *DB_(TYPE|URL|USERNAME|PASSWORD):/ { next }
+    /^ *PRIVATE_KEY:/ { print; match($0, /^ */); block(ENVIRON["DB_LINES"], substr($0, 1, RLENGTH)); next }
+    # depends_on, as a list or as a map
+    $0 ~ "^ *- " old " *$" || $0 ~ "^   +" old ": *$" { sub(old, db); print; next }
+    /^volumes: *$/ { print; print "  " db "-data:"; volumes = 1; next }
+    { print }
+    END {
+      if (skip) new_service()
+      if (!volumes) { print "volumes:"; print "  " db "-data:" }
+    }' "$OLD" > "$FILE"
+}
+
+# the dbConfig of config.json, when the compose file mounts it: the same values as the compose
+# file, which override it. $1: the database type; the url changes only when NEW_URL is set.
+update_config_json() {
+  [ -f config.json ] && grep -q 'config.json' "$FILE" && grep -q '"dbConfig"' config.json || return 0
+  if ! command -v python3 >/dev/null; then
+    echo "    config.json has a dbConfig: set it as in $FILE by hand. The compose file overrides it."
+    return 0
+  fi
+  cp config.json config.json.old && CONFIG_CHANGED=1
+  DB=$1 NEW_URL=$NEW_URL NEW_USER=$NEW_USER NEW_PASSWORD=$NEW_PASSWORD python3 -c '
+import json, os, re
+text = open("config.json").read()
+found = re.search(r"\n([ \t]+)\"", text)
+data = json.loads(text)
+db = {"dbType": os.environ["DB"], "username": os.environ["NEW_USER"],
+      "password": os.environ["NEW_PASSWORD"]}
+if os.environ["NEW_URL"]:
+    db["url"] = os.environ["NEW_URL"]
+data["dbConfig"] = {**data["dbConfig"], **db}
+# write in place: a container that mounts the file sees the change
+with open("config.json", "w") as file:
+    file.write(json.dumps(data, indent=found.group(1) if found else 2, ensure_ascii=False) + "\n")
+' || return 1
+  echo "    Changes in config.json (the old file is config.json.old):"
+  diff -u config.json.old config.json | sed -n '3,$p' | sed 's/^/    /'
+}
+
+# a database keeps the password of its first start: its volume must be new
+new_volume() {
+  local answer containers
+  DB_DATA="$(project)_$NEW_DB-data"
+  docker volume inspect "$DB_DATA" >/dev/null 2>&1 || return 0
+  echo "The volume $DB_DATA exists, from an earlier $NEW_DB. It keeps a password that this script does not know."
+  read -r -p "Remove this volume and all its data? [y/N]: " answer </dev/tty
+  [ "$answer" == "y" ] || { echo "Cancelled"; return 1; }
+  containers=$(docker ps -aq --filter volume="$DB_DATA")
+  if [ -n "$containers" ]; then
+    echo "    \$ docker rm -f $(echo $containers)"
+    docker rm -f $containers >/dev/null || return 1
+  fi
+  echo "    \$ docker volume rm $DB_DATA"
+  docker volume rm "$DB_DATA" >/dev/null
+}
+
+# Elasticsearch stays, protected: an open one gets security and a new password for the user
+# elastic, a protected one keeps its password. The node gets the same user and password, after
+# PRIVATE_KEY and in config.json. Elasticsearch restarts with security when the node stops.
+keep_elasticsearch() {
+  if ! grep -q '^  elasticsearch: *$' "$FILE" || ! grep -q '^ *PRIVATE_KEY:' "$FILE"; then
+    echo "Error: $FILE needs the service elasticsearch and a 'PRIVATE_KEY: <key>' line in the node environment."
+    return 1
+  fi
+  NEW_USER=elastic NEW_URL=''
+  NEW_PASSWORD=$(value ELASTIC_PASSWORD)
+  if [ "$(value xpack.security.enabled)" != "true" ] || [ -z "$NEW_PASSWORD" ]; then
+    NEW_PASSWORD=$(head -c 24 /dev/urandom | xxd -p | tr -d '\n')
+    PROTECT_ES=1
+  fi
+  keep_old || return 1
+  NEW_PASSWORD=$NEW_PASSWORD awk -v protect="$PROTECT_ES" '
+    BEGIN {
+      q = "\047"
+      security = "^ *-? *[\"\047]?(ELASTIC_PASSWORD|xpack[.]security[.](http[.]ssl[.])?enabled)[:=]"
+    }
+    # the security of Elasticsearch, as `KEY: value` lines or as `- KEY=value` lines
+    function security_lines(indent, list,   key, val, i) {
+      split("ELASTIC_PASSWORD xpack.security.enabled xpack.security.http.ssl.enabled", key, " ")
+      val[1] = ENVIRON["NEW_PASSWORD"]; val[2] = "true"; val[3] = "false"
+      for (i = 1; i <= 3; i++) print indent (list ? "- " key[i] "=" val[i] : key[i] ": " q val[i] q)
+      added = 1
+    }
+    # the next key ends the Elasticsearch service
+    in_es && /^[^ ]|^  [^ ]/ { if (!added) { print "    environment:"; security_lines("      ", 0) } in_es = 0 }
+    protect && /^  elasticsearch: *$/ { in_es = 1; print; next }
+    in_es && pending { match($0, /^ */); security_lines(substr($0, 1, RLENGTH), $0 ~ /^ *- /); pending = 0 }
+    in_es && /^    environment: *$/ { print; pending = 1; next }
+    in_es && $0 ~ security { next }
+    /^ *DB_(TYPE|USERNAME|PASSWORD):/ { next }
+    /^ *PRIVATE_KEY:/ {
+      print; match($0, /^ */); indent = substr($0, 1, RLENGTH)
+      print indent "DB_TYPE: " q "elasticsearch" q
+      print indent "DB_USERNAME: " q "elastic" q
+      print indent "DB_PASSWORD: " q ENVIRON["NEW_PASSWORD"] q
+      next
+    }
+    { print }
+    END { if (in_es && !added) { print "    environment:"; security_lines("      ", 0) } }' "$OLD" > "$FILE" &&
+    update_config_json elasticsearch
 }
 
 # docker-compose.yml for this release; 1 when the file cannot be changed
 update_compose() {
-  local type url
-  type=$(value DB_TYPE)
-  url=$(value DB_URL)
-  if [[ "$url" == *typesense* ]]; then
-    if ! grep -q '^  typesense: *$' "$FILE" || ! grep -q '^  typesense-data: *$' "$FILE"; then
-      echo "Error: $FILE has Typesense, but not as the quickstart of 5.1.0 writes it."
-      echo "Run the quickstart, select 2 or 3, and then run this script again."
-      return 1
-    fi
+  local choice
+  [ "$(value DB_TYPE)" == "sqlite" ] && return 0
+  if [[ "$(value DB_URL)" == *typesense* ]]; then
+    OLD_DB=typesense
     read -r -p "Database for the node: 2) PostgreSQL 3) Elasticsearch [2/3]: " choice </dev/tty
-    case "$choice" in
-      2) NEW_DB=postgresql ;;
-      3) NEW_DB=elasticsearch ;;
-      *) echo "Cancelled"; return 1 ;;
-    esac
-    # a database keeps the password of its first start: its volume must be new
-    DB_DATA="$(project)_$NEW_DB-data"
-    if docker volume inspect "$DB_DATA" >/dev/null 2>&1; then
-      echo "Error: the volume $DB_DATA exists. It keeps a password that this script does not know."
-      echo "If it holds no data that you need, remove it (docker volume rm $DB_DATA) and run this script again."
-      return 1
-    fi
-    database_parts
-    replace_typesense
-    return
+  else
+    OLD_DB=elasticsearch
+    read -r -p "The node uses Elasticsearch. Database for the node: 2) PostgreSQL 3) Elasticsearch (keep it) [2/3]: " choice </dev/tty
   fi
-  # The database is in DB_URL, or in the dbConfig of the node config file (config.json): the
-  # DB_* values of the compose file override those of the file. The check of the node, before
-  # the node stops, finds a missing database.
-  # Without DB_TYPE, version 5.1.0 used Elasticsearch: the node keeps it. Every node has a
-  # PRIVATE_KEY in the compose file.
-  if [ -z "$type" ]; then
-    local key=DB_URL
-    [ -n "$url" ] || key=PRIVATE_KEY
-    keep_old && awk -v key="$key" '!done && $0 ~ "^ *" key ":" {
-      print; match($0, /^ */); print substr($0, 1, RLENGTH) "DB_TYPE: '\''elasticsearch'\''"
-      done = 1; next
-    } { print }' "$OLD" > "$FILE"
+  case "$choice" in
+    2) NEW_DB=postgresql ;;
+    3) [ "$OLD_DB" == "elasticsearch" ] && { keep_elasticsearch; return; }
+       NEW_DB=elasticsearch ;;
+    *) echo "Cancelled"; return 1 ;;
+  esac
+  if ! grep -q "^  $OLD_DB: *\$" "$FILE" || ! grep -q '^ *PRIVATE_KEY:' "$FILE"; then
+    echo "Error: $FILE needs the service $OLD_DB and a 'PRIVATE_KEY: <key>' line in the node environment."
+    return 1
   fi
+  new_volume && database_parts && replace_db && update_config_json "$NEW_DB"
 }
 
 # a step: its number and what it does
@@ -153,6 +236,11 @@ restore() {
   fi
   cmd mv "$OLD" "$FILE"
   echo "    $FILE is as before the script."
+  if [ -n "$CONFIG_CHANGED" ]; then
+    # in place: a container that mounts the file sees it
+    cmd cp config.json.old config.json && rm config.json.old
+    echo "    config.json is as before the script."
+  fi
 }
 
 # after a failed copy: the compose file and the node as before the script. The copy does not
@@ -202,6 +290,9 @@ main() {
 
   # read-only checks; the node still runs. Exit 2: nothing to copy.
   step 3 "Checking the old state and the new database, read-only (the node still runs)"
+  if [ -n "$NEW_DB" ]; then
+    cmd $DC up -d "$NEW_DB" || { restore; exit 1; }
+  fi
   cmd $DC run --rm ocean-node $MIGRATE --check </dev/tty
   local code=$?
   if [ $code -ne 0 ]; then
@@ -213,6 +304,10 @@ main() {
   step 4 "Stopping the node"
   cmd $DC stop ocean-node || { restore; exit 1; }
   echo "    Done: the node is stopped"
+  if [ -n "$PROTECT_ES" ]; then
+    echo "    Elasticsearch starts again, with security and the new password:"
+    cmd $DC up -d elasticsearch || { restore; $DC up -d; exit 1; }
+  fi
   # a failed or stopped copy (also Ctrl-C) brings back the node as before the script
   trap revert EXIT
 
@@ -221,10 +316,13 @@ main() {
   echo "    Done"
 
   trap - EXIT
-  # --remove-orphans: the Typesense container of the old file
+  # --remove-orphans: the container of the old database
   step 6 "Starting the node"
   cmd $DC up -d ${NEW_DB:+--remove-orphans}
   echo "    Done: see the node log with: $DC logs -f ocean-node"
+  if [ -n "$NEW_DB" ]; then
+    echo "    The volume of $OLD_DB stays. When you do not need it: docker volume ls, docker volume rm <name>"
+  fi
 }
 
 main "$@"
