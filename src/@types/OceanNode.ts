@@ -222,7 +222,7 @@ export interface OceanNodeConfig {
   isBootstrap?: boolean
   validateUnsignedDDO?: boolean
   jwtSecret?: string
-  // keys per-instance state (node metrics); getInstanceId() falls back to os.hostname()
+  // keys per-instance state (node metrics); getInstanceId() falls back to the peer id
   instanceId?: string
   httpCertPath?: string
   httpKeyPath?: string
