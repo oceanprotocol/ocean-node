@@ -55,6 +55,7 @@ const STATE_FILES = [...new Set(Object.values(TABLES).map((group) => FILES[group
 const WHERE: Record<string, string> = { config: `WHERE "key" != 'version'` }
 // rows of one table read or written at the same time
 const BATCH = 50
+const MAX_NONCE = Number.MAX_SAFE_INTEGER
 // the last release that kept all the node state in SQLite files; a newer release with
 // DB_TYPE=sqlite writes its own version there, and its state is not moved
 const LAST_SQLITE_RELEASE = '5.1.0'
@@ -142,6 +143,12 @@ async function stateTables(
     (n) => n.id,
     (n) => n.nonce
   )
+  // SQLite kept any number; the server databases keep 64-bit integers. The highest number
+  // that they and JS keep exactly still refuses every lower nonce.
+  for (const n of nonces.filter((n) => n.nonce > MAX_NONCE)) {
+    console.log(`The nonce of ${n.id} (${n.nonce}) is too high: it becomes ${MAX_NONCE}`)
+    n.nonce = MAX_NONCE
+  }
   // a SQLite node can hold one row per instance id for an hour; all go to one instance id
   const hours = keepHighest(
     await select('node_metrics_hourly'),

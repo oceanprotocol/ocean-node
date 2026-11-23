@@ -129,15 +129,44 @@ update_compose() {
   fi
 }
 
+# a step: its number and what it does
+step() {
+  echo
+  echo "==> [$1/6] $2"
+}
+
+# a command: shown before it runs
+cmd() {
+  echo "    \$ $*"
+  "$@"
+}
+
 # the file before the change, and no container or volume of a database that was added
 restore() {
   [ -n "$CHANGED" ] || return
+  echo "==> Putting back $FILE and removing what the script added"
   if [ -n "$NEW_DB" ]; then
+    echo "    \$ $DC rm -s -f $NEW_DB"
     $DC rm -s -f "$NEW_DB" >/dev/null 2>&1
+    echo "    \$ docker volume rm $DB_DATA"
     docker volume rm "$DB_DATA" >/dev/null 2>&1
   fi
-  mv "$OLD" "$FILE"
-  echo "$FILE is as before the script."
+  cmd mv "$OLD" "$FILE"
+  echo "    $FILE is as before the script."
+}
+
+# after a failed copy: the compose file and the node as before the script. The copy does not
+# change the SQLite files.
+revert() {
+  echo
+  echo "==> The copy failed: going back to the node as before the script"
+  restore
+  cmd $DC up -d
+  echo "    The node runs as before the script, on the same state files."
+  if [ -z "$NEW_DB" ]; then
+    echo "    Rows that were copied stay in the database: when you run this script again, it"
+    echo "    asks you to skip or overwrite them."
+  fi
 }
 
 # all of the work: with `curl | bash`, nothing runs before the whole script is read
@@ -151,29 +180,51 @@ main() {
     exit 1
   fi
 
+  step 1 "Updating $FILE for this release (the node still runs)"
   update_compose || { restore; exit 1; }
-  if [ -n "$CHANGED" ] && ! $DC config -q; then
+  if [ -n "$CHANGED" ]; then
+    echo "    Changes (the old file is $OLD):"
+    diff -u "$OLD" "$FILE" | sed -n '3,$p' | sed 's/^/    /'
+  else
+    echo "    No change"
+  fi
+
+  step 2 "Checking the changed $FILE"
+  if [ -z "$CHANGED" ]; then
+    echo "    No change to check"
+  elif cmd $DC config -q; then
+    echo "    Done: the file is valid"
+  else
     echo "Error: the changed $FILE is not valid."
     restore
     exit 1
   fi
 
   # read-only checks; the node still runs. Exit 2: nothing to copy.
-  $DC run --rm ocean-node $MIGRATE --check </dev/tty
+  step 3 "Checking the old state and the new database, read-only (the node still runs)"
+  cmd $DC run --rm ocean-node $MIGRATE --check </dev/tty
   local code=$?
   if [ $code -ne 0 ]; then
     restore
     exit $code
   fi
+  echo "    Done"
 
-  $DC stop ocean-node || exit 1
-  trap 'echo "The node is stopped. Run this script again, or start the node without the copy: $DC up -d"; [ -f "$OLD" ] && echo "To go back to the old node: mv $OLD $FILE && $DC up -d"' EXIT
+  step 4 "Stopping the node"
+  cmd $DC stop ocean-node || { restore; exit 1; }
+  echo "    Done: the node is stopped"
+  # a failed or stopped copy (also Ctrl-C) brings back the node as before the script
+  trap revert EXIT
 
-  $DC run --rm ocean-node $MIGRATE </dev/tty || exit 1
+  step 5 "Backing up the state files and copying the state to the new database"
+  cmd $DC run --rm ocean-node $MIGRATE </dev/tty || exit 1
+  echo "    Done"
 
   trap - EXIT
   # --remove-orphans: the Typesense container of the old file
-  $DC up -d ${NEW_DB:+--remove-orphans}
+  step 6 "Starting the node"
+  cmd $DC up -d ${NEW_DB:+--remove-orphans}
+  echo "    Done: see the node log with: $DC logs -f ocean-node"
 }
 
 main "$@"
