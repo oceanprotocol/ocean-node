@@ -8,11 +8,11 @@ import { parseBody } from './SqlCompute.js'
 import { SqlStoreGroup, buildSqlStores } from './SqlStores.js'
 import { SqliteClient } from './SqliteClient.js'
 
-const SQLITE_DIR = 'databases'
+export const SQLITE_DIR = 'databases'
 
 // The file of each store group. They are the files of the releases before the pluggable
 // database, so a node that updates keeps its state.
-const FILES: Record<SqlStoreGroup, string> = {
+export const FILES: Record<SqlStoreGroup, string> = {
   nonce: 'nonceDatabase.sqlite',
   config: 'config.sqlite',
   c2d: 'c2dDatabase.sqlite',

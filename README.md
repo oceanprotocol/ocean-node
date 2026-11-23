@@ -184,9 +184,35 @@ The node keeps all its data in one database, selected with `DB_TYPE`:
   each: [`postgresql-compose.yml`](postgresql-compose.yml) and
   [`elasticsearch-compose.yml`](elasticsearch-compose.yml).
 
-With no `DB_TYPE` the node does not start: it does not get the type from `DB_URL`. The node
-state does not move between databases: a node that changes to a database server starts with
-empty node state. See "Upgrade" in the [Database guide](docs/database.md).
+With no `DB_TYPE` the node does not start: it does not get the type from `DB_URL`. See
+"Upgrade" in the [Database guide](docs/database.md).
+
+### Move a node of version 5.1.0 or older to this release
+
+Version 5.1.0 and older keep the node state (nonces, compute jobs, auth tokens, buckets,
+metrics history) in the SQLite files of `databases/`, and the DDO index in Typesense or
+Elasticsearch. To move such a node, run this in the folder of its `docker-compose.yml`:
+
+```bash
+curl -O https://raw.githubusercontent.com/oceanprotocol/ocean-node/main/scripts/ocean-node-migrate-db.sh
+bash ocean-node-migrate-db.sh
+```
+
+The script:
+
+1. Updates `docker-compose.yml` and keeps the old file in `docker-compose.yml.old`. With
+   Typesense, it asks for PostgreSQL or Elasticsearch and puts it in the place of Typesense.
+   With Elasticsearch, the node keeps it: this release needs `DB_USERNAME` and `DB_PASSWORD`
+   for it.
+2. Shows what it will copy and asks you to confirm. The node still runs.
+3. Stops the node, keeps a copy of the state files in the folder `backup-<time>` of the node
+   volume (`node-sqlite`), and copies the state. If a row is in the target already, it asks
+   you to skip, overwrite or cancel.
+4. Starts the node. When the copy fails, the node stays stopped and the script tells you how
+   to go back to the old node.
+
+The indexed data is not copied: the node indexes the chains again. The script does not move
+the state of this release from one database to another.
 
 DDO search is the same on all three: a typed query (filters, sort key, page) that each
 database runs with its own fixed queries. See "DDO search" in the

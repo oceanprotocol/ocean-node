@@ -29,7 +29,9 @@ const HOURLY_INDEX = stateSchemas.metricsHourly.index
 type SampleDoc = SampleRow & { instanceId: string }
 type HourlyDoc = HourlyRow & { instanceId: string }
 
-// samples: auto id; hourly rows: id = `${instanceId}:${hourStart}`
+const hourlyId = (instanceId: string, hourStart: number) => `${instanceId}:${hourStart}`
+
+// samples: auto id; hourly rows: id = hourlyId
 export class ElasticsearchNodeMetrics implements NodeMetricsProvider {
   private constructor(private config: OceanNodeDBConfig) {}
 
@@ -82,7 +84,7 @@ export class ElasticsearchNodeMetrics implements NodeMetricsProvider {
     try {
       await client.index({
         index: HOURLY_INDEX,
-        id: `${instanceId}:${hourStart}`,
+        id: hourlyId(instanceId, hourStart),
         document,
         op_type: 'create',
         refresh: 'wait_for'
@@ -95,6 +97,17 @@ export class ElasticsearchNodeMetrics implements NodeMetricsProvider {
       ids: { values: hits.map((hit) => hit._id) }
     })
     return written
+  }
+
+  async insertHourly(instanceId: string, row: HourlyRow): Promise<void> {
+    const client = await this.client()
+    const document: HourlyDoc = { instanceId, ...row }
+    await client.index({
+      index: HOURLY_INDEX,
+      id: hourlyId(instanceId, row.hourStart),
+      document,
+      refresh: 'wait_for'
+    })
   }
 
   async getPartialHour(

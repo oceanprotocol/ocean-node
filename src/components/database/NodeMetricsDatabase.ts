@@ -1,4 +1,5 @@
 import type { NodeMetricsHourly, NodeMetricsSnapshot } from '../../@types/nodeMetrics.js'
+import type { HourlyRow } from './nodeMetricsAggregate.js'
 
 // per-instance node metrics history: raw minute samples rolled up into hourly buckets.
 // HA instances share one peer id, so every call is keyed by the instance id.
@@ -8,6 +9,8 @@ export interface NodeMetricsProvider {
   getPendingSampleHours(instanceId: string, beforeHour: number): Promise<number[]>
   // averages the hour's samples into one hourly row, then deletes them; false when none
   rollupHour(instanceId: string, hourStart: number): Promise<boolean>
+  // writes a stored hourly row (the migration of an older node); replaces that hour
+  insertHourly(instanceId: string, row: HourlyRow): Promise<void>
   // live, unstored average of an unrolled hour flagged partial; null when no samples
   getPartialHour(instanceId: string, hourStart: number): Promise<NodeMetricsHourly | null>
   // returns the number of samples deleted

@@ -48,6 +48,15 @@ const METRIC_COLUMNS_SQL = [
   `"env" TEXT DEFAULT '[]'`
 ].join(', ')
 
+// the one hourly row of an instance for that hour; it also replaces a row with no instance id
+async function replaceHourly(tx: SqlClient, instanceId: string, row: HourlyRow) {
+  await tx.run(`DELETE FROM ${HOURLY} WHERE ${OF_INSTANCE} AND "hourStart" = ?`, [
+    instanceId,
+    row.hourStart
+  ])
+  await insertRow(tx, HOURLY, { instanceId, ...row })
+}
+
 // Node metrics history: one sample per minute, averaged into one row per hour.
 // Several instances can share the database, so each row has the id of its instance.
 export class SqlNodeMetrics implements NodeMetricsProvider {
@@ -92,13 +101,13 @@ export class SqlNodeMetrics implements NodeMetricsProvider {
         [...hour, hourStart + HOUR_MS]
       )
       if (samples.length === 0) return false
-      await tx.run(`DELETE FROM ${HOURLY} WHERE ${OF_INSTANCE} AND "hourStart" = ?`, hour)
-      await insertRow(tx, HOURLY, {
-        instanceId,
-        ...hourlyToRow(aggregateRows(samples, hourStart))
-      })
+      await replaceHourly(tx, instanceId, hourlyToRow(aggregateRows(samples, hourStart)))
       return true
     })
+  }
+
+  insertHourly(instanceId: string, row: HourlyRow): Promise<void> {
+    return this.db.transaction((tx) => replaceHourly(tx, instanceId, row))
   }
 
   async getPartialHour(
