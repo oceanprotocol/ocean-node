@@ -114,16 +114,14 @@ update_compose() {
     replace_typesense
     return
   fi
-  # the database is in DB_URL, or in the dbConfig of the file in CONFIG_PATH: the DB_* values
-  # of the compose file override those of the file
-  local key=DB_URL
-  [ -n "$url" ] || key=CONFIG_PATH
-  if [ -z "$(value $key)" ] && [ "$type" != "sqlite" ]; then
-    echo "Error: $FILE has no DB_URL and no CONFIG_PATH. Run the quickstart, select 2 or 3, and then run this script again."
-    return 1
-  fi
-  # without DB_TYPE, version 5.1.0 used Elasticsearch: the node keeps it
+  # The database is in DB_URL, or in the dbConfig of the node config file (config.json): the
+  # DB_* values of the compose file override those of the file. The check of the node, before
+  # the node stops, finds a missing database.
+  # Without DB_TYPE, version 5.1.0 used Elasticsearch: the node keeps it. Every node has a
+  # PRIVATE_KEY in the compose file.
   if [ -z "$type" ]; then
+    local key=DB_URL
+    [ -n "$url" ] || key=PRIVATE_KEY
     keep_old && awk -v key="$key" '!done && $0 ~ "^ *" key ":" {
       print; match($0, /^ */); print substr($0, 1, RLENGTH) "DB_TYPE: '\''elasticsearch'\''"
       done = 1; next
