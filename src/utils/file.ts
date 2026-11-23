@@ -1,12 +1,11 @@
 import { StorageObject, EncryptMethod } from '../@types/fileObject.js'
 import { OceanNode } from '../OceanNode.js'
 import { FindDdoHandler } from '../components/core/handler/ddoHandler.js'
-import { AssetUtils } from './asset.js'
 import { CORE_LOGGER } from './logging/common.js'
 import { errorSummary } from './logging/redact.js'
 import { sanitizeServiceFiles } from './util.js'
 import { isOrderingAllowedForAsset } from '../components/core/handler/downloadHandler.js'
-import { DDO, Service } from '@oceanprotocol/ddo-js'
+import { DDO, DDOManager, Service } from '@oceanprotocol/ddo-js'
 
 export async function getFile(
   didOrDdo: string | DDO,
@@ -26,7 +25,7 @@ export async function getFile(
     }
 
     // 2. Get the service
-    const service: Service = AssetUtils.getServiceById(ddo, serviceId)
+    const service = DDOManager.getDDOClass(ddo).getService(serviceId) as Service
     if (!service) {
       throw new Error(`Service with id ${serviceId} not found`)
     }

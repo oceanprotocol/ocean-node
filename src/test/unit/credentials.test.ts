@@ -201,6 +201,98 @@ describe('credentials', () => {
     expect(accessGranted).to.equal(true)
   })
 
+  // The Ocean Enterprise market writes address entries as { address } objects (DDO v5 shape;
+  // the v4 Credentials type only allows strings, hence the casts)
+  it('should allow access with address in allow list as { address } object', async () => {
+    const credentials = {
+      allow: [
+        {
+          type: CREDENTIALS_TYPES.ADDRESS,
+          values: [{ address: '0xABC' }]
+        }
+      ]
+    } as unknown as Credentials
+    const accessGranted = await checkCredentials('0xabc', credentials, signer)
+    expect(accessGranted).to.equal(true)
+  })
+
+  it('should deny access with address in deny list as { address } object', async () => {
+    const credentials = {
+      deny: [
+        {
+          type: CREDENTIALS_TYPES.ADDRESS,
+          values: [{ address: '0x123' }]
+        }
+      ]
+    } as unknown as Credentials
+    const accessGranted = await checkCredentials('0x123', credentials, signer)
+    expect(accessGranted).to.equal(false)
+  })
+
+  it('should read lists mixing plain strings and { address } objects', async () => {
+    const credentials = {
+      allow: [
+        {
+          type: CREDENTIALS_TYPES.ADDRESS,
+          values: ['0x456', { address: '0x123' }]
+        }
+      ],
+      deny: [
+        {
+          type: CREDENTIALS_TYPES.ADDRESS,
+          values: [{ address: '0x789' }, '0x999']
+        }
+      ]
+    } as unknown as Credentials
+    expect(await checkCredentials('0x123', credentials, signer)).to.equal(true)
+    expect(await checkCredentials('0x456', credentials, signer)).to.equal(true)
+    expect(await checkCredentials('0x789', credentials, signer)).to.equal(false)
+    expect(await checkCredentials('0x999', credentials, signer)).to.equal(false)
+  })
+
+  it('should treat malformed rules (null or missing type) as unknown, not crash', async () => {
+    // allow + match_allow 'all': an unknown rule denies
+    const allowAll = {
+      allow: [{ type: CREDENTIALS_TYPES.ADDRESS, values: ['0x123'] }, null]
+    } as unknown as Credentials
+    expect(await checkCredentials('0x123', allowAll, signer)).to.equal(false)
+
+    // allow + match_allow 'any': the unknown rule is skipped, the valid one still matches
+    const allowAny = {
+      match_allow: 'any',
+      allow: [
+        { values: ['0x123'] },
+        { type: CREDENTIALS_TYPES.ADDRESS, values: ['0x123'] }
+      ]
+    } as unknown as Credentials
+    expect(await checkCredentials('0x123', allowAny, signer)).to.equal(true)
+
+    // deny: unknown rules are ignored, as for any other unknown type
+    const deny = {
+      deny: [{ values: ['0x123'] }, null]
+    } as unknown as Credentials
+    expect(await checkCredentials('0x123', deny, signer)).to.equal(true)
+  })
+
+  it('should deny malformed credentials instead of allowing them', async () => {
+    // credentials that are not a plain object cannot carry allow/deny lists
+    const asArray = [
+      { type: CREDENTIALS_TYPES.ADDRESS, values: ['0x123'] }
+    ] as unknown as Credentials
+    expect(await checkCredentials('0x123', asArray, signer)).to.equal(false)
+
+    // an allow or deny list that is set but is not an array
+    const nullAllow = { allow: null } as unknown as Credentials
+    expect(await checkCredentials('0x123', nullAllow, signer)).to.equal(false)
+    const objectDeny = {
+      deny: { type: CREDENTIALS_TYPES.ADDRESS, values: ['0x456'] }
+    } as unknown as Credentials
+    expect(await checkCredentials('0x123', objectDeny, signer)).to.equal(false)
+
+    // absent lists are still no restriction
+    expect(await checkCredentials('0x123', {} as Credentials, signer)).to.equal(true)
+  })
+
   after(async () => {
     await tearDownEnvironment(envOverrides)
   })

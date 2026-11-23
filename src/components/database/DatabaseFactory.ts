@@ -51,11 +51,14 @@ export class DatabaseFactory {
   }
 
   // a cheap check before createStores; a backend with no such check reports its failed
-  // connection from createStores
-  static async isReachable(config: OceanNodeDBConfig): Promise<boolean> {
+  // connection from createStores. The signal lets a stopping indexer cancel a probe that hangs.
+  static async isReachable(
+    config: OceanNodeDBConfig,
+    signal?: AbortSignal
+  ): Promise<boolean> {
     if (config.dbType !== 'elasticsearch') return true
     try {
-      await fetch(config.url)
+      await fetch(config.url, signal ? { signal } : undefined)
       return true
     } catch {
       return false
