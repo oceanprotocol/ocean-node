@@ -646,7 +646,9 @@ describe('Should validate SUBSIDY_PROVIDER_FILTER configuration', () => {
 })
 
 describe('Should resolve the instance id', () => {
-  async function instanceIdWith(instanceId?: string): Promise<string> {
+  async function instanceIdWith(
+    instanceId?: string
+  ): Promise<{ id: string; peerId: string }> {
     const envVars: EnvVariable[] = []
     const envValues: string[] = []
     if (instanceId !== undefined) {
@@ -668,18 +670,20 @@ describe('Should resolve the instance id', () => {
         null,
         true
       )
-      return node.getInstanceId()
+      return { id: node.getInstanceId(), peerId: keyManager.getPeerIdString() }
     } finally {
       await tearDownEnvironment(overrides)
     }
   }
 
-  it('should use the hostname when INSTANCE_ID is not set', async () => {
-    expect(await instanceIdWith()).to.be.equal(os.hostname())
+  // the hostname of a container changes when the container is made again
+  it('should use the peer id when INSTANCE_ID is not set', async () => {
+    const { id, peerId } = await instanceIdWith()
+    expect(id).to.be.equal(peerId)
   })
 
   it('should use INSTANCE_ID when it is set', async () => {
-    expect(await instanceIdWith('node-a')).to.be.equal('node-a')
+    expect((await instanceIdWith('node-a')).id).to.be.equal('node-a')
   })
 
   after(() => {

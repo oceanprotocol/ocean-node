@@ -82,7 +82,10 @@ export class OceanNode {
     this.requestMap = new Map<string, RequestLimiter>()
     this.config = config
     this.database = db
-    this.instanceId = this.config?.instanceId || os.hostname()
+    // the peer id stays when a container is made again; nodes that share one key (HA)
+    // set INSTANCE_ID each
+    this.instanceId =
+      this.config?.instanceId || keyManager?.getPeerIdString() || os.hostname()
 
     if (this.db?.authToken) {
       this.auth = new Auth(this.db.authToken, config)

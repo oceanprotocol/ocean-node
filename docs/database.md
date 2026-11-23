@@ -203,12 +203,11 @@ invalidated tokens.
 
 ## Node metrics history
 
-Node metrics history is kept per instance. Instances that share one `PRIVATE_KEY` share one peer id, so the node
-keys its metrics by `INSTANCE_ID`, or by the hostname when `INSTANCE_ID` is not set. A history
-request answers from the instance that receives it. In containers the hostname changes on
-redeploy, so container deployments set `INSTANCE_ID` (see [env.md](env.md)). Retention
-runs per instance id, so the node never sweeps the rows of a retired `INSTANCE_ID`: set
-`INSTANCE_ID` to a stable value.
+Node metrics history is kept per instance. The node keys its metrics by `INSTANCE_ID`, or by
+its peer id when `INSTANCE_ID` is not set. A history request answers from the instance that
+receives it. Instances that share one `PRIVATE_KEY` (HA) share one peer id, so each of them
+sets its own `INSTANCE_ID` (see [env.md](env.md)). Retention runs per instance id, so the node
+never sweeps the rows of a retired `INSTANCE_ID`: keep it stable.
 
 ## Runtime metrics on C2D job records
 

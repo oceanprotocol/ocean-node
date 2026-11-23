@@ -213,7 +213,7 @@ Powers the `getNodeMetrics` (live snapshot) and `getNodeMetricsHistory` (hourly 
 - `NODE_METRICS_HISTORY_ENABLED`: Enable/disable the node-metrics history sampler + roll-up + retention cron jobs. Defaults to enabled whenever a database is available. Set to `false` (also accepts `0`/`no`) to turn the history layer off; the live `getNodeMetrics` command is unaffected. Example: `true`
 - `NODE_METRICS_SAMPLE_CRON`: Cron expression for the minute sampler. Defaults to `* * * * *` (every minute). Example: `* * * * *`
 - `NODE_METRICS_RETENTION_DAYS`: How many days of hourly rows to keep before the daily retention sweep deletes them. Also clamps the range `getNodeMetricsHistory` will return. Defaults to `180` (~6 months). Example: `180`
-- `INSTANCE_ID`: Identifies this node instance in the metrics history. Instances that share one `PRIVATE_KEY` share one peer id, so each instance keeps its own metrics under this id. Defaults to the hostname (`os.hostname()`). In containers the hostname changes on every redeploy, which splits the history into fragments, so container deployments must set `INSTANCE_ID` to a fixed value. Example: `node-1`
+- `INSTANCE_ID`: Identifies this node instance in the metrics history. Defaults to the peer id, which does not change when a container is made again. Instances that share one `PRIVATE_KEY` (HA) share one peer id: set a different `INSTANCE_ID` on each of them. Example: `node-1`
 
 ## Compute
 
