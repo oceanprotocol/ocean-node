@@ -87,7 +87,7 @@
     "@opentelemetry/resources": "^2.12.0",
     "@opentelemetry/sdk-metrics": "^2.12.0",
     "@opentelemetry/sdk-node": "^0.221.0",
-    "@opentelemetry/semantic-conventions": "^1.43.0",
+    "@opentelemetry/semantic-conventions": "^1.45.0",
     "base58-js": "^3.0.3",
     "basic-ftp": "^6.2.2",
     "cors": "^2.8.6",
