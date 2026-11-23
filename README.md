@@ -195,6 +195,8 @@ Elasticsearch. To move such a node, run this in the folder of its `docker-compos
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/oceanprotocol/ocean-node/main/scripts/ocean-node-migrate-db.sh | bash
+# TODO: remove once merged. Until then, the script is only on this branch:
+curl -fsSL https://raw.githubusercontent.com/oceanprotocol/ocean-node/feat/db-migration/scripts/ocean-node-migrate-db.sh | bash
 ```
 
 The script:
