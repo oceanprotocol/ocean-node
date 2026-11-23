@@ -61,7 +61,7 @@
     "@libp2p/bootstrap": "^12.0.36",
     "@libp2p/circuit-relay-v2": "^4.2.17",
     "@libp2p/crypto": "^5.1.24",
-    "@libp2p/dcutr": "^3.0.28",
+    "@libp2p/dcutr": "^3.0.32",
     "@libp2p/http": "^2.0.6",
     "@libp2p/identify": "^4.1.14",
     "@libp2p/kad-dht": "^16.4.9",
