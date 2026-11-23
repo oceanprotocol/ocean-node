@@ -3,6 +3,7 @@
 # files) to PostgreSQL or Elasticsearch, then starts the node. Run it in the folder of
 # docker-compose.yml. A file with Typesense gets PostgreSQL or Elasticsearch in its place; a
 # file with Elasticsearch keeps it. The file before a change stays in docker-compose.yml.old.
+# The answers come from the terminal, so `curl -fsSL <url> | bash` works too.
 
 if docker compose version >/dev/null 2>&1; then DC="docker compose"; else DC="docker-compose"; fi
 MIGRATE="node dist/helpers/scripts/migrateDatabase.js"
@@ -10,11 +11,6 @@ FILE=docker-compose.yml
 OLD=docker-compose.yml.old
 NEW_DB=''
 CHANGED=''
-
-if [ ! -f "$FILE" ]; then
-  echo "Error: $FILE not found in the current directory"
-  exit 1
-fi
 
 # the compose project: its name is the start of the volume names
 project() {
@@ -98,7 +94,7 @@ update_compose() {
       echo "Run the quickstart, select 2 or 3, and then run this script again."
       return 1
     fi
-    read -r -p "Database for the node: 2) PostgreSQL 3) Elasticsearch [2/3]: " choice
+    read -r -p "Database for the node: 2) PostgreSQL 3) Elasticsearch [2/3]: " choice </dev/tty
     case "$choice" in
       2) NEW_DB=postgresql ;;
       3) NEW_DB=elasticsearch ;;
@@ -139,26 +135,40 @@ restore() {
   echo "$FILE is as before the script."
 }
 
-update_compose || { restore; exit 1; }
-if [ -n "$CHANGED" ] && ! $DC config -q; then
-  echo "Error: the changed $FILE is not valid."
-  restore
-  exit 1
-fi
+# all of the work: with `curl | bash`, nothing runs before the whole script is read
+main() {
+  if [ ! -f "$FILE" ]; then
+    echo "Error: $FILE not found in the current directory"
+    exit 1
+  fi
+  if ! { : </dev/tty; } 2>/dev/null; then
+    echo "Error: the script asks questions: run it in a terminal"
+    exit 1
+  fi
 
-# read-only checks; the node still runs. Exit 2: nothing to copy.
-$DC run --rm ocean-node $MIGRATE --check
-code=$?
-if [ $code -ne 0 ]; then
-  restore
-  exit $code
-fi
+  update_compose || { restore; exit 1; }
+  if [ -n "$CHANGED" ] && ! $DC config -q; then
+    echo "Error: the changed $FILE is not valid."
+    restore
+    exit 1
+  fi
 
-$DC stop ocean-node || exit 1
-trap 'echo "The node is stopped. Run this script again, or start the node without the copy: $DC up -d"; [ -f "$OLD" ] && echo "To go back to the old node: mv $OLD $FILE && $DC up -d"' EXIT
+  # read-only checks; the node still runs. Exit 2: nothing to copy.
+  $DC run --rm ocean-node $MIGRATE --check </dev/tty
+  local code=$?
+  if [ $code -ne 0 ]; then
+    restore
+    exit $code
+  fi
 
-$DC run --rm ocean-node $MIGRATE || exit 1
+  $DC stop ocean-node || exit 1
+  trap 'echo "The node is stopped. Run this script again, or start the node without the copy: $DC up -d"; [ -f "$OLD" ] && echo "To go back to the old node: mv $OLD $FILE && $DC up -d"' EXIT
 
-trap - EXIT
-# --remove-orphans: the Typesense container of the old file
-$DC up -d ${NEW_DB:+--remove-orphans}
+  $DC run --rm ocean-node $MIGRATE </dev/tty || exit 1
+
+  trap - EXIT
+  # --remove-orphans: the Typesense container of the old file
+  $DC up -d ${NEW_DB:+--remove-orphans}
+}
+
+main "$@"

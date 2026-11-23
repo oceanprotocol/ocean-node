@@ -194,8 +194,7 @@ metrics history) in the SQLite files of `databases/`, and the DDO index in Types
 Elasticsearch. To move such a node, run this in the folder of its `docker-compose.yml`:
 
 ```bash
-curl -O https://raw.githubusercontent.com/oceanprotocol/ocean-node/main/scripts/ocean-node-migrate-db.sh
-bash ocean-node-migrate-db.sh
+curl -fsSL https://raw.githubusercontent.com/oceanprotocol/ocean-node/main/scripts/ocean-node-migrate-db.sh | bash
 ```
 
 The script:

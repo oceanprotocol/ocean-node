@@ -892,9 +892,8 @@ if [ -n "$PREVIOUS_DB_TYPE" ] && [ "$PREVIOUS_DB_TYPE" != "$DB_TYPE" ]; then
   if [ "$PREVIOUS_DB_TYPE" != "sqlite" ]; then
     echo -e "That volume opens only with the password of its first start: DB_PASSWORD in docker-compose.yml. A run with SQLite does not keep it. To select $PREVIOUS_DB_TYPE again later, keep a copy of the password. If you remove the volume, its node state is deleted: back it up first."
   else
-    echo -e "If the node ran version 5.1.0 or older, you can copy its node state to $DB_TYPE: run these commands instead of step 2. The script stops the node, copies the state and starts the node:"
-    echo -e "\e[1;32mcurl -O https://raw.githubusercontent.com/oceanprotocol/ocean-node/main/scripts/ocean-node-migrate-db.sh\e[0m"
-    echo -e "\e[1;32mbash ocean-node-migrate-db.sh\e[0m"
+    echo -e "If the node ran version 5.1.0 or older, you can copy its node state to $DB_TYPE: run this command instead of step 2. The script stops the node, copies the state and starts the node:"
+    echo -e "\e[1;32mcurl -fsSL https://raw.githubusercontent.com/oceanprotocol/ocean-node/main/scripts/ocean-node-migrate-db.sh | bash\e[0m"
     echo -e "Without the copy, the node starts with empty node state on $DB_TYPE: with no nonces, a signed request that the node accepted before can be accepted again, and the paid jobs in the SQLite files are not claimed. Keep the Docker volume \e[1;31mnode-sqlite\e[0m: it holds the SQLite files and the P2P identity store (p2p-store)."
   fi
   echo ""
