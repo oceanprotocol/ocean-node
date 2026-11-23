@@ -88,10 +88,11 @@ replace_db() {
       skip = 0
     }
     BEGIN { add = db != "sqlite" }
+    # a key at column 0 or 2 ends a block; a comment or a line of a multi-line value does not
     # first read: the networks of the node
     NR == FNR {
       if (/^  ocean-node: *$/) in_node = 1
-      else if (/^[^ ]|^  [^ ]/) in_node = 0
+      else if (/^[A-Za-z_]|^  [A-Za-z0-9_.-]+:/) in_node = 0
       if (in_node && /^    networks:/) { node_nets = $0 "\n"; in_nets = 1 }
       else if (in_node && in_nets && /^      /) node_nets = node_nets $0 "\n"
       else in_nets = 0
@@ -99,7 +100,7 @@ replace_db() {
     }
     old == "" && /^services: *$/ { print; nets = node_nets; new_service(); next }
     # the next key ends the old service
-    skip && /^[^ ]|^  [^ ]/ { new_service() }
+    skip && /^[A-Za-z_]|^  [A-Za-z0-9_.-]+:/ { new_service() }
     skip && /^    networks:/ { in_nets = 1; nets = $0 "\n"; next }
     skip && in_nets && /^      / { nets = nets $0 "\n"; next }
     skip { in_nets = 0; next }
@@ -219,7 +220,7 @@ DB_PASSWORD: '$NEW_PASSWORD'"
       added = 1
     }
     # the next key ends the Elasticsearch service
-    in_es && /^[^ ]|^  [^ ]/ { if (!added) { print "    environment:"; security_lines("      ", 0) } in_es = 0 }
+    in_es && /^[A-Za-z_]|^  [A-Za-z0-9_.-]+:/ { if (!added) { print "    environment:"; security_lines("      ", 0) } in_es = 0 }
     protect && /^  elasticsearch: *$/ { in_es = 1; print; next }
     in_es && pending { match($0, /^ */); security_lines(substr($0, 1, RLENGTH), $0 ~ /^ *- /); pending = 0 }
     in_es && /^    environment: *$/ { print; pending = 1; next }
