@@ -6,6 +6,12 @@ import { Readable } from 'stream'
 // is what's kept, because that is where a crash or a stop shows up.
 export const SERVICE_LOGS_MAX_BYTES = 16 * 1024 * 1024
 
+// Each container a service runs leaves a saved log, and the owner can restart as often as they
+// like, so with no limit a restart loop could fill the node's shared storage 16 MiB at a time, kept
+// until storage expiry. The newest containers are kept, as they show the current problem. This caps
+// a service at SERVICE_LOGS_MAX_FILES × SERVICE_LOGS_MAX_BYTES (80 MiB) of saved logs.
+export const SERVICE_LOGS_MAX_FILES = 5
+
 // Reading a stopped container's log ends by itself. These exist for a container that could not be
 // stopped: its log never ends, and a teardown must not wait on it forever.
 export const SERVICE_LOGS_IDLE_MS = 5_000

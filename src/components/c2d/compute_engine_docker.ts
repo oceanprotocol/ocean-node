@@ -127,6 +127,7 @@ import {
 import {
   collectServiceLogs,
   savedServiceLogsStream,
+  SERVICE_LOGS_MAX_FILES,
   SERVICE_LOGS_TAIL_ENTRIES
 } from './serviceLogs.js'
 import {
@@ -4674,7 +4675,7 @@ export class C2DEngineDocker extends C2DEngine {
       mkdirSync(folder, { recursive: true })
       writeFileSync(partialPath, data)
       renameSync(partialPath, finalPath)
-      job.logArchives = [
+      const listed = [
         ...saved,
         {
           index,
@@ -4685,11 +4686,35 @@ export class C2DEngineDocker extends C2DEngine {
           ...(droppedBytes ? { droppedBytes } : {}),
           ...(cutShort ? { cutShort } : {})
         }
-      ]
+      ].sort((a, b) => a.index - b.index)
+      // Only the newest SERVICE_LOGS_MAX_FILES are kept, so restarting in a loop can't fill the
+      // disk. The oldest go only after the new file is written, so a failed save loses nothing.
+      const excess = listed.length - SERVICE_LOGS_MAX_FILES
+      const kept: typeof listed = []
+      listed.forEach((archive, i) => {
+        if (i >= excess) {
+          kept.push(archive)
+          return
+        }
+        try {
+          rmSync(path.join(folder, archive.filename), { force: true })
+        } catch (rmError: any) {
+          // Stays listed, so the next save tries again and nothing is left on disk unaccounted for.
+          kept.push(archive)
+          CORE_LOGGER.error(
+            `service ${job.serviceId}: could not delete the old log ${archive.filename}: ${
+              rmError?.message ?? rmError
+            }`
+          )
+        }
+      })
+      job.logArchives = kept
+      const deleted = listed.length - kept.length
       CORE_LOGGER.info(
         `service ${job.serviceId}: saved the logs of container ${container.id} to ${filename}, ` +
           `${data.length} bytes` +
-          (droppedBytes ? `, ${droppedBytes} older bytes dropped` : '')
+          (droppedBytes ? `, ${droppedBytes} older bytes dropped` : '') +
+          (deleted ? `, ${deleted} older container log(s) deleted` : '')
       )
     } catch (e: any) {
       // Guarded on its own: rmSync throws on more than a missing file (a permission error, or a

@@ -289,6 +289,8 @@ first, which keeps them available after the session ends:
   says how much was dropped. The node asks Docker for the last 430,000-odd entries only, which
   always add up to more than 16 MiB, so for a longer log the line gives a lower bound ("at
   least …").
+- **Only the logs of the last 5 containers are kept.** Saving a sixth deletes the oldest file, so
+  a service holds at most 80 MiB of saved logs however often it is restarted.
 - **Once the service has no container, `serviceStreamableLogs` serves the saved logs**, oldest
   container first, in the same multiplexed format as the live stream. The stream ends after the
   last line instead of following. `since` works the same way. The route returns `404` only when

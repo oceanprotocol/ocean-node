@@ -320,7 +320,8 @@ export interface ServiceJob {
   outputBucketId?: string // persistent-storage bucket bind-mounted at /data/outputs
   // Archives of /data/outputs, only for services without an outputBucketId.
   outputArchives?: ServiceOutputArchive[]
-  // Kept for services with an outputBucketId too: the bucket holds only /data/outputs.
+  // Kept for services with an outputBucketId too: the bucket holds only /data/outputs. Only the
+  // newest SERVICE_LOGS_MAX_FILES, so restarts can't pile them up.
   logArchives?: ServiceLogArchive[]
   // Internal, only while a restart is in flight: the stopped old container, kept until its
   // /data/outputs has been carried over into the new one (orphan recovery archives and

@@ -12,6 +12,7 @@ import {
   readDockerLogFrames,
   savedServiceLogsStream,
   SERVICE_LOGS_MAX_BYTES,
+  SERVICE_LOGS_MAX_FILES,
   SERVICE_LOGS_TAIL_ENTRIES,
   splitLogTimestamp
 } from '../../../components/c2d/serviceLogs.js'
@@ -362,6 +363,53 @@ describe('service logs saved at teardown', () => {
         [1, 'c2']
       ])
       expect(fs.readdirSync(folder()).sort()).to.deep.equal(['logs-0.log', 'logs-1.log'])
+    })
+
+    it('keeps only the newest containers logs, deleting older files, so a restart loop cannot fill the disk', async () => {
+      const engine = makeEngine(tempFolder)
+      const job = makeJob()
+      const total = SERVICE_LOGS_MAX_FILES + 2
+      for (let i = 0; i < total; i++) {
+        await engine.saveServiceLogs(
+          job,
+          logsContainer(`c${i}`, entry(T0, `container ${i}`))
+        )
+      }
+      // numbering carries on past the deleted ones, so a new file never reuses an old name
+      const keptIndexes = Array.from({ length: SERVICE_LOGS_MAX_FILES }, (_, i) => i + 2)
+      expect(job.logArchives.map((a) => a.index)).to.deep.equal(keptIndexes)
+      expect(fs.readdirSync(folder()).sort()).to.deep.equal(
+        keptIndexes.map((i) => `logs-${i}.log`).sort()
+      )
+      engine.db.getServiceJob.resolves([
+        { ...job, status: ServiceStatusNumber.Stopped, containerId: '' }
+      ])
+      const served = await framesOf(
+        await engine.getServiceStreamableLogs(SERVICE_ID, OWNER)
+      )
+      expect(served.map(([, text]) => text)).to.deep.equal(
+        keptIndexes.map((i) => `container ${i}\n`)
+      )
+    })
+
+    it('keeps listing an old log it could not delete, so the next save tries again', async () => {
+      const engine = makeEngine(tempFolder)
+      const job = makeJob()
+      for (let i = 0; i < SERVICE_LOGS_MAX_FILES; i++) {
+        await engine.saveServiceLogs(job, logsContainer(`c${i}`))
+      }
+      // a non-empty directory in place of the oldest file: rmSync refuses to delete it
+      const oldest = path.join(folder(), 'logs-0.log')
+      fs.rmSync(oldest)
+      fs.mkdirSync(path.join(oldest, 'in-the-way'), { recursive: true })
+
+      await engine.saveServiceLogs(job, logsContainer('next'))
+      await engine.saveServiceLogs(job, logsContainer('after'))
+
+      // the blocked oldest file stays listed (tried again each save); the next oldest still goes
+      expect(job.logArchives.map((a) => a.index)).to.deep.equal([0, 2, 3, 4, 5, 6])
+      expect(fs.existsSync(path.join(folder(), 'logs-1.log'))).to.equal(false)
+      expect(job.logArchives.at(-1).containerId).to.equal('after')
     })
 
     it('saves nothing for a container that logged nothing, or is already gone', async () => {

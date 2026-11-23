@@ -2979,7 +2979,7 @@ crashed container is kept around until `stop`/`restart`, or `Stopping` until the
 removes it — its log is followed live. Once the
 container is gone, the logs the node saved when each of the service's containers was removed
 are served instead, oldest first, until `storageExpiry` seconds after `expiresAt`. Only the last
-16 MiB of each container's log are kept.
+16 MiB of each container's log are kept, for the last 5 containers.
 
 #### Query Parameters
 
