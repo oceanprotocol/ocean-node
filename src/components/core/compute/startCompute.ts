@@ -56,7 +56,7 @@ import {
   isNonEmpty,
   resolveUserSubsidyProviders
 } from '../utils/subsidyProviders.js'
-import { JobType } from '../../../utils/constants.js'
+import { JobType, isZeroPaymentTx } from '../../../utils/constants.js'
 import { maintenanceGuard } from '../utils/maintenance.js'
 
 // Small helper so the many error short-circuits stay byte-identical across both
@@ -927,12 +927,16 @@ export class PaidComputeStartHandler extends CommonComputeHandler {
           `Compute job ${hash}-${jobId} failed to start after lock ${agreementId} (payer ${task.consumerAddress}, chain ${task.payment.chainId}): ${errMsg.slice(0, 300)}`
         )
         try {
-          await engine.escrow.cancelExpiredLock(
-            task.payment.chainId,
-            jobId,
-            task.payment.token,
-            task.consumerAddress
-          )
+          // A zero-amount lock was never created on-chain (lockTx is the 0xempty sentinel) —
+          // there is nothing to cancel, so skip the pointless RPC round-trip.
+          if (!isZeroPaymentTx(agreementId)) {
+            await engine.escrow.cancelExpiredLock(
+              task.payment.chainId,
+              jobId,
+              task.payment.token,
+              task.consumerAddress
+            )
+          }
         } catch (cancelError) {
           const cancelErrMsg = cancelError?.message || String(cancelError)
           CORE_LOGGER.error(
