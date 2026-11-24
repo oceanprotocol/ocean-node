@@ -44,17 +44,18 @@ db_type() {
   local type
   type=$(value DB_TYPE)
   if [ -z "$type" ] && [ -f config.json ] && grep -q 'config.json' "$FILE"; then
-    type=$(sed -n 's/.*"dbType" *: *"\([a-z]*\)".*/\1/p' config.json | head -n 1)
+    # the value can be on the next line: read the file as one line
+    type=$(tr '\n' ' ' <config.json | sed -n 's/.*"dbType" *: *"\([a-z]*\)".*/\1/p')
   fi
   echo "$type"
 }
 
-# a change, with the passwords, the private key and the credentials in URLs hidden: a
-# terminal log can keep them
+# a change, with the credentials in URLs and all of a line after a password or the private
+# key hidden: a terminal log can keep them
 show_diff() {
   diff -u "$1" "$2" | sed -n '3,$p' |
-    sed -E -e "s/(PASSWORD|password|PRIVATE_KEY|privateKey)([\"']?[:=] *[\"']?)[^\"',]*/\1\2<hidden>/" \
-      -e "s#(://[^:/@ ]+:)[^@ ]+@#\1<hidden>@#" | sed 's/^/    /'
+    sed -E -e "s#(://[^:/@ ]+:)[^@ ]+@#\1<hidden>@#g" \
+      -e "s/((PASSWORD|password|PRIVATE_KEY|privateKey)[\"']? *[:=]).*/\1 <hidden>/" | sed 's/^/    /'
 }
 
 # the database, as ocean-node-quickstart.sh writes it: keep the two in step. It has no
