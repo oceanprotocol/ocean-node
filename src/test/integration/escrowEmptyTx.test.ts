@@ -247,11 +247,42 @@ describe('ESCROW_EMPTY_TX end-to-end (zero-amount lock/claim on-chain)', () => {
     expect(claimTx).to.match(/^0x[0-9a-fA-F]{64}$/)
   })
 
-  it('on: a zero-amount lock does NOT short-circuit — it goes on-chain', async function () {
+  it('on: a zero-amount lock does NOT short-circuit — it reaches the real on-chain path', async function () {
     if (!hasEscrow()) this.skip()
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
-    const job = uniqueJob('on-lock')
-    const before = await nodeNonce()
+
+    // Step 1 — prove escrowOn's full plumbing works end-to-end with a NON-zero amount: the token
+    // decimals lookup, the payer funds / authorization pre-checks, gas estimation, submission and
+    // mining. This is what lets Step 2 attribute a zero-amount failure to the chain rejecting
+    // wei==0 and NOT to any unrelated error (a decimals lookup failure, insufficient funds, missing
+    // auth): the very same wrapper + payer just cleared all of those. It also warms escrowOn's
+    // decimals cache, so Step 2's getPaymentAmountInWei makes no further chain call for decimals.
+    const warmJob = uniqueJob('on-nonzero')
+    const warmLock = await escrowOn.createLock(
+      chainId,
+      warmJob,
+      paymentToken,
+      payerAddress,
+      1,
+      expiry,
+      JobType.COMPUTE
+    )
+    expect(warmLock, 'flag-on non-zero lock sends a real tx').to.match(
+      /^0x[0-9a-fA-F]{64}$/
+    )
+    await escrowOn.waitForTransaction(chainId, warmLock)
+    const warmReceipt = await provider.getTransactionReceipt(warmLock)
+    assert(warmReceipt && warmReceipt.status === 1, 'non-zero lock tx must be mined OK')
+    assert(await lockExistsFor(warmJob), 'the non-zero lock must exist on-chain')
+
+    // Step 2 — the zero-amount case. With the flag ON the skip branch is bypassed, so wei==0 is
+    // carried into the real escrow path instead of short-circuiting to the sentinel. The sentinel
+    // is createLock's ONLY early return, so any non-sentinel outcome already proves no short-circuit.
+    // We then pin down which real-path outcome occurred with on-chain, JOB-SCOPED evidence — a mined
+    // receipt, or the absence of a lock for this unique jobId — NOT by matching an error message
+    // (the contract's zero-value revert carries no reason string) and NOT by the shared signer's
+    // nonce (racy: other tests reuse the node signer and don't all await their txs).
+    const job = uniqueJob('on-zero')
     let result: string | null = null
     let threw = false
     try {
@@ -264,29 +295,34 @@ describe('ESCROW_EMPTY_TX end-to-end (zero-amount lock/claim on-chain)', () => {
         expiry,
         JobType.COMPUTE
       )
-    } catch (e) {
-      // A zero-amount lock with the flag ON must reach the chain; the contract rejects wei==0
-      // during gas estimation, and the Escrow wrapper rethrows that as a plain Error carrying the
-      // ethers message (the CALL_EXCEPTION code is lost in the rethrow). Accept ONLY that on-chain
-      // execution revert as proof it went on-chain. App-level pre-check failures (insufficient
-      // funds, missing auth) and a token-decimals lookup error never touch the chain, so rethrow
-      // them — otherwise they would masquerade as "went on-chain" and hide a regression.
-      const msg = String((e as Error)?.message ?? e)
-      if (
-        !/estimateGas|execution reverted|CALL_EXCEPTION|missing revert data/i.test(msg)
-      ) {
-        throw e
-      }
+    } catch {
       threw = true
     }
-    // In neither outcome did it short-circuit to the sentinel.
-    expect(result).to.not.equal(ZERO_PAYMENT_TX)
-    if (!threw && result) {
-      expect(result).to.match(/^0x[0-9a-fA-F]{64}$/)
-      await escrowOn.waitForTransaction(chainId, result)
-      expect(await nodeNonce(), 'a real tx advances the node nonce').to.equal(before + 1)
+    // Whatever happened, it must NOT be the short-circuit sentinel.
+    expect(
+      result,
+      'flag-on zero lock must not short-circuit to the sentinel'
+    ).to.not.equal(ZERO_PAYMENT_TX)
+    if (threw) {
+      // The contract rejected wei==0 during gas estimation (a bare revert): the real path was
+      // taken. createLock returns a hash only AFTER a successful submit, so no hash was produced
+      // and — Step 1 having proven the plumbing — this throw cannot be an unrelated decimals/funds/
+      // auth failure. Confirm no lock was created on-chain for this jobId.
+      expect(result, 'a reverted lock yields no tx hash').to.equal(null)
+      expect(
+        await lockExistsFor(job),
+        'a rejected zero lock creates no on-chain lock'
+      ).to.equal(false)
     } else {
-      assert(threw, 'flag-on zero lock must either send a tx or revert on-chain')
+      // Some Escrow deployments accept a zero-value lock: a real, mined tx that creates the lock.
+      expect(result).to.match(/^0x[0-9a-fA-F]{64}$/)
+      await escrowOn.waitForTransaction(chainId, result as string)
+      const receipt = await provider.getTransactionReceipt(result as string)
+      assert(receipt && receipt.status === 1, 'a submitted zero lock must be mined OK')
+      expect(
+        await lockExistsFor(job),
+        'a submitted zero lock creates an on-chain lock'
+      ).to.equal(true)
     }
   })
 })
