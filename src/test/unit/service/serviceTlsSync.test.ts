@@ -1,83 +1,129 @@
 import { expect } from 'chai'
 import sinon from 'sinon'
-import http from 'http'
-import os from 'os'
-import path from 'path'
 import { C2DEngineDocker } from '../../../components/c2d/compute_engine_docker.js'
 import { C2DClusterType } from '../../../@types/C2D/C2D.js'
 import { ServiceStatusNumber } from '../../../@types/C2D/ServiceOnDemand.js'
-import { buildCaddyServers } from '../../../components/c2d/serviceTls.js'
-import { caddyPost } from '../../../components/c2d/caddyAdmin.js'
+import {
+  buildCaddyConfig,
+  buildCaddyServers
+} from '../../../components/c2d/serviceTls.js'
+import {
+  CADDY_CONTAINER,
+  CADDY_IMAGE,
+  CADDY_LOAD_CMD,
+  CADDY_LE_STORE,
+  ensureCaddy
+} from '../../../components/c2d/caddyContainer.js'
 import { releaseHostPort } from '../../../components/core/service/utils.js'
 
 const NODE_HOST = '157.66.255.31'
-const SERVERS_PATH = '/config/apps/http/servers'
-let socketCount = 0
+const ACME_FILE = '/srv/letsencrypt/acme.json'
 
 interface FakeCaddy {
-  socketPath: string
-  requests: { method: string; url: string; body: any }[]
-  status: number
-  close: () => Promise<void>
+  loads: any[] // configs Caddy accepted
+  execs: { cmd: string[]; input: string }[]
+  fail: boolean
+  acmeJson: string
 }
 
-// Stands in for Caddy's admin API on a unix socket
-async function fakeCaddy(): Promise<FakeCaddy> {
-  const socketPath = path.join(os.tmpdir(), `caddy-${process.pid}-${socketCount++}.sock`)
-  const fake: FakeCaddy = { socketPath, requests: [], status: 200, close: null }
-  const server = http.createServer((req, res) => {
-    let text = ''
-    req.on('data', (c) => (text += c))
-    req.on('end', () => {
-      fake.requests.push({
-        method: req.method,
-        url: req.url,
-        body: text ? JSON.parse(text) : undefined
-      })
-      res.writeHead(fake.status)
-      res.end(fake.status < 300 ? '{}' : '{"error":"boom"}')
+// Stands in for the node's Caddy container (ensureCaddy + docker exec)
+function fakeCaddyIo(fake: FakeCaddy) {
+  const container = { id: 'caddy' }
+  return {
+    ensure: sinon.stub().resolves(container),
+    exec: sinon.stub().callsFake((_c: unknown, cmd: string[], input = '') => {
+      fake.execs.push({ cmd, input })
+      if (cmd === CADDY_LOAD_CMD) {
+        if (fake.fail) return Promise.reject(new Error('caddy exec wget exited 1'))
+        fake.loads.push(JSON.parse(input))
+      }
+      return Promise.resolve(cmd[0] === 'cat' ? fake.acmeJson : '')
     })
-  })
-  await new Promise<void>((resolve) => server.listen(socketPath, resolve))
-  fake.close = () => new Promise((resolve) => server.close(() => resolve()))
-  return fake
+  }
 }
 
-describe('caddyPost', () => {
-  let caddy: FakeCaddy
-  beforeEach(async () => {
-    caddy = await fakeCaddy()
+function acmeJsonFor(name: string, sans: string[] = []): string {
+  const b64 = (text: string) => Buffer.from(text).toString('base64')
+  return JSON.stringify({
+    myresolver: {
+      Certificates: [
+        {
+          domain: { main: name, sans },
+          certificate: b64('-----BEGIN CERTIFICATE-----\nC\n-----END CERTIFICATE-----\n'),
+          key: b64('-----BEGIN PRIVATE KEY-----\nK\n-----END PRIVATE KEY-----\n')
+        }
+      ]
+    }
   })
-  afterEach(() => caddy.close())
+}
 
-  it('POSTs the JSON over the socket', async () => {
-    await caddyPost(SERVERS_PATH, '{"a":1}', caddy.socketPath)
-    expect(caddy.requests).to.deep.equal([
-      { method: 'POST', url: SERVERS_PATH, body: { a: 1 } }
+describe('ensureCaddy', () => {
+  const BINDS = ['ocean-node-caddy-data:/data']
+  function fakeDocker(info: any) {
+    const existing = {
+      inspect: info
+        ? sinon.stub().resolves(info)
+        : sinon.stub().rejects(Object.assign(new Error('gone'), { statusCode: 404 })),
+      start: sinon.stub().resolves(),
+      remove: sinon.stub().resolves()
+    }
+    const created = { start: sinon.stub().resolves() }
+    return {
+      existing,
+      created,
+      getContainer: sinon.stub().returns(existing),
+      getImage: sinon.stub().returns({ inspect: sinon.stub().resolves({}) }),
+      createContainer: sinon.stub().resolves(created)
+    }
+  }
+  const LABEL = 'ocean-node.letsencrypt-store'
+  const running = (acme = '', Image = CADDY_IMAGE) => ({
+    Config: { Image, Labels: { [LABEL]: acme } },
+    State: { Running: true }
+  })
+
+  it('creates and starts Caddy on the host network when it is missing', async () => {
+    const docker = fakeDocker(null)
+    expect(await ensureCaddy(docker as any)).to.equal(docker.created)
+    expect(docker.createContainer.firstCall.args[0]).to.deep.equal({
+      name: CADDY_CONTAINER,
+      Image: CADDY_IMAGE,
+      Cmd: ['caddy', 'run'],
+      Labels: { [LABEL]: '' },
+      HostConfig: { NetworkMode: 'host', RestartPolicy: { Name: 'always' }, Binds: BINDS }
+    })
+    expect(docker.created.start.calledOnce).to.equal(true)
+  })
+
+  it('keeps a running Caddy with the same image and files', async () => {
+    const docker = fakeDocker(running())
+    expect(await ensureCaddy(docker as any)).to.equal(docker.existing)
+    expect(docker.existing.start.called).to.equal(false)
+    expect(docker.createContainer.called).to.equal(false)
+  })
+
+  it('starts a stopped Caddy', async () => {
+    const docker = fakeDocker({ ...running(), State: { Running: false } })
+    await ensureCaddy(docker as any)
+    expect(docker.existing.start.calledOnce).to.equal(true)
+  })
+
+  it('recreates Caddy when the image or the letsEncryptAcmePath changes', async () => {
+    for (const [info, acme] of [
+      [running('', 'caddy:2.10.0-alpine'), undefined],
+      [running(), '/srv/letsencrypt/acme.json']
+    ] as const) {
+      const docker = fakeDocker(info)
+      await ensureCaddy(docker as any, acme)
+      expect(docker.existing.remove.calledOnce).to.equal(true)
+      expect(docker.createContainer.calledOnce).to.equal(true)
+    }
+    const docker = fakeDocker(null)
+    await ensureCaddy(docker as any, '/srv/letsencrypt/acme.json')
+    expect(docker.createContainer.firstCall.args[0].HostConfig.Binds).to.deep.equal([
+      ...BINDS,
+      `/srv/letsencrypt/acme.json:${CADDY_LE_STORE}:ro`
     ])
-  })
-
-  it('throws on a non-2xx answer, without the request body', async () => {
-    caddy.status = 400
-    let error: Error
-    try {
-      await caddyPost(SERVERS_PATH, '{"a":1}', caddy.socketPath)
-    } catch (e) {
-      error = e
-    }
-    expect(error.message).to.equal(
-      `caddy admin POST ${SERVERS_PATH}: 400 {"error":"boom"}`
-    )
-  })
-
-  it('throws when the socket is missing', async () => {
-    let error: Error
-    try {
-      await caddyPost(SERVERS_PATH, '{}', caddy.socketPath + '.missing')
-    } catch (e) {
-      error = e
-    }
-    expect(error).to.be.instanceOf(Error)
   })
 })
 
@@ -92,6 +138,7 @@ describe('service TLS sync (Caddy admin API)', () => {
     nodeHost?: string
     socketPath?: string
     first?: string
+    letsEncryptAcmePath?: string
   }) {
     engine.getC2DConfig = sinon.stub().returns({
       hash: 'cluster-hash',
@@ -99,7 +146,8 @@ describe('service TLS sync (Caddy admin API)', () => {
         socketPath: opts.socketPath ?? '/var/run/docker.sock',
         serviceOnDemand: {
           hostPortRange: [31042, 31141],
-          nodeHost: opts.nodeHost ?? NODE_HOST
+          nodeHost: opts.nodeHost ?? NODE_HOST,
+          letsEncryptAcmePath: opts.letsEncryptAcmePath
         }
       }
     })
@@ -121,12 +169,12 @@ describe('service TLS sync (Caddy admin API)', () => {
     })
   }
 
-  beforeEach(async () => {
-    caddy = await fakeCaddy()
+  beforeEach(() => {
+    caddy = { loads: [], execs: [], fail: false, acmeJson: '{}' }
     engine = Object.create(C2DEngineDocker.prototype)
-    engine.caddySocket = caddy.socketPath
+    engine.caddyIo = fakeCaddyIo(caddy)
     engine.tlsSync = Promise.resolve()
-    engine.caddyLastPost = null
+    engine.caddyLastLoad = null
     engine.lastTlsSyncOk = false
     engine.caddyIps = new Map()
     engine.cpuAllocations = new Map()
@@ -175,9 +223,8 @@ describe('service TLS sync (Caddy admin API)', () => {
     engine.keyManager = { decrypt: sinon.stub().resolves(Buffer.from('{}')) }
   })
 
-  afterEach(async () => {
+  afterEach(() => {
     sinon.restore()
-    await caddy.close()
     // claimed services keep their host ports reserved: free them for the next test
     for (let p = 31042; p <= 31141; p++) releaseHostPort(p)
   })
@@ -239,11 +286,10 @@ describe('service TLS sync (Caddy admin API)', () => {
     }
   }
 
-  const posts = () =>
-    caddy.requests.filter((r) => r.method === 'POST' && r.url === SERVERS_PATH)
+  const posts = () => caddy.loads.map((config) => ({ body: config.apps.http.servers }))
 
   describe('syncServiceTls', () => {
-    it('POSTs one server map built from the running secure services', async () => {
+    it('loads one server map built from the running secure services', async () => {
       const a = makeRunningJob({ serviceId: 'a', containerId: 'ca' })
       containers.ca = { inspect: inspectWithIp('a', '172.20.0.5') }
       engine.db.getRunningServiceJobs.resolves([
@@ -254,17 +300,19 @@ describe('service TLS sync (Caddy admin API)', () => {
 
       await engine.syncServiceTls()
 
-      expect(posts()).to.have.length(1)
-      expect(posts()[0].body).to.deep.equal(
-        buildCaddyServers(NODE_HOST, [
-          {
-            serviceId: 'a',
-            upstreamIp: '172.20.0.5',
-            secureTls: a.secureTls,
-            endpoints: a.endpoints
-          }
-        ])
-      )
+      expect(caddy.loads).to.deep.equal([
+        buildCaddyConfig(
+          buildCaddyServers(NODE_HOST, [
+            {
+              serviceId: 'a',
+              upstreamIp: '172.20.0.5',
+              secureTls: a.secureTls,
+              endpoints: a.endpoints
+            }
+          ])
+        )
+      ])
+      expect(engine.caddyIo.ensure.firstCall.args.slice(1)).to.deep.equal([undefined])
     })
 
     it('skips a service whose container cannot be inspected, and syncs the rest', async () => {
@@ -288,16 +336,53 @@ describe('service TLS sync (Caddy admin API)', () => {
       it(`does nothing on ${name}`, async () => {
         setTlsEngine(opts)
         await engine.syncServiceTls()
-        expect(caddy.requests).to.deep.equal([])
+        expect(engine.caddyIo.ensure.called).to.equal(false)
         expect(engine.db.getRunningServiceJobs.called).to.equal(false)
       })
     }
 
-    it('a failed POST does not throw', async () => {
-      caddy.status = 500
+    it('a failed load does not throw, and is retried on the next sync', async () => {
+      caddy.fail = true
       engine.db.getRunningServiceJobs.resolves([makeRunningJob()])
       await engine.syncServiceTls()
+      caddy.fail = false
+      await engine.syncServiceTls()
       expect(posts()).to.have.length(1)
+    })
+
+    it('letsEncryptAcmePath: loads its cert for nodeHost, no ACME, no port 80', async () => {
+      setTlsEngine({ nodeHost: 'cp2.oncompute.ai', letsEncryptAcmePath: ACME_FILE })
+      caddy.acmeJson = acmeJsonFor('1.c2d.nodes.oceanprotocol.com', ['cp2.oncompute.ai'])
+      engine.db.getRunningServiceJobs.resolves([makeRunningJob()])
+
+      await engine.syncServiceTls()
+
+      expect(engine.caddyIo.ensure.firstCall.args[1]).to.equal(ACME_FILE)
+      const [read, write] = caddy.execs
+      expect(read.cmd).to.deep.equal(['cat', CADDY_LE_STORE])
+      expect(write.input).to.equal(
+        '-----BEGIN CERTIFICATE-----\nC\n-----END CERTIFICATE-----\n' +
+          '-----BEGIN PRIVATE KEY-----\nK\n-----END PRIVATE KEY-----'
+      )
+      const [config] = caddy.loads
+      const file = config.apps.tls.certificates.load_files[0].certificate
+      expect(write.cmd[2]).to.match(new RegExp(`cat > ${file}$`))
+      expect(config.apps.tls).to.not.have.property('automation')
+      expect(config.apps.http.servers.ocean_x_8188.automatic_https).to.deep.equal({
+        disable_redirects: true
+      })
+      expect(engine.lastTlsSyncOk).to.equal(true)
+    })
+
+    it('letsEncryptAcmePath without a cert for nodeHost: no load, TLS off', async () => {
+      setTlsEngine({ nodeHost: 'cp1.oncompute.ai', letsEncryptAcmePath: ACME_FILE })
+      caddy.acmeJson = acmeJsonFor('other.example.com')
+      engine.db.getRunningServiceJobs.resolves([makeRunningJob()])
+
+      await engine.syncServiceTls()
+
+      expect(caddy.loads).to.deep.equal([])
+      expect(engine.lastTlsSyncOk).to.equal(false)
     })
 
     it('skips identical servers within a minute, re-sends them after', async () => {
@@ -305,12 +390,12 @@ describe('service TLS sync (Caddy admin API)', () => {
       await engine.syncServiceTls()
       await engine.syncServiceTls()
       expect(posts()).to.have.length(1)
-      engine.caddyLastPost.at -= 60_000
+      engine.caddyLastLoad.at -= 60_000
       await engine.syncServiceTls()
       expect(posts()).to.have.length(2)
     })
 
-    it('POSTs at once when the servers change', async () => {
+    it('loads at once when the servers change', async () => {
       const job = makeRunningJob()
       engine.db.getRunningServiceJobs.resolves([job])
       await engine.syncServiceTls()
@@ -326,7 +411,7 @@ describe('service TLS sync (Caddy admin API)', () => {
       const job = makeRunningJob()
       engine.db.getRunningServiceJobs.resolves([job])
       await engine.syncServiceTls()
-      engine.caddyLastPost.at -= 60_000
+      engine.caddyLastLoad.at -= 60_000
       await engine.syncServiceTls()
       expect(containers['svc-container'].inspect.calledOnce).to.equal(true)
     })
@@ -408,8 +493,8 @@ describe('service TLS sync (Caddy admin API)', () => {
       expect(await feature()).to.equal(false)
       await engine.syncServiceTls()
       expect(await feature()).to.equal(true)
-      caddy.status = 400
-      engine.caddyLastPost.at -= 60_000
+      caddy.fail = true
+      engine.caddyLastLoad.at -= 60_000
       await engine.syncServiceTls()
       expect(await feature()).to.equal(false)
     })

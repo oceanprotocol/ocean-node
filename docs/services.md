@@ -31,17 +31,17 @@ authenticated by a signature (or auth token) over the caller's `consumerAddress`
 `nonce` + command. `serviceStatus` is a `GET`, so it carries `consumerAddress`, `nonce`,
 and `signature` as query parameters (or an auth-token `Authorization` header).
 
-| Command | Route | Method | Purpose |
-| --- | --- | --- | --- |
-| `SERVICE_START` | `/api/services/serviceStart` | POST | Validate, persist a `Starting` record, and return the `serviceId` immediately (escrow + image + container happen in the background) |
-| `SERVICE_GET_STATUS` | `/api/services/serviceStatus` | GET | Read job status / endpoints — authenticated, owner-scoped (see notice below); poll this to follow a starting service |
-| `SERVICE_LIST` | `/api/services/serviceList` | GET | Node-wide service listing — authenticated, **not** owner-scoped. Default: only services currently holding a resource reservation; `status=<n>` filters to one specific status, `includeAllStatuses=true` returns everything, `fromTimestamp` keeps services created at/after that moment. Output is listing-sanitized (no `userData`, no `dockerCmd`/`dockerEntrypoint`, no Dockerfile) but keeps user `metadata` |
-| `SERVICE_EXTEND` | `/api/services/serviceExtend` | POST | Pay to push the expiry further out |
-| `SERVICE_RESTART` | `/api/services/serviceRestart` | POST | Recreate the container (no extra charge); asynchronous like start — returns once the job is `Restarting`, poll `serviceStatus`. Optionally restart on a **new image spec** (bug-fix flow) — see below |
-| `SERVICE_STOP` | `/api/services/serviceStop` | POST | Tear down the container; the paid resource reservation (cpu/ram/gpu + host ports) is kept until `expiresAt`, so the service can be restarted anytime on the same endpoints. `release: true` ends the paid window now and frees it instead (no refund, no restart) |
-| `SERVICE_GET_TEMPLATES` | `/api/services/serviceTemplates` | GET | List operator-published service templates |
-| `SERVICE_GET_STREAMABLE_LOGS` | `/api/services/serviceStreamableLogs` | GET | Stream the container's live stdout/stderr logs — authenticated, owner-scoped; available while `Running` or `Error`; optional `since` to skip history |
-| `SERVICE_GET_RESULT` | `/api/services/serviceResult` | GET | Download the service's `/data/outputs` as a zip — one of its archives (`index`, resumable with `offset`) or the running container's (`live=true`); authenticated, owner-scoped. See [Service outputs](#service-outputs) |
+| Command                       | Route                                 | Method | Purpose                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------------------------- | ------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SERVICE_START`               | `/api/services/serviceStart`          | POST   | Validate, persist a `Starting` record, and return the `serviceId` immediately (escrow + image + container happen in the background)                                                                                                                                                                                                                                                                               |
+| `SERVICE_GET_STATUS`          | `/api/services/serviceStatus`         | GET    | Read job status / endpoints — authenticated, owner-scoped (see notice below); poll this to follow a starting service                                                                                                                                                                                                                                                                                              |
+| `SERVICE_LIST`                | `/api/services/serviceList`           | GET    | Node-wide service listing — authenticated, **not** owner-scoped. Default: only services currently holding a resource reservation; `status=<n>` filters to one specific status, `includeAllStatuses=true` returns everything, `fromTimestamp` keeps services created at/after that moment. Output is listing-sanitized (no `userData`, no `dockerCmd`/`dockerEntrypoint`, no Dockerfile) but keeps user `metadata` |
+| `SERVICE_EXTEND`              | `/api/services/serviceExtend`         | POST   | Pay to push the expiry further out                                                                                                                                                                                                                                                                                                                                                                                |
+| `SERVICE_RESTART`             | `/api/services/serviceRestart`        | POST   | Recreate the container (no extra charge); asynchronous like start — returns once the job is `Restarting`, poll `serviceStatus`. Optionally restart on a **new image spec** (bug-fix flow) — see below                                                                                                                                                                                                             |
+| `SERVICE_STOP`                | `/api/services/serviceStop`           | POST   | Tear down the container; the paid resource reservation (cpu/ram/gpu + host ports) is kept until `expiresAt`, so the service can be restarted anytime on the same endpoints. `release: true` ends the paid window now and frees it instead (no refund, no restart)                                                                                                                                                 |
+| `SERVICE_GET_TEMPLATES`       | `/api/services/serviceTemplates`      | GET    | List operator-published service templates                                                                                                                                                                                                                                                                                                                                                                         |
+| `SERVICE_GET_STREAMABLE_LOGS` | `/api/services/serviceStreamableLogs` | GET    | Stream the container's live stdout/stderr logs — authenticated, owner-scoped; available while `Running` or `Error`; optional `since` to skip history                                                                                                                                                                                                                                                              |
+| `SERVICE_GET_RESULT`          | `/api/services/serviceResult`         | GET    | Download the service's `/data/outputs` as a zip — one of its archives (`index`, resumable with `offset`) or the running container's (`live=true`); authenticated, owner-scoped. See [Service outputs](#service-outputs)                                                                                                                                                                                           |
 
 **Start is asynchronous.** `serviceStart` does only the fast, synchronous validation and then
 returns the `serviceId` right away — it does **not** wait for escrow or the (potentially
@@ -82,12 +82,12 @@ longer use (the bucket was deleted, or it belongs to someone else and bucket sha
 disabled or the owner was removed from its access list) is refused with `403` before
 anything is torn down, so the running container is left as it was.
 
-**Restart can change the image — atomically.** A restart is either *all-old* or *all-new*;
+**Restart can change the image — atomically.** A restart is either _all-old_ or _all-new_;
 it never mixes new request params over the stored job:
 
 - **REUSE mode** — send no container params and the service restarts on exactly its stored
   spec (image, `userData`, `dockerCmd`, `dockerEntrypoint`).
-- **RESPEC mode** — send *any* container param and the container is rebuilt entirely from the
+- **RESPEC mode** — send _any_ container param and the container is rebuilt entirely from the
   request. `image` is then **required** and exactly one of `tag`/`checksum`/`dockerfile` applies
   (validated like `serviceStart`); `userData`/`dockerCmd`/`dockerEntrypoint` are taken as-sent,
   so anything omitted is empty — never inherited from the old job.
@@ -203,7 +203,7 @@ serve over HTTPS:
   published plain, and the image must secure them itself.
 - **Endpoints.** Each endpoint has `tls: true|false`. A secure port's `url` is
   `https://<nodeHost>:<hostPort>`; the other ports keep `http://<nodeHost>:<hostPort>`.
-- **Caddy.** TLS is done by the operator-run Caddy (see
+- **Caddy.** TLS is done by a Caddy container that the node starts and manages (see
   [networking.md](networking.md#service-tls-the-caddy-proxy)). The node sends Caddy one server
   per secure port over Caddy's admin API: it listens on the host port, serves the certificate
   for `nodeHost` and proxies to the container IP on the service network. The service container
@@ -305,15 +305,16 @@ compute job's outputs:
 
 Service-on-demand is configured per Docker connection under `serviceOnDemand`:
 
-| Field | Meaning |
-| --- | --- |
-| `enabled` | Master switch for the feature on this connection. |
-| `nodeHost` | Externally reachable host used to build endpoint URLs. A public IP or domain is also the name of the node's TLS certificate (see [HTTPS endpoints](#https-endpoints-securetls)). |
-| `hostPortRange` | `[start, end]` range the node allocates published host ports from. |
-| `minDurationSeconds` | Hard floor under a service's duration for this daemon (default 0 — no floor). An environment may raise it with its own `minServiceDuration`; a smaller per-env value is clamped up to this one at startup, with a warning. |
-| `maxDurationSeconds` | Hard ceiling on a service's lifetime for this daemon (default 86400). An environment may lower it with its own `maxServiceDuration`; a larger per-env value is clamped to this one at startup, with a warning. |
-| `allowImageBuild` | If true, consumers may submit an inline `dockerfile` to build. |
-| `buildTimeoutSeconds` | Max wall-clock seconds an inline-`dockerfile` build may run before it is aborted. Separate from the service duration and capped at it. Optional; defaults to `300`. An environment may override it per-env with its own `buildTimeoutSeconds`. |
+| Field                 | Meaning                                                                                                                                                                                                                                                      |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `enabled`             | Master switch for the feature on this connection.                                                                                                                                                                                                            |
+| `nodeHost`            | Externally reachable host used to build endpoint URLs. A public IP or domain is also the name of the node's TLS certificate (see [HTTPS endpoints](#https-endpoints-securetls)).                                                                             |
+| `letsEncryptAcmePath` | Optional. Host path of an `acme.json` (Traefik's format), on nodes where another proxy holds ports 80 and 443: service TLS then uses its certificate for `nodeHost` (see [networking.md](networking.md#nodes-where-a-proxy-already-holds-ports-80-and-443)). |
+| `hostPortRange`       | `[start, end]` range the node allocates published host ports from.                                                                                                                                                                                           |
+| `minDurationSeconds`  | Hard floor under a service's duration for this daemon (default 0 — no floor). An environment may raise it with its own `minServiceDuration`; a smaller per-env value is clamped up to this one at startup, with a warning.                                   |
+| `maxDurationSeconds`  | Hard ceiling on a service's lifetime for this daemon (default 86400). An environment may lower it with its own `maxServiceDuration`; a larger per-env value is clamped to this one at startup, with a warning.                                               |
+| `allowImageBuild`     | If true, consumers may submit an inline `dockerfile` to build.                                                                                                                                                                                               |
+| `buildTimeoutSeconds` | Max wall-clock seconds an inline-`dockerfile` build may run before it is aborted. Separate from the service duration and capped at it. Optional; defaults to `300`. An environment may override it per-env with its own `buildTimeoutSeconds`.               |
 
 Whether a given environment accepts services is gated by its `features.services` flag,
 and access can be restricted with the environment's `access` allow-list
@@ -429,10 +430,10 @@ huggingface.co on every start, because a service container starts with an empty 
 A node can point every service at a local caching mirror instead, so the second and later
 starts of the same model are served from the host's disk. Off by default; two env vars:
 
-| Env var | Config field | Meaning |
-| --- | --- | --- |
-| `SERVICE_HF_MIRROR_URL` | `serviceHfMirrorUrl` | Mirror URL as **service containers** reach it, e.g. `http://172.17.0.1:8092`. When set, every service gets `HF_ENDPOINT=<url>` and `HF_HUB_DISABLE_XET=1`. Must be `http://` or `https://`; anything else is logged and the feature stays off (the node still starts). |
-| `SERVICE_HF_CLIENT_PATCH` | `serviceHfClientPatch` | Ship the node's download-client patch into services (see below). Defaults to `true` when a mirror is set, `false` otherwise; `false` turns it off, `true` without a mirror applies the patch alone. |
+| Env var                   | Config field           | Meaning                                                                                                                                                                                                                                                                |
+| ------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SERVICE_HF_MIRROR_URL`   | `serviceHfMirrorUrl`   | Mirror URL as **service containers** reach it, e.g. `http://172.17.0.1:8092`. When set, every service gets `HF_ENDPOINT=<url>` and `HF_HUB_DISABLE_XET=1`. Must be `http://` or `https://`; anything else is logged and the feature stays off (the node still starts). |
+| `SERVICE_HF_CLIENT_PATCH` | `serviceHfClientPatch` | Ship the node's download-client patch into services (see below). Defaults to `true` when a mirror is set, `false` otherwise; `false` turns it off, `true` without a mirror applies the patch alone.                                                                    |
 
 Only **service** containers get any of this; compute jobs are unchanged.
 
@@ -615,7 +616,7 @@ then `docker network rm t`.
 - **⚠️ Low ports won't bind inside the container.** Because `CapDrop: ['ALL']` removes
   `NET_BIND_SERVICE`, a process **inside** the container cannot bind to a container port
   below 1024. Have your service listen on a **high port** (the externally published
-  *host* port is allocated by the node from `hostPortRange` regardless). If a specific
+  _host_ port is allocated by the node from `hostPortRange` regardless). If a specific
   image genuinely needs a low in-container port, that requires explicitly adding
   `CapAdd: ['NET_BIND_SERVICE']` in the engine — it is intentionally not enabled by
   default.

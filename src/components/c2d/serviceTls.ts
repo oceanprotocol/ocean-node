@@ -50,10 +50,12 @@ export interface CaddyTlsService {
   endpoints: ServiceEndpoint[]
 }
 
-// The host matcher makes Caddy get the cert; default_sni serves it to IP clients (no SNI)
+// The host matcher makes Caddy get the cert; default_sni serves it to IP clients (no SNI).
+// With a store cert, redirects are off so Caddy does not bind port 80 (another proxy holds it).
 export function buildCaddyServers(
   nodeHost: string,
-  services: CaddyTlsService[]
+  services: CaddyTlsService[],
+  storeCert = false
 ): Record<string, unknown> {
   const servers: Record<string, unknown> = {}
   for (const svc of services) {
@@ -70,11 +72,46 @@ export function buildCaddyServers(
       servers[`ocean_${svc.serviceId}_${port}`] = {
         listen: [`:${hostPort}`],
         tls_connection_policies: [{ default_sni: nodeHost }],
-        routes: [{ match: [{ host: [nodeHost] }], handle: [proxy] }]
+        routes: [{ match: [{ host: [nodeHost] }], handle: [proxy] }],
+        ...(storeCert && { automatic_https: { disable_redirects: true } })
       }
     }
   }
   return servers
+}
+
+// certFile: the letsEncryptAcmePath cert (no ACME); else Caddy gets one (shortlived: needed for IPs)
+export function buildCaddyConfig(servers: Record<string, unknown>, certFile?: string) {
+  const tls = certFile
+    ? { certificates: { load_files: [{ certificate: certFile, key: certFile }] } }
+    : {
+        automation: {
+          policies: [{ issuers: [{ module: 'acme', profile: 'shortlived' }] }]
+        }
+      }
+  return { apps: { tls, http: { servers } } }
+}
+
+interface AcmeJsonCert {
+  domain?: { main?: string; sans?: string[] }
+  certificate: string
+  key: string
+}
+
+// acme.json: { <resolver>: { Certificates: [{ domain, certificate, key }] } }, PEMs in base64.
+// Returns the chain and key as one PEM.
+export function findStoreCert(acmeJson: string, name: string): string | null {
+  const store = JSON.parse(acmeJson) as Record<string, { Certificates?: AcmeJsonCert[] }>
+  for (const resolver of Object.values(store)) {
+    const cert = resolver?.Certificates?.find((c) =>
+      [c.domain?.main, ...(c.domain?.sans ?? [])].includes(name)
+    )
+    if (cert)
+      return [cert.certificate, cert.key]
+        .map((b64) => Buffer.from(b64, 'base64').toString().trim())
+        .join('\n')
+  }
+  return null
 }
 
 // A public IP or a dotted, non-local domain: the names a public CA issues for

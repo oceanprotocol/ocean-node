@@ -39,6 +39,7 @@ import {
 } from '../core/utils/subsidyProviders.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { Storage } from '../storage/index.js'
+import { createHash } from 'crypto'
 import Dockerode from 'dockerode'
 import type { ContainerCreateOptions, HostConfig, VolumeCreateOptions } from 'dockerode'
 import * as tar from 'tar'
@@ -105,12 +106,20 @@ import {
   READINESS_WARN_AFTER_SECONDS
 } from './serviceReadiness.js'
 import {
+  buildCaddyConfig,
   buildCaddyServers,
   buildServiceEndpoints,
+  findStoreCert,
   tlsNameFor,
   type CaddyTlsService
 } from './serviceTls.js'
-import { CADDY_ADMIN_SOCKET, caddyPost } from './caddyAdmin.js'
+import {
+  CADDY_CERT_DIR,
+  CADDY_LOAD_CMD,
+  CADDY_LE_STORE,
+  caddyExec,
+  ensureCaddy
+} from './caddyContainer.js'
 import { resolveServiceEngine, type ServiceEngineProfile } from './serviceEngines.js'
 import {
   buildModelDownload,
@@ -314,9 +323,9 @@ export class C2DEngineDocker extends C2DEngine {
   // calls — so stop() can drain them before returning. Otherwise an op could outlive
   // stop() and race a restarted engine on the same shared DB.
   private serviceOpPromises: Set<Promise<unknown>> = new Set()
-  private caddySocket = CADDY_ADMIN_SOCKET
+  private caddyIo = { ensure: ensureCaddy, exec: caddyExec }
   private tlsSync: Promise<void> = Promise.resolve()
-  private caddyLastPost: { json: string; at: number } | null = null
+  private caddyLastLoad: { json: string; at: number } | null = null
   private lastTlsSyncOk = false // features.secureTls needs Caddy to accept the last sync
   private caddyIps: Map<string, string> = new Map() // containerId -> IP on ocean-svc-<id>
   private imageCleanupTimer: NodeJS.Timeout | null = null
@@ -5225,13 +5234,13 @@ export class C2DEngineDocker extends C2DEngine {
   private syncServiceTls(): Promise<void> {
     const nodeHost = this.tlsNodeHost()
     if (!nodeHost) return Promise.resolve()
-    this.tlsSync = this.tlsSync.then(() => this.postCaddyServers(nodeHost))
+    this.tlsSync = this.tlsSync.then(() => this.loadCaddyConfig(nodeHost))
     return this.tlsSync
   }
 
   // Reads the DB rather than the loop's health-checked list: that list leaves out services
   // with an op in flight, and an extend must not take a TLS port offline.
-  private async postCaddyServers(nodeHost: string): Promise<void> {
+  private async loadCaddyConfig(nodeHost: string): Promise<void> {
     try {
       const jobs = (await this.db.getRunningServiceJobs(this.getC2DConfig().hash)).filter(
         (j) => j.status === ServiceStatusNumber.Running && j.secureTls?.length
@@ -5239,16 +5248,23 @@ export class C2DEngineDocker extends C2DEngine {
       const live = new Set(jobs.map((j) => j.containerId))
       for (const id of this.caddyIps.keys()) if (!live.has(id)) this.caddyIps.delete(id)
       const services = await Promise.all(jobs.map((j) => this.caddyTlsService(j)))
-      const json = JSON.stringify(
-        buildCaddyServers(
-          nodeHost,
-          services.filter((s) => s)
-        )
+      const acmeJson = this.getC2DConfig().connection.serviceOnDemand?.letsEncryptAcmePath
+      const servers = buildCaddyServers(
+        nodeHost,
+        services.filter((s) => s),
+        !!acmeJson
       )
-      const last = this.caddyLastPost
+      const json = JSON.stringify(servers)
+      const last = this.caddyLastLoad
       if (last?.json === json && Date.now() - last.at < SERVICE_TLS_RESEND_MS) return
-      this.caddyLastPost = { json, at: Date.now() }
-      await caddyPost('/config/apps/http/servers', json, this.caddySocket)
+      const caddy = await this.caddyIo.ensure(this.docker, acmeJson)
+      const certFile = acmeJson ? await this.copyStoreCert(caddy, nodeHost) : undefined
+      await this.caddyIo.exec(
+        caddy,
+        CADDY_LOAD_CMD,
+        JSON.stringify(buildCaddyConfig(servers, certFile))
+      )
+      this.caddyLastLoad = { json, at: Date.now() }
       this.lastTlsSyncOk = true
       CORE_LOGGER.resetThrottle('service-tls-sync')
     } catch (e: any) {
@@ -5260,6 +5276,29 @@ export class C2DEngineDocker extends C2DEngine {
         600_000
       )
     }
+  }
+
+  // The file name follows the cert, so a renewal changes the config and Caddy reloads it
+  private async copyStoreCert(
+    caddy: Dockerode.Container,
+    nodeHost: string
+  ): Promise<string> {
+    const pem = findStoreCert(
+      await this.caddyIo.exec(caddy, ['cat', CADDY_LE_STORE]),
+      nodeHost
+    )
+    if (!pem) throw new Error(`letsEncryptAcmePath has no certificate for ${nodeHost}`)
+    const file = `${CADDY_CERT_DIR}/${createHash('sha256').update(pem).digest('hex').slice(0, 16)}.pem`
+    await this.caddyIo.exec(
+      caddy,
+      [
+        'sh',
+        '-c',
+        `umask 077 && mkdir -p ${CADDY_CERT_DIR} && rm -f ${CADDY_CERT_DIR}/*.pem && cat > ${file}`
+      ],
+      pem
+    )
+    return file
   }
 
   private async caddyTlsService(job: ServiceJob): Promise<CaddyTlsService | null> {

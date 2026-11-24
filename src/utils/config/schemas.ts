@@ -879,6 +879,7 @@ export const ServiceOnDemandConfigSchema = z
   .object({
     enabled: z.boolean(),
     nodeHost: z.string().min(1),
+    letsEncryptAcmePath: z.string().startsWith('/').optional(),
     hostPortRange: z
       .tuple([z.number().int().min(1024), z.number().int().max(65535)])
       .refine((r) => !r || r[0] < r[1], {
