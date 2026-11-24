@@ -797,14 +797,13 @@ describe('**********         Service on Demand', () => {
     }
   })
 
-  it('(d2) reports no readiness for an image the node does not recognize', async function () {
+  it('(d2) reports generic readiness for an image the node does not recognize', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 4)
-    // nginx is not an engine the node knows, so it must be left exactly as it was before this
-    // feature existed: Running, and no readiness field for a client to gate on.
+    // nginx is not an engine the node knows, so its first exposed port is probed generically.
     const job = await getServiceJob(serviceId)
     assert(job, 'job not found')
     expect(job.status).to.equal(ServiceStatusNumber.Running)
-    expect(job.readiness).to.equal(undefined)
+    expect(job.readiness?.engine).to.equal('generic')
     expect(job.modelDownload).to.equal(undefined)
   })
 

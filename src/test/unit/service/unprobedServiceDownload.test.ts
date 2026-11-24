@@ -5,8 +5,8 @@ import * as tarStream from 'tar-stream'
 import { C2DEngineDocker } from '../../../components/c2d/compute_engine_docker.js'
 import { ServiceStatusNumber } from '../../../@types/C2D/ServiceOnDemand.js'
 
-// A vLLM-based app bundle: the engine image, but only the app's own port published, so the node
-// has no engine to probe and reports the launch script's download manifest alone.
+// A service that publishes no port: the node has nothing to probe and reports the launch script's
+// download manifest alone.
 describe('download progress for a service the node cannot probe', () => {
   const CACHE = '/data/outputs/hf/hub/models--Qwen--Qwen3.8-27B-FP8'
 
@@ -39,7 +39,7 @@ describe('download progress for a service the node cannot probe', () => {
     clusterHash: '0xcluster',
     containerId: 'container-1',
     image: 'vllm/vllm-openai',
-    exposedPorts: [9119],
+    exposedPorts: [] as number[],
     status: ServiceStatusNumber.Running,
     ...extra
   })

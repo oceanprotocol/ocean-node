@@ -191,14 +191,21 @@ crashed process and is stolen automatically, so no manual cleanup is ever needed
 
 ## Readiness and startup progress
 
-`Running` only means the container started. For workloads it recognizes, the node also reports
-whether the service can serve requests and how far its startup downloads have got, on the job
-returned by `SERVICE_GET_STATUS`:
+`Running` only means the container started. The node also reports whether the service can serve
+requests and how far its startup downloads have got, on the job returned by `SERVICE_GET_STATUS`:
 
-- `readiness` — `waiting`, `ready` or `failing`, from a request the node makes to the workload
+- `readiness` — `waiting`, `ready`, `failing` or `unknown`, from a request the node makes to the workload
   itself: vLLM `GET /v1/models` on 8000, llama.cpp `GET /health` on 8080, ComfyUI
-  `GET /system_stats` on 8188. A profile applies only when the service publishes that port, so an
-  app that runs an engine behind its own port reports no readiness and `Running` stays the signal.
+  `GET /system_stats` on 8188. A profile applies only when the service publishes that port. Any
+  other service — an image the node does not recognize, or an app that runs an engine behind its
+  own port — gets the `generic` probe on its first exposed port: `GET /health`, then
+  `/system_stats`, then `/`. No answer or a 5xx (a proxy's 502 for an app that is not up) is not
+  ready; a 2xx or 3xx is ready; a 4xx moves on to the next path, and at `/` means ready. A service
+  behind an auth gate should leave one of those paths open and proxied to the app: a gate that
+  answers `401`/`403` on all of them says nothing about the app behind it, and the service
+  reports `unknown`. An engine profile whose own request is refused with `401`/`403` falls back to
+  the same paths. `readiness.engine` names the profile that decided. Only a service that publishes
+  no port reports no readiness.
   A service still `waiting` 15 minutes after its container started is logged once as a node warning
   with the last probe error — usually a node that cannot reach its containers.
 - `imagePull` — byte progress of the image pull.
@@ -220,8 +227,8 @@ writes it near the end, so the cache alone can read near zero for most of a down
 received also count anything else the container fetches, so with a known total they are held below
 it: only the files in the cache complete a download.
 
-A service with no engine profile (an app that runs its engine behind its own port) still reports
-`modelDownload` from its manifest, with no `readiness`. With nothing to say when such a service is
+A service that publishes no port still reports `modelDownload` from its manifest, with no
+`readiness`. With nothing to say when such a service is
 ready, the node checks it only within 30 minutes of the container starting unless a manifest has
 appeared, and stops once everything listed is complete. All of it is best-effort and owner-only: a
 missing or wrong manifest only changes what that service's own progress report says.

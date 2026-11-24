@@ -96,7 +96,7 @@ import type {
 import {
   ImagePullTracker,
   probeCandidates,
-  runReadinessProbe,
+  runServiceProbe,
   PROBE_INITIAL_DELAY_SECONDS,
   PROBE_PERIOD_SECONDS,
   READY_PROBE_PERIOD_SECONDS,
@@ -5669,9 +5669,9 @@ export class C2DEngineDocker extends C2DEngine {
    * the only thing that knows when that ends, and this is the node asking it, from outside the
    * container, on the consumer's behalf.
    *
-   * Which request to make is engine-specific and comes from the node's own table
-   * (components/c2d/serviceEngines). An image the node does not recognize is left alone entirely:
-   * `readiness` stays absent, and clients keep treating Running as usable exactly as before.
+   * Which request to make comes from the node's own table (components/c2d/serviceEngines): an
+   * engine-specific one for an image it recognizes, a generic one on the first exposed port for
+   * any other. Only a service that publishes no port is left alone: `readiness` stays absent.
    *
    * Same discipline as the metrics sampler: no lifecycle lease, skipped while a lifecycle op is in
    * flight, persisted through a guarded readiness-ONLY write, and it never throws.
@@ -5707,18 +5707,19 @@ export class C2DEngineDocker extends C2DEngine {
       }
       // The loop ticks every couple of seconds; the probe runs on its own, slower period. Once
       // ready it slows right down — from then on it is a liveness check, not a wait.
+      const isSettled = wasReady || job.readiness?.state === 'unknown'
       const periodMs =
-        (wasReady ? READY_PROBE_PERIOD_SECONDS : PROBE_PERIOD_SECONDS) * 1000
+        (isSettled ? READY_PROBE_PERIOD_SECONDS : PROBE_PERIOD_SECONDS) * 1000
       if (job.readiness?.lastCheckedAt && now - job.readiness.lastCheckedAt < periodMs) {
         return
       }
 
-      const port = engine.probe.port ?? job.exposedPorts[0]
+      const port = engine.probe?.port ?? job.exposedPorts[0]
       if (!port) return
       const containerIps = Object.values(details.NetworkSettings?.Networks ?? {})
         .map((net: any) => net?.IPAddress)
         .filter((ip: string) => !!ip)
-      const candidates = probeCandidates(job, containerIps, port, engine.probe.path)
+      const candidates = probeCandidates(job, containerIps, port, '')
       // The address that answered last time, tried first — but never exclusively: a container
       // restart can change its IP, so a cached candidate that stops connecting falls back to the
       // full list on the same tick.
@@ -5729,7 +5730,7 @@ export class C2DEngineDocker extends C2DEngine {
 
       let result = null
       for (const url of ordered) {
-        const attempt = await runReadinessProbe(url, engine.probe.expectStatus)
+        const attempt = await runServiceProbe(url, engine.probe)
         if (attempt.ok) {
           result = attempt
           this.serviceProbeUrls.set(job.serviceId, url)
@@ -5760,7 +5761,7 @@ export class C2DEngineDocker extends C2DEngine {
         : {
             // Only a service that HAD answered can be "failing"; one that never has is still
             // warming up, which is the normal state for the first minutes of a model server.
-            state: everReady ? 'failing' : 'waiting',
+            state: result.inconclusive ? 'unknown' : everReady ? 'failing' : 'waiting',
             engine: engine.id,
             readySince: job.readiness?.readySince,
             lastCheckedAt: now,
@@ -5770,7 +5771,7 @@ export class C2DEngineDocker extends C2DEngine {
             probedUrl: result.url
           }
 
-      if (result.ok !== wasReady) {
+      if (readiness.state !== job.readiness?.state) {
         CORE_LOGGER.info(
           `[readiness] service ${job.serviceId} (${engine.id}): ${
             job.readiness?.state ?? 'unknown'
@@ -5841,9 +5842,9 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   /**
-   * Manifest download progress for a service the node cannot probe; no readiness, so Running stays
-   * the signal. With no readiness to end it, sampling is bounded by MANIFEST_DISCOVERY_MS /
-   * MANIFEST_SAMPLING_MS and stops once the listed download is complete.
+   * Manifest download progress for a service with no published port to probe; no readiness, so
+   * Running stays the signal. With no readiness to end it, sampling is bounded by
+   * MANIFEST_DISCOVERY_MS / MANIFEST_SAMPLING_MS and stops once the listed download is complete.
    */
   private async sampleUnprobedServiceDownload(
     job: ServiceJob,
