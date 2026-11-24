@@ -490,16 +490,16 @@ describe('Should validate IS_ENTERPRISE configuration', () => {
   const DB_ENV_VARS = [ENVIRONMENT_VARIABLES.DB_TYPE, ENVIRONMENT_VARIABLES.DB_URL]
   const DB_ENV_VALUES = ['typesense', 'http://localhost:8108/?apiKey=xyz']
 
+  // IS_ENTERPRISE is always overridden, so a value inherited from the test process can not
+  // leak in: undefined is stored as the string 'undefined', which the config builder treats
+  // as unset
   async function configWith(
     isEnterprise?: string
   ): Promise<{ config?: OceanNodeConfig; error?: Error }> {
-    const envVars = [...DB_ENV_VARS]
-    const envValues = [...DB_ENV_VALUES]
-    if (isEnterprise !== undefined) {
-      envVars.push(ENVIRONMENT_VARIABLES.IS_ENTERPRISE)
-      envValues.push(isEnterprise)
-    }
-    const overrides = buildEnvOverrideConfig(envVars, envValues)
+    const overrides = buildEnvOverrideConfig(
+      [...DB_ENV_VARS, ENVIRONMENT_VARIABLES.IS_ENTERPRISE],
+      [...DB_ENV_VALUES, isEnterprise]
+    )
     try {
       await setupEnvironment(TEST_ENV_CONFIG_PATH, overrides)
       return { config: await getConfiguration(true) }

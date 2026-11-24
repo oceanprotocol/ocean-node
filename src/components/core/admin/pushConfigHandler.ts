@@ -28,7 +28,15 @@ export class PushConfigHandler extends AdminCommandHandler {
       const currentConfig = this.getOceanNode().getConfig()
       const mergedConfig = { ...currentConfig, ...command.config }
 
-      OceanNodeConfigSchema.parse(mergedConfig)
+      const parsedConfig = OceanNodeConfigSchema.parse(mergedConfig)
+      // isEnterprise picks the escrow contract. Core would switch on reload, but the running
+      // indexers keep tracking the old one, and jobs locked on it would be claimed on the new
+      // one, so it only changes with a restart.
+      if (Boolean(parsedConfig.isEnterprise) !== Boolean(currentConfig.isEnterprise)) {
+        return buildInvalidRequestMessage(
+          'isEnterprise cannot be changed at runtime; update the config and restart the node'
+        )
+      }
     } catch (error) {
       if (error.name === 'ZodError') {
         const issues = error.issues
