@@ -148,7 +148,7 @@
     "release-it": "^21.1.2",
     "sinon": "^22.1.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.71.0",
+    "typescript-eslint": "^8.72.2",
     "yauzl": "^3.4.0"
   },
   "overrides": {
