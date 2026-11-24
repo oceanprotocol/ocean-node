@@ -107,6 +107,8 @@ describe('ESCROW_EMPTY_TX end-to-end (zero-amount lock/claim on-chain)', () => {
     paymentToken = artifactsAddresses?.Ocean
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
+    // signer 0 is the OceanToken deployer/minter; only it can mint. signer 1 is the payer.
+    const publisherAccount = (await provider.getSigner(0)) as Signer
     consumerAccount = (await provider.getSigner(1)) as Signer
     payerAddress = await consumerAccount.getAddress()
 
@@ -130,7 +132,9 @@ describe('ESCROW_EMPTY_TX end-to-end (zero-amount lock/claim on-chain)', () => {
     )
 
     if (escrowAddress && paymentToken) {
-      tokenContract = new ethers.Contract(paymentToken, OceanToken.abi, consumerAccount)
+      // token contract bound to the minter (signer 0) so mint() succeeds; escrow calls
+      // (approve/deposit/authorize) are made by the payer (signer 1).
+      tokenContract = new ethers.Contract(paymentToken, OceanToken.abi, publisherAccount)
       escrowContract = new ethers.Contract(escrowAddress, EscrowJson.abi, consumerAccount)
       // Fund the payer and authorize the node (payee) generously, so a real (non-zero, or
       // flag-on) lock can clear the escrow funds + authorization pre-checks that the skip path
@@ -140,7 +144,9 @@ describe('ESCROW_EMPTY_TX end-to-end (zero-amount lock/claim on-chain)', () => {
       if (BigInt(bal.toString()) < amount) {
         await (await tokenContract.mint(payerAddress, amount)).wait()
       }
-      await (await tokenContract.approve(escrowAddress, amount)).wait()
+      await (
+        await tokenContract.connect(consumerAccount).approve(escrowAddress, amount)
+      ).wait()
       await (await escrowContract.deposit(paymentToken, amount)).wait()
       await (
         await escrowContract.authorize(
