@@ -926,6 +926,9 @@ describe('Service handlers', () => {
       expect(out[0].extendPayments).to.have.length(1)
       expect(out[0].extendPayments[0].lockTx).to.equal('0xempty')
       expect(out[0].extendPayments[0].claimTx).to.equal('0xempty')
+      // the handler must forward the lock's sentinel into claimLock (9th arg, index 8) — that is
+      // what makes the real Escrow.claimLock short-circuit instead of looking up a non-existent lock
+      expect(escrow.claimLock.firstCall.args[8]).to.equal('0xempty')
       // nothing was locked on-chain, so nothing is ever cancelled
       expect(escrow.cancelExpiredLock.called).to.equal(false)
     })

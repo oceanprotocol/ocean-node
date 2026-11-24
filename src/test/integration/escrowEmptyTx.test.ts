@@ -62,10 +62,15 @@ describe('ESCROW_EMPTY_TX end-to-end (zero-amount lock/claim on-chain)', () => {
       payerAddress,
       nodeAddress
     )
-    const jobIdHash = create256Hash(job)
-    return (locks ?? []).some(
-      (l: any) => BigInt(l.jobId.toString()) === BigInt(jobIdHash)
+    // getLocks returns null when the on-chain lookup itself fails. Treat that as a hard error, not
+    // as "no locks": otherwise a failed lookup would silently satisfy a "no lock exists" assertion.
+    // A successful lookup with no matching lock is a real empty array and still returns false.
+    assert(
+      locks !== null && locks !== undefined,
+      'getLocks lookup failed (returned null)'
     )
+    const jobIdHash = create256Hash(job)
+    return locks.some((l: any) => BigInt(l.jobId.toString()) === BigInt(jobIdHash))
   }
   const hasEscrow = () => !!(escrowAddress && paymentToken)
 
@@ -83,7 +88,7 @@ describe('ESCROW_EMPTY_TX end-to-end (zero-amount lock/claim on-chain)', () => {
           JSON.stringify(mockSupportedNetworks),
           JSON.stringify([DEVELOPMENT_CHAIN_ID]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
+          `${homedir()}/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
     )
@@ -259,8 +264,19 @@ describe('ESCROW_EMPTY_TX end-to-end (zero-amount lock/claim on-chain)', () => {
         expiry,
         JobType.COMPUTE
       )
-    } catch {
-      // the contract may reject a zero-value lock — a revert still proves it went on-chain
+    } catch (e) {
+      // A zero-amount lock with the flag ON must reach the chain; the contract rejects wei==0
+      // during gas estimation, and the Escrow wrapper rethrows that as a plain Error carrying the
+      // ethers message (the CALL_EXCEPTION code is lost in the rethrow). Accept ONLY that on-chain
+      // execution revert as proof it went on-chain. App-level pre-check failures (insufficient
+      // funds, missing auth) and a token-decimals lookup error never touch the chain, so rethrow
+      // them — otherwise they would masquerade as "went on-chain" and hide a regression.
+      const msg = String((e as Error)?.message ?? e)
+      if (
+        !/estimateGas|execution reverted|CALL_EXCEPTION|missing revert data/i.test(msg)
+      ) {
+        throw e
+      }
       threw = true
     }
     // In neither outcome did it short-circuit to the sentinel.
