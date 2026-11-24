@@ -779,6 +779,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.IS_BOOTSTRAP,
     required: false
   },
+  IS_ENTERPRISE: {
+    name: 'IS_ENTERPRISE',
+    value: process.env.IS_ENTERPRISE,
+    required: false
+  },
   AUTHORIZED_PUBLISHERS: {
     name: 'AUTHORIZED_PUBLISHERS',
     value: process.env.AUTHORIZED_PUBLISHERS,

@@ -25,6 +25,7 @@ export const ENV_TO_CONFIG_MAPPING = {
   FILEINFO_ALLOWED_HEADERS: 'fileInfoAllowedHeaders',
   FILEINFO_MAX_REQ_PER_MINUTE: 'fileInfoRateLimit',
   IS_BOOTSTRAP: 'isBootstrap',
+  IS_ENTERPRISE: 'isEnterprise',
   ESCROW_CLAIM_TIMEOUT: 'claimDurationTimeout',
   VALIDATE_UNSIGNED_DDO: 'validateUnsignedDDO',
   JWT_SECRET: 'jwtSecret',

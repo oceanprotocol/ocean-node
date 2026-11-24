@@ -216,6 +216,9 @@ export interface OceanNodeConfig {
   // fileInfo path, counted in a separate bucket from the global rate limit. 0 = disabled.
   fileInfoRateLimit?: number
   isBootstrap?: boolean
+  // Ocean Enterprise node: switches enterprise-only behaviour (e.g. EnterpriseEscrow instead
+  // of Escrow for compute payments and escrow event indexing)
+  isEnterprise?: boolean
   validateUnsignedDDO?: boolean
   jwtSecret?: string
   httpCertPath?: string
