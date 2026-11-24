@@ -77,6 +77,26 @@ describe('service utils', () => {
       expect(listed).to.not.have.property('dockerfile')
       expect(listed).to.have.property('serviceId', 's1')
     })
+    it('leaves out what the service produced: output archives and saved logs', () => {
+      const archive = {
+        index: 0,
+        filesize: 1,
+        createdAt: 0,
+        containerId: 'c1'
+      }
+      const job = {
+        serviceId: 's1',
+        owner: '0xabc',
+        endpoints: [],
+        outputArchives: [{ ...archive, filename: 'outputs-0.zip' }],
+        logArchives: [{ ...archive, filename: 'logs-0.log' }]
+      } as unknown as ServiceJob
+      const listed = toListedServiceJob(job)
+      expect(listed).to.not.have.property('outputArchives')
+      expect(listed).to.not.have.property('logArchives')
+      // stripped from the node-wide list only: the owner still needs them on their own status
+      expect(toPublicServiceJob(job)).to.have.property('logArchives')
+    })
     it('is null-safe', () => {
       expect(toListedServiceJob(null)).to.equal(null)
     })
