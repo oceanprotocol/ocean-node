@@ -204,7 +204,8 @@ export interface ServiceOutputArchive {
 export interface ServiceEndpoint {
   containerPort: number
   hostPort: number
-  url: string // e.g. "http://<nodeHost>:31042"
+  url: string // e.g. "http://<nodeHost>:31042"; "https://…" when `tls`
+  tls?: boolean
 }
 
 /* eslint-disable no-unused-vars */
@@ -294,6 +295,7 @@ export interface ServiceJob {
   duration: number // requested seconds
   exposedPorts: number[]
   endpoints: ServiceEndpoint[]
+  secureTls?: number[] // container ports served over HTTPS
   userData?: string // ECIES(node key) string sent by the client; stored as-is, decrypted only at start/restart; never returned
   // Arbitrary, node-opaque user labels (≤1 KB when JSON-stringified). Set at SERVICE_START,
   // optionally replaced at SERVICE_RESTART. Returned only to the owner via toPublicServiceJob

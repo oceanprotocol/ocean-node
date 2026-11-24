@@ -25,6 +25,10 @@ import {
   resolveUserSubsidyProviders
 } from '../utils/subsidyProviders.js'
 import { maintenanceGuard } from '../utils/maintenance.js'
+import {
+  validateSecureTls,
+  SECURE_TLS_UNAVAILABLE_MESSAGE
+} from '../../c2d/serviceTls.js'
 
 export class ServiceStartHandler extends CommandHandler {
   validate(command: ServiceStartCommand): ValidateParams {
@@ -51,6 +55,8 @@ export class ServiceStartHandler extends CommandHandler {
         )
       if (!isJobMetadataSizeValid(command.metadata))
         return buildInvalidRequestMessage(INVALID_JOB_METADATA_MESSAGE)
+      const tlsError = validateSecureTls(command.secureTls, command.exposedPorts ?? [])
+      if (tlsError) return buildInvalidRequestMessage(tlsError)
     }
     return commandValidation
   }
@@ -107,6 +113,12 @@ export class ServiceStartHandler extends CommandHandler {
             error: 'Services are not enabled on this environment'
           }
         }
+
+      // TLS gate
+      if (task.secureTls?.length && !env.features?.secureTls)
+        return buildInvalidParametersResponse(
+          buildInvalidRequestMessage(SECURE_TLS_UNAVAILABLE_MESSAGE)
+        )
 
       // 1b. Access-list gate (mirrors paid compute → 403). The signature only proves
       //     control of consumerAddress, not allowlist membership, so this must be
@@ -333,7 +345,8 @@ export class ServiceStartHandler extends CommandHandler {
         serviceId,
         task.userData,
         task.metadata,
-        task.outputBucketId
+        task.outputBucketId,
+        task.secureTls
       )
 
       CORE_LOGGER.info(

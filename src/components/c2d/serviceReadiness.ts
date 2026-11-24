@@ -2,6 +2,7 @@ import type {
   ServiceImagePullProgress,
   ServiceJob
 } from '../../@types/C2D/ServiceOnDemand.js'
+import { urlHost } from './serviceTls.js'
 
 // How often the aggregated byte counts are pushed to the caller
 const PULL_PROGRESS_EMIT_INTERVAL_MS = 1000
@@ -122,12 +123,13 @@ export function probeCandidates(
   const urls: string[] = []
   for (const ip of containerIps) {
     if (ip) {
-      // Docker reports IPv4 here today; an IPv6 literal would need brackets to form a URL.
-      const host = ip.includes(':') ? `[${ip}]` : ip
-      urls.push(`http://${host}:${containerPort}${path}`)
+      urls.push(`http://${urlHost(ip)}:${containerPort}${path}`)
     }
   }
-  if (hostPort) {
+  // Caddy speaks only https, with a cert for nodeHost: only the public URL can work
+  if (endpoint?.tls) {
+    urls.push(`${endpoint.url}${path}`)
+  } else if (hostPort) {
     urls.push(`http://127.0.0.1:${hostPort}${path}`)
     // Docker Desktop always, and Linux compose when the node declares `host-gateway`.
     urls.push(`http://host.docker.internal:${hostPort}${path}`)

@@ -14,6 +14,10 @@ import { ServiceStatusNumber } from '../../../@types/C2D/ServiceOnDemand.js'
 import { validateAccess } from '../compute/startCompute.js'
 import { isJobMetadataSizeValid, INVALID_JOB_METADATA_MESSAGE } from '../../c2d/index.js'
 import { decryptUserData, findServiceJobAndEngine, toPublicServiceJob } from './utils.js'
+import {
+  validateSecureTls,
+  SECURE_TLS_UNAVAILABLE_MESSAGE
+} from '../../c2d/serviceTls.js'
 import { PersistentStorageAccessDeniedError } from '../../persistentStorage/PersistentStorageFactory.js'
 import {
   restartSubsidyDropped,
@@ -138,6 +142,19 @@ export class ServiceRestartHandler extends CommandHandler {
     if (!accessGranted)
       return { stream: null, status: { httpStatus: 403, error: 'Access denied' } }
 
+    // An env that lost TLS restarts an omitted list plain, not with a 400 the user cannot fix
+    const tlsError =
+      validateSecureTls(task.secureTls, job.exposedPorts) ??
+      (task.secureTls?.length && !runEnv.features?.secureTls
+        ? SECURE_TLS_UNAVAILABLE_MESSAGE
+        : null)
+    if (tlsError)
+      return buildInvalidParametersResponse(buildInvalidRequestMessage(tlsError))
+    const dropTls =
+      task.secureTls === undefined &&
+      !!job.secureTls?.length &&
+      !runEnv.features?.secureTls
+
     // State check — cannot restart an expired service
     if (job.status === ServiceStatusNumber.Expired)
       return buildInvalidParametersResponse(
@@ -210,6 +227,10 @@ export class ServiceRestartHandler extends CommandHandler {
         }
       }
 
+    if (dropTls)
+      CORE_LOGGER.info(
+        `service ${task.serviceId}: TLS no longer available, restarting without it`
+      )
     try {
       // Asynchronous, like SERVICE_START: engine.restartService validates, persists the
       // job as Restarting and returns immediately — the teardown + image pull/build +
@@ -227,7 +248,8 @@ export class ServiceRestartHandler extends CommandHandler {
         task.userData,
         task.dockerCmd,
         task.dockerEntrypoint,
-        task.metadata
+        task.metadata,
+        dropTls ? [] : task.secureTls
       )
       CORE_LOGGER.info(`Service ${task.serviceId} restarted by ${task.consumerAddress}`)
       return {

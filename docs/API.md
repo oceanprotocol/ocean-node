@@ -2012,6 +2012,12 @@ and SERVICE_START rejects a `duration` outside it:
 
 Environments on the same engine may therefore report different values for both.
 
+`features` (`{ computeJobs, services, secureTls? }`) tells what an environment accepts.
+`secureTls: true` means service ports can be served over HTTPS (`secureTls` in `serviceStart` /
+`serviceRestart`): the environment is the node's first local Docker environment, its `nodeHost`
+is a public IP or a domain, and the node's Caddy accepted the last update. An older
+node omits it; treat a missing value as `false`.
+
 Both fields are additive, and an older node omits them. Their fallbacks differ, so treat each
 separately:
 
@@ -2626,7 +2632,8 @@ The encrypted `userData` is never returned. Key fields:
 | dateCreated    | string   | ISO timestamp                                                                                                                                                                                                       |
 | expiresAt      | number   | Unix ms timestamp when the paid window ends                                                                                                                                                                         |
 | duration       | number   | requested seconds                                                                                                                                                                                                   |
-| endpoints      | object[] | `{ containerPort, hostPort, url }` per exposed port                                                                                                                                                                 |
+| endpoints      | object[] | `{ containerPort, hostPort, url, tls }` per exposed port. `tls: true` → `url` is `https://<nodeHost>:<hostPort>` (served by the node's Caddy); otherwise `http://`                                                  |
+| secureTls      | number[] | container ports served over HTTPS; absent when none                                                                                                                                                                 |
 | resources      | object[] | `{ id, amount, price }`                                                                                                                                                                                             |
 | payment        | object   | initial start payment record                                                                                                                                                                                        |
 | extendPayments | object[] | one entry per successful extend                                                                                                                                                                                     |
@@ -2722,6 +2729,7 @@ should keep watching `serviceStatus`, not just stop once they first see `Running
 | duration                     | number   | v        | seconds; capped by `serviceOnDemand.maxDurationSeconds`           |
 | userData                     | string   |          | ECIES-encrypted (to the node pubkey) JSON of env vars             |
 | metadata                     | object   |          | arbitrary user labels (`string`/`number`/`boolean` values, ≤1 KB JSON); node-opaque. Returned on both `serviceStatus` and `serviceList` |
+| secureTls                    | number[] |          | exposed HTTP container ports to serve over HTTPS (unique). Needs `features.secureTls` on the environment (else 400). TLS only: authentication is the image's own job. See [services.md](services.md#https-endpoints-securetls) |
 | payment                      | object   | v        | `{ chainId, token }`                                              |
 
 #### Response (200)
@@ -2918,6 +2926,7 @@ RESPEC mode (restart on a new image spec — `image` required, plus at most one 
 | dockerCmd             | string[] |          | exact container command (Docker exec-form CMD override)                                                                  |
 | dockerEntrypoint      | string[] |          | container ENTRYPOINT override                                                                                            |
 | metadata              | object   |          | user labels (≤1 KB JSON). **Not** a container param — independent of REUSE/RESPEC. When present it **replaces** the stored metadata; when omitted the original metadata is kept |
+| secureTls             | number[] |          | container ports, like `serviceStart`. **Not** a container param. When present it **replaces** the stored list (`[]` turns TLS off); when omitted the stored list is kept. A non-empty list needs `features.secureTls` (else 400); if the environment lost it, an omitted list restarts the service without TLS |
 
 #### Response (200)
 

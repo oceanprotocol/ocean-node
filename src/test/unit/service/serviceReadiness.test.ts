@@ -248,6 +248,23 @@ describe('probeCandidates', () => {
     expect(urls).to.include('http://127.0.0.1:31001/health')
     expect(urls).to.not.include('http://127.0.0.1:31000/health')
   })
+
+  it('for a TLS port, keeps only the container IP and the public https URL', () => {
+    const tlsJob = {
+      endpoints: [
+        {
+          containerPort: 8000,
+          hostPort: 31042,
+          url: 'https://157.66.255.31:31042',
+          tls: true
+        }
+      ]
+    } as ServiceJob
+    expect(probeCandidates(tlsJob, ['172.20.0.2'], 8000, '/health')).to.deep.equal([
+      'http://172.20.0.2:8000/health',
+      'https://157.66.255.31:31042/health'
+    ])
+  })
 })
 
 describe('runReadinessProbe', () => {

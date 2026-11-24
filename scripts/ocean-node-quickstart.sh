@@ -758,6 +758,7 @@ $(
       - node-sqlite:/usr/src/app/databases
       - ./logs:/usr/src/app/logs
       - /var/run/docker.sock:/var/run/docker.sock
+      - caddy_admin:/run/caddy
 $(
   if [ "$enable_tls" == "y" ]; then
     echo "      - $HTTP_CERT_PATH:/usr/src/app/certs/cert.pem:ro"
@@ -771,6 +772,19 @@ $(
         max-file: "5"
     depends_on:
       - typesense
+
+  caddy:
+    image: caddy:2.11.9-alpine
+    container_name: caddy
+    network_mode: host
+    restart: always
+    command: caddy run --config /etc/caddy/caddy.json
+    configs:
+      - source: caddy_json
+        target: /etc/caddy/caddy.json
+    volumes:
+      - caddy_admin:/run/caddy
+      - caddy_data:/data
 
   typesense:
     image: typesense/typesense:26.0
@@ -788,6 +802,17 @@ volumes:
     driver: local
   node-sqlite:
     driver: local
+  caddy_admin:
+    driver: local
+  caddy_data:
+    driver: local
+
+configs:
+  caddy_json:
+    content: |
+      {"admin":{"listen":"unix//run/caddy/admin.sock|0222","config":{"persist":false}},
+       "apps":{"tls":{"automation":{"policies":[{"issuers":[{"module":"acme","profile":"shortlived"}]}]}},
+               "http":{"servers":{}}}}
 
 networks:
   ocean_network:

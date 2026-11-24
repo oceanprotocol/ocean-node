@@ -110,6 +110,101 @@ When a TLS certificate is provisioned successfully, you will see logs like:
 ----- End of TLS addresses -----
 ```
 
+## Service TLS: the Caddy proxy
+
+Services can serve their ports over HTTPS (see [services.md](services.md#https-endpoints-securetls)).
+TLS is done by one official [Caddy](https://caddyserver.com/) container that you run next to the
+node. Caddy gets and renews a Let's Encrypt certificate for `serviceOnDemand.nodeHost` (a public
+IP or a domain) on its own. The node only tells Caddy which ports to serve, through Caddy's admin
+API on a unix socket.
+
+Add Caddy to your compose file (the quickstart script does this), and share its admin socket
+volume with the node:
+
+```yaml
+services:
+  caddy:
+    image: caddy:2.11.9-alpine
+    container_name: caddy
+    network_mode: host
+    restart: always
+    command: caddy run --config /etc/caddy/caddy.json
+    configs:
+      - source: caddy_json
+        target: /etc/caddy/caddy.json
+    volumes:
+      - caddy_admin:/run/caddy
+      - caddy_data:/data
+  ocean-node:
+    volumes:
+      - caddy_admin:/run/caddy
+      # ...the node's other volumes
+
+configs:
+  caddy_json: # inline config needs Docker Compose 2.23 or later
+    content: |
+      {"admin":{"listen":"unix//run/caddy/admin.sock|0222","config":{"persist":false}},
+       "apps":{"tls":{"automation":{"policies":[{"issuers":[{"module":"acme","profile":"shortlived"}]}]}},
+               "http":{"servers":{}}}}
+
+volumes:
+  caddy_admin:
+  caddy_data:
+```
+
+- `admin.listen`: the admin API is on a unix socket in the `caddy_admin` volume. The node runs as
+  uid 1000, so the socket is writable for all (`|0222`). Only root and the containers that mount
+  the volume can reach it.
+- `persist: false`: Caddy keeps no autosave copy of the config. The node sends the servers again.
+- `profile: shortlived`: the Let's Encrypt profile that IP certificates need.
+
+**Port 80 must be free for Caddy.** Let's Encrypt checks the name with an HTTP request on port
+80 (ACME http-01), and Caddy (host network) listens there. Also open the service
+`hostPortRange` (TCP), as for plain services: Caddy listens on the secure host ports.
+
+The node's service loop sends Caddy the servers when they change, and re-sends them every minute
+(so a restarted Caddy gets them back). Only the first local (`socketPath`) Docker environment does
+this, with its `nodeHost`. An environment shows `features.secureTls: true` only after Caddy accepted
+the node's last update. Certificate errors are in Caddy's log (`docker logs caddy`).
+
+With `nodeHost` set to `localhost` or a private IP, service TLS is off and the node logs one line
+asking you to set it.
+
+Restart Caddy after changing `nodeHost` (`docker restart caddy`), so that no server for the old
+name stays in its config.
+
+### Nodes with Traefik on port 80
+
+Traefik already holds port 80, so Caddy uses port 8081 for its HTTP side, and Traefik sends only
+the ACME challenge path there:
+
+- Traefik's own resolver: use `--certificatesresolvers.myresolver.acme.tlschallenge=true`
+  instead of `httpchallenge` (the challenge path now goes to Caddy).
+- In the `caddy_json` config, set `apps.http.http_port` to `8081`, and add
+  `"challenges": { "http": { "alternate_port": 8081 } }` to the `acme` issuer. Without
+  `http_port`, Caddy still binds port 80 and the node's config is refused.
+- A Traefik router on the `web` entry point, above the http-to-https redirect. With the dynamic
+  file provider:
+
+```yaml
+http:
+  routers:
+    caddy-acme:
+      rule: 'PathPrefix(`/.well-known/acme-challenge/`)'
+      entryPoints: [web]
+      priority: 2147483647
+      service: caddy-acme
+  services:
+    caddy-acme:
+      loadBalancer:
+        servers:
+          - url: 'http://host.docker.internal:8081'
+```
+
+Give the Traefik container `extra_hosts: ["host.docker.internal:host-gateway"]` so that the name
+reaches the host. A redirect set on the entry point (`entrypoints.web.http.redirections`) has priority
+`2147483646` by default, so the router above wins.
+
 ## Verifying Connectivity
 
 ### Check how your node sees itself
