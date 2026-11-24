@@ -8,7 +8,7 @@ import type { ServiceOnDemandConfig } from './ServiceOnDemand.js'
 export interface ComputeEnvFeatures {
   computeJobs: boolean // false → COMPUTE_START + FREE_COMPUTE_START rejected
   services: boolean // false → SERVICE_START rejected; env hidden from service matching
-  secureTls?: boolean // HTTPS for service ports: public nodeHost + local daemon + Caddy accepted the last sync
+  secureTls?: boolean // HTTPS service ports: the node's Caddy holds a cert for nodeHost
 }
 export enum C2DClusterType {
   // eslint-disable-next-line no-unused-vars

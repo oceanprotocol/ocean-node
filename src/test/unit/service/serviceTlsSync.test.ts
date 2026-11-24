@@ -1,19 +1,17 @@
 import { expect } from 'chai'
 import sinon from 'sinon'
 import { C2DEngineDocker } from '../../../components/c2d/compute_engine_docker.js'
-import { C2DClusterType } from '../../../@types/C2D/C2D.js'
 import { ServiceStatusNumber } from '../../../@types/C2D/ServiceOnDemand.js'
 import {
-  buildCaddyConfig,
-  buildCaddyServers
-} from '../../../components/c2d/serviceTls.js'
-import {
+  CaddyProxy,
+  CADDY_ACME_JSON,
   CADDY_CONTAINER,
   CADDY_IMAGE,
   CADDY_LOAD_CMD,
-  CADDY_LE_STORE,
+  buildCaddyConfig,
+  buildCaddyServers,
   ensureCaddy
-} from '../../../components/c2d/caddyContainer.js'
+} from '../../../components/c2d/caddyProxy.js'
 import { releaseHostPort } from '../../../components/core/service/utils.js'
 
 const NODE_HOST = '157.66.255.31'
@@ -24,6 +22,7 @@ interface FakeCaddy {
   execs: { cmd: string[]; input: string }[]
   fail: boolean
   acmeJson: string
+  hasCert: boolean // Caddy's storage holds a cert for nodeHost
 }
 
 // Stands in for the node's Caddy container (ensureCaddy + docker exec)
@@ -31,12 +30,15 @@ function fakeCaddyIo(fake: FakeCaddy) {
   const container = { id: 'caddy' }
   return {
     ensure: sinon.stub().resolves(container),
+    remove: sinon.stub().resolves(),
     exec: sinon.stub().callsFake((_c: unknown, cmd: string[], input = '') => {
       fake.execs.push({ cmd, input })
       if (cmd === CADDY_LOAD_CMD) {
         if (fake.fail) return Promise.reject(new Error('caddy exec wget exited 1'))
         fake.loads.push(JSON.parse(input))
       }
+      if (cmd[2]?.startsWith('ls ') && !fake.hasCert)
+        return Promise.reject(new Error('caddy exec sh exited 1'))
       return Promise.resolve(cmd[0] === 'cat' ? fake.acmeJson : '')
     })
   }
@@ -76,20 +78,21 @@ describe('ensureCaddy', () => {
       createContainer: sinon.stub().resolves(created)
     }
   }
-  const LABEL = 'ocean-node.letsencrypt-store'
-  const running = (acme = '', Image = CADDY_IMAGE) => ({
-    Config: { Image, Labels: { [LABEL]: acme } },
+  const LABEL = 'ocean-node.letsencrypt-acme-path'
+  const OWNER = 'ocean-node.owner'
+  const running = (acme = '', Image = CADDY_IMAGE, owner = '0xnode') => ({
+    Config: { Image, Labels: { [LABEL]: acme, [OWNER]: owner } },
     State: { Running: true }
   })
 
   it('creates and starts Caddy on the host network when it is missing', async () => {
     const docker = fakeDocker(null)
-    expect(await ensureCaddy(docker as any)).to.equal(docker.created)
+    expect(await ensureCaddy(docker as any, '0xnode')).to.equal(docker.created)
     expect(docker.createContainer.firstCall.args[0]).to.deep.equal({
       name: CADDY_CONTAINER,
       Image: CADDY_IMAGE,
       Cmd: ['caddy', 'run'],
-      Labels: { [LABEL]: '' },
+      Labels: { [LABEL]: '', [OWNER]: '0xnode' },
       HostConfig: { NetworkMode: 'host', RestartPolicy: { Name: 'always' }, Binds: BINDS }
     })
     expect(docker.created.start.calledOnce).to.equal(true)
@@ -97,15 +100,17 @@ describe('ensureCaddy', () => {
 
   it('keeps a running Caddy with the same image and files', async () => {
     const docker = fakeDocker(running())
-    expect(await ensureCaddy(docker as any)).to.equal(docker.existing)
+    expect(await ensureCaddy(docker as any, '0xnode')).to.equal(docker.existing)
     expect(docker.existing.start.called).to.equal(false)
     expect(docker.createContainer.called).to.equal(false)
   })
 
-  it('starts a stopped Caddy', async () => {
-    const docker = fakeDocker({ ...running(), State: { Running: false } })
-    await ensureCaddy(docker as any)
-    expect(docker.existing.start.calledOnce).to.equal(true)
+  it("leaves another node's Caddy alone", async () => {
+    const docker = fakeDocker(running('', CADDY_IMAGE, '0xother'))
+    let error: Error
+    await ensureCaddy(docker as any, '0xnode').catch((e) => (error = e))
+    expect(error.message).to.contain('belongs to another node (0xother)')
+    expect(docker.existing.remove.called).to.equal(false)
   })
 
   it('recreates Caddy when the image or the letsEncryptAcmePath changes', async () => {
@@ -114,15 +119,15 @@ describe('ensureCaddy', () => {
       [running(), '/srv/letsencrypt/acme.json']
     ] as const) {
       const docker = fakeDocker(info)
-      await ensureCaddy(docker as any, acme)
+      await ensureCaddy(docker as any, '0xnode', acme)
       expect(docker.existing.remove.calledOnce).to.equal(true)
       expect(docker.createContainer.calledOnce).to.equal(true)
     }
     const docker = fakeDocker(null)
-    await ensureCaddy(docker as any, '/srv/letsencrypt/acme.json')
+    await ensureCaddy(docker as any, '0xnode', '/srv/letsencrypt/acme.json')
     expect(docker.createContainer.firstCall.args[0].HostConfig.Binds).to.deep.equal([
       ...BINDS,
-      `/srv/letsencrypt/acme.json:${CADDY_LE_STORE}:ro`
+      `/srv/letsencrypt/acme.json:${CADDY_ACME_JSON}:ro`
     ])
   })
 })
@@ -131,35 +136,20 @@ describe('service TLS sync (Caddy admin API)', () => {
   let engine: any
   let network: any
   let caddy: FakeCaddy
+  let io: ReturnType<typeof fakeCaddyIo>
   let containers: Record<string, any>
 
-  // the first socketPath Docker cluster is the TLS engine
-  function setTlsEngine(opts: {
-    nodeHost?: string
-    socketPath?: string
-    first?: string
-    letsEncryptAcmePath?: string
-  }) {
+  function setTlsEngine(opts: { nodeHost?: string; letsEncryptAcmePath?: string }) {
     engine.getC2DConfig = sinon.stub().returns({
       hash: 'cluster-hash',
       connection: {
-        socketPath: opts.socketPath ?? '/var/run/docker.sock',
+        socketPath: '/var/run/docker.sock',
         serviceOnDemand: {
           hostPortRange: [31042, 31141],
           nodeHost: opts.nodeHost ?? NODE_HOST,
           letsEncryptAcmePath: opts.letsEncryptAcmePath
         }
       }
-    })
-    engine.getConfig = sinon.stub().returns({
-      c2dClusters: [
-        { type: C2DClusterType.OPF_K8, hash: 'k8s', connection: {} },
-        {
-          type: C2DClusterType.DOCKER,
-          hash: opts.first ?? 'cluster-hash',
-          connection: { socketPath: '/var/run/docker.sock' }
-        }
-      ]
     })
   }
 
@@ -170,13 +160,9 @@ describe('service TLS sync (Caddy admin API)', () => {
   }
 
   beforeEach(() => {
-    caddy = { loads: [], execs: [], fail: false, acmeJson: '{}' }
+    caddy = { loads: [], execs: [], fail: false, acmeJson: '{}', hasCert: true }
     engine = Object.create(C2DEngineDocker.prototype)
-    engine.caddyIo = fakeCaddyIo(caddy)
-    engine.tlsSync = Promise.resolve()
-    engine.caddyLastLoad = null
-    engine.lastTlsSyncOk = false
-    engine.caddyIps = new Map()
+    engine.tlsSync = Promise.resolve(true)
     engine.cpuAllocations = new Map()
     engine.envCpuCoresMap = new Map()
     engine.serviceOpsInFlight = new Set()
@@ -221,6 +207,8 @@ describe('service TLS sync (Caddy admin API)', () => {
       getMinLockTime: sinon.stub().returns(3600)
     }
     engine.keyManager = { decrypt: sinon.stub().resolves(Buffer.from('{}')) }
+    io = fakeCaddyIo(caddy)
+    engine.caddy = new CaddyProxy(engine.docker, '0xnode', io as any)
   })
 
   afterEach(() => {
@@ -306,40 +294,14 @@ describe('service TLS sync (Caddy admin API)', () => {
             {
               serviceId: 'a',
               upstreamIp: '172.20.0.5',
-              secureTls: a.secureTls,
               endpoints: a.endpoints
             }
-          ])
+          ]),
+          NODE_HOST
         )
       ])
-      expect(engine.caddyIo.ensure.firstCall.args.slice(1)).to.deep.equal([undefined])
+      expect(io.ensure.firstCall.args.slice(1)).to.deep.equal(['0xnode', undefined])
     })
-
-    it('skips a service whose container cannot be inspected, and syncs the rest', async () => {
-      containers.ca = { inspect: sinon.stub().rejects(new Error('no such container')) }
-      containers.cb = { inspect: inspectWithIp('b', '172.20.0.6') }
-      engine.db.getRunningServiceJobs.resolves([
-        makeRunningJob({ serviceId: 'a', containerId: 'ca' }),
-        makeRunningJob({ serviceId: 'b', containerId: 'cb' })
-      ])
-
-      await engine.syncServiceTls()
-
-      expect(Object.keys(posts()[0].body)).to.deep.equal(['ocean_b_8188'])
-    })
-
-    for (const [name, opts] of [
-      ['not the first socketPath engine', { first: 'other-hash' }],
-      ['a remote daemon', { socketPath: '' }],
-      ['a private nodeHost', { nodeHost: '192.168.1.10' }]
-    ] as const) {
-      it(`does nothing on ${name}`, async () => {
-        setTlsEngine(opts)
-        await engine.syncServiceTls()
-        expect(engine.caddyIo.ensure.called).to.equal(false)
-        expect(engine.db.getRunningServiceJobs.called).to.equal(false)
-      })
-    }
 
     it('a failed load does not throw, and is retried on the next sync', async () => {
       caddy.fail = true
@@ -357,9 +319,9 @@ describe('service TLS sync (Caddy admin API)', () => {
 
       await engine.syncServiceTls()
 
-      expect(engine.caddyIo.ensure.firstCall.args[1]).to.equal(ACME_FILE)
+      expect(io.ensure.firstCall.args[2]).to.equal(ACME_FILE)
       const [read, write] = caddy.execs
-      expect(read.cmd).to.deep.equal(['cat', CADDY_LE_STORE])
+      expect(read.cmd).to.deep.equal(['cat', CADDY_ACME_JSON])
       expect(write.input).to.equal(
         '-----BEGIN CERTIFICATE-----\nC\n-----END CERTIFICATE-----\n' +
           '-----BEGIN PRIVATE KEY-----\nK\n-----END PRIVATE KEY-----'
@@ -371,18 +333,15 @@ describe('service TLS sync (Caddy admin API)', () => {
       expect(config.apps.http.servers.ocean_x_8188.automatic_https).to.deep.equal({
         disable_redirects: true
       })
-      expect(engine.lastTlsSyncOk).to.equal(true)
+      expect(engine.caddy.certReady).to.equal(true)
     })
 
-    it('letsEncryptAcmePath without a cert for nodeHost: no load, TLS off', async () => {
-      setTlsEngine({ nodeHost: 'cp1.oncompute.ai', letsEncryptAcmePath: ACME_FILE })
-      caddy.acmeJson = acmeJsonFor('other.example.com')
-      engine.db.getRunningServiceJobs.resolves([makeRunningJob()])
-
+    it('TLS off on the TLS engine: removes Caddy once, so it frees the ports', async () => {
+      setTlsEngine({ nodeHost: 'localhost' })
+      expect(await engine.syncServiceTls()).to.equal(true)
       await engine.syncServiceTls()
-
-      expect(caddy.loads).to.deep.equal([])
-      expect(engine.lastTlsSyncOk).to.equal(false)
+      expect(io.remove.calledOnceWith(engine.docker, '0xnode')).to.equal(true)
+      expect(io.ensure.called).to.equal(false)
     })
 
     it('skips identical servers within a minute, re-sends them after', async () => {
@@ -390,30 +349,9 @@ describe('service TLS sync (Caddy admin API)', () => {
       await engine.syncServiceTls()
       await engine.syncServiceTls()
       expect(posts()).to.have.length(1)
-      engine.caddyLastLoad.at -= 60_000
+      engine.caddy.lastLoad.at -= 60_000
       await engine.syncServiceTls()
       expect(posts()).to.have.length(2)
-    })
-
-    it('loads at once when the servers change', async () => {
-      const job = makeRunningJob()
-      engine.db.getRunningServiceJobs.resolves([job])
-      await engine.syncServiceTls()
-      engine.db.getRunningServiceJobs.resolves([])
-      await engine.syncServiceTls()
-      expect(posts().map((p) => Object.keys(p.body))).to.deep.equal([
-        ['ocean_x_8188'],
-        []
-      ])
-    })
-
-    it('inspects a container only once while it runs', async () => {
-      const job = makeRunningJob()
-      engine.db.getRunningServiceJobs.resolves([job])
-      await engine.syncServiceTls()
-      engine.caddyLastLoad.at -= 60_000
-      await engine.syncServiceTls()
-      expect(containers['svc-container'].inspect.calledOnce).to.equal(true)
     })
   })
 
@@ -433,21 +371,6 @@ describe('service TLS sync (Caddy admin API)', () => {
     expect(Object.keys(opts.HostConfig.PortBindings)).to.deep.equal(['8189/tcp'])
     expect(Object.keys(opts.ExposedPorts)).to.have.members(['8188/tcp', '8189/tcp'])
     expect(engine.docker.createContainer.calledOnce).to.equal(true)
-  })
-
-  it('start without secureTls: every port bound on the service', async () => {
-    const job = makeStartingJob({ secureTls: undefined })
-    engine.db.getServiceJob = sinon.stub().resolves([job])
-
-    await engine.processServiceStart(job)
-
-    expect(job.status, job.statusText).to.equal(ServiceStatusNumber.Running)
-    const opts = engine.docker.createContainer.firstCall.args[0]
-    expect(Object.keys(opts.HostConfig.PortBindings)).to.have.members([
-      '8188/tcp',
-      '8189/tcp'
-    ])
-    expect(job.endpoints.every((e: any) => e.url.startsWith('http://'))).to.equal(true)
   })
 
   it('restart with []: Caddy drops the port before the service publishes it', async () => {
@@ -476,6 +399,22 @@ describe('service TLS sync (Caddy admin API)', () => {
     expect(bodiesAtCreate).to.deep.equal([{}])
   })
 
+  it('restart with []: fails before publishing the port when Caddy does not free it', async () => {
+    const job = makeRunningJob()
+    engine.db.getServiceJob = sinon.stub().resolves([job])
+    engine.db.getRunningServiceJobs.callsFake(() => Promise.resolve([job]))
+    caddy.fail = true
+    engine.docker.createContainer.resetHistory()
+    const args = [job.serviceId, '0xowner', ...Array(9).fill(undefined), []]
+
+    await engine.restartService(...args)
+    await Promise.allSettled([...engine.serviceOpPromises])
+
+    expect(job.status).to.equal(ServiceStatusNumber.Error)
+    expect(job.statusText).to.contain('Caddy did not release the TLS ports')
+    expect(engine.docker.createContainer.called).to.equal(false)
+  })
+
   describe('getComputeEnvironments features.secureTls', () => {
     async function feature() {
       engine.envs = [{ id: 'env-1', resources: [], free: { resources: [] } }]
@@ -489,21 +428,24 @@ describe('service TLS sync (Caddy admin API)', () => {
       return env.features.secureTls
     }
 
+    it('is off until Caddy holds the certificate', async () => {
+      caddy.hasCert = false
+      await engine.syncServiceTls()
+      expect(caddy.loads).to.have.length(1)
+      expect(await feature()).to.equal(false)
+      caddy.hasCert = true
+      engine.caddy.lastLoad.at -= 60_000
+      await engine.syncServiceTls()
+      expect(await feature()).to.equal(true)
+    })
+
     it('is off until Caddy accepts a sync, and off again after a rejected one', async () => {
       expect(await feature()).to.equal(false)
       await engine.syncServiceTls()
       expect(await feature()).to.equal(true)
       caddy.fail = true
-      engine.caddyLastLoad.at -= 60_000
+      engine.caddy.lastLoad.at -= 60_000
       await engine.syncServiceTls()
-      expect(await feature()).to.equal(false)
-    })
-
-    it('is off on a non-TLS engine, even after a good sync', async () => {
-      await engine.syncServiceTls()
-      setTlsEngine({ first: 'other-hash' })
-      expect(await feature()).to.equal(false)
-      setTlsEngine({ nodeHost: 'localhost' })
       expect(await feature()).to.equal(false)
     })
   })

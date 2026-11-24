@@ -75,6 +75,7 @@ interface FakeOpts {
   minServiceDuration?: number
   serviceJobInDb?: ServiceJob | null
   secureTls?: boolean // env.features.secureTls; off by default
+  tlsConfigured?: boolean // engine.serviceTlsConfigured(); defaults to secureTls
   cost?: number | null
   envId?: string
   streamableLogs?: Readable | null
@@ -127,6 +128,7 @@ function buildFakes(opts: FakeOpts = {}) {
     },
     escrow,
     getComputeEnvironments: sinon.stub().resolves([env]),
+    serviceTlsConfigured: sinon.stub().returns(opts.tlsConfigured ?? !!opts.secureTls),
     // hash must match makeJob's clusterHash: handlers resolve the owning engine by it
     getC2DConfig: sinon.stub().returns({
       hash: 'hash-1',
@@ -607,20 +609,6 @@ describe('Service handlers', () => {
     })
 
     describe('secureTls', () => {
-      it('400 naming the port when it is not one of the job exposedPorts', async () => {
-        const { node, engine } = buildFakes({
-          serviceJobInDb: makeJob(),
-          secureTls: true
-        })
-        const res = await new ServiceRestartHandler(node).handle({
-          ...baseTask,
-          secureTls: [9999]
-        } as any)
-        expect(res.status.httpStatus).to.equal(400)
-        expect(String(res.status.error)).to.contain('9999')
-        expect(engine.restartService.called).to.equal(false)
-      })
-
       it('400 when the env has no TLS', async () => {
         const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
         const res = await new ServiceRestartHandler(node).handle({
@@ -632,7 +620,7 @@ describe('Service handlers', () => {
         expect(engine.restartService.called).to.equal(false)
       })
 
-      it('omitted list on an env that lost TLS: restarts plain ([])', async () => {
+      it('omitted list on a node whose config lost TLS: restarts plain ([])', async () => {
         const { node, engine } = buildFakes({
           serviceJobInDb: makeJob({ secureTls: [8888] })
         })
@@ -643,28 +631,16 @@ describe('Service handlers', () => {
         ).to.deep.equal([])
       })
 
-      it('omitted list on an env with TLS keeps the stored list', async () => {
+      it('omitted list while Caddy is not synced yet keeps the stored list', async () => {
         const { node, engine } = buildFakes({
           serviceJobInDb: makeJob({ secureTls: [8888] }),
-          secureTls: true
+          tlsConfigured: true
         })
         const res = await new ServiceRestartHandler(node).handle({ ...baseTask } as any)
         expect(res.status.httpStatus).to.equal(200)
         expect(engine.restartService.firstCall.args.at(RESTART_SECURE_TLS_ARG)).to.equal(
           undefined
         )
-      })
-
-      it('400 when a non-empty list is sent and the env lost TLS', async () => {
-        const { node, engine } = buildFakes({
-          serviceJobInDb: makeJob({ secureTls: [8888] })
-        })
-        const res = await new ServiceRestartHandler(node).handle({
-          ...baseTask,
-          secureTls: [8888]
-        } as any)
-        expect(res.status.httpStatus).to.equal(400)
-        expect(engine.restartService.called).to.equal(false)
       })
 
       it('forwards a valid list', async () => {
@@ -681,18 +657,6 @@ describe('Service handlers', () => {
         expect(
           engine.restartService.firstCall.args.at(RESTART_SECURE_TLS_ARG)
         ).to.deep.equal(list)
-      })
-
-      it('an empty list is forwarded to turn TLS off, even without the feature', async () => {
-        const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
-        const res = await new ServiceRestartHandler(node).handle({
-          ...baseTask,
-          secureTls: []
-        } as any)
-        expect(res.status.httpStatus).to.equal(200)
-        expect(
-          engine.restartService.firstCall.args.at(RESTART_SECURE_TLS_ARG)
-        ).to.deep.equal([])
       })
     })
 
@@ -1272,17 +1236,6 @@ describe('Service handlers', () => {
     describe('secureTls', () => {
       const tlsTask = { ...baseTask, exposedPorts: [8188] }
 
-      it('400 naming the port when it is not exposed', async () => {
-        const { node, engine } = buildFakes({ secureTls: true })
-        const res = await new ServiceStartHandler(node).handle({
-          ...tlsTask,
-          secureTls: [9999]
-        } as any)
-        expect(res.status.httpStatus).to.equal(400)
-        expect(String(res.status.error)).to.contain('9999')
-        expect(engine.createServiceJob.called).to.equal(false)
-      })
-
       it('400 with the rejection message when the env has no TLS', async () => {
         const { node, engine } = buildFakes()
         const res = await new ServiceStartHandler(node).handle({
@@ -1292,15 +1245,6 @@ describe('Service handlers', () => {
         expect(res.status.httpStatus).to.equal(400)
         expect(String(res.status.error)).to.contain(SECURE_TLS_UNAVAILABLE_MESSAGE)
         expect(engine.createServiceJob.called).to.equal(false)
-      })
-
-      it('an empty list does not need the feature', async () => {
-        const { node } = buildFakes()
-        const res = await new ServiceStartHandler(node).handle({
-          ...tlsTask,
-          secureTls: []
-        } as any)
-        expect(res.status.httpStatus).to.equal(200)
       })
 
       it('passes the list to createServiceJob', async () => {

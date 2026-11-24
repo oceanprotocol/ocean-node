@@ -114,7 +114,6 @@ export class ServiceStartHandler extends CommandHandler {
           }
         }
 
-      // TLS gate
       if (task.secureTls?.length && !env.features?.secureTls)
         return buildInvalidParametersResponse(
           buildInvalidRequestMessage(SECURE_TLS_UNAVAILABLE_MESSAGE)

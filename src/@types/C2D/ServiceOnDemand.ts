@@ -136,7 +136,7 @@ export const DEFAULT_BUILD_TIMEOUT_SECONDS = 300 // 5 min
 export interface ServiceOnDemandConfig {
   enabled: boolean
   nodeHost: string // host (or IP) clients use to reach forwarded service ports; e.g. 'localhost'
-  letsEncryptAcmePath?: string // host path of an acme.json (Traefik's format): service TLS uses its cert for nodeHost
+  letsEncryptAcmePath?: string // host path of an acme.json (Traefik format) with a cert for nodeHost
   hostPortRange?: [number, number] // e.g. [30000, 32767]; specific to this daemon's host
   minDurationSeconds?: number // default: DEFAULT_SERVICE_MIN_DURATION_SECONDS (no daemon floor)
   maxDurationSeconds?: number // default: DEFAULT_SERVICE_MAX_DURATION_SECONDS (24 h)

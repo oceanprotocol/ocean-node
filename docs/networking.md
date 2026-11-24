@@ -128,6 +128,7 @@ it; you do not add it to your compose file.
   accepted the last config. Caddy's log: `docker logs ocean-node-caddy`.
 - Open the service `hostPortRange` (TCP), as for plain services: Caddy listens on the secure
   host ports.
+- One ocean-node with service TLS per Docker host: Caddy binds the host's port 80 and admin port 2019. A second node finds `ocean-node-caddy` owned by the first and keeps TLS off.
 
 ### Certificate from Let's Encrypt (default)
 

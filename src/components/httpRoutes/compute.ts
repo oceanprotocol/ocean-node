@@ -518,8 +518,8 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/serviceRestart`, async (req, res) 
     dockerEntrypoint: (req.body.dockerEntrypoint as string[]) || undefined,
     // Normalize only null/undefined to undefined so malformed values still reach
     // validation and produce a 400.
-    secureTls: req.body.secureTls ?? undefined,
     metadata: req.body.metadata ?? undefined,
+    secureTls: req.body.secureTls ?? undefined,
     authorization: req.headers?.authorization,
     caller: req.caller
   }

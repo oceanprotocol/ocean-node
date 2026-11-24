@@ -142,18 +142,18 @@ export class ServiceRestartHandler extends CommandHandler {
     if (!accessGranted)
       return { stream: null, status: { httpStatus: 403, error: 'Access denied' } }
 
-    // An env that lost TLS restarts an omitted list plain, not with a 400 the user cannot fix
-    const tlsError =
-      validateSecureTls(task.secureTls, job.exposedPorts) ??
-      (task.secureTls?.length && !runEnv.features?.secureTls
-        ? SECURE_TLS_UNAVAILABLE_MESSAGE
-        : null)
+    const tlsError = validateSecureTls(task.secureTls, job.exposedPorts)
     if (tlsError)
       return buildInvalidParametersResponse(buildInvalidRequestMessage(tlsError))
+    if (task.secureTls?.length && !runEnv.features?.secureTls)
+      return buildInvalidParametersResponse(
+        buildInvalidRequestMessage(SECURE_TLS_UNAVAILABLE_MESSAGE)
+      )
+    // A node whose config no longer allows TLS restarts an omitted list plain (no 400 loop)
     const dropTls =
       task.secureTls === undefined &&
       !!job.secureTls?.length &&
-      !runEnv.features?.secureTls
+      !engine.serviceTlsConfigured()
 
     // State check — cannot restart an expired service
     if (job.status === ServiceStatusNumber.Expired)

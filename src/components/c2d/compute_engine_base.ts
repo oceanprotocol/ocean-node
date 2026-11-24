@@ -183,6 +183,11 @@ export abstract class C2DEngine {
     return await fn()
   }
 
+  // Whether this engine's config allows TLS service ports (C2DEngineDocker overrides)
+  public serviceTlsConfigured(): boolean {
+    return false
+  }
+
   // Restart is atomic: when an image spec is supplied (RESPEC mode) the whole container is
   // rebuilt from these params; when it is absent (REUSE mode) the stored spec is reused.
   // eslint-disable-next-line require-await
