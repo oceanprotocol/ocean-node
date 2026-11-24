@@ -211,13 +211,17 @@ The script:
    When the volume of the new database exists already, it asks to remove it. When you keep
    Elasticsearch, the script protects it: an Elasticsearch without security gets security and
    a new password for the user `elastic`, and restarts when the node stops. The node gets the
-   same user and password.
+   same user and password. The changes that it shows hide the passwords: they are in the
+   files. When the compose file sets PostgreSQL already (after a quickstart run), the script
+   does not ask and does not change the files: it only copies. It stops when `COMPOSE_FILE`
+   is set, because it changes only `docker-compose.yml`.
 2. Shows what it will copy and asks you to confirm. The node still runs.
 3. Stops the node, keeps a copy of the state files in the folder `backup-<time>` of the node
    volume (`node-sqlite`), and copies the state. A row that is in the target already is
    written again; a nonce keeps the higher value.
 4. Starts the node. When the copy fails, it puts back the old files and starts the node as
-   before the script. After a good copy the SQLite files move to the backup folder.
+   before the script. After a good copy the SQLite files move to the backup folder; when the
+   node then does not start, the script shows the error and the command to start it.
 
 The indexed data is not copied: the node indexes the chains again. The script copies only
 from the SQLite files: a node on PostgreSQL or Elasticsearch does not move to another

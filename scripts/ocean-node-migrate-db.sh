@@ -18,6 +18,8 @@ DB_DATA=''
 CHANGED=''
 CONFIG_CHANGED=''
 PROTECT_ES=''
+# the database that step 3 starts: the copy runs with --no-deps
+START_DB=''
 
 # the compose project: its name is the start of the volume names
 project() {
@@ -34,6 +36,23 @@ value() {
 
 keep_old() {
   cp "$FILE" "$OLD" && CHANGED=1
+}
+
+# the database type of the node: DB_TYPE in the compose file, else the dbType of the
+# config.json that it mounts
+db_type() {
+  local type
+  type=$(value DB_TYPE)
+  if [ -z "$type" ] && [ -f config.json ] && grep -q 'config.json' "$FILE"; then
+    type=$(sed -n 's/.*"dbType": *"\([a-z]*\)".*/\1/p' config.json | head -n 1)
+  fi
+  echo "$type"
+}
+
+# a change, with the password values hidden: a terminal log can keep them
+show_diff() {
+  diff -u "$1" "$2" | sed -n '3,$p' |
+    sed -E "s/(PASSWORD|password)([\"']?[:=] *[\"']?)[^\"',]*/\1\2<hidden>/" | sed 's/^/    /'
 }
 
 # the database, as ocean-node-quickstart.sh writes it: keep the two in step. It has no
@@ -126,11 +145,13 @@ replace_db() {
     }' "$OLD" "$OLD" > "$FILE" && set_node_db
 }
 
-# the DB_* values of the node: the old ones out, DB_LINES after PRIVATE_KEY
+# the DB_* values of the node: the old ones out, DB_LINES after PRIVATE_KEY. Only in the
+# ocean-node service: another service can have values with the same names.
 set_node_db() {
   DB_LINES=$DB_LINES awk '
-    /^ *DB_(TYPE|URL|USERNAME|PASSWORD):/ { next }
-    /^ *PRIVATE_KEY:/ {
+    /^[A-Za-z_]|^  [A-Za-z0-9_.-]+:/ { in_node = $0 ~ /^  ocean-node: *$/ }
+    in_node && /^ *DB_(TYPE|URL|USERNAME|PASSWORD):/ { next }
+    in_node && /^ *PRIVATE_KEY:/ {
       print; match($0, /^ */)
       n = split(ENVIRON["DB_LINES"], line, "\n")
       for (i = 1; i <= n; i++) print substr($0, 1, RLENGTH) line[i]
@@ -147,7 +168,9 @@ update_config_json() {
     echo "    config.json has a dbConfig: set it as in $FILE by hand. The compose file overrides it."
     return 0
   fi
-  cp config.json config.json.old && CONFIG_CHANGED=1
+  # without the old file, a revert cannot put it back: no change
+  cp config.json config.json.old || return 1
+  CONFIG_CHANGED=1
   DB=$1 NEW_URL=$NEW_URL NEW_USER=$NEW_USER NEW_PASSWORD=$NEW_PASSWORD python3 -c '
 import json, os, re
 text = open("config.json").read()
@@ -166,7 +189,7 @@ with open("config.json", "w") as file:
     file.write(json.dumps(data, indent=found.group(1) if found else 2, ensure_ascii=False) + "\n")
 ' || return 1
   echo "    Changes in config.json (the old file is config.json.old):"
-  diff -u config.json.old config.json | sed -n '3,$p' | sed 's/^/    /'
+  show_diff config.json.old config.json
 }
 
 # a database keeps the password of its first start: its volume must be new
@@ -232,11 +255,18 @@ DB_PASSWORD: '$NEW_PASSWORD'"
 
 # docker-compose.yml for this release; 1 when the file cannot be changed
 update_compose() {
-  local choice
-  if [ "$(value DB_TYPE)" == "sqlite" ]; then
+  local choice type
+  type=$(db_type)
+  if [ "$type" == "postgresql" ]; then
+    # set by a quickstart run, while the state is still in the SQLite files: copy only
+    echo "    $FILE sets PostgreSQL already: the script copies the node state to it."
+    START_DB=postgresql
+    return 0
+  fi
+  if [ "$type" == "sqlite" ]; then
     OLD_DB=''
     read -r -p "The node uses SQLite. Database for the node: p) PostgreSQL e) Elasticsearch s) SQLite (keep it) [p/e/s]: " choice </dev/tty
-  elif [[ "$(value DB_URL)" == *typesense* ]]; then
+  elif [ "$type" == "typesense" ] || [[ "$(value DB_URL)" == *typesense* ]]; then
     OLD_DB=typesense
     read -r -p "The node uses Typesense. Database for the node: p) PostgreSQL e) Elasticsearch s) SQLite [p/e/s]: " choice </dev/tty
   else
@@ -261,7 +291,8 @@ update_compose() {
     replace_db && update_config_json sqlite
     return
   fi
-  new_volume && database_parts && replace_db && update_config_json "$NEW_DB"
+  new_volume && database_parts && replace_db && update_config_json "$NEW_DB" &&
+    START_DB=$NEW_DB
 }
 
 # a step: its number and what it does
@@ -295,13 +326,19 @@ restore() {
   fi
 }
 
-# after a failed copy: the compose file and the node as before the script. The copy does not
-# change the SQLite files.
+# after a failure with the node stopped: the compose file and the node as before the script.
+# The copy does not change the SQLite files.
 revert() {
   echo
-  echo "==> The copy failed: going back to the node as before the script"
+  echo "==> Failed: going back to the node as before the script"
   restore
-  cmd $DC up -d
+  # the settings of Elasticsearch are as before again: it opens without a password
+  if [ -n "$PROTECT_ES" ]; then
+    cmd $DC up -d elasticsearch
+  fi
+  # --no-recreate: the stopped node container starts with its old image and settings; a new
+  # container would run the new image with the old settings
+  cmd $DC up -d --no-recreate
   echo "    The node runs as before the script, on the same state files."
   if [ -z "$NEW_DB" ]; then
     echo "    Rows that were copied stay in the database: the next run writes them again."
@@ -318,12 +355,17 @@ main() {
     echo "Error: the script asks questions: run it in a terminal"
     exit 1
   fi
+  # COMPOSE_FILE makes docker compose read other files than the one that the script changes
+  if [ -n "$COMPOSE_FILE" ] || grep -qs '^ *COMPOSE_FILE=' .env; then
+    echo "Error: COMPOSE_FILE is set (in the environment or in .env). The script changes only $FILE: remove COMPOSE_FILE, then run it again."
+    exit 1
+  fi
 
   step 1 "Updating $FILE for this release (the node still runs)"
   update_compose || { restore; exit 1; }
   if [ -n "$CHANGED" ]; then
-    echo "    Changes (the old file is $OLD):"
-    diff -u "$OLD" "$FILE" | sed -n '3,$p' | sed 's/^/    /'
+    echo "    Changes (the old file is $OLD; the passwords are in the file):"
+    show_diff "$OLD" "$FILE"
   else
     echo "    No change"
   fi
@@ -339,12 +381,13 @@ main() {
     exit 1
   fi
 
-  # read-only checks; the node still runs
+  # read-only checks; the node still runs. --no-deps: a run must not recreate a database whose
+  # settings changed (an Elasticsearch that gets security) while the node uses it
   step 3 "Checking the old state and the new database, read-only (the node still runs)"
-  if [ -n "$DB_DATA" ]; then
-    cmd $DC up -d "$NEW_DB" || { restore; exit 1; }
+  if [ -n "$START_DB" ]; then
+    cmd $DC up -d "$START_DB" || { restore; exit 1; }
   fi
-  cmd $DC run --rm ocean-node $MIGRATE --check </dev/tty
+  cmd $DC run --rm --no-deps ocean-node $MIGRATE --check </dev/tty
   local code=$?
   if [ $code -ne 0 ]; then
     restore
@@ -355,21 +398,26 @@ main() {
   step 4 "Stopping the node"
   cmd $DC stop ocean-node || { restore; exit 1; }
   echo "    Done: the node is stopped"
+  # a failure from here (also Ctrl-C) brings back the node as before the script
+  trap revert EXIT
   if [ -n "$PROTECT_ES" ]; then
     echo "    Elasticsearch starts again, with security and the new password:"
-    cmd $DC up -d elasticsearch || { restore; $DC up -d; exit 1; }
+    cmd $DC up -d elasticsearch || exit 1
   fi
-  # a failed or stopped copy (also Ctrl-C) brings back the node as before the script
-  trap revert EXIT
 
   step 5 "Backing up the state files and copying the state to the new database"
-  cmd $DC run --rm ocean-node $MIGRATE </dev/tty || exit 1
+  cmd $DC run --rm --no-deps ocean-node $MIGRATE </dev/tty || exit 1
   echo "    Done"
 
+  # the old files left databases/: a revert can no longer bring back the old node
   trap - EXIT
   # --remove-orphans: the container of the old database
   step 6 "Starting the node"
-  cmd $DC up -d ${NEW_DB:+--remove-orphans}
+  if ! cmd $DC up -d ${NEW_DB:+--remove-orphans}; then
+    echo "Error: the copy is done, but the node did not start. Find the cause in the output above, then run: $DC up -d"
+    echo "    The old files are in databases/backup-<time> of the volume of the node."
+    exit 1
+  fi
   echo "    Done: see the node log with: $DC logs -f ocean-node"
   if [ -n "$NEW_DB" ] && [ -n "$OLD_DB" ]; then
     echo "    The volume of $OLD_DB stays. When you do not need it: docker volume ls, docker volume rm <name>"

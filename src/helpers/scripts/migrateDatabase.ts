@@ -149,9 +149,13 @@ async function stateTables(
       validUntil: t.validUntil === null ? null : toUnixMs(t.validUntil)
     }))
     .filter((t) => t.isValid && (t.validUntil === null || t.validUntil > now))
-  // an older release kept each casing of an address in its own row; the target keeps one
+  // an older release kept each casing of an address in its own row; the target keeps one.
+  // REAL: node:sqlite refuses to read an integer above Number.MAX_SAFE_INTEGER
+  const nonceRows = await clients.nonce.all(
+    `SELECT id, CAST(nonce AS REAL) AS nonce FROM "nonce"`
+  )
   const nonces = keepHighest(
-    (await select('nonce')).map((n) => ({
+    nonceRows.map((n) => ({
       id: normalizeAddress(n.id),
       nonce: Number(n.nonce)
     })),
@@ -217,7 +221,9 @@ async function stateTables(
           t.validUntil,
           t.chainId
         ),
+      // a token that expires during the copy is not a failed row
       check: async (t) =>
+        (t.validUntil !== null && t.validUntil <= Date.now()) ||
         (await target.authToken.provider.validateTokenEntry(t.token)) !== null
     },
     persistent_storage_buckets: {
@@ -317,11 +323,14 @@ const backup = () =>
     path.join(SQLITE_DIR, `backup-${new Date().toISOString().replace(/:/g, '-')}`)
   )
 
-// the SQLite files of the node in its folder, with their -wal and -shm files
+// the SQLite files of the node in its folder, with their -wal and -shm files; not other
+// files with these names in them, such as nonceDatabase.sqlite.old
 function sqliteFiles() {
   return fs
     .readdirSync(SQLITE_DIR)
-    .filter((file) => SQLITE_FILES.some((name) => file.startsWith(name)))
+    .filter((file) =>
+      SQLITE_FILES.some((name) => ['', '-wal', '-shm'].some((end) => file === name + end))
+    )
 }
 
 // after a good copy the SQLite files leave the folder: the backup keeps them, and the script
@@ -421,7 +430,16 @@ async function main(argv: string[]): Promise<number> {
       console.log(`A copy of the old files is in ${folder} of the volume of the node.`)
       return 1
     }
-    removeSqliteFiles()
+    // the copy is good: a file that stays does not stop the node from starting on the target
+    try {
+      removeSqliteFiles()
+    } catch (error) {
+      console.log(
+        `The copy is good, but not all old files left ${SQLITE_DIR}/ (${error.message}). ` +
+          `Remove them by hand: ${folder} keeps a copy.`
+      )
+      return 0
+    }
     console.log(`The old files moved to ${folder} of the volume of the node.`)
     return 0
   } catch (error) {
