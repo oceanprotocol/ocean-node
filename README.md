@@ -209,14 +209,15 @@ The script:
    goes: the state is in SQLite already, so the node uses the same files and upgrades their
    tables when it starts. The old files stay in `<file>.old`; the volume of the old database stays.
    When the volume of the new database exists already, it asks to remove it. When you keep
-   Elasticsearch, the script protects it: an Elasticsearch without security gets security and
-   a new password for the user `elastic`, and restarts when the node stops. A protected
-   Elasticsearch needs `ELASTIC_PASSWORD` in the compose file. The node gets the same user
-   and password. The changes that it shows hide the passwords and the private key: they are
-   in the files. When the compose file sets PostgreSQL already (after a quickstart run), the
-   script does not ask and does not change the files: it only copies. It stops when
-   `COMPOSE_FILE` is set or the folder has a `compose.yaml`, because it changes only
-   `docker-compose.yml`.
+   Elasticsearch, the script protects it: an Elasticsearch with `xpack.security.enabled: false`
+   gets security and a new password for the user `elastic`, and restarts when the node stops.
+   Without that line Elasticsearch 8 has security, so the compose file needs
+   `ELASTIC_PASSWORD`. The node gets the same user and password. The changes that it shows
+   hide the passwords and the private key: they are in the files. When the compose file sets
+   PostgreSQL already (after a quickstart run), the script does not ask and does not change
+   the files: it only copies. Docker compose reads only `docker-compose.yml` (`-f`). The
+   script stops when `COMPOSE_FILE` or `COMPOSE_ENV_FILES` is set, or the folder has a
+   `compose.yaml` or an override file, because docker compose reads them without `-f`.
 2. Shows what it will copy and asks you to confirm. The node still runs.
 3. Stops the node, keeps a copy of the state files in the folder `backup-<time>` of the node
    volume (`node-sqlite`), and copies the state. A row that is in the target already is

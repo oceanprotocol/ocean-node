@@ -11,6 +11,8 @@ MIGRATE="node dist/helpers/scripts/migrateDatabase.js"
 # the file that docker compose reads: .yml first, as docker compose does
 FILE=docker-compose.yml
 [ -f "$FILE" ] || FILE=docker-compose.yaml
+# all docker compose commands read only this file
+DC="$DC -f $FILE"
 OLD=$FILE.old
 NEW_DB=''
 OLD_DB=''
@@ -222,12 +224,13 @@ keep_elasticsearch() {
   fi
   NEW_USER=elastic NEW_URL=''
   NEW_PASSWORD=$(value ELASTIC_PASSWORD)
-  # a protected Elasticsearch keeps the password of its first start: the script must know it
-  if [ "$(value xpack.security.enabled)" == "true" ] && [ -z "$NEW_PASSWORD" ]; then
-    echo "Error: Elasticsearch has security on, but $FILE has no ELASTIC_PASSWORD. Add 'ELASTIC_PASSWORD: <password of the elastic user>' to the elasticsearch service, then run the script again."
+  # a protected Elasticsearch keeps the password of its first start: the script must know it.
+  # Elasticsearch 8 has security when the compose file does not set it to false.
+  if [ "$(value xpack.security.enabled)" != "false" ] && [ -z "$NEW_PASSWORD" ]; then
+    echo "Error: Elasticsearch can have security, but $FILE has no ELASTIC_PASSWORD. Add 'ELASTIC_PASSWORD: <password of the elastic user>' to the elasticsearch service, or 'xpack.security.enabled: false' when it has no security, then run the script again."
     return 1
   fi
-  if [ "$(value xpack.security.enabled)" != "true" ] || [ -z "$NEW_PASSWORD" ]; then
+  if [ "$(value xpack.security.enabled)" == "false" ]; then
     NEW_PASSWORD=$(head -c 24 /dev/urandom | xxd -p | tr -d '\n')
     PROTECT_ES=1
   fi
@@ -363,16 +366,18 @@ main() {
     echo "Error: the script asks questions: run it in a terminal"
     exit 1
   fi
-  # COMPOSE_FILE, or a compose.yaml, makes docker compose read other files than the one
-  # that the script changes
-  if [ -n "$COMPOSE_FILE" ] || grep -qsE '^ *(export +)?COMPOSE_FILE *=' .env; then
-    echo "Error: COMPOSE_FILE is set (in the environment or in .env). The script changes only $FILE: remove COMPOSE_FILE, then run it again."
+  # docker compose must read only the file that the script changes
+  if [ -n "$COMPOSE_FILE$COMPOSE_ENV_FILES" ] || grep -qsE '^ *(export +)?COMPOSE_(FILE|ENV_FILES) *=' .env; then
+    echo "Error: COMPOSE_FILE or COMPOSE_ENV_FILES is set (in the environment or in .env). The script changes only $FILE: remove it, then run the script again."
     exit 1
   fi
-  if [ -f compose.yaml ] || [ -f compose.yml ]; then
-    echo "Error: docker compose reads compose.yaml (or compose.yml) first, but the script changes only $FILE. Keep only the file of the node, as docker-compose.yml, then run it again."
-    exit 1
-  fi
+  for f in compose.yaml compose.yml compose.override.yaml compose.override.yml \
+    docker-compose.override.yml docker-compose.override.yaml; do
+    if [ -f "$f" ]; then
+      echo "Error: docker compose reads $f, but the script changes only $FILE. Move the settings of $f into $FILE and remove $f, then run the script again."
+      exit 1
+    fi
+  done
 
   step 1 "Updating $FILE for this release (the node still runs)"
   update_compose || { restore; exit 1; }
