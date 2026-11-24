@@ -974,6 +974,8 @@ export class C2DEngineDocker extends C2DEngine {
       await Promise.allSettled([...this.serviceProbesInFlight.values()])
       this.serviceProbesInFlight.clear()
     }
+    // A late Caddy load must not overwrite the next engine's config
+    await this.tlsSync
     this.isInternalLoopRunning = false
     // Release any GPU metrics backends (e.g. nvmlShutdown). Best-effort, never throws; the
     // optional chain also covers engines built without the constructor (e.g. test doubles).
@@ -6253,11 +6255,12 @@ export class C2DEngineDocker extends C2DEngine {
     // Only expiry ends the reservation; disk-stopped services remain reserved until now.
     const [stoppedJob] = await this.db.getServiceJob(svc.serviceId, svc.owner)
     if (stoppedJob) {
+      // Not Expired until Caddy frees the TLS ports: the next tick retries
+      if (!(await this.freeTlsPorts(stoppedJob.endpoints ?? []))) return
       delete stoppedJob.terminationReason
       stoppedJob.status = finalStatus
       stoppedJob.statusText = ServiceStatusText[finalStatus]
       await this.db.updateServiceJob(stoppedJob)
-      await this.freeTlsPorts(stoppedJob.endpoints ?? [])
       // Expiry releases the reservation: amounts stop counting and host ports are freed
       // here. Everywhere else — including an explicit user stop — the paid-for
       // reservation survives so the service can be restarted on the same endpoints.

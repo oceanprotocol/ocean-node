@@ -2926,7 +2926,7 @@ RESPEC mode (restart on a new image spec — `image` required, plus at most one 
 | dockerCmd             | string[] |          | exact container command (Docker exec-form CMD override)                                                                  |
 | dockerEntrypoint      | string[] |          | container ENTRYPOINT override                                                                                            |
 | metadata              | object   |          | user labels (≤1 KB JSON). **Not** a container param — independent of REUSE/RESPEC. When present it **replaces** the stored metadata; when omitted the original metadata is kept |
-| secureTls             | number[] |          | container ports, like `serviceStart`. **Not** a container param. When present it **replaces** the stored list (`[]` turns TLS off); when omitted the stored list is kept. A non-empty list needs `features.secureTls` (else 400); if the environment lost it, an omitted list restarts the service without TLS |
+| secureTls             | number[] |          | container ports, like `serviceStart`. **Not** a container param. When present it **replaces** the stored list (`[]` turns TLS off); when omitted the stored list is kept. A non-empty list needs `features.secureTls` (else 400). An omitted list drops TLS only when the node's config no longer allows it (e.g. `nodeHost` is now private); while TLS is only temporarily unavailable, the stored list is kept |
 
 #### Response (200)
 

@@ -10,7 +10,8 @@ import {
   CADDY_LOAD_CMD,
   buildCaddyConfig,
   buildCaddyServers,
-  ensureCaddy
+  ensureCaddy,
+  findStoreCert
 } from '../../../components/c2d/caddyProxy.js'
 import { releaseHostPort } from '../../../components/core/service/utils.js'
 
@@ -44,17 +45,40 @@ function fakeCaddyIo(fake: FakeCaddy) {
   }
 }
 
-function acmeJsonFor(name: string, sans: string[] = []): string {
+// Self-signed test certs: SANs 1.c2d.nodes.oceanprotocol.com + cp2.oncompute.ai, and *.example.com
+const SAN_CERT = `-----BEGIN CERTIFICATE-----
+MIIB5TCCAYugAwIBAgIUcNXwP5RVCh4u3h68tgnxr7NH0T0wCgYIKoZIzj0EAwIw
+KDEmMCQGA1UEAwwdMS5jMmQubm9kZXMub2NlYW5wcm90b2NvbC5jb20wIBcNMjYx
+MTI0MTM0MTIzWhgPMjEyNjEwMzExMzQxMjNaMCgxJjAkBgNVBAMMHTEuYzJkLm5v
+ZGVzLm9jZWFucHJvdG9jb2wuY29tMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE
+u/6yoPj6yD0EM0AlDFh5HCyLiSC30vp/ZqJt8YJtftnRps5pl8X1U/g8OZt7xuDF
+wUQj0de4Lw7xPh+SWAcfM6OBkDCBjTAdBgNVHQ4EFgQU0IPNbEBXAoB3tKhQYJID
+8Ck8yjEwHwYDVR0jBBgwFoAU0IPNbEBXAoB3tKhQYJID8Ck8yjEwDwYDVR0TAQH/
+BAUwAwEB/zA6BgNVHREEMzAxgh0xLmMyZC5ub2Rlcy5vY2VhbnByb3RvY29sLmNv
+bYIQY3AyLm9uY29tcHV0ZS5haTAKBggqhkjOPQQDAgNIADBFAiEAg5A4DvqQqCgx
+xJimK/u8KwBGkWUchBpRk5lCTKO5LtQCICJ+kEkVp3B+U28hJ3OSTwYfjEP8hopJ
+7bQP3o62tx4S
+-----END CERTIFICATE-----
+`
+const WILDCARD_CERT = `-----BEGIN CERTIFICATE-----
+MIIBnDCCAUOgAwIBAgIUCbjj4FdbcTiWxC6mYcJROxMUXcswCgYIKoZIzj0EAwIw
+FjEUMBIGA1UEAwwLZXhhbXBsZS5jb20wIBcNMjYxMTI0MTM0MTIzWhgPMjEyNjEw
+MzExMzQxMjNaMBYxFDASBgNVBAMMC2V4YW1wbGUuY29tMFkwEwYHKoZIzj0CAQYI
+KoZIzj0DAQcDQgAEXdjyzMS77ewjVHWC5cvFx5DKU4/xCEULM2fLz4Djl9p8g6gc
+K5anF+cp6dvat8JPbNMWOijlEw/jb8t0NX0As6NtMGswHQYDVR0OBBYEFJcfii3C
+NgaBznf3oqYWExSE+cBrMB8GA1UdIwQYMBaAFJcfii3CNgaBznf3oqYWExSE+cBr
+MA8GA1UdEwEB/wQFMAMBAf8wGAYDVR0RBBEwD4INKi5leGFtcGxlLmNvbTAKBggq
+hkjOPQQDAgNHADBEAiBswN4kQ9SbLTbV3GD5ibblAAV0nJ/gOt+f2Jg2yaXLsAIg
+Twks4csGCs14fFZW7mMcxTDhqMsKHesV9eqRrxqXsf8=
+-----END CERTIFICATE-----
+`
+const KEY_PEM = '-----BEGIN PRIVATE KEY-----\nK\n-----END PRIVATE KEY-----\n'
+
+function acmeJsonFor(...certs: string[]): string {
   const b64 = (text: string) => Buffer.from(text).toString('base64')
   return JSON.stringify({
     myresolver: {
-      Certificates: [
-        {
-          domain: { main: name, sans },
-          certificate: b64('-----BEGIN CERTIFICATE-----\nC\n-----END CERTIFICATE-----\n'),
-          key: b64('-----BEGIN PRIVATE KEY-----\nK\n-----END PRIVATE KEY-----\n')
-        }
-      ]
+      Certificates: certs.map((cert) => ({ certificate: b64(cert), key: b64(KEY_PEM) }))
     }
   })
 }
@@ -129,6 +153,16 @@ describe('ensureCaddy', () => {
       ...BINDS,
       `/srv/letsencrypt/acme.json:${CADDY_ACME_JSON}:ro`
     ])
+  })
+})
+
+describe('findStoreCert', () => {
+  it('finds the cert that covers the name, wildcards for one label only', () => {
+    const store = acmeJsonFor(SAN_CERT, WILDCARD_CERT)
+    expect(findStoreCert(store, 'cp2.oncompute.ai')).to.contain(SAN_CERT.trim())
+    expect(findStoreCert(store, 'api.example.com')).to.contain(WILDCARD_CERT.trim())
+    for (const name of ['cp1.oncompute.ai', 'a.b.example.com', 'example.com'])
+      expect(findStoreCert(store, name)).to.equal(null)
   })
 })
 
@@ -314,7 +348,7 @@ describe('service TLS sync (Caddy admin API)', () => {
 
     it('letsEncryptAcmePath: loads its cert for nodeHost, no ACME, no port 80', async () => {
       setTlsEngine({ nodeHost: 'cp2.oncompute.ai', letsEncryptAcmePath: ACME_FILE })
-      caddy.acmeJson = acmeJsonFor('1.c2d.nodes.oceanprotocol.com', ['cp2.oncompute.ai'])
+      caddy.acmeJson = acmeJsonFor(WILDCARD_CERT, SAN_CERT)
       engine.db.getRunningServiceJobs.resolves([makeRunningJob()])
 
       await engine.syncServiceTls()
@@ -322,10 +356,7 @@ describe('service TLS sync (Caddy admin API)', () => {
       expect(io.ensure.firstCall.args[2]).to.equal(ACME_FILE)
       const [read, write] = caddy.execs
       expect(read.cmd).to.deep.equal(['cat', CADDY_ACME_JSON])
-      expect(write.input).to.equal(
-        '-----BEGIN CERTIFICATE-----\nC\n-----END CERTIFICATE-----\n' +
-          '-----BEGIN PRIVATE KEY-----\nK\n-----END PRIVATE KEY-----'
-      )
+      expect(write.input).to.equal(`${SAN_CERT.trim()}\n${KEY_PEM.trim()}`)
       const [config] = caddy.loads
       const file = config.apps.tls.certificates.load_files[0].certificate
       expect(write.cmd[2]).to.match(new RegExp(`cat > ${file}$`))

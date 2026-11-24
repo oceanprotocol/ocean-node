@@ -1,4 +1,6 @@
 import type Dockerode from 'dockerode'
+import { X509Certificate } from 'crypto'
+import net from 'net'
 import { PassThrough } from 'stream'
 import { setTimeout as sleep } from 'timers/promises'
 import {
@@ -213,22 +215,26 @@ export function buildCaddyConfig(
 }
 
 interface AcmeJsonCert {
-  domain?: { main?: string; sans?: string[] }
-  certificate: string // base64 PEM chain
+  certificate: string // base64 PEM chain, leaf first
   key: string // base64 PEM
 }
 
-// Traefik's acme.json: { <resolver>: { Certificates: AcmeJsonCert[] } }. Returns chain + key.
+function covers(chainPem: string, name: string): boolean {
+  const leaf = new X509Certificate(chainPem)
+  return !!(net.isIP(name) ? leaf.checkIP(name) : leaf.checkHost(name))
+}
+
+// Traefik's acme.json: { <resolver>: { Certificates: AcmeJsonCert[] } }. Returns chain + key
+// of a cert valid for `name` (wildcards included).
 export function findStoreCert(acmeJson: string, name: string): string | null {
   const store = JSON.parse(acmeJson) as Record<string, { Certificates?: AcmeJsonCert[] }>
   for (const resolver of Object.values(store)) {
-    const cert = resolver?.Certificates?.find((c) =>
-      [c.domain?.main, ...(c.domain?.sans ?? [])].includes(name)
-    )
-    if (cert)
-      return [cert.certificate, cert.key]
-        .map((b64) => Buffer.from(b64, 'base64').toString().trim())
-        .join('\n')
+    for (const cert of resolver?.Certificates ?? []) {
+      const [chain, key] = [cert.certificate, cert.key].map((b64) =>
+        Buffer.from(b64, 'base64').toString().trim()
+      )
+      if (covers(chain, name)) return `${chain}\n${key}`
+    }
   }
   return null
 }
