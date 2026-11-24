@@ -44,15 +44,17 @@ db_type() {
   local type
   type=$(value DB_TYPE)
   if [ -z "$type" ] && [ -f config.json ] && grep -q 'config.json' "$FILE"; then
-    type=$(sed -n 's/.*"dbType": *"\([a-z]*\)".*/\1/p' config.json | head -n 1)
+    type=$(sed -n 's/.*"dbType" *: *"\([a-z]*\)".*/\1/p' config.json | head -n 1)
   fi
   echo "$type"
 }
 
-# a change, with the password values hidden: a terminal log can keep them
+# a change, with the passwords, the private key and the credentials in URLs hidden: a
+# terminal log can keep them
 show_diff() {
   diff -u "$1" "$2" | sed -n '3,$p' |
-    sed -E "s/(PASSWORD|password)([\"']?[:=] *[\"']?)[^\"',]*/\1\2<hidden>/" | sed 's/^/    /'
+    sed -E -e "s/(PASSWORD|password|PRIVATE_KEY|privateKey)([\"']?[:=] *[\"']?)[^\"',]*/\1\2<hidden>/" \
+      -e "s#(://[^:/@ ]+:)[^@ ]+@#\1<hidden>@#" | sed 's/^/    /'
 }
 
 # the database, as ocean-node-quickstart.sh writes it: keep the two in step. It has no
@@ -219,6 +221,11 @@ keep_elasticsearch() {
   fi
   NEW_USER=elastic NEW_URL=''
   NEW_PASSWORD=$(value ELASTIC_PASSWORD)
+  # a protected Elasticsearch keeps the password of its first start: the script must know it
+  if [ "$(value xpack.security.enabled)" == "true" ] && [ -z "$NEW_PASSWORD" ]; then
+    echo "Error: Elasticsearch has security on, but $FILE has no ELASTIC_PASSWORD. Add 'ELASTIC_PASSWORD: <password of the elastic user>' to the elasticsearch service, then run the script again."
+    return 1
+  fi
   if [ "$(value xpack.security.enabled)" != "true" ] || [ -z "$NEW_PASSWORD" ]; then
     NEW_PASSWORD=$(head -c 24 /dev/urandom | xxd -p | tr -d '\n')
     PROTECT_ES=1
@@ -355,9 +362,14 @@ main() {
     echo "Error: the script asks questions: run it in a terminal"
     exit 1
   fi
-  # COMPOSE_FILE makes docker compose read other files than the one that the script changes
-  if [ -n "$COMPOSE_FILE" ] || grep -qs '^ *COMPOSE_FILE=' .env; then
+  # COMPOSE_FILE, or a compose.yaml, makes docker compose read other files than the one
+  # that the script changes
+  if [ -n "$COMPOSE_FILE" ] || grep -qsE '^ *(export +)?COMPOSE_FILE *=' .env; then
     echo "Error: COMPOSE_FILE is set (in the environment or in .env). The script changes only $FILE: remove COMPOSE_FILE, then run it again."
+    exit 1
+  fi
+  if [ -f compose.yaml ] || [ -f compose.yml ]; then
+    echo "Error: docker compose reads compose.yaml (or compose.yml) first, but the script changes only $FILE. Keep only the file of the node, as docker-compose.yml, then run it again."
     exit 1
   fi
 
