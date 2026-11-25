@@ -60,7 +60,12 @@ import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { checkUrlHost, getSafeDispatcher } from '../../utils/safeUrl.js'
 import { fetchHeadersTimeout } from '../../utils/http.js'
 import { errorSummary, safeStringify } from '../../utils/logging/redact.js'
-import { ENVIRONMENT_VARIABLES, JobType } from '../../utils/constants.js'
+import {
+  ENVIRONMENT_VARIABLES,
+  JobType,
+  ZERO_PAYMENT_TX,
+  isZeroPaymentTx
+} from '../../utils/constants.js'
 import { FindDdoHandler } from '../core/handler/ddoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { KeyManager } from '../KeyManager/index.js'
@@ -1188,7 +1193,10 @@ export class C2DEngineDocker extends C2DEngine {
                 claim.cost,
                 claim.proof,
                 JobType.COMPUTE,
-                claim.job.payment!.subsidyProviders ?? null
+                claim.job.payment!.subsidyProviders ?? null,
+                // Mirror the lock: only a sentinel lock skips the claim. A real lock whose claim
+                // cost rounds to 0 is still claimed (releases it), never stranded on-chain.
+                claim.job.payment!.lockTx
               )
               if (txId) {
                 if (claim.job.payment) {
@@ -1279,8 +1287,12 @@ export class C2DEngineDocker extends C2DEngine {
         job.status = C2DStatusNumber.JobFinished
         job.statusText = C2DStatusText.JobFinished
         if (job.payment) {
-          job.payment.cancelTx = 'nolock'
-          job.payment.claimTx = 'nolock'
+          // A zero-amount paid job never created an on-chain lock (lockTx is the 0xempty
+          // sentinel), so getLocks found nothing — that is expected, not an anomaly. Record the
+          // claim as 0xempty too, rather than the "nolock" marker used for genuinely orphaned jobs.
+          const emptyTx = isZeroPaymentTx(job.payment.lockTx)
+          job.payment.cancelTx = emptyTx ? ZERO_PAYMENT_TX : 'nolock'
+          job.payment.claimTx = emptyTx ? ZERO_PAYMENT_TX : 'nolock'
         }
         await this.db.updateJob(job)
       }
@@ -4922,7 +4934,8 @@ export class C2DEngineDocker extends C2DEngine {
           chainId,
           serviceId,
           token,
-          job.owner
+          job.owner,
+          job.payment.lockTx
         )
       }
       const { previousContainerId } = job
@@ -5070,7 +5083,8 @@ export class C2DEngineDocker extends C2DEngine {
           chainId,
           serviceId,
           token,
-          job.owner
+          job.owner,
+          job.payment.lockTx
         )
         job.status = job.dockerfile
           ? ServiceStatusNumber.BuildImageFailed
@@ -5091,14 +5105,16 @@ export class C2DEngineDocker extends C2DEngine {
         job.payment.cost,
         `service-start:${serviceId}`,
         JobType.SERVICE,
-        job.payment.subsidyProviders ?? null
+        job.payment.subsidyProviders ?? null,
+        job.payment.lockTx
       )
       if (!claimTx) {
         job.payment.cancelTx = await this.safeCancelLock(
           chainId,
           serviceId,
           token,
-          job.owner
+          job.owner,
+          job.payment.lockTx
         )
         throw new Error('Escrow claim failed — lock cancelled')
       }
@@ -5216,7 +5232,8 @@ export class C2DEngineDocker extends C2DEngine {
           chainId,
           serviceId,
           token,
-          job.owner
+          job.owner,
+          job.payment.lockTx
         )
       }
       if (!job.payment.claimTx) {
@@ -5239,8 +5256,12 @@ export class C2DEngineDocker extends C2DEngine {
     chainId: number,
     serviceId: string,
     token: string,
-    owner: string
+    owner: string,
+    lockTx?: string
   ): Promise<string> {
+    // A zero-amount lock was never created on-chain (lockTx is the 0xempty sentinel) — there is
+    // no lock to cancel, so skip the RPC entirely.
+    if (isZeroPaymentTx(lockTx)) return ''
     try {
       return (await this.escrow.cancelExpiredLock(chainId, serviceId, token, owner)) ?? ''
     } catch (e: any) {

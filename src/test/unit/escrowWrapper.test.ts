@@ -559,3 +559,157 @@ describe('Escrow claim wrappers forward jobType + subsidyProviders', () => {
     ).to.equal('0xlock')
   })
 })
+
+// ESCROW_EMPTY_TX: when a lock/claim amount is 0, the node (by default) must NOT send the
+// on-chain transaction — it records the `0xempty` sentinel instead. Turning the flag on restores
+// the real zero-value transaction.
+describe('Escrow zero-amount handling (ESCROW_EMPTY_TX)', () => {
+  const CHAIN = 8996
+  const TOKEN = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238'
+  const PAYER = '0x0000000000000000000000000000000000000aBc'
+
+  // An Escrow whose amount→wei conversion yields `wei`, with the empty-tx flag set as given.
+  function buildEscrow(wei: string, escrowEmptyTx: boolean) {
+    const escrow = new Escrow({} as any, 3600, {} as any, null, escrowEmptyTx)
+    const createLock: any = sinon.stub().resolves({ hash: '0xlock' })
+    createLock.estimateGas = sinon.stub().resolves(21000n)
+    const claimLockAndWithdraw: any = sinon.stub().resolves({ hash: '0xclaim' })
+    claimLockAndWithdraw.estimateGas = sinon.stub().resolves(21000n)
+    const contract = { createLock, claimLockAndWithdraw }
+    const fakeBlockchain = {
+      getSigner: sinon.stub().resolves({ getAddress: sinon.stub().resolves('0xnode') }),
+      getGasOptions: sinon.stub().resolves({ gasLimit: 21000n }),
+      getProvider: sinon
+        .stub()
+        .resolves({ waitForTransaction: sinon.stub().resolves(undefined) })
+    }
+    sinon.stub(escrow as any, 'getBlockchain').returns(fakeBlockchain)
+    sinon.stub(escrow, 'getContract').returns(contract as any)
+    sinon.stub(escrow, 'getPaymentAmountInWei').resolves(wei)
+    // permissive pre-checks, so a non-sentinel path reaches the contract
+    sinon.stub(escrow, 'getUserAvailableFunds').resolves((10n ** 18n) as any)
+    sinon.stub(escrow, 'getAuthorizations').resolves([
+      {
+        maxLockedAmount: 10n ** 18n,
+        currentLockedAmount: 0n,
+        maxLockSeconds: 10n ** 9n,
+        maxLockCounts: 10n,
+        currentLocks: 0n
+      } as any
+    ])
+    return { escrow, contract, fakeBlockchain }
+  }
+
+  afterEach(() => sinon.restore())
+
+  it('createLock: a 0 amount returns the 0xempty sentinel and sends no tx (flag off)', async () => {
+    const { escrow, contract } = buildEscrow('0', false)
+    const hash = await escrow.createLock(
+      CHAIN,
+      'z',
+      TOKEN,
+      PAYER,
+      0,
+      3600,
+      JobType.COMPUTE
+    )
+    expect(hash).to.equal('0xempty')
+    expect(contract.createLock.called).to.equal(false)
+    expect(contract.createLock.estimateGas.called).to.equal(false)
+  })
+
+  it('claimLock: mirrors the lock — a 0xempty lockTx skips the claim without a getLocks lookup', async () => {
+    const { escrow, contract } = buildEscrow('0', false)
+    const getLocks = sinon.stub(escrow, 'getLocks').resolves([] as any)
+    // lockTx is the sentinel → the lock was skipped, so the claim is too
+    const hash = await escrow.claimLock(
+      CHAIN,
+      'z',
+      TOKEN,
+      PAYER,
+      0,
+      'p',
+      JobType.COMPUTE,
+      null,
+      '0xempty'
+    )
+    expect(hash).to.equal('0xempty')
+    expect(getLocks.called).to.equal(false)
+    expect(contract.claimLockAndWithdraw.called).to.equal(false)
+  })
+
+  it('claimLock: a REAL lockTx whose claim rounds to 0 wei is still claimed (lock not stranded)', async () => {
+    const { escrow, contract } = buildEscrow('0', false)
+    const jobId = create256Hash('real')
+    sinon.stub(escrow, 'getLocks').resolves([{ jobId: BigInt(jobId) } as any])
+    // claim cost rounds to 0 wei, but the lock was real → claim it (releases the lock on-chain)
+    const hash = await escrow.claimLock(
+      CHAIN,
+      'real',
+      TOKEN,
+      PAYER,
+      0,
+      'p',
+      JobType.COMPUTE,
+      null,
+      '0xrealhash'
+    )
+    expect(hash).to.equal('0xclaim')
+    expect(contract.claimLockAndWithdraw.called).to.equal(true)
+  })
+
+  it('createLock: with the flag ON, a 0 amount still sends the real zero-value tx', async () => {
+    const { escrow, contract } = buildEscrow('0', true)
+    const hash = await escrow.createLock(
+      CHAIN,
+      'z',
+      TOKEN,
+      PAYER,
+      0,
+      3600,
+      JobType.COMPUTE
+    )
+    expect(hash).to.equal('0xlock')
+    expect(contract.createLock.called).to.equal(true)
+  })
+
+  it('a non-zero amount is unaffected by the flag (still sends the tx)', async () => {
+    const { escrow, contract } = buildEscrow('1000', false)
+    const hash = await escrow.createLock(
+      CHAIN,
+      'nz',
+      TOKEN,
+      PAYER,
+      1,
+      3600,
+      JobType.COMPUTE
+    )
+    expect(hash).to.equal('0xlock')
+    expect(contract.createLock.called).to.equal(true)
+  })
+
+  it('claimLock: with the flag ON, a real lockTx goes through the normal claim path', async () => {
+    const { escrow, contract } = buildEscrow('1000', true)
+    const jobId = create256Hash('on')
+    sinon.stub(escrow, 'getLocks').resolves([{ jobId: BigInt(jobId) } as any])
+    const hash = await escrow.claimLock(
+      CHAIN,
+      'on',
+      TOKEN,
+      PAYER,
+      1,
+      'p',
+      JobType.COMPUTE,
+      null,
+      '0xrealhash'
+    )
+    expect(hash).to.equal('0xclaim')
+    expect(contract.claimLockAndWithdraw.called).to.equal(true)
+  })
+
+  it('waitForTransaction is a no-op for the 0xempty sentinel', async () => {
+    const { escrow, fakeBlockchain } = buildEscrow('0', false)
+    await escrow.waitForTransaction(CHAIN, '0xempty')
+    expect(fakeBlockchain.getProvider.called).to.equal(false)
+  })
+})

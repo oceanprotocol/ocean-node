@@ -26,6 +26,7 @@ export const ENV_TO_CONFIG_MAPPING = {
   FILEINFO_MAX_REQ_PER_MINUTE: 'fileInfoRateLimit',
   IS_BOOTSTRAP: 'isBootstrap',
   ESCROW_CLAIM_TIMEOUT: 'claimDurationTimeout',
+  ESCROW_EMPTY_TX: 'escrowEmptyTx',
   VALIDATE_UNSIGNED_DDO: 'validateUnsignedDDO',
   JWT_SECRET: 'jwtSecret',
   MAX_REQ_PER_MINUTE: 'rateLimit',
