@@ -213,6 +213,14 @@ export class KeyManager {
   }
 
   /**
+   * OJ-03: sign raw bytes with the libp2p IDENTITY key (software-local under every provider,
+   * including KMS). Used to answer the status identity challenge. See IKeyProvider.
+   */
+  async signWithIdentityKey(data: Uint8Array): Promise<Uint8Array> {
+    return await this.keyProvider.signWithIdentityKey(data)
+  }
+
+  /**
    * Cleanup resources (delegates to key provider if it has cleanup method)
    */
   async cleanup(): Promise<void> {

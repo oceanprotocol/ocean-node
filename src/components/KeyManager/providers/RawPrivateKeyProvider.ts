@@ -85,6 +85,15 @@ export class RawPrivateKeyProvider implements IKeyProvider {
   }
 
   /**
+   * OJ-03: sign raw bytes with the libp2p IDENTITY key (software-local, never the EVM signer).
+   * libp2p secp256k1 `.sign()` is SHA-256 + DER, matching `@libp2p/crypto` `publicKey.verify`.
+   */
+  // eslint-disable-next-line require-await
+  async signWithIdentityKey(data: Uint8Array): Promise<Uint8Array> {
+    return this.privateKey.sign(data)
+  }
+
+  /**
    * This method encrypts data according to a given algorithm using node keys
    * @param data data to encrypt
    * @param algorithm encryption algorithm AES or ECIES
