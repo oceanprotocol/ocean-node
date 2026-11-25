@@ -340,6 +340,8 @@ export interface OceanNodeStatus {
   /** Present only when the P2P interface is enabled and running. */
   p2pStatus?: OceanNodeP2PStatus
   provider: OceanNodeProvider[]
+  // Populated for DETAILED status only (it reads lastIndexedBlock from the metadata DB per chain).
+  // Basic status returns an empty array to keep the health-check path off the DB.
   indexer: OceanNodeIndexer[]
   escrowAddress: AddressPerChain
   // Seconds reserved to claim an escrow payment (ESCROW_CLAIM_TIMEOUT / config.claimDurationTimeout,

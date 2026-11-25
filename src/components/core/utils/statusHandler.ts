@@ -163,7 +163,9 @@ export async function status(
   // need to update at least block info if available
   if (config.supportedNetworks) {
     nodeStatus.provider = getProviderInfo(config)
-    nodeStatus.indexer = await getIndexerInfo(oceanNode, config)
+    // NB: indexer status is intentionally NOT built here — it does a metadata-DB read per
+    // indexing chain and is populated for detailed status only (see the detailed branch below),
+    // so the basic/health-check path stays cheap and never blocks on the DB.
     for (const chain of Object.keys(config.supportedNetworks)) {
       nodeStatus.escrowAddress[chain] = oceanNode.escrow.getEscrowContractAddressForChain(
         parseInt(chain)
@@ -223,7 +225,13 @@ export async function status(
   // detailed request is populating them (and vice versa), racing on the shared object.
   let c2dClusters: OceanNodeStatus['c2dClusters']
   let supportedSchemas: OceanNodeStatus['supportedSchemas']
+  let indexer: OceanNodeStatus['indexer']
   if (detailed) {
+    // Indexer status reads lastIndexedBlock from the metadata DB once per indexing chain, so it
+    // only runs on the detailed path. Built into a local and merged into the per-request shallow
+    // copy at the return below (same reasoning as c2dClusters / maintenance): it is never written
+    // to the shared, cached `nodeStatus`, where a concurrent basic request could observe it.
+    indexer = await getIndexerInfo(oceanNode, config)
     c2dClusters = []
     try {
       const engines = await oceanNode.getC2DEngines().getAllEngines()
@@ -325,7 +333,7 @@ export async function status(
   // A basic request returns the shared object (which never carries these keys, so
   // `c2dClusters` / `supportedSchemas` are absent as before).
   if (detailed) {
-    return { ...nodeStatus, c2dClusters, supportedSchemas }
+    return { ...nodeStatus, indexer, c2dClusters, supportedSchemas }
   }
   return nodeStatus
 }

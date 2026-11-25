@@ -1000,8 +1000,10 @@ The node's root `GET /` endpoint is the HTTP alias of this command: it dispatche
 command and returns the same object (previously it returned only a small subset — `nodeId`,
 `providerAddress`, `nodePublicKey`, `software`, `version` — which has been replaced by the full status
 body). It defaults to the **basic** status; pass `?detailed=true` for the extended status
-(`c2dClusters` + `supportedSchemas`), mirroring the P2P `status` vs `detailedStatus` split. The
-OJ-03 challenge is supported via `?clientChallenge=...`.
+(`indexer` + `c2dClusters` + `supportedSchemas`), mirroring the P2P `status` vs `detailedStatus`
+split. `indexer` is detailed-only because it reads the last indexed block from the metadata DB per
+chain; the basic status returns `"indexer": []` so the health-check path never blocks on the DB.
+The OJ-03 challenge is supported via `?clientChallenge=...`.
 
 ```
 GET /
@@ -1015,7 +1017,7 @@ GET /?clientChallenge=a-fresh-random-hex-string
 | --------------- | ------- | -------- | ---------------------------------------------------------------------------------- |
 | command         | string  | v        | command name (POST /directCommand / P2P only)                                       |
 | node            | string  |          | if not present it means current node                                                |
-| detailed        | boolean |          | when true, includes `c2dClusters` + `supportedSchemas` (query param on `GET /`)     |
+| detailed        | boolean |          | when true, includes `indexer` + `c2dClusters` + `supportedSchemas` (query param on `GET /`) |
 | clientChallenge | string  |          | OJ-03: when present, the node returns `signedChallenge` proving its peerId (below)  |
 
 #### Request

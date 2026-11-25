@@ -8,8 +8,9 @@ export const rootEndpointRoutes = express.Router()
 
 // The root endpoint is the HTTP mirror of the `status` command (the same object returned over
 // P2P / `/directCommand`). It defaults to the BASIC status to keep this frequently-hit path
-// cheap for health checks; `?detailed=true` opts into the extended status (c2dClusters +
-// supportedSchemas), mirroring the P2P `status` vs `detailedStatus` split. `?clientChallenge=...`
+// cheap for health checks; `?detailed=true` opts into the extended status (indexer + c2dClusters
+// + supportedSchemas — indexer is detailed-only because it reads the metadata DB per chain),
+// mirroring the P2P `status` vs `detailedStatus` split. `?clientChallenge=...`
 // (OJ-03) is forwarded so a client can prove the node controls the key its peerId commits to.
 rootEndpointRoutes.get('/', async (req: Request, res: Response): Promise<void> => {
   const detailed = String(req.query.detailed).toLowerCase() === 'true'
