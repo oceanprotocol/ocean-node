@@ -98,6 +98,9 @@ export const PROBE_PERIOD_SECONDS = 5
 export const READY_PROBE_PERIOD_SECONDS = 30
 // Not ready this long after start: warn once per container.
 export const READINESS_WARN_AFTER_SECONDS = 15 * 60
+// A generically probed service that answers while its listed download is unfinished stays waiting,
+// unless the download has made no progress for this long (a failed file the app runs without).
+export const DOWNLOAD_STALL_SECONDS = 10 * 60
 const PROBE_TIMEOUT_MS = 2000
 
 export interface ReadinessProbeResult {

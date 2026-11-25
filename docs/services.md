@@ -205,6 +205,10 @@ requests and how far its startup downloads have got, on the job returned by `SER
   open and proxied to the app: a gate that answers `401`/`403` on all of them says nothing about
   the app behind it, and the service reports `unknown`. So does an engine profile whose own request
   is refused with `401`/`403`: no other path shows whether the engine has loaded its model.
+  An answer to the generic probe only shows the port is open, so while the service's download
+  manifest (below) lists unfinished items it stays `waiting` (`lastError: model download in
+  progress`). It becomes `ready` once everything listed is complete, or once the download has made
+  no progress for 10 minutes — a failed file the app runs without.
   `readiness.engine` names the profile that decided. Only a service that publishes
   no port reports no readiness.
   A service still `waiting` 15 minutes after its container started is logged once as a node warning
@@ -232,9 +236,9 @@ A service that publishes no port still reports `modelDownload` from its manifest
 `readiness`. With nothing to say when such a service is
 ready, the node checks it only within 30 minutes of the container starting unless a manifest has
 appeared, and stops once everything listed is complete. All of it is best-effort and owner-only: a
-missing or wrong manifest only changes what that service's own progress report says. A service
-probed only on its first exposed port (an image the node does not recognize) is sampled the same way
-once it has answered: an open port does not mean its model is downloaded.
+missing or wrong manifest only changes what that service's own progress report says. A
+generically probed service that became `ready` with its download unfinished is sampled the same
+way from then on.
 
 ## Service outputs
 

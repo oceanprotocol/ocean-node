@@ -105,7 +105,8 @@ import {
   PROBE_INITIAL_DELAY_SECONDS,
   PROBE_PERIOD_SECONDS,
   READY_PROBE_PERIOD_SECONDS,
-  READINESS_WARN_AFTER_SECONDS
+  READINESS_WARN_AFTER_SECONDS,
+  DOWNLOAD_STALL_SECONDS
 } from './serviceReadiness.js'
 import { resolveServiceEngine, type ServiceEngineProfile } from './serviceEngines.js'
 import {
@@ -286,6 +287,11 @@ export class C2DEngineDocker extends C2DEngine {
   private manifestCheckedAt: Map<string, number> = new Map()
   // serviceId -> containerId the "still not ready" warning was logged for.
   private readinessWarned: Map<string, string> = new Map()
+  // serviceId -> when its listed download last moved, for a generically probed service.
+  private downloadProgress: Map<
+    string,
+    { containerId: string; downloadedBytes: number; filesComplete: number; at: number }
+  > = new Map()
   // serviceId -> manifest folder path -> last `du`.
   private manifestDirSizes: Map<
     string,
@@ -5436,6 +5442,7 @@ export class C2DEngineDocker extends C2DEngine {
       this.serviceDiskUnmeasured,
       this.manifestCheckedAt,
       this.readinessWarned,
+      this.downloadProgress,
       this.manifestDirSizes
     ]) {
       for (const serviceId of state?.keys() ?? []) {
@@ -5773,39 +5780,6 @@ export class C2DEngineDocker extends C2DEngine {
       }
       if (!result) return
 
-      const readiness: ServiceReadiness = result.ok
-        ? {
-            state: 'ready',
-            engine: engine.id,
-            readySince: job.readiness?.readySince ?? now,
-            lastCheckedAt: now,
-            consecutiveFailures: 0,
-            httpStatus: result.httpStatus,
-            probedUrl: result.url
-          }
-        : {
-            // Only a service that HAD answered can be "failing"; one that never has is still
-            // warming up, which is the normal state for the first minutes of a model server.
-            state: result.inconclusive ? 'unknown' : everReady ? 'failing' : 'waiting',
-            engine: engine.id,
-            readySince: job.readiness?.readySince,
-            lastCheckedAt: now,
-            consecutiveFailures: (job.readiness?.consecutiveFailures ?? 0) + 1,
-            httpStatus: result.httpStatus,
-            lastError: result.error,
-            probedUrl: result.url
-          }
-
-      if (readiness.state !== job.readiness?.state) {
-        CORE_LOGGER.info(
-          `[readiness] service ${job.serviceId} (${engine.id}): ${
-            job.readiness?.state ?? 'none'
-          } -> ${readiness.state} via ${result.url}${
-            result.error ? ` (${result.error})` : ''
-          }`
-        )
-      }
-
       // While the engine is still warming up, sample how far its model download has got. Skipped
       // once the service has EVER been ready: the files are on disk from that point on, so the walk
       // would only re-measure a finished download — including while a ready service is failing,
@@ -5813,10 +5787,59 @@ export class C2DEngineDocker extends C2DEngine {
       const modelDownload = everReady
         ? undefined
         : await this.sampleModelDownload(job, engine)
+      const isDownloadPending =
+        result.ok &&
+        !everReady &&
+        !engine.probe &&
+        this.isGenericDownloadPending(job, modelDownload, now)
+
+      const readiness: ServiceReadiness = isDownloadPending
+        ? {
+            state: 'waiting',
+            engine: engine.id,
+            lastCheckedAt: now,
+            consecutiveFailures: (job.readiness?.consecutiveFailures ?? 0) + 1,
+            httpStatus: result.httpStatus,
+            lastError: 'model download in progress',
+            probedUrl: result.url
+          }
+        : result.ok
+          ? {
+              state: 'ready',
+              engine: engine.id,
+              readySince: job.readiness?.readySince ?? now,
+              lastCheckedAt: now,
+              consecutiveFailures: 0,
+              httpStatus: result.httpStatus,
+              probedUrl: result.url
+            }
+          : {
+              // Only a service that HAD answered can be "failing"; one that never has is still
+              // warming up, which is the normal state for the first minutes of a model server.
+              state: result.inconclusive ? 'unknown' : everReady ? 'failing' : 'waiting',
+              engine: engine.id,
+              readySince: job.readiness?.readySince,
+              lastCheckedAt: now,
+              consecutiveFailures: (job.readiness?.consecutiveFailures ?? 0) + 1,
+              httpStatus: result.httpStatus,
+              lastError: result.error,
+              probedUrl: result.url
+            }
+
+      if (readiness.state !== job.readiness?.state) {
+        CORE_LOGGER.info(
+          `[readiness] service ${job.serviceId} (${engine.id}): ${
+            job.readiness?.state ?? 'none'
+          } -> ${readiness.state} via ${result.url}${
+            readiness.lastError ? ` (${readiness.lastError})` : ''
+          }`
+        )
+      }
 
       // Usually a node that cannot reach its container: tell the operator once per container.
       if (
         readiness.state === 'waiting' &&
+        !isDownloadPending &&
         Number.isFinite(startedAt) &&
         now - startedAt >= READINESS_WARN_AFTER_SECONDS * 1000 &&
         this.readinessWarned.get(job.serviceId) !== job.containerId
@@ -5864,6 +5887,35 @@ export class C2DEngineDocker extends C2DEngine {
       readiness,
       modelDownload
     )
+  }
+
+  /**
+   * An open port is all the generic probe sees, so a service whose launch script lists an
+   * unfinished download is not ready yet — unless that download has stopped moving.
+   */
+  private isGenericDownloadPending(
+    job: ServiceJob,
+    download: ServiceModelDownload | undefined,
+    now: number
+  ): boolean {
+    if (!download || isModelDownloadComplete(download)) {
+      return false
+    }
+    const last = this.downloadProgress.get(job.serviceId)
+    if (
+      last?.containerId === job.containerId &&
+      last.downloadedBytes === download.downloadedBytes &&
+      last.filesComplete === download.filesComplete
+    ) {
+      return now - last.at < DOWNLOAD_STALL_SECONDS * 1000
+    }
+    this.downloadProgress.set(job.serviceId, {
+      containerId: job.containerId,
+      downloadedBytes: download.downloadedBytes,
+      filesComplete: download.filesComplete,
+      at: now
+    })
+    return true
   }
 
   /**
