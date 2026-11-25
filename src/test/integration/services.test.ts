@@ -504,6 +504,30 @@ describe('**********         Service on Demand', () => {
     }
   })
 
+  // Free a dedicated per-test service's resources so later tests in this CPU-limited env
+  // (cpu total 4) aren't starved. `release: true` ends the paid window (expiresAt=now), but a
+  // Stopped job that was paid (claimTx set) STILL counts against the pool — only the InternalLoop
+  // expiry sweep (~2s) marks it Expired, which is what actually returns its CPU/ports. So wait for
+  // Expired before returning; otherwise a following SERVICE_START can still fail with
+  // "Not enough available cpu" because the sweep hasn't run yet.
+  const releaseService = async (id: string) => {
+    const sig = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_STOP)
+    await new ServiceStopHandler(oceanNode)
+      .handle({
+        command: PROTOCOL_COMMANDS.SERVICE_STOP,
+        consumerAddress: sig.consumerAddress,
+        nonce: sig.nonce,
+        signature: sig.signature,
+        serviceId: id,
+        release: true
+      } as ServiceStopCommand)
+      .catch(() => {})
+    // Wait for the sweep to actually free the reservation (Stopped-with-claimTx still counts).
+    await pollServiceStatus(id, ServiceStatusNumber.Expired, DEFAULT_TEST_TIMEOUT).catch(
+      () => {}
+    )
+  }
+
   // ── tests ────────────────────────────────────────────────────────────
 
   it('(a) sets up the service environment', () => {
@@ -746,6 +770,8 @@ describe('**********         Service on Demand', () => {
         expect(viaStatus.payment.droppedSubsidies).to.deep.equal([
           ethers.getAddress(WHITELISTED_PROVIDER)
         ])
+        // Free the gated service so it doesn't hold a CPU for the rest of the suite.
+        await releaseService(job.serviceId)
       }
     )
   })
@@ -1358,6 +1384,10 @@ describe('**********         Service on Demand', () => {
       ServiceStatusNumber.Running
     )
     expect(reuseRunning.endpoints[0].hostPort).to.equal(pinnedStart)
+
+    // Free both dedicated services so the CPU-limited env isn't starved for later tests.
+    await releaseService(localId)
+    await releaseService(reuseJob.serviceId)
   })
 
   it('(l-ports3) SERVICE_RESTART reserves pins first: no two endpoints share a host port', async function () {
@@ -1432,6 +1462,9 @@ describe('**********         Service on Demand', () => {
       resp.status === 200,
       `expected nginx 200 on moved 8080 port, got ${resp.status}`
     )
+
+    // Free this test's service so later tests aren't starved for CPU.
+    await releaseService(localId)
   })
 
   it('(l2) SERVICE_RESTART self-heals a network leaked by a crash mid-start', async function () {
@@ -1838,8 +1871,8 @@ describe('**********         Service on Demand', () => {
     assert(res.status === 200, `expected built.txt HTTP 200, got ${res.status}`)
     assert(res.body.includes('built'), 'built.txt should contain "built"')
 
-    // stop it
-    await getDockerEngine().stopService(job.serviceId, consumerAddress)
+    // stop + release so the CPU/ports are returned for later tests
+    await releaseService(job.serviceId)
   })
 
   it('(p) SERVICE_START persists a checksummed, whitelisted subsidyProviders list on the job', async function () {
@@ -1896,9 +1929,9 @@ describe('**********         Service on Demand', () => {
           ethers.getAddress(WHITELISTED_PROVIDER)
         ])
 
-        await getDockerEngine()
-          .stopService(job.serviceId, consumerAddress)
-          .catch(() => {})
+        // stop + release so the CPU/ports are returned (this is the last service test, but keep
+        // the suite's reservation accounting clean regardless of ordering).
+        await releaseService(job.serviceId)
       }
     )
   })
