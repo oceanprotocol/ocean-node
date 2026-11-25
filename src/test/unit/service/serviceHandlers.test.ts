@@ -1578,12 +1578,13 @@ describe('Service handlers', () => {
       expect(res.status.httpStatus).to.equal(401)
     })
 
-    it('404 when the engine has no stream to return (not running/error)', async () => {
+    it('404 when the engine has no stream to return (no container, no saved logs)', async () => {
       const { node } = buildFakes({ serviceJobInDb: makeJob(), streamableLogs: null })
       const res = await new ServiceGetStreamableLogsHandler(node).handle({
         ...baseTask
       } as any)
       expect(res.status.httpStatus).to.equal(404)
+      expect(res.status.error).to.contain('no container and no saved logs')
     })
 
     it('200 and returns the engine stream on success', async () => {

@@ -352,6 +352,32 @@ describe('**********         Service on Demand', () => {
     })
   }
 
+  // Saved logs, unlike a live log, end on their own once the last file is sent. So anything short
+  // of a clean end fails: an error, or no end within `timeoutMs`, rather than passing on whatever
+  // arrived first.
+  // eslint-disable-next-line require-await
+  async function readEndedLogs(stream: Readable, timeoutMs = 5000): Promise<string> {
+    return new Promise((resolve, reject) => {
+      let data = ''
+      const timer = setTimeout(() => {
+        stream.removeAllListeners()
+        stream.destroy()
+        reject(new Error(`log stream did not end within ${timeoutMs}ms`))
+      }, timeoutMs)
+      stream.on('data', (chunk) => {
+        data += chunk.toString()
+      })
+      stream.on('end', () => {
+        clearTimeout(timer)
+        resolve(data)
+      })
+      stream.on('error', (e) => {
+        clearTimeout(timer)
+        reject(e)
+      })
+    })
+  }
+
   // ── setup / teardown ─────────────────────────────────────────────────
 
   before(async function () {
@@ -1686,6 +1712,36 @@ describe('**********         Service on Demand', () => {
 
     // no container any more → no live download
     expect((await getServiceResult({ live: true })).status.httpStatus).to.equal(409)
+  })
+
+  it('(m3) SERVICE_GET_STREAMABLE_LOGS still serves the stopped service logs, saved at teardown', async function () {
+    const job = await getServiceJob(serviceId)
+    expect(
+      job.logArchives,
+      'stop must save the container logs'
+    ).to.have.length.greaterThan(0)
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS)
+    const resp = await new ServiceGetStreamableLogsHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      serviceId
+    } as ServiceGetStreamableLogsCommand)
+    assert(
+      resp.status.httpStatus === 200,
+      `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
+    )
+    // The image's entrypoint prints this on every boot, so it is in each saved container's log,
+    // the stopped one included.
+    const logs = await readEndedLogs(resp.stream as Readable)
+    expect(logs).to.include(
+      '/docker-entrypoint.sh: Configuration complete; ready for start up'
+    )
   })
 
   it('(n) [slow] expiry cron marks a short-lived service Expired', async function () {
