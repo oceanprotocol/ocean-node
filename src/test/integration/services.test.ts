@@ -1334,11 +1334,11 @@ describe('**********         Service on Demand', () => {
     expect(reuseRunning.endpoints[0].hostPort).to.equal(pinnedStart)
   })
 
-  it('(l-ports3) SERVICE_RESTART rejecting a duplicate host port leaves the service running', async function () {
+  it('(l-ports3) SERVICE_RESTART reserves pins first: no two endpoints share a host port', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 6)
     const pinnedStart = PORT_RANGE_START + 111
 
-    // Start a service pinned to a single host port (container 8080 → pinnedStart).
+    // Start a service on container 8080 pinned to pinnedStart (nginx serves on 8080).
     const s = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_START)
     const startTask: ServiceStartCommand = {
       command: PROTOCOL_COMMANDS.SERVICE_START,
@@ -1370,11 +1370,10 @@ describe('**********         Service on Demand', () => {
     const runningPinned = await pollServiceStatus(localId, ServiceStatusNumber.Running)
     expect(runningPinned.endpoints[0].hostPort).to.equal(pinnedStart)
 
-    // Restart requesting TWO container ports that both resolve to pinnedStart: container 9090
-    // pins it (accepted as owned), while container 8080 is unpinned and inherits its current host
-    // port (also pinnedStart). This collision is NOT caught by structural validation (the pinned
-    // hostPort is unique; the collision comes from the inherited one) — the engine must reject it
-    // as a 400 and leave the running service untouched (regression for fix #1).
+    // Restart requesting container 9090 PINNED to pinnedStart (the port 8080 currently holds) plus
+    // an UNPINNED 8080. Reserving pins first means 9090 takes pinnedStart and the unpinned 8080 is
+    // moved to a fresh auto port — rather than both resolving to pinnedStart and the new container
+    // failing to bind the duplicate. The restart must succeed with two DISTINCT host ports.
     const r = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_RESTART)
     const restartTask: ServiceRestartCommand = {
       command: PROTOCOL_COMMANDS.SERVICE_RESTART,
@@ -1385,16 +1384,27 @@ describe('**********         Service on Demand', () => {
       ports: [{ containerPort: 9090, hostPort: pinnedStart }, { containerPort: 8080 }]
     }
     const restartResp = await new ServiceRestartHandler(oceanNode).handle(restartTask)
-    expect(restartResp.status.httpStatus).to.equal(400)
+    assert(
+      restartResp.status.httpStatus === 200,
+      `restart expected 200, got ${restartResp.status.httpStatus}: ${restartResp.status?.error ?? ''}`
+    )
 
-    // The original service is untouched: still Running on its original single endpoint, reachable.
-    const stillRunning = await pollServiceStatus(localId, ServiceStatusNumber.Running)
-    expect(stillRunning.endpoints).to.have.length(1)
-    expect(stillRunning.endpoints[0].hostPort).to.equal(pinnedStart)
-    const resp = await httpGetWithRetry(`http://localhost:${pinnedStart}`)
+    const running = await pollServiceStatus(localId, ServiceStatusNumber.Running)
+    expect(running.endpoints).to.have.length(2)
+    const byContainer = new Map(
+      running.endpoints.map((e) => [e.containerPort, e.hostPort])
+    )
+    // The pin won pinnedStart; the unpinned 8080 moved to a different (auto) host port.
+    expect(byContainer.get(9090)).to.equal(pinnedStart)
+    expect(byContainer.get(8080)).to.not.equal(pinnedStart)
+    // No double-binding: the two endpoints hold distinct host ports.
+    const hostPorts = running.endpoints.map((e) => e.hostPort)
+    expect(new Set(hostPorts).size).to.equal(hostPorts.length)
+    // nginx serves on 8080 → reachable on its new host port.
+    const resp = await httpGetWithRetry(`http://localhost:${byContainer.get(8080)}`)
     assert(
       resp.status === 200,
-      `expected nginx 200 after rejected restart, got ${resp.status}`
+      `expected nginx 200 on moved 8080 port, got ${resp.status}`
     )
   })
 

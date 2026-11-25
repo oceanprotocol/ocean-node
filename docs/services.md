@@ -126,9 +126,11 @@ to keep the current ones. (Restart reads only `ports`, not the legacy `exposedPo
 that echoes a start body into a restart never changes ports by accident.) On restart the new ports
 are validated and reserved up front, so if a requested host port is unavailable the command is
 rejected and the **running service is left untouched**; on success the old host ports are released
-after the old container is torn down (so the service's `endpoints`/URLs change). An unpinned
-container port that is already mapped keeps its current host port; re-pinning a host port the
-service already holds is allowed.
+after the old container is torn down (so the service's `endpoints`/URLs change). Explicit pins are
+reserved first, so an auto-allocated port never lands on one another entry pinned. An unpinned
+container port that is already mapped keeps its current host port **unless** another entry in the
+same request pins it — then the pin wins and the unpinned port moves to a fresh host port.
+Re-pinning a host port the service already holds is allowed.
 
 **The reservation lasts the whole paid window — only `Expired` releases it.** The consumer
 paid for the resources for a time interval and may use them as they please within it:

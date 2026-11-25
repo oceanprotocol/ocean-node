@@ -6488,59 +6488,67 @@ export class C2DEngineDocker extends C2DEngine {
       this.serviceDiskUnmeasured?.delete(serviceId)
       this.serviceDiskSamples?.delete(serviceId)
       // Port change (independent of REUSE/RESPEC). Validate + reserve the NEW host ports here,
-      // while the old container is still up, so a conflict throws and leaves the running
-      // service untouched (nothing persisted yet). A pinned port equal to one of this job's
-      // CURRENT host ports — and an unpinned container port that is already mapped — are kept as
-      // owned (ownedBusyOk): the old container frees them at teardown and the new one re-binds
-      // them. Only NEWLY reserved ports go in portChangeReserved (released on failure); owned
-      // ports are never rolled back (the running service still needs them). The dropped old host
-      // ports are released later, after teardown, by doRestartService.
+      // while the old container is still up, so a conflict throws and leaves the running service
+      // untouched (nothing persisted yet). Reserve in TWO passes so an auto-allocation can never
+      // take a host port that another entry explicitly pins: a single pass in request order would
+      // let allocateHostPort grab (at random) a port that a LATER pinned entry needs, spuriously
+      // rejecting a satisfiable request. Pass 1 reserves every explicit pin; pass 2 then keeps a
+      // still-free CURRENT host port or auto-allocates — both now avoid the pins (which are in
+      // allocatedPorts). A pin on one of this job's own current ports is `ownedBusyOk` (freed at
+      // teardown, re-bound by the new container). Only NEWLY reserved ports go in
+      // portChangeReserved (released on failure); owned ports are never rolled back. Dropped old
+      // host ports are released later, after teardown, by doRestartService.
       if (newExposedPorts !== undefined) {
         const sodPorts = this.getC2DConfig().connection?.serviceOnDemand
         const [rs, re] = sodPorts?.hostPortRange ?? [30000, 32767]
         const nodeHost = sodPorts?.nodeHost ?? 'localhost'
         const ownHostPorts = new Set(job.endpoints.map((e) => e.hostPort))
-        // Current containerPort → hostPort map, so an unpinned container port that already
-        // exists keeps its host port instead of being silently moved to a fresh one.
+        // Current containerPort → hostPort map, so an unpinned container port that already exists
+        // keeps its host port — unless another entry in THIS request pins it, in which case the
+        // pin wins and the unpinned port moves to a fresh one.
         const currentByContainer = new Map(
           job.endpoints.map((e) => [e.containerPort, e.hostPort])
         )
         try {
-          const newEndpoints: ServiceEndpoint[] = []
-          // Host ports already claimed by an earlier entry in THIS request. Two container ports
-          // must never resolve to the same host port: the pinned/owned and inherited branches
-          // bypass allocateHostPort's uniqueness guard, so a pin onto one container port's
-          // current host port can collide with another container port that inherits it. Caught
-          // here (client error → 400) so the still-running service is left untouched, rather than
-          // being torn down and failing to bind the duplicate.
-          const assignedHost = new Set<number>()
+          const resolvedHost = new Map<number, number>() // containerPort → hostPort
+          const assignedHost = new Set<number>() // host ports claimed within THIS request
+          // Pass 1 — reserve every EXPLICIT pin first.
           for (const cp of newExposedPorts) {
             const pin = newRequestedHostPorts?.[String(cp)]
+            if (pin === undefined) continue
+            // Two entries pinning the same host port is already a 400 in validatePortSpecStructure;
+            // this is a defensive backstop for any non-HTTP/P2P caller that skipped it.
+            if (assignedHost.has(pin))
+              throw new HostPortUnavailableError(
+                `host port ${pin} is requested for more than one container port`
+              )
+            const owned = ownHostPorts.has(pin)
+            await reserveSpecificHostPort(pin, rs, re, { ownedBusyOk: owned })
+            if (!owned) portChangeReserved.push(pin)
+            assignedHost.add(pin)
+            resolvedHost.set(cp, pin)
+          }
+          // Pass 2 — unpinned entries: keep the current host port if it is still free (not claimed
+          // by a pin above), else auto-allocate. allocateHostPort skips allocatedPorts (which now
+          // holds every reserved pin), so an auto port never lands on a pinned one.
+          for (const cp of newExposedPorts) {
+            if (resolvedHost.has(cp)) continue
+            const current = currentByContainer.get(cp)
             let hp: number
-            if (pin !== undefined) {
-              const owned = ownHostPorts.has(pin)
-              await reserveSpecificHostPort(pin, rs, re, { ownedBusyOk: owned })
-              hp = pin
-              if (!owned) portChangeReserved.push(hp)
-            } else if (currentByContainer.has(cp)) {
-              // Unpinned but already mapped → keep the existing host port (owned).
-              hp = currentByContainer.get(cp) as number
-              reserveHostPort(hp) // idempotent; stays reserved
+            if (current !== undefined && !assignedHost.has(current)) {
+              hp = current
+              reserveHostPort(hp) // idempotent; keep the service's own port
             } else {
               hp = await allocateHostPort(rs, re)
               portChangeReserved.push(hp)
             }
-            if (assignedHost.has(hp))
-              throw new HostPortUnavailableError(
-                `host port ${hp} is requested for more than one container port`
-              )
             assignedHost.add(hp)
-            newEndpoints.push({
-              containerPort: cp,
-              hostPort: hp,
-              url: `http://${nodeHost}:${hp}`
-            })
+            resolvedHost.set(cp, hp)
           }
+          const newEndpoints: ServiceEndpoint[] = newExposedPorts.map((cp) => {
+            const hp = resolvedHost.get(cp) as number
+            return { containerPort: cp, hostPort: hp, url: `http://${nodeHost}:${hp}` }
+          })
           portChangeOldEndpoints = job.endpoints
           job.exposedPorts = newExposedPorts
           if (newRequestedHostPorts && Object.keys(newRequestedHostPorts).length)
