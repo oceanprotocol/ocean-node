@@ -153,7 +153,8 @@ export abstract class C2DEngine {
     serviceId: string,
     userData?: string, // ECIES-encrypted; the engine decrypts it transiently into the container env
     metadata?: DBComputeJobMetadata,
-    outputBucketId?: string
+    outputBucketId?: string,
+    requestedHostPorts?: Record<string, number> // pinned host ports keyed by containerPort
   ): Promise<ServiceJob | null> {
     return null
   }
@@ -196,7 +197,9 @@ export abstract class C2DEngine {
     newUserData?: string,
     newDockerCmd?: string[],
     newDockerEntrypoint?: string[],
-    newMetadata?: DBComputeJobMetadata
+    newMetadata?: DBComputeJobMetadata,
+    newExposedPorts?: number[], // present ⇒ change ports; undefined ⇒ keep current
+    newRequestedHostPorts?: Record<string, number> // pinned host ports keyed by containerPort
   ): Promise<ServiceJob | null> {
     return null
   }

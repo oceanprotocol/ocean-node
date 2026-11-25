@@ -293,6 +293,10 @@ export interface ServiceJob {
   expiresAt: number // Unix ms timestamp
   duration: number // requested seconds
   exposedPorts: number[]
+  // Pinned host ports the caller requested, keyed by containerPort (string). Only the entries
+  // the caller pinned appear here; auto-allocated ports are absent. Absent/undefined ⇒ fully
+  // auto (pre-feature shape). Drives host-port reservation at start/restart.
+  requestedHostPorts?: Record<string, number>
   endpoints: ServiceEndpoint[]
   userData?: string // ECIES(node key) string sent by the client; stored as-is, decrypted only at start/restart; never returned
   // Arbitrary, node-opaque user labels (≤1 KB when JSON-stringified). Set at SERVICE_START,

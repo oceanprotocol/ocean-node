@@ -2717,7 +2717,8 @@ should keep watching `serviceStatus`, not just stop once they first see `Running
 | tag / checksum / dockerfile  | string   |          | image spec — at most one; `dockerfile` requires `allowImageBuild` |
 | additionalDockerFiles        | object   |          | filename → content; only with `dockerfile`                        |
 | dockerCmd / dockerEntrypoint | string[] |          | container CMD / ENTRYPOINT overrides                              |
-| exposedPorts                 | number[] |          | container ports to publish                                        |
+| exposedPorts                 | number[] |          | container ports to publish (host ports auto-allocated) — legacy; prefer `ports` |
+| ports                        | object[] |          | `{ containerPort, hostPort? }[]` — container ports with an optional **pinned** host port. `hostPort` omitted = auto-allocate. A pinned `hostPort` must be inside `hostPortRange` and free, else `400` (reserved before escrow → no charge on conflict). Supersedes `exposedPorts` when both are sent. |
 | resources                    | object[] |          | `{ id, amount }` requested resources                              |
 | duration                     | number   | v        | seconds; capped by `serviceOnDemand.maxDurationSeconds`           |
 | userData                     | string   |          | ECIES-encrypted (to the node pubkey) JSON of env vars             |
@@ -2918,11 +2919,14 @@ RESPEC mode (restart on a new image spec — `image` required, plus at most one 
 | dockerCmd             | string[] |          | exact container command (Docker exec-form CMD override)                                                                  |
 | dockerEntrypoint      | string[] |          | container ENTRYPOINT override                                                                                            |
 | metadata              | object   |          | user labels (≤1 KB JSON). **Not** a container param — independent of REUSE/RESPEC. When present it **replaces** the stored metadata; when omitted the original metadata is kept |
+| ports                 | object[] |          | `{ containerPort, hostPort? }[]` — change the ports, optionally **pinning** host ports (`hostPort` omitted = auto-allocate). Independent of REUSE/RESPEC (no `image` required). Validated/reserved up front: an unavailable requested host port is rejected and the running service is **left untouched**; on success the old host ports are freed after teardown and the `endpoints`/URLs change. Omitted ⇒ keep current ports. (The legacy `exposedPorts` field is **not** read on restart — use `ports`.) |
 
 #### Response (200)
 
-The `ServiceJob` with a new `containerId` (same `hostPort` and `expiresAt`; the `image`/`tag`/
-`checksum`/`dockerfile`/`containerImage` fields reflect the new spec in RESPEC mode).
+The `ServiceJob` with a new `containerId`. Host ports and `expiresAt` are unchanged unless a
+`ports` change was requested (then `endpoints`/URLs reflect the new host ports);
+the `image`/`tag`/`checksum`/`dockerfile`/`containerImage` fields reflect the new spec in RESPEC
+mode.
 
 #### Response (400)
 

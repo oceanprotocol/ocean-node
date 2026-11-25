@@ -1,5 +1,7 @@
 import net from 'net'
 import type { ServiceJob } from '../../../@types/C2D/ServiceOnDemand.js'
+import type { ServicePortRequest } from '../../../@types/commands.js'
+import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import type { KeyManager } from '../../KeyManager/index.js'
 import type { C2DDatabase } from '../../database/C2DDatabase.js'
@@ -195,6 +197,86 @@ export function releaseHostPort(port: number): void {
 // them, they must go back into the set before the container binds them again.
 export function reserveHostPort(port: number): void {
   allocatedPorts.add(port)
+}
+
+export function portInRange(port: number, range: [number, number]): boolean {
+  return Number.isInteger(port) && port >= range[0] && port <= range[1]
+}
+
+// Best-effort, NON-reserving freeness check for a specific host port — a port is "free" when it
+// is neither in the in-memory reservation set nor bound at the OS level. Used by the service
+// start handler for a fast 400 on an obviously-unavailable pinned port; it does not reserve, so
+// the authoritative, charge-safe reservation stays in the engine (reserveSpecificHostPort).
+export function isHostPortFree(port: number): Promise<boolean> {
+  if (allocatedPorts.has(port)) return Promise.resolve(false)
+  return isPortFree(port)
+}
+
+// Thrown when a specifically-requested (pinned) host port cannot be reserved — it is out of
+// range or already taken. A CLIENT error: callers map it to 400, not 500.
+export class HostPortUnavailableError extends Error {}
+
+// Reserve a SPECIFIC host port requested by the caller. Mirrors allocateHostPort's atomic
+// reserve-then-check pattern: synchronous has()->add() closes the TOCTOU window, and the
+// reservation is rolled back if the OS port turns out to be busy. `ownedBusyOk` skips BOTH the
+// in-memory and OS checks for a port the caller's own (still-running) service already binds — it
+// will be freed at teardown and re-bound by the new container. Throws HostPortUnavailableError.
+export async function reserveSpecificHostPort(
+  port: number,
+  rangeStart: number,
+  rangeEnd: number,
+  opts: { ownedBusyOk?: boolean } = {}
+): Promise<void> {
+  if (!portInRange(port, [rangeStart, rangeEnd]))
+    throw new HostPortUnavailableError(
+      `host port ${port} is outside the allowed range ${rangeStart}–${rangeEnd}`
+    )
+  // ownedBusyOk: the port is already held by the caller's own (still-running) service — it is
+  // in allocatedPorts and its old container still binds it. Keep it reserved and skip BOTH the
+  // "already taken" check and the OS freeness check (which would both fail for a port we own);
+  // it is freed at teardown and re-bound by the new container. Gated on allocatedPorts.has():
+  // "owned" is inferred from job.endpoints, but seedAllocatedPorts only seeds RUNNING jobs, so a
+  // Stopped/Error service's old port may have been reassigned after a node restart. Only skip the
+  // checks when the port is genuinely still in the live reservation set; otherwise fall through to
+  // the normal reserve + OS-freeness path so a reassigned port is not blindly double-reserved.
+  if (opts.ownedBusyOk && allocatedPorts.has(port)) {
+    allocatedPorts.add(port) // idempotent; stays reserved across the restart
+    return
+  }
+  if (allocatedPorts.has(port))
+    throw new HostPortUnavailableError(`host port ${port} is not free`)
+  allocatedPorts.add(port)
+  if (!(await isPortFree(port))) {
+    allocatedPorts.delete(port)
+    throw new HostPortUnavailableError(`host port ${port} is not free`)
+  }
+}
+
+// Normalize the two command port forms into the canonical internal shape. `ports` (the
+// preferred pair form) supersedes the legacy `exposedPorts` when both are sent (a warning is
+// logged). Omitting both ⇒ no exposed ports (unchanged behaviour). This is the single place
+// precedence is resolved, so HTTP, P2P and directCommand all behave identically.
+export function normalizePortSpec(
+  ports?: ServicePortRequest[],
+  exposedPorts?: number[]
+): { exposedPorts: number[]; requestedHostPorts?: Record<string, number> } {
+  if (ports && ports.length) {
+    if (exposedPorts && exposedPorts.length)
+      CORE_LOGGER.warn(
+        'Both "ports" and "exposedPorts" were provided; using "ports" and ignoring "exposedPorts"'
+      )
+    const requestedHostPorts: Record<string, number> = {}
+    for (const p of ports)
+      if (p.hostPort !== undefined)
+        requestedHostPorts[String(p.containerPort)] = p.hostPort
+    return {
+      exposedPorts: ports.map((p) => p.containerPort),
+      requestedHostPorts: Object.keys(requestedHostPorts).length
+        ? requestedHostPorts
+        : undefined
+    }
+  }
+  return { exposedPorts: exposedPorts ?? [] }
 }
 
 function isPortFree(port: number): Promise<boolean> {

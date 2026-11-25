@@ -1206,6 +1206,198 @@ describe('**********         Service on Demand', () => {
     expect(oldInspect?.statusCode, 'old container must be removed').to.equal(404)
   })
 
+  it('(l-ports1) SERVICE_START with an out-of-range pinned host port → 400, no escrow charge', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    const before = await oceanNode.escrow.getUserAvailableFunds(
+      DEVELOPMENT_CHAIN_ID,
+      consumerAddress,
+      paymentToken
+    )
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_START)
+    const task: ServiceStartCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_START,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      environment: servicesEnv.id,
+      image: 'nginxinc/nginx-unprivileged',
+      tag: 'alpine',
+      // Pinned host port well outside the configured hostPortRange → rejected up front.
+      ports: [{ containerPort: 8080, hostPort: PORT_RANGE_END + 500 }],
+      duration: SERVICE_DURATION,
+      resources: [
+        { id: 'cpu', amount: 1 },
+        { id: 'ram', amount: 1 },
+        { id: 'disk', amount: 1 }
+      ],
+      payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken }
+    }
+    const resp = await new ServiceStartHandler(oceanNode).handle(task)
+    expect(resp.status.httpStatus).to.equal(400)
+    expect(String(resp.status.error)).to.contain('range')
+    // Rejected before any escrow interaction → funds untouched.
+    const after = await oceanNode.escrow.getUserAvailableFunds(
+      DEVELOPMENT_CHAIN_ID,
+      consumerAddress,
+      paymentToken
+    )
+    expect(after.toString()).to.equal(before.toString())
+  })
+
+  it('(l-ports2) SERVICE_RESTART changes the host port and frees the old one', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 6)
+    const pinnedStart = PORT_RANGE_START + 101
+    const pinnedNew = PORT_RANGE_START + 102
+
+    // Start a dedicated service pinned to a specific host port (isolated from the shared one).
+    const s = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_START)
+    const startTask: ServiceStartCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_START,
+      consumerAddress: s.consumerAddress,
+      nonce: s.nonce,
+      signature: s.signature,
+      environment: servicesEnv.id,
+      image: 'nginxinc/nginx-unprivileged',
+      tag: 'alpine',
+      ports: [{ containerPort: 8080, hostPort: pinnedStart }],
+      duration: SERVICE_DURATION,
+      resources: [
+        { id: 'cpu', amount: 1 },
+        { id: 'ram', amount: 1 },
+        { id: 'disk', amount: 1 }
+      ],
+      payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken }
+    }
+    const startResp = await new ServiceStartHandler(oceanNode).handle(startTask)
+    assert(
+      startResp.status.httpStatus === 200,
+      `start expected 200, got ${startResp.status.httpStatus}: ${startResp.status?.error ?? ''}`
+    )
+    const [startedJob] = (await streamToObject(
+      startResp.stream as Readable
+    )) as ServiceJob[]
+    const localId = startedJob.serviceId
+    startedServices.push(localId)
+    const runningPinned = await pollServiceStatus(localId, ServiceStatusNumber.Running)
+    expect(runningPinned.endpoints[0].hostPort).to.equal(pinnedStart)
+    expect(runningPinned.endpoints[0].url).to.equal(`http://localhost:${pinnedStart}`)
+    const r1 = await httpGetWithRetry(`http://localhost:${pinnedStart}`)
+    assert(r1.status === 200, `expected nginx 200 on pinned start port, got ${r1.status}`)
+
+    // Restart onto a DIFFERENT pinned host port.
+    const r = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_RESTART)
+    const restartTask: ServiceRestartCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_RESTART,
+      consumerAddress: r.consumerAddress,
+      nonce: r.nonce,
+      signature: r.signature,
+      serviceId: localId,
+      ports: [{ containerPort: 8080, hostPort: pinnedNew }]
+    }
+    const restartResp = await new ServiceRestartHandler(oceanNode).handle(restartTask)
+    assert(
+      restartResp.status.httpStatus === 200,
+      `restart expected 200, got ${restartResp.status.httpStatus}: ${restartResp.status?.error ?? ''}`
+    )
+    const runningNew = await pollServiceStatus(localId, ServiceStatusNumber.Running)
+    expect(runningNew.endpoints[0].hostPort).to.equal(pinnedNew)
+    expect(runningNew.endpoints[0].url).to.equal(`http://localhost:${pinnedNew}`)
+    const r2 = await httpGetWithRetry(`http://localhost:${pinnedNew}`)
+    assert(r2.status === 200, `expected nginx 200 on new pinned port, got ${r2.status}`)
+
+    // The old host port is free again: a fresh service can pin it.
+    const s2 = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_START)
+    const reuseTask: ServiceStartCommand = {
+      ...startTask,
+      consumerAddress: s2.consumerAddress,
+      nonce: s2.nonce,
+      signature: s2.signature,
+      ports: [{ containerPort: 8080, hostPort: pinnedStart }]
+    }
+    const reuseResp = await new ServiceStartHandler(oceanNode).handle(reuseTask)
+    assert(
+      reuseResp.status.httpStatus === 200,
+      `reuse of freed port expected 200, got ${reuseResp.status.httpStatus}: ${reuseResp.status?.error ?? ''}`
+    )
+    const [reuseJob] = (await streamToObject(
+      reuseResp.stream as Readable
+    )) as ServiceJob[]
+    startedServices.push(reuseJob.serviceId)
+    const reuseRunning = await pollServiceStatus(
+      reuseJob.serviceId,
+      ServiceStatusNumber.Running
+    )
+    expect(reuseRunning.endpoints[0].hostPort).to.equal(pinnedStart)
+  })
+
+  it('(l-ports3) SERVICE_RESTART rejecting a duplicate host port leaves the service running', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 6)
+    const pinnedStart = PORT_RANGE_START + 111
+
+    // Start a service pinned to a single host port (container 8080 → pinnedStart).
+    const s = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_START)
+    const startTask: ServiceStartCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_START,
+      consumerAddress: s.consumerAddress,
+      nonce: s.nonce,
+      signature: s.signature,
+      environment: servicesEnv.id,
+      image: 'nginxinc/nginx-unprivileged',
+      tag: 'alpine',
+      ports: [{ containerPort: 8080, hostPort: pinnedStart }],
+      duration: SERVICE_DURATION,
+      resources: [
+        { id: 'cpu', amount: 1 },
+        { id: 'ram', amount: 1 },
+        { id: 'disk', amount: 1 }
+      ],
+      payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken }
+    }
+    const startResp = await new ServiceStartHandler(oceanNode).handle(startTask)
+    assert(
+      startResp.status.httpStatus === 200,
+      `start expected 200, got ${startResp.status.httpStatus}: ${startResp.status?.error ?? ''}`
+    )
+    const [startedJob] = (await streamToObject(
+      startResp.stream as Readable
+    )) as ServiceJob[]
+    const localId = startedJob.serviceId
+    startedServices.push(localId)
+    const runningPinned = await pollServiceStatus(localId, ServiceStatusNumber.Running)
+    expect(runningPinned.endpoints[0].hostPort).to.equal(pinnedStart)
+
+    // Restart requesting TWO container ports that both resolve to pinnedStart: container 9090
+    // pins it (accepted as owned), while container 8080 is unpinned and inherits its current host
+    // port (also pinnedStart). This collision is NOT caught by structural validation (the pinned
+    // hostPort is unique; the collision comes from the inherited one) — the engine must reject it
+    // as a 400 and leave the running service untouched (regression for fix #1).
+    const r = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_RESTART)
+    const restartTask: ServiceRestartCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_RESTART,
+      consumerAddress: r.consumerAddress,
+      nonce: r.nonce,
+      signature: r.signature,
+      serviceId: localId,
+      ports: [{ containerPort: 9090, hostPort: pinnedStart }, { containerPort: 8080 }]
+    }
+    const restartResp = await new ServiceRestartHandler(oceanNode).handle(restartTask)
+    expect(restartResp.status.httpStatus).to.equal(400)
+
+    // The original service is untouched: still Running on its original single endpoint, reachable.
+    const stillRunning = await pollServiceStatus(localId, ServiceStatusNumber.Running)
+    expect(stillRunning.endpoints).to.have.length(1)
+    expect(stillRunning.endpoints[0].hostPort).to.equal(pinnedStart)
+    const resp = await httpGetWithRetry(`http://localhost:${pinnedStart}`)
+    assert(
+      resp.status === 200,
+      `expected nginx 200 after rejected restart, got ${resp.status}`
+    )
+  })
+
   it('(l2) SERVICE_RESTART self-heals a network leaked by a crash mid-start', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 4)
     // Simulate a node that died between createNetwork and persisting the docker refs:
