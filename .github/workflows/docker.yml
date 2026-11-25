@@ -9,6 +9,7 @@ on:
   pull_request:
     branches:
       - 'main'
+      - 'rc_6.0.0'
       - 'next-4'
       - 'deps/node_v24'
       - 'feature/user_input_subsidy'
