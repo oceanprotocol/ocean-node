@@ -4,7 +4,8 @@ import {
   OceanNodeProvider,
   OceanNodeIndexer,
   StorageTypes,
-  OceanNodeConfig
+  OceanNodeConfig,
+  AuthTokenPolicyStatus
 } from '../../../@types/OceanNode.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
@@ -33,6 +34,29 @@ const platformInfo = {
   platform: os.platform(),
   osType: os.type(),
   node: process.version
+}
+
+// Node auth-token policy exposed in `status` (plan §17.2). Static config; safe in the cached
+// status object. `crossNode: 'open'` is intentionally unreachable (enabling with an empty
+// allowlist fails at startup), so an operator who wants to trust everyone must still enumerate.
+function buildAuthTokenPolicy(config: OceanNodeConfig): AuthTokenPolicyStatus {
+  const fallback = config.tokenRevocationFallback ?? 'cache'
+  const crossNode = config.allowCrossNodeTokens ? 'allowlist' : 'disabled'
+  const policy: AuthTokenPolicyStatus = {
+    maxTokenLifetime: config.maxTokenLifetime ?? 86400,
+    crossNode,
+    revocationFallback: fallback,
+    challengeSupported: true
+  }
+  // trustedIssuers exposed (user decision, plan §18.5 L2) — only meaningful in allowlist mode.
+  if (crossNode === 'allowlist') {
+    policy.trustedIssuers = config.trustedTokenIssuers ?? []
+  }
+  // softFailGrace is only consulted in 'cache' mode.
+  if (fallback === 'cache') {
+    policy.softFailGrace = config.tokenSoftFailGrace ?? 300
+  }
+  return policy
 }
 
 function getProviderInfo(config: OceanNodeConfig): OceanNodeProvider[] {
@@ -150,6 +174,10 @@ export async function status(
   nodeStatus.subsidyProviderFilter = config.subsidyProviderFilter ?? false
   // Per-subsidy-address docker image allowlist; empty map when unset (no gating).
   nodeStatus.subsidyProviderAllowedImages = config.subsidyProviderAllowedImages ?? {}
+  // Auth-token policy (plan §17.2). Static config; set every request (like subsidyProviders) so a
+  // config reload never leaves a stale value. `signedChallenge` is added per-request by the
+  // handler and is deliberately NOT part of this cached object.
+  nodeStatus.authTokenPolicy = buildAuthTokenPolicy(config)
   // getConfig() refreshes it from POLICY_SERVER_URL, so the cached status never goes stale.
   nodeStatus.isPSConfigured = config.isPSConfigured
   // Re-read on every request so the cached status follows NODE_OWNER_INFO changes.

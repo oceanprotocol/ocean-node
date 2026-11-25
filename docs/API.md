@@ -476,8 +476,8 @@ returns log by id. Admin only. Works only with `LOG_DB` and an available log dat
 | --------- | ------ | -------- | ----------------------------------------------------- |
 | logId     | string | v        | id of the log entry (read from the body)              |
 | address   | string | v        | admin address (must be in `ALLOWED_ADMINS`)           |
-| signature | string | v        | signed message (auth tokens are not accepted for admin commands) |
-| nonce     | string | v        | nonce used for the signature                          |
+| signature | string | (v)      | signed message — required unless an auth token is sent (read-only admin; token goes in the `Authorization` header) |
+| nonce     | string | (v)      | nonce used for the signature                          |
 
 #### Response
 
@@ -501,7 +501,7 @@ returns log by id. Admin only. Works only with `LOG_DB` and an available log dat
 
 #### Description
 
-returns list of logs, newest first. Admin only: send `address`, `signature` and `nonce` (auth tokens are not accepted for admin commands). The default window is the last 7 days.
+returns list of logs, newest first. Admin only: send `address`, `signature` and `nonce`. `getLogs` is a **read-only admin command**, so it also accepts a scoped **auth token** (send it in `authorization`) scoped to `getLogs` — the `ALLOWED_ADMINS` gate still applies to the token's authenticated address. (Mutating admin commands still reject tokens.) The default window is the last 7 days.
 
 Source: the log database when `LOG_DB` is on and the log database is available; otherwise the rotating files in `logs/` (see [Logs.md](Logs.md)). Entries read from files have no `id` and only include levels at or above `LOG_FILES_LEVEL`. When nothing matches, the response is `200` with `[]`. An invalid `startTime`/`endTime` returns `400`.
 
@@ -510,8 +510,9 @@ Source: the log database when `LOG_DB` is on and the log database is available; 
 | name       | type   | required | description                                                              |
 | ---------- | ------ | -------- | ------------------------------------------------------------------------ |
 | address    | string | v        | admin address (must be in `ALLOWED_ADMINS`)                              |
-| signature  | string | v        | signed message (auth tokens are not accepted for admin commands)         |
-| nonce      | string | v        | nonce used for the signature                                             |
+| signature  | string | (v)      | signed message — required unless an `authorization` token is sent        |
+| authorization | string |       | scoped auth token (alternative to signature; read-only admin command)    |
+| nonce      | string | (v)      | nonce used for the signature                                             |
 | startTime  | string |          | filter logs from date (ISO 8601 or epoch ms). Default: 7 days before end |
 | endTime    | string |          | filter logs to date (ISO 8601 or epoch ms). Default: now                 |
 | maxLogs    | number |          | logs per page. Default `100`, maximum `1000`                             |
@@ -915,6 +916,73 @@ returns list of providers from which ddo can be obtained
 
 ---
 
+## Auth Tokens
+
+### `HTTP` POST /api/services/auth/token
+
+### `P2P` command: createAuthToken
+
+#### Description
+
+Mints a JWT auth token, re-usable in place of a per-request signature. The token's authority is the
+embedded **consumer signature** over the create-auth-token message (re-verified on every node), not
+`JWT_SECRET`.
+
+A token can be **self-limited** along three axes, all folded into the signed message so no
+intermediary can broaden them (a stolen "download-only token for node B" cannot be replayed as
+compute on node C):
+
+- **audience** — list of node peerIds the token may be used at (omitted ⇒ any node).
+- **scope** — list of protocol-command names the token may perform (omitted ⇒ any command).
+- **validUntil** — absolute expiry (epoch ms). Capped by `MAX_TOKEN_LIFETIME`; the node **rejects**
+  (never clamps) an over-cap value. A request with no `validUntil` gets a server-set default expiry
+  of `createdAt + MAX_TOKEN_LIFETIME` (no never-expiring tokens).
+
+Providing any of `audience` / `scope` / `validUntil` makes it a **v2** token: `validUntil` is then
+**required** and must be signed. Omit a field for "unrestricted"; an explicit `[]` is rejected.
+`decryptDDO` and mutating-admin commands are **not** allowed in `scope` (and reject tokens entirely
+at consumption — they require a fresh request signature). `fetchConfig` / `getLogs` (read-only admin)
+are scopable.
+
+The signed message for a v2 token is:
+
+```
+address + nonce + "createAuthToken" + issuerPeerId
+  + "|v:2"
+  + "|aud:" + sort(dedup(audience)).join(",")
+  + "|cmd:" + sort(dedup(scope)).join(",")
+  + "|exp:" + validUntil
+```
+
+(omitted audience/scope ⇒ empty segment). A legacy request (none of the three fields) signs the
+byte-identical `address + nonce + "createAuthToken" + issuerPeerId`.
+
+#### Parameters
+
+| name       | type     | required | description                                                        |
+| ---------- | -------- | -------- | ------------------------------------------------------------------ |
+| address    | string   | v        | consumer address                                                   |
+| signature  | string   | v        | consumer signature over the message above                          |
+| nonce      | string   | v        | nonce                                                              |
+| validUntil | number   | (v2)     | epoch ms; required whenever audience/scope is set                  |
+| audience   | string[] |          | node peerIds the token may be used at; omit for unrestricted       |
+| scope      | string[] |          | protocol-command names the token may perform; omit for unrestricted |
+| chainId    | string   |          | chain id for smart-account (ERC-1271) signature validation         |
+
+> **Smart-account (ERC-1271) tokens and cross-node use:** to be validated at a **different** node
+> (federation), a smart-account token MUST carry a non-null `chainId` — the consuming node will not
+> fan out an on-chain `isValidSignature` check across every network for a bearer token (DoS cap). An
+> EOA token needs no `chainId`. A smart-account token minted without a `chainId` works only at its
+> issuing node and must be reissued with one for cross-node use.
+
+#### Response
+
+```json
+{ "token": "eyJ..." }
+```
+
+---
+
 ## Status
 
 ### `HTTP` POST /directCommand
@@ -927,19 +995,56 @@ returns status of node
 
 #### Parameters
 
-| name    | type   | required | description                          |
-| ------- | ------ | -------- | ------------------------------------ |
-| command | string | v        | command name                         |
-| node    | string |          | if not present it means current node |
+| name            | type   | required | description                                                                       |
+| --------------- | ------ | -------- | --------------------------------------------------------------------------------- |
+| command         | string | v        | command name                                                                      |
+| node            | string |          | if not present it means current node                                              |
+| clientChallenge | string |          | OJ-03: when present, the node returns `signedChallenge` proving its peerId (below) |
 
 #### Request
 
 ```json
 {
   "command": "status",
-  "node": "PeerId"
+  "node": "PeerId",
+  "clientChallenge": "a-fresh-random-hex-string"
 }
 ```
+
+#### OJ-03 — authenticated issuer identity
+
+When a `clientChallenge` is supplied, the response includes `signedChallenge`: the node's **libp2p
+identity-key** signature (0x-hex) over `utf8("ocean-node-status-challenge-v1:" + clientChallenge)`.
+A client verifies it against the public key embedded in the node's `id` (peerId) to prove the
+endpoint controls the key its peerId commits to — defeating a malicious endpoint that spoofs another
+node's peerId (used by ocean.js before minting an auth token). The challenge-signing path has its own
+rate limit (`STATUS_CHALLENGE_RATE_LIMIT`). This proves **identity**, not confidentiality — use TLS
+(HTTP) / Noise (P2P) so a relay cannot skim the issued token. `signedChallenge` is computed per
+request and is never cached.
+
+#### Auth-token policy (`authTokenPolicy`)
+
+The response also carries a static `authTokenPolicy` block so clients know what the node
+requires/accepts before minting or presenting an auth token:
+
+```json
+{
+  "authTokenPolicy": {
+    "maxTokenLifetime": 86400,
+    "crossNode": "disabled",
+    "revocationFallback": "cache",
+    "softFailGrace": 300,
+    "challengeSupported": true
+  }
+}
+```
+
+- `maxTokenLifetime` (seconds) — clients cap `validUntil` to this.
+- `crossNode` — `disabled` (self-issued tokens only) or `allowlist` (foreign tokens honored only from
+  `trustedIssuers`, which is then also present).
+- `revocationFallback` — `closed` | `cache` | `open` (behaviour when a token's issuer is unreachable);
+  `softFailGrace` (seconds) is present only in `cache` mode.
+- `challengeSupported` — the node implements the `clientChallenge` / `signedChallenge` proof.
 
 #### Response
 
@@ -1465,12 +1570,17 @@ The verified `consumerAddress` is the one forwarded to the PolicyServer; the cal
 
 returns current node configuration with sensitive data hidden (admin only)
 
+`fetchConfig` is a **read-only admin command**, so in addition to a signature it also accepts a scoped
+**auth token** in the `Authorization` header (scope it to `fetchConfig`). The `ALLOWED_ADMINS` gate
+still applies to the token's authenticated address. (Mutating admin commands reject tokens.)
+
 #### Parameters
 
-| name            | type   | required | description                                  |
-| --------------- | ------ | -------- | -------------------------------------------- |
-| expiryTimestamp | number | v        | expiry timestamp for the request             |
-| signature       | string | v        | signed message to authenticate admin request |
+| name            | type   | required | description                                        |
+| --------------- | ------ | -------- | -------------------------------------------------- |
+| expiryTimestamp | number | v        | expiry timestamp for the request                   |
+| signature       | string | (v)      | signed message — required unless an auth token is sent |
+| Authorization   | header |          | scoped auth token (alternative to signature)       |
 
 #### Request
 

@@ -10,7 +10,22 @@ import { NonceCommand } from '../../../@types/commands.js'
 import { streamToString } from '../../../utils/util.js'
 import { Readable } from 'node:stream'
 import { addressCasingVariants } from '../../../utils/evmAddress.js'
-import { buildDecryptDDOSignatureMessage } from '../../../utils/crypt.js'
+import {
+  buildDecryptDDOSignatureMessage,
+  buildCreateAuthTokenSignatureMessage
+} from '../../../utils/crypt.js'
+
+// Extra fields folded into the signed message for specific commands.
+//  - ON-02 (DECRYPT_DDO): txId / dataNftAddress resource binding.
+//  - v2 scoped auth tokens (CREATE_AUTH_TOKEN): audience / scope / validUntil (plan §3.2). A
+//    non-undefined `validUntil` is what promotes CREATE_AUTH_TOKEN to the v2 message format.
+export interface ExtraSignedFields {
+  txId?: string
+  dataNftAddress?: string
+  audience?: string[]
+  scope?: string[]
+  validUntil?: number
+}
 
 export function getDefaultErrorResponse(errorMessage: string): P2PCommandResponse {
   return {
@@ -114,7 +129,7 @@ export async function checkNonce(
   command: string,
   chainId?: string | null,
   // ON-02: resource-binding fields, appended to the signed message ONLY for DECRYPT_DDO.
-  extraSignedFields?: { txId?: string; dataNftAddress?: string }
+  extraSignedFields?: ExtraSignedFields
 ): Promise<NonceResponse> {
   try {
     // get nonce from db
@@ -174,7 +189,7 @@ async function validateNonceAndSignature(
   command: string = null,
   config: OceanNodeConfig,
   chainId?: string | null,
-  extraSignedFields?: { txId?: string; dataNftAddress?: string }
+  extraSignedFields?: ExtraSignedFields
 ): Promise<NonceResponse> {
   if (nonce <= existingNonce) {
     return {
@@ -217,7 +232,10 @@ export async function verifyConsumerSignature(
   command: string = null,
   config?: OceanNodeConfig,
   chainId?: string | null,
-  extraSignedFields?: { txId?: string; dataNftAddress?: string }
+  extraSignedFields?: ExtraSignedFields,
+  // plan §18.4: when verifying a bearer token (validateRemoteToken) and no chainId is pinned,
+  // skip the per-network ERC-1271 fan-out so a single junk token cannot trigger N `eth_call`s.
+  tokenPath: boolean = false
 ): Promise<boolean> {
   // The signed message embeds the consumer address as a STRING, so its casing is part of what
   // was signed. Addresses are checksum-normalized on ingress (utils/evmAddress.ts), which would
@@ -233,7 +251,8 @@ export async function verifyConsumerSignature(
         command,
         config,
         chainId,
-        extraSignedFields
+        extraSignedFields,
+        tokenPath
       )
     ) {
       return true
@@ -250,11 +269,18 @@ async function verifySignatureForConsumer(
   command: string = null,
   config?: OceanNodeConfig,
   chainId?: string | null,
-  extraSignedFields?: { txId?: string; dataNftAddress?: string }
+  extraSignedFields?: ExtraSignedFields,
+  tokenPath: boolean = false
 ): Promise<boolean> {
   // ON-02: DECRYPT_DDO uses a resource- and destination-bound message built by the SHARED
   // helper that the Indexer signer also uses, so signer and verifier cannot drift. Every other
   // command keeps its byte-for-byte original message (consumer + nonce + command + issuerPeerId).
+  // v2 scoped auth token (plan §3.2): a CREATE_AUTH_TOKEN whose request carries a `validUntil`
+  // signs the versioned, audience/scope/exp-bound message via the SHARED helper. A legacy
+  // CREATE_AUTH_TOKEN (no validUntil) keeps the byte-identical concat below.
+  const isV2CreateAuthToken =
+    command === PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN &&
+    extraSignedFields?.validUntil !== undefined
   const message =
     command === PROTOCOL_COMMANDS.DECRYPT_DDO
       ? buildDecryptDDOSignatureMessage({
@@ -265,7 +291,18 @@ async function verifySignatureForConsumer(
           txId: extraSignedFields?.txId ?? '',
           dataNftAddress: extraSignedFields?.dataNftAddress ?? ''
         })
-      : String(String(consumer) + String(nonce) + String(command) + String(issuerPeerId))
+      : isV2CreateAuthToken
+        ? buildCreateAuthTokenSignatureMessage({
+            address: String(consumer),
+            nonce,
+            issuerPeerId: String(issuerPeerId),
+            audience: extraSignedFields?.audience,
+            scope: extraSignedFields?.scope,
+            validUntil: extraSignedFields?.validUntil
+          })
+        : String(
+            String(consumer) + String(nonce) + String(command) + String(issuerPeerId)
+          )
   const consumerMessage = ethers.solidityPackedKeccak256(
     ['bytes'],
     [ethers.hexlify(ethers.toUtf8Bytes(message))]
@@ -295,10 +332,15 @@ async function verifySignatureForConsumer(
     // Continue to smart account check
   }
 
-  // An explicit chain restricts validation; otherwise try every configured network.
+  // An explicit chain restricts validation; otherwise try every configured network. On the token
+  // path with no pinned chain, skip the ERC-1271 fan-out entirely (plan §18.4) — a smart-account
+  // (ERC-1271) token must carry a chainId to be validated cross-node; EOA tokens are unaffected
+  // (verified above without any RPC).
   const targetChainIds = chainId
     ? [chainId]
-    : Object.keys(config?.supportedNetworks || {})
+    : tokenPath
+      ? []
+      : Object.keys(config?.supportedNetworks || {})
   for (const targetChainId of targetChainIds) {
     const network = config?.supportedNetworks?.[targetChainId]
     if (!network) continue

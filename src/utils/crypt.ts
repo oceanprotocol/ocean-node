@@ -53,6 +53,78 @@ export function buildDecryptDDOSignatureMessage(fields: {
   )
 }
 
+/**
+ * Scoped auth tokens — SHARED wire contract with ocean.js (companion plan §3).
+ *
+ * The signer (ocean.js `buildCreateAuthTokenSignatureMessage`) and the verifier (this repo, via
+ * `verifySignatureForConsumer`) MUST build byte-identical messages. If one byte of the format
+ * below changes, both repos change together (see the plan headers). The golden vectors in the
+ * unit tests of BOTH repos pin these exact bytes.
+ *
+ * Current token format version. It is embedded in the SIGNED bytes (`|v:<n>`) AND carried as the
+ * `v` JWT claim, so token versions are cryptographically domain-separated: a v2 signature can
+ * never verify as a future v3, and a verifier rejects any `v` it does not implement.
+ */
+export const AUTH_TOKEN_VERSION = 2
+
+/**
+ * Build the v2 scoped-auth-token signed message (plan §3.2). Shared single source of truth, used
+ * at creation (`verifySignatureForConsumer`) and at foreign re-verification (`validateRemoteToken`).
+ *
+ * message =
+ *   address + nonce + "createAuthToken" + issuerPeerId
+ *   + "|v:"   + V
+ *   + "|aud:" + AUD       (canonical: dedup via Set, default ascending string sort, comma-joined)
+ *   + "|cmd:" + CMD       (same canonicalization over scope command names)
+ *   + "|exp:" + EXP       (String(validUntil), epoch-ms integer, required in v2)
+ *
+ * Omitted audience/scope collapse to the empty string (unrestricted). Callers never pass `[]`
+ * (rejected at creation), so an empty segment always means "omitted / unrestricted".
+ */
+export function buildCreateAuthTokenSignatureMessage(fields: {
+  address: string
+  nonce: string | number
+  issuerPeerId: string
+  audience?: string[]
+  scope?: string[]
+  validUntil: number
+}): string {
+  const aud =
+    fields.audience && fields.audience.length
+      ? Array.from(new Set(fields.audience)).sort().join(',')
+      : ''
+  const cmd =
+    fields.scope && fields.scope.length
+      ? Array.from(new Set(fields.scope)).sort().join(',')
+      : ''
+  const V = String(AUTH_TOKEN_VERSION)
+  return (
+    String(fields.address) +
+    String(fields.nonce) +
+    String(PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN) +
+    String(fields.issuerPeerId ?? '') +
+    '|v:' +
+    V +
+    '|aud:' +
+    aud +
+    '|cmd:' +
+    cmd +
+    '|exp:' +
+    String(fields.validUntil)
+  )
+}
+
+/**
+ * OJ-03 — domain-separation prefix for the status identity challenge (shared with ocean.js).
+ *
+ * The node signs `utf8(STATUS_CHALLENGE_DOMAIN + clientChallenge)` with its libp2p IDENTITY key.
+ * The fixed prefix guarantees these bytes can never collide with anything else the identity key
+ * signs (Noise handshakes, future attestations). ocean.js reconstructs the identical
+ * `prefix + challenge` and verifies with `@libp2p/crypto` `publicKey.verify`. Mirror this exact
+ * string in ocean.js — do not re-spell it.
+ */
+export const STATUS_CHALLENGE_DOMAIN = 'ocean-node-status-challenge-v1:'
+
 // convert from string format to EncryptMethod (case insensitive)
 export function getEncryptMethodFromString(str: string): EncryptMethod {
   if (!str || str.length === 0) return EncryptMethod.AES // default
