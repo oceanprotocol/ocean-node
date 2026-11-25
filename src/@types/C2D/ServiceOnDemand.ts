@@ -93,6 +93,7 @@ export interface ServiceTemplate {
   dockerfile?: string // inline Dockerfile content — triggers build; mutually exclusive with tag/checksum
   additionalDockerFiles?: Record<string, string> // filename → content; only valid with dockerfile
   exposedPorts: number[]
+  secureTls?: number[] // HTTP ports clients should request over HTTPS; a subset of exposedPorts
   envVars?: Record<string, string> // fixed env vars — operator-set, never returned to callers
   userConfigurableEnvVars?: UserConfigurableEnvVar[]
   command?: string[] // Docker CMD override; ${KEY} expanded from userData

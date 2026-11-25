@@ -11,6 +11,7 @@ import { parseMemoryTotalToBytes } from '../../components/c2d/gpu/types.js'
 import { parsePassContainerEnvs } from '../../components/c2d/containerEnvs.js'
 import { booleanFromString, jsonFromString } from './transforms.js'
 import { parseAllowedRange } from '../safeUrl.js'
+import { validateSecureTls } from '../../components/c2d/serviceTls.js'
 import {
   DEFAULT_BOOTSTRAP_ADDRESSES,
   DEFAULT_RATE_LIMIT_PER_MINUTE,
@@ -720,6 +721,7 @@ export const ServiceTemplateSchema = z
     dockerfile: z.string().min(1).optional(),
     additionalDockerFiles: z.record(z.string(), z.string()).optional(),
     exposedPorts: z.array(z.number().int().min(1).max(65535)).min(1),
+    secureTls: z.array(z.number().int()).optional(),
     envVars: z.record(z.string(), z.string()).optional(),
     userConfigurableEnvVars: z.array(UserConfigurableEnvVarSchema).optional(),
     command: z.array(z.string()).optional(),
@@ -730,6 +732,14 @@ export const ServiceTemplateSchema = z
   })
   .strict()
   .superRefine((tmpl, ctx) => {
+    const tlsError = validateSecureTls(tmpl.secureTls, tmpl.exposedPorts)
+    if (tlsError)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: tlsError,
+        path: ['secureTls']
+      })
+
     // Validate each regex in userConfigurableEnvVars.validation compiles
     ;(tmpl.userConfigurableEnvVars ?? []).forEach((uvar, i) => {
       if (uvar.validation) {

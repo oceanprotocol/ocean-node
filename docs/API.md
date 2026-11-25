@@ -2590,6 +2590,7 @@ Operator-published blueprint. Secret `envVars` values are never returned — onl
 | image                       | string   | base image                                               |
 | tag / checksum / dockerfile | string   | image spec — exactly one                                 |
 | exposedPorts                | number[] | container ports to forward                               |
+| secureTls                   | number[] | HTTP ports to request over HTTPS (subset of exposedPorts) |
 | envVarKeys                  | string[] | keys of operator-set env vars (values never returned)    |
 | userConfigurableEnvVars     | object[] | `{ key, validation?, sensitive? }` passed via `userData` |
 | command / entrypoint        | string[] | Docker CMD / ENTRYPOINT overrides                        |
