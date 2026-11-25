@@ -362,8 +362,9 @@ returns decrypted document
 > decrypterAddress + nonce + "decryptDDO" + issuerPeerId + chainId + transactionId + dataNftAddress
 > ```
 >
-> - `issuerPeerId` is the **target (decrypting) node's own peerId** — i.e. the `nodeId` returned
->   by that node's root `GET /` endpoint. A signature minted for node A is rejected by node B.
+> - `issuerPeerId` is the **target (decrypting) node's own peerId** — i.e. the `id` returned
+>   by that node's root `GET /` endpoint (the status object). A signature minted for node A is
+>   rejected by node B.
 > - `chainId`, `transactionId`, `dataNftAddress` bind the signature to a single decrypt.
 > - `nonce` is a client-local monotonic value (the Indexer uses `Date.now()`); the node no longer
 >   fetches a nonce from the (untrusted) `decryptorURL`.
@@ -1024,21 +1025,39 @@ byte-identical `address + nonce + "createAuthToken" + issuerPeerId`.
 
 ## Status
 
+### `HTTP` GET /
+
 ### `HTTP` POST /directCommand
 
 ### `P2P` command: status
 
 #### Description
 
-returns status of node
+returns status of node.
+
+The node's root `GET /` endpoint is the HTTP alias of this command: it dispatches the same `status`
+command and returns the same object (previously it returned only a small subset — `nodeId`,
+`providerAddress`, `nodePublicKey`, `software`, `version` — which has been replaced by the full status
+body). It defaults to the **basic** status; pass `?detailed=true` for the extended status
+(`indexer` + `c2dClusters` + `supportedSchemas`), mirroring the P2P `status` vs `detailedStatus`
+split. `indexer` is detailed-only because it reads the last indexed block from the metadata DB per
+chain; the basic status returns `"indexer": []` so the health-check path never blocks on the DB.
+The OJ-03 challenge is supported via `?clientChallenge=...`.
+
+```
+GET /
+GET /?detailed=true
+GET /?clientChallenge=a-fresh-random-hex-string
+```
 
 #### Parameters
 
-| name            | type   | required | description                                                                       |
-| --------------- | ------ | -------- | --------------------------------------------------------------------------------- |
-| command         | string | v        | command name                                                                      |
-| node            | string |          | if not present it means current node                                              |
-| clientChallenge | string |          | OJ-03: when present, the node returns `signedChallenge` proving its peerId (below) |
+| name            | type    | required | description                                                                        |
+| --------------- | ------- | -------- | ---------------------------------------------------------------------------------- |
+| command         | string  | v        | command name (POST /directCommand / P2P only)                                       |
+| node            | string  |          | if not present it means current node                                                |
+| detailed        | boolean |          | when true, includes `indexer` + `c2dClusters` + `supportedSchemas` (query param on `GET /`) |
+| clientChallenge | string  |          | OJ-03: when present, the node returns `signedChallenge` proving its peerId (below)  |
 
 #### Request
 
@@ -1114,6 +1133,7 @@ requires/accepts before minting or presenting an auth token:
       "8996": ["0x123", "0x456"]
     },
     "subsidyProviderFilter": false,
+    "claimDurationTimeout": 3600,
     "uptime": 123,
     "platform": {
       "cpus": "123",
@@ -1139,6 +1159,11 @@ the normal and detailed status. `subsidyProviderFilter` reflects the node's
 `SUBSIDY_PROVIDER_FILTER` setting: when `true`, a user-supplied `subsidyProviders` list on a
 compute/service request is restricted to addresses already in this map for the request's chain
 (see the per-request `subsidyProviders` field below).
+
+`claimDurationTimeout` reflects the node's `ESCROW_CLAIM_TIMEOUT` setting (seconds, default `3600`):
+the extra time the node reserves to claim an escrow payment. It is added to a job's `maxJobDuration`
+when locking escrow funds, so clients can see how long funds stay locked beyond the job's runtime.
+Present in both the normal and detailed status.
 
 ### Per-request `subsidyProviders`
 

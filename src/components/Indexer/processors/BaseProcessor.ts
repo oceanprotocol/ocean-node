@@ -292,7 +292,8 @@ export abstract class BaseEventProcessor {
    *
    * The signed DECRYPT_DDO message binds the verifier's peerId, so a signature minted for node A
    * cannot be replayed at node B. Over P2P the destination peerId is already known; over HTTP we
-   * must learn it from the target node's root endpoint (`GET /` → `nodeId`). If it cannot be
+   * must learn it from the target node's root endpoint (`GET /` → status `id`, legacy `nodeId`).
+   * If it cannot be
    * obtained we return null and the caller MUST NOT send a (now cross-node-replayable) HTTP
    * decrypt — it fails the HTTP attempt instead.
    *
@@ -381,8 +382,12 @@ export abstract class BaseEventProcessor {
         const text = await this.readCappedText(res, MAX_NODEID_RESPONSE_BYTES)
         if (text !== null) {
           const body = JSON.parse(text)
-          if (body && typeof body.nodeId === 'string' && body.nodeId.length > 0) {
-            peerId = body.nodeId
+          // The root `GET /` endpoint now returns the full node status object, whose peerId
+          // field is `id`. Fall back to the legacy `nodeId` field so a target node still on the
+          // pre-unification root endpoint keeps resolving.
+          const resolvedPeerId = body?.id ?? body?.nodeId
+          if (typeof resolvedPeerId === 'string' && resolvedPeerId.length > 0) {
+            peerId = resolvedPeerId
           }
         }
       }

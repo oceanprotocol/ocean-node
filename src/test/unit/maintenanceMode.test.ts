@@ -250,6 +250,18 @@ describe('Maintenance mode', () => {
     }
   })
 
+  it('status exposes claimDurationTimeout from config', async () => {
+    const status = await streamBody(
+      await new DetailedStatusHandler(oceanNode).handle({
+        command: PROTOCOL_COMMANDS.DETAILED_STATUS
+      } as any)
+    )
+    expect(status.claimDurationTimeout).to.equal(
+      oceanNode.getConfig().claimDurationTimeout
+    )
+    expect(status.claimDurationTimeout).to.be.a('number')
+  })
+
   it('status reports ownerInfo from NODE_OWNER_INFO on every request', async () => {
     const saved = process.env.NODE_OWNER_INFO
     const getStatus = async () =>
