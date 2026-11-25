@@ -197,13 +197,10 @@ async function validateNonceAndSignature(
       error: 'nonce: ' + nonce + ' is not a valid nonce'
     }
   }
-  // ON-02: DECRYPT_DDO binds the signed message to THIS (verifier) node's peerId, exactly as
-  // CREATE_AUTH_TOKEN does, so a signature harvested from one node cannot be replayed at another.
-  const issuerPeerId =
-    command === PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN ||
-    command === PROTOCOL_COMMANDS.DECRYPT_DDO
-      ? OceanNode.getInstance().getKeyManager().getPeerIdString()
-      : ''
+  // Every signed command binds the signed message to THIS (verifier) node's peerId, so a
+  // signature harvested from (or sent to) one node cannot be replayed against another node.
+  // (DECRYPT_DDO additionally binds resource fields via its dedicated builder, below.)
+  const issuerPeerId = OceanNode.getInstance().getKeyManager().getPeerIdString()
   if (
     await verifyConsumerSignature(
       consumer,

@@ -19,6 +19,45 @@ change closes. Client libraries that construct the `decryptDDO` message themselv
 
 ---
 
+## Release note — universal peerId-bound signing (BREAKING, since Ocean Node v5.1.0)
+
+Previously only `decryptDDO` (ON-02, above) bound its signature to the destination node's peerId.
+As of **v5.1.0** **every** signature-authenticated command — ordinary (user) commands **and** admin
+commands — binds the signed message to the **destination (verifier) node's own peerId**. This closes
+signature replay across nodes for all commands: a signature minted for node A is rejected by node B.
+
+For every signed command **except `decryptDDO`** (which additionally binds its resource fields — see
+the `POST /api/services/decrypt` and P2P `decryptDDO` sections), the signed message is the
+concatenation:
+
+```
+consumerAddress + nonce + command + issuerPeerId
+```
+
+- `consumerAddress` — the caller's EVM address (the same value sent as `consumerAddress` / `address`),
+  in the casing you actually signed (see **Address casing**).
+- `nonce` — the per-caller monotonic nonce, as a string.
+- `command` — the **exact** command string the request carries, same casing as sent (e.g. `encrypt`,
+  `download`, `startCompute`, `persistentStorageCreateBucket`, `serviceStart`, `serviceExtend`,
+  `setMaintenance`).
+- `issuerPeerId` — the **target node's own peerId**. Discover it once per node from the `id` field of
+  that node's `status` response (`POST /directCommand` with `{"command":"status"}`) or the `nodeId`
+  returned by its root `GET /`, then bind the same value into every signed request to that node.
+
+This applies to all signature-authenticated families, including **persistent storage**
+(`persistentStorageCreateBucket`, `persistentStorageUploadFile`, `persistentStorageDeleteFile`, …),
+**services** (`serviceStart`, `serviceExtend`, `serviceStop`, …), compute (`startCompute` /
+`freeStartCompute`), `encrypt` / `encryptFile`, `download`, `validateDDO`, and the admin commands.
+
+**Breaking change.** This is a coordinated signer/verifier change with **no empty-peerId fallback**: a
+request whose signed message omits `issuerPeerId` (the pre-v5.1.0 `consumerAddress + nonce + command`
+format) is rejected with a `consumer address and nonce signature mismatch` error. Client libraries
+that build the signed message themselves must adopt the new format and upgrade in lockstep with the
+node. `ocean.js` resolves the peerId automatically (from the node `status`) before signing, so callers
+using it need no change.
+
+---
+
 ## Address casing
 
 Every EVM address you send (`consumerAddress`, `owner`, `address`, `decrypterAddress`,
@@ -1521,10 +1560,13 @@ asset/service and consumer. This endpoint requires an `Authorization` header or 
 `nonce` + `signature` pair.
 
 This is a distinct command from `PolicyServerPassthrough`, so the signed message uses its
-own command string: `consumerAddress + nonce + "PolicyServerInitialize"`.
+own command string and is bound to the node's peerId (see the universal signing release note
+above): `consumerAddress + nonce + "PolicyServerInitialize" + issuerPeerId`.
 
 The verified `consumerAddress` is the one forwarded to the PolicyServer; the caller's
-`authorization`, `nonce` and `signature` are added to the `policyServer` object.
+`authorization`, `nonce` and `signature` are added to the `policyServer` object, together with
+this node's `issuerPeerId`, so a PolicyServer that re-verifies the forwarded signature can rebuild
+the peer-bound message. (ocean-node has already verified the signature locally.)
 
 #### Parameters
 
@@ -2499,7 +2541,7 @@ List buckets for a given `owner`. Results are filtered by bucket access lists fo
 | name            | type   | required | description                                        |
 | --------------- | ------ | -------- | -------------------------------------------------- |
 | consumerAddress | string | v        | consumer address                                   |
-| signature       | string | v        | signed message (consumerAddress + nonce + command) |
+| signature       | string | v        | signed message (consumerAddress + nonce + command + issuerPeerId) |
 | nonce           | string | v        | request nonce                                      |
 | chainId         | number | v        | chain id (used by auth/signature checks)           |
 | owner           | string | v        | bucket owner to filter by                          |
@@ -2530,7 +2572,7 @@ List files in a bucket.
 | name            | type   | required | description                                        |
 | --------------- | ------ | -------- | -------------------------------------------------- |
 | consumerAddress | string | v        | consumer address                                   |
-| signature       | string | v        | signed message (consumerAddress + nonce + command) |
+| signature       | string | v        | signed message (consumerAddress + nonce + command + issuerPeerId) |
 | nonce           | string | v        | request nonce                                      |
 
 #### Response (200)
@@ -2559,7 +2601,7 @@ Return the `fileObject` for a specific file in a bucket (useful for passing refe
 | name            | type   | required | description                                        |
 | --------------- | ------ | -------- | -------------------------------------------------- |
 | consumerAddress | string | v        | consumer address                                   |
-| signature       | string | v        | signed message (consumerAddress + nonce + command) |
+| signature       | string | v        | signed message (consumerAddress + nonce + command + issuerPeerId) |
 | nonce           | string | v        | request nonce                                      |
 
 #### Response (200)
@@ -2588,7 +2630,7 @@ identically.
 | name            | type   | required | description                                        |
 | --------------- | ------ | -------- | -------------------------------------------------- |
 | consumerAddress | string | v        | consumer address                                   |
-| signature       | string | v        | signed message (consumerAddress + nonce + command) |
+| signature       | string | v        | signed message (consumerAddress + nonce + command + issuerPeerId) |
 | nonce           | string | v        | request nonce                                      |
 
 #### Response (200)
@@ -2619,7 +2661,7 @@ Upload a file to a bucket. The request body is treated as raw bytes.
 | name            | type   | required | description                                        |
 | --------------- | ------ | -------- | -------------------------------------------------- |
 | consumerAddress | string | v        | consumer address                                   |
-| signature       | string | v        | signed message (consumerAddress + nonce + command) |
+| signature       | string | v        | signed message (consumerAddress + nonce + command + issuerPeerId) |
 | nonce           | string | v        | request nonce                                      |
 
 #### Request Body
@@ -2650,7 +2692,7 @@ Delete a file from a bucket.
 | name            | type   | required | description                                        |
 | --------------- | ------ | -------- | -------------------------------------------------- |
 | consumerAddress | string | v        | consumer address                                   |
-| signature       | string | v        | signed message (consumerAddress + nonce + command) |
+| signature       | string | v        | signed message (consumerAddress + nonce + command + issuerPeerId) |
 | nonce           | string | v        | request nonce                                      |
 | chainId         | number | v        | chain id (used by auth/signature checks)           |
 
@@ -2672,8 +2714,9 @@ it expires, is stopped, or is extended. See [`services.md`](./services.md) for t
 and security model.
 
 All routes live under `/api/services`. Every command except `serviceTemplates` is
-authenticated by a signature over `consumerAddress` + `nonce` + `command` (or an auth-token
-`Authorization` header). Cost is computed only from the environment's server-side pricing and
+authenticated by a signature over `consumerAddress` + `nonce` + `command` + `issuerPeerId` (the
+target node's peerId — see the universal signing release note above) or an auth-token
+`Authorization` header. Cost is computed only from the environment's server-side pricing and
 charged to the authenticated `consumerAddress`.
 
 > **Note:** service containers run hardened (`no-new-privileges`, `CapDrop: ['ALL']`), so a

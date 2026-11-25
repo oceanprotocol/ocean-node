@@ -11,6 +11,7 @@ const CONSUMER = '0x0000000000000000000000000000000000000abc'
 const VICTIM = '0x0000000000000000000000000000000000000def'
 const TOKEN = 'eyJhbGciOiJIUzI1NiJ9.fake.token'
 const DDO = { id: 'did:op:1234', nftAddress: '0xnft' }
+const NODE_PEER_ID = '16Uiu2HAmNodePeerIdForPolicyServerTest'
 
 interface FakeOpts {
   // what Auth.validateAuthenticationOrToken resolves to
@@ -32,7 +33,8 @@ function buildFakes(opts: FakeOpts = {}) {
     getConfig: (): any => ({ rateLimit: undefined as number | undefined }),
     getDatabase: () => Promise.resolve({ ddo: { retrieve } }),
     getAuth: () =>
-      opts.authConfigured === false ? undefined : { validateAuthenticationOrToken }
+      opts.authConfigured === false ? undefined : { validateAuthenticationOrToken },
+    getKeyManager: () => ({ getPeerIdString: () => NODE_PEER_ID })
   }
 
   return { node, validateAuthenticationOrToken, retrieve }
@@ -260,6 +262,8 @@ describe('PolicyServerInitializeHandler', () => {
     expect(policyServer.authorization).to.equal(TOKEN)
     expect(policyServer.nonce).to.equal('1')
     expect(policyServer.signature).to.equal('0xsignature')
+    // the node's own peerId is forwarded so a PolicyServer can re-verify the peer-bound signature
+    expect(policyServer.issuerPeerId).to.equal(NODE_PEER_ID)
   })
 
   it('returns 404 when the DDO does not exist', async () => {
