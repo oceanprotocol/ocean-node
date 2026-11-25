@@ -30,15 +30,6 @@ describe('ServiceTemplateSchema', () => {
       ServiceTemplateSchema.safeParse({ ...baseTemplate, checksum }).success
     ).to.equal(true)
   })
-  it('secureTls must list exposed ports only', () => {
-    const tmpl = { ...baseTemplate, tag: 'latest' }
-    expect(
-      ServiceTemplateSchema.safeParse({ ...tmpl, secureTls: [8888] }).success
-    ).to.equal(true)
-    expect(
-      ServiceTemplateSchema.safeParse({ ...tmpl, secureTls: [9999] }).success
-    ).to.equal(false)
-  })
   it('image + dockerfile → valid', () => {
     expect(
       ServiceTemplateSchema.safeParse({ ...baseTemplate, dockerfile: 'FROM x' }).success

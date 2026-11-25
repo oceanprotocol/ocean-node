@@ -11,7 +11,6 @@ import { parseMemoryTotalToBytes } from '../../components/c2d/gpu/types.js'
 import { parsePassContainerEnvs } from '../../components/c2d/containerEnvs.js'
 import { booleanFromString, jsonFromString } from './transforms.js'
 import { parseAllowedRange } from '../safeUrl.js'
-import { validateSecureTls } from '../../components/c2d/serviceTls.js'
 import {
   DEFAULT_BOOTSTRAP_ADDRESSES,
   DEFAULT_RATE_LIMIT_PER_MINUTE,
@@ -732,14 +731,6 @@ export const ServiceTemplateSchema = z
   })
   .strict()
   .superRefine((tmpl, ctx) => {
-    const tlsError = validateSecureTls(tmpl.secureTls, tmpl.exposedPorts)
-    if (tlsError)
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: tlsError,
-        path: ['secureTls']
-      })
-
     // Validate each regex in userConfigurableEnvVars.validation compiles
     ;(tmpl.userConfigurableEnvVars ?? []).forEach((uvar, i) => {
       if (uvar.validation) {
