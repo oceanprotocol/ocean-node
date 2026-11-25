@@ -232,7 +232,9 @@ A service that publishes no port still reports `modelDownload` from its manifest
 `readiness`. With nothing to say when such a service is
 ready, the node checks it only within 30 minutes of the container starting unless a manifest has
 appeared, and stops once everything listed is complete. All of it is best-effort and owner-only: a
-missing or wrong manifest only changes what that service's own progress report says.
+missing or wrong manifest only changes what that service's own progress report says. A service
+probed only on its first exposed port (an image the node does not recognize) is sampled the same way
+once it has answered: an open port does not mean its model is downloaded.
 
 ## Service outputs
 

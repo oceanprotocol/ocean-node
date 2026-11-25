@@ -155,6 +155,45 @@ describe('download progress for a service the node cannot probe', () => {
     sinon.assert.notCalled(engine.getArchive)
   })
 
+  const readyGenericJob = (extra: object = {}) =>
+    job({
+      image: 'acme/custom-app',
+      exposedPorts: [7860],
+      readiness: {
+        state: 'ready',
+        engine: 'generic',
+        readySince: Date.now() - 60_000,
+        lastCheckedAt: Date.now(),
+        consecutiveFailures: 0
+      },
+      ...extra
+    })
+
+  it('keeps sampling a generic service that already answered', async () => {
+    const engine = engineWith(`dir\t1000\t${CACHE}\n`, 400)
+    await engine.probeServiceReadiness(readyGenericJob(), startedAgo(60_000))
+    sinon.assert.calledOnce(engine.db.updateServiceJobReadiness)
+    const [, , readiness, download] = engine.db.updateServiceJobReadiness.firstCall.args
+    expect(readiness).to.equal(undefined)
+    expect(download).to.include({ downloadedBytes: 400, totalBytes: 1000, percent: 40 })
+  })
+
+  it('stops sampling a ready generic service after the sampling window', async () => {
+    const engine = engineWith(`dir\t0\t${CACHE}\n`, 400)
+    const unfinished = {
+      downloadedBytes: 400,
+      filesComplete: 0,
+      filesInFlight: 1,
+      filesTotal: 1,
+      updatedAt: Date.now()
+    }
+    await engine.probeServiceReadiness(
+      readyGenericJob({ modelDownload: unfinished }),
+      startedAgo(6 * 60 * 60 * 1000 + 1)
+    )
+    sinon.assert.notCalled(engine.getArchive)
+  })
+
   it('writes nothing for a service that has no manifest', async () => {
     const engine = engineWith(null, null)
     await engine.probeServiceReadiness(job(), startedAgo(60_000))

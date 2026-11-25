@@ -5716,6 +5716,10 @@ export class C2DEngineDocker extends C2DEngine {
       // starting up" for something that already served and then stopped. readySince is set on the
       // first success and kept through failures, so it is the durable answer.
       const everReady = wasReady || job.readiness?.readySince !== undefined
+      // A generic answer only proves the port is open, not that the model is downloaded.
+      if (everReady && !engine.probe) {
+        await this.sampleUnprobedServiceDownload(job, details)
+      }
       // Hold off until the container has had a moment to bind its port — probing a process that
       // has not called listen() yet only produces noise in the node's own logs.
       const startedAt = Date.parse(details.State?.StartedAt ?? '')
@@ -5863,9 +5867,10 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   /**
-   * Manifest download progress for a service with no published port to probe; no readiness, so
-   * Running stays the signal. With no readiness to end it, sampling is bounded by
-   * MANIFEST_DISCOVERY_MS / MANIFEST_SAMPLING_MS and stops once the listed download is complete.
+   * Manifest download progress for a service with no published port to probe, or a generic one
+   * that has already answered; readiness is left as it is. With no readiness to end it, sampling is
+   * bounded by MANIFEST_DISCOVERY_MS / MANIFEST_SAMPLING_MS and stops once the listed download is
+   * complete.
    */
   private async sampleUnprobedServiceDownload(
     job: ServiceJob,
