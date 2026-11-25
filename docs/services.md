@@ -200,11 +200,12 @@ requests and how far its startup downloads have got, on the job returned by `SER
   other service — an image the node does not recognize, or an app that runs an engine behind its
   own port — gets the `generic` probe on its first exposed port: `GET /health`, then
   `/system_stats`, then `/`. No answer or a 5xx (a proxy's 502 for an app that is not up) is not
-  ready; a 2xx or 3xx is ready; a 4xx moves on to the next path, and at `/` means ready. A service
-  behind an auth gate should leave one of those paths open and proxied to the app: a gate that
-  answers `401`/`403` on all of them says nothing about the app behind it, and the service
-  reports `unknown`. An engine profile whose own request is refused with `401`/`403` falls back to
-  the same paths. `readiness.engine` names the profile that decided. Only a service that publishes
+  ready; a 2xx or 3xx is ready; a 4xx moves on to the next path, and once all are asked any 4xx
+  other than `401`/`403` means ready. A service behind an auth gate should leave one of those paths
+  open and proxied to the app: a gate that answers `401`/`403` on all of them says nothing about
+  the app behind it, and the service reports `unknown`. So does an engine profile whose own request
+  is refused with `401`/`403`: no other path shows whether the engine has loaded its model.
+  `readiness.engine` names the profile that decided. Only a service that publishes
   no port reports no readiness.
   A service still `waiting` 15 minutes after its container started is logged once as a node warning
   with the last probe error — usually a node that cannot reach its containers.

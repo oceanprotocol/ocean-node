@@ -5774,7 +5774,7 @@ export class C2DEngineDocker extends C2DEngine {
       if (readiness.state !== job.readiness?.state) {
         CORE_LOGGER.info(
           `[readiness] service ${job.serviceId} (${engine.id}): ${
-            job.readiness?.state ?? 'unknown'
+            job.readiness?.state ?? 'none'
           } -> ${readiness.state} via ${result.url}${
             result.error ? ` (${result.error})` : ''
           }`

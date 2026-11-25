@@ -190,13 +190,15 @@ const isAuthChallenge = (status: number | undefined) => status === 401 || status
  *
  * No answer, or a server error (a proxy's 502 for an app that is not up), is not ready. A success
  * or redirect is ready. A client error says only that this path is not the one to ask, so the next
- * is tried; at the root it means the app is up, unless it is an auth challenge: a gate in front
- * of the app answers that whether or not the app behind it is serving.
+ * is tried; once every path is asked, any client error other than an auth challenge means the app
+ * is up. Auth challenges on every path are inconclusive: a gate in front of the app answers that
+ * whether or not the app behind it is serving.
  */
 export async function runGenericReadinessProbe(
   base: string
 ): Promise<ReadinessProbeResult> {
   let last: ReadinessProbeResult = { ok: false, url: base }
+  let answered: ReadinessProbeResult | undefined
   for (const path of GENERIC_PROBE_PATHS) {
     last = await runReadinessProbe(`${base}${path}`, [])
     const status = last.httpStatus
@@ -206,26 +208,31 @@ export async function runGenericReadinessProbe(
     if (status < 400) {
       return { ok: true, httpStatus: status, url: last.url }
     }
+    if (!answered && !isAuthChallenge(status)) {
+      answered = last
+    }
   }
-  if (isAuthChallenge(last.httpStatus)) {
+  if (!answered) {
     return { ...last, inconclusive: true, error: 'auth challenge on every probe path' }
   }
-  return { ok: true, httpStatus: last.httpStatus, url: last.url }
+  return { ok: true, httpStatus: answered.httpStatus, url: answered.url }
 }
 
 /**
- * Probes a service at `base` (scheme, host and port). An engine's own request comes first; when a
- * gate in front of the engine refuses it, the gate's open paths are asked instead.
+ * Probes a service at `base` (scheme, host and port): with the engine's own request when it has a
+ * profile, otherwise generically. An engine's request refused by an auth gate is inconclusive;
+ * other paths would not show whether the engine has loaded its model.
  */
 export async function runServiceProbe(
   base: string,
   probe: { path: string; expectStatus: number[] } | undefined
 ): Promise<ReadinessProbeResult> {
-  if (probe) {
-    const result = await runReadinessProbe(`${base}${probe.path}`, probe.expectStatus)
-    if (!isAuthChallenge(result.httpStatus)) {
-      return result
-    }
+  if (!probe) {
+    return runGenericReadinessProbe(base)
   }
-  return runGenericReadinessProbe(base)
+  const result = await runReadinessProbe(`${base}${probe.path}`, probe.expectStatus)
+  if (isAuthChallenge(result.httpStatus)) {
+    return { ...result, inconclusive: true, error: 'auth challenge on the engine probe' }
+  }
+  return result
 }

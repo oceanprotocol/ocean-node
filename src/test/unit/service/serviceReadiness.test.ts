@@ -397,12 +397,19 @@ describe('runGenericReadinessProbe', () => {
     expect(result.httpStatus).to.equal(undefined)
   })
 
-  it("asks the gate's open paths when a gate refuses an engine's own request", async () => {
+  it('is ready when a path answers a client error other than an auth challenge', async () => {
+    respond = (path) => (path === '/health' ? 404 : 401)
+    const result = await runGenericReadinessProbe(base)
+    expect(result).to.include({ ok: true, httpStatus: 404 })
+    expect(result.inconclusive).to.equal(undefined)
+  })
+
+  it("is inconclusive when a gate refuses an engine's own request, whatever else it opens", async () => {
     const vllm = { path: '/v1/models', expectStatus: [200] }
-    respond = gate('/health', false)
-    expect(await runServiceProbe(base, vllm)).to.include({ ok: false, httpStatus: 502 })
     respond = gate('/health', true)
-    expect((await runServiceProbe(base, vllm)).ok).to.equal(true)
+    const result = await runServiceProbe(base, vllm)
+    expect(result).to.include({ ok: false, inconclusive: true, httpStatus: 401 })
+    expect(paths).to.deep.equal(['/v1/models'])
   })
 
   it("keeps an engine's own answer when no gate is in the way", async () => {
