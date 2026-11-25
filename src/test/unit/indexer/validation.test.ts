@@ -184,7 +184,9 @@ describe('Schema validation tests', () => {
     const messageHashBytes = createHashForSignature(
       await consumerAccount.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.VALIDATE_DDO
+      PROTOCOL_COMMANDS.VALIDATE_DDO,
+      // every signed command binds the verifier node's peerId (anti-replay)
+      oceanNode.getKeyManager().getPeerIdString()
     )
     const signature = await safeSign(consumerAccount, messageHashBytes)
     const task = {

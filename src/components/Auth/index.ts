@@ -398,7 +398,7 @@ export class Auth {
           // expiry and its `createdAt` is UNSIGNED, so we never fabricate an expiry from it —
           // fall back to a still-valid cached confirmation, else reject.
           CORE_LOGGER.debug('Issuer unreachable; applying fail-OPEN revocation policy')
-          if (typeof signedValidUntil === 'number') {
+          if (v === AUTH_TOKEN_VERSION && typeof signedValidUntil === 'number') {
             return this.buildAuthTokenFromClaims(
               token,
               address,

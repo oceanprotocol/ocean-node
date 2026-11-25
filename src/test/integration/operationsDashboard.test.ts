@@ -123,7 +123,8 @@ describe('**********         OperationsDashboard tests', () => {
     const messageHashBytes = createHashForSignature(
       await adminWallet.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.STOP_NODE
+      PROTOCOL_COMMANDS.STOP_NODE,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     const signature = await safeSign(adminWallet, messageHashBytes)
     const stopNodeCommand: AdminStopNodeCommand = {
@@ -152,7 +153,8 @@ describe('**********         OperationsDashboard tests', () => {
     let messageHashBytes = createHashForSignature(
       await adminWallet.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.COLLECT_FEES
+      PROTOCOL_COMMANDS.COLLECT_FEES,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     let signature = await safeSign(adminWallet, messageHashBytes)
     const fees = new ProviderFees(oceanNode)
@@ -189,7 +191,8 @@ describe('**********         OperationsDashboard tests', () => {
     messageHashBytes = createHashForSignature(
       await adminWallet.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.COLLECT_FEES
+      PROTOCOL_COMMANDS.COLLECT_FEES,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(adminWallet, messageHashBytes)
     const collectFeesCommandWrongNode: AdminCollectFeesCommand = {
@@ -211,7 +214,8 @@ describe('**********         OperationsDashboard tests', () => {
     messageHashBytes = createHashForSignature(
       await adminWallet.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.COLLECT_FEES
+      PROTOCOL_COMMANDS.COLLECT_FEES,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(adminWallet, messageHashBytes)
     const collectFeesCommandWrongAmount: AdminCollectFeesCommand = {
@@ -250,7 +254,8 @@ describe('**********         OperationsDashboard tests', () => {
     const messageHashBytes = createHashForSignature(
       await adminWallet.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.REINDEX_TX
+      PROTOCOL_COMMANDS.REINDEX_TX,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     const signature = await safeSign(adminWallet, messageHashBytes)
 
@@ -330,7 +335,8 @@ describe('**********         OperationsDashboard tests', () => {
       const messageHashBytes = createHashForSignature(
         await adminWallet.getAddress(),
         nonce,
-        PROTOCOL_COMMANDS.REINDEX_CHAIN
+        PROTOCOL_COMMANDS.REINDEX_CHAIN,
+        oceanNode.getKeyManager().getPeerIdString()
       )
       const signature = await safeSign(adminWallet, messageHashBytes)
       const reindexChainCommand: AdminReindexChainCommand = {
@@ -401,7 +407,8 @@ describe('**********         OperationsDashboard tests', () => {
     let messageHashBytes = createHashForSignature(
       await adminWallet.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD
+      PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     let signature = await safeSign(adminWallet, messageHashBytes)
 
@@ -418,7 +425,8 @@ describe('**********         OperationsDashboard tests', () => {
     messageHashBytes = createHashForSignature(
       await adminWallet.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD
+      PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(adminWallet, messageHashBytes)
     const indexingStopCommand: StartStopIndexingCommand = {
@@ -434,7 +442,8 @@ describe('**********         OperationsDashboard tests', () => {
     messageHashBytes = createHashForSignature(
       await adminWallet.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD
+      PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(adminWallet, messageHashBytes)
     indexingStopCommand.signature = signature
@@ -453,7 +462,8 @@ describe('**********         OperationsDashboard tests', () => {
     messageHashBytes = createHashForSignature(
       await adminWallet.getAddress(),
       nonce,
-      PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD
+      PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(adminWallet, messageHashBytes)
     indexingStartCommand.signature = signature
