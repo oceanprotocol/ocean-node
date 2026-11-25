@@ -9,7 +9,7 @@ import {
   buildInvalidRequestMessage
 } from '../../httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { JobType } from '../../../utils/constants.js'
+import { JobType, ZERO_PAYMENT_TX, isZeroPaymentTx } from '../../../utils/constants.js'
 import type { ComputeEnvironment } from '../../../@types/C2D/C2D.js'
 import { ServiceStatusNumber } from '../../../@types/C2D/ServiceOnDemand.js'
 import { validateAccess } from '../compute/startCompute.js'
@@ -266,7 +266,17 @@ export class ServiceExtendHandler extends CommandHandler {
           const unresolved = (freshJob.extendPayments ?? []).find(
             (p) => p.lockTx && !p.claimTx && !p.cancelTx
           )
-          if (unresolved) {
+          if (unresolved && isZeroPaymentTx(unresolved.lockTx)) {
+            // The unresolved intent's lock was the 0xempty sentinel — no on-chain lock was ever
+            // created, so there is nothing to refund. Resolve it directly instead of attempting
+            // (and failing) an on-chain cancel, which would otherwise 409 this service's extends
+            // forever. Equivalent to a refunded lock: cancelTx = sentinel.
+            unresolved.cancelTx = ZERO_PAYMENT_TX
+            await engine.db.updateServiceJob(freshJob)
+            CORE_LOGGER.info(
+              `Service ${task.serviceId}: resolved unresolved zero-cost extension intent (lock ${unresolved.lockTx}) with the ${ZERO_PAYMENT_TX} sentinel — no on-chain refund needed`
+            )
+          } else if (unresolved) {
             try {
               const cancelTx = await engine.escrow.cancelExpiredLock(
                 unresolved.chainId,
@@ -384,19 +394,24 @@ export class ServiceExtendHandler extends CommandHandler {
               `Service extend: intent persistence failed (${persistErr.message}) — refunding lock ${lockTx}`
             )
             freshJob.extendPayments = freshJob.extendPayments.filter((p) => p !== intent)
-            const cancelTx = await engine.escrow
-              .cancelExpiredLock(
-                task.payment.chainId,
-                task.serviceId,
-                task.payment.token,
-                task.consumerAddress
-              )
-              .catch((e): string | null => {
-                CORE_LOGGER.error(
-                  `Service ${task.serviceId}: cancelExpiredLock failed for lock ${lockTx} (chain ${task.payment.chainId}): ${e.message}`
-                )
-                return null
-              })
+            // A zero-cost extension's lock is the 0xempty sentinel — nothing was locked on-chain,
+            // so there is nothing to refund. Treat it as already-refunded rather than attempting a
+            // doomed on-chain cancel that would 409.
+            const cancelTx = isZeroPaymentTx(lockTx)
+              ? ZERO_PAYMENT_TX
+              : await engine.escrow
+                  .cancelExpiredLock(
+                    task.payment.chainId,
+                    task.serviceId,
+                    task.payment.token,
+                    task.consumerAddress
+                  )
+                  .catch((e): string | null => {
+                    CORE_LOGGER.error(
+                      `Service ${task.serviceId}: cancelExpiredLock failed for lock ${lockTx} (chain ${task.payment.chainId}): ${e.message}`
+                    )
+                    return null
+                  })
             if (!cancelTx)
               return {
                 stream: null,
@@ -426,7 +441,8 @@ export class ServiceExtendHandler extends CommandHandler {
               costExtend,
               `service-extend:${task.serviceId}`,
               JobType.SERVICE,
-              effectiveSubsidyKept
+              effectiveSubsidyKept,
+              lockTx
             )
           } catch (e: any) {
             claimTx = null

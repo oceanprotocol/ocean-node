@@ -178,6 +178,9 @@ export interface OceanNodeConfig {
   arweaveGateway?: string | null
   supportedNetworks?: RPCS
   claimDurationTimeout: number
+  // When false (default), zero-amount escrow lock/claim skips the on-chain tx and records the
+  // `0xempty` sentinel; true submits the real zero-value transaction on-chain. (ESCROW_EMPTY_TX)
+  escrowEmptyTx: boolean
   indexingNetworks?: RPCS
   c2dClusters: C2DClusterInfo[]
   accountPurgatoryUrl: string | null

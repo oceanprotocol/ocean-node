@@ -912,6 +912,53 @@ describe('Service handlers', () => {
       expect(escrow.createLock.called).to.equal(false)
       expect(escrow.claimLock.called).to.equal(false)
     })
+
+    // ESCROW_EMPTY_TX: a zero-cost extension skips the on-chain lock/claim — createLock and
+    // claimLock return the 0xempty sentinel (as the real Escrow does for wei==0).
+    it('records the 0xempty sentinel for a zero-cost extension without any on-chain tx', async () => {
+      const job = makeJob()
+      const { node, escrow } = buildFakes({ serviceJobInDb: job, cost: 0 })
+      escrow.createLock.resolves('0xempty')
+      escrow.claimLock.resolves('0xempty')
+      const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      const out = await body(res)
+      expect(out[0].extendPayments).to.have.length(1)
+      expect(out[0].extendPayments[0].lockTx).to.equal('0xempty')
+      expect(out[0].extendPayments[0].claimTx).to.equal('0xempty')
+      // the handler must forward the lock's sentinel into claimLock (9th arg, index 8) — that is
+      // what makes the real Escrow.claimLock short-circuit instead of looking up a non-existent lock
+      expect(escrow.claimLock.firstCall.args[8]).to.equal('0xempty')
+      // nothing was locked on-chain, so nothing is ever cancelled
+      expect(escrow.cancelExpiredLock.called).to.equal(false)
+    })
+
+    // Regression for the bug this feature introduced: an unresolved intent whose lock was the
+    // 0xempty sentinel must be resolved WITHOUT an on-chain cancel (which would 409 forever),
+    // then the new extension proceeds.
+    it('resolves an unresolved 0xempty extension intent without an on-chain cancel, then proceeds', async () => {
+      const job = makeJob({
+        extendPayments: [
+          {
+            chainId: 8996,
+            token: '0xtoken',
+            lockTx: '0xempty',
+            claimTx: '',
+            cancelTx: '',
+            cost: 0
+          }
+        ]
+      })
+      const { node, escrow } = buildFakes({ serviceJobInDb: job })
+      const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      // the sentinel intent is resolved in-place, never cancelled on-chain
+      expect(escrow.cancelExpiredLock.called).to.equal(false)
+      const out = await body(res)
+      expect(out[0].extendPayments).to.have.length(2)
+      expect(out[0].extendPayments[0].cancelTx).to.equal('0xempty')
+      expect(out[0].extendPayments[1].claimTx).to.equal('0xclaim')
+    })
   })
 
   describe('GetServicesHandler (SERVICE_LIST)', () => {
