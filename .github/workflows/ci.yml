@@ -261,14 +261,14 @@ jobs:
           persist-credentials: false
           repository: 'oceanprotocol/ocean-cli'
           path: 'ocean-cli'
-          ref: 'feature/unify_status_endpoints'
+          ref: 'rc_3.0.0'
       - name: Checkout Ocean-js
         uses: actions/checkout@v7
         with:
           persist-credentials: false
           repository: 'oceanprotocol/ocean.js'
           path: 'ocean.js'
-          ref: feature/unify_status_endpoints
+          ref: 'rc_11.0.0'
       - name: Build ocean-js
         working-directory: ${{ github.workspace }}/ocean.js
         run: |
