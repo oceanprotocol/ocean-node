@@ -357,6 +357,32 @@ describe('**********         Service on Demand', () => {
     })
   }
 
+  // Saved logs, unlike a live log, end on their own once the last file is sent. So anything short
+  // of a clean end fails: an error, or no end within `timeoutMs`, rather than passing on whatever
+  // arrived first.
+  // eslint-disable-next-line require-await
+  async function readEndedLogs(stream: Readable, timeoutMs = 5000): Promise<string> {
+    return new Promise((resolve, reject) => {
+      let data = ''
+      const timer = setTimeout(() => {
+        stream.removeAllListeners()
+        stream.destroy()
+        reject(new Error(`log stream did not end within ${timeoutMs}ms`))
+      }, timeoutMs)
+      stream.on('data', (chunk) => {
+        data += chunk.toString()
+      })
+      stream.on('end', () => {
+        clearTimeout(timer)
+        resolve(data)
+      })
+      stream.on('error', (e) => {
+        clearTimeout(timer)
+        reject(e)
+      })
+    })
+  }
+
   // ── setup / teardown ─────────────────────────────────────────────────
 
   before(async function () {
@@ -482,6 +508,30 @@ describe('**********         Service on Demand', () => {
       await fsp.rm(serviceTemplatesPath, { recursive: true, force: true })
     }
   })
+
+  // Free a dedicated per-test service's resources so later tests in this CPU-limited env
+  // (cpu total 4) aren't starved. `release: true` ends the paid window (expiresAt=now), but a
+  // Stopped job that was paid (claimTx set) STILL counts against the pool — only the InternalLoop
+  // expiry sweep (~2s) marks it Expired, which is what actually returns its CPU/ports. So wait for
+  // Expired before returning; otherwise a following SERVICE_START can still fail with
+  // "Not enough available cpu" because the sweep hasn't run yet.
+  const releaseService = async (id: string) => {
+    const sig = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_STOP)
+    await new ServiceStopHandler(oceanNode)
+      .handle({
+        command: PROTOCOL_COMMANDS.SERVICE_STOP,
+        consumerAddress: sig.consumerAddress,
+        nonce: sig.nonce,
+        signature: sig.signature,
+        serviceId: id,
+        release: true
+      } as ServiceStopCommand)
+      .catch(() => {})
+    // Wait for the sweep to actually free the reservation (Stopped-with-claimTx still counts).
+    await pollServiceStatus(id, ServiceStatusNumber.Expired, DEFAULT_TEST_TIMEOUT).catch(
+      () => {}
+    )
+  }
 
   // ── tests ────────────────────────────────────────────────────────────
 
@@ -725,6 +775,8 @@ describe('**********         Service on Demand', () => {
         expect(viaStatus.payment.droppedSubsidies).to.deep.equal([
           ethers.getAddress(WHITELISTED_PROVIDER)
         ])
+        // Free the gated service so it doesn't hold a CPU for the rest of the suite.
+        await releaseService(job.serviceId)
       }
     )
   })
@@ -1211,6 +1263,215 @@ describe('**********         Service on Demand', () => {
     expect(oldInspect?.statusCode, 'old container must be removed').to.equal(404)
   })
 
+  it('(l-ports1) SERVICE_START with an out-of-range pinned host port → 400, no escrow charge', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    const before = await oceanNode.escrow.getUserAvailableFunds(
+      DEVELOPMENT_CHAIN_ID,
+      consumerAddress,
+      paymentToken
+    )
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_START)
+    const task: ServiceStartCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_START,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      environment: servicesEnv.id,
+      image: 'nginxinc/nginx-unprivileged',
+      tag: 'alpine',
+      // Pinned host port well outside the configured hostPortRange → rejected up front.
+      ports: [{ containerPort: 8080, hostPort: PORT_RANGE_END + 500 }],
+      duration: SERVICE_DURATION,
+      resources: [
+        { id: 'cpu', amount: 1 },
+        { id: 'ram', amount: 1 },
+        { id: 'disk', amount: 1 }
+      ],
+      payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken }
+    }
+    const resp = await new ServiceStartHandler(oceanNode).handle(task)
+    expect(resp.status.httpStatus).to.equal(400)
+    expect(String(resp.status.error)).to.contain('range')
+    // Rejected before any escrow interaction → funds untouched.
+    const after = await oceanNode.escrow.getUserAvailableFunds(
+      DEVELOPMENT_CHAIN_ID,
+      consumerAddress,
+      paymentToken
+    )
+    expect(after.toString()).to.equal(before.toString())
+  })
+
+  it('(l-ports2) SERVICE_RESTART changes the host port and frees the old one', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 6)
+    const pinnedStart = PORT_RANGE_START + 101
+    const pinnedNew = PORT_RANGE_START + 102
+
+    // Start a dedicated service pinned to a specific host port (isolated from the shared one).
+    const s = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_START)
+    const startTask: ServiceStartCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_START,
+      consumerAddress: s.consumerAddress,
+      nonce: s.nonce,
+      signature: s.signature,
+      environment: servicesEnv.id,
+      image: 'nginxinc/nginx-unprivileged',
+      tag: 'alpine',
+      ports: [{ containerPort: 8080, hostPort: pinnedStart }],
+      duration: SERVICE_DURATION,
+      resources: [
+        { id: 'cpu', amount: 1 },
+        { id: 'ram', amount: 1 },
+        { id: 'disk', amount: 1 }
+      ],
+      payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken }
+    }
+    const startResp = await new ServiceStartHandler(oceanNode).handle(startTask)
+    assert(
+      startResp.status.httpStatus === 200,
+      `start expected 200, got ${startResp.status.httpStatus}: ${startResp.status?.error ?? ''}`
+    )
+    const [startedJob] = (await streamToObject(
+      startResp.stream as Readable
+    )) as ServiceJob[]
+    const localId = startedJob.serviceId
+    startedServices.push(localId)
+    const runningPinned = await pollServiceStatus(localId, ServiceStatusNumber.Running)
+    expect(runningPinned.endpoints[0].hostPort).to.equal(pinnedStart)
+    expect(runningPinned.endpoints[0].url).to.equal(`http://localhost:${pinnedStart}`)
+    const r1 = await httpGetWithRetry(`http://localhost:${pinnedStart}`)
+    assert(r1.status === 200, `expected nginx 200 on pinned start port, got ${r1.status}`)
+
+    // Restart onto a DIFFERENT pinned host port.
+    const r = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_RESTART)
+    const restartTask: ServiceRestartCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_RESTART,
+      consumerAddress: r.consumerAddress,
+      nonce: r.nonce,
+      signature: r.signature,
+      serviceId: localId,
+      ports: [{ containerPort: 8080, hostPort: pinnedNew }]
+    }
+    const restartResp = await new ServiceRestartHandler(oceanNode).handle(restartTask)
+    assert(
+      restartResp.status.httpStatus === 200,
+      `restart expected 200, got ${restartResp.status.httpStatus}: ${restartResp.status?.error ?? ''}`
+    )
+    const runningNew = await pollServiceStatus(localId, ServiceStatusNumber.Running)
+    expect(runningNew.endpoints[0].hostPort).to.equal(pinnedNew)
+    expect(runningNew.endpoints[0].url).to.equal(`http://localhost:${pinnedNew}`)
+    const r2 = await httpGetWithRetry(`http://localhost:${pinnedNew}`)
+    assert(r2.status === 200, `expected nginx 200 on new pinned port, got ${r2.status}`)
+
+    // The old host port is free again: a fresh service can pin it.
+    const s2 = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_START)
+    const reuseTask: ServiceStartCommand = {
+      ...startTask,
+      consumerAddress: s2.consumerAddress,
+      nonce: s2.nonce,
+      signature: s2.signature,
+      ports: [{ containerPort: 8080, hostPort: pinnedStart }]
+    }
+    const reuseResp = await new ServiceStartHandler(oceanNode).handle(reuseTask)
+    assert(
+      reuseResp.status.httpStatus === 200,
+      `reuse of freed port expected 200, got ${reuseResp.status.httpStatus}: ${reuseResp.status?.error ?? ''}`
+    )
+    const [reuseJob] = (await streamToObject(
+      reuseResp.stream as Readable
+    )) as ServiceJob[]
+    startedServices.push(reuseJob.serviceId)
+    const reuseRunning = await pollServiceStatus(
+      reuseJob.serviceId,
+      ServiceStatusNumber.Running
+    )
+    expect(reuseRunning.endpoints[0].hostPort).to.equal(pinnedStart)
+
+    // Free both dedicated services so the CPU-limited env isn't starved for later tests.
+    await releaseService(localId)
+    await releaseService(reuseJob.serviceId)
+  })
+
+  it('(l-ports3) SERVICE_RESTART reserves pins first: no two endpoints share a host port', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 6)
+    const pinnedStart = PORT_RANGE_START + 111
+
+    // Start a service on container 8080 pinned to pinnedStart (nginx serves on 8080).
+    const s = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_START)
+    const startTask: ServiceStartCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_START,
+      consumerAddress: s.consumerAddress,
+      nonce: s.nonce,
+      signature: s.signature,
+      environment: servicesEnv.id,
+      image: 'nginxinc/nginx-unprivileged',
+      tag: 'alpine',
+      ports: [{ containerPort: 8080, hostPort: pinnedStart }],
+      duration: SERVICE_DURATION,
+      resources: [
+        { id: 'cpu', amount: 1 },
+        { id: 'ram', amount: 1 },
+        { id: 'disk', amount: 1 }
+      ],
+      payment: { chainId: DEVELOPMENT_CHAIN_ID, token: paymentToken }
+    }
+    const startResp = await new ServiceStartHandler(oceanNode).handle(startTask)
+    assert(
+      startResp.status.httpStatus === 200,
+      `start expected 200, got ${startResp.status.httpStatus}: ${startResp.status?.error ?? ''}`
+    )
+    const [startedJob] = (await streamToObject(
+      startResp.stream as Readable
+    )) as ServiceJob[]
+    const localId = startedJob.serviceId
+    startedServices.push(localId)
+    const runningPinned = await pollServiceStatus(localId, ServiceStatusNumber.Running)
+    expect(runningPinned.endpoints[0].hostPort).to.equal(pinnedStart)
+
+    // Restart requesting container 9090 PINNED to pinnedStart (the port 8080 currently holds) plus
+    // an UNPINNED 8080. Reserving pins first means 9090 takes pinnedStart and the unpinned 8080 is
+    // moved to a fresh auto port — rather than both resolving to pinnedStart and the new container
+    // failing to bind the duplicate. The restart must succeed with two DISTINCT host ports.
+    const r = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_RESTART)
+    const restartTask: ServiceRestartCommand = {
+      command: PROTOCOL_COMMANDS.SERVICE_RESTART,
+      consumerAddress: r.consumerAddress,
+      nonce: r.nonce,
+      signature: r.signature,
+      serviceId: localId,
+      ports: [{ containerPort: 9090, hostPort: pinnedStart }, { containerPort: 8080 }]
+    }
+    const restartResp = await new ServiceRestartHandler(oceanNode).handle(restartTask)
+    assert(
+      restartResp.status.httpStatus === 200,
+      `restart expected 200, got ${restartResp.status.httpStatus}: ${restartResp.status?.error ?? ''}`
+    )
+
+    const running = await pollServiceStatus(localId, ServiceStatusNumber.Running)
+    expect(running.endpoints).to.have.length(2)
+    const byContainer = new Map(
+      running.endpoints.map((e) => [e.containerPort, e.hostPort])
+    )
+    // The pin won pinnedStart; the unpinned 8080 moved to a different (auto) host port.
+    expect(byContainer.get(9090)).to.equal(pinnedStart)
+    expect(byContainer.get(8080)).to.not.equal(pinnedStart)
+    // No double-binding: the two endpoints hold distinct host ports.
+    const hostPorts = running.endpoints.map((e) => e.hostPort)
+    expect(new Set(hostPorts).size).to.equal(hostPorts.length)
+    // nginx serves on 8080 → reachable on its new host port.
+    const resp = await httpGetWithRetry(`http://localhost:${byContainer.get(8080)}`)
+    assert(
+      resp.status === 200,
+      `expected nginx 200 on moved 8080 port, got ${resp.status}`
+    )
+
+    // Free this test's service so later tests aren't starved for CPU.
+    await releaseService(localId)
+  })
+
   it('(l2) SERVICE_RESTART self-heals a network leaked by a crash mid-start', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 4)
     // Simulate a node that died between createNetwork and persisting the docker refs:
@@ -1491,6 +1752,36 @@ describe('**********         Service on Demand', () => {
     expect((await getServiceResult({ live: true })).status.httpStatus).to.equal(409)
   })
 
+  it('(m3) SERVICE_GET_STREAMABLE_LOGS still serves the stopped service logs, saved at teardown', async function () {
+    const job = await getServiceJob(serviceId)
+    expect(
+      job.logArchives,
+      'stop must save the container logs'
+    ).to.have.length.greaterThan(0)
+    const {
+      consumerAddress: addr,
+      nonce,
+      signature
+    } = await signFor(consumerAccount, PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS)
+    const resp = await new ServiceGetStreamableLogsHandler(oceanNode).handle({
+      command: PROTOCOL_COMMANDS.SERVICE_GET_STREAMABLE_LOGS,
+      consumerAddress: addr,
+      nonce,
+      signature,
+      serviceId
+    } as ServiceGetStreamableLogsCommand)
+    assert(
+      resp.status.httpStatus === 200,
+      `expected 200, got ${resp.status.httpStatus}: ${resp.status?.error ?? ''}`
+    )
+    // The image's entrypoint prints this on every boot, so it is in each saved container's log,
+    // the stopped one included.
+    const logs = await readEndedLogs(resp.stream as Readable)
+    expect(logs).to.include(
+      '/docker-entrypoint.sh: Configuration complete; ready for start up'
+    )
+  })
+
   it('(n) [slow] expiry cron marks a short-lived service Expired', async function () {
     this.timeout(150000)
     const {
@@ -1585,8 +1876,8 @@ describe('**********         Service on Demand', () => {
     assert(res.status === 200, `expected built.txt HTTP 200, got ${res.status}`)
     assert(res.body.includes('built'), 'built.txt should contain "built"')
 
-    // stop it
-    await getDockerEngine().stopService(job.serviceId, consumerAddress)
+    // stop + release so the CPU/ports are returned for later tests
+    await releaseService(job.serviceId)
   })
 
   it('(p) SERVICE_START persists a checksummed, whitelisted subsidyProviders list on the job', async function () {
@@ -1643,9 +1934,9 @@ describe('**********         Service on Demand', () => {
           ethers.getAddress(WHITELISTED_PROVIDER)
         ])
 
-        await getDockerEngine()
-          .stopService(job.serviceId, consumerAddress)
-          .catch(() => {})
+        // stop + release so the CPU/ports are returned (this is the last service test, but keep
+        // the suite's reservation accounting clean regardless of ordering).
+        await releaseService(job.serviceId)
       }
     )
   })

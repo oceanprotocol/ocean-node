@@ -2895,7 +2895,8 @@ should keep watching `serviceStatus`, not just stop once they first see `Running
 | tag / checksum / dockerfile  | string   |          | image spec — at most one; `dockerfile` requires `allowImageBuild` |
 | additionalDockerFiles        | object   |          | filename → content; only with `dockerfile`                        |
 | dockerCmd / dockerEntrypoint | string[] |          | container CMD / ENTRYPOINT overrides                              |
-| exposedPorts                 | number[] |          | container ports to publish                                        |
+| exposedPorts                 | number[] |          | container ports to publish (host ports auto-allocated) — legacy; prefer `ports` |
+| ports                        | object[] |          | `{ containerPort, hostPort? }[]` — container ports with an optional **pinned** host port. `hostPort` omitted = auto-allocate. A pinned `hostPort` must be inside `hostPortRange` and free. A conflict caught by the synchronous availability **pre-check** returns `400` immediately; one caught only by the authoritative **background reservation** returns `200` with a `Starting` job that then becomes `Error` (seen when polling `serviceStatus`). Either way the reservation happens **before** the escrow lock, so a conflict incurs **no charge**. Supersedes `exposedPorts` when both are sent. |
 | resources                    | object[] |          | `{ id, amount }` requested resources                              |
 | duration                     | number   | v        | seconds; capped by `serviceOnDemand.maxDurationSeconds`           |
 | userData                     | string   |          | ECIES-encrypted (to the node pubkey) JSON of env vars             |
@@ -3096,11 +3097,14 @@ RESPEC mode (restart on a new image spec — `image` required, plus at most one 
 | dockerCmd             | string[] |          | exact container command (Docker exec-form CMD override)                                                                  |
 | dockerEntrypoint      | string[] |          | container ENTRYPOINT override                                                                                            |
 | metadata              | object   |          | user labels (≤1 KB JSON). **Not** a container param — independent of REUSE/RESPEC. When present it **replaces** the stored metadata; when omitted the original metadata is kept |
+| ports                 | object[] |          | `{ containerPort, hostPort? }[]` — change the ports, optionally **pinning** host ports (`hostPort` omitted = auto-allocate). Independent of REUSE/RESPEC (no `image` required). Validated/reserved up front: an unavailable requested host port is rejected and the running service is **left untouched**; on success the old host ports are freed after teardown and the `endpoints`/URLs change. Omitted ⇒ keep current ports. (The legacy `exposedPorts` field is **not** read on restart — use `ports`.) |
 
 #### Response (200)
 
-The `ServiceJob` with a new `containerId` (same `hostPort` and `expiresAt`; the `image`/`tag`/
-`checksum`/`dockerfile`/`containerImage` fields reflect the new spec in RESPEC mode).
+The `ServiceJob` with a new `containerId`. Host ports and `expiresAt` are unchanged unless a
+`ports` change was requested (then `endpoints`/URLs reflect the new host ports);
+the `image`/`tag`/`checksum`/`dockerfile`/`containerImage` fields reflect the new spec in RESPEC
+mode.
 
 #### Response (400)
 
@@ -3150,10 +3154,14 @@ until `expiresAt`. Only `release: true` ends the paid window early.
 
 #### Description
 
-Stream the service container's stdout/stderr logs live. **Authenticated and owner-scoped**
+Stream the service container's stdout/stderr logs. **Authenticated and owner-scoped**
 — only the service's owner (`consumerAddress`, proven by signature/nonce or auth token) can
-read its logs. Available while the service is `Running` (`40`) or `Error` (`99`) — a crashed
-container is kept around until `stop`/`restart`, so its logs remain fetchable for diagnosis.
+read its logs. While the service has a container — `Running` (`40`), `Error` (`99`): a
+crashed container is kept around until `stop`/`restart`, or `Stopping` until the teardown
+removes it — its log is followed live. Once the
+container is gone, the logs the node saved when each of the service's containers was removed
+are served instead, oldest first, until `storageExpiry` seconds after `expiresAt`. Only the last
+16 MiB of each container's log are kept, for the last 5 containers.
 
 #### Query Parameters
 
@@ -3167,22 +3175,31 @@ container is kept around until `stop`/`restart`, so its logs remain fetchable fo
 
 #### Response (200)
 
-Raw `stdout`/`stderr` byte stream from the container, connection kept open and followed live.
-With `since` set, historical output before that point is skipped — useful for a long-lived
-service where fetching the full history would otherwise dump days/weeks of buffered logs
-before reaching the live tail (e.g. `since=1h` for just the last hour).
+Raw `stdout`/`stderr` byte stream from the container (Docker-multiplexed frames), connection
+kept open and followed live. Saved logs come in the same format, and the stream ends after the
+last line. With `since` set, historical output before that point is skipped — useful for a
+long-lived service where fetching the full history would otherwise dump days/weeks of buffered
+logs before reaching the live tail (e.g. `since=1h` for just the last hour).
 
 #### Response (400)
 
-`since` is present but not a valid Unix timestamp or duration (`<number><s|m|h|d>`).
+`since` is present but not a valid Unix timestamp or duration (`<number><s|m|h|d>`), or no
+service with this `serviceId` belongs to `consumerAddress` (`Service job not found`).
 
 #### Response (404)
 
-Service not found, or not `Running`/`Error`.
+The service exists but has no container and no saved logs (never saved, or deleted after
+storage expiry).
 
 #### Response (401)
 
-Missing/invalid auth, or `consumerAddress` is not the service owner.
+Missing/invalid auth. A service owned by another address gets `400`, as above: the lookup is
+owner-scoped, so it is not found.
+
+#### Response (500)
+
+The node could not read the container's live log from Docker. Saved logs are not served in its
+place, so a Docker failure is never mistaken for an empty log.
 
 ---
 
