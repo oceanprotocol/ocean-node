@@ -287,18 +287,23 @@ describe('service utils', () => {
   })
 
   describe('reclaimExpiredHostPorts (mid-run orphan release, no restart)', () => {
+    const CONFIGURED = new Set(['current'])
+
     it('releases an orphan port once its window has passed, keeps active and in-flight ports', async () => {
       // Mutable job list so the SAME process can "advance past expiry" between calls — no restart.
       let orphanExpiresAt = Date.now() + 60 * 60 * 1000 // in-window at first
       const db: any = {
+        updateServiceJob: () => Promise.resolve(1),
         getRunningServiceJobs: () =>
           Promise.resolve([
             {
+              serviceId: 'orphan',
               clusterHash: 'removed',
               endpoints: [{ hostPort: 48001 }],
               expiresAt: orphanExpiresAt
             },
             {
+              serviceId: 'live',
               clusterHash: 'current',
               endpoints: [{ hostPort: 48002 }],
               expiresAt: Date.now() + 60 * 60 * 1000
@@ -311,14 +316,14 @@ describe('service utils', () => {
       reserveHostPort(48003) // in-flight: reserved, on no job's endpoints
       try {
         // Nothing expired yet → reclaim is a no-op.
-        expect(await reclaimExpiredHostPorts(db)).to.equal(0)
+        expect(await reclaimExpiredHostPorts(db, CONFIGURED)).to.equal(0)
         expect(reservedHostPortsInRange([48000, 48999])).to.deep.equal([
           48001, 48002, 48003
         ])
 
         // Advance past the orphan's window (same process), then reclaim.
         orphanExpiresAt = Date.now() - 1000
-        const released = await reclaimExpiredHostPorts(db)
+        const released = await reclaimExpiredHostPorts(db, CONFIGURED)
         expect(released).to.equal(1)
         const left = reservedHostPortsInRange([48000, 48999])
         expect(left).to.not.include(48001) // orphan freed mid-run
@@ -326,6 +331,67 @@ describe('service utils', () => {
         expect(left).to.include(48003) // in-flight reservation kept
       } finally {
         ;[48001, 48002, 48003].forEach((p) => releaseHostPort(p))
+      }
+    })
+
+    it('never reclaims an expired job on a still-configured cluster (its engine owns teardown)', async () => {
+      const db: any = {
+        updateServiceJob: () => Promise.resolve(1),
+        getRunningServiceJobs: () =>
+          Promise.resolve([
+            {
+              serviceId: 'live-expired',
+              clusterHash: 'current', // configured → left to its own engine
+              endpoints: [{ hostPort: 48010 }],
+              expiresAt: Date.now() - 1000
+            }
+          ])
+      }
+      await seedAllocatedPorts(db) // expiresAt past → seed does NOT reserve it...
+      reserveHostPort(48010) // ...but its engine still holds it until expireService runs
+      try {
+        expect(await reclaimExpiredHostPorts(db, CONFIGURED)).to.equal(0)
+        expect(reservedHostPortsInRange([48000, 48999])).to.include(48010)
+      } finally {
+        releaseHostPort(48010)
+      }
+    })
+
+    it('finalizes the orphan so a reused port is not reclaimed by a later sweep (race)', async () => {
+      // The CodeRabbit race: reclaim frees an orphan's port, a NEW start reuses it (endpoint not
+      // yet persisted), and a SECOND sweep must NOT treat that reused port as the orphan's and
+      // delete the new reservation. The fix finalizes the orphan (status Expired) so it drops out
+      // of getRunningServiceJobs() and can never re-flag the port.
+      const orphan: any = {
+        serviceId: 'orphan',
+        clusterHash: 'removed',
+        endpoints: [{ hostPort: 48020 }],
+        expiresAt: Date.now() - 1000
+      }
+      const jobs: any[] = [orphan]
+      const db: any = {
+        getRunningServiceJobs: () => Promise.resolve(jobs.slice()),
+        // Finalizing to Expired drops the job from getRunningServiceJobs(), as the real query does
+        // (it excludes Expired). reclaim only calls updateServiceJob to finalize, so remove by id.
+        updateServiceJob: (j: any) => {
+          const i = jobs.findIndex((x) => x.serviceId === j.serviceId)
+          if (i >= 0) jobs.splice(i, 1)
+          return Promise.resolve(1)
+        }
+      }
+      reserveHostPort(48020) // the orphan's still-held reservation after restart
+      try {
+        // Sweep 1: orphan expired + unbound → finalized and released.
+        expect(await reclaimExpiredHostPorts(db, CONFIGURED)).to.equal(1)
+        expect(reservedHostPortsInRange([48000, 48999])).to.not.include(48020)
+
+        // A NEW start reuses the freed port (its job/endpoint not persisted yet).
+        reserveHostPort(48020)
+        // Sweep 2: the orphan is now Expired (gone from the query) → the reused port is NOT touched.
+        expect(await reclaimExpiredHostPorts(db, CONFIGURED)).to.equal(0)
+        expect(reservedHostPortsInRange([48000, 48999])).to.include(48020)
+      } finally {
+        releaseHostPort(48020)
       }
     })
   })

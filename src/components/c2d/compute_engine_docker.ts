@@ -2470,9 +2470,12 @@ export class C2DEngineDocker extends C2DEngine {
       // Host-wide safety net: free in-memory host-port reservations left behind by services whose
       // owning daemon was REMOVED from config. No engine runs expireService for them, so without
       // this their port would stay reserved (and advertised as used) for the rest of the process
-      // once their paid window ends. Runs every tick; only releases expired, unbound, non-active
-      // ports, so it never disturbs a live, in-flight or mid-teardown reservation.
-      const reclaimed = await reclaimExpiredHostPorts(this.db)
+      // once their paid window ends. The configured-cluster set tells reclaim which expired jobs
+      // still belong to a live engine (left to that engine's expireService) vs. are orphaned.
+      const configuredClusterHashes = new Set(
+        (this.getConfig().c2dClusters ?? []).map((c) => c.hash)
+      )
+      const reclaimed = await reclaimExpiredHostPorts(this.db, configuredClusterHashes)
       if (reclaimed > 0)
         CORE_LOGGER.info(`Reclaimed ${reclaimed} expired orphan service host port(s)`)
       CORE_LOGGER.resetThrottle(`c2d-internal-loop-${this.getC2DConfig().hash}`)

@@ -1,5 +1,9 @@
 import net from 'net'
 import type { ServiceJob } from '../../../@types/C2D/ServiceOnDemand.js'
+import {
+  ServiceStatusNumber,
+  ServiceStatusText
+} from '../../../@types/C2D/ServiceOnDemand.js'
 import type { ServicePortRequest } from '../../../@types/commands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
@@ -184,35 +188,72 @@ export async function seedAllocatedPorts(db: C2DDatabase): Promise<void> {
   }
 }
 
-// Release in-memory host-port reservations whose owning service job's paid window has already
-// ended. seedAllocatedPorts only drops expired ports at boot; this is the mid-run counterpart, so
-// an orphaned reservation (owning daemon removed from config → no engine runs its expiry sweep)
-// is freed during the SAME process, not held until the next restart. Host-wide (every cluster),
-// because the point is to reach jobs no surviving engine queries.
+// Release in-memory host-port reservations left by ORPHANED service jobs — jobs whose owning
+// daemon was removed from config, so no engine runs their expiry sweep. seedAllocatedPorts only
+// drops expired ports at boot; this is the mid-run counterpart, freeing them during the SAME
+// process instead of holding them until the next restart. `configuredClusterHashes` is every
+// cluster that still has an engine: an expired job on one of those is left ENTIRELY to its own
+// engine's expireService (container teardown, output archival, then release) — reclaim must never
+// pre-empt that. Only expired jobs on absent clusters are reclaimed here.
 //
-// Three guards make it safe to release — it never clears an active or in-flight reservation:
-//   - only ports listed on a job whose `expiresAt` has passed are candidates (an in-flight
-//     reservation is not yet on any persisted job's endpoints, so it is never a candidate);
-//   - a port a still-active (in-window) job also holds is skipped (port reused after release);
-//   - a port still bound at the OS level is skipped — a configured cluster's service that is
-//     expired but mid-teardown keeps its container (and port) until its own expireService frees
-//     it, exactly as before; only a genuinely unbound (stopped/gone) port is reclaimed here.
+// Each reclaimed job is FINALIZED (status → Expired) before its ports are released. This is the
+// crux of the correctness, not bookkeeping: an orphan left Stopped keeps appearing in
+// getRunningServiceJobs() on every later sweep, so once its port is freed and a NEW start reuses
+// it (that start's endpoint not yet persisted, so not in `active`), the next sweep would see the
+// port as still belonging to the expired orphan and wrongly release the new reservation — charging
+// a service whose container then cannot bind. Marking the orphan Expired drops it from future
+// sweeps so the port is never re-flagged; and because the port stays reserved until the job is
+// terminal, no new start can grab it until it is permanently de-flagged (the in-memory set already
+// serialises reservation — a port in allocatedPorts cannot be re-reserved). Guards on release:
+//   - a port a still-active (in-window) job also holds is never released (port reused);
+//   - a job is reclaimed only if EVERY one of its reserved ports is genuinely unbound at the OS
+//     level — if a container still binds one, the whole job is left for a later sweep (don't
+//     finalize or half-release a job whose container is still up).
 // Returns how many ports were released.
-export async function reclaimExpiredHostPorts(db: C2DDatabase): Promise<number> {
+export async function reclaimExpiredHostPorts(
+  db: C2DDatabase,
+  configuredClusterHashes: Set<string>
+): Promise<number> {
   const jobs = await db.getRunningServiceJobs()
   const now = Date.now()
-  const expired = new Set<number>()
   const active = new Set<number>()
+  const orphanExpired: ServiceJob[] = []
   for (const job of jobs) {
-    const target = job.expiresAt && job.expiresAt <= now ? expired : active
-    for (const ep of job.endpoints ?? []) target.add(ep.hostPort)
+    if (!(job.expiresAt && job.expiresAt <= now)) {
+      for (const ep of job.endpoints ?? []) active.add(ep.hostPort)
+    } else if (!configuredClusterHashes.has(job.clusterHash)) {
+      orphanExpired.push(job) // expired AND its cluster is gone
+    }
+    // expired + configured cluster → skip: its engine's expireService owns the teardown
   }
   let released = 0
-  for (const port of expired) {
-    if (active.has(port) || !allocatedPorts.has(port)) continue
-    if (!(await isPortFree(port))) continue // a container still binds it — leave it reserved
-    releaseHostPort(port)
-    released++
+  for (const job of orphanExpired) {
+    const reservedPorts = (job.endpoints ?? [])
+      .map((ep) => ep.hostPort)
+      .filter((p) => allocatedPorts.has(p) && !active.has(p))
+    if (!reservedPorts.length) continue
+    let allUnbound = true
+    for (const p of reservedPorts)
+      if (!(await isPortFree(p))) {
+        allUnbound = false // a container still holds this port — leave the whole job reserved
+        break
+      }
+    if (!allUnbound) continue
+    try {
+      // Finalize first (see note above): terminal status removes it from later sweeps.
+      job.status = ServiceStatusNumber.Expired
+      job.statusText = ServiceStatusText[ServiceStatusNumber.Expired]
+      await db.updateServiceJob(job)
+    } catch (e) {
+      CORE_LOGGER.error(
+        `reclaimExpiredHostPorts: could not finalize orphan job ${job.serviceId}: ${e?.message}`
+      )
+      continue // leave the ports reserved; retry next tick
+    }
+    for (const p of reservedPorts) {
+      releaseHostPort(p)
+      released++
+    }
   }
   return released
 }
