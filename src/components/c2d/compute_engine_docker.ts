@@ -1435,15 +1435,12 @@ export class C2DEngineDocker extends C2DEngine {
     const used = new Set<number>()
     try {
       const jobs = await this.db.getRunningServiceJobs() // host-wide; range-filtered below
-      const now = Date.now()
-      for (const job of jobs) {
-        // Gate on expiresAt exactly as seedAllocatedPorts does, so the advertised snapshot and the
-        // allocator's in-memory set agree: a reservation past its paid window is released (not
-        // reported used) even if no engine has marked the orphaned job Expired yet.
-        if (job.expiresAt && job.expiresAt <= now) continue
+      // Every non-terminal job (getRunningServiceJobs excludes Expired) still holds its reservation
+      // until it is finalized — same rule as seedAllocatedPorts — so the advertised snapshot and
+      // the allocator's in-memory set stay aligned.
+      for (const job of jobs)
         for (const ep of job.endpoints ?? [])
           if (ep.hostPort >= range[0] && ep.hostPort <= range[1]) used.add(ep.hostPort)
-      }
     } catch (e) {
       // Degrade gracefully: a DB hiccup must not fail the whole environments response. The
       // in-memory reservations below still give a partial, safe-side view.
@@ -2469,13 +2466,24 @@ export class C2DEngineDocker extends C2DEngine {
       }
       // Host-wide safety net: free in-memory host-port reservations left behind by services whose
       // owning daemon was REMOVED from config. No engine runs expireService for them, so without
-      // this their port would stay reserved (and advertised as used) for the rest of the process
-      // once their paid window ends. The configured-cluster set tells reclaim which expired jobs
-      // still belong to a live engine (left to that engine's expireService) vs. are orphaned.
-      const configuredClusterHashes = new Set(
-        (this.getConfig().c2dClusters ?? []).map((c) => c.hash)
+      // this their port would stay reserved (and advertised as used) for the rest of the process.
+      // The configured-cluster set tells reclaim which expired jobs still belong to a live engine
+      // (left to that engine's expireService) vs. are orphaned. localReclaimableRanges are the
+      // ranges of currently-configured LOCAL (socket-based) docker daemons — the only ports whose
+      // teardown the local isPortFree probe can actually confirm, so reclaim finalizes only those.
+      const clusters = this.getConfig().c2dClusters ?? []
+      const configuredClusterHashes = new Set(clusters.map((c) => c.hash))
+      const localReclaimableRanges: [number, number][] = clusters
+        .map((c) => c.connection)
+        .filter((conn) => conn?.socketPath && conn?.serviceOnDemand?.enabled)
+        .map(
+          (conn) => conn.serviceOnDemand.hostPortRange ?? DEFAULT_SERVICE_HOST_PORT_RANGE
+        )
+      const reclaimed = await reclaimExpiredHostPorts(
+        this.db,
+        configuredClusterHashes,
+        localReclaimableRanges
       )
-      const reclaimed = await reclaimExpiredHostPorts(this.db, configuredClusterHashes)
       if (reclaimed > 0)
         CORE_LOGGER.info(`Reclaimed ${reclaimed} expired orphan service host port(s)`)
       CORE_LOGGER.resetThrottle(`c2d-internal-loop-${this.getC2DConfig().hash}`)

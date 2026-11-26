@@ -1,6 +1,7 @@
 import { expect } from 'chai'
 import net from 'net'
 import type { ServiceJob } from '../../../@types/C2D/ServiceOnDemand.js'
+import { ServiceStatusNumber } from '../../../@types/C2D/ServiceOnDemand.js'
 import {
   userDataToEnv,
   toPublicServiceJob,
@@ -246,12 +247,13 @@ describe('service utils', () => {
     })
   })
 
-  describe('seedAllocatedPorts (host-wide, expiresAt-gated restart seeding)', () => {
+  describe('seedAllocatedPorts (host-wide; reserved until finalized)', () => {
     const future = Date.now() + 60 * 60 * 1000
     const past = Date.now() - 1000
-    // Stub db: returns persisted service jobs across DIFFERENT clusters, as getRunningServiceJobs()
-    // (no clusterHash) would after a restart. 47001 belongs to a daemon that was removed from
-    // config; 47003 has no expiresAt; 47002's paid window has already ended.
+    // getRunningServiceJobs() returns exactly the NON-TERMINAL jobs (it excludes Expired), across
+    // every cluster, as it would after a restart. 47001 is on a removed daemon; 47002 is past its
+    // paid window but NOT yet finalized; 47003 has no expiresAt. All three are still reserved —
+    // release is driven by finalization (Expired), not by expiresAt.
     const db: any = {
       getRunningServiceJobs: () =>
         Promise.resolve([
@@ -261,33 +263,34 @@ describe('service utils', () => {
         ])
     }
 
-    it('reserves in-window ports from every cluster and skips expired ones', async () => {
+    it('reserves every non-terminal job across clusters (no expiresAt skip)', async () => {
       await seedAllocatedPorts(db)
       try {
         const got = reservedHostPortsInRange([47000, 47999])
-        expect(got).to.include(47001) // orphan from a removed daemon — still honored
-        expect(got).to.include(47003) // no expiresAt → honored
-        expect(got).to.not.include(47002) // past paid window → released (not re-seeded)
+        expect(got).to.include(47001) // orphan from a removed daemon
+        expect(got).to.include(47002) // past paid window but not finalized → still reserved
+        expect(got).to.include(47003) // no expiresAt
       } finally {
-        ;[47001, 47003].forEach((p) => releaseHostPort(p))
+        ;[47001, 47002, 47003].forEach((p) => releaseHostPort(p))
       }
     })
 
     it('a seeded orphan port cannot be stolen by another daemon after restart', async () => {
-      // Regression for the transition CodeRabbit flagged: removed daemon + stopped (unbound) paid
-      // service + restart. seedAllocatedPorts must make the allocator refuse that still-reserved
-      // port even though nothing binds it at the OS level.
+      // Regression: removed daemon + stopped (unbound) paid service + restart. seedAllocatedPorts
+      // must make the allocator refuse that still-reserved port even though nothing binds it at the
+      // OS level.
       await seedAllocatedPorts(db)
       try {
         await assertRejects(reserveSpecificHostPort(47001, 47000, 47999), /not free/)
       } finally {
-        ;[47001, 47003].forEach((p) => releaseHostPort(p))
+        ;[47001, 47002, 47003].forEach((p) => releaseHostPort(p))
       }
     })
   })
 
   describe('reclaimExpiredHostPorts (mid-run orphan release, no restart)', () => {
     const CONFIGURED = new Set(['current'])
+    const LOCAL_RANGES: [number, number][] = [[48000, 48999]]
 
     it('releases an orphan port once its window has passed, keeps active and in-flight ports', async () => {
       // Mutable job list so the SAME process can "advance past expiry" between calls — no restart.
@@ -316,14 +319,14 @@ describe('service utils', () => {
       reserveHostPort(48003) // in-flight: reserved, on no job's endpoints
       try {
         // Nothing expired yet → reclaim is a no-op.
-        expect(await reclaimExpiredHostPorts(db, CONFIGURED)).to.equal(0)
+        expect(await reclaimExpiredHostPorts(db, CONFIGURED, LOCAL_RANGES)).to.equal(0)
         expect(reservedHostPortsInRange([48000, 48999])).to.deep.equal([
           48001, 48002, 48003
         ])
 
         // Advance past the orphan's window (same process), then reclaim.
         orphanExpiresAt = Date.now() - 1000
-        const released = await reclaimExpiredHostPorts(db, CONFIGURED)
+        const released = await reclaimExpiredHostPorts(db, CONFIGURED, LOCAL_RANGES)
         expect(released).to.equal(1)
         const left = reservedHostPortsInRange([48000, 48999])
         expect(left).to.not.include(48001) // orphan freed mid-run
@@ -347,13 +350,36 @@ describe('service utils', () => {
             }
           ])
       }
-      await seedAllocatedPorts(db) // expiresAt past → seed does NOT reserve it...
-      reserveHostPort(48010) // ...but its engine still holds it until expireService runs
+      await seedAllocatedPorts(db) // non-terminal → reserved (held until its engine finalizes it)
       try {
-        expect(await reclaimExpiredHostPorts(db, CONFIGURED)).to.equal(0)
+        expect(await reclaimExpiredHostPorts(db, CONFIGURED, LOCAL_RANGES)).to.equal(0)
         expect(reservedHostPortsInRange([48000, 48999])).to.include(48010)
       } finally {
         releaseHostPort(48010)
+      }
+    })
+
+    it('never reclaims an orphan port outside every local daemon range (remote-unsafe)', async () => {
+      // isPortFree is a LOCAL probe; a port outside any local daemon's range may be on a remote
+      // host, so a free local port must not finalize it. Left reserved.
+      const db: any = {
+        updateServiceJob: () => Promise.resolve(1),
+        getRunningServiceJobs: () =>
+          Promise.resolve([
+            {
+              serviceId: 'remote-orphan',
+              clusterHash: 'removed',
+              endpoints: [{ hostPort: 49500 }], // outside LOCAL_RANGES ([48000,48999])
+              expiresAt: Date.now() - 1000
+            }
+          ])
+      }
+      await seedAllocatedPorts(db)
+      try {
+        expect(await reclaimExpiredHostPorts(db, CONFIGURED, LOCAL_RANGES)).to.equal(0)
+        expect(reservedHostPortsInRange([49000, 49999])).to.include(49500)
+      } finally {
+        releaseHostPort(49500)
       }
     })
 
@@ -371,24 +397,27 @@ describe('service utils', () => {
       const jobs: any[] = [orphan]
       const db: any = {
         getRunningServiceJobs: () => Promise.resolve(jobs.slice()),
-        // Finalizing to Expired drops the job from getRunningServiceJobs(), as the real query does
-        // (it excludes Expired). reclaim only calls updateServiceJob to finalize, so remove by id.
+        // Mirror the real query: it returns only NON-TERMINAL jobs, so a job drops out ONLY when it
+        // is finalized to Expired. Removing on any other status would hide a finalization bug, so
+        // the test fails unless reclaim writes exactly ServiceStatusNumber.Expired.
         updateServiceJob: (j: any) => {
-          const i = jobs.findIndex((x) => x.serviceId === j.serviceId)
-          if (i >= 0) jobs.splice(i, 1)
+          if (j.status === ServiceStatusNumber.Expired) {
+            const i = jobs.findIndex((x) => x.serviceId === j.serviceId)
+            if (i >= 0) jobs.splice(i, 1)
+          }
           return Promise.resolve(1)
         }
       }
       reserveHostPort(48020) // the orphan's still-held reservation after restart
       try {
-        // Sweep 1: orphan expired + unbound → finalized and released.
-        expect(await reclaimExpiredHostPorts(db, CONFIGURED)).to.equal(1)
+        // Sweep 1: orphan expired + local-range + unbound → finalized (Expired) and released.
+        expect(await reclaimExpiredHostPorts(db, CONFIGURED, LOCAL_RANGES)).to.equal(1)
         expect(reservedHostPortsInRange([48000, 48999])).to.not.include(48020)
 
         // A NEW start reuses the freed port (its job/endpoint not persisted yet).
         reserveHostPort(48020)
         // Sweep 2: the orphan is now Expired (gone from the query) → the reused port is NOT touched.
-        expect(await reclaimExpiredHostPorts(db, CONFIGURED)).to.equal(0)
+        expect(await reclaimExpiredHostPorts(db, CONFIGURED, LOCAL_RANGES)).to.equal(0)
         expect(reservedHostPortsInRange([48000, 48999])).to.include(48020)
       } finally {
         releaseHostPort(48020)
