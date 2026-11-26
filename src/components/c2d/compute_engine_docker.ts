@@ -828,8 +828,11 @@ export class C2DEngineDocker extends C2DEngine {
     await this.rebuildCpuAllocations()
     await this.rebuildServiceCpuAllocations()
 
-    // Re-seed the in-memory allocated-host-port set from running service jobs (handles node restart)
-    await seedAllocatedPorts(this.db, this.getC2DConfig().hash).catch((e) => {
+    // Re-seed the in-memory allocated-host-port set from running service jobs (handles node
+    // restart). Host-wide (all clusters) so a reservation held by a daemon that was removed from
+    // config is still honored for its paid window — see seedAllocatedPorts. Idempotent, so it is
+    // harmless that each engine runs it at boot.
+    await seedAllocatedPorts(this.db).catch((e) => {
       CORE_LOGGER.error(`Could not seed allocated service ports: ${e.message}`)
     })
 
@@ -1431,9 +1434,15 @@ export class C2DEngineDocker extends C2DEngine {
     const used = new Set<number>()
     try {
       const jobs = await this.db.getRunningServiceJobs() // host-wide; range-filtered below
-      for (const job of jobs)
+      const now = Date.now()
+      for (const job of jobs) {
+        // Gate on expiresAt exactly as seedAllocatedPorts does, so the advertised snapshot and the
+        // allocator's in-memory set agree: a reservation past its paid window is released (not
+        // reported used) even if no engine has marked the orphaned job Expired yet.
+        if (job.expiresAt && job.expiresAt <= now) continue
         for (const ep of job.endpoints ?? [])
           if (ep.hostPort >= range[0] && ep.hostPort <= range[1]) used.add(ep.hostPort)
+      }
     } catch (e) {
       // Degrade gracefully: a DB hiccup must not fail the whole environments response. The
       // in-memory reservations below still give a partial, safe-side view.

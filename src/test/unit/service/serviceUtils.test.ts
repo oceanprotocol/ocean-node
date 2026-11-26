@@ -13,6 +13,7 @@ import {
   isHostPortFree,
   portInRange,
   reservedHostPortsInRange,
+  seedAllocatedPorts,
   normalizePortSpec,
   parseSinceParam
 } from '../../../components/core/service/utils.js'
@@ -241,6 +242,46 @@ describe('service utils', () => {
       const b = reservedHostPortsInRange([44000, 44100])
       expect(a).to.deep.equal([])
       expect(a).to.not.equal(b) // a new array each call; mutating one must not affect the next
+    })
+  })
+
+  describe('seedAllocatedPorts (host-wide, expiresAt-gated restart seeding)', () => {
+    const future = Date.now() + 60 * 60 * 1000
+    const past = Date.now() - 1000
+    // Stub db: returns persisted service jobs across DIFFERENT clusters, as getRunningServiceJobs()
+    // (no clusterHash) would after a restart. 47001 belongs to a daemon that was removed from
+    // config; 47003 has no expiresAt; 47002's paid window has already ended.
+    const db: any = {
+      getRunningServiceJobs: () =>
+        Promise.resolve([
+          { clusterHash: 'removed', endpoints: [{ hostPort: 47001 }], expiresAt: future },
+          { clusterHash: 'other', endpoints: [{ hostPort: 47002 }], expiresAt: past },
+          { clusterHash: 'current', endpoints: [{ hostPort: 47003 }] }
+        ])
+    }
+
+    it('reserves in-window ports from every cluster and skips expired ones', async () => {
+      await seedAllocatedPorts(db)
+      try {
+        const got = reservedHostPortsInRange([47000, 47999])
+        expect(got).to.include(47001) // orphan from a removed daemon — still honored
+        expect(got).to.include(47003) // no expiresAt → honored
+        expect(got).to.not.include(47002) // past paid window → released (not re-seeded)
+      } finally {
+        ;[47001, 47003].forEach((p) => releaseHostPort(p))
+      }
+    })
+
+    it('a seeded orphan port cannot be stolen by another daemon after restart', async () => {
+      // Regression for the transition CodeRabbit flagged: removed daemon + stopped (unbound) paid
+      // service + restart. seedAllocatedPorts must make the allocator refuse that still-reserved
+      // port even though nothing binds it at the OS level.
+      await seedAllocatedPorts(db)
+      try {
+        await assertRejects(reserveSpecificHostPort(47001, 47000, 47999), /not free/)
+      } finally {
+        ;[47001, 47003].forEach((p) => releaseHostPort(p))
+      }
     })
   })
 

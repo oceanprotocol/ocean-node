@@ -164,12 +164,24 @@ export function parseSinceParam(since?: string): number | undefined {
 // Port allocation — in-memory set seeded from DB on engine restart
 const allocatedPorts = new Set<number>()
 
-export async function seedAllocatedPorts(
-  db: C2DDatabase,
-  clusterHash: string
-): Promise<void> {
-  const jobs = await db.getRunningServiceJobs(clusterHash)
-  for (const job of jobs) for (const ep of job.endpoints) allocatedPorts.add(ep.hostPort)
+// Re-seed the in-memory reservation set from persisted jobs after a (re)start. Intentionally
+// HOST-WIDE (every cluster, not one daemon's hash): a paid service's host-port reservation must
+// survive a restart for its whole paid window, INCLUDING when the owning daemon was removed from
+// config. Such an orphaned service keeps a DB record but has no engine to re-seed its port or to
+// OS-bind it (its container is gone once stopped), so a per-cluster seed would leave its port
+// unprotected and another daemon whose range now covers it could reserve it mid-window. Seeding
+// host-wide makes the allocator honor every persisted reservation. Gated on `expiresAt`: a job
+// past its paid window has no claim on the port, so it is NOT re-seeded — this is the eventual
+// release for an orphan that no engine will ever mark Expired (bounded to the next restart). Uses
+// the same host-wide source buildServiceOnDemandPortInfo advertises, keeping the allocator and the
+// advertised usedHostPorts snapshot aligned.
+export async function seedAllocatedPorts(db: C2DDatabase): Promise<void> {
+  const jobs = await db.getRunningServiceJobs()
+  const now = Date.now()
+  for (const job of jobs) {
+    if (job.expiresAt && job.expiresAt <= now) continue
+    for (const ep of job.endpoints ?? []) allocatedPorts.add(ep.hostPort)
+  }
 }
 
 export async function allocateHostPort(
