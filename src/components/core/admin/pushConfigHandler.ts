@@ -10,6 +10,7 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import { getConfiguration, getConfigFilePath } from '../../../utils/config/index.js'
 import { OceanNodeConfigSchema } from '../../../utils/config/schemas.js'
+import { assertNoOverlappingServiceHostPortRanges } from '../../../utils/config/builder.js'
 import fs from 'fs'
 
 export class PushConfigHandler extends AdminCommandHandler {
@@ -29,6 +30,15 @@ export class PushConfigHandler extends AdminCommandHandler {
       const mergedConfig = { ...currentConfig, ...command.config }
 
       OceanNodeConfigSchema.parse(mergedConfig)
+
+      // Overlap is enforced at config build (buildC2DClusters), which runs AFTER the handler has
+      // already written the file — so a config that passes the Zod schema but has overlapping
+      // service host-port ranges would be persisted and then crash the next startup. Run the same
+      // check here, before any save, so a bad push is rejected and the on-disk config is left
+      // intact. Field name mirrors builder.ts (OceanNodeConfig.dockerComputeEnvironments).
+      assertNoOverlappingServiceHostPortRanges(
+        (mergedConfig as any).dockerComputeEnvironments
+      )
     } catch (error) {
       if (error.name === 'ZodError') {
         const issues = error.issues

@@ -1407,15 +1407,21 @@ export class C2DEngineDocker extends C2DEngine {
   // Build the daemon-level Service-on-Demand port-discovery block (range + in-use host ports)
   // ONCE per getComputeEnvironments call. Returned undefined when this daemon has no
   // Service-on-Demand config (or it is disabled / has no reachable nodeHost), in which case the
-  // field is simply omitted from the environments. `usedHostPorts` is the union of two sources,
-  // both scoped to THIS daemon:
+  // field is simply omitted from the environments. `usedHostPorts` is the union of two sources:
   //   1. running service jobs' endpoint host ports (persisted, authoritative — includes every
   //      status that still holds a reservation, Starting through Stopped),
-  //   2. in-memory reservations inside the range (covers the brief in-flight window after a
-  //      start reserves a port but before its job endpoints are persisted).
-  // Both are filtered to the daemon's hostPortRange so ports outside the advertised range (or
-  // belonging to another daemon) never appear. Best-effort snapshot: the start handler's
-  // charge-safe reservation remains the real guarantee against a port conflict.
+  //   2. in-memory reservations (covers the brief in-flight window after a start reserves a port
+  //      but before its job endpoints are persisted).
+  // Both are filtered to this daemon's hostPortRange. The DB read is intentionally host-wide
+  // (ALL clusters, not just this cluster's hash) and then range-filtered: a host port is a
+  // host-wide resource, and because ranges are guaranteed disjoint across active daemons
+  // (assertNoOverlappingServiceHostPortRanges), everything a job holds inside THIS range belongs
+  // to this daemon — INCLUDING a port still held by a paid service of a daemon that was since
+  // disabled or re-ranged onto a range this daemon now owns. Scoping to clusterHash would miss
+  // that stale port and advertise it as free. (The allocator's own OS-freeness check in
+  // reserveSpecificHostPort / allocateHostPort is the authoritative backstop that still prevents
+  // a double-bind in that transition; this only keeps the advertised snapshot honest.)
+  // Best-effort snapshot: the start handler's charge-safe reservation remains the real guarantee.
   private async buildServiceOnDemandPortInfo(): Promise<
     ComputeEnvironmentServiceOnDemand | undefined
   > {
@@ -1424,7 +1430,7 @@ export class C2DEngineDocker extends C2DEngine {
     const range: [number, number] = sod.hostPortRange ?? DEFAULT_SERVICE_HOST_PORT_RANGE
     const used = new Set<number>()
     try {
-      const jobs = await this.db.getRunningServiceJobs(this.getC2DConfig().hash)
+      const jobs = await this.db.getRunningServiceJobs() // host-wide; range-filtered below
       for (const job of jobs)
         for (const ep of job.endpoints ?? [])
           if (ep.hostPort >= range[0] && ep.hostPort <= range[1]) used.add(ep.hostPort)

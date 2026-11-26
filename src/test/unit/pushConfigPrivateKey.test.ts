@@ -128,6 +128,30 @@ describe('pushConfig / fetchConfig never return the private key', () => {
     expect(node.getConfig().keys.privateKey).to.equal(privateKey())
   })
 
+  it('rejects a config whose service host-port ranges overlap, leaving the file intact', async () => {
+    // Two schema-valid docker daemons (clones of the base entry) with overlapping
+    // serviceOnDemand ranges. The overlap is caught in validate(), BEFORE any save, so the push
+    // is a 400 and the previous on-disk config is untouched (would otherwise crash next startup).
+    const base = node.getConfig().dockerComputeEnvironments[0]
+    const withSod = (range: [number, number]) => ({
+      ...structuredClone(base),
+      serviceOnDemand: { enabled: true, nodeHost: 'localhost', hostPortRange: range }
+    })
+    const before = fs.readFileSync(configPath, 'utf-8')
+
+    const response = await new PushConfigHandler(node).handle({
+      ...signedCommand(PROTOCOL_COMMANDS.PUSH_CONFIG),
+      config: {
+        dockerComputeEnvironments: [withSod([30000, 31000]), withSod([30900, 32000])]
+      }
+    })
+
+    expect(response.status.httpStatus).to.equal(400)
+    expect((response.status.error || '').toLowerCase()).to.include('overlap')
+    // The file is byte-for-byte unchanged: nothing was saved, so the node can still boot.
+    expect(fs.readFileSync(configPath, 'utf-8')).to.equal(before)
+  })
+
   it('fetchConfig answers without the private key', async () => {
     const response = await new FetchConfigHandler(node).handle(
       signedCommand(PROTOCOL_COMMANDS.FETCH_CONFIG)

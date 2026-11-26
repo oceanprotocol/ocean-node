@@ -78,13 +78,25 @@ describe('C2D engine — buildServiceOnDemandPortInfo', () => {
         expect(info.hostPortRange).to.deep.equal([45000, 45999])
         expect(info.maxPortsPerService).to.equal(64)
         expect(info.usedHostPorts).to.deep.equal([45005, 45010, 45020, 45030])
-        // scoped to this daemon's cluster hash
-        expect(engine.db.getRunningServiceJobs.calledWith('cluster-hash-1')).to.equal(
-          true
-        )
+        // host-wide query (NOT scoped to a cluster hash): a host port is a host-wide resource,
+        // and ranges are disjoint, so range-filtering across all clusters is what keeps a stale
+        // port from a disabled/re-ranged daemon in this range visible.
+        expect(engine.db.getRunningServiceJobs.calledWithExactly()).to.equal(true)
       } finally {
         ;[45010, 45020, 46500].forEach((p) => releaseHostPort(p))
       }
+    })
+
+    it('includes a stale port from another cluster that now falls in this range', async () => {
+      // Transition case: a paid service of a daemon that was disabled/re-ranged still holds a
+      // port that now sits inside THIS daemon's range. Host-wide range-filtering must surface it.
+      const jobs = [
+        { clusterHash: 'old-daemon', endpoints: [{ hostPort: 45040 }] },
+        { clusterHash: 'cluster-hash-1', endpoints: [{ hostPort: 45041 }] }
+      ]
+      const engine = makeEngine(enabledSod(), jobs)
+      const info = await engine.buildServiceOnDemandPortInfo()
+      expect(info.usedHostPorts).to.deep.equal([45040, 45041])
     })
 
     it('defaults hostPortRange to DEFAULT_SERVICE_HOST_PORT_RANGE when unset', async () => {
