@@ -119,6 +119,14 @@ Two request shapes, both optional:
 > (Typesense `8108` / Elasticsearch `9200`). The schema already forbids privileged ports
 > (`< 1024`) and the default `[30000, 32767]` is clear of all node ports; the OS-freeness check is
 > only a last line of defence, so pick a range that cannot collide with the node's own services.
+>
+> **Multiple daemons must use disjoint ranges.** Host-port reservations live in one process-wide
+> pool, so when a node runs several service-enabled docker daemons (multiple
+> `DOCKER_COMPUTE_ENVIRONMENTS` entries) their `hostPortRange`s **must not overlap** — otherwise a
+> reservation on one daemon would block the same port on another and corrupt the per-daemon
+> `usedHostPorts` snapshot below. This is **enforced at startup**: the node **refuses to boot** if
+> two service-enabled daemons have overlapping ranges (two daemons that both omit `hostPortRange`
+> share the default `[30000, 32767]` and so overlap — give each an explicit disjoint range).
 
 **Discovering the range and the ports already in use.** Before pinning a host port, a client needs
 to know (1) which range it may pin inside, and (2) which ports are already taken. Both are

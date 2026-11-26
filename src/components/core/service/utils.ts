@@ -210,8 +210,9 @@ export function portInRange(port: number, range: [number, number]): boolean {
 // that has reserved it but whose job endpoints are not persisted yet — on top of the ports it
 // reads from the running-jobs table. The in-memory set is process-wide (it spans every daemon
 // in the node), so the caller MUST pass its own daemon's hostPortRange: filtering to the range
-// keeps one daemon from advertising another daemon's ports as used (daemon ranges must not
-// overlap — see the operator note in docs/services.md). Returns a fresh array; never the set.
+// keeps one daemon from advertising another daemon's ports as used. This is exact only because
+// daemon ranges are guaranteed DISJOINT — overlap is rejected at config load by
+// assertNoOverlappingServiceHostPortRanges (src/utils/config/builder.ts). Returns a fresh array.
 export function reservedHostPortsInRange(range: [number, number]): number[] {
   const out: number[] = []
   for (const port of allocatedPorts) if (portInRange(port, range)) out.push(port)
