@@ -14,6 +14,7 @@ import {
   portInRange,
   reservedHostPortsInRange,
   seedAllocatedPorts,
+  reclaimExpiredHostPorts,
   normalizePortSpec,
   parseSinceParam
 } from '../../../components/core/service/utils.js'
@@ -281,6 +282,50 @@ describe('service utils', () => {
         await assertRejects(reserveSpecificHostPort(47001, 47000, 47999), /not free/)
       } finally {
         ;[47001, 47003].forEach((p) => releaseHostPort(p))
+      }
+    })
+  })
+
+  describe('reclaimExpiredHostPorts (mid-run orphan release, no restart)', () => {
+    it('releases an orphan port once its window has passed, keeps active and in-flight ports', async () => {
+      // Mutable job list so the SAME process can "advance past expiry" between calls — no restart.
+      let orphanExpiresAt = Date.now() + 60 * 60 * 1000 // in-window at first
+      const db: any = {
+        getRunningServiceJobs: () =>
+          Promise.resolve([
+            {
+              clusterHash: 'removed',
+              endpoints: [{ hostPort: 48001 }],
+              expiresAt: orphanExpiresAt
+            },
+            {
+              clusterHash: 'current',
+              endpoints: [{ hostPort: 48002 }],
+              expiresAt: Date.now() + 60 * 60 * 1000
+            } // stays active
+          ])
+      }
+
+      // Boot: seed reserves both. Also simulate an in-flight reservation with no persisted job.
+      await seedAllocatedPorts(db)
+      reserveHostPort(48003) // in-flight: reserved, on no job's endpoints
+      try {
+        // Nothing expired yet → reclaim is a no-op.
+        expect(await reclaimExpiredHostPorts(db)).to.equal(0)
+        expect(reservedHostPortsInRange([48000, 48999])).to.deep.equal([
+          48001, 48002, 48003
+        ])
+
+        // Advance past the orphan's window (same process), then reclaim.
+        orphanExpiresAt = Date.now() - 1000
+        const released = await reclaimExpiredHostPorts(db)
+        expect(released).to.equal(1)
+        const left = reservedHostPortsInRange([48000, 48999])
+        expect(left).to.not.include(48001) // orphan freed mid-run
+        expect(left).to.include(48002) // active job's port kept
+        expect(left).to.include(48003) // in-flight reservation kept
+      } finally {
+        ;[48001, 48002, 48003].forEach((p) => releaseHostPort(p))
       }
     })
   })

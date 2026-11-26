@@ -166,6 +166,7 @@ import {
   reserveSpecificHostPort,
   HostPortUnavailableError,
   seedAllocatedPorts,
+  reclaimExpiredHostPorts,
   reservedHostPortsInRange,
   userDataToEnv,
   decryptUserData
@@ -2466,6 +2467,14 @@ export class C2DEngineDocker extends C2DEngine {
           )
         )
       }
+      // Host-wide safety net: free in-memory host-port reservations left behind by services whose
+      // owning daemon was REMOVED from config. No engine runs expireService for them, so without
+      // this their port would stay reserved (and advertised as used) for the rest of the process
+      // once their paid window ends. Runs every tick; only releases expired, unbound, non-active
+      // ports, so it never disturbs a live, in-flight or mid-teardown reservation.
+      const reclaimed = await reclaimExpiredHostPorts(this.db)
+      if (reclaimed > 0)
+        CORE_LOGGER.info(`Reclaimed ${reclaimed} expired orphan service host port(s)`)
       CORE_LOGGER.resetThrottle(`c2d-internal-loop-${this.getC2DConfig().hash}`)
     } catch (e) {
       // runs every tick: log the first failure, then at most once per interval

@@ -184,6 +184,39 @@ export async function seedAllocatedPorts(db: C2DDatabase): Promise<void> {
   }
 }
 
+// Release in-memory host-port reservations whose owning service job's paid window has already
+// ended. seedAllocatedPorts only drops expired ports at boot; this is the mid-run counterpart, so
+// an orphaned reservation (owning daemon removed from config → no engine runs its expiry sweep)
+// is freed during the SAME process, not held until the next restart. Host-wide (every cluster),
+// because the point is to reach jobs no surviving engine queries.
+//
+// Three guards make it safe to release — it never clears an active or in-flight reservation:
+//   - only ports listed on a job whose `expiresAt` has passed are candidates (an in-flight
+//     reservation is not yet on any persisted job's endpoints, so it is never a candidate);
+//   - a port a still-active (in-window) job also holds is skipped (port reused after release);
+//   - a port still bound at the OS level is skipped — a configured cluster's service that is
+//     expired but mid-teardown keeps its container (and port) until its own expireService frees
+//     it, exactly as before; only a genuinely unbound (stopped/gone) port is reclaimed here.
+// Returns how many ports were released.
+export async function reclaimExpiredHostPorts(db: C2DDatabase): Promise<number> {
+  const jobs = await db.getRunningServiceJobs()
+  const now = Date.now()
+  const expired = new Set<number>()
+  const active = new Set<number>()
+  for (const job of jobs) {
+    const target = job.expiresAt && job.expiresAt <= now ? expired : active
+    for (const ep of job.endpoints ?? []) target.add(ep.hostPort)
+  }
+  let released = 0
+  for (const port of expired) {
+    if (active.has(port) || !allocatedPorts.has(port)) continue
+    if (!(await isPortFree(port))) continue // a container still binds it — leave it reserved
+    releaseHostPort(port)
+    released++
+  }
+  return released
+}
+
 export async function allocateHostPort(
   rangeStart: number,
   rangeEnd: number
