@@ -6,14 +6,21 @@ import {
   ValidateParams,
   validateCommandParameters,
   buildInvalidParametersResponse,
-  buildInvalidRequestMessage
+  buildInvalidRequestMessage,
+  validatePortSpecStructure
 } from '../../httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import type { ComputeEnvironment } from '../../../@types/C2D/C2D.js'
 import { ServiceStatusNumber } from '../../../@types/C2D/ServiceOnDemand.js'
 import { validateAccess } from '../compute/startCompute.js'
 import { isJobMetadataSizeValid, INVALID_JOB_METADATA_MESSAGE } from '../../c2d/index.js'
-import { decryptUserData, findServiceJobAndEngine, toPublicServiceJob } from './utils.js'
+import {
+  decryptUserData,
+  findServiceJobAndEngine,
+  toPublicServiceJob,
+  normalizePortSpec,
+  HostPortUnavailableError
+} from './utils.js'
 import { PersistentStorageAccessDeniedError } from '../../persistentStorage/PersistentStorageFactory.js'
 import {
   restartSubsidyDropped,
@@ -60,6 +67,12 @@ export class ServiceRestartHandler extends CommandHandler {
     // `respec` block — a lone oversized metadata bag must still be rejected up front (400).
     if (!isJobMetadataSizeValid(command.metadata))
       return buildInvalidRequestMessage(INVALID_JOB_METADATA_MESSAGE)
+    // Ports are likewise independent of RESPEC (a port change does NOT require `image`); only
+    // the structure is checked here, range/freeness is enforced in the engine.
+    if (command.ports !== undefined) {
+      const portsValidation = validatePortSpecStructure(command.ports)
+      if (portsValidation) return portsValidation
+    }
     return commandValidation
   }
 
@@ -216,6 +229,11 @@ export class ServiceRestartHandler extends CommandHandler {
       // new container run in the background (an image pull can take minutes and must
       // not block the HTTP/P2P response). Clients poll SERVICE_GET_STATUS and watch
       // Restarting → … → Running (or an Error status with the failure reason).
+      // Port change is independent of REUSE/RESPEC: `ports` present ⇒ change ports, omitted ⇒
+      // keep the current ones. Only `ports` is honoured (not the legacy `exposedPorts`), so a
+      // client echoing a start body into a restart does not accidentally change ports.
+      const normalizedPorts =
+        task.ports !== undefined ? normalizePortSpec(task.ports, undefined) : undefined
       const restarted = await engine.restartService(
         task.serviceId,
         task.consumerAddress,
@@ -227,7 +245,9 @@ export class ServiceRestartHandler extends CommandHandler {
         task.userData,
         task.dockerCmd,
         task.dockerEntrypoint,
-        task.metadata
+        task.metadata,
+        normalizedPorts?.exposedPorts,
+        normalizedPorts?.requestedHostPorts
       )
       CORE_LOGGER.info(`Service ${task.serviceId} restarted by ${task.consumerAddress}`)
       return {
@@ -239,12 +259,16 @@ export class ServiceRestartHandler extends CommandHandler {
       // 403 for forbidden-action errors: the owner lost access to the service's output bucket, or the
       // subsidy image gate rejected the RESPEC on the fresh row under the lock (the handler's pre-lock
       // fast-fail already returns 403 — this covers the concurrent-extend race that only the backstop
-      // catches). Everything else is a genuine server fault → 500.
-      const httpStatus =
+      // catches). 400 when a requested host port is unavailable (a client error — out of range or
+      // taken by another service; the running service was left untouched). Everything else is a
+      // genuine server fault → 500.
+      let httpStatus = 500
+      if (
         error instanceof PersistentStorageAccessDeniedError ||
         error instanceof SubsidyGateError
-          ? 403
-          : 500
+      )
+        httpStatus = 403
+      else if (error instanceof HostPortUnavailableError) httpStatus = 400
       return { stream: null, status: { httpStatus, error: error.message } }
     }
   }
