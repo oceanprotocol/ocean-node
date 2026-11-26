@@ -1991,10 +1991,31 @@ fetch all compute environments
         { "id": "disk", "max": 1000000000, "inUse": 0 }
       ]
     },
-    "runningfreeJobs": 0
+    "runningfreeJobs": 0,
+    "serviceOnDemand": {
+      "nodeHost": "node1.example.com",
+      "hostPortRange": [30000, 32767],
+      "usedHostPorts": [30000, 30500],
+      "maxPortsPerService": 64
+    }
   }
 ]
 ```
+
+`serviceOnDemand` is the **per-daemon service-port discovery** block (additive; absent on older
+nodes and on daemons without a `serviceOnDemand` config). A client reads it to pin a host port on
+SERVICE_START / SERVICE_RESTART: pick any value inside `hostPortRange` that is **not** in
+`usedHostPorts`.
+
+- `nodeHost` — host/IP the forwarded service ports are reachable on.
+- `hostPortRange` — inclusive `[start, end]` a pinned `hostPort` must fall within.
+- `usedHostPorts` — host ports in range already reserved or bound, **daemon-wide** and ascending.
+  Because ports belong to the host the Docker engine runs on (not to one environment), **every
+  environment on the same daemon carries an identical `serviceOnDemand` block**, and a port is
+  listed as used even when the service holding it runs in a different environment of that daemon.
+  It is a best-effort snapshot — a port can be claimed between this read and the start — so the
+  charge-safe reservation in the start handler remains the real guarantee.
+- `maxPortsPerService` — cap on how many ports a single start/restart command may declare.
 
 `maxJobDuration` / `minJobDuration` apply to **compute jobs**. Services have their own pair,
 and SERVICE_START rejects a `duration` outside it:

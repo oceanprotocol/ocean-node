@@ -155,6 +155,22 @@ export interface C2DEnvironmentFreeConfig {
   allowImageBuild?: boolean
   buildTimeoutSeconds?: number // max image-build runtime; unset → runtime default (DEFAULT_BUILD_TIMEOUT_SECONDS)
 }
+// Daemon-level Service-on-Demand port discovery, surfaced on every environment that belongs
+// to the same Docker engine. Ports are a property of the HOST the Docker socket runs on, not
+// of a single environment, so every env on one daemon carries an IDENTICAL copy of this block
+// (the `usedHostPorts` union spans the whole daemon). A client uses it to pick a free host
+// port to PIN on SERVICE_START / SERVICE_RESTART (see `ServicePortRequest`): choose any value
+// inside `hostPortRange` that is not in `usedHostPorts`. It is a best-effort snapshot — a port
+// can be claimed between this read and the start — so the authoritative, charge-safe guarantee
+// stays the start handler's reservation (a lost race returns a no-charge 400 / Starting→Error).
+// Present only when the daemon has Service-on-Demand enabled with a reachable `nodeHost`.
+export interface ComputeEnvironmentServiceOnDemand {
+  nodeHost: string // host/IP clients use to reach forwarded ports (from serviceOnDemand.nodeHost)
+  hostPortRange: [number, number] // inclusive [start, end] a pinned host port must fall within
+  usedHostPorts: number[] // host ports in range already reserved or bound, daemon-wide, ascending
+  maxPortsPerService: number // max ports a single SERVICE_START / SERVICE_RESTART may declare
+}
+
 export interface ComputeEnvironmentBaseConfig {
   description?: string // v1
   storageExpiry?: number // amount of seconds for storage
@@ -171,6 +187,10 @@ export interface ComputeEnvironmentBaseConfig {
   platform: RunningPlatform
   enableNetwork?: boolean // whether network is enabled for algorithm containers
   features?: ComputeEnvFeatures // always populated at runtime construction; gates compute/service starts
+  // Daemon-level service port discovery (range + in-use host ports), stamped identically on
+  // every env of the daemon at getComputeEnvironments() time. Absent when the daemon has no
+  // Service-on-Demand config. See ComputeEnvironmentServiceOnDemand.
+  serviceOnDemand?: ComputeEnvironmentServiceOnDemand
 }
 
 export interface ComputeRuntimes {

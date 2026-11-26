@@ -120,6 +120,35 @@ Two request shapes, both optional:
 > (`< 1024`) and the default `[30000, 32767]` is clear of all node ports; the OS-freeness check is
 > only a last line of defence, so pick a range that cannot collide with the node's own services.
 
+**Discovering the range and the ports already in use.** Before pinning a host port, a client needs
+to know (1) which range it may pin inside, and (2) which ports are already taken. Both are
+surfaced on each environment returned by `getComputeEnvironments`, in a per-daemon
+`serviceOnDemand` block:
+
+```jsonc
+"serviceOnDemand": {
+  "nodeHost": "node1.example.com",   // where forwarded ports are reachable
+  "hostPortRange": [30000, 32767],   // the inclusive range a pin must fall inside
+  "usedHostPorts": [30000, 30500],   // host ports in range already reserved or bound
+  "maxPortsPerService": 64           // cap on ports per start/restart command
+}
+```
+
+To pick a host port to pin, choose any value inside `hostPortRange` that is **not** in
+`usedHostPorts`. Because **ports belong to the host the Docker engine runs on, not to a single
+environment**, every environment on the same daemon carries an **identical** `serviceOnDemand`
+block and a **daemon-wide** `usedHostPorts` union — so an environment reports a port as used even
+when the service holding it runs in a *different* environment of the same daemon. A node that
+exposes several daemons (several `DOCKER_COMPUTE_ENVIRONMENTS` entries) reports a separate block
+per daemon, each with its own range and used set. Environments on a daemon that has no
+Service-on-Demand config omit the block entirely.
+
+`usedHostPorts` is a **best-effort snapshot**: a port can be claimed between reading it and
+starting a service, so a pin you believed free can still lose the race. That is harmless — the
+authoritative, charge-safe reservation stays in the start handler (a lost race returns a no-charge
+`400`, or a `Starting` job that becomes `Error`). Treat the block as a hint that makes conflicts
+rare, not a guarantee.
+
 `serviceRestart` accepts `ports` too — independent of REUSE/RESPEC, exactly like `metadata`
 (a port change does **not** require `image`). Send `ports` to change the service's ports; omit it
 to keep the current ones. (Restart reads only `ports`, not the legacy `exposedPorts` — so a client

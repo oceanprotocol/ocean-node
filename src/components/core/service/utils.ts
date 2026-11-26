@@ -205,6 +205,19 @@ export function portInRange(port: number, range: [number, number]): boolean {
   return Number.isInteger(port) && port >= range[0] && port <= range[1]
 }
 
+// Read-only snapshot of the in-memory host-port reservations that fall inside `range`. Lets
+// getComputeEnvironments surface IN-FLIGHT reservations — a port claimed by a service start
+// that has reserved it but whose job endpoints are not persisted yet — on top of the ports it
+// reads from the running-jobs table. The in-memory set is process-wide (it spans every daemon
+// in the node), so the caller MUST pass its own daemon's hostPortRange: filtering to the range
+// keeps one daemon from advertising another daemon's ports as used (daemon ranges must not
+// overlap — see the operator note in docs/services.md). Returns a fresh array; never the set.
+export function reservedHostPortsInRange(range: [number, number]): number[] {
+  const out: number[] = []
+  for (const port of allocatedPorts) if (portInRange(port, range)) out.push(port)
+  return out
+}
+
 // Best-effort, NON-reserving freeness check for a specific host port — a port is "free" when it
 // is neither in the in-memory reservation set nor bound at the OS level. Used by the service
 // start handler for a fast 400 on an obviously-unavailable pinned port; it does not reserve, so

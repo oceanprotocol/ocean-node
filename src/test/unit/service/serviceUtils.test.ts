@@ -12,6 +12,7 @@ import {
   reserveSpecificHostPort,
   isHostPortFree,
   portInRange,
+  reservedHostPortsInRange,
   normalizePortSpec,
   parseSinceParam
 } from '../../../components/core/service/utils.js'
@@ -204,6 +205,42 @@ describe('service utils', () => {
       expect(portInRange(29999, [30000, 32767])).to.equal(false)
       expect(portInRange(32768, [30000, 32767])).to.equal(false)
       expect(portInRange(30000.5, [30000, 32767])).to.equal(false)
+    })
+  })
+
+  describe('reservedHostPortsInRange', () => {
+    it('returns only in-memory reservations that fall inside the range', () => {
+      // Reserve inside and outside the probe range, plus a boundary value.
+      reserveHostPort(42000) // inside
+      reserveHostPort(42999) // inside (upper boundary)
+      reserveHostPort(41999) // just below range → excluded
+      reserveHostPort(43000) // just above range → excluded
+      try {
+        const got = reservedHostPortsInRange([42000, 42999]).sort((a, b) => a - b)
+        expect(got).to.include(42000)
+        expect(got).to.include(42999)
+        expect(got).to.not.include(41999)
+        expect(got).to.not.include(43000)
+      } finally {
+        ;[42000, 42999, 41999, 43000].forEach((p) => releaseHostPort(p))
+      }
+    })
+
+    it('reflects release (a freed port no longer appears)', () => {
+      reserveHostPort(42500)
+      try {
+        expect(reservedHostPortsInRange([42000, 42999])).to.include(42500)
+      } finally {
+        releaseHostPort(42500)
+      }
+      expect(reservedHostPortsInRange([42000, 42999])).to.not.include(42500)
+    })
+
+    it('returns a fresh array and [] for an empty range', () => {
+      const a = reservedHostPortsInRange([44000, 44100])
+      const b = reservedHostPortsInRange([44000, 44100])
+      expect(a).to.deep.equal([])
+      expect(a).to.not.equal(b) // a new array each call; mutating one must not affect the next
     })
   })
 

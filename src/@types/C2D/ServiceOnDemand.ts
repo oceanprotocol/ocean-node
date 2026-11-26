@@ -133,6 +133,20 @@ export const DEFAULT_SERVICE_MIN_DURATION_SECONDS = 0
 // the daemon busy. Always capped by the job/service maxDuration so it can never exceed it.
 export const DEFAULT_BUILD_TIMEOUT_SECONDS = 300 // 5 min
 
+// Max number of ports a single SERVICE_START / SERVICE_RESTART may declare (via `ports` or the
+// legacy `exposedPorts`). Bounds the host-port range a single request can consume and the size
+// of the validation work. Advertised to clients as `maxPortsPerService` on each environment's
+// serviceOnDemand block. Single source of truth for the request validators and that field.
+export const MAX_SERVICE_PORTS = 64
+
+// Default host-port range used when a daemon's `serviceOnDemand` block omits `hostPortRange`.
+// MUST be the single source of truth: the range the start/restart handlers reserve a pinned
+// port within, the range they auto-allocate from, AND the range advertised by
+// getComputeEnvironments must all agree — otherwise the discovery block would advertise a range
+// the handler does not actually enforce. `[30000, 32767]` is the IANA ephemeral/dynamic range
+// and is clear of the ports the node itself binds (HTTP 8000, P2P 9000-9005, DB 8108/9200).
+export const DEFAULT_SERVICE_HOST_PORT_RANGE: [number, number] = [30000, 32767]
+
 export interface ServiceOnDemandConfig {
   enabled: boolean
   nodeHost: string // host (or IP) clients use to reach forwarded service ports; e.g. 'localhost'

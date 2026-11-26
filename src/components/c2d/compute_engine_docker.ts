@@ -9,6 +9,7 @@ import {
 import type {
   C2DClusterInfo,
   ComputeEnvironment,
+  ComputeEnvironmentServiceOnDemand,
   ComputeAlgorithm,
   ComputeOutput,
   ComputeAsset,
@@ -90,7 +91,9 @@ import {
   ServiceStatusText,
   SERVICE_START_PENDING_STATUSES,
   isStoppedLike,
-  DEFAULT_BUILD_TIMEOUT_SECONDS
+  DEFAULT_BUILD_TIMEOUT_SECONDS,
+  MAX_SERVICE_PORTS,
+  DEFAULT_SERVICE_HOST_PORT_RANGE
 } from '../../@types/C2D/ServiceOnDemand.js'
 import type {
   ServiceJob,
@@ -163,6 +166,7 @@ import {
   reserveSpecificHostPort,
   HostPortUnavailableError,
   seedAllocatedPorts,
+  reservedHostPortsInRange,
   userDataToEnv,
   decryptUserData
 } from '../core/service/utils.js'
@@ -1400,6 +1404,47 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
+  // Build the daemon-level Service-on-Demand port-discovery block (range + in-use host ports)
+  // ONCE per getComputeEnvironments call. Returned undefined when this daemon has no
+  // Service-on-Demand config (or it is disabled / has no reachable nodeHost), in which case the
+  // field is simply omitted from the environments. `usedHostPorts` is the union of two sources,
+  // both scoped to THIS daemon:
+  //   1. running service jobs' endpoint host ports (persisted, authoritative — includes every
+  //      status that still holds a reservation, Starting through Stopped),
+  //   2. in-memory reservations inside the range (covers the brief in-flight window after a
+  //      start reserves a port but before its job endpoints are persisted).
+  // Both are filtered to the daemon's hostPortRange so ports outside the advertised range (or
+  // belonging to another daemon) never appear. Best-effort snapshot: the start handler's
+  // charge-safe reservation remains the real guarantee against a port conflict.
+  private async buildServiceOnDemandPortInfo(): Promise<
+    ComputeEnvironmentServiceOnDemand | undefined
+  > {
+    const sod = this.getC2DConfig().connection?.serviceOnDemand
+    if (!sod?.enabled || !sod.nodeHost) return undefined
+    const range: [number, number] = sod.hostPortRange ?? DEFAULT_SERVICE_HOST_PORT_RANGE
+    const used = new Set<number>()
+    try {
+      const jobs = await this.db.getRunningServiceJobs(this.getC2DConfig().hash)
+      for (const job of jobs)
+        for (const ep of job.endpoints ?? [])
+          if (ep.hostPort >= range[0] && ep.hostPort <= range[1]) used.add(ep.hostPort)
+    } catch (e) {
+      // Degrade gracefully: a DB hiccup must not fail the whole environments response. The
+      // in-memory reservations below still give a partial, safe-side view.
+      CORE_LOGGER.warn(
+        `buildServiceOnDemandPortInfo: could not read running service jobs for ` +
+          `${this.getC2DConfig().hash}: ${e?.message}`
+      )
+    }
+    for (const port of reservedHostPortsInRange(range)) used.add(port)
+    return {
+      nodeHost: sod.nodeHost,
+      hostPortRange: range,
+      usedHostPorts: [...used].sort((a, b) => a - b),
+      maxPortsPerService: MAX_SERVICE_PORTS
+    }
+  }
+
   public override async getComputeEnvironments(
     chainId?: number
   ): Promise<ComputeEnvironment[]> {
@@ -1407,6 +1452,9 @@ export class C2DEngineDocker extends C2DEngine {
      * Returns all cluster's compute environments, filtered by a specific chainId if needed. Env's id already contains the cluster hash
      */
     if (!this.docker) return []
+    // Daemon-wide, computed once and stamped identically onto every env below: ports belong to
+    // the host the Docker socket runs on, not to a single environment.
+    const serviceOnDemandPortInfo = await this.buildServiceOnDemandPortInfo()
     const filteredEnvs = []
     // Rebuilt fresh each call from the inUse/total this method already stamps below — read
     // by the OTel compute gauge callback (`telemetry/computeGauges.ts`), never written there.
@@ -1490,6 +1538,15 @@ export class C2DEngineDocker extends C2DEngine {
             `[metrics] env resource snapshot failed for ${computeEnv?.id}: ${e?.message}`
           )
         }
+
+        // Stamp the daemon-level port-discovery block. Each env gets its own copy so a later
+        // consumer mutating one env's block cannot bleed into another's.
+        if (serviceOnDemandPortInfo)
+          computeEnv.serviceOnDemand = {
+            ...serviceOnDemandPortInfo,
+            hostPortRange: [...serviceOnDemandPortInfo.hostPortRange],
+            usedHostPorts: [...serviceOnDemandPortInfo.usedHostPorts]
+          }
 
         filteredEnvs.push(computeEnv)
       }
@@ -4991,7 +5048,7 @@ export class C2DEngineDocker extends C2DEngine {
     // failure (image-failure return + outer catch) and cleared once job.endpoints is committed.
     const reservedPinned: number[] = []
     if (job.requestedHostPorts && Object.keys(job.requestedHostPorts).length) {
-      const [rs, re] = sod?.hostPortRange ?? [30000, 32767]
+      const [rs, re] = sod?.hostPortRange ?? DEFAULT_SERVICE_HOST_PORT_RANGE
       try {
         for (const hp of Object.values(job.requestedHostPorts)) {
           await reserveSpecificHostPort(hp, rs, re)
@@ -5160,7 +5217,7 @@ export class C2DEngineDocker extends C2DEngine {
       // mid-way failure must release BOTH the auto ports allocated here AND the pre-lock pinned
       // ones — otherwise they leak (the outer catch only releases on !claimTx, and the claim has
       // already succeeded by this point, so it would never free them).
-      const [rangeStart, rangeEnd] = sod?.hostPortRange ?? [30000, 32767]
+      const [rangeStart, rangeEnd] = sod?.hostPortRange ?? DEFAULT_SERVICE_HOST_PORT_RANGE
       const hostPorts: number[] = []
       const autoAllocated: number[] = []
       try {
@@ -6652,7 +6709,7 @@ export class C2DEngineDocker extends C2DEngine {
       // host ports are released later, after teardown, by doRestartService.
       if (newExposedPorts !== undefined) {
         const sodPorts = this.getC2DConfig().connection?.serviceOnDemand
-        const [rs, re] = sodPorts?.hostPortRange ?? [30000, 32767]
+        const [rs, re] = sodPorts?.hostPortRange ?? DEFAULT_SERVICE_HOST_PORT_RANGE
         const nodeHost = sodPorts?.nodeHost ?? 'localhost'
         const ownHostPorts = new Set(job.endpoints.map((e) => e.hostPort))
         // Current containerPort → hostPort map, so an unpinned container port that already exists
