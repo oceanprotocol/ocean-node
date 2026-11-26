@@ -1,9 +1,5 @@
 import net from 'net'
 import type { ServiceJob } from '../../../@types/C2D/ServiceOnDemand.js'
-import {
-  ServiceStatusNumber,
-  ServiceStatusText
-} from '../../../@types/C2D/ServiceOnDemand.js'
 import type { ServicePortRequest } from '../../../@types/commands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
@@ -177,99 +173,20 @@ const allocatedPorts = new Set<number>()
 //
 // A reservation is held until the job is FINALIZED (status Expired), NOT merely until its
 // `expiresAt` wall-clock passes: getRunningServiceJobs() already returns exactly the non-terminal
-// jobs (it excludes Expired), so every port it reports is still reserved. Release happens only
-// through finalization — the owning engine's expireService (configured clusters) or
-// reclaimExpiredHostPorts (orphans) — which is the single, consistent point ports are freed. This
-// matches the source buildServiceOnDemandPortInfo advertises, keeping the allocator and the
-// advertised usedHostPorts snapshot aligned.
+// jobs (it excludes Expired), so every port it reports is still reserved. Release happens ONLY
+// through the owning engine's expireService, which tears the container down on its daemon FIRST
+// and then marks the job Expired — the one point a port is freed. A job whose daemon was removed
+// from config (an "orphan") keeps its reservation: there is no safe way to confirm its container
+// is gone (a local port probe cannot see a remote daemon's host, and a removed daemon is
+// unreachable), so the node never finalizes it from a heuristic. Its port is simply held until the
+// daemon is restored (its engine then expires the job normally) or an operator clears the record;
+// with disjoint daemon ranges this blocks no live daemon. This matches the source
+// buildServiceOnDemandPortInfo advertises, keeping the allocator and the usedHostPorts snapshot
+// aligned.
 export async function seedAllocatedPorts(db: C2DDatabase): Promise<void> {
   const jobs = await db.getRunningServiceJobs()
   for (const job of jobs)
     for (const ep of job.endpoints ?? []) allocatedPorts.add(ep.hostPort)
-}
-
-// Release in-memory host-port reservations left by ORPHANED service jobs — jobs whose owning
-// daemon was removed from config, so no engine runs their expiry sweep. seedAllocatedPorts keeps
-// every non-terminal job's ports reserved until finalization; this is the mid-run mechanism that
-// finalizes an orphan and frees its ports during the SAME process instead of holding them until
-// the next restart. `configuredClusterHashes` is every cluster that still has an engine: an
-// expired job on one of those is left ENTIRELY to its own engine's expireService (container
-// teardown, output archival, then release) — reclaim must never pre-empt that.
-//
-// `localReclaimableRanges` are the host-port ranges of currently-configured LOCAL docker daemons
-// (socket-based, i.e. containers run on THIS host). reclaim only reclaims an orphan port that
-// falls inside one of them, because its sole teardown signal — isPortFree — is a LOCAL OS probe.
-// For a remote daemon the host port lives on another machine, so a free LOCAL port says nothing
-// about whether that service's container is torn down; using it to finalize the job would wrongly
-// mark a remote service Expired. An orphan port outside every local range is therefore left
-// reserved (it is also harmless: daemon ranges are disjoint, so no live daemon is waiting on it).
-//
-// Each reclaimed job is FINALIZED (status → Expired) before its ports are released. This is the
-// crux of the correctness, not bookkeeping: an orphan left non-terminal keeps appearing in
-// getRunningServiceJobs() on every later sweep, so once its port is freed and a NEW start reuses
-// it (that start's endpoint not yet persisted, so not in `active`), the next sweep would see the
-// port as still belonging to the expired orphan and wrongly release the new reservation — charging
-// a service whose container then cannot bind. Marking the orphan Expired drops it from future
-// sweeps so the port is never re-flagged; and because the port stays reserved until the job is
-// terminal, no new start can grab it until it is permanently de-flagged (the in-memory set already
-// serialises reservation — a port in allocatedPorts cannot be re-reserved). Guards on release:
-//   - a port a still-active (in-window) job also holds is never released (port reused);
-//   - a job is reclaimed only if EVERY one of its reserved ports is in a local range AND genuinely
-//     unbound at the OS level — if any is remote-ranged or a container still binds one, the whole
-//     job is left for a later sweep (don't finalize or half-release on an unsafe signal).
-// Returns how many ports were released.
-export async function reclaimExpiredHostPorts(
-  db: C2DDatabase,
-  configuredClusterHashes: Set<string>,
-  localReclaimableRanges: [number, number][]
-): Promise<number> {
-  const jobs = await db.getRunningServiceJobs()
-  const now = Date.now()
-  const active = new Set<number>()
-  const orphanExpired: ServiceJob[] = []
-  for (const job of jobs) {
-    if (!(job.expiresAt && job.expiresAt <= now)) {
-      for (const ep of job.endpoints ?? []) active.add(ep.hostPort)
-    } else if (!configuredClusterHashes.has(job.clusterHash)) {
-      orphanExpired.push(job) // expired AND its cluster is gone
-    }
-    // expired + configured cluster → skip: its engine's expireService owns the teardown
-  }
-  const inLocalRange = (p: number) =>
-    localReclaimableRanges.some(([lo, hi]) => p >= lo && p <= hi)
-  let released = 0
-  for (const job of orphanExpired) {
-    const reservedPorts = (job.endpoints ?? [])
-      .map((ep) => ep.hostPort)
-      .filter((p) => allocatedPorts.has(p) && !active.has(p))
-    if (!reservedPorts.length) continue
-    // Only finalize when every reserved port is in a LOCAL daemon's range — otherwise isPortFree
-    // (a local probe) cannot confirm this service's container is torn down, so leave it reserved.
-    if (!reservedPorts.every(inLocalRange)) continue
-    let allUnbound = true
-    for (const p of reservedPorts)
-      if (!(await isPortFree(p))) {
-        allUnbound = false // a container still holds this port — leave the whole job reserved
-        break
-      }
-    if (!allUnbound) continue
-    try {
-      // Finalize first (see note above): terminal status removes it from later sweeps.
-      job.status = ServiceStatusNumber.Expired
-      job.statusText = ServiceStatusText[ServiceStatusNumber.Expired]
-      await db.updateServiceJob(job)
-    } catch (e) {
-      CORE_LOGGER.error(
-        `reclaimExpiredHostPorts: could not finalize orphan job ${job.serviceId}: ${e?.message}`
-      )
-      continue // leave the ports reserved; retry next tick
-    }
-    for (const p of reservedPorts) {
-      releaseHostPort(p)
-      released++
-    }
-  }
-  return released
 }
 
 export async function allocateHostPort(
