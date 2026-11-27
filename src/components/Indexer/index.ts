@@ -34,11 +34,11 @@ import { BlockchainRegistry } from '../BlockchainRegistry/index.js'
 import { CommandStatus, JobStatus } from '../../@types/commands.js'
 import { buildJobIdentifier, getDeployedContractBlock } from './utils.js'
 import { create256Hash } from '../../utils/crypt.js'
-import { isReachableConnection } from '../../utils/database.js'
+import { DatabaseFactory } from '../database/DatabaseFactory.js'
 import { sleep } from '../../utils/util.js'
 import { isReindexingNeeded } from './version.js'
 import { getPackageVersion } from '../../utils/version.js'
-import { DB_EVENTS, ES_CONNECTION_EVENTS } from '../database/ElasticsearchConfigHelper.js'
+import { DB_CONNECTION_EVENTS, DB_EVENTS } from '../database/connectionEvents.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { clearEventProcessorCache } from './processor.js'
 import { OceanNode } from '../../OceanNode.js'
@@ -60,6 +60,19 @@ let INDEXING_QUEUE: ReindexTask[] = []
 const JOBS_QUEUE: JobStatus[] = []
 
 const MAX_CRAWL_RETRIES = 10
+// read and write of the stored node version, for the reindex check
+const VERSION_DB_ATTEMPTS = 3
+const VERSION_DB_RETRY_MS = 2000
+
+// The config store returns null when a call fails: try again before giving up.
+async function withVersionDbRetry<T>(call: () => Promise<T>): Promise<T> {
+  let result = await call()
+  for (let attempt = 1; !result && attempt < VERSION_DB_ATTEMPTS; attempt++) {
+    await sleep(VERSION_DB_RETRY_MS)
+    result = await call()
+  }
+  return result
+}
 
 /**
  * OceanIndexer - Multi-chain blockchain event indexer
@@ -107,7 +120,7 @@ export class OceanIndexer {
   // shared-process test suite).
   private jobTimers: Set<NodeJS.Timeout> = new Set()
   // Bound ES-connection handlers, retained so stop() can detach them. They were registered as
-  // anonymous listeners on the module-level ES_CONNECTION_EVENTS emitter and never removed, so
+  // anonymous listeners on the module-level DB_CONNECTION_EVENTS emitter and never removed, so
   // every OceanIndexer created in the shared-process test suite leaked a pair that kept reacting
   // (and could restart a torn-down indexer with its stale config) long after the instance was gone.
   private onDbConnectionLost: () => Promise<void>
@@ -161,7 +174,7 @@ export class OceanIndexer {
   }
 
   /**
-   * Listen for Elasticsearch connection events.
+   * Listen for database connection events.
    *
    * CONNECTION_LOST  → cancel any pending restart, stop all indexers once.
    * CONNECTION_RESTORED → debounce restart by 5 s so rapid LOST/RESTORED cycles are a single restart.
@@ -208,8 +221,8 @@ export class OceanIndexer {
       }, 5000)
     }
 
-    ES_CONNECTION_EVENTS.on(DB_EVENTS.CONNECTION_LOST, this.onDbConnectionLost)
-    ES_CONNECTION_EVENTS.on(DB_EVENTS.CONNECTION_RESTORED, this.onDbConnectionRestored)
+    DB_CONNECTION_EVENTS.on(DB_EVENTS.CONNECTION_LOST, this.onDbConnectionLost)
+    DB_CONNECTION_EVENTS.on(DB_EVENTS.CONNECTION_RESTORED, this.onDbConnectionRestored)
   }
 
   /**
@@ -219,13 +232,13 @@ export class OceanIndexer {
    */
   private teardownDbConnectionListeners(): void {
     if (this.onDbConnectionLost) {
-      ES_CONNECTION_EVENTS.removeListener(
+      DB_CONNECTION_EVENTS.removeListener(
         DB_EVENTS.CONNECTION_LOST,
         this.onDbConnectionLost
       )
     }
     if (this.onDbConnectionRestored) {
-      ES_CONNECTION_EVENTS.removeListener(
+      DB_CONNECTION_EVENTS.removeListener(
         DB_EVENTS.CONNECTION_RESTORED,
         this.onDbConnectionRestored
       )
@@ -276,7 +289,7 @@ export class OceanIndexer {
     const startsToJoin = [...this.pendingStarts]
 
     // Abort the DB-reachability probe of every canceled in-flight start, so one blocked on an
-    // unresponsive probe fails fast (isReachableConnection → false → the start gives up) instead of
+    // unresponsive probe fails fast (DatabaseFactory.isReachable → false → the start gives up) instead of
     // hanging the join below. Non-canceled starts (higher generation) keep their probe untouched.
     for (const probe of this.startProbeControllers) {
       if (probe.generation <= this.canceledGeneration) {
@@ -381,7 +394,7 @@ export class OceanIndexer {
       const dbActive = this.getDatabase()
       if (
         !dbActive ||
-        !(await isReachableConnection(dbActive.getConfig().url, probeSignal))
+        !(await DatabaseFactory.isReachable(dbActive.getConfig(), probeSignal))
       ) {
         INDEXER_LOGGER.error(`Giving up start crawling. DB is not online!`)
         return false
@@ -829,11 +842,21 @@ export class OceanIndexer {
   public async checkAndTriggerReindexing(): Promise<void> {
     const currentVersion = getPackageVersion()
     const dbActive = this.getDatabase()
-    if (!dbActive || !(await isReachableConnection(dbActive.getConfig().url))) {
+    if (!dbActive || !(await DatabaseFactory.isReachable(dbActive.getConfig()))) {
       INDEXER_LOGGER.error(`Giving up reindexing. DB is not online!`)
       return
     }
-    const dbVersion = await dbActive.sqliteConfig?.retrieveValue()
+    // null means the read failed, which is not the same as "no version stored": try again
+    // before giving up, or a needed reindex would wait for the next restart
+    const dbVersion = await withVersionDbRetry(() =>
+      dbActive.config?.retrieveValue('version')
+    )
+    if (!dbVersion) {
+      INDEXER_LOGGER.error(
+        `Giving up reindexing. Could not read the node version after ${VERSION_DB_ATTEMPTS} attempts!`
+      )
+      return
+    }
     INDEXER_LOGGER.debug(
       `Node version check: Current=${currentVersion}, DB=${
         dbVersion?.value ?? 'not set'
@@ -882,8 +905,16 @@ export class OceanIndexer {
           )
         }
       }
-      await dbActive.sqliteConfig?.createOrUpdateConfig('version', currentVersion)
-      INDEXER_LOGGER.info(`Updated node version in database to ${currentVersion}`)
+      const stored = await withVersionDbRetry(() =>
+        dbActive.config?.createOrUpdateConfig('version', currentVersion)
+      )
+      if (stored) {
+        INDEXER_LOGGER.info(`Updated node version in database to ${currentVersion}`)
+      } else {
+        INDEXER_LOGGER.error(
+          `Could not store node version ${currentVersion}: the reindex runs again at the next start`
+        )
+      }
     } else {
       INDEXER_LOGGER.debug('No reindexing needed based on version check')
     }

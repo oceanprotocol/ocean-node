@@ -1,3 +1,4 @@
+import os from 'os'
 import { OceanP2P } from './components/P2P/index.js'
 import { OceanProvider } from './components/Provider/index.js'
 import { OceanIndexer } from './components/Indexer/index.js'
@@ -58,12 +59,14 @@ export class OceanNode {
   private persistentStorage: PersistentStorageFactory
   private database: Database
   // In-memory cache of the maintenance (drain) flag so the hot path (every compute/service
-  // start) does not hit SQLite per request. Source of truth is the SQLite config DB; this is
+  // start) does not hit the DB per request. Source of truth is the config DB; this is
   // loaded from it at startup (loadMaintenanceMode) and kept in sync on every toggle.
   private maintenanceMode = false
   // Serializes maintenance toggles so a DB write and its cache update are atomic relative to
   // any concurrent toggle (prevents DB/cache divergence under overlapping calls).
   private maintenanceWriteLock: Promise<unknown> = Promise.resolve()
+  // HA instances share one PRIVATE_KEY (so one peer id); per-instance state is keyed by this
+  private instanceId: string
 
   private constructor(
     private config: OceanNodeConfig,
@@ -80,8 +83,12 @@ export class OceanNode {
     this.requestMap = new Map<string, RequestLimiter>()
     this.config = config
     this.database = db
+    // the peer id stays when a container is made again; nodes that share one key (HA)
+    // set INSTANCE_ID each
+    this.instanceId =
+      this.config?.instanceId || keyManager?.getPeerIdString() || os.hostname()
 
-    if (this.db && this.db?.authToken) {
+    if (this.db?.authToken) {
       this.auth = new Auth(this.db.authToken, config)
     }
     if (node) {
@@ -92,13 +99,14 @@ export class OceanNode {
         this.config.supportedNetworks,
         this.config.claimDurationTimeout,
         this.blockchainRegistry,
-        this.config.subsidyProviders
+        this.config.subsidyProviders,
+        this.config.escrowEmptyTx
       )
       if (this.config.persistentStorage?.enabled) {
         OCEAN_NODE_LOGGER.info(
           `Persistent storage enabled (type: ${this.config.persistentStorage.type})`
         )
-        this.persistentStorage = createPersistentStorage(this)
+        this.persistentStorage = createPersistentStorage(this, this.db?.buckets)
       } else {
         OCEAN_NODE_LOGGER.info('Persistent storage disabled')
         this.persistentStorage = null
@@ -300,7 +308,8 @@ export class OceanNode {
         this.config.supportedNetworks,
         this.config.claimDurationTimeout,
         this.blockchainRegistry,
-        this.config.subsidyProviders
+        this.config.subsidyProviders,
+        this.config.escrowEmptyTx
       )
     }
   }
@@ -308,6 +317,10 @@ export class OceanNode {
   public getConfig(): OceanNodeConfig {
     this.config.isPSConfigured = isPolicyServerConfigured()
     return this.config
+  }
+
+  public getInstanceId(): string {
+    return this.instanceId
   }
 
   /**
@@ -318,7 +331,7 @@ export class OceanNode {
   }
 
   /**
-   * Toggle maintenance mode. Persists the flag to the SQLite config DB (durable, sticky across
+   * Toggle maintenance mode. Persists the flag to the config DB (durable, sticky across
    * restarts) and only THEN updates the in-memory cache, so a failed write never leaves the
    * cache claiming a drain that was not persisted (it would silently revert on reboot). Calls
    * are serialized on a promise chain so two overlapping toggles cannot end with the DB and the
@@ -334,10 +347,10 @@ export class OceanNode {
 
   private async applyMaintenanceMode(enabled: boolean): Promise<void> {
     const db = await this.getDatabase()
-    if (db?.sqliteConfig) {
+    if (db?.config) {
       // createOrUpdateConfig swallows DB errors and returns null; treat that as a failure and
       // do NOT update the cache, so the node never reports an un-persisted drain.
-      const result = await db.sqliteConfig.createOrUpdateConfig(
+      const result = await db.config.createOrUpdateConfig(
         MAINTENANCE_MODE_CONFIG_KEY,
         enabled ? 'true' : 'false'
       )
@@ -361,7 +374,7 @@ export class OceanNode {
   public async loadMaintenanceMode(): Promise<void> {
     const envValue = process.env.MAINTENANCE_MODE
     const db = await this.getDatabase()
-    const sqliteConfig = db?.sqliteConfig
+    const configDb = db?.config
     // Env override wins at boot and is written through to the DB (per design). Only the exact
     // strings "true"/"false" are honored; any other non-empty value (a typo, "1", "yes") is
     // IGNORED with a warning, so a leftover malformed env var cannot silently clear a drain.
@@ -374,8 +387,8 @@ export class OceanNode {
       } else {
         const enabled = normalized === 'true'
         this.maintenanceMode = enabled
-        if (sqliteConfig) {
-          const result = await sqliteConfig.createOrUpdateConfig(
+        if (configDb) {
+          const result = await configDb.createOrUpdateConfig(
             MAINTENANCE_MODE_CONFIG_KEY,
             enabled ? 'true' : 'false'
           )
@@ -391,12 +404,12 @@ export class OceanNode {
         return
       }
     }
-    if (!sqliteConfig) {
+    if (!configDb) {
       return
     }
     try {
-      const stored = await sqliteConfig.retrieveValue(MAINTENANCE_MODE_CONFIG_KEY)
-      // Distinguish a FAILED query from a confirmed-absent key: SQLLiteConfigDatabase
+      const stored = await configDb.retrieveValue(MAINTENANCE_MODE_CONFIG_KEY)
+      // Distinguish a FAILED query from a confirmed-absent key: ConfigDatabase
       // .retrieveValue returns null on a DB error, but { value: null } when the key simply
       // isn't there (never toggled).
       if (stored === null) {
@@ -538,13 +551,10 @@ export class OceanNode {
   async getDatabase(forceReload: boolean = false): Promise<Database> {
     if (!this.database || forceReload) {
       if (!this.dbInitPromise || forceReload) {
-        const { dbConfig } = this.config
-        if (dbConfig && dbConfig.url) {
-          this.dbInitPromise = Database.init(dbConfig).then((db) => {
-            this.database = db
-            return db
-          })
-        }
+        this.dbInitPromise = Database.init(this.config.dbConfig).then((db) => {
+          this.database = db
+          return db
+        })
       }
       return await this.dbInitPromise
     }

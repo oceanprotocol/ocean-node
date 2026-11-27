@@ -2,16 +2,20 @@ import { Stream } from 'stream'
 import { RPCS } from './blockchain'
 import { C2DClusterInfo, C2DDockerConfig } from './C2D/C2D'
 import { FeeStrategy } from './Fees'
-import { Schema } from '../components/database'
+import type { DdoSchema } from '../components/database/index.js'
 import { KeyProviderType } from './KeyManager'
 import type { PersistentStorageConfig } from './PersistentStorage.js'
 import type { AccessList } from './AccessList'
 
+export const DATABASE_TYPES = ['sqlite', 'postgresql', 'elasticsearch'] as const
+export type DatabaseType = (typeof DATABASE_TYPES)[number]
+
+// url, username and password are set for postgresql and elasticsearch only
 export interface OceanNodeDBConfig {
-  url: string | null
+  dbType: DatabaseType
+  url?: string
   username?: string
   password?: string
-  dbType: string | null
 }
 
 // deny list of peer ids and ips (for rate limiting purposes)
@@ -167,7 +171,7 @@ export interface OceanNodeConfig {
   p2pConfig: OceanNodeP2PConfig | null
   hasIndexer: boolean
   hasHttp: boolean
-  dbConfig?: OceanNodeDBConfig
+  dbConfig: OceanNodeDBConfig
   // startup database-init retry: attempts, initial backoff (ms) and backoff ceiling (ms)
   dbInitMaxAttempts: number
   dbInitRetryDelay: number
@@ -178,6 +182,9 @@ export interface OceanNodeConfig {
   arweaveGateway?: string | null
   supportedNetworks?: RPCS
   claimDurationTimeout: number
+  // When false (default), zero-amount escrow lock/claim skips the on-chain tx and records the
+  // `0xempty` sentinel; true submits the real zero-value transaction on-chain. (ESCROW_EMPTY_TX)
+  escrowEmptyTx: boolean
   indexingNetworks?: RPCS
   c2dClusters: C2DClusterInfo[]
   accountPurgatoryUrl: string | null
@@ -218,6 +225,8 @@ export interface OceanNodeConfig {
   isBootstrap?: boolean
   validateUnsignedDDO?: boolean
   jwtSecret?: string
+  // keys per-instance state (node metrics); getInstanceId() falls back to the peer id
+  instanceId?: string
   // Scoped auth tokens (plan §8). Seconds unless noted.
   // Hard cap on token lifetime (default 86400 = 24h); the node rejects an over-cap validUntil
   // and defaults legacy (omitted-validUntil) tokens to createdAt + this.
@@ -361,7 +370,7 @@ export interface OceanNodeStatus {
   subsidyProviderAllowedImages?: Record<string, string[]>
   // detailed information
   c2dClusters?: any[]
-  supportedSchemas?: Schema[]
+  supportedSchemas?: DdoSchema[]
   persistentStorage?: {
     accessLists?: AccessList[]
     allowBucketSharing?: boolean

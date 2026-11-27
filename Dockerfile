@@ -1,4 +1,4 @@
-FROM node:26.13.0-trixie-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072 AS builder
+FROM node:26.13.1-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     build-essential \
@@ -14,7 +14,7 @@ COPY . .
 RUN npm run build && npm prune --omit=dev
 
 
-FROM node:26.13.0-trixie-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072 AS runner
+FROM node:26.13.1-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS runner
 RUN apt-get update && apt-get install -y --no-install-recommends \
     dumb-init \
     gosu \
@@ -40,17 +40,17 @@ WORKDIR /usr/src/app
 
 COPY --chown=node:node --from=builder /usr/src/app/dist ./dist
 COPY --chown=node:node --from=builder /usr/src/app/node_modules ./node_modules
-COPY --chown=node:node --from=builder /usr/src/app/schemas ./schemas
 # sitecustomize.py the node copies into service containers (src/components/c2d/serviceHfMirror.ts)
 COPY --chown=node:node --from=builder /usr/src/app/hfpatch ./hfpatch
 COPY --chown=node:node --from=builder /usr/src/app/package.json ./
 COPY --chown=node:node --from=builder /usr/src/app/config.json ./
 
-# `databases` holds everything the node must not lose across a restart: the SQLite files
-# (nonce, config, C2D jobs, auth tokens) and `databases/p2p-store`, the LevelDatastore that
-# backs libp2p. kad-dht's reprovider refreshes this node's provider records from that
-# datastore, so if it starts empty the node stops answering for content it still holds, and the
-# records expire out of the network without anything noticing. The directory is created and
+# `databases` holds what the node must not lose across a restart on this host:
+# `databases/p2p-store`, the LevelDatastore that backs libp2p, and the SQLite files of the
+# node when it uses the default database. kad-dht's reprovider refreshes this node's
+# provider records from that datastore, so if it starts empty the node stops answering for
+# content it still holds, and the records expire out of the network without anything
+# noticing. The directory is created and
 # handed to the unprivileged `node` user here, and VOLUME declares the mount point so a named
 # volume or bind mount can be attached; docker-entrypoint.sh re-applies ownership at runtime
 # for the bind-mount case, where the host directory arrives owned by whoever created it.

@@ -1,0 +1,15 @@
+services:
+  postgresql:
+    image: postgres:17
+    ports:
+      # loopback only: the database holds the node state
+      - 127.0.0.1:5432:5432
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: 'ocean'
+      # for local development only
+      POSTGRES_PASSWORD: 'changeme'
+      POSTGRES_DB: 'ocean'
+volumes:
+  pgdata:

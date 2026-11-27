@@ -4,7 +4,7 @@ import { getProvidersForStringRoute, getProvidersForStringsRoute } from './dids.
 import { directCommandRoute } from './commands.js'
 import { logRoutes } from './logs.js'
 import { providerRoutes } from './provider.js'
-import { aquariusRoutes } from './aquarius.js'
+import { ddoRoutes } from './ddo.js'
 import { rootEndpointRoutes } from './rootEndpoint.js'
 import { fileInfoRoute } from './fileInfo.js'
 import { computeRoutes } from './compute.js'
@@ -46,12 +46,11 @@ httpRoutes.use(fileInfoRoute)
 // /api/services/initialize
 // /api/services/nonce
 httpRoutes.use(providerRoutes)
-// /api/aquarius/assets/ddo/:did
-// /api/aquarius/assets/metadata/:did
-// /api/aquarius/assets/metadata/query
-// /api/aquarius/state/ddo
-// /api/aquarius/assets/ddo/validate
-httpRoutes.use(aquariusRoutes)
+// /api/query
+// /api/ddo/state
+// /api/ddo/validate
+// /api/ddo/:did
+httpRoutes.use(ddoRoutes)
 httpRoutes.use(rootEndpointRoutes)
 // /api/services/computeEnvironments
 httpRoutes.use(computeRoutes)

@@ -154,6 +154,7 @@ export abstract class C2DEngine {
     userData?: string, // ECIES-encrypted; the engine decrypts it transiently into the container env
     metadata?: DBComputeJobMetadata,
     outputBucketId?: string,
+    requestedHostPorts?: Record<string, number>, // pinned host ports keyed by containerPort
     secureTls?: number[]
   ): Promise<ServiceJob | null> {
     return null
@@ -203,6 +204,8 @@ export abstract class C2DEngine {
     newDockerCmd?: string[],
     newDockerEntrypoint?: string[],
     newMetadata?: DBComputeJobMetadata,
+    newExposedPorts?: number[], // present ⇒ change ports; undefined ⇒ keep current
+    newRequestedHostPorts?: Record<string, number>, // pinned host ports keyed by containerPort
     newSecureTls?: number[]
   ): Promise<ServiceJob | null> {
     return null
@@ -216,6 +219,10 @@ export abstract class C2DEngine {
     return []
   }
 
+  // Owners need a service's logs after it stops too, and Docker deletes them with the container:
+  // so once there is no container, the logs saved at teardown (ServiceJob.logArchives) are served.
+  // Null when there is neither. Throws when the container can't be read, which is not the same as
+  // having no logs.
   // eslint-disable-next-line require-await
   public async getServiceStreamableLogs(
     serviceId: string,
@@ -238,8 +245,8 @@ export abstract class C2DEngine {
     return null
   }
 
-  // Deletes the output archives of expired services whose environment's storageExpiry has
-  // elapsed since expiresAt. Returns how many services had their archives deleted.
+  // Deletes the output archives and saved logs of expired services whose environment's
+  // storageExpiry has elapsed since expiresAt. Returns how many services had them deleted.
   // eslint-disable-next-line require-await
   public async cleanupExpiredServiceOutputs(): Promise<number> {
     return 0

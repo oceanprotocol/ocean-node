@@ -31,17 +31,17 @@ authenticated by a signature (or auth token) over the caller's `consumerAddress`
 `nonce` + command. `serviceStatus` is a `GET`, so it carries `consumerAddress`, `nonce`,
 and `signature` as query parameters (or an auth-token `Authorization` header).
 
-| Command                       | Route                                 | Method | Purpose                                                                                                                                                                                                                                                                                                                                                                                                           |
-| ----------------------------- | ------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SERVICE_START`               | `/api/services/serviceStart`          | POST   | Validate, persist a `Starting` record, and return the `serviceId` immediately (escrow + image + container happen in the background)                                                                                                                                                                                                                                                                               |
-| `SERVICE_GET_STATUS`          | `/api/services/serviceStatus`         | GET    | Read job status / endpoints — authenticated, owner-scoped (see notice below); poll this to follow a starting service                                                                                                                                                                                                                                                                                              |
-| `SERVICE_LIST`                | `/api/services/serviceList`           | GET    | Node-wide service listing — authenticated, **not** owner-scoped. Default: only services currently holding a resource reservation; `status=<n>` filters to one specific status, `includeAllStatuses=true` returns everything, `fromTimestamp` keeps services created at/after that moment. Output is listing-sanitized (no `userData`, no `dockerCmd`/`dockerEntrypoint`, no Dockerfile) but keeps user `metadata` |
-| `SERVICE_EXTEND`              | `/api/services/serviceExtend`         | POST   | Pay to push the expiry further out                                                                                                                                                                                                                                                                                                                                                                                |
-| `SERVICE_RESTART`             | `/api/services/serviceRestart`        | POST   | Recreate the container (no extra charge); asynchronous like start — returns once the job is `Restarting`, poll `serviceStatus`. Optionally restart on a **new image spec** (bug-fix flow) — see below                                                                                                                                                                                                             |
-| `SERVICE_STOP`                | `/api/services/serviceStop`           | POST   | Tear down the container; the paid resource reservation (cpu/ram/gpu + host ports) is kept until `expiresAt`, so the service can be restarted anytime on the same endpoints. `release: true` ends the paid window now and frees it instead (no refund, no restart)                                                                                                                                                 |
-| `SERVICE_GET_TEMPLATES`       | `/api/services/serviceTemplates`      | GET    | List operator-published service templates                                                                                                                                                                                                                                                                                                                                                                         |
-| `SERVICE_GET_STREAMABLE_LOGS` | `/api/services/serviceStreamableLogs` | GET    | Stream the container's live stdout/stderr logs — authenticated, owner-scoped; available while `Running` or `Error`; optional `since` to skip history                                                                                                                                                                                                                                                              |
-| `SERVICE_GET_RESULT`          | `/api/services/serviceResult`         | GET    | Download the service's `/data/outputs` as a zip — one of its archives (`index`, resumable with `offset`) or the running container's (`live=true`); authenticated, owner-scoped. See [Service outputs](#service-outputs)                                                                                                                                                                                           |
+| Command | Route | Method | Purpose |
+| --- | --- | --- | --- |
+| `SERVICE_START` | `/api/services/serviceStart` | POST | Validate, persist a `Starting` record, and return the `serviceId` immediately (escrow + image + container happen in the background) |
+| `SERVICE_GET_STATUS` | `/api/services/serviceStatus` | GET | Read job status / endpoints — authenticated, owner-scoped (see notice below); poll this to follow a starting service |
+| `SERVICE_LIST` | `/api/services/serviceList` | GET | Node-wide service listing — authenticated, **not** owner-scoped. Default: only services currently holding a resource reservation; `status=<n>` filters to one specific status, `includeAllStatuses=true` returns everything, `fromTimestamp` keeps services created at/after that moment. Output is listing-sanitized (no `userData`, no `dockerCmd`/`dockerEntrypoint`, no Dockerfile) but keeps user `metadata` |
+| `SERVICE_EXTEND` | `/api/services/serviceExtend` | POST | Pay to push the expiry further out |
+| `SERVICE_RESTART` | `/api/services/serviceRestart` | POST | Recreate the container (no extra charge); asynchronous like start — returns once the job is `Restarting`, poll `serviceStatus`. Optionally restart on a **new image spec** (bug-fix flow) — see below |
+| `SERVICE_STOP` | `/api/services/serviceStop` | POST | Tear down the container; the paid resource reservation (cpu/ram/gpu + host ports) is kept until `expiresAt`, so the service can be restarted anytime on the same endpoints. `release: true` ends the paid window now and frees it instead (no refund, no restart) |
+| `SERVICE_GET_TEMPLATES` | `/api/services/serviceTemplates` | GET | List operator-published service templates |
+| `SERVICE_GET_STREAMABLE_LOGS` | `/api/services/serviceStreamableLogs` | GET | Stream the container's stdout/stderr logs — authenticated, owner-scoped; followed live while the service has a container (`Running`, `Error` before teardown, or `Stopping`), otherwise the logs saved when its containers were removed, until storage expiry; optional `since` to skip history. See [Service logs](#service-logs) |
+| `SERVICE_GET_RESULT` | `/api/services/serviceResult` | GET | Download the service's `/data/outputs` as a zip — one of its archives (`index`, resumable with `offset`) or the running container's (`live=true`); authenticated, owner-scoped. See [Service outputs](#service-outputs) |
 
 **Start is asynchronous.** `serviceStart` does only the fast, synchronous validation and then
 returns the `serviceId` right away — it does **not** wait for escrow or the (potentially
@@ -99,6 +99,38 @@ is present is what makes a partial change impossible: a lone new `dockerCmd`/`us
 would silently run on top of the old image) is rejected with `400`, and a `dockerfile` respec on
 an environment with `allowImageBuild=false` is rejected with `403`. Payment, resources and
 duration are always preserved — only the container spec changes.
+
+**Choosing ports.** A service declares the container ports it exposes; the node publishes each
+on a **host port** and returns the mapping as `endpoints` (`{containerPort, hostPort, url}`).
+Two request shapes, both optional:
+
+- `exposedPorts: number[]` — container ports; the node auto-allocates a host port for each from
+  `hostPortRange` (the original behaviour).
+- `ports: Array<{ containerPort, hostPort? }>` — the same, but you may **pin** a specific host
+  port per entry. Omit `hostPort` to auto-allocate that one. When both fields are sent, `ports`
+  wins (and a warning is logged). A pinned `hostPort` **must** be inside the node's
+  `hostPortRange` and currently free, otherwise the command is rejected (`400 … is outside the
+  allowed range` / `… is not free`). For `serviceStart` the pinned ports are reserved **before**
+  the escrow lock, so a port conflict fails the start with **no charge**. At most **64** ports may
+  be declared per command (either field); a larger array is rejected with a `400`.
+
+> **Operator note.** `hostPortRange` must not overlap any port the node itself binds — the HTTP
+> API (`HTTP_API_PORT`, default `8000`), the P2P ports (`9000-9005`), or the metadata DB
+> (Typesense `8108` / Elasticsearch `9200`). The schema already forbids privileged ports
+> (`< 1024`) and the default `[30000, 32767]` is clear of all node ports; the OS-freeness check is
+> only a last line of defence, so pick a range that cannot collide with the node's own services.
+
+`serviceRestart` accepts `ports` too — independent of REUSE/RESPEC, exactly like `metadata`
+(a port change does **not** require `image`). Send `ports` to change the service's ports; omit it
+to keep the current ones. (Restart reads only `ports`, not the legacy `exposedPorts` — so a client
+that echoes a start body into a restart never changes ports by accident.) On restart the new ports
+are validated and reserved up front, so if a requested host port is unavailable the command is
+rejected and the **running service is left untouched**; on success the old host ports are released
+after the old container is torn down (so the service's `endpoints`/URLs change). Explicit pins are
+reserved first, so an auto-allocated port never lands on one another entry pinned. An unpinned
+container port that is already mapped keeps its current host port **unless** another entry in the
+same request pins it — then the pin wins and the unpinned port moves to a fresh host port.
+Re-pinning a host port the service already holds is allowed.
 
 **The reservation lasts the whole paid window — only `Expired` releases it.** The consumer
 paid for the resources for a time interval and may use them as they please within it:
@@ -183,9 +215,9 @@ restart that had just created it, failing the restart with
 flight, the expiry sweep simply retries on a later tick.
 
 Exclusivity holds **across node processes** too, not just within one: each operation also
-takes a lease row in the SQLite `service_locks` table, so two processes sharing the same
-`databases/` directory and Docker daemon (e.g. an old container still running during a
-redeploy) cannot run conflicting operations on the same service. Leases are heartbeated
+takes a lease in the `service_locks` store of the node database, so two node processes
+sharing the same database (e.g. an old container still running during a redeploy, or
+instances on other hosts) cannot run conflicting operations on the same service. Leases are heartbeated
 every 30 s while the operation runs; a lease not refreshed for 2 minutes belongs to a
 crashed process and is stolen automatically, so no manual cleanup is ever needed.
 
@@ -300,6 +332,36 @@ compute job's outputs:
   the stop time, and `serviceExtend` moves it later. The service record is kept, with
   `outputArchives: []`.
 - There is no size cap on archives beyond the node's free disk.
+
+## Service logs
+
+`serviceStreamableLogs` follows the container's stdout/stderr live while the service has a
+container. Docker deletes a container's logs together with the container, so the node saves them
+first, which keeps them available after the session ends:
+
+- **They are saved whenever a container of the service goes away**: `serviceStop`, the expiry
+  sweep, a `serviceRestart` (the old container), and the crash recovery at node start. This
+  happens for every service, including one with an output bucket, because the bucket only holds
+  `/data/outputs`. Each container gives one file, `logs-<n>.log`, next to the output archives
+  under `<c2d storage>/services/<serviceId>/`. The files are listed on `serviceStatus` as
+  `logArchives` (`index`, `filename`, `filesize`, `createdAt`, `containerId`, `droppedBytes`
+  when output was cut, and `cutShort` when reading the log timed out, so its newest output may
+  be missing). Saving is best-effort: if it fails, teardown continues and the node only logs the
+  error. A container that logged nothing produces no file.
+- **Only the last 16 MiB of each container's log are kept.** When a container logged more, its
+  oldest output is dropped, and the saved log starts with an `[ocean-node]` line on stderr that
+  says how much was dropped. The node asks Docker for the last 430,000-odd entries only, which
+  always add up to more than 16 MiB, so for a longer log the line gives a lower bound ("at
+  least …").
+- **Only the logs of the last 5 containers are kept.** Saving a sixth deletes the oldest file, so
+  a service holds at most 80 MiB of saved logs however often it is restarted.
+- **Once the service has no container, `serviceStreamableLogs` serves the saved logs**, oldest
+  container first, in the same multiplexed format as the live stream. The stream ends after the
+  last line instead of following. `since` works the same way. The route returns `404` only when
+  there is neither a container nor a saved log. While a container exists, only its own live log
+  is returned, so after a `serviceRestart` the previous containers' logs are not included.
+- **Saved logs expire with the output archives**: `storageExpiry` seconds after `expiresAt`, by
+  the same cron. The service record is kept, with `logArchives: []`.
 
 ## Configuration
 
@@ -663,16 +725,17 @@ then `docker network rm t`.
 - **`serviceStreamableLogs` is authenticated and owner-scoped, like `serviceStatus`.**
   Container stdout/stderr can leak secrets or sensitive request data, so the same
   proof-of-`consumerAddress` + ownership check gates log access — a non-owner gets `401`.
-  Logs are only served while the service is `Running` or `Error` (a crashed container's
-  logs stay available for diagnosis until `stop`/`restart` tears it down); otherwise the
-  route returns `404`. By default the full history since container start is returned before
+  Logs are followed live while the service has a container (`Running`, or `Error` until
+  `stop`/`restart` tears the crashed container down). After that the logs saved at teardown are
+  served until storage expiry (see [Service logs](#service-logs)), and the route returns `404`
+  only when there are none. By default the full history since container start is returned before
   the stream switches to following live output — for a service that has been running for
   days or weeks that can be a lot of data, so pass `since` (a Unix timestamp, or a relative
   duration like `1h`) to skip straight to recent output.
 
 - **`serviceResult` is authenticated and owner-scoped, like `serviceStreamableLogs`.** A
   service's outputs are its owner's data; a non-owner gets the same `400` as an unknown
-  `serviceId`. The node-wide `serviceList` leaves out `outputArchives`.
+  `serviceId`. The node-wide `serviceList` leaves out `outputArchives` and `logArchives`.
 
 - **`allowImageBuild` runs arbitrary build instructions.** When enabled, a consumer's
   inline `dockerfile` is built by the Docker daemon, so its `RUN` steps execute arbitrary

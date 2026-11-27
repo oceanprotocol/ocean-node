@@ -30,7 +30,8 @@ import type {
   ServiceGetStatusCommand,
   GetServicesCommand,
   ServiceGetStreamableLogsCommand,
-  ServiceGetResultCommand
+  ServiceGetResultCommand,
+  ServicePortRequest
 } from '../../@types/commands.js'
 import {
   ServiceGetTemplatesHandler,
@@ -448,6 +449,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/serviceStart`, async (req, res) =>
     dockerCmd: (req.body.dockerCmd as string[]) || undefined,
     dockerEntrypoint: (req.body.dockerEntrypoint as string[]) || undefined,
     exposedPorts: (req.body.exposedPorts as number[]) || undefined,
+    ports: (req.body.ports as ServicePortRequest[]) || undefined,
     resources: (req.body.resources as ComputeResourceRequest[]) || undefined,
     duration: req.body.duration as number,
     userData: (req.body.userData as string) || undefined,
@@ -519,6 +521,8 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/serviceRestart`, async (req, res) 
     // Normalize only null/undefined to undefined so malformed values still reach
     // validation and produce a 400.
     metadata: req.body.metadata ?? undefined,
+    // Restart accepts ONLY `ports` (not the legacy `exposedPorts`) — see ServiceRestartCommand.
+    ports: (req.body.ports as ServicePortRequest[]) || undefined,
     secureTls: req.body.secureTls ?? undefined,
     authorization: req.headers?.authorization,
     caller: req.caller

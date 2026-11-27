@@ -73,118 +73,105 @@ signed, so clients that build the message from a lowercase address keep working.
 
 ## State DDO
 
-### `HTTP` GET /api/aquarius/assets/metadata/query?
+### `HTTP` GET /api/ddo/state
 
 #### Description
 
-returns ddo state
+Returns the state of a DDO in the indexer: if the node indexed it, and the error if not.
 
 #### Query Parameters
 
-| name    | type   | required | description                                            |
-| ------- | ------ | -------- | ------------------------------------------------------ |
-| did     | object |          | document id or did                                     |
-| chainId | object |          | chain id of network on which document is provided      |
-| nft     | object |          | one or more field names that should be queried against |
+Give one of the three.
+
+| name | type   | required | description                                        |
+| ---- | ------ | -------- | -------------------------------------------------- |
+| did  | string |          | the DID of the document                            |
+| nft  | string |          | the address of the NFT of the document             |
+| txId | string |          | the id of the transaction that published the event |
 
 #### Response
 
-```
-123
+```json
+{
+  "id": "did:op:fa0e8fa9550e8eb13392d6eeb9ba9f8111801b332c8d2345b350b3bc66b379d5",
+  "chainId": 137,
+  "did": "did:op:fa0e8fa9550e8eb13392d6eeb9ba9f8111801b332c8d2345b350b3bc66b379d5",
+  "nft": "0xBB1081DbF3227bbB233Db68f7117114baBb43656",
+  "txId": "0x3d7e0c3f...",
+  "valid": true,
+  "error": " "
+}
 ```
 
 ---
 
 ## Query DDO
 
-### `HTTP` POST /api/aquarius/assets/metadata/query
+### `HTTP` POST /api/query
 
 #### Description
 
-returns search result for query
+Searches the DDOs, the orders of an account, or the tags of the DDOs. The query is the same on
+all databases: a type, typed filters, a sort key and a page (see
+[database.md](database.md#ddo-search) for each filter). An Elasticsearch query body gives
+HTTP 400.
 
 #### Parameters
 
-| name     | type   | required | description                                            |
-| -------- | ------ | -------- | ------------------------------------------------------ |
-| q        | object | v        | text to search for in database                         |
-| query_by | object | v        | one or more field names that should be queried against |
+| name   | type   | required | description                                                                                                           |
+| ------ | ------ | -------- | --------------------------------------------------------------------------------------------------------------------- |
+| type   | string |          | `assets` (the default), `orders` or `tags`                                                                            |
+| filter | object |          | the asset filters; with `orders`: `{ "consumer": … }` or `{ "payer": … }`                                             |
+| sort   | object |          | `assets` only: `{ "by": "created" \| "orders" \| "price" \| "tokenSymbol" \| "relevance", "order": "asc" \| "desc" }` |
+| page   | number |          | page number, from 1                                                                                                   |
+| size   | number |          | documents for each page, 1000 when absent; with `tags`: the number of tags                                            |
 
 #### Request
 
 ```json
 {
-  "q": "0x123",
-  "query_by": "nftAddress"
-}
-```
-
-#### Response
-
-```
-[{
-  "facet_counts": [],
-  "found": 1,
-  "out_of": 1,
-  "page": 1,
-  "request_params": {
-    "collection_name": "ddo",
-    "per_page": 10,
-    "q": "0x123"
+  "filter": {
+    "chainIds": [1, 137],
+    "types": ["dataset"],
+    "serviceTypes": ["access"],
+    "text": "weather"
   },
-  "search_time_ms": 1,
-  "hits": [
-    {
-      "highlights": [
-        {
-          "field": "nftAddress",
-          "snippet": "<mark>0x123</mark>",
-          "matched_tokens": ["0x123"]
-        }
-      ],
-      "document": {
-        "@context": ["https://w3id.org/did/v1"],
-        "id": "did:op:ACce67694eD2848dd683c651Dab7Af823b7dd123",
-        "version": "4.1.0",
-        "chainId": 1,
-        "nftAddress": "0x123",
-        ...
-      },
-      "text_match": 130916
-    }
-  ]
-}]
+  "sort": { "by": "created", "order": "desc" },
+  "page": 1,
+  "size": 10
+}
 ```
 
----
-
-## Get DDO Metadata
-
-### `HTTP` GET /api/aquarius/assets/ddo/:did
-
-#### Description
-
-returns metadata of document by id
+`page` × `size` is 10000 at most.
 
 #### Response
 
-```
+One list for the DDOs of all versions, sorted and paged over all of them, and the number of
+all matches.
+
+```json
 {
-    "created": "2020-11-15T12:27:48Z",
-    "updated": "2021-05-17T21:58:02Z",
-    "description": "Sample description",
-    "name": "Sample asset",
-    "type": "dataset",
-    "author": "OPF",
-    "license": "https://market.oceanprotocol.com/terms"
+  "results": [
+    {
+      "id": "did:op:fa0e8fa9550e8eb13392d6eeb9ba9f8111801b332c8d2345b350b3bc66b379d5",
+      "chainId": 137,
+      "nftAddress": "0xBB1081DbF3227bbB233Db68f7117114baBb43656",
+      "version": "4.1.0",
+      "metadata": { "name": "dataset-name", "type": "dataset" }
+    }
+  ],
+  "totalResults": 1
 }
 ```
+
+With `type: "tags"`, `results` holds `{ "tag", "count" }` objects. A query that is not valid
+gives HTTP 400 with the reason as text, for example `Invalid query: filter.types: …`.
 
 ---
 
 ## Get DDO
 
-### `HTTP` GET /api/aquarius/assets/ddo/:did
+### `HTTP` GET /api/ddo/:did
 
 #### Description
 
@@ -342,17 +329,17 @@ returns decrypted document
 
 #### Parameters
 
-| name              | type   | required | description                                                                                   |
-| ----------------- | ------ | -------- | --------------------------------------------------------------------------------------------- |
-| decrypterAddress  | string | v        | decrypter address                                                                             |
-| chainId           | number | v        | chain id of network on which document is provided                                             |
-| transactionId     | string |          | tx id of encrypted document                                                                   |
-| dataNftAddress    | string |          | address of nft token                                                                          |
-| encryptedDocument | string |          | encrypted document                                                                            |
-| flags             | number |          | metadata flags if DDO is ECIES encrypted or lzma compressed                                   |
-| documentHash      | string |          | hash based on sha256 of asset                                                                 |
-| nonce             | string | v        | is required to verify a request paired with a signature                                       |
-| signature         | string | v        | signed message (see below)                                                                    |
+| name              | type   | required | description                                                 |
+| ----------------- | ------ | -------- | ----------------------------------------------------------- |
+| decrypterAddress  | string | v        | decrypter address                                           |
+| chainId           | number | v        | chain id of network on which document is provided           |
+| transactionId     | string |          | tx id of encrypted document                                 |
+| dataNftAddress    | string |          | address of nft token                                        |
+| encryptedDocument | string |          | encrypted document                                          |
+| flags             | number |          | metadata flags if DDO is ECIES encrypted or lzma compressed |
+| documentHash      | string |          | hash based on sha256 of asset                               |
+| nonce             | string | v        | is required to verify a request paired with a signature     |
+| signature         | string | v        | signed message (see below)                                  |
 
 > **ON-02 signed-message format (BREAKING, since Ocean Node v4.8.0).** The `decryptDDO`
 > signature now binds the **destination node** and the **exact resource**, so a signature cannot
@@ -416,14 +403,14 @@ Files whose host is, or resolves to, a private, loopback, link-local or otherwis
 
 #### Parameters
 
-| name      | type   | required | description                                         |
-| --------- | ------ | -------- | --------------------------------------------------- |
-| type      | string |          | type of storage `url or arweave or ipfs`            |
-| did       | string |          | document id or did                                  |
-| serviceId | number |          | service id of services list                         |
-| fileIndex | number |          | file index in files array                           |
-| file      | object |          | file data                                           |
-| checksum  | number |          | index in transaction events list                    |
+| name      | type   | required | description                              |
+| --------- | ------ | -------- | ---------------------------------------- |
+| type      | string |          | type of storage `url or arweave or ipfs` |
+| did       | string |          | document id or did                       |
+| serviceId | number |          | service id of services list              |
+| fileIndex | number |          | file index in files array                |
+| file      | object |          | file data                                |
+| checksum  | number |          | index in transaction events list         |
 
 #### Raw-`file` path hardening (ON-07)
 
@@ -723,34 +710,39 @@ returns list of all P2P peers
 
 ## Validate DDO
 
-### `HTTP` POST /directCommand
+### `HTTP` POST /api/ddo/validate
 
 ### `P2P` command: validateDDO
 
 #### Description
 
-returns an empty object if it is valid otherwise an array with error
+Checks a DDO against its schema (and the policy server, when one is configured). A valid DDO
+gets the signed hash of the node, which the publisher writes on chain with the metadata. With
+`VALIDATE_UNSIGNED_DDO=false`, only a request with a signature or an auth token gets the
+signed hash; an unsigned request gets `200` with an empty body.
 
 #### Parameters
 
-| name       | type     | required | description                                       |
-| ---------- | -------- | -------- | ------------------------------------------------- |
-| command    | string   | v        | command name                                      |
-| node       | string   |          | if not present it means current node              |
-| multiAddrs | string[] |          | if passed, use this instead of peerStore & DHT    |
-| id         | string   | v        | document id or did                                |
-| chainId    | number   | v        | chain id of network on which document is provided |
-| nftAddress | string   | v        | address of nft token                              |
+| name             | type   | required | description                                             |
+| ---------------- | ------ | -------- | ------------------------------------------------------- |
+| ddo              | object | v        | the DDO                                                 |
+| publisherAddress | string |          | the address that signs                                  |
+| nonce            | string |          | the next nonce of the publisher                         |
+| signature        | string |          | signature of `publisherAddress + nonce + "validateDDO"` |
+| Authorization    | header |          | an auth token, in place of the signature (HTTP)         |
 
-#### Request
+#### Response
+
+`200` with the signed hash. `400` with the validation error. `403` when the policy server
+denies the publisher.
 
 ```json
 {
-  "command": "validateDDO",
-  "node": "PeerId",
-  "id": "did:op:123",
-  "chainId": 123,
-  "nftAddress": "0x123"
+  "hash": "0x…",
+  "publicKey": "0x…",
+  "r": ["0x…"],
+  "s": ["0x…"],
+  "v": 27
 }
 ```
 
@@ -1193,17 +1185,17 @@ empty array is always allowed). Free compute has no escrow lock/claim, so the fi
 
 #### Description
 
-returns search result for query
+Searches the DDOs, the orders of an account, or the tags of the DDOs, with the same query as
+`POST /api/query` (see [database.md](database.md#ddo-search)). An
+Elasticsearch query body gives HTTP 400.
 
 #### Parameters
 
-| name           | type   | required | description                                            |
-| -------------- | ------ | -------- | ------------------------------------------------------ |
-| command        | string | v        | command name                                           |
-| node           | string |          | if not present it means current node                   |
-| query          | object | v        | query parameters                                       |
-| query.q        | object | v        | text to search for in database                         |
-| query.query_by | object | v        | one or more field names that should be queried against |
+| name    | type   | required | description                                         |
+| ------- | ------ | -------- | --------------------------------------------------- |
+| command | string | v        | command name                                        |
+| node    | string |          | if not present it means current node                |
+| query   | object | v        | the query: `type`, `filter`, `sort`, `page`, `size` |
 
 #### Request
 
@@ -1212,48 +1204,16 @@ returns search result for query
   "command": "query",
   "node": "PeerId",
   "query": {
-    "q": "0x123",
-    "query_by": "nftAddress"
+    "type": "orders",
+    "filter": { "consumer": "0x1234567890123456789012345678901234567890" },
+    "size": 10
   }
 }
 ```
 
 #### Response
 
-```
-[{
-  "facet_counts": [],
-  "found": 1,
-  "out_of": 1,
-  "page": 1,
-  "request_params": {
-    "collection_name": "ddo",
-    "per_page": 10,
-    "q": "0x123"
-  },
-  "search_time_ms": 1,
-  "hits": [
-    {
-      "highlights": [
-        {
-          "field": "nftAddress",
-          "snippet": "<mark>0x123</mark>",
-          "matched_tokens": ["0x123"]
-        }
-      ],
-      "document": {
-        "@context": ["https://w3id.org/did/v1"],
-        "id": "did:op:ACce67694eD2848dd683c651Dab7Af823b7dd123",
-        "version": "4.1.0",
-        "chainId": 1,
-        "nftAddress": "0x123",
-        ...
-      },
-      "text_match": 130916
-    }
-  ]
-}]
-```
+`{ "results": [...], "totalResults": n }`, as the HTTP route answers.
 
 ---
 
@@ -1388,19 +1348,19 @@ returns decrypted document
 
 #### Parameters
 
-| name              | type   | required | description                                                                                   |
-| ----------------- | ------ | -------- | --------------------------------------------------------------------------------------------- |
-| command           | string | v        | command name                                                                                  |
-| node              | string |          | if not present it means current node                                                          |
-| decrypterAddress  | string | v        | decrypter address                                                                             |
-| chainId           | number | v        | chain id of network on which document is provided                                             |
-| transactionId     | string |          | tx id of encrypted document                                                                   |
-| dataNftAddress    | string |          | address of nft token                                                                          |
-| encryptedDocument | string |          | encrypted document                                                                            |
-| flags             | number |          | metadata flags if DDO is ECIES encrypted or lzma compressed                                   |
-| documentHash      | string |          | hash based on sha256 of asset                                                                 |
-| nonce             | string | v        | is required to verify a request paired with a signature                                       |
-| signature         | string | v        | signed message (see below)                                                                    |
+| name              | type   | required | description                                                 |
+| ----------------- | ------ | -------- | ----------------------------------------------------------- |
+| command           | string | v        | command name                                                |
+| node              | string |          | if not present it means current node                        |
+| decrypterAddress  | string | v        | decrypter address                                           |
+| chainId           | number | v        | chain id of network on which document is provided           |
+| transactionId     | string |          | tx id of encrypted document                                 |
+| dataNftAddress    | string |          | address of nft token                                        |
+| encryptedDocument | string |          | encrypted document                                          |
+| flags             | number |          | metadata flags if DDO is ECIES encrypted or lzma compressed |
+| documentHash      | string |          | hash based on sha256 of asset                               |
+| nonce             | string | v        | is required to verify a request paired with a signature     |
+| signature         | string | v        | signed message (see below)                                  |
 
 > **ON-02 signed-message format (BREAKING, since Ocean Node v4.8.0).** Same bound message as the
 > HTTP `/api/services/decrypt` endpoint:
@@ -1730,7 +1690,7 @@ process kill). While it is ON, the node:
 - **Everything else is unchanged**: download, DDO query/validate, indexer, P2P, admin, fees,
   nonce, persistent storage, access lists, escrow events, auth tokens.
 
-The flag is persisted in the SQLite config DB, so it is **sticky across restarts**: a node that
+The flag is persisted in the database of the node, so it is **sticky across restarts**: a node that
 reboots while in maintenance comes back up still in maintenance and will not accept new work
 until an admin disables it. It can also be set at boot with the `MAINTENANCE_MODE` env var (see
 `docs/env.md`). There is **no TTL and no auto-exit**: reaching zero running jobs does nothing on
@@ -1743,7 +1703,10 @@ Rejected requests return HTTP **`503 Service Unavailable`** with a stable machin
 in the JSON response body:
 
 ```json
-{ "error": "Node is in maintenance mode; not accepting new compute or service requests", "code": "MAINTENANCE_MODE" }
+{
+  "error": "Node is in maintenance mode; not accepting new compute or service requests",
+  "code": "MAINTENANCE_MODE"
+}
 ```
 
 > **Important:** `503` is also returned by these handlers for other reasons (e.g.
@@ -1776,13 +1739,13 @@ Toggles maintenance mode (admin only). Signed with the standard admin fields and
 
 #### Parameters
 
-| name      | type    | required | description                                      |
-| --------- | ------- | -------- | ------------------------------------------------ |
-| command   | string  | POST /directCommand | command name (`setMaintenance`)       |
-| enabled   | boolean | v        | `true` enables maintenance, `false` disables it  |
-| nonce     | string  | v        | request nonce                                    |
-| address   | string  | v        | admin address                                    |
-| signature | string  | v        | signed message to authenticate the admin request |
+| name      | type    | required            | description                                      |
+| --------- | ------- | ------------------- | ------------------------------------------------ |
+| command   | string  | POST /directCommand | command name (`setMaintenance`)                  |
+| enabled   | boolean | v                   | `true` enables maintenance, `false` disables it  |
+| nonce     | string  | v                   | request nonce                                    |
+| address   | string  | v                   | admin address                                    |
+| signature | string  | v                   | signed message to authenticate the admin request |
 
 #### Request (POST /api/admin/maintenance)
 
@@ -1831,11 +1794,11 @@ Both `status` and `detailedStatus` expose a `maintenance` object. `enabled` is a
 }
 ```
 
-| field                   | type    | status level | description                                           |
-| ----------------------- | ------- | ------------ | ----------------------------------------------------- |
-| `enabled`               | boolean | always       | whether the node is in maintenance mode               |
-| `runningComputeJobs`    | number  | detailed     | compute jobs still holding resources                  |
-| `runningServices`       | number  | detailed     | service-on-demand jobs still running                  |
+| field                   | type    | status level | description                                            |
+| ----------------------- | ------- | ------------ | ------------------------------------------------------ |
+| `enabled`               | boolean | always       | whether the node is in maintenance mode                |
+| `runningComputeJobs`    | number  | detailed     | compute jobs still holding resources                   |
+| `runningServices`       | number  | detailed     | service-on-demand jobs still running                   |
 | `latestExpectedEndTime` | number  | detailed     | max job/service end time (unix seconds), the drain ETA |
 
 ---
@@ -1854,22 +1817,22 @@ Returns indexed Escrow contract events. The indexer matches Escrow logs by topic
 
 #### Parameters
 
-| name        | type    | required  | description                                               |
-| ----------- | ------- | --------- | --------------------------------------------------------- |
-| command     | string  | POST only | command name (`getEscrowEvents`)                          |
-| chainId     | number  |           | chain id                                                  |
+| name        | type    | required  | description                                                                                                   |
+| ----------- | ------- | --------- | ------------------------------------------------------------------------------------------------------------- |
+| command     | string  | POST only | command name (`getEscrowEvents`)                                                                              |
+| chainId     | number  |           | chain id                                                                                                      |
 | eventType   | string  |           | one of `Auth, Lock, ReLock, Claimed, Canceled, Deposit, Withdraw, Subsidized, LockSponsored, SponsorRefunded` |
-| payer       | string  |           | payer address (case-insensitive)                          |
-| payee       | string  |           | payee address (case-insensitive)                          |
-| token       | string  |           | token address (case-insensitive)                          |
-| provider    | string  |           | subsidy/sponsor provider address (case-insensitive)       |
-| contract    | string  |           | Escrow contract address                                   |
-| reclaimable | boolean |           | filter `SponsorRefunded` rows by their reclaimable flag   |
-| jobId       | string  |           | compute job id                                            |
-| txId        | string  |           | transaction hash                                          |
-| ranges      | object  | POST only | range filters keyed by field (see below)                  |
-| offset      | number  |           | rows to skip (default 0)                                  |
-| size        | number  |           | page size (default 100, max 250)                          |
+| payer       | string  |           | payer address (case-insensitive)                                                                              |
+| payee       | string  |           | payee address (case-insensitive)                                                                              |
+| token       | string  |           | token address (case-insensitive)                                                                              |
+| provider    | string  |           | subsidy/sponsor provider address (case-insensitive)                                                           |
+| contract    | string  |           | Escrow contract address                                                                                       |
+| reclaimable | boolean |           | filter `SponsorRefunded` rows by their reclaimable flag                                                       |
+| jobId       | string  |           | compute job id                                                                                                |
+| txId        | string  |           | transaction hash                                                                                              |
+| ranges      | object  | POST only | range filters keyed by field (see below)                                                                      |
+| offset      | number  |           | rows to skip (default 0)                                                                                      |
+| size        | number  |           | page size (default 100, max 250)                                                                              |
 
 No authentication is required (both the HTTP route and the P2P command are public reads).
 
@@ -1885,9 +1848,9 @@ Any field above is an exact-match filter. Numeric fields also support range filt
 
 Range-filterable fields:
 
-| field                                                                                     | pushed to store? |
-| ----------------------------------------------------------------------------------------- | ---------------- |
-| `block`, `chainId`                                                                         | yes (native numeric) |
+| field                                                                                                                                                              | pushed to store?                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `block`, `chainId`                                                                                                                                                 | yes (native numeric)                                                                                                                                                      |
 | `amount`, `subsidyAmount`, `bonusAmount`, `oldAmount`, `newAmount`, `maxLockedAmount`, `maxLockSeconds`, `maxLockCounts`, `expiry`, `newExpiry`, `expiryTimestamp` | no — filtered node-side with BigInt comparison over paginated store results (bounded scan; a highly selective amount range over a very large result set may be truncated) |
 
 A range on any field not in this list (e.g. an address field) is rejected with `400`.
@@ -2007,17 +1970,17 @@ Returns a live per-node resource snapshot, rolled up across every C2D engine (th
 
 #### Description
 
-Returns ordered hourly averages of the per-node resource snapshot, persisted to SQLite by the sampler/roll-up cron jobs and retained for `NODE_METRICS_RETENTION_DAYS` (default 180). Scalars are arithmetic means over the hour's minute-samples; `sampleCount` is how many samples fed each bucket; GPU entries are averaged per `resourceId`, env entries per `env`+`resource`. Requires the node-metrics database (returns `503` when unavailable, e.g. history disabled via `NODE_METRICS_HISTORY_ENABLED=false`).
+Returns ordered hourly averages of the per-node resource snapshot, persisted to the database of the node per instance (`INSTANCE_ID`) by the sampler/roll-up cron jobs and retained for `NODE_METRICS_RETENTION_DAYS` (default 180). Scalars are arithmetic means over the hour's minute-samples; `sampleCount` is how many samples fed each bucket; GPU entries are averaged per `resourceId`, env entries per `env`+`resource`. Requires the node-metrics database (returns `503` when unavailable, e.g. history disabled via `NODE_METRICS_HISTORY_ENABLED=false`).
 
 When the requested range includes the current, in-progress hour, the last bucket is a **live** average computed on the fly from the raw samples collected so far this hour (before the top-of-hour roll-up has stored it). It is flagged `"partial": true` and is the only bucket that carries that flag; every completed hour is a finalized, stored average. This lets a caller see fresh data without waiting for the hourly roll-up.
 
 #### Parameters
 
-| name      | type          | required | description                                                                        |
-| --------- | ------------- | -------- | ---------------------------------------------------------------------------------- |
-| command   | string        | POST only | command name (`getNodeMetricsHistory`)                                             |
-| startTime | number/string |          | range start — epoch ms or ISO-8601. Defaults to now minus the retention window     |
-| stopTime  | number/string |          | range end — epoch ms or ISO-8601. Defaults to now                                  |
+| name      | type          | required  | description                                                                    |
+| --------- | ------------- | --------- | ------------------------------------------------------------------------------ |
+| command   | string        | POST only | command name (`getNodeMetricsHistory`)                                         |
+| startTime | number/string |           | range start — epoch ms or ISO-8601. Defaults to now minus the retention window |
+| stopTime  | number/string |           | range end — epoch ms or ISO-8601. Defaults to now                              |
 
 `startTime` must be earlier than `stopTime` (else `400`); the range is clamped to the retention window and the row count is capped.
 
@@ -2042,7 +2005,12 @@ When the requested range includes the current, in-progress hour, the last bucket
     {
       "hourStart": 1730368800000,
       "sampleCount": 60,
-      "cpu": { "usagePercent": 40.1, "coresAllocated": 4, "hostCores": 16, "throttledCount": 0 },
+      "cpu": {
+        "usagePercent": 40.1,
+        "coresAllocated": 4,
+        "hostCores": 16,
+        "throttledCount": 0
+      },
       "memory": {
         "usedBytes": 2000000000,
         "limitBytes": 8589934592,
@@ -2181,7 +2149,7 @@ and SERVICE_START rejects a `duration` outside it:
   value is clamped to the daemon ceiling at startup. SERVICE_EXTEND also caps the resulting
   remaining window to it.
 - `minServiceDuration` — the floor. SERVICE_START rejects a shorter `duration`, and
-  SERVICE_EXTEND rejects a shorter `additionalDuration`: the floor is a minimum *purchase*, so a
+  SERVICE_EXTEND rejects a shorter `additionalDuration`: the floor is a minimum _purchase_, so a
   smaller one is refused rather than silently billed at the floor. Everything accepted is then
   priced by its actual duration, rounded up to whole minutes. Defaults to the environment's own
   `minJobDuration`, and may be **raised** per environment; a value below the daemon's
@@ -2289,14 +2257,14 @@ returns job status
 
 Required at least one of the following parameters:
 
-| name            | type    | required | description                                                                                                  |
-| --------------- | ------- | -------- | ------------------------------------------------------------------------------------------------------------ |
-| consumerAddress | string  |          | consumer address to use as filter                                                                            |
-| jobId           | string  |          | jobId address to use as filter                                                                               |
-| agreementId     | string  |          | agreementId address to use as filter                                                                         |
-| includeMetrics  | boolean |          | override the runtime-metrics default (`true` = require them, `false` = never). See note below. |
+| name            | type    | required | description                                                                                         |
+| --------------- | ------- | -------- | --------------------------------------------------------------------------------------------------- |
+| consumerAddress | string  |          | consumer address to use as filter                                                                   |
+| jobId           | string  |          | jobId address to use as filter                                                                      |
+| agreementId     | string  |          | agreementId address to use as filter                                                                |
+| includeMetrics  | boolean |          | override the runtime-metrics default (`true` = require them, `false` = never). See note below.      |
 | signature       | string  |          | signature over `consumerAddress` + `nonce` + `command` (or an auth token) — authenticates the owner |
-| nonce           | string  |          | request nonce, paired with `signature`                                                             |
+| nonce           | string  |          | request nonce, paired with `signature`                                                              |
 
 **Runtime metrics are owner-only and returned BY DEFAULT.** If the request carries owner credentials
 (`consumerAddress` plus `signature`/`nonce`, or an `Authorization` header token), each job owned by
@@ -2304,11 +2272,11 @@ Required at least one of the following parameters:
 
 `includeMetrics` only overrides that default:
 
-| `includeMetrics` | behavior |
-| --- | --- |
+| `includeMetrics`  | behavior                                                                                                                                                                                                                                     |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | omitted (default) | Metrics attached when owner credentials are present and valid. A request without credentials — the plain, unauthenticated status call — returns `200` with no metrics, exactly as before. Invalid credentials likewise just mean no metrics. |
-| `true` | Metrics are **required**: missing `consumerAddress` answers `400`, failed authentication `401`. Use it when you want to know *why* metrics are absent instead of getting a silently trimmed response. |
-| `false` | Metrics are never attached (and the node skips the auth round-trip). |
+| `true`            | Metrics are **required**: missing `consumerAddress` answers `400`, failed authentication `401`. Use it when you want to know _why_ metrics are absent instead of getting a silently trimmed response.                                        |
+| `false`           | Metrics are never attached (and the node skips the auth round-trip).                                                                                                                                                                         |
 
 Metrics never reach a non-owner, and are never part of the on-chain escrow claim proof. They are
 best-effort and up to one sampling interval stale (see [compute.md](compute.md) and
@@ -2380,71 +2348,71 @@ Clients MUST treat every part as optional and render a field only when present.
 
 #### Top-level fields
 
-| field           | type    | unit / notes                                                                                     |
-| --------------- | ------- | ------------------------------------------------------------------------------------------------ |
-| collectedAt     | string  | ISO-8601 timestamp of the sample                                                                 |
-| containerState  | object  | see below — status + structured exit info                                                        |
-| cpu             | object  | see below                                                                                        |
-| memory          | object  | see below                                                                                        |
-| disk            | object  | see below                                                                                        |
-| network         | object? | `{ rxBytes, txBytes }`; **absent** when the container runs with no network (`NetworkMode: none`)  |
-| blockIO         | object  | `{ readBytes, writeBytes }` — cumulative disk I/O in bytes                                        |
-| pids            | object  | `{ current, limit }` — process/thread count vs the container PID limit (512)                      |
-| gpu             | array?  | one entry per GPU the job/service holds; **absent** for CPU-only jobs or when GPU metrics are off |
+| field          | type    | unit / notes                                                                                      |
+| -------------- | ------- | ------------------------------------------------------------------------------------------------- |
+| collectedAt    | string  | ISO-8601 timestamp of the sample                                                                  |
+| containerState | object  | see below — status + structured exit info                                                         |
+| cpu            | object  | see below                                                                                         |
+| memory         | object  | see below                                                                                         |
+| disk           | object  | see below                                                                                         |
+| network        | object? | `{ rxBytes, txBytes }`; **absent** when the container runs with no network (`NetworkMode: none`)  |
+| blockIO        | object  | `{ readBytes, writeBytes }` — cumulative disk I/O in bytes                                        |
+| pids           | object  | `{ current, limit }` — process/thread count vs the container PID limit (512)                      |
+| gpu            | array?  | one entry per GPU the job/service holds; **absent** for CPU-only jobs or when GPU metrics are off |
 
 `containerState`:
 
-| field        | type     | notes                                                                    |
-| ------------ | -------- | ------------------------------------------------------------------------ |
-| status       | string   | e.g. `running`, `exited`                                                 |
-| startedAt    | string?  | ISO-8601                                                                 |
-| finishedAt   | string?  | ISO-8601; present once the container has stopped                         |
-| exitCode     | number?  | process exit code (present after exit)                                   |
-| oomKilled    | boolean  | `true` if the kernel OOM-killed the container                            |
-| error        | string?  | Docker-reported error string, if any                                     |
-| restartCount | number   | container restarts                                                       |
-| health       | string?  | Docker HEALTHCHECK status when the image defines one (e.g. `healthy`)    |
+| field        | type    | notes                                                                 |
+| ------------ | ------- | --------------------------------------------------------------------- |
+| status       | string  | e.g. `running`, `exited`                                              |
+| startedAt    | string? | ISO-8601                                                              |
+| finishedAt   | string? | ISO-8601; present once the container has stopped                      |
+| exitCode     | number? | process exit code (present after exit)                                |
+| oomKilled    | boolean | `true` if the kernel OOM-killed the container                         |
+| error        | string? | Docker-reported error string, if any                                  |
+| restartCount | number  | container restarts                                                    |
+| health       | string? | Docker HEALTHCHECK status when the image defines one (e.g. `healthy`) |
 
 `cpu`:
 
-| field                  | type   | unit / notes                                                                    |
-| ---------------------- | ------ | ------------------------------------------------------------------------------- |
-| usagePercent           | number | % of one host CPU-second per wall-second (docker-stats formula), `0–N×100`       |
-| allocated              | number | CPU cores requested by the job (`0` when unconstrained)                          |
-| usagePercentOfAllocated| number | `usagePercent / allocated` — "how saturated is what you paid for" (`0` if alloc 0)|
-| cumulativeSeconds      | number | total CPU-seconds consumed since start (monotonic; billing-grade)                |
-| throttledPeriods       | number | CFS quota throttling events — high ⇒ the CPU request is too small                |
-| throttledSeconds       | number | total time throttled, seconds                                                    |
+| field                   | type   | unit / notes                                                                       |
+| ----------------------- | ------ | ---------------------------------------------------------------------------------- |
+| usagePercent            | number | % of one host CPU-second per wall-second (docker-stats formula), `0–N×100`         |
+| allocated               | number | CPU cores requested by the job (`0` when unconstrained)                            |
+| usagePercentOfAllocated | number | `usagePercent / allocated` — "how saturated is what you paid for" (`0` if alloc 0) |
+| cumulativeSeconds       | number | total CPU-seconds consumed since start (monotonic; billing-grade)                  |
+| throttledPeriods        | number | CFS quota throttling events — high ⇒ the CPU request is too small                  |
+| throttledSeconds        | number | total time throttled, seconds                                                      |
 
 `memory`:
 
-| field          | type   | unit / notes                                             |
-| -------------- | ------ | -------------------------------------------------------- |
-| usageBytes     | number | working-set bytes (`usage − inactive_file`, cgroup v2)   |
-| limitBytes     | number | memory limit (= allocated RAM) in bytes                  |
-| usagePercent   | number | `usageBytes / limitBytes × 100`                          |
-| peakUsageBytes | number | max `usageBytes` observed across samples                 |
+| field          | type   | unit / notes                                           |
+| -------------- | ------ | ------------------------------------------------------ |
+| usageBytes     | number | working-set bytes (`usage − inactive_file`, cgroup v2) |
+| limitBytes     | number | memory limit (= allocated RAM) in bytes                |
+| usagePercent   | number | `usageBytes / limitBytes × 100`                        |
+| peakUsageBytes | number | max `usageBytes` observed across samples               |
 
 `disk`:
 
-| field        | type    | unit / notes                                                                       |
-| ------------ | ------- | ---------------------------------------------------------------------------------- |
+| field        | type    | unit / notes                                                                          |
+| ------------ | ------- | ------------------------------------------------------------------------------------- |
 | usedBytes    | number  | compute jobs: bytes written under `/` (excludes base image); services: writable layer |
-| quotaBytes   | number? | present only for jobs with a `disk` resource                                        |
-| usagePercent | number? | present only when `quotaBytes` is known                                             |
+| quotaBytes   | number? | present only for jobs with a `disk` resource                                          |
+| usagePercent | number? | present only when `quotaBytes` is known                                               |
 
 `gpu[]` entry:
 
-| field              | type            | unit / notes                                                          |
-| ------------------ | --------------- | --------------------------------------------------------------------- |
-| resourceId         | string          | the requested resource id (`gpu0`, `gpu1`, …) — maps the entry to a device |
-| vendor             | string          | `nvidia` (only NVIDIA is emitted today; `amd`/`intel` reserved)        |
-| utilizationPercent | number \| null  | GPU busy % (`null` = unreadable)                                       |
-| memoryUsedBytes    | number \| null  | VRAM used                                                              |
-| memoryTotalBytes   | number \| null  | total VRAM                                                             |
-| temperatureC       | number?         | °C, when available                                                    |
-| powerWatts         | number?         | current draw, W, when available                                       |
-| shared             | boolean?        | `true` ⇒ device is shareable and the number may include other jobs    |
+| field              | type           | unit / notes                                                               |
+| ------------------ | -------------- | -------------------------------------------------------------------------- |
+| resourceId         | string         | the requested resource id (`gpu0`, `gpu1`, …) — maps the entry to a device |
+| vendor             | string         | `nvidia` (only NVIDIA is emitted today; `amd`/`intel` reserved)            |
+| utilizationPercent | number \| null | GPU busy % (`null` = unreadable)                                           |
+| memoryUsedBytes    | number \| null | VRAM used                                                                  |
+| memoryTotalBytes   | number \| null | total VRAM                                                                 |
+| temperatureC       | number?        | °C, when available                                                         |
+| powerWatts         | number?        | current draw, W, when available                                            |
+| shared             | boolean?       | `true` ⇒ device is shareable and the number may include other jobs         |
 
 > Note: the node also keeps an internal delta accumulator on the stored snapshot; it is stripped
 > from the response and clients will never see it.
@@ -2674,10 +2642,10 @@ Raw file bytes, sent with:
 
 #### Errors
 
-| status | when                                                        |
+| status | when                                                       |
 | ------ | ---------------------------------------------------------- |
 | 403    | consumer is not the bucket owner and not on the bucket ACL |
-| 404    | file not found in the bucket                                |
+| 404    | file not found in the bucket                               |
 
 ---
 
@@ -2801,11 +2769,11 @@ must pass that key's `validation`, and the key may not also be an operator `envV
 
 The encrypted `userData` is never returned. Key fields:
 
-| property       | type     | description                                                                                                                                                                                                         |
-| -------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| serviceId      | string   | unique id of the running service                                                                                                                                                                                    |
-| environment    | string   | envId the service runs on                                                                                                                                                                                           |
-| owner          | string   | consumerAddress                                                                                                                                                                                                     |
+| property       | type     | description                                                                                                                                                                                                                                                                                     |
+| -------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| serviceId      | string   | unique id of the running service                                                                                                                                                                                                                                                                |
+| environment    | string   | envId the service runs on                                                                                                                                                                                                                                                                       |
+| owner          | string   | consumerAddress                                                                                                                                                                                                                                                                                 |
 | status         | number   | `10` Starting, `20` Locking, `11` PullImage, `13` BuildImage, `30` Claiming, `40` Running, `12` PullImageFailed, `14` BuildImageFailed, `15` VulnerableImage, `50` Stopping, `70` Stopped, `75` Expired, `76` DiskQuotaExceeded (restartable/editable like Stopped until expiresAt), `99` Error |
 | statusText     | string   | human-readable status                                                                                                                                                                                               |
 | dateCreated    | string   | ISO timestamp                                                                                                                                                                                                       |
@@ -2903,7 +2871,8 @@ should keep watching `serviceStatus`, not just stop once they first see `Running
 | tag / checksum / dockerfile  | string   |          | image spec — at most one; `dockerfile` requires `allowImageBuild` |
 | additionalDockerFiles        | object   |          | filename → content; only with `dockerfile`                        |
 | dockerCmd / dockerEntrypoint | string[] |          | container CMD / ENTRYPOINT overrides                              |
-| exposedPorts                 | number[] |          | container ports to publish                                        |
+| exposedPorts                 | number[] |          | container ports to publish (host ports auto-allocated) — legacy; prefer `ports` |
+| ports                        | object[] |          | `{ containerPort, hostPort? }[]` — container ports with an optional **pinned** host port. `hostPort` omitted = auto-allocate. A pinned `hostPort` must be inside `hostPortRange` and free. A conflict caught by the synchronous availability **pre-check** returns `400` immediately; one caught only by the authoritative **background reservation** returns `200` with a `Starting` job that then becomes `Error` (seen when polling `serviceStatus`). Either way the reservation happens **before** the escrow lock, so a conflict incurs **no charge**. Supersedes `exposedPorts` when both are sent. |
 | resources                    | object[] |          | `{ id, amount }` requested resources                              |
 | duration                     | number   | v        | seconds; capped by `serviceOnDemand.maxDurationSeconds`           |
 | userData                     | string   |          | ECIES-encrypted (to the node pubkey) JSON of env vars             |
@@ -2950,12 +2919,12 @@ by the authenticated `consumerAddress` are returned.
 
 #### Query Parameters
 
-| name            | type    | required | description |
-| --------------- | ------- | -------- | ----------- |
-| consumerAddress | string  | v        | owner address |
-| nonce           | string  | v        | request nonce |
-| signature       | string  | v        | signed message (or use an `Authorization` auth-token header) |
-| serviceId       | string  |          | filter to a single service; omit to list all owned services |
+| name            | type    | required | description                                                                           |
+| --------------- | ------- | -------- | ------------------------------------------------------------------------------------- |
+| consumerAddress | string  | v        | owner address                                                                         |
+| nonce           | string  | v        | request nonce                                                                         |
+| signature       | string  | v        | signed message (or use an `Authorization` auth-token header)                          |
+| serviceId       | string  |          | filter to a single service; omit to list all owned services                           |
 | includeMetrics  | boolean |          | runtime metrics (`runtimeMetrics`) are included by default; pass `false` to omit them |
 
 #### Response (200)
@@ -3093,24 +3062,27 @@ RESPEC mode (restart on a new image spec — `image` required, plus at most one 
 }
 ```
 
-| name                  | type     | required | description                                                                                                              |
-| --------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------ |
-| serviceId             | string   | v        | the service to restart                                                                                                   |
-| image                 | string   | RESPEC   | base image name (build label when `dockerfile` is set). Required as soon as any container param is present               |
-| tag                   | string   |          | pull by `name:tag`; mutually exclusive with `checksum`/`dockerfile`                                                      |
-| checksum              | string   |          | pull by digest `sha256:<64 hex>`; mutually exclusive with `tag`/`dockerfile`                                             |
-| dockerfile            | string   |          | build from an inline Dockerfile; requires `allowImageBuild` on the environment; mutually exclusive with `tag`/`checksum` |
-| additionalDockerFiles | object   |          | extra `filename → content` files for the build context (only with `dockerfile`)                                          |
-| userData              | string   |          | ECIES-encrypted (to the node public key) JSON → the container's env-var map                                              |
-| dockerCmd             | string[] |          | exact container command (Docker exec-form CMD override)                                                                  |
-| dockerEntrypoint      | string[] |          | container ENTRYPOINT override                                                                                            |
+| name                  | type     | required | description                                                                                                                                                                     |
+| --------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| serviceId             | string   | v        | the service to restart                                                                                                                                                          |
+| image                 | string   | RESPEC   | base image name (build label when `dockerfile` is set). Required as soon as any container param is present                                                                      |
+| tag                   | string   |          | pull by `name:tag`; mutually exclusive with `checksum`/`dockerfile`                                                                                                             |
+| checksum              | string   |          | pull by digest `sha256:<64 hex>`; mutually exclusive with `tag`/`dockerfile`                                                                                                    |
+| dockerfile            | string   |          | build from an inline Dockerfile; requires `allowImageBuild` on the environment; mutually exclusive with `tag`/`checksum`                                                        |
+| additionalDockerFiles | object   |          | extra `filename → content` files for the build context (only with `dockerfile`)                                                                                                 |
+| userData              | string   |          | ECIES-encrypted (to the node public key) JSON → the container's env-var map                                                                                                     |
+| dockerCmd             | string[] |          | exact container command (Docker exec-form CMD override)                                                                                                                         |
+| dockerEntrypoint      | string[] |          | container ENTRYPOINT override                                                                                                                                                   |
 | metadata              | object   |          | user labels (≤1 KB JSON). **Not** a container param — independent of REUSE/RESPEC. When present it **replaces** the stored metadata; when omitted the original metadata is kept |
 | secureTls             | number[] |          | container ports, like `serviceStart`. **Not** a container param. When present it **replaces** the stored list (`[]` turns TLS off); when omitted the stored list is kept. A non-empty list needs `features.secureTls` (else 400). An omitted list drops TLS only when the node's config no longer allows it (e.g. `nodeHost` is now private); while TLS is only temporarily unavailable, the stored list is kept |
+| ports                 | object[] |          | `{ containerPort, hostPort? }[]` — change the ports, optionally **pinning** host ports (`hostPort` omitted = auto-allocate). Independent of REUSE/RESPEC (no `image` required). Validated/reserved up front: an unavailable requested host port is rejected and the running service is **left untouched**; on success the old host ports are freed after teardown and the `endpoints`/URLs change. Omitted ⇒ keep current ports. (The legacy `exposedPorts` field is **not** read on restart — use `ports`.) |
 
 #### Response (200)
 
-The `ServiceJob` with a new `containerId` (same `hostPort` and `expiresAt`; the `image`/`tag`/
-`checksum`/`dockerfile`/`containerImage` fields reflect the new spec in RESPEC mode).
+The `ServiceJob` with a new `containerId`. Host ports and `expiresAt` are unchanged unless a
+`ports` change was requested (then `endpoints`/URLs reflect the new host ports);
+the `image`/`tag`/`checksum`/`dockerfile`/`containerImage` fields reflect the new spec in RESPEC
+mode.
 
 #### Response (400)
 
@@ -3160,10 +3132,14 @@ until `expiresAt`. Only `release: true` ends the paid window early.
 
 #### Description
 
-Stream the service container's stdout/stderr logs live. **Authenticated and owner-scoped**
+Stream the service container's stdout/stderr logs. **Authenticated and owner-scoped**
 — only the service's owner (`consumerAddress`, proven by signature/nonce or auth token) can
-read its logs. Available while the service is `Running` (`40`) or `Error` (`99`) — a crashed
-container is kept around until `stop`/`restart`, so its logs remain fetchable for diagnosis.
+read its logs. While the service has a container — `Running` (`40`), `Error` (`99`): a
+crashed container is kept around until `stop`/`restart`, or `Stopping` until the teardown
+removes it — its log is followed live. Once the
+container is gone, the logs the node saved when each of the service's containers was removed
+are served instead, oldest first, until `storageExpiry` seconds after `expiresAt`. Only the last
+16 MiB of each container's log are kept, for the last 5 containers.
 
 #### Query Parameters
 
@@ -3177,22 +3153,31 @@ container is kept around until `stop`/`restart`, so its logs remain fetchable fo
 
 #### Response (200)
 
-Raw `stdout`/`stderr` byte stream from the container, connection kept open and followed live.
-With `since` set, historical output before that point is skipped — useful for a long-lived
-service where fetching the full history would otherwise dump days/weeks of buffered logs
-before reaching the live tail (e.g. `since=1h` for just the last hour).
+Raw `stdout`/`stderr` byte stream from the container (Docker-multiplexed frames), connection
+kept open and followed live. Saved logs come in the same format, and the stream ends after the
+last line. With `since` set, historical output before that point is skipped — useful for a
+long-lived service where fetching the full history would otherwise dump days/weeks of buffered
+logs before reaching the live tail (e.g. `since=1h` for just the last hour).
 
 #### Response (400)
 
-`since` is present but not a valid Unix timestamp or duration (`<number><s|m|h|d>`).
+`since` is present but not a valid Unix timestamp or duration (`<number><s|m|h|d>`), or no
+service with this `serviceId` belongs to `consumerAddress` (`Service job not found`).
 
 #### Response (404)
 
-Service not found, or not `Running`/`Error`.
+The service exists but has no container and no saved logs (never saved, or deleted after
+storage expiry).
 
 #### Response (401)
 
-Missing/invalid auth, or `consumerAddress` is not the service owner.
+Missing/invalid auth. A service owned by another address gets `400`, as above: the lookup is
+owner-scoped, so it is not found.
+
+#### Response (500)
+
+The node could not read the container's live log from Docker. Saved logs are not served in its
+place, so a Docker failure is never mistaken for an empty log.
 
 ---
 
@@ -3210,14 +3195,14 @@ container's folder (`live=true`).
 
 #### Query Parameters
 
-| name            | type    | required | description                                                                  |
-| --------------- | ------- | -------- | ---------------------------------------------------------------------------- |
-| consumerAddress | string  | v        | owner address                                                                |
-| nonce           | string  | v        | request nonce                                                                |
-| signature       | string  | v        | signed message (or use an `Authorization` auth-token header)                 |
-| serviceId       | string  | v        | the service                                                                  |
-| index           | number  |          | archive index from `outputArchives`; required unless `live=true`             |
-| offset          | number  |          | resume an archive download from this byte (not with `live`)                  |
+| name            | type    | required | description                                                                 |
+| --------------- | ------- | -------- | --------------------------------------------------------------------------- |
+| consumerAddress | string  | v        | owner address                                                               |
+| nonce           | string  | v        | request nonce                                                               |
+| signature       | string  | v        | signed message (or use an `Authorization` auth-token header)                |
+| serviceId       | string  | v        | the service                                                                 |
+| index           | number  |          | archive index from `outputArchives`; required unless `live=true`            |
+| offset          | number  |          | resume an archive download from this byte (not with `live`)                 |
 | live            | boolean |          | `true` to zip the running container's `/data/outputs` instead of an archive |
 
 #### Response (200)

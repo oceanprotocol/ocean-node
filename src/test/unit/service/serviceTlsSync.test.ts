@@ -415,7 +415,40 @@ describe('service TLS sync (Caddy admin API)', () => {
       bodiesAtCreate = posts().map((p) => p.body)
       return Promise.resolve(service)
     })
-    const args = [job.serviceId, '0xowner', ...Array(9).fill(undefined), []]
+    const args = [job.serviceId, '0xowner', ...Array(11).fill(undefined), []]
+
+    await engine.restartService(...args)
+    await Promise.allSettled([...engine.serviceOpPromises])
+
+    expect(job.status, job.statusText).to.equal(ServiceStatusNumber.Running)
+    expect(
+      engine.docker.createContainer.firstCall.args[0].HostConfig.PortBindings
+    ).to.deep.equal({
+      '8188/tcp': [{ HostPort: '31042' }],
+      '8189/tcp': [{ HostPort: '31043' }]
+    })
+    expect(bodiesAtCreate).to.deep.equal([{}])
+  })
+
+  it('restart with a port change and []: Caddy drops the old port first', async () => {
+    const job = makeRunningJob()
+    engine.db.getServiceJob = sinon.stub().resolves([job])
+    engine.db.getRunningServiceJobs.callsFake(() => Promise.resolve([job]))
+    const service = await engine.docker.createContainer()
+    engine.docker.createContainer.resetHistory()
+    let bodiesAtCreate: any[] = []
+    engine.docker.createContainer.callsFake(() => {
+      bodiesAtCreate = posts().map((p) => p.body)
+      return Promise.resolve(service)
+    })
+    const args = [
+      job.serviceId,
+      '0xowner',
+      ...Array(9).fill(undefined),
+      [8188, 8189],
+      undefined,
+      []
+    ]
 
     await engine.restartService(...args)
     await Promise.allSettled([...engine.serviceOpPromises])
@@ -436,7 +469,7 @@ describe('service TLS sync (Caddy admin API)', () => {
     engine.db.getRunningServiceJobs.callsFake(() => Promise.resolve([job]))
     caddy.fail = true
     engine.docker.createContainer.resetHistory()
-    const args = [job.serviceId, '0xowner', ...Array(9).fill(undefined), []]
+    const args = [job.serviceId, '0xowner', ...Array(11).fill(undefined), []]
 
     await engine.restartService(...args)
     await Promise.allSettled([...engine.serviceOpPromises])

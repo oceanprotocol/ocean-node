@@ -129,15 +129,12 @@ describe('scoped auth token — claims + enforcement', () => {
 
   before(async () => {
     const config = await getConfiguration(true)
-    authTokenDatabase = await AuthTokenDatabase.create(config.dbConfig)
+    const db = await Database.init(config.dbConfig)
+    authTokenDatabase = db.authToken
     auth = new Auth(authTokenDatabase, config)
     wallet = new Wallet(process.env.PRIVATE_KEY)
-    // SQLite-core-only DB (no metadata DB needed for auth); build a minimal OceanNode so the
-    // enforcement path (which reads the node's own peerId) has a singleton.
-    const db = await Database.init({
-      url: 'http://localhost:9999',
-      dbType: 'none'
-    } as any)
+    // build a minimal OceanNode so the enforcement path (which reads the node's own peerId)
+    // has a singleton
     const keyManager = new KeyManager(config)
     const blockchainRegistry = new BlockchainRegistry(keyManager, config)
     OceanNode.getInstance(
