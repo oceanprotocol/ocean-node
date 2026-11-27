@@ -5445,7 +5445,11 @@ export class C2DEngineDocker extends C2DEngine {
         )
       )
       .catch((e) => {
-        CORE_LOGGER.error(`Service TLS: sync failed: ${e.message}`)
+        CORE_LOGGER.throttled(
+          `service-tls-sync-${cluster.hash}`,
+          'error',
+          `Service TLS: sync failed: ${e.message}`
+        )
         return false
       })
     return this.tlsSync
