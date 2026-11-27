@@ -29,6 +29,7 @@ const EXEC_TIMEOUT_MS = 10_000
 const EXEC_EXIT_POLL_MS = 100
 const EXEC_EXIT_POLLS = 20
 const RESEND_MS = 60_000 // a restarted Caddy has no config until the next load
+const CERT_WAIT_RESEND_MS = 5_000
 const LOG_KEY = 'service-tls-sync'
 const LOG_INTERVAL_MS = 600_000
 const CERT_FILE_HASH_CHARS = 16
@@ -292,7 +293,8 @@ export class CaddyProxy {
       maxDurationSeconds: sod?.maxDurationSeconds
     })
     const json = JSON.stringify(servers)
-    if (this.lastLoad?.json === json && Date.now() - this.lastLoad.at < RESEND_MS) return
+    const resendMs = this.certReady ? RESEND_MS : CERT_WAIT_RESEND_MS
+    if (this.lastLoad?.json === json && Date.now() - this.lastLoad.at < resendMs) return
     const caddy = await this.io.ensure(this.docker, this.owner, acmePath)
     const certFile = acmePath ? await this.copyStoreCert(caddy, nodeHost) : undefined
     const config = buildCaddyConfig(servers, nodeHost, certFile)

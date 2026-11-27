@@ -5436,13 +5436,18 @@ export class C2DEngineDocker extends C2DEngine {
     const { caddy } = this
     if (!caddy) return Promise.resolve(true)
     const cluster = this.getC2DConfig()
-    this.tlsSync = this.tlsSync.then(() =>
-      caddy.sync(
-        this.tlsNodeHost(),
-        () => this.db.getRunningServiceJobs(cluster.hash),
-        cluster.connection.serviceOnDemand
+    this.tlsSync = this.tlsSync
+      .then(() =>
+        caddy.sync(
+          this.tlsNodeHost(),
+          () => this.db.getRunningServiceJobs(cluster.hash),
+          cluster.connection.serviceOnDemand
+        )
       )
-    )
+      .catch((e) => {
+        CORE_LOGGER.error(`Service TLS: sync failed: ${e.message}`)
+        return false
+      })
     return this.tlsSync
   }
 

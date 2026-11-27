@@ -375,6 +375,16 @@ describe('service TLS sync (Caddy admin API)', () => {
       expect(io.ensure.called).to.equal(false)
     })
 
+    it('a throw while it builds a sync resolves false, and the next sync still runs', async () => {
+      engine.tlsNodeHost = () => {
+        throw new Error('bad config')
+      }
+      expect(await engine.syncServiceTls()).to.equal(false)
+      delete engine.tlsNodeHost
+      expect(await engine.syncServiceTls()).to.equal(true)
+      expect(posts()).to.have.length(1)
+    })
+
     it('skips identical servers within a minute, re-sends them after', async () => {
       engine.db.getRunningServiceJobs.resolves([makeRunningJob()])
       await engine.syncServiceTls()
@@ -501,6 +511,22 @@ describe('service TLS sync (Caddy admin API)', () => {
       engine.caddy.lastLoad.at -= 60_000
       await engine.syncServiceTls()
       expect(await feature()).to.equal(true)
+    })
+
+    it('turns on seconds after the certificate arrives, not a minute', async () => {
+      const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] })
+      try {
+        caddy.hasCert = false
+        await engine.syncServiceTls()
+        caddy.hasCert = true
+        await engine.syncServiceTls()
+        expect(await feature()).to.equal(false)
+        clock.tick(5_000)
+        await engine.syncServiceTls()
+        expect(await feature()).to.equal(true)
+      } finally {
+        clock.restore()
+      }
     })
 
     it('is off until Caddy accepts a sync, and off again after a rejected one', async () => {
