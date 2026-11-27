@@ -779,6 +779,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.IS_BOOTSTRAP,
     required: false
   },
+  IS_ENTERPRISE: {
+    name: 'IS_ENTERPRISE',
+    value: process.env.IS_ENTERPRISE,
+    required: false
+  },
   ESCROW_EMPTY_TX: {
     name: 'ESCROW_EMPTY_TX',
     value: process.env.ESCROW_EMPTY_TX,

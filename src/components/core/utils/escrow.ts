@@ -2,7 +2,7 @@ import { Blockchain, getDatatokenDecimals } from '../../../utils/blockchain.js'
 import { ethers, parseUnits, formatUnits, BigNumberish } from 'ethers'
 import EscrowJson from '@oceanprotocol/contracts/artifacts/contracts/escrow/Escrow.sol/Escrow.json' with { type: 'json' }
 import { EscrowAuthorization, EscrowLock } from '../../../@types/Escrow.js'
-import { getOceanArtifactsAdressesByChainId } from '../../../utils/address.js'
+import { getEscrowAddressForChain } from '../../../utils/address.js'
 import { RPCS } from '../../../@types/blockchain.js'
 import { AccessListContract } from '../../../@types/OceanNode.js'
 import { JobType, ZERO_PAYMENT_TX, isZeroPaymentTx } from '../../../utils/constants.js'
@@ -30,19 +30,23 @@ export class Escrow {
   private escrowEmptyTx: boolean
   /** Cache for token decimals to avoid repeated blockchain calls */
   private decimalsCache: Map<string, number> = new Map()
+  /** Enterprise nodes pay/claim through EnterpriseEscrow instead of Escrow. */
+  private isEnterprise: boolean
 
   constructor(
     supportedNetworks: RPCS,
     claimDurationTimeout: number,
     blockchainRegistry: BlockchainRegistry,
     subsidyProviders: AccessListContract | null = null,
-    escrowEmptyTx: boolean = false
+    escrowEmptyTx: boolean = false,
+    isEnterprise: boolean = false
   ) {
     this.networks = supportedNetworks
     this.claimDurationTimeout = claimDurationTimeout
     this.blockchainRegistry = blockchainRegistry
     this.subsidyProviders = subsidyProviders
     this.escrowEmptyTx = escrowEmptyTx
+    this.isEnterprise = isEnterprise
   }
 
   /**
@@ -54,9 +58,7 @@ export class Escrow {
   }
 
   getEscrowContractAddressForChain(chainId: number): string | null {
-    const addresses = getOceanArtifactsAdressesByChainId(chainId)
-    if (addresses && addresses.Escrow) return addresses.Escrow
-    return null
+    return getEscrowAddressForChain(chainId, this.isEnterprise)
   }
 
   getMinLockTime(maxJobDuration: number) {

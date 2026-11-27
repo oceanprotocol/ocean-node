@@ -67,6 +67,32 @@ export function getOceanTokenAddressForChain(chainId: number): string | null {
   return null
 }
 
+/**
+ * Escrow contract the node pays/claims through and whose events the indexer tracks.
+ * Enterprise nodes use EnterpriseEscrow (same events/ABI as Escrow, plus the enterprise
+ * network fee), falling back to Escrow on chains where EnterpriseEscrow is not deployed.
+ * Core and Indexer must resolve it through here so they never disagree.
+ * @returns address as found in the address file, or null
+ */
+export function getEscrowAddressForChain(
+  chainId: number,
+  isEnterprise: boolean = false
+): string | null {
+  const addresses = getOceanArtifactsAdressesByChainId(chainId)
+  if (!addresses) return null
+  if (isEnterprise) {
+    if (addresses.EnterpriseEscrow) return addresses.EnterpriseEscrow
+    if (addresses.Escrow) {
+      CORE_LOGGER.throttled(
+        `enterpriseEscrow:${chainId}`,
+        LOG_LEVELS_STR.LEVEL_WARN,
+        `EnterpriseEscrow is not deployed on chain ${chainId}; enterprise node falls back to Escrow`
+      )
+    }
+  }
+  return addresses.Escrow || null
+}
+
 // default token addresses per chain
 export const OCEAN_ARTIFACTS_ADDRESSES_PER_CHAIN = addresses
 export const DEVELOPMENT_CHAIN_ID = 8996

@@ -292,7 +292,8 @@ export class ChainIndexer {
                   provider,
                   this.blockchain.getSupportedChain(),
                   startBlock,
-                  blocksToProcess
+                  blocksToProcess,
+                  this.config.isEnterprise
                 ),
                 'retrieveChunkEvents'
               )
