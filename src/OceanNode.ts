@@ -93,6 +93,7 @@ export class OceanNode {
         this.config.claimDurationTimeout,
         this.blockchainRegistry,
         this.config.subsidyProviders,
+        this.config.escrowEmptyTx,
         this.config.isEnterprise
       )
       if (this.config.persistentStorage?.enabled) {
@@ -302,6 +303,7 @@ export class OceanNode {
         this.config.claimDurationTimeout,
         this.blockchainRegistry,
         this.config.subsidyProviders,
+        this.config.escrowEmptyTx,
         this.config.isEnterprise
       )
     }

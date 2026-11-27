@@ -1622,6 +1622,10 @@ export const OceanNodeConfigSchema = z
     supportedNetworks: jsonFromString(RPCSSchema, 'supportedNetworks').optional(),
 
     claimDurationTimeout: z.coerce.number().default(3600),
+    // When false (default) a zero-amount escrow lock/claim is NOT sent on-chain — the node records
+    // the `0xempty` sentinel instead of a tx hash, so a node whose resources are priced 0 burns no
+    // gas. Set true to submit the real zero-value transactions on-chain (legacy behaviour).
+    escrowEmptyTx: booleanFromString.optional().default(false),
     indexingNetworks: z
       .union([
         jsonFromString(RPCSSchema, 'indexingNetworks'),

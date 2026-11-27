@@ -1,6 +1,6 @@
 import { PROTOCOL_COMMANDS, SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
-import { Command } from '../../@types/commands.js'
+import { Command, ServicePortRequest } from '../../@types/commands.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { redactSensitiveFields } from '../../utils/logging/redact.js'
@@ -124,6 +124,55 @@ export function buildInvalidRequestMessage(cause: string): ValidateParams {
     status: 400,
     reason: cause
   }
+}
+
+// Hard cap on how many ports a single service command may declare (applies to both the `ports`
+// pair form and the legacy `exposedPorts`). No legitimate service needs anywhere near this many,
+// and it is well under the default hostPortRange size (2768): without it, a single 4 MB
+// /directCommand or P2P body could carry hundreds of thousands of entries, forcing a pre-escrow
+// isPortFree() syscall storm (pinned) or an escrow charge followed by host-port-range exhaustion
+// at CONTINUE (unpinned → charge-without-service). Rejected up front as a 400.
+export const MAX_SERVICE_PORTS = 64
+
+// Structural validation of the service `ports` field (shared by the service start/restart
+// handlers). Range membership + OS freeness of a pinned host port are enforced later, by the
+// engine's reserveSpecificHostPort (which knows the daemon's hostPortRange). Returns null when
+// the spec is well formed, else a 400 ValidateParams.
+export function validatePortSpecStructure(
+  ports: ServicePortRequest[]
+): ValidateParams | null {
+  if (!Array.isArray(ports) || ports.length === 0)
+    return buildInvalidRequestMessage('"ports" must be a non-empty array')
+  if (ports.length > MAX_SERVICE_PORTS)
+    return buildInvalidRequestMessage(
+      `"ports" may contain at most ${MAX_SERVICE_PORTS} entries`
+    )
+  const seenContainer = new Set<number>()
+  const seenHost = new Set<number>()
+  for (const p of ports) {
+    if (
+      !p ||
+      !Number.isInteger(p.containerPort) ||
+      p.containerPort < 1 ||
+      p.containerPort > 65535
+    )
+      return buildInvalidRequestMessage(
+        'each entry in "ports" needs an integer containerPort in 1..65535'
+      )
+    if (seenContainer.has(p.containerPort))
+      return buildInvalidRequestMessage(
+        `duplicate containerPort ${p.containerPort} in "ports"`
+      )
+    seenContainer.add(p.containerPort)
+    if (p.hostPort !== undefined) {
+      if (!Number.isInteger(p.hostPort) || p.hostPort < 1 || p.hostPort > 65535)
+        return buildInvalidRequestMessage('hostPort must be an integer in 1..65535')
+      if (seenHost.has(p.hostPort))
+        return buildInvalidRequestMessage(`duplicate hostPort ${p.hostPort} in "ports"`)
+      seenHost.add(p.hostPort)
+    }
+  }
+  return null
 }
 
 export function buildRateLimitReachedResponse(): P2PCommandResponse {

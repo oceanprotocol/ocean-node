@@ -6,7 +6,9 @@ import {
   ValidateParams,
   validateCommandParameters,
   buildInvalidParametersResponse,
-  buildInvalidRequestMessage
+  buildInvalidRequestMessage,
+  validatePortSpecStructure,
+  MAX_SERVICE_PORTS
 } from '../../httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { isAddress } from 'ethers'
@@ -18,7 +20,13 @@ import type {
 import { generateUniqueID, validateOutputBucket } from '../compute/utils.js'
 import { validateAccess } from '../compute/startCompute.js'
 import { isJobMetadataSizeValid, INVALID_JOB_METADATA_MESSAGE } from '../../c2d/index.js'
-import { decryptUserData, toPublicServiceJob } from './utils.js'
+import {
+  decryptUserData,
+  toPublicServiceJob,
+  normalizePortSpec,
+  portInRange,
+  isHostPortFree
+} from './utils.js'
 import {
   filterSubsidyByAllowedImages,
   isNonEmpty,
@@ -51,6 +59,20 @@ export class ServiceStartHandler extends CommandHandler {
         )
       if (!isJobMetadataSizeValid(command.metadata))
         return buildInvalidRequestMessage(INVALID_JOB_METADATA_MESSAGE)
+      if (command.ports !== undefined) {
+        const portsValidation = validatePortSpecStructure(command.ports)
+        if (portsValidation) return portsValidation
+      }
+      // Cap the legacy field too: `ports` is bounded by validatePortSpecStructure, but a large
+      // `exposedPorts` array would otherwise reach CONTINUE and exhaust the host-port range after
+      // the escrow charge (charge-without-service). An oversized request is a no-charge 400.
+      if (
+        Array.isArray(command.exposedPorts) &&
+        command.exposedPorts.length > MAX_SERVICE_PORTS
+      )
+        return buildInvalidRequestMessage(
+          `"exposedPorts" may contain at most ${MAX_SERVICE_PORTS} entries`
+        )
     }
     return commandValidation
   }
@@ -198,6 +220,31 @@ export class ServiceStartHandler extends CommandHandler {
           buildInvalidRequestMessage('A service needs a disk amount greater than 0')
         )
 
+      // 5b. Resolve the port spec (ports supersedes exposedPorts). For any PINNED host port do
+      //     a best-effort pre-check (range + currently free) so an obviously-unavailable port is
+      //     a fast 400 rather than an async failure. This is NOT authoritative: the charge-safe
+      //     reservation happens in the engine before the escrow lock (processServiceStart).
+      const { exposedPorts: normExposedPorts, requestedHostPorts } = normalizePortSpec(
+        task.ports,
+        task.exposedPorts
+      )
+      if (requestedHostPorts) {
+        const range = engine.getC2DConfig().connection?.serviceOnDemand
+          ?.hostPortRange ?? [30000, 32767]
+        for (const hp of Object.values(requestedHostPorts)) {
+          if (!portInRange(hp, range))
+            return buildInvalidParametersResponse(
+              buildInvalidRequestMessage(
+                `Requested host port ${hp} is outside the allowed range ${range[0]}–${range[1]}`
+              )
+            )
+          if (!(await isHostPortFree(hp)))
+            return buildInvalidParametersResponse(
+              buildInvalidRequestMessage(`Requested host port ${hp} is not free`)
+            )
+        }
+      }
+
       // 6. Server-side cost (used to size the escrow lock the background loop will create).
       const cost = engine.calculateResourcesCost(
         resources,
@@ -325,7 +372,7 @@ export class ServiceStartHandler extends CommandHandler {
         task.additionalDockerFiles,
         task.dockerCmd,
         task.dockerEntrypoint,
-        task.exposedPorts ?? [],
+        normExposedPorts,
         resources,
         task.duration,
         task.consumerAddress,
@@ -333,7 +380,8 @@ export class ServiceStartHandler extends CommandHandler {
         serviceId,
         task.userData,
         task.metadata,
-        task.outputBucketId
+        task.outputBucketId,
+        requestedHostPorts
       )
 
       CORE_LOGGER.info(

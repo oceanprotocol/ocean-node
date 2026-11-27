@@ -784,6 +784,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.IS_ENTERPRISE,
     required: false
   },
+  ESCROW_EMPTY_TX: {
+    name: 'ESCROW_EMPTY_TX',
+    value: process.env.ESCROW_EMPTY_TX,
+    required: false
+  },
   AUTHORIZED_PUBLISHERS: {
     name: 'AUTHORIZED_PUBLISHERS',
     value: process.env.AUTHORIZED_PUBLISHERS,
@@ -860,6 +865,15 @@ export const TYPESENSE_HITS_CAP = 250
 // (BigInt) range filter is active. Keeps deep pagination bounded; beyond this the result is
 // whatever matched within the scanned window.
 export const MAX_ESCROW_CLIENT_SCAN = 2000
+
+// Sentinel recorded in place of a real tx hash (lockTx/claimTx) when the escrow amount is 0 and
+// the node is configured to skip the on-chain transaction (ESCROW_EMPTY_TX off — the default).
+// A zero-value lock/claim moves nothing on chain, so sending it only burns the node's gas; we
+// short-circuit and store this string instead. It can never collide with a real 66-char `0x…`
+// transaction hash. Toggle the real on-chain behaviour back on with ESCROW_EMPTY_TX=true.
+export const ZERO_PAYMENT_TX = '0xempty'
+export const isZeroPaymentTx = (tx: string | null | undefined): boolean =>
+  tx === ZERO_PAYMENT_TX
 export const DDO_IDENTIFIER_PREFIX = 'did:op:'
 // global ocean node API services path
 export const SERVICES_API_BASE_PATH = '/api/services'

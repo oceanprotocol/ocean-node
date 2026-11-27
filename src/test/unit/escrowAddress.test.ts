@@ -47,7 +47,7 @@ describe('Escrow contract selection (IS_ENTERPRISE)', () => {
 
   it('core Escrow pays through the contract matching the toggle', () => {
     const community = new Escrow({} as any, 3600, {} as any, null)
-    const enterprise = new Escrow({} as any, 3600, {} as any, null, true)
+    const enterprise = new Escrow({} as any, 3600, {} as any, null, false, true)
     expect(community.getEscrowContractAddressForChain(CHAIN_WITH_ENTERPRISE)).to.equal(
       ESCROW_ON_OPTIMISM
     )

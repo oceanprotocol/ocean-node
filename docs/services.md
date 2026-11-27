@@ -100,6 +100,38 @@ would silently run on top of the old image) is rejected with `400`, and a `docke
 an environment with `allowImageBuild=false` is rejected with `403`. Payment, resources and
 duration are always preserved — only the container spec changes.
 
+**Choosing ports.** A service declares the container ports it exposes; the node publishes each
+on a **host port** and returns the mapping as `endpoints` (`{containerPort, hostPort, url}`).
+Two request shapes, both optional:
+
+- `exposedPorts: number[]` — container ports; the node auto-allocates a host port for each from
+  `hostPortRange` (the original behaviour).
+- `ports: Array<{ containerPort, hostPort? }>` — the same, but you may **pin** a specific host
+  port per entry. Omit `hostPort` to auto-allocate that one. When both fields are sent, `ports`
+  wins (and a warning is logged). A pinned `hostPort` **must** be inside the node's
+  `hostPortRange` and currently free, otherwise the command is rejected (`400 … is outside the
+  allowed range` / `… is not free`). For `serviceStart` the pinned ports are reserved **before**
+  the escrow lock, so a port conflict fails the start with **no charge**. At most **64** ports may
+  be declared per command (either field); a larger array is rejected with a `400`.
+
+> **Operator note.** `hostPortRange` must not overlap any port the node itself binds — the HTTP
+> API (`HTTP_API_PORT`, default `8000`), the P2P ports (`9000-9005`), or the metadata DB
+> (Typesense `8108` / Elasticsearch `9200`). The schema already forbids privileged ports
+> (`< 1024`) and the default `[30000, 32767]` is clear of all node ports; the OS-freeness check is
+> only a last line of defence, so pick a range that cannot collide with the node's own services.
+
+`serviceRestart` accepts `ports` too — independent of REUSE/RESPEC, exactly like `metadata`
+(a port change does **not** require `image`). Send `ports` to change the service's ports; omit it
+to keep the current ones. (Restart reads only `ports`, not the legacy `exposedPorts` — so a client
+that echoes a start body into a restart never changes ports by accident.) On restart the new ports
+are validated and reserved up front, so if a requested host port is unavailable the command is
+rejected and the **running service is left untouched**; on success the old host ports are released
+after the old container is torn down (so the service's `endpoints`/URLs change). Explicit pins are
+reserved first, so an auto-allocated port never lands on one another entry pinned. An unpinned
+container port that is already mapped keeps its current host port **unless** another entry in the
+same request pins it — then the pin wins and the unpinned port moves to a fresh host port.
+Re-pinning a host port the service already holds is allowed.
+
 **The reservation lasts the whole paid window — only `Expired` releases it.** The consumer
 paid for the resources for a time interval and may use them as they please within it:
 running the service, stopping it, restarting it. An explicit `SERVICE_STOP` therefore tears

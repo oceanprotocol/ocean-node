@@ -5,7 +5,7 @@ import { EscrowAuthorization, EscrowLock } from '../../../@types/Escrow.js'
 import { getEscrowAddressForChain } from '../../../utils/address.js'
 import { RPCS } from '../../../@types/blockchain.js'
 import { AccessListContract } from '../../../@types/OceanNode.js'
-import { JobType } from '../../../utils/constants.js'
+import { JobType, ZERO_PAYMENT_TX, isZeroPaymentTx } from '../../../utils/constants.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { sleep } from '../../../utils/util.js'
 import { BlockchainRegistry } from '../../BlockchainRegistry/index.js'
@@ -21,6 +21,13 @@ export class Escrow {
   private blockchainRegistry: BlockchainRegistry
   /** Per-chain Subsidy Provider contract addresses, passed to the escrow at claim time. */
   private subsidyProviders: AccessListContract | null
+  /**
+   * When false (default, from ESCROW_EMPTY_TX), a lock/claim whose on-chain amount is 0 is NOT
+   * submitted — `createLock`/`claimLock` return the `ZERO_PAYMENT_TX` sentinel instead of a real
+   * tx hash, so a node with zero-priced resources burns no gas. true restores the legacy
+   * behaviour of sending the real zero-value transaction on-chain.
+   */
+  private escrowEmptyTx: boolean
   /** Cache for token decimals to avoid repeated blockchain calls */
   private decimalsCache: Map<string, number> = new Map()
   /** Enterprise nodes pay/claim through EnterpriseEscrow instead of Escrow. */
@@ -31,12 +38,14 @@ export class Escrow {
     claimDurationTimeout: number,
     blockchainRegistry: BlockchainRegistry,
     subsidyProviders: AccessListContract | null = null,
+    escrowEmptyTx: boolean = false,
     isEnterprise: boolean = false
   ) {
     this.networks = supportedNetworks
     this.claimDurationTimeout = claimDurationTimeout
     this.blockchainRegistry = blockchainRegistry
     this.subsidyProviders = subsidyProviders
+    this.escrowEmptyTx = escrowEmptyTx
     this.isEnterprise = isEnterprise
   }
 
@@ -68,6 +77,9 @@ export class Escrow {
     confirmations: number = 1,
     timeoutMs: number = 60000
   ): Promise<void> {
+    // A skipped zero-amount lock/claim carries the sentinel instead of a real hash — there is
+    // nothing to wait for, so return immediately rather than block until the RPC times out.
+    if (isZeroPaymentTx(txHash)) return
     const blockchain = this.getBlockchain(chain)
     const provider = await blockchain.getProvider()
     await provider.waitForTransaction(txHash, confirmations, timeoutMs)
@@ -201,6 +213,16 @@ export class Escrow {
     const contract = this.getContract(chain, signer)
     if (!contract) throw new Error(`Failed to initialize escrow contract`)
     const wei = await this.getPaymentAmountInWei(amount, chain, token)
+
+    // Zero-amount lock: nothing moves on-chain. Unless ESCROW_EMPTY_TX forces the real tx, skip it
+    // entirely (no funds/auth pre-checks, no transaction) and return the sentinel. The matching
+    // claim short-circuits the same way, so lock & claim stay consistent without an on-chain lock.
+    if (!this.escrowEmptyTx && BigInt(wei) === 0n) {
+      CORE_LOGGER.debug(
+        `createLock: amount is 0 for job ${job} on chain ${chain} — skipping on-chain lock, returning ${ZERO_PAYMENT_TX}`
+      )
+      return ZERO_PAYMENT_TX
+    }
 
     // Escrow v2 stopgap: when the lock is (partly) sponsored, the payer only needs to cover the
     // UNsponsored portion `P = L - S` — a fully-sponsored lock needs 0 from the payer. We can't
@@ -338,8 +360,21 @@ export class Escrow {
     amount: number,
     proof: string,
     jobType: JobType = JobType.NONE,
-    subsidyOverride: string[] | null = null
+    subsidyOverride: string[] | null = null,
+    lockTx?: string
   ): Promise<string | null> {
+    // The claim MIRRORS the lock: when `createLock` skipped the on-chain lock (its recorded
+    // `lockTx` is the 0xempty sentinel) there is nothing on-chain to claim, so return the sentinel
+    // WITHOUT a getLocks lookup (which would find none and surface a false "claim failed"). We key
+    // off the LOCK's result, not the claim's own amount — in the compute flow the claim cost is
+    // recomputed from the actual runtime and may round to 0 wei even though a real (>0) lock
+    // exists; such a lock must still be claimed (claiming 0 releases it), never left stranded.
+    if (isZeroPaymentTx(lockTx)) {
+      CORE_LOGGER.debug(
+        `claimLock: lock for job ${job} on chain ${chain} was the ${ZERO_PAYMENT_TX} sentinel — skipping on-chain claim`
+      )
+      return ZERO_PAYMENT_TX
+    }
     const blockchain = this.getBlockchain(chain)
     const signer = await blockchain.getSigner()
     const contract = this.getContract(chain, signer)

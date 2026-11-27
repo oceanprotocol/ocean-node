@@ -60,7 +60,12 @@ import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { checkUrlHost, getSafeDispatcher } from '../../utils/safeUrl.js'
 import { fetchHeadersTimeout } from '../../utils/http.js'
 import { errorSummary, safeStringify } from '../../utils/logging/redact.js'
-import { ENVIRONMENT_VARIABLES, JobType } from '../../utils/constants.js'
+import {
+  ENVIRONMENT_VARIABLES,
+  JobType,
+  ZERO_PAYMENT_TX,
+  isZeroPaymentTx
+} from '../../utils/constants.js'
 import { FindDdoHandler } from '../core/handler/ddoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { KeyManager } from '../KeyManager/index.js'
@@ -89,6 +94,7 @@ import {
 } from '../../@types/C2D/ServiceOnDemand.js'
 import type {
   ServiceJob,
+  ServiceEndpoint,
   ServiceImagePullProgress,
   ServiceModelDownload,
   ServiceReadiness
@@ -154,6 +160,8 @@ import {
   allocateHostPort,
   releaseHostPort,
   reserveHostPort,
+  reserveSpecificHostPort,
+  HostPortUnavailableError,
   seedAllocatedPorts,
   userDataToEnv,
   decryptUserData
@@ -1188,7 +1196,10 @@ export class C2DEngineDocker extends C2DEngine {
                 claim.cost,
                 claim.proof,
                 JobType.COMPUTE,
-                claim.job.payment!.subsidyProviders ?? null
+                claim.job.payment!.subsidyProviders ?? null,
+                // Mirror the lock: only a sentinel lock skips the claim. A real lock whose claim
+                // cost rounds to 0 is still claimed (releases it), never stranded on-chain.
+                claim.job.payment!.lockTx
               )
               if (txId) {
                 if (claim.job.payment) {
@@ -1279,8 +1290,12 @@ export class C2DEngineDocker extends C2DEngine {
         job.status = C2DStatusNumber.JobFinished
         job.statusText = C2DStatusText.JobFinished
         if (job.payment) {
-          job.payment.cancelTx = 'nolock'
-          job.payment.claimTx = 'nolock'
+          // A zero-amount paid job never created an on-chain lock (lockTx is the 0xempty
+          // sentinel), so getLocks found nothing — that is expected, not an anomaly. Record the
+          // claim as 0xempty too, rather than the "nolock" marker used for genuinely orphaned jobs.
+          const emptyTx = isZeroPaymentTx(job.payment.lockTx)
+          job.payment.cancelTx = emptyTx ? ZERO_PAYMENT_TX : 'nolock'
+          job.payment.claimTx = emptyTx ? ZERO_PAYMENT_TX : 'nolock'
         }
         await this.db.updateJob(job)
       }
@@ -4828,7 +4843,8 @@ export class C2DEngineDocker extends C2DEngine {
     serviceId: string,
     userData?: string,
     metadata?: DBComputeJobMetadata,
-    outputBucketId?: string
+    outputBucketId?: string,
+    requestedHostPorts?: Record<string, number>
   ): Promise<ServiceJob | null> {
     validateJobMetadataSize(metadata)
     const containerImage = resolveServiceImage(
@@ -4859,6 +4875,7 @@ export class C2DEngineDocker extends C2DEngine {
       expiresAt: Date.now() + duration * 1000,
       duration,
       exposedPorts,
+      ...(requestedHostPorts ? { requestedHostPorts } : {}),
       endpoints: [],
       userData, // stored as received (ECIES-encrypted); decrypted transiently at container start
       metadata,
@@ -4922,7 +4939,8 @@ export class C2DEngineDocker extends C2DEngine {
           chainId,
           serviceId,
           token,
-          job.owner
+          job.owner,
+          job.payment.lockTx
         )
       }
       const { previousContainerId } = job
@@ -4965,6 +4983,32 @@ export class C2DEngineDocker extends C2DEngine {
     }
 
     const sod = this.getC2DConfig().connection?.serviceOnDemand
+
+    // Reserve any PINNED host ports BEFORE escrow Locking. Host ports are only otherwise
+    // allocated at CONTINUE (after the lock is claimed), so detecting a pinned-port conflict
+    // there would charge the consumer for a service that can never start. Reserving up front
+    // makes a conflict a no-charge Error. `reservedPinned` is released on every pre-commit
+    // failure (image-failure return + outer catch) and cleared once job.endpoints is committed.
+    const reservedPinned: number[] = []
+    if (job.requestedHostPorts && Object.keys(job.requestedHostPorts).length) {
+      const [rs, re] = sod?.hostPortRange ?? [30000, 32767]
+      try {
+        for (const hp of Object.values(job.requestedHostPorts)) {
+          await reserveSpecificHostPort(hp, rs, re)
+          reservedPinned.push(hp)
+        }
+      } catch (e: any) {
+        for (const p of reservedPinned) releaseHostPort(p)
+        job.status = ServiceStatusNumber.Error
+        job.statusText = String(e.message)
+        await this.db.updateServiceJob(job)
+        CORE_LOGGER.warn(
+          `startService ${serviceId} rejected before escrow (pinned port): ${e.message}`
+        )
+        return
+      }
+    }
+
     // Live docker handles, tracked so the catch can tear down a half-created service.
     let network: Dockerode.Network | null = null
     let container: Dockerode.Container | null = null
@@ -5070,13 +5114,16 @@ export class C2DEngineDocker extends C2DEngine {
           chainId,
           serviceId,
           token,
-          job.owner
+          job.owner,
+          job.payment.lockTx
         )
         job.status = job.dockerfile
           ? ServiceStatusNumber.BuildImageFailed
           : ServiceStatusNumber.PullImageFailed
         job.statusText = String(imageError.message)
         await this.db.updateServiceJob(job)
+        // Pre-commit exit (claim never reached, endpoints not built): free any pinned ports.
+        for (const p of reservedPinned) releaseHostPort(p)
         CORE_LOGGER.warn(
           `startService ${serviceId} image step failed (lock refunded): ${imageError.message}`
         )
@@ -5091,14 +5138,16 @@ export class C2DEngineDocker extends C2DEngine {
         job.payment.cost,
         `service-start:${serviceId}`,
         JobType.SERVICE,
-        job.payment.subsidyProviders ?? null
+        job.payment.subsidyProviders ?? null,
+        job.payment.lockTx
       )
       if (!claimTx) {
         job.payment.cancelTx = await this.safeCancelLock(
           chainId,
           serviceId,
           token,
-          job.owner
+          job.owner,
+          job.payment.lockTx
         )
         throw new Error('Escrow claim failed — lock cancelled')
       }
@@ -5106,16 +5155,29 @@ export class C2DEngineDocker extends C2DEngine {
       await this.db.updateServiceJob(job)
 
       // 4. CONTINUE — allocate host ports → network → create + start container → Running.
-      // Sequential allocation with rollback (job.endpoints isn't populated yet, so a mid-way
-      // failure would otherwise strand reserved ports in the in-memory allocatedPorts set).
+      // Pinned ports were already reserved pre-lock (reservedPinned); auto ports are allocated
+      // here. Sequential allocation with rollback: job.endpoints isn't populated yet, so a
+      // mid-way failure must release BOTH the auto ports allocated here AND the pre-lock pinned
+      // ones — otherwise they leak (the outer catch only releases on !claimTx, and the claim has
+      // already succeeded by this point, so it would never free them).
       const [rangeStart, rangeEnd] = sod?.hostPortRange ?? [30000, 32767]
       const hostPorts: number[] = []
+      const autoAllocated: number[] = []
       try {
-        for (let i = 0; i < job.exposedPorts.length; i++) {
-          hostPorts.push(await allocateHostPort(rangeStart, rangeEnd))
+        for (const cp of job.exposedPorts) {
+          const pinned = job.requestedHostPorts?.[String(cp)]
+          if (pinned !== undefined) {
+            hostPorts.push(pinned)
+          } else {
+            const p = await allocateHostPort(rangeStart, rangeEnd)
+            autoAllocated.push(p)
+            hostPorts.push(p)
+          }
         }
       } catch (e) {
-        for (const port of hostPorts) releaseHostPort(port)
+        for (const port of autoAllocated) releaseHostPort(port)
+        for (const port of reservedPinned) releaseHostPort(port)
+        reservedPinned.length = 0
         throw e
       }
 
@@ -5125,6 +5187,9 @@ export class C2DEngineDocker extends C2DEngine {
         hostPort: hostPorts[i],
         url: `http://${nodeHost}:${hostPorts[i]}`
       }))
+      // Ports are now tracked via job.endpoints; the pre-lock pinned reservations are subsumed
+      // (a later failure follows the claimTx-based keep/release logic in the catch below).
+      reservedPinned.length = 0
 
       network = await this.createServiceNetwork(serviceId)
 
@@ -5216,9 +5281,16 @@ export class C2DEngineDocker extends C2DEngine {
           chainId,
           serviceId,
           token,
-          job.owner
+          job.owner,
+          job.payment.lockTx
         )
       }
+      // Pre-lock pinned reservations must be freed on ANY pre-commit failure, independent of
+      // claimTx: they are cleared (reservedPinned.length = 0) the moment job.endpoints is
+      // committed and in the CONTINUE catch, so here they are non-empty ONLY when we failed
+      // before endpoints existed (e.g. updateServiceJob threw right after the claim). Releasing
+      // them unconditionally closes that leak without touching committed endpoints.
+      for (const p of reservedPinned) releaseHostPort(p)
       if (!job.payment.claimTx) {
         // Never paid (lock refunded): the job is not restartable, so free its ports.
         for (const ep of job.endpoints) releaseHostPort(ep.hostPort)
@@ -5239,8 +5311,12 @@ export class C2DEngineDocker extends C2DEngine {
     chainId: number,
     serviceId: string,
     token: string,
-    owner: string
+    owner: string,
+    lockTx?: string
   ): Promise<string> {
+    // A zero-amount lock was never created on-chain (lockTx is the 0xempty sentinel) — there is
+    // no lock to cancel, so skip the RPC entirely.
+    if (isZeroPaymentTx(lockTx)) return ''
     try {
       return (await this.escrow.cancelExpiredLock(chainId, serviceId, token, owner)) ?? ''
     } catch (e: any) {
@@ -6473,7 +6549,9 @@ export class C2DEngineDocker extends C2DEngine {
     newUserData?: string,
     newDockerCmd?: string[],
     newDockerEntrypoint?: string[],
-    newMetadata?: DBComputeJobMetadata
+    newMetadata?: DBComputeJobMetadata,
+    newExposedPorts?: number[],
+    newRequestedHostPorts?: Record<string, number>
   ): Promise<ServiceJob | null> {
     // Metadata is independent of the container-param REUSE/RESPEC grouping: validate it up
     // front so a bad request is rejected before any teardown. Applied to the job below.
@@ -6489,6 +6567,12 @@ export class C2DEngineDocker extends C2DEngine {
     // pull/build can take minutes and must not block the HTTP/P2P response. Clients
     // poll SERVICE_GET_STATUS and watch Restarting → … → Running (or Error).
     let job: ServiceJob
+    // Set when a port change is applied below; carries the OUTGOING endpoints so the background
+    // op can release the dropped host ports after teardown. Undefined ⇒ ports unchanged.
+    let portChangeOldEndpoints: ServiceEndpoint[] | undefined
+    // Host ports NEWLY reserved for a port change (excludes ports the service already owned).
+    // Released by the catch below if anything throws before the background op takes over.
+    const portChangeReserved: number[] = []
     try {
       ;[job] = await this.db.getServiceJob(serviceId, owner)
       if (!job) {
@@ -6555,6 +6639,80 @@ export class C2DEngineDocker extends C2DEngine {
       this.serviceDiskCheckedAt?.delete(serviceId)
       this.serviceDiskUnmeasured?.delete(serviceId)
       this.serviceDiskSamples?.delete(serviceId)
+      // Port change (independent of REUSE/RESPEC). Validate + reserve the NEW host ports here,
+      // while the old container is still up, so a conflict throws and leaves the running service
+      // untouched (nothing persisted yet). Reserve in TWO passes so an auto-allocation can never
+      // take a host port that another entry explicitly pins: a single pass in request order would
+      // let allocateHostPort grab (at random) a port that a LATER pinned entry needs, spuriously
+      // rejecting a satisfiable request. Pass 1 reserves every explicit pin; pass 2 then keeps a
+      // still-free CURRENT host port or auto-allocates — both now avoid the pins (which are in
+      // allocatedPorts). A pin on one of this job's own current ports is `ownedBusyOk` (freed at
+      // teardown, re-bound by the new container). Only NEWLY reserved ports go in
+      // portChangeReserved (released on failure); owned ports are never rolled back. Dropped old
+      // host ports are released later, after teardown, by doRestartService.
+      if (newExposedPorts !== undefined) {
+        const sodPorts = this.getC2DConfig().connection?.serviceOnDemand
+        const [rs, re] = sodPorts?.hostPortRange ?? [30000, 32767]
+        const nodeHost = sodPorts?.nodeHost ?? 'localhost'
+        const ownHostPorts = new Set(job.endpoints.map((e) => e.hostPort))
+        // Current containerPort → hostPort map, so an unpinned container port that already exists
+        // keeps its host port — unless another entry in THIS request pins it, in which case the
+        // pin wins and the unpinned port moves to a fresh one.
+        const currentByContainer = new Map(
+          job.endpoints.map((e) => [e.containerPort, e.hostPort])
+        )
+        try {
+          const resolvedHost = new Map<number, number>() // containerPort → hostPort
+          const assignedHost = new Set<number>() // host ports claimed within THIS request
+          // Pass 1 — reserve every EXPLICIT pin first.
+          for (const cp of newExposedPorts) {
+            const pin = newRequestedHostPorts?.[String(cp)]
+            if (pin === undefined) continue
+            // Two entries pinning the same host port is already a 400 in validatePortSpecStructure;
+            // this is a defensive backstop for any non-HTTP/P2P caller that skipped it.
+            if (assignedHost.has(pin))
+              throw new HostPortUnavailableError(
+                `host port ${pin} is requested for more than one container port`
+              )
+            const owned = ownHostPorts.has(pin)
+            await reserveSpecificHostPort(pin, rs, re, { ownedBusyOk: owned })
+            if (!owned) portChangeReserved.push(pin)
+            assignedHost.add(pin)
+            resolvedHost.set(cp, pin)
+          }
+          // Pass 2 — unpinned entries: keep the current host port if it is still free (not claimed
+          // by a pin above), else auto-allocate. allocateHostPort skips allocatedPorts (which now
+          // holds every reserved pin), so an auto port never lands on a pinned one.
+          for (const cp of newExposedPorts) {
+            if (resolvedHost.has(cp)) continue
+            const current = currentByContainer.get(cp)
+            let hp: number
+            if (current !== undefined && !assignedHost.has(current)) {
+              hp = current
+              reserveHostPort(hp) // idempotent; keep the service's own port
+            } else {
+              hp = await allocateHostPort(rs, re)
+              portChangeReserved.push(hp)
+            }
+            assignedHost.add(hp)
+            resolvedHost.set(cp, hp)
+          }
+          const newEndpoints: ServiceEndpoint[] = newExposedPorts.map((cp) => {
+            const hp = resolvedHost.get(cp) as number
+            return { containerPort: cp, hostPort: hp, url: `http://${nodeHost}:${hp}` }
+          })
+          portChangeOldEndpoints = job.endpoints
+          job.exposedPorts = newExposedPorts
+          if (newRequestedHostPorts && Object.keys(newRequestedHostPorts).length)
+            job.requestedHostPorts = newRequestedHostPorts
+          else delete job.requestedHostPorts
+          job.endpoints = newEndpoints
+        } catch (e) {
+          for (const p of portChangeReserved) releaseHostPort(p)
+          portChangeReserved.length = 0
+          throw e
+        }
+      }
       job.status = ServiceStatusNumber.Restarting
       job.statusText = ServiceStatusText[ServiceStatusNumber.Restarting]
       // Replace the stored metadata only when the request carries a new bag; otherwise the
@@ -6562,6 +6720,10 @@ export class C2DEngineDocker extends C2DEngine {
       if (newMetadata !== undefined) job.metadata = newMetadata
       await this.db.updateServiceJob(job)
     } catch (e) {
+      // Release any host ports newly reserved for a port change that was never handed to the
+      // background op (e.g. updateServiceJob threw after the port block). Owned/old ports are
+      // NOT in this list, so the still-running service keeps the ports it is using.
+      for (const p of portChangeReserved) releaseHostPort(p)
       await this.releaseServiceLifecycleLock(serviceId)
       throw e
     }
@@ -6576,7 +6738,8 @@ export class C2DEngineDocker extends C2DEngine {
       newAdditionalDockerFiles,
       newUserData,
       newDockerCmd,
-      newDockerEntrypoint
+      newDockerEntrypoint,
+      portChangeOldEndpoints
     ).finally(() => {
       this.serviceOpPromises.delete(op)
       return this.releaseServiceLifecycleLock(serviceId)
@@ -6603,13 +6766,17 @@ export class C2DEngineDocker extends C2DEngine {
     newAdditionalDockerFiles?: Record<string, string>,
     newUserData?: string,
     newDockerCmd?: string[],
-    newDockerEntrypoint?: string[]
+    newDockerEntrypoint?: string[],
+    // When a port change was applied, the OUTGOING endpoints — released here after teardown.
+    oldEndpoints?: ServiceEndpoint[]
   ): Promise<ServiceJob | null> {
     const { serviceId } = job
 
     // Re-reserve the job's host ports in the in-memory allocator after node restart:
     // stopped-like services retain their endpoints, so concurrent starts must not reuse
-    // ports this restart will re-bind. Already reserved ports make these adds no-ops.
+    // ports this restart will re-bind. On a port change job.endpoints already holds the NEW
+    // (pre-reserved) endpoints, so these adds are no-ops. Already reserved ports make these
+    // adds no-ops.
     for (const ep of job.endpoints) reserveHostPort(ep.hostPort)
 
     await this.logServiceDockerState(`restart ${serviceId}: before teardown`, serviceId)
@@ -6624,52 +6791,71 @@ export class C2DEngineDocker extends C2DEngine {
     // new one (step 8). A stopped container is not an endpoint of the network, so removing
     // the network below leaves it alone. With a bucket the results are in the bucket already.
     let previous: Dockerode.Container | null = null
-    if (job.containerId) {
-      CORE_LOGGER.debug(`restart ${serviceId}: stopping old container ${job.containerId}`)
-      // Final snapshot of the outgoing container before it is torn down (best-effort).
-      await this.captureFinalServiceSnapshot(job)
-      const c = this.docker.getContainer(job.containerId)
-      // Already stopped (304) or already gone (404) counts as stopped.
-      let stopped = true
-      await c.stop({ t: 10 }).catch((e) => {
-        if (!isBenignDockerError(e)) stopped = false
-        logDockerCleanupError(e, `restart ${serviceId}: old container stop: ${e.message}`)
-      })
-      // Saved here rather than in each branch below: every branch ends with this container
-      // removed, and the new one starts with an empty log. Recorded before any branch removes it.
-      await this.saveServiceLogs(job, c)
-      await this.db.updateServiceJob(job)
-      if (job.outputBucketId) {
-        await c.remove({ force: true, v: true }).catch((e) => {
-          logDockerCleanupError(
-            e,
-            `restart ${serviceId}: old container remove: ${e.message}`
-          )
-        })
-      } else if (!stopped) {
-        // It can't be kept for the carry-over: it may still be running, and
-        // removeServiceNetwork below force-removes a container still attached to the
-        // network, folder and all. Archive the folder now instead; the new container
-        // starts with an empty one.
-        CORE_LOGGER.error(
-          `restart ${serviceId}: could not stop old container ${job.containerId} — archiving ${SERVICE_OUTPUTS_PATH} instead of carrying it over`
+    try {
+      if (job.containerId) {
+        CORE_LOGGER.debug(
+          `restart ${serviceId}: stopping old container ${job.containerId}`
         )
-        await this.archiveServiceOutputs(job, c)
-        await c.remove({ force: true, v: true }).catch((e) => {
+        // Final snapshot of the outgoing container before it is torn down (best-effort).
+        await this.captureFinalServiceSnapshot(job)
+        const c = this.docker.getContainer(job.containerId)
+        // Already stopped (304) or already gone (404) counts as stopped.
+        let stopped = true
+        await c.stop({ t: 10 }).catch((e) => {
+          if (!isBenignDockerError(e)) stopped = false
           logDockerCleanupError(
             e,
-            `restart ${serviceId}: old container remove: ${e.message}`
+            `restart ${serviceId}: old container stop: ${e.message}`
           )
         })
-      } else {
-        previous = c
-        job.previousContainerId = job.containerId
+        // Saved here rather than in each branch below: every branch ends with this container
+        // removed, and the new one starts with an empty log. Recorded before any branch removes it.
+        await this.saveServiceLogs(job, c)
+        await this.db.updateServiceJob(job)
+        if (job.outputBucketId) {
+          await c.remove({ force: true, v: true }).catch((e) => {
+            logDockerCleanupError(
+              e,
+              `restart ${serviceId}: old container remove: ${e.message}`
+            )
+          })
+        } else if (!stopped) {
+          // It can't be kept for the carry-over: it may still be running, and
+          // removeServiceNetwork below force-removes a container still attached to the
+          // network, folder and all. Archive the folder now instead; the new container
+          // starts with an empty one.
+          CORE_LOGGER.error(
+            `restart ${serviceId}: could not stop old container ${job.containerId} — archiving ${SERVICE_OUTPUTS_PATH} instead of carrying it over`
+          )
+          await this.archiveServiceOutputs(job, c)
+          await c.remove({ force: true, v: true }).catch((e) => {
+            logDockerCleanupError(
+              e,
+              `restart ${serviceId}: old container remove: ${e.message}`
+            )
+          })
+        } else {
+          previous = c
+          job.previousContainerId = job.containerId
+        }
+      }
+      await this.removeServiceNetwork(serviceId, job.networkId).catch((e) => {
+        CORE_LOGGER.error(`restart ${serviceId}: old network removal: ${e.message}`)
+      })
+      await this.logServiceDockerState(`restart ${serviceId}: after teardown`, serviceId)
+    } finally {
+      // Port change: release the dropped host ports — those on the OUTGOING endpoints the new
+      // endpoints no longer use. In a `finally` so an unguarded teardown throw (e.g.
+      // captureFinalServiceSnapshot / archiveServiceOutputs) can't strand them in the in-memory
+      // allocatedPorts set. releaseHostPort is a pure Set.delete, so it is safe regardless of
+      // whether the OS has freed the port yet (a concurrent allocateHostPort still checks
+      // isPortFree before reusing it). The NEW ports stay reserved (re-reserved at the top).
+      if (oldEndpoints) {
+        const keep = new Set(job.endpoints.map((e) => e.hostPort))
+        for (const ep of oldEndpoints)
+          if (!keep.has(ep.hostPort)) releaseHostPort(ep.hostPort)
       }
     }
-    await this.removeServiceNetwork(serviceId, job.networkId).catch((e) => {
-      CORE_LOGGER.error(`restart ${serviceId}: old network removal: ${e.message}`)
-    })
-    await this.logServiceDockerState(`restart ${serviceId}: after teardown`, serviceId)
 
     job.containerId = ''
     job.networkId = ''
