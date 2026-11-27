@@ -15,4 +15,3 @@ src/test
 coverage
 docker-compose.yml
 elasticsearch-compose.yml
-typesense-compose.yml

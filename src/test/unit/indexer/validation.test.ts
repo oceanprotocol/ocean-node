@@ -57,7 +57,7 @@ describe('Schema validation tests', () => {
       nonce: {},
       c2d: {},
       authToken: {},
-      sqliteConfig: {},
+      config: {},
       ddo: {},
       indexer: {},
       logs: {},

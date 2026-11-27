@@ -228,10 +228,9 @@ export class Auth {
   ): AuthToken {
     const createdNum = Number(createdAt)
     return {
-      token,
       address,
-      created: Number.isFinite(createdNum) ? new Date(createdNum) : new Date(),
-      validUntil: new Date(validUntilMs),
+      createdAt: Number.isFinite(createdNum) ? createdNum : Date.now(),
+      validUntil: validUntilMs,
       isValid: true
     }
   }

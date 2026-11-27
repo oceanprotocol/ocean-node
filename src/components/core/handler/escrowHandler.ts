@@ -10,7 +10,7 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import {
   ESCROW_EVENTS,
   MAX_ESCROW_CLIENT_SCAN,
-  TYPESENSE_HITS_CAP
+  ESCROW_SCAN_PAGE_SIZE
 } from '../../../utils/constants.js'
 import {
   validateEscrowRanges,
@@ -118,7 +118,7 @@ export class EscrowEventsHandler extends CommandHandler {
     const wantOffset = offset && offset > 0 ? offset : 0
     const wantSize = size && size > 0 ? size : 100
     const needed = wantOffset + wantSize
-    const pageSize = TYPESENSE_HITS_CAP
+    const pageSize = ESCROW_SCAN_PAGE_SIZE
 
     const matched: Record<string, any>[] = []
     let scanned = 0

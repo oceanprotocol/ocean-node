@@ -133,9 +133,6 @@ out
 .yarn/install-state.gz
 .pnp.*
 
-# Typesense
-typesense-data
-
 # IDEA
 .idea
 

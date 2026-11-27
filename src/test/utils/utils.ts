@@ -1,12 +1,25 @@
+import type { Suite } from 'mocha'
 import path from 'path'
 import dotenv from 'dotenv'
 import { fileURLToPath } from 'url'
-import { DB_TYPES, ENVIRONMENT_VARIABLES, EnvVariable } from '../../utils/constants.js'
+import { ENVIRONMENT_VARIABLES, EnvVariable } from '../../utils/constants.js'
 import { CONFIG_LOGGER } from '../../utils/logging/common.js'
 import { RPCS } from '../../@types/blockchain.js'
+import type { NodeMetricsSnapshot } from '../../@types/nodeMetrics.js'
 import { getConfiguration } from '../../utils/config/builder.js'
 
 export const DEFAULT_TEST_TIMEOUT = 20000 // 20 secs MAX
+
+// A suite that uses the Elasticsearch client directly (it reads or cleans an index) runs
+// only when DB_TYPE selects Elasticsearch. The stores of the other databases have their own
+// suites.
+export function describeOnElasticsearch(
+  title: string,
+  suite: (this: Suite) => void
+): void {
+  const run = process.env.DB_TYPE === 'elasticsearch' ? describe : describe.skip
+  run(title, suite)
+}
 // __dirname and __filename are not defined in ES module scope
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -163,9 +176,34 @@ export function isRunningContinousIntegrationEnv(): boolean {
   )
 }
 
-// does a random run; sometimes elastic, others typesense
-export const SELECTED_RUN_DATABASE =
-  new Date().getTime() % 2 === 0 ? DB_TYPES.ELASTIC_SEARCH : DB_TYPES.TYPESENSE
-CONFIG_LOGGER.debug(`SELECTED_RUN_DATABASE: ${SELECTED_RUN_DATABASE}`)
-
 export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// a node metrics snapshot for the tests
+export function baseSnapshot(
+  overrides: Partial<NodeMetricsSnapshot> = {}
+): NodeMetricsSnapshot {
+  return {
+    collectedAt: Date.now(),
+    hasAggregate: true,
+    cpu: {
+      usagePercent: 10,
+      coresAllocated: 2,
+      hostCores: 8,
+      throttledCount: 0,
+      loadAverage: [0.1, 0.2, 0.3]
+    },
+    memory: {
+      usedBytes: 100,
+      limitBytes: 1000,
+      hostFreeBytes: 500,
+      hostTotalBytes: 2000
+    },
+    disk: { usedBytes: 300 },
+    network: { rxBytes: 10, txBytes: 20 },
+    jobs: { running: 1, runningFree: 0, queued: 0, queuedFree: 0 },
+    gpu: [],
+    env: [],
+    meta: { sampledContainers: 1, oldestSampleAgeSeconds: 5 },
+    ...overrides
+  }
+}

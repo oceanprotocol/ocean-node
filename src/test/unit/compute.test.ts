@@ -1,7 +1,7 @@
 import { C2DDatabase } from '../../components/database/C2DDatabase.js'
+import { Database } from '../../components/database/index.js'
 // import { existsEnvironmentVariable, getConfiguration } from '../../utils/config.js'
 import { getConfiguration } from '../../utils/config.js'
-import { typesenseSchemas } from '../../components/database/TypesenseSchemas.js'
 import {
   C2DStatusNumber,
   C2DStatusText,
@@ -16,11 +16,6 @@ import {
 } from '../../@types/C2D/C2D.js'
 // import { computeAsset } from '../data/assets'
 import { assert, expect } from 'chai'
-import {
-  convertArrayToString,
-  convertStringToArray,
-  STRING_SEPARATOR
-} from '../../components/database/sqliteCompute.js'
 import os from 'os'
 import {
   buildEnvOverrideConfig,
@@ -150,7 +145,7 @@ describe('Compute Jobs Database', () => {
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
-    db = await new C2DDatabase(config.dbConfig, typesenseSchemas.c2dSchemas)
+    db = (await Database.init(config.dbConfig)).c2d
   })
 
   it('should create a new C2D Job', async () => {
@@ -328,19 +323,6 @@ describe('Compute Jobs Database', () => {
   it('should delete the job by jobId', async () => {
     const deleted = await db.deleteJob(jobId)
     expect(deleted === true, `Job ${jobId} was not deleted!`)
-  })
-
-  it('should convert array of strings to a string', () => {
-    const inputDID = ['did:op:1', 'did:op:2', 'did:op:3']
-    const expectedStr =
-      'did:op:1' + STRING_SEPARATOR + 'did:op:2' + STRING_SEPARATOR + 'did:op:3'
-    expect(convertArrayToString(inputDID)).to.equal(expectedStr)
-  })
-
-  it('should convert concatenated string to a string array', () => {
-    const expectedArray = ['did:op:1', 'did:op:2', 'did:op:3']
-    const str = 'did:op:1' + STRING_SEPARATOR + 'did:op:2' + STRING_SEPARATOR + 'did:op:3'
-    expect(convertStringToArray(str)).to.deep.equal(expectedArray)
   })
 
   it('should convert DBComputeJob to ComputeJob and omit internal DB data', () => {
@@ -2678,6 +2660,33 @@ describe('service start/restart Docker cleanup on failure', function () {
     expect(job.status).to.equal(ServiceStatusNumber.Error)
   })
 
+  it('processJob fails a job in PullImage only when the stored job is still in PullImage', async function () {
+    engine.envs = [{ id: 'env-1' }]
+    engine.activeBuildAborts = new Map()
+    engine.recordJobFinished = sinon.stub()
+    engine.cleanupJob = sinon.stub().resolves()
+    engine.db.updateJob = sinon.stub().resolves(1)
+    const listed = { jobId: 'job-1', environment: 'env-1' }
+
+    // the search result is older than the write of pullImage: the job has moved on
+    const stale = { ...listed, status: C2DStatusNumber.PullImage }
+    engine.db.getJob = sinon
+      .stub()
+      .resolves([{ ...listed, status: C2DStatusNumber.ConfiguringVolumes }])
+    await engine.processJob(stale)
+    expect(engine.db.updateJob.called, 'must not touch a job that moved on').to.equal(
+      false
+    )
+    expect(stale.status).to.equal(C2DStatusNumber.PullImage)
+
+    // a real orphan: the stored job is still in PullImage and no pull runs
+    const orphan = { ...listed, status: C2DStatusNumber.PullImage }
+    engine.db.getJob = sinon.stub().resolves([{ ...orphan }])
+    await engine.processJob(orphan)
+    expect(orphan.status).to.equal(C2DStatusNumber.PullImageFailed)
+    expect(engine.db.updateJob.calledOnce).to.equal(true)
+  })
+
   it('restartService removes the newly created network when createContainer fails', async function () {
     const existingJob = {
       serviceId: 'svc-3',
@@ -2971,6 +2980,23 @@ describe('service start/restart Docker cleanup on failure', function () {
         })
       )
     ).to.equal(true)
+  })
+
+  it('does not take the lifecycle lock again while its DB release is in flight', async function () {
+    let finishRelease: () => void
+    engine.db.releaseServiceLock = sinon.stub().returns(
+      new Promise<void>((resolve) => {
+        finishRelease = resolve
+      })
+    )
+    expect(await engine.tryAcquireServiceLifecycleLock('svc-1')).to.equal(true)
+    const release = engine.releaseServiceLifecycleLock('svc-1')
+    // the release (which matches the holder) could delete a lock taken now
+    expect(await engine.tryAcquireServiceLifecycleLock('svc-1')).to.equal(false)
+    finishRelease()
+    await release
+    expect(await engine.tryAcquireServiceLifecycleLock('svc-1')).to.equal(true)
+    expect(engine.db.acquireServiceLock.callCount).to.equal(2)
   })
 })
 

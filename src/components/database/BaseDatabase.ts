@@ -1,23 +1,80 @@
-import { Schema } from '.'
 import { OceanNodeDBConfig } from '../../@types'
 import { AccessListUser } from '../../@types/AccessList.js'
 import { EscrowEvent } from '../../@types/Escrow.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
-import { ElasticsearchSchema } from './ElasticSchemas.js'
-import { TypesenseSchema } from './TypesenseSchemas.js'
+
+// a group of DDOs of one version (see ddoSchemas.ts); `index` is its name
+export interface DdoSchema {
+  index: string
+}
+
+// A query that the node cannot run: the caller gets the message (HTTP 400).
+export class QueryError extends Error {}
+
+export const DEFAULT_PAGE_SIZE = 100
+// the last document that one search can reach, as on Elasticsearch (its default window)
+export const MAX_RESULT_WINDOW = 10000
+
+export type Scalar = string | number | boolean
+
+// A condition on a stored document. `paths` are the places of one field, one for each
+// document version (a DDO v4 path and its v5 `credentialSubject.` path); the condition
+// holds when one of them holds. Each backend writes its own fixed query for each kind.
+export type Condition =
+  // a value of the field is one of these
+  | { paths: string[]; anyOf: Scalar[] }
+  // no value of the field is one of these (a document without the field passes)
+  | { paths: string[]; noneOf: Scalar[] }
+  // a value of the field is in the range
+  | { paths: string[]; range: { gt?: Scalar; gte?: Scalar; lt?: Scalar; lte?: Scalar } }
+  // the field, or an object with fields below it, is in the document
+  | { paths: string[]; exists: true }
+  // each word is in a value of one of the fields
+  | { paths: string[]; words: string[] }
+  // one of these conditions holds
+  | { either: Condition[] }
+
+export interface SortSpec {
+  paths: string[]
+  order: 'asc' | 'desc'
+  // a backend with a text score sorts by it first, then by `paths`; the others by `paths`
+  relevance?: boolean
+}
+
+// `offset` counts documents
+export interface Page {
+  offset: number
+  limit: number
+}
+
+export interface Found<T = Record<string, any>> {
+  results: T[]
+  totalResults: number
+}
+
+export interface TagCount {
+  tag: string
+  count: number
+}
+
+// one of the three keys of a DDO state
+export type DdoStateKey = { did: string } | { nft: string } | { txId: string }
+
+// the orders of one account
+export type OrderOwner = { consumer: string } | { payer: string }
 
 export abstract class AbstractDatabase {
   protected config: OceanNodeDBConfig
-  protected schema: TypesenseSchema
 
-  constructor(config: OceanNodeDBConfig, schema?: TypesenseSchema) {
+  constructor(config: OceanNodeDBConfig) {
     this.config = config
-    this.schema = schema
   }
 }
 export abstract class AbstractNonceDatabase extends AbstractDatabase {
   abstract create(address: string, nonce: number): Promise<any>
   abstract retrieve(address: string): Promise<any>
+  // Writes only a nonce above the stored one, and returns null when it did not: two
+  // requests that check the same signed nonce at the same time cannot both pass.
   abstract update(address: string, nonce: number): Promise<any>
   abstract delete(address: string): Promise<any>
 
@@ -62,6 +119,8 @@ export abstract class AbstractAccessListDatabase extends AbstractDatabase {
   abstract delete(chainId: number, contractAddress: string): Promise<any>
 }
 
+const DEFAULT_LOG_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
+
 export abstract class AbstractLogDatabase extends AbstractDatabase {
   abstract insertLog(logEntry: Record<string, any>): Promise<any>
   abstract retrieveLog(id: string): Promise<Record<string, any> | null>
@@ -77,6 +136,21 @@ export abstract class AbstractLogDatabase extends AbstractDatabase {
   abstract delete(logId: string): Promise<void>
   abstract deleteOldLogs(): Promise<number>
   abstract getLogsCount(): Promise<number>
+
+  // the time that a log stays (LOG_RETENTION_TIME, milliseconds). A value of 0 or less
+  // would delete the new logs too, and a value so large that the cutoff is not a valid
+  // date would make the cleanup fail: both get the default.
+  protected retentionMs(): number {
+    const raw = process.env.LOG_RETENTION_TIME
+    const retention = Number(raw)
+    if (raw === undefined || raw === '') return DEFAULT_LOG_RETENTION_MS
+    const cutoff = new Date(Date.now() - retention).getTime()
+    if (retention > 0 && Number.isFinite(cutoff)) return retention
+    DATABASE_LOGGER.warn(
+      `Invalid LOG_RETENTION_TIME "${raw}", using ${DEFAULT_LOG_RETENTION_MS} ms`
+    )
+    return DEFAULT_LOG_RETENTION_MS
+  }
 }
 
 export abstract class AbstractDdoStateDatabase extends AbstractDatabase {
@@ -91,7 +165,8 @@ export abstract class AbstractDdoStateDatabase extends AbstractDatabase {
 
   abstract retrieve(did: string): Promise<Record<string, any> | null>
 
-  abstract search(query: Record<string, any>): Promise<any>
+  // ten states at most; null on a database error
+  abstract find(key: DdoStateKey): Promise<Record<string, any>[] | null>
 
   abstract update(
     chainId: number,
@@ -105,20 +180,9 @@ export abstract class AbstractDdoStateDatabase extends AbstractDatabase {
   abstract delete(did: string): Promise<any>
 }
 
-export abstract class AbstractOrderDatabase {
-  protected config: OceanNodeDBConfig
-  protected schema: Schema
-
-  constructor(config: OceanNodeDBConfig, schema: Schema) {
-    this.config = config
-    this.schema = schema
-  }
-
-  abstract search(
-    query: Record<string, any>,
-    maxResultsPerPage?: number,
-    pageNumber?: number
-  ): Promise<Record<string, any>[] | null>
+export abstract class AbstractOrderDatabase extends AbstractDatabase {
+  // the newest orders first
+  abstract find(owner: OrderOwner, page: Page): Promise<Found>
 
   abstract create(
     orderId: string,
@@ -147,15 +211,7 @@ export abstract class AbstractOrderDatabase {
   abstract delete(orderId: string): Promise<any>
 }
 
-export abstract class AbstractEscrowDatabase {
-  protected config: OceanNodeDBConfig
-  protected schema: Schema
-
-  constructor(config: OceanNodeDBConfig, schema: Schema) {
-    this.config = config
-    this.schema = schema
-  }
-
+export abstract class AbstractEscrowDatabase extends AbstractDatabase {
   abstract create(event: EscrowEvent): Promise<any>
 
   abstract retrieve(id: string): Promise<Record<string, any> | null>
@@ -169,30 +225,14 @@ export abstract class AbstractEscrowDatabase {
   abstract delete(id: string): Promise<any>
 }
 
-export abstract class AbstractDdoDatabase {
-  protected config: OceanNodeDBConfig
-  protected schemas: Schema[]
+export abstract class AbstractDdoDatabase extends AbstractDatabase {
+  abstract getSchemas(): DdoSchema[]
 
-  constructor(config: OceanNodeDBConfig, schemas: Schema[]) {
-    this.config = config
-    this.schemas = schemas
-  }
+  // the DDOs of all versions, sorted by `sort` and then by id
+  abstract find(conditions: Condition[], sort: SortSpec[], page: Page): Promise<Found>
 
-  abstract getSchemas(): Schema[]
-
-  public isElasticsearchSchema(schema: Schema): schema is ElasticsearchSchema {
-    return (schema as ElasticsearchSchema).index !== undefined
-  }
-
-  public isTypesenseSchema(schema: Schema): schema is TypesenseSchema {
-    return (schema as TypesenseSchema).name !== undefined
-  }
-
-  abstract search(
-    query: Record<string, any>,
-    maxResultsPerPage?: number,
-    pageNumber?: number
-  ): Promise<any>
+  // the distinct tags of the DDOs that match, the most used first
+  abstract tags(conditions: Condition[], limit: number): Promise<TagCount[]>
 
   abstract create(ddo: Record<string, any>): Promise<any>
 
@@ -202,5 +242,5 @@ export abstract class AbstractDdoDatabase {
 
   abstract delete(id: string): Promise<any>
 
-  abstract deleteAllAssetsFromChain(chainId: number, batchSize?: number): Promise<number>
+  abstract deleteAllAssetsFromChain(chainId: number): Promise<number>
 }
