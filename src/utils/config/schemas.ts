@@ -1750,6 +1750,7 @@ export const OceanNodeConfigSchema = z
     // (separate bucket). 0 = disabled. A negative/non-numeric value fails validation.
     fileInfoRateLimit: z.coerce.number().int().min(0).optional().default(0),
     isBootstrap: booleanFromString.optional().default(false),
+    isEnterprise: booleanFromString.optional().default(false),
     validateUnsignedDDO: booleanFromString.optional().default(true),
     jwtSecret: z.string(),
     instanceId: z.string().optional(),

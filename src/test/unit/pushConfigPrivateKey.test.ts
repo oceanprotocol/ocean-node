@@ -141,3 +141,30 @@ describe('pushConfig / fetchConfig never return the private key', () => {
     expect(answer.keys.privateKey).to.equal(HIDDEN)
   })
 })
+
+describe('pushConfig rejects runtime isEnterprise changes', () => {
+  let node: OceanNode
+
+  before(async () => {
+    const config = await getConfiguration(true)
+    node = fakeOceanNode({ ...config, isEnterprise: false })
+  })
+
+  it('rejects switching isEnterprise', async () => {
+    const response = await new PushConfigHandler(node).handle({
+      ...signedCommand(PROTOCOL_COMMANDS.PUSH_CONFIG),
+      config: { isEnterprise: true }
+    })
+    expect(response.status.httpStatus).to.equal(400)
+    expect(response.status.error).to.include('isEnterprise cannot be changed at runtime')
+    expect(node.getConfig().isEnterprise).to.equal(false)
+  })
+
+  it('accepts isEnterprise when it is unchanged', async () => {
+    const validation = await new PushConfigHandler(node).validate({
+      ...signedCommand(PROTOCOL_COMMANDS.PUSH_CONFIG),
+      config: { isEnterprise: 'false' }
+    })
+    expect(validation.valid).to.equal(true)
+  })
+})
