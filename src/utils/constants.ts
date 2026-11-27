@@ -135,6 +135,66 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.SET_MAINTENANCE
 ]
 
+// ──────────────────────────────────────────────────────────────────────────────────────────
+// Scoped auth tokens (plan §5.3 / §15.2 / §16 / §18.1)
+// ──────────────────────────────────────────────────────────────────────────────────────────
+
+// Commands that may NOT appear in an auth-token `scope`. A client scoping to one of these is
+// rejected at creation (§5.3). This is a client-UX / belt-and-suspenders gate — the real
+// protection for DECRYPT_DDO and mutating-admin is TOKEN_INELIGIBLE_COMMANDS below.
+//
+// NOTE: the mirror of this list lives in ocean.js (`TOKEN_SCOPE_DISALLOWED`). There is no shared
+// package, so the two are kept in sync by hand — change both together.
+//
+// fetchConfig / getLogs are the two READ-ONLY admin commands and are intentionally NOT here:
+// they are scopable (an admin can mint `[getLogs, fetchConfig]` for a monitoring tool); the
+// ALLOWED_ADMINS gate still applies at consumption.
+export const DISALLOWED_TOKEN_SCOPE_COMMANDS: string[] = [
+  // per-resource ON-02 signature model, never a reusable bearer grant
+  PROTOCOL_COMMANDS.DECRYPT_DDO,
+  // mutating admin — destructive / fund-moving / config-changing
+  PROTOCOL_COMMANDS.STOP_NODE,
+  PROTOCOL_COMMANDS.STOP_JOB,
+  PROTOCOL_COMMANDS.REINDEX_TX,
+  PROTOCOL_COMMANDS.REINDEX_CHAIN,
+  PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
+  PROTOCOL_COMMANDS.COLLECT_FEES,
+  PROTOCOL_COMMANDS.PUSH_CONFIG,
+  PROTOCOL_COMMANDS.SET_MAINTENANCE,
+  // auth-management: a token must not be able to mint / revoke / validate tokens
+  PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
+  PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
+  PROTOCOL_COMMANDS.VALIDATE_AUTH_TOKEN
+]
+
+// The two read-only admin commands that MAY carry an auth token (and be scoped). Every other
+// admin command is signature-only (§16.2).
+export const TOKEN_READONLY_ADMIN_COMMANDS: string[] = [
+  PROTOCOL_COMMANDS.FETCH_CONFIG,
+  PROTOCOL_COMMANDS.GET_LOGS
+]
+
+// HIGH (§18.1): commands for which a bearer auth token is NEVER accepted at consumption, even an
+// UNRESTRICTED token (no scope claim). DECRYPT_DDO must keep its per-resource ON-02 signature
+// binding; the mutating-admin commands must require a fresh single-use nonce-bound signature.
+// Enforced centrally in `Auth.validateAuthenticationOrToken`. DISALLOWED_TOKEN_SCOPE_COMMANDS is
+// the scope-time belt; this set is the consumption-time suspenders.
+export const TOKEN_INELIGIBLE_COMMANDS: string[] = [
+  PROTOCOL_COMMANDS.DECRYPT_DDO,
+  PROTOCOL_COMMANDS.STOP_NODE,
+  PROTOCOL_COMMANDS.STOP_JOB,
+  PROTOCOL_COMMANDS.REINDEX_TX,
+  PROTOCOL_COMMANDS.REINDEX_CHAIN,
+  PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
+  PROTOCOL_COMMANDS.COLLECT_FEES,
+  PROTOCOL_COMMANDS.PUSH_CONFIG,
+  PROTOCOL_COMMANDS.SET_MAINTENANCE
+]
+
+// Creation-time list caps for a scoped token (bounds token size and signing cost, plan §5.3).
+export const MAX_TOKEN_AUDIENCE_ENTRIES = 16
+export const MAX_TOKEN_SCOPE_ENTRIES = 32
+
 // Maintenance (drain) mode. When enabled, the node refuses NEW commitment (compute/service
 // starts, initialize, extend) but keeps serving already-committed work. The flag persists in
 // the config DB under this key and is cached in memory on the OceanNode singleton.
@@ -774,6 +834,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.IS_BOOTSTRAP,
     required: false
   },
+  ESCROW_EMPTY_TX: {
+    name: 'ESCROW_EMPTY_TX',
+    value: process.env.ESCROW_EMPTY_TX,
+    required: false
+  },
   AUTHORIZED_PUBLISHERS: {
     name: 'AUTHORIZED_PUBLISHERS',
     value: process.env.AUTHORIZED_PUBLISHERS,
@@ -843,6 +908,49 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'INSTANCE_ID',
     value: process.env.INSTANCE_ID,
     required: false
+  },
+  // Scoped auth tokens (plan §8)
+  MAX_TOKEN_LIFETIME: {
+    // hard cap on auth-token lifetime in SECONDS (default 86400 = 24h). No infinite tokens.
+    name: 'MAX_TOKEN_LIFETIME',
+    value: process.env.MAX_TOKEN_LIFETIME,
+    required: false
+  },
+  TOKEN_REVOCATION_FALLBACK: {
+    // 'closed' | 'cache' | 'open' — behaviour when a foreign token's issuer is unreachable.
+    name: 'TOKEN_REVOCATION_FALLBACK',
+    value: process.env.TOKEN_REVOCATION_FALLBACK,
+    required: false
+  },
+  TOKEN_SOFTFAIL_GRACE: {
+    // seconds; soft-fail grace window, consulted only in 'cache' mode. 0 = fail-closed.
+    name: 'TOKEN_SOFTFAIL_GRACE',
+    value: process.env.TOKEN_SOFTFAIL_GRACE,
+    required: false
+  },
+  TOKEN_REVALIDATE_INTERVAL: {
+    // seconds; how long a positive revocation verdict suppresses re-dialing. 0 = every request.
+    name: 'TOKEN_REVALIDATE_INTERVAL',
+    value: process.env.TOKEN_REVALIDATE_INTERVAL,
+    required: false
+  },
+  ALLOW_CROSS_NODE_TOKENS: {
+    // lever B master switch (default false): honor FOREIGN (other-issuer) tokens at all.
+    name: 'ALLOW_CROSS_NODE_TOKENS',
+    value: process.env.ALLOW_CROSS_NODE_TOKENS,
+    required: false
+  },
+  TRUSTED_TOKEN_ISSUERS: {
+    // JSON array of issuer peerIds; federation allowlist. Required non-empty if cross-node is on.
+    name: 'TRUSTED_TOKEN_ISSUERS',
+    value: process.env.TRUSTED_TOKEN_ISSUERS,
+    required: false
+  },
+  STATUS_CHALLENGE_RATE_LIMIT: {
+    // OJ-03: req/min/caller for the status challenge-signing path (separate bucket). 0 = disabled.
+    name: 'STATUS_CHALLENGE_RATE_LIMIT',
+    value: process.env.STATUS_CHALLENGE_RATE_LIMIT,
+    required: false
   }
 }
 export const CONNECTION_HISTORY_DELETE_THRESHOLD = 300
@@ -855,6 +963,15 @@ export const ESCROW_SCAN_PAGE_SIZE = 250
 // (BigInt) range filter is active. Keeps deep pagination bounded; beyond this the result is
 // whatever matched within the scanned window.
 export const MAX_ESCROW_CLIENT_SCAN = 2000
+
+// Sentinel recorded in place of a real tx hash (lockTx/claimTx) when the escrow amount is 0 and
+// the node is configured to skip the on-chain transaction (ESCROW_EMPTY_TX off — the default).
+// A zero-value lock/claim moves nothing on chain, so sending it only burns the node's gas; we
+// short-circuit and store this string instead. It can never collide with a real 66-char `0x…`
+// transaction hash. Toggle the real on-chain behaviour back on with ESCROW_EMPTY_TX=true.
+export const ZERO_PAYMENT_TX = '0xempty'
+export const isZeroPaymentTx = (tx: string | null | undefined): boolean =>
+  tx === ZERO_PAYMENT_TX
 export const DDO_IDENTIFIER_PREFIX = 'did:op:'
 // global ocean node API services path
 export const SERVICES_API_BASE_PATH = '/api/services'

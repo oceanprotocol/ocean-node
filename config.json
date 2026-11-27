@@ -76,7 +76,7 @@
   "allowedAdmins": [],
   "allowedAdminsList": null,
   "rateLimit": 30,
-  "maxConnections": 120,
+  "maxConnections": 200,
   "trustProxy": false,
   "denyList": {
     "peers": [],

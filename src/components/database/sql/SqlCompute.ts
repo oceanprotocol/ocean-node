@@ -74,6 +74,7 @@ function serviceJobColumns(job: ServiceJob): Record<string, unknown> {
     status: job.status,
     expiresAt: job.expiresAt,
     outputArchiveCount: (job.outputArchives ?? []).length,
+    logArchiveCount: (job.logArchives ?? []).length,
     body: JSON.stringify({ ...job, updatedAt: Date.now() })
   }
 }
@@ -103,7 +104,8 @@ export class SqlCompute implements ComputeDatabaseProvider {
       );
       CREATE TABLE IF NOT EXISTS ${SERVICE_JOBS} (
         "serviceId" TEXT PRIMARY KEY, "owner" TEXT, "clusterHash" TEXT, "status" BIGINT,
-        "expiresAt" BIGINT, "dateCreated" TEXT, "outputArchiveCount" BIGINT, "body" TEXT
+        "expiresAt" BIGINT, "dateCreated" TEXT, "outputArchiveCount" BIGINT,
+        "logArchiveCount" BIGINT, "body" TEXT
       );
       CREATE TABLE IF NOT EXISTS ${LOCKS} (
         "serviceId" TEXT PRIMARY KEY, "holder" TEXT NOT NULL, "acquiredAt" BIGINT NOT NULL
@@ -334,8 +336,9 @@ export class SqlCompute implements ComputeDatabaseProvider {
     )
   }
 
-  // Expired services that still have output archives. Expired rows stay forever, so the
-  // archive filter is in SQL: a cleanup run must not read every service that ever expired.
+  // Expired services that still have output archives or saved logs. Expired rows stay
+  // forever, so the archive filter is in SQL: a cleanup run must not read every service
+  // that ever expired.
   getExpiredServiceJobsBefore(
     expiresBefore: number,
     clusterHash?: string
@@ -344,7 +347,7 @@ export class SqlCompute implements ComputeDatabaseProvider {
       inCluster(clusterHash)
         .add('"status" = ?', ServiceStatusNumber.Expired)
         .add('"expiresAt" <= ?', expiresBefore)
-        .add('"outputArchiveCount" > 0')
+        .add('("outputArchiveCount" > 0 OR "logArchiveCount" > 0)')
     )
   }
 

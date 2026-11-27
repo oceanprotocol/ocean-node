@@ -61,7 +61,9 @@ export async function upgradeLegacyTables(clients: SqliteClients): Promise<void>
   await addColumnIfMissing(clients.authToken, 'authTokens', 'chainId', 'TEXT')
   await hashPlainTokens(clients.authToken)
   await addColumnIfMissing(clients.c2d, 'service_jobs', 'outputArchiveCount', 'BIGINT')
-  await countOutputArchives(clients.c2d)
+  await addColumnIfMissing(clients.c2d, 'service_jobs', 'logArchiveCount', 'BIGINT')
+  await countArchives(clients.c2d, 'outputArchiveCount', 'outputArchives')
+  await countArchives(clients.c2d, 'logArchiveCount', 'logArchives')
 }
 
 // the columns of a table; none when the table does not exist yet
@@ -97,29 +99,35 @@ function hashPlainTokens(db: SqlClient): Promise<void> {
   })
 }
 
-// The number of output archives was only in the body. Every row that has no count gets
-// one, so a start that follows an upgrade that did not end does the rest.
-function countOutputArchives(db: SqlClient): Promise<void> {
+type ArchiveField = 'outputArchives' | 'logArchives'
+
+// The number of archives was only in the body. Every row that has no count gets one, so a
+// start that follows an upgrade that did not end does the rest.
+function countArchives(
+  db: SqlClient,
+  column: 'outputArchiveCount' | 'logArchiveCount',
+  field: ArchiveField
+): Promise<void> {
   return db.transaction(async (tx) => {
-    if (!(await columnsOf(tx, 'service_jobs')).includes('outputArchiveCount')) return
+    if (!(await columnsOf(tx, 'service_jobs')).includes(column)) return
     const rows = await tx.all(
-      'SELECT "serviceId", "body" FROM service_jobs WHERE "outputArchiveCount" IS NULL'
+      `SELECT "serviceId", "body" FROM service_jobs WHERE "${column}" IS NULL`
     )
     for (const row of rows) {
-      await tx.run(
-        'UPDATE service_jobs SET "outputArchiveCount" = ? WHERE "serviceId" = ?',
-        [outputArchiveCount(row), row.serviceId]
-      )
+      await tx.run(`UPDATE service_jobs SET "${column}" = ? WHERE "serviceId" = ?`, [
+        archiveCount(row, field),
+        row.serviceId
+      ])
     }
   })
 }
 
-function outputArchiveCount(row: {
-  serviceId: string
-  body: string | Uint8Array
-}): number {
+function archiveCount(
+  row: { serviceId: string; body: string | Uint8Array },
+  field: ArchiveField
+): number {
   try {
-    return (parseBody(row.body).outputArchives ?? []).length
+    return (parseBody(row.body)[field] ?? []).length
   } catch (error) {
     DATABASE_LOGGER.warn(
       `Service job ${row.serviceId} has a body that is not JSON: ${error.message}`

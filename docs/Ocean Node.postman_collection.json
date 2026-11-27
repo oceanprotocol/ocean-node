@@ -65,6 +65,21 @@
 			"key": "owner",
 			"value": "0x0000000000000000000000000000000000000000",
 			"type": "string"
+		},
+		{
+			"key": "validUntil",
+			"value": "0",
+			"type": "string"
+		},
+		{
+			"key": "issuerPeerId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "clientChallenge",
+			"value": "",
+			"type": "string"
 		}
 	],
 	"item": [
@@ -85,7 +100,7 @@
 								""
 							]
 						},
-						"description": "Returns node identity (nodeId, chainIds, providerAddress, nodePublicKey, software, version)."
+						"description": "Returns the full node status (the same object as the `status` command: id, publicKey, address, version, provider, indexer, platform, authTokenPolicy, p2pStatus, ...). Add `?detailed=true` for the extended status (c2dClusters + supportedSchemas), or `?clientChallenge=<hex>` for the OJ-03 signedChallenge proof."
 					}
 				}
 			]
@@ -1696,7 +1711,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"address\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"validUntil\": null,\n  \"chainId\": {{chainId}}\n}"
+							"raw": "{\n  \"address\": \"{{consumerAddress}}\",\n  \"signature\": \"{{signature}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"validUntil\": {{validUntil}},\n  \"chainId\": {{chainId}},\n  \"audience\": [\"{{issuerPeerId}}\"],\n  \"scope\": [\"download\"]\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/services/auth/token",
@@ -1710,7 +1725,7 @@
 								"token"
 							]
 						},
-						"description": "Create an auth token (returned token can be used as the Authorization header on authenticated routes)."
+						"description": "Create an auth token (returned token can be used as the Authorization header on authenticated routes).\n\nScoped tokens (v2): a token can be self-limited by `audience` (node peerIds it may be used at), `scope` (protocol-command names), and `validUntil` (absolute expiry, epoch ms). All three are folded into the consumer signature, so `{{signature}}` must be computed over the v2 message:\n\naddress + nonce + \"createAuthToken\" + issuerPeerId + \"|v:2\" + \"|aud:\" + sort(dedup(audience)).join(\",\") + \"|cmd:\" + sort(dedup(scope)).join(\",\") + \"|exp:\" + validUntil\n\n(omitted audience/scope => empty segment). Any of the three makes the token v2; validUntil is then required and capped by the node's MAX_TOKEN_LIFETIME (over-cap => 400, not clamped). Explicit [] is rejected -- omit the field for unrestricted. decryptDDO and mutating-admin commands are not allowed in scope.\n\nLegacy token: omit audience, scope and validUntil and sign the byte-identical legacy message address + nonce + \"createAuthToken\" + issuerPeerId; the node assigns a server default expiry. Check status.authTokenPolicy (max lifetime, cross-node federation) before minting."
 					}
 				},
 				{
@@ -2271,7 +2286,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"command\": \"status\"\n}"
+							"raw": "{\n  \"command\": \"status\",\n  \"clientChallenge\": \"{{clientChallenge}}\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/directCommand",
@@ -2282,7 +2297,7 @@
 								"directCommand"
 							]
 						},
-						"description": "Get node status. Use \"command\": \"detailedStatus\" for the extended report."
+						"description": "Get node status. Use \"command\": \"detailedStatus\" for the extended report.\n\nOJ-03: include a fresh random \"clientChallenge\" to get back \"signedChallenge\" -- the node's libp2p identity-key signature over utf8(\"ocean-node-status-challenge-v1:\" + clientChallenge). Verify it against the public key embedded in the node's \"id\" (peerId) to prove the endpoint controls its peerId before minting an auth token for it. Omit clientChallenge for today's response.\n\nThe response also carries a static \"authTokenPolicy\" { maxTokenLifetime, crossNode: \"disabled\"|\"allowlist\", trustedIssuers?, revocationFallback: \"closed\"|\"cache\"|\"open\", softFailGrace?, challengeSupported } describing what the node accepts before you mint/present an auth token."
 					}
 				},
 				{

@@ -572,6 +572,14 @@ describe('SQL compute store', () => {
       )
       await compute.newServiceJob(
         service({
+          serviceId: 'expired-with-logs',
+          status: ServiceStatusNumber.Expired,
+          expiresAt: past,
+          logArchives: [{ index: 0 }] as any
+        })
+      )
+      await compute.newServiceJob(
+        service({
           serviceId: 'expired-clean',
           status: ServiceStatusNumber.Expired,
           expiresAt: past
@@ -586,7 +594,7 @@ describe('SQL compute store', () => {
       expect(await compute.getExpiredServiceJobs('cluster-2')).to.deep.equal([])
       expect(
         serviceIds(await compute.getExpiredServiceJobsBefore(Date.now()))
-      ).to.deep.equal(['expired-with-archive'])
+      ).to.deep.equal(['expired-with-archive', 'expired-with-logs'])
       expect(await compute.getExpiredServiceJobsBefore(past - HOUR_MS)).to.deep.equal([])
       expect(serviceIds(await compute.getPendingServiceStarts())).to.deep.equal([
         'starting'
