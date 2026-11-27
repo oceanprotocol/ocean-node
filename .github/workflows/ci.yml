@@ -341,7 +341,6 @@ jobs:
           # branches when both are merged
           ref: 'feat/node-neutral-query'
           path: 'ocean-cli'
-          ref: 'rc_3.0.0'
       - name: Checkout Ocean-js
         uses: actions/checkout@v7
         with:
@@ -349,7 +348,6 @@ jobs:
           repository: 'oceanprotocol/ocean.js'
           ref: 'feat/node-neutral-query'
           path: 'ocean.js'
-          ref: 'rc_11.0.0'
       - name: Build ocean-js
         working-directory: ${{ github.workspace }}/ocean.js
         run: |
