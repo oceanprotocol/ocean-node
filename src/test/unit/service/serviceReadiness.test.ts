@@ -8,7 +8,9 @@ import type {
 import {
   ImagePullTracker,
   probeCandidates,
-  runReadinessProbe
+  runGenericReadinessProbe,
+  runReadinessProbe,
+  runServiceProbe
 } from '../../../components/c2d/serviceReadiness.js'
 import { resolveServiceEngine } from '../../../components/c2d/serviceEngines.js'
 import {
@@ -147,19 +149,31 @@ describe('resolveServiceEngine', () => {
     expect(resolveServiceEngine(noImage)?.id).to.equal('vllm')
   })
 
-  it('returns null for an image it does not know, so nothing is gated', () => {
-    expect(resolveServiceEngine(job('nginxinc/nginx-unprivileged'))).to.equal(null)
-    expect(resolveServiceEngine(job('someone/vllm-openai-fork'))).to.equal(null)
-    expect(resolveServiceEngine(job(''))).to.equal(null)
+  it('falls back to the generic profile for an image it does not know', () => {
+    expect(resolveServiceEngine(job('nginxinc/nginx-unprivileged'))?.id).to.equal(
+      'generic'
+    )
+    expect(resolveServiceEngine(job('someone/vllm-openai-fork'))?.id).to.equal('generic')
+    expect(resolveServiceEngine(job(''))?.id).to.equal('generic')
   })
 
-  it('leaves an app that runs the engine behind its own port unrecognized', () => {
-    // A bundle that publishes only its app (vLLM on loopback inside) has nothing to probe.
+  it('probes an app that runs the engine behind its own port generically', () => {
+    // A bundle that publishes only its app (vLLM on loopback inside): the engine's own request
+    // has nowhere to go, so the app's first port is asked instead.
     const app = { image: 'vllm/vllm-openai', exposedPorts: [9119] } as ServiceJob
-    expect(resolveServiceEngine(app)).to.equal(null)
+    const engine = resolveServiceEngine(app)!
+    expect(engine.id).to.equal('generic')
+    expect(engine.probe).to.equal(undefined)
+    expect(engine.modelCachePath).to.equal(undefined)
+  })
+
+  it('returns null for a service that publishes no port', () => {
     expect(resolveServiceEngine({ image: 'vllm/vllm-openai' } as ServiceJob)).to.equal(
       null
     )
+    expect(
+      resolveServiceEngine({ image: 'nginx', exposedPorts: [] } as ServiceJob)
+    ).to.equal(null)
   })
 
   it('reads the Hugging Face repo id out of the vLLM command', () => {
@@ -188,7 +202,7 @@ describe('resolveServiceEngine — ComfyUI', () => {
     expect(
       resolveServiceEngine(job('yanwk/comfyui-boot:cu130-megapak-pt211'))?.id
     ).to.equal('comfyui')
-    expect(resolveServiceEngine(job('someone/comfyui-boot'))).to.equal(null)
+    expect(resolveServiceEngine(job('someone/comfyui-boot'))?.id).to.equal('generic')
   })
 })
 
@@ -302,6 +316,110 @@ describe('runReadinessProbe', () => {
     const result = await runReadinessProbe(`${base}/hang`, [200])
     expect(result.ok).to.equal(false)
     expect(result.error).to.equal('timeout')
+  })
+})
+
+describe('runGenericReadinessProbe', () => {
+  let server: Server
+  let base: string
+  let respond: (path: string) => number
+  const paths: string[] = []
+
+  before(async () => {
+    server = createServer((req, res) => {
+      paths.push(req.url ?? '')
+      res.writeHead(respond(req.url ?? ''))
+      res.end()
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  })
+
+  beforeEach(() => {
+    paths.length = 0
+  })
+
+  after(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  })
+
+  // An auth gate answers 401 itself and proxies its one open path to the app: 502 until it is up.
+  const gate = (openPath: string | null, appUp: boolean) => (path: string) =>
+    path === openPath ? (appUp ? 200 : 502) : 401
+
+  it('is not ready while the app behind a gate is down, whichever path the gate opens', async () => {
+    respond = gate('/health', false)
+    expect(await runGenericReadinessProbe(base)).to.include({
+      ok: false,
+      httpStatus: 502
+    })
+    respond = gate('/system_stats', false)
+    const result = await runGenericReadinessProbe(base)
+    expect(result).to.include({ ok: false, httpStatus: 502 })
+    expect(result.inconclusive).to.equal(undefined)
+  })
+
+  it('is ready once the app behind a gate answers', async () => {
+    respond = gate('/system_stats', true)
+    const result = await runGenericReadinessProbe(base)
+    expect(result).to.include({ ok: true, httpStatus: 200 })
+    expect(result.url).to.equal(`${base}/system_stats`)
+  })
+
+  it('is inconclusive when a gate opens no path', async () => {
+    respond = gate(null, true)
+    const result = await runGenericReadinessProbe(base)
+    expect(result).to.include({ ok: false, inconclusive: true, httpStatus: 401 })
+    expect(paths).to.deep.equal(['/health', '/system_stats', '/'])
+  })
+
+  it('is ready for an ungated app, whatever its root answers short of a server error', async () => {
+    respond = (path) => (path === '/' ? 200 : 404)
+    expect((await runGenericReadinessProbe(base)).ok).to.equal(true)
+    respond = () => 404
+    expect((await runGenericReadinessProbe(base)).ok).to.equal(true)
+    respond = (path) => (path === '/' ? 302 : 404)
+    expect((await runGenericReadinessProbe(base)).ok).to.equal(true)
+  })
+
+  it('is not ready on a server error, without asking further', async () => {
+    respond = () => 503
+    expect(await runGenericReadinessProbe(base)).to.include({
+      ok: false,
+      httpStatus: 503
+    })
+    expect(paths).to.deep.equal(['/health'])
+  })
+
+  it('is not ready when nothing listens', async () => {
+    const result = await runGenericReadinessProbe('http://127.0.0.1:1')
+    expect(result.ok).to.equal(false)
+    expect(result.httpStatus).to.equal(undefined)
+  })
+
+  it('is ready when a path answers a client error other than an auth challenge', async () => {
+    respond = (path) => (path === '/health' ? 404 : 401)
+    const result = await runGenericReadinessProbe(base)
+    expect(result).to.include({ ok: true, httpStatus: 404 })
+    expect(result.inconclusive).to.equal(undefined)
+  })
+
+  it("is inconclusive when a gate refuses an engine's own request, whatever else it opens", async () => {
+    const vllm = { path: '/v1/models', expectStatus: [200] }
+    respond = gate('/health', true)
+    const result = await runServiceProbe(base, vllm)
+    expect(result).to.include({ ok: false, inconclusive: true, httpStatus: 401 })
+    expect(paths).to.deep.equal(['/v1/models'])
+  })
+
+  it("keeps an engine's own answer when no gate is in the way", async () => {
+    respond = (path) => (path === '/v1/models' ? 503 : 200)
+    const result = await runServiceProbe(base, {
+      path: '/v1/models',
+      expectStatus: [200]
+    })
+    expect(result).to.include({ ok: false, httpStatus: 503 })
+    expect(paths).to.deep.equal(['/v1/models'])
   })
 })
 

@@ -5,8 +5,8 @@ import * as tarStream from 'tar-stream'
 import { C2DEngineDocker } from '../../../components/c2d/compute_engine_docker.js'
 import { ServiceStatusNumber } from '../../../@types/C2D/ServiceOnDemand.js'
 
-// A vLLM-based app bundle: the engine image, but only the app's own port published, so the node
-// has no engine to probe and reports the launch script's download manifest alone.
+// A service that publishes no port: the node has nothing to probe and reports the launch script's
+// download manifest alone.
 describe('download progress for a service the node cannot probe', () => {
   const CACHE = '/data/outputs/hf/hub/models--Qwen--Qwen3.8-27B-FP8'
 
@@ -39,7 +39,7 @@ describe('download progress for a service the node cannot probe', () => {
     clusterHash: '0xcluster',
     containerId: 'container-1',
     image: 'vllm/vllm-openai',
-    exposedPorts: [9119],
+    exposedPorts: [] as number[],
     status: ServiceStatusNumber.Running,
     ...extra
   })
@@ -150,6 +150,45 @@ describe('download progress for a service the node cannot probe', () => {
     }
     await engine.probeServiceReadiness(
       job({ modelDownload: unfinished }),
+      startedAgo(6 * 60 * 60 * 1000 + 1)
+    )
+    sinon.assert.notCalled(engine.getArchive)
+  })
+
+  const readyGenericJob = (extra: object = {}) =>
+    job({
+      image: 'acme/custom-app',
+      exposedPorts: [7860],
+      readiness: {
+        state: 'ready',
+        engine: 'generic',
+        readySince: Date.now() - 60_000,
+        lastCheckedAt: Date.now(),
+        consecutiveFailures: 0
+      },
+      ...extra
+    })
+
+  it('keeps sampling a generic service that already answered', async () => {
+    const engine = engineWith(`dir\t1000\t${CACHE}\n`, 400)
+    await engine.probeServiceReadiness(readyGenericJob(), startedAgo(60_000))
+    sinon.assert.calledOnce(engine.db.updateServiceJobReadiness)
+    const [, , readiness, download] = engine.db.updateServiceJobReadiness.firstCall.args
+    expect(readiness).to.equal(undefined)
+    expect(download).to.include({ downloadedBytes: 400, totalBytes: 1000, percent: 40 })
+  })
+
+  it('stops sampling a ready generic service after the sampling window', async () => {
+    const engine = engineWith(`dir\t0\t${CACHE}\n`, 400)
+    const unfinished = {
+      downloadedBytes: 400,
+      filesComplete: 0,
+      filesInFlight: 1,
+      filesTotal: 1,
+      updatedAt: Date.now()
+    }
+    await engine.probeServiceReadiness(
+      readyGenericJob({ modelDownload: unfinished }),
       startedAgo(6 * 60 * 60 * 1000 + 1)
     )
     sinon.assert.notCalled(engine.getArchive)

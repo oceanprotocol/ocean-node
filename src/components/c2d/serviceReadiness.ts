@@ -98,10 +98,15 @@ export const PROBE_PERIOD_SECONDS = 5
 export const READY_PROBE_PERIOD_SECONDS = 30
 // Not ready this long after start: warn once per container.
 export const READINESS_WARN_AFTER_SECONDS = 15 * 60
+// A generically probed service that answers while its listed download is unfinished stays waiting,
+// unless the download has made no progress for this long (a failed file the app runs without).
+export const DOWNLOAD_STALL_SECONDS = 10 * 60
 const PROBE_TIMEOUT_MS = 2000
 
 export interface ReadinessProbeResult {
   ok: boolean
+  /** The workload was reached but only answered with an auth challenge: neither ready nor not. */
+  inconclusive?: boolean
   httpStatus?: number
   error?: string
   url: string
@@ -177,4 +182,60 @@ export async function runReadinessProbe(
   } finally {
     clearTimeout(timer)
   }
+}
+
+// Paths a fronting auth gate conventionally leaves open and proxies to the app, then the root.
+const GENERIC_PROBE_PATHS = ['/health', '/system_stats', '/']
+const isAuthChallenge = (status: number | undefined) => status === 401 || status === 403
+
+/**
+ * Readiness of a workload the node has no profile for, from how its port answers.
+ *
+ * No answer, or a server error (a proxy's 502 for an app that is not up), is not ready. A success
+ * or redirect is ready. A client error says only that this path is not the one to ask, so the next
+ * is tried; once every path is asked, any client error other than an auth challenge means the app
+ * is up. Auth challenges on every path are inconclusive: a gate in front of the app answers that
+ * whether or not the app behind it is serving.
+ */
+export async function runGenericReadinessProbe(
+  base: string
+): Promise<ReadinessProbeResult> {
+  let last: ReadinessProbeResult = { ok: false, url: base }
+  let answered: ReadinessProbeResult | undefined
+  for (const path of GENERIC_PROBE_PATHS) {
+    last = await runReadinessProbe(`${base}${path}`, [])
+    const status = last.httpStatus
+    if (status === undefined || status >= 500) {
+      return last
+    }
+    if (status < 400) {
+      return { ok: true, httpStatus: status, url: last.url }
+    }
+    if (!answered && !isAuthChallenge(status)) {
+      answered = last
+    }
+  }
+  if (!answered) {
+    return { ...last, inconclusive: true, error: 'auth challenge on every probe path' }
+  }
+  return { ok: true, httpStatus: answered.httpStatus, url: answered.url }
+}
+
+/**
+ * Probes a service at `base` (scheme, host and port): with the engine's own request when it has a
+ * profile, otherwise generically. An engine's request refused by an auth gate is inconclusive;
+ * other paths would not show whether the engine has loaded its model.
+ */
+export async function runServiceProbe(
+  base: string,
+  probe: { path: string; expectStatus: number[] } | undefined
+): Promise<ReadinessProbeResult> {
+  if (!probe) {
+    return runGenericReadinessProbe(base)
+  }
+  const result = await runReadinessProbe(`${base}${probe.path}`, probe.expectStatus)
+  if (isAuthChallenge(result.httpStatus)) {
+    return { ...result, inconclusive: true, error: 'auth challenge on the engine probe' }
+  }
+  return result
 }

@@ -8,11 +8,13 @@ export interface ServiceEngineProfile {
   id: string
   /** Matches the image reference (without tag/digest) this engine ships as. */
   matchesImage: (image: string) => boolean
-  /** The request that proves the engine can serve traffic. */
-  probe: {
+  /**
+   * The request that proves the engine can serve traffic. Absent for the generic profile, which is
+   * probed on the service's first exposed port (see runGenericReadinessProbe).
+   */
+  probe?: {
     path: string
-    /** Container port to probe; defaults to the service's first exposed port when absent. */
-    port?: number
+    port: number
     expectStatus: number[]
   }
   /**
@@ -141,6 +143,12 @@ export const SERVICE_ENGINE_PROFILES: ServiceEngineProfile[] = [
   }
 ]
 
+/** For a workload no profile recognizes. */
+export const GENERIC_SERVICE_ENGINE: ServiceEngineProfile = {
+  id: 'generic',
+  matchesImage: () => true
+}
+
 /**
  * The repository path of an image reference, with any `@digest` and `:tag` removed. `image` is
  * documented as the bare name (tag and digest ride in their own fields), but a caller that folds
@@ -155,25 +163,20 @@ function stripImageRef(image: string): string {
 }
 
 /**
- * Null for an unrecognized image, or when the engine's port is not published (an app running the
- * engine behind its own port has nothing to probe).
+ * The profile for a recognized image that publishes its engine's port; otherwise the generic one
+ * (an unrecognized image, or an app running the engine behind its own port). Null only when the
+ * service publishes no port, which leaves nothing to probe.
  */
 export function resolveServiceEngine(job: ServiceJob): ServiceEngineProfile | null {
-  const image = stripImageRef((job.image || job.containerImage || '').trim())
-  if (!image) {
+  if (!job.exposedPorts?.length) {
     return null
   }
+  const image = stripImageRef((job.image || job.containerImage || '').trim())
   const profile = SERVICE_ENGINE_PROFILES.find((candidate) =>
     candidate.matchesImage(image)
   )
-  if (!profile) {
-    return null
-  }
-  if (
-    profile.probe.port !== undefined &&
-    !job.exposedPorts?.includes(profile.probe.port)
-  ) {
-    return null
+  if (!profile?.probe || !job.exposedPorts.includes(profile.probe.port)) {
+    return GENERIC_SERVICE_ENGINE
   }
   return profile
 }

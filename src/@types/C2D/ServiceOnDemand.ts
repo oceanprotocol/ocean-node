@@ -150,6 +150,7 @@ export type ServiceReadinessState =
   | 'waiting' // not answering as expected yet — the normal warm-up window
   | 'ready' // answered the engine's readiness request
   | 'failing' // it WAS ready and stopped answering
+  | 'unknown' // answered only with an auth challenge, which says nothing about the workload behind it
 
 export interface ServiceReadiness {
   state: ServiceReadinessState
