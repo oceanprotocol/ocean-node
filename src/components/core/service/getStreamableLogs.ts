@@ -78,7 +78,10 @@ export class ServiceGetStreamableLogsHandler extends CommandHandler {
       if (!respStream) {
         return {
           stream: null,
-          status: { httpStatus: 404, error: 'Service not found or not running' }
+          status: {
+            httpStatus: 404,
+            error: `Service ${task.serviceId} has no container and no saved logs`
+          }
         }
       }
       return { stream: respStream as unknown as Stream, status: { httpStatus: 200 } }

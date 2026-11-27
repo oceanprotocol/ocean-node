@@ -9,6 +9,10 @@ import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import { loadConfigFromFile } from '../../../utils/config/index.js'
 
 export class FetchConfigHandler extends AdminCommandHandler {
+  // Read-only admin command: may be authorized by a bearer auth token (scopable), not only a
+  // signature (plan §16.2). The ALLOWED_ADMINS gate still applies at consumption.
+  protected readonly allowAuthToken: boolean = true
+
   async validate(command: AdminFetchConfigCommand): Promise<ValidateParams> {
     return await super.validate(command)
   }

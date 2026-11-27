@@ -83,6 +83,7 @@ type ServiceJobDoc = {
   expiresAt: number
   dateCreated: string
   outputArchiveCount: number
+  logArchiveCount: number
   body: ServiceJob
 }
 
@@ -116,6 +117,7 @@ function serviceJobToDoc(job: ServiceJob): ServiceJobDoc {
     expiresAt: job.expiresAt,
     dateCreated: job.dateCreated,
     outputArchiveCount: (job.outputArchives ?? []).length,
+    logArchiveCount: (job.logArchives ?? []).length,
     body: { ...job, updatedAt: Date.now() }
   }
 }
@@ -478,6 +480,7 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
         document: {
           ...current.source,
           outputArchiveCount: (body.outputArchives ?? []).length,
+          logArchiveCount: (body.logArchives ?? []).length,
           body: { ...body, updatedAt: Date.now() }
         },
         if_seq_no: current.seqNo,
@@ -515,9 +518,9 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
   }
 
   // Expired (terminal) services whose paid window ended at or before `expiresBefore` (Unix
-  // ms) and that still hold output archives — candidates for deleting them once storage
-  // expiry has elapsed. Expired jobs are kept forever (with outputArchives: [] once
-  // cleaned), so the archive count is filtered in the query.
+  // ms) and that still hold output archives or saved logs — candidates for deleting them
+  // once storage expiry has elapsed. Expired jobs are kept forever (with outputArchives: []
+  // and logArchives: [] once cleaned), so the archive counts are filtered in the query.
   async getExpiredServiceJobsBefore(
     expiresBefore: number,
     clusterHash?: string
@@ -526,7 +529,15 @@ export class ElasticsearchCompute implements ComputeDatabaseProvider {
       [
         { term: { status: ServiceStatusNumber.Expired } },
         { range: { expiresAt: { lte: expiresBefore } } },
-        { range: { outputArchiveCount: { gt: 0 } } },
+        {
+          bool: {
+            should: [
+              { range: { outputArchiveCount: { gt: 0 } } },
+              { range: { logArchiveCount: { gt: 0 } } }
+            ],
+            minimum_should_match: 1
+          }
+        },
         ...clusterFilter(clusterHash)
       ],
       true

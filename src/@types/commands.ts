@@ -109,6 +109,10 @@ export interface ValidateDDOCommand extends Command {
 
 export interface StatusCommand extends Command {
   detailed?: boolean
+  // OJ-03 (plan §14.1): optional client-chosen random challenge. When present, the node answers
+  // with `signedChallenge` (its libp2p-identity-key signature over the domain-separated digest),
+  // proving it controls the key the peerId commits to. Backward compatible: omitted ⇒ no change.
+  clientChallenge?: string
 }
 export interface DetailedStatusCommand extends StatusCommand {}
 export interface EchoCommand extends Command {}
@@ -456,6 +460,14 @@ export interface ServiceGetTemplatesCommand extends Command {
   chainId?: number
 }
 
+// A port the service exposes. `hostPort` omitted ⇒ the node auto-allocates one from the
+// daemon's hostPortRange (legacy behaviour). `hostPort` set ⇒ pin that specific host port;
+// it must fall inside hostPortRange and be free, else the command is rejected.
+export interface ServicePortRequest {
+  containerPort: number // 1..65535
+  hostPort?: number // 1..65535; omitted = auto-allocate
+}
+
 export interface ServiceStartCommand extends Command {
   consumerAddress: string
   nonce: string
@@ -469,7 +481,10 @@ export interface ServiceStartCommand extends Command {
   additionalDockerFiles?: Record<string, string> // extra files in the build context
   dockerCmd?: string[] // exact container command (Docker exec-form CMD override; no shell)
   dockerEntrypoint?: string[] // container ENTRYPOINT override
-  exposedPorts?: number[] // container ports to forward
+  exposedPorts?: number[] // container ports to forward (auto host ports) — legacy; prefer `ports`
+  // Preferred port spec: container→host pairs with optional pinned host port. When present it
+  // supersedes `exposedPorts` (a warning is logged if both are sent).
+  ports?: ServicePortRequest[]
   resources?: ComputeResourceRequest[]
   duration: number // seconds; capped by serviceOnDemand.maxDurationSeconds
   userData?: string // ECIES-encrypted (to the node's public key) JSON object → the container's env-var map
@@ -576,6 +591,13 @@ export interface ServiceRestartCommand extends Command {
   // triggers RESPEC mode. When present it REPLACES the stored metadata; when omitted the
   // original metadata is kept untouched.
   metadata?: DBComputeJobMetadata
+  // Port spec. Like `metadata`, independent of REUSE/RESPEC: present ⇒ change the service's
+  // ports (validated + reserved up front; rejected without touching the running service if a
+  // requested host port is unavailable); omitted ⇒ keep the current ports. Only `ports` is
+  // accepted here — restart intentionally does NOT read the legacy `exposedPorts` field (it was
+  // ignored before this feature, so honouring it now would be a breaking change for clients that
+  // echo a start body into a restart).
+  ports?: ServicePortRequest[]
 }
 
 export interface ServiceExtendCommand extends Command {

@@ -362,6 +362,7 @@ export const stateSchemas: {
           expiresAt: { type: 'long' },
           dateCreated: { type: 'keyword' },
           outputArchiveCount: { type: 'integer' },
+          logArchiveCount: { type: 'integer' },
           body: { type: 'object', enabled: false }
         }
       }

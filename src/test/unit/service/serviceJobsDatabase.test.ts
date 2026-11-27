@@ -541,6 +541,35 @@ describeOnElasticsearch('Service Jobs Database', () => {
     ).to.deep.equal([archive])
   })
 
+  it('getExpiredServiceJobsBefore also returns Expired jobs that hold only saved logs', async () => {
+    const logs = {
+      index: 0,
+      filename: 'logs-0.log',
+      filesize: 42,
+      createdAt: Date.now(),
+      containerId: 'container-1'
+    }
+    const expired = {
+      status: ServiceStatusNumber.Expired,
+      statusText: 'Expired',
+      expiresAt: Date.now() - 10_000
+    }
+    // like a bucket service, it has no output archives: only the logArchives half of the filter
+    // can match it
+    const onlyLogs = makeServiceJob({ ...expired, logArchives: [logs] })
+    const cleaned = makeServiceJob({ ...expired, outputArchives: [], logArchives: [] })
+    await db.newServiceJob(onlyLogs)
+    await db.newServiceJob(cleaned)
+
+    const jobs = await db.getExpiredServiceJobsBefore(Date.now() - 5_000, CLUSTER_HASH)
+    const ids = jobs.map((j) => j.serviceId)
+    expect(ids).to.include(onlyLogs.serviceId)
+    expect(ids).to.not.include(cleaned.serviceId)
+    expect(
+      jobs.find((j) => j.serviceId === onlyLogs.serviceId).logArchives
+    ).to.deep.equal([logs])
+  })
+
   it('DiskQuotaExceeded reserves claimed resources, expires normally, and waits for Expired before archive cleanup', async () => {
     const diskStopped = makeServiceJob({
       status: ServiceStatusNumber.DiskQuotaExceeded,

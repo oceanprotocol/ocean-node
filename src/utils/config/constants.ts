@@ -26,9 +26,20 @@ export const ENV_TO_CONFIG_MAPPING = {
   FILEINFO_MAX_REQ_PER_MINUTE: 'fileInfoRateLimit',
   IS_BOOTSTRAP: 'isBootstrap',
   ESCROW_CLAIM_TIMEOUT: 'claimDurationTimeout',
+  ESCROW_EMPTY_TX: 'escrowEmptyTx',
   VALIDATE_UNSIGNED_DDO: 'validateUnsignedDDO',
   JWT_SECRET: 'jwtSecret',
   INSTANCE_ID: 'instanceId',
+  // Scoped auth tokens (plan §8)
+  MAX_TOKEN_LIFETIME: 'maxTokenLifetime',
+  TOKEN_REVOCATION_FALLBACK: 'tokenRevocationFallback',
+  TOKEN_SOFTFAIL_GRACE: 'tokenSoftFailGrace',
+  TOKEN_REVALIDATE_INTERVAL: 'tokenRevalidateInterval',
+  // Operator federation — lever B (plan §17.1)
+  ALLOW_CROSS_NODE_TOKENS: 'allowCrossNodeTokens',
+  TRUSTED_TOKEN_ISSUERS: 'trustedTokenIssuers',
+  // OJ-03 status identity challenge (plan §14.4)
+  STATUS_CHALLENGE_RATE_LIMIT: 'statusChallengeRateLimit',
   MAX_REQ_PER_MINUTE: 'rateLimit',
   MAX_CONNECTIONS_PER_MINUTE: 'maxConnections',
   TRUST_PROXY: 'trustProxy',

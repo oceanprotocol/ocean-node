@@ -337,8 +337,7 @@ jobs:
         with:
           persist-credentials: false
           repository: 'oceanprotocol/ocean-cli'
-          # the CLI and ocean.js without Aquarius (/api/query, /api/ddo); back to the default
-          # branches when both are merged
+          # the CLI without Aquarius (/api/query, /api/ddo); back to rc_3.0.0 when it is merged
           ref: 'feat/node-neutral-query'
           path: 'ocean-cli'
       - name: Checkout Ocean-js
@@ -346,7 +345,7 @@ jobs:
         with:
           persist-credentials: false
           repository: 'oceanprotocol/ocean.js'
-          ref: 'feat/node-neutral-query'
+          ref: 'rc_11.0.0'
           path: 'ocean.js'
       - name: Build ocean-js
         working-directory: ${{ github.workspace }}/ocean.js

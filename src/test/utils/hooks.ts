@@ -86,7 +86,15 @@ export const mochaHooks = {
         CONFIG_LOGGER.debug(
           `(Hook) Restoring environment variable: ${varName} \ncurrent:\n ${process.env[varName]} \noriginal:\n ${initialVariable.originalValue}`
         )
-        process.env[varName] = initialVariable.originalValue
+        // Assigning undefined to a process.env key stringifies it to the literal "undefined",
+        // which then poisons any later getConfiguration() reload (e.g. CONFIG_PATH becomes the
+        // string "undefined" -> "Config path must be absolute"). Delete the key instead, matching
+        // tearDownEnvironment().
+        if (initialVariable.originalValue === undefined) {
+          delete process.env[varName]
+        } else {
+          process.env[varName] = initialVariable.originalValue
+        }
       }
     })
   }

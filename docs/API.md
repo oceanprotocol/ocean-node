@@ -19,6 +19,45 @@ change closes. Client libraries that construct the `decryptDDO` message themselv
 
 ---
 
+## Release note — universal peerId-bound signing (BREAKING, since Ocean Node v5.1.0)
+
+Previously only `decryptDDO` (ON-02, above) bound its signature to the destination node's peerId.
+As of **v5.1.0** **every** signature-authenticated command — ordinary (user) commands **and** admin
+commands — binds the signed message to the **destination (verifier) node's own peerId**. This closes
+signature replay across nodes for all commands: a signature minted for node A is rejected by node B.
+
+For every signed command **except `decryptDDO`** (which additionally binds its resource fields — see
+the `POST /api/services/decrypt` and P2P `decryptDDO` sections), the signed message is the
+concatenation:
+
+```
+consumerAddress + nonce + command + issuerPeerId
+```
+
+- `consumerAddress` — the caller's EVM address (the same value sent as `consumerAddress` / `address`),
+  in the casing you actually signed (see **Address casing**).
+- `nonce` — the per-caller monotonic nonce, as a string.
+- `command` — the **exact** command string the request carries, same casing as sent (e.g. `encrypt`,
+  `download`, `startCompute`, `persistentStorageCreateBucket`, `serviceStart`, `serviceExtend`,
+  `setMaintenance`).
+- `issuerPeerId` — the **target node's own peerId**. Discover it once per node from the `id` field of
+  that node's `status` response (`POST /directCommand` with `{"command":"status"}`) or the `nodeId`
+  returned by its root `GET /`, then bind the same value into every signed request to that node.
+
+This applies to all signature-authenticated families, including **persistent storage**
+(`persistentStorageCreateBucket`, `persistentStorageUploadFile`, `persistentStorageDeleteFile`, …),
+**services** (`serviceStart`, `serviceExtend`, `serviceStop`, …), compute (`startCompute` /
+`freeStartCompute`), `encrypt` / `encryptFile`, `download`, `validateDDO`, and the admin commands.
+
+**Breaking change.** This is a coordinated signer/verifier change with **no empty-peerId fallback**: a
+request whose signed message omits `issuerPeerId` (the pre-v5.1.0 `consumerAddress + nonce + command`
+format) is rejected with a `consumer address and nonce signature mismatch` error. Client libraries
+that build the signed message themselves must adopt the new format and upgrade in lockstep with the
+node. `ocean.js` resolves the peerId automatically (from the node `status`) before signing, so callers
+using it need no change.
+
+---
+
 ## Address casing
 
 Every EVM address you send (`consumerAddress`, `owner`, `address`, `decrypterAddress`,
@@ -310,8 +349,9 @@ returns decrypted document
 > decrypterAddress + nonce + "decryptDDO" + issuerPeerId + chainId + transactionId + dataNftAddress
 > ```
 >
-> - `issuerPeerId` is the **target (decrypting) node's own peerId** — i.e. the `nodeId` returned
->   by that node's root `GET /` endpoint. A signature minted for node A is rejected by node B.
+> - `issuerPeerId` is the **target (decrypting) node's own peerId** — i.e. the `id` returned
+>   by that node's root `GET /` endpoint (the status object). A signature minted for node A is
+>   rejected by node B.
 > - `chainId`, `transactionId`, `dataNftAddress` bind the signature to a single decrypt.
 > - `nonce` is a client-local monotonic value (the Indexer uses `Date.now()`); the node no longer
 >   fetches a nonce from the (untrusted) `decryptorURL`.
@@ -459,12 +499,12 @@ returns log by id. Admin only. Works only with `LOG_DB` and an available log dat
 
 #### Parameters
 
-| name      | type   | required | description                                                      |
-| --------- | ------ | -------- | ---------------------------------------------------------------- |
-| logId     | string | v        | id of the log entry (read from the body)                         |
-| address   | string | v        | admin address (must be in `ALLOWED_ADMINS`)                      |
-| signature | string | v        | signed message (auth tokens are not accepted for admin commands) |
-| nonce     | string | v        | nonce used for the signature                                     |
+| name      | type   | required | description                                           |
+| --------- | ------ | -------- | ----------------------------------------------------- |
+| logId     | string | v        | id of the log entry (read from the body)              |
+| address   | string | v        | admin address (must be in `ALLOWED_ADMINS`)           |
+| signature | string | (v)      | signed message — required unless an auth token is sent (read-only admin; token goes in the `Authorization` header) |
+| nonce     | string | (v)      | nonce used for the signature                          |
 
 #### Response
 
@@ -488,7 +528,7 @@ returns log by id. Admin only. Works only with `LOG_DB` and an available log dat
 
 #### Description
 
-returns list of logs, newest first. Admin only: send `address`, `signature` and `nonce` (auth tokens are not accepted for admin commands). The default window is the last 7 days.
+returns list of logs, newest first. Admin only: send `address`, `signature` and `nonce`. `getLogs` is a **read-only admin command**, so it also accepts a scoped **auth token** (send it in `authorization`) scoped to `getLogs` — the `ALLOWED_ADMINS` gate still applies to the token's authenticated address. (Mutating admin commands still reject tokens.) The default window is the last 7 days.
 
 Source: the log database when `LOG_DB` is on and the log database is available; otherwise the rotating files in `logs/` (see [Logs.md](Logs.md)). Entries read from files have no `id` and only include levels at or above `LOG_FILES_LEVEL`. When nothing matches, the response is `200` with `[]`. An invalid `startTime`/`endTime` returns `400`.
 
@@ -497,8 +537,9 @@ Source: the log database when `LOG_DB` is on and the log database is available; 
 | name       | type   | required | description                                                              |
 | ---------- | ------ | -------- | ------------------------------------------------------------------------ |
 | address    | string | v        | admin address (must be in `ALLOWED_ADMINS`)                              |
-| signature  | string | v        | signed message (auth tokens are not accepted for admin commands)         |
-| nonce      | string | v        | nonce used for the signature                                             |
+| signature  | string | (v)      | signed message — required unless an `authorization` token is sent        |
+| authorization | string |       | scoped auth token (alternative to signature; read-only admin command)    |
+| nonce      | string | (v)      | nonce used for the signature                                             |
 | startTime  | string |          | filter logs from date (ISO 8601 or epoch ms). Default: 7 days before end |
 | endTime    | string |          | filter logs to date (ISO 8601 or epoch ms). Default: now                 |
 | maxLogs    | number |          | logs per page. Default `100`, maximum `1000`                             |
@@ -907,7 +948,76 @@ returns list of providers from which ddo can be obtained
 
 ---
 
+## Auth Tokens
+
+### `HTTP` POST /api/services/auth/token
+
+### `P2P` command: createAuthToken
+
+#### Description
+
+Mints a JWT auth token, re-usable in place of a per-request signature. The token's authority is the
+embedded **consumer signature** over the create-auth-token message (re-verified on every node), not
+`JWT_SECRET`.
+
+A token can be **self-limited** along three axes, all folded into the signed message so no
+intermediary can broaden them (a stolen "download-only token for node B" cannot be replayed as
+compute on node C):
+
+- **audience** — list of node peerIds the token may be used at (omitted ⇒ any node).
+- **scope** — list of protocol-command names the token may perform (omitted ⇒ any command).
+- **validUntil** — absolute expiry (epoch ms). Capped by `MAX_TOKEN_LIFETIME`; the node **rejects**
+  (never clamps) an over-cap value. A request with no `validUntil` gets a server-set default expiry
+  of `createdAt + MAX_TOKEN_LIFETIME` (no never-expiring tokens).
+
+Providing any of `audience` / `scope` / `validUntil` makes it a **v2** token: `validUntil` is then
+**required** and must be signed. Omit a field for "unrestricted"; an explicit `[]` is rejected.
+`decryptDDO` and mutating-admin commands are **not** allowed in `scope` (and reject tokens entirely
+at consumption — they require a fresh request signature). `fetchConfig` / `getLogs` (read-only admin)
+are scopable.
+
+The signed message for a v2 token is:
+
+```
+address + nonce + "createAuthToken" + issuerPeerId
+  + "|v:2"
+  + "|aud:" + sort(dedup(audience)).join(",")
+  + "|cmd:" + sort(dedup(scope)).join(",")
+  + "|exp:" + validUntil
+```
+
+(omitted audience/scope ⇒ empty segment). A legacy request (none of the three fields) signs the
+byte-identical `address + nonce + "createAuthToken" + issuerPeerId`.
+
+#### Parameters
+
+| name       | type     | required | description                                                        |
+| ---------- | -------- | -------- | ------------------------------------------------------------------ |
+| address    | string   | v        | consumer address                                                   |
+| signature  | string   | v        | consumer signature over the message above                          |
+| nonce      | string   | v        | nonce                                                              |
+| validUntil | number   | (v2)     | epoch ms; required whenever audience/scope is set                  |
+| audience   | string[] |          | node peerIds the token may be used at; omit for unrestricted       |
+| scope      | string[] |          | protocol-command names the token may perform; omit for unrestricted |
+| chainId    | string   |          | chain id for smart-account (ERC-1271) signature validation         |
+
+> **Smart-account (ERC-1271) tokens and cross-node use:** to be validated at a **different** node
+> (federation), a smart-account token MUST carry a non-null `chainId` — the consuming node will not
+> fan out an on-chain `isValidSignature` check across every network for a bearer token (DoS cap). An
+> EOA token needs no `chainId`. A smart-account token minted without a `chainId` works only at its
+> issuing node and must be reissued with one for cross-node use.
+
+#### Response
+
+```json
+{ "token": "eyJ..." }
+```
+
+---
+
 ## Status
+
+### `HTTP` GET /
 
 ### `HTTP` POST /directCommand
 
@@ -915,23 +1025,76 @@ returns list of providers from which ddo can be obtained
 
 #### Description
 
-returns status of node
+returns status of node.
+
+The node's root `GET /` endpoint is the HTTP alias of this command: it dispatches the same `status`
+command and returns the same object (previously it returned only a small subset — `nodeId`,
+`providerAddress`, `nodePublicKey`, `software`, `version` — which has been replaced by the full status
+body). It defaults to the **basic** status; pass `?detailed=true` for the extended status
+(`indexer` + `c2dClusters` + `supportedSchemas`), mirroring the P2P `status` vs `detailedStatus`
+split. `indexer` is detailed-only because it reads the last indexed block from the metadata DB per
+chain; the basic status returns `"indexer": []` so the health-check path never blocks on the DB.
+The OJ-03 challenge is supported via `?clientChallenge=...`.
+
+```
+GET /
+GET /?detailed=true
+GET /?clientChallenge=a-fresh-random-hex-string
+```
 
 #### Parameters
 
-| name    | type   | required | description                          |
-| ------- | ------ | -------- | ------------------------------------ |
-| command | string | v        | command name                         |
-| node    | string |          | if not present it means current node |
+| name            | type    | required | description                                                                        |
+| --------------- | ------- | -------- | ---------------------------------------------------------------------------------- |
+| command         | string  | v        | command name (POST /directCommand / P2P only)                                       |
+| node            | string  |          | if not present it means current node                                                |
+| detailed        | boolean |          | when true, includes `indexer` + `c2dClusters` + `supportedSchemas` (query param on `GET /`) |
+| clientChallenge | string  |          | OJ-03: when present, the node returns `signedChallenge` proving its peerId (below)  |
 
 #### Request
 
 ```json
 {
   "command": "status",
-  "node": "PeerId"
+  "node": "PeerId",
+  "clientChallenge": "a-fresh-random-hex-string"
 }
 ```
+
+#### OJ-03 — authenticated issuer identity
+
+When a `clientChallenge` is supplied, the response includes `signedChallenge`: the node's **libp2p
+identity-key** signature (0x-hex) over `utf8("ocean-node-status-challenge-v1:" + clientChallenge)`.
+A client verifies it against the public key embedded in the node's `id` (peerId) to prove the
+endpoint controls the key its peerId commits to — defeating a malicious endpoint that spoofs another
+node's peerId (used by ocean.js before minting an auth token). The challenge-signing path has its own
+rate limit (`STATUS_CHALLENGE_RATE_LIMIT`). This proves **identity**, not confidentiality — use TLS
+(HTTP) / Noise (P2P) so a relay cannot skim the issued token. `signedChallenge` is computed per
+request and is never cached.
+
+#### Auth-token policy (`authTokenPolicy`)
+
+The response also carries a static `authTokenPolicy` block so clients know what the node
+requires/accepts before minting or presenting an auth token:
+
+```json
+{
+  "authTokenPolicy": {
+    "maxTokenLifetime": 86400,
+    "crossNode": "disabled",
+    "revocationFallback": "cache",
+    "softFailGrace": 300,
+    "challengeSupported": true
+  }
+}
+```
+
+- `maxTokenLifetime` (seconds) — clients cap `validUntil` to this.
+- `crossNode` — `disabled` (self-issued tokens only) or `allowlist` (foreign tokens honored only from
+  `trustedIssuers`, which is then also present).
+- `revocationFallback` — `closed` | `cache` | `open` (behaviour when a token's issuer is unreachable);
+  `softFailGrace` (seconds) is present only in `cache` mode.
+- `challengeSupported` — the node implements the `clientChallenge` / `signedChallenge` proof.
 
 #### Response
 
@@ -962,6 +1125,7 @@ returns status of node
       "8996": ["0x123", "0x456"]
     },
     "subsidyProviderFilter": false,
+    "claimDurationTimeout": 3600,
     "uptime": 123,
     "platform": {
       "cpus": "123",
@@ -987,6 +1151,11 @@ the normal and detailed status. `subsidyProviderFilter` reflects the node's
 `SUBSIDY_PROVIDER_FILTER` setting: when `true`, a user-supplied `subsidyProviders` list on a
 compute/service request is restricted to addresses already in this map for the request's chain
 (see the per-request `subsidyProviders` field below).
+
+`claimDurationTimeout` reflects the node's `ESCROW_CLAIM_TIMEOUT` setting (seconds, default `3600`):
+the extra time the node reserves to claim an escrow payment. It is added to a job's `maxJobDuration`
+when locking escrow funds, so clients can see how long funds stay locked beyond the job's runtime.
+Present in both the normal and detailed status.
 
 ### Per-request `subsidyProviders`
 
@@ -1376,10 +1545,13 @@ asset/service and consumer. This endpoint requires an `Authorization` header or 
 `nonce` + `signature` pair.
 
 This is a distinct command from `PolicyServerPassthrough`, so the signed message uses its
-own command string: `consumerAddress + nonce + "PolicyServerInitialize"`.
+own command string and is bound to the node's peerId (see the universal signing release note
+above): `consumerAddress + nonce + "PolicyServerInitialize" + issuerPeerId`.
 
 The verified `consumerAddress` is the one forwarded to the PolicyServer; the caller's
-`authorization`, `nonce` and `signature` are added to the `policyServer` object.
+`authorization`, `nonce` and `signature` are added to the `policyServer` object, together with
+this node's `issuerPeerId`, so a PolicyServer that re-verifies the forwarded signature can rebuild
+the peer-bound message. (ocean-node has already verified the signature locally.)
 
 #### Parameters
 
@@ -1425,12 +1597,17 @@ The verified `consumerAddress` is the one forwarded to the PolicyServer; the cal
 
 returns current node configuration with sensitive data hidden (admin only)
 
+`fetchConfig` is a **read-only admin command**, so in addition to a signature it also accepts a scoped
+**auth token** in the `Authorization` header (scope it to `fetchConfig`). The `ALLOWED_ADMINS` gate
+still applies to the token's authenticated address. (Mutating admin commands reject tokens.)
+
 #### Parameters
 
-| name            | type   | required | description                                  |
-| --------------- | ------ | -------- | -------------------------------------------- |
-| expiryTimestamp | number | v        | expiry timestamp for the request             |
-| signature       | string | v        | signed message to authenticate admin request |
+| name            | type   | required | description                                        |
+| --------------- | ------ | -------- | -------------------------------------------------- |
+| expiryTimestamp | number | v        | expiry timestamp for the request                   |
+| signature       | string | (v)      | signed message — required unless an auth token is sent |
+| Authorization   | header |          | scoped auth token (alternative to signature)       |
 
 #### Request
 
@@ -2357,7 +2534,7 @@ List buckets for a given `owner`. Results are filtered by bucket access lists fo
 | name            | type   | required | description                                        |
 | --------------- | ------ | -------- | -------------------------------------------------- |
 | consumerAddress | string | v        | consumer address                                   |
-| signature       | string | v        | signed message (consumerAddress + nonce + command) |
+| signature       | string | v        | signed message (consumerAddress + nonce + command + issuerPeerId) |
 | nonce           | string | v        | request nonce                                      |
 | chainId         | number | v        | chain id (used by auth/signature checks)           |
 | owner           | string | v        | bucket owner to filter by                          |
@@ -2388,7 +2565,7 @@ List files in a bucket.
 | name            | type   | required | description                                        |
 | --------------- | ------ | -------- | -------------------------------------------------- |
 | consumerAddress | string | v        | consumer address                                   |
-| signature       | string | v        | signed message (consumerAddress + nonce + command) |
+| signature       | string | v        | signed message (consumerAddress + nonce + command + issuerPeerId) |
 | nonce           | string | v        | request nonce                                      |
 
 #### Response (200)
@@ -2417,7 +2594,7 @@ Return the `fileObject` for a specific file in a bucket (useful for passing refe
 | name            | type   | required | description                                        |
 | --------------- | ------ | -------- | -------------------------------------------------- |
 | consumerAddress | string | v        | consumer address                                   |
-| signature       | string | v        | signed message (consumerAddress + nonce + command) |
+| signature       | string | v        | signed message (consumerAddress + nonce + command + issuerPeerId) |
 | nonce           | string | v        | request nonce                                      |
 
 #### Response (200)
@@ -2446,7 +2623,7 @@ identically.
 | name            | type   | required | description                                        |
 | --------------- | ------ | -------- | -------------------------------------------------- |
 | consumerAddress | string | v        | consumer address                                   |
-| signature       | string | v        | signed message (consumerAddress + nonce + command) |
+| signature       | string | v        | signed message (consumerAddress + nonce + command + issuerPeerId) |
 | nonce           | string | v        | request nonce                                      |
 
 #### Response (200)
@@ -2477,7 +2654,7 @@ Upload a file to a bucket. The request body is treated as raw bytes.
 | name            | type   | required | description                                        |
 | --------------- | ------ | -------- | -------------------------------------------------- |
 | consumerAddress | string | v        | consumer address                                   |
-| signature       | string | v        | signed message (consumerAddress + nonce + command) |
+| signature       | string | v        | signed message (consumerAddress + nonce + command + issuerPeerId) |
 | nonce           | string | v        | request nonce                                      |
 
 #### Request Body
@@ -2508,7 +2685,7 @@ Delete a file from a bucket.
 | name            | type   | required | description                                        |
 | --------------- | ------ | -------- | -------------------------------------------------- |
 | consumerAddress | string | v        | consumer address                                   |
-| signature       | string | v        | signed message (consumerAddress + nonce + command) |
+| signature       | string | v        | signed message (consumerAddress + nonce + command + issuerPeerId) |
 | nonce           | string | v        | request nonce                                      |
 | chainId         | number | v        | chain id (used by auth/signature checks)           |
 
@@ -2530,8 +2707,9 @@ it expires, is stopped, or is extended. See [`services.md`](./services.md) for t
 and security model.
 
 All routes live under `/api/services`. Every command except `serviceTemplates` is
-authenticated by a signature over `consumerAddress` + `nonce` + `command` (or an auth-token
-`Authorization` header). Cost is computed only from the environment's server-side pricing and
+authenticated by a signature over `consumerAddress` + `nonce` + `command` + `issuerPeerId` (the
+target node's peerId — see the universal signing release note above) or an auth-token
+`Authorization` header. Cost is computed only from the environment's server-side pricing and
 charged to the authenticated `consumerAddress`.
 
 > **Note:** service containers run hardened (`no-new-privileges`, `CapDrop: ['ALL']`), so a
@@ -2678,17 +2856,18 @@ should keep watching `serviceStatus`, not just stop once they first see `Running
 }
 ```
 
-| field                        | type     | required | description                                                                                                                             |
-| ---------------------------- | -------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| environment                  | string   | v        | envId to run on (services must be enabled on it)                                                                                        |
-| image                        | string   | v        | base image                                                                                                                              |
-| tag / checksum / dockerfile  | string   |          | image spec — at most one; `dockerfile` requires `allowImageBuild`                                                                       |
-| additionalDockerFiles        | object   |          | filename → content; only with `dockerfile`                                                                                              |
-| dockerCmd / dockerEntrypoint | string[] |          | container CMD / ENTRYPOINT overrides                                                                                                    |
-| exposedPorts                 | number[] |          | container ports to publish                                                                                                              |
-| resources                    | object[] |          | `{ id, amount }` requested resources                                                                                                    |
-| duration                     | number   | v        | seconds; capped by `serviceOnDemand.maxDurationSeconds`                                                                                 |
-| userData                     | string   |          | ECIES-encrypted (to the node pubkey) JSON of env vars                                                                                   |
+| field                        | type     | required | description                                                       |
+| ---------------------------- | -------- | -------- | ----------------------------------------------------------------- |
+| environment                  | string   | v        | envId to run on (services must be enabled on it)                  |
+| image                        | string   | v        | base image                                                        |
+| tag / checksum / dockerfile  | string   |          | image spec — at most one; `dockerfile` requires `allowImageBuild` |
+| additionalDockerFiles        | object   |          | filename → content; only with `dockerfile`                        |
+| dockerCmd / dockerEntrypoint | string[] |          | container CMD / ENTRYPOINT overrides                              |
+| exposedPorts                 | number[] |          | container ports to publish (host ports auto-allocated) — legacy; prefer `ports` |
+| ports                        | object[] |          | `{ containerPort, hostPort? }[]` — container ports with an optional **pinned** host port. `hostPort` omitted = auto-allocate. A pinned `hostPort` must be inside `hostPortRange` and free. A conflict caught by the synchronous availability **pre-check** returns `400` immediately; one caught only by the authoritative **background reservation** returns `200` with a `Starting` job that then becomes `Error` (seen when polling `serviceStatus`). Either way the reservation happens **before** the escrow lock, so a conflict incurs **no charge**. Supersedes `exposedPorts` when both are sent. |
+| resources                    | object[] |          | `{ id, amount }` requested resources                              |
+| duration                     | number   | v        | seconds; capped by `serviceOnDemand.maxDurationSeconds`           |
+| userData                     | string   |          | ECIES-encrypted (to the node pubkey) JSON of env vars             |
 | metadata                     | object   |          | arbitrary user labels (`string`/`number`/`boolean` values, ≤1 KB JSON); node-opaque. Returned on both `serviceStatus` and `serviceList` |
 | payment                      | object   | v        | `{ chainId, token }`                                                                                                                    |
 
@@ -2886,11 +3065,14 @@ RESPEC mode (restart on a new image spec — `image` required, plus at most one 
 | dockerCmd             | string[] |          | exact container command (Docker exec-form CMD override)                                                                                                                         |
 | dockerEntrypoint      | string[] |          | container ENTRYPOINT override                                                                                                                                                   |
 | metadata              | object   |          | user labels (≤1 KB JSON). **Not** a container param — independent of REUSE/RESPEC. When present it **replaces** the stored metadata; when omitted the original metadata is kept |
+| ports                 | object[] |          | `{ containerPort, hostPort? }[]` — change the ports, optionally **pinning** host ports (`hostPort` omitted = auto-allocate). Independent of REUSE/RESPEC (no `image` required). Validated/reserved up front: an unavailable requested host port is rejected and the running service is **left untouched**; on success the old host ports are freed after teardown and the `endpoints`/URLs change. Omitted ⇒ keep current ports. (The legacy `exposedPorts` field is **not** read on restart — use `ports`.) |
 
 #### Response (200)
 
-The `ServiceJob` with a new `containerId` (same `hostPort` and `expiresAt`; the `image`/`tag`/
-`checksum`/`dockerfile`/`containerImage` fields reflect the new spec in RESPEC mode).
+The `ServiceJob` with a new `containerId`. Host ports and `expiresAt` are unchanged unless a
+`ports` change was requested (then `endpoints`/URLs reflect the new host ports);
+the `image`/`tag`/`checksum`/`dockerfile`/`containerImage` fields reflect the new spec in RESPEC
+mode.
 
 #### Response (400)
 
@@ -2940,10 +3122,14 @@ until `expiresAt`. Only `release: true` ends the paid window early.
 
 #### Description
 
-Stream the service container's stdout/stderr logs live. **Authenticated and owner-scoped**
+Stream the service container's stdout/stderr logs. **Authenticated and owner-scoped**
 — only the service's owner (`consumerAddress`, proven by signature/nonce or auth token) can
-read its logs. Available while the service is `Running` (`40`) or `Error` (`99`) — a crashed
-container is kept around until `stop`/`restart`, so its logs remain fetchable for diagnosis.
+read its logs. While the service has a container — `Running` (`40`), `Error` (`99`): a
+crashed container is kept around until `stop`/`restart`, or `Stopping` until the teardown
+removes it — its log is followed live. Once the
+container is gone, the logs the node saved when each of the service's containers was removed
+are served instead, oldest first, until `storageExpiry` seconds after `expiresAt`. Only the last
+16 MiB of each container's log are kept, for the last 5 containers.
 
 #### Query Parameters
 
@@ -2957,22 +3143,31 @@ container is kept around until `stop`/`restart`, so its logs remain fetchable fo
 
 #### Response (200)
 
-Raw `stdout`/`stderr` byte stream from the container, connection kept open and followed live.
-With `since` set, historical output before that point is skipped — useful for a long-lived
-service where fetching the full history would otherwise dump days/weeks of buffered logs
-before reaching the live tail (e.g. `since=1h` for just the last hour).
+Raw `stdout`/`stderr` byte stream from the container (Docker-multiplexed frames), connection
+kept open and followed live. Saved logs come in the same format, and the stream ends after the
+last line. With `since` set, historical output before that point is skipped — useful for a
+long-lived service where fetching the full history would otherwise dump days/weeks of buffered
+logs before reaching the live tail (e.g. `since=1h` for just the last hour).
 
 #### Response (400)
 
-`since` is present but not a valid Unix timestamp or duration (`<number><s|m|h|d>`).
+`since` is present but not a valid Unix timestamp or duration (`<number><s|m|h|d>`), or no
+service with this `serviceId` belongs to `consumerAddress` (`Service job not found`).
 
 #### Response (404)
 
-Service not found, or not `Running`/`Error`.
+The service exists but has no container and no saved logs (never saved, or deleted after
+storage expiry).
 
 #### Response (401)
 
-Missing/invalid auth, or `consumerAddress` is not the service owner.
+Missing/invalid auth. A service owned by another address gets `400`, as above: the lookup is
+owner-scoped, so it is not found.
+
+#### Response (500)
+
+The node could not read the container's live log from Docker. Saved logs are not served in its
+place, so a Docker failure is never mistaken for an empty log.
 
 ---
 

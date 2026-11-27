@@ -15,6 +15,7 @@ import { ServiceRestartHandler } from '../../../components/core/service/restartS
 import { ServiceGetStreamableLogsHandler } from '../../../components/core/service/getStreamableLogs.js'
 import { SubsidyGateError } from '../../../components/core/utils/subsidyProviders.js'
 import { PersistentStorageAccessDeniedError } from '../../../components/persistentStorage/PersistentStorageFactory.js'
+import { HostPortUnavailableError } from '../../../components/core/service/utils.js'
 
 // Checksummed (EIP-55): commands are canonicalized on ingress, so this is the form handlers
 // see and forward, whatever casing the caller sent (see the lowercase-address test below).
@@ -451,6 +452,76 @@ describe('Service handlers', () => {
         expect(String(res.status.error)).to.contain('Invalid metadata')
       }
       expect(engine.restartService.called).to.equal(false)
+    })
+
+    it('forwards a port change (args 11/12) independent of RESPEC — no image required', async () => {
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      const res = await new ServiceRestartHandler(node).handle({
+        ...baseTask,
+        ports: [{ containerPort: 8888, hostPort: 31002 }]
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      expect(engine.restartService.calledOnce).to.equal(true)
+      const callArgs = engine.restartService.firstCall.args
+      expect(callArgs[2]).to.equal(undefined) // image NOT required for a port change
+      expect(callArgs[11]).to.deep.equal([8888]) // newExposedPorts
+      expect(callArgs[12]).to.deep.equal({ '8888': 31002 }) // newRequestedHostPorts
+    })
+
+    it('REUSE (no ports) → ports args forwarded as undefined so the engine keeps current ports', async () => {
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      await new ServiceRestartHandler(node).handle({ ...baseTask } as any)
+      const callArgs = engine.restartService.firstCall.args
+      expect(callArgs[11]).to.equal(undefined) // newExposedPorts
+      expect(callArgs[12]).to.equal(undefined) // newRequestedHostPorts
+    })
+
+    it('400 on a malformed ports spec (duplicate containerPort), without calling the engine', async () => {
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      const res = await new ServiceRestartHandler(node).handle({
+        ...baseTask,
+        ports: [{ containerPort: 8888 }, { containerPort: 8888 }]
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+      expect(engine.restartService.called).to.equal(false)
+    })
+
+    it('400 on a duplicate hostPort across entries, without calling the engine', async () => {
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      const res = await new ServiceRestartHandler(node).handle({
+        ...baseTask,
+        ports: [
+          { containerPort: 80, hostPort: 31000 },
+          { containerPort: 81, hostPort: 31000 }
+        ]
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+      expect(engine.restartService.called).to.equal(false)
+    })
+
+    it('400 when ports exceeds the per-command cap, without calling the engine', async () => {
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      const res = await new ServiceRestartHandler(node).handle({
+        ...baseTask,
+        ports: Array.from({ length: 65 }, (_, i) => ({ containerPort: 10000 + i }))
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+      expect(engine.restartService.called).to.equal(false)
+    })
+
+    it('400 (client error) when the engine rejects an unavailable requested host port', async () => {
+      const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
+      // A port held by a DIFFERENT running service: the engine throws before any teardown and
+      // the running service is left untouched. This must map to 400, not 500.
+      engine.restartService.rejects(
+        new HostPortUnavailableError('host port 31000 is not free')
+      )
+      const res = await new ServiceRestartHandler(node).handle({
+        ...baseTask,
+        ports: [{ containerPort: 80, hostPort: 31000 }]
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+      expect(String(res.status.error)).to.contain('not free')
     })
 
     it('400 RESPEC without image — a lone dockerCmd is a partial change, which is rejected', async () => {
@@ -912,6 +983,53 @@ describe('Service handlers', () => {
       expect(escrow.createLock.called).to.equal(false)
       expect(escrow.claimLock.called).to.equal(false)
     })
+
+    // ESCROW_EMPTY_TX: a zero-cost extension skips the on-chain lock/claim — createLock and
+    // claimLock return the 0xempty sentinel (as the real Escrow does for wei==0).
+    it('records the 0xempty sentinel for a zero-cost extension without any on-chain tx', async () => {
+      const job = makeJob()
+      const { node, escrow } = buildFakes({ serviceJobInDb: job, cost: 0 })
+      escrow.createLock.resolves('0xempty')
+      escrow.claimLock.resolves('0xempty')
+      const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      const out = await body(res)
+      expect(out[0].extendPayments).to.have.length(1)
+      expect(out[0].extendPayments[0].lockTx).to.equal('0xempty')
+      expect(out[0].extendPayments[0].claimTx).to.equal('0xempty')
+      // the handler must forward the lock's sentinel into claimLock (9th arg, index 8) — that is
+      // what makes the real Escrow.claimLock short-circuit instead of looking up a non-existent lock
+      expect(escrow.claimLock.firstCall.args[8]).to.equal('0xempty')
+      // nothing was locked on-chain, so nothing is ever cancelled
+      expect(escrow.cancelExpiredLock.called).to.equal(false)
+    })
+
+    // Regression for the bug this feature introduced: an unresolved intent whose lock was the
+    // 0xempty sentinel must be resolved WITHOUT an on-chain cancel (which would 409 forever),
+    // then the new extension proceeds.
+    it('resolves an unresolved 0xempty extension intent without an on-chain cancel, then proceeds', async () => {
+      const job = makeJob({
+        extendPayments: [
+          {
+            chainId: 8996,
+            token: '0xtoken',
+            lockTx: '0xempty',
+            claimTx: '',
+            cancelTx: '',
+            cost: 0
+          }
+        ]
+      })
+      const { node, escrow } = buildFakes({ serviceJobInDb: job })
+      const res = await new ServiceExtendHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      // the sentinel intent is resolved in-place, never cancelled on-chain
+      expect(escrow.cancelExpiredLock.called).to.equal(false)
+      const out = await body(res)
+      expect(out[0].extendPayments).to.have.length(2)
+      expect(out[0].extendPayments[0].cancelTx).to.equal('0xempty')
+      expect(out[0].extendPayments[1].claimTx).to.equal('0xclaim')
+    })
   })
 
   describe('GetServicesHandler (SERVICE_LIST)', () => {
@@ -1169,6 +1287,77 @@ describe('Service handlers', () => {
       expect(res.status.httpStatus).to.equal(403)
     })
 
+    // createServiceJob arg order (see compute_engine_docker.createServiceJob):
+    // (env, image, tag, checksum, dockerfile, addFiles, cmd, entrypoint, exposedPorts[8],
+    //  resources, duration, owner, payment, serviceId, userData, metadata, outputBucketId,
+    //  requestedHostPorts[17])
+    it('400 when "ports" has a duplicate containerPort, without creating a job', async () => {
+      const { node, engine } = buildFakes()
+      const res = await new ServiceStartHandler(node).handle({
+        ...baseTask,
+        exposedPorts: undefined,
+        ports: [{ containerPort: 8080 }, { containerPort: 8080 }]
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+      expect(engine.createServiceJob.called).to.equal(false)
+    })
+
+    it('400 when a pinned host port is outside hostPortRange, without creating a job', async () => {
+      const { node, engine } = buildFakes()
+      const res = await new ServiceStartHandler(node).handle({
+        ...baseTask,
+        exposedPorts: undefined,
+        ports: [{ containerPort: 8080, hostPort: 100 }] // default range [30000,32767]
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+      expect(String(res.status.error)).to.contain('range')
+      expect(engine.createServiceJob.called).to.equal(false)
+    })
+
+    it('400 when "ports" exceeds the per-command cap, without creating a job', async () => {
+      const { node, engine } = buildFakes()
+      const res = await new ServiceStartHandler(node).handle({
+        ...baseTask,
+        exposedPorts: undefined,
+        ports: Array.from({ length: 65 }, (_, i) => ({ containerPort: 10000 + i }))
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+      expect(engine.createServiceJob.called).to.equal(false)
+    })
+
+    it('400 when legacy "exposedPorts" exceeds the per-command cap, without creating a job', async () => {
+      const { node, engine } = buildFakes()
+      const res = await new ServiceStartHandler(node).handle({
+        ...baseTask,
+        exposedPorts: Array.from({ length: 65 }, (_, i) => 10000 + i)
+      } as any)
+      expect(res.status.httpStatus).to.equal(400)
+      expect(engine.createServiceJob.called).to.equal(false)
+    })
+
+    it('forwards a pinned host port to createServiceJob (exposedPorts arg 8, requestedHostPorts arg 17)', async () => {
+      const { node, engine } = buildFakes()
+      const res = await new ServiceStartHandler(node).handle({
+        ...baseTask,
+        exposedPorts: undefined,
+        ports: [{ containerPort: 80, hostPort: 30777 }]
+      } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      expect(engine.createServiceJob.calledOnce).to.equal(true)
+      const callArgs = engine.createServiceJob.firstCall.args
+      expect(callArgs[8]).to.deep.equal([80]) // exposedPorts (container ports)
+      expect(callArgs[17]).to.deep.equal({ '80': 30777 }) // requestedHostPorts
+    })
+
+    it('legacy exposedPorts forwards container ports with no requestedHostPorts (arg 17 undefined)', async () => {
+      const { node, engine } = buildFakes()
+      const res = await new ServiceStartHandler(node).handle({ ...baseTask } as any)
+      expect(res.status.httpStatus).to.equal(200)
+      const callArgs = engine.createServiceJob.firstCall.args
+      expect(callArgs[8]).to.deep.equal([80])
+      expect(callArgs[17]).to.equal(undefined)
+    })
+
     describe('disk amount', () => {
       const withDiskEnv = () => {
         const fakes = buildFakes()
@@ -1334,7 +1523,9 @@ describe('Service handlers', () => {
         outputBucketId: 'bucket-42'
       } as any)
       expect(res.status.httpStatus).to.equal(200)
-      expect(engine.createServiceJob.lastCall.args.at(-1)).to.equal('bucket-42')
+      // signature tail: (..., metadata[15], outputBucketId[16], requestedHostPorts[17]).
+      // Explicit index, not .at(-1): requestedHostPorts is now the trailing arg.
+      expect(engine.createServiceJob.lastCall.args[16]).to.equal('bucket-42')
     })
 
     it('forwards user metadata to createServiceJob (before outputBucketId)', async () => {
@@ -1345,8 +1536,9 @@ describe('Service handlers', () => {
         metadata
       } as any)
       expect(res.status.httpStatus).to.equal(200)
-      // signature tail: (..., serviceId, userData, metadata, outputBucketId)
-      expect(engine.createServiceJob.firstCall.args.at(-2)).to.deep.equal(metadata)
+      // signature tail: (..., serviceId[13], userData[14], metadata[15], outputBucketId[16],
+      // requestedHostPorts[17]). Explicit index, not .at(-2), for the same reason.
+      expect(engine.createServiceJob.firstCall.args[15]).to.deep.equal(metadata)
     })
 
     it('400 fail-fast when metadata exceeds 1 KB, before any job is created', async () => {
@@ -1433,12 +1625,13 @@ describe('Service handlers', () => {
       expect(res.status.httpStatus).to.equal(401)
     })
 
-    it('404 when the engine has no stream to return (not running/error)', async () => {
+    it('404 when the engine has no stream to return (no container, no saved logs)', async () => {
       const { node } = buildFakes({ serviceJobInDb: makeJob(), streamableLogs: null })
       const res = await new ServiceGetStreamableLogsHandler(node).handle({
         ...baseTask
       } as any)
       expect(res.status.httpStatus).to.equal(404)
+      expect(res.status.error).to.contain('no container and no saved logs')
     })
 
     it('200 and returns the engine stream on success', async () => {

@@ -10,13 +10,18 @@ export const adminConfigRoutes = express.Router()
 
 adminConfigRoutes.get('/api/admin/config', express.json(), async (req, res) => {
   try {
-    const { nonce, signature, address } = req.body
+    // A token-authorized (header-only) request may carry no JSON body, leaving req.body undefined;
+    // default to {} so destructuring never throws and the token still reaches the validator.
+    const { nonce, signature, address } = req.body || {}
 
     const response = await new FetchConfigHandler(req.oceanNode).handle({
       command: PROTOCOL_COMMANDS.FETCH_CONFIG,
       nonce,
       signature,
       address,
+      // read-only admin: a scoped auth token may be presented via the Authorization header
+      // instead of a signature (plan §16.3). The ALLOWED_ADMINS gate still applies.
+      authorization: req.headers?.authorization as string,
       caller: req.caller
     })
 

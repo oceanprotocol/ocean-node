@@ -4,7 +4,6 @@ import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { Readable } from 'stream'
 import {
   ValidateParams,
-  buildInvalidParametersResponse,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
@@ -78,9 +77,9 @@ export class QueryHandler extends CommandHandler {
 // `query` is the key of the state: { did }, { nft } or { txId }
 export class QueryDdoStateHandler extends QueryHandler {
   async handle(task: QueryCommand): Promise<P2PCommandResponse> {
-    const validation = this.validate(task)
-    if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
     try {
       const database = await this.getOceanNode().getDatabase()
