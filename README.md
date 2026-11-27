@@ -184,9 +184,51 @@ The node keeps all its data in one database, selected with `DB_TYPE`:
   each: [`postgresql-compose.yml`](postgresql-compose.yml) and
   [`elasticsearch-compose.yml`](elasticsearch-compose.yml).
 
-With no `DB_TYPE` the node does not start: it does not get the type from `DB_URL`. The node
-state does not move between databases: a node that changes to a database server starts with
-empty node state. See "Upgrade" in the [Database guide](docs/database.md).
+With no `DB_TYPE` the node does not start: it does not get the type from `DB_URL`. See
+"Upgrade" in the [Database guide](docs/database.md).
+
+### Move the node state to PostgreSQL or Elasticsearch
+
+Version 5.1.0 and older keep the node state (nonces, compute jobs, auth tokens, buckets,
+metrics history) in the SQLite files of `databases/`, and the DDO index in Typesense or
+Elasticsearch. A node of this release with `DB_TYPE=sqlite` keeps all of it in these files.
+To move the state of such a node, run this in the folder of its `docker-compose.yml`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/oceanprotocol/ocean-node/main/scripts/ocean-node-migrate-db.sh | bash
+# TODO: remove once merged. Until then, the script is only on this branch:
+curl -fsSL https://raw.githubusercontent.com/oceanprotocol/ocean-node/feat/db-migration/scripts/ocean-node-migrate-db.sh | bash
+```
+
+The script:
+
+1. Asks for the database: `p` (PostgreSQL), `e` (Elasticsearch) or `s` (SQLite). The new
+   database takes the place of the old one (Typesense, or Elasticsearch when you select
+   another one; on a SQLite node it is added) in `docker-compose.yml` (or `.yaml`), and in the
+   `dbConfig` of `config.json` when the compose file mounts it. With `s` the old database
+   goes: the state is in SQLite already, so the node uses the same files and upgrades their
+   tables when it starts. The old files stay in `<file>.old`; the volume of the old database stays.
+   When the volume of the new database exists already, it asks to remove it. When you keep
+   Elasticsearch, the script protects it: an Elasticsearch with `xpack.security.enabled: false`
+   gets security and a new password for the user `elastic`, and restarts when the node stops.
+   Without that line Elasticsearch 8 has security, so the compose file needs
+   `ELASTIC_PASSWORD`. The node gets the same user and password. The changes that it shows
+   hide the passwords and the private key: they are in the files. When the compose file sets
+   PostgreSQL already (after a quickstart run), the script does not ask and does not change
+   the files: it only copies. Docker compose reads only `docker-compose.yml` (`-f`). The
+   script stops when `COMPOSE_FILE` or `COMPOSE_ENV_FILES` is set, or the folder has a
+   `compose.yaml` or an override file, because docker compose reads them without `-f`.
+2. Shows what it will copy and asks you to confirm. The node still runs.
+3. Stops the node, keeps a copy of the state files in the folder `backup-<time>` of the node
+   volume (`node-sqlite`), and copies the state. A row that is in the target already is
+   written again; a nonce keeps the higher value.
+4. Starts the node. When the copy fails, it puts back the old files and starts the node as
+   before the script. After a good copy the SQLite files move to the backup folder; when the
+   node then does not start, the script shows the error and the command to start it.
+
+The indexed data is not copied: the node indexes the chains again. The script copies only
+from the SQLite files: a node on PostgreSQL or Elasticsearch does not move to another
+database. It refuses files of a newer node than its image.
 
 DDO search is the same on all three: a typed query (filters, sort key, page) that each
 database runs with its own fixed queries. See "DDO search" in the

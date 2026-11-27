@@ -710,7 +710,8 @@ fi
 
 # The parts of docker-compose.yml that depend on the database. SQLite needs only DB_TYPE:
 # the node keeps its files in the node-sqlite volume. A database server gets no "ports"
-# entry, so only the node can reach it.
+# entry, so only the node can reach it. ocean-node-migrate-db.sh writes the same parts: keep
+# the two in step.
 DB_ENVIRONMENT="      DB_TYPE: 'sqlite'"
 DB_DEPENDS_ON=''
 DB_SERVICE=''
@@ -887,9 +888,13 @@ echo ""
 echo -e "\e[1;32m4)\e[0m Node logs (info and above, 30 days) are written to \e[1;32m./logs\e[0m on this host. Set LOG_FILES_LEVEL=debug in docker-compose.yml for more detail."
 echo ""
 if [ -n "$PREVIOUS_DB_TYPE" ] && [ "$PREVIOUS_DB_TYPE" != "$DB_TYPE" ]; then
-  echo -e "\e[1;31mWarning:\e[0m the database of this folder was \e[1;31m$PREVIOUS_DB_TYPE\e[0m and is now \e[1;31m$DB_TYPE\e[0m. The node state (jobs, services, nonces, auth tokens, buckets) does not move: it stays in the Docker volume of $PREVIOUS_DB_TYPE. A database volume keeps the password of its first start: remove the old volume before you select that database again."
-  if [ "$PREVIOUS_DB_TYPE" == "sqlite" ]; then
-    echo -e "The node starts with empty node state on $DB_TYPE: with no nonces, a signed request that the node accepted before can be accepted again, and the paid jobs in the SQLite files are not claimed. The SQLite files stay unused in the Docker volume \e[1;31mnode-sqlite\e[0m. Keep the volume: it also holds the P2P identity store (p2p-store)."
+  echo -e "\e[1;31mWarning:\e[0m the database of this folder was \e[1;31m$PREVIOUS_DB_TYPE\e[0m and is now \e[1;31m$DB_TYPE\e[0m. The node state (jobs, services, nonces, auth tokens, buckets) does not move by itself: it stays in the Docker volume of $PREVIOUS_DB_TYPE."
+  if [ "$PREVIOUS_DB_TYPE" != "sqlite" ]; then
+    echo -e "That volume opens only with the password of its first start: DB_PASSWORD in docker-compose.yml. A run with SQLite does not keep it. To select $PREVIOUS_DB_TYPE again later, keep a copy of the password. If you remove the volume, its node state is deleted: back it up first."
+  else
+    echo -e "If the node ran version 5.1.0 or older, you can copy its node state to $DB_TYPE: run this command instead of step 2. The script stops the node, copies the state and starts the node:"
+    echo -e "\e[1;32mcurl -fsSL https://raw.githubusercontent.com/oceanprotocol/ocean-node/main/scripts/ocean-node-migrate-db.sh | bash\e[0m"
+    echo -e "Without the copy, the node starts with empty node state on $DB_TYPE: with no nonces, a signed request that the node accepted before can be accepted again, and the paid jobs in the SQLite files are not claimed. Keep the Docker volume \e[1;31mnode-sqlite\e[0m: it holds the SQLite files and the P2P identity store (p2p-store)."
   fi
   echo ""
 fi

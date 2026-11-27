@@ -34,7 +34,7 @@ export interface AuthTokenDatabaseProvider {
 export class AuthTokenDatabase extends AbstractDatabase {
   constructor(
     config: OceanNodeDBConfig,
-    private provider: AuthTokenDatabaseProvider
+    readonly provider: AuthTokenDatabaseProvider
   ) {
     super(config)
   }
