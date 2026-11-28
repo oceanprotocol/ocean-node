@@ -1,7 +1,7 @@
 import { ethers, Signer, FallbackProvider, Interface } from 'ethers'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
-import { getContractAddress } from '../utils.js'
+import { getEscrowAddressForChain } from '../../../utils/address.js'
 import { EVENTS } from '../../../utils/constants.js'
 import { EscrowEvent } from '../../../@types/Escrow.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
@@ -17,7 +17,8 @@ export class EscrowEventProcessor extends BaseEventProcessor {
 
   constructor(chainId: number, config: OceanNodeConfig) {
     super(chainId, config)
-    this.escrowAddress = getContractAddress(chainId, 'Escrow')
+    // Escrow or EnterpriseEscrow (identical events), whichever this node pays through
+    this.escrowAddress = getEscrowAddressForChain(chainId, config?.isEnterprise)
   }
 
   async processEvent(

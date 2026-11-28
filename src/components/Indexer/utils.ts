@@ -6,7 +6,10 @@ import { NetworkEvent } from '../../@types/blockchain.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { errorSummary, redactUrls } from '../../utils/logging/redact.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' with { type: 'json' }
-import { getOceanArtifactsAdressesByChainId } from '../../utils/address.js'
+import {
+  getEscrowAddressForChain,
+  getOceanArtifactsAdressesByChainId
+} from '../../utils/address.js'
 import { CommandStatus, JobStatus } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' with { type: 'json' }
@@ -105,7 +108,8 @@ export const retrieveChunkEvents = async (
   provider: FallbackProvider,
   network: number,
   lastIndexedBlock: number,
-  count: number
+  count: number,
+  isEnterprise: boolean = false
 ): Promise<ethers.Log[]> => {
   const startIndex = lastIndexedBlock + 1
   const toBlock = lastIndexedBlock + count
@@ -120,10 +124,11 @@ export const retrieveChunkEvents = async (
       })
     ]
 
-    // Only query escrow events from the known Escrow contract address. When it is not
-    // deployed on this chain the escrow processor would drop every event anyway, so we
-    // skip the query entirely (this also avoids logging unrelated Deposit/Withdraw txs).
-    const escrowAddress = getContractAddress(network, 'Escrow')
+    // Only query escrow events from the known Escrow contract address (EnterpriseEscrow on
+    // enterprise nodes). When it is not deployed on this chain the escrow processor would
+    // drop every event anyway, so we skip the query entirely (this also avoids logging
+    // unrelated Deposit/Withdraw txs).
+    const escrowAddress = getEscrowAddressForChain(network, isEnterprise)
     if (escrowAddress) {
       queries.push(
         provider.getLogs({

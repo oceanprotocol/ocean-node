@@ -123,7 +123,11 @@ export class Blockchain {
     })
 
     const block = await provider.getBlock('latest')
-    const baseFee = block.baseFeePerGas
+    // `baseFeePerGas` is null on legacy / non-EIP-1559 chains (e.g. Ganache / barge
+    // chainId 8996), and `block` itself can be null in edge cases. Default a missing base
+    // fee to 0n so the gas-cost math stays all-BigInt instead of throwing
+    // "Cannot mix BigInt and other types, use explicit conversions".
+    const baseFee = block?.baseFeePerGas ?? 0n
     const priorityFee = parseUnits('2', 'gwei')
     const maxFee = baseFee + priorityFee
     const gasCost = estimatedGas * maxFee
@@ -208,7 +212,12 @@ export class Blockchain {
     const feeData = await this.signer.provider.getFeeData()
     const gasLimit = estGas + 20_000n
 
-    if (feeData.maxPriorityFeePerGas) {
+    // Only take the EIP-1559 path when BOTH fields are present. If a chain reports a
+    // priority fee but no maxFeePerGas (or vice-versa), fall through to the legacy
+    // gasPrice branch instead of multiplying a null (which throws "Cannot mix BigInt and
+    // other types") or flooring maxFee to a 1-wei value below the priority fee (an
+    // invalid, unsubmittable fee pair). Normal EIP-1559 chains are unaffected.
+    if (feeData.maxPriorityFeePerGas != null && feeData.maxFeePerGas != null) {
       const multiplier = BigInt(Math.round(gasFeeMultiplier * 100))
 
       const priority = (feeData.maxPriorityFeePerGas * multiplier) / 100n

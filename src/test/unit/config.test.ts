@@ -486,6 +486,49 @@ describe('Should validate SUBSIDY_PROVIDER_FILTER configuration', () => {
   })
 })
 
+describe('Should validate IS_ENTERPRISE configuration', () => {
+  const DB_ENV_VARS = [ENVIRONMENT_VARIABLES.DB_TYPE, ENVIRONMENT_VARIABLES.DB_URL]
+  const DB_ENV_VALUES = ['typesense', 'http://localhost:8108/?apiKey=xyz']
+
+  // IS_ENTERPRISE is always overridden, so a value inherited from the test process can not
+  // leak in: undefined is stored as the string 'undefined', which the config builder treats
+  // as unset
+  async function configWith(
+    isEnterprise?: string
+  ): Promise<{ config?: OceanNodeConfig; error?: Error }> {
+    const overrides = buildEnvOverrideConfig(
+      [...DB_ENV_VARS, ENVIRONMENT_VARIABLES.IS_ENTERPRISE],
+      [...DB_ENV_VALUES, isEnterprise]
+    )
+    try {
+      await setupEnvironment(TEST_ENV_CONFIG_PATH, overrides)
+      return { config: await getConfiguration(true) }
+    } catch (error) {
+      return { error }
+    } finally {
+      await tearDownEnvironment(overrides)
+    }
+  }
+
+  it('defaults to false when unset', async () => {
+    const { config: conf, error } = await configWith()
+    expect(error).to.be.equal(undefined)
+    expect(conf.isEnterprise).to.be.equal(false)
+  })
+
+  it('parses "true" as true', async () => {
+    const { config: conf, error } = await configWith('true')
+    expect(error).to.be.equal(undefined)
+    expect(conf.isEnterprise).to.be.equal(true)
+  })
+
+  after(() => {
+    delete process.env.CONFIG_PATH
+    delete process.env.PRIVATE_KEY
+    delete process.env[ENVIRONMENT_VARIABLES.IS_ENTERPRISE.name]
+  })
+})
+
 describe('Should validate persistent storage bucket sharing configuration', () => {
   const PERSISTENT_STORAGE_JSON = JSON.stringify({
     enabled: true,
