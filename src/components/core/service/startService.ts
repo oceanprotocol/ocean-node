@@ -17,6 +17,7 @@ import type {
   ComputeEnvironment,
   DBComputeJobPayment as Payment
 } from '../../../@types/C2D/C2D.js'
+import { DEFAULT_SERVICE_HOST_PORT_RANGE } from '../../../@types/C2D/ServiceOnDemand.js'
 import { generateUniqueID, validateOutputBucket } from '../compute/utils.js'
 import { validateAccess } from '../compute/startCompute.js'
 import { isJobMetadataSizeValid, INVALID_JOB_METADATA_MESSAGE } from '../../c2d/index.js'
@@ -229,8 +230,9 @@ export class ServiceStartHandler extends CommandHandler {
         task.exposedPorts
       )
       if (requestedHostPorts) {
-        const range = engine.getC2DConfig().connection?.serviceOnDemand
-          ?.hostPortRange ?? [30000, 32767]
+        const range =
+          engine.getC2DConfig().connection?.serviceOnDemand?.hostPortRange ??
+          DEFAULT_SERVICE_HOST_PORT_RANGE
         for (const hp of Object.values(requestedHostPorts)) {
           if (!portInRange(hp, range))
             return buildInvalidParametersResponse(

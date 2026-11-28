@@ -3,6 +3,7 @@ import type { C2DClusterInfo, C2DDockerConfig } from '../../@types/C2D/C2D.js'
 import type { RPCS } from '../../@types/blockchain.js'
 import type { FeeTokens } from '../../@types/Fees.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
+import { DEFAULT_SERVICE_HOST_PORT_RANGE } from '../../@types/C2D/ServiceOnDemand.js'
 // import { privateKeyFromRaw } from '@libp2p/crypto/keys'
 // import { peerIdFromPrivateKey } from '@libp2p/peer-id'
 // import { Wallet } from 'ethers'
@@ -121,9 +122,45 @@ export function getDefaultFeeTokens(supportedNetworks?: RPCS): FeeTokens[] {
   return nodeFeesTokens
 }
 
+// Host-port reservations for Service-on-Demand live in ONE process-wide pool keyed by bare port
+// number (see allocatedPorts in components/core/service/utils.ts). Two service-enabled docker
+// daemons whose hostPortRanges overlap therefore interfere: a reservation on one blocks the same
+// number on the other, and the per-daemon `usedHostPorts` snapshot that getComputeEnvironments
+// advertises would include the other daemon's ports. So a per-daemon pool only holds when the
+// ranges are DISJOINT. Enforce that here: refuse to boot on overlap rather than run with silent
+// cross-daemon conflicts. Two daemons that both omit hostPortRange share the default range and so
+// overlap. Non-service-enabled daemons reserve no host ports and are ignored.
+export function assertNoOverlappingServiceHostPortRanges(
+  dockerComputeEnvironments: C2DDockerConfig[]
+): void {
+  if (!dockerComputeEnvironments) return
+  const ranges: { idx: number; range: [number, number] }[] = []
+  dockerComputeEnvironments.forEach((daemon, idx) => {
+    const sod = daemon?.serviceOnDemand
+    if (!sod?.enabled) return
+    ranges.push({ idx, range: sod.hostPortRange ?? DEFAULT_SERVICE_HOST_PORT_RANGE })
+  })
+  for (let i = 0; i < ranges.length; i++)
+    for (let j = i + 1; j < ranges.length; j++) {
+      const a = ranges[i]
+      const b = ranges[j]
+      // Inclusive ranges overlap iff each starts at or before the other ends.
+      if (a.range[0] <= b.range[1] && b.range[0] <= a.range[1])
+        throw new Error(
+          `Service-on-Demand hostPortRange overlap between docker compute environments ` +
+            `#${a.idx} [${a.range[0]}, ${a.range[1]}] and #${b.idx} [${b.range[0]}, ${b.range[1]}]. ` +
+            `Host-port reservations share one process-wide pool, so overlapping ranges cause ` +
+            `cross-daemon conflicts and an inaccurate usedHostPorts snapshot. Give each ` +
+            `service-enabled daemon a disjoint hostPortRange (two daemons that both omit it share ` +
+            `the default [${DEFAULT_SERVICE_HOST_PORT_RANGE[0]}, ${DEFAULT_SERVICE_HOST_PORT_RANGE[1]}]).`
+        )
+    }
+}
+
 export function buildC2DClusters(
   dockerComputeEnvironments: C2DDockerConfig[]
 ): C2DClusterInfo[] {
+  assertNoOverlappingServiceHostPortRanges(dockerComputeEnvironments)
   const clusters: C2DClusterInfo[] = []
   let count = 0
   if (process.env.OPERATOR_SERVICE_URL) {

@@ -1,6 +1,7 @@
 import { PROTOCOL_COMMANDS, SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { Command, ServicePortRequest } from '../../@types/commands.js'
+import { MAX_SERVICE_PORTS } from '../../@types/C2D/ServiceOnDemand.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { redactSensitiveFields } from '../../utils/logging/redact.js'
@@ -132,7 +133,9 @@ export function buildInvalidRequestMessage(cause: string): ValidateParams {
 // /directCommand or P2P body could carry hundreds of thousands of entries, forcing a pre-escrow
 // isPortFree() syscall storm (pinned) or an escrow charge followed by host-port-range exhaustion
 // at CONTINUE (unpinned → charge-without-service). Rejected up front as a 400.
-export const MAX_SERVICE_PORTS = 64
+// Defined in @types (dependency-free) so the c2d engine can advertise it without importing this
+// module (which would risk an import cycle); re-exported here so existing importers keep working.
+export { MAX_SERVICE_PORTS }
 
 // Structural validation of the service `ports` field (shared by the service start/restart
 // handlers). Range membership + OS freeness of a pinned host port are enforced later, by the

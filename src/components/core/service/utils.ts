@@ -164,12 +164,29 @@ export function parseSinceParam(since?: string): number | undefined {
 // Port allocation — in-memory set seeded from DB on engine restart
 const allocatedPorts = new Set<number>()
 
-export async function seedAllocatedPorts(
-  db: C2DDatabase,
-  clusterHash: string
-): Promise<void> {
-  const jobs = await db.getRunningServiceJobs(clusterHash)
-  for (const job of jobs) for (const ep of job.endpoints) allocatedPorts.add(ep.hostPort)
+// Re-seed the in-memory reservation set from persisted jobs after a (re)start. Intentionally
+// HOST-WIDE (every cluster, not one daemon's hash): a paid service's host-port reservation must
+// survive a restart for its whole paid window, INCLUDING when the owning daemon was removed from
+// config. Such an orphaned service keeps a DB record but has no engine to re-seed its port, so a
+// per-cluster seed would leave its port unprotected and another daemon whose range now covers it
+// could reserve it mid-window.
+//
+// A reservation is held until the job is FINALIZED (status Expired), NOT merely until its
+// `expiresAt` wall-clock passes: getRunningServiceJobs() already returns exactly the non-terminal
+// jobs (it excludes Expired), so every port it reports is still reserved. Release happens ONLY
+// through the owning engine's expireService, which tears the container down on its daemon FIRST
+// and then marks the job Expired — the one point a port is freed. A job whose daemon was removed
+// from config (an "orphan") keeps its reservation: there is no safe way to confirm its container
+// is gone (a local port probe cannot see a remote daemon's host, and a removed daemon is
+// unreachable), so the node never finalizes it from a heuristic. Its port is simply held until the
+// daemon is restored (its engine then expires the job normally) or an operator clears the record;
+// with disjoint daemon ranges this blocks no live daemon. This matches the source
+// buildServiceOnDemandPortInfo advertises, keeping the allocator and the usedHostPorts snapshot
+// aligned.
+export async function seedAllocatedPorts(db: C2DDatabase): Promise<void> {
+  const jobs = await db.getRunningServiceJobs()
+  for (const job of jobs)
+    for (const ep of job.endpoints ?? []) allocatedPorts.add(ep.hostPort)
 }
 
 export async function allocateHostPort(
@@ -203,6 +220,20 @@ export function reserveHostPort(port: number): void {
 
 export function portInRange(port: number, range: [number, number]): boolean {
   return Number.isInteger(port) && port >= range[0] && port <= range[1]
+}
+
+// Read-only snapshot of the in-memory host-port reservations that fall inside `range`. Lets
+// getComputeEnvironments surface IN-FLIGHT reservations — a port claimed by a service start
+// that has reserved it but whose job endpoints are not persisted yet — on top of the ports it
+// reads from the running-jobs table. The in-memory set is process-wide (it spans every daemon
+// in the node), so the caller MUST pass its own daemon's hostPortRange: filtering to the range
+// keeps one daemon from advertising another daemon's ports as used. This is exact only because
+// daemon ranges are guaranteed DISJOINT — overlap is rejected at config load by
+// assertNoOverlappingServiceHostPortRanges (src/utils/config/builder.ts). Returns a fresh array.
+export function reservedHostPortsInRange(range: [number, number]): number[] {
+  const out: number[] = []
+  for (const port of allocatedPorts) if (portInRange(port, range)) out.push(port)
+  return out
 }
 
 // Best-effort, NON-reserving freeness check for a specific host port — a port is "free" when it
