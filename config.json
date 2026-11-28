@@ -59,12 +59,6 @@
     "enableNetworkStats": false
   },
   "httpPort": 8001,
-  "dbConfig": {
-    "url": "http://localhost:8108/?apiKey=xyz",
-    "username": "",
-    "password": "",
-    "dbType": "typesense"
-  },
   "supportedNetworks": {
     "8996": {
       "rpc": "http://127.0.0.1:8545",
@@ -82,7 +76,7 @@
   "allowedAdmins": [],
   "allowedAdminsList": null,
   "rateLimit": 30,
-  "maxConnections": 120,
+  "maxConnections": 200,
   "trustProxy": false,
   "denyList": {
     "peers": [],

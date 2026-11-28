@@ -94,6 +94,17 @@ export interface IKeyProvider {
    */
   signMessage(message: string): Promise<string>
   /**
+   * OJ-03: sign raw bytes with the libp2p IDENTITY key (the key the peerId commits to), using
+   * libp2p's native `.sign()` (secp256k1: SHA-256 + DER), verifiable in ocean.js with
+   * `@libp2p/crypto` `publicKey.verify`. This is NOT the EVM signer: under every KMS provider the
+   * EVM key lives in KMS while the libp2p identity key is software-resident, so this MUST be
+   * implemented as a software-local op over `getLibp2pPrivateKey().sign(...)` (free, synchronous,
+   * no paid remote Sign call). Used only to answer the status identity challenge.
+   * @param data - raw bytes to sign (already domain-separated by the caller)
+   * @returns the libp2p signature bytes
+   */
+  signWithIdentityKey(data: Uint8Array): Promise<Uint8Array> | Uint8Array
+  /**
    * Cleanup resources if needed (e.g., close connections)
    */
   cleanup?(): Promise<void>

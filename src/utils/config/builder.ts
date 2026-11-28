@@ -1,4 +1,4 @@
-import type { OceanNodeConfig } from '../../@types/OceanNode.js'
+import type { OceanNodeConfig, OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import type { C2DClusterInfo, C2DDockerConfig } from '../../@types/C2D/C2D.js'
 import type { RPCS } from '../../@types/blockchain.js'
 import type { FeeTokens } from '../../@types/Fees.js'
@@ -16,6 +16,7 @@ import {
   OCEAN_ARTIFACTS_ADDRESSES_PER_CHAIN
 } from '../address.js'
 import { create256Hash } from '../crypt.js'
+import { dbConfigurationProblem } from '../database.js'
 import { CONFIG_LOGGER } from '../logging/common.js'
 import { redactUrls, safeStringify } from '../logging/redact.js'
 import { OceanNodeConfigSchema } from './schemas.js'
@@ -27,6 +28,19 @@ import { fileURLToPath } from 'url'
 import lodash from 'lodash'
 
 let previousConfiguration: OceanNodeConfig = null
+
+// SQLite keeps its files in the node folder, so connection values have no effect on it
+function withoutUnusedConnection(dbConfig: OceanNodeDBConfig): OceanNodeDBConfig {
+  if (dbConfig.dbType !== 'sqlite') {
+    return dbConfig
+  }
+  if (dbConfig.url) {
+    CONFIG_LOGGER.warn(
+      'DB_URL is ignored: DB_TYPE is sqlite. Set DB_TYPE to postgresql or elasticsearch to use it'
+    )
+  }
+  return { dbType: 'sqlite' }
+}
 
 function mapEnvToConfig(
   env: NodeJS.ProcessEnv,
@@ -56,19 +70,27 @@ function preprocessConfigData(data: any): void {
     delete data.INTERFACES
   }
 
-  // Transform DB_* env vars to dbConfig
-  if (data.DB_URL) {
-    data.dbConfig = {
+  // Transform DB_* env vars to dbConfig. Only the variables that are set override the
+  // config file, so a file can hold the URL and the environment only the password.
+  const dbOverrides = lodash.omitBy(
+    {
+      dbType: data.DB_TYPE,
       url: data.DB_URL,
       username: data.DB_USERNAME,
-      password: data.DB_PASSWORD,
-      dbType: data.DB_TYPE || 'elasticsearch'
-    }
-    delete data.DB_URL
-    delete data.DB_USERNAME
-    delete data.DB_PASSWORD
-    delete data.DB_TYPE
+      password: data.DB_PASSWORD
+    },
+    // an empty value (`DB_TYPE=${DB_TYPE}` in a compose file) is not a setting
+    (value) => value === undefined || value === ''
+  )
+  // a `dbConfig` in the file that is not an object fails the validation
+  if (data.dbConfig === undefined || lodash.isPlainObject(data.dbConfig)) {
+    // no default and no guess from DB_URL: with no DB_TYPE the validation fails
+    data.dbConfig = { ...data.dbConfig, ...dbOverrides }
   }
+  delete data.DB_TYPE
+  delete data.DB_URL
+  delete data.DB_USERNAME
+  delete data.DB_PASSWORD
 
   // Transform FEE_* env vars to feeStrategy
   if (data.FEE_AMOUNT && data.FEE_TOKENS) {
@@ -240,6 +262,12 @@ export function buildMergedConfig(): OceanNodeConfig {
   }
 
   const config = parsed.data as any
+  const dbProblem = dbConfigurationProblem(config.dbConfig)
+  if (dbProblem) {
+    CONFIG_LOGGER.error(dbProblem)
+    throw new Error('Configuration validation failed')
+  }
+  config.dbConfig = withoutUnusedConnection(config.dbConfig)
 
   // PERSISTENT_STORAGE_ALLOW_BUCKET_SHARING overrides persistentStorage.allowBucketSharing.
   // Applied after parsing because PERSISTENT_STORAGE may still be a JSON string before it.

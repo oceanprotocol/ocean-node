@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { getAddress } from 'ethers'
-import { dhtFilterMethod } from '../../@types/OceanNode.js'
+import { DATABASE_TYPES, dhtFilterMethod } from '../../@types/OceanNode.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
 import {
   DEFAULT_SERVICE_MAX_DURATION_SECONDS,
@@ -265,10 +265,12 @@ export const FeeStrategySchema = z.object({
 })
 
 export const OceanNodeDBConfigSchema = z.object({
-  url: z.string().nullable(),
+  dbType: z.enum(DATABASE_TYPES, {
+    error: `DB_TYPE is required and must be one of: ${DATABASE_TYPES.join(', ')}`
+  }),
+  url: z.string().optional(),
   username: z.string().optional(),
-  password: z.string().optional(),
-  dbType: z.string().nullable()
+  password: z.string().optional()
 })
 
 export const PersistentStorageConfigSchema = z
@@ -1506,7 +1508,7 @@ export const OceanNodeConfigSchema = z
     DB_USERNAME: z.string().optional(),
     DB_PASSWORD: z.string().optional(),
     DB_TYPE: z.string().optional(),
-    dbConfig: OceanNodeDBConfigSchema.optional(),
+    dbConfig: OceanNodeDBConfigSchema,
     // Accept either an object (config file) or a JSON string (env var `PERSISTENT_STORAGE`),
     // and validate the parsed value against the PersistentStorage schema.
     persistentStorage: z
@@ -1751,11 +1753,60 @@ export const OceanNodeConfigSchema = z
     isEnterprise: booleanFromString.optional().default(false),
     validateUnsignedDDO: booleanFromString.optional().default(true),
     jwtSecret: z.string(),
+    instanceId: z.string().optional(),
+    // Scoped auth tokens (plan §8). All seconds.
+    // Hard cap on token lifetime — kills never-expiring tokens. Default 24h.
+    maxTokenLifetime: z.coerce.number().int().min(1).optional().default(86400),
+    // Behaviour when a foreign token's issuer is unreachable for the revocation dial (plan §7/§8.1).
+    tokenRevocationFallback: z
+      .enum(['closed', 'cache', 'open'])
+      .optional()
+      .default('cache'),
+    // Soft-fail grace: how long a still-valid positive cache entry is honored during an issuer
+    // outage, in `cache` mode only. 0 = fail-closed in cache mode. Default 5 min.
+    tokenSoftFailGrace: z.coerce.number().int().min(0).optional().default(300),
+    // How long a positive verdict suppresses re-dialing the issuer (success-path freshness).
+    // 0 = re-dial every request. Default 60s.
+    tokenRevalidateInterval: z.coerce.number().int().min(0).optional().default(60),
+    // Operator federation — lever B (plan §17.1). Master switch for honoring FOREIGN tokens.
+    allowCrossNodeTokens: booleanFromString.optional().default(false),
+    // Federation allowlist of issuer peerIds. Malformed entries are logged and dropped.
+    trustedTokenIssuers: jsonFromString(z.array(z.string()), 'trustedTokenIssuers')
+      .transform((val) => {
+        if (val === undefined) return []
+        if (!Array.isArray(val) || !val.every((v) => typeof v === 'string')) {
+          CONFIG_LOGGER.error(
+            'Invalid TRUSTED_TOKEN_ISSUERS: expected a JSON array of peerId strings, dropping to []'
+          )
+          return []
+        }
+        return val
+      })
+      .optional()
+      .default([]),
+    // OJ-03 (plan §14.4): dedicated per-caller rate limit (req/min) for the status
+    // challenge-signing path, separate bucket. 0 = disabled. Default small.
+    statusChallengeRateLimit: z.coerce.number().int().min(0).optional().default(10),
     httpCertPath: z.string().optional(),
     httpKeyPath: z.string().optional()
   })
   .passthrough()
   .superRefine((data, ctx) => {
+    // Lever B (plan §17.1): enabling cross-node tokens with an EMPTY allowlist is a clear
+    // misconfiguration (it would honor any foreign issuer) — fail fast, the node must not start.
+    if (
+      data.allowCrossNodeTokens === true &&
+      (!Array.isArray(data.trustedTokenIssuers) || data.trustedTokenIssuers.length === 0)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'ALLOW_CROSS_NODE_TOKENS is true but TRUSTED_TOKEN_ISSUERS is empty. Enabling cross-node ' +
+          'token validation requires a non-empty allowlist of issuer peerIds. Set TRUSTED_TOKEN_ISSUERS ' +
+          'or disable ALLOW_CROSS_NODE_TOKENS.',
+        path: ['trustedTokenIssuers']
+      })
+    }
     if (!data.hasHttp && !data.hasP2P) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

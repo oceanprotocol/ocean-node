@@ -78,7 +78,12 @@ describe('Maintenance mode — running job survives drain while new jobs are rej
     const nonce = Date.now().toString()
     const signature = await safeSign(
       consumerAccount,
-      createHashForSignature(consumerAddress, nonce, PROTOCOL_COMMANDS.FREE_COMPUTE_START)
+      createHashForSignature(
+        consumerAddress,
+        nonce,
+        PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+        oceanNode.getKeyManager().getPeerIdString()
+      )
     )
     return {
       command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
@@ -102,7 +107,12 @@ describe('Maintenance mode — running job survives drain while new jobs are rej
     const nonce = Date.now().toString()
     const signature = await safeSign(
       consumerAccount,
-      createHashForSignature(consumerAddress, nonce, PROTOCOL_COMMANDS.COMPUTE_STOP)
+      createHashForSignature(
+        consumerAddress,
+        nonce,
+        PROTOCOL_COMMANDS.COMPUTE_STOP,
+        oceanNode.getKeyManager().getPeerIdString()
+      )
     )
     const task: ComputeStopCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_STOP,
@@ -318,7 +328,8 @@ describe('Maintenance mode — running job survives drain while new jobs are rej
       createHashForSignature(
         consumerAddress,
         logsNonce,
-        PROTOCOL_COMMANDS.COMPUTE_GET_STREAMABLE_LOGS
+        PROTOCOL_COMMANDS.COMPUTE_GET_STREAMABLE_LOGS,
+        oceanNode.getKeyManager().getPeerIdString()
       )
     )
     const logs = await new ComputeGetStreamableLogsHandler(oceanNode).handle({
@@ -336,7 +347,8 @@ describe('Maintenance mode — running job survives drain while new jobs are rej
       createHashForSignature(
         consumerAddress,
         resNonce,
-        PROTOCOL_COMMANDS.COMPUTE_GET_RESULT
+        PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
+        oceanNode.getKeyManager().getPeerIdString()
       )
     )
     const result = await new ComputeGetResultHandler(oceanNode).handle({

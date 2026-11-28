@@ -4,11 +4,11 @@ import {
   OceanNodeProvider,
   OceanNodeIndexer,
   StorageTypes,
-  OceanNodeConfig
+  OceanNodeConfig,
+  AuthTokenPolicyStatus
 } from '../../../@types/OceanNode.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
-import { typesenseSchemas } from '../../database/TypesenseSchemas.js'
 import { SupportedNetwork } from '../../../@types/blockchain.js'
 import { humanizeHex } from '../../../utils/humanHash.js'
 import { getPackageVersion } from '../../../utils/version.js'
@@ -33,6 +33,29 @@ const platformInfo = {
   platform: os.platform(),
   osType: os.type(),
   node: process.version
+}
+
+// Node auth-token policy exposed in `status` (plan §17.2). Static config; safe in the cached
+// status object. `crossNode: 'open'` is intentionally unreachable (enabling with an empty
+// allowlist fails at startup), so an operator who wants to trust everyone must still enumerate.
+function buildAuthTokenPolicy(config: OceanNodeConfig): AuthTokenPolicyStatus {
+  const fallback = config.tokenRevocationFallback ?? 'cache'
+  const crossNode = config.allowCrossNodeTokens ? 'allowlist' : 'disabled'
+  const policy: AuthTokenPolicyStatus = {
+    maxTokenLifetime: config.maxTokenLifetime ?? 86400,
+    crossNode,
+    revocationFallback: fallback,
+    challengeSupported: true
+  }
+  // trustedIssuers exposed (user decision, plan §18.5 L2) — only meaningful in allowlist mode.
+  if (crossNode === 'allowlist') {
+    policy.trustedIssuers = config.trustedTokenIssuers ?? []
+  }
+  // softFailGrace is only consulted in 'cache' mode.
+  if (fallback === 'cache') {
+    policy.softFailGrace = config.tokenSoftFailGrace ?? 300
+  }
+  return policy
 }
 
 function getProviderInfo(config: OceanNodeConfig): OceanNodeProvider[] {
@@ -112,10 +135,13 @@ export async function status(
     const publicKeyHex = Buffer.from(publicKey).toString('hex')
 
     nodeStatus = {
-      id:
-        nodeId && nodeId !== undefined
-          ? nodeId
-          : oceanNode.getKeyManager().getPeerId().toString(), // get current node ID
+      // Always identify THIS serving node. `nodeStatus` is a shared module-level cache built
+      // once, and the caller-supplied `nodeId` (command `node`) would otherwise poison the
+      // cached `id` for every later request — including the root `GET /` identity endpoint that
+      // decryptDDO's `issuerPeerId` relies on. The handler still pins `id` to self on the
+      // challenged response; keeping the cache self-identified makes the unchallenged response
+      // agree. The `nodeId` param is retained for signature compatibility.
+      id: oceanNode.getKeyManager().getPeerId().toString(),
       publicKey: publicKeyHex,
       friendlyName: humanizeHex(publicKeyHex),
       address: oceanNode.getKeyManager().getEthAddress(),
@@ -136,13 +162,18 @@ export async function status(
   // need to update at least block info if available
   if (config.supportedNetworks) {
     nodeStatus.provider = getProviderInfo(config)
-    nodeStatus.indexer = await getIndexerInfo(oceanNode, config)
+    // NB: indexer status is intentionally NOT built here — it does a metadata-DB read per
+    // indexing chain and is populated for detailed status only (see the detailed branch below),
+    // so the basic/health-check path stays cheap and never blocks on the DB.
     for (const chain of Object.keys(config.supportedNetworks)) {
       nodeStatus.escrowAddress[chain] = oceanNode.escrow.getEscrowContractAddressForChain(
         parseInt(chain)
       )
     }
   }
+  // Seconds reserved to claim an escrow payment (added to maxJobDuration when locking funds).
+  // Set every request so a config reload never leaves a stale value.
+  nodeStatus.claimDurationTimeout = config.claimDurationTimeout
   // Per-chain Subsidy Provider contract addresses configured on this node (empty map when none
   // are set). Set on every request, independent of supportedNetworks, so the field is always
   // present and never retains a stale value the config no longer defines.
@@ -150,6 +181,10 @@ export async function status(
   nodeStatus.subsidyProviderFilter = config.subsidyProviderFilter ?? false
   // Per-subsidy-address docker image allowlist; empty map when unset (no gating).
   nodeStatus.subsidyProviderAllowedImages = config.subsidyProviderAllowedImages ?? {}
+  // Auth-token policy (plan §17.2). Static config; set every request (like subsidyProviders) so a
+  // config reload never leaves a stale value. `signedChallenge` is added per-request by the
+  // handler and is deliberately NOT part of this cached object.
+  nodeStatus.authTokenPolicy = buildAuthTokenPolicy(config)
   // getConfig() refreshes it from POLICY_SERVER_URL, so the cached status never goes stale.
   nodeStatus.isPSConfigured = config.isPSConfigured
   // Re-read on every request so the cached status follows NODE_OWNER_INFO changes.
@@ -183,14 +218,25 @@ export async function status(
     enabled: oceanNode.isInMaintenance()
   }
 
-  // depends on request
+  // depends on request. Built into LOCALS (not written to the shared, cached `nodeStatus`) and
+  // merged into a per-request shallow copy at the return below — same reasoning as the
+  // maintenance block: a concurrent basic request would otherwise `delete` these keys while a
+  // detailed request is populating them (and vice versa), racing on the shared object.
+  let c2dClusters: OceanNodeStatus['c2dClusters']
+  let supportedSchemas: OceanNodeStatus['supportedSchemas']
+  let indexer: OceanNodeStatus['indexer']
   if (detailed) {
-    nodeStatus.c2dClusters = []
+    // Indexer status reads lastIndexedBlock from the metadata DB once per indexing chain, so it
+    // only runs on the detailed path. Built into a local and merged into the per-request shallow
+    // copy at the return below (same reasoning as c2dClusters / maintenance): it is never written
+    // to the shared, cached `nodeStatus`, where a concurrent basic request could observe it.
+    indexer = await getIndexerInfo(oceanNode, config)
+    c2dClusters = []
     try {
       const engines = await oceanNode.getC2DEngines().getAllEngines()
       for (const engine of engines) {
         const type = await engine.getC2DType()
-        nodeStatus.c2dClusters.push({
+        c2dClusters.push({
           type,
           hash: await engine.getC2DConfig().hash,
           environments: await engine.getComputeEnvironments()
@@ -204,7 +250,7 @@ export async function status(
         `Error getting c2d clusters: ${error.message}`
       )
     }
-    nodeStatus.supportedSchemas = typesenseSchemas.ddoSchemas
+    supportedSchemas = (await oceanNode.getDatabase())?.ddo?.getSchemas()
 
     // Drain-visibility counts: how much already-committed work is still running, so an admin
     // can tell when the node is drained and safe to reboot. Wrapped in try/catch + throttled
@@ -268,9 +314,6 @@ export async function status(
         `Error computing maintenance drain counts: ${error.message}`
       )
     }
-  } else {
-    delete nodeStatus.c2dClusters
-    delete nodeStatus.supportedSchemas
   }
 
   // Assign the fully-built maintenance object once, after all awaits above, so a concurrent
@@ -283,6 +326,13 @@ export async function status(
       nodeStatus.persistentStorage.accessLists = config.persistentStorage.accessLists
     nodeStatus.persistentStorage.allowBucketSharing =
       config.persistentStorage.allowBucketSharing === true
+  }
+
+  // Detailed cluster data lives only on the per-request response, never on the shared cache.
+  // A basic request returns the shared object (which never carries these keys, so
+  // `c2dClusters` / `supportedSchemas` are absent as before).
+  if (detailed) {
+    return { ...nodeStatus, indexer, c2dClusters, supportedSchemas }
   }
   return nodeStatus
 }

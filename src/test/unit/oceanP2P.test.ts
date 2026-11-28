@@ -107,7 +107,6 @@ describe('OceanP2P Test without DB_URL set', () => {
     // NO need to mess more with process.env variables
     const config = await getConfiguration(true)
     config.dbConfig.url = ''
-    config.dbConfig.dbType = null
     // assert(config.dbConfig.url === '', 'DB URL should not be set')
     const keyManager = new KeyManager(config)
     const p2pNode = new OceanP2P(config, keyManager)

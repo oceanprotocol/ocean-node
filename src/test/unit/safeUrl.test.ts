@@ -153,7 +153,7 @@ describe('safeUrl: synchronous host checks', () => {
     expect(checkHostnameSync('')).to.equal('URL has no host')
     for (const host of [
       'example.com',
-      'typesense',
+      'elasticsearch',
       '8.8.8.8',
       '[2606:4700:4700::1111]'
     ]) {
@@ -185,7 +185,7 @@ describe('safeUrl: synchronous host checks', () => {
       expect(checkUrlHost(url, configWith()), url).to.equal(PRIVATE_URL_ERROR)
     }
     expect(checkUrlHost('https://example.com/a', configWith())).to.equal(null)
-    expect(checkUrlHost('http://typesense:8108/', configWith())).to.equal(null)
+    expect(checkUrlHost('http://elasticsearch:9200/', configWith())).to.equal(null)
     expect(checkUrlHost('not a url', configWith())).to.equal('Invalid URL')
     expect(checkUrlHost('http://10.0.0.1/', configWith(['10.0.0.0/8']))).to.equal(null)
   })
@@ -240,7 +240,7 @@ describe('safeUrl: storage validation', () => {
   it('UrlStorage still accepts public URLs and DNS names (checked at connect time)', () => {
     for (const url of [
       'https://example.com/file.json',
-      'http://typesense:8108/',
+      'http://elasticsearch:9200/',
       'http://172.15.0.7:80/'
     ]) {
       const storage = new UrlStorage({ type: 'url', url, method: 'get' }, config)

@@ -1,0 +1,138 @@
+import express from 'express'
+import { streamToString } from '../../utils/util.js'
+import { Readable } from 'stream'
+import {
+  DDO_API_BASE_PATH,
+  PROTOCOL_COMMANDS,
+  QUERY_API_PATH
+} from '../../utils/constants.js'
+import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { FindDdoHandler, ValidateDDOHandler } from '../core/handler/ddoHandler.js'
+import { QueryDdoStateHandler, QueryHandler } from '../core/handler/queryHandler.js'
+import { HTTP_LOGGER } from '../../utils/logging/common.js'
+import { QueryCommand } from '../../@types/commands.js'
+import type { DdoStateKey } from '../database/BaseDatabase.js'
+
+export const ddoRoutes = express.Router()
+
+// the query of the node: { type, filter, sort, page, size }
+ddoRoutes.post(QUERY_API_PATH, async (req, res) => {
+  try {
+    if (!req.body) {
+      res.status(400).send('Missing required body')
+      return
+    }
+
+    const result = await new QueryHandler(req.oceanNode).handle({
+      query: req.body,
+      command: PROTOCOL_COMMANDS.QUERY,
+      caller: req.caller
+    })
+    if (result.stream) {
+      const queryResult = JSON.parse(await streamToString(result.stream as Readable))
+      res.json(queryResult)
+    } else {
+      res.status(result.status.httpStatus).send(result.status.error)
+    }
+  } catch (error) {
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    res.status(500).send('Internal Server Error')
+  }
+})
+
+// before `/:did`, so "state" is not read as a DID
+ddoRoutes.get(`${DDO_API_BASE_PATH}/state`, async (req, res) => {
+  try {
+    const did = req.query.did ? String(req.query.did) : undefined
+    const nft = req.query.nft ? String(req.query.nft) : undefined
+    const txId = req.query.txId ? String(req.query.txId) : undefined
+    // with several keys, txId counts first, then nft
+    const key: DdoStateKey | undefined = txId
+      ? { txId }
+      : nft
+        ? { nft }
+        : did
+          ? { did }
+          : undefined
+
+    if (!key) {
+      res
+        .status(400)
+        .send(
+          'Missing or invalid required parameters, you need to specify one of: "did", "txId", "nft"'
+        )
+      return
+    }
+
+    const queryDdoState: QueryCommand = {
+      query: key,
+      command: PROTOCOL_COMMANDS.QUERY,
+      caller: req.caller
+    }
+    const result = await new QueryDdoStateHandler(req.oceanNode).handle(queryDdoState)
+
+    if (result.stream) {
+      const states = JSON.parse(await streamToString(result.stream as Readable))
+      if (states.length > 0) {
+        res.json(states[0])
+      } else {
+        res.status(404).send('Not found')
+      }
+    } else {
+      res.status(result.status.httpStatus).send(result.status.error)
+    }
+  } catch (error) {
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    res.status(500).send('Internal Server Error')
+  }
+})
+
+ddoRoutes.post(`${DDO_API_BASE_PATH}/validate`, async (req, res) => {
+  const node = req.oceanNode
+  try {
+    if (!req.body) {
+      res.status(400).send('Missing DDO object')
+      return
+    }
+
+    const result = await new ValidateDDOHandler(node).handle({
+      ddo: req.body.ddo || null,
+      publisherAddress: (req.body.publisherAddress as string) || null,
+      signature: (req.body.signature as string) || null,
+      nonce: (req.body.nonce as string) || null,
+      authorization: req.headers?.authorization,
+      command: PROTOCOL_COMMANDS.VALIDATE_DDO,
+      caller: req.caller
+    })
+
+    if (result.stream) {
+      const validationResult = JSON.parse(await streamToString(result.stream as Readable))
+      res.json(validationResult)
+    } else {
+      res.status(result.status.httpStatus).send(result.status.error)
+    }
+  } catch (error) {
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    res.status(500).send('Internal Server Error')
+  }
+})
+
+ddoRoutes.get(`${DDO_API_BASE_PATH}/:did{/:force}`, async (req, res) => {
+  try {
+    const { did, force } = req.params
+    if (!did || !did.startsWith('did:op')) {
+      res.status(400).send('Missing or invalid required parameter: "did"')
+      return
+    }
+    const forceFlag = force === 'true'
+    const ddo = await new FindDdoHandler(req.oceanNode).findAndFormatDdo(did, forceFlag)
+    if (ddo) {
+      res.json(ddo)
+    } else {
+      res.status(404).send('DDO not found')
+    }
+  } catch (error) {
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    res.status(500).send('Internal Server Error')
+  }
+})

@@ -15,7 +15,7 @@ authRoutes.post(
   express.json(),
   async (req, res) => {
     try {
-      const { signature, address, nonce, validUntil, chainId } = req.body
+      const { signature, address, nonce, validUntil, chainId, audience, scope } = req.body
 
       if (!signature || !address) {
         return res.status(400).json({ error: 'Missing required parameters' })
@@ -28,6 +28,9 @@ authRoutes.post(
         nonce,
         validUntil,
         chainId,
+        // v2 scoped auth tokens (plan §5.1). Forwarded as sent; the handler validates & caps.
+        audience,
+        scope,
         caller: req.caller
       })
 

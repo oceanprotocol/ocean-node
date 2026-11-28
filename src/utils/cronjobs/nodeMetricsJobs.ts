@@ -12,7 +12,7 @@ import {
   collectNodeMetricsSnapshot,
   hasFreshAggregate
 } from '../../components/core/utils/nodeMetricsHandler.js'
-import { floorToHour } from '../../components/database/sqliteNodeMetrics.js'
+import { HOUR_MS, floorToHour } from '../../components/database/nodeMetricsAggregate.js'
 import {
   getMetricsRetentionDays,
   isNodeMetricsHistoryEnabled
@@ -22,7 +22,6 @@ import {
 // which the request handler imports directly to avoid depending on this scheduler module.
 export { getMetricsRetentionDays, isNodeMetricsHistoryEnabled }
 
-const HOUR_MS = 60 * 60 * 1000
 const DEFAULT_SAMPLE_CRON = '* * * * *'
 // Raw minute samples are consumed by the hourly roll-up; this is only the safety window after
 // which any leftover samples are purged unconditionally.
@@ -51,9 +50,10 @@ export function scheduleNodeMetricsJobs(node: OceanNode, dbconn: Database | null
     return
   }
   const db = dbconn.nodeMetrics
+  const instanceId = node.getInstanceId()
 
   // 1. Minute sampler
-  scheduleCron(getSampleCronExpression(), () => {
+  scheduleCron(getSampleCronExpression(), async () => {
     try {
       // Skip when there is no fresh compute aggregate (metrics collection disabled or no
       // engine has sampled yet). Persisting all-zero rows would skew hourly averages.
@@ -68,7 +68,7 @@ export function scheduleNodeMetricsJobs(node: OceanNode, dbconn: Database | null
         return
       }
       const snapshot = collectNodeMetricsSnapshot(node)
-      db.insertSample(snapshot)
+      await db.insertSample(instanceId, snapshot)
       OCEAN_NODE_LOGGER.resetThrottle(SAMPLER_ERROR_THROTTLE_KEY)
     } catch (err) {
       OCEAN_NODE_LOGGER.throttled(
@@ -81,16 +81,16 @@ export function scheduleNodeMetricsJobs(node: OceanNode, dbconn: Database | null
   })
 
   // 2. Hourly roll-up at :05 — average each complete hour's samples, then drop consumed rows.
-  scheduleCron('5 * * * *', () => {
+  scheduleCron('5 * * * *', async () => {
     try {
       const currentHour = floorToHour(Date.now())
-      const pending = db.getPendingSampleHours(currentHour)
+      const pending = await db.getPendingSampleHours(instanceId, currentHour)
       let rolled = 0
       for (const hour of pending) {
-        if (db.rollupHour(hour)) rolled++
+        if (await db.rollupHour(instanceId, hour)) rolled++
       }
       // Safety net for any orphaned samples the roll-up did not consume.
-      const purged = db.purgeOldSamples(Date.now() - SAMPLE_BUFFER_MS)
+      const purged = await db.purgeOldSamples(instanceId, Date.now() - SAMPLE_BUFFER_MS)
       if (rolled > 0 || purged > 0) {
         OCEAN_NODE_LOGGER.debug(
           `Node metrics roll-up: ${rolled} hour(s) aggregated, ${purged} stale sample(s) purged.`
@@ -104,10 +104,10 @@ export function scheduleNodeMetricsJobs(node: OceanNode, dbconn: Database | null
   })
 
   // 3. Daily retention sweep at 03:07.
-  scheduleCron('7 3 * * *', () => {
+  scheduleCron('7 3 * * *', async () => {
     try {
       const cutoff = Date.now() - getMetricsRetentionDays() * 24 * HOUR_MS
-      const deleted = db.deleteHourlyOlderThan(cutoff)
+      const deleted = await db.deleteHourlyOlderThan(instanceId, cutoff)
       if (deleted > 0) {
         OCEAN_NODE_LOGGER.debug(
           `Node metrics retention: deleted ${deleted} hourly row(s) older than ${getMetricsRetentionDays()} days.`

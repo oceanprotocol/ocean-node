@@ -4,7 +4,6 @@ import {
   validateEscrowRanges,
   splitRanges,
   passesClientRanges,
-  buildTypesenseFilterBy,
   buildElasticQuery,
   NATIVE_RANGE_FIELDS,
   CLIENT_RANGE_FIELDS
@@ -192,42 +191,6 @@ describe('escrow search filter helpers', () => {
       expect(
         passesClientRanges({ amount: 'not-a-number' }, { amount: { min: '1' } })
       ).to.equal(false)
-    })
-  })
-
-  describe('buildTypesenseFilterBy', () => {
-    it('builds exact-match clauses and backtick-escapes strings', () => {
-      const out = buildTypesenseFilterBy({ chainId: 8996, payer: '0xABC' })
-      expect(out).to.contain('chainId:=8996')
-      expect(out).to.contain('payer:=`0xABC`')
-      expect(out).to.contain(' && ')
-    })
-
-    it('strips backticks from string values', () => {
-      const out = buildTypesenseFilterBy({ token: 'a`b' })
-      expect(out).to.equal('token:=`ab`')
-    })
-
-    it('emits range operators for range objects', () => {
-      const out = buildTypesenseFilterBy({ block: { min: 100, max: 200 } })
-      expect(out).to.equal('block:>=100 && block:<=200')
-      expect(buildTypesenseFilterBy({ block: { gt: 1, lt: 9 } })).to.equal(
-        'block:>1 && block:<9'
-      )
-    })
-
-    it('handles booleans and skips empty values', () => {
-      const out = buildTypesenseFilterBy({
-        reclaimable: true,
-        payee: undefined,
-        token: ''
-      })
-      expect(out).to.equal('reclaimable:=true')
-    })
-
-    it('ANDs an equality and a range on the same field (array value)', () => {
-      const out = buildTypesenseFilterBy({ chainId: [8996, { min: 1, max: 10 }] })
-      expect(out).to.equal('chainId:=8996 && chainId:>=1 && chainId:<=10')
     })
   })
 

@@ -141,12 +141,11 @@ const SERVICE_ENDPOINTS = [
   ['initialize', 'GET', '/api/services/initialize'],
   ['nonce', 'GET', '/api/services/nonce'],
   ['download', 'GET', '/api/services/download'],
-  // aquarius / assets / ddo
-  ['getDDO', 'GET', '/api/aquarius/assets/ddo/:did/:force?'],
-  ['getDDOMetadata', 'GET', '/api/aquarius/assets/metadata/:did/:force?'],
-  ['ddoMetadataQuery', 'POST', '/api/aquarius/assets/metadata/query'],
-  ['getDDOState', 'GET', '/api/aquarius/state/ddo'],
-  ['validateDDO', 'POST', '/api/aquarius/assets/ddo/validate'],
+  // ddo and query
+  ['getDDO', 'GET', '/api/ddo/:did/:force?'],
+  ['query', 'POST', '/api/query'],
+  ['getDDOState', 'GET', '/api/ddo/state'],
+  ['validateDDO', 'POST', '/api/ddo/validate'],
   // compute
   ['computeEnvironments', 'GET', '/api/services/computeEnvironments'],
   ['computeStart', 'POST', '/api/services/compute'],

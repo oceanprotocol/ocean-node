@@ -45,6 +45,7 @@ import { DEVELOPMENT_CHAIN_ID } from '../../utils/address.js'
 import { deployAndGetAccessListConfig } from '../utils/contracts.js'
 import { OceanNodeConfig, OceanNodeStatus } from '../../@types/OceanNode.js'
 import { KeyManager } from '../../components/KeyManager/index.js'
+import { createElasticsearchClientWithRetry } from '../../components/database/ElasticsearchConfigHelper.js'
 
 describe('**********         Persistent storage handlers (integration)', function () {
   this.timeout(DEFAULT_TEST_TIMEOUT)
@@ -124,6 +125,18 @@ describe('**********         Persistent storage handlers (integration)', functio
     consumer = (await provider.getSigner(1)) as Signer
   })
 
+  // an Elasticsearch index outlives the run: the buckets of an earlier run must not count
+  beforeEach(async () => {
+    if (config.dbConfig.dbType !== 'elasticsearch') return
+    const client = await createElasticsearchClientWithRetry(config.dbConfig)
+    await client.deleteByQuery({
+      index: 'buckets',
+      query: { match_all: {} },
+      refresh: true,
+      conflicts: 'proceed'
+    })
+  })
+
   after(async () => {
     await oceanNode.tearDownAll()
     await tearDownEnvironment(previousConfiguration)
@@ -157,7 +170,7 @@ describe('**********         Persistent storage handlers (integration)', functio
       })
     } as unknown as OceanNode
 
-    const backend = new PersistentStorageLocalFS(fakeNode)
+    const backend = new PersistentStorageLocalFS(fakeNode, database.buckets)
     try {
       const ownerAddress = await consumer.getAddress()
       const { bucketId } = await backend.createNewBucket([], ownerAddress)
@@ -182,7 +195,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     let messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     let signature = await safeSign(consumer, messageHashBytes)
 
@@ -209,7 +223,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(consumer, messageHashBytes)
     const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
@@ -230,7 +245,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_LIST_FILES
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_LIST_FILES,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(consumer, messageHashBytes)
     const listRes = await new PersistentStorageListFilesHandler(oceanNode).handle({
@@ -251,7 +267,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DELETE_FILE
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DELETE_FILE,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(consumer, messageHashBytes)
     const delRes = await new PersistentStorageDeleteFileHandler(oceanNode).handle({
@@ -271,7 +288,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_LIST_FILES
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_LIST_FILES,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(consumer, messageHashBytes)
     const listAfterDel = await new PersistentStorageListFilesHandler(oceanNode).handle({
@@ -294,7 +312,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     let messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     let signature = await safeSign(consumer, messageHashBytes)
 
@@ -316,7 +335,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(consumer, messageHashBytes)
     const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
@@ -334,7 +354,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_FILE_OBJECT
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_FILE_OBJECT,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(consumer, messageHashBytes)
     const objRes = await new PersistentStorageGetFileObjectHandler(oceanNode).handle({
@@ -360,7 +381,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     let messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     let signature = await safeSign(consumer, messageHashBytes)
 
@@ -383,7 +405,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(consumer, messageHashBytes)
     const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
@@ -402,7 +425,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DOWNLOAD_FILE
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DOWNLOAD_FILE,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(consumer, messageHashBytes)
     const downloadRes = await new PersistentStorageDownloadFileHandler(oceanNode).handle({
@@ -428,7 +452,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     messageHashBytes = createHashForSignature(
       strangerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DOWNLOAD_FILE
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DOWNLOAD_FILE,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(forbiddenConsumer, messageHashBytes)
     const deniedRes = await new PersistentStorageDownloadFileHandler(oceanNode).handle({
@@ -453,7 +478,8 @@ describe('**********         Persistent storage handlers (integration)', functio
       createHashForSignature(
         consumerAddress,
         nonce,
-        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+        oceanNode.getKeyManager().getPeerIdString()
       )
     )
     const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
@@ -478,7 +504,8 @@ describe('**********         Persistent storage handlers (integration)', functio
       createHashForSignature(
         consumerAddress,
         nonce,
-        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
+        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
+        oceanNode.getKeyManager().getPeerIdString()
       )
     )
     const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
@@ -518,7 +545,8 @@ describe('**********         Persistent storage handlers (integration)', functio
       createHashForSignature(
         consumerAddress,
         nonce,
-        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+        oceanNode.getKeyManager().getPeerIdString()
       )
     )
     const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
@@ -543,7 +571,8 @@ describe('**********         Persistent storage handlers (integration)', functio
       createHashForSignature(
         consumerAddress,
         nonce,
-        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
+        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
+        oceanNode.getKeyManager().getPeerIdString()
       )
     )
     const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
@@ -613,7 +642,8 @@ describe('**********         Persistent storage handlers (integration)', functio
       createHashForSignature(
         consumerAddress,
         nonce,
-        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+        oceanNode.getKeyManager().getPeerIdString()
       )
     )
     const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
@@ -637,7 +667,8 @@ describe('**********         Persistent storage handlers (integration)', functio
       createHashForSignature(
         consumerAddress,
         nonce,
-        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
+        PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
+        oceanNode.getKeyManager().getPeerIdString()
       )
     )
     const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
@@ -694,7 +725,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     const messageHashBytes = createHashForSignature(
       forbiddenConsumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     const signature = await safeSign(forbiddenConsumer, messageHashBytes)
 
@@ -718,7 +750,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     let messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     let signature = await safeSign(consumer, messageHashBytes)
 
@@ -741,7 +774,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     messageHashBytes = createHashForSignature(
       forbiddenConsumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_LIST_FILES
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_LIST_FILES,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(forbiddenConsumer, messageHashBytes)
     const listRes = await new PersistentStorageListFilesHandler(oceanNode).handle({
@@ -760,7 +794,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     messageHashBytes = createHashForSignature(
       forbiddenConsumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(forbiddenConsumer, messageHashBytes)
     const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
@@ -784,7 +819,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     let messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     let signature = await safeSign(consumer, messageHashBytes)
 
@@ -805,7 +841,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPLOAD_FILE,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(consumer, messageHashBytes)
     const uploadRes = await new PersistentStorageUploadFileHandler(oceanNode).handle({
@@ -824,7 +861,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     messageHashBytes = createHashForSignature(
       forbiddenConsumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_FILE_OBJECT
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_FILE_OBJECT,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(forbiddenConsumer, messageHashBytes)
 
@@ -849,7 +887,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     let messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     let signature = await safeSign(consumer, messageHashBytes)
 
@@ -870,7 +909,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_FILE_OBJECT
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_FILE_OBJECT,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(consumer, messageHashBytes)
 
@@ -894,7 +934,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     let messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     let signature = await safeSign(consumer, messageHashBytes)
 
@@ -915,7 +956,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DELETE_FILE
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_DELETE_FILE,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(consumer, messageHashBytes)
 
@@ -940,7 +982,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     let messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_BUCKETS
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_BUCKETS,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     let signature = await safeSign(consumer, messageHashBytes)
     const beforeCreate = await new PersistentStorageGetBucketsHandler(oceanNode).handle({
@@ -960,7 +1003,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(consumer, messageHashBytes)
     const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
@@ -979,7 +1023,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_BUCKETS
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_BUCKETS,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(consumer, messageHashBytes)
     const afterCreate = await new PersistentStorageGetBucketsHandler(oceanNode).handle({
@@ -1013,7 +1058,12 @@ describe('**********         Persistent storage handlers (integration)', functio
       const address = await signer.getAddress()
       const signature = await safeSign(
         signer,
-        createHashForSignature(address, nonce, command)
+        createHashForSignature(
+          address,
+          nonce,
+          command,
+          oceanNode.getKeyManager().getPeerIdString()
+        )
       )
       return {
         command,
@@ -1117,7 +1167,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     const messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     const signature = await safeSign(consumer, messageHashBytes)
     const validation = await new PersistentStorageCreateBucketHandler(oceanNode).validate(
@@ -1140,7 +1191,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     let messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     let signature = await safeSign(consumer, messageHashBytes)
     const label = 'my-dataset-bucket'
@@ -1163,7 +1215,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_BUCKETS
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_BUCKETS,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(consumer, messageHashBytes)
     const listRes = await new PersistentStorageGetBucketsHandler(oceanNode).handle({
@@ -1188,7 +1241,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     const messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     const signature = await safeSign(consumer, messageHashBytes)
     const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
@@ -1212,7 +1266,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     let messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     let signature = await safeSign(consumer, messageHashBytes)
     const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
@@ -1233,7 +1288,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPDATE_BUCKET
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPDATE_BUCKET,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(consumer, messageHashBytes)
     const updateRes = await new PersistentStorageUpdateBucketHandler(oceanNode).handle({
@@ -1254,7 +1310,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_BUCKETS
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_GET_BUCKETS,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(consumer, messageHashBytes)
     const listRes = await new PersistentStorageGetBucketsHandler(oceanNode).handle({
@@ -1277,7 +1334,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     let messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     let signature = await safeSign(consumer, messageHashBytes)
     const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
@@ -1297,7 +1355,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPDATE_BUCKET
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPDATE_BUCKET,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(consumer, messageHashBytes)
     const updateRes = await new PersistentStorageUpdateBucketHandler(oceanNode).handle({
@@ -1323,7 +1382,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     let messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     let signature = await safeSign(consumer, messageHashBytes)
     const createRes = await new PersistentStorageCreateBucketHandler(oceanNode).handle({
@@ -1342,7 +1402,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     messageHashBytes = createHashForSignature(
       forbiddenConsumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPDATE_BUCKET
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPDATE_BUCKET,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     signature = await safeSign(forbiddenConsumer, messageHashBytes)
     const updateRes = await new PersistentStorageUpdateBucketHandler(oceanNode).handle({
@@ -1365,7 +1426,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     const messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPDATE_BUCKET
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_UPDATE_BUCKET,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     const signature = await safeSign(consumer, messageHashBytes)
     const updateRes = await new PersistentStorageUpdateBucketHandler(oceanNode).handle({
@@ -1422,7 +1484,8 @@ describe('**********         Persistent storage handlers (integration)', functio
     const messageHashBytes = createHashForSignature(
       consumerAddress,
       nonce,
-      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET
+      PROTOCOL_COMMANDS.PERSISTENT_STORAGE_CREATE_BUCKET,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     const signature = await safeSign(consumer, messageHashBytes)
 

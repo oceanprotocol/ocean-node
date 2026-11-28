@@ -135,9 +135,69 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.SET_MAINTENANCE
 ]
 
+// ──────────────────────────────────────────────────────────────────────────────────────────
+// Scoped auth tokens (plan §5.3 / §15.2 / §16 / §18.1)
+// ──────────────────────────────────────────────────────────────────────────────────────────
+
+// Commands that may NOT appear in an auth-token `scope`. A client scoping to one of these is
+// rejected at creation (§5.3). This is a client-UX / belt-and-suspenders gate — the real
+// protection for DECRYPT_DDO and mutating-admin is TOKEN_INELIGIBLE_COMMANDS below.
+//
+// NOTE: the mirror of this list lives in ocean.js (`TOKEN_SCOPE_DISALLOWED`). There is no shared
+// package, so the two are kept in sync by hand — change both together.
+//
+// fetchConfig / getLogs are the two READ-ONLY admin commands and are intentionally NOT here:
+// they are scopable (an admin can mint `[getLogs, fetchConfig]` for a monitoring tool); the
+// ALLOWED_ADMINS gate still applies at consumption.
+export const DISALLOWED_TOKEN_SCOPE_COMMANDS: string[] = [
+  // per-resource ON-02 signature model, never a reusable bearer grant
+  PROTOCOL_COMMANDS.DECRYPT_DDO,
+  // mutating admin — destructive / fund-moving / config-changing
+  PROTOCOL_COMMANDS.STOP_NODE,
+  PROTOCOL_COMMANDS.STOP_JOB,
+  PROTOCOL_COMMANDS.REINDEX_TX,
+  PROTOCOL_COMMANDS.REINDEX_CHAIN,
+  PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
+  PROTOCOL_COMMANDS.COLLECT_FEES,
+  PROTOCOL_COMMANDS.PUSH_CONFIG,
+  PROTOCOL_COMMANDS.SET_MAINTENANCE,
+  // auth-management: a token must not be able to mint / revoke / validate tokens
+  PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
+  PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
+  PROTOCOL_COMMANDS.VALIDATE_AUTH_TOKEN
+]
+
+// The two read-only admin commands that MAY carry an auth token (and be scoped). Every other
+// admin command is signature-only (§16.2).
+export const TOKEN_READONLY_ADMIN_COMMANDS: string[] = [
+  PROTOCOL_COMMANDS.FETCH_CONFIG,
+  PROTOCOL_COMMANDS.GET_LOGS
+]
+
+// HIGH (§18.1): commands for which a bearer auth token is NEVER accepted at consumption, even an
+// UNRESTRICTED token (no scope claim). DECRYPT_DDO must keep its per-resource ON-02 signature
+// binding; the mutating-admin commands must require a fresh single-use nonce-bound signature.
+// Enforced centrally in `Auth.validateAuthenticationOrToken`. DISALLOWED_TOKEN_SCOPE_COMMANDS is
+// the scope-time belt; this set is the consumption-time suspenders.
+export const TOKEN_INELIGIBLE_COMMANDS: string[] = [
+  PROTOCOL_COMMANDS.DECRYPT_DDO,
+  PROTOCOL_COMMANDS.STOP_NODE,
+  PROTOCOL_COMMANDS.STOP_JOB,
+  PROTOCOL_COMMANDS.REINDEX_TX,
+  PROTOCOL_COMMANDS.REINDEX_CHAIN,
+  PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
+  PROTOCOL_COMMANDS.COLLECT_FEES,
+  PROTOCOL_COMMANDS.PUSH_CONFIG,
+  PROTOCOL_COMMANDS.SET_MAINTENANCE
+]
+
+// Creation-time list caps for a scoped token (bounds token size and signing cost, plan §5.3).
+export const MAX_TOKEN_AUDIENCE_ENTRIES = 16
+export const MAX_TOKEN_SCOPE_ENTRIES = 32
+
 // Maintenance (drain) mode. When enabled, the node refuses NEW commitment (compute/service
 // starts, initialize, extend) but keeps serving already-committed work. The flag persists in
-// the SQLite config DB under this key and is cached in memory on the OceanNode singleton.
+// the config DB under this key and is cached in memory on the OceanNode singleton.
 export const MAINTENANCE_MODE_CONFIG_KEY = 'maintenanceMode'
 // Stable machine-readable code clients discriminate on. 503 is already reused in these handlers
 // for "subsystem unavailable" (e.g. "Compute engines not configured"), so the status alone is
@@ -341,11 +401,6 @@ export interface EnvVariable {
   required: boolean
 }
 
-export const DB_TYPES = {
-  ELASTIC_SEARCH: 'elasticsearch',
-  TYPESENSE: 'typesense'
-}
-
 // Every P2P_* env var is derived from ENV_TO_CONFIG_MAPPING (src/utils/config/constants.ts),
 // which is the single source of truth for what the config system actually reads. Generating
 // them instead of hand-listing means the two lists can no longer drift apart.
@@ -390,7 +445,12 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.INDEXER_NETWORKS,
     required: false
   },
+  // sqlite (default), postgresql or elasticsearch; URL, username and password are for the
+  // last two only
+  DB_TYPE: { name: 'DB_TYPE', value: process.env.DB_TYPE, required: false },
   DB_URL: { name: 'DB_URL', value: process.env.DB_URL, required: false },
+  DB_USERNAME: { name: 'DB_USERNAME', value: process.env.DB_USERNAME, required: false },
+  DB_PASSWORD: { name: 'DB_PASSWORD', value: process.env.DB_PASSWORD, required: false },
   // these 2 bellow will change in the future (not required, just remove functionality)
   IPFS_GATEWAY: {
     name: 'IPFS_GATEWAY',
@@ -466,7 +526,7 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   },
   MAINTENANCE_MODE: {
     // boot the node directly into maintenance (drain) mode. "true" enables it; the value is
-    // written through to the SQLite config DB and is STICKY across restarts — returning to
+    // written through to the config DB and is STICKY across restarts — returning to
     // normal service requires an explicit `setMaintenance { enabled: false }` admin command
     // AND unsetting this env before the next restart.
     name: 'MAINTENANCE_MODE',
@@ -586,7 +646,7 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     required: false
   },
   LOG_DB: {
-    // log to the DB (Typesense / Elasticsearch)? default false. falls back to files when the
+    // log to the DB? default false. falls back to files when the
     // log DB is not available
     name: 'LOG_DB',
     value: process.env.LOG_DB,
@@ -632,11 +692,6 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     // (separate bucket from MAX_REQ_PER_MINUTE). 0 or unset = disabled.
     name: 'FILEINFO_MAX_REQ_PER_MINUTE',
     value: process.env.FILEINFO_MAX_REQ_PER_MINUTE,
-    required: false
-  },
-  DB_TYPE: {
-    name: 'DB_TYPE',
-    value: process.env.DB_TYPE,
     required: false
   },
   DB_INIT_MAX_ATTEMPTS: {
@@ -853,13 +908,61 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'NODE_METRICS_RETENTION_DAYS',
     value: process.env.NODE_METRICS_RETENTION_DAYS,
     required: false
+  },
+  INSTANCE_ID: {
+    name: 'INSTANCE_ID',
+    value: process.env.INSTANCE_ID,
+    required: false
+  },
+  // Scoped auth tokens (plan §8)
+  MAX_TOKEN_LIFETIME: {
+    // hard cap on auth-token lifetime in SECONDS (default 86400 = 24h). No infinite tokens.
+    name: 'MAX_TOKEN_LIFETIME',
+    value: process.env.MAX_TOKEN_LIFETIME,
+    required: false
+  },
+  TOKEN_REVOCATION_FALLBACK: {
+    // 'closed' | 'cache' | 'open' — behaviour when a foreign token's issuer is unreachable.
+    name: 'TOKEN_REVOCATION_FALLBACK',
+    value: process.env.TOKEN_REVOCATION_FALLBACK,
+    required: false
+  },
+  TOKEN_SOFTFAIL_GRACE: {
+    // seconds; soft-fail grace window, consulted only in 'cache' mode. 0 = fail-closed.
+    name: 'TOKEN_SOFTFAIL_GRACE',
+    value: process.env.TOKEN_SOFTFAIL_GRACE,
+    required: false
+  },
+  TOKEN_REVALIDATE_INTERVAL: {
+    // seconds; how long a positive revocation verdict suppresses re-dialing. 0 = every request.
+    name: 'TOKEN_REVALIDATE_INTERVAL',
+    value: process.env.TOKEN_REVALIDATE_INTERVAL,
+    required: false
+  },
+  ALLOW_CROSS_NODE_TOKENS: {
+    // lever B master switch (default false): honor FOREIGN (other-issuer) tokens at all.
+    name: 'ALLOW_CROSS_NODE_TOKENS',
+    value: process.env.ALLOW_CROSS_NODE_TOKENS,
+    required: false
+  },
+  TRUSTED_TOKEN_ISSUERS: {
+    // JSON array of issuer peerIds; federation allowlist. Required non-empty if cross-node is on.
+    name: 'TRUSTED_TOKEN_ISSUERS',
+    value: process.env.TRUSTED_TOKEN_ISSUERS,
+    required: false
+  },
+  STATUS_CHALLENGE_RATE_LIMIT: {
+    // OJ-03: req/min/caller for the status challenge-signing path (separate bucket). 0 = disabled.
+    name: 'STATUS_CHALLENGE_RATE_LIMIT',
+    value: process.env.STATUS_CHALLENGE_RATE_LIMIT,
+    required: false
   }
 }
 export const CONNECTION_HISTORY_DELETE_THRESHOLD = 300
 // 1 minute
 export const CONNECTIONS_RATE_INTERVAL = 60 * 1000
-// Typesense's maximum limit to send 250 hits at a time
-export const TYPESENSE_HITS_CAP = 250
+// page size for the client-side escrow range scan
+export const ESCROW_SCAN_PAGE_SIZE = 250
 
 // Upper bound on how many escrow rows the handler will scan from the store when a client-side
 // (BigInt) range filter is active. Keeps deep pagination bounded; beyond this the result is
@@ -877,3 +980,7 @@ export const isZeroPaymentTx = (tx: string | null | undefined): boolean =>
 export const DDO_IDENTIFIER_PREFIX = 'did:op:'
 // global ocean node API services path
 export const SERVICES_API_BASE_PATH = '/api/services'
+// DDO routes: resolve, state, validate
+export const DDO_API_BASE_PATH = '/api/ddo'
+// the DDO, order and tag search: the path of the `query` command
+export const QUERY_API_PATH = '/api/query'

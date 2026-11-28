@@ -100,7 +100,8 @@ describe('**********         Config Admin Endpoints Integration Tests', () => {
     const messageHashBytes = createHashForSignature(
       await adminAccount.getAddress(),
       nonce,
-      command
+      command,
+      oceanNode.getKeyManager().getPeerIdString()
     )
     const signature = await safeSign(adminAccount, messageHashBytes)
     return signature
@@ -156,7 +157,8 @@ describe('**********         Config Admin Endpoints Integration Tests', () => {
       const messageHashBytes = createHashForSignature(
         await nonAdminAccount.getAddress(),
         expiryTimestamp.toString(),
-        PROTOCOL_COMMANDS.FETCH_CONFIG
+        PROTOCOL_COMMANDS.FETCH_CONFIG,
+        oceanNode.getKeyManager().getPeerIdString()
       )
       const invalidSignature = await safeSign(nonAdminAccount, messageHashBytes)
 
@@ -316,7 +318,8 @@ describe('**********         Config Admin Endpoints Integration Tests', () => {
       const messageHashBytes = createHashForSignature(
         await nonAdminAccount.getAddress(),
         expiryTimestamp.toString(),
-        PROTOCOL_COMMANDS.FETCH_CONFIG
+        PROTOCOL_COMMANDS.FETCH_CONFIG,
+        oceanNode.getKeyManager().getPeerIdString()
       )
       const invalidSignature = await safeSign(nonAdminAccount, messageHashBytes)
 
