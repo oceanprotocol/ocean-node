@@ -337,9 +337,8 @@ jobs:
         with:
           persist-credentials: false
           repository: 'oceanprotocol/ocean-cli'
-          # the CLI without Aquarius (/api/query, /api/ddo); back to rc_3.0.0 when it is merged
-          ref: 'feat/node-neutral-query'
           path: 'ocean-cli'
+          ref: 'rc_3.0.0'
       - name: Checkout Ocean-js
         uses: actions/checkout@v7
         with:
