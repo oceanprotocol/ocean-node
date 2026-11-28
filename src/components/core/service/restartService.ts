@@ -21,6 +21,10 @@ import {
   normalizePortSpec,
   HostPortUnavailableError
 } from './utils.js'
+import {
+  validateSecureTls,
+  SECURE_TLS_UNAVAILABLE_MESSAGE
+} from '../../c2d/serviceTls.js'
 import { PersistentStorageAccessDeniedError } from '../../persistentStorage/PersistentStorageFactory.js'
 import {
   restartSubsidyDropped,
@@ -151,6 +155,27 @@ export class ServiceRestartHandler extends CommandHandler {
     if (!accessGranted)
       return { stream: null, status: { httpStatus: 403, error: 'Access denied' } }
 
+    // Port change is independent of REUSE/RESPEC: `ports` present ⇒ change ports, omitted ⇒
+    // keep the current ones. Only `ports` is honoured (not the legacy `exposedPorts`), so a
+    // client echoing a start body into a restart does not accidentally change ports.
+    const normalizedPorts =
+      task.ports !== undefined ? normalizePortSpec(task.ports, undefined) : undefined
+    const tlsError = validateSecureTls(
+      task.secureTls,
+      normalizedPorts?.exposedPorts ?? job.exposedPorts
+    )
+    if (tlsError)
+      return buildInvalidParametersResponse(buildInvalidRequestMessage(tlsError))
+    if (task.secureTls?.length && !runEnv.features?.secureTls)
+      return buildInvalidParametersResponse(
+        buildInvalidRequestMessage(SECURE_TLS_UNAVAILABLE_MESSAGE)
+      )
+    // A node whose config no longer allows TLS restarts an omitted list plain (no 400 loop)
+    const dropTls =
+      task.secureTls === undefined &&
+      !!job.secureTls?.length &&
+      !engine.serviceTlsConfigured()
+
     // State check — cannot restart an expired service
     if (job.status === ServiceStatusNumber.Expired)
       return buildInvalidParametersResponse(
@@ -223,17 +248,16 @@ export class ServiceRestartHandler extends CommandHandler {
         }
       }
 
+    if (dropTls)
+      CORE_LOGGER.info(
+        `service ${task.serviceId}: TLS no longer available, restarting without it`
+      )
     try {
       // Asynchronous, like SERVICE_START: engine.restartService validates, persists the
       // job as Restarting and returns immediately — the teardown + image pull/build +
       // new container run in the background (an image pull can take minutes and must
       // not block the HTTP/P2P response). Clients poll SERVICE_GET_STATUS and watch
       // Restarting → … → Running (or an Error status with the failure reason).
-      // Port change is independent of REUSE/RESPEC: `ports` present ⇒ change ports, omitted ⇒
-      // keep the current ones. Only `ports` is honoured (not the legacy `exposedPorts`), so a
-      // client echoing a start body into a restart does not accidentally change ports.
-      const normalizedPorts =
-        task.ports !== undefined ? normalizePortSpec(task.ports, undefined) : undefined
       const restarted = await engine.restartService(
         task.serviceId,
         task.consumerAddress,
@@ -247,7 +271,8 @@ export class ServiceRestartHandler extends CommandHandler {
         task.dockerEntrypoint,
         task.metadata,
         normalizedPorts?.exposedPorts,
-        normalizedPorts?.requestedHostPorts
+        normalizedPorts?.requestedHostPorts,
+        dropTls ? [] : task.secureTls
       )
       CORE_LOGGER.info(`Service ${task.serviceId} restarted by ${task.consumerAddress}`)
       return {

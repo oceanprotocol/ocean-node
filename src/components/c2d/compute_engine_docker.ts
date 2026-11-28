@@ -2,6 +2,7 @@
 import { Readable, PassThrough } from 'stream'
 import path from 'path'
 import {
+  C2DClusterType,
   C2DStatusNumber,
   C2DStatusText,
   DBComputeJobMetadata
@@ -93,8 +94,8 @@ import {
   DEFAULT_BUILD_TIMEOUT_SECONDS
 } from '../../@types/C2D/ServiceOnDemand.js'
 import type {
-  ServiceJob,
   ServiceEndpoint,
+  ServiceJob,
   ServiceImagePullProgress,
   ServiceModelDownload,
   ServiceReadiness
@@ -108,6 +109,8 @@ import {
   READY_PROBE_PERIOD_SECONDS,
   READINESS_WARN_AFTER_SECONDS
 } from './serviceReadiness.js'
+import { buildServiceEndpoints, tlsNameFor } from './serviceTls.js'
+import { CaddyProxy } from './caddyProxy.js'
 import { resolveServiceEngine, type ServiceEngineProfile } from './serviceEngines.js'
 import {
   buildModelDownload,
@@ -224,6 +227,18 @@ const logDockerCleanupError = (e: any, msg: string) =>
 // which a multi-process (one-worker-per-GPU) model server needs.
 const SERVICE_DEFAULT_PIDS_LIMIT = 512
 
+// A TLS port's host port belongs to Caddy, so the container does not publish it
+function servicePortBindings(endpoints: ServiceEndpoint[]) {
+  const PortBindings: Record<string, Array<{ HostPort: string }>> = {}
+  const ExposedPorts: Record<string, Record<string, never>> = {}
+  for (const ep of endpoints) {
+    ExposedPorts[`${ep.containerPort}/tcp`] = {}
+    if (!ep.tls)
+      PortBindings[`${ep.containerPort}/tcp`] = [{ HostPort: String(ep.hostPort) }]
+  }
+  return { PortBindings, ExposedPorts }
+}
+
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
 
@@ -305,6 +320,9 @@ export class C2DEngineDocker extends C2DEngine {
   // calls — so stop() can drain them before returning. Otherwise an op could outlive
   // stop() and race a restarted engine on the same shared DB.
   private serviceOpPromises: Set<Promise<unknown>> = new Set()
+  private caddy: CaddyProxy | null = null // only on the TLS engine
+  private tlsSync: Promise<boolean> = Promise.resolve(true)
+  private tlsSyncQueued = false
   private imageCleanupTimer: NodeJS.Timeout | null = null
   private paymentClaimTimer: NodeJS.Timeout | null = null
   private scanDBUpdateTimer: NodeJS.Timeout | null = null
@@ -330,7 +348,6 @@ export class C2DEngineDocker extends C2DEngine {
     config: OceanNodeConfig
   ) {
     super(clusterConfig, db, escrow, keyManager, config)
-
     this.docker = null
     if (clusterConfig.connection.socketPath) {
       try {
@@ -340,6 +357,13 @@ export class C2DEngineDocker extends C2DEngine {
           `C2D Engine ${clusterConfig.hash}: could not create Docker client (${clusterConfig.connection.socketPath}): ${e.message}`
         )
       }
+    }
+    if (this.docker && this.isTlsEngine()) {
+      this.caddy = new CaddyProxy(this.docker, keyManager.getEthAddress())
+      if (clusterConfig.connection.serviceOnDemand && !this.tlsNodeHost())
+        CORE_LOGGER.info(
+          "Service TLS off: set serviceOnDemand.nodeHost to the node's public IP or domain"
+        )
     }
     this.retentionDays = clusterConfig.connection.imageRetentionDays || 7
     this.cleanupInterval = clusterConfig.connection.imageCleanupInterval
@@ -963,6 +987,8 @@ export class C2DEngineDocker extends C2DEngine {
       await Promise.allSettled([...this.serviceProbesInFlight.values()])
       this.serviceProbesInFlight.clear()
     }
+    // A late Caddy load must not overwrite the next engine's config
+    await this.tlsSync
     this.isInternalLoopRunning = false
     // Release any GPU metrics backends (e.g. nvmlShutdown). Best-effort, never throws; the
     // optional chain also covers engines built without the constructor (e.g. test doubles).
@@ -1416,10 +1442,12 @@ export class C2DEngineDocker extends C2DEngine {
     // rather than overwriting it with a partial sum.
     let queuedTotal = 0
     let queuedFreeTotal = 0
+    const secureTls = !!this.caddy?.certReady
     // const systemInfo = this.docker ? await this.docker.info() : null
     for (const env of this.envs) {
       if (!chainId || (env.fees && Object.hasOwn(env.fees, String(chainId)))) {
         const computeEnv = JSON.parse(JSON.stringify(env))
+        computeEnv.features = { ...computeEnv.features, secureTls }
 
         // TO DO - At some point in time we need to handle multiple runtimes
         // console.log('********************************')
@@ -2393,6 +2421,11 @@ export class C2DEngineDocker extends C2DEngine {
             `expireService ${svc.serviceId} failed unexpectedly: ${e.message} — retrying next tick`
           )
         )
+      }
+      // Not awaited: a first sync can pull the Caddy image; at most one loop sync in flight
+      if (!this.tlsSyncQueued) {
+        this.tlsSyncQueued = true
+        this.syncServiceTls().finally(() => (this.tlsSyncQueued = false))
       }
       CORE_LOGGER.resetThrottle(`c2d-internal-loop-${this.getC2DConfig().hash}`)
     } catch (e) {
@@ -4850,7 +4883,8 @@ export class C2DEngineDocker extends C2DEngine {
     userData?: string,
     metadata?: DBComputeJobMetadata,
     outputBucketId?: string,
-    requestedHostPorts?: Record<string, number>
+    requestedHostPorts?: Record<string, number>,
+    secureTls?: number[]
   ): Promise<ServiceJob | null> {
     validateJobMetadataSize(metadata)
     const containerImage = resolveServiceImage(
@@ -4883,6 +4917,7 @@ export class C2DEngineDocker extends C2DEngine {
       exposedPorts,
       ...(requestedHostPorts ? { requestedHostPorts } : {}),
       endpoints: [],
+      secureTls,
       userData, // stored as received (ECIES-encrypted); decrypted transiently at container start
       metadata,
       outputBucketId,
@@ -5187,12 +5222,12 @@ export class C2DEngineDocker extends C2DEngine {
         throw e
       }
 
-      const nodeHost = sod?.nodeHost ?? 'localhost'
-      job.endpoints = job.exposedPorts.map((cp, i) => ({
-        containerPort: cp,
-        hostPort: hostPorts[i],
-        url: `http://${nodeHost}:${hostPorts[i]}`
-      }))
+      job.endpoints = buildServiceEndpoints(
+        job.exposedPorts,
+        hostPorts,
+        sod?.nodeHost ?? 'localhost',
+        job.secureTls
+      )
       // Ports are now tracked via job.endpoints; the pre-lock pinned reservations are subsumed
       // (a later failure follows the claimTx-based keep/release logic in the catch below).
       reservedPinned.length = 0
@@ -5210,12 +5245,7 @@ export class C2DEngineDocker extends C2DEngine {
       const cmd = job.dockerCmd?.length ? job.dockerCmd : undefined
       const entrypoint = job.dockerEntrypoint?.length ? job.dockerEntrypoint : undefined
 
-      const PortBindings: Record<string, Array<{ HostPort: string }>> = {}
-      const ExposedPorts: Record<string, Record<string, never>> = {}
-      job.exposedPorts.forEach((cp, i) => {
-        PortBindings[`${cp}/tcp`] = [{ HostPort: String(hostPorts[i]) }]
-        ExposedPorts[`${cp}/tcp`] = {}
-      })
+      const { PortBindings, ExposedPorts } = servicePortBindings(job.endpoints)
 
       const {
         Memory,
@@ -5378,6 +5408,57 @@ export class C2DEngineDocker extends C2DEngine {
       await container.remove({ force: true, v: true }).catch(() => {})
     }
     await this.removeServiceNetwork(serviceId, network?.id).catch(() => {})
+  }
+
+  private isTlsEngine(): boolean {
+    const cluster = this.getC2DConfig()
+    if (!cluster?.connection?.socketPath) return false
+    const first = this.getConfig()?.c2dClusters?.find(
+      (c) => c.type === C2DClusterType.DOCKER && c.connection?.socketPath
+    )
+    return first?.hash === cluster.hash
+  }
+
+  // Only the first local engine: Caddy runs on its host and dials container IPs
+  private tlsNodeHost(): string | null {
+    if (!this.caddy) return null
+    return tlsNameFor(this.getC2DConfig().connection.serviceOnDemand?.nodeHost)
+  }
+
+  // Config, not Caddy's state: a short Caddy failure must not drop a stored list
+  public override serviceTlsConfigured(): boolean {
+    return !!this.tlsNodeHost()
+  }
+
+  // Chained: a restart's sync must run after a loop sync that read older state. Reads the DB,
+  // not the loop's list, which skips services with an op in flight (an extend keeps TLS).
+  private syncServiceTls(): Promise<boolean> {
+    const { caddy } = this
+    if (!caddy) return Promise.resolve(true)
+    const cluster = this.getC2DConfig()
+    this.tlsSync = this.tlsSync
+      .then(() =>
+        caddy.sync(
+          this.tlsNodeHost(),
+          () => this.db.getRunningServiceJobs(cluster.hash),
+          cluster.connection.serviceOnDemand
+        )
+      )
+      .catch((e) => {
+        CORE_LOGGER.throttled(
+          `service-tls-sync-${cluster.hash}`,
+          'error',
+          `Service TLS: sync failed: ${e.message}`
+        )
+        return false
+      })
+    return this.tlsSync
+  }
+
+  // Caddy must let go of TLS host ports (except `stillTls`) before anything else publishes them
+  private freeTlsPorts(endpoints: ServiceEndpoint[], stillTls: number[] = []) {
+    const leaving = endpoints.some((ep) => ep.tls && !stillTls.includes(ep.containerPort))
+    return leaving ? this.syncServiceTls() : Promise.resolve(true)
   }
 
   // Removes a service's Docker network by BOTH the persisted id (when set) and the
@@ -6394,6 +6475,8 @@ export class C2DEngineDocker extends C2DEngine {
     // Only expiry ends the reservation; disk-stopped services remain reserved until now.
     const [stoppedJob] = await this.db.getServiceJob(svc.serviceId, svc.owner)
     if (stoppedJob) {
+      // Not Expired until Caddy frees the TLS ports: the next tick retries
+      if (!(await this.freeTlsPorts(stoppedJob.endpoints ?? []))) return
       delete stoppedJob.terminationReason
       stoppedJob.status = finalStatus
       stoppedJob.statusText = ServiceStatusText[finalStatus]
@@ -6559,7 +6642,8 @@ export class C2DEngineDocker extends C2DEngine {
     newDockerEntrypoint?: string[],
     newMetadata?: DBComputeJobMetadata,
     newExposedPorts?: number[],
-    newRequestedHostPorts?: Record<string, number>
+    newRequestedHostPorts?: Record<string, number>,
+    newSecureTls?: number[]
   ): Promise<ServiceJob | null> {
     // Metadata is independent of the container-param REUSE/RESPEC grouping: validate it up
     // front so a bad request is rejected before any teardown. Applied to the job below.
@@ -6705,10 +6789,12 @@ export class C2DEngineDocker extends C2DEngine {
             assignedHost.add(hp)
             resolvedHost.set(cp, hp)
           }
-          const newEndpoints: ServiceEndpoint[] = newExposedPorts.map((cp) => {
-            const hp = resolvedHost.get(cp) as number
-            return { containerPort: cp, hostPort: hp, url: `http://${nodeHost}:${hp}` }
-          })
+          const newEndpoints = buildServiceEndpoints(
+            newExposedPorts,
+            newExposedPorts.map((cp) => resolvedHost.get(cp) as number),
+            nodeHost,
+            newSecureTls ?? job.secureTls
+          )
           portChangeOldEndpoints = job.endpoints
           job.exposedPorts = newExposedPorts
           if (newRequestedHostPorts && Object.keys(newRequestedHostPorts).length)
@@ -6726,6 +6812,7 @@ export class C2DEngineDocker extends C2DEngine {
       // Replace the stored metadata only when the request carries a new bag; otherwise the
       // original labels are kept untouched (independent of the container-param REUSE/RESPEC).
       if (newMetadata !== undefined) job.metadata = newMetadata
+      if (newSecureTls !== undefined) job.secureTls = newSecureTls
       await this.db.updateServiceJob(job)
     } catch (e) {
       // Release any host ports newly reserved for a port change that was never handed to the
@@ -6894,12 +6981,16 @@ export class C2DEngineDocker extends C2DEngine {
     // field initializers, which is how the unit tests construct one.)
     this.serviceProbeUrls?.delete(serviceId)
     await this.db.updateServiceJob(job)
-
     // Live Docker handles for the newly-created container/network, tracked so the
     // catch block can tear them down on failure (otherwise the network leaks).
     let network: Dockerode.Network | null = null
     let container: Dockerode.Container | null = null
     try {
+      const tlsFreed = oldEndpoints
+        ? await this.freeTlsPorts(oldEndpoints)
+        : await this.freeTlsPorts(job.endpoints, job.secureTls)
+      if (!tlsFreed)
+        throw new Error('Caddy did not release the TLS ports; try again later')
       const sod = this.getC2DConfig().connection?.serviceOnDemand
 
       // Atomic restart. An image spec on the request (RESPEC mode) rebuilds the whole
@@ -6970,13 +7061,14 @@ export class C2DEngineDocker extends C2DEngine {
       const cmd = effDockerCmd?.length ? effDockerCmd : undefined
       const entrypoint = effDockerEntrypoint?.length ? effDockerEntrypoint : undefined
 
-      // 5. Rebuild port bindings — reuse already-allocated host ports
-      const PortBindings: Record<string, Array<{ HostPort: string }>> = {}
-      const ExposedPorts: Record<string, Record<string, never>> = {}
-      job.endpoints.forEach((ep) => {
-        PortBindings[`${ep.containerPort}/tcp`] = [{ HostPort: String(ep.hostPort) }]
-        ExposedPorts[`${ep.containerPort}/tcp`] = {}
-      })
+      // 5. Rebuild endpoints + port bindings — same host ports
+      job.endpoints = buildServiceEndpoints(
+        job.endpoints.map((ep) => ep.containerPort),
+        job.endpoints.map((ep) => ep.hostPort),
+        sod?.nodeHost ?? 'localhost',
+        job.secureTls
+      )
+      const { PortBindings, ExposedPorts } = servicePortBindings(job.endpoints)
 
       // 6. New per-service network
       network = await this.createServiceNetwork(serviceId)

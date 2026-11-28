@@ -457,6 +457,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/serviceStart`, async (req, res) =>
     // arrays, non-scalar objects) still reach validation and produce a 400 rather
     // than being silently swallowed by `|| undefined`.
     metadata: req.body.metadata ?? undefined,
+    secureTls: req.body.secureTls ?? undefined,
     outputBucketId: (req.body.outputBucketId as string) || undefined,
     payment: req.body.payment,
     // Tri-state preserved: undefined = use node config, [] = no providers, array = use these.
@@ -522,6 +523,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/serviceRestart`, async (req, res) 
     metadata: req.body.metadata ?? undefined,
     // Restart accepts ONLY `ports` (not the legacy `exposedPorts`) — see ServiceRestartCommand.
     ports: (req.body.ports as ServicePortRequest[]) || undefined,
+    secureTls: req.body.secureTls ?? undefined,
     authorization: req.headers?.authorization,
     caller: req.caller
   }

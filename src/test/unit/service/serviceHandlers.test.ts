@@ -15,6 +15,7 @@ import { ServiceRestartHandler } from '../../../components/core/service/restartS
 import { ServiceGetStreamableLogsHandler } from '../../../components/core/service/getStreamableLogs.js'
 import { SubsidyGateError } from '../../../components/core/utils/subsidyProviders.js'
 import { PersistentStorageAccessDeniedError } from '../../../components/persistentStorage/PersistentStorageFactory.js'
+import { SECURE_TLS_UNAVAILABLE_MESSAGE } from '../../../components/c2d/serviceTls.js'
 import { HostPortUnavailableError } from '../../../components/core/service/utils.js'
 
 // Checksummed (EIP-55): commands are canonicalized on ingress, so this is the form handlers
@@ -60,6 +61,13 @@ const TEMPLATE = {
   exposedPorts: [8888]
 }
 
+// createServiceJob(..., metadata, outputBucketId, requestedHostPorts, secureTls)
+const START_METADATA_ARG = 15
+const START_BUCKET_ARG = 16
+const START_SECURE_TLS_ARG = 18
+// restartService(..., metadata, newExposedPorts, newRequestedHostPorts, secureTls)
+const RESTART_SECURE_TLS_ARG = 13
+
 interface FakeOpts {
   serviceEnabled?: boolean
   // per-env service cap; omitted → the env inherits the daemon's 86400
@@ -67,6 +75,8 @@ interface FakeOpts {
   // per-env service floor; omitted → the env has none (no minJobDuration on the fake env)
   minServiceDuration?: number
   serviceJobInDb?: ServiceJob | null
+  secureTls?: boolean // env.features.secureTls; off by default
+  tlsConfigured?: boolean // engine.serviceTlsConfigured(); defaults to secureTls
   cost?: number | null
   envId?: string
   streamableLogs?: Readable | null
@@ -77,7 +87,8 @@ function buildFakes(opts: FakeOpts = {}) {
     id: opts.envId ?? 'env-1',
     features: {
       computeJobs: true,
-      services: opts.serviceEnabled !== false
+      services: opts.serviceEnabled !== false,
+      ...(opts.secureTls ? { secureTls: true } : {})
     },
     resources: [{ id: 'cpu', kind: 'fungible', total: 8, min: 1, max: 8 }],
     ...(opts.maxServiceDuration === undefined
@@ -118,6 +129,7 @@ function buildFakes(opts: FakeOpts = {}) {
     },
     escrow,
     getComputeEnvironments: sinon.stub().resolves([env]),
+    serviceTlsConfigured: sinon.stub().returns(opts.tlsConfigured ?? !!opts.secureTls),
     // hash must match makeJob's clusterHash: handlers resolve the owning engine by it
     getC2DConfig: sinon.stub().returns({
       hash: 'hash-1',
@@ -665,6 +677,74 @@ describe('Service handlers', () => {
       } as any)
       expect(res.status.httpStatus).to.equal(200)
       expect(engine.restartService.calledOnce).to.equal(true)
+    })
+
+    describe('secureTls', () => {
+      it('400 when the env has no TLS', async () => {
+        const { node, engine } = buildFakes({ serviceJobInDb: makeJob() })
+        const res = await new ServiceRestartHandler(node).handle({
+          ...baseTask,
+          secureTls: [8888]
+        } as any)
+        expect(res.status.httpStatus).to.equal(400)
+        expect(String(res.status.error)).to.contain('TLS is not available')
+        expect(engine.restartService.called).to.equal(false)
+      })
+
+      it('omitted list on a node whose config lost TLS: restarts plain ([])', async () => {
+        const { node, engine } = buildFakes({
+          serviceJobInDb: makeJob({ secureTls: [8888] })
+        })
+        const res = await new ServiceRestartHandler(node).handle({ ...baseTask } as any)
+        expect(res.status.httpStatus).to.equal(200)
+        expect(
+          engine.restartService.firstCall.args.at(RESTART_SECURE_TLS_ARG)
+        ).to.deep.equal([])
+      })
+
+      it('omitted list while Caddy is not synced yet keeps the stored list', async () => {
+        const { node, engine } = buildFakes({
+          serviceJobInDb: makeJob({ secureTls: [8888] }),
+          tlsConfigured: true
+        })
+        const res = await new ServiceRestartHandler(node).handle({ ...baseTask } as any)
+        expect(res.status.httpStatus).to.equal(200)
+        expect(engine.restartService.firstCall.args.at(RESTART_SECURE_TLS_ARG)).to.equal(
+          undefined
+        )
+      })
+
+      it('forwards a valid list', async () => {
+        const { node, engine } = buildFakes({
+          serviceJobInDb: makeJob(),
+          secureTls: true
+        })
+        const list = [8888]
+        const res = await new ServiceRestartHandler(node).handle({
+          ...baseTask,
+          secureTls: list
+        } as any)
+        expect(res.status.httpStatus).to.equal(200)
+        expect(
+          engine.restartService.firstCall.args.at(RESTART_SECURE_TLS_ARG)
+        ).to.deep.equal(list)
+      })
+
+      it('checks the list against the new "ports"', async () => {
+        const { node, engine } = buildFakes({
+          serviceJobInDb: makeJob(),
+          secureTls: true
+        })
+        const res = await new ServiceRestartHandler(node).handle({
+          ...baseTask,
+          ports: [{ containerPort: 9000 }],
+          secureTls: [9000]
+        } as any)
+        expect(res.status.httpStatus).to.equal(200)
+        expect(
+          engine.restartService.firstCall.args.at(RESTART_SECURE_TLS_ARG)
+        ).to.deep.equal([9000])
+      })
     })
 
     it('maps the engine backstop SubsidyGateError to 403 (not 500)', async () => {
@@ -1287,10 +1367,52 @@ describe('Service handlers', () => {
       expect(res.status.httpStatus).to.equal(403)
     })
 
+    describe('secureTls', () => {
+      const tlsTask = { ...baseTask, exposedPorts: [8188] }
+
+      it('400 with the rejection message when the env has no TLS', async () => {
+        const { node, engine } = buildFakes()
+        const res = await new ServiceStartHandler(node).handle({
+          ...tlsTask,
+          secureTls: [8188]
+        } as any)
+        expect(res.status.httpStatus).to.equal(400)
+        expect(String(res.status.error)).to.contain(SECURE_TLS_UNAVAILABLE_MESSAGE)
+        expect(engine.createServiceJob.called).to.equal(false)
+      })
+
+      it('passes the list to createServiceJob', async () => {
+        const { node, engine } = buildFakes({ secureTls: true })
+        const list = [8188]
+        const res = await new ServiceStartHandler(node).handle({
+          ...tlsTask,
+          secureTls: list
+        } as any)
+        expect(res.status.httpStatus).to.equal(200)
+        expect(
+          engine.createServiceJob.firstCall.args.at(START_SECURE_TLS_ARG)
+        ).to.deep.equal(list)
+      })
+
+      it('accepts a port given only in "ports"', async () => {
+        const { node, engine } = buildFakes({ secureTls: true })
+        const res = await new ServiceStartHandler(node).handle({
+          ...baseTask,
+          exposedPorts: undefined,
+          ports: [{ containerPort: 8188 }],
+          secureTls: [8188]
+        } as any)
+        expect(res.status.httpStatus).to.equal(200)
+        expect(
+          engine.createServiceJob.firstCall.args.at(START_SECURE_TLS_ARG)
+        ).to.deep.equal([8188])
+      })
+    })
+
     // createServiceJob arg order (see compute_engine_docker.createServiceJob):
     // (env, image, tag, checksum, dockerfile, addFiles, cmd, entrypoint, exposedPorts[8],
     //  resources, duration, owner, payment, serviceId, userData, metadata, outputBucketId,
-    //  requestedHostPorts[17])
+    //  requestedHostPorts[17], secureTls[18])
     it('400 when "ports" has a duplicate containerPort, without creating a job', async () => {
       const { node, engine } = buildFakes()
       const res = await new ServiceStartHandler(node).handle({
@@ -1523,9 +1645,9 @@ describe('Service handlers', () => {
         outputBucketId: 'bucket-42'
       } as any)
       expect(res.status.httpStatus).to.equal(200)
-      // signature tail: (..., metadata[15], outputBucketId[16], requestedHostPorts[17]).
-      // Explicit index, not .at(-1): requestedHostPorts is now the trailing arg.
-      expect(engine.createServiceJob.lastCall.args[16]).to.equal('bucket-42')
+      expect(engine.createServiceJob.lastCall.args.at(START_BUCKET_ARG)).to.equal(
+        'bucket-42'
+      )
     })
 
     it('forwards user metadata to createServiceJob (before outputBucketId)', async () => {
@@ -1536,9 +1658,9 @@ describe('Service handlers', () => {
         metadata
       } as any)
       expect(res.status.httpStatus).to.equal(200)
-      // signature tail: (..., serviceId[13], userData[14], metadata[15], outputBucketId[16],
-      // requestedHostPorts[17]). Explicit index, not .at(-2), for the same reason.
-      expect(engine.createServiceJob.firstCall.args[15]).to.deep.equal(metadata)
+      expect(engine.createServiceJob.firstCall.args.at(START_METADATA_ARG)).to.deep.equal(
+        metadata
+      )
     })
 
     it('400 fail-fast when metadata exceeds 1 KB, before any job is created', async () => {

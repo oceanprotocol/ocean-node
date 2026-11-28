@@ -485,6 +485,7 @@ export interface ServiceStartCommand extends Command {
   // Preferred port spec: container→host pairs with optional pinned host port. When present it
   // supersedes `exposedPorts` (a warning is logged if both are sent).
   ports?: ServicePortRequest[]
+  secureTls?: number[] // container ports served over HTTPS
   resources?: ComputeResourceRequest[]
   duration: number // seconds; capped by serviceOnDemand.maxDurationSeconds
   userData?: string // ECIES-encrypted (to the node's public key) JSON object → the container's env-var map
@@ -587,6 +588,7 @@ export interface ServiceRestartCommand extends Command {
   userData?: string // ECIES-encrypted (to the node's public key) JSON → container env-var map
   dockerCmd?: string[] // exact container command (Docker exec-form CMD override; no shell)
   dockerEntrypoint?: string[] // container ENTRYPOINT override
+  secureTls?: number[] // not a container param; replaces the stored list when present
   // NOT a container param — independent of the REUSE/RESPEC discriminator above and never
   // triggers RESPEC mode. When present it REPLACES the stored metadata; when omitted the
   // original metadata is kept untouched.

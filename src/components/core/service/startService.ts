@@ -33,6 +33,10 @@ import {
   resolveUserSubsidyProviders
 } from '../utils/subsidyProviders.js'
 import { maintenanceGuard } from '../utils/maintenance.js'
+import {
+  validateSecureTls,
+  SECURE_TLS_UNAVAILABLE_MESSAGE
+} from '../../c2d/serviceTls.js'
 
 export class ServiceStartHandler extends CommandHandler {
   validate(command: ServiceStartCommand): ValidateParams {
@@ -129,6 +133,11 @@ export class ServiceStartHandler extends CommandHandler {
             error: 'Services are not enabled on this environment'
           }
         }
+
+      if (task.secureTls?.length && !env.features?.secureTls)
+        return buildInvalidParametersResponse(
+          buildInvalidRequestMessage(SECURE_TLS_UNAVAILABLE_MESSAGE)
+        )
 
       // 1b. Access-list gate (mirrors paid compute → 403). The signature only proves
       //     control of consumerAddress, not allowlist membership, so this must be
@@ -228,6 +237,9 @@ export class ServiceStartHandler extends CommandHandler {
         task.ports,
         task.exposedPorts
       )
+      const tlsError = validateSecureTls(task.secureTls, normExposedPorts)
+      if (tlsError)
+        return buildInvalidParametersResponse(buildInvalidRequestMessage(tlsError))
       if (requestedHostPorts) {
         const range = engine.getC2DConfig().connection?.serviceOnDemand
           ?.hostPortRange ?? [30000, 32767]
@@ -381,7 +393,8 @@ export class ServiceStartHandler extends CommandHandler {
         task.userData,
         task.metadata,
         task.outputBucketId,
-        requestedHostPorts
+        requestedHostPorts,
+        task.secureTls
       )
 
       CORE_LOGGER.info(

@@ -93,6 +93,7 @@ export interface ServiceTemplate {
   dockerfile?: string // inline Dockerfile content — triggers build; mutually exclusive with tag/checksum
   additionalDockerFiles?: Record<string, string> // filename → content; only valid with dockerfile
   exposedPorts: number[]
+  secureTls?: number[] // HTTP ports clients should request over HTTPS; a subset of exposedPorts
   envVars?: Record<string, string> // fixed env vars — operator-set, never returned to callers
   userConfigurableEnvVars?: UserConfigurableEnvVar[]
   command?: string[] // Docker CMD override; ${KEY} expanded from userData
@@ -136,6 +137,7 @@ export const DEFAULT_BUILD_TIMEOUT_SECONDS = 300 // 5 min
 export interface ServiceOnDemandConfig {
   enabled: boolean
   nodeHost: string // host (or IP) clients use to reach forwarded service ports; e.g. 'localhost'
+  letsEncryptAcmePath?: string // host path of an acme.json (Traefik format) with a cert for nodeHost
   hostPortRange?: [number, number] // e.g. [30000, 32767]; specific to this daemon's host
   minDurationSeconds?: number // default: DEFAULT_SERVICE_MIN_DURATION_SECONDS (no daemon floor)
   maxDurationSeconds?: number // default: DEFAULT_SERVICE_MAX_DURATION_SECONDS (24 h)
@@ -220,7 +222,8 @@ export interface ServiceLogArchive {
 export interface ServiceEndpoint {
   containerPort: number
   hostPort: number
-  url: string // e.g. "http://<nodeHost>:31042"
+  url: string // e.g. "http://<nodeHost>:31042"; "https://…" when `tls`
+  tls?: boolean
 }
 
 /* eslint-disable no-unused-vars */
@@ -314,6 +317,7 @@ export interface ServiceJob {
   // auto (pre-feature shape). Drives host-port reservation at start/restart.
   requestedHostPorts?: Record<string, number>
   endpoints: ServiceEndpoint[]
+  secureTls?: number[] // container ports served over HTTPS
   userData?: string // ECIES(node key) string sent by the client; stored as-is, decrypted only at start/restart; never returned
   // Arbitrary, node-opaque user labels (≤1 KB when JSON-stringified). Set at SERVICE_START,
   // optionally replaced at SERVICE_RESTART. Returned only to the owner via toPublicServiceJob

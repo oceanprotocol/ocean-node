@@ -82,12 +82,12 @@ longer use (the bucket was deleted, or it belongs to someone else and bucket sha
 disabled or the owner was removed from its access list) is refused with `403` before
 anything is torn down, so the running container is left as it was.
 
-**Restart can change the image — atomically.** A restart is either *all-old* or *all-new*;
+**Restart can change the image — atomically.** A restart is either _all-old_ or _all-new_;
 it never mixes new request params over the stored job:
 
 - **REUSE mode** — send no container params and the service restarts on exactly its stored
   spec (image, `userData`, `dockerCmd`, `dockerEntrypoint`).
-- **RESPEC mode** — send *any* container param and the container is rebuilt entirely from the
+- **RESPEC mode** — send _any_ container param and the container is rebuilt entirely from the
   request. `image` is then **required** and exactly one of `tag`/`checksum`/`dockerfile` applies
   (validated like `serviceStart`); `userData`/`dockerCmd`/`dockerEntrypoint` are taken as-sent,
   so anything omitted is empty — never inherited from the old job.
@@ -221,6 +221,38 @@ instances on other hosts) cannot run conflicting operations on the same service.
 every 30 s while the operation runs; a lease not refreshed for 2 minutes belongs to a
 crashed process and is stolen automatically, so no manual cleanup is ever needed.
 
+## HTTPS endpoints (`secureTls`)
+
+`serviceStart` and `serviceRestart` take an optional `secureTls` list of container ports to
+serve over HTTPS:
+
+```json
+"secureTls": [8188, 8189]
+```
+
+- **HTTP ports only.** The node ends TLS and proxies plain HTTP (websockets and streaming
+  included) to the container. Leave non-HTTP ports (SSH, Redis, …) out of the list: they are
+  published plain, and the image must secure them itself.
+- **Endpoints.** Each endpoint has `tls: true|false`. A secure port's `url` is
+  `https://<nodeHost>:<hostPort>`; the other ports keep `http://<nodeHost>:<hostPort>`.
+- **Caddy.** TLS is done by a Caddy container that the node starts and manages (see
+  [networking.md](networking.md#service-tls-the-caddy-proxy)). The node sends Caddy one server
+  per secure port over Caddy's admin API: it listens on the host port, serves the certificate
+  for `nodeHost` and proxies to the container IP on the service network. The service container
+  publishes only the other ports. The node's service loop sends a changed set at once and an
+  unchanged one every minute.
+- **TLS only, no auth.** The node does not check who calls the port; all headers, including
+  `Authorization`, go to the container unchanged. Authentication is the image's own job: the
+  templates gate their ports with their `SERVICE_PASSWORD`.
+- **Restart.** Host ports never change. How a restart keeps, replaces or drops the list:
+  see `serviceRestart` in [API.md](API.md).
+- **When it is available.** An environment advertises `features.secureTls: true` in
+  GET_COMPUTE_ENVIRONMENTS only when it is the node's first local Docker environment
+  (`socketPath`), its `nodeHost` is a public IP or a domain, and Caddy accepted the node's
+  last update. Otherwise a request with a non-empty `secureTls` is rejected before any payment.
+- **The certificate.** Caddy gets and renews it; see
+  [networking.md](networking.md#service-tls-the-caddy-proxy).
+
 ## Readiness and startup progress
 
 `Running` only means the container started. For workloads it recognizes, the node also reports
@@ -335,15 +367,16 @@ first, which keeps them available after the session ends:
 
 Service-on-demand is configured per Docker connection under `serviceOnDemand`:
 
-| Field | Meaning |
-| --- | --- |
-| `enabled` | Master switch for the feature on this connection. |
-| `nodeHost` | Externally reachable host used to build endpoint URLs. |
-| `hostPortRange` | `[start, end]` range the node allocates published host ports from. |
-| `minDurationSeconds` | Hard floor under a service's duration for this daemon (default 0 — no floor). An environment may raise it with its own `minServiceDuration`; a smaller per-env value is clamped up to this one at startup, with a warning. |
-| `maxDurationSeconds` | Hard ceiling on a service's lifetime for this daemon (default 86400). An environment may lower it with its own `maxServiceDuration`; a larger per-env value is clamped to this one at startup, with a warning. |
-| `allowImageBuild` | If true, consumers may submit an inline `dockerfile` to build. |
-| `buildTimeoutSeconds` | Max wall-clock seconds an inline-`dockerfile` build may run before it is aborted. Separate from the service duration and capped at it. Optional; defaults to `300`. An environment may override it per-env with its own `buildTimeoutSeconds`. |
+| Field                 | Meaning                                                                                                                                                                                                                                                      |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `enabled`             | Master switch for the feature on this connection.                                                                                                                                                                                                            |
+| `nodeHost`            | Externally reachable host used to build endpoint URLs. A public IP or domain is also the name of the node's TLS certificate (see [HTTPS endpoints](#https-endpoints-securetls)).                                                                             |
+| `letsEncryptAcmePath` | Optional. Host path of an `acme.json` (Traefik's format), on nodes where another proxy holds ports 80 and 443: service TLS then uses its certificate for `nodeHost` (see [networking.md](networking.md#nodes-where-a-proxy-already-holds-ports-80-and-443)). |
+| `hostPortRange`       | `[start, end]` range the node allocates published host ports from.                                                                                                                                                                                           |
+| `minDurationSeconds`  | Hard floor under a service's duration for this daemon (default 0 — no floor). An environment may raise it with its own `minServiceDuration`; a smaller per-env value is clamped up to this one at startup, with a warning.                                   |
+| `maxDurationSeconds`  | Hard ceiling on a service's lifetime for this daemon (default 86400). An environment may lower it with its own `maxServiceDuration`; a larger per-env value is clamped to this one at startup, with a warning.                                               |
+| `allowImageBuild`     | If true, consumers may submit an inline `dockerfile` to build.                                                                                                                                                                                               |
+| `buildTimeoutSeconds` | Max wall-clock seconds an inline-`dockerfile` build may run before it is aborted. Separate from the service duration and capped at it. Optional; defaults to `300`. An environment may override it per-env with its own `buildTimeoutSeconds`.               |
 
 Whether a given environment accepts services is gated by its `features.services` flag,
 and access can be restricted with the environment's `access` allow-list
@@ -459,10 +492,10 @@ huggingface.co on every start, because a service container starts with an empty 
 A node can point every service at a local caching mirror instead, so the second and later
 starts of the same model are served from the host's disk. Off by default; two env vars:
 
-| Env var | Config field | Meaning |
-| --- | --- | --- |
-| `SERVICE_HF_MIRROR_URL` | `serviceHfMirrorUrl` | Mirror URL as **service containers** reach it, e.g. `http://172.17.0.1:8092`. When set, every service gets `HF_ENDPOINT=<url>` and `HF_HUB_DISABLE_XET=1`. Must be `http://` or `https://`; anything else is logged and the feature stays off (the node still starts). |
-| `SERVICE_HF_CLIENT_PATCH` | `serviceHfClientPatch` | Ship the node's download-client patch into services (see below). Defaults to `true` when a mirror is set, `false` otherwise; `false` turns it off, `true` without a mirror applies the patch alone. |
+| Env var                   | Config field           | Meaning                                                                                                                                                                                                                                                                |
+| ------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SERVICE_HF_MIRROR_URL`   | `serviceHfMirrorUrl`   | Mirror URL as **service containers** reach it, e.g. `http://172.17.0.1:8092`. When set, every service gets `HF_ENDPOINT=<url>` and `HF_HUB_DISABLE_XET=1`. Must be `http://` or `https://`; anything else is logged and the feature stays off (the node still starts). |
+| `SERVICE_HF_CLIENT_PATCH` | `serviceHfClientPatch` | Ship the node's download-client patch into services (see below). Defaults to `true` when a mirror is set, `false` otherwise; `false` turns it off, `true` without a mirror applies the patch alone.                                                                    |
 
 Only **service** containers get any of this; compute jobs are unchanged.
 
@@ -645,7 +678,7 @@ then `docker network rm t`.
 - **⚠️ Low ports won't bind inside the container.** Because `CapDrop: ['ALL']` removes
   `NET_BIND_SERVICE`, a process **inside** the container cannot bind to a container port
   below 1024. Have your service listen on a **high port** (the externally published
-  *host* port is allocated by the node from `hostPortRange` regardless). If a specific
+  _host_ port is allocated by the node from `hostPortRange` regardless). If a specific
   image genuinely needs a low in-container port, that requires explicitly adding
   `CapAdd: ['NET_BIND_SERVICE']` in the engine — it is intentionally not enabled by
   default.
@@ -685,9 +718,9 @@ then `docker network rm t`.
   that address; results are restricted to services owned by it, so one consumer cannot
   read another's job records or endpoint URLs. That said, a published service endpoint is
   still reachable by anyone who learns or guesses its URL — the node only port-forwards
-  and does not authenticate traffic to the container, so put your own authentication in
-  front of any sensitive service and do not rely on endpoint-URL secrecy as access
-  control.
+  (or, with `secureTls`, adds TLS) and does not authenticate traffic to the container, so
+  put your own authentication in front of any sensitive service and do not rely on
+  endpoint-URL secrecy as access control.
 
 - **`serviceStreamableLogs` is authenticated and owner-scoped, like `serviceStatus`.**
   Container stdout/stderr can leak secrets or sensitive request data, so the same

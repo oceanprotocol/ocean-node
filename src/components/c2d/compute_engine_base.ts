@@ -154,7 +154,8 @@ export abstract class C2DEngine {
     userData?: string, // ECIES-encrypted; the engine decrypts it transiently into the container env
     metadata?: DBComputeJobMetadata,
     outputBucketId?: string,
-    requestedHostPorts?: Record<string, number> // pinned host ports keyed by containerPort
+    requestedHostPorts?: Record<string, number>, // pinned host ports keyed by containerPort
+    secureTls?: number[]
   ): Promise<ServiceJob | null> {
     return null
   }
@@ -183,6 +184,11 @@ export abstract class C2DEngine {
     return await fn()
   }
 
+  // Whether this engine's config allows TLS service ports (C2DEngineDocker overrides)
+  public serviceTlsConfigured(): boolean {
+    return false
+  }
+
   // Restart is atomic: when an image spec is supplied (RESPEC mode) the whole container is
   // rebuilt from these params; when it is absent (REUSE mode) the stored spec is reused.
   // eslint-disable-next-line require-await
@@ -199,7 +205,8 @@ export abstract class C2DEngine {
     newDockerEntrypoint?: string[],
     newMetadata?: DBComputeJobMetadata,
     newExposedPorts?: number[], // present ⇒ change ports; undefined ⇒ keep current
-    newRequestedHostPorts?: Record<string, number> // pinned host ports keyed by containerPort
+    newRequestedHostPorts?: Record<string, number>, // pinned host ports keyed by containerPort
+    newSecureTls?: number[]
   ): Promise<ServiceJob | null> {
     return null
   }

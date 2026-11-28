@@ -2157,6 +2157,12 @@ and SERVICE_START rejects a `duration` outside it:
 
 Environments on the same engine may therefore report different values for both.
 
+`features` (`{ computeJobs, services, secureTls? }`) tells what an environment accepts.
+`secureTls: true` means service ports can be served over HTTPS (`secureTls` in `serviceStart` /
+`serviceRestart`): the environment is the node's first local Docker environment, its `nodeHost`
+is a public IP or a domain, and the node's Caddy accepted the last update. An older
+node omits it; treat a missing value as `false`.
+
 Both fields are additive, and an older node omits them. Their fallbacks differ, so treat each
 separately:
 
@@ -2730,6 +2736,7 @@ Operator-published blueprint. Secret `envVars` values are never returned — onl
 | image                       | string   | base image                                               |
 | tag / checksum / dockerfile | string   | image spec — exactly one                                 |
 | exposedPorts                | number[] | container ports to forward                               |
+| secureTls                   | number[] | HTTP ports to request over HTTPS (subset of exposedPorts) |
 | envVarKeys                  | string[] | keys of operator-set env vars (values never returned)    |
 | userConfigurableEnvVars     | object[] | `{ key, validation?, sensitive? }` passed via `userData` |
 | command / entrypoint        | string[] | Docker CMD / ENTRYPOINT overrides                        |
@@ -2768,14 +2775,15 @@ The encrypted `userData` is never returned. Key fields:
 | environment    | string   | envId the service runs on                                                                                                                                                                                                                                                                       |
 | owner          | string   | consumerAddress                                                                                                                                                                                                                                                                                 |
 | status         | number   | `10` Starting, `20` Locking, `11` PullImage, `13` BuildImage, `30` Claiming, `40` Running, `12` PullImageFailed, `14` BuildImageFailed, `15` VulnerableImage, `50` Stopping, `70` Stopped, `75` Expired, `76` DiskQuotaExceeded (restartable/editable like Stopped until expiresAt), `99` Error |
-| statusText     | string   | human-readable status                                                                                                                                                                                                                                                                           |
-| dateCreated    | string   | ISO timestamp                                                                                                                                                                                                                                                                                   |
-| expiresAt      | number   | Unix ms timestamp when the paid window ends                                                                                                                                                                                                                                                     |
-| duration       | number   | requested seconds                                                                                                                                                                                                                                                                               |
-| endpoints      | object[] | `{ containerPort, hostPort, url }` per exposed port                                                                                                                                                                                                                                             |
-| resources      | object[] | `{ id, amount, price }`                                                                                                                                                                                                                                                                         |
-| payment        | object   | initial start payment record                                                                                                                                                                                                                                                                    |
-| extendPayments | object[] | one entry per successful extend                                                                                                                                                                                                                                                                 |
+| statusText     | string   | human-readable status                                                                                                                                                                                               |
+| dateCreated    | string   | ISO timestamp                                                                                                                                                                                                       |
+| expiresAt      | number   | Unix ms timestamp when the paid window ends                                                                                                                                                                         |
+| duration       | number   | requested seconds                                                                                                                                                                                                   |
+| endpoints      | object[] | `{ containerPort, hostPort, url, tls }` per exposed port. `tls: true` → `url` is `https://<nodeHost>:<hostPort>` (served by the node's Caddy); otherwise `http://`                                                  |
+| secureTls      | number[] | container ports served over HTTPS; absent when none                                                                                                                                                                 |
+| resources      | object[] | `{ id, amount, price }`                                                                                                                                                                                             |
+| payment        | object   | initial start payment record                                                                                                                                                                                        |
+| extendPayments | object[] | one entry per successful extend                                                                                                                                                                                     |
 
 ---
 
@@ -2869,7 +2877,8 @@ should keep watching `serviceStatus`, not just stop once they first see `Running
 | duration                     | number   | v        | seconds; capped by `serviceOnDemand.maxDurationSeconds`           |
 | userData                     | string   |          | ECIES-encrypted (to the node pubkey) JSON of env vars             |
 | metadata                     | object   |          | arbitrary user labels (`string`/`number`/`boolean` values, ≤1 KB JSON); node-opaque. Returned on both `serviceStatus` and `serviceList` |
-| payment                      | object   | v        | `{ chainId, token }`                                                                                                                    |
+| secureTls                    | number[] |          | exposed HTTP container ports to serve over HTTPS (unique). Needs `features.secureTls` on the environment (else 400). TLS only: authentication is the image's own job. See [services.md](services.md#https-endpoints-securetls) |
+| payment                      | object   | v        | `{ chainId, token }`                                              |
 
 #### Response (200)
 
@@ -3065,6 +3074,7 @@ RESPEC mode (restart on a new image spec — `image` required, plus at most one 
 | dockerCmd             | string[] |          | exact container command (Docker exec-form CMD override)                                                                                                                         |
 | dockerEntrypoint      | string[] |          | container ENTRYPOINT override                                                                                                                                                   |
 | metadata              | object   |          | user labels (≤1 KB JSON). **Not** a container param — independent of REUSE/RESPEC. When present it **replaces** the stored metadata; when omitted the original metadata is kept |
+| secureTls             | number[] |          | container ports, like `serviceStart`. **Not** a container param. When present it **replaces** the stored list (`[]` turns TLS off); when omitted the stored list is kept. A non-empty list needs `features.secureTls` (else 400). An omitted list drops TLS only when the node's config no longer allows it (e.g. `nodeHost` is now private); while TLS is only temporarily unavailable, the stored list is kept |
 | ports                 | object[] |          | `{ containerPort, hostPort? }[]` — change the ports, optionally **pinning** host ports (`hostPort` omitted = auto-allocate). Independent of REUSE/RESPEC (no `image` required). Validated/reserved up front: an unavailable requested host port is rejected and the running service is **left untouched**; on success the old host ports are freed after teardown and the `endpoints`/URLs change. Omitted ⇒ keep current ports. (The legacy `exposedPorts` field is **not** read on restart — use `ports`.) |
 
 #### Response (200)

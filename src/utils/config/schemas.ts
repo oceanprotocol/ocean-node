@@ -722,6 +722,7 @@ export const ServiceTemplateSchema = z
     dockerfile: z.string().min(1).optional(),
     additionalDockerFiles: z.record(z.string(), z.string()).optional(),
     exposedPorts: z.array(z.number().int().min(1).max(65535)).min(1),
+    secureTls: z.array(z.number().int()).optional(),
     envVars: z.record(z.string(), z.string()).optional(),
     userConfigurableEnvVars: z.array(UserConfigurableEnvVarSchema).optional(),
     command: z.array(z.string()).optional(),
@@ -881,6 +882,7 @@ export const ServiceOnDemandConfigSchema = z
   .object({
     enabled: z.boolean(),
     nodeHost: z.string().min(1),
+    letsEncryptAcmePath: z.string().startsWith('/').optional(),
     hostPortRange: z
       .tuple([z.number().int().min(1024), z.number().int().max(65535)])
       .refine((r) => !r || r[0] < r[1], {

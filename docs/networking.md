@@ -110,6 +110,49 @@ When a TLS certificate is provisioned successfully, you will see logs like:
 ----- End of TLS addresses -----
 ```
 
+## Service TLS: the Caddy proxy
+
+Services can serve their ports over HTTPS (see [services.md](services.md#https-endpoints-securetls)).
+TLS is done by the official [Caddy](https://caddyserver.com/) image. The node starts and manages
+it; you do not add it to your compose file.
+
+- The node runs one container, `ocean-node-caddy` (`caddy:2.11.9-alpine`, host network,
+  restart `always`, certificates in the `ocean-node-caddy-data` volume). It sends Caddy the
+  config with `docker exec`, to Caddy's admin API on the host's `127.0.0.1:2019`.
+- Only the first local (`socketPath`) Docker environment does this, with its
+  `serviceOnDemand.nodeHost` as the certificate name: a public IP or a domain. With
+  `localhost` or a private IP, service TLS is off and the node logs one line asking you to set
+  it.
+- The node sends the config when the services change, and again every minute (so a restarted
+  Caddy gets it back). An environment shows `features.secureTls: true` only after Caddy
+  accepted the last config. Caddy's log: `docker logs ocean-node-caddy`.
+- Open the service `hostPortRange` (TCP), as for plain services: Caddy listens on the secure
+  host ports.
+- One ocean-node with service TLS per Docker host: Caddy binds the host's port 80 and admin port 2019. A second node finds `ocean-node-caddy` owned by the first and keeps TLS off.
+
+### Certificate from Let's Encrypt (default)
+
+Caddy gets and renews a Let's Encrypt certificate for `nodeHost` on its own, with the
+`shortlived` profile (needed for IP certificates). **Port 80 must be free**: Let's Encrypt
+checks the name with an HTTP request on port 80, and Caddy (host network) answers it.
+
+### Nodes where a proxy already holds ports 80 and 443
+
+If another proxy (for example Traefik) holds ports 80 and 443, it answers every certificate
+check there. Caddy cannot get a certificate, and IP certificates are not possible. Caddy then
+uses the Let's Encrypt certificate that the proxy already has for your domain. The proxy does
+not change, and it keeps renewing the certificate.
+
+1. Set `serviceOnDemand.nodeHost` to a domain that the proxy has a certificate for (for example
+   `cp1.oncompute.ai`).
+2. Set `serviceOnDemand.letsEncryptAcmePath` to the **host** path of the proxy's `acme.json` (for
+   example `/home/ubuntu/ocean/letsencrypt/acme.json`). The file must be in Traefik's
+   `acme.json` format. The node mounts it read-only into Caddy; the node cannot read it itself,
+   because the file is owned by root with mode 600.
+
+The node copies the certificate for `nodeHost` into Caddy, and copies it again after a renewal.
+In this mode Caddy does not bind port 80.
+
 ## Verifying Connectivity
 
 ### Check how your node sees itself
